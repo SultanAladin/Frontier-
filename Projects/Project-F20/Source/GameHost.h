@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/GameHost.h — Standalone Racing Game Lifecycle Host and Runtime Coordinator
+// 📦 Project-F20/Source/GameHost.h — Standalone Racing Game Lifecycle Host and Runtime Coordinator
 //============================================================================================================================================
 
 #pragma once
@@ -13,7 +13,7 @@
 #include "TrackSequence.h"
 #include <memory>
 
-namespace ConvergenceGTX {
+namespace Frontier::ProjectF20 {
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                     GAME HOST
@@ -57,4 +57,4 @@ inline float GameHost::Convert<float>() const noexcept
     return Vehicle ? Vehicle->Convert<float>() : 0.0f;
 }
 
-} // namespace ConvergenceGTX
+} // namespace Frontier::ProjectF20

@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Shaders/VolumetricCloud.comp — High-Altitude Volumetric Cloud Raymarching Compute Shader
+// 📦 Project-F20/Shaders/AsphaltMaterial.comp — Procedural Asphalt Road Surface and Wetness Material Compute Shader
 //============================================================================================================================================
 
 #version 460
@@ -10,20 +10,17 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 //                                                    STORAGE BINDINGS
 //------------------------------------------------------------------------------------------------------------------------
 
-layout(std430, binding = 0) writeonly buffer CloudOutputExtent
+layout(std430, binding = 0) writeonly buffer RoadSurfaceOutputExtent
 {
-    vec4 CloudScatteringField[];                        // [lux] output cloud in-scattering and transmittance
+    vec4 SurfaceAttributes[];                           // [0..1] albedo, roughness, metallic, wetness
 };
 
 layout(push_constant) uniform PushConstants
 {
-    mat4 InverseViewProjection;                         // [-] camera unprojection transform
-    vec4 SunDirection;                                  // [-] directional sun vector
-    vec4 SunRadiance;                                   // [lux] sun radiant intensity
     uint ViewportWidth;                                 // [px] viewport width
     uint ViewportHeight;                                // [px] viewport height
-    float CloudLayerBaseAltitude;                       // [m] cloud bottom altitude
-    float CloudLayerTopAltitude;                        // [m] cloud top altitude
+    float TrackPuddleWetnessRatio;                      // [0..1] rain wetness level
+    float TireGrooveDeformation;                        // [0..1] tire mark wear factor
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -39,5 +36,5 @@ void main()
     }
 
     uint LinearPixelIndex = PixelCoord.y * ViewportWidth + PixelCoord.x;
-    // Evaluates multi-octave 3D Perlin-Worley fractal noise and Beer-Lambert transmittance
+    // Evaluates multi-frequency asphalt micro-roughness and Fresnel specular water puddles
 }

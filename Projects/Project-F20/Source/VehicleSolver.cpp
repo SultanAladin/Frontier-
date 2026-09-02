@@ -1,12 +1,12 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/VehicleSolver.cpp — Vehicle Dynamics Simulation Implementation
+// 📦 Project-F20/Source/VehicleSolver.cpp — Vehicle Dynamics Simulation Implementation
 //============================================================================================================================================
 
 #include "VehicleSolver.h"
 #include <algorithm>
 #include <cmath>
 
-namespace ConvergenceGTX {
+namespace Frontier::ProjectF20 {
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                LIFECYCLE IMPLEMENTATION
@@ -77,4 +77,4 @@ void VehicleSolver::AdvanceVehicle(float SteeringRequest, float ThrottleRequest,
     }
 }
 
-} // namespace ConvergenceGTX
+} // namespace Frontier::ProjectF20

@@ -95,22 +95,22 @@ if(NOT MSVC)
     target_link_libraries(FrontierEngine PRIVATE pthread)
 endif()
 
-# Standalone Game Target (Convergence GTX)
-set(CONVERGENCE_GTX_SOURCES
+# Standalone Game Target (Project-F20)
+set(PROJECT_F20_SOURCES
     ${FRONTIER_ENGINE_SOURCES}
-    Projects/ConvergenceGTX/Source/VehicleStructure.h
-    Projects/ConvergenceGTX/Source/VehicleSolver.h
-    Projects/ConvergenceGTX/Source/VehicleSolver.cpp
-    Projects/ConvergenceGTX/Source/TrackSequence.h
-    Projects/ConvergenceGTX/Source/TrackSequence.cpp
-    Projects/ConvergenceGTX/Source/GameHost.h
-    Projects/ConvergenceGTX/Source/GameHost.cpp
-    Projects/ConvergenceGTX/Source/GameExecution.cpp
+    Projects/Project-F20/Source/VehicleStructure.h
+    Projects/Project-F20/Source/VehicleSolver.h
+    Projects/Project-F20/Source/VehicleSolver.cpp
+    Projects/Project-F20/Source/TrackSequence.h
+    Projects/Project-F20/Source/TrackSequence.cpp
+    Projects/Project-F20/Source/GameHost.h
+    Projects/Project-F20/Source/GameHost.cpp
+    Projects/Project-F20/Source/GameExecution.cpp
 )
 
-add_executable(ConvergenceGTX ${CONVERGENCE_GTX_SOURCES})
-target_include_directories(ConvergenceGTX PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Projects/ConvergenceGTX)
+add_executable(Project-F20 ${PROJECT_F20_SOURCES})
+target_include_directories(Project-F20 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-F20)
 
 if(NOT MSVC)
-    target_link_libraries(ConvergenceGTX PRIVATE pthread)
+    target_link_libraries(Project-F20 PRIVATE pthread)
 endif()

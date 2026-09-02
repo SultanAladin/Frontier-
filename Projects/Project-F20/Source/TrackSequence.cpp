@@ -1,11 +1,11 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/TrackSequence.cpp — Track Waypoints and Lap Timing Implementation
+// 📦 Project-F20/Source/TrackSequence.cpp — Track Waypoints and Lap Timing Implementation
 //============================================================================================================================================
 
 #include "TrackSequence.h"
 #include <cmath>
 
-namespace ConvergenceGTX {
+namespace Frontier::ProjectF20 {
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                LIFECYCLE IMPLEMENTATION
@@ -62,4 +62,4 @@ void TrackSequence::AdvanceTracking(const Frontier::Vector3& VehiclePosition, fl
     }
 }
 
-} // namespace ConvergenceGTX
+} // namespace Frontier::ProjectF20

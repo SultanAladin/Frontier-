@@ -1,5 +1,5 @@
 #=============================================================================================================================================
-# 📦 ConvergenceGTX/Makefile — High-Performance Incremental Linux Compilation for Convergence GTX
+# 📦 Project-F20/Makefile — High-Performance Incremental Linux Compilation for Project-F20
 #=============================================================================================================================================
 
 CXX := g++
@@ -49,7 +49,7 @@ ENGINE_OBJS := \
 	$(ENGINE_DIR)/DisplayPresentation/FidelityClassifier.o \
 	$(ENGINE_DIR)/DisplayPresentation/FrontierHost.o
 
-TARGET := bin/ConvergenceGTX
+TARGET := bin/Project-F20
 
 .PHONY: all clean run
 
@@ -69,4 +69,4 @@ run: $(TARGET)
 	./$(TARGET)
 
 clean:
-	rm -rf $(GAME_OBJS) bin/ConvergenceGTX
+	rm -rf $(GAME_OBJS) bin/Project-F20

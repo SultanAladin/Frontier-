@@ -1,10 +1,10 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/GameHost.cpp — Racing Game Host Implementation
+// 📦 Project-F20/Source/GameHost.cpp — Racing Game Host Implementation
 //============================================================================================================================================
 
 #include "GameHost.h"
 
-namespace ConvergenceGTX {
+namespace Frontier::ProjectF20 {
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                LIFECYCLE IMPLEMENTATION
@@ -29,7 +29,7 @@ bool GameHost::LaunchGame(uint32_t Width, uint32_t Height) noexcept
     }
 
     Window = std::make_unique<Frontier::WindowExchange>();
-    Frontier::WindowConfiguration windowConfig{ Width, Height, "Convergence GTX — Virtual Hypergrid", false, true };
+    Frontier::WindowConfiguration windowConfig{ Width, Height, "Project-F20 — Virtual Hypergrid", false, true };
     if (!Window->OpenDisplayWindow(windowConfig))
     {
         return false;
@@ -127,4 +127,4 @@ void GameHost::StepGameCycle(float DeltaSeconds) noexcept
     EngineHost->StepOnce(DeltaSeconds);
 }
 
-} // namespace ConvergenceGTX
+} // namespace Frontier::ProjectF20

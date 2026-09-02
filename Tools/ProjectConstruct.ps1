@@ -4,7 +4,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $ProjectName = 'ConvergenceGTX',
+    [string] $ProjectName = 'Project-F20',
     [string] $Destination = 'Projects'
 )
 

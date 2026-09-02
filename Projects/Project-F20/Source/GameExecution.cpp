@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/GameExecution.cpp — Convergence GTX Standalone Executable Game Entry Point
+// 📦 Project-F20/Source/GameExecution.cpp — Project-F20 Standalone Executable Game Entry Point
 //============================================================================================================================================
 
 #include "GameHost.h"
@@ -12,13 +12,13 @@ int main(int ArgumentCount, char** ArgumentValues)
     (void)ArgumentValues;
 
     std::cout << "================================================================================\n";
-    std::cout << "                     CONVERGENCE GTX — VIRTUAL HYPERGRID                        \n";
+    std::cout << "                        PROJECT-F20 — VIRTUAL HYPERGRID                         \n";
     std::cout << "================================================================================\n";
-    std::cout << "[Convergence GTX] Initializing standalone racing game project...\n";
+    std::cout << "[Project-F20] Initializing standalone racing game project...\n";
 
     // Initialize Telemetry Logger with custom .log format
     Frontier::DiagnosticConfiguration RaceLogConfig{};
-    RaceLogConfig.DestinationFolder          = "Logs/ConvergenceGTX";
+    RaceLogConfig.DestinationFolder          = "Logs/Project-F20";
     RaceLogConfig.OutputFileStem             = "RaceSessionLog";
     RaceLogConfig.FileExtension              = ".log";
     RaceLogConfig.TimestampPrefixEnabled     = true;
@@ -28,19 +28,19 @@ int main(int ArgumentCount, char** ArgumentValues)
     Frontier::DiagnosticMetrics RaceLogger(RaceLogConfig);
     if (RaceLogger.InitializeSink())
     {
-        RaceLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "GameLifecycle", "Launching Convergence GTX session...");
+        RaceLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "GameLifecycle", "Launching Project-F20 session...");
     }
 
-    ConvergenceGTX::GameHost Game;
+    Frontier::ProjectF20::GameHost Game;
     if (!Game.LaunchGame(1920, 1080))
     {
         RaceLogger.RecordMessage(Frontier::DiagnosticSeverity::Fatal, "GameLifecycle", "Game launch failed!");
-        std::cerr << "[Convergence GTX Error] Failed to launch game!\n";
+        std::cerr << "[Project-F20 Error] Failed to launch game!\n";
         return 1;
     }
 
     RaceLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "GameLifecycle", "Game launched successfully. Starting race simulation.");
-    std::cout << "[Convergence GTX] Game launched successfully. Running race simulation ticks...\n";
+    std::cout << "[Project-F20] Game launched successfully. Running race simulation ticks...\n";
 
     for (int tick = 1; tick <= 10; ++tick)
     {
@@ -58,10 +58,10 @@ int main(int ArgumentCount, char** ArgumentValues)
     }
 
     RaceLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "GameLifecycle", "Race session completed successfully.");
-    std::cout << "[Convergence GTX] Race complete. Terminating game cleanly...\n";
+    std::cout << "[Project-F20] Race complete. Terminating game cleanly...\n";
     Game.TerminateGame();
     RaceLogger.TerminateSink();
 
-    std::cout << "[Convergence GTX] Terminated successfully. Race telemetry written to " << RaceLogger.QueryResolvedFilePath() << "\n";
+    std::cout << "[Project-F20] Terminated successfully. Race telemetry written to " << RaceLogger.QueryResolvedFilePath() << "\n";
     return 0;
 }

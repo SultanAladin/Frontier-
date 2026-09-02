@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/TrackSequence.h — Track Checkpoint Verification, Waypoints and Lap Timing Sequence
+// 📦 Project-F20/Source/TrackSequence.h — Track Checkpoint Verification, Waypoints and Lap Timing Sequence
 //============================================================================================================================================
 
 #pragma once
@@ -8,7 +8,7 @@
 #include <vector>
 #include <string>
 
-namespace ConvergenceGTX {
+namespace Frontier::ProjectF20 {
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    TRACK WAYPOINT
@@ -63,4 +63,4 @@ inline float TrackSequence::Convert<float>() const noexcept
     return CurrentLapTimeSeconds;
 }
 
-} // namespace ConvergenceGTX
+} // namespace Frontier::ProjectF20

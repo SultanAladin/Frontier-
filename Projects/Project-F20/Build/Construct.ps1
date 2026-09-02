@@ -1,5 +1,5 @@
 #=============================================================================================================================================
-# 📦 ConvergenceGTX/Build/Construct.ps1 — Direct Toolchain Build Driver for Convergence GTX Game Project
+# 📦 Project-F20/Build/Construct.ps1 — Direct Toolchain Build Driver for Project-F20 Game Project
 #=============================================================================================================================================
 
 [CmdletBinding()]
@@ -39,10 +39,10 @@ $SourceFiles = @(
 )
 
 $EngineObjFiles = Get-ChildItem -Path (Join-Path $RepositoryRoot "build\$Configuration") -Filter '*.obj' |
-    Where-Object { $_.Name -notmatch 'Main\.obj' } |
+    Where-Object { $_.Name -notmatch 'EngineExecution\.obj' } |
     ForEach-Object { $_.FullName }
 
-$TargetExe = Join-Path $BinRoot 'ConvergenceGTX.exe'
+$TargetExe = Join-Path $BinRoot 'Project-F20.exe'
 
 $CompilerFlags = @(
     '/nologo',
@@ -83,7 +83,7 @@ $LinkArgs     = @('/nologo', '/DEBUG', "/OUT:`"$TargetExe`"", '/SUBSYSTEM:CONSOL
 & link.exe $LinkArgs
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "[Convergence GTX] Executable built successfully: $TargetExe" -ForegroundColor Green
+Write-Host "[Project-F20] Executable built successfully: $TargetExe" -ForegroundColor Green
 
 if ($Run)
 {

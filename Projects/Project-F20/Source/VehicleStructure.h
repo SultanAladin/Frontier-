@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/VehicleStructure.h — Racing Vehicle Physical Parameters and Telemetry Topology
+// 📦 Project-F20/Source/VehicleStructure.h — Racing Vehicle Physical Parameters and Telemetry Topology
 //============================================================================================================================================
 
 #pragma once
@@ -7,7 +7,7 @@
 #include "../../../DeviceExchange/OrientationClassifier.h"
 #include <cstdint>
 
-namespace ConvergenceGTX {
+namespace Frontier::ProjectF20 {
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                 VEHICLE CONFIGURATION
@@ -44,4 +44,4 @@ struct VehicleTelemetry
     float                   ChassisDamageRatio;                 // [0..1] XPBD softbody deformation ratio
 };
 
-} // namespace ConvergenceGTX
+} // namespace Frontier::ProjectF20

@@ -134,6 +134,6 @@ clean:
     print(f"[Frontier Project Generator] Project {projectName} automated build configuration generated successfully.")
 
 if __name__ == "__main__":
-    name = sys.argv[1] if len(sys.argv) > 1 else "ConvergenceGTX"
+    name = sys.argv[1] if len(sys.argv) > 1 else "Project-F20"
     dest = sys.argv[2] if len(sys.argv) > 2 else "Projects"
     ScaffoldProject(name, dest)

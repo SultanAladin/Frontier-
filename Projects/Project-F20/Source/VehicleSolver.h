@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ConvergenceGTX/Source/VehicleSolver.h — High-Performance Vehicle Dynamics and Tire Friction Solver
+// 📦 Project-F20/Source/VehicleSolver.h — High-Performance Vehicle Dynamics and Tire Friction Solver
 //============================================================================================================================================
 
 #pragma once
@@ -8,7 +8,7 @@
 #include "../../../PhysicalDynamics/RigidBodySolver.h"
 #include "../../../PhysicalDynamics/DeformableSolver.h"
 
-namespace ConvergenceGTX {
+namespace Frontier::ProjectF20 {
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    VEHICLE SOLVER
@@ -45,4 +45,4 @@ inline VehicleTelemetry VehicleSolver::Convert<VehicleTelemetry>() const noexcep
     return Telemetry;
 }
 
-} // namespace ConvergenceGTX
+} // namespace Frontier::ProjectF20
