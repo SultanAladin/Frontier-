@@ -87,6 +87,12 @@ public:
     [[nodiscard]] float     QuerySlideOffset() const noexcept { return CurrentSlideOffset; }
     [[nodiscard]] bool      IsSlideTransitionActive() const noexcept;
 
+    // Theme & Global UI Rounding Controls
+    void                    SelectTheme(ThemeCategory Theme) noexcept { ActiveTheme.AssignTheme(Theme); }
+    void                    AssignCornerRadius(float RadiusPixels) noexcept { ActiveTheme.AssignCornerRadius(RadiusPixels); }
+    [[nodiscard]] ThemeCategory QueryThemeCategory() const noexcept { return ActiveTheme.QueryActiveTheme(); }
+    [[nodiscard]] float     QueryCornerRadius() const noexcept { return ActiveTheme.QueryCornerRadius(); }
+
     [[nodiscard]] bool      IsOpen() const noexcept { return OpenCondition; }
     [[nodiscard]] bool      IsDragging() const noexcept { return DraggingCondition; }
     [[nodiscard]] bool      IsSelected() const noexcept { return SelectedCondition; }

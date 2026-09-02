@@ -308,6 +308,124 @@ svg { display: block; }
   background: rgba(0, 0, 0, 0.2);
 }
 
+/* ── UI COMPONENTS & THEME SECTION (From UIComponents.html) ── */
+.theme-unified-section {
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--corner-radius);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.theme-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.theme-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-main);
+}
+.theme-section-subtitle {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.theme-section-divider {
+  height: 1px;
+  background: var(--divider);
+  margin: 4px 0;
+}
+
+/* Control Row from UIComponents.html */
+.crow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 40px;
+}
+.crow > .clabel {
+  width: 120px;
+  flex-shrink: 0;
+  color: var(--text-main);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* Value Pill: [ number | unit ] */
+.vpill {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  width: 104px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+}
+.vpill .num {
+  flex: 1;
+  background: var(--input-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main);
+}
+.vpill .unit {
+  width: 38px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Chunky Range Slider: [---O---] */
+input[type=range].slider {
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  flex: 1;
+  min-width: 100px;
+  height: 28px;
+  border-radius: 9999px;
+  cursor: pointer;
+  border: none;
+  background: linear-gradient(to right, var(--accent-color) 75%, rgba(255, 255, 255, 0.08) 75%);
+  transition: background 0.05s linear;
+}
+input[type=range].slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 0.12s var(--ease-smooth);
+}
+input[type=range].slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+input[type=range].slider:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
 /* ── THEME PALETTE GRID ── */
 .theme-grid-4col {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
@@ -623,13 +741,15 @@ svg { display: block; }
             </div>
 
             <div class="modal-scroll-area">
-              <!-- SUB-TAB 1: THEME -->
+              <!-- SUB-TAB 1: UNIFIED THEME SECTION (8 Theme Tiles + Rounding Slider from UIComponents.html) -->
               <div id="tab-content-theme" style="display:flex; flex-direction:column; gap:24px;">
-                <!-- 8 Theme Profiles -->
-                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:20px;">
-                  <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:2px;">Color Scheme</h3>
-                  <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">Select global surface darkness</p>
+                <div class="theme-unified-section">
+                  <div class="theme-section-header">
+                    <span class="theme-section-title">Color Scheme & Surface Theme</span>
+                    <span class="theme-section-subtitle">Select global canvas theme and UI roundness</span>
+                  </div>
 
+                  <!-- 8 Theme Tiles / Cards -->
                   <div class="theme-grid-4col">
                     <div class="theme-select-card active" onclick="selectTheme('oled', this)">
                       <div class="theme-mock-viewport" style="background:#000000;">
@@ -711,31 +831,17 @@ svg { display: block; }
                       <span style="font-size:12px; font-weight:500;">GitHub</span>
                     </div>
                   </div>
-                </div>
 
-                <!-- Corner Radius & Accent Swatches -->
-                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:20px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                    <div>
-                      <h4 style="font-size:13.5px; font-weight:700;">Corner Radius</h4>
-                      <p style="font-size:12px; color:var(--text-muted);">Roundness of controls and panels</p>
+                  <div class="theme-section-divider"></div>
+
+                  <!-- Global UI Rounding Corner Radius Row (from UIComponents.html) -->
+                  <div class="crow">
+                    <span class="clabel">Corner Radius</span>
+                    <div class="vpill">
+                      <div class="num" id="radius-num">24</div>
+                      <div class="unit">px</div>
                     </div>
-                    <span id="radius-number-display" style="font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:700;">24px</span>
-                  </div>
-                  <input type="range" min="0" max="32" value="24" style="width:100%; accent-color:var(--accent-color); cursor:pointer;" oninput="setLiveCornerRadius(this.value)">
-
-                  <h4 style="font-size:13.5px; font-weight:700; margin-top:20px;">Accent Colors (10 Presets)</h4>
-                  <div class="accent-palette-row">
-                    <button class="accent-color-circle" style="background:#FFFFFF;" onclick="setLiveAccent('#FFFFFF', this)"></button>
-                    <button class="accent-color-circle" style="background:#f97316;" onclick="setLiveAccent('#f97316', this)"></button>
-                    <button class="accent-color-circle" style="background:#f59e0b;" onclick="setLiveAccent('#f59e0b', this)"></button>
-                    <button class="accent-color-circle" style="background:#84cc16;" onclick="setLiveAccent('#84cc16', this)"></button>
-                    <button class="accent-color-circle" style="background:#10b981;" onclick="setLiveAccent('#10b981', this)"></button>
-                    <button class="accent-color-circle" style="background:#06b6d4;" onclick="setLiveAccent('#06b6d4', this)"></button>
-                    <button class="accent-color-circle active" style="background:#3b82f6;" onclick="setLiveAccent('#3b82f6', this)"></button>
-                    <button class="accent-color-circle" style="background:#8b5cf6;" onclick="setLiveAccent('#8b5cf6', this)"></button>
-                    <button class="accent-color-circle" style="background:#d946ef;" onclick="setLiveAccent('#d946ef', this)"></button>
-                    <button class="accent-color-circle" style="background:#f43f5e;" onclick="setLiveAccent('#f43f5e', this)"></button>
+                    <input type="range" class="slider" id="rounding-range-slider" min="0" max="32" value="24" oninput="updateGlobalRounding(this.value)">
                   </div>
                 </div>
               </div>
@@ -1199,9 +1305,24 @@ function setLiveAccent(colorHex, el) {
   if (el) el.classList.add('active');
 }
 
+function updateGlobalRounding(radiusPx) {
+  const r = parseInt(radiusPx, 10);
+  document.documentElement.style.setProperty('--corner-radius', `${r}px`);
+  const numEl = document.getElementById('radius-num');
+  if (numEl) numEl.innerText = `${r}`;
+
+  // Update slider fill track
+  const slider = document.getElementById('rounding-range-slider');
+  if (slider) {
+    const min = parseInt(slider.min || '0', 10);
+    const max = parseInt(slider.max || '32', 10);
+    const pct = ((r - min) / (max - min)) * 100;
+    slider.style.background = `linear-gradient(to right, var(--accent-color) ${pct}%, rgba(255, 255, 255, 0.08) ${pct}%)`;
+  }
+}
+
 function setLiveCornerRadius(radiusPx) {
-  document.documentElement.style.setProperty('--corner-radius', `${radiusPx}px`);
-  document.getElementById('radius-number-display').innerText = `${radiusPx}px`;
+  updateGlobalRounding(radiusPx);
 }
 
 function selectWeight(el) {

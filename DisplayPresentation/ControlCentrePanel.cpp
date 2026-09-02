@@ -407,6 +407,56 @@ void ControlCentrePanel::AdvanceInteraction(const InputExchange& Input, float Cu
                     }
                 }
             }
+            else if (ActivePage == ControlCentrePageCategory::Appearance)
+            {
+                // Back button click: (StageX0, StageY0, 40, 40)
+                if (CursorX >= StageX0 && CursorX <= (StageX0 + 50.0f) &&
+                    CursorY >= StageY0 && CursorY <= (StageY0 + 40.0f))
+                {
+                    NavigateBack();
+                }
+
+                // 8 Theme Selection Cards (4 cols x 2 rows)
+                float GridX0 = StageX0 + 20.0f;
+                float GridY0 = StageY0 + 90.0f;
+                float CardW  = (StageW - 40.0f - 36.0f) / 4.0f;
+                float CardH  = 70.0f;
+                float GapX   = 12.0f;
+                float GapY   = 12.0f;
+
+                for (uint32_t Row = 0; Row < 2; ++Row)
+                {
+                    for (uint32_t Col = 0; Col < 4; ++Col)
+                    {
+                        float TileX = GridX0 + static_cast<float>(Col) * (CardW + GapX);
+                        float TileY = GridY0 + static_cast<float>(Row) * (CardH + GapY);
+
+                        if (CursorX >= TileX && CursorX <= (TileX + CardW) &&
+                            CursorY >= TileY && CursorY <= (TileY + CardH))
+                        {
+                            uint32_t ThemeIdx = Row * 4 + Col;
+                            if (ThemeIdx < static_cast<uint32_t>(ThemeCategory::Count))
+                            {
+                                ActiveTheme.AssignTheme(static_cast<ThemeCategory>(ThemeIdx));
+                            }
+                        }
+                    }
+                }
+
+                // Global Rounding Slider: [ number | unit ] [---O---]
+                float SliderTrackX0 = StageX0 + 220.0f;
+                float SliderTrackX1 = StageX0 + StageW - 30.0f;
+                float SliderTrackY0 = StageY0 + 270.0f;
+                float SliderTrackY1 = SliderTrackY0 + 32.0f;
+
+                if (CursorX >= SliderTrackX0 && CursorX <= SliderTrackX1 &&
+                    CursorY >= SliderTrackY0 && CursorY <= SliderTrackY1)
+                {
+                    float Normalized = (CursorX - SliderTrackX0) / (SliderTrackX1 - SliderTrackX0);
+                    float NewRadius  = std::clamp(Normalized * 32.0f, 0.0f, 32.0f);
+                    ActiveTheme.AssignCornerRadius(NewRadius);
+                }
+            }
             else
             {
                 // Sub-Page Back button click
