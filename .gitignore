@@ -1,0 +1,8 @@
+# Build artifacts and binaries
+*.o
+*.obj
+*.exe
+bin/
+build/
+FrontierEngine
+.DS_Store
