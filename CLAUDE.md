@@ -72,3 +72,15 @@
 - **Windows (CMake / MSVC)**:
   `cmake -B build && cmake --build build --config Release`
 - **Development UI**: Compiled conditionally with `#ifdef FRONTIER_DEVELOPMENT`.
+
+---
+
+## 6. Engine vs. Game Project Decoupling Architecture
+- **Engine Core Scope**:
+  - Provides hardware-agnostic abstractions, mathematical types, and engine foundations (`DeviceExchange`, `PhysicalDynamics`, `VolumetricDynamics`, `GeometricRaster`, `PhotometricIllumination`, `PlatformInterchange`, `DisplayPresentation`).
+  - Standard virtual key and mouse state enumeration (`VirtualKeyCategory`, `MouseButtonCategory` in `DeviceExchange/InputExchange.h`) provides a universal, standard hardware abstraction covering alphanumeric keys (A-Z, 0-9), function keys (F1-F12), navigation, modifiers, mouse buttons, and gamepad records.
+  - Baseline camera projections (`GeometricRaster/CameraProjection.h`) declare standard viewport geometry, perspective matrices, and ray construction.
+- **Game / Project Scope (`Projects/<ProjectName>/`)**:
+  - Individual games (e.g. `Project-F20`, `Project-Zero`) define their own gameplay mechanics, physics tuning, and input action bindings without altering engine core files.
+  - Game action mapping (e.g. mapping `VirtualKeyCategory::KeyW` to forward movement, or `MouseButtonCategory::ButtonRight` to flight steering) and specialized camera controllers (e.g. `FlyThroughSolver`, `OrbitSolver`, `ChaseCamSolver`) reside entirely within the respective project codebase.
+  - Prevents engine bloat, maintains clean module boundaries, and guarantees that any game project can implement arbitrary control schemes using the engine's universal input hardware abstraction.

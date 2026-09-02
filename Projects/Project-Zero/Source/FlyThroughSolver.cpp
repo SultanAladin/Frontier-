@@ -55,7 +55,7 @@ void FlyThroughSolver::AdvanceLocomotion(const InputExchange& Input, float Δτ)
     }
 
     // 2. Right Mouse Button (RMB) Look-Around Steering
-    SteeringActive = Input.IsMouseButtonPressed(1); // Button 1 = RMB
+    SteeringActive = Input.IsMouseButtonPressed(Frontier::MouseButtonCategory::ButtonRight);
     if (SteeringActive)
     {
         Vector3 CursorDelta = Input.QueryCursorDelta();

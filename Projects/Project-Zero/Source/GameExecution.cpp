@@ -56,7 +56,7 @@ int main(int ArgumentCount, char** ArgumentValues)
     Frontier::InputExchange Input;
     Input.AssignKeyState(Frontier::VirtualKeyCategory::KeyW, true);          // Hold W to fly forward
     Input.AssignKeyState(Frontier::VirtualKeyCategory::KeyLeftShift, true);  // Hold Shift for speed boost
-    Input.AssignMouseButton(1, true);                                        // Hold RMB for look steering
+    Input.AssignMouseButton(Frontier::MouseButtonCategory::ButtonRight, true); // Hold RMB for look steering
     Input.AssignCursorDelta(15.0f, -5.0f);                                   // Slight yaw right, pitch up
     Input.AssignMouseScroll(2.0f);                                           // Scroll up to increase flight speed
 

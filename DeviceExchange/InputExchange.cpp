@@ -49,11 +49,12 @@ void InputExchange::AssignCursorDelta(float DeltaX, float DeltaY) noexcept
     CursorDelta.y += DeltaY;
 }
 
-void InputExchange::AssignMouseButton(uint32_t ButtonIndex, bool Pressed) noexcept
+void InputExchange::AssignMouseButton(MouseButtonCategory Button, bool Pressed) noexcept
 {
-    if (ButtonIndex < MouseButtonStates.size())
+    size_t Index = static_cast<size_t>(Button);
+    if (Index < MouseButtonStates.size())
     {
-        MouseButtonStates[ButtonIndex] = Pressed;
+        MouseButtonStates[Index] = Pressed;
     }
 }
 
@@ -91,11 +92,12 @@ bool InputExchange::IsKeyPressed(VirtualKeyCategory Key) const noexcept
     return false;
 }
 
-bool InputExchange::IsMouseButtonPressed(uint32_t ButtonIndex) const noexcept
+bool InputExchange::IsMouseButtonPressed(MouseButtonCategory Button) const noexcept
 {
-    if (ButtonIndex < MouseButtonStates.size())
+    size_t Index = static_cast<size_t>(Button);
+    if (Index < MouseButtonStates.size())
     {
-        return MouseButtonStates[ButtonIndex];
+        return MouseButtonStates[Index];
     }
     return false;
 }

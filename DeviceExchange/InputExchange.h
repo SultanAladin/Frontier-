@@ -15,27 +15,121 @@
 namespace Frontier {
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                    KEYBOARD KEY
+//                                                STANDARD VIRTUAL KEYCODES
 //------------------------------------------------------------------------------------------------------------------------
 
 enum class VirtualKeyCategory : uint32_t
 {
-    KeyW                                = 0,
-    KeyA                                = 1,
-    KeyS                                = 2,
+    // Alphabet Letters (A-Z)
+    KeyA                                = 0,
+    KeyB                                = 1,
+    KeyC                                = 2,
     KeyD                                = 3,
-    KeyQ                                = 4,
-    KeyE                                = 5,
-    KeySpace                            = 6,
-    KeyLeftShift                        = 7,
-    KeyLeftControl                      = 8,
-    KeyEscape                           = 9,
-    KeyEnter                            = 10,
-    KeyUp                               = 11,
-    KeyDown                             = 12,
-    KeyLeft                             = 13,
-    KeyRight                            = 14,
-    Count                               = 15
+    KeyE                                = 4,
+    KeyF                                = 5,
+    KeyG                                = 6,
+    KeyH                                = 7,
+    KeyI                                = 8,
+    KeyJ                                = 9,
+    KeyK                                = 10,
+    KeyL                                = 11,
+    KeyM                                = 12,
+    KeyN                                = 13,
+    KeyO                                = 14,
+    KeyP                                = 15,
+    KeyQ                                = 16,
+    KeyR                                = 17,
+    KeyS                                = 18,
+    KeyT                                = 19,
+    KeyU                                = 20,
+    KeyV                                = 21,
+    KeyW                                = 22,
+    KeyX                                = 23,
+    KeyY                                = 24,
+    KeyZ                                = 25,
+
+    // Numeric Row (0-9)
+    Key0                                = 26,
+    Key1                                = 27,
+    Key2                                = 28,
+    Key3                                = 29,
+    Key4                                = 30,
+    Key5                                = 31,
+    Key6                                = 32,
+    Key7                                = 33,
+    Key8                                = 34,
+    Key9                                = 35,
+
+    // Function Keys (F1-F12)
+    KeyF1                               = 36,
+    KeyF2                               = 37,
+    KeyF3                               = 38,
+    KeyF4                               = 39,
+    KeyF5                               = 40,
+    KeyF6                               = 41,
+    KeyF7                               = 42,
+    KeyF8                               = 43,
+    KeyF9                               = 44,
+    KeyF10                              = 45,
+    KeyF11                              = 46,
+    KeyF12                              = 47,
+
+    // Directional Arrow Keys
+    KeyUp                               = 48,
+    KeyDown                             = 49,
+    KeyLeft                             = 50,
+    KeyRight                            = 51,
+
+    // Navigation & Editing
+    KeyEscape                           = 52,
+    KeyEnter                            = 53,
+    KeySpace                            = 54,
+    KeyTab                              = 55,
+    KeyBackspace                        = 56,
+    KeyInsert                           = 57,
+    KeyDelete                           = 58,
+    KeyHome                             = 59,
+    KeyEnd                              = 60,
+    KeyPageUp                           = 61,
+    KeyPageDown                         = 62,
+
+    // Modifiers
+    KeyLeftShift                        = 63,
+    KeyRightShift                       = 64,
+    KeyLeftControl                      = 65,
+    KeyRightControl                     = 66,
+    KeyLeftAlt                          = 67,
+    KeyRightAlt                         = 68,
+    KeyCapsLock                         = 69,
+
+    // Punctuation & Symbols
+    KeyTilde                            = 70,
+    KeyMinus                            = 71,
+    KeyEqual                            = 72,
+    KeyBracketLeft                      = 73,
+    KeyBracketRight                     = 74,
+    KeyBackslash                        = 75,
+    KeySemicolon                        = 76,
+    KeyApostrophe                       = 77,
+    KeyComma                            = 78,
+    KeyPeriod                           = 79,
+    KeySlash                            = 80,
+
+    Count                               = 81
+};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                    MOUSE BUTTON
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class MouseButtonCategory : uint32_t
+{
+    ButtonLeft                          = 0,
+    ButtonRight                         = 1,
+    ButtonMiddle                        = 2,
+    ButtonExtra1                        = 3,
+    ButtonExtra2                        = 4,
+    Count                               = 5
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -72,12 +166,12 @@ public:
 
     void                    AssignKeyState(VirtualKeyCategory Key, bool Pressed) noexcept;
     void                    AssignCursorDelta(float DeltaX, float DeltaY) noexcept;
-    void                    AssignMouseButton(uint32_t ButtonIndex, bool Pressed) noexcept;
+    void                    AssignMouseButton(MouseButtonCategory Button, bool Pressed) noexcept;
     void                    AssignMouseScroll(float ScrollDelta) noexcept;
     void                    AssignGamepadAxis(float LeftX, float LeftY, float RightX, float RightY, float LeftTrig, float RightTrig) noexcept;
 
     [[nodiscard]] bool      IsKeyPressed(VirtualKeyCategory Key) const noexcept;
-    [[nodiscard]] bool      IsMouseButtonPressed(uint32_t ButtonIndex) const noexcept;
+    [[nodiscard]] bool      IsMouseButtonPressed(MouseButtonCategory Button) const noexcept;
     [[nodiscard]] float     QueryMouseScrollDelta() const noexcept { return MouseScrollDelta; }
     [[nodiscard]] Vector3   QueryCursorDelta() const noexcept { return CursorDelta; }
     [[nodiscard]] const GamepadRecord& QueryGamepad() const noexcept { return PrimaryGamepad; }
@@ -92,7 +186,7 @@ private:
     float                   AnalogDeadzone;                     // [0..1] joystick deadzone threshold
     float                   MouseScrollDelta;                   // [clicks] mouse scroll wheel increment
     std::array<bool, static_cast<size_t>(VirtualKeyCategory::Count)> KeyStates; // [keys] active pressed keys
-    std::array<bool, 5>     MouseButtonStates;                  // [buttons] mouse buttons (0=LMB, 1=RMB, 2=MMB)
+    std::array<bool, static_cast<size_t>(MouseButtonCategory::Count)> MouseButtonStates; // [buttons] mouse buttons
 };
 
 template<>
