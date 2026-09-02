@@ -147,17 +147,6 @@ public:
         }
     }
 
-    void BlendPixel(int32_t X, int32_t Y, PixelRgb Color, float Alpha)
-    {
-        if (X >= 0 && X < static_cast<int32_t>(CanvasWidth) && Y >= 0 && Y < static_cast<int32_t>(CanvasHeight))
-        {
-            PixelRgb& Dst = Buffer[Y * CanvasWidth + X];
-            Dst.R = static_cast<uint8_t>(Dst.R * (1.0f - Alpha) + Color.R * Alpha);
-            Dst.G = static_cast<uint8_t>(Dst.G * (1.0f - Alpha) + Color.G * Alpha);
-            Dst.B = static_cast<uint8_t>(Dst.B * (1.0f - Alpha) + Color.B * Alpha);
-        }
-    }
-
     void DrawFilledRectangle(int32_t X0, int32_t Y0, int32_t X1, int32_t Y1, PixelRgb Color)
     {
         int32_t MinX = std::max(0, std::min(X0, X1));
@@ -174,48 +163,58 @@ public:
         }
     }
 
-    void DrawRoundedRectangle(int32_t X0, int32_t Y0, int32_t X1, int32_t Y1, int32_t Radius, PixelRgb Color)
+    // Individual 4-corner specific rounding renderer
+    void DrawCustomRoundedRectangle(
+        int32_t X0, int32_t Y0, int32_t X1, int32_t Y1,
+        int32_t RadiusTL, int32_t RadiusTR, int32_t RadiusBR, int32_t RadiusBL,
+        PixelRgb Color)
     {
         int32_t MinX = std::max(0, std::min(X0, X1));
         int32_t MaxX = std::min(static_cast<int32_t>(CanvasWidth) - 1, std::max(X0, X1));
         int32_t MinY = std::max(0, std::min(Y0, Y1));
         int32_t MaxY = std::min(static_cast<int32_t>(CanvasHeight) - 1, std::max(Y0, Y1));
 
-        int32_t R = std::min({ Radius, (MaxX - MinX) / 2, (MaxY - MinY) / 2 });
-        if (R <= 0)
-        {
-            DrawFilledRectangle(MinX, MinY, MaxX, MaxY, Color);
-            return;
-        }
+        int32_t W = MaxX - MinX;
+        int32_t H = MaxY - MinY;
+
+        int32_t RTL = std::clamp(RadiusTL, 0, std::min(W / 2, H / 2));
+        int32_t RTR = std::clamp(RadiusTR, 0, std::min(W / 2, H / 2));
+        int32_t RBR = std::clamp(RadiusBR, 0, std::min(W / 2, H / 2));
+        int32_t RBL = std::clamp(RadiusBL, 0, std::min(W / 2, H / 2));
 
         for (int32_t Y = MinY; Y <= MaxY; ++Y)
         {
             for (int32_t X = MinX; X <= MaxX; ++X)
             {
                 bool Inside = true;
-                if (X < MinX + R && Y < MinY + R)
+
+                // Top-Left Corner
+                if (RTL > 0 && X < MinX + RTL && Y < MinY + RTL)
                 {
-                    int32_t DX = X - (MinX + R);
-                    int32_t DY = Y - (MinY + R);
-                    if (DX * DX + DY * DY > R * R) Inside = false;
+                    int32_t DX = X - (MinX + RTL);
+                    int32_t DY = Y - (MinY + RTL);
+                    if (DX * DX + DY * DY > RTL * RTL) Inside = false;
                 }
-                else if (X > MaxX - R && Y < MinY + R)
+                // Top-Right Corner
+                else if (RTR > 0 && X > MaxX - RTR && Y < MinY + RTR)
                 {
-                    int32_t DX = X - (MaxX - R);
-                    int32_t DY = Y - (MinY + R);
-                    if (DX * DX + DY * DY > R * R) Inside = false;
+                    int32_t DX = X - (MaxX - RTR);
+                    int32_t DY = Y - (MinY + RTR);
+                    if (DX * DX + DY * DY > RTR * RTR) Inside = false;
                 }
-                else if (X < MinX + R && Y > MaxY - R)
+                // Bottom-Right Corner
+                else if (RBR > 0 && X > MaxX - RBR && Y > MaxY - RBR)
                 {
-                    int32_t DX = X - (MinX + R);
-                    int32_t DY = Y - (MaxY - R);
-                    if (DX * DX + DY * DY > R * R) Inside = false;
+                    int32_t DX = X - (MaxX - RBR);
+                    int32_t DY = Y - (MaxY - RBR);
+                    if (DX * DX + DY * DY > RBR * RBR) Inside = false;
                 }
-                else if (X > MaxX - R && Y > MaxY - R)
+                // Bottom-Left Corner
+                else if (RBL > 0 && X < MinX + RBL && Y > MaxY - RBL)
                 {
-                    int32_t DX = X - (MaxX - R);
-                    int32_t DY = Y - (MaxY - R);
-                    if (DX * DX + DY * DY > R * R) Inside = false;
+                    int32_t DX = X - (MinX + RBL);
+                    int32_t DY = Y - (MaxY - RBL);
+                    if (DX * DX + DY * DY > RBL * RBL) Inside = false;
                 }
 
                 if (Inside)
@@ -224,6 +223,11 @@ public:
                 }
             }
         }
+    }
+
+    void DrawRoundedRectangle(int32_t X0, int32_t Y0, int32_t X1, int32_t Y1, int32_t Radius, PixelRgb Color)
+    {
+        DrawCustomRoundedRectangle(X0, Y0, X1, Y1, Radius, Radius, Radius, Radius, Color);
     }
 
     void DrawRoundedOutline(int32_t X0, int32_t Y0, int32_t X1, int32_t Y1, int32_t Radius, int32_t Thickness, PixelRgb Color)
@@ -428,7 +432,7 @@ public:
         DrawRoundedRectangle(SecX0, SecY0, SecX0 + SecW, SecY0 + SecH, R, PixelRgb{ 20, 20, 22 });
         DrawRoundedOutline(SecX0, SecY0, SecX0 + SecW, SecY0 + SecH, R, 1, PixelRgb{ 36, 36, 40 });
 
-        // Section Title: "Color Scheme & Surface Theme"
+        // Section Title: "Color Scheme"
         DrawText(SecX0 + 24, SecY0 + 20, "Color Scheme", PixelRgb{ 240, 240, 245 }, 2);
         DrawText(SecX0 + 24, SecY0 + 38, "Choose the overall interface darkness", PixelRgb{ 120, 120, 130 }, 1);
 
@@ -479,7 +483,7 @@ public:
                 int32_t TileR = 20;
                 DrawRoundedRectangle(TX0, TY0, TX0 + TileW, TY0 + TileH, TileR, ThemeDefs[Idx].BgColor);
 
-                // Outline ring on inactive / active
+                // Outline ring on active / inactive
                 if (IsActive)
                 {
                     DrawRoundedOutline(TX0 - 4, TY0 - 4, TX0 + TileW + 4, TY0 + TileH + 4, TileR + 4, 3, AccentRgb);
@@ -490,63 +494,68 @@ public:
                 }
 
                 // 2. Inset Window Mockup: absolute top-6 bottom-0 left-6 right-0 flex shadow-sm
+                // Exact formula: borderTopLeftRadius: cornerRadius (R)
                 int32_t InsetX = TX0 + 16;
                 int32_t InsetY = TY0 + 16;
                 int32_t InsetW = TileW - 16;
                 int32_t InsetH = TileH - 16;
                 int32_t SideW  = InsetW * 30 / 100; // w-[30%]
 
-                int32_t MockR = std::max(4, static_cast<int32_t>(CornerRadiusPx * 0.4f));
+                int32_t WindowTopLeftR = std::max(2, static_cast<int32_t>(CornerRadiusPx * 0.75f));
+                int32_t LineBarR       = std::max(1, static_cast<int32_t>(CornerRadiusPx * 0.20f));
+                int32_t SquareCardR    = std::max(2, static_cast<int32_t>(CornerRadiusPx * 0.40f));
 
                 // A) SIDEBAR CONTEXT: w-[30%] flex flex-col p-3 gap-1.5 border-r border-black/5
-                DrawRoundedRectangle(InsetX, InsetY, InsetX + SideW, InsetY + InsetH, MockR, ThemeDefs[Idx].SidebarColor);
+                // Outer window top-left has borderTopLeftRadius: cornerRadius!
+                DrawCustomRoundedRectangle(InsetX, InsetY, InsetX + SideW, InsetY + InsetH, WindowTopLeftR, 0, 0, 0, ThemeDefs[Idx].SidebarColor);
                 DrawLine(InsetX + SideW, InsetY, InsetX + SideW, InsetY + InsetH, PixelRgb{ 40, 40, 45 });
 
                 // (i) 3 top window control dots horizontally: w-1.5 h-1.5 rounded-full opacity-40 gap-1
                 PixelRgb DotCol = ThemeDefs[Idx].LineColor;
                 for (int32_t d = 0; d < 3; ++d)
                 {
-                    DrawCircle(InsetX + 6 + d * 6, InsetY + 6, 2, DotCol);
+                    DrawCircle(InsetX + 7 + d * 6, InsetY + 7, 2, DotCol);
                 }
 
-                // (ii) Sidebar navigation line bars: w-full, w-2/3, w-1/2 with opacity-20
+                // (ii) Sidebar navigation line bars: w-full, w-2/3, w-1/2 with borderRadius: cornerRadius / 4
                 PixelRgb LineCol = ThemeDefs[Idx].LineColor;
                 // w-full
-                DrawRoundedRectangle(InsetX + 5, InsetY + 13, InsetX + SideW - 4, InsetY + 16, 2, LineCol);
+                DrawRoundedRectangle(InsetX + 5, InsetY + 14, InsetX + SideW - 4, InsetY + 18, LineBarR, LineCol);
                 // w-2/3
-                DrawRoundedRectangle(InsetX + 5, InsetY + 20, InsetX + 5 + (SideW - 9) * 2 / 3, InsetY + 23, 2, LineCol);
+                DrawRoundedRectangle(InsetX + 5, InsetY + 22, InsetX + 5 + (SideW - 9) * 2 / 3, InsetY + 26, LineBarR, LineCol);
                 // w-1/2
-                DrawRoundedRectangle(InsetX + 5, InsetY + 27, InsetX + 5 + (SideW - 9) / 2, InsetY + 30, 2, LineCol);
+                DrawRoundedRectangle(InsetX + 5, InsetY + 30, InsetX + 5 + (SideW - 9) / 2, InsetY + 34, LineBarR, LineCol);
 
-                // (iii) mt-auto user avatar circle (w-2.5 h-2.5) + name bar (w-4 h-1.5)
-                int32_t FootSideY = InsetY + InsetH - 12;
-                DrawCircle(InsetX + 8, FootSideY + 3, 3, DotCol);
-                DrawRoundedRectangle(InsetX + 14, FootSideY + 2, InsetX + SideW - 4, FootSideY + 5, 2, LineCol);
+                // (iii) mt-auto user avatar circle (w-2.5 h-2.5 rounded-full) + name bar (w-4 h-1.5 borderRadius: cornerRadius/4)
+                int32_t FootSideY = InsetY + InsetH - 14;
+                DrawCircle(InsetX + 8, FootSideY + 4, 3, DotCol);
+                DrawRoundedRectangle(InsetX + 15, FootSideY + 2, InsetX + SideW - 4, FootSideY + 6, LineBarR, LineCol);
 
                 // B) PANEL CONTEXT: flex-1 p-4 flex flex-col gap-1.5 shadow-sm
+                // Exact formula: style={{ borderTopLeftRadius: cornerRadius }}
                 int32_t PanX0 = InsetX + SideW + 1;
-                DrawRoundedRectangle(PanX0, InsetY, InsetX + InsetW, InsetY + InsetH, MockR, ThemeDefs[Idx].PanelColor);
+                DrawCustomRoundedRectangle(PanX0, InsetY, InsetX + InsetW, InsetY + InsetH, WindowTopLeftR, 0, 0, 0, ThemeDefs[Idx].PanelColor);
 
-                // (i) Top header lines: w-1/4 mb-1 opacity-30, w-1/3 opacity-20
+                // (i) Top header lines: w-1/4 mb-1 opacity-30, w-1/3 opacity-20 with borderRadius: cornerRadius / 4
                 int32_t PanContentW = (InsetX + InsetW) - PanX0;
-                DrawRoundedRectangle(PanX0 + 8, InsetY + 6, PanX0 + 8 + PanContentW * 1 / 4, InsetY + 9, 2, DotCol);
-                DrawRoundedRectangle(PanX0 + 8, InsetY + 12, PanX0 + 8 + PanContentW * 1 / 3, InsetY + 15, 2, LineCol);
+                DrawRoundedRectangle(PanX0 + 8, InsetY + 6, PanX0 + 8 + PanContentW * 1 / 4, InsetY + 10, LineBarR, DotCol);
+                DrawRoundedRectangle(PanX0 + 8, InsetY + 13, PanX0 + 8 + PanContentW * 1 / 3, InsetY + 17, LineBarR, LineCol);
 
                 // (ii) 3 aspect-square card tiles: flex-1 aspect-square opacity-10 gap-2
-                int32_t SquaresY = InsetY + 20;
+                // Exact formula: style={{ borderRadius: cornerRadius / 2 }}!
+                int32_t SquaresY = InsetY + 22;
                 int32_t SqGap = 5;
                 int32_t SqW   = (PanContentW - 16 - (SqGap * 2)) / 3;
                 int32_t SqH   = SqW;
-                int32_t CardR = std::max(2, static_cast<int32_t>(CornerRadiusPx * 0.25f));
 
                 for (int32_t sq = 0; sq < 3; ++sq)
                 {
                     int32_t SqX = PanX0 + 8 + sq * (SqW + SqGap);
-                    DrawRoundedRectangle(SqX, SquaresY, SqX + SqW, SquaresY + SqH, CardR, DotCol);
+                    DrawRoundedRectangle(SqX, SquaresY, SqX + SqW, SquaresY + SqH, SquareCardR, DotCol);
                 }
 
-                // (iii) mt-auto status line: w-1/5 h-1.5 opacity-20
-                DrawRoundedRectangle(PanX0 + 8, InsetY + InsetH - 10, PanX0 + 8 + PanContentW * 1 / 5, InsetY + InsetH - 7, 2, LineCol);
+                // (iii) mt-auto status line: w-1/5 h-1.5 opacity-20 with borderRadius: cornerRadius / 4
+                DrawRoundedRectangle(PanX0 + 8, InsetY + InsetH - 12, PanX0 + 8 + PanContentW * 1 / 5, InsetY + InsetH - 8, LineBarR, LineCol);
 
                 // 3. Centered Theme Name Label beneath tile
                 int32_t LabelW = MeasureTextWidth(ThemeDefs[Idx].Name, 2);
@@ -696,7 +705,7 @@ int main()
 
         Canvas.ExportPpm("Diagnostics/ControlCenter_ThemeSection_Proof.ppm");
         (void)std::system("python3 Tools/PpmToPng.py Diagnostics/ControlCenter_ThemeSection_Proof.ppm Diagnostics/ControlCenter_ThemeSection_Proof.png > /dev/null 2>&1");
-        std::cout << "[Theme Proof 1] Generated high-res Theme Section proof with exact 1-to-1 match.\n";
+        std::cout << "[Theme Proof 1] Generated high-res Theme Section proof with exact specific panel rounding.\n";
     }
 
     // ===================================================================================================================
@@ -739,7 +748,7 @@ int main()
 
         Canvas.ExportPpm("Diagnostics/ControlCenter_ThemeSection_Composite.ppm");
         (void)std::system("python3 Tools/PpmToPng.py Diagnostics/ControlCenter_ThemeSection_Composite.ppm Diagnostics/ControlCenter_ThemeSection_Composite.png > /dev/null 2>&1");
-        std::cout << "[Theme Proof 2] Generated Composite comparison proof with exact 1-to-1 match.\n";
+        std::cout << "[Theme Proof 2] Generated Composite comparison proof with exact specific panel rounding.\n";
     }
 
     (void)std::system("rm -f Diagnostics/*.ppm");
