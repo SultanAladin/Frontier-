@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Frontier/DisplayPresentation/ControlCentrePanel.h — Organic Top Notch Control Centre Overlay and Spring Locomotion Dynamics
+// 📦 Frontier/DisplayPresentation/ControlCentrePanel.h — Organic Top Notch Control Centre Overlay and Stepper Carousel Locomotion
 //============================================================================================================================================
 
 #pragma once
@@ -13,6 +13,8 @@
 #include "../DeviceExchange/InputExchange.h"
 #include <cstdint>
 #include <vector>
+#include <array>
+#include <string_view>
 
 namespace Frontier {
 
@@ -24,6 +26,21 @@ struct BezierPointRecord
 {
     float                   X;                                  // [px] horizontal coordinate
     float                   Y;                                  // [px] vertical coordinate
+};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                         CONTROL CENTRE PAGE CATEGORY
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class ControlCentrePageCategory : uint32_t
+{
+    Dashboard                           = 0,                    // 0: Master quick toggle dashboard & master sliders
+    SettingsHub                         = 1,                    // 1: Primary settings categories hub
+    Appearance                          = 2,                    // 2: Theme, typography roles & corner roundness
+    Display                             = 3,                    // 3: Resolution, scaling, refresh rate & VSync
+    Input                               = 4,                    // 4: Navigation presets, mouse sensitivity & keybindings
+    Notifications                       = 5,                    // 5: Alert sounds, RAM monitor & task alerts
+    Count                               = 6
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -62,6 +79,14 @@ public:
     void                    CloseNotch() noexcept;
     void                    ToggleNotch() noexcept;
 
+    // Stepper Carousel Page Navigation
+    void                    NavigateToPage(ControlCentrePageCategory TargetPage) noexcept;
+    void                    NavigateBack() noexcept;
+    [[nodiscard]] ControlCentrePageCategory QueryActivePage() const noexcept { return ActivePage; }
+    [[nodiscard]] ControlCentrePageCategory QueryPreviousPage() const noexcept { return PreviousPage; }
+    [[nodiscard]] float     QuerySlideOffset() const noexcept { return CurrentSlideOffset; }
+    [[nodiscard]] bool      IsSlideTransitionActive() const noexcept;
+
     [[nodiscard]] bool      IsOpen() const noexcept { return OpenCondition; }
     [[nodiscard]] bool      IsDragging() const noexcept { return DraggingCondition; }
     [[nodiscard]] bool      IsSelected() const noexcept { return SelectedCondition; }
@@ -88,8 +113,16 @@ private:
     uint32_t                ViewportHeight;                     // [px] window vertical resolution
     float                   CurrentOffsetY;                     // [px] vertical position of pull-down shade
     float                   TargetOffsetY;                      // [px] destination vertical position
-    float                   LocomotionVelocity;                 // [px/s] spring velocity
-    float                   LocomotionProgress;                 // [0..1] spring interpolation factor
+    float                   LocomotionVelocity;                 // [px/s] vertical spring velocity
+
+    // Stepper Carousel Sliding Dynamics
+    ControlCentrePageCategory ActivePage;                       // [page] currently visible page
+    ControlCentrePageCategory PreviousPage;                     // [page] source page during slide transition
+    float                   CurrentSlideOffset;                 // [px] horizontal carousel slide displacement
+    float                   TargetSlideOffset;                  // [px] destination horizontal displacement
+    float                   SlideVelocity;                      // [px/s] carousel horizontal spring velocity
+    std::vector<ControlCentrePageCategory> PageHistoryStack;    // [stack] navigation trail for back transitions
+
     float                   HandlePositionX;                    // [px] horizontal position of notch handle
     float                   HandlePositionY;                    // [px] vertical position of notch handle
     float                   DragStartCursorY;                   // [px] anchor pointer coordinate during drag
@@ -113,6 +146,12 @@ template<>
 inline float ControlCentrePanel::Convert<float>() const noexcept
 {
     return CurrentOffsetY;
+}
+
+template<>
+inline ControlCentrePageCategory ControlCentrePanel::Convert<ControlCentrePageCategory>() const noexcept
+{
+    return ActivePage;
 }
 
 template<>

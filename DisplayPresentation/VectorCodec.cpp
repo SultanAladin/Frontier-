@@ -122,6 +122,73 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(NavigationIconCategory::
 };
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                         CONTROL CENTRE GLYPH LOOKUP TABLE
+//------------------------------------------------------------------------------------------------------------------------
+
+const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategory::Count)> VectorCodec::ControlCentreGlyphTable = {
+    // 0: SettingsGear
+    VectorGlyphRecord{
+        "SettingsGear",
+        "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z",
+        24, 24, 2.0f
+    },
+    // 1: AppearancePalette
+    VectorGlyphRecord{
+        "AppearancePalette",
+        "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z",
+        24, 24, 2.0f
+    },
+    // 2: DisplayMonitor
+    VectorGlyphRecord{
+        "DisplayMonitor",
+        "M2 5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5zm6 16h8m-4-4v4",
+        24, 24, 2.0f
+    },
+    // 3: InputDevices
+    VectorGlyphRecord{
+        "InputDevices",
+        "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+        24, 24, 2.0f
+    },
+    // 4: NotificationsBell
+    VectorGlyphRecord{
+        "NotificationsBell",
+        "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0",
+        24, 24, 2.0f
+    },
+    // 5: WirelessSignal
+    VectorGlyphRecord{
+        "WirelessSignal",
+        "M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01",
+        24, 24, 2.0f
+    },
+    // 6: BluetoothSymbol
+    VectorGlyphRecord{
+        "BluetoothSymbol",
+        "M7 7l10 10-5 5V2l5 5L7 17",
+        24, 24, 2.0f
+    },
+    // 7: MoonDisturbance
+    VectorGlyphRecord{
+        "MoonDisturbance",
+        "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z",
+        24, 24, 2.0f
+    },
+    // 8: VolumeSpeaker
+    VectorGlyphRecord{
+        "VolumeSpeaker",
+        "M11 5L6 9H2v6h4l5 4V5zm8.07-.07a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07",
+        24, 24, 2.0f
+    },
+    // 9: SunIllumination
+    VectorGlyphRecord{
+        "SunIllumination",
+        "M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z",
+        24, 24, 2.0f
+    }
+};
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                    VECTOR ACCESSORS
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -143,6 +210,26 @@ std::string_view VectorCodec::QueryNavigationSvgPath(NavigationIconCategory Icon
 uint32_t VectorCodec::QueryNavigationIconCount() noexcept
 {
     return static_cast<uint32_t>(NavigationGlyphTable.size());
+}
+
+const VectorGlyphRecord& VectorCodec::QueryControlCentreIcon(ControlCentreIconCategory Icon) noexcept
+{
+    size_t Index = static_cast<size_t>(Icon);
+    if (Index < ControlCentreGlyphTable.size())
+    {
+        return ControlCentreGlyphTable[Index];
+    }
+    return ControlCentreGlyphTable[0];
+}
+
+std::string_view VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory Icon) noexcept
+{
+    return QueryControlCentreIcon(Icon).SvgPathString;
+}
+
+uint32_t VectorCodec::QueryControlCentreIconCount() noexcept
+{
+    return static_cast<uint32_t>(ControlCentreGlyphTable.size());
 }
 
 } // namespace Frontier

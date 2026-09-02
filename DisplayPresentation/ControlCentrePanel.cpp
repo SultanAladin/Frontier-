@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Frontier/DisplayPresentation/ControlCentrePanel.cpp — Organic Top Notch Control Centre Overlay and Spring Locomotion Implementation
+// 📦 Frontier/DisplayPresentation/ControlCentrePanel.cpp — Organic Top Notch Control Centre Overlay and Stepper Carousel Locomotion
 //============================================================================================================================================
 
 #include "ControlCentrePanel.h"
@@ -18,7 +18,12 @@ ControlCentrePanel::ControlCentrePanel() noexcept
     , CurrentOffsetY(0.0f)
     , TargetOffsetY(0.0f)
     , LocomotionVelocity(0.0f)
-    , LocomotionProgress(0.0f)
+    , ActivePage(ControlCentrePageCategory::Dashboard)
+    , PreviousPage(ControlCentrePageCategory::Dashboard)
+    , CurrentSlideOffset(0.0f)
+    , TargetSlideOffset(0.0f)
+    , SlideVelocity(0.0f)
+    , PageHistoryStack{}
     , HandlePositionX(760.0f)
     , HandlePositionY(0.0f)
     , DragStartCursorY(0.0f)
@@ -38,8 +43,17 @@ bool ControlCentrePanel::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeigh
     ViewportWidth  = std::max(1u, DesiredWidth);
     ViewportHeight = std::max(1u, DesiredHeight);
 
-    CurrentOffsetY  = 0.0f;
-    TargetOffsetY   = 0.0f;
+    CurrentOffsetY     = 0.0f;
+    TargetOffsetY      = 0.0f;
+    LocomotionVelocity = 0.0f;
+
+    ActivePage         = ControlCentrePageCategory::Dashboard;
+    PreviousPage       = ControlCentrePageCategory::Dashboard;
+    CurrentSlideOffset = 0.0f;
+    TargetSlideOffset  = 0.0f;
+    SlideVelocity      = 0.0f;
+    PageHistoryStack.clear();
+
     HandlePositionX = (static_cast<float>(ViewportWidth) - 400.0f) * 0.5f;
     HandlePositionY = 0.0f;
 
@@ -53,6 +67,55 @@ void ControlCentrePanel::Terminate() noexcept
 {
     InitializedCondition = false;
     HandleContour.clear();
+    PageHistoryStack.clear();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                            STEPPER CAROUSEL NAVIGATION
+//------------------------------------------------------------------------------------------------------------------------
+
+void ControlCentrePanel::NavigateToPage(ControlCentrePageCategory TargetPage) noexcept
+{
+    if (ActivePage == TargetPage) return;
+
+    PageHistoryStack.push_back(ActivePage);
+    PreviousPage       = ActivePage;
+    ActivePage         = TargetPage;
+
+    // Rightward slide carousel transition (+ViewportWidth -> 0)
+    CurrentSlideOffset = static_cast<float>(ViewportWidth) * 0.65f;
+    TargetSlideOffset  = 0.0f;
+    SlideVelocity      = 0.0f;
+}
+
+void ControlCentrePanel::NavigateBack() noexcept
+{
+    if (PageHistoryStack.empty())
+    {
+        if (ActivePage != ControlCentrePageCategory::Dashboard)
+        {
+            PreviousPage       = ActivePage;
+            ActivePage         = ControlCentrePageCategory::Dashboard;
+            CurrentSlideOffset = -static_cast<float>(ViewportWidth) * 0.65f;
+            TargetSlideOffset  = 0.0f;
+            SlideVelocity      = 0.0f;
+        }
+        return;
+    }
+
+    PreviousPage       = ActivePage;
+    ActivePage         = PageHistoryStack.back();
+    PageHistoryStack.pop_back();
+
+    // Leftward slide carousel transition (-ViewportWidth -> 0)
+    CurrentSlideOffset = -static_cast<float>(ViewportWidth) * 0.65f;
+    TargetSlideOffset  = 0.0f;
+    SlideVelocity      = 0.0f;
+}
+
+bool ControlCentrePanel::IsSlideTransitionActive() const noexcept
+{
+    return std::abs(CurrentSlideOffset - TargetSlideOffset) > 0.5f;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -170,6 +233,7 @@ void ControlCentrePanel::AdvanceLocomotion(float DeltaSeconds) noexcept
 
     HandlePositionX = (static_cast<float>(ViewportWidth) - 400.0f) * 0.5f;
 
+    // 1. Vertical Pulldown Shade Spring Locomotion
     if (!DraggingCondition)
     {
         constexpr float SpringStiffness = 160.0f;                // [1/s^2] spring constant
@@ -191,6 +255,26 @@ void ControlCentrePanel::AdvanceLocomotion(float DeltaSeconds) noexcept
     }
 
     HandlePositionY = CurrentOffsetY;
+
+    // 2. Horizontal Carousel Slide Spring Locomotion
+    {
+        constexpr float SlideStiffness = 200.0f;                // [1/s^2] horizontal carousel spring constant
+        constexpr float SlideDamping   = 24.0f;                 // [1/s] horizontal damping ratio
+
+        float SlideDisplacement = CurrentSlideOffset - TargetSlideOffset;
+        float SlideSpringForce  = -SlideStiffness * SlideDisplacement;
+        float SlideDampForce    = -SlideDamping * SlideVelocity;
+        float SlideAccel        = SlideSpringForce + SlideDampForce;
+
+        SlideVelocity      += SlideAccel * DeltaSeconds;
+        CurrentSlideOffset += SlideVelocity * DeltaSeconds;
+
+        if (std::abs(SlideDisplacement) < 0.2f && std::abs(SlideVelocity) < 0.2f)
+        {
+            CurrentSlideOffset = TargetSlideOffset;
+            SlideVelocity      = 0.0f;
+        }
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -268,6 +352,68 @@ void ControlCentrePanel::AdvanceInteraction(const InputExchange& Input, float Cu
                 else
                 {
                     CloseNotch();
+                }
+            }
+        }
+    }
+
+    // Content Hit Testing (When fully deployed/open)
+    if (OpenCondition && !DraggingCondition && CurrentOffsetY > (static_cast<float>(ViewportHeight) * 0.5f))
+    {
+        float StageW = 520.0f;
+        float StageX0 = (static_cast<float>(ViewportWidth) - StageW) * 0.5f;
+        float StageY0 = (CurrentOffsetY - 480.0f) * 0.5f;
+
+        if (Input.IsMouseButtonPressed(MouseButtonCategory::ButtonLeft))
+        {
+            if (ActivePage == ControlCentrePageCategory::Dashboard)
+            {
+                // Top header Settings button click: (StageX0 + 470, StageY0 + 10, 32x32)
+                if (CursorX >= (StageX0 + 460.0f) && CursorX <= (StageX0 + 510.0f) &&
+                    CursorY >= StageY0 && CursorY <= (StageY0 + 40.0f))
+                {
+                    NavigateToPage(ControlCentrePageCategory::SettingsHub);
+                }
+            }
+            else if (ActivePage == ControlCentrePageCategory::SettingsHub)
+            {
+                // Back button click: (StageX0, StageY0, 40, 40)
+                if (CursorX >= StageX0 && CursorX <= (StageX0 + 50.0f) &&
+                    CursorY >= StageY0 && CursorY <= (StageY0 + 40.0f))
+                {
+                    NavigateBack();
+                }
+
+                // 4 Menu Row Clicks:
+                float MenuTopY = StageY0 + 60.0f;
+                float RowHeight = 64.0f;
+                if (CursorX >= StageX0 && CursorX <= (StageX0 + StageW))
+                {
+                    if (CursorY >= MenuTopY && CursorY < (MenuTopY + RowHeight))
+                    {
+                        NavigateToPage(ControlCentrePageCategory::Appearance);
+                    }
+                    else if (CursorY >= (MenuTopY + RowHeight) && CursorY < (MenuTopY + RowHeight * 2))
+                    {
+                        NavigateToPage(ControlCentrePageCategory::Display);
+                    }
+                    else if (CursorY >= (MenuTopY + RowHeight * 2) && CursorY < (MenuTopY + RowHeight * 3))
+                    {
+                        NavigateToPage(ControlCentrePageCategory::Input);
+                    }
+                    else if (CursorY >= (MenuTopY + RowHeight * 3) && CursorY < (MenuTopY + RowHeight * 4))
+                    {
+                        NavigateToPage(ControlCentrePageCategory::Notifications);
+                    }
+                }
+            }
+            else
+            {
+                // Sub-Page Back button click
+                if (CursorX >= StageX0 && CursorX <= (StageX0 + 50.0f) &&
+                    CursorY >= StageY0 && CursorY <= (StageY0 + 40.0f))
+                {
+                    NavigateBack();
                 }
             }
         }

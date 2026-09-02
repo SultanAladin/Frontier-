@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <string_view>
 #include <array>
-#include <span>
 
 namespace Frontier {
 
@@ -22,10 +21,10 @@ namespace Frontier {
 enum class IconCategory : uint32_t
 {
     Navigation                          = 0,                    // Directional arrows, chevrons, rotations and expands
-    EditorTools                         = 1,                    // Select, translate, rotate, scale, snap and viewport
-    TexturePainting                     = 2,                    // Brush, eraser, eyedropper, bucket, stamp, gradient
-    Outliner                            = 3,                    // Folder, hierarchy, light, camera, material, visibility
-    ControlCentre                       = 4,                    // Settings, display, themes, input, notifications, power
+    ControlCentre                       = 1,                    // Settings, appearance, display, input, bell, wifi, power
+    EditorTools                         = 2,                    // Select, translate, rotate, scale, snap and viewport
+    TexturePainting                     = 3,                    // Brush, eraser, eyedropper, bucket, stamp, gradient
+    Outliner                            = 4,                    // Folder, hierarchy, light, camera, material, visibility
     Count                               = 5
 };
 
@@ -54,6 +53,25 @@ enum class NavigationIconCategory : uint32_t
     ExpandDiagonal                      = 16,                   // ⤢ maximize/expand
     CollapseDiagonal                    = 17,                   // ⤡ minimize/collapse
     Count                               = 18
+};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                           CONTROL CENTRE ICON CATEGORY
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class ControlCentreIconCategory : uint32_t
+{
+    SettingsGear                        = 0,                    // ⚙ gear cog
+    AppearancePalette                   = 1,                    // 🎨 artist palette / theme swatches
+    DisplayMonitor                      = 2,                    // 🖥 monitor display screen
+    InputDevices                        = 3,                    // ⌨ keyboard / input controller
+    NotificationsBell                   = 4,                    // 🔔 bell notification alert
+    WirelessSignal                      = 5,                    // 🛜 wifi wireless waves
+    BluetoothSymbol                     = 6,                    // ᛒ bluetooth node
+    MoonDisturbance                     = 7,                    // 🌙 do not disturb moon
+    VolumeSpeaker                       = 8,                    // 🔊 audio master speaker
+    SunIllumination                     = 9,                    // ☀️ brightness illumination
+    Count                               = 10
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -86,12 +104,20 @@ public:
     [[nodiscard]] static std::string_view QueryNavigationSvgPath(NavigationIconCategory Icon) noexcept;
     [[nodiscard]] static uint32_t         QueryNavigationIconCount() noexcept;
 
+    [[nodiscard]] static const VectorGlyphRecord& QueryControlCentreIcon(ControlCentreIconCategory Icon) noexcept;
+    [[nodiscard]] static std::string_view QueryControlCentreSvgPath(ControlCentreIconCategory Icon) noexcept;
+    [[nodiscard]] static uint32_t         QueryControlCentreIconCount() noexcept;
+
     // Single unified conversion operator for icon record
     template<typename TargetType>
     [[nodiscard]] static TargetType Convert(NavigationIconCategory Icon) noexcept;
 
+    template<typename TargetType>
+    [[nodiscard]] static TargetType Convert(ControlCentreIconCategory Icon) noexcept;
+
 private:
     static const std::array<VectorGlyphRecord, static_cast<size_t>(NavigationIconCategory::Count)> NavigationGlyphTable;
+    static const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategory::Count)> ControlCentreGlyphTable;
 };
 
 template<>
@@ -104,6 +130,18 @@ template<>
 inline const VectorGlyphRecord& VectorCodec::Convert<const VectorGlyphRecord&>(NavigationIconCategory Icon) noexcept
 {
     return QueryNavigationIcon(Icon);
+}
+
+template<>
+inline std::string_view VectorCodec::Convert<std::string_view>(ControlCentreIconCategory Icon) noexcept
+{
+    return QueryControlCentreSvgPath(Icon);
+}
+
+template<>
+inline const VectorGlyphRecord& VectorCodec::Convert<const VectorGlyphRecord&>(ControlCentreIconCategory Icon) noexcept
+{
+    return QueryControlCentreIcon(Icon);
 }
 
 } // namespace Frontier

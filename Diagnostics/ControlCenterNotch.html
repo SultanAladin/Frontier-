@@ -172,16 +172,20 @@ svg { display: block; }
   max-width: 860px; height: 620px;
 }
 
-/* View Transition Cards */
+/* View Transition Cards & Stepper Carousel Sliding */
 .view-card {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
-  opacity: 0; transform: scale(0.95) translateY(15px);
-  pointer-events: none; transition: opacity 0.24s var(--ease-smooth), transform 0.24s var(--ease-smooth);
+  opacity: 0; transform: translateX(60px);
+  pointer-events: none;
+  transition: opacity 0.28s var(--ease-spring), transform 0.32s var(--ease-spring);
 }
 .view-card.active {
-  opacity: 1; transform: scale(1) translateY(0);
+  opacity: 1; transform: translateX(0);
   pointer-events: auto;
+}
+.view-card.slide-left {
+  opacity: 0; transform: translateX(-60px);
 }
 
 /* ── VIEW 1: Control Centre Dashboard (Slate C++ / Notch) ── */
@@ -542,7 +546,7 @@ svg { display: block; }
         <div class="view-card" id="view-settings">
           <div class="cc-top-row" style="margin-bottom: 4px;">
             <div style="display:flex; align-items:center; gap:8px;">
-              <button class="btn-icon-ghost" onclick="showView('view-dashboard')"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="btn-icon-ghost" onclick="showView('view-dashboard', true)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
               <span style="font-size:20px; font-weight:700; color:#ffffff;">Settings</span>
             </div>
           </div>
@@ -608,7 +612,7 @@ svg { display: block; }
                 <h2 class="modal-heading">Display Settings</h2>
                 <p class="modal-subheading">Appearance, typography & hardware preferences</p>
               </div>
-              <button class="btn-icon-ghost" onclick="showView('view-settings')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="btn-icon-ghost" onclick="showView('view-settings', true)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
 
             <!-- Sub-Tabs: Theme | Fonts | Display -->
@@ -832,7 +836,7 @@ svg { display: block; }
             <div class="modal-bottom-bar">
               <span style="font-size:11px; color:var(--text-muted);">Slate Engine · Vulkan 1.3 · Right-Hand Z-Up</span>
               <div style="display:flex; gap:12px;">
-                <button class="btn-ghost-cancel" onclick="showView('view-settings')">Discard</button>
+                <button class="btn-ghost-cancel" onclick="showView('view-settings', true)">Discard</button>
                 <button class="btn-solid-white" onclick="closeNotch()">Apply Preferences</button>
               </div>
             </div>
@@ -849,7 +853,7 @@ svg { display: block; }
                 <h2 class="modal-heading">Workspace & Viewports</h2>
                 <p class="modal-subheading">Multi-viewport rendering and scaling</p>
               </div>
-              <button class="btn-icon-ghost" onclick="showView('view-settings')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="btn-icon-ghost" onclick="showView('view-settings', true)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
 
             <div class="modal-scroll-area">
@@ -876,7 +880,7 @@ svg { display: block; }
             </div>
 
             <div class="modal-bottom-bar">
-              <button class="btn-ghost-cancel" onclick="showView('view-settings')">Discard Changes</button>
+              <button class="btn-ghost-cancel" onclick="showView('view-settings', true)">Discard Changes</button>
               <button class="btn-solid-white" onclick="closeNotch()">Apply Changes</button>
             </div>
           </div>
@@ -892,7 +896,7 @@ svg { display: block; }
                 <h2 class="modal-heading">Input Devices & Shortcuts</h2>
                 <p class="modal-subheading">Navigation presets and action keybindings</p>
               </div>
-              <button class="btn-icon-ghost" onclick="showView('view-settings')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="btn-icon-ghost" onclick="showView('view-settings', true)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
 
             <div class="modal-scroll-area">
@@ -923,7 +927,7 @@ svg { display: block; }
             </div>
 
             <div class="modal-bottom-bar">
-              <button class="btn-ghost-cancel" onclick="showView('view-settings')">Discard</button>
+              <button class="btn-ghost-cancel" onclick="showView('view-settings', true)">Discard</button>
               <div style="display:flex; gap:12px;">
                 <button class="btn-ghost-cancel" style="border:1px solid var(--panel-border);">Reset Defaults</button>
                 <button class="btn-solid-white" onclick="closeNotch()">Save Keybindings</button>
@@ -942,7 +946,7 @@ svg { display: block; }
                 <h2 class="modal-heading">Apps & Notifications</h2>
                 <p class="modal-subheading">Real-time telemetry and task alerts</p>
               </div>
-              <button class="btn-icon-ghost" onclick="showView('view-settings')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="btn-icon-ghost" onclick="showView('view-settings', true)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
 
             <div class="modal-scroll-area">
@@ -1133,17 +1137,38 @@ function closeNotch() {
   }, 350);
 }
 
-function showView(viewId) {
-  document.querySelectorAll('.view-card').forEach(el => el.classList.remove('active'));
-  const target = document.getElementById(viewId);
-  if (target) target.classList.add('active');
+let viewHistory = ['view-dashboard'];
 
-  const stage = document.getElementById('modal-stage');
-  if (viewId === 'view-dashboard') {
-    stage.classList.remove('expanded');
-  } else {
-    stage.classList.add('expanded');
+function showView(viewId, isBack = false) {
+  const currentActive = document.querySelector('.view-card.active');
+  const target = document.getElementById(viewId);
+  if (!target) return;
+
+  if (currentActive && currentActive !== target) {
+    if (isBack) {
+      currentActive.classList.add('slide-left');
+      target.style.transform = 'translateX(-60px)';
+    } else {
+      currentActive.classList.add('slide-left');
+      target.style.transform = 'translateX(60px)';
+    }
   }
+
+  setTimeout(() => {
+    document.querySelectorAll('.view-card').forEach(el => {
+      el.classList.remove('active');
+      el.classList.remove('slide-left');
+      el.style.transform = '';
+    });
+    target.classList.add('active');
+
+    const stage = document.getElementById('modal-stage');
+    if (viewId === 'view-dashboard') {
+      stage.classList.remove('expanded');
+    } else {
+      stage.classList.add('expanded');
+    }
+  }, 30);
 }
 
 function openAppearanceModal(tab = 'theme') {
