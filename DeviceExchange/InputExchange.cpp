@@ -16,7 +16,9 @@ InputExchange::InputExchange() noexcept
     : PrimaryGamepad{}
     , CursorDelta{ 0.0f, 0.0f, 0.0f }
     , AnalogDeadzone(0.15f)
+    , MouseScrollDelta(0.0f)
     , KeyStates{}
+    , MouseButtonStates{}
 {
     PrimaryGamepad.ConnectedCondition = true;
 }
@@ -27,8 +29,9 @@ InputExchange::InputExchange() noexcept
 
 void InputExchange::PollInputDevices() noexcept
 {
-    // Resets per-frame deltas
-    CursorDelta = Vector3{ 0.0f, 0.0f, 0.0f };
+    // Resets per-frame instantaneous deltas
+    CursorDelta      = Vector3{ 0.0f, 0.0f, 0.0f };
+    MouseScrollDelta = 0.0f;
 }
 
 void InputExchange::AssignKeyState(VirtualKeyCategory Key, bool Pressed) noexcept
@@ -44,6 +47,19 @@ void InputExchange::AssignCursorDelta(float DeltaX, float DeltaY) noexcept
 {
     CursorDelta.x += DeltaX;
     CursorDelta.y += DeltaY;
+}
+
+void InputExchange::AssignMouseButton(uint32_t ButtonIndex, bool Pressed) noexcept
+{
+    if (ButtonIndex < MouseButtonStates.size())
+    {
+        MouseButtonStates[ButtonIndex] = Pressed;
+    }
+}
+
+void InputExchange::AssignMouseScroll(float ScrollDelta) noexcept
+{
+    MouseScrollDelta += ScrollDelta;
 }
 
 void InputExchange::AssignGamepadAxis(float LeftX, float LeftY, float RightX, float RightY, float LeftTrig, float RightTrig) noexcept
@@ -71,6 +87,15 @@ bool InputExchange::IsKeyPressed(VirtualKeyCategory Key) const noexcept
     if (Index < KeyStates.size())
     {
         return KeyStates[Index];
+    }
+    return false;
+}
+
+bool InputExchange::IsMouseButtonPressed(uint32_t ButtonIndex) const noexcept
+{
+    if (ButtonIndex < MouseButtonStates.size())
+    {
+        return MouseButtonStates[ButtonIndex];
     }
     return false;
 }

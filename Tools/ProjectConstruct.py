@@ -119,6 +119,7 @@ ENGINE_OBJS := \\
 	$(ENGINE_DIR)/VolumetricDynamics/FluidSolver.o \\
 	$(ENGINE_DIR)/VolumetricDynamics/ParticleIntegrator.o \\
 	$(ENGINE_DIR)/GeometricRaster/GeometryStructure.o \\
+	$(ENGINE_DIR)/GeometricRaster/CameraProjection.o \\
 	$(ENGINE_DIR)/GeometricRaster/VisibilityProjection.o \\
 	$(ENGINE_DIR)/GeometricRaster/RasterSequence.o \\
 	$(ENGINE_DIR)/GeometricRaster/MaterialCodec.o \\

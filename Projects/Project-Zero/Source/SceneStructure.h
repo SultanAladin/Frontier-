@@ -67,18 +67,4 @@ struct HitIntersection
     bool                    ValidCondition;                     // [bool] true if ray intersected geometry
 };
 
-//------------------------------------------------------------------------------------------------------------------------
-//                                               CAMERA PROJECTION
-//------------------------------------------------------------------------------------------------------------------------
-
-struct CameraProjection
-{
-    Vector3                 CameraPosition;                     // [m] camera eye position
-    Vector3                 ForwardVector;                      // [-] view forward vector
-    Vector3                 UpwardVector;                       // [-] view upward vector
-    Vector3                 RightVector;                        // [-] view right vector
-    float                   FieldOfViewRadians;                 // [rad] vertical field of view
-    float                   AspectRatio;                        // [-] width over height ratio
-};
-
 } // namespace Frontier::ProjectZero

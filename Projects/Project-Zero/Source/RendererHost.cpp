@@ -18,34 +18,24 @@ namespace Frontier::ProjectZero {
 RendererHost::RendererHost(uint32_t ViewportWidth, uint32_t ViewportHeight) noexcept
     : Width(ViewportWidth)
     , Height(ViewportHeight)
-    , Camera{}
     , Scene{}
     , PrimaryHits(ViewportWidth * ViewportHeight)
     , DirectReservoirs(ViewportWidth * ViewportHeight)
     , IndirectReservoirs(ViewportWidth * ViewportHeight)
     , AccumulatedBuffer(ViewportWidth * ViewportHeight, Vector3{ 0.0f, 0.0f, 0.0f })
 {
-    // Camera configuration: Perfectly framed Cornell Box
-    Camera.CameraPosition     = Vector3{ 0.0f, 1.0f, -1.95f };
-    Camera.ForwardVector      = Vector3{ 0.0f, 0.0f, 1.0f };
-    Camera.UpwardVector       = Vector3{ 0.0f, 1.0f, 0.0f };
-    Camera.RightVector        = Vector3{ 1.0f, 0.0f, 0.0f };
-    Camera.FieldOfViewRadians = 55.0f * (3.14159265359f / 180.0f);
-    Camera.AspectRatio        = static_cast<float>(ViewportWidth) / static_cast<float>(ViewportHeight);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                RAY GENERATION & SAMPLING
 //------------------------------------------------------------------------------------------------------------------------
 
-RayRecord RendererHost::GeneratePrimaryRay(uint32_t PixelX, uint32_t PixelY, float JitterX, float JitterY) const noexcept
+RayRecord RendererHost::GeneratePrimaryRay(const Frontier::CameraProjection& ActiveCamera, uint32_t PixelX, uint32_t PixelY, float JitterX, float JitterY) const noexcept
 {
-    float HalfFovTan = std::tan(Camera.FieldOfViewRadians * 0.5f);
-    float ScreenX = (2.0f * (static_cast<float>(PixelX) + JitterX) / static_cast<float>(Width) - 1.0f) * HalfFovTan * Camera.AspectRatio;
-    float ScreenY = (1.0f - 2.0f * (static_cast<float>(PixelY) + JitterY) / static_cast<float>(Height)) * HalfFovTan;
-
-    Vector3 RayDir = (Camera.ForwardVector + Camera.RightVector * ScreenX + Camera.UpwardVector * ScreenY).Normalized();
-    return RayRecord{ Camera.CameraPosition, RayDir, 0.001f, 100.0f };
+    float u = (static_cast<float>(PixelX) + JitterX) / static_cast<float>(Width);
+    float v = (static_cast<float>(PixelY) + JitterY) / static_cast<float>(Height);
+    Frontier::ViewRay Ray = ActiveCamera.ConstructRay(u, v);
+    return RayRecord{ Ray.OriginLocation, Ray.UnitDirection, Ray.NearClippingDistance, Ray.FarClippingDistance };
 }
 
 Vector3 RendererHost::SampleCosineHemisphere(const Vector3& Normal, float u1, float u2) const noexcept
@@ -57,7 +47,6 @@ Vector3 RendererHost::SampleCosineHemisphere(const Vector3& Normal, float u1, fl
     float y = r * std::sin(theta);
     float z = std::sqrt(std::max(0.0f, 1.0f - u1));
 
-    // Construct local tangent space (T, B, N)
     Vector3 Up = (std::abs(Normal.y) < 0.999f) ? Vector3{ 0.0f, 1.0f, 0.0f } : Vector3{ 1.0f, 0.0f, 0.0f };
     Vector3 Tangent = OrientationClassifier::CrossProduct(Up, Normal).Normalized();
     Vector3 Bitangent = OrientationClassifier::CrossProduct(Normal, Tangent);
@@ -95,7 +84,7 @@ float RendererHost::EvaluateJacobian(const Vector3& x1, const Vector3& x2, const
 //                                           RESTIR DI & GI RENDER PIPELINE
 //------------------------------------------------------------------------------------------------------------------------
 
-void RendererHost::RenderReSTIRFrame(uint32_t SpatialPassCount) noexcept
+void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCamera, uint32_t SpatialPassCount) noexcept
 {
     std::mt19937 Rng(1337);
     std::uniform_real_distribution<float> Dist(0.0f, 1.0f);
@@ -109,13 +98,13 @@ void RendererHost::RenderReSTIRFrame(uint32_t SpatialPassCount) noexcept
     Vector3 LightEmission{ 12.0f, 12.0f, 12.0f };
     float   LightArea = (LightMax.x - LightMin.x) * (LightMax.z - LightMin.z);
 
-    // Phase 1: Visibility Buffer Primary Ray Trace
+    // Phase 1: Visibility Buffer Primary Ray Trace from Active Camera
     for (uint32_t y = 0; y < Height; ++y)
     {
         for (uint32_t x = 0; x < Width; ++x)
         {
             size_t idx = y * Width + x;
-            RayRecord PrimaryRay = GeneratePrimaryRay(x, y, 0.5f, 0.5f);
+            RayRecord PrimaryRay = GeneratePrimaryRay(ActiveCamera, x, y, 0.5f, 0.5f);
             PrimaryHits[idx] = Scene.EvaluateIntersection(PrimaryRay);
         }
     }
@@ -198,7 +187,6 @@ void RendererHost::RenderReSTIRFrame(uint32_t SpatialPassCount) noexcept
                 {
                     const auto& BounceMat = Materials[BounceHit.MaterialIndex];
 
-                    // Direct illumination at bounce surface
                     float lx = LightMin.x + Dist(Rng) * (LightMax.x - LightMin.x);
                     float lz = LightMin.z + Dist(Rng) * (LightMax.z - LightMin.z);
                     Vector3 LightCenter{ lx, LightMin.y, lz };

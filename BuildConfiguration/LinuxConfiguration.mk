@@ -24,6 +24,7 @@ SRCS := \
 	VolumetricDynamics/FluidSolver.cpp \
 	VolumetricDynamics/ParticleIntegrator.cpp \
 	GeometricRaster/GeometryStructure.cpp \
+	GeometricRaster/CameraProjection.cpp \
 	GeometricRaster/VisibilityProjection.cpp \
 	GeometricRaster/RasterSequence.cpp \
 	GeometricRaster/MaterialCodec.cpp \

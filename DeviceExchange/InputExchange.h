@@ -24,16 +24,18 @@ enum class VirtualKeyCategory : uint32_t
     KeyA                                = 1,
     KeyS                                = 2,
     KeyD                                = 3,
-    KeySpace                            = 4,
-    KeyLeftShift                        = 5,
-    KeyLeftControl                      = 6,
-    KeyEscape                           = 7,
-    KeyEnter                            = 8,
-    KeyUp                               = 9,
-    KeyDown                             = 10,
-    KeyLeft                             = 11,
-    KeyRight                            = 12,
-    Count                               = 13
+    KeyQ                                = 4,
+    KeyE                                = 5,
+    KeySpace                            = 6,
+    KeyLeftShift                        = 7,
+    KeyLeftControl                      = 8,
+    KeyEscape                           = 9,
+    KeyEnter                            = 10,
+    KeyUp                               = 11,
+    KeyDown                             = 12,
+    KeyLeft                             = 13,
+    KeyRight                            = 14,
+    Count                               = 15
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -70,9 +72,13 @@ public:
 
     void                    AssignKeyState(VirtualKeyCategory Key, bool Pressed) noexcept;
     void                    AssignCursorDelta(float DeltaX, float DeltaY) noexcept;
+    void                    AssignMouseButton(uint32_t ButtonIndex, bool Pressed) noexcept;
+    void                    AssignMouseScroll(float ScrollDelta) noexcept;
     void                    AssignGamepadAxis(float LeftX, float LeftY, float RightX, float RightY, float LeftTrig, float RightTrig) noexcept;
 
     [[nodiscard]] bool      IsKeyPressed(VirtualKeyCategory Key) const noexcept;
+    [[nodiscard]] bool      IsMouseButtonPressed(uint32_t ButtonIndex) const noexcept;
+    [[nodiscard]] float     QueryMouseScrollDelta() const noexcept { return MouseScrollDelta; }
     [[nodiscard]] Vector3   QueryCursorDelta() const noexcept { return CursorDelta; }
     [[nodiscard]] const GamepadRecord& QueryGamepad() const noexcept { return PrimaryGamepad; }
 
@@ -84,7 +90,9 @@ private:
     GamepadRecord           PrimaryGamepad;                     // [gamepad] active gamepad record
     Vector3                 CursorDelta;                        // [px] mouse delta movement
     float                   AnalogDeadzone;                     // [0..1] joystick deadzone threshold
+    float                   MouseScrollDelta;                   // [clicks] mouse scroll wheel increment
     std::array<bool, static_cast<size_t>(VirtualKeyCategory::Count)> KeyStates; // [keys] active pressed keys
+    std::array<bool, 5>     MouseButtonStates;                  // [buttons] mouse buttons (0=LMB, 1=RMB, 2=MMB)
 };
 
 template<>

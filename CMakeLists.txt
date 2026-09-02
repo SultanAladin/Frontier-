@@ -39,6 +39,7 @@ set(FRONTIER_ENGINE_SOURCES
     PhysicalDynamics/DeformableSolver.cpp
     PhysicalDynamics/LocomotionSolver.h
     PhysicalDynamics/LocomotionSolver.cpp
+    PhysicalDynamics/SpatialStructure.h
     PhysicalDynamics/WorldSpace.h
     PhysicalDynamics/WorldSpace.cpp
 
@@ -52,6 +53,8 @@ set(FRONTIER_ENGINE_SOURCES
 
     GeometricRaster/GeometryStructure.h
     GeometricRaster/GeometryStructure.cpp
+    GeometricRaster/CameraProjection.h
+    GeometricRaster/CameraProjection.cpp
     GeometricRaster/VisibilityProjection.h
     GeometricRaster/VisibilityProjection.cpp
     GeometricRaster/RasterSequence.h
@@ -121,6 +124,8 @@ set(PROJECT_ZERO_SOURCES
     Projects/Project-Zero/Source/SceneStructure.h
     Projects/Project-Zero/Source/RayTracingSolver.h
     Projects/Project-Zero/Source/RayTracingSolver.cpp
+    Projects/Project-Zero/Source/FlyThroughSolver.h
+    Projects/Project-Zero/Source/FlyThroughSolver.cpp
     Projects/Project-Zero/Source/RendererHost.h
     Projects/Project-Zero/Source/RendererHost.cpp
     Projects/Project-Zero/Source/GameExecution.cpp
