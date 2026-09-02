@@ -39,7 +39,7 @@ bool GameHost::LaunchGame(uint32_t Width, uint32_t Height) noexcept
     Fidelity = std::make_unique<Frontier::FidelityClassifier>();
     Fidelity->AssignCategory(Frontier::FidelityCategory::UltraFidelity);
 
-    World    = std::make_unique<Frontier::WorldSequence>();
+    World    = std::make_unique<Frontier::WorldSpace>();
     Frontier::WorldDescriptor circuitAlpha{
         "track_01_neon_hypergrid",
         "Neon Hypergrid Circuit Alpha",

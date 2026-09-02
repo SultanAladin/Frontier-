@@ -8,7 +8,7 @@
 #include "../../../DeviceExchange/WindowExchange.h"
 #include "../../../DeviceExchange/InputExchange.h"
 #include "../../../DisplayPresentation/FidelityClassifier.h"
-#include "../../../PhysicalDynamics/WorldSequence.h"
+#include "../../../PhysicalDynamics/WorldSpace.h"
 #include "VehicleSolver.h"
 #include "TrackSequence.h"
 #include <memory>
@@ -45,7 +45,7 @@ private:
     std::unique_ptr<Frontier::WindowExchange>      Window;      // [window] native OS display window
     std::unique_ptr<Frontier::InputExchange>       Input;       // [input] keyboard/gamepad polling
     std::unique_ptr<Frontier::FidelityClassifier>  Fidelity;    // [fidelity] graphics quality profile
-    std::unique_ptr<Frontier::WorldSequence>       World;       // [world] track streaming and level sequence
+    std::unique_ptr<Frontier::WorldSpace>          World;       // [world] continuous 3D world space and scene transitions
     std::unique_ptr<VehicleSolver>                 Vehicle;     // [vehicle] vehicle dynamics solver
     std::unique_ptr<TrackSequence>                 Track;       // [track] checkpoint and lap tracking
     bool                                           RunningCondition; // [bool] game lifecycle status

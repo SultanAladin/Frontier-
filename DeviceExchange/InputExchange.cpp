@@ -13,10 +13,10 @@ namespace Frontier {
 //------------------------------------------------------------------------------------------------------------------------
 
 InputExchange::InputExchange() noexcept
-    : KeyStates{}
+    : PrimaryGamepad{}
     , CursorDelta{ 0.0f, 0.0f, 0.0f }
-    , PrimaryGamepad{}
     , AnalogDeadzone(0.15f)
+    , KeyStates{}
 {
     PrimaryGamepad.ConnectedCondition = true;
 }

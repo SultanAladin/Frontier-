@@ -19,7 +19,7 @@ SRCS := \
 	PhysicalDynamics/RigidBodySolver.cpp \
 	PhysicalDynamics/DeformableSolver.cpp \
 	PhysicalDynamics/LocomotionSolver.cpp \
-	PhysicalDynamics/WorldSequence.cpp \
+	PhysicalDynamics/WorldSpace.cpp \
 	VolumetricDynamics/LevelSetSpace.cpp \
 	VolumetricDynamics/FluidSolver.cpp \
 	VolumetricDynamics/ParticleIntegrator.cpp \

@@ -4,6 +4,10 @@
 
 #pragma once
 
+#if defined(_MSC_VER)
+    #pragma warning(disable: 4324)                              // Disable structure padding alignment warning under /WX
+#endif
+
 #include "../DeviceExchange/OrientationClassifier.h"
 #include <vector>
 #include <cstdint>
@@ -31,9 +35,9 @@ struct alignas(16) VertexRecord
 struct PolyhedralCluster
 {
     Vector3                 BoundingCenter;                     // [m] bounding sphere center
-    float                   BoundingRadius;                     // [m] bounding sphere radius
     Vector3                 ConeApex;                           // [m] normal cone apex
     Vector3                 ConeAxis;                           // [-] normal cone direction
+    float                   BoundingRadius;                     // [m] bounding sphere radius
     float                   ConeCutoff;                         // [-] cone angle cosine cutoff
     uint32_t                VertexOffset;                       // [offset] index into vertex span
     uint32_t                TriangleOffset;                     // [offset] index into triangle index span

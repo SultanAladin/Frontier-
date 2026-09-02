@@ -28,7 +28,7 @@ ENGINE_OBJS := \
 	$(ENGINE_DIR)/PhysicalDynamics/RigidBodySolver.o \
 	$(ENGINE_DIR)/PhysicalDynamics/DeformableSolver.o \
 	$(ENGINE_DIR)/PhysicalDynamics/LocomotionSolver.o \
-	$(ENGINE_DIR)/PhysicalDynamics/WorldSequence.o \
+	$(ENGINE_DIR)/PhysicalDynamics/WorldSpace.o \
 	$(ENGINE_DIR)/VolumetricDynamics/LevelSetSpace.o \
 	$(ENGINE_DIR)/VolumetricDynamics/FluidSolver.o \
 	$(ENGINE_DIR)/VolumetricDynamics/ParticleIntegrator.o \

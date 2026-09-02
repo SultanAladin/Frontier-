@@ -4,6 +4,10 @@
 
 #pragma once
 
+#if defined(_MSC_VER)
+    #pragma warning(disable: 4324)                              // Disable structure padding alignment warning under /WX
+#endif
+
 #include "../DeviceExchange/OrientationClassifier.h"
 #include <string>
 #include <vector>
@@ -17,11 +21,11 @@ namespace Frontier {
 
 struct VoiceParticipant
 {
-    uint64_t                AccountIdentifier;                  // [token] unique peer account identifier
     Vector3                 SpatialLocation;                    // [m] position in continuous 3D world
+    uint64_t                AccountIdentifier;                  // [token] unique peer account identifier
+    float                   VolumeMultiplier;                   // [0..1] peer volume scaling
     bool                    SpeakingCondition;                  // [bool] true when transmitting microphone audio
     bool                    MutedCondition;                     // [bool] true when local participant is muted
-    float                   VolumeMultiplier;                   // [0..1] peer volume scaling
 };
 
 //------------------------------------------------------------------------------------------------------------------------

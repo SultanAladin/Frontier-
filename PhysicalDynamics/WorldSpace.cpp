@@ -1,8 +1,8 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/WorldSequence.cpp — World Streaming and Scene Transitions Implementation
+// 📦 Frontier/PhysicalDynamics/WorldSpace.cpp — Continuous 3D World Space Coordinate Domain and Scene Transitions
 //============================================================================================================================================
 
-#include "WorldSequence.h"
+#include "WorldSpace.h"
 #include <algorithm>
 
 namespace Frontier {
@@ -11,7 +11,7 @@ namespace Frontier {
 //                                                LIFECYCLE IMPLEMENTATION
 //------------------------------------------------------------------------------------------------------------------------
 
-WorldSequence::WorldSequence() noexcept
+WorldSpace::WorldSpace() noexcept
     : ActiveWorldIndex(0)
     , TransitionProgress(1.0f)
     , TransitioningCondition(false)
@@ -22,14 +22,14 @@ WorldSequence::WorldSequence() noexcept
 //                                                WORLD REGISTRATION
 //------------------------------------------------------------------------------------------------------------------------
 
-uint32_t WorldSequence::RegisterWorld(WorldDescriptor World) noexcept
+uint32_t WorldSpace::RegisterWorld(WorldDescriptor World) noexcept
 {
     uint32_t Index = static_cast<uint32_t>(RegisteredWorlds.size());
     RegisteredWorlds.push_back(std::move(World));
     return Index;
 }
 
-bool WorldSequence::TransitionToWorld(uint32_t WorldIndex, RigidBodySolver& RigidBodies, DeformableSolver& Deformables) noexcept
+bool WorldSpace::TransitionToWorld(uint32_t WorldIndex, RigidBodySolver& RigidBodies, DeformableSolver& Deformables) noexcept
 {
     if (WorldIndex >= RegisteredWorlds.size())
     {
@@ -46,7 +46,7 @@ bool WorldSequence::TransitionToWorld(uint32_t WorldIndex, RigidBodySolver& Rigi
     return true;
 }
 
-void WorldSequence::AdvanceWorld(float Δτ) noexcept
+void WorldSpace::AdvanceWorld(float Δτ) noexcept
 {
     if (TransitioningCondition)
     {
@@ -59,7 +59,7 @@ void WorldSequence::AdvanceWorld(float Δτ) noexcept
     }
 }
 
-const WorldDescriptor* WorldSequence::QueryActiveWorld() const noexcept
+const WorldDescriptor* WorldSpace::QueryActiveWorld() const noexcept
 {
     if (ActiveWorldIndex < RegisteredWorlds.size())
     {

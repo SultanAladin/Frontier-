@@ -39,8 +39,8 @@ set(FRONTIER_ENGINE_SOURCES
     PhysicalDynamics/DeformableSolver.cpp
     PhysicalDynamics/LocomotionSolver.h
     PhysicalDynamics/LocomotionSolver.cpp
-    PhysicalDynamics/WorldSequence.h
-    PhysicalDynamics/WorldSequence.cpp
+    PhysicalDynamics/WorldSpace.h
+    PhysicalDynamics/WorldSpace.cpp
 
     VolumetricDynamics/LevelSetSpace.h
     VolumetricDynamics/LevelSetSpace.cpp

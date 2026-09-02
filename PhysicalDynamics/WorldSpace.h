@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/WorldSequence.h — World Streaming, Track World Loading and Scene Transitions
+// 📦 Frontier/PhysicalDynamics/WorldSpace.h — Continuous 3D World Space Coordinate Domain and Scene Transitions
 //============================================================================================================================================
 
 #pragma once
@@ -26,17 +26,17 @@ struct WorldDescriptor
 };
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                   WORLD SEQUENCE
+//                                                    WORLD SPACE
 //------------------------------------------------------------------------------------------------------------------------
 
-class WorldSequence
+class WorldSpace
 {
 public:
-    WorldSequence() noexcept;
-    ~WorldSequence() noexcept = default;
+    WorldSpace() noexcept;
+    ~WorldSpace() noexcept = default;
 
-    WorldSequence(const WorldSequence&) = delete;
-    WorldSequence& operator=(const WorldSequence&) = delete;
+    WorldSpace(const WorldSpace&) = delete;
+    WorldSpace& operator=(const WorldSpace&) = delete;
 
     uint32_t                RegisterWorld(WorldDescriptor World) noexcept;
     [[nodiscard]] bool      TransitionToWorld(uint32_t WorldIndex, RigidBodySolver& RigidBodies, DeformableSolver& Deformables) noexcept;
@@ -59,13 +59,13 @@ private:
 };
 
 template<>
-inline size_t WorldSequence::Convert<size_t>() const noexcept
+inline size_t WorldSpace::Convert<size_t>() const noexcept
 {
     return RegisteredWorlds.size();
 }
 
 template<>
-inline uint32_t WorldSequence::Convert<uint32_t>() const noexcept
+inline uint32_t WorldSpace::Convert<uint32_t>() const noexcept
 {
     return ActiveWorldIndex;
 }

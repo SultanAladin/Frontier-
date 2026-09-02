@@ -153,6 +153,7 @@ $CompilerFlags = @(
     '/fp:precise',
     '/W4',
     '/WX',
+    '/wd4324',
     '/utf-8',
     '/Zc:__cplusplus',
     '/DWIN32_LEAN_AND_MEAN',

@@ -4,6 +4,10 @@
 
 #pragma once
 
+#if defined(_MSC_VER)
+    #pragma warning(disable: 4324)                              // Disable structure padding alignment warning under /WX
+#endif
+
 #include "../DeviceExchange/OrientationClassifier.h"
 #include <cstdint>
 
@@ -28,11 +32,11 @@ enum class CollisionCategory : uint32_t
 
 struct RigidBodyStructure
 {
-    uint64_t                BodyIdentifier;                     // [token] unique body tracking identifier
     Vector3                 SpatialLocation;                    // [m] position in continuous world space
     Quaternion              AngularOrientation;                 // [rad] rotational orientation
     Vector3                 LinearMomentum;                     // [m/s] linear velocity
     Vector3                 AngularMomentum;                    // [rad/s] rotational angular velocity
+    uint64_t                BodyIdentifier;                     // [token] unique body tracking identifier
     float                   InertialMass;                       // [kg] mass (0.0 represents static infinite mass)
     float                   FrictionCoefficient;                // [0..1] Coulomb surface friction
     float                   RestitutionCoefficient;             // [0..1] Newtonian restitution coefficient

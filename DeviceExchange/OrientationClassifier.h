@@ -4,6 +4,10 @@
 
 #pragma once
 
+#if defined(_MSC_VER)
+    #pragma warning(disable: 4324)                              // Disable structure padding alignment warning under /WX
+#endif
+
 #include <cmath>
 #include <cstdint>
 #include <array>

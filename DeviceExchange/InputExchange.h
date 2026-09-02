@@ -4,6 +4,10 @@
 
 #pragma once
 
+#if defined(_MSC_VER)
+    #pragma warning(disable: 4324)                              // Disable structure padding alignment warning under /WX
+#endif
+
 #include "OrientationClassifier.h"
 #include <cstdint>
 #include <array>
@@ -77,10 +81,10 @@ public:
     [[nodiscard]] TargetType Convert() const noexcept;
 
 private:
-    std::array<bool, static_cast<size_t>(VirtualKeyCategory::Count)> KeyStates; // [keys] active pressed keys
-    Vector3                 CursorDelta;                        // [px] mouse delta movement
     GamepadRecord           PrimaryGamepad;                     // [gamepad] active gamepad record
+    Vector3                 CursorDelta;                        // [px] mouse delta movement
     float                   AnalogDeadzone;                     // [0..1] joystick deadzone threshold
+    std::array<bool, static_cast<size_t>(VirtualKeyCategory::Count)> KeyStates; // [keys] active pressed keys
 };
 
 template<>
