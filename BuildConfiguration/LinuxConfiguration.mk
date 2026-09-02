@@ -38,7 +38,8 @@ SRCS := \
 	PlatformInterchange/VoiceExchange.cpp \
 	PlatformInterchange/OnlineInterchange.cpp \
 	DisplayPresentation/ThemeStructure.cpp \
-	DisplayPresentation/ControlPanel.cpp \
+	DisplayPresentation/VectorCodec.cpp \
+	DisplayPresentation/ControlCentrePanel.cpp \
 	DisplayPresentation/WorkspacePanel.cpp \
 	DisplayPresentation/CycleScheduler.cpp \
 	DisplayPresentation/FidelityClassifier.cpp \

@@ -11,7 +11,8 @@
 #include "../DeviceExchange/RenderTargetExchange.h"
 #include "../DeviceExchange/InputExchange.h"
 #include "ThemeStructure.h"
-#include "ControlPanel.h"
+#include "VectorCodec.h"
+#include "ControlCentrePanel.h"
 #include <cstdint>
 #include <string_view>
 #include <array>
@@ -88,8 +89,10 @@ public:
     [[nodiscard]] const RenderTargetExchange& QueryActiveRenderTarget() const noexcept;
 
 #ifdef FRONTIER_DEVELOPMENT
-    [[nodiscard]] const ControlPanel& QueryControlPanel() const noexcept { return NotchControlPanel; }
-    ControlPanel&           AccessControlPanel() noexcept { return NotchControlPanel; }
+    [[nodiscard]] const ControlCentrePanel& QueryControlCentrePanel() const noexcept { return NotchControlCentrePanel; }
+    ControlCentrePanel&     AccessControlCentrePanel() noexcept { return NotchControlCentrePanel; }
+    [[nodiscard]] const ControlCentrePanel& QueryControlPanel() const noexcept { return NotchControlCentrePanel; }
+    ControlCentrePanel&     AccessControlPanel() noexcept { return NotchControlCentrePanel; }
 #endif
 
     // Single unified conversion operator for edit mode
@@ -114,7 +117,7 @@ private:
     bool                    InputGatedCondition;                // [bool] true if docked tool panels trap input
     bool                    InitializedCondition;               // [bool] overlay status
 #ifdef FRONTIER_DEVELOPMENT
-    ControlPanel            NotchControlPanel;                  // [panel] organic top notch control centre
+    ControlCentrePanel      NotchControlCentrePanel;            // [panel] organic top notch control centre
 #endif
 };
 

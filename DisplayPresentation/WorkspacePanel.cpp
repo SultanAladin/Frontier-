@@ -23,7 +23,7 @@ WorkspacePanel::WorkspacePanel() noexcept
     , InputGatedCondition(false)
     , InitializedCondition(false)
 #ifdef FRONTIER_DEVELOPMENT
-    , NotchControlPanel{}
+    , NotchControlCentrePanel{}
 #endif
 {
 }
@@ -49,7 +49,7 @@ bool WorkspacePanel::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) n
 
 #ifdef FRONTIER_DEVELOPMENT
     CalculateTrapezoidTabs();
-    (void)NotchControlPanel.Initialize(ViewportWidth, ViewportHeight);
+    (void)NotchControlCentrePanel.Initialize(ViewportWidth, ViewportHeight);
 #endif
 
     InitializedCondition = true;
@@ -61,7 +61,7 @@ void WorkspacePanel::Terminate() noexcept
     if (InitializedCondition)
     {
 #ifdef FRONTIER_DEVELOPMENT
-        NotchControlPanel.Terminate();
+        NotchControlCentrePanel.Terminate();
 #endif
         for (auto& Target : WorkspaceRenderTargets)
         {
@@ -97,8 +97,8 @@ void WorkspacePanel::AdvanceInteraction(const InputExchange& Input, float Cursor
 {
 #ifdef FRONTIER_DEVELOPMENT
     // 1. Advance Notch Control Centre Interaction
-    NotchControlPanel.AdvanceInteraction(Input, CursorX, CursorY);
-    if (NotchControlPanel.IsOpen() || NotchControlPanel.IsDragging())
+    NotchControlCentrePanel.AdvanceInteraction(Input, CursorX, CursorY);
+    if (NotchControlCentrePanel.IsOpen() || NotchControlCentrePanel.IsDragging())
     {
         InputGatedCondition      = true;
         ViewportFocusedCondition = false;
@@ -159,7 +159,7 @@ void WorkspacePanel::RenderWorkspaceOverlay(WorkspaceEditMode DesiredMode, float
     CurrentMode = DesiredMode;
 
 #ifdef FRONTIER_DEVELOPMENT
-    NotchControlPanel.AdvanceLocomotion(DeltaSeconds);
+    NotchControlCentrePanel.AdvanceLocomotion(DeltaSeconds);
     RenderBand0WorkspaceHeader();
     RenderBand1CentralViewport();
     RenderBand2DockedDrawers();

@@ -116,3 +116,9 @@
   - **UV Unwrapping**: Conformal flattening (ABF++/LSCM), seam tagging, island packing, distortion metrics.
   - **Procedural Plants / Foliage**: L-system parametric branching, leaf scattering, wind binding.
   - **Material Shader Graph**: Node-based PBR graph authoring with live SPIR-V compute compilation.
+
+---
+
+## 9. Scratchpad Directory Directive for Temporary Work
+- **Strict Anti-Pollution Rule**: Any temporary scripts, scratch experiments, intermediate log outputs, generation prototypes, or ad-hoc diagnostic tools MUST reside strictly within a dedicated `/Scratchpad` directory (`Scratchpad/`).
+- Never write scratch files, loose temporary images, or ad-hoc test scripts into the repository root or project source folders (`Source/`, `DisplayPresentation/`, `Projects/`, etc.). Keep the working tree completely clean and organized.

@@ -1,8 +1,8 @@
 //============================================================================================================================================
-// 📦 Frontier/DisplayPresentation/ControlPanel.cpp — Organic Top Notch Control Centre Overlay and Spring Locomotion Implementation
+// 📦 Frontier/DisplayPresentation/ControlCentrePanel.cpp — Organic Top Notch Control Centre Overlay and Spring Locomotion Implementation
 //============================================================================================================================================
 
-#include "ControlPanel.h"
+#include "ControlCentrePanel.h"
 #include <cmath>
 #include <algorithm>
 
@@ -12,7 +12,7 @@ namespace Frontier {
 //                                                LIFECYCLE IMPLEMENTATION
 //------------------------------------------------------------------------------------------------------------------------
 
-ControlPanel::ControlPanel() noexcept
+ControlCentrePanel::ControlCentrePanel() noexcept
     : ViewportWidth(1920)
     , ViewportHeight(1080)
     , CurrentOffsetY(0.0f)
@@ -33,7 +33,7 @@ ControlPanel::ControlPanel() noexcept
 {
 }
 
-bool ControlPanel::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) noexcept
+bool ControlCentrePanel::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) noexcept
 {
     ViewportWidth  = std::max(1u, DesiredWidth);
     ViewportHeight = std::max(1u, DesiredHeight);
@@ -49,7 +49,7 @@ bool ControlPanel::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) noe
     return true;
 }
 
-void ControlPanel::Terminate() noexcept
+void ControlCentrePanel::Terminate() noexcept
 {
     InitializedCondition = false;
     HandleContour.clear();
@@ -78,7 +78,7 @@ static BezierPointRecord SampleCubicBezier(
     };
 }
 
-void ControlPanel::GenerateHandleContour() noexcept
+void ControlCentrePanel::GenerateHandleContour() noexcept
 {
     HandleContour.clear();
     HandleContour.reserve(128);
@@ -155,18 +155,16 @@ void ControlPanel::GenerateHandleContour() noexcept
 //                                                SPRING LOCOMOTION PHYSICS
 //------------------------------------------------------------------------------------------------------------------------
 
-float ControlPanel::EvaluateSpringEase(float ParameterT) const noexcept
+float ControlCentrePanel::EvaluateSpringEase(float ParameterT) const noexcept
 {
-    // Cubic bezier spring curve: cubic-bezier(0.175, 0.885, 0.32, 1.15)
     float T = std::clamp(ParameterT, 0.0f, 1.0f);
     float InvT = 1.0f - T;
-    // Y(t) = 3*(1-t)^2 * t * P1_y + 3*(1-t) * t^2 * P2_y + t^3 * 1.0
     float P1_y = 0.885f;
     float P2_y = 1.150f;
     return (3.0f * InvT * InvT * T * P1_y) + (3.0f * InvT * T * T * P2_y) + (T * T * T);
 }
 
-void ControlPanel::AdvanceLocomotion(float DeltaSeconds) noexcept
+void ControlCentrePanel::AdvanceLocomotion(float DeltaSeconds) noexcept
 {
     if (DeltaSeconds <= 0.0f) return;
 
@@ -174,7 +172,6 @@ void ControlPanel::AdvanceLocomotion(float DeltaSeconds) noexcept
 
     if (!DraggingCondition)
     {
-        // Smooth spring damper dynamics
         constexpr float SpringStiffness = 160.0f;                // [1/s^2] spring constant
         constexpr float DampingRatio    = 20.0f;                 // [1/s] damping ratio
 
@@ -186,7 +183,6 @@ void ControlPanel::AdvanceLocomotion(float DeltaSeconds) noexcept
         LocomotionVelocity += Acceleration * DeltaSeconds;
         CurrentOffsetY     += LocomotionVelocity * DeltaSeconds;
 
-        // Clamp settling threshold
         if (std::abs(Displacement) < 0.1f && std::abs(LocomotionVelocity) < 0.1f)
         {
             CurrentOffsetY     = TargetOffsetY;
@@ -201,19 +197,19 @@ void ControlPanel::AdvanceLocomotion(float DeltaSeconds) noexcept
 //                                             INTERACTION & DRAG CONTROLLER
 //------------------------------------------------------------------------------------------------------------------------
 
-void ControlPanel::OpenNotch() noexcept
+void ControlCentrePanel::OpenNotch() noexcept
 {
     OpenCondition = true;
     TargetOffsetY = static_cast<float>(ViewportHeight - 36);
 }
 
-void ControlPanel::CloseNotch() noexcept
+void ControlCentrePanel::CloseNotch() noexcept
 {
     OpenCondition = false;
     TargetOffsetY = 0.0f;
 }
 
-void ControlPanel::ToggleNotch() noexcept
+void ControlCentrePanel::ToggleNotch() noexcept
 {
     if (OpenCondition)
     {
@@ -225,9 +221,8 @@ void ControlPanel::ToggleNotch() noexcept
     }
 }
 
-void ControlPanel::AdvanceInteraction(const InputExchange& Input, float CursorX, float CursorY) noexcept
+void ControlCentrePanel::AdvanceInteraction(const InputExchange& Input, float CursorX, float CursorY) noexcept
 {
-    // Hit test against organic notch handle (centered at HandlePositionX, HandlePositionY)
     bool InsideX = (CursorX >= HandlePositionX && CursorX <= (HandlePositionX + 400.0f));
     bool InsideY = (CursorY >= HandlePositionY && CursorY <= (HandlePositionY + 36.0f));
     HoveredCondition = (InsideX && InsideY);
@@ -236,7 +231,6 @@ void ControlPanel::AdvanceInteraction(const InputExchange& Input, float CursorX,
     {
         if (!DraggingCondition && HoveredCondition)
         {
-            // Begin dragging interaction
             DraggingCondition = true;
             SelectedCondition = true;
             DragStartCursorY  = CursorY;
@@ -255,21 +249,18 @@ void ControlPanel::AdvanceInteraction(const InputExchange& Input, float CursorX,
     }
     else
     {
-        // Pointer released
         if (DraggingCondition)
         {
             DraggingCondition = false;
             float MaxY = static_cast<float>(ViewportHeight - 36);
             float DragDelta = std::abs(CurrentOffsetY - DragStartOffsetY);
 
-            // If drag delta is tiny, treat as a click toggle
             if (DragDelta < 6.0f)
             {
                 ToggleNotch();
             }
             else
             {
-                // Snap based on position threshold (35% drop threshold)
                 if (CurrentOffsetY > (MaxY * 0.35f))
                 {
                     OpenNotch();

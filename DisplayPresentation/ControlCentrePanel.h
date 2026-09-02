@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Frontier/DisplayPresentation/ControlPanel.h — Organic Top Notch Control Centre Overlay and Spring Locomotion Dynamics
+// 📦 Frontier/DisplayPresentation/ControlCentrePanel.h — Organic Top Notch Control Centre Overlay and Spring Locomotion Dynamics
 //============================================================================================================================================
 
 #pragma once
@@ -9,6 +9,7 @@
 #endif
 
 #include "ThemeStructure.h"
+#include "VectorCodec.h"
 #include "../DeviceExchange/InputExchange.h"
 #include <cstdint>
 #include <vector>
@@ -26,10 +27,10 @@ struct BezierPointRecord
 };
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                CONTROL PANEL STATE
+//                                             CONTROL CENTRE PANEL STATE
 //------------------------------------------------------------------------------------------------------------------------
 
-enum class ControlPanelState : uint32_t
+enum class ControlCentrePanelState : uint32_t
 {
     Closed                              = 0,                    // Retracted at Y = 0px
     Opening                             = 1,                    // Spring locomotion translating downward
@@ -39,17 +40,17 @@ enum class ControlPanelState : uint32_t
 };
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                   CONTROL PANEL
+//                                                CONTROL CENTRE PANEL
 //------------------------------------------------------------------------------------------------------------------------
 
-class ControlPanel
+class ControlCentrePanel
 {
 public:
-    ControlPanel() noexcept;
-    ~ControlPanel() noexcept = default;
+    ControlCentrePanel() noexcept;
+    ~ControlCentrePanel() noexcept = default;
 
-    ControlPanel(const ControlPanel&) = delete;
-    ControlPanel& operator=(const ControlPanel&) = delete;
+    ControlCentrePanel(const ControlCentrePanel&) = delete;
+    ControlCentrePanel& operator=(const ControlCentrePanel&) = delete;
 
     [[nodiscard]] bool      Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) noexcept;
     void                    Terminate() noexcept;
@@ -103,24 +104,27 @@ private:
 };
 
 template<>
-inline bool ControlPanel::Convert<bool>() const noexcept
+inline bool ControlCentrePanel::Convert<bool>() const noexcept
 {
     return OpenCondition;
 }
 
 template<>
-inline float ControlPanel::Convert<float>() const noexcept
+inline float ControlCentrePanel::Convert<float>() const noexcept
 {
     return CurrentOffsetY;
 }
 
 template<>
-inline ControlPanelState ControlPanel::Convert<ControlPanelState>() const noexcept
+inline ControlCentrePanelState ControlCentrePanel::Convert<ControlCentrePanelState>() const noexcept
 {
-    if (DraggingCondition) return ControlPanelState::Dragging;
-    if (OpenCondition && CurrentOffsetY >= static_cast<float>(ViewportHeight - 36)) return ControlPanelState::Open;
-    if (!OpenCondition && CurrentOffsetY <= 0.5f) return ControlPanelState::Closed;
-    return OpenCondition ? ControlPanelState::Opening : ControlPanelState::Closing;
+    if (DraggingCondition) return ControlCentrePanelState::Dragging;
+    if (OpenCondition && CurrentOffsetY >= static_cast<float>(ViewportHeight - 36)) return ControlCentrePanelState::Open;
+    if (!OpenCondition && CurrentOffsetY <= 0.5f) return ControlCentrePanelState::Closed;
+    return OpenCondition ? ControlCentrePanelState::Opening : ControlCentrePanelState::Closing;
 }
+
+// Type alias for backward compatibility
+using ControlPanel = ControlCentrePanel;
 
 } // namespace Frontier

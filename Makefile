@@ -4,9 +4,15 @@
 
 include BuildConfiguration/LinuxConfiguration.mk
 
-.PHONY: all clean run
+.PHONY: all clean run vectorlib
 
 all: $(TARGET)
+
+vectorlib: lib/libFrontierVector.a
+
+lib/libFrontierVector.a: DisplayPresentation/VectorCodec.o
+	@mkdir -p lib
+	ar rcs $@ $^
 
 $(TARGET): $(OBJS)
 	@mkdir -p bin
@@ -19,4 +25,4 @@ run: $(TARGET)
 	./$(TARGET)
 
 clean:
-	rm -rf $(OBJS) bin/FrontierEngine
+	rm -rf $(OBJS) bin/FrontierEngine lib/libFrontierVector.a
