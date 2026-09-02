@@ -114,3 +114,21 @@ target_include_directories(Project-F20 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMA
 if(NOT MSVC)
     target_link_libraries(Project-F20 PRIVATE pthread)
 endif()
+
+# Standalone Testing Ground Target (Project-Zero)
+set(PROJECT_ZERO_SOURCES
+    ${FRONTIER_ENGINE_SOURCES}
+    Projects/Project-Zero/Source/SceneStructure.h
+    Projects/Project-Zero/Source/RayTracingSolver.h
+    Projects/Project-Zero/Source/RayTracingSolver.cpp
+    Projects/Project-Zero/Source/RendererHost.h
+    Projects/Project-Zero/Source/RendererHost.cpp
+    Projects/Project-Zero/Source/GameExecution.cpp
+)
+
+add_executable(Project-Zero ${PROJECT_ZERO_SOURCES})
+target_include_directories(Project-Zero PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Zero)
+
+if(NOT MSVC)
+    target_link_libraries(Project-Zero PRIVATE pthread)
+endif()

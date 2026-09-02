@@ -30,11 +30,13 @@ struct alignas(16) Vector3
 
     [[nodiscard]] constexpr Vector3 operator+(const Vector3& rhs) const noexcept { return { x + rhs.x, y + rhs.y, z + rhs.z }; }
     [[nodiscard]] constexpr Vector3 operator-(const Vector3& rhs) const noexcept { return { x - rhs.x, y - rhs.y, z - rhs.z }; }
+    [[nodiscard]] constexpr Vector3 operator*(const Vector3& rhs) const noexcept { return { x * rhs.x, y * rhs.y, z * rhs.z }; }
     [[nodiscard]] constexpr Vector3 operator*(float scalar) const noexcept { return { x * scalar, y * scalar, z * scalar }; }
     [[nodiscard]] constexpr Vector3 operator/(float scalar) const noexcept { float inv = 1.0f / scalar; return { x * inv, y * inv, z * inv }; }
 
     constexpr Vector3& operator+=(const Vector3& rhs) noexcept { x += rhs.x; y += rhs.y; z += rhs.z; return *this; }
     constexpr Vector3& operator-=(const Vector3& rhs) noexcept { x -= rhs.x; y -= rhs.y; z -= rhs.z; return *this; }
+    constexpr Vector3& operator*=(const Vector3& rhs) noexcept { x *= rhs.x; y *= rhs.y; z *= rhs.z; return *this; }
     constexpr Vector3& operator*=(float scalar) noexcept { x *= scalar; y *= scalar; z *= scalar; return *this; }
 
     [[nodiscard]] float LengthSquared() const noexcept { return x * x + y * y + z * z; }
