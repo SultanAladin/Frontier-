@@ -3,387 +3,431 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Control Center — Top Notch Subsystem</title>
+<title>Control Center — Dynamic Top Notch Subsystem</title>
 
-<!-- Fonts -->
+<!-- Fontshare & Google Fonts matching Notch/Slate -->
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
-<link href="https://api.fontshare.com/v2/css?f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=general-sans@300,400,500,600,700&f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
 /* ============================================================
-   CONTROL CENTER — THEME TOKENS & CSS VARIABLES
+   EXACT THEME TOKENS FROM types.ts & THEME_CONFIGS
    ============================================================ */
 :root {
-  --bg: #050505;
-  --panel: #0a0a0b;
-  --card: #141415;
+  --main-bg: #000000;
+  --panel-bg: #0A0A0A;
+  --panel-border: rgba(255, 255, 255, 0.04);
+  --card-bg: #141415;
   --card-sub: #1c1c1e;
-  --inset: #1a1a1a;
-  --field: #000000;
-  --raised: #222224;
-  --notch-fill: #0a0a0b;
+  --text-main: rgba(255, 255, 255, 0.95);
+  --text-muted: rgba(255, 255, 255, 0.40);
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --divider: rgba(255, 255, 255, 0.04);
+  --active-bg: rgba(255, 255, 255, 0.08);
 
-  --stroke: rgba(255, 255, 255, 0.08);
-  --stroke-strong: #2e2e2e;
-  --divider: rgba(255, 255, 255, 0.06);
-
-  --text: #f0f0f0;
-  --text-dim: #888888;
-  --text-faint: #5c5c5c;
-
-  --accent: #3b82f6;
-  --accent-soft: rgba(59, 130, 246, 0.15);
-  --hi: #6c77ff;
-  --danger: #ef4444;
-  --ok: #22c55e;
-
-  --r-base: 18px;
-  --r-card: 24px;
-  --r-pill: 999px;
-
+  --accent-color: #3b82f6;
+  --corner-radius: 18px;
   --font-family: 'General Sans', 'Inter', system-ui, sans-serif;
-  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
+
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
+  --ease-smooth: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-/* Theme Profiles */
 body[data-theme="oled"] {
-  --bg: #000000; --panel: #09090b; --card: #121214; --card-sub: #18181b; --inset: #121212; --field: #000000;
-  --notch-fill: #09090b; --stroke: rgba(255, 255, 255, 0.08); --text: #f4f4f5; --text-dim: #a1a1aa; --text-faint: #52525b;
+  --main-bg: #000000; --panel-bg: #0A0A0A; --panel-border: rgba(255,255,255,0.04);
+  --text-main: rgba(255,255,255,0.95); --text-muted: rgba(255,255,255,0.40);
+  --input-bg: rgba(255,255,255,0.05); --divider: rgba(255,255,255,0.04); --active-bg: rgba(255,255,255,0.08);
 }
 body[data-theme="dark"] {
-  --bg: #0a0a0a; --panel: #18181b; --card: #1f1f22; --card-sub: #27272a; --inset: #1c1c1f; --field: #121214;
-  --notch-fill: #18181b; --stroke: rgba(255, 255, 255, 0.12); --text: #f4f4f5; --text-dim: #a1a1aa; --text-faint: #71717a;
+  --main-bg: #111111; --panel-bg: #1a1a1a; --panel-border: rgba(255,255,255,0.06);
+  --text-main: rgba(255,255,255,0.90); --text-muted: rgba(255,255,255,0.50);
+  --input-bg: rgba(255,255,255,0.05); --divider: rgba(255,255,255,0.06); --active-bg: rgba(255,255,255,0.10);
+}
+body[data-theme="dim"] {
+  --main-bg: #0f172a; --panel-bg: #1e293b; --panel-border: rgba(51, 65, 85, 0.5);
+  --text-main: #f1f5f9; --text-muted: #94a3b8;
+  --input-bg: rgba(2, 6, 23, 0.5); --divider: rgba(51, 65, 85, 0.5); --active-bg: #334155;
 }
 body[data-theme="light"] {
-  --bg: #f4f4f5; --panel: #ffffff; --card: #f8f8fa; --card-sub: #ebebef; --inset: #eaeaea; --field: #ffffff;
-  --notch-fill: #ffffff; --stroke: rgba(0, 0, 0, 0.08); --text: #18181b; --text-dim: #52525b; --text-faint: #a1a1aa;
+  --main-bg: #f1f5f9; --panel-bg: #ffffff; --panel-border: #e2e8f0;
+  --text-main: #0f172a; --text-muted: #64748b;
+  --input-bg: #f8fafc; --divider: #e2e8f0; --active-bg: #f1f5f9;
 }
 body[data-theme="sepia"] {
-  --bg: #dca85b; --panel: #e6c697; --card: #f1dab0; --card-sub: #faeed9; --inset: #deb881; --field: #eed2a4;
-  --notch-fill: #e6c697; --stroke: rgba(130, 86, 25, 0.15); --text: #4a3b2c; --text-dim: #785a3c; --text-faint: #a5825a;
+  --main-bg: #eaddcf; --panel-bg: #f4ebe1; --panel-border: #d8c3b0;
+  --text-main: #5c4b3a; --text-muted: #8c7a6b;
+  --input-bg: #f9f4ef; --divider: #d8c3b0; --active-bg: #eaddcf;
 }
 body[data-theme="dracula"] {
-  --bg: #1e1f29; --panel: #282a36; --card: #343746; --card-sub: #44475a; --inset: #21222c; --field: #191a21;
-  --notch-fill: #282a36; --stroke: rgba(248, 248, 242, 0.1); --text: #f8f8f2; --text-dim: #bd93f9; --text-faint: #6272a4;
+  --main-bg: #282a36; --panel-bg: #44475a; --panel-border: rgba(98, 114, 164, 0.3);
+  --text-main: #f8f8f2; --text-muted: #6272a4;
+  --input-bg: #282a36; --divider: rgba(98, 114, 164, 0.3); --active-bg: rgba(98, 114, 164, 0.2);
 }
 body[data-theme="nord"] {
-  --bg: #242933; --panel: #2e3440; --card: #3b4252; --card-sub: #434c5e; --inset: #2b303c; --field: #1f232a;
-  --notch-fill: #2e3440; --stroke: rgba(236, 239, 244, 0.1); --text: #eceff4; --text-dim: #d8dee9; --text-faint: #81a1c1;
+  --main-bg: #2e3440; --panel-bg: #3b4252; --panel-border: #4c566a;
+  --text-main: #eceff4; --text-muted: #d8dee9;
+  --input-bg: #2e3440; --divider: #4c566a; --active-bg: #434c5e;
 }
 body[data-theme="github"] {
-  --bg: #0d1117; --panel: #161b22; --card: #21262d; --card-sub: #30363d; --inset: #161b22; --field: #010409;
-  --notch-fill: #161b22; --stroke: rgba(201, 209, 217, 0.12); --text: #c9d1d9; --text-dim: #8b949e; --text-faint: #484f58;
+  --main-bg: #0d1117; --panel-bg: #161b22; --panel-border: #30363d;
+  --text-main: #c9d1d9; --text-muted: #8b949e;
+  --input-bg: #0d1117; --divider: #30363d; --active-bg: #21262d;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
 body {
-  background: var(--bg);
-  color: var(--text);
+  background: var(--main-bg);
+  color: var(--text-main);
   font-family: var(--font-family);
   font-size: 14px;
   user-select: none;
   -webkit-font-smoothing: antialiased;
-  transition: background 0.3s var(--ease), color 0.3s var(--ease);
+  transition: background 0.3s var(--ease-smooth), color 0.3s var(--ease-smooth);
 }
 svg { display: block; }
 
-/* ── Workspace Canvas Background Grid ── */
+/* ── Workspace Desktop Background ── */
 #workspace-canvas {
   position: fixed; inset: 0;
   background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 28px 28px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.hero-text {
-  text-align: center; max-width: 600px; padding: 20px;
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
+.hero-box {
+  text-align: center; max-width: 620px; padding: 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
 }
-.hero-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; opacity: 0.9; }
-.hero-sub { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
 .hero-badge {
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 6px 14px; border-radius: var(--r-pill);
-  background: var(--card); border: 1px solid var(--stroke);
-  font-size: 12px; font-weight: 500; color: var(--text-dim);
+  padding: 6px 14px; border-radius: 9999px;
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  font-size: 12px; font-weight: 500; color: var(--text-muted);
 }
-.hero-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.hero-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+.hero-title { font-size: 32px; font-weight: 700; letter-spacing: -0.6px; }
+.hero-desc { font-size: 14.5px; color: var(--text-muted); line-height: 1.5; }
 
-/* ── Backdrop Overlay ── */
+/* ── Backdrop Blur ── */
 #notch-backdrop {
   position: fixed; inset: 0; z-index: 90;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   opacity: 0; pointer-events: none;
-  transition: opacity 0.4s var(--ease);
+  transition: opacity 0.4s var(--ease-smooth);
 }
 #notch-backdrop.open { opacity: 1; pointer-events: auto; }
 
 /* ============================================================
-   TOP NOTCH CONTROLLER & PULLED DOWN SHADE
+   TOP NOTCH PULLDOWN CONTAINER & SPRING PHYSICS
    ============================================================ */
 #notch-container {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: flex; flex-direction: column; align-items: center;
   transform: translateY(0px);
-  transition: transform 0.55s var(--spring);
+  transition: transform 0.6s var(--ease-spring);
   will-change: transform;
 }
 #notch-container.open {
   transform: translateY(calc(100vh - 36px));
 }
 
-/* Shade Body (2000px height sliding from top) */
+/* 2000px High Pulldown Shade Background */
 .shade-wrapper {
   position: absolute; bottom: 35px; left: 0; right: 0;
-  height: 2000px; background: var(--panel);
-  border-bottom: 1px solid var(--stroke);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  height: 2000px; background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
 }
 .shade-content-box {
   position: absolute; bottom: 0; left: 0; right: 0;
   height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding-bottom: 35px;
-  opacity: 0; transition: opacity 0.3s var(--ease);
+  opacity: 0; transition: opacity 0.3s var(--ease-smooth);
   pointer-events: none;
 }
 #notch-container.open .shade-content-box {
   opacity: 1; pointer-events: auto;
 }
 
-/* Modal Stage Area (Resizes dynamically) */
+/* Stage Box with Dynamic Resizing (420px -> 840px) */
 .modal-stage {
-  position: relative; width: 100%; max-width: 440px; height: 490px;
-  transition: max-width 0.45s var(--spring), height 0.45s var(--spring);
+  position: relative; width: 100%; max-width: 420px; height: 480px;
+  transition: max-width 0.5s var(--ease-spring), height 0.5s var(--ease-spring);
 }
 .modal-stage.expanded {
-  max-width: 860px; height: 620px;
+  max-width: 840px; height: 600px;
 }
 
-/* View Container (Card Stack Slide / Fade) */
+/* View Transition Cards */
 .view-card {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
-  opacity: 0; transform: scale(0.96) translateY(10px);
-  pointer-events: none; transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+  opacity: 0; transform: scale(0.95) translateY(15px);
+  pointer-events: none; transition: opacity 0.22s var(--ease-smooth), transform 0.22s var(--ease-smooth);
 }
 .view-card.active {
   opacity: 1; transform: scale(1) translateY(0);
   pointer-events: auto;
 }
 
-/* ── VIEW 1: Quick Controls (Control Center) ── */
-.cc-header {
+/* ── VIEW 1: Control Center Quick Settings ── */
+.cc-top-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0 8px 16px; color: var(--text-dim); font-size: 13.5px; font-weight: 600;
+  padding: 0 4px 18px; color: var(--text-muted); font-size: 13px; font-weight: 500;
 }
-.cc-header-actions { display: flex; align-items: center; gap: 14px; }
-.cc-icon-btn {
+.cc-top-actions { display: flex; align-items: center; gap: 16px; }
+.btn-icon-ghost {
   width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent;
-  color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: color 0.15s, background 0.15s, transform 0.15s;
 }
-.cc-icon-btn:hover { color: var(--text); background: var(--card-sub); transform: scale(1.08); }
-.cc-icon-btn:active { transform: scale(0.92); }
+.btn-icon-ghost:hover { color: var(--text-main); background: var(--input-bg); transform: scale(1.08); }
+.btn-icon-ghost:active { transform: scale(0.92); }
 
-.quick-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px 14px;
+.quick-grid-4x2 {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px 16px;
   margin-bottom: 24px;
 }
-.quick-item {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+.quick-btn-col {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer;
 }
-.quick-circle {
-  width: 62px; height: 62px; border-radius: 50%; border: none; cursor: pointer;
-  background: var(--card-sub); color: var(--text-dim);
+.quick-btn-circle {
+  width: 64px; height: 64px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--card-sub); color: var(--text-muted);
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  transition: background 0.2s var(--ease), color 0.2s var(--ease), transform 0.15s var(--ease);
+  transition: background 0.2s var(--ease-smooth), color 0.2s, transform 0.15s;
 }
-.quick-circle:hover { transform: scale(1.05); color: var(--text); }
-.quick-circle.active {
-  background: var(--accent); color: #ffffff;
-  box-shadow: 0 4px 18px var(--accent-soft);
+.quick-btn-circle:hover { transform: scale(1.05); color: var(--text-main); }
+.quick-btn-circle.active {
+  background: var(--accent-color); color: #ffffff;
 }
-.quick-label {
-  font-size: 12px; font-weight: 500; color: var(--text-dim); text-align: center;
-  transition: color 0.2s;
+.quick-btn-label {
+  font-size: 12px; font-weight: 500; color: var(--text-muted); text-align: center;
 }
-.quick-item:hover .quick-label { color: var(--text); }
+.quick-btn-col:hover .quick-btn-label { color: var(--text-main); }
 
-/* Slider Row inside Control Center */
-.cc-slider-card {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--card); border: 1px solid var(--stroke);
-  border-radius: var(--r-pill); padding: 6px 14px;
+/* Render Scale Slider Pill */
+.render-slider-pill {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card-sub); border: 1px solid var(--panel-border);
+  border-radius: 9999px; padding: 6px 14px;
 }
-.cc-slider-icon { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; color: var(--text-dim); }
-.cc-slider-track {
-  flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--field);
+.slider-icon-cell { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.slider-bar-track {
+  flex: 1; height: 8px; border-radius: 9999px; background: rgba(0, 0, 0, 0.5);
   position: relative; overflow: hidden; cursor: pointer;
 }
-.cc-slider-fill {
+.slider-bar-fill {
   position: absolute; left: 0; top: 0; bottom: 0; width: 80%;
-  background: var(--accent); border-radius: var(--r-pill);
-  transition: width 0.1s linear;
+  background: var(--accent-color); border-radius: 9999px;
+  transition: width 0.08s linear;
 }
-.cc-slider-val {
-  font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 700;
-  color: var(--text-dim); width: 44px; text-align: right;
+.slider-val-tag {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+  color: var(--text-muted); width: 44px; text-align: right;
 }
 
-/* ── VIEW 2: Main Settings Menu ── */
-.settings-menu-card {
-  background: var(--card); border: 1px solid var(--stroke);
-  border-radius: var(--r-card); overflow: hidden;
-  display: flex; flex-direction: column;
+/* ── VIEW 2: Settings Categories Menu ── */
+.settings-list-card {
+  background: var(--card-bg); border: 1px solid var(--panel-border);
+  border-radius: 24px; overflow: hidden; display: flex; flex-direction: column;
 }
-.settings-row {
+.settings-menu-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 20px; border-bottom: 1px solid var(--divider);
   cursor: pointer; transition: background 0.15s;
 }
-.settings-row:last-child { border-bottom: none; }
-.settings-row:hover { background: var(--card-sub); }
-.settings-row-left { display: flex; align-items: center; gap: 16px; }
-.settings-row-icon {
+.settings-menu-row:last-child { border-bottom: none; }
+.settings-menu-row:hover { background: var(--active-bg); }
+.settings-row-icon-cell {
   width: 44px; height: 44px; border-radius: 50%;
-  background: var(--field); color: var(--text-dim);
-  display: flex; align-items: center; justify-content: center;
+  background: var(--main-bg); color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center; margin-right: 14px;
 }
-.settings-row-info { display: flex; flex-direction: column; gap: 2px; }
-.settings-row-title { font-size: 14.5px; font-weight: 600; color: var(--text); }
-.settings-row-desc { font-size: 12.5px; color: var(--text-dim); }
+.settings-row-text { display: flex; flex-direction: column; gap: 2px; }
+.settings-row-main { font-size: 15px; font-weight: 500; color: var(--text-main); }
+.settings-row-sub { font-size: 13px; color: var(--text-muted); }
 
-/* ── VIEW 3: Deep Settings Sub-Modal (Appearance / Theme / Typography) ── */
-.submodal-card {
-  background: var(--card); border: 1px solid var(--stroke);
-  border-radius: calc(var(--r-card) + 4px);
-  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+/* ── VIEW 3: Modal Container (Appearance / Workspace / Input / Telemetry) ── */
+.modal-full-card {
+  background: var(--card-bg); border: 1px solid var(--panel-border);
+  border-radius: 32px; display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7);
 }
-.submodal-header {
+.modal-top-bar {
   display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 24px 28px 16px; border-bottom: 1px solid var(--divider);
+  padding: 28px 32px 16px; shrink-0: 0;
 }
-.submodal-title { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 2px; }
-.submodal-sub { font-size: 12.5px; color: var(--text-dim); }
+.modal-heading { font-size: 24px; font-weight: 600; letter-spacing: -0.4px; color: var(--text-main); margin-bottom: 2px; }
+.modal-subheading { font-size: 14px; color: var(--text-muted); }
 
-.tab-nav {
-  display: flex; gap: 24px; padding: 0 28px;
+.modal-tab-strip {
+  display: flex; gap: 24px; padding: 0 32px;
   border-bottom: 1px solid var(--divider);
 }
-.tab-btn {
-  padding: 14px 0; font-size: 13.5px; font-weight: 500; color: var(--text-dim);
+.tab-strip-btn {
+  padding: 0 0 14px 0; font-size: 14px; font-weight: 500; color: var(--text-muted);
   border: none; background: transparent; cursor: pointer; position: relative;
   transition: color 0.15s;
 }
-.tab-btn:hover { color: var(--text); }
-.tab-btn.active { color: var(--text); font-weight: 600; }
-.tab-btn.active::after {
+.tab-strip-btn:hover { color: var(--text-main); }
+.tab-strip-btn.active { color: var(--text-main); }
+.tab-strip-btn.active::after {
   content: ""; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
-  background: var(--accent); border-radius: 2px;
+  background: #ffffff;
 }
 
-.submodal-body {
-  flex: 1; overflow-y: auto; padding: 24px 28px;
-  display: flex; flex-direction: column; gap: 24px;
+.modal-scroll-area {
+  flex: 1; overflow-y: auto; padding: 28px 32px;
+  display: flex; flex-direction: column; gap: 28px;
 }
-.submodal-footer {
+.modal-scroll-area::-webkit-scrollbar { display: none; }
+
+.modal-bottom-bar {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 16px 28px; border-top: 1px solid var(--divider);
-  background: var(--panel);
+  padding: 18px 32px; border-top: 1px solid var(--divider);
+  background: rgba(0, 0, 0, 0.2);
 }
 
-/* Theme Palette Swatches */
-.theme-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+/* ── TAB 1: Theme & Colors ── */
+.theme-grid-4col {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px 16px;
 }
-.theme-card {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+.theme-select-card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer;
 }
-.theme-preview-box {
-  width: 100%; aspect-ratio: 4 / 3; border-radius: 14px;
-  border: 1px solid var(--stroke); position: relative; overflow: hidden;
+.theme-mock-viewport {
+  width: 100%; aspect-ratio: 4 / 3; border-radius: 1.25rem;
+  border: 1px solid var(--panel-border); position: relative; overflow: hidden;
   transition: outline 0.15s, transform 0.15s;
 }
-.theme-card:hover .theme-preview-box { transform: scale(1.03); }
-.theme-card.active .theme-preview-box {
-  outline: 2px solid var(--accent); outline-offset: 3px;
+.theme-select-card:hover .theme-mock-viewport { transform: scale(1.02); }
+.theme-select-card.active .theme-mock-viewport {
+  outline: 2px solid var(--accent-color); outline-offset: 4px;
 }
-.theme-name { font-size: 12px; font-weight: 600; color: var(--text-dim); }
-.theme-card.active .theme-name { color: var(--text); }
+.theme-sidebar-mock {
+  position: absolute; top: 18px; bottom: 0; left: 18px; right: 0;
+  display: flex; border-top-left-radius: var(--corner-radius); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.theme-sidebar-col {
+  width: 30%; display: flex; flex-direction: column; padding: 8px; gap: 5px;
+  border-right: 1px solid rgba(0,0,0,0.06); position: relative;
+}
+.theme-panel-col {
+  flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 5px;
+  border-top-left-radius: var(--corner-radius);
+}
 
-/* Accent Color Circles */
-.accent-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
-.accent-dot {
+.accent-palette-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.accent-color-circle {
   width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
   position: relative; transition: transform 0.15s;
 }
-.accent-dot:hover { transform: scale(1.15); }
-.accent-dot.active { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--accent); }
+.accent-color-circle:hover { transform: scale(1.15); }
+.accent-color-circle.active { box-shadow: 0 0 0 3px var(--card-bg), 0 0 0 5px var(--accent-color); }
 
-/* Range Slider */
-.custom-range {
-  width: 100%; height: 6px; border-radius: 3px; outline: none; appearance: none;
-  background: var(--field); cursor: pointer; margin-top: 10px;
+/* ── TAB 2: Fonts & Typography ── */
+.fonts-carousel-wrap {
+  display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px;
+  scroll-behavior: smooth;
 }
-.custom-range::-webkit-slider-thumb {
-  appearance: none; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--text); cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+.fonts-carousel-wrap::-webkit-scrollbar { display: none; }
+.font-pill-card {
+  flex-shrink: 0; width: 180px; padding: 18px; text-align: left;
+  border: 1px solid var(--panel-border); border-radius: var(--corner-radius);
+  background: var(--input-bg); cursor: pointer; transition: border-color 0.15s, background 0.15s;
 }
+.font-pill-card:hover { background: var(--active-bg); }
+.font-pill-card.active { border-color: var(--accent-color); background: rgba(255, 255, 255, 0.05); }
+
+/* ── TAB 3: Display & Icons ── */
+.icon-preview-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px; border-radius: var(--corner-radius); background: var(--active-bg);
+  border: 1px solid var(--panel-border);
+}
+
+/* Form Controls & Rows */
+.form-field-row {
+  display: grid; grid-template-columns: 180px 1fr; align-items: center;
+  padding: 16px 0; border-bottom: 1px solid var(--divider);
+}
+.form-field-row:last-child { border-bottom: none; }
+.form-field-label { font-size: 14px; color: var(--text-main); }
+.form-field-select {
+  width: 100%; padding: 10px 16px; border-radius: calc(var(--corner-radius) * 0.6);
+  border: 1px solid var(--panel-border); background: var(--input-bg);
+  color: var(--text-main); font-size: 13.5px; outline: none; cursor: pointer;
+}
+.form-toggle-switch {
+  width: 48px; height: 24px; border-radius: 9999px; background: rgba(255, 255, 255, 0.1);
+  border: none; cursor: pointer; position: relative; transition: background 0.2s;
+  justify-self: end;
+}
+.form-toggle-switch.active { background: var(--accent-color); }
+.form-toggle-thumb {
+  width: 20px; height: 20px; border-radius: 50%; background: #ffffff;
+  position: absolute; top: 2px; left: 2px; transition: transform 0.2s var(--ease-spring);
+}
+.form-toggle-switch.active .form-toggle-thumb { transform: translateX(24px); }
 
 /* ============================================================
-   ORGANIC SVG TOP NOTCH TAB HANDLE
+   ORGANIC SVG TOP NOTCH TAB HANDLE (ArcNotch Geometry)
    ============================================================ */
-.notch-tab-handle {
+.notch-handle-bar {
   position: relative; width: 400px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; flex-shrink: 0;
-  transition: transform 0.15s var(--ease);
+  transition: transform 0.15s var(--ease-smooth);
 }
-.notch-tab-handle:hover {
-  transform: translateY(2px);
-}
-.notch-svg {
+.notch-handle-bar:hover { transform: translateY(2px); }
+.notch-svg-shape {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  color: var(--notch-fill); drop-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  color: var(--panel-bg); drop-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   pointer-events: none;
 }
-.notch-label-wrap {
+.notch-title-content {
   position: relative; z-index: 10; display: flex; align-items: center; gap: 8px;
-  padding-bottom: 3px; font-size: 13.5px; font-weight: 600; color: var(--text);
+  padding-bottom: 2px; font-size: 14.5px; font-weight: 500; color: #ffffff;
 }
-.app-logo-badge {
-  position: relative; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+.logo-stack-mock {
+  position: relative; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
 }
-.logo-square {
-  position: absolute; width: 12px; height: 12px; border-radius: 3px;
+.logo-layer-1 {
+  position: absolute; width: 14px; height: 14px; background: #FF6B6B; border-radius: 4px;
+  opacity: 0.9; transform: rotate(12deg); left: 1px; top: 1px;
 }
-.logo-sq1 { background: #ff6b6b; transform: rotate(12deg); opacity: 0.9; top: 1px; left: 1px; }
-.logo-sq2 { border: 1.5px solid rgba(255, 255, 255, 0.4); transform: rotate(-12deg); top: 2px; left: 4px; }
-.logo-sq3 { background: #4d96ff; mix-blend-mode: screen; top: 3px; left: 3px; opacity: 0.95; }
-.status-green-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
-  box-shadow: 0 0 6px var(--ok); margin-left: 2px;
+.logo-layer-2 {
+  position: absolute; width: 14px; height: 14px; border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px; opacity: 0.9; transform: rotate(-12deg); left: 5px; top: 3px;
+}
+.logo-layer-3 {
+  position: absolute; width: 14px; height: 14px; background: #4D96FF; border-radius: 5px;
+  mix-blend-mode: screen; opacity: 0.95; left: 4px; top: 4px;
+}
+.status-indicator-green {
+  width: 8px; height: 8px; border-radius: 50%; background: #22C55E; margin-left: 2px;
 }
 
-/* Generic Action Buttons */
-.btn-primary {
-  padding: 8px 20px; border-radius: var(--r-pill); border: none;
-  background: var(--accent); color: #ffffff; font-weight: 600; font-size: 13px;
-  cursor: pointer; transition: background 0.15s, transform 0.12s;
+/* Buttons */
+.btn-solid-white {
+  padding: 8px 24px; border-radius: 9999px; border: none;
+  background: #ffffff; color: #000000; font-weight: 600; font-size: 13.5px;
+  cursor: pointer; transition: opacity 0.15s, transform 0.12s;
 }
-.btn-primary:hover { opacity: 0.9; transform: scale(1.02); }
-.btn-secondary {
-  padding: 8px 18px; border-radius: var(--r-pill); border: 1px solid var(--stroke);
-  background: transparent; color: var(--text-dim); font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: background 0.15s, color 0.15s;
+.btn-solid-white:hover { opacity: 0.9; }
+.btn-solid-white:active { transform: scale(0.95); }
+.btn-ghost-cancel {
+  padding: 8px 20px; border-radius: 9999px; border: none;
+  background: transparent; color: var(--text-muted); font-size: 13.5px; font-weight: 500;
+  cursor: pointer; transition: color 0.15s;
 }
-.btn-secondary:hover { background: var(--card-sub); color: var(--text); }
+.btn-ghost-cancel:hover { color: var(--text-main); }
 </style>
 </head>
 
@@ -391,300 +435,597 @@ svg { display: block; }
 
 <!-- Workspace 3D Desktop Area -->
 <div id="workspace-canvas">
-  <div class="hero-text">
+  <div class="hero-box">
     <div class="hero-badge">
       <div class="dot"></div>
-      <span>Slate Engine — Workspace Active</span>
+      <span>Frontier / Slate Desktop</span>
     </div>
-    <h1 class="hero-title">Interactive Dynamic Top Notch</h1>
-    <p class="hero-sub">Click the <b>Control Center</b> tab at the top edge of the screen to smoothly expand the pulldown shade with physics springs and live theme switching.</p>
+    <h1 class="hero-title">Control Center Top Notch</h1>
+    <p class="hero-desc">Click or drag the <b>Control Center</b> organic notch tab at the top edge of the screen to open the pulldown shade with live theme switching, typography, keybindings, and render settings.</p>
   </div>
 </div>
 
-<!-- Backdrop -->
+<!-- Backdrop Blur -->
 <div id="notch-backdrop" onclick="closeNotch()"></div>
 
-<!-- Top Notch Container -->
+<!-- Top Notch Pulldown Container -->
 <div id="notch-container">
-  <!-- Pulldown Shade Body -->
+  <!-- 2000px High Pulldown Shade -->
   <div class="shade-wrapper">
     <div class="shade-content-box">
       <div class="modal-stage" id="modal-stage">
 
-        <!-- VIEW 1: Control Center Quick Settings -->
+        <!-- VIEW 1: Control Center Quick Action Grid -->
         <div class="view-card active" id="view-control-center">
-          <div class="cc-header">
+          <div class="cc-top-row">
             <span>Control Center</span>
-            <div class="cc-header-actions">
+            <div class="cc-top-actions">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-              <button class="cc-icon-btn" onclick="openSettingsMenu()" title="Settings">
+              <button class="btn-icon-ghost" onclick="openSettingsMenu()" title="Settings">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>
             </div>
           </div>
 
           <!-- 8 Quick Action Toggle Buttons -->
-          <div class="quick-grid">
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
-              <span class="quick-label">Geometry</span>
+          <div class="quick-grid-4x2">
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle active"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+              <span class="quick-btn-label">Geometry</span>
             </div>
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></div>
-              <span class="quick-label">Lighting</span>
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle active"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></div>
+              <span class="quick-btn-label">Lighting</span>
             </div>
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-              <span class="quick-label">Cameras</span>
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+              <span class="quick-btn-label">Cameras</span>
             </div>
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m14 12-8.5 8.5a2.12 2.12 0 1 1-3-3L11 9"/><path d="M18 10l-4-4"/><path d="m19 15 3-3a2.83 2.83 0 0 0-4-4l-3 3"/></svg></div>
-              <span class="quick-label">Materials</span>
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m14 12-8.5 8.5a2.12 2.12 0 1 1-3-3L11 9"/><path d="M18 10l-4-4"/><path d="m19 15 3-3a2.83 2.83 0 0 0-4-4l-3 3"/></svg></div>
+              <span class="quick-btn-label">Materials</span>
             </div>
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
-              <span class="quick-label">Simulate</span>
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle active"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+              <span class="quick-btn-label">Simulate</span>
             </div>
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
-              <span class="quick-label">Render</span>
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+              <span class="quick-btn-label">Render</span>
             </div>
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle active"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-              <span class="quick-label">Show Grid</span>
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle active"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+              <span class="quick-btn-label">Show Grid</span>
             </div>
-            <div class="quick-item" onclick="toggleQuickBtn(this)">
-              <div class="quick-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
-              <span class="quick-label">Outliner</span>
+            <div class="quick-btn-col" onclick="toggleQuickButton(this)">
+              <div class="quick-btn-circle"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+              <span class="quick-btn-label">Outliner</span>
             </div>
           </div>
 
-          <!-- Render Scale Scrubber -->
-          <div class="cc-slider-card">
-            <div class="cc-slider-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
-            <div class="cc-slider-track" onclick="updateRenderScale(event, this)">
-              <div class="cc-slider-fill" id="render-scale-fill" style="width: 80%;"></div>
+          <!-- Render Scale Slider -->
+          <div class="render-slider-pill">
+            <div class="slider-icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+            <div class="slider-bar-track" onclick="dragRenderScale(event, this)">
+              <div class="slider-bar-fill" id="render-scale-bar-fill" style="width: 80%;"></div>
             </div>
-            <div class="cc-slider-val" id="render-scale-text">80%</div>
+            <div class="slider-val-tag" id="render-scale-val-tag">80%</div>
           </div>
         </div>
 
         <!-- VIEW 2: Settings Categories Menu -->
         <div class="view-card" id="view-settings-menu">
-          <div class="cc-header">
+          <div class="cc-top-row" style="margin-bottom: 4px;">
             <div style="display:flex; align-items:center; gap:8px;">
-              <button class="cc-icon-btn" onclick="openControlCenter()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
-              <span style="font-size:16px; color:var(--text);">Settings</span>
+              <button class="btn-icon-ghost" onclick="showView('view-control-center')"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+              <span style="font-size:20px; font-weight:700; color:#ffffff;">Settings</span>
             </div>
           </div>
 
-          <div class="settings-menu-card">
-            <div class="settings-row" onclick="openAppearanceSubmodal()">
-              <div class="settings-row-left">
-                <div class="settings-row-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z"/></svg></div>
-                <div class="settings-row-info">
-                  <span class="settings-row-title">Appearance & Themes</span>
-                  <span class="settings-row-desc">Color scheme, fonts, corner radius</span>
+          <div class="settings-list-card">
+            <div class="settings-menu-row" onclick="openAppearanceModal('theme')">
+              <div style="display:flex; align-items:center;">
+                <div class="settings-row-icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z"/></svg></div>
+                <div class="settings-row-text">
+                  <span class="settings-row-main">Appearance</span>
+                  <span class="settings-row-sub">Theme, fonts, and system colors</span>
                 </div>
               </div>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-faint);"><path d="m9 18 6-6-6-6"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><path d="m9 18 6-6-6-6"/></svg>
             </div>
 
-            <div class="settings-row" onclick="openAppearanceSubmodal('display')">
-              <div class="settings-row-left">
-                <div class="settings-row-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></div>
-                <div class="settings-row-info">
-                  <span class="settings-row-title">Display & Workspaces</span>
-                  <span class="settings-row-desc">Resolution, MSAA, VSync, DPI scaling</span>
+            <div class="settings-menu-row" onclick="openWorkspaceSettingsModal()">
+              <div style="display:flex; align-items:center;">
+                <div class="settings-row-icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></div>
+                <div class="settings-row-text">
+                  <span class="settings-row-main">Display & Workspace</span>
+                  <span class="settings-row-sub">Resolution, scaling, multiple displays</span>
                 </div>
               </div>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-faint);"><path d="m9 18 6-6-6-6"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><path d="m9 18 6-6-6-6"/></svg>
             </div>
 
-            <div class="settings-row" onclick="openAppearanceSubmodal('fonts')">
-              <div class="settings-row-left">
-                <div class="settings-row-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg></div>
-                <div class="settings-row-info">
-                  <span class="settings-row-title">Typography & Layout</span>
-                  <span class="settings-row-desc">Typefaces, weights, scale sizes</span>
+            <div class="settings-menu-row" onclick="openInputSettingsModal()">
+              <div style="display:flex; align-items:center;">
+                <div class="settings-row-icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                <div class="settings-row-text">
+                  <span class="settings-row-main">Input & Keybindings</span>
+                  <span class="settings-row-sub">Shortcuts, mouse sensitivity, controllers</span>
                 </div>
               </div>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-faint);"><path d="m9 18 6-6-6-6"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><path d="m9 18 6-6-6-6"/></svg>
             </div>
 
-            <div class="settings-row">
-              <div class="settings-row-left">
-                <div class="settings-row-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                <div class="settings-row-info">
-                  <span class="settings-row-title">Telemetry & Engine</span>
-                  <span class="settings-row-desc">Frame time graphs, microsecond counters</span>
+            <div class="settings-menu-row" onclick="openTelemetrySettingsModal()">
+              <div style="display:flex; align-items:center;">
+                <div class="settings-row-icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+                <div class="settings-row-text">
+                  <span class="settings-row-main">Telemetry & Notifications</span>
+                  <span class="settings-row-sub">RAM usage, FPS, baking complete alerts</span>
                 </div>
               </div>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-faint);"><path d="m9 18 6-6-6-6"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><path d="m9 18 6-6-6-6"/></svg>
             </div>
           </div>
         </div>
 
-        <!-- VIEW 3: Deep Settings Sub-Modal -->
-        <div class="view-card" id="view-submodal">
-          <div class="submodal-card">
-            <!-- Header -->
-            <div class="submodal-header">
+        <!-- VIEW 3A: Appearance & Display Settings Modal (SettingsModal) -->
+        <div class="view-card" id="view-appearance-modal">
+          <div class="modal-full-card">
+            <div class="modal-top-bar">
               <div>
-                <h2 class="submodal-title" id="submodal-header-title">Display Settings</h2>
-                <p class="submodal-sub">Appearance, themes & typography</p>
+                <h2 class="modal-heading">Display Settings</h2>
+                <p class="modal-subheading">Appearance & typography</p>
               </div>
-              <button class="cc-icon-btn" onclick="openSettingsMenu()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              <button class="btn-icon-ghost" onclick="showView('view-settings-menu')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
 
-            <!-- Tab Navigation -->
-            <div class="tab-nav">
-              <button class="tab-btn active" id="tab-btn-theme" onclick="switchSubmodalTab('theme')">Theme</button>
-              <button class="tab-btn" id="tab-btn-fonts" onclick="switchSubmodalTab('fonts')">Fonts</button>
-              <button class="tab-btn" id="tab-btn-display" onclick="switchSubmodalTab('display')">Display</button>
+            <div class="modal-tab-strip">
+              <button class="tab-strip-btn active" id="tab-btn-theme" onclick="switchAppearanceTab('theme')">Theme</button>
+              <button class="tab-strip-btn" id="tab-btn-fonts" onclick="switchAppearanceTab('fonts')">Fonts</button>
+              <button class="tab-strip-btn" id="tab-btn-display" onclick="switchAppearanceTab('display')">Display</button>
             </div>
 
-            <!-- Scrollable Body -->
-            <div class="submodal-body">
-              <!-- TAB CONTENT: THEME -->
-              <div id="tab-content-theme" style="display:flex; flex-direction:column; gap:24px;">
-                <div>
-                  <h3 style="font-size:14px; font-weight:700; margin-bottom:4px;">Color Scheme</h3>
-                  <p style="font-size:12px; color:var(--text-dim); margin-bottom:14px;">Select the global interface luminance and style palette</p>
+            <div class="modal-scroll-area">
+              <!-- THEME TAB -->
+              <div id="tab-content-theme" style="display:flex; flex-direction:column; gap:28px;">
+                <!-- 8 Color Schemes with Realistic Sidebars -->
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:24px;">
+                  <div style="margin-bottom:20px;">
+                    <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:2px;">Color Scheme</h3>
+                    <p style="font-size:12px; color:var(--text-muted);">Choose the overall interface darkness</p>
+                  </div>
 
-                  <div class="theme-grid">
-                    <div class="theme-card active" onclick="applyTheme('oled', this)">
-                      <div class="theme-preview-box" style="background:#000000;">
-                        <div style="position:absolute; top:8px; left:8px; right:0; bottom:0; background:#09090b; border-top-left-radius:8px; border:1px solid rgba(255,255,255,0.1);"></div>
+                  <div class="theme-grid-4col">
+                    <!-- OLED -->
+                    <div class="theme-select-card active" onclick="selectTheme('oled', this)">
+                      <div class="theme-mock-viewport" style="background:#000000;">
+                        <div class="theme-sidebar-mock" style="background:#0A0A0A;">
+                          <div class="theme-sidebar-col">
+                            <div style="display:flex; gap:3px; margin-bottom:4px;">
+                              <div style="width:4px; height:4px; border-radius:50%; background:#fff; opacity:0.4;"></div>
+                              <div style="width:4px; height:4px; border-radius:50%; background:#fff; opacity:0.4;"></div>
+                              <div style="width:4px; height:4px; border-radius:50%; background:#fff; opacity:0.4;"></div>
+                            </div>
+                            <div style="width:100%; height:4px; border-radius:2px; background:#fff; opacity:0.2;"></div>
+                            <div style="width:66%; height:4px; border-radius:2px; background:#fff; opacity:0.2;"></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#141414;">
+                            <div style="width:35%; height:4px; border-radius:2px; background:#fff; opacity:0.3; margin-bottom:4px;"></div>
+                            <div style="display:flex; gap:4px;">
+                              <div style="flex:1; aspect-ratio:1; background:#fff; opacity:0.1; border-radius:3px;"></div>
+                              <div style="flex:1; aspect-ratio:1; background:#fff; opacity:0.1; border-radius:3px;"></div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <span class="theme-name">OLED</span>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-main);">OLED</span>
                     </div>
 
-                    <div class="theme-card" onclick="applyTheme('dark', this)">
-                      <div class="theme-preview-box" style="background:#0a0a0a;">
-                        <div style="position:absolute; top:8px; left:8px; right:0; bottom:0; background:#18181b; border-top-left-radius:8px; border:1px solid rgba(255,255,255,0.1);"></div>
+                    <!-- Dark -->
+                    <div class="theme-select-card" onclick="selectTheme('dark', this)">
+                      <div class="theme-mock-viewport" style="background:#18181a;">
+                        <div class="theme-sidebar-mock" style="background:#222224;">
+                          <div class="theme-sidebar-col">
+                            <div style="display:flex; gap:3px; margin-bottom:4px;">
+                              <div style="width:4px; height:4px; border-radius:50%; background:#fff; opacity:0.4;"></div>
+                              <div style="width:4px; height:4px; border-radius:50%; background:#fff; opacity:0.4;"></div>
+                            </div>
+                            <div style="width:100%; height:4px; border-radius:2px; background:#fff; opacity:0.2;"></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#2c2c2e;">
+                            <div style="width:35%; height:4px; border-radius:2px; background:#fff; opacity:0.3; margin-bottom:4px;"></div>
+                            <div style="display:flex; gap:4px;"><div style="flex:1; aspect-ratio:1; background:#fff; opacity:0.1; border-radius:3px;"></div></div>
+                          </div>
+                        </div>
                       </div>
-                      <span class="theme-name">Dark</span>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-muted);">Dark</span>
                     </div>
 
-                    <div class="theme-card" onclick="applyTheme('light', this)">
-                      <div class="theme-preview-box" style="background:#f4f4f5;">
-                        <div style="position:absolute; top:8px; left:8px; right:0; bottom:0; background:#ffffff; border-top-left-radius:8px; border:1px solid rgba(0,0,0,0.1);"></div>
+                    <!-- Dim -->
+                    <div class="theme-select-card" onclick="selectTheme('dim', this)">
+                      <div class="theme-mock-viewport" style="background:#0f172a;">
+                        <div class="theme-sidebar-mock" style="background:#1e293b;">
+                          <div class="theme-sidebar-col">
+                            <div style="display:flex; gap:3px; margin-bottom:4px;"><div style="width:4px; height:4px; border-radius:50%; background:#94a3b8;"></div></div>
+                            <div style="width:100%; height:4px; border-radius:2px; background:#94a3b8; opacity:0.3;"></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#334155;">
+                            <div style="display:flex; gap:4px;"><div style="flex:1; aspect-ratio:1; background:#94a3b8; opacity:0.15; border-radius:3px;"></div></div>
+                          </div>
+                        </div>
                       </div>
-                      <span class="theme-name">Clean White</span>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-muted);">Dim</span>
                     </div>
 
-                    <div class="theme-card" onclick="applyTheme('sepia', this)">
-                      <div class="theme-preview-box" style="background:#dca85b;">
-                        <div style="position:absolute; top:8px; left:8px; right:0; bottom:0; background:#e6c697; border-top-left-radius:8px; border:1px solid rgba(130,86,25,0.2);"></div>
+                    <!-- Light -->
+                    <div class="theme-select-card" onclick="selectTheme('light', this)">
+                      <div class="theme-mock-viewport" style="background:#e5e5e5;">
+                        <div class="theme-sidebar-mock" style="background:#f4f4f5;">
+                          <div class="theme-sidebar-col">
+                            <div style="display:flex; gap:3px; margin-bottom:4px;"><div style="width:4px; height:4px; border-radius:50%; background:#000; opacity:0.4;"></div></div>
+                            <div style="width:100%; height:4px; border-radius:2px; background:#000; opacity:0.2;"></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#ffffff; border:1px solid rgba(0,0,0,0.05);">
+                            <div style="display:flex; gap:4px;"><div style="flex:1; aspect-ratio:1; background:#000; opacity:0.08; border-radius:3px;"></div></div>
+                          </div>
+                        </div>
                       </div>
-                      <span class="theme-name">Desert Sand</span>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-muted);">Light</span>
                     </div>
 
-                    <div class="theme-card" onclick="applyTheme('dracula', this)">
-                      <div class="theme-preview-box" style="background:#1e1f29;">
-                        <div style="position:absolute; top:8px; left:8px; right:0; bottom:0; background:#282a36; border-top-left-radius:8px; border:1px solid rgba(248,248,242,0.15);"></div>
+                    <!-- Sepia -->
+                    <div class="theme-select-card" onclick="selectTheme('sepia', this)">
+                      <div class="theme-mock-viewport" style="background:#dca85b;">
+                        <div class="theme-sidebar-mock" style="background:#e6c697;">
+                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; border-radius:2px; background:#825619; opacity:0.3;"></div></div>
+                          <div class="theme-panel-col" style="background:#f1dab0;"><div style="width:100%; height:100%; background:#825619; opacity:0.1; border-radius:3px;"></div></div>
+                        </div>
                       </div>
-                      <span class="theme-name">Dracula</span>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-muted);">Sepia</span>
                     </div>
 
-                    <div class="theme-card" onclick="applyTheme('nord', this)">
-                      <div class="theme-preview-box" style="background:#242933;">
-                        <div style="position:absolute; top:8px; left:8px; right:0; bottom:0; background:#2e3440; border-top-left-radius:8px; border:1px solid rgba(236,239,244,0.15);"></div>
+                    <!-- Dracula -->
+                    <div class="theme-select-card" onclick="selectTheme('dracula', this)">
+                      <div class="theme-mock-viewport" style="background:#282a36;">
+                        <div class="theme-sidebar-mock" style="background:#44475a;">
+                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; border-radius:2px; background:#f8f8f2; opacity:0.3;"></div></div>
+                          <div class="theme-panel-col" style="background:#6272a4;"><div style="width:100%; height:100%; background:#f8f8f2; opacity:0.1; border-radius:3px;"></div></div>
+                        </div>
                       </div>
-                      <span class="theme-name">Nord</span>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-muted);">Dracula</span>
                     </div>
 
-                    <div class="theme-card" onclick="applyTheme('github', this)">
-                      <div class="theme-preview-box" style="background:#0d1117;">
-                        <div style="position:absolute; top:8px; left:8px; right:0; bottom:0; background:#161b22; border-top-left-radius:8px; border:1px solid rgba(201,209,217,0.15);"></div>
+                    <!-- Nord -->
+                    <div class="theme-select-card" onclick="selectTheme('nord', this)">
+                      <div class="theme-mock-viewport" style="background:#2e3440;">
+                        <div class="theme-sidebar-mock" style="background:#3b4252;">
+                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; border-radius:2px; background:#eceff4; opacity:0.3;"></div></div>
+                          <div class="theme-panel-col" style="background:#4c566a;"><div style="width:100%; height:100%; background:#eceff4; opacity:0.1; border-radius:3px;"></div></div>
+                        </div>
                       </div>
-                      <span class="theme-name">GitHub</span>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-muted);">Nord</span>
+                    </div>
+
+                    <!-- GitHub -->
+                    <div class="theme-select-card" onclick="selectTheme('github', this)">
+                      <div class="theme-mock-viewport" style="background:#0d1117;">
+                        <div class="theme-sidebar-mock" style="background:#161b22;">
+                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; border-radius:2px; background:#c9d1d9; opacity:0.3;"></div></div>
+                          <div class="theme-panel-col" style="background:#21262d;"><div style="width:100%; height:100%; background:#c9d1d9; opacity:0.1; border-radius:3px;"></div></div>
+                        </div>
+                      </div>
+                      <span class="theme-name-tag" style="font-size:12px; font-weight:500; color:var(--text-muted);">GitHub</span>
                     </div>
                   </div>
                 </div>
 
-                <!-- Corner Radius Setting -->
-                <div style="background:var(--card-sub); padding:18px 20px; border-radius:var(--r-card); border:1px solid var(--stroke);">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                <!-- Shapes & Corner Radius -->
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:24px;">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px;">
                     <div>
-                      <h4 style="font-size:13.5px; font-weight:700;">Corner Radius</h4>
-                      <p style="font-size:12px; color:var(--text-dim);">Adjust the roundness of panels and controls</p>
+                      <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:2px;">Corner Radius</h3>
+                      <p style="font-size:12px; color:var(--text-muted);">Adjust the roundness of UI elements</p>
                     </div>
-                    <span id="radius-val" style="font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:700;">18px</span>
+                    <span id="radius-number-display" style="font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; color:var(--text-muted);">18px</span>
                   </div>
-                  <input type="range" class="custom-range" min="0" max="32" value="18" oninput="updateCornerRadius(this.value)">
+                  <input type="range" min="0" max="32" value="18" style="width:100%; accent-color:var(--accent-color); cursor:pointer;" oninput="setLiveCornerRadius(this.value)">
                 </div>
 
-                <!-- Accent Color Picker -->
-                <div style="background:var(--card-sub); padding:18px 20px; border-radius:var(--r-card); border:1px solid var(--stroke);">
-                  <h4 style="font-size:13.5px; font-weight:700;">Accent Highlight</h4>
-                  <p style="font-size:12px; color:var(--text-dim); margin-bottom:10px;">Primary interactive color</p>
-                  <div class="accent-row">
-                    <button class="accent-dot active" style="background:#3b82f6;" onclick="applyAccent('#3b82f6', this)"></button>
-                    <button class="accent-dot" style="background:#06b6d4;" onclick="applyAccent('#06b6d4', this)"></button>
-                    <button class="accent-dot" style="background:#10b981;" onclick="applyAccent('#10b981', this)"></button>
-                    <button class="accent-dot" style="background:#f59e0b;" onclick="applyAccent('#f59e0b', this)"></button>
-                    <button class="accent-dot" style="background:#f97316;" onclick="applyAccent('#f97316', this)"></button>
-                    <button class="accent-dot" style="background:#f43f5e;" onclick="applyAccent('#f43f5e', this)"></button>
-                    <button class="accent-dot" style="background:#8b5cf6;" onclick="applyAccent('#8b5cf6', this)"></button>
-                    <button class="accent-dot" style="background:#6c77ff;" onclick="applyAccent('#6c77ff', this)"></button>
+                <!-- 10 Accent Colors -->
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:24px;">
+                  <div style="margin-bottom:12px;">
+                    <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:2px;">Accent Color</h3>
+                    <p style="font-size:12px; color:var(--text-muted);">Main interactive elements</p>
+                  </div>
+                  <div class="accent-palette-row">
+                    <button class="accent-color-circle" style="background:#FFFFFF;" onclick="setLiveAccent('#FFFFFF', this)"></button>
+                    <button class="accent-color-circle" style="background:#f97316;" onclick="setLiveAccent('#f97316', this)"></button>
+                    <button class="accent-color-circle" style="background:#f59e0b;" onclick="setLiveAccent('#f59e0b', this)"></button>
+                    <button class="accent-color-circle" style="background:#84cc16;" onclick="setLiveAccent('#84cc16', this)"></button>
+                    <button class="accent-color-circle" style="background:#10b981;" onclick="setLiveAccent('#10b981', this)"></button>
+                    <button class="accent-color-circle" style="background:#06b6d4;" onclick="setLiveAccent('#06b6d4', this)"></button>
+                    <button class="accent-color-circle active" style="background:#3b82f6;" onclick="setLiveAccent('#3b82f6', this)"></button>
+                    <button class="accent-color-circle" style="background:#8b5cf6;" onclick="setLiveAccent('#8b5cf6', this)"></button>
+                    <button class="accent-color-circle" style="background:#d946ef;" onclick="setLiveAccent('#d946ef', this)"></button>
+                    <button class="accent-color-circle" style="background:#f43f5e;" onclick="setLiveAccent('#f43f5e', this)"></button>
                   </div>
                 </div>
               </div>
 
-              <!-- TAB CONTENT: FONTS -->
-              <div id="tab-content-fonts" style="display:none; flex-direction:column; gap:20px;">
-                <h3 style="font-size:14px; font-weight:700;">Typography Presets</h3>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                  <div class="settings-menu-card" style="padding:16px; cursor:pointer;" onclick="applyFont('General Sans', this)">
-                    <div style="font-size:24px; font-weight:600; font-family:'General Sans', sans-serif;">Aa</div>
-                    <div style="font-size:13.5px; font-weight:600; margin-top:6px;">General Sans</div>
-                    <div style="font-size:11.5px; color:var(--text-dim);">Slate Default Modern Face</div>
+              <!-- FONTS TAB -->
+              <div id="tab-content-fonts" style="display:none; flex-direction:column; gap:28px;">
+                <!-- 8 Font Families Carousel -->
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px;">
+                    <div>
+                      <h3 style="font-size:14px; font-weight:500; color:var(--text-main);">Typography</h3>
+                      <p style="font-size:12px; color:var(--text-muted);">Typeface, type scale, and font weights</p>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                      <button class="btn-icon-ghost" style="border:1px solid var(--panel-border);" onclick="scrollFontCarousel(-240)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+                      <button class="btn-icon-ghost" style="border:1px solid var(--panel-border);" onclick="scrollFontCarousel(240)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+                    </div>
                   </div>
-                  <div class="settings-menu-card" style="padding:16px; cursor:pointer;" onclick="applyFont('Inter', this)">
-                    <div style="font-size:24px; font-weight:600; font-family:'Inter', sans-serif;">Aa</div>
-                    <div style="font-size:13.5px; font-weight:600; margin-top:6px;">Inter</div>
-                    <div style="font-size:11.5px; color:var(--text-dim);">Clean Geometric UI</div>
+
+                  <div class="fonts-carousel-wrap" id="fonts-carousel">
+                    <div class="font-pill-card active" onclick="setLiveFont('General Sans', this)">
+                      <div style="font-size:24px; font-family:'General Sans'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">General Sans</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clean & Modern</div>
+                    </div>
+                    <div class="font-pill-card" onclick="setLiveFont('Inter', this)">
+                      <div style="font-size:24px; font-family:'Inter'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Inter</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Author</div>
+                    </div>
+                    <div class="font-pill-card" onclick="setLiveFont('Archivo', this)">
+                      <div style="font-size:24px; font-family:'Archivo'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Archivo</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Technical & Solid</div>
+                    </div>
+                    <div class="font-pill-card" onclick="setLiveFont('Space Grotesk', this)">
+                      <div style="font-size:24px; font-family:'Space Grotesk'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Space Grotesk</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Grotesque Display</div>
+                    </div>
+                    <div class="font-pill-card" onclick="setLiveFont('Clash Display', this)">
+                      <div style="font-size:24px; font-family:'Clash Display'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Clash Display</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Bold & Distinct</div>
+                    </div>
+                    <div class="font-pill-card" onclick="setLiveFont('Montserrat', this)">
+                      <div style="font-size:24px; font-family:'Montserrat'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Montserrat</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Geometric & Wide</div>
+                    </div>
+                    <div class="font-pill-card" onclick="setLiveFont('Poppins', this)">
+                      <div style="font-size:24px; font-family:'Poppins'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Poppins</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Friendly & Round</div>
+                    </div>
+                    <div class="font-pill-card" onclick="setLiveFont('JetBrains Mono', this)">
+                      <div style="font-size:24px; font-family:'JetBrains Mono'; margin-bottom:12px;">Aa</div>
+                      <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">JetBrains Mono</div>
+                      <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Monospaced Code</div>
+                    </div>
                   </div>
-                  <div class="settings-menu-card" style="padding:16px; cursor:pointer;" onclick="applyFont('Space Grotesk', this)">
-                    <div style="font-size:24px; font-weight:600; font-family:'Space Grotesk', sans-serif;">Aa</div>
-                    <div style="font-size:13.5px; font-weight:600; margin-top:6px;">Space Grotesk</div>
-                    <div style="font-size:11.5px; color:var(--text-dim);">Technical Display</div>
-                  </div>
-                  <div class="settings-menu-card" style="padding:16px; cursor:pointer;" onclick="applyFont('JetBrains Mono', this)">
-                    <div style="font-size:24px; font-weight:600; font-family:'JetBrains Mono', monospace;">Aa</div>
-                    <div style="font-size:13.5px; font-weight:600; margin-top:6px;">JetBrains Mono</div>
-                    <div style="font-size:11.5px; color:var(--text-dim);">Developer Code Tabular</div>
+                </div>
+
+                <!-- Typeface & Colors Playground -->
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:24px;">
+                  <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:20px;">Typeface & Colors</h3>
+
+                  <div style="display:grid; grid-template-columns:1fr 280px; gap:28px;">
+                    <div style="padding:32px; background:var(--active-bg); border:1px solid var(--panel-border); border-radius:calc(var(--corner-radius)*0.8); display:flex; flex-direction:column; justify-content:center;">
+                      <div id="font-giant-preview" style="font-size:56px; font-weight:700; color:var(--text-main); line-height:1; margin-bottom:12px;">General Sans</div>
+                      <div style="font-size:13px; color:var(--text-muted);">(72px bold preview)</div>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:16px;">
+                      <div style="font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-muted); line-height:1.6;">
+                        <div>ABCDEFGHIJKLMNOPQRSTUVWXYZ</div>
+                        <div>abcdefghijklmnopqrstuvwxyz</div>
+                        <div>0123456789 !@#$%^&*()</div>
+                      </div>
+                      <div style="font-size:12px; color:var(--accent-color);">
+                        <b>Accent</b> — The quick brown fox jumps over the lazy dog.
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <!-- TAB CONTENT: DISPLAY -->
-              <div id="tab-content-display" style="display:none; flex-direction:column; gap:16px;">
-                <div style="background:var(--card-sub); padding:16px 20px; border-radius:var(--r-card); border:1px solid var(--stroke); display:flex; justify-content:space-between; align-items:center;">
-                  <div>
-                    <div style="font-size:13.5px; font-weight:600;">Vulkan Multi-Sample Anti-Aliasing (MSAA)</div>
-                    <div style="font-size:11.5px; color:var(--text-dim);">Geometric sample rate</div>
+              <!-- DISPLAY TAB -->
+              <div id="tab-content-display" style="display:none; flex-direction:column; gap:28px;">
+                <!-- Icon Font Selector -->
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:24px;">
+                  <h3 style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-muted); margin-bottom:14px;">Icon Font</h3>
+                  <select class="form-field-select" style="margin-bottom:18px;" onchange="updateIconFontStroke(this.value)">
+                    <option value="2">Lucide (Default 2.0px)</option>
+                    <option value="1.5">Phosphor (1.5px)</option>
+                    <option value="1.25">Tabler (1.25px)</option>
+                    <option value="2.5">Material Soft (2.5px)</option>
+                  </select>
+
+                  <div class="icon-preview-row" id="icon-preview-set">
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+                    <svg class="preview-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
-                  <span style="font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:700;">4x MSAA</span>
                 </div>
-                <div style="background:var(--card-sub); padding:16px 20px; border-radius:var(--r-card); border:1px solid var(--stroke); display:flex; justify-content:space-between; align-items:center;">
-                  <div>
-                    <div style="font-size:13.5px; font-weight:600;">Vertical Blank Synchronization (VSync)</div>
-                    <div style="font-size:11.5px; color:var(--text-dim);">Tear-free swapchain present</div>
+
+                <!-- Anti-Aliasing Mode -->
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:24px;">
+                  <h3 style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-muted); margin-bottom:14px;">Anti-Aliasing</h3>
+                  <div style="display:flex; gap:10px;">
+                    <button class="btn-solid-white" style="padding:6px 16px; font-size:12px;">1x</button>
+                    <button class="btn-ghost-cancel" style="padding:6px 16px; font-size:12px; border:1px solid var(--panel-border);">2x</button>
+                    <button class="btn-ghost-cancel" style="padding:6px 16px; font-size:12px; border:1px solid var(--panel-border);">4x</button>
+                    <button class="btn-ghost-cancel" style="padding:6px 16px; font-size:12px; border:1px solid var(--panel-border);">8x</button>
                   </div>
-                  <span style="color:var(--ok); font-size:12px; font-weight:700;">ENABLED</span>
                 </div>
               </div>
             </div>
 
             <!-- Footer -->
-            <div class="submodal-footer">
-              <span style="font-size:11px; color:var(--text-dim);">Slate Subsystem v2.6 · Vulkan 1.3</span>
-              <div style="display:flex; gap:10px;">
-                <button class="btn-secondary" onclick="openSettingsMenu()">Back</button>
-                <button class="btn-primary" onclick="closeNotch()">Done</button>
+            <div class="modal-bottom-bar">
+              <span style="font-size:11px; color:var(--text-muted);">Inter — Medium — 11px — MSAA 1x</span>
+              <div style="display:flex; gap:12px;">
+                <button class="btn-ghost-cancel" onclick="showView('view-settings-menu')">Reset</button>
+                <button class="btn-solid-white" onclick="closeNotch()">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 3B: Display & Workspace Modal (WorkspaceSettingsModal) -->
+        <div class="view-card" id="view-workspace-modal">
+          <div class="modal-full-card">
+            <div class="modal-top-bar">
+              <div>
+                <h2 class="modal-heading">Display & Workspace</h2>
+                <p class="modal-subheading">Configure resolution, scaling, and viewport options.</p>
+              </div>
+              <button class="btn-icon-ghost" onclick="showView('view-settings-menu')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+
+            <div class="modal-scroll-area">
+              <div class="form-field-row">
+                <span class="form-field-label">Resolution Scale</span>
+                <select class="form-field-select">
+                  <option>100% (Native)</option>
+                  <option>200% (Retina/HiDPI)</option>
+                  <option>75% (Performance)</option>
+                  <option>50% (Fast)</option>
+                </select>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Viewport Framerate</span>
+                <select class="form-field-select">
+                  <option>60 FPS</option>
+                  <option>120 FPS (Smooth)</option>
+                  <option>30 FPS (Power Saving)</option>
+                  <option>Uncapped</option>
+                </select>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Show Grid in Viewport</span>
+                <button class="form-toggle-switch active" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Anti-Aliasing</span>
+                <select class="form-field-select">
+                  <option>TAA (Temporal)</option>
+                  <option>FXAA (Fast)</option>
+                  <option>MSAA 4x</option>
+                  <option>None</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="modal-bottom-bar">
+              <span style="font-size:11px; color:var(--text-muted);">Ready to apply changes.</span>
+              <div style="display:flex; gap:12px;">
+                <button class="btn-ghost-cancel" onclick="showView('view-settings-menu')">Discard Changes</button>
+                <button class="btn-solid-white" onclick="closeNotch()">Apply Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 3C: Input & Keybindings Modal (InputSettingsModal) -->
+        <div class="view-card" id="view-input-modal">
+          <div class="modal-full-card">
+            <div class="modal-top-bar">
+              <div>
+                <h2 class="modal-heading">Keybindings Setup</h2>
+                <p class="modal-subheading">Configure navigation style and keyboard shortcuts.</p>
+              </div>
+              <button class="btn-icon-ghost" onclick="showView('view-settings-menu')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+
+            <div class="modal-scroll-area">
+              <div class="form-field-row">
+                <span class="form-field-label">Preset profile</span>
+                <select class="form-field-select">
+                  <option>Blender (Default)</option>
+                  <option>Maya / Unity</option>
+                  <option>Unreal Engine</option>
+                </select>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Select Tool</span>
+                <input type="text" value="Q" style="width:100%; padding:10px 16px; border-radius:8px; border:1px solid var(--panel-border); background:var(--input-bg); color:var(--text-main); font-size:13px; outline:none;">
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Translate Tool</span>
+                <input type="text" value="W" style="width:100%; padding:10px 16px; border-radius:8px; border:1px solid var(--panel-border); background:var(--input-bg); color:var(--text-main); font-size:13px; outline:none;">
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Rotate Tool</span>
+                <input type="text" value="E" style="width:100%; padding:10px 16px; border-radius:8px; border:1px solid var(--panel-border); background:var(--input-bg); color:var(--text-main); font-size:13px; outline:none;">
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Invert Y-Axis</span>
+                <button class="form-toggle-switch" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+              </div>
+            </div>
+
+            <div class="modal-bottom-bar">
+              <button class="btn-ghost-cancel" onclick="showView('view-settings-menu')">Discard Changes</button>
+              <div style="display:flex; gap:12px;">
+                <button class="btn-ghost-cancel" style="border:1px solid var(--panel-border);">Reset Defaults</button>
+                <button class="btn-solid-white" onclick="closeNotch()">Save Keybindings</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 3D: Telemetry & Notifications Modal (TelemetrySettingsModal) -->
+        <div class="view-card" id="view-telemetry-modal">
+          <div class="modal-full-card">
+            <div class="modal-top-bar">
+              <div>
+                <h2 class="modal-heading">Telemetry & Notifications</h2>
+                <p class="modal-subheading">System resource overlay and alert preferences.</p>
+              </div>
+              <button class="btn-icon-ghost" onclick="showView('view-settings-menu')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+
+            <div class="modal-scroll-area">
+              <div class="form-field-row">
+                <span class="form-field-label">Show FPS Overlay</span>
+                <button class="form-toggle-switch active" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Show RAM Usage</span>
+                <button class="form-toggle-switch active" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Scene Metadata</span>
+                <button class="form-toggle-switch" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Baking Complete Alert</span>
+                <button class="form-toggle-switch active" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+              </div>
+              <div class="form-field-row">
+                <span class="form-field-label">Render Finished Alert</span>
+                <button class="form-toggle-switch active" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+              </div>
+            </div>
+
+            <div class="modal-bottom-bar">
+              <span style="font-size:11px; color:var(--text-muted);">Ready to apply changes.</span>
+              <div style="display:flex; gap:12px;">
+                <button class="btn-ghost-cancel" onclick="showView('view-settings-menu')">Discard Changes</button>
+                <button class="btn-solid-white" onclick="closeNotch()">Save Preferences</button>
               </div>
             </div>
           </div>
@@ -694,35 +1035,32 @@ svg { display: block; }
     </div>
   </div>
 
-  <!-- Organic Curved SVG Notch Handle -->
-  <div class="notch-tab-handle" onclick="toggleNotch()">
-    <svg class="notch-svg" viewBox="0 0 400 36" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+  <!-- Organic Curved SVG Notch Handle Bar -->
+  <div class="notch-handle-bar" onclick="toggleNotch()">
+    <svg class="notch-svg-shape" viewBox="0 0 400 36" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
       <path d="M 0 0 C 15 0, 20 6, 25 15 L 35 28 C 40 34, 45 36, 52 36 L 348 36 C 355 36, 360 34, 365 28 L 375 15 C 380 6, 385 0, 400 0 Z" fill="currentColor"/>
     </svg>
-    <div class="notch-label-wrap">
-      <div class="app-logo-badge">
-        <div class="logo-square logo-sq1"></div>
-        <div class="logo-square logo-sq2"></div>
-        <div class="logo-square logo-sq3"></div>
+    <div class="notch-title-content">
+      <div class="logo-stack-mock">
+        <div class="logo-layer-1"></div>
+        <div class="logo-layer-2"></div>
+        <div class="logo-layer-3"></div>
       </div>
       <span>Control Center</span>
-      <div class="status-green-dot"></div>
+      <div class="status-indicator-green"></div>
     </div>
   </div>
 </div>
 
 <script>
 /* ============================================================
-   CONTROL CENTER NOTCH CONTROLLER JAVASCRIPT
+   CONTROL CENTER INTERACTION LOGIC
    ============================================================ */
 let isNotchOpen = false;
 
 function toggleNotch() {
-  if (isNotchOpen) {
-    closeNotch();
-  } else {
-    openNotch();
-  }
+  if (isNotchOpen) closeNotch();
+  else openNotch();
 }
 
 function openNotch() {
@@ -736,38 +1074,33 @@ function closeNotch() {
   document.getElementById('notch-container').classList.remove('open');
   document.getElementById('notch-backdrop').classList.remove('open');
   setTimeout(() => {
-    openControlCenter();
+    showView('view-control-center');
   }, 400);
 }
 
-/* View Switching */
 function showView(viewId) {
   document.querySelectorAll('.view-card').forEach(el => el.classList.remove('active'));
   document.getElementById(viewId).classList.add('active');
 
   const stage = document.getElementById('modal-stage');
-  if (viewId === 'view-submodal') {
+  if (viewId === 'view-appearance-modal' || viewId === 'view-workspace-modal' || viewId === 'view-input-modal' || viewId === 'view-telemetry-modal') {
     stage.classList.add('expanded');
   } else {
     stage.classList.remove('expanded');
   }
 }
 
-function openControlCenter() {
-  showView('view-control-center');
+function openSettingsMenu() { showView('view-settings-menu'); }
+function openAppearanceModal(tab = 'theme') {
+  showView('view-appearance-modal');
+  switchAppearanceTab(tab);
 }
+function openWorkspaceSettingsModal() { showView('view-workspace-modal'); }
+function openInputSettingsModal() { showView('view-input-modal'); }
+function openTelemetrySettingsModal() { showView('view-telemetry-modal'); }
 
-function openSettingsMenu() {
-  showView('view-settings-menu');
-}
-
-function openAppearanceSubmodal(tab = 'theme') {
-  showView('view-submodal');
-  switchSubmodalTab(tab);
-}
-
-function switchSubmodalTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+function switchAppearanceTab(tab) {
+  document.querySelectorAll('.tab-strip-btn').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById(`tab-btn-${tab}`);
   if (btn) btn.classList.add('active');
 
@@ -776,40 +1109,49 @@ function switchSubmodalTab(tab) {
   document.getElementById('tab-content-display').style.display = (tab === 'display' ? 'flex' : 'none');
 }
 
-/* Theme & Appearance Controls */
-function applyTheme(themeId, el) {
+/* Theme Switching */
+function selectTheme(themeId, el) {
   document.body.setAttribute('data-theme', themeId);
-  document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.theme-select-card').forEach(c => c.classList.remove('active'));
   if (el) el.classList.add('active');
 }
 
-function applyAccent(colorHex, el) {
-  document.documentElement.style.setProperty('--accent', colorHex);
-  document.documentElement.style.setProperty('--accent-soft', colorHex + '26');
-  document.querySelectorAll('.accent-dot').forEach(d => d.classList.remove('active'));
+function setLiveAccent(colorHex, el) {
+  document.documentElement.style.setProperty('--accent-color', colorHex);
+  document.querySelectorAll('.accent-color-circle').forEach(c => c.classList.remove('active'));
   if (el) el.classList.add('active');
 }
 
-function applyFont(fontFamily, el) {
-  document.documentElement.style.setProperty('--font-family', `'${fontFamily}', sans-serif`);
+function setLiveCornerRadius(radiusPx) {
+  document.documentElement.style.setProperty('--corner-radius', `${radiusPx}px`);
+  document.getElementById('radius-number-display').innerText = `${radiusPx}px`;
 }
 
-function updateCornerRadius(val) {
-  document.documentElement.style.setProperty('--r-base', `${val}px`);
-  document.documentElement.style.setProperty('--r-card', `${Math.min(32, parseInt(val) + 6)}px`);
-  document.getElementById('radius-val').innerText = `${val}px`;
+function setLiveFont(fontName, el) {
+  document.documentElement.style.setProperty('--font-family', `'${fontName}', sans-serif`);
+  document.querySelectorAll('.font-pill-card').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('font-giant-preview').innerText = fontName;
 }
 
-function toggleQuickBtn(el) {
-  const circle = el.querySelector('.quick-circle');
+function scrollFontCarousel(dx) {
+  document.getElementById('fonts-carousel').scrollBy({ left: dx, behavior: 'smooth' });
+}
+
+function updateIconFontStroke(strokeWidth) {
+  document.querySelectorAll('.preview-svg').forEach(svg => svg.setAttribute('stroke-width', strokeWidth));
+}
+
+function toggleQuickButton(el) {
+  const circle = el.querySelector('.quick-btn-circle');
   circle.classList.toggle('active');
 }
 
-function updateRenderScale(e, el) {
+function dragRenderScale(e, el) {
   const rect = el.getBoundingClientRect();
-  const percent = Math.round(Math.max(10, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
-  document.getElementById('render-scale-fill').style.width = `${percent}%`;
-  document.getElementById('render-scale-text').innerText = `${percent}%`;
+  const pct = Math.round(Math.max(10, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+  document.getElementById('render-scale-bar-fill').style.width = `${pct}%`;
+  document.getElementById('render-scale-val-tag').innerText = `${pct}%`;
 }
 </script>
 
