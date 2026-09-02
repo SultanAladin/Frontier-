@@ -13,9 +13,12 @@ SRCS := \
 	DeviceExchange/ExecutionQueue.cpp \
 	DeviceExchange/VendorClassifier.cpp \
 	DeviceExchange/OrientationClassifier.cpp \
+	DeviceExchange/WindowExchange.cpp \
+	DeviceExchange/InputExchange.cpp \
 	PhysicalDynamics/RigidBodySolver.cpp \
 	PhysicalDynamics/DeformableSolver.cpp \
 	PhysicalDynamics/LocomotionSolver.cpp \
+	PhysicalDynamics/WorldSequence.cpp \
 	VolumetricDynamics/LevelSetSpace.cpp \
 	VolumetricDynamics/FluidSolver.cpp \
 	VolumetricDynamics/ParticleIntegrator.cpp \
@@ -33,6 +36,7 @@ SRCS := \
 	PlatformInterchange/OnlineInterchange.cpp \
 	DisplayPresentation/WorkspacePanel.cpp \
 	DisplayPresentation/CycleScheduler.cpp \
+	DisplayPresentation/FidelityClassifier.cpp \
 	DisplayPresentation/FrontierHost.cpp \
 	DisplayPresentation/Main.cpp
 

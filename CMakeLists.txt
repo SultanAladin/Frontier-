@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(BuildConfiguration/WindowsConfiguration.cmake)
 
-set(FRONTIER_SOURCES
+set(FRONTIER_ENGINE_SOURCES
     DeviceExchange/VulkanExchange.h
     DeviceExchange/VulkanExchange.cpp
     DeviceExchange/ByteSpace.h
@@ -24,6 +24,10 @@ set(FRONTIER_SOURCES
     DeviceExchange/VendorClassifier.cpp
     DeviceExchange/OrientationClassifier.h
     DeviceExchange/OrientationClassifier.cpp
+    DeviceExchange/WindowExchange.h
+    DeviceExchange/WindowExchange.cpp
+    DeviceExchange/InputExchange.h
+    DeviceExchange/InputExchange.cpp
 
     PhysicalDynamics/RigidBodyStructure.h
     PhysicalDynamics/RigidBodySolver.h
@@ -33,6 +37,8 @@ set(FRONTIER_SOURCES
     PhysicalDynamics/DeformableSolver.cpp
     PhysicalDynamics/LocomotionSolver.h
     PhysicalDynamics/LocomotionSolver.cpp
+    PhysicalDynamics/WorldSequence.h
+    PhysicalDynamics/WorldSequence.cpp
 
     VolumetricDynamics/LevelSetSpace.h
     VolumetricDynamics/LevelSetSpace.cpp
@@ -73,14 +79,36 @@ set(FRONTIER_SOURCES
     DisplayPresentation/WorkspacePanel.cpp
     DisplayPresentation/CycleScheduler.h
     DisplayPresentation/CycleScheduler.cpp
+    DisplayPresentation/FidelityClassifier.h
+    DisplayPresentation/FidelityClassifier.cpp
     DisplayPresentation/FrontierHost.h
     DisplayPresentation/FrontierHost.cpp
-    DisplayPresentation/Main.cpp
 )
 
-add_executable(FrontierEngine ${FRONTIER_SOURCES})
+# Engine Demo Target
+add_executable(FrontierEngine ${FRONTIER_ENGINE_SOURCES} DisplayPresentation/Main.cpp)
 target_include_directories(FrontierEngine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(NOT MSVC)
     target_link_libraries(FrontierEngine PRIVATE pthread)
+endif()
+
+# Standalone Game Target (Convergence GTX)
+set(CONVERGENCE_GTX_SOURCES
+    ${FRONTIER_ENGINE_SOURCES}
+    Projects/ConvergenceGTX/Source/VehicleStructure.h
+    Projects/ConvergenceGTX/Source/VehicleSolver.h
+    Projects/ConvergenceGTX/Source/VehicleSolver.cpp
+    Projects/ConvergenceGTX/Source/TrackSequence.h
+    Projects/ConvergenceGTX/Source/TrackSequence.cpp
+    Projects/ConvergenceGTX/Source/GameHost.h
+    Projects/ConvergenceGTX/Source/GameHost.cpp
+    Projects/ConvergenceGTX/Source/Main.cpp
+)
+
+add_executable(ConvergenceGTX ${CONVERGENCE_GTX_SOURCES})
+target_include_directories(ConvergenceGTX PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Projects/ConvergenceGTX)
+
+if(NOT MSVC)
+    target_link_libraries(ConvergenceGTX PRIVATE pthread)
 endif()
