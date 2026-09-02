@@ -147,6 +147,17 @@ public:
         }
     }
 
+    void BlendPixel(int32_t X, int32_t Y, PixelRgb Color, float Alpha)
+    {
+        if (X >= 0 && X < static_cast<int32_t>(CanvasWidth) && Y >= 0 && Y < static_cast<int32_t>(CanvasHeight))
+        {
+            PixelRgb& Dst = Buffer[Y * CanvasWidth + X];
+            Dst.R = static_cast<uint8_t>(Dst.R * (1.0f - Alpha) + Color.R * Alpha);
+            Dst.G = static_cast<uint8_t>(Dst.G * (1.0f - Alpha) + Color.G * Alpha);
+            Dst.B = static_cast<uint8_t>(Dst.B * (1.0f - Alpha) + Color.B * Alpha);
+        }
+    }
+
     void DrawFilledRectangle(int32_t X0, int32_t Y0, int32_t X1, int32_t Y1, PixelRgb Color)
     {
         int32_t MinX = std::max(0, std::min(X0, X1));
@@ -372,7 +383,7 @@ public:
         }
     }
 
-    // Single unified Theme Section matching HTML exact layout with rich tile details
+    // Single unified Theme Section matching HTML exact layout (1-to-1 from ThemeTab.tsx + UIComponents.html)
     void DrawExactThemeSectionModal(
         int32_t X0, int32_t Y0, int32_t W, int32_t H,
         ThemeCategory SelectedTheme, float CornerRadiusPx, PixelRgb AccentRgb)
@@ -385,7 +396,6 @@ public:
 
         // Header Top Bar: Back Button [←] + "Display Settings" + Subtitle
         DrawCircle(X0 + 40, Y0 + 38, 18, PixelRgb{ 32, 32, 36 });
-        // Back arrow glyph ←
         DrawLine(X0 + 46, Y0 + 38, X0 + 34, Y0 + 38, PixelRgb{ 255, 255, 255 });
         DrawLine(X0 + 34, Y0 + 38, X0 + 40, Y0 + 32, PixelRgb{ 255, 255, 255 });
         DrawLine(X0 + 34, Y0 + 38, X0 + 40, Y0 + 44, PixelRgb{ 255, 255, 255 });
@@ -419,36 +429,42 @@ public:
         DrawRoundedOutline(SecX0, SecY0, SecX0 + SecW, SecY0 + SecH, R, 1, PixelRgb{ 36, 36, 40 });
 
         // Section Title: "Color Scheme & Surface Theme"
-        DrawText(SecX0 + 24, SecY0 + 20, "Color Scheme & Surface Theme", PixelRgb{ 240, 240, 245 }, 2);
-        DrawText(SecX0 + 24, SecY0 + 38, "Select global canvas theme and UI roundness", PixelRgb{ 120, 120, 130 }, 1);
+        DrawText(SecX0 + 24, SecY0 + 20, "Color Scheme", PixelRgb{ 240, 240, 245 }, 2);
+        DrawText(SecX0 + 24, SecY0 + 38, "Choose the overall interface darkness", PixelRgb{ 120, 120, 130 }, 1);
 
-        // 8 Theme Tiles / Cards Grid (4 cols x 2 rows)
+        // 8 Theme Tiles / Cards Grid (Exact 1:1 match with ThemeTab.tsx)
         struct ThemeCardDef {
             const char* Name;
-            PixelRgb CanvasColor;
-            PixelRgb SidebarColor;
-            PixelRgb PanelColor;
-            PixelRgb CardBlockColor;
-            PixelRgb TextColor;
-            PixelRgb TileAccent;
+            PixelRgb BgColor;           // bg-*
+            PixelRgb SidebarColor;      // sidebar-*
+            PixelRgb PanelColor;        // panel-*
+            PixelRgb LineColor;         // lines-*
         };
 
         const ThemeCardDef ThemeDefs[8] = {
-            { "OLED",    PixelRgb{ 0, 0, 0 },       PixelRgb{ 10, 10, 10 },    PixelRgb{ 20, 20, 21 },    PixelRgb{ 28, 28, 30 },    PixelRgb{ 255, 255, 255 }, PixelRgb{ 59, 130, 246 } },
-            { "Dark",    PixelRgb{ 17, 17, 17 },    PixelRgb{ 26, 26, 26 },    PixelRgb{ 34, 34, 37 },    PixelRgb{ 44, 44, 48 },    PixelRgb{ 230, 230, 230 }, PixelRgb{ 59, 130, 246 } },
-            { "Dim",     PixelRgb{ 15, 23, 42 },    PixelRgb{ 30, 41, 59 },    PixelRgb{ 40, 53, 72 },    PixelRgb{ 51, 65, 85 },    PixelRgb{ 241, 245, 249 }, PixelRgb{ 96, 165, 250 } },
-            { "Light",   PixelRgb{ 241, 245, 249 }, PixelRgb{ 255, 255, 255 }, PixelRgb{ 248, 250, 252 }, PixelRgb{ 226, 232, 240 }, PixelRgb{ 15, 23, 42 },    PixelRgb{ 37, 99, 235 } },
-            { "Sepia",   PixelRgb{ 234, 221, 207 }, PixelRgb{ 244, 235, 225 }, PixelRgb{ 250, 238, 217 }, PixelRgb{ 238, 220, 195 }, PixelRgb{ 92, 75, 58 },     PixelRgb{ 217, 119, 6 } },
-            { "Dracula", PixelRgb{ 40, 42, 54 },    PixelRgb{ 68, 71, 90 },    PixelRgb{ 56, 58, 89 },    PixelRgb{ 98, 114, 164 },  PixelRgb{ 248, 248, 242 }, PixelRgb{ 189, 147, 249 } },
-            { "Nord",    PixelRgb{ 46, 52, 64 },    PixelRgb{ 59, 66, 82 },    PixelRgb{ 67, 76, 94 },    PixelRgb{ 76, 86, 106 },   PixelRgb{ 236, 239, 244 }, PixelRgb{ 136, 192, 208 } },
-            { "GitHub",  PixelRgb{ 13, 17, 23 },    PixelRgb{ 22, 27, 34 },    PixelRgb{ 33, 38, 45 },    PixelRgb{ 48, 54, 61 },    PixelRgb{ 201, 209, 217 }, PixelRgb{ 88, 166, 255 } }
+            // OLED: bg-black, sidebar-[#0A0A0A], panel-[#141414], lines-white
+            { "OLED",    PixelRgb{ 0, 0, 0 },       PixelRgb{ 10, 10, 10 },    PixelRgb{ 20, 20, 20 },    PixelRgb{ 255, 255, 255 } },
+            // Dark: bg-[#18181a], sidebar-[#222224], panel-[#2c2c2e], lines-white
+            { "Dark",    PixelRgb{ 24, 24, 26 },    PixelRgb{ 34, 34, 36 },    PixelRgb{ 44, 44, 46 },    PixelRgb{ 255, 255, 255 } },
+            // Dim: bg-[#0f172a], sidebar-[#1e293b], panel-[#283548], lines-[#f1f5f9]
+            { "Dim",     PixelRgb{ 15, 23, 42 },    PixelRgb{ 30, 41, 59 },    PixelRgb{ 40, 53, 72 },    PixelRgb{ 241, 245, 249 } },
+            // Light: bg-[#e5e5e5], sidebar-[#f4f4f5], panel-white, lines-black
+            { "Light",   PixelRgb{ 229, 229, 229 }, PixelRgb{ 244, 244, 245 }, PixelRgb{ 255, 255, 255 }, PixelRgb{ 0, 0, 0 } },
+            // Sepia: bg-[#dca85b], sidebar-[#e6c697], panel-[#f1dab0], lines-[#825619]
+            { "Sepia",   PixelRgb{ 220, 168, 91 },  PixelRgb{ 230, 198, 151 }, PixelRgb{ 241, 218, 176 }, PixelRgb{ 130, 86, 25 } },
+            // Dracula: bg-[#282a36], sidebar-[#44475a], panel-[#6272a4], lines-[#f8f8f2]
+            { "Dracula", PixelRgb{ 40, 42, 54 },    PixelRgb{ 68, 71, 90 },    PixelRgb{ 98, 114, 164 },  PixelRgb{ 248, 248, 242 } },
+            // Nord: bg-[#2e3440], sidebar-[#3b4252], panel-[#4c566a], lines-[#eceff4]
+            { "Nord",    PixelRgb{ 46, 52, 64 },    PixelRgb{ 59, 66, 82 },    PixelRgb{ 76, 86, 106 },   PixelRgb{ 236, 239, 244 } },
+            // GitHub: bg-[#0d1117], sidebar-[#161b22], panel-[#21262d], lines-[#c9d1d9]
+            { "GitHub",  PixelRgb{ 13, 17, 23 },    PixelRgb{ 22, 27, 34 },    PixelRgb{ 33, 38, 45 },    PixelRgb{ 201, 209, 217 } }
         };
 
         int32_t GridX0  = SecX0 + 24;
-        int32_t GridY0  = SecY0 + 60;
+        int32_t GridY0  = SecY0 + 58;
         int32_t TileGap = 16;
         int32_t TileW   = (SecW - 48 - (TileGap * 3)) / 4;
-        int32_t TileH   = 100;
+        int32_t TileH   = 102;
 
         for (int32_t r = 0; r < 2; ++r)
         {
@@ -459,65 +475,80 @@ public:
                 int32_t TY0 = GridY0 + r * (TileH + TileGap + 20);
                 bool IsActive = (static_cast<size_t>(SelectedTheme) == static_cast<size_t>(Idx));
 
-                // Tile Background Container (Outer Canvas color)
-                int32_t TileR = 18;
-                DrawRoundedRectangle(TX0, TY0, TX0 + TileW, TY0 + TileH, TileR, ThemeDefs[Idx].CanvasColor);
-                DrawRoundedOutline(TX0, TY0, TX0 + TileW, TY0 + TileH, TileR, 1, PixelRgb{ 45, 45, 50 });
+                // 1. Tile Base Container (aspect-[4/3] rounded-[1.25rem] / 20px)
+                int32_t TileR = 20;
+                DrawRoundedRectangle(TX0, TY0, TX0 + TileW, TY0 + TileH, TileR, ThemeDefs[Idx].BgColor);
 
-                // Nested Window Mock (top-left offset miniature window)
-                int32_t NestedX = TX0 + 14;
-                int32_t NestedY = TY0 + 14;
-                int32_t NestedW = TileW - 14;
-                int32_t NestedH = TileH - 14;
-                int32_t SideW   = NestedW * 34 / 100;
-
-                // Sidebar column (34%)
-                DrawRoundedRectangle(NestedX, NestedY, NestedX + SideW, NestedY + NestedH, 10, ThemeDefs[Idx].SidebarColor);
-
-                // Mini Sidebar item rows with circles & lines
-                for (int32_t item = 0; item < 3; ++item)
-                {
-                    int32_t ItemY = NestedY + 8 + item * 14;
-                    PixelRgb ItemCol = (item == 0) ? ThemeDefs[Idx].TextColor : PixelRgb{ static_cast<uint8_t>(ThemeDefs[Idx].TextColor.R / 2), static_cast<uint8_t>(ThemeDefs[Idx].TextColor.G / 2), static_cast<uint8_t>(ThemeDefs[Idx].TextColor.B / 2) };
-                    
-                    // Circular icon dot
-                    DrawCircle(NestedX + 7, ItemY + 3, 3, ItemCol);
-                    // Mini label line bar
-                    DrawFilledRectangle(NestedX + 13, ItemY + 2, NestedX + SideW - 5, ItemY + 5, ItemCol);
-                }
-
-                // Vertical divider line between sidebar and panel
-                DrawLine(NestedX + SideW, NestedY, NestedX + SideW, NestedY + NestedH, PixelRgb{ 40, 40, 45 });
-
-                // Main panel column (66%)
-                int32_t PanX0 = NestedX + SideW + 1;
-                DrawRoundedRectangle(PanX0, NestedY, NestedX + NestedW, NestedY + NestedH, 10, ThemeDefs[Idx].PanelColor);
-
-                // Top Header bar in panel
-                DrawFilledRectangle(PanX0 + 8, NestedY + 8, PanX0 + 44, NestedY + 12, ThemeDefs[Idx].TextColor);
-                DrawCircle(NestedX + NestedW - 10, NestedY + 10, 3, ThemeDefs[Idx].TileAccent);
-
-                // Nested Mini Card Block
-                int32_t CardBlockX0 = PanX0 + 6;
-                int32_t CardBlockY0 = NestedY + 18;
-                int32_t CardBlockX1 = NestedX + NestedW - 6;
-                int32_t CardBlockY1 = NestedY + NestedH - 8;
-                DrawRoundedRectangle(CardBlockX0, CardBlockY0, CardBlockX1, CardBlockY1, 6, ThemeDefs[Idx].CardBlockColor);
-
-                // Inside mini card: Mini text line + Mini slider track & knob
-                DrawFilledRectangle(CardBlockX0 + 6, CardBlockY0 + 6, CardBlockX0 + 26, CardBlockY0 + 9, ThemeDefs[Idx].TextColor);
-                int32_t MiniSliderY = CardBlockY0 + 16;
-                DrawRoundedRectangle(CardBlockX0 + 6, MiniSliderY, CardBlockX1 - 6, MiniSliderY + 6, 3, PixelRgb{ 20, 20, 25 });
-                DrawRoundedRectangle(CardBlockX0 + 6, MiniSliderY, CardBlockX0 + (CardBlockX1 - CardBlockX0) * 6 / 10, MiniSliderY + 6, 3, ThemeDefs[Idx].TileAccent);
-                DrawCircle(CardBlockX0 + (CardBlockX1 - CardBlockX0) * 6 / 10, MiniSliderY + 3, 4, PixelRgb{ 255, 255, 255 });
-
-                // Active selection ring (outer outline with 4px offset)
+                // Outline ring on inactive / active
                 if (IsActive)
                 {
                     DrawRoundedOutline(TX0 - 4, TY0 - 4, TX0 + TileW + 4, TY0 + TileH + 4, TileR + 4, 3, AccentRgb);
                 }
+                else
+                {
+                    DrawRoundedOutline(TX0, TY0, TX0 + TileW, TY0 + TileH, TileR, 1, PixelRgb{ 50, 50, 55 });
+                }
 
-                // Centered Theme Name Label beneath tile
+                // 2. Inset Window Mockup: absolute top-6 bottom-0 left-6 right-0 flex shadow-sm
+                int32_t InsetX = TX0 + 16;
+                int32_t InsetY = TY0 + 16;
+                int32_t InsetW = TileW - 16;
+                int32_t InsetH = TileH - 16;
+                int32_t SideW  = InsetW * 30 / 100; // w-[30%]
+
+                int32_t MockR = std::max(4, static_cast<int32_t>(CornerRadiusPx * 0.4f));
+
+                // A) SIDEBAR CONTEXT: w-[30%] flex flex-col p-3 gap-1.5 border-r border-black/5
+                DrawRoundedRectangle(InsetX, InsetY, InsetX + SideW, InsetY + InsetH, MockR, ThemeDefs[Idx].SidebarColor);
+                DrawLine(InsetX + SideW, InsetY, InsetX + SideW, InsetY + InsetH, PixelRgb{ 40, 40, 45 });
+
+                // (i) 3 top window control dots horizontally: w-1.5 h-1.5 rounded-full opacity-40 gap-1
+                PixelRgb DotCol = ThemeDefs[Idx].LineColor;
+                for (int32_t d = 0; d < 3; ++d)
+                {
+                    DrawCircle(InsetX + 6 + d * 6, InsetY + 6, 2, DotCol);
+                }
+
+                // (ii) Sidebar navigation line bars: w-full, w-2/3, w-1/2 with opacity-20
+                PixelRgb LineCol = ThemeDefs[Idx].LineColor;
+                // w-full
+                DrawRoundedRectangle(InsetX + 5, InsetY + 13, InsetX + SideW - 4, InsetY + 16, 2, LineCol);
+                // w-2/3
+                DrawRoundedRectangle(InsetX + 5, InsetY + 20, InsetX + 5 + (SideW - 9) * 2 / 3, InsetY + 23, 2, LineCol);
+                // w-1/2
+                DrawRoundedRectangle(InsetX + 5, InsetY + 27, InsetX + 5 + (SideW - 9) / 2, InsetY + 30, 2, LineCol);
+
+                // (iii) mt-auto user avatar circle (w-2.5 h-2.5) + name bar (w-4 h-1.5)
+                int32_t FootSideY = InsetY + InsetH - 12;
+                DrawCircle(InsetX + 8, FootSideY + 3, 3, DotCol);
+                DrawRoundedRectangle(InsetX + 14, FootSideY + 2, InsetX + SideW - 4, FootSideY + 5, 2, LineCol);
+
+                // B) PANEL CONTEXT: flex-1 p-4 flex flex-col gap-1.5 shadow-sm
+                int32_t PanX0 = InsetX + SideW + 1;
+                DrawRoundedRectangle(PanX0, InsetY, InsetX + InsetW, InsetY + InsetH, MockR, ThemeDefs[Idx].PanelColor);
+
+                // (i) Top header lines: w-1/4 mb-1 opacity-30, w-1/3 opacity-20
+                int32_t PanContentW = (InsetX + InsetW) - PanX0;
+                DrawRoundedRectangle(PanX0 + 8, InsetY + 6, PanX0 + 8 + PanContentW * 1 / 4, InsetY + 9, 2, DotCol);
+                DrawRoundedRectangle(PanX0 + 8, InsetY + 12, PanX0 + 8 + PanContentW * 1 / 3, InsetY + 15, 2, LineCol);
+
+                // (ii) 3 aspect-square card tiles: flex-1 aspect-square opacity-10 gap-2
+                int32_t SquaresY = InsetY + 20;
+                int32_t SqGap = 5;
+                int32_t SqW   = (PanContentW - 16 - (SqGap * 2)) / 3;
+                int32_t SqH   = SqW;
+                int32_t CardR = std::max(2, static_cast<int32_t>(CornerRadiusPx * 0.25f));
+
+                for (int32_t sq = 0; sq < 3; ++sq)
+                {
+                    int32_t SqX = PanX0 + 8 + sq * (SqW + SqGap);
+                    DrawRoundedRectangle(SqX, SquaresY, SqX + SqW, SquaresY + SqH, CardR, DotCol);
+                }
+
+                // (iii) mt-auto status line: w-1/5 h-1.5 opacity-20
+                DrawRoundedRectangle(PanX0 + 8, InsetY + InsetH - 10, PanX0 + 8 + PanContentW * 1 / 5, InsetY + InsetH - 7, 2, LineCol);
+
+                // 3. Centered Theme Name Label beneath tile
                 int32_t LabelW = MeasureTextWidth(ThemeDefs[Idx].Name, 2);
                 int32_t LabelX = TX0 + (TileW - LabelW) / 2;
                 int32_t LabelY = TY0 + TileH + 8;
@@ -527,7 +558,7 @@ public:
         }
 
         // Section Divider Line
-        int32_t DivY = SecY0 + 330;
+        int32_t DivY = SecY0 + 332;
         DrawLine(SecX0 + 24, DivY, SecX0 + SecW - 24, DivY, PixelRgb{ 36, 36, 42 });
 
         // ---------------------------------------------------------------------------------------------------------------
@@ -665,7 +696,7 @@ int main()
 
         Canvas.ExportPpm("Diagnostics/ControlCenter_ThemeSection_Proof.ppm");
         (void)std::system("python3 Tools/PpmToPng.py Diagnostics/ControlCenter_ThemeSection_Proof.ppm Diagnostics/ControlCenter_ThemeSection_Proof.png > /dev/null 2>&1");
-        std::cout << "[Theme Proof 1] Generated high-res Theme Section proof with exact HTML match.\n";
+        std::cout << "[Theme Proof 1] Generated high-res Theme Section proof with exact 1-to-1 match.\n";
     }
 
     // ===================================================================================================================
@@ -708,7 +739,7 @@ int main()
 
         Canvas.ExportPpm("Diagnostics/ControlCenter_ThemeSection_Composite.ppm");
         (void)std::system("python3 Tools/PpmToPng.py Diagnostics/ControlCenter_ThemeSection_Composite.ppm Diagnostics/ControlCenter_ThemeSection_Composite.png > /dev/null 2>&1");
-        std::cout << "[Theme Proof 2] Generated Composite comparison proof with exact HTML match.\n";
+        std::cout << "[Theme Proof 2] Generated Composite comparison proof with exact 1-to-1 match.\n";
     }
 
     (void)std::system("rm -f Diagnostics/*.ppm");
