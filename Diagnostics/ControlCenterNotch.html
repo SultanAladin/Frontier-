@@ -426,33 +426,72 @@ input[type=range].slider:active::-webkit-slider-thumb {
   transform: scale(1.12);
 }
 
-/* ── THEME PALETTE GRID ── */
+/* ── THEME PALETTE GRID & DETAILED MOCK VIEWPORT ── */
 .theme-grid-4col {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
 }
 .theme-select-card {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer;
 }
 .theme-mock-viewport {
-  width: 100%; aspect-ratio: 4 / 3; border-radius: 1.25rem;
+  width: 100%; aspect-ratio: 4 / 3; border-radius: 20px;
   border: 1px solid var(--panel-border); position: relative; overflow: hidden;
-  transition: outline 0.15s, transform 0.15s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: outline 0.15s, transform 0.15s, box-shadow 0.15s;
 }
-.theme-select-card:hover .theme-mock-viewport { transform: scale(1.02); }
+.theme-select-card:hover .theme-mock-viewport {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
 .theme-select-card.active .theme-mock-viewport {
-  outline: 2px solid var(--accent-color); outline-offset: 4px;
+  outline: 2.5px solid var(--accent-color); outline-offset: 4px;
+}
+.theme-select-card .theme-name-label {
+  font-size: 13px; font-weight: 500; color: var(--text-muted);
+  transition: color 0.15s;
+}
+.theme-select-card.active .theme-name-label {
+  color: var(--text-main); font-weight: 600;
 }
 .theme-sidebar-mock {
   position: absolute; top: 16px; bottom: 0; left: 16px; right: 0;
-  display: flex; border-top-left-radius: var(--corner-radius); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  display: flex; border-top-left-radius: var(--corner-radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 .theme-sidebar-col {
-  width: 30%; display: flex; flex-direction: column; padding: 6px; gap: 4px;
-  border-right: 1px solid rgba(0,0,0,0.06); position: relative;
+  width: 32%; display: flex; flex-direction: column; padding: 10px 8px; gap: 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--card-sub);
+}
+.theme-mini-nav-item {
+  display: flex; align-items: center; gap: 6px;
+}
+.theme-mini-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); opacity: 0.6; flex-shrink: 0;
+}
+.theme-mini-line {
+  height: 4px; border-radius: 2px; background: var(--text-muted); opacity: 0.4; flex: 1;
 }
 .theme-panel-col {
-  flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 4px;
-  border-top-left-radius: var(--corner-radius);
+  flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--card-bg);
+}
+.theme-mini-header-bar {
+  height: 5px; width: 60%; border-radius: 2px; background: var(--text-main); opacity: 0.8;
+}
+.theme-mini-card-block {
+  background: var(--inset-bg); border-radius: 8px; padding: 6px 8px;
+  display: flex; flex-direction: column; gap: 5px; border: 1px solid var(--panel-border);
+}
+.theme-mini-slider-track {
+  height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1);
+  position: relative; overflow: hidden;
+}
+.theme-mini-slider-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 65%; background: var(--accent-color);
 }
 
 .accent-palette-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
@@ -749,86 +788,174 @@ input[type=range].slider:active::-webkit-slider-thumb {
                     <span class="theme-section-subtitle">Select global canvas theme and UI roundness</span>
                   </div>
 
-                  <!-- 8 Theme Tiles / Cards -->
+                  <!-- 8 Detailed Theme Tiles / Cards -->
                   <div class="theme-grid-4col">
+                    <!-- 1. OLED -->
                     <div class="theme-select-card active" onclick="selectTheme('oled', this)">
                       <div class="theme-mock-viewport" style="background:#000000;">
-                        <div class="theme-sidebar-mock" style="background:#0A0A0A;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#fff; opacity:0.3; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#141414;"></div>
+                        <div class="theme-sidebar-mock">
+                          <div class="theme-sidebar-col" style="background:#0A0A0A;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#fff;"></div><div class="theme-mini-line" style="background:#fff;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#141415;">
+                            <div class="theme-mini-header-bar" style="background:#fff;"></div>
+                            <div class="theme-mini-card-block" style="background:#1C1C1E;">
+                              <div style="height:3px; width:40%; background:#fff; opacity:0.6; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track"><div class="theme-mini-slider-fill" style="background:#3B82F6;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">OLED</span>
+                      <span class="theme-name-label">OLED</span>
                     </div>
 
+                    <!-- 2. Dark -->
                     <div class="theme-select-card" onclick="selectTheme('dark', this)">
                       <div class="theme-mock-viewport" style="background:#111111;">
-                        <div class="theme-sidebar-mock" style="background:#1a1a1a;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#fff; opacity:0.3; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#222225;"></div>
+                        <div class="theme-sidebar-mock">
+                          <div class="theme-sidebar-col" style="background:#1A1A1A;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#fff;"></div><div class="theme-mini-line" style="background:#fff;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#222225;">
+                            <div class="theme-mini-header-bar" style="background:#fff;"></div>
+                            <div class="theme-mini-card-block" style="background:#2C2C30;">
+                              <div style="height:3px; width:40%; background:#fff; opacity:0.6; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track"><div class="theme-mini-slider-fill" style="background:#3B82F6;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">Dark</span>
+                      <span class="theme-name-label">Dark</span>
                     </div>
 
+                    <!-- 3. Dim -->
                     <div class="theme-select-card" onclick="selectTheme('dim', this)">
-                      <div class="theme-mock-viewport" style="background:#0f172a;">
-                        <div class="theme-sidebar-mock" style="background:#1e293b;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#94a3b8; opacity:0.3; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#283548;"></div>
+                      <div class="theme-mock-viewport" style="background:#0F172A;">
+                        <div class="theme-sidebar-mock">
+                          <div class="theme-sidebar-col" style="background:#1E293B;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#94A3B8;"></div><div class="theme-mini-line" style="background:#94A3B8;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#283548;">
+                            <div class="theme-mini-header-bar" style="background:#F1F5F9;"></div>
+                            <div class="theme-mini-card-block" style="background:#334155;">
+                              <div style="height:3px; width:40%; background:#94A3B8; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track"><div class="theme-mini-slider-fill" style="background:#60A5FA;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">Dim</span>
+                      <span class="theme-name-label">Dim</span>
                     </div>
 
+                    <!-- 4. Light -->
                     <div class="theme-select-card" onclick="selectTheme('light', this)">
-                      <div class="theme-mock-viewport" style="background:#f1f5f9;">
-                        <div class="theme-sidebar-mock" style="background:#ffffff; border:1px solid #e2e8f0;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#000; opacity:0.2; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#f8fafc;"></div>
+                      <div class="theme-mock-viewport" style="background:#F1F5F9; border-color:#E2E8F0;">
+                        <div class="theme-sidebar-mock" style="border-color:#E2E8F0;">
+                          <div class="theme-sidebar-col" style="background:#FFFFFF; border-color:#E2E8F0;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#0F172A;"></div><div class="theme-mini-line" style="background:#0F172A;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#64748B;"></div><div class="theme-mini-line" style="background:#64748B;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#64748B;"></div><div class="theme-mini-line" style="background:#64748B;"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#F8FAFC;">
+                            <div class="theme-mini-header-bar" style="background:#0F172A;"></div>
+                            <div class="theme-mini-card-block" style="background:#E2E8F0; border-color:#CBD5E1;">
+                              <div style="height:3px; width:40%; background:#0F172A; opacity:0.6; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track" style="background:rgba(0,0,0,0.1);"><div class="theme-mini-slider-fill" style="background:#2563EB;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">Light</span>
+                      <span class="theme-name-label">Light</span>
                     </div>
 
+                    <!-- 5. Sepia -->
                     <div class="theme-select-card" onclick="selectTheme('sepia', this)">
-                      <div class="theme-mock-viewport" style="background:#eaddcf;">
-                        <div class="theme-sidebar-mock" style="background:#f4ebe1;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#8c7a6b; opacity:0.3; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#faeed9;"></div>
+                      <div class="theme-mock-viewport" style="background:#EADDCF; border-color:#D8C3B0;">
+                        <div class="theme-sidebar-mock" style="border-color:#D8C3B0;">
+                          <div class="theme-sidebar-col" style="background:#F4EBE1; border-color:#D8C3B0;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#5C4B3A;"></div><div class="theme-mini-line" style="background:#5C4B3A;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#8C7A6B;"></div><div class="theme-mini-line" style="background:#8C7A6B;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#8C7A6B;"></div><div class="theme-mini-line" style="background:#8C7A6B;"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#FAEED9;">
+                            <div class="theme-mini-header-bar" style="background:#5C4B3A;"></div>
+                            <div class="theme-mini-card-block" style="background:#EEDCC3; border-color:#D8C3B0;">
+                              <div style="height:3px; width:40%; background:#5C4B3A; opacity:0.6; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track" style="background:rgba(0,0,0,0.1);"><div class="theme-mini-slider-fill" style="background:#D97706;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">Sepia</span>
+                      <span class="theme-name-label">Sepia</span>
                     </div>
 
+                    <!-- 6. Dracula -->
                     <div class="theme-select-card" onclick="selectTheme('dracula', this)">
-                      <div class="theme-mock-viewport" style="background:#282a36;">
-                        <div class="theme-sidebar-mock" style="background:#44475a;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#f8f8f2; opacity:0.3; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#383a59;"></div>
+                      <div class="theme-mock-viewport" style="background:#282A36;">
+                        <div class="theme-sidebar-mock">
+                          <div class="theme-sidebar-col" style="background:#44475A;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#F8F8F2;"></div><div class="theme-mini-line" style="background:#F8F8F2;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#383A59;">
+                            <div class="theme-mini-header-bar" style="background:#F8F8F2;"></div>
+                            <div class="theme-mini-card-block" style="background:#6272A4;">
+                              <div style="height:3px; width:40%; background:#F8F8F2; opacity:0.6; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track"><div class="theme-mini-slider-fill" style="background:#BD93F9;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">Dracula</span>
+                      <span class="theme-name-label">Dracula</span>
                     </div>
 
+                    <!-- 7. Nord -->
                     <div class="theme-select-card" onclick="selectTheme('nord', this)">
-                      <div class="theme-mock-viewport" style="background:#2e3440;">
-                        <div class="theme-sidebar-mock" style="background:#3b4252;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#eceff4; opacity:0.3; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#434c5e;"></div>
+                      <div class="theme-mock-viewport" style="background:#2E3440;">
+                        <div class="theme-sidebar-mock">
+                          <div class="theme-sidebar-col" style="background:#3B4252;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#ECEFF4;"></div><div class="theme-mini-line" style="background:#ECEFF4;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#434C5E;">
+                            <div class="theme-mini-header-bar" style="background:#ECEFF4;"></div>
+                            <div class="theme-mini-card-block" style="background:#4C566A;">
+                              <div style="height:3px; width:40%; background:#ECEFF4; opacity:0.6; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track"><div class="theme-mini-slider-fill" style="background:#88C0D0;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">Nord</span>
+                      <span class="theme-name-label">Nord</span>
                     </div>
 
+                    <!-- 8. GitHub -->
                     <div class="theme-select-card" onclick="selectTheme('github', this)">
-                      <div class="theme-mock-viewport" style="background:#0d1117;">
-                        <div class="theme-sidebar-mock" style="background:#161b22;">
-                          <div class="theme-sidebar-col"><div style="width:100%; height:4px; background:#c9d1d9; opacity:0.3; border-radius:2px;"></div></div>
-                          <div class="theme-panel-col" style="background:#21262d;"></div>
+                      <div class="theme-mock-viewport" style="background:#0D1117;">
+                        <div class="theme-sidebar-mock">
+                          <div class="theme-sidebar-col" style="background:#161B22;">
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot" style="background:#C9D1D9;"></div><div class="theme-mini-line" style="background:#C9D1D9;"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                            <div class="theme-mini-nav-item"><div class="theme-mini-dot"></div><div class="theme-mini-line"></div></div>
+                          </div>
+                          <div class="theme-panel-col" style="background:#21262D;">
+                            <div class="theme-mini-header-bar" style="background:#C9D1D9;"></div>
+                            <div class="theme-mini-card-block" style="background:#30363D;">
+                              <div style="height:3px; width:40%; background:#C9D1D9; opacity:0.6; border-radius:1px;"></div>
+                              <div class="theme-mini-slider-track"><div class="theme-mini-slider-fill" style="background:#58A6FF;"></div></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span style="font-size:12px; font-weight:500;">GitHub</span>
+                      <span class="theme-name-label">GitHub</span>
                     </div>
                   </div>
 
