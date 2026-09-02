@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/WorldSequence.cpp — Level Streaming and Scene Transitions Implementation
+// 📦 Frontier/PhysicalDynamics/WorldSequence.cpp — World Streaming and Scene Transitions Implementation
 //============================================================================================================================================
 
 #include "WorldSequence.h"
@@ -12,35 +12,34 @@ namespace Frontier {
 //------------------------------------------------------------------------------------------------------------------------
 
 WorldSequence::WorldSequence() noexcept
-    : ActiveLevelIndex(0)
+    : ActiveWorldIndex(0)
     , TransitionProgress(1.0f)
     , TransitioningCondition(false)
 {
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                LEVEL REGISTRATION
+//                                                WORLD REGISTRATION
 //------------------------------------------------------------------------------------------------------------------------
 
-uint32_t WorldSequence::RegisterLevel(LevelDescriptor Level) noexcept
+uint32_t WorldSequence::RegisterWorld(WorldDescriptor World) noexcept
 {
-    uint32_t Index = static_cast<uint32_t>(RegisteredLevels.size());
-    RegisteredLevels.push_back(std::move(Level));
+    uint32_t Index = static_cast<uint32_t>(RegisteredWorlds.size());
+    RegisteredWorlds.push_back(std::move(World));
     return Index;
 }
 
-bool WorldSequence::TransitionToLevel(uint32_t LevelIndex, RigidBodySolver& RigidBodies, DeformableSolver& Deformables) noexcept
+bool WorldSequence::TransitionToWorld(uint32_t WorldIndex, RigidBodySolver& RigidBodies, DeformableSolver& Deformables) noexcept
 {
-    if (LevelIndex >= RegisteredLevels.size())
+    if (WorldIndex >= RegisteredWorlds.size())
     {
         return false;
     }
 
-    ActiveLevelIndex       = LevelIndex;
+    ActiveWorldIndex       = WorldIndex;
     TransitionProgress     = 0.0f;
     TransitioningCondition = true;
 
-    // Reset physics bodies for new track level
     (void)RigidBodies;
     (void)Deformables;
 
@@ -60,11 +59,11 @@ void WorldSequence::AdvanceWorld(float Δτ) noexcept
     }
 }
 
-const LevelDescriptor* WorldSequence::QueryActiveLevel() const noexcept
+const WorldDescriptor* WorldSequence::QueryActiveWorld() const noexcept
 {
-    if (ActiveLevelIndex < RegisteredLevels.size())
+    if (ActiveWorldIndex < RegisteredWorlds.size())
     {
-        return &RegisteredLevels[ActiveLevelIndex];
+        return &RegisteredWorlds[ActiveWorldIndex];
     }
     return nullptr;
 }

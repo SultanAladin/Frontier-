@@ -40,7 +40,7 @@ bool GameHost::LaunchGame(uint32_t Width, uint32_t Height) noexcept
     Fidelity->AssignCategory(Frontier::FidelityCategory::UltraFidelity);
 
     World    = std::make_unique<Frontier::WorldSequence>();
-    Frontier::LevelDescriptor circuitAlpha{
+    Frontier::WorldDescriptor circuitAlpha{
         "track_01_neon_hypergrid",
         "Neon Hypergrid Circuit Alpha",
         Frontier::Vector3{ 0.0f, 0.5f, 0.0f },
@@ -48,7 +48,7 @@ bool GameHost::LaunchGame(uint32_t Width, uint32_t Height) noexcept
         Frontier::Vector3{ 12.0f, 11.5f, 10.0f },
         8
     };
-    World->RegisterLevel(circuitAlpha);
+    World->RegisterWorld(circuitAlpha);
 
     VehicleConfiguration carConfig{
         1150.0f,                // Chassis mass 1150 kg

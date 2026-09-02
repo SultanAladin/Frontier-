@@ -15,6 +15,7 @@ SRCS := \
 	DeviceExchange/OrientationClassifier.cpp \
 	DeviceExchange/WindowExchange.cpp \
 	DeviceExchange/InputExchange.cpp \
+	DeviceExchange/DiagnosticMetrics.cpp \
 	PhysicalDynamics/RigidBodySolver.cpp \
 	PhysicalDynamics/DeformableSolver.cpp \
 	PhysicalDynamics/LocomotionSolver.cpp \
@@ -38,7 +39,7 @@ SRCS := \
 	DisplayPresentation/CycleScheduler.cpp \
 	DisplayPresentation/FidelityClassifier.cpp \
 	DisplayPresentation/FrontierHost.cpp \
-	DisplayPresentation/Main.cpp
+	DisplayPresentation/EngineExecution.cpp
 
 OBJS := $(SRCS:.cpp=.o)
 TARGET := bin/FrontierEngine

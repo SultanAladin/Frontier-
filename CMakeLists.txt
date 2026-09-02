@@ -28,6 +28,8 @@ set(FRONTIER_ENGINE_SOURCES
     DeviceExchange/WindowExchange.cpp
     DeviceExchange/InputExchange.h
     DeviceExchange/InputExchange.cpp
+    DeviceExchange/DiagnosticMetrics.h
+    DeviceExchange/DiagnosticMetrics.cpp
 
     PhysicalDynamics/RigidBodyStructure.h
     PhysicalDynamics/RigidBodySolver.h
@@ -86,7 +88,7 @@ set(FRONTIER_ENGINE_SOURCES
 )
 
 # Engine Demo Target
-add_executable(FrontierEngine ${FRONTIER_ENGINE_SOURCES} DisplayPresentation/Main.cpp)
+add_executable(FrontierEngine ${FRONTIER_ENGINE_SOURCES} DisplayPresentation/EngineExecution.cpp)
 target_include_directories(FrontierEngine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(NOT MSVC)
@@ -103,7 +105,7 @@ set(CONVERGENCE_GTX_SOURCES
     Projects/ConvergenceGTX/Source/TrackSequence.cpp
     Projects/ConvergenceGTX/Source/GameHost.h
     Projects/ConvergenceGTX/Source/GameHost.cpp
-    Projects/ConvergenceGTX/Source/Main.cpp
+    Projects/ConvergenceGTX/Source/GameExecution.cpp
 )
 
 add_executable(ConvergenceGTX ${CONVERGENCE_GTX_SOURCES})

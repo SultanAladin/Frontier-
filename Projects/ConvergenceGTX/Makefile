@@ -10,7 +10,7 @@ GAME_SRCS := \
 	Source/VehicleSolver.cpp \
 	Source/TrackSequence.cpp \
 	Source/GameHost.cpp \
-	Source/Main.cpp
+	Source/GameExecution.cpp
 
 GAME_OBJS := $(GAME_SRCS:.cpp=.o)
 
@@ -24,6 +24,7 @@ ENGINE_OBJS := \
 	$(ENGINE_DIR)/DeviceExchange/OrientationClassifier.o \
 	$(ENGINE_DIR)/DeviceExchange/WindowExchange.o \
 	$(ENGINE_DIR)/DeviceExchange/InputExchange.o \
+	$(ENGINE_DIR)/DeviceExchange/DiagnosticMetrics.o \
 	$(ENGINE_DIR)/PhysicalDynamics/RigidBodySolver.o \
 	$(ENGINE_DIR)/PhysicalDynamics/DeformableSolver.o \
 	$(ENGINE_DIR)/PhysicalDynamics/LocomotionSolver.o \

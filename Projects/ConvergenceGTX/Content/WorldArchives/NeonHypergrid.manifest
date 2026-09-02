@@ -1,6 +1,6 @@
 [Archive]
 Name = "NeonHypergrid_CircuitAlpha"
-Category = "Level"
+Category = "World"
 TrackLengthMeters = 4250.0
 WaypointCount = 4
 Environment = "VolumetricSunSky_NightNeon"
