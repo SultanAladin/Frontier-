@@ -65,6 +65,10 @@
 ---
 
 ## 5. Build & Compilation Commands
-- **Linux**: `make all` or `g++ -std=c++20 -O3 -Wall -Wextra ...`
-- **Windows**: `cmake -B build && cmake --build build --config Release`
+- **Linux**: `make clean && make run` or `cd BuildConfiguration && ./LinuxBuild.sh`
+- **Windows (Direct Toolchain via PowerShell)**:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File Build/Construct.ps1 -Configuration Release`
+  `powershell -NoProfile -ExecutionPolicy Bypass -File Build/Construct.ps1 -Configuration Debug -Rebuild`
+- **Windows (CMake / MSVC)**:
+  `cmake -B build && cmake --build build --config Release`
 - **Development UI**: Compiled conditionally with `#ifdef FRONTIER_DEVELOPMENT`.
