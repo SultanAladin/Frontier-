@@ -82,6 +82,10 @@ set(FRONTIER_ENGINE_SOURCES
     PlatformInterchange/OnlineInterchange.h
     PlatformInterchange/OnlineInterchange.cpp
 
+    DisplayPresentation/ThemeStructure.h
+    DisplayPresentation/ThemeStructure.cpp
+    DisplayPresentation/ControlPanel.h
+    DisplayPresentation/ControlPanel.cpp
     DisplayPresentation/WorkspacePanel.h
     DisplayPresentation/WorkspacePanel.cpp
     DisplayPresentation/CycleScheduler.h

@@ -122,11 +122,10 @@ svg { display: block; }
 .hero-title { font-size: 32px; font-weight: 700; letter-spacing: -0.6px; }
 .hero-desc { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
 
-/* ── Backdrop Blur ── */
+/* ── Backdrop Overlay (No Blur) ── */
 #notch-backdrop {
   position: fixed; inset: 0; z-index: 90;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: transparent;
   opacity: 0; pointer-events: none;
   transition: opacity 0.4s var(--ease-smooth);
 }

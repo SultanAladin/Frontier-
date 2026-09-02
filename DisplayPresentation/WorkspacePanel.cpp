@@ -22,6 +22,9 @@ WorkspacePanel::WorkspacePanel() noexcept
     , ViewportFocusedCondition(false)
     , InputGatedCondition(false)
     , InitializedCondition(false)
+#ifdef FRONTIER_DEVELOPMENT
+    , NotchControlPanel{}
+#endif
 {
 }
 
@@ -46,6 +49,7 @@ bool WorkspacePanel::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) n
 
 #ifdef FRONTIER_DEVELOPMENT
     CalculateTrapezoidTabs();
+    (void)NotchControlPanel.Initialize(ViewportWidth, ViewportHeight);
 #endif
 
     InitializedCondition = true;
@@ -56,6 +60,9 @@ void WorkspacePanel::Terminate() noexcept
 {
     if (InitializedCondition)
     {
+#ifdef FRONTIER_DEVELOPMENT
+        NotchControlPanel.Terminate();
+#endif
         for (auto& Target : WorkspaceRenderTargets)
         {
             Target.ReleaseTargetResources();
@@ -88,7 +95,18 @@ const RenderTargetExchange& WorkspacePanel::QueryActiveRenderTarget() const noex
 
 void WorkspacePanel::AdvanceInteraction(const InputExchange& Input, float CursorX, float CursorY) noexcept
 {
-    // 1. Evaluate Trapezoidal Workspace Tabs Hit Testing
+#ifdef FRONTIER_DEVELOPMENT
+    // 1. Advance Notch Control Centre Interaction
+    NotchControlPanel.AdvanceInteraction(Input, CursorX, CursorY);
+    if (NotchControlPanel.IsOpen() || NotchControlPanel.IsDragging())
+    {
+        InputGatedCondition      = true;
+        ViewportFocusedCondition = false;
+        return;
+    }
+#endif
+
+    // 2. Evaluate Trapezoidal Workspace Tabs Hit Testing
     for (auto& Tab : TrapezoidTabs)
     {
         Tab.HoveredCondition = false;
@@ -110,7 +128,7 @@ void WorkspacePanel::AdvanceInteraction(const InputExchange& Input, float Cursor
         }
     }
 
-    // 2. Evaluate Focus Isolation Gating
+    // 3. Evaluate Focus Isolation Gating
     // Top header band (Y < 32px) and tool drawers (X < 320px or X > ViewportWidth - 320px) gate inputs
     if (CursorY < 32.0f || CursorX < 320.0f || CursorX > static_cast<float>(ViewportWidth - 320))
     {
@@ -138,13 +156,15 @@ void WorkspacePanel::AdvanceInteraction(const InputExchange& Input, float Cursor
 
 void WorkspacePanel::RenderWorkspaceOverlay(WorkspaceEditMode DesiredMode, float DeltaSeconds) noexcept
 {
-    (void)DeltaSeconds;
     CurrentMode = DesiredMode;
 
 #ifdef FRONTIER_DEVELOPMENT
+    NotchControlPanel.AdvanceLocomotion(DeltaSeconds);
     RenderBand0WorkspaceHeader();
     RenderBand1CentralViewport();
     RenderBand2DockedDrawers();
+#else
+    (void)DeltaSeconds;
 #endif
 }
 

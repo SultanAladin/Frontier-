@@ -46,6 +46,8 @@ ENGINE_OBJS := \
 	$(ENGINE_DIR)/PlatformInterchange/AcousticIntegrator.o \
 	$(ENGINE_DIR)/PlatformInterchange/VoiceExchange.o \
 	$(ENGINE_DIR)/PlatformInterchange/OnlineInterchange.o \
+	$(ENGINE_DIR)/DisplayPresentation/ThemeStructure.o \
+	$(ENGINE_DIR)/DisplayPresentation/ControlPanel.o \
 	$(ENGINE_DIR)/DisplayPresentation/WorkspacePanel.o \
 	$(ENGINE_DIR)/DisplayPresentation/CycleScheduler.o \
 	$(ENGINE_DIR)/DisplayPresentation/FidelityClassifier.o \

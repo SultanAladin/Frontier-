@@ -37,6 +37,8 @@ SRCS := \
 	PlatformInterchange/AcousticIntegrator.cpp \
 	PlatformInterchange/VoiceExchange.cpp \
 	PlatformInterchange/OnlineInterchange.cpp \
+	DisplayPresentation/ThemeStructure.cpp \
+	DisplayPresentation/ControlPanel.cpp \
 	DisplayPresentation/WorkspacePanel.cpp \
 	DisplayPresentation/CycleScheduler.cpp \
 	DisplayPresentation/FidelityClassifier.cpp \

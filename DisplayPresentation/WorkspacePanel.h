@@ -10,6 +10,8 @@
 
 #include "../DeviceExchange/RenderTargetExchange.h"
 #include "../DeviceExchange/InputExchange.h"
+#include "ThemeStructure.h"
+#include "ControlPanel.h"
 #include <cstdint>
 #include <string_view>
 #include <array>
@@ -85,6 +87,11 @@ public:
     [[nodiscard]] bool      IsInputGated() const noexcept { return InputGatedCondition; }
     [[nodiscard]] const RenderTargetExchange& QueryActiveRenderTarget() const noexcept;
 
+#ifdef FRONTIER_DEVELOPMENT
+    [[nodiscard]] const ControlPanel& QueryControlPanel() const noexcept { return NotchControlPanel; }
+    ControlPanel&           AccessControlPanel() noexcept { return NotchControlPanel; }
+#endif
+
     // Single unified conversion operator for edit mode
     template<typename TargetType>
     [[nodiscard]] TargetType Convert() const noexcept;
@@ -106,6 +113,9 @@ private:
     bool                    ViewportFocusedCondition;           // [bool] true if 3D viewport has exclusive input focus
     bool                    InputGatedCondition;                // [bool] true if docked tool panels trap input
     bool                    InitializedCondition;               // [bool] overlay status
+#ifdef FRONTIER_DEVELOPMENT
+    ControlPanel            NotchControlPanel;                  // [panel] organic top notch control centre
+#endif
 };
 
 template<>
