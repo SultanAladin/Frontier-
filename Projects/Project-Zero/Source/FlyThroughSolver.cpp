@@ -75,9 +75,9 @@ void FlyThroughSolver::AdvanceLocomotion(const InputExchange& Input, float Δτ)
     if (Input.IsKeyPressed(VirtualKeyCategory::KeyD)) DesiredDirection += RightVector;
     if (Input.IsKeyPressed(VirtualKeyCategory::KeyA)) DesiredDirection -= RightVector;
 
-    // Vertical Up (E) / Down (Q)
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyE)) DesiredDirection += Vector3{ 0.0f, 1.0f, 0.0f };
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyQ)) DesiredDirection -= Vector3{ 0.0f, 1.0f, 0.0f };
+    // Vertical Up (E) / Down (Q) — Strict +Z Up Axis
+    if (Input.IsKeyPressed(VirtualKeyCategory::KeyE)) DesiredDirection += Vector3{ 0.0f, 0.0f, 1.0f };
+    if (Input.IsKeyPressed(VirtualKeyCategory::KeyQ)) DesiredDirection -= Vector3{ 0.0f, 0.0f, 1.0f };
 
     float LengthSq = DesiredDirection.LengthSquared();
     if (LengthSq > 1e-6f)

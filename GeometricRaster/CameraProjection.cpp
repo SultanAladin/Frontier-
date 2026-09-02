@@ -84,10 +84,11 @@ void CameraProjection::RecomputeDirectionalVectors() noexcept
     float CosYaw   = std::cos(YawRadians);
     float SinYaw   = std::sin(YawRadians);
 
-    ForwardVector = Vector3{ SinYaw * CosPitch, SinPitch, CosYaw * CosPitch }.Normalized();
-    Vector3 WorldUp{ 0.0f, 1.0f, 0.0f };
-    RightVector   = OrientationClassifier::CrossProduct(WorldUp, ForwardVector).Normalized();
-    UpwardVector  = OrientationClassifier::CrossProduct(ForwardVector, RightVector).Normalized();
+    // Standard Right-Handed Coordinate System: +X Right (Red), +Y Forward (Green), +Z Up (Blue)
+    ForwardVector = Vector3{ SinYaw * CosPitch, CosYaw * CosPitch, SinPitch }.Normalized();
+    Vector3 WorldUp{ 0.0f, 0.0f, 1.0f }; // Strict +Z Upward Axis
+    RightVector   = OrientationClassifier::CrossProduct(ForwardVector, WorldUp).Normalized();
+    UpwardVector  = OrientationClassifier::CrossProduct(RightVector, ForwardVector).Normalized();
 }
 
 ViewRay CameraProjection::ConstructRay(float NormalizedU, float NormalizedV) const noexcept

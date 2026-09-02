@@ -84,3 +84,35 @@
   - Individual games (e.g. `Project-F20`, `Project-Zero`) define their own gameplay mechanics, physics tuning, and input action bindings without altering engine core files.
   - Game action mapping (e.g. mapping `VirtualKeyCategory::KeyW` to forward movement, or `MouseButtonCategory::ButtonRight` to flight steering) and specialized camera controllers (e.g. `FlyThroughSolver`, `OrbitSolver`, `ChaseCamSolver`) reside entirely within the respective project codebase.
   - Prevents engine bloat, maintains clean module boundaries, and guarantees that any game project can implement arbitrary control schemes using the engine's universal input hardware abstraction.
+
+---
+
+## 7. 3D Coordinate System & Physical Units Standards
+- **Right-Handed Coordinate System Convention ($+Z$ Up)**:
+  - **$+X$ Axis**: Right / East (Red Color)
+  - **$+Y$ Axis**: Forward / North (Green Color)
+  - **$+Z$ Axis**: Up / Zenith (Blue Color) — **$Z$ is strictly the upward vertical axis across the engine and all games**.
+  - **Vector Cross Products**: $\vec{X} \times \vec{Y} = \vec{Z}$ (Right $\times$ Forward $=$ Up), $\vec{Y} \times \vec{Z} = \vec{X}$ (Forward $\times$ Up $=$ Right), $\vec{Z} \times \vec{X} = \vec{Y}$ (Up $\times$ Right $=$ Forward).
+- **Default Physical Units**:
+  - **Distance / Coordinates**: **Meters ($[m]$)** strictly (never centimeters, millimeters, or feet).
+  - **Time**: **Seconds ($[s]$)**.
+  - **Mass**: **Kilograms ($[kg]$)**.
+  - **Velocity**: **Meters per second ($[m/s]$)**.
+  - **Luminous Flux / Illuminance**: **Lux ($[lux]$)** / Lumens ($[lm]$).
+  - **Angles**: **Radians ($[rad]$)** for mathematical calculation, degrees ($[deg]$) only for human-facing UI input.
+- **Vulkan Projection Mapping**:
+  - Vulkan NDC has clip $Z \in [0, 1]$ and inverted $Y$. Projections in `CameraProjection` and shaders map from Right-Handed $Z$-up World Space into Vulkan clip coordinates with appropriate depth clamping and $Y$-inversion.
+
+---
+
+## 8. Standalone & Embedded Content Creation Tools Architecture (`Tools/`)
+- Tools are structured as dual-target modular applications:
+  1. **Standalone Executables**: Can be compiled and run as independent desktop creation tools (e.g. `Tools/TexturePainter/`, `Tools/ParametricSketcher/`).
+  2. **Embedded Development Workspaces**: Can be invoked inside the engine editor while testing or simulating a game via `#ifdef FRONTIER_DEVELOPMENT` within `DisplayPresentation/WorkspacePanel`.
+- Common Tool Suite:
+  - **Texture Painting**: Interactive 3D surface texel painting, brush projection, PBR layer blending.
+  - **Texture Baking**: High-to-low poly ray-traced baking (Normal, AO, Curvature, Bent Normals, Thickness).
+  - **Parametric Sketching**: 2D/3D CAD constraint solving, spline/NURBS surfaces, profile extrusions, boolean solids.
+  - **UV Unwrapping**: Conformal flattening (ABF++/LSCM), seam tagging, island packing, distortion metrics.
+  - **Procedural Plants / Foliage**: L-system parametric branching, leaf scattering, wind binding.
+  - **Material Shader Graph**: Node-based PBR graph authoring with live SPIR-V compute compilation.
