@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Frontier/Tools/GenerateControlPanelProof.cpp — High-Fidelity Rasterized Verification Proof for Top Notch Geometry & Dynamics
+// 📦 Frontier/Tools/GenerateControlPanelProof.cpp — Borderless Pure Black Proof for Top Notch Geometry & Dynamics
 //============================================================================================================================================
 
 #include "../DisplayPresentation/ControlPanel.h"
@@ -24,30 +24,13 @@ class ProofCanvas
 {
 public:
     ProofCanvas(uint32_t Width, uint32_t Height)
-        : CanvasWidth(Width), CanvasHeight(Height), Buffer(Width * Height, PixelRgb{ 12, 14, 18 })
+        : CanvasWidth(Width), CanvasHeight(Height), Buffer(Width * Height, PixelRgb{ 0, 0, 0 }) // Pure black #000000
     {
     }
 
     void Clear(PixelRgb Color)
     {
         std::fill(Buffer.begin(), Buffer.end(), Color);
-    }
-
-    void DrawViewportGrid(int32_t ClipX0 = 0, int32_t ClipY0 = 0, int32_t ClipX1 = -1, int32_t ClipY1 = -1)
-    {
-        if (ClipX1 < 0) ClipX1 = CanvasWidth - 1;
-        if (ClipY1 < 0) ClipY1 = CanvasHeight - 1;
-
-        for (int32_t Y = ClipY0; Y <= ClipY1; ++Y)
-        {
-            for (int32_t X = ClipX0; X <= ClipX1; ++X)
-            {
-                if ((X % 30 == 0) || (Y % 30 == 0))
-                {
-                    Buffer[Y * CanvasWidth + X] = PixelRgb{ 28, 32, 40 };
-                }
-            }
-        }
     }
 
     void DrawFilledRectangle(int32_t X0, int32_t Y0, int32_t X1, int32_t Y1, PixelRgb Color)
@@ -63,27 +46,6 @@ public:
             {
                 Buffer[Y * CanvasWidth + X] = Color;
             }
-        }
-    }
-
-    void DrawRectangleOutline(int32_t X0, int32_t Y0, int32_t X1, int32_t Y1, PixelRgb Color)
-    {
-        int32_t MinX = std::max(0, std::min(X0, X1));
-        int32_t MaxX = std::min(static_cast<int32_t>(CanvasWidth) - 1, std::max(X0, X1));
-        int32_t MinY = std::max(0, std::min(Y0, Y1));
-        int32_t MaxY = std::min(static_cast<int32_t>(CanvasHeight) - 1, std::max(Y0, Y1));
-
-        if (MinX > MaxX || MinY > MaxY) return;
-
-        for (int32_t X = MinX; X <= MaxX; ++X)
-        {
-            Buffer[MinY * CanvasWidth + X] = Color;
-            Buffer[MaxY * CanvasWidth + X] = Color;
-        }
-        for (int32_t Y = MinY; Y <= MaxY; ++Y)
-        {
-            Buffer[Y * CanvasWidth + MinX] = Color;
-            Buffer[Y * CanvasWidth + MaxX] = Color;
         }
     }
 
@@ -173,23 +135,6 @@ public:
         }
     }
 
-    void DrawPolygonOutline(const std::vector<BezierPointRecord>& PolygonPoints, float OffsetX, float OffsetY, PixelRgb Color)
-    {
-        if (PolygonPoints.size() < 2) return;
-        size_t Count = PolygonPoints.size();
-        for (size_t i = 0; i < Count; ++i)
-        {
-            size_t next = (i + 1) % Count;
-            DrawLine(
-                static_cast<int32_t>(PolygonPoints[i].X + OffsetX),
-                static_cast<int32_t>(PolygonPoints[i].Y + OffsetY),
-                static_cast<int32_t>(PolygonPoints[next].X + OffsetX),
-                static_cast<int32_t>(PolygonPoints[next].Y + OffsetY),
-                Color
-            );
-        }
-    }
-
     void DrawCircle(int32_t CenterX, int32_t CenterY, int32_t Radius, PixelRgb Color)
     {
         for (int32_t Y = CenterY - Radius; Y <= CenterY + Radius; ++Y)
@@ -216,11 +161,11 @@ public:
 
         // Triple layered logo stack
         DrawFilledRectangle(CenterX - 68, CenterY - 6, CenterX - 56, CenterY + 6, PixelRgb{ 255, 107, 107 });
-        DrawRectangleOutline(CenterX - 64, CenterY - 8, CenterX - 52, CenterY + 4, PixelRgb{ 200, 200, 220 });
+        DrawFilledRectangle(CenterX - 64, CenterY - 8, CenterX - 52, CenterY + 4, PixelRgb{ 180, 180, 200 });
         DrawFilledRectangle(CenterX - 60, CenterY - 4, CenterX - 48, CenterY + 8, PixelRgb{ 77, 150, 255 });
 
         // Stylized "Control Center" text placeholder bar
-        DrawFilledRectangle(CenterX - 40, CenterY - 3, CenterX + 45, CenterY + 3, PixelRgb{ 230, 230, 235 });
+        DrawFilledRectangle(CenterX - 40, CenterY - 3, CenterX + 45, CenterY + 3, PixelRgb{ 240, 240, 245 });
 
         // Glowing green status dot
         DrawCircle(CenterX + 60, CenterY, 5, PixelRgb{ 34, 197, 94 });
@@ -252,7 +197,7 @@ private:
 int main()
 {
     // ===================================================================================================================
-    // PROOF 1: CLOSED NOTCH STATE (Y = 0px)
+    // PROOF 1: CLOSED NOTCH STATE (Pure Black Canvas, Borderless)
     // ===================================================================================================================
     {
         constexpr uint32_t Width  = 1280;
@@ -262,15 +207,14 @@ int main()
         Panel.CloseNotch();
 
         Frontier::ProofCanvas Canvas(Width, Height);
-        Canvas.Clear(Frontier::PixelRgb{ 8, 10, 14 });
-        Canvas.DrawViewportGrid();
+        Canvas.Clear(Frontier::PixelRgb{ 0, 0, 0 }); // Pure black background
 
         float HandleX = Panel.QueryHandleX();
         float HandleY = Panel.QueryHandleY();
         const auto& Contour = Panel.QueryHandleContour();
 
-        Canvas.DrawFilledPolygon(Contour, HandleX, HandleY, Frontier::PixelRgb{ 10, 10, 10 });
-        Canvas.DrawPolygonOutline(Contour, HandleX, HandleY, Frontier::PixelRgb{ 70, 74, 88 });
+        // Borderless OLED handle body
+        Canvas.DrawFilledPolygon(Contour, HandleX, HandleY, Frontier::PixelRgb{ 14, 14, 16 });
         Canvas.DrawNotchHandleDecorations(HandleX, HandleY);
 
         std::string Ppm = "Diagnostics/ControlCenter_NotchHandle_Closed.ppm";
@@ -279,7 +223,7 @@ int main()
     }
 
     // ===================================================================================================================
-    // PROOF 2: INTERACTIVE DRAGGING STATE (Y = 360px)
+    // PROOF 2: INTERACTIVE DRAGGING STATE (Pure Black Canvas, Borderless)
     // ===================================================================================================================
     {
         constexpr uint32_t Width  = 1280;
@@ -293,27 +237,26 @@ int main()
         Panel.AdvanceInteraction(Input, 640.0f, 360.0f);
 
         Frontier::ProofCanvas Canvas(Width, Height);
-        Canvas.Clear(Frontier::PixelRgb{ 8, 10, 14 });
-        Canvas.DrawViewportGrid();
+        Canvas.Clear(Frontier::PixelRgb{ 0, 0, 0 }); // Pure black background
 
         float HandleX = Panel.QueryHandleX();
         float HandleY = Panel.QueryHandleY();
         const auto& Contour = Panel.QueryHandleContour();
 
-        Canvas.DrawFilledRectangle(0, 0, Width - 1, static_cast<int32_t>(HandleY), Frontier::PixelRgb{ 10, 10, 10 });
-        Canvas.DrawLine(0, static_cast<int32_t>(HandleY), Width - 1, static_cast<int32_t>(HandleY), Frontier::PixelRgb{ 55, 58, 70 });
+        // Borderless pull-down shade
+        Canvas.DrawFilledRectangle(0, 0, Width - 1, static_cast<int32_t>(HandleY), Frontier::PixelRgb{ 14, 14, 16 });
 
+        // Empty minimal shell (borderless pure black inset)
         int32_t CardX0 = static_cast<int32_t>((Width - 520) / 2);
         int32_t CardY0 = static_cast<int32_t>((HandleY - 240) / 2);
-        Canvas.DrawFilledRectangle(CardX0, CardY0, CardX0 + 520, CardY0 + 240, Frontier::PixelRgb{ 20, 20, 24 });
-        Canvas.DrawRectangleOutline(CardX0, CardY0, CardX0 + 520, CardY0 + 240, Frontier::PixelRgb{ 65, 70, 85 });
+        Canvas.DrawFilledRectangle(CardX0, CardY0, CardX0 + 520, CardY0 + 240, Frontier::PixelRgb{ 22, 22, 26 });
 
-        Canvas.DrawFilledPolygon(Contour, HandleX, HandleY, Frontier::PixelRgb{ 10, 10, 10 });
-        Canvas.DrawPolygonOutline(Contour, HandleX, HandleY, Frontier::PixelRgb{ 70, 74, 88 });
+        // Bottom handle
+        Canvas.DrawFilledPolygon(Contour, HandleX, HandleY, Frontier::PixelRgb{ 14, 14, 16 });
         Canvas.DrawNotchHandleDecorations(HandleX, HandleY);
 
-        Canvas.DrawCircle(640, static_cast<int32_t>(HandleY + 18.0f), 8, Frontier::PixelRgb{ 59, 130, 246 });
-        Canvas.DrawCircle(640, static_cast<int32_t>(HandleY + 18.0f), 4, Frontier::PixelRgb{ 255, 255, 255 });
+        // Blue drag cursor
+        Canvas.DrawCircle(640, static_cast<int32_t>(HandleY + 18.0f), 7, Frontier::PixelRgb{ 59, 130, 246 });
 
         std::string Ppm = "Diagnostics/ControlCenter_NotchHandle_Dragging.ppm";
         Canvas.ExportPpm(Ppm);
@@ -321,7 +264,7 @@ int main()
     }
 
     // ===================================================================================================================
-    // PROOF 3: FULLY PULLED-DOWN STATE (Y = ScreenHeight - 36px = 684px)
+    // PROOF 3: FULLY PULLED-DOWN STATE (Pure Black Canvas, Borderless)
     // ===================================================================================================================
     {
         constexpr uint32_t Width  = 1280;
@@ -333,28 +276,24 @@ int main()
         Panel.AdvanceLocomotion(1.0f);
 
         Frontier::ProofCanvas Canvas(Width, Height);
-        Canvas.Clear(Frontier::PixelRgb{ 8, 10, 14 });
+        Canvas.Clear(Frontier::PixelRgb{ 0, 0, 0 }); // Pure black background
 
         float HandleX = Panel.QueryHandleX();
         float HandleY = Panel.QueryHandleY();
         const auto& Contour = Panel.QueryHandleContour();
 
-        Canvas.DrawFilledRectangle(0, 0, Width - 1, static_cast<int32_t>(HandleY), Frontier::PixelRgb{ 10, 10, 10 });
-        Canvas.DrawLine(0, static_cast<int32_t>(HandleY), Width - 1, static_cast<int32_t>(HandleY), Frontier::PixelRgb{ 55, 58, 70 });
+        // Borderless full-height shade
+        Canvas.DrawFilledRectangle(0, 0, Width - 1, static_cast<int32_t>(HandleY), Frontier::PixelRgb{ 14, 14, 16 });
 
+        // Empty minimal shell container (borderless dark card)
         int32_t CardX0 = static_cast<int32_t>((Width - 680) / 2);
         int32_t CardY0 = 40;
         int32_t CardX1 = CardX0 + 680;
         int32_t CardY1 = static_cast<int32_t>(HandleY - 20);
+        Canvas.DrawFilledRectangle(CardX0, CardY0, CardX1, CardY1, Frontier::PixelRgb{ 22, 22, 26 });
 
-        Canvas.DrawFilledRectangle(CardX0, CardY0, CardX1, CardY1, Frontier::PixelRgb{ 20, 20, 24 });
-        Canvas.DrawRectangleOutline(CardX0, CardY0, CardX1, CardY1, Frontier::PixelRgb{ 65, 70, 85 });
-
-        Canvas.DrawLine(CardX0 + 24, CardY0 + 44, CardX1 - 24, CardY0 + 44, Frontier::PixelRgb{ 40, 44, 55 });
-        Canvas.DrawFilledRectangle(CardX0 + 24, CardY0 + 20, CardX0 + 160, CardY0 + 32, Frontier::PixelRgb{ 200, 205, 215 });
-
-        Canvas.DrawFilledPolygon(Contour, HandleX, HandleY, Frontier::PixelRgb{ 10, 10, 10 });
-        Canvas.DrawPolygonOutline(Contour, HandleX, HandleY, Frontier::PixelRgb{ 70, 74, 88 });
+        // Bottom handle
+        Canvas.DrawFilledPolygon(Contour, HandleX, HandleY, Frontier::PixelRgb{ 14, 14, 16 });
         Canvas.DrawNotchHandleDecorations(HandleX, HandleY);
 
         std::string Ppm = "Diagnostics/ControlCenter_NotchHandle_PulledDown.ppm";
@@ -363,7 +302,7 @@ int main()
     }
 
     // ===================================================================================================================
-    // PROOF 4: TRIPTYCH LOCOMOTION PROOF (Closed -> Dragging -> Pulled Down)
+    // PROOF 4: TRIPTYCH LOCOMOTION PROOF
     // ===================================================================================================================
     {
         constexpr uint32_t TotalW = 1920;
@@ -371,28 +310,25 @@ int main()
         constexpr uint32_t ColW   = 640;
 
         Frontier::ProofCanvas Canvas(TotalW, TotalH);
-        Canvas.Clear(Frontier::PixelRgb{ 6, 8, 10 });
+        Canvas.Clear(Frontier::PixelRgb{ 0, 0, 0 }); // Pure black
 
         // Column 1: Closed State
         {
-            Canvas.DrawViewportGrid(0, 0, ColW - 1, TotalH - 1);
             Frontier::ControlPanel P;
-            P.Initialize(ColW, TotalH);
+            (void)P.Initialize(ColW, TotalH);
             P.CloseNotch();
             float HX = P.QueryHandleX();
             float HY = P.QueryHandleY();
             const auto& C = P.QueryHandleContour();
-            Canvas.DrawFilledPolygon(C, HX, HY, Frontier::PixelRgb{ 10, 10, 10 });
-            Canvas.DrawPolygonOutline(C, HX, HY, Frontier::PixelRgb{ 70, 74, 88 });
-            Canvas.DrawNotchHandleDecorations(HX, HY);
+            Canvas.DrawFilledPolygon(C, HX, HY, Frontier::PixelRgb{ 14, 14, 16 });
+            Canvas.DrawNotchHandleDecorations(HX, HY, 400.0f);
         }
 
         // Column 2: Dragging State (Y = 320px)
         {
             int32_t OffsetX = ColW;
-            Canvas.DrawViewportGrid(OffsetX, 0, OffsetX + ColW - 1, TotalH - 1);
             Frontier::ControlPanel P;
-            P.Initialize(ColW, TotalH);
+            (void)P.Initialize(ColW, TotalH);
             Frontier::InputExchange Input;
             Input.AssignMouseButton(Frontier::MouseButtonCategory::ButtonLeft, true);
             P.AdvanceInteraction(Input, ColW * 0.5f, 18.0f);
@@ -402,26 +338,23 @@ int main()
             float HY = P.QueryHandleY();
             const auto& C = P.QueryHandleContour();
 
-            Canvas.DrawFilledRectangle(OffsetX, 0, OffsetX + ColW - 1, static_cast<int32_t>(HY), Frontier::PixelRgb{ 10, 10, 10 });
-            Canvas.DrawLine(OffsetX, static_cast<int32_t>(HY), OffsetX + ColW - 1, static_cast<int32_t>(HY), Frontier::PixelRgb{ 55, 58, 70 });
+            Canvas.DrawFilledRectangle(OffsetX, 0, OffsetX + ColW - 1, static_cast<int32_t>(HY), Frontier::PixelRgb{ 14, 14, 16 });
 
             int32_t CardX0 = OffsetX + static_cast<int32_t>((ColW - 400) / 2);
             int32_t CardY0 = static_cast<int32_t>((HY - 200) / 2);
-            Canvas.DrawFilledRectangle(CardX0, CardY0, CardX0 + 400, CardY0 + 200, Frontier::PixelRgb{ 20, 20, 24 });
-            Canvas.DrawRectangleOutline(CardX0, CardY0, CardX0 + 400, CardY0 + 200, Frontier::PixelRgb{ 65, 70, 85 });
+            Canvas.DrawFilledRectangle(CardX0, CardY0, CardX0 + 400, CardY0 + 200, Frontier::PixelRgb{ 22, 22, 26 });
 
-            Canvas.DrawFilledPolygon(C, HX, HY, Frontier::PixelRgb{ 10, 10, 10 });
-            Canvas.DrawPolygonOutline(C, HX, HY, Frontier::PixelRgb{ 70, 74, 88 });
-            Canvas.DrawNotchHandleDecorations(HX, HY);
+            Canvas.DrawFilledPolygon(C, HX, HY, Frontier::PixelRgb{ 14, 14, 16 });
+            Canvas.DrawNotchHandleDecorations(HX, HY, 400.0f);
 
-            Canvas.DrawCircle(OffsetX + static_cast<int32_t>(ColW * 0.5f), static_cast<int32_t>(HY + 18.0f), 8, Frontier::PixelRgb{ 59, 130, 246 });
+            Canvas.DrawCircle(OffsetX + static_cast<int32_t>(ColW * 0.5f), static_cast<int32_t>(HY + 18.0f), 7, Frontier::PixelRgb{ 59, 130, 246 });
         }
 
         // Column 3: Fully Pulled-Down State (Y = 604px)
         {
             int32_t OffsetX = ColW * 2;
             Frontier::ControlPanel P;
-            P.Initialize(ColW, TotalH);
+            (void)P.Initialize(ColW, TotalH);
             P.OpenNotch();
             P.AdvanceLocomotion(1.0f);
 
@@ -429,26 +362,21 @@ int main()
             float HY = P.QueryHandleY();
             const auto& C = P.QueryHandleContour();
 
-            Canvas.DrawFilledRectangle(OffsetX, 0, OffsetX + ColW - 1, static_cast<int32_t>(HY), Frontier::PixelRgb{ 10, 10, 10 });
-            Canvas.DrawLine(OffsetX, static_cast<int32_t>(HY), OffsetX + ColW - 1, static_cast<int32_t>(HY), Frontier::PixelRgb{ 55, 58, 70 });
+            Canvas.DrawFilledRectangle(OffsetX, 0, OffsetX + ColW - 1, static_cast<int32_t>(HY), Frontier::PixelRgb{ 14, 14, 16 });
 
             int32_t CardX0 = OffsetX + static_cast<int32_t>((ColW - 440) / 2);
             int32_t CardY0 = 30;
             int32_t CardX1 = CardX0 + 440;
             int32_t CardY1 = static_cast<int32_t>(HY - 20);
-            Canvas.DrawFilledRectangle(CardX0, CardY0, CardX1, CardY1, Frontier::PixelRgb{ 20, 20, 24 });
-            Canvas.DrawRectangleOutline(CardX0, CardY0, CardX1, CardY1, Frontier::PixelRgb{ 65, 70, 85 });
-            Canvas.DrawLine(CardX0 + 16, CardY0 + 36, CardX1 - 16, CardY0 + 36, Frontier::PixelRgb{ 40, 44, 55 });
-            Canvas.DrawFilledRectangle(CardX0 + 16, CardY0 + 16, CardX0 + 120, CardY0 + 26, Frontier::PixelRgb{ 200, 205, 215 });
+            Canvas.DrawFilledRectangle(CardX0, CardY0, CardX1, CardY1, Frontier::PixelRgb{ 22, 22, 26 });
 
-            Canvas.DrawFilledPolygon(C, HX, HY, Frontier::PixelRgb{ 10, 10, 10 });
-            Canvas.DrawPolygonOutline(C, HX, HY, Frontier::PixelRgb{ 70, 74, 88 });
-            Canvas.DrawNotchHandleDecorations(HX, HY);
+            Canvas.DrawFilledPolygon(C, HX, HY, Frontier::PixelRgb{ 14, 14, 16 });
+            Canvas.DrawNotchHandleDecorations(HX, HY, 400.0f);
         }
 
-        // Column Divider Lines
-        Canvas.DrawLine(ColW, 0, ColW, TotalH - 1, Frontier::PixelRgb{ 60, 65, 80 });
-        Canvas.DrawLine(ColW * 2, 0, ColW * 2, TotalH - 1, Frontier::PixelRgb{ 60, 65, 80 });
+        // Subtle Column Separators
+        Canvas.DrawLine(ColW, 0, ColW, TotalH - 1, Frontier::PixelRgb{ 30, 30, 36 });
+        Canvas.DrawLine(ColW * 2, 0, ColW * 2, TotalH - 1, Frontier::PixelRgb{ 30, 30, 36 });
 
         std::string Ppm = "Diagnostics/ControlCenter_LocomotionTriptych.ppm";
         Canvas.ExportPpm(Ppm);
