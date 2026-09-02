@@ -28,6 +28,8 @@ set(FRONTIER_ENGINE_SOURCES
     DeviceExchange/WindowExchange.cpp
     DeviceExchange/InputExchange.h
     DeviceExchange/InputExchange.cpp
+    DeviceExchange/RenderTargetExchange.h
+    DeviceExchange/RenderTargetExchange.cpp
     DeviceExchange/DiagnosticMetrics.h
     DeviceExchange/DiagnosticMetrics.cpp
 

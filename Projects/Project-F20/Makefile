@@ -24,6 +24,7 @@ ENGINE_OBJS := \
 	$(ENGINE_DIR)/DeviceExchange/OrientationClassifier.o \
 	$(ENGINE_DIR)/DeviceExchange/WindowExchange.o \
 	$(ENGINE_DIR)/DeviceExchange/InputExchange.o \
+	$(ENGINE_DIR)/DeviceExchange/RenderTargetExchange.o \
 	$(ENGINE_DIR)/DeviceExchange/DiagnosticMetrics.o \
 	$(ENGINE_DIR)/PhysicalDynamics/RigidBodySolver.o \
 	$(ENGINE_DIR)/PhysicalDynamics/DeformableSolver.o \

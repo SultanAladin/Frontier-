@@ -15,6 +15,7 @@ SRCS := \
 	DeviceExchange/OrientationClassifier.cpp \
 	DeviceExchange/WindowExchange.cpp \
 	DeviceExchange/InputExchange.cpp \
+	DeviceExchange/RenderTargetExchange.cpp \
 	DeviceExchange/DiagnosticMetrics.cpp \
 	PhysicalDynamics/RigidBodySolver.cpp \
 	PhysicalDynamics/DeformableSolver.cpp \
