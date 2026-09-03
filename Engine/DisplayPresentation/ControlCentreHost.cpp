@@ -126,6 +126,7 @@ void ControlCentreHost::Resize(uint32_t DesiredWidth, uint32_t DesiredHeight) no
 
     // Keep an open shade open at the new height and the notch inside the new admissible travel.
     if (WasOpen) Motion.Spring(ShadeChannel).Place(OpenTravel());
+    if (InitializedCondition) ResizeCardForPage();   // card max-size follows the (logical) canvas
     SpringChannel& Notch = Motion.Spring(NotchChannel);
     const double Admissible = NotchAdmissible();
     Notch.Place(std::clamp(Notch.Current, -Admissible, Admissible));
@@ -190,9 +191,13 @@ void ControlCentreHost::ResolveDialogueVerdict() noexcept
 void ControlCentreHost::ResizeCardForPage() noexcept
 {
     // ArcNotch.tsx: animate={{ maxWidth: activeSetting ? 840 : 420, height: activeSetting ? 600 : 480 }}
+    //    maxWidth is a max — the card shrinks with the container (relevant once the UI scale shrinks the logical canvas);
+    //    height is clamped to the visible content box (viewport − notch 35 px − 24 px breathing room) the same way.
     const bool Sub = IsSubPage(ActivePage);
-    Motion.Spring(CardWidthChannel ).Depart(Sub ? PageCardWidth  : CardWidth);
-    Motion.Spring(CardHeightChannel).Depart(Sub ? PageCardHeight : CardHeight);
+    const float MaxW = static_cast<float>(DisplayWidth)  - 32.0f;
+    const float MaxH = static_cast<float>(DisplayHeight) - 35.0f - 24.0f;
+    Motion.Spring(CardWidthChannel ).Depart(std::min(Sub ? PageCardWidth  : CardWidth,  MaxW));
+    Motion.Spring(CardHeightChannel).Depart(std::min(Sub ? PageCardHeight : CardHeight, MaxH));
 }
 
 void ControlCentreHost::NavigateBack() noexcept

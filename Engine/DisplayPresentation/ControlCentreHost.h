@@ -275,6 +275,8 @@ public:
     [[nodiscard]] ThemeCategory      QueryThemeCategory() const noexcept { return ActiveTheme.QueryActiveTheme(); }
     [[nodiscard]] float              QueryCornerRadius()  const noexcept { return ActiveTheme.QueryCornerRadius(); }
     [[nodiscard]] FontFamilyCategory QueryFontFamily()    const noexcept { return ActiveTheme.QueryActiveFontFamily(); }
+    [[nodiscard]] uint32_t  QueryDisplayWidth()  const noexcept { return DisplayWidth; }    // logical pixels (post UI scale)
+    [[nodiscard]] uint32_t  QueryDisplayHeight() const noexcept { return DisplayHeight; }
     [[nodiscard]] const ThemeStructure& QueryTheme() const noexcept { return ActiveTheme; }
     ThemeStructure&         AccessTheme() noexcept { return ActiveTheme; }
 

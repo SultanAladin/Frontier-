@@ -73,7 +73,11 @@ public:
 
     // Must be called once per frame after ImGui::NewFrame() and before ImGui::Render(); selects the draw list.
     //    Returns false when no ImGui context exists (e.g. headless proof generation without a backend).
-    bool Begin(SurfaceLayer Layer, float DisplayWidth, float DisplayHeight) noexcept;
+    //    InterfaceScale (Display → UI Scale, 1.0 = 100 %): hosts record in LOGICAL pixels — QueryDisplayWidth/Height
+    //    report physical ÷ scale — and every primitive is mapped to physical pixels on emission (positions, radii,
+    //    stroke widths, font sizes, clip rectangles). Pointer input must be divided by the same factor by the caller.
+    bool Begin(SurfaceLayer Layer, float DisplayWidth, float DisplayHeight, float InterfaceScale = 1.0f) noexcept;
+    [[nodiscard]] float QueryInterfaceScale() const noexcept { return Scale; }
 
     // ── Primitives ───────────────────────────────────────────────────────────────────────────────────────────────────
     void FillRectangle (const PlaneExtent& Extent, ColorQuad Colour, float Radius = 0.0f) noexcept;
@@ -108,8 +112,9 @@ public:
 
 private:
     void*   Commands;        // [-]  the backend draw list for the current frame (opaque above this seam)
-    float   DisplayWidth;    // [px]
-    float   DisplayHeight;   // [px]
+    float   DisplayWidth;    // [px] logical
+    float   DisplayHeight;   // [px] logical
+    float   Scale;           // [-]  logical → physical multiplier
     void*   TypefaceStack[8];
     uint32_t TypefaceDepth;
 };

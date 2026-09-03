@@ -37,16 +37,18 @@ ImU32 Pack(ColorQuad Colour) noexcept
 PixelSpace::PixelSpace() noexcept
     : Commands(nullptr)
     , DisplayWidth(0.0f)
+    , Scale(1.0f)
     , DisplayHeight(0.0f)
     , TypefaceStack{}
     , TypefaceDepth(0u)
 {
 }
 
-bool PixelSpace::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplayHeight) noexcept
+bool PixelSpace::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplayHeight, float InterfaceScale) noexcept
 {
-    DisplayWidth  = InDisplayWidth;
-    DisplayHeight = InDisplayHeight;
+    Scale         = InterfaceScale > 0.05f ? InterfaceScale : 1.0f;
+    DisplayWidth  = InDisplayWidth  / Scale;
+    DisplayHeight = InDisplayHeight / Scale;
     TypefaceDepth = 0u;
 
     if (ImGui::GetCurrentContext() == nullptr)
@@ -70,17 +72,17 @@ bool PixelSpace::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplay
 void PixelSpace::FillRectangle(const PlaneExtent& Extent, ColorQuad Colour, float Radius) noexcept
 {
     if (!Commands) return;
-    List(Commands)->AddRectFilled(ImVec2(Extent.MinimumX, Extent.MinimumY),
-                                  ImVec2(Extent.MaximumX, Extent.MaximumY),
-                                  Pack(Colour), Radius);
+    List(Commands)->AddRectFilled(ImVec2(Extent.MinimumX * Scale, Extent.MinimumY * Scale),
+                                  ImVec2(Extent.MaximumX * Scale, Extent.MaximumY * Scale),
+                                  Pack(Colour), Radius * Scale);
 }
 
 void PixelSpace::FillRectangleBottomRounded(const PlaneExtent& Extent, ColorQuad Colour, float Radius) noexcept
 {
     if (!Commands) return;
-    List(Commands)->AddRectFilled(ImVec2(Extent.MinimumX, Extent.MinimumY),
-                                  ImVec2(Extent.MaximumX, Extent.MaximumY),
-                                  Pack(Colour), Radius, ImDrawFlags_RoundCornersBottom);
+    List(Commands)->AddRectFilled(ImVec2(Extent.MinimumX * Scale, Extent.MinimumY * Scale),
+                                  ImVec2(Extent.MaximumX * Scale, Extent.MaximumY * Scale),
+                                  Pack(Colour), Radius * Scale, ImDrawFlags_RoundCornersBottom);
 }
 
 void PixelSpace::FillPolygon(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour) noexcept
@@ -92,7 +94,7 @@ void PixelSpace::FillPolygon(const PlanePoint* Points, uint32_t PointCount, Colo
     std::vector<ImVec2> Converted;
     Converted.reserve(PointCount);
     for (uint32_t Index = 0u; Index < PointCount; ++Index)
-        Converted.emplace_back(Points[Index].X, Points[Index].Y);
+        Converted.emplace_back(Points[Index].X * Scale, Points[Index].Y * Scale);
 
 #if IMGUI_VERSION_NUM >= 19100
     List(Commands)->AddConcavePolyFilled(Converted.data(), static_cast<int>(Converted.size()), Pack(Colour));
@@ -108,10 +110,10 @@ void PixelSpace::StrokePolyline(const PlanePoint* Points, uint32_t PointCount, C
     std::vector<ImVec2> Converted;
     Converted.reserve(PointCount);
     for (uint32_t Index = 0u; Index < PointCount; ++Index)
-        Converted.emplace_back(Points[Index].X, Points[Index].Y);
+        Converted.emplace_back(Points[Index].X * Scale, Points[Index].Y * Scale);
 
     List(Commands)->AddPolyline(Converted.data(), static_cast<int>(Converted.size()), Pack(Colour),
-                                Closed ? ImDrawFlags_Closed : ImDrawFlags_None, Thickness);
+                                Closed ? ImDrawFlags_Closed : ImDrawFlags_None, Thickness * Scale);
 }
 
 void PixelSpace::Text(float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels) noexcept
@@ -119,7 +121,7 @@ void PixelSpace::Text(float X, float Y, ColorQuad Colour, const char* Utf8, floa
     if (!Commands || !Utf8) return;
     ImFont* Font = QueryTypeface() ? static_cast<ImFont*>(QueryTypeface()) : ImGui::GetFont();
     const float Size = FontSizePixels > 0.0f ? FontSizePixels : ImGui::GetFontSize();
-    List(Commands)->AddText(Font, Size, ImVec2(X, Y), Pack(Colour), Utf8);
+    List(Commands)->AddText(Font, Size * Scale, ImVec2(X * Scale, Y * Scale), Pack(Colour), Utf8);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -129,7 +131,7 @@ void PixelSpace::Text(float X, float Y, ColorQuad Colour, const char* Utf8, floa
 void PixelSpace::PushClip(const PlaneExtent& Extent) noexcept
 {
     if (!Commands) return;
-    List(Commands)->PushClipRect(ImVec2(Extent.MinimumX, Extent.MinimumY), ImVec2(Extent.MaximumX, Extent.MaximumY), true);
+    List(Commands)->PushClipRect(ImVec2(Extent.MinimumX * Scale, Extent.MinimumY * Scale), ImVec2(Extent.MaximumX * Scale, Extent.MaximumY * Scale), true);
 }
 
 void PixelSpace::PopClip() noexcept
@@ -169,11 +171,13 @@ void PixelSpace::EndGroup(uint32_t Mark, float OffsetX, float OffsetY, float Sca
     ImDrawList* Draw = List(Commands);
     const int End = Draw->VtxBuffer.Size;
     const float A = std::clamp(Alpha, 0.0f, 1.0f);
+    // Vertices are already physical; the group parameters arrive in logical pixels.
+    const float Px = PivotX * this->Scale, Py = PivotY * this->Scale, Ox = OffsetX * this->Scale, Oy = OffsetY * this->Scale;
     for (int Index = static_cast<int>(Mark); Index < End; ++Index)
     {
         ImDrawVert& Vertex = Draw->VtxBuffer[Index];
-        Vertex.pos.x = PivotX + (Vertex.pos.x - PivotX) * Scale + OffsetX;
-        Vertex.pos.y = PivotY + (Vertex.pos.y - PivotY) * Scale + OffsetY;
+        Vertex.pos.x = Px + (Vertex.pos.x - Px) * Scale + Ox;
+        Vertex.pos.y = Py + (Vertex.pos.y - Py) * Scale + Oy;
         if (A < 1.0f)
         {
             const ImU32 Colour = Vertex.col;
@@ -192,8 +196,8 @@ PlanePoint PixelSpace::MeasureText(const char* Utf8, float FontSizePixels) const
     if (ImGui::GetCurrentContext() == nullptr || !Utf8) return {};
     ImFont* Font = QueryTypeface() ? static_cast<ImFont*>(QueryTypeface()) : ImGui::GetFont();
     const float Size = FontSizePixels > 0.0f ? FontSizePixels : ImGui::GetFontSize();
-    const ImVec2 Measured = Font->CalcTextSizeA(Size, FLT_MAX, 0.0f, Utf8);
-    return PlanePoint{ Measured.x, Measured.y };
+    const ImVec2 Measured = Font->CalcTextSizeA(Size * Scale, FLT_MAX, 0.0f, Utf8);
+    return PlanePoint{ Measured.x / Scale, Measured.y / Scale };
 }
 
 } // namespace Frontier

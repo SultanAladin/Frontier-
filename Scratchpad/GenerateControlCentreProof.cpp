@@ -190,7 +190,11 @@ struct Rig
     // One simulated frame: interaction → locomotion → record → (optionally) rasterise.
     void Frame(Canvas* Out)
     {
-        Input.AssignCursorPosition(CursorX, CursorY);
+        // Mirror GameExecution's Interface-scale mapping: the host runs in logical pixels; the script drives the cursor
+        //    in logical pixels too (extents it queries are logical), so only the surface size is divided here.
+        const float Scale = std::clamp(Host.QueryAppearance().QueryApplied().InterfaceScale / 100.0f, 0.5f, 2.0f);
+        Host.Resize(static_cast<uint32_t>(Width / Scale + 0.5f), static_cast<uint32_t>(Height / Scale + 0.5f));
+        Input.AssignCursorPosition(CursorX * Scale, CursorY * Scale);
         Input.ResetMouseScroll();
         if (PendingWheel != 0.0f) { Input.AssignMouseScroll(PendingWheel); PendingWheel = 0.0f; }
         Host.AdvanceInteraction(Input, CursorX, CursorY);
@@ -215,7 +219,7 @@ struct Rig
         IO.DeltaTime   = Step;
         IO.DisplaySize = ImVec2(Width, Height);
         ImGui::NewFrame();
-        if (Surface.Begin(Frontier::SurfaceLayer::Above, Width, Height))
+        if (Surface.Begin(Frontier::SurfaceLayer::Above, Width, Height, Scale))
         {
             const float NotchLine = Host.QueryHandleHeight();
             if (Host.QuerySettings().FrameRateOverlay) Telemetry.ConstructTelemetryLayout(Surface, NotchLine);
@@ -705,6 +709,29 @@ int main()
     R.Snapshot("ControlCentre_Settings_50_Hub_Light_Themed");
     Tap(R.Host.QueryHubBackExtent()); R.Idle(80);
     R.Snapshot("ControlCentre_Settings_51_Dashboard_Light_Themed");
+
+    // Step 5D — Interface scale: Display tab → UI Scale slider dragged to ~125 %, applied; chrome re-lays out larger
+    //    (logical canvas shrinks, primitives are emitted ×1.25) while the pointer mapping keeps hit-testing exact.
+    Tap(R.Host.QueryHeaderGearExtent()); R.Idle(30);
+    { const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(1u); Focus(Row); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(80); }
+    Tap(R.Host.QueryPageTabExtent(0u)); R.Idle(30);
+    {
+        const Frontier::PlaneExtent S = R.Host.QueryAppearance().QueryScaleSliderExtent();
+        R.CursorX = S.MinimumX + 9.0f + (S.Width() - 18.0f) * 0.5f; R.CursorY = (S.MinimumY + S.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Drag(S.MinimumX + 9.0f + (S.Width() - 18.0f) * 0.75f, R.CursorY, 20); R.Release(); R.Idle(3);
+    }
+    std::printf("   [52] draft UI scale=%.0f%%\n", Draft().InterfaceScale);
+    R.Snapshot("ControlCentre_Settings_52_Display_UIScale_Draft");
+    Tap(R.Host.QueryPageButtonExtent(true)); R.Idle(30);
+    std::printf("   [53] applied UI scale=%.0f%% logical=%ux%u\n", R.Host.QueryAppearance().QueryApplied().InterfaceScale, R.Host.QueryDisplayWidth(), R.Host.QueryDisplayHeight());
+    R.Snapshot("ControlCentre_Settings_53_Display_UIScale_Applied_Page_Larger");
+    Tap(R.Host.QueryPageCloseExtent()); R.Idle(80);
+    Tap(R.Host.QueryHubBackExtent()); R.Idle(80);
+    R.Snapshot("ControlCentre_Settings_54_Dashboard_UIScale_Applied");
+    // Tiles still hit-test correctly under the scale: tap GI (slot 0) and confirm it toggles.
+    { const bool Before = R.Host.QuerySettings().GlobalIllumination; Tap(R.Host.QueryTileDiscExtent(0u)); R.Idle(3);
+      std::printf("   [55] GI %d -> %d under UI scale (hit-test exact)\n", Before, R.Host.QuerySettings().GlobalIllumination); }
+    R.Snapshot("ControlCentre_Settings_55_Dashboard_UIScale_Tile_Tapped");
 
     // Step 5A — persistence round trip: applied state → TOML → fresh host seeded from it (textual proof).
     {
