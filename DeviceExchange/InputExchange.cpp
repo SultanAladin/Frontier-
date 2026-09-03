@@ -15,12 +15,22 @@ namespace Frontier {
 InputExchange::InputExchange() noexcept
     : PrimaryGamepad{}
     , CursorDelta{ 0.0f, 0.0f, 0.0f }
+    , CursorPositionX(0.0f)
+    , CursorPositionY(0.0f)
     , AnalogDeadzone(0.15f)
     , MouseScrollDelta(0.0f)
     , KeyStates{}
     , MouseButtonStates{}
 {
     PrimaryGamepad.ConnectedCondition = true;
+}
+
+void InputExchange::AssignCursorPosition(float PositionX, float PositionY) noexcept
+{
+    CursorDelta.x += (PositionX - CursorPositionX);
+    CursorDelta.y += (PositionY - CursorPositionY);
+    CursorPositionX = PositionX;
+    CursorPositionY = PositionY;
 }
 
 //------------------------------------------------------------------------------------------------------------------------

@@ -166,6 +166,7 @@ public:
 
     void                    AssignKeyState(VirtualKeyCategory Key, bool Pressed) noexcept;
     void                    AssignCursorDelta(float DeltaX, float DeltaY) noexcept;
+    void                    AssignCursorPosition(float PositionX, float PositionY) noexcept;
     void                    AssignMouseButton(MouseButtonCategory Button, bool Pressed) noexcept;
     void                    AssignMouseScroll(float ScrollDelta) noexcept;
     void                    AssignGamepadAxis(float LeftX, float LeftY, float RightX, float RightY, float LeftTrig, float RightTrig) noexcept;
@@ -174,6 +175,8 @@ public:
     [[nodiscard]] bool      IsMouseButtonPressed(MouseButtonCategory Button) const noexcept;
     [[nodiscard]] float     QueryMouseScrollDelta() const noexcept { return MouseScrollDelta; }
     [[nodiscard]] Vector3   QueryCursorDelta() const noexcept { return CursorDelta; }
+    [[nodiscard]] float     QueryCursorPositionX() const noexcept { return CursorPositionX; }
+    [[nodiscard]] float     QueryCursorPositionY() const noexcept { return CursorPositionY; }
     [[nodiscard]] const GamepadRecord& QueryGamepad() const noexcept { return PrimaryGamepad; }
 
     // Single unified conversion operator for primary gamepad
@@ -183,6 +186,8 @@ public:
 private:
     GamepadRecord           PrimaryGamepad;                     // [gamepad] active gamepad record
     Vector3                 CursorDelta;                        // [px] mouse delta movement
+    float                   CursorPositionX;                    // [px] absolute horizontal cursor coordinate
+    float                   CursorPositionY;                    // [px] absolute vertical cursor coordinate
     float                   AnalogDeadzone;                     // [0..1] joystick deadzone threshold
     float                   MouseScrollDelta;                   // [clicks] mouse scroll wheel increment
     std::array<bool, static_cast<size_t>(VirtualKeyCategory::Count)> KeyStates; // [keys] active pressed keys

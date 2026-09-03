@@ -39,6 +39,10 @@ bool GameHost::LaunchGame(uint32_t Width, uint32_t Height) noexcept
     Fidelity = std::make_unique<Frontier::FidelityClassifier>();
     Fidelity->AssignCategory(Frontier::FidelityCategory::UltraFidelity);
 
+#if defined(FRONTIER_DEVELOPMENT)
+    ControlCentre = std::make_unique<Frontier::ControlCentrePanel>();
+#endif
+
     World    = std::make_unique<Frontier::WorldSpace>();
     Frontier::WorldDescriptor circuitAlpha{
         "track_01_neon_hypergrid",
@@ -100,8 +104,8 @@ void GameHost::StepGameCycle(float DeltaSeconds) noexcept
         return;
     }
 
-    Window->PollEvents();
-    if (Window->ShouldClose())
+    Window->PollEvents(Input.get());
+    if (Window->ShouldClose() || Input->IsKeyPressed(Frontier::VirtualKeyCategory::KeyEscape))
     {
         RunningCondition = false;
         return;
@@ -109,7 +113,15 @@ void GameHost::StepGameCycle(float DeltaSeconds) noexcept
 
     Input->PollInputDevices();
 
-    // Mock vehicle controls (throttle, steering)
+#if defined(FRONTIER_DEVELOPMENT)
+    if (ControlCentre)
+    {
+        ControlCentre->AdvanceInteraction(*Input, Input->QueryCursorPositionX(), Input->QueryCursorPositionY());
+        ControlCentre->AdvanceLocomotion(DeltaSeconds);
+    }
+#endif
+
+    // Vehicle controls (steering, throttle, braking)
     float Steer = 0.0f;
     float Throttle = 0.85f;
     float Brake = 0.0f;

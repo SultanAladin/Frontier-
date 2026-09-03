@@ -40,21 +40,50 @@ int main(int ArgumentCount, char** ArgumentValues)
     }
 
     RaceLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "GameLifecycle", "Game launched successfully. Starting race simulation.");
-    std::cout << "[Project-F20] Game launched successfully. Running race simulation ticks...\n";
-
-    for (int tick = 1; tick <= 10; ++tick)
+    bool TestModeOnly = false;
+    for (int i = 1; i < ArgumentCount; ++i)
     {
-        Game.StepGameCycle(1.0f / 60.0f);
-        const auto& Telemetry = Game.QueryVehicleTelemetry();
-        
-        RaceLogger.RecordMeasurement("SpeedKph", Telemetry.SpeedKilometersPerHour, "km/h");
-        RaceLogger.RecordMeasurement("EngineRpm", Telemetry.EngineRevolutionsPerMinute, "RPM");
+        std::string_view Arg(ArgumentValues[i]);
+        if (Arg == "--test" || Arg == "--benchmark" || Arg == "--headless")
+        {
+            TestModeOnly = true;
+        }
+    }
 
-        std::cout << "  Tick " << tick
-                  << " | Speed: " << static_cast<int>(Telemetry.SpeedKilometersPerHour) << " km/h"
-                  << " | RPM: " << static_cast<int>(Telemetry.EngineRevolutionsPerMinute)
-                  << " | Gear: " << Telemetry.CurrentGear
-                  << " | Pos: (" << Telemetry.SpatialLocation.x << ", " << Telemetry.SpatialLocation.z << ")\n";
+    if (TestModeOnly)
+    {
+        std::cout << "[Project-F20] Running test suite (10 deterministic simulation cycles)...\n";
+        for (int tick = 1; tick <= 10; ++tick)
+        {
+            Game.StepGameCycle(1.0f / 60.0f);
+            const auto& Telemetry = Game.QueryVehicleTelemetry();
+            
+            RaceLogger.RecordMeasurement("SpeedKph", Telemetry.SpeedKilometersPerHour, "km/h");
+            RaceLogger.RecordMeasurement("EngineRpm", Telemetry.EngineRevolutionsPerMinute, "RPM");
+
+            std::cout << "  Tick " << tick
+                      << " | Speed: " << static_cast<int>(Telemetry.SpeedKilometersPerHour) << " km/h"
+                      << " | RPM: " << static_cast<int>(Telemetry.EngineRevolutionsPerMinute)
+                      << " | Gear: " << Telemetry.CurrentGear
+                      << " | Pos: (" << Telemetry.SpatialLocation.x << ", " << Telemetry.SpatialLocation.z << ")\n";
+        }
+    }
+    else
+    {
+        std::cout << "[Project-F20] Entering interactive game execution loop (WASD / Inputs / Notch / ESC to quit)...\n";
+        int cycleCount = 0;
+        while (Game.IsRunning() && !Game.ShouldClose())
+        {
+            Game.StepGameCycle(1.0f / 60.0f);
+            ++cycleCount;
+
+            // In virtual / headless fallback environment, run test cycle window
+            if (cycleCount >= 120 && Game.QueryWindow()->QueryNativeWindowToken() == reinterpret_cast<void*>(0xDEADBEEFULL))
+            {
+                std::cout << "[Project-F20] Ran 120 interactive cycles on headless display buffer. Session completed.\n";
+                break;
+            }
+        }
     }
 
     RaceLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "GameLifecycle", "Race session completed successfully.");

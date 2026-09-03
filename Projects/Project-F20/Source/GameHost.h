@@ -5,6 +5,7 @@
 #pragma once
 
 #include "../../../DisplayPresentation/FrontierHost.h"
+#include "../../../DisplayPresentation/ControlCentrePanel.h"
 #include "../../../DeviceExchange/WindowExchange.h"
 #include "../../../DeviceExchange/InputExchange.h"
 #include "../../../DisplayPresentation/FidelityClassifier.h"
@@ -34,7 +35,14 @@ public:
     void                    StepGameCycle(float DeltaSeconds) noexcept;
 
     [[nodiscard]] bool      IsRunning() const noexcept { return RunningCondition; }
+    [[nodiscard]] bool      ShouldClose() const noexcept { return Window ? Window->ShouldClose() : true; }
     [[nodiscard]] const VehicleTelemetry& QueryVehicleTelemetry() const noexcept { return Vehicle->QueryTelemetry(); }
+    [[nodiscard]] WindowExchange*         QueryWindow() noexcept { return Window.get(); }
+    [[nodiscard]] InputExchange*          QueryInput() noexcept { return Input.get(); }
+
+#if defined(FRONTIER_DEVELOPMENT)
+    [[nodiscard]] ControlCentrePanel*     QueryControlCentre() noexcept { return ControlCentre.get(); }
+#endif
 
     // Single unified conversion operator for vehicle speed
     template<typename TargetType>
@@ -48,6 +56,9 @@ private:
     std::unique_ptr<Frontier::WorldSpace>          World;       // [world] continuous 3D world space and scene transitions
     std::unique_ptr<VehicleSolver>                 Vehicle;     // [vehicle] vehicle dynamics solver
     std::unique_ptr<TrackSequence>                 Track;       // [track] checkpoint and lap tracking
+#if defined(FRONTIER_DEVELOPMENT)
+    std::unique_ptr<Frontier::ControlCentrePanel>  ControlCentre; // [control] top notch and editor preferences overlay
+#endif
     bool                                           RunningCondition; // [bool] game lifecycle status
 };
 
