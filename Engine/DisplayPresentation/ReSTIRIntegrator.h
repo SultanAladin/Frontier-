@@ -1,7 +1,8 @@
 //============================================================================================================================================
 //                                                      RESTIRINTEGRATOR.H
 //============================================================================================================================================
-// 🧩 Accumulates ReSTIR DI+GI radiance by numerically integrating light transport paths on the GPU compute pipeline.
+// 🧩 Drives the interim progressive path-tracing kernel (RIS direct lighting + one NEE bounce, running-mean accumulation).
+//    🚧 Not yet ReSTIR proper — see the status block at the top of Engine/Shaders/ReSTIRViewport.slang and plan v2.1.
 
 #pragma once
 
@@ -29,6 +30,7 @@ struct ReSTIRIntegratorConfiguration
     float       AmbientStrength;            // [-]   ambient fallback contribution
     bool        GlobalIllumination = true;  // [-]   secondary bounce on/off
     bool        AntiAliasing       = true;  // [-]   sub-pixel jitter on/off
+    bool        AmbientFloor       = false; // [-]   debug fill light (albedo × AmbientStrength); off by default since R0
 };
 
 //------------------------------------------------------------------------------------------------------------------------

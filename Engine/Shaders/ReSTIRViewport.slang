@@ -1,6 +1,13 @@
 //============================================================================================================================================
-// 📦 Engine/Shaders/ReSTIRViewport.slang — ReSTIR DI+GI Cornell Box Compute Shader Writing Directly to a Storage Image
+// 📦 Engine/Shaders/ReSTIRViewport.slang — Progressive path tracer with RIS direct lighting (interim kernel)
 //============================================================================================================================================
+// 🚧 HONEST STATUS (plan v2.1 R0): this is NOT ReSTIR as published. Per pixel it does
+//       • brute-force O(TriangleCount) primary / shadow / bounce rays (no acceleration structure — R3 replaces with CWBVH),
+//       • ReSTIR-DI *initial candidates only*: M light samples resampled with a weighted reservoir (correct RIS),
+//         with SpatialPassCount extra candidates folded in — there is NO temporal and NO spatial neighbour reuse (R5),
+//       • one cosine-sampled bounce with next-event estimation — plain 1-bounce path tracing, no GI reservoir (R6),
+//       • a running-mean accumulation that restarts on camera motion; no motion vectors, no denoiser (R2/R6).
+//    It is kept as the reference image source until the staged frame graph replaces it.
 // NOTE: GLSL source lowered to SPIR-V by the build scripts (glslc -fshader-stage=compute --target-env=vulkan1.2 -I Engine).
 //       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping lives in Shaders/RayGeneration.slang.
 
@@ -64,6 +71,7 @@ layout(push_constant) uniform ReSTIRConstants
 
 const uint kFeatureGlobalIllumination = 1u;   // bit 0: trace the secondary bounce (section 4)
 const uint kFeatureAntiAliasing       = 2u;   // bit 1: sub-pixel jitter on the primary ray (off = pixel centre)
+const uint kFeatureAmbientFloor       = 4u;   // bit 2: add albedo × AmbientStrength (debug fill light; default OFF)
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    PCG RANDOM
@@ -209,7 +217,7 @@ vec3 SampleLightPoint(uint lightTriIdx, float u1, float u2)
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                           RESTIR DI — WEIGHTED RESERVOIR SAMPLING
+//                                  RIS DIRECT LIGHTING — WEIGHTED RESERVOIR SAMPLING (initial candidates)
 //------------------------------------------------------------------------------------------------------------------------
 
 struct Reservoir
@@ -325,7 +333,7 @@ void main()
     vec3 accumulatedRadiance = vec3(0.0);
 
     //------------------------------------------------------------------------------------------------------------------
-    // 3. ReSTIR DI — per-pixel initial candidates + spatial resampling
+    // 3. RIS direct lighting — per-pixel initial candidates (+ extra candidates); no temporal/spatial reuse yet
     //------------------------------------------------------------------------------------------------------------------
 
     if (LightTriangleCount > 0u)
@@ -382,10 +390,11 @@ void main()
             if (pHatSel > 0.0)
                 res.UnbiasedWeight = res.WeightSum / (float(res.SampleCount) * pHatSel);
 
-            // Spatial resampling (SpatialPassCount neighbour merges — approximate)
+            // Extra candidates (formerly mislabelled "spatial resampling"): SpatialPassCount further light samples
+            //    from THIS pixel, resampled with the same target function so the reservoir stays a valid RIS estimate.
+            //    True spatial reuse (neighbour reservoirs + validation) arrives with R5.
             for (uint sp = 0u; sp < SpatialPassCount; ++sp)
             {
-                // Resample from a neighbour reservoir (jitter around current pixel)
                 uint   nli    = uint(RandFloat(seed) * float(LightTriangleCount));
                 vec3   nlp    = SampleLightPoint(nli, RandFloat(seed), RandFloat(seed));
                 vec3   nToL   = nlp - hitPos;
@@ -394,8 +403,25 @@ void main()
                 uint   nMIdx  = floatBitsToUint(Triangles[TriangleCount - LightTriangleCount + nli].v0.w);
                 vec3   nEmit  = Materials[nMIdx].emissive.xyz;
                 float  nPHat  = nCos * length(nEmit) / (nDist * nDist + 0.001);
-                float  nW     = nPHat * res.UnbiasedWeight * float(res.SampleCount);
+                float  nW     = nPHat / (1.0 / float(LightTriangleCount));   // p̂ / p_source, same as the initial loop
                 ResampleCandidate(res, nlp, nW, seed);
+            }
+            // Recompute W for the final selection (the selected point may have changed).
+            {
+                vec3  toSel2   = res.SelectedPoint - hitPos;
+                float selDist2 = length(toSel2);
+                float cos2     = max(0.0, dot(hitNormal, toSel2 / selDist2));
+                vec3  emit2    = vec3(0.0);
+                float bd       = kInf;
+                for (uint li = 0u; li < LightTriangleCount; ++li)
+                {
+                    uint idx = TriangleCount - LightTriangleCount + li;
+                    vec3 c = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
+                    float d = distance(c, res.SelectedPoint);
+                    if (d < bd) { bd = d; emit2 = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
+                }
+                float pHat2 = cos2 * length(emit2) / (selDist2 * selDist2 + 0.001);
+                res.UnbiasedWeight = pHat2 > 0.0 ? res.WeightSum / (float(res.SampleCount) * pHat2) : 0.0;
             }
 
             // Evaluate visibility and shade
@@ -423,7 +449,7 @@ void main()
     }
 
     //------------------------------------------------------------------------------------------------------------------
-    // 4. ReSTIR GI — one secondary bounce (cosine-sampled hemisphere); skipped when the GI feature is off
+    // 4. One-bounce indirect (plain path tracing with NEE, no GI reservoir); skipped when the GI feature is off
     //------------------------------------------------------------------------------------------------------------------
     if ((FeatureFlags & kFeatureGlobalIllumination) != 0u)
     {
@@ -472,9 +498,10 @@ void main()
     }
 
     //------------------------------------------------------------------------------------------------------------------
-    // 5. Ambient fallback + tone map + write
+    // 5. Ambient floor (debug only — flag kFeatureAmbientFloor; a real GI pass makes it unnecessary) + tone map + write
     //------------------------------------------------------------------------------------------------------------------
-    accumulatedRadiance += albedo * AmbientStrength;
+    if ((FeatureFlags & kFeatureAmbientFloor) != 0u)
+        accumulatedRadiance += albedo * AmbientStrength;
 
     Resolve(pixel, accumulatedRadiance);
 }

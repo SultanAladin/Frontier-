@@ -34,6 +34,7 @@ struct SlateConfiguration
     static constexpr uint32_t SchemaVersion = 1u;
 
     ControlCentreSettings    Render;          // Revision is transient and not persisted
+    RenderBackendConfiguration Backend;       // [render] ray_tracing_tier … (engine-level, applied at bring-up)
     AppearanceSettings       Appearance;
     InputPreferences         Input;
     NotificationPreferences  Notifications;

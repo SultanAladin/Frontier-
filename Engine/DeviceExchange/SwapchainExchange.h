@@ -10,6 +10,7 @@
 #endif
 
 #include "InputExchange.h"
+#include "RayTracingCapabilitySet.h"
 #include "OrientationClassifier.h"
 #include <cstdint>
 #include <vector>
@@ -108,7 +109,8 @@ struct DispatchConfiguration
 enum DispatchFeature : uint32_t
 {
     DispatchFeatureGlobalIllumination = 1u << 0,
-    DispatchFeatureAntiAliasing       = 1u << 1
+    DispatchFeatureAntiAliasing       = 1u << 1,
+    DispatchFeatureAmbientFloor       = 1u << 2    // debug fill light (R0: off by default)
 };
 
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
@@ -147,6 +149,13 @@ public:
     void                        AssignPresentPacing(PresentPacingCategory Desired) noexcept;
     void                        AssignFullscreen(bool Desired) noexcept;
     [[nodiscard]] PresentPacingCategory QueryPresentPacing() const noexcept { return Pacing; }
+
+    // Ray-tracing capability (plan v2.1 §3.4): probed once the physical device is chosen. The request comes from
+    //    Slate.config.toml [render] ray_tracing_tier; the resolved tier is what the renderer must build for.
+    void                        AssignRayTracingRequest(RayTracingRequestCategory Request) noexcept { RayTracingRequest = Request; }
+    [[nodiscard]] const RayTracingCapabilitySet& QueryRayTracingCapabilities() const noexcept { return Capabilities; }
+    [[nodiscard]] RayTracingTierCategory QueryRayTracingTier() const noexcept { return Capabilities.ResolveTier(RayTracingRequest); }
+    [[nodiscard]] RayTracingRequestCategory QueryRayTracingRequest() const noexcept { return RayTracingRequest; }
     [[nodiscard]] bool          QueryFullscreen() const noexcept { return FullscreenActive; }
     [[nodiscard]] const char*   QueryPresentModeName() const noexcept;   // resolved VkPresentModeKHR, for diagnostics
 
@@ -197,6 +206,8 @@ private:
     PresentPacingCategory   Pacing;              // [-]   requested pacing (default VerticalSyncOn)
     uint32_t                ResolvedPresentMode; // [-]   VkPresentModeKHR chosen at the last swapchain build
     bool                    FullscreenActive;    // [-]   window currently covers the primary monitor
+    RayTracingCapabilitySet Capabilities;        // [-]   probed in BringPhysicalDevice
+    RayTracingRequestCategory RayTracingRequest = RayTracingRequestCategory::Auto;
     int                     WindowedX, WindowedY, WindowedW, WindowedH;   // [px] rectangle to restore on leaving fullscreen
 
     InputExchange*          ForwardInput;        // [-]   target for GLFW callback forwarding (valid during PollInput)

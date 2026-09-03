@@ -34,6 +34,7 @@ FRONTIER_NAMES(SampleCountCategory,      "1x", "2x", "4x", "8x");
 FRONTIER_NAMES(ThemeCategory,            "Oled", "Dark", "Dim", "Light", "Sepia", "Dracula", "Nord", "GitHub");
 FRONTIER_NAMES(AccentCategory,           "White", "Orange", "Amber", "Lime", "Emerald", "Cyan", "Blue", "Violet", "Fuchsia", "Rose");
 FRONTIER_NAMES(InputProfileCategory,     "Blender", "MayaUnity", "Unreal");
+FRONTIER_NAMES(RayTracingTierRequestCategory, "Auto", "Software", "RayQuery", "Pipeline");
 FRONTIER_NAMES(FontWeightCategory,       "Thin", "ExtraLight", "Light", "Regular", "Medium", "SemiBold", "Bold", "ExtraBold", "Black");
 #undef FRONTIER_NAMES
 
@@ -133,6 +134,7 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "notifications",       P.Render.Notifications },
         { "quality",             NameOf(P.Render.Quality) },
         { "render_scale",        static_cast<double>(P.Render.RenderScale) },
+        { "ray_tracing_tier",    NameOf(P.Backend.RayTracingTier) },   // Auto | Software | RayQuery | Pipeline (never faked upward)
     });
 
     const AppearanceSettings& A = P.Appearance;
@@ -218,6 +220,7 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         S.GetEnum("quality",         Out.Render.Quality);
         S.Get("render_scale",        Out.Render.RenderScale);
         Out.Render.RenderScale = std::clamp(Out.Render.RenderScale, 0.25f, 1.0f);
+        S.GetEnum("ray_tracing_tier",    Out.Backend.RayTracingTier);
     }
     {
         AppearanceSettings& A = Out.Appearance;

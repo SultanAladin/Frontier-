@@ -9,6 +9,20 @@
 namespace Frontier {
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                              RENDER BACKEND CONFIGURATION
+//------------------------------------------------------------------------------------------------------------------------
+// Engine-level (not per-page) settings read at device bring-up. Lives under [render] next to the dashboard record.
+
+// Mirrors RayTracingRequestCategory (DeviceExchange) without pulling Vulkan headers into the presentation layer.
+enum class RayTracingTierRequestCategory : uint32_t { Auto = 0, Software = 1, RayQuery = 2, Pipeline = 3, Count = 4 };
+
+struct RenderBackendConfiguration
+{
+    RayTracingTierRequestCategory RayTracingTier = RayTracingTierRequestCategory::Auto;   // [render] ray_tracing_tier
+    [[nodiscard]] bool operator==(const RenderBackendConfiguration&) const noexcept = default;
+};
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                  INPUT PREFERENCES
 //------------------------------------------------------------------------------------------------------------------------
 

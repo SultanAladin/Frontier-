@@ -1,6 +1,6 @@
-# ReSTIR realtime architecture plan — v2 (refined)
+# ReSTIR realtime architecture plan — v2.1 (refined + research-reviewed)
 
-Date: 2026-09-04
+Date: 2026-09-04 (v2.1 amendments same day)
 Supersedes: `RestirGIRealtimeArchitecturePlan.md` (2026-08-25). Planning only — no renderer code changes accompany this document.
 
 This revision folds in three things the v1 plan did not have: (1) an audit of what is actually in the tree today, (2) how *many* meshes get into the renderer at all (scene → GPU buffers → acceleration structure → visibility), and (3) how a visibility raster / depth buffer fits, since it was asked whether an Unreal-style visibility pass helps ReSTIR. Short answer: yes, it is the natural primary-ray stage for Tier A and B and is exactly what ReSTIR wants as its G-buffer.
@@ -90,24 +90,24 @@ Visibility pass + resolve on a GTX 1060 at 1080p is ~1–2 ms for a few million 
 
 ## 3. Acceleration structures
 
-### 3.1 Tier A — Slate software BVH (compute, works on any Vulkan 1.2 device)
+### 3.1 Tier A — Slate software BVH (compute, works on any Vulkan 1.2 device) — **the primary path for GTX-class cards**
 
-**Build (CPU, at load; background thread via `TaskScheduler`):**
-- Binned SAH builder (16 bins), leaves of ≤ 4 triangles, per **mesh** (bottom level).
-- Top level: SAH over instance world AABBs, rebuilt per frame (cheap: thousands of instances, not triangles).
-- Node layout (32 B, cache-line friendly, 2 nodes/line):
+v2.1 amendment: Pascal (GTX 10xx) never received `VK_KHR_ray_query` (NVIDIA's DXR fallback on those parts is a compute
+emulation that was not extended to Vulkan ray queries). Tier A is therefore not a fallback but the main path for the
+baseline card, and it must use the fastest known GPU layout rather than a hand-written binary BVH.
 
-```
-struct BvhNode { float3 minA; uint  leftOrFirst;   // internal: left child; leaf: first triangle
-                 float3 maxA; uint  countOrRight; } // leaf: count | 0x80000000; internal: right child
-```
-- Optional: **quantised 8-wide BVH** (Ylitie 2017) later for ~1.6× traversal speed. Not phase 1.
+**Build (CPU, at load; background thread via `TaskScheduler`) — via `tinybvh` (single header, MIT, ExternalPackages/tinybvh):**
+- `BVH::BuildHQ` (spatial splits) for static meshes, `BVH::Build` (binned SAH) for the rest → collapse to **CWBVH**
+  (compressed 8-wide BVH, Ylitie et al. 2017: 1.9–2.1× faster incoherent traversal than binary layouts, 35–60 % of the memory).
+- Top level: tinybvh TLAS over instance world AABBs, rebuilt per frame (thousands of instances, not triangles).
+- GPU H-PLOC builds for dynamic geometry are the later upgrade (R7), not phase 1.
 
 **Traversal (GLSL compute):**
-- Two-level: TLAS traversal yields (instance, BLAS root); transform ray into object space; BLAS traversal with a 24-entry stack in registers; closest-hit and any-hit (shadow, early-out) variants.
+- CWBVH traversal kernel ported from tinybvh's OpenCL sample (compressed node fetch, octant-ordered child visiting, compressed stack).
+- Two-level: TLAS yields (instance, BLAS root); transform ray into object space; closest-hit and any-hit (shadow, early-out) variants.
 - Triangles fetched from the shared `IndexBuffer`/`VertexSoa`, so no duplicate geometry.
 
-**Refit:** rigid instance motion only touches the TLAS. Skinned meshes get a per-frame BLAS refit (bottom-up AABB recompute, no re-split) — Phase 6.
+**Refit:** rigid instance motion only touches the TLAS. Skinned meshes get a per-frame BLAS refit — R7.
 
 ### 3.2 Tier B — Vulkan hardware AS (`VK_KHR_acceleration_structure` + `VK_KHR_ray_query`)
 
@@ -122,6 +122,10 @@ Only after Tier B is stable; for ReSTIR PT and material-heavy hit shaders. Not s
 ### 3.4 Capability detection
 
 `Engine/DeviceExchange/RayTracingCapabilitySet` (new): probes at device creation for `accelerationStructure`, `rayQuery`, `rayTracingPipeline`, `bufferDeviceAddress`, `descriptorIndexing`, 64-bit atomics, subgroup size. Tier = highest satisfied; **the config file can force a lower tier** (`[render] ray_tracing_tier = "software" | "ray_query" | "auto"`) via `ConfigurationRegistry`. A tier is never faked: if `ray_query` is requested but absent, downgrade and toast it.
+
+v2.1 amendment: trust the **device extension list** (`vkEnumerateDeviceExtensionProperties`), not the feature struct alone —
+early drivers reported `rayQuery = true` on Pascal and crashed at pipeline creation (Khronos Vulkan-Docs #1241). Before
+committing to Tier B, R4 builds a one-triangle BLAS/TLAS and traces one ray as a start-up smoke test.
 
 ---
 
@@ -177,11 +181,11 @@ The dashboard already exposes these five; the mapping just gains real meaning.
 | R0 | Honest rename + cleanup | shader/class comments say "progressive path tracer + RIS direct"; fake spatial loop removed; ambient floor behind a debug flag |
 | R1 | Capability + frame-graph skeleton | `RayTracingCapabilitySet`; render-graph resource table; `Slate.config.toml` `[render] ray_tracing_tier`; overlay shows detected tier |
 | R2 | Resident scene + GPU culling + visibility raster | glTF import of a real level (e.g. Sponza-class) via `GeometryStructure`; indirect draws; visId/depth/motion debug views in the FPS overlay |
-| R3 | Software BVH + `TraceClosest/TraceAny` | BVH build stats; shadow rays from the visibility buffer; shadowed direct light on the imported level |
+| R3 | tinybvh → CWBVH + `TraceClosest/TraceAny` | BVH build stats; shadow rays from the visibility buffer; shadowed direct light on the imported level |
 | R4 | Hardware AS path | same picture on RTX through `rayQueryEXT`; toggle between tiers with identical output |
-| R5 | ReSTIR DI proper | temporal + spatial reservoirs; many-light test scene (hundreds of emitters); diagnostics: M, W, age views |
-| R6 | ReSTIR GI + denoiser | GI reservoirs; internal à-trous; camera-motion capture showing no smear |
-| R7 | Skinned refit, discrete LOD, world-space reservoir cache, ReSTIR PT experiments | later |
+| R5 | ReSTIR DI proper | back-projected temporal + spatial reservoirs, **visibility reuse**, M-clamp (20×), 25°/10 % neighbour rejection; many-light scene; diagnostics: M, W, age views |
+| R6 | ReSTIR GI + denoiser | GI reservoirs; internal à-trous; camera-motion capture showing no smear. R6b (optional): NRD consumer |
+| R7 | GPU H-PLOC builds, skinned refit, discrete LOD, world-space reservoir cache, reservoir splatting / ReSTIR PT | later |
 
 Estimated order of magnitude: R1–R3 are the bulk of the plumbing; R5/R6 are the research-heavy parts.
 
@@ -204,3 +208,16 @@ Estimated order of magnitude: R1–R3 are the bulk of the plumbing; R5/R6 are th
 - **Is it performant / does it have acceleration structures?** No AS; O(triangles) per ray. Fine for the Cornell box only.
 - **Will a visibility raster / depth buffer help?** Yes, materially: it replaces the most expensive ray, and its depth/normal/id/motion outputs are precisely the validation inputs ReSTIR reuse needs (§2).
 - **How do we render lots of geometry at once?** Whole-scene resident buffers + GPU frustum/HiZ culling + indirect draws + visibility buffer (§1–2). That is the part of Unreal's approach that is achievable here; continuous LOD/streaming (Nanite) is explicitly out of scope until R7+.
+
+---
+
+## 9. v2.1 research review (why the amendments)
+
+| Choice | Finding | Action |
+|---|---|---|
+| Visibility raster front end | Wins over deferred as triangle density rises (−32 % pass cost at ~1 px triangles; up to 6.5× with software VRS); slightly slower only on huge-triangle scenes | keep |
+| Hand-written binary SAH BVH | CWBVH is 1.9–2.1× faster for incoherent rays at 35–60 % memory; tinybvh provides builders, TLAS and CWBVH layout with sample GPU traversal | **replace** |
+| Tier B "when available" | Pascal never got `VK_KHR_ray_query`; early drivers mis-reported support | **Tier A is primary; smoke-test AS** |
+| Back-projected ReSTIR reuse | Reservoir splatting (SIGGRAPH 2025) is 5–10 % faster / 10–20 % lower error but requires full-path (GRIS/Area ReSTIR) reservoirs | keep classic for R5/R6; splatting → R7 |
+| GPU-driven resident scene | mainstream; composes with visibility buffer | keep |
+| Internal denoiser | writing a production denoiser is its own project | à-trous first, NRD optional R6b |

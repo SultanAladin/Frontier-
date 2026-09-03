@@ -571,6 +571,23 @@ bool SwapchainExchange::BringPhysicalDevice() noexcept
     vkGetPhysicalDeviceMemoryProperties(Vulkan->PhysicalDevice, &Vulkan->MemoryProperties);
 
     std::cerr << "[SwapchainExchange] Using GPU: " << ChosenName << " (queue family " << ChosenFamily << ")\n";
+
+    // Ray-tracing tier (extension-first probe; see RayTracingCapabilitySet.h for why the feature struct alone is not trusted).
+    Capabilities = RayTracingCapabilitySet::Probe(Vulkan->PhysicalDevice);
+    const RayTracingTierCategory Supported = Capabilities.QuerySupportedTier();
+    const RayTracingTierCategory Resolved  = Capabilities.ResolveTier(RayTracingRequest);
+    std::cerr << "[SwapchainExchange] Ray tracing: supported = " << RayTracingCapabilitySet::TierName(Supported)
+              << ", requested = " << RayTracingCapabilitySet::RequestName(RayTracingRequest)
+              << ", using = " << RayTracingCapabilitySet::TierName(Resolved)
+              << "  [AS ext " << Capabilities.AccelerationStructureExtension << " feat " << Capabilities.AccelerationStructureFeature
+              << " | RQ ext " << Capabilities.RayQueryExtension << " feat " << Capabilities.RayQueryFeature
+              << " | RP ext " << Capabilities.RayTracingPipelineExtension
+              << " | BDA " << Capabilities.BufferDeviceAddress << " | bindless " << Capabilities.DescriptorIndexing
+              << " | subgroup " << Capabilities.SubgroupSize << "]  driver: " << Capabilities.DriverInfo << "\n";
+    if (RayTracingRequest != RayTracingRequestCategory::Auto
+        && static_cast<uint32_t>(Resolved) < static_cast<uint32_t>(RayTracingRequest) - 1u)
+        std::cerr << "[SwapchainExchange] Requested ray-tracing tier is not available on this device; downgraded to "
+                  << RayTracingCapabilitySet::TierName(Resolved) << ".\n";
     return true;
 }
 

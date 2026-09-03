@@ -207,6 +207,7 @@ set(FRONTIER_ENGINE_INCLUDES
 set(PROJECT_ZERO_SOURCES
     ${FRONTIER_ENGINE_SOURCES}
     Engine/DeviceExchange/SwapchainExchange.cpp
+    Engine/DeviceExchange/RayTracingCapabilitySet.cpp
     Engine/DisplayPresentation/ReSTIRIntegrator.cpp
     Engine/DisplayPresentation/RenderScheduler.cpp
     Projects/Project-Zero/Source/RayTracingSolver.cpp

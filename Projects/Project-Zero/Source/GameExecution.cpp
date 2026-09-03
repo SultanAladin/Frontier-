@@ -100,7 +100,14 @@ int main(int, char**)
         false       // validation layers — set true for debugging
     };
 
+    // Slate.config.toml is read before the device comes up: [render] ray_tracing_tier decides which traversal backend
+    //    the swapchain resolves (missing file = defaults = Auto).
+    Frontier::ConfigurationRegistry Configuration;
+    if (!Configuration.Load("Projects/Project-Zero/Content/Slate.config.toml"))
+        std::cerr << "[Configuration] " << Configuration.QueryPath() << ": " << Configuration.QueryLastError() << " - using defaults\n";
+
     Frontier::SwapchainExchange Surface(SurfaceConfig);
+    Surface.AssignRayTracingRequest(static_cast<Frontier::RayTracingRequestCategory>(Configuration.Query().Backend.RayTracingTier));
 
     if (!Surface.Bring())
     {
@@ -137,11 +144,8 @@ int main(int, char**)
     ControlCentre.AssignProjectName("Project-Zero");
     (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
 
-    // Persisted preferences: Projects/Project-Zero/Content/Slate.config.toml (missing file = defaults). The hosts are
-    //    seeded before the first frame; every Apply / debounced dashboard change writes the file back.
-    Frontier::ConfigurationRegistry Configuration;
-    if (!Configuration.Load("Projects/Project-Zero/Content/Slate.config.toml"))
-        std::cerr << "[Configuration] " << Configuration.QueryPath() << ": " << Configuration.QueryLastError() << " - using defaults\n";
+    // The hosts are seeded from the configuration loaded before bring-up; every Apply / debounced dashboard change
+    //    writes the file back.
     ControlCentre.SeedSettings(Configuration.Query().Render);
     ControlCentre.AccessAppearance().Seed(Configuration.Query().Appearance);
     ControlCentre.AccessInput().Seed(Configuration.Query().Input);
@@ -152,6 +156,18 @@ int main(int, char**)
     Frontier::FidelityClassifier Fidelity;
     Frontier::NotificationQueue  Notifications;
     Frontier::TelemetryMetrics   Telemetry;
+    {
+        // R1: announce the resolved ray-tracing backend once; a downgrade from an explicit request is an Info toast.
+        const Frontier::RayTracingRequestCategory Req = Surface.QueryRayTracingRequest();
+        const Frontier::RayTracingTierCategory    Use = Surface.QueryRayTracingTier();
+        const bool Downgraded = Req != Frontier::RayTracingRequestCategory::Auto && static_cast<uint32_t>(Use) + 1u < static_cast<uint32_t>(Req);
+        if (Downgraded)
+        {
+            char Body[128];
+            std::snprintf(Body, sizeof(Body), "%s requested, device supports %s", Frontier::RayTracingCapabilitySet::RequestName(Req), Frontier::RayTracingCapabilitySet::TierName(Use));
+            Notifications.Push("Ray-tracing tier downgraded", Body);
+        }
+    }
     uint32_t AppliedSettingsRevision = ~0u;   // forces the first application
     float    SettingsQuietSeconds    = 0.0f;  // [s] since the last change; the toast waits for the slider to rest
     bool     SettingsToastPending    = false;
@@ -404,8 +420,9 @@ int main(int, char**)
         if (Telemetry.QueryRows().ShowScene)
         {
             char Line[96];
-            std::snprintf(Line, sizeof(Line), "Cornell  |  %zu tris  |  %u luminaire tris  |  %ux%u  |  frame %u",
-                          Scene.QueryTriangles().size(), LuminaireCount, RenderWidth, RenderHeight, Integrator.QueryAccumulationIndex());
+            std::snprintf(Line, sizeof(Line), "Cornell  |  %zu tris  |  %u luminaire tris  |  %ux%u  |  frame %u  |  %s",
+                          Scene.QueryTriangles().size(), LuminaireCount, RenderWidth, RenderHeight, Integrator.QueryAccumulationIndex(),
+                          Frontier::RayTracingCapabilitySet::TierName(Surface.QueryRayTracingTier()));
             Frontier::TelemetryRowStructure Rows = Telemetry.QueryRows(); Rows.SceneLine = Line; Telemetry.AssignRows(Rows);
         }
         const Frontier::DispatchConfiguration Dispatch = Integrator.BuildDispatch(
