@@ -93,6 +93,13 @@ public:
     [[nodiscard]] uint32_t BeginGroup() const noexcept;
     void EndGroup(uint32_t Mark, float OffsetX, float OffsetY, float Scale, float PivotX, float PivotY, float Alpha) noexcept;
 
+    // ── Typeface ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    // Text / MeasureText use the face on top of this stack (nullptr → the backend default font). Handles come from
+    //    TypefaceRegistry::QueryHandle. The stack is per-surface and reset by Begin().
+    void PushTypeface(void* FaceHandle) noexcept;
+    void PopTypeface() noexcept;
+    [[nodiscard]] void* QueryTypeface() const noexcept { return TypefaceDepth > 0u ? TypefaceStack[TypefaceDepth - 1u] : nullptr; }
+
     // ── Measurement ──────────────────────────────────────────────────────────────────────────────────────────────────
     [[nodiscard]] PlanePoint MeasureText(const char* Utf8, float FontSizePixels = 0.0f) const noexcept;
     [[nodiscard]] float      QueryDisplayWidth()  const noexcept { return DisplayWidth;  }
@@ -103,6 +110,8 @@ private:
     void*   Commands;        // [-]  the backend draw list for the current frame (opaque above this seam)
     float   DisplayWidth;    // [px]
     float   DisplayHeight;   // [px]
+    void*   TypefaceStack[8];
+    uint32_t TypefaceDepth;
 };
 
 } // namespace Frontier

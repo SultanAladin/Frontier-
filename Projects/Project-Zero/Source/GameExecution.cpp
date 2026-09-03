@@ -12,6 +12,7 @@
 #include "../../../Engine/DisplayPresentation/FidelityClassifier.h"
 #include "../../../Engine/DisplayPresentation/NotificationQueue.h"
 #include "../../../Engine/DisplayPresentation/TelemetryMetrics.h"
+#include "../../../Engine/DisplayPresentation/TypefaceRegistry.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
@@ -123,6 +124,12 @@ int main(int, char**)
     //──────────────────────────────────────────────────────────────────────────
     // Control Centre — top notch + pull-down shade (engine overlay, drawn above every ImGui window)
     //──────────────────────────────────────────────────────────────────────────
+    // Typefaces: every static face under EngineContent/FontArchives, loaded once into the dynamic atlas (Vulkan backend
+    //    rasterises glyphs on demand). The Fonts tab reads the registry; PixelSpace text honours the applied face.
+    Frontier::TypefaceRegistry Typefaces;
+    (void)Typefaces.Load("EngineContent/FontArchives");
+    Frontier::TypefaceRegistry::Install(&Typefaces);
+
     Frontier::ControlCentreHost ControlCentre;
     ControlCentre.AssignProjectName("Project-Zero");
     (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
@@ -232,8 +239,9 @@ int main(int, char**)
                 const Frontier::AppearanceSettings& P = A.QueryApplied();
                 AppliedAppearanceRevision = A.QueryRevision();
                 char Body[128];
-                std::snprintf(Body, sizeof(Body), "%s  |  UI %d%%  |  radius %dpx  |  V-Sync %s%s",
-                              Frontier::AppearanceInspector::QueryThemeName(P.Theme), static_cast<int>(P.InterfaceScale),
+                const Frontier::TypefaceFamily* Fam = Typefaces.QueryFamily(P.FontFamily);
+                std::snprintf(Body, sizeof(Body), "%s  |  %s  |  UI %d%%  |  radius %dpx  |  V-Sync %s%s",
+                              Frontier::AppearanceInspector::QueryThemeName(P.Theme), Fam ? Fam->Name.c_str() : "default face", static_cast<int>(P.InterfaceScale),
                               static_cast<int>(P.CornerRadius),
                               P.VerticalSync == Frontier::VerticalSyncCategory::Off ? "off" : P.VerticalSync == Frontier::VerticalSyncCategory::On ? "on" : "adaptive",
                               P.Fullscreen ? "  |  fullscreen" : "");

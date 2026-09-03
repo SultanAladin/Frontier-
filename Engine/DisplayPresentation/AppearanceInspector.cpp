@@ -2,6 +2,7 @@
 // 🧩 AppearanceInspector — see AppearanceInspector.h
 //========================================================================================================================
 #include "AppearanceInspector.h"
+#include "TypefaceRegistry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -66,6 +67,8 @@ constexpr const char* SampleNames[]     = { "1x", "2x", "4x", "8x" };
 AppearanceInspector::AppearanceInspector() noexcept
     : Applied{}, Draft{}, Revision(0u), OpenDropdown(-1), DraggingSlider(-1), Dropdowns{ DropdownRecord{ {}, nullptr, 0u, 0u, -1 }, DropdownRecord{ {}, nullptr, 0u, 0u, -1 }, DropdownRecord{ {}, nullptr, 0u, 0u, -1 }, DropdownRecord{ {}, nullptr, 0u, 0u, -1 } }, DropdownCount(0u)
     , TileExtents{}, AccentExtents{}, RadiusSliderExtent{}, ScaleSliderExtent{}, DropdownExtents{}, FullscreenSwitchExtent{}, VsyncExtent{}
+    , StripScroll(0.0f), StripScrollTarget(0.0f), StripContentWidth(0.0f), StripViewWidth(0.0f)
+    , FontCardExtents{}, StripBackExtent{}, StripForwardExtent{}, RoleSliderExtents{}, ChipExtents{}, FontAaSwitchExtent{}, LigatureSwitchExtent{}
 {
 }
 
@@ -106,6 +109,13 @@ AppearanceDifference AppearanceInspector::QueryDifference() const noexcept
     Note(Draft.SuccessSwatch    != Applied.SuccessSwatch,    "Success colour");
     Note(Draft.InfoSwatch       != Applied.InfoSwatch,       "Info colour");
     Note(Draft.CautionSwatch    != Applied.CautionSwatch,    "Caution colour");
+    Note(Draft.FontFamily       != Applied.FontFamily,       "Font family");
+    bool Sizes = false, Weights = false;
+    for (uint32_t R = 0u; R < AppearanceSettings::TypeRoleCount; ++R) { Sizes |= Draft.RoleSize[R] != Applied.RoleSize[R]; Weights |= Draft.RoleWeight[R] != Applied.RoleWeight[R]; }
+    Note(Sizes,   "Type scale");
+    Note(Weights, "Font weights");
+    Note(Draft.FontAntialiasing != Applied.FontAntialiasing, "Font antialiasing");
+    Note(Draft.Ligatures        != Applied.Ligatures,        "Ligatures");
     return D;
 }
 
@@ -442,6 +452,288 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 1u, "Success", Draft.SuccessSwatch, ControlCentreIconCategory::CircleCheck,   Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 2u, "Info",    Draft.InfoSwatch,    ControlCentreIconCategory::CircleInfo,    Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 3u, "Caution", Draft.CautionSwatch, ControlCentreIconCategory::OctagonAlert,  Radius, true,  Pointer, Opacity);
+        Y += H + SectionGap;
+    }
+
+    if (Pointer.Released) DraggingSlider = -1;
+    return (Y + ScrollY) - Body.MinimumY - SectionGap;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                       FONTS TAB
+//------------------------------------------------------------------------------------------------------------------------
+//    Notch FontsTab.tsx — Typography strip · Typeface & Colors playground · Type Scale cards · Font Rendering.
+
+namespace {
+
+struct TypeRole { const char* Label; const char* Sample; };
+constexpr TypeRole Roles[AppearanceSettings::TypeRoleCount] =
+{
+    { "Title",     "Display Title" },
+    { "Header",    "Section Header" },
+    { "Subheader", "Card Subheader" },
+    { "Body",      "The quick brown fox jumps over the lazy dog." },
+    { "Label",     "Form Label" },
+    { "Caption",   "Small caption text" },
+};
+
+// Notch WEIGHTS[] chip order is alphabetical: Bold, ExtraBold, ExtraLight, Light, Medium, Regular, SemiBold (+ Thin, Black appended).
+constexpr FontWeightCategory ChipOrder[9] =
+{
+    FontWeightCategory::Bold, FontWeightCategory::ExtraBold, FontWeightCategory::ExtraLight, FontWeightCategory::Light,
+    FontWeightCategory::Medium, FontWeightCategory::Regular, FontWeightCategory::SemiBold, FontWeightCategory::Thin, FontWeightCategory::Black
+};
+
+void HexOf(ColorQuad C, char* Out, size_t N)
+{
+    std::snprintf(Out, N, "#%02X%02X%02X", static_cast<int>(C.Red * 255.0f + 0.5f), static_cast<int>(C.Green * 255.0f + 0.5f), static_cast<int>(C.Blue * 255.0f + 0.5f));
+}
+
+} // namespace
+
+const char* AppearanceInspector::QueryTypeRoleLabel(uint32_t Role) noexcept
+{
+    return Roles[std::min(Role, AppearanceSettings::TypeRoleCount - 1u)].Label;
+}
+
+void* AppearanceInspector::QueryAppliedFace(uint32_t Role) const noexcept
+{
+    const TypefaceRegistry* Reg = TypefaceRegistry::QueryCurrent();
+    if (!Reg || Role >= AppearanceSettings::TypeRoleCount) return nullptr;
+    return Reg->QueryHandle(Applied.FontFamily, Applied.RoleWeight[Role]);
+}
+
+PlaneExtent AppearanceInspector::QueryRoleWeightChipExtent(uint32_t Role, FontWeightCategory Weight) const noexcept
+{
+    if (Role >= AppearanceSettings::TypeRoleCount) return {};
+    return ChipExtents[Role][TypefaceRegistry::WeightOrdinal(Weight)];
+}
+
+void AppearanceInspector::AdvanceFontsTab(float DeltaSeconds) noexcept
+{
+    // scroll-smooth: exponential approach, ~200 ms
+    const float Room = std::max(StripContentWidth - StripViewWidth, 0.0f);
+    StripScrollTarget = std::clamp(StripScrollTarget, 0.0f, Room);
+    const float K = 1.0f - std::exp(-DeltaSeconds * 18.0f);
+    StripScroll += (StripScrollTarget - StripScroll) * K;
+    if (std::fabs(StripScrollTarget - StripScroll) < 0.25f) StripScroll = StripScrollTarget;
+}
+
+float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const PlaneExtent& Body, float ScrollY, const ControlPointer& Pointer, float Opacity) noexcept
+{
+    DropdownCount = 0u;
+    const TypefaceRegistry* Reg = TypefaceRegistry::QueryCurrent();
+    const float Radius = std::clamp(Draft.CornerRadius, 0.0f, SectionRadiusMax);
+    const float X = Body.MinimumX, W = Body.Width();
+    float Y = Body.MinimumY - ScrollY;
+    const ColorQuad Accent = QueryAccentColour(Draft.Accent);
+    const uint32_t FamilyCount = Reg ? Reg->QueryFamilyCount() : 0u;
+    if (Reg && Draft.FontFamily >= FamilyCount && FamilyCount > 0u) Draft.FontFamily = 0u;
+    auto Face = [&](FontWeightCategory Wt) -> void* { return Reg ? Reg->QueryHandle(Draft.FontFamily, Wt) : nullptr; };
+    const char* FamilyName = (Reg && Reg->QueryFamily(Draft.FontFamily)) ? Reg->QueryFamily(Draft.FontFamily)->Name.c_str() : "Default";
+    constexpr float SpaceY10 = 40.0f;   // space-y-10
+
+    // ① Typography — heading row + ‹ › + horizontal card strip (flex gap-4, cards w-48 p-5, pb-4 under the strip).
+    {
+        const float HeadH = 20.0f + 4.0f + 16.0f;   // title + gap-1 + desc  (mb-4 below)
+        Surface.Text(X, Y + 2.0f, ControlKit::Faded(Ink90, Opacity), "Typography", 14.0f);
+        Surface.Text(X, Y + 24.0f, ControlKit::Faded(Ink50, Opacity), "Typeface, type scale, and font weights", 12.0f);
+        const float BtnCy = Y + HeadH - 16.0f;   // items-end
+        StripForwardExtent = Spanning(X + W - 32.0f, BtnCy - 16.0f, 32.0f, 32.0f);
+        StripBackExtent    = Spanning(X + W - 32.0f - 8.0f - 32.0f, BtnCy - 16.0f, 32.0f, 32.0f);
+        if (ControlKit::RoundIconButton(Surface, StripBackExtent.MinimumX + 16.0f,    BtnCy, ControlCentreIconCategory::ChevronBack,    Pointer, Opacity).Clicked) StripScrollTarget -= 300.0f;
+        if (ControlKit::RoundIconButton(Surface, StripForwardExtent.MinimumX + 16.0f, BtnCy, ControlCentreIconCategory::ChevronForward, Pointer, Opacity).Clicked) StripScrollTarget += 300.0f;
+        Y += HeadH + 16.0f;
+
+        const float CardW = 192.0f, CardGap = 16.0f, CardPad = 20.0f;
+        const float CardH = CardPad + 32.0f + 16.0f + 20.0f + 4.0f + 16.0f + CardPad;   // Aa(text-2xl ≈32) mb-4, name 20 mb-1, sentence 16
+        StripViewWidth = W; StripContentWidth = FamilyCount * (CardW + CardGap) - CardGap;
+        const PlaneExtent Strip = Spanning(X, Y, W, CardH);
+        Surface.PushClip(PlaneExtent{ Strip.MinimumX, Strip.MinimumY - 2.0f, Strip.MaximumX, Strip.MaximumY + 2.0f });
+        // horizontal wheel / shift-less: the host maps vertical wheel to page scroll, so the strip uses the arrows only (Notch: same).
+        for (uint32_t I = 0u; I < FamilyCount && I < 10u; ++I)
+        {
+            const TypefaceFamily* Fam = Reg->QueryFamily(I);
+            const PlaneExtent Card = Spanning(X + I * (CardW + CardGap) - StripScroll, Y, CardW, CardH);
+            FontCardExtents[I] = Card;
+            const bool Active = Draft.FontFamily == I;
+            ControlPointer Local = Pointer; Local.Enabled = Pointer.Enabled && Strip.Encloses(Pointer.X, Pointer.Y);
+            const bool Hover = ControlKit::Over(Card, Local);
+            if (Active) Surface.FillRectangle(Card, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius);              // fontActiveBg
+            else if (Hover) Surface.FillRectangle(Card, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius);         // hover:activeBg
+            ControlKit::OutlineRounded(Surface, Card, ControlKit::Faded(Active ? Accent : Ink10, Opacity), Radius);
+            Surface.PushTypeface(Reg->QueryHandle(I, FontWeightCategory::Regular));
+            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad, ControlKit::Faded(Ink90, Opacity), "Aa", 24.0f);
+            Surface.PopTypeface();
+            Surface.PushTypeface(Face(FontWeightCategory::Medium));
+            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad + 32.0f + 16.0f + 2.0f, ControlKit::Faded(Ink90, Opacity), Fam->Name.c_str(), 14.0f);
+            Surface.PopTypeface();
+            Surface.PushClip(PlaneExtent{ Card.MinimumX + CardPad, Card.MinimumY, Card.MaximumX - CardPad, Card.MaximumY });
+            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad + 32.0f + 16.0f + 20.0f + 4.0f + 2.0f, ControlKit::Faded(Ink50, Opacity), "The quick brown fox jumps", 12.0f);
+            Surface.PopClip();
+            if (Hover && Pointer.Released) Draft.FontFamily = I;
+        }
+        Surface.PopClip();
+        Y += CardH + 16.0f + SpaceY10;   // pb-4 + space-y-10
+    }
+
+    // ② Typeface & Colors playground — p-6 card; grid [1fr auto] gap-8: preview box (p-10) | column min-w-280.
+    {
+        const float HeadH = 20.0f + 24.0f;   // text-sm bold mb-6
+        const float ColW = 280.0f;
+        const float ColumnH = (3.0f * 18.0f + 2.0f * 4.0f) + 32.0f + (16.0f + 4.0f + 16.0f + 16.0f) + 32.0f + (48.0f + 8.0f + 4.0f + 2.0f * 13.0f + 2.0f);
+        const float PreviewH = 40.0f + 72.0f + 16.0f + 20.0f + 40.0f;
+        const float InnerH = std::max(ColumnH, PreviewH);
+        const float H = ControlKit::SectionPadding * 2.0f + HeadH + InnerH;
+        const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
+        Surface.Text(Content.MinimumX, Content.MinimumY + 2.0f, ControlKit::Faded(Ink90, Opacity), "Typeface & Colors", 14.0f);
+
+        const float Top = Content.MinimumY + HeadH;
+        const PlaneExtent Preview = PlaneExtent{ Content.MinimumX, Top, Content.MaximumX - 32.0f - ColW, Top + InnerH };
+        Surface.FillRectangle(Preview, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius * 0.8f);
+        ControlKit::OutlineRounded(Surface, Preview, ControlKit::Faded(Ink10, Opacity), Radius * 0.8f);
+        {
+            Surface.PushClip(Preview);
+            const float Cy = (Preview.MinimumY + Preview.MaximumY) * 0.5f - (72.0f + 16.0f + 20.0f) * 0.5f;
+            Surface.PushTypeface(Face(FontWeightCategory::Bold));
+            Surface.Text(Preview.MinimumX + 40.0f, Cy, ControlKit::Faded(Ink90, Opacity), FamilyName, 72.0f);
+            Surface.PopTypeface();
+            Surface.Text(Preview.MinimumX + 40.0f, Cy + 72.0f + 16.0f, ControlKit::Faded(Ink50, Opacity), "(72px bold)", 14.0f);
+            Surface.PopClip();
+        }
+        {
+            const float Cx = Content.MaximumX - ColW;
+            float Cy = Top + (InnerH - ColumnH) * 0.5f;   // justify-center
+            // Mono glyph rows: text-[11px] leading-relaxed, font-mono — rendered in JetBrains Mono when present.
+            void* Mono = nullptr; if (Reg) { const int32_t M = Reg->FindFamily("JetBrains Mono"); if (M >= 0) Mono = Reg->QueryHandle(static_cast<uint32_t>(M), FontWeightCategory::Regular); }
+            Surface.PushTypeface(Mono);
+            Surface.Text(Cx, Cy,         ControlKit::Faded(Ink50, Opacity), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 11.0f);
+            Surface.Text(Cx, Cy + 22.0f, ControlKit::Faded(Ink50, Opacity), "abcdefghijklmnopqrstuvwxyz", 11.0f);
+            Surface.Text(Cx, Cy + 44.0f, ControlKit::Faded(Ink50, Opacity), "0123456789 !@#$%^&*()", 11.0f);
+            Surface.PopTypeface();
+            Cy += 3.0f * 18.0f + 2.0f * 4.0f + 32.0f;
+            char Hex[8]; HexOf(Accent, Hex, sizeof(Hex));
+            char Line[96];
+            Surface.PushTypeface(Face(FontWeightCategory::SemiBold));
+            Surface.Text(Cx, Cy, ControlKit::Faded(Accent, Opacity), "Accent", 12.0f);
+            const float AccW = Surface.MeasureText("Accent", 12.0f).X;
+            Surface.PopTypeface();
+            Surface.PushTypeface(Face(FontWeightCategory::Regular));
+            Surface.Text(Cx + AccW, Cy, ControlKit::Faded(Accent, Opacity), " \xE2\x80\x94 The quick brown fox jumps over...", 12.0f);
+            std::snprintf(Line, sizeof(Line), "(rendered in %s)", Hex);
+            ColorQuad AccentDim = Accent; AccentDim.Alpha *= 0.7f;
+            Surface.Text(Cx, Cy + 20.0f, ControlKit::Faded(AccentDim, Opacity), Line, 12.0f);
+            Surface.PopTypeface();
+            Cy += 16.0f + 4.0f + 16.0f + 16.0f + 32.0f;
+            // Three discs: accent / #FFFFFF / #000000 with hex + label (gap-6, 48 px, mt-1, 10 px lines)
+            struct Disc { ColorQuad Colour; const char* Label; } Discs[3] = { { Accent, "Accent" }, { ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f }, "Primary" }, { ColorQuad{ 0.0f, 0.0f, 0.0f, 1.0f }, "Background" } };
+            float Dx = Cx;
+            for (const Disc& D : Discs)
+            {
+                ControlKit::FillCircle(Surface, Dx + 24.0f, Cy + 24.0f, 24.0f, ControlKit::Faded(D.Colour, Opacity));
+                ControlKit::OutlineCircle(Surface, Dx + 24.0f, Cy + 24.0f, 23.5f, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), 1.0f);
+                HexOf(D.Colour, Hex, sizeof(Hex));
+                Surface.PushTypeface(Face(FontWeightCategory::SemiBold));
+                Surface.Text(Dx, Cy + 48.0f + 12.0f, ControlKit::Faded(Ink90, Opacity), Hex, 10.0f);
+                Surface.PopTypeface();
+                Surface.Text(Dx, Cy + 48.0f + 12.0f + 15.0f, ControlKit::Faded(Ink50, Opacity), D.Label, 10.0f);
+                Dx += std::max(48.0f, Surface.MeasureText(D.Label, 10.0f).X) + 24.0f;
+            }
+        }
+        Y += H + SpaceY10;
+    }
+
+    // ③ Type Scale — Desktop: uppercase tracked heading, then per-role cards grid [300px 1fr] gap-8.
+    {
+        Surface.Text(X, Y + 2.0f, ControlKit::Faded(Ink50, Opacity), "TYPE SCALE - DESKTOP", 12.0f);
+        Y += 16.0f + 24.0f + 16.0f;   // mb-6 + pt-4
+        for (uint32_t R = 0u; R < AppearanceSettings::TypeRoleCount; ++R)
+        {
+            // Chips for the weights this family actually ships (Notch: fixed seven; ours: per-family, flagged).
+            uint32_t ChipCount = 0u; FontWeightCategory Chips[9]; float ChipW[9];
+            for (FontWeightCategory Wt : ChipOrder)
+                if (!Reg || Reg->HasWeight(Draft.FontFamily, Wt)) { Chips[ChipCount] = Wt; ChipW[ChipCount] = ControlKit::ChipWidth(Surface, TypefaceRegistry::WeightLabel(Wt)); ++ChipCount; }
+            // Snap the role's weight to a shipped face so the chip row always shows a selection.
+            if (Reg) { const TypefaceFace* Snap = Reg->Resolve(Draft.FontFamily, Draft.RoleWeight[R]); if (Snap) Draft.RoleWeight[R] = Snap->Weight; }
+
+            // Wrap chips into rows of 300 px (flex-wrap gap-3).
+            const float LeftW = 300.0f;
+            uint32_t RowsNeeded = 1u; { float Cx = 0.0f; for (uint32_t C = 0u; C < ChipCount; ++C) { if (Cx > 0.0f && Cx + ChipW[C] > LeftW) { ++RowsNeeded; Cx = 0.0f; } Cx += ChipW[C] + 12.0f; } }
+            const float LeftH = 20.0f + 24.0f + ControlKit::SliderThinHeight + 32.0f + RowsNeeded * ControlKit::ChipHeight + (RowsNeeded - 1u) * 12.0f;
+            const float H = ControlKit::SectionPadding * 2.0f + std::max(LeftH, 100.0f);
+            const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
+            const float Top = Content.MinimumY + (Content.Height() - LeftH) * 0.5f;   // items-center
+
+            // Left: label / "Npx" / slider / chips
+            char Px[16]; std::snprintf(Px, sizeof(Px), "%dpx", static_cast<int>(std::lround(Draft.RoleSize[R])));
+            Surface.PushTypeface(Face(FontWeightCategory::Medium));
+            Surface.Text(Content.MinimumX, Top + 2.0f, ControlKit::Faded(Ink90, Opacity), Roles[R].Label, 14.0f);
+            Surface.PopTypeface();
+            const PlanePoint PxM = Surface.MeasureText(Px, 12.0f);
+            Surface.Text(Content.MinimumX + LeftW - PxM.X, Top + 3.0f, ControlKit::Faded(Ink50, Opacity), Px, 12.0f);
+            RoleSliderExtents[R] = Spanning(Content.MinimumX, Top + 20.0f + 24.0f - (ControlKitTokens::ControlHeight - ControlKit::SliderThinHeight) * 0.5f, LeftW, ControlKitTokens::ControlHeight);
+            {
+                float V = Draft.RoleSize[R];
+                const int Ordinal = 10 + static_cast<int>(R);
+                const ControlHit Hit = ControlKit::Slider(Surface, RoleSliderExtents[R], 8.0f, 72.0f, V, DraggingSlider == Ordinal, Pointer, V, true, false, Opacity);
+                if (Hit.Pressed) DraggingSlider = Ordinal;
+                if (DraggingSlider == Ordinal) Draft.RoleSize[R] = std::round(V);
+            }
+            {
+                float Cx = Content.MinimumX, Cy = Top + 20.0f + 24.0f + ControlKit::SliderThinHeight + 32.0f;
+                for (uint32_t O = 0u; O < 9u; ++O) ChipExtents[R][O] = PlaneExtent{};
+                for (uint32_t C = 0u; C < ChipCount; ++C)
+                {
+                    if (Cx > Content.MinimumX && Cx - Content.MinimumX + ChipW[C] > LeftW) { Cx = Content.MinimumX; Cy += ControlKit::ChipHeight + 12.0f; }
+                    const PlaneExtent Chip = Spanning(Cx, Cy, ChipW[C], ControlKit::ChipHeight);
+                    ChipExtents[R][TypefaceRegistry::WeightOrdinal(Chips[C])] = Chip;
+                    if (ControlKit::ChipButton(Surface, Chip, TypefaceRegistry::WeightLabel(Chips[C]), Draft.RoleWeight[R] == Chips[C], Pointer, Opacity).Clicked) Draft.RoleWeight[R] = Chips[C];
+                    Cx += ChipW[C] + 12.0f;
+                }
+            }
+
+            // Right: preview box p-6, radius × 0.7, min-h 100, sample text truncated at the role's size/weight.
+            const PlaneExtent Box = PlaneExtent{ Content.MinimumX + LeftW + 32.0f, Content.MinimumY, Content.MaximumX, Content.MaximumY };
+            Surface.FillRectangle(Box, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius * 0.7f);
+            ControlKit::OutlineRounded(Surface, Box, ControlKit::Faded(Ink10, Opacity), Radius * 0.7f);
+            Surface.PushClip(PlaneExtent{ Box.MinimumX + 24.0f, Box.MinimumY, Box.MaximumX - 24.0f, Box.MaximumY });
+            Surface.PushTypeface(Face(Draft.RoleWeight[R]));
+            const float LineH = Surface.MeasureText("Ag", Draft.RoleSize[R]).Y;
+            Surface.Text(Box.MinimumX + 24.0f, (Box.MinimumY + Box.MaximumY) * 0.5f - LineH * 0.5f, ControlKit::Faded(Ink90, Opacity), Roles[R].Sample, Draft.RoleSize[R]);
+            Surface.PopTypeface();
+            Surface.PopClip();
+
+            Y += H + 32.0f;   // space-y-8
+        }
+        Y += SpaceY10 - 32.0f;
+    }
+
+    // ④ Font Rendering — two switch rows with a divider.
+    {
+        const float HeadH = 20.0f + 24.0f;
+        const float RowH = 20.0f + 4.0f + 16.0f;
+        const float H = ControlKit::SectionPadding * 2.0f + HeadH + 8.0f + RowH + 16.0f + 1.0f + 16.0f + RowH;
+        const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
+        Surface.Text(Content.MinimumX, Content.MinimumY + 2.0f, ControlKit::Faded(Ink90, Opacity), "Font Rendering", 14.0f);
+        float RowY = Content.MinimumY + HeadH + 8.0f;
+        auto Row = [&](const char* Title, const char* Sub, bool& Flag, PlaneExtent& Out)
+        {
+            Surface.PushTypeface(Face(FontWeightCategory::Medium));
+            Surface.Text(Content.MinimumX, RowY + 2.0f, ControlKit::Faded(Ink90, Opacity), Title, 14.0f);
+            Surface.PopTypeface();
+            Surface.Text(Content.MinimumX, RowY + 24.0f, ControlKit::Faded(Ink50, Opacity), Sub, 12.0f);
+            // Notch: w-10 h-5 pill, knob 16 tinted accent. Kit switch is 46 × 26 — drawn at Notch's size here for fidelity.
+            Out = Spanning(Content.MaximumX - 40.0f, RowY + (RowH - 20.0f) * 0.5f, 40.0f, 20.0f);
+            const bool Hover = ControlKit::Over(Out, Pointer);
+            Surface.FillRectangle(Out, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, Flag ? 0.20f : 0.05f }, Opacity), 10.0f);
+            ControlKit::FillCircle(Surface, Out.MinimumX + 2.0f + 8.0f + (Flag ? 20.0f : 0.0f), Out.MinimumY + 10.0f, 8.0f, ControlKit::Faded(Flag ? Accent : ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f }, Opacity));
+            if (Hover && Pointer.Released) Flag = !Flag;
+        };
+        Row("Antialiasing", "Enable subpixel antialiasing", Draft.FontAntialiasing, FontAaSwitchExtent);
+        RowY += RowH + 16.0f;
+        ControlKit::Divider(Surface, Content.MinimumX, RowY, Content.Width(), ControlKit::Faded(Ink10, Opacity));
+        RowY += 1.0f + 16.0f;
+        Row("Ligatures", "Enable special character combinations", Draft.Ligatures, LigatureSwitchExtent);
         Y += H + SectionGap;
     }
 

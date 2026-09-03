@@ -150,6 +150,41 @@ ControlHit ControlKit::Switch(PixelSpace& Surface, float X, float Y, bool On, co
 }
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                                   CHIP & ROUND ICON
+//------------------------------------------------------------------------------------------------------------------------
+
+float ControlKit::ChipWidth(PixelSpace& Surface, const char* Label) noexcept
+{
+    return Surface.MeasureText(Label, 12.0f).X + 24.0f;   // px-3
+}
+
+ControlHit ControlKit::ChipButton(PixelSpace& Surface, const PlaneExtent& Extent, const char* Label, bool Active, const ControlPointer& Pointer, float Opacity) noexcept
+{
+    ControlHit Hit{};
+    Hit.Hovered = Over(Extent, Pointer);
+    Hit.Pressed = Hit.Hovered && Pointer.Pressed;
+    Hit.Clicked = Hit.Hovered && Pointer.Released;
+    if (Active) Surface.FillRectangle(Extent, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f }, Opacity), 6.0f);   // rounded-md
+    const ColorQuad Ink = Active ? ColorQuad{ 0.0f, 0.0f, 0.0f, 1.0f } : (Hit.Hovered ? ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.5f });
+    TextCentred(Surface, Extent, Faded(Ink, Opacity), Label, 12.0f);
+    return Hit;
+}
+
+ControlHit ControlKit::RoundIconButton(PixelSpace& Surface, float CentreX, float CentreY, ControlCentreIconCategory Icon, const ControlPointer& Pointer, float Opacity) noexcept
+{
+    const float R = RoundIconDiameter * 0.5f;
+    const PlaneExtent Extent = Spanning(CentreX - R, CentreY - R, RoundIconDiameter, RoundIconDiameter);
+    ControlHit Hit{};
+    Hit.Hovered = Over(Extent, Pointer);
+    Hit.Pressed = Hit.Hovered && Pointer.Pressed;
+    Hit.Clicked = Hit.Hovered && Pointer.Released;
+    if (Hit.Hovered) FillCircle(Surface, CentreX, CentreY, R, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity));
+    OutlineCircle(Surface, CentreX, CentreY, R - 0.5f, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.10f }, Opacity), 1.0f);
+    Glyph(Surface, CentreX - 8.0f, CentreY - 8.0f, 16.0f, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.9f }, Opacity), Icon, 2.0f);
+    return Hit;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                      SEGMENTED
 //------------------------------------------------------------------------------------------------------------------------
 

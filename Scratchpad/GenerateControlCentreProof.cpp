@@ -21,6 +21,7 @@
 #include "../Engine/DisplayPresentation/NotificationQueue.h"
 #include "../Engine/DisplayPresentation/TelemetryMetrics.h"
 #include "../Engine/DisplayPresentation/FidelityClassifier.h"
+#include "../Engine/DisplayPresentation/TypefaceRegistry.h"
 
 #include <imgui.h>
 
@@ -221,11 +222,16 @@ struct Rig
             Notifications.ConstructNotificationLayout(Surface, NotchLine);
         }
         ImGui::Render();
+        if (ImDrawData* D = ImGui::GetDrawData(); D && D->Textures)
+            for (ImTextureData* T : *D->Textures) if (T->Status == ImTextureStatus_WantCreate || T->Status == ImTextureStatus_WantUpdates) { T->SetStatus(ImTextureStatus_OK); T->SetTexID(static_cast<ImTextureID>(1)); }
 
         if (Out)
         {
             PaintSceneStandIn(*Out);
-            RasterDrawData(*Out, ImGui::GetDrawData(), Tex, TexW, TexH);
+            ImDrawData* Data = ImGui::GetDrawData();
+            const unsigned char* AtlasPixels = Tex; int AtlasW = TexW, AtlasH = TexH;
+            if (Data->Textures) for (ImTextureData* T : *Data->Textures) if (T->Status != ImTextureStatus_Destroyed && T->Pixels) { AtlasPixels = static_cast<const unsigned char*>(T->Pixels); AtlasW = T->Width; AtlasH = T->Height; T->SetStatus(ImTextureStatus_OK); T->SetTexID(static_cast<ImTextureID>(1)); }
+            RasterDrawData(*Out, Data, AtlasPixels, AtlasW, AtlasH);
         }
     }
 
@@ -271,15 +277,18 @@ int main()
     ImGui::CreateContext();
     ImGuiIO& IO = ImGui::GetIO();
     IO.DisplaySize = ImVec2(Width, Height);
+    // Dynamic atlas (ImGuiBackendFlags_RendererHasTextures), exactly like the Vulkan backend: faces rasterise on demand
+    //    at any size; the CPU rasteriser reads the atlas ImTextureData after each Render().
+    IO.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset | ImGuiBackendFlags_RendererHasTextures;
+    IO.Fonts->TexDesiredFormat = ImTextureFormat_RGBA32;
     IO.Fonts->AddFontDefault();
 
-    unsigned char* Pixels = nullptr; int TexW = 0, TexH = 0;
-    IO.Fonts->GetTexDataAsRGBA32(&Pixels, &TexW, &TexH);
-    IO.Fonts->SetTexID(static_cast<ImTextureID>(1));
-    IO.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
+    static Frontier::TypefaceRegistry Typefaces;
+    const uint32_t FamilyCount = Typefaces.Load("EngineContent/FontArchives");
+    Frontier::TypefaceRegistry::Install(&Typefaces);
+    std::printf("typefaces: %u families\n", FamilyCount);
 
     Rig R;
-    R.Tex = Pixels; R.TexW = TexW; R.TexH = TexH;
 
     // ① Closed, idle.
     R.Idle(10);
@@ -616,6 +625,66 @@ int main()
     // Re-enter Appearance: Theme tab shows the applied state, buttons disabled again.
     { const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(1u); Focus(Row); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(80); }
     R.Snapshot("ControlCentre_Settings_36_Reentered_Theme_Applied_Clean");
+
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //                                      STEP 4b · FONTS TAB
+    //--------------------------------------------------------------------------------------------------------------------
+    auto Wheel = [&](int Clicks) { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); const float Dir = Clicks < 0 ? 1.0f : -1.0f; for (int I = 0; I < std::abs(Clicks); ++I) { R.PendingWheel = Dir; R.Idle(1); } R.Idle(3); };
+    const Frontier::AppearanceInspector& AI = R.Host.QueryAppearance();
+
+    Tap(R.Host.QueryPageTabExtent(1u)); R.Idle(30);
+    std::printf("   [37] Fonts tab: family=%u dirty=%d\n", Draft().FontFamily, Dirty());
+    R.Snapshot("ControlCentre_Settings_37_Fonts_Tab_Clean");
+
+    // › scrolls the strip by 300 px (smooth); capture mid-flight and settled.
+    Tap(AI.QueryFontStripButtonExtent(true)); R.Idle(2);
+    R.Snapshot("ControlCentre_Settings_38_Fonts_Strip_Scrolling");
+    R.Idle(30);
+    Tap(AI.QueryFontStripButtonExtent(true)); R.Idle(30);
+    std::printf("   [39] strip scroll=%.0f\n", AI.QueryFontStripScroll());
+
+    // Pick Clash Display (tile 4) — visible after scrolling.
+    Tap(AI.QueryFontCardExtent(4u)); R.Idle(3);
+    std::printf("   [39] family=%u dirty=%d\n", Draft().FontFamily, Dirty());
+    R.Snapshot("ControlCentre_Settings_39_Fonts_ClashDisplay_Picked");
+
+    // Scroll to the playground + Title card, drag Title size to ~48, pick SemiBold.
+    Wheel(6);
+    R.Snapshot("ControlCentre_Settings_40_Fonts_Playground");
+    Wheel(6);
+    {
+        const Frontier::PlaneExtent S = AI.QueryRoleSliderExtent(0u);
+        R.CursorX = S.MinimumX + 9.0f + (S.Width() - 18.0f) * ((32.0f - 8.0f) / 64.0f); R.CursorY = (S.MinimumY + S.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Drag(S.MinimumX + 9.0f + (S.Width() - 18.0f) * ((48.0f - 8.0f) / 64.0f), R.CursorY, 20);
+        std::printf("   [41] dragging Title size=%.0f\n", Draft().RoleSize[0]);
+        R.Snapshot("ControlCentre_Settings_41_Fonts_Title_Size_Dragging");
+        R.Release(); R.Idle(3);
+    }
+    Tap(AI.QueryRoleWeightChipExtent(0u, Frontier::FontWeightCategory::SemiBold)); R.Idle(3);
+    std::printf("   [42] Title weight=%u size=%.0f dirty=%d\n", static_cast<unsigned>(Draft().RoleWeight[0]), Draft().RoleSize[0], Dirty());
+    R.Snapshot("ControlCentre_Settings_42_Fonts_Title_SemiBold");
+
+    // Switch family to Space Grotesk (5 weights) — the chip row shrinks to what the family ships.
+    Wheel(-12);
+    Tap(AI.QueryFontStripButtonExtent(false)); R.Idle(30); Tap(AI.QueryFontStripButtonExtent(false)); R.Idle(30);   // ‹ ‹ back to the start
+    Tap(AI.QueryFontCardExtent(2u)); R.Idle(3);   // Space Grotesk (slot 2 with General Sans absent)
+    Wheel(12);
+    std::printf("   [43] family=%u Title weight=%u (snapped)\n", Draft().FontFamily, static_cast<unsigned>(Draft().RoleWeight[0]));
+    R.Snapshot("ControlCentre_Settings_43_Fonts_SpaceGrotesk_Weights_PerFamily");
+
+    // Font Rendering: scroll to the end, toggle Ligatures off.
+    Wheel(40);
+    Tap(AI.QueryFontSwitchExtent(true)); R.Idle(3);
+    std::printf("   [44] ligatures=%d aa=%d\n", Draft().Ligatures ? 1 : 0, Draft().FontAntialiasing ? 1 : 0);
+    R.Snapshot("ControlCentre_Settings_44_Fonts_Rendering_Ligatures_Off");
+
+    // Apply → whole Control Centre chrome re-renders in the applied family.
+    Tap(R.Host.QueryPageButtonExtent(true)); R.Idle(30);
+    std::printf("   [45] applied family=%u dirty=%d rev=%u\n", R.Host.QueryAppearance().QueryApplied().FontFamily, Dirty(), R.Host.QueryAppearance().QueryRevision());
+    R.Snapshot("ControlCentre_Settings_45_Fonts_Applied_Chrome_Refaced");
+    Tap(R.Host.QueryPageCloseExtent()); R.Idle(80);
+    R.Snapshot("ControlCentre_Settings_46_Hub_In_Applied_Typeface");
 
     ImGui::DestroyContext();
     return 0;

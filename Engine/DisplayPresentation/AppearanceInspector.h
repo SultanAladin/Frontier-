@@ -7,6 +7,7 @@
 #pragma once
 
 #include "ControlKit.h"
+#include "FontCodec.h"
 #include "ThemeStructure.h"
 
 #include <cstdint>
@@ -42,6 +43,16 @@ struct AppearanceSettings
     uint32_t                 InfoSwatch      = 0u;
     uint32_t                 CautionSwatch   = 0u;
 
+    // ── Fonts ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    //    FontFamily indexes TypefaceRegistry tile order. Roles follow Notch FontsTab SCALES[] (Title … Caption).
+    static constexpr uint32_t TypeRoleCount = 6u;
+    uint32_t                 FontFamily      = 0u;
+    float                    RoleSize[TypeRoleCount]           = { 32.0f, 24.0f, 18.0f, 14.0f, 12.0f, 10.0f };
+    FontWeightCategory       RoleWeight[TypeRoleCount]         = { FontWeightCategory::Bold, FontWeightCategory::Bold, FontWeightCategory::Medium,
+                                                                   FontWeightCategory::Regular, FontWeightCategory::Medium, FontWeightCategory::Regular };
+    bool                     FontAntialiasing= true;
+    bool                     Ligatures       = true;
+
     [[nodiscard]] bool operator==(const AppearanceSettings&) const noexcept = default;
 };
 
@@ -73,6 +84,12 @@ public:
     // Records one tab's content into Body (already clipped by the caller) offset by ScrollY; returns content height.
     float ConstructDisplayTabLayout(PixelSpace& Surface, const PlaneExtent& Body, float ScrollY, const ControlPointer& Pointer, float Opacity) noexcept;
     float ConstructThemeTabLayout  (PixelSpace& Surface, const PlaneExtent& Body, float ScrollY, const ControlPointer& Pointer, float Opacity) noexcept;
+    float ConstructFontsTabLayout  (PixelSpace& Surface, const PlaneExtent& Body, float ScrollY, const ControlPointer& Pointer, float Opacity) noexcept;
+    void  AdvanceFontsTab(float DeltaSeconds) noexcept;   // smooth strip scroll (scrollBy behavior:"smooth")
+
+    // Face for a type role of the APPLIED settings (hosts render chrome with these). nullptr → backend default.
+    [[nodiscard]] void* QueryAppliedFace(uint32_t Role) const noexcept;
+    [[nodiscard]] static const char* QueryTypeRoleLabel(uint32_t Role) noexcept;
 
     // Dropdown menus float above everything else in the page; the host calls this after the body clip is popped.
     void  ConstructFloatingLayout(PixelSpace& Surface, const ControlPointer& Pointer, float Opacity) noexcept;
@@ -94,6 +111,12 @@ public:
     [[nodiscard]] PlaneExtent QueryFullscreenSwitchExtent() const noexcept { return FullscreenSwitchExtent; }
     [[nodiscard]] PlaneExtent QueryAccentSwatchExtent(uint32_t Index) const noexcept { return Index < 10u ? AccentExtents[Index] : PlaneExtent{}; }
     [[nodiscard]] PlaneExtent QueryVsyncSegmentExtent() const noexcept { return VsyncExtent; }
+    [[nodiscard]] PlaneExtent QueryFontCardExtent(uint32_t Index) const noexcept { return Index < 10u ? FontCardExtents[Index] : PlaneExtent{}; }
+    [[nodiscard]] PlaneExtent QueryFontStripButtonExtent(bool Forward) const noexcept { return Forward ? StripForwardExtent : StripBackExtent; }
+    [[nodiscard]] PlaneExtent QueryRoleSliderExtent(uint32_t Role) const noexcept { return Role < AppearanceSettings::TypeRoleCount ? RoleSliderExtents[Role] : PlaneExtent{}; }
+    [[nodiscard]] PlaneExtent QueryRoleWeightChipExtent(uint32_t Role, FontWeightCategory Weight) const noexcept;
+    [[nodiscard]] PlaneExtent QueryFontSwitchExtent(bool Ligatures) const noexcept { return Ligatures ? LigatureSwitchExtent : FontAaSwitchExtent; }
+    [[nodiscard]] float       QueryFontStripScroll() const noexcept { return StripScroll; }
 
 private:
     struct DropdownRecord { PlaneExtent Button; const char* const* Options; uint32_t Count; uint32_t Value; int Pick; };   // Pick: choice made in the floating layer, consumed by the next RecordDropdown
@@ -113,6 +136,14 @@ private:
     PlaneExtent        TileExtents[7];
     PlaneExtent        AccentExtents[10];
     PlaneExtent        RadiusSliderExtent, ScaleSliderExtent, DropdownExtents[4], FullscreenSwitchExtent, VsyncExtent;
+
+    // Fonts tab state
+    float              StripScroll, StripScrollTarget;   // [px] horizontal offset of the family strip
+    float              StripContentWidth, StripViewWidth;
+    PlaneExtent        FontCardExtents[10], StripBackExtent, StripForwardExtent;
+    PlaneExtent        RoleSliderExtents[AppearanceSettings::TypeRoleCount];
+    PlaneExtent        ChipExtents[AppearanceSettings::TypeRoleCount][9];
+    PlaneExtent        FontAaSwitchExtent, LigatureSwitchExtent;
 };
 
 } // namespace Frontier

@@ -38,6 +38,8 @@ PixelSpace::PixelSpace() noexcept
     : Commands(nullptr)
     , DisplayWidth(0.0f)
     , DisplayHeight(0.0f)
+    , TypefaceStack{}
+    , TypefaceDepth(0u)
 {
 }
 
@@ -45,6 +47,7 @@ bool PixelSpace::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplay
 {
     DisplayWidth  = InDisplayWidth;
     DisplayHeight = InDisplayHeight;
+    TypefaceDepth = 0u;
 
     if (ImGui::GetCurrentContext() == nullptr)
     {
@@ -114,7 +117,7 @@ void PixelSpace::StrokePolyline(const PlanePoint* Points, uint32_t PointCount, C
 void PixelSpace::Text(float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels) noexcept
 {
     if (!Commands || !Utf8) return;
-    ImFont* Font = ImGui::GetFont();
+    ImFont* Font = QueryTypeface() ? static_cast<ImFont*>(QueryTypeface()) : ImGui::GetFont();
     const float Size = FontSizePixels > 0.0f ? FontSizePixels : ImGui::GetFontSize();
     List(Commands)->AddText(Font, Size, ImVec2(X, Y), Pack(Colour), Utf8);
 }
@@ -133,6 +136,21 @@ void PixelSpace::PopClip() noexcept
 {
     if (!Commands) return;
     List(Commands)->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                       TYPEFACE
+//------------------------------------------------------------------------------------------------------------------------
+
+void PixelSpace::PushTypeface(void* FaceHandle) noexcept
+{
+    if (TypefaceDepth < 8u) TypefaceStack[TypefaceDepth] = FaceHandle;
+    ++TypefaceDepth;   // over-deep pushes are counted so the matching pops balance
+}
+
+void PixelSpace::PopTypeface() noexcept
+{
+    if (TypefaceDepth > 0u) --TypefaceDepth;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -172,7 +190,7 @@ void PixelSpace::EndGroup(uint32_t Mark, float OffsetX, float OffsetY, float Sca
 PlanePoint PixelSpace::MeasureText(const char* Utf8, float FontSizePixels) const noexcept
 {
     if (ImGui::GetCurrentContext() == nullptr || !Utf8) return {};
-    ImFont* Font = ImGui::GetFont();
+    ImFont* Font = QueryTypeface() ? static_cast<ImFont*>(QueryTypeface()) : ImGui::GetFont();
     const float Size = FontSizePixels > 0.0f ? FontSizePixels : ImGui::GetFontSize();
     const ImVec2 Measured = Font->CalcTextSizeA(Size, FLT_MAX, 0.0f, Utf8);
     return PlanePoint{ Measured.x, Measured.y };

@@ -584,6 +584,7 @@ $EngineRelative = @(
     'Engine\DisplayPresentation\ControlKit.cpp'
     'Engine\DisplayPresentation\DialogueHost.cpp'
     'Engine\DisplayPresentation\AppearanceInspector.cpp'
+    'Engine\DisplayPresentation\TypefaceRegistry.cpp'
     'Engine\DisplayPresentation\WorkspaceHost.cpp'
     'Engine\DisplayPresentation\CycleScheduler.cpp'
     'Engine\DisplayPresentation\FidelityClassifier.cpp'

@@ -97,6 +97,10 @@ class ControlKit
 public:
     // ── Primitives ───────────────────────────────────────────────────────────────────────────────────────────────────
     static void  OutlineRounded(PixelSpace& Surface, const PlaneExtent& Extent, ColorQuad Colour, float Radius, float Thickness = 1.0f) noexcept;
+    static void  FillCircle    (PixelSpace& Surface, float CentreX, float CentreY, float Radius, ColorQuad Colour) noexcept
+    {
+        Surface.FillRectangle(Spanning(CentreX - Radius, CentreY - Radius, Radius * 2.0f, Radius * 2.0f), Colour, Radius);
+    }
     static void  OutlineCircle (PixelSpace& Surface, float CentreX, float CentreY, float Radius, ColorQuad Colour, float Thickness) noexcept;
     static void  Divider       (PixelSpace& Surface, float X, float Y, float Width, ColorQuad Colour = ControlKitTokens::Stroke) noexcept;
     static void  TextCentred   (PixelSpace& Surface, const PlaneExtent& Extent, ColorQuad Colour, const char* Utf8, float Size) noexcept;
@@ -143,6 +147,15 @@ public:
     // Circular colour swatch 32 px; Selected draws the 2 px ring at inset −4 (Notch accent) or a white border-2 (Notch semantic).
     static ControlHit Swatch(PixelSpace& Surface, float CentreX, float CentreY, ColorQuad Colour, bool Selected, bool RingStyle, const ControlPointer& Pointer, float Opacity = 1.0f) noexcept;
     static constexpr float SwatchDiameter = 32.0f;
+
+    // Notch FontsTab chip: px-3 py-1.5 text-xs font-semibold rounded-md; active = white bg / black text, idle muted → white on hover.
+    static ControlHit ChipButton(PixelSpace& Surface, const PlaneExtent& Extent, const char* Label, bool Active, const ControlPointer& Pointer, float Opacity = 1.0f) noexcept;
+    [[nodiscard]] static float ChipWidth(PixelSpace& Surface, const char* Label) noexcept;
+    static constexpr float ChipHeight = 28.0f;   // 12 px text + 6 px × 2 padding (+ leading)
+
+    // Notch 32 px round bordered icon button (w-8 h-8 rounded-full border, hover white/5).
+    static ControlHit RoundIconButton(PixelSpace& Surface, float CentreX, float CentreY, ControlCentreIconCategory Icon, const ControlPointer& Pointer, float Opacity = 1.0f) noexcept;
+    static constexpr float RoundIconDiameter = 32.0f;
 
     // .crow  110 px dim label; returns the control extent to the right of the label.
     [[nodiscard]] static PlaneExtent ControlRow(PixelSpace& Surface, float X, float Y, float Width, const char* Label, ColorQuad LabelInk, float Opacity = 1.0f) noexcept;

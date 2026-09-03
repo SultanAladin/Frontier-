@@ -625,6 +625,7 @@ void ControlCentreHost::AdvanceLocomotion(float DeltaSeconds) noexcept
     if (Grabbed) ContactDuration += DeltaSeconds;
 
     Motion.Advance(static_cast<double>(DeltaSeconds));
+    Appearance.AdvanceFontsTab(DeltaSeconds);
     Dialogue.Advance(DeltaSeconds);
     ResolveDialogueVerdict();
     if (Dialogue.QueryActive() != DialoguePresetCategory::None) LastDialoguePreset = Dialogue.QueryActive();
@@ -671,6 +672,10 @@ void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) noexcept
     const float H      = static_cast<float>(DisplayHeight);
     const float ShadeY = QueryCurrentHeight();                    // lower edge of the sheet / top of the notch
     const float NotchX = QueryHandleX();
+
+    // Chrome renders in the APPLIED typeface (Body role); nullptr → backend default until the registry is installed.
+    Surface.PushTypeface(Appearance.QueryAppliedFace(3u));
+    struct TypefaceScope { PixelSpace& S; ~TypefaceScope() { S.PopTypeface(); } } TypefaceGuard{ Surface };
 
     // ArcNotch.tsx hard-codes the sheet and notch to #0A0A0B and the caption to text-white/50 regardless of
     //    the selected theme (the theme only recolours the cards inside the shade). Reproduced verbatim.
@@ -1194,7 +1199,8 @@ void ControlCentreHost::ConstructPageBodyLayout(PixelSpace& Surface, ControlCent
         {
             case AppearanceSubTabCategory::Display: ContentHeight = Appearance.ConstructDisplayTabLayout(Surface, Inner, BodyScrollY, Local, Opacity); break;
             case AppearanceSubTabCategory::Theme:   ContentHeight = Appearance.ConstructThemeTabLayout  (Surface, Inner, BodyScrollY, Local, Opacity); break;
-            default: break;   // Fonts: next step
+            case AppearanceSubTabCategory::Fonts:   ContentHeight = Appearance.ConstructFontsTabLayout  (Surface, Inner, BodyScrollY, Local, Opacity); break;
+            default: break;
         }
     }
     Surface.PopClip();
