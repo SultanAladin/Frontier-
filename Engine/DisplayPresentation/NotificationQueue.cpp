@@ -4,6 +4,7 @@
 // 🧩 Toast ageing and layout — see NotificationQueue.h.
 
 #include "NotificationQueue.h"
+#include "ControlKit.h"
 
 #include <algorithm>
 
@@ -30,9 +31,9 @@ void NotificationQueue::ConstructNotificationLayout(PixelSpace& Surface, float T
 {
     if (!Surface.IsRecording() || Records.empty()) return;
 
-    constexpr ColorQuad Card { 0x1C / 255.0f, 0x1C / 255.0f, 0x1E / 255.0f, 1.0f };
-    constexpr ColorQuad Title{ 1.0f, 1.0f, 1.0f, 0.90f };
-    constexpr ColorQuad Body { 1.0f, 1.0f, 1.0f, 0.50f };
+    const ColorQuad Card  = ControlKit::Palette().CardSub;   // bg-[#1C1C1E] → theme CardSubBackground
+    const ColorQuad Title = ControlKit::Palette().Text;      // text-white/90 → colors.text
+    const ColorQuad Body  = ControlKit::Palette().TextDim;   // text-white/50 → colors.textMuted
     constexpr float TitleSize = 14.0f, BodySize = 12.0f, LineGap = 3.0f;
 
     const float Right = Surface.QueryDisplayWidth() - EdgeInset;

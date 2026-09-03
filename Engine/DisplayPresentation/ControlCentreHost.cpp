@@ -667,6 +667,7 @@ void ControlCentreHost::AdvanceLocomotion(float DeltaSeconds) noexcept
 void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) noexcept
 {
     if (!InitializedCondition || !Surface.IsRecording()) return;
+    SynchroniseTheme();
 
     const float W      = static_cast<float>(DisplayWidth);
     const float H      = static_cast<float>(DisplayHeight);
@@ -677,10 +678,11 @@ void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) noexcept
     Surface.PushTypeface(Appearance.QueryAppliedFace(3u));
     struct TypefaceScope { PixelSpace& S; ~TypefaceScope() { S.PopTypeface(); } } TypefaceGuard{ Surface };
 
-    // ArcNotch.tsx hard-codes the sheet and notch to #0A0A0B and the caption to text-white/50 regardless of
-    //    the selected theme (the theme only recolours the cards inside the shade). Reproduced verbatim.
-    constexpr ColorQuad Sheet{ 10.0f / 255.0f, 10.0f / 255.0f, 11.0f / 255.0f, 1.0f };   // #0A0A0B
-    constexpr ColorQuad Label{ 1.0f, 1.0f, 1.0f, 0.5f };                                  // white / 50
+    // ArcNotch.tsx hard-codes the sheet and notch to #0A0A0B and the caption to text-white/50. Per direction the theme
+    //    applies globally, so the sheet follows the theme's mainBg (OLED #000000 / Dark #111111 — within 7 levels of the
+    //    reference on the two dark themes) and the caption follows colors.textMuted. Flagged as a deliberate deviation.
+    const ColorQuad Sheet = ControlKit::Palette().Field;
+    const ColorQuad Label = ControlKit::Palette().TextDim;
 
     // ① Scrim: black, opacity 0 → 0.4 across the travel (Notch: useTransform(y, [0, H], [0, 0.4]) on bg-black/50).
     const float Travel = static_cast<float>(OpenTravel());
@@ -750,16 +752,19 @@ constexpr QuickTileStructure TileTable[static_cast<size_t>(QuickTileCategory::Co
 constexpr uint32_t GridColumns = 4u;
 constexpr uint32_t GridSlots   = 8u;
 
-// Tailwind palette used by ArcNotch.tsx
-constexpr ColorQuad TileActive      { 0x3B / 255.0f, 0x82 / 255.0f, 0xF6 / 255.0f, 1.0f };   // bg-blue-500
-constexpr ColorQuad TileActiveHover { 0x60 / 255.0f, 0xA5 / 255.0f, 0xFA / 255.0f, 1.0f };   // hover:bg-blue-400
-constexpr ColorQuad TileIdle        { 0x1C / 255.0f, 0x1C / 255.0f, 0x1E / 255.0f, 1.0f };   // bg-[#1C1C1E]
-constexpr ColorQuad TileIdleHover   { 0x2C / 255.0f, 0x2C / 255.0f, 0x2E / 255.0f, 1.0f };   // hover:bg-[#2C2C2E]
-constexpr ColorQuad InkFull         { 1.0f, 1.0f, 1.0f, 1.00f };                              // text-white
-constexpr ColorQuad Ink70           { 1.0f, 1.0f, 1.0f, 0.70f };                              // text-white/70
-constexpr ColorQuad Ink50           { 1.0f, 1.0f, 1.0f, 0.50f };                              // text-white/50
-constexpr ColorQuad TrackBlack50    { 0.0f, 0.0f, 0.0f, 0.50f };                              // bg-black/50
-constexpr ColorQuad TrackFill       { 0x63 / 255.0f, 0x66 / 255.0f, 0xF1 / 255.0f, 0.90f };   // bg-indigo-500/90
+// ArcNotch.tsx colours, re-derived from the applied theme every frame (ControlKit::Palette()). With the default Dark
+//    theme these evaluate to the Tailwind values the reference hard-codes (bg-blue-500 → accent, bg-[#1C1C1E] → CardSub,
+//    text-white/70|50 → TextMain/TextMuted); other themes recolour the whole shade.
+inline ColorQuad Alpha(ColorQuad C, float A) noexcept { C.Alpha = A; return C; }
+inline ColorQuad TileActive()      noexcept { return ControlKit::Palette().Accent; }                                             // bg-blue-500 → accentColor
+inline ColorQuad TileActiveHover() noexcept { ColorQuad C = ControlKit::Palette().Accent; C.Red = C.Red * 0.85f + 0.15f; C.Green = C.Green * 0.85f + 0.15f; C.Blue = C.Blue * 0.85f + 0.15f; return C; }   // hover:bg-blue-400 (lighter step)
+inline ColorQuad TileIdle()        noexcept { return ControlKit::Palette().CardSub; }                                            // bg-[#1C1C1E]
+inline ColorQuad TileIdleHover()   noexcept { return ControlKit::Palette().Selected; }                                           // hover:bg-[#2C2C2E]
+inline ColorQuad InkFull()         noexcept { return Alpha(ControlKit::Palette().Text, 1.0f); }                                  // text-white
+inline ColorQuad Ink70()           noexcept { return Alpha(ControlKit::Palette().Text, 0.70f); }                                 // text-white/70
+inline ColorQuad Ink50()           noexcept { return ControlKit::Palette().TextDim; }                                            // text-white/50 (colors.textMuted)
+inline ColorQuad TrackBlack50()    noexcept { return ColorQuad{ 0.0f, 0.0f, 0.0f, 0.50f }; }                                    // bg-black/50
+inline ColorQuad TrackFill()       noexcept { return Alpha(ControlKit::Palette().Accent, 0.90f); }                               // bg-indigo-500/90 → accent/90
 
 constexpr ColorQuad Faded(ColorQuad C, float Opacity) noexcept { C.Alpha *= Opacity; return C; }
 
@@ -769,6 +774,21 @@ const QuickTileStructure& ControlCentreHost::QueryTile(uint32_t Slot) noexcept
 {
     static constexpr QuickTileStructure Empty{ QuickTileCategory::Count, ControlCentreIconCategory::Count, "", false };
     return Slot < static_cast<uint32_t>(QuickTileCategory::Count) ? TileTable[Slot] : Empty;
+}
+
+void ControlCentreHost::SynchroniseTheme() noexcept
+{
+    if (ThemeRevision == Appearance.QueryRevision()) return;
+    ThemeRevision = Appearance.QueryRevision();
+    const AppearanceSettings& A = Appearance.QueryApplied();
+    ActiveTheme.AssignTheme(A.Theme);
+    ActiveTheme.AssignAccent(A.Accent);
+    ActiveTheme.AssignCornerRadius(A.CornerRadius);
+    ControlKit::AssignTheme(ActiveTheme,
+                            AppearanceInspector::QuerySemanticColour(0u, A.WarningSwatch),
+                            AppearanceInspector::QuerySemanticColour(1u, A.SuccessSwatch),
+                            AppearanceInspector::QuerySemanticColour(2u, A.InfoSwatch),
+                            AppearanceInspector::QuerySemanticColour(3u, A.CautionSwatch));
 }
 
 bool ControlCentreHost::IsTileActive(QuickTileCategory Tile) const noexcept
@@ -874,10 +894,10 @@ void ControlCentreHost::ConstructDashboardLayout(PixelSpace& Surface, float Opac
     // Header: "Control Center" left, wifi + settings right, all white/50, row height = 16 px icon.
     const PlanePoint TitleSize = Surface.MeasureText("Control Center", HeaderTextSize);
     Surface.Text(Card.MinimumX + HeaderPadX, Card.MinimumY + (HeaderIconSize - TitleSize.Y) * 0.5f,
-                 Faded(Ink50, Opacity), "Control Center", HeaderTextSize);
+                 Faded(Ink50(), Opacity), "Control Center", HeaderTextSize);
 
     GlyphPlacement Gear{};
-    Gear.Size = HeaderIconSize; Gear.StrokeWidth = 2.0f; Gear.Colour = Faded(Ink50, Opacity);
+    Gear.Size = HeaderIconSize; Gear.StrokeWidth = 2.0f; Gear.Colour = Faded(Ink50(), Opacity);
     Gear.X = Card.MaximumX - HeaderPadX - HeaderIconSize; Gear.Y = Card.MinimumY;
     GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::SettingsGear), Gear);
 
@@ -902,13 +922,13 @@ void ControlCentreHost::ConstructTileLayout(PixelSpace& Surface, uint32_t Slot, 
     const bool Hover   = HoveredSlot == static_cast<int>(Slot);
     const PlaneExtent Disc = QueryTileDiscExtent(Slot);
 
-    const ColorQuad Fill = Active ? (Hover ? TileActiveHover : TileActive) : (Hover ? TileIdleHover : TileIdle);
+    const ColorQuad Fill = Active ? (Hover ? TileActiveHover() : TileActive()) : (Hover ? TileIdleHover() : TileIdle());
     Surface.FillRectangle(Disc, Faded(Fill, Opacity), TileDisc * 0.5f);
 
     GlyphPlacement Glyph{};
     Glyph.Size        = TileGlyph;
     Glyph.StrokeWidth = Active ? 2.0f : 1.5f;
-    Glyph.Colour      = Faded(Active ? InkFull : Ink70, Opacity);
+    Glyph.Colour      = Faded(Active ? InkFull() : Ink70(), Opacity);
     Glyph.X           = Disc.MinimumX + (TileDisc - TileGlyph) * 0.5f;
     Glyph.Y           = Disc.MinimumY + (TileDisc - TileGlyph) * 0.5f;
     const std::string_view Path = VectorCodec::QueryControlCentreSvgPath(Tile.Glyph);
@@ -918,7 +938,7 @@ void ControlCentreHost::ConstructTileLayout(PixelSpace& Surface, uint32_t Slot, 
     const char* Label = Tile.Cycles ? FidelityLabel(Settings.Quality) : Tile.Label;
     const PlanePoint LabelSize = Surface.MeasureText(Label, TileLabelSize);
     const float LabelX = Disc.MinimumX + (TileDisc - LabelSize.X) * 0.5f;
-    Surface.Text(LabelX, Disc.MaximumY + TileLabelGap, Faded(Ink70, Opacity), Label, TileLabelSize);
+    Surface.Text(LabelX, Disc.MaximumY + TileLabelGap, Faded(Ink70(), Opacity), Label, TileLabelSize);
 }
 
 void ControlCentreHost::ConstructPillLayout(PixelSpace& Surface, float Opacity) const noexcept
@@ -928,25 +948,25 @@ void ControlCentreHost::ConstructPillLayout(PixelSpace& Surface, float Opacity) 
     const float PillH = PillPadding * 2.0f + PillCell;
     const float PillY = Track.MinimumY - (PillH - PillTrack) * 0.5f;
 
-    Surface.FillRectangle(Spanning(Card.MinimumX, PillY, Card.Width(), PillH), Faded(TileIdle, Opacity), PillH * 0.5f);
+    Surface.FillRectangle(Spanning(Card.MinimumX, PillY, Card.Width(), PillH), Faded(TileIdle(), Opacity), PillH * 0.5f);
 
     GlyphPlacement Video{};
-    Video.Size = PillGlyph; Video.StrokeWidth = 2.0f; Video.Colour = Faded(Ink50, Opacity);
+    Video.Size = PillGlyph; Video.StrokeWidth = 2.0f; Video.Colour = Faded(Ink50(), Opacity);
     Video.X = Card.MinimumX + PillPadding + (PillCell - PillGlyph) * 0.5f;
     Video.Y = PillY + PillPadding + (PillCell - PillGlyph) * 0.5f;
     GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::VideoRenderScale), Video);
 
-    Surface.FillRectangle(Track, Faded(TrackBlack50, Opacity), PillTrack * 0.5f);
+    Surface.FillRectangle(Track, Faded(TrackBlack50(), Opacity), PillTrack * 0.5f);
     const float T = (Settings.RenderScale - RenderScaleMinimum) / (1.0f - RenderScaleMinimum);
     Surface.FillRectangle(Spanning(Track.MinimumX, Track.MinimumY, Track.Width() * std::clamp(T, 0.0f, 1.0f), PillTrack),
-                          Faded(TrackFill, Opacity), PillTrack * 0.5f);
+                          Faded(TrackFill(), Opacity), PillTrack * 0.5f);
 
     char Value[8];
     std::snprintf(Value, sizeof(Value), "%d%%", static_cast<int>(std::lround(Settings.RenderScale * 100.0f)));
     const PlanePoint ValueSize = Surface.MeasureText(Value, PillValueSize);
     const float CellX = Card.MaximumX - PillPadding - PillCell;
     Surface.Text(CellX + (PillCell - ValueSize.X) * 0.5f, PillY + PillPadding + (PillCell - ValueSize.Y) * 0.5f,
-                 Faded(Ink50, Opacity), Value, PillValueSize);
+                 Faded(Ink50(), Opacity), Value, PillValueSize);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -991,16 +1011,16 @@ constexpr PageChromeStructure PageChrome[4] =
 
 constexpr const char* AppearanceTabs[3] = { "Display", "Fonts", "Theme" };   // SettingsModal tabs, in order
 
-constexpr ColorQuad HubList     { 0x14 / 255.0f, 0x14 / 255.0f, 0x15 / 255.0f, 1.0f };   // bg-[#141415]
-constexpr ColorQuad HubDisc     { 0x09 / 255.0f, 0x09 / 255.0f, 0x0A / 255.0f, 1.0f };   // bg-[#09090A]
-constexpr ColorQuad PageSheet   { 0x16 / 255.0f, 0x14 / 255.0f, 0x15 / 255.0f, 1.0f };   // bg-[#161415]
-constexpr ColorQuad Ink90       { 1.0f, 1.0f, 1.0f, 0.90f };                              // text-white/90 (dark theme colors.text)
-constexpr ColorQuad Ink40       { 1.0f, 1.0f, 1.0f, 0.40f };
-constexpr ColorQuad Ink30       { 1.0f, 1.0f, 1.0f, 0.30f };
-constexpr ColorQuad Ink10       { 1.0f, 1.0f, 1.0f, 0.10f };                              // border-white/10
-constexpr ColorQuad Ink06       { 1.0f, 1.0f, 1.0f, 0.06f };                              // border-white/[0.06] (dark divider)
-constexpr ColorQuad Ink05       { 1.0f, 1.0f, 1.0f, 0.05f };                              // border-white/5, hover:bg-white/5
-constexpr ColorQuad Black20     { 0.0f, 0.0f, 0.0f, 0.20f };                              // bg-black/20 footer
+inline ColorQuad HubList()   noexcept { return ControlKit::Palette().Card; }                     // bg-[#141415]  → CardBackground
+inline ColorQuad HubDisc()   noexcept { return ControlKit::Palette().Field; }                    // bg-[#09090A]  → MainBackground
+inline ColorQuad PageSheet() noexcept { return ControlKit::Palette().Card; }                     // bg-[#161415]  → CardBackground
+inline ColorQuad Ink90()     noexcept { return ControlKit::Palette().Text; }                     // colors.text
+inline ColorQuad Ink40()     noexcept { return Alpha(ControlKit::Palette().TextDim, ControlKit::Palette().TextDim.Alpha * 0.8f); }   // text-white/40
+inline ColorQuad Ink30()     noexcept { return Alpha(ControlKit::Palette().TextDim, ControlKit::Palette().TextDim.Alpha * 0.6f); }   // text-white/30
+inline ColorQuad Ink10()     noexcept { return ControlKit::Palette().LightSurface ? ColorQuad{ 0.0f, 0.0f, 0.0f, 0.10f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.10f }; }   // border-white/10
+inline ColorQuad Ink06()     noexcept { return ControlKit::Palette().Divider; }                  // colors.divider
+inline ColorQuad Ink05()     noexcept { return ControlKit::Palette().LightSurface ? ColorQuad{ 0.0f, 0.0f, 0.0f, 0.05f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }; }   // border-white/5, hover:bg-white/5
+constexpr ColorQuad Black20  { 0.0f, 0.0f, 0.0f, 0.20f };                                        // bg-black/20 footer (Notch hard-codes)
 constexpr ColorQuad InputInk    { 0xEC / 255.0f, 0xEC / 255.0f, 0xEC / 255.0f, 1.0f };   // #ececec
 constexpr ColorQuad InputMuted  { 0x86 / 255.0f, 0x83 / 255.0f, 0x84 / 255.0f, 1.0f };   // #868384
 constexpr ColorQuad InputBorder { 0x2A / 255.0f, 0x26 / 255.0f, 0x27 / 255.0f, 1.0f };   // #2a2627
@@ -1116,16 +1136,16 @@ void ControlCentreHost::ConstructHubLayout(PixelSpace& Surface, float Opacity) c
     // Header: ChevronLeft 24 (pr-3) + "Settings" text-[22px] font-bold text-white.
     const PlaneExtent Back = QueryHubBackExtent();
     GlyphPlacement Chevron{};
-    Chevron.Size = HubBackGlyph; Chevron.StrokeWidth = 2.0f; Chevron.Colour = Faded(InkFull, Opacity);
+    Chevron.Size = HubBackGlyph; Chevron.StrokeWidth = 2.0f; Chevron.Colour = Faded(InkFull(), Opacity);
     Chevron.X = Back.MinimumX; Chevron.Y = Back.MinimumY;
     GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::ChevronBack), Chevron);
 
     const PlanePoint TitleSize = Surface.MeasureText("Settings", HubTitleSize);
-    Surface.Text(Back.MaximumX, Back.MinimumY + (HubBackGlyph - TitleSize.Y) * 0.5f, Faded(InkFull, Opacity), "Settings", HubTitleSize);
+    Surface.Text(Back.MaximumX, Back.MinimumY + (HubBackGlyph - TitleSize.Y) * 0.5f, Faded(InkFull(), Opacity), "Settings", HubTitleSize);
 
     // List: bg-[#141415] rounded-[24px]; 4 rows.
     const PlaneExtent First = QueryHubRowExtent(0u), Last = QueryHubRowExtent(3u);
-    Surface.FillRectangle(PlaneExtent{ First.MinimumX, First.MinimumY, Last.MaximumX, Last.MaximumY }, Faded(HubList, Opacity), HubListRadius);
+    Surface.FillRectangle(PlaneExtent{ First.MinimumX, First.MinimumY, Last.MaximumX, Last.MaximumY }, Faded(HubList(), Opacity), HubListRadius);
 
     const uint32_t GroupMark = Surface.BeginGroup();   // rows are clipped visually by the rounded list via same colour; hover fill is inset
     for (uint32_t Row = 0u; Row < 4u; ++Row)
@@ -1134,13 +1154,13 @@ void ControlCentreHost::ConstructHubLayout(PixelSpace& Surface, float Opacity) c
         const HubRowStructure& Item = HubRows[Row];
 
         if (HoveredHubRow == static_cast<int>(Row))
-            Surface.FillRectangle(Extent, Faded(Ink05, Opacity), Row == 0u || Row == 3u ? HubListRadius : 0.0f);
+            Surface.FillRectangle(Extent, Faded(Ink05(), Opacity), Row == 0u || Row == 3u ? HubListRadius : 0.0f);
 
         // Disc 44 px #09090A with a 20 px white/70 glyph (strokeWidth 2).
         const float DiscX = Extent.MinimumX + HubRowPadding, DiscY = Extent.MinimumY + HubRowPadding;
-        Surface.FillRectangle(Spanning(DiscX, DiscY, HubRowDisc, HubRowDisc), Faded(HubDisc, Opacity), HubRowDisc * 0.5f);
+        Surface.FillRectangle(Spanning(DiscX, DiscY, HubRowDisc, HubRowDisc), Faded(HubDisc(), Opacity), HubRowDisc * 0.5f);
         GlyphPlacement Icon{};
-        Icon.Size = HubRowGlyph; Icon.StrokeWidth = 2.0f; Icon.Colour = Faded(Ink70, Opacity);
+        Icon.Size = HubRowGlyph; Icon.StrokeWidth = 2.0f; Icon.Colour = Faded(Ink70(), Opacity);
         Icon.X = DiscX + (HubRowDisc - HubRowGlyph) * 0.5f; Icon.Y = DiscY + (HubRowDisc - HubRowGlyph) * 0.5f;
         GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(Item.Icon), Icon);
 
@@ -1150,19 +1170,19 @@ void ControlCentreHost::ConstructHubLayout(PixelSpace& Surface, float Opacity) c
         const float TextH = LabelSize.Y + 2.0f + DescSize.Y;
         const float TextX = DiscX + HubRowDisc + HubRowGap;
         const float TextY = DiscY + (HubRowDisc - TextH) * 0.5f;
-        Surface.Text(TextX, TextY, Faded(Ink90, Opacity), Item.Label, HubLabelSize);
-        Surface.Text(TextX, TextY + LabelSize.Y + 2.0f, Faded(Ink40, Opacity), Item.Description, HubDescSize);
+        Surface.Text(TextX, TextY, Faded(Ink90(), Opacity), Item.Label, HubLabelSize);
+        Surface.Text(TextX, TextY + LabelSize.Y + 2.0f, Faded(Ink40(), Opacity), Item.Description, HubDescSize);
 
         // ChevronRight 18 white/30, mr-2.
         GlyphPlacement Forward{};
-        Forward.Size = HubChevron; Forward.StrokeWidth = 2.0f; Forward.Colour = Faded(Ink30, Opacity);
+        Forward.Size = HubChevron; Forward.StrokeWidth = 2.0f; Forward.Colour = Faded(Ink30(), Opacity);
         Forward.X = Extent.MaximumX - HubRowPadding - 8.0f - HubChevron;
         Forward.Y = Extent.MinimumY + (Extent.Height() - HubChevron) * 0.5f;
         GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::ChevronForward), Forward);
 
         // border-b border-white/5 (not on the last row)
         if (Row < 3u)
-            Surface.FillRectangle(Spanning(Extent.MinimumX, Extent.MaximumY, Extent.Width(), 1.0f), Faded(Ink05, Opacity));
+            Surface.FillRectangle(Spanning(Extent.MinimumX, Extent.MaximumY, Extent.Width(), 1.0f), Faded(Ink05(), Opacity));
     }
     Surface.EndGroup(GroupMark, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f);
 }
@@ -1213,7 +1233,7 @@ void ControlCentreHost::ConstructPageBodyLayout(PixelSpace& Surface, ControlCent
         const float TrackH = Body.Height() - 16.0f;
         const float ThumbH = std::max(TrackH * Body.Height() / BodyContentHeight, 24.0f);
         const float ThumbY = Body.MinimumY + 8.0f + (TrackH - ThumbH) * std::clamp(BodyScrollY / Room, 0.0f, 1.0f);
-        Surface.FillRectangle(Spanning(Body.MaximumX - 10.0f, ThumbY, 4.0f, ThumbH), Faded(Ink10, Opacity), 2.0f);
+        Surface.FillRectangle(Spanning(Body.MaximumX - 10.0f, ThumbY, 4.0f, ThumbH), Faded(Ink10(), Opacity), 2.0f);
     }
 }
 
@@ -1226,12 +1246,12 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
     const bool InputStyle = Page == ControlCentrePageCategory::Input;   // Notch's Input modal uses its own palette
 
     // Sheet: bg-[#161415] rounded-[32px] border border-white/5.
-    Surface.FillRectangle(Card, Faded(PageSheet, Opacity), PageRadius);
-    ControlKit::OutlineRounded(Surface, Card, Faded(Ink05, Opacity), PageRadius);
+    Surface.FillRectangle(Card, Faded(PageSheet(), Opacity), PageRadius);
+    ControlKit::OutlineRounded(Surface, Card, Faded(Ink05(), Opacity), PageRadius);
 
     // Header p-8 pb-4: title text-2xl semibold (mb-2) + subtitle text-sm muted; X button top-right.
-    const ColorQuad TextInk  = InputStyle ? InputInk   : Ink90;
-    const ColorQuad MutedInk = InputStyle ? InputMuted : Ink50;
+    const ColorQuad TextInk  = InputStyle ? InputInk   : Ink90();
+    const ColorQuad MutedInk = InputStyle ? InputMuted : Ink50();
     const float HeaderX = Card.MinimumX + PagePadding;
     float Y = Card.MinimumY + PagePadding;
     const PlanePoint TitleSize = Surface.MeasureText(Chrome.Title, PageTitleSize);
@@ -1244,8 +1264,8 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
     const PlaneExtent Close = QueryPageCloseExtent();
     {
         const bool Hover = Live && Close.Encloses(Pointer.X, Pointer.Y) && !Dialogue.IsVisible();
-        if (Hover) Surface.FillRectangle(Close, Faded(Ink05, Opacity), Close.Width() * 0.5f);   // hover:bg-white/5
-        ControlKit::OutlineRounded(Surface, Close, Faded(InputStyle ? Ink10 : Ink06, Opacity), Close.Width() * 0.5f);
+        if (Hover) Surface.FillRectangle(Close, Faded(Ink05(), Opacity), Close.Width() * 0.5f);   // hover:bg-white/5
+        ControlKit::OutlineRounded(Surface, Close, Faded(InputStyle ? Ink10() : Ink06(), Opacity), Close.Width() * 0.5f);
         ControlKit::GlyphCentred(Surface, Close, PageCloseGlyph, Faded(MutedInk, Opacity), ControlCentreIconCategory::CloseCross);
     }
 
@@ -1254,16 +1274,16 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
     {
         float X = HeaderX;
         const float TabsBottom = Y + LineHeight(PageTabSize) + PageTabPadBottom;
-        Surface.FillRectangle(Spanning(Card.MinimumX + PagePadding, TabsBottom, Card.Width() - PagePadding * 2.0f, 1.0f), Faded(Ink06, Opacity));
+        Surface.FillRectangle(Spanning(Card.MinimumX + PagePadding, TabsBottom, Card.Width() - PagePadding * 2.0f, 1.0f), Faded(Ink06(), Opacity));
         for (uint32_t Tab = 0u; Tab < 3u; ++Tab)
         {
             const PlanePoint Size = Surface.MeasureText(AppearanceTabs[Tab], PageTabSize);
             TabWidthCache[Tab] = Size.X;
             const bool Active = static_cast<uint32_t>(ActiveAppearanceSubTab) == Tab;
             const bool Hover = Live && Spanning(X, Y, Size.X, TabsBottom - Y).Encloses(Pointer.X, Pointer.Y);
-            Surface.Text(X, Y + (LineHeight(PageTabSize) - Size.Y) * 0.5f, Faded(Active || Hover ? Ink90 : Ink50, Opacity), AppearanceTabs[Tab], PageTabSize);
+            Surface.Text(X, Y + (LineHeight(PageTabSize) - Size.Y) * 0.5f, Faded(Active || Hover ? Ink90() : Ink50(), Opacity), AppearanceTabs[Tab], PageTabSize);
             if (Active)
-                Surface.FillRectangle(Spanning(X, TabsBottom - 1.0f, Size.X, 2.0f), Faded(InkFull, Opacity));   // bottom-[-1px] h-0.5
+                Surface.FillRectangle(Spanning(X, TabsBottom - 1.0f, Size.X, 2.0f), Faded(InkFull(), Opacity));   // bottom-[-1px] h-0.5
             X += Size.X + PageTabGap;
         }
         Y = TabsBottom + 1.0f;
@@ -1280,7 +1300,7 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
     {
         // Notch's Input modal keeps its buttons inside the body (no footer band); every other page has one.
         Surface.FillRectangleBottomRounded(Footer, Faded(Black20, Opacity), PageRadius);
-        Surface.FillRectangle(Spanning(Card.MinimumX, Footer.MinimumY, Card.Width(), 1.0f), Faded(Ink06, Opacity));
+        Surface.FillRectangle(Spanning(Card.MinimumX, Footer.MinimumY, Card.Width(), 1.0f), Faded(Ink06(), Opacity));
     }
 
     const bool Dirty = Page == ControlCentrePageCategory::Appearance && Appearance.IsDirty();
@@ -1353,7 +1373,7 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
             ControlKit::TextCentred(Surface, Reset, Faded(InputInk, Opacity), "Reset Defaults", 13.0f);
         }
         Surface.FillRectangle(Primary, Faded(InputAccent, Opacity), 12.0f);
-        ControlKit::TextCentred(Surface, Primary, Faded(InkFull, Opacity), Chrome.PrimaryButton, 13.0f);
+        ControlKit::TextCentred(Surface, Primary, Faded(InkFull(), Opacity), Chrome.PrimaryButton, 13.0f);
     }
     else
     {

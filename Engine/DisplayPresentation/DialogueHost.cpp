@@ -49,13 +49,13 @@ ColorQuad DialogueHost::QueryToneColour(DialogueToneCategory Tone) noexcept
 {
     switch (Tone)
     {
-        case DialogueToneCategory::Danger:  return ControlKitTokens::Danger;
-        case DialogueToneCategory::Success: return ControlKitTokens::Ok;
-        case DialogueToneCategory::Info:    return ControlKitTokens::Highlight;
-        case DialogueToneCategory::Warning: return ControlKitTokens::Warning;
-        case DialogueToneCategory::Caution: return ControlKitTokens::Caution;
+        case DialogueToneCategory::Danger:  return ControlKit::Palette().Danger;
+        case DialogueToneCategory::Success: return ControlKit::Palette().Ok;
+        case DialogueToneCategory::Info:    return ControlKit::Palette().Info;
+        case DialogueToneCategory::Warning: return ControlKit::Palette().Warning;
+        case DialogueToneCategory::Caution: return ControlKit::Palette().Caution;
     }
-    return ControlKitTokens::Accent;
+    return ControlKit::Palette().Accent;
 }
 
 void DialogueHost::Open(DialoguePresetCategory Preset) noexcept
@@ -149,8 +149,8 @@ void DialogueHost::ConstructDialogueLayout(PixelSpace& Surface, const PlaneExten
 
     const uint32_t Mark = Surface.BeginGroup();
 
-    Surface.FillRectangle(Box, ControlKitTokens::Panel, ControlKitTokens::RadiusPanel);
-    ControlKit::OutlineRounded(Surface, Box, ControlKitTokens::Stroke, ControlKitTokens::RadiusPanel);
+    Surface.FillRectangle(Box, ControlKit::Palette().Panel, ControlKitTokens::RadiusPanel);
+    ControlKit::OutlineRounded(Surface, Box, ControlKit::Palette().Stroke, ControlKitTokens::RadiusPanel);
 
     // Header: rgba(255,255,255,.02) band, icon disc tinted by tone, title 14 semibold, sub 11.5 faint.
     Surface.FillRectangle(Spanning(Box.MinimumX, Box.MinimumY, Width, HeaderH), ColorQuad{ 1.0f, 1.0f, 1.0f, 0.02f }, ControlKitTokens::RadiusPanel);
@@ -164,13 +164,13 @@ void DialogueHost::ConstructDialogueLayout(PixelSpace& Surface, const PlaneExten
     const float TextX = Disc.MaximumX + 10.0f;
     float TextY = Box.MinimumY + HeaderPadY;
     if (!HasSub) TextY = Disc.MinimumY + (HeaderIconDisc - 20.0f) * 0.5f;
-    Surface.Text(TextX, TextY + 2.0f, ControlKitTokens::Text, P.Title, 14.0f);
-    if (HasSub) Surface.Text(TextX, TextY + 20.0f + 1.0f, ControlKitTokens::TextFaint, P.Subtitle, 11.5f);
+    Surface.Text(TextX, TextY + 2.0f, ControlKit::Palette().Text, P.Title, 14.0f);
+    if (HasSub) Surface.Text(TextX, TextY + 20.0f + 1.0f, ControlKit::Palette().TextFaint, P.Subtitle, 11.5f);
 
     // Body
     if (BodyH > 0.0f)
         for (int I = 0; I < LineCount; ++I)
-            Surface.Text(Box.MinimumX + BodyPadX, Box.MinimumY + HeaderH + BodyPadY + I * BodyLine + 2.0f, ControlKitTokens::TextDim, Lines[I], BodySize);
+            Surface.Text(Box.MinimumX + BodyPadX, Box.MinimumY + HeaderH + BodyPadY + I * BodyLine + 2.0f, ControlKit::Palette().TextDim, Lines[I], BodySize);
 
     // Footer: band + buttons right-aligned (Cancel ghost · Secondary · Primary tinted).
     const float FooterTop = Box.MaximumY - FooterH;

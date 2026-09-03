@@ -395,6 +395,8 @@ private:
 
     // ── Appearance ────────────────────────────────────────────────────────────────────────────────────────────────
     ThemeStructure          ActiveTheme;
+    uint32_t                ThemeRevision = ~0u;                 // [-] Appearance revision last pushed into ActiveTheme / ControlKit
+    void                    SynchroniseTheme() noexcept;         // applied Appearance → ThemeStructure → ControlKit palette
     std::string             ProjectName;
     std::vector<BezierPointIndex> HandleContour;   // [px] outline in notch-local space (0..400 × 0..36)
     bool                    InitializedCondition;

@@ -19,28 +19,7 @@ namespace Frontier {
 
 struct ControlKitTokens
 {
-    static constexpr ColorQuad Panel        { 0x12 / 255.0f, 0x12 / 255.0f, 0x12 / 255.0f, 1.0f };   // --panel
-    static constexpr ColorQuad Inset        { 0x1A / 255.0f, 0x1A / 255.0f, 0x1A / 255.0f, 1.0f };   // --inset
-    static constexpr ColorQuad Field        { 0.0f, 0.0f, 0.0f, 1.0f };                               // --field
-    static constexpr ColorQuad Raised       { 0x22 / 255.0f, 0x22 / 255.0f, 0x22 / 255.0f, 1.0f };   // --raised
-    static constexpr ColorQuad Selected     { 0x2A / 255.0f, 0x2A / 255.0f, 0x2A / 255.0f, 1.0f };   // --selected
-    static constexpr ColorQuad Stroke       { 1.0f, 1.0f, 1.0f, 0.05f };                              // --stroke
-    static constexpr ColorQuad StrokeStrong { 0x2E / 255.0f, 0x2E / 255.0f, 0x2E / 255.0f, 1.0f };   // --stroke-strong
-    static constexpr ColorQuad Text         { 0xF0 / 255.0f, 0xF0 / 255.0f, 0xF0 / 255.0f, 1.0f };   // --text
-    static constexpr ColorQuad TextDim      { 0x88 / 255.0f, 0x88 / 255.0f, 0x88 / 255.0f, 1.0f };   // --text-dim
-    static constexpr ColorQuad TextFaint    { 0x5C / 255.0f, 0x5C / 255.0f, 0x5C / 255.0f, 1.0f };   // --text-faint
-    static constexpr ColorQuad Accent       { 1.0f, 1.0f, 1.0f, 1.0f };                               // --accent
-    static constexpr ColorQuad AccentSoft   { 1.0f, 1.0f, 1.0f, 0.12f };                              // --accent-soft
-    static constexpr ColorQuad Highlight    { 0x6C / 255.0f, 0x77 / 255.0f, 0xFF / 255.0f, 1.0f };   // --hi
-    static constexpr ColorQuad Danger       { 0xEF / 255.0f, 0x44 / 255.0f, 0x44 / 255.0f, 1.0f };   // --danger
-    static constexpr ColorQuad Ok           { 0x22 / 255.0f, 0xC5 / 255.0f, 0x5E / 255.0f, 1.0f };   // --ok
-    static constexpr ColorQuad Warning      { 0xF5 / 255.0f, 0x9E / 255.0f, 0x0B / 255.0f, 1.0f };   // amber-500 (Notch warning default)
-    static constexpr ColorQuad Caution      { 0xEA / 255.0f, 0xB3 / 255.0f, 0x08 / 255.0f, 1.0f };   // yellow-500
-    static constexpr ColorQuad PrimaryInk   { 0x11 / 255.0f, 0x11 / 255.0f, 0x11 / 255.0f, 1.0f };   // .btn.primary color #111
-    static constexpr ColorQuad SliderFill   { 0x7A / 255.0f, 0x7A / 255.0f, 0x7A / 255.0f, 1.0f };   // slider filled side
-    static constexpr ColorQuad SliderThumb  { 0xE0 / 255.0f, 0xE0 / 255.0f, 0xE0 / 255.0f, 1.0f };   // slider thumb
-    static constexpr ColorQuad SwitchKnobOff{ 0xBD / 255.0f, 0xBD / 255.0f, 0xBD / 255.0f, 1.0f };   // switch knob (off)
-
+    // Geometry — fixed by the kit, never themed.
     static constexpr float RadiusPanel   = 24.0f;   // --r-panel
     static constexpr float RadiusInset   = 18.0f;   // --r-inset
     static constexpr float RadiusPill    = 999.0f;  // --r-pill (clamped to half height)
@@ -49,6 +28,40 @@ struct ControlKitTokens
     static constexpr float LabelWidth    = 110.0f;  // .crow > .clabel
     static constexpr float RowGap        = 14.0f;   // .crow gap
     static constexpr float DisabledAlpha = 0.35f;   // .btn[disabled]
+};
+
+// Runtime colour set every widget reads through ControlKit::Palette(). Defaults are the UIComponents.html :root dark
+//    tokens; ControlKit::AssignTheme() re-derives them from the applied ThemeStructure so the theme applies globally.
+struct ControlKitPalette
+{
+    ColorQuad Panel        { 0x12 / 255.0f, 0x12 / 255.0f, 0x12 / 255.0f, 1.0f };   // --panel          ← palette.PanelBackground
+    ColorQuad Inset        { 0x1A / 255.0f, 0x1A / 255.0f, 0x1A / 255.0f, 1.0f };   // --inset          ← palette.InputBackground
+    ColorQuad Field        { 0.0f, 0.0f, 0.0f, 1.0f };                               // --field          ← palette.MainBackground
+    ColorQuad Raised       { 0x22 / 255.0f, 0x22 / 255.0f, 0x22 / 255.0f, 1.0f };   // --raised         ← palette.ActiveBackground
+    ColorQuad Selected     { 0x2A / 255.0f, 0x2A / 255.0f, 0x2A / 255.0f, 1.0f };   // --selected       ← palette.CardSubBackground
+    ColorQuad Stroke       { 1.0f, 1.0f, 1.0f, 0.05f };                              // --stroke         ← palette.PanelBorder
+    ColorQuad StrokeStrong { 0x2E / 255.0f, 0x2E / 255.0f, 0x2E / 255.0f, 1.0f };   // --stroke-strong  ← palette.CardSubBackground
+    ColorQuad Divider      { 1.0f, 1.0f, 1.0f, 0.06f };                              // colors.divider   ← palette.DividerColor
+    ColorQuad Card         { 0x14 / 255.0f, 0x14 / 255.0f, 0x15 / 255.0f, 1.0f };   // bg-[#141415]     ← palette.CardBackground
+    ColorQuad CardSub      { 0x1C / 255.0f, 0x1C / 255.0f, 0x1E / 255.0f, 1.0f };   // bg-[#1C1C1E]     ← palette.CardSubBackground
+    ColorQuad Text         { 0xF0 / 255.0f, 0xF0 / 255.0f, 0xF0 / 255.0f, 1.0f };   // --text           ← palette.TextMain
+    ColorQuad TextDim      { 0x88 / 255.0f, 0x88 / 255.0f, 0x88 / 255.0f, 1.0f };   // --text-dim       ← palette.TextMuted
+    ColorQuad TextFaint    { 0x5C / 255.0f, 0x5C / 255.0f, 0x5C / 255.0f, 1.0f };   // --text-faint     ← palette.TextMuted × 0.7 alpha
+    ColorQuad Primary      { 1.0f, 1.0f, 1.0f, 1.0f };                               // --accent (white primary button / active pill) — Notch hard-codes bg-white
+    ColorQuad PrimaryInk   { 0x11 / 255.0f, 0x11 / 255.0f, 0x11 / 255.0f, 1.0f };   // .btn.primary color #111
+    ColorQuad Accent       { 0x3B / 255.0f, 0x82 / 255.0f, 0xF6 / 255.0f, 1.0f };   // Notch accentColor — switches, slider fill, active tiles, tile outline
+    ColorQuad AccentInk    { 1.0f, 1.0f, 1.0f, 1.0f };                               // ink on top of Accent (text-white; #111 when accent is white)
+    ColorQuad AccentSoft   { 0x3B / 255.0f, 0x82 / 255.0f, 0xF6 / 255.0f, 0.12f };  // --accent-soft
+    ColorQuad Highlight    { 0x6C / 255.0f, 0x77 / 255.0f, 0xFF / 255.0f, 1.0f };   // --hi (legacy indigo; dashboard pill fill)
+    ColorQuad Danger       { 0xEF / 255.0f, 0x44 / 255.0f, 0x44 / 255.0f, 1.0f };   // --danger
+    ColorQuad Ok           { 0x22 / 255.0f, 0xC5 / 255.0f, 0x5E / 255.0f, 1.0f };   // --ok             ← Success swatch
+    ColorQuad Info         { 0x3B / 255.0f, 0x82 / 255.0f, 0xF6 / 255.0f, 1.0f };   // info             ← Info swatch
+    ColorQuad Warning      { 0xF5 / 255.0f, 0x9E / 255.0f, 0x0B / 255.0f, 1.0f };   // amber-500        ← Warning swatch
+    ColorQuad Caution      { 0xEA / 255.0f, 0xB3 / 255.0f, 0x08 / 255.0f, 1.0f };   // yellow-500       ← Caution swatch
+    ColorQuad SliderFill   { 0x7A / 255.0f, 0x7A / 255.0f, 0x7A / 255.0f, 1.0f };   // slider filled side (kit default; Notch = accent)
+    ColorQuad SliderThumb  { 0xE0 / 255.0f, 0xE0 / 255.0f, 0xE0 / 255.0f, 1.0f };   // slider thumb
+    ColorQuad SwitchKnobOff{ 0xBD / 255.0f, 0xBD / 255.0f, 0xBD / 255.0f, 1.0f };   // switch knob (off)
+    bool      LightSurface = false;                                                    // true for Light / Sepia: hover tints go black instead of white
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -72,7 +85,7 @@ struct ButtonStructure
 {
     const char*        Label    = "";
     ButtonToneCategory Tone     = ButtonToneCategory::Secondary;
-    ColorQuad          Tint     = ControlKitTokens::Accent;   // Tinted: fill colour; Danger: text colour
+    ColorQuad          Tint     = ColorQuad{ 0.0f, 0.0f, 0.0f, 0.0f };   // Tinted: fill colour (alpha 0 → Palette().Accent); Danger: text colour
     bool               Disabled = false;
     float              FontSize = 13.5f;
     float              PaddingX = 20.0f;
@@ -95,6 +108,13 @@ struct ControlHit
 class ControlKit
 {
 public:
+    // ── Theme ───────────────────────────────────────────────────────────────────────────────────────────────────────
+    // The active palette every widget reads. AssignTheme derives it from the applied theme + semantic swatch colours;
+    //    ResetPalette restores the UIComponents dark defaults.
+    [[nodiscard]] static const ControlKitPalette& Palette() noexcept { return ActivePalette; }
+    static void AssignTheme(const ThemeStructure& Theme, ColorQuad WarningColour, ColorQuad SuccessColour, ColorQuad InfoColour, ColorQuad CautionColour) noexcept;
+    static void ResetPalette() noexcept { ActivePalette = ControlKitPalette{}; }
+
     // ── Primitives ───────────────────────────────────────────────────────────────────────────────────────────────────
     static void  OutlineRounded(PixelSpace& Surface, const PlaneExtent& Extent, ColorQuad Colour, float Radius, float Thickness = 1.0f) noexcept;
     static void  FillCircle    (PixelSpace& Surface, float CentreX, float CentreY, float Radius, ColorQuad Colour) noexcept
@@ -102,7 +122,8 @@ public:
         Surface.FillRectangle(Spanning(CentreX - Radius, CentreY - Radius, Radius * 2.0f, Radius * 2.0f), Colour, Radius);
     }
     static void  OutlineCircle (PixelSpace& Surface, float CentreX, float CentreY, float Radius, ColorQuad Colour, float Thickness) noexcept;
-    static void  Divider       (PixelSpace& Surface, float X, float Y, float Width, ColorQuad Colour = ControlKitTokens::Stroke) noexcept;
+    static void  Divider       (PixelSpace& Surface, float X, float Y, float Width, ColorQuad Colour) noexcept;
+    static void  Divider       (PixelSpace& Surface, float X, float Y, float Width) noexcept { Divider(Surface, X, Y, Width, ActivePalette.Stroke); }
     static void  TextCentred   (PixelSpace& Surface, const PlaneExtent& Extent, ColorQuad Colour, const char* Utf8, float Size) noexcept;
     static void  TextLeading   (PixelSpace& Surface, const PlaneExtent& Extent, float PadX, ColorQuad Colour, const char* Utf8, float Size) noexcept;
     static void  Glyph         (PixelSpace& Surface, float X, float Y, float Size, ColorQuad Colour, ControlCentreIconCategory Icon, float Stroke = 2.0f) noexcept;
@@ -166,6 +187,9 @@ public:
         return Pointer.Enabled && Extent.Encloses(Pointer.X, Pointer.Y);
     }
     [[nodiscard]] static ColorQuad Faded(ColorQuad Colour, float Opacity) noexcept { Colour.Alpha *= Opacity; return Colour; }
+
+private:
+    static ControlKitPalette ActivePalette;
 };
 
 } // namespace Frontier

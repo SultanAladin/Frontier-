@@ -18,10 +18,11 @@ constexpr ColorQuad Hex(uint32_t Rgb, float Alpha = 1.0f) noexcept
 }
 
 // Notch dark theme text colours (colors.text / colors.textMuted) used on section headings.
-constexpr ColorQuad Ink90 { 1.0f, 1.0f, 1.0f, 0.90f };
-constexpr ColorQuad Ink50 { 1.0f, 1.0f, 1.0f, 0.50f };
-constexpr ColorQuad Ink10 { 1.0f, 1.0f, 1.0f, 0.10f };
-constexpr ColorQuad Ink20 { 1.0f, 1.0f, 1.0f, 0.20f };
+// Notch colour classes resolved against the applied theme each frame (ControlKit::Palette()).
+inline ColorQuad Ink90() noexcept { return ControlKit::Palette().Text; }      // colors.text
+inline ColorQuad Ink50() noexcept { return ControlKit::Palette().TextDim; }   // colors.textMuted
+inline ColorQuad Ink10() noexcept { return ControlKit::Palette().LightSurface ? ColorQuad{ 0.0f, 0.0f, 0.0f, 0.10f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.10f }; }   // ring-white/10, colors.activeBg
+inline ColorQuad Ink20() noexcept { return ControlKit::Palette().LightSurface ? ColorQuad{ 0.0f, 0.0f, 0.0f, 0.20f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.20f }; }   // hover:ring-white/20
 
 // Theme tile miniature palettes — Notch ThemeTab.tsx (bg / sidebar / panel / lines).
 struct TilePalette { const char* Name; ColorQuad Background, Sidebar, Panel, Lines; bool OutlinePanel; };
@@ -168,7 +169,7 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
         const float H = ControlKit::SectionPadding * 2.0f + HeadingH + Rows * RowH + (Rows > 0u ? (Rows - 1u) * RowGap : 0.0f);
         const PlaneExtent Card = Spanning(X, Y, W, H);
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Card, Radius, Opacity);
-        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), Title, Description, Ink90, Ink50, Opacity);
+        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), Title, Description, Ink90(), Ink50(), Opacity);
         Y += H + SectionGap;
         return PlaneExtent{ Content.MinimumX, Content.MinimumY + HeadingH, Content.MaximumX, Content.MaximumY };
     };
@@ -177,13 +178,13 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
     {
         PlaneExtent C = Section("Resolution & Scaling", "Render target size and interface scale", 3u);
         float RowY = C.MinimumY;
-        PlaneExtent Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Resolution", ControlKitTokens::TextDim, Opacity);
+        PlaneExtent Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Resolution", ControlKit::Palette().TextDim, Opacity);
         uint32_t Res = static_cast<uint32_t>(Draft.Resolution);
         RecordDropdown(Surface, Spanning(Ctl.MinimumX, RowY, std::min(Ctl.Width(), 260.0f), RowH), 0, ResolutionNames, 4u, Res, Pointer, Opacity);
         Draft.Resolution = static_cast<RenderResolutionCategory>(Res);
         RowY += RowH + RowGap;
 
-        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "UI Scale", ControlKitTokens::TextDim, Opacity);
+        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "UI Scale", ControlKit::Palette().TextDim, Opacity);
         char Num[8]; std::snprintf(Num, sizeof(Num), "%d", static_cast<int>(std::lround(Draft.InterfaceScale)));
         ControlKit::ValuePill(Surface, Ctl.MinimumX, RowY, Num, "%", Opacity);
         ScaleSliderExtent = Spanning(Ctl.MinimumX + ControlKit::ValuePillWidth + ControlKitTokens::RowGap, RowY, Ctl.MaximumX - (Ctl.MinimumX + ControlKit::ValuePillWidth + ControlKitTokens::RowGap), RowH);
@@ -195,16 +196,16 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
         }
         RowY += RowH + RowGap;
 
-        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Match Quality", ControlKitTokens::TextDim, Opacity);
+        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Match Quality", ControlKit::Palette().TextDim, Opacity);
         if (ControlKit::Switch(Surface, Ctl.MinimumX, RowY + (RowH - ControlKit::SwitchHeight) * 0.5f, Draft.MatchQualityTier, Local, Opacity).Clicked) Draft.MatchQualityTier = !Draft.MatchQualityTier;
-        ControlKit::TextLeading(Surface, Spanning(Ctl.MinimumX + ControlKit::SwitchWidth + 12.0f, RowY, 300.0f, RowH), 0.0f, ControlKit::Faded(ControlKitTokens::TextFaint, Opacity), "Render scale follows the Quality tier", 12.0f);
+        ControlKit::TextLeading(Surface, Spanning(Ctl.MinimumX + ControlKit::SwitchWidth + 12.0f, RowY, 300.0f, RowH), 0.0f, ControlKit::Faded(ControlKit::Palette().TextFaint, Opacity), "Render scale follows the Quality tier", 12.0f);
     }
 
     // ② Presentation
     {
         PlaneExtent C = Section("Presentation", "Swapchain behaviour", 3u);
         float RowY = C.MinimumY;
-        PlaneExtent Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "V-Sync", ControlKitTokens::TextDim, Opacity);
+        PlaneExtent Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "V-Sync", ControlKit::Palette().TextDim, Opacity);
         {
             float SegW = 8.0f;
             for (const char* N : VsyncNames) SegW += Surface.MeasureText(N, 13.0f).X + 32.0f + 4.0f;
@@ -216,13 +217,13 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
         }
         RowY += RowH + RowGap;
 
-        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Frame Cap", ControlKitTokens::TextDim, Opacity);
+        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Frame Cap", ControlKit::Palette().TextDim, Opacity);
         uint32_t Cap = static_cast<uint32_t>(Draft.FrameCap);
         RecordDropdown(Surface, Spanning(Ctl.MinimumX, RowY, std::min(Ctl.Width(), 260.0f), RowH), 1, FrameCapNames, 4u, Cap, Pointer, Opacity);
         Draft.FrameCap = static_cast<FrameCapCategory>(Cap);
         RowY += RowH + RowGap;
 
-        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Fullscreen", ControlKitTokens::TextDim, Opacity);
+        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Fullscreen", ControlKit::Palette().TextDim, Opacity);
         FullscreenSwitchExtent = Spanning(Ctl.MinimumX, RowY + (RowH - ControlKit::SwitchHeight) * 0.5f, ControlKit::SwitchWidth, ControlKit::SwitchHeight);
         if (ControlKit::Switch(Surface, FullscreenSwitchExtent.MinimumX, FullscreenSwitchExtent.MinimumY, Draft.Fullscreen, Local, Opacity).Clicked) Draft.Fullscreen = !Draft.Fullscreen;
     }
@@ -232,7 +233,7 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
         const float HeadH = 16.0f + 24.0f;   // uppercase text-xs heading + gap-6
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + 34.0f;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        Surface.Text(Content.MinimumX + 4.0f, Content.MinimumY + 1.0f, ControlKit::Faded(Ink50, Opacity), "ANTI-ALIASING", 12.0f);
+        Surface.Text(Content.MinimumX + 4.0f, Content.MinimumY + 1.0f, ControlKit::Faded(Ink50(), Opacity), "ANTI-ALIASING", 12.0f);
         float PX = Content.MinimumX;
         for (uint32_t I = 0u; I < 4u; ++I)
         {
@@ -241,12 +242,12 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
             const float PW = 40.0f + TextW + (Active ? 6.0f + 8.0f : 0.0f);   // px-5, dot w-1.5 + mr-2
             const PlaneExtent Pill = Spanning(PX, Content.MinimumY + HeadH, PW, 34.0f);
             const bool Hover = ControlKit::Over(Pill, Local);
-            if (Hover && !Active) Surface.FillRectangle(Pill, ControlKit::Faded(Ink10, Opacity), 17.0f);   // hover:activeBg white/10
-            ControlKit::OutlineRounded(Surface, Pill, ControlKit::Faded(Active ? ControlKitTokens::Accent : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.06f }, Opacity), 17.0f);
+            if (Hover && !Active) Surface.FillRectangle(Pill, ControlKit::Faded(Ink10(), Opacity), 17.0f);   // hover:activeBg white/10
+            ControlKit::OutlineRounded(Surface, Pill, ControlKit::Faded(Active ? ControlKit::Palette().Primary : ControlKit::Palette().Stroke, Opacity), 17.0f);
             float TX = Pill.MinimumX + 20.0f;
-            if (Active) { Surface.FillRectangle(Spanning(TX, Pill.MinimumY + 14.0f, 6.0f, 6.0f), ControlKit::Faded(ControlKitTokens::Accent, Opacity), 3.0f); TX += 6.0f + 8.0f; }
+            if (Active) { Surface.FillRectangle(Spanning(TX, Pill.MinimumY + 14.0f, 6.0f, 6.0f), ControlKit::Faded(ControlKit::Palette().Primary, Opacity), 3.0f); TX += 6.0f + 8.0f; }
             const PlanePoint M = Surface.MeasureText(SampleNames[I], 12.0f);
-            Surface.Text(TX, Pill.MinimumY + (34.0f - M.Y) * 0.5f, ControlKit::Faded(Active ? ControlKitTokens::Accent : Ink50, Opacity), SampleNames[I], 12.0f);
+            Surface.Text(TX, Pill.MinimumY + (34.0f - M.Y) * 0.5f, ControlKit::Faded(Active ? ControlKit::Palette().Primary : Ink50(), Opacity), SampleNames[I], 12.0f);
             if (Hover && Local.Released) Draft.AntiAliasing = static_cast<SampleCountCategory>(I);
             PX += PW + 8.0f;
         }
@@ -258,7 +259,7 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
         const float HeadH = 16.0f + 24.0f;
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + RowH;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        Surface.Text(Content.MinimumX + 4.0f, Content.MinimumY + 1.0f, ControlKit::Faded(Ink50, Opacity), "SAFE AREA PADDING", 12.0f);
+        Surface.Text(Content.MinimumX + 4.0f, Content.MinimumY + 1.0f, ControlKit::Faded(Ink50(), Opacity), "SAFE AREA PADDING", 12.0f);
         char Num[8]; std::snprintf(Num, sizeof(Num), "%d", static_cast<int>(std::lround(Draft.SafeAreaPadding)));
         ControlKit::ValuePill(Surface, Content.MinimumX, Content.MinimumY + HeadH, Num, "px", Opacity);
         const PlaneExtent Track = Spanning(Content.MinimumX + ControlKit::ValuePillWidth + ControlKitTokens::RowGap, Content.MinimumY + HeadH, Content.Width() - ControlKit::ValuePillWidth - ControlKitTokens::RowGap, RowH);
@@ -273,10 +274,10 @@ float AppearanceInspector::ConstructDisplayTabLayout(PixelSpace& Surface, const 
     {
         PlaneExtent C = Section("Overlay", "Frame-rate overlay placement", 2u);
         float RowY = C.MinimumY;
-        PlaneExtent Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "FPS Overlay", ControlKitTokens::TextDim, Opacity);
+        PlaneExtent Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "FPS Overlay", ControlKit::Palette().TextDim, Opacity);
         if (ControlKit::Switch(Surface, Ctl.MinimumX, RowY + (RowH - ControlKit::SwitchHeight) * 0.5f, Draft.FrameRateOverlay, Local, Opacity).Clicked) Draft.FrameRateOverlay = !Draft.FrameRateOverlay;
         RowY += RowH + RowGap;
-        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Corner", ControlKitTokens::TextDim, Opacity);
+        Ctl = ControlKit::ControlRow(Surface, C.MinimumX, RowY, C.Width(), "Corner", ControlKit::Palette().TextDim, Opacity);
         float SegW = 8.0f;
         for (const char* N : CornerNames) SegW += Surface.MeasureText(N, 13.0f).X + 32.0f + 4.0f;
         SegW -= 4.0f;
@@ -301,7 +302,7 @@ void AppearanceInspector::RecordThemeTile(PixelSpace& Surface, const PlaneExtent
 
     // aspect-[4/3] rounded-[1.25rem] (20 px) bg; ring-1 white/10 idle (hover white/20)
     Surface.FillRectangle(Extent, ControlKit::Faded(T.Background, Opacity), 20.0f);
-    if (!Active) ControlKit::OutlineRounded(Surface, Extent, ControlKit::Faded(Hover ? Ink20 : Ink10, Opacity), 20.0f);
+    if (!Active) ControlKit::OutlineRounded(Surface, Extent, ControlKit::Faded(Hover ? Ink20() : Ink10(), Opacity), 20.0f);
 
     // Inner mock: sidebar from (24, 24) to the tile's bottom-right; 30 % sidebar column + panel.
     const PlaneExtent Inner = PlaneExtent{ Extent.MinimumX + 24.0f, Extent.MinimumY + 24.0f, Extent.MaximumX, Extent.MaximumY };
@@ -345,15 +346,15 @@ void AppearanceInspector::RecordSemanticRow(PixelSpace& Surface, float X, float 
     const float LeftH = 20.0f + 24.0f + ControlKit::SwatchDiameter;
     const float RowH = std::max(PreviewH, LeftH);
     const float LeftY = Y + (RowH - LeftH) * 0.5f;
-    Surface.Text(X, LeftY + (20.0f - M.Y) * 0.5f, ControlKit::Faded(Ink90, Opacity), Label, 14.0f);
+    Surface.Text(X, LeftY + (20.0f - M.Y) * 0.5f, ControlKit::Faded(Ink90(), Opacity), Label, 14.0f);
     for (uint32_t I = 0u; I < 4u; ++I)
     {
         const float Cx = X + 16.0f + I * (ControlKit::SwatchDiameter + 12.0f), Cy = LeftY + 20.0f + 24.0f + 16.0f;
         if (ControlKit::Swatch(Surface, Cx, Cy, QuerySemanticColour(Row, I), Swatch == I, false, Pointer, Opacity).Clicked) Swatch = I;
     }
     const PlaneExtent Preview = Spanning(X + LeftW + 32.0f, Y, Width - LeftW - 32.0f, PreviewH);
-    Surface.FillRectangle(Preview, ControlKit::Faded(Ink10, Opacity), Radius * 0.7f);        // colors.activeBg
-    ControlKit::OutlineRounded(Surface, Preview, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.06f }, Opacity), Radius * 0.7f);
+    Surface.FillRectangle(Preview, ControlKit::Faded(Ink10(), Opacity), Radius * 0.7f);        // colors.activeBg
+    ControlKit::OutlineRounded(Surface, Preview, ControlKit::Faded(ControlKit::Palette().Stroke, Opacity), Radius * 0.7f);
     const ColorQuad Tone = QuerySemanticColour(Row, Swatch);
     ControlKit::Glyph(Surface, Preview.MinimumX + 24.0f, Preview.MinimumY + (PreviewH - 20.0f) * 0.5f, 20.0f, ControlKit::Faded(Tone, Opacity), Icon);
     const char* Message = Row == 0u ? "Warning Message" : Row == 1u ? "Success Message" : Row == 2u ? "Info Message" : "Caution Message";
@@ -378,7 +379,7 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
         const float HeadH = 20.0f + 4.0f + 16.0f + 24.0f;   // title mb-1 + desc + mb-6
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + GridH;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Color Scheme", "Choose the overall look of the interface", Ink90, Ink50, Opacity);
+        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Color Scheme", "Choose the overall look of the interface", Ink90(), Ink50(), Opacity);
         for (uint32_t I = 0u; I < 7u; ++I)
         {
             const uint32_t Col = I % 4u, Row = I / 4u;
@@ -386,9 +387,9 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
             TileExtents[I] = Tile;
             const bool Active = Draft.Theme == TileThemes[I];
             RecordThemeTile(Surface, Tile, TileThemes[I], Active, Radius, Pointer, Opacity);
-            if (Active) ControlKit::OutlineRounded(Surface, PlaneExtent{ Tile.MinimumX - 2.0f, Tile.MinimumY - 2.0f, Tile.MaximumX + 2.0f, Tile.MaximumY + 2.0f }, ControlKit::Faded(ControlKitTokens::Accent, Opacity), 22.0f, 2.0f);
+            if (Active) ControlKit::OutlineRounded(Surface, PlaneExtent{ Tile.MinimumX - 2.0f, Tile.MinimumY - 2.0f, Tile.MaximumX + 2.0f, Tile.MaximumY + 2.0f }, ControlKit::Faded(ControlKit::Palette().Accent, Opacity), 22.0f, 2.0f);
             const PlanePoint NM = Surface.MeasureText(Tiles[I].Name, 12.0f);
-            Surface.Text(Tile.MinimumX + (TileW - NM.X) * 0.5f, Tile.MaximumY + 12.0f + (16.0f - NM.Y) * 0.5f, ControlKit::Faded(Active ? Ink90 : Ink50, Opacity), Tiles[I].Name, 12.0f);
+            Surface.Text(Tile.MinimumX + (TileW - NM.X) * 0.5f, Tile.MaximumY + 12.0f + (16.0f - NM.Y) * 0.5f, ControlKit::Faded(Active ? Ink90() : Ink50(), Opacity), Tiles[I].Name, 12.0f);
             if (ControlKit::Over(Tile, Pointer) && Pointer.Released) Draft.Theme = TileThemes[I];
         }
         Y += H + SectionGap;
@@ -399,10 +400,10 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
         const float HeadH = 20.0f + 4.0f + 16.0f + 24.0f;
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + ControlKitTokens::ControlHeight;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Corner Radius", "Adjust the roundness of UI elements", Ink90, Ink50, Opacity);
+        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Corner Radius", "Adjust the roundness of UI elements", Ink90(), Ink50(), Opacity);
         char Value[8]; std::snprintf(Value, sizeof(Value), "%dpx", static_cast<int>(std::lround(Draft.CornerRadius)));
         const PlanePoint VM = Surface.MeasureText(Value, 12.0f);
-        Surface.Text(Content.MaximumX - VM.X, Content.MinimumY + HeadH - 24.0f - 16.0f + (16.0f - VM.Y) * 0.5f, ControlKit::Faded(Ink50, Opacity), Value, 12.0f);
+        Surface.Text(Content.MaximumX - VM.X, Content.MinimumY + HeadH - 24.0f - 16.0f + (16.0f - VM.Y) * 0.5f, ControlKit::Faded(Ink50(), Opacity), Value, 12.0f);
         RadiusSliderExtent = Spanning(Content.MinimumX, Content.MinimumY + HeadH, Content.Width(), ControlKitTokens::ControlHeight);
         float V = Draft.CornerRadius;
         const ControlHit Hit = ControlKit::Slider(Surface, RadiusSliderExtent, 0.0f, 32.0f, V, DraggingSlider == 2, Pointer, V, true, false, Opacity);
@@ -416,7 +417,7 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
         const float HeadH = 20.0f + 4.0f + 16.0f + 24.0f;
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + ControlKit::SwatchDiameter + 8.0f;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Accent Color", "Highlight colour for active controls", Ink90, Ink50, Opacity);
+        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Accent Color", "Highlight colour for active controls", Ink90(), Ink50(), Opacity);
         const float Cy = Content.MinimumY + HeadH + 4.0f + 16.0f;
         for (uint32_t I = 0u; I < 10u; ++I)
         {
@@ -435,7 +436,7 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
                 Surface.StrokePolyline(P, 2u, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.06f }, Opacity), 1.0f, false);
             }
             const PlanePoint PM = Surface.MeasureText("+", 14.0f);
-            Surface.Text(Cx - PM.X * 0.5f, Cy - PM.Y * 0.5f, ControlKit::Faded(Ink50, Opacity), "+", 14.0f);
+            Surface.Text(Cx - PM.X * 0.5f, Cy - PM.Y * 0.5f, ControlKit::Faded(Ink50(), Opacity), "+", 14.0f);
         }
         Y += H + SectionGap;
     }
@@ -446,7 +447,7 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
         const float RowH = 100.0f, RowGap = 32.0f + 1.0f + 32.0f;   // pb-8 border-b space-y-8
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + RowH * 4.0f + RowGap * 3.0f;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Semantic Colors", "Tones used by alerts, dialogues and toasts", Ink90, Ink50, Opacity);
+        ControlKit::SectionHeading(Surface, Content.MinimumX, Content.MinimumY, Content.Width(), "Semantic Colors", "Tones used by alerts, dialogues and toasts", Ink90(), Ink50(), Opacity);
         float RowY = Content.MinimumY + HeadH;
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 0u, "Warning", Draft.WarningSwatch, ControlCentreIconCategory::TriangleAlert, Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 1u, "Success", Draft.SuccessSwatch, ControlCentreIconCategory::CircleCheck,   Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
@@ -536,8 +537,8 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
     // ① Typography — heading row + ‹ › + horizontal card strip (flex gap-4, cards w-48 p-5, pb-4 under the strip).
     {
         const float HeadH = 20.0f + 4.0f + 16.0f;   // title + gap-1 + desc  (mb-4 below)
-        Surface.Text(X, Y + 2.0f, ControlKit::Faded(Ink90, Opacity), "Typography", 14.0f);
-        Surface.Text(X, Y + 24.0f, ControlKit::Faded(Ink50, Opacity), "Typeface, type scale, and font weights", 12.0f);
+        Surface.Text(X, Y + 2.0f, ControlKit::Faded(Ink90(), Opacity), "Typography", 14.0f);
+        Surface.Text(X, Y + 24.0f, ControlKit::Faded(Ink50(), Opacity), "Typeface, type scale, and font weights", 12.0f);
         const float BtnCy = Y + HeadH - 16.0f;   // items-end
         StripForwardExtent = Spanning(X + W - 32.0f, BtnCy - 16.0f, 32.0f, 32.0f);
         StripBackExtent    = Spanning(X + W - 32.0f - 8.0f - 32.0f, BtnCy - 16.0f, 32.0f, 32.0f);
@@ -561,15 +562,15 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
             const bool Hover = ControlKit::Over(Card, Local);
             if (Active) Surface.FillRectangle(Card, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius);              // fontActiveBg
             else if (Hover) Surface.FillRectangle(Card, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius);         // hover:activeBg
-            ControlKit::OutlineRounded(Surface, Card, ControlKit::Faded(Active ? Accent : Ink10, Opacity), Radius);
+            ControlKit::OutlineRounded(Surface, Card, ControlKit::Faded(Active ? Accent : Ink10(), Opacity), Radius);
             Surface.PushTypeface(Reg->QueryHandle(I, FontWeightCategory::Regular));
-            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad, ControlKit::Faded(Ink90, Opacity), "Aa", 24.0f);
+            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad, ControlKit::Faded(Ink90(), Opacity), "Aa", 24.0f);
             Surface.PopTypeface();
             Surface.PushTypeface(Face(FontWeightCategory::Medium));
-            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad + 32.0f + 16.0f + 2.0f, ControlKit::Faded(Ink90, Opacity), Fam->Name.c_str(), 14.0f);
+            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad + 32.0f + 16.0f + 2.0f, ControlKit::Faded(Ink90(), Opacity), Fam->Name.c_str(), 14.0f);
             Surface.PopTypeface();
             Surface.PushClip(PlaneExtent{ Card.MinimumX + CardPad, Card.MinimumY, Card.MaximumX - CardPad, Card.MaximumY });
-            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad + 32.0f + 16.0f + 20.0f + 4.0f + 2.0f, ControlKit::Faded(Ink50, Opacity), "The quick brown fox jumps", 12.0f);
+            Surface.Text(Card.MinimumX + CardPad, Card.MinimumY + CardPad + 32.0f + 16.0f + 20.0f + 4.0f + 2.0f, ControlKit::Faded(Ink50(), Opacity), "The quick brown fox jumps", 12.0f);
             Surface.PopClip();
             if (Hover && Pointer.Released) Draft.FontFamily = I;
         }
@@ -586,19 +587,19 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
         const float InnerH = std::max(ColumnH, PreviewH);
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + InnerH;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        Surface.Text(Content.MinimumX, Content.MinimumY + 2.0f, ControlKit::Faded(Ink90, Opacity), "Typeface & Colors", 14.0f);
+        Surface.Text(Content.MinimumX, Content.MinimumY + 2.0f, ControlKit::Faded(Ink90(), Opacity), "Typeface & Colors", 14.0f);
 
         const float Top = Content.MinimumY + HeadH;
         const PlaneExtent Preview = PlaneExtent{ Content.MinimumX, Top, Content.MaximumX - 32.0f - ColW, Top + InnerH };
         Surface.FillRectangle(Preview, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius * 0.8f);
-        ControlKit::OutlineRounded(Surface, Preview, ControlKit::Faded(Ink10, Opacity), Radius * 0.8f);
+        ControlKit::OutlineRounded(Surface, Preview, ControlKit::Faded(Ink10(), Opacity), Radius * 0.8f);
         {
             Surface.PushClip(Preview);
             const float Cy = (Preview.MinimumY + Preview.MaximumY) * 0.5f - (72.0f + 16.0f + 20.0f) * 0.5f;
             Surface.PushTypeface(Face(FontWeightCategory::Bold));
-            Surface.Text(Preview.MinimumX + 40.0f, Cy, ControlKit::Faded(Ink90, Opacity), FamilyName, 72.0f);
+            Surface.Text(Preview.MinimumX + 40.0f, Cy, ControlKit::Faded(Ink90(), Opacity), FamilyName, 72.0f);
             Surface.PopTypeface();
-            Surface.Text(Preview.MinimumX + 40.0f, Cy + 72.0f + 16.0f, ControlKit::Faded(Ink50, Opacity), "(72px bold)", 14.0f);
+            Surface.Text(Preview.MinimumX + 40.0f, Cy + 72.0f + 16.0f, ControlKit::Faded(Ink50(), Opacity), "(72px bold)", 14.0f);
             Surface.PopClip();
         }
         {
@@ -607,9 +608,9 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
             // Mono glyph rows: text-[11px] leading-relaxed, font-mono — rendered in JetBrains Mono when present.
             void* Mono = nullptr; if (Reg) { const int32_t M = Reg->FindFamily("JetBrains Mono"); if (M >= 0) Mono = Reg->QueryHandle(static_cast<uint32_t>(M), FontWeightCategory::Regular); }
             Surface.PushTypeface(Mono);
-            Surface.Text(Cx, Cy,         ControlKit::Faded(Ink50, Opacity), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 11.0f);
-            Surface.Text(Cx, Cy + 22.0f, ControlKit::Faded(Ink50, Opacity), "abcdefghijklmnopqrstuvwxyz", 11.0f);
-            Surface.Text(Cx, Cy + 44.0f, ControlKit::Faded(Ink50, Opacity), "0123456789 !@#$%^&*()", 11.0f);
+            Surface.Text(Cx, Cy,         ControlKit::Faded(Ink50(), Opacity), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 11.0f);
+            Surface.Text(Cx, Cy + 22.0f, ControlKit::Faded(Ink50(), Opacity), "abcdefghijklmnopqrstuvwxyz", 11.0f);
+            Surface.Text(Cx, Cy + 44.0f, ControlKit::Faded(Ink50(), Opacity), "0123456789 !@#$%^&*()", 11.0f);
             Surface.PopTypeface();
             Cy += 3.0f * 18.0f + 2.0f * 4.0f + 32.0f;
             char Hex[8]; HexOf(Accent, Hex, sizeof(Hex));
@@ -634,9 +635,9 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
                 ControlKit::OutlineCircle(Surface, Dx + 24.0f, Cy + 24.0f, 23.5f, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), 1.0f);
                 HexOf(D.Colour, Hex, sizeof(Hex));
                 Surface.PushTypeface(Face(FontWeightCategory::SemiBold));
-                Surface.Text(Dx, Cy + 48.0f + 12.0f, ControlKit::Faded(Ink90, Opacity), Hex, 10.0f);
+                Surface.Text(Dx, Cy + 48.0f + 12.0f, ControlKit::Faded(Ink90(), Opacity), Hex, 10.0f);
                 Surface.PopTypeface();
-                Surface.Text(Dx, Cy + 48.0f + 12.0f + 15.0f, ControlKit::Faded(Ink50, Opacity), D.Label, 10.0f);
+                Surface.Text(Dx, Cy + 48.0f + 12.0f + 15.0f, ControlKit::Faded(Ink50(), Opacity), D.Label, 10.0f);
                 Dx += std::max(48.0f, Surface.MeasureText(D.Label, 10.0f).X) + 24.0f;
             }
         }
@@ -645,7 +646,7 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
 
     // ③ Type Scale — Desktop: uppercase tracked heading, then per-role cards grid [300px 1fr] gap-8.
     {
-        Surface.Text(X, Y + 2.0f, ControlKit::Faded(Ink50, Opacity), "TYPE SCALE - DESKTOP", 12.0f);
+        Surface.Text(X, Y + 2.0f, ControlKit::Faded(Ink50(), Opacity), "TYPE SCALE - DESKTOP", 12.0f);
         Y += 16.0f + 24.0f + 16.0f;   // mb-6 + pt-4
         for (uint32_t R = 0u; R < AppearanceSettings::TypeRoleCount; ++R)
         {
@@ -667,10 +668,10 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
             // Left: label / "Npx" / slider / chips
             char Px[16]; std::snprintf(Px, sizeof(Px), "%dpx", static_cast<int>(std::lround(Draft.RoleSize[R])));
             Surface.PushTypeface(Face(FontWeightCategory::Medium));
-            Surface.Text(Content.MinimumX, Top + 2.0f, ControlKit::Faded(Ink90, Opacity), Roles[R].Label, 14.0f);
+            Surface.Text(Content.MinimumX, Top + 2.0f, ControlKit::Faded(Ink90(), Opacity), Roles[R].Label, 14.0f);
             Surface.PopTypeface();
             const PlanePoint PxM = Surface.MeasureText(Px, 12.0f);
-            Surface.Text(Content.MinimumX + LeftW - PxM.X, Top + 3.0f, ControlKit::Faded(Ink50, Opacity), Px, 12.0f);
+            Surface.Text(Content.MinimumX + LeftW - PxM.X, Top + 3.0f, ControlKit::Faded(Ink50(), Opacity), Px, 12.0f);
             RoleSliderExtents[R] = Spanning(Content.MinimumX, Top + 20.0f + 24.0f - (ControlKitTokens::ControlHeight - ControlKit::SliderThinHeight) * 0.5f, LeftW, ControlKitTokens::ControlHeight);
             {
                 float V = Draft.RoleSize[R];
@@ -695,11 +696,11 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
             // Right: preview box p-6, radius × 0.7, min-h 100, sample text truncated at the role's size/weight.
             const PlaneExtent Box = PlaneExtent{ Content.MinimumX + LeftW + 32.0f, Content.MinimumY, Content.MaximumX, Content.MaximumY };
             Surface.FillRectangle(Box, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius * 0.7f);
-            ControlKit::OutlineRounded(Surface, Box, ControlKit::Faded(Ink10, Opacity), Radius * 0.7f);
+            ControlKit::OutlineRounded(Surface, Box, ControlKit::Faded(Ink10(), Opacity), Radius * 0.7f);
             Surface.PushClip(PlaneExtent{ Box.MinimumX + 24.0f, Box.MinimumY, Box.MaximumX - 24.0f, Box.MaximumY });
             Surface.PushTypeface(Face(Draft.RoleWeight[R]));
             const float LineH = Surface.MeasureText("Ag", Draft.RoleSize[R]).Y;
-            Surface.Text(Box.MinimumX + 24.0f, (Box.MinimumY + Box.MaximumY) * 0.5f - LineH * 0.5f, ControlKit::Faded(Ink90, Opacity), Roles[R].Sample, Draft.RoleSize[R]);
+            Surface.Text(Box.MinimumX + 24.0f, (Box.MinimumY + Box.MaximumY) * 0.5f - LineH * 0.5f, ControlKit::Faded(Ink90(), Opacity), Roles[R].Sample, Draft.RoleSize[R]);
             Surface.PopTypeface();
             Surface.PopClip();
 
@@ -714,14 +715,14 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
         const float RowH = 20.0f + 4.0f + 16.0f;
         const float H = ControlKit::SectionPadding * 2.0f + HeadH + 8.0f + RowH + 16.0f + 1.0f + 16.0f + RowH;
         const PlaneExtent Content = ControlKit::SectionCard(Surface, Spanning(X, Y, W, H), Radius, Opacity);
-        Surface.Text(Content.MinimumX, Content.MinimumY + 2.0f, ControlKit::Faded(Ink90, Opacity), "Font Rendering", 14.0f);
+        Surface.Text(Content.MinimumX, Content.MinimumY + 2.0f, ControlKit::Faded(Ink90(), Opacity), "Font Rendering", 14.0f);
         float RowY = Content.MinimumY + HeadH + 8.0f;
         auto Row = [&](const char* Title, const char* Sub, bool& Flag, PlaneExtent& Out)
         {
             Surface.PushTypeface(Face(FontWeightCategory::Medium));
-            Surface.Text(Content.MinimumX, RowY + 2.0f, ControlKit::Faded(Ink90, Opacity), Title, 14.0f);
+            Surface.Text(Content.MinimumX, RowY + 2.0f, ControlKit::Faded(Ink90(), Opacity), Title, 14.0f);
             Surface.PopTypeface();
-            Surface.Text(Content.MinimumX, RowY + 24.0f, ControlKit::Faded(Ink50, Opacity), Sub, 12.0f);
+            Surface.Text(Content.MinimumX, RowY + 24.0f, ControlKit::Faded(Ink50(), Opacity), Sub, 12.0f);
             // Notch: w-10 h-5 pill, knob 16 tinted accent. Kit switch is 46 × 26 — drawn at Notch's size here for fidelity.
             Out = Spanning(Content.MaximumX - 40.0f, RowY + (RowH - 20.0f) * 0.5f, 40.0f, 20.0f);
             const bool Hover = ControlKit::Over(Out, Pointer);
@@ -731,7 +732,7 @@ float AppearanceInspector::ConstructFontsTabLayout(PixelSpace& Surface, const Pl
         };
         Row("Antialiasing", "Enable subpixel antialiasing", Draft.FontAntialiasing, FontAaSwitchExtent);
         RowY += RowH + 16.0f;
-        ControlKit::Divider(Surface, Content.MinimumX, RowY, Content.Width(), ControlKit::Faded(Ink10, Opacity));
+        ControlKit::Divider(Surface, Content.MinimumX, RowY, Content.Width(), ControlKit::Faded(Ink10(), Opacity));
         RowY += 1.0f + 16.0f;
         Row("Ligatures", "Enable special character combinations", Draft.Ligatures, LigatureSwitchExtent);
         Y += H + SectionGap;

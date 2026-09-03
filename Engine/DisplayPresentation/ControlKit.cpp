@@ -23,6 +23,60 @@ void FillCircle(PixelSpace& Surface, float Cx, float Cy, float R, ColorQuad Colo
 
 } // namespace
 
+ControlKitPalette ControlKit::ActivePalette{};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                        THEME
+//------------------------------------------------------------------------------------------------------------------------
+
+namespace {
+
+// Notch: hover:bg-white/5 on dark themes, hover:bg-black/5 on light ones (OutlinerPanel: 'hover:bg-black/5 dark:hover:bg-white/5').
+ColorQuad HoverWash() noexcept
+{
+    return ControlKit::Palette().LightSurface ? ColorQuad{ 0.0f, 0.0f, 0.0f, 0.05f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f };
+}
+
+float Luminance(ColorQuad C) noexcept { return 0.2126f * C.Red + 0.7152f * C.Green + 0.0722f * C.Blue; }
+
+} // namespace
+
+void ControlKit::AssignTheme(const ThemeStructure& Theme, ColorQuad WarningColour, ColorQuad SuccessColour, ColorQuad InfoColour, ColorQuad CautionColour) noexcept
+{
+    const ThemePalette& P = Theme.QueryPalette();
+    ControlKitPalette& K = ActivePalette;
+    K = ControlKitPalette{};                       // geometry-free defaults, then override every themed slot
+    K.LightSurface = Luminance(P.MainBackground) > 0.5f;
+    K.Panel        = P.PanelBackground;
+    K.Inset        = P.InputBackground;
+    K.Field        = P.MainBackground;
+    K.Raised       = P.ActiveBackground;
+    K.Selected     = P.CardSubBackground;
+    K.Stroke       = P.PanelBorder;
+    K.StrokeStrong = P.CardSubBackground;
+    K.Divider      = P.DividerColor;
+    K.Card         = P.CardBackground;
+    K.CardSub      = P.CardSubBackground;
+    K.Text         = P.TextMain;
+    K.TextDim      = P.TextMuted;
+    K.TextFaint    = P.TextMuted; K.TextFaint.Alpha *= 0.7f;
+    // Notch hard-codes the primary pill / active chip / segmented cell as bg-white text-black on dark themes; on light
+    //    surfaces that would vanish, so the primary inverts to the text colour with the canvas as ink.
+    K.Primary      = K.LightSurface ? P.TextMain : ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f };
+    K.PrimaryInk   = K.LightSurface ? P.MainBackground : ColorQuad{ 0x11 / 255.0f, 0x11 / 255.0f, 0x11 / 255.0f, 1.0f };
+    K.Accent       = Theme.QueryAccentColor();
+    K.AccentInk    = Luminance(K.Accent) > 0.8f ? ColorQuad{ 0x11 / 255.0f, 0x11 / 255.0f, 0x11 / 255.0f, 1.0f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f };
+    K.AccentSoft   = K.Accent; K.AccentSoft.Alpha = 0.12f;
+    K.Highlight    = K.Accent;                     // dashboard pill fill follows the accent
+    K.SliderFill   = K.Accent;                     // Notch <Slider>: linear-gradient(accentColor …)
+    K.SliderThumb  = K.Accent;                     // --thumb-color: accentColor
+    K.SwitchKnobOff= K.LightSurface ? P.TextMuted : ColorQuad{ 0xBD / 255.0f, 0xBD / 255.0f, 0xBD / 255.0f, 1.0f };
+    K.Warning      = WarningColour;
+    K.Ok           = SuccessColour;
+    K.Info         = InfoColour;
+    K.Caution      = CautionColour;
+}
+
 //------------------------------------------------------------------------------------------------------------------------
 //                                                      PRIMITIVES
 //------------------------------------------------------------------------------------------------------------------------
@@ -106,23 +160,23 @@ ControlHit ControlKit::PillButton(PixelSpace& Surface, const PlaneExtent& Extent
     Hit.Clicked = Hit.Hovered && Pointer.Released;
 
     const float R = PillRadius(Extent);
-    ColorQuad Fill = ControlKitTokens::Inset, Ink = ControlKitTokens::Text, Border = ControlKitTokens::Stroke;
+    ColorQuad Fill = Palette().Inset, Ink = Palette().Text, Border = Palette().Stroke;
     bool DrawBorder = true;
     switch (Button.Tone)
     {
         case ButtonToneCategory::Primary:
-            Fill = Hit.Hovered ? ColorQuad{ 0xD9 / 255.0f, 0xD9 / 255.0f, 0xD9 / 255.0f, 1.0f } : ControlKitTokens::Accent;
-            Ink = ControlKitTokens::PrimaryInk; DrawBorder = false; break;
+            Fill = Palette().Primary; if (Hit.Hovered) Fill.Alpha *= 0.9f;   // hover:bg-white/90
+            Ink = Palette().PrimaryInk; DrawBorder = false; break;
         case ButtonToneCategory::Secondary:
-            Fill = Hit.Hovered ? ControlKitTokens::Raised : ControlKitTokens::Inset; break;
+            Fill = Hit.Hovered ? Palette().Raised : Palette().Inset; break;
         case ButtonToneCategory::Ghost:
-            Fill = Hit.Hovered ? ControlKitTokens::Inset : ColorQuad{ 0.0f, 0.0f, 0.0f, 0.0f };
-            Ink  = Hit.Hovered ? ControlKitTokens::Text : ControlKitTokens::TextDim; DrawBorder = false; break;
+            Fill = Hit.Hovered ? Palette().Inset : ColorQuad{ 0.0f, 0.0f, 0.0f, 0.0f };
+            Ink  = Hit.Hovered ? Palette().Text : Palette().TextDim; DrawBorder = false; break;
         case ButtonToneCategory::Danger:
-            Fill = Hit.Hovered ? ControlKitTokens::Raised : ControlKitTokens::Inset; Ink = ControlKitTokens::Danger; break;
+            Fill = Hit.Hovered ? Palette().Raised : Palette().Inset; Ink = Palette().Danger; break;
         case ButtonToneCategory::Tinted:
-            Fill = Button.Tint; if (Hit.Hovered) { Fill.Red *= 0.9f; Fill.Green *= 0.9f; Fill.Blue *= 0.9f; }
-            Ink = ControlKitTokens::Accent; DrawBorder = false; break;
+            Fill = Button.Tint.Alpha > 0.0f ? Button.Tint : Palette().Accent; if (Hit.Hovered) { Fill.Red *= 0.9f; Fill.Green *= 0.9f; Fill.Blue *= 0.9f; }
+            Ink = ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f }; DrawBorder = false; break;
     }
     if (Fill.Alpha > 0.0f) Surface.FillRectangle(Extent, Faded(Fill, A), R);
     if (DrawBorder) OutlineRounded(Surface, Extent, Faded(Border, A), R);
@@ -142,10 +196,10 @@ ControlHit ControlKit::Switch(PixelSpace& Surface, float X, float Y, bool On, co
     Hit.Pressed = Hit.Hovered && Pointer.Pressed;
     Hit.Clicked = Hit.Hovered && Pointer.Released;
 
-    Surface.FillRectangle(Extent, Faded(On ? ControlKitTokens::Accent : ControlKitTokens::Raised, Opacity), SwitchHeight * 0.5f);
-    if (!On) OutlineRounded(Surface, Extent, Faded(ControlKitTokens::Stroke, Opacity), SwitchHeight * 0.5f);
+    Surface.FillRectangle(Extent, Faded(On ? Palette().Accent : Palette().Raised, Opacity), SwitchHeight * 0.5f);   // Notch FormToggle: accentColor when on
+    if (!On) OutlineRounded(Surface, Extent, Faded(Palette().Stroke, Opacity), SwitchHeight * 0.5f);
     const float KnobX = X + 2.0f + 1.0f + (On ? 20.0f : 0.0f);   // top:2px left:2px (+1 border), translateX(20px)
-    FillCircle(Surface, KnobX + 10.0f, Y + 3.0f + 10.0f, 10.0f, Faded(On ? ControlKitTokens::PrimaryInk : ControlKitTokens::SwitchKnobOff, Opacity));
+    FillCircle(Surface, KnobX + 10.0f, Y + 3.0f + 10.0f, 10.0f, Faded(On ? Palette().AccentInk : Palette().SwitchKnobOff, Opacity));   // knob bg-white on the accent
     return Hit;
 }
 
@@ -164,8 +218,8 @@ ControlHit ControlKit::ChipButton(PixelSpace& Surface, const PlaneExtent& Extent
     Hit.Hovered = Over(Extent, Pointer);
     Hit.Pressed = Hit.Hovered && Pointer.Pressed;
     Hit.Clicked = Hit.Hovered && Pointer.Released;
-    if (Active) Surface.FillRectangle(Extent, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f }, Opacity), 6.0f);   // rounded-md
-    const ColorQuad Ink = Active ? ColorQuad{ 0.0f, 0.0f, 0.0f, 1.0f } : (Hit.Hovered ? ColorQuad{ 1.0f, 1.0f, 1.0f, 1.0f } : ColorQuad{ 1.0f, 1.0f, 1.0f, 0.5f });
+    if (Active) Surface.FillRectangle(Extent, Faded(Palette().Primary, Opacity), 6.0f);   // rounded-md, bg-white
+    const ColorQuad Ink = Active ? Palette().PrimaryInk : (Hit.Hovered ? Palette().Text : Palette().TextDim);
     TextCentred(Surface, Extent, Faded(Ink, Opacity), Label, 12.0f);
     return Hit;
 }
@@ -178,9 +232,9 @@ ControlHit ControlKit::RoundIconButton(PixelSpace& Surface, float CentreX, float
     Hit.Hovered = Over(Extent, Pointer);
     Hit.Pressed = Hit.Hovered && Pointer.Pressed;
     Hit.Clicked = Hit.Hovered && Pointer.Released;
-    if (Hit.Hovered) FillCircle(Surface, CentreX, CentreY, R, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity));
-    OutlineCircle(Surface, CentreX, CentreY, R - 0.5f, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.10f }, Opacity), 1.0f);
-    Glyph(Surface, CentreX - 8.0f, CentreY - 8.0f, 16.0f, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.9f }, Opacity), Icon, 2.0f);
+    if (Hit.Hovered) FillCircle(Surface, CentreX, CentreY, R, Faded(HoverWash(), Opacity));   // hover:bg-white/5
+    OutlineCircle(Surface, CentreX, CentreY, R - 0.5f, Faded(Palette().Stroke, Opacity), 1.0f);   // colors.panelBorder
+    Glyph(Surface, CentreX - 8.0f, CentreY - 8.0f, 16.0f, Faded(Palette().TextDim, Opacity), Icon, 2.0f);   // colors.textMuted
     return Hit;
 }
 
@@ -192,8 +246,8 @@ ControlHit ControlKit::Segmented(PixelSpace& Surface, const PlaneExtent& Extent,
 {
     ControlHit Hit{};
     const float R = PillRadius(Extent);
-    Surface.FillRectangle(Extent, Faded(ControlKitTokens::Field, Opacity), R);
-    OutlineRounded(Surface, Extent, Faded(ControlKitTokens::Stroke, Opacity), R);
+    Surface.FillRectangle(Extent, Faded(Palette().Field, Opacity), R);
+    OutlineRounded(Surface, Extent, Faded(Palette().Stroke, Opacity), R);
 
     // padding 4, gap 4, each button px-16 around its label
     float X = Extent.MinimumX + 4.0f;
@@ -204,8 +258,8 @@ ControlHit ControlKit::Segmented(PixelSpace& Surface, const PlaneExtent& Extent,
         const PlaneExtent Cell = Spanning(X, Extent.MinimumY + 4.0f, W, H);
         const bool Hover = Over(Cell, Pointer);
         if (Hover) { Hit.Hovered = true; if (Pointer.Pressed) Hit.Pressed = true; if (Pointer.Released) { Hit.Clicked = true; OutIndex = I; } }
-        if (I == Active) Surface.FillRectangle(Cell, Faded(ControlKitTokens::Accent, Opacity), H * 0.5f);
-        TextCentred(Surface, Cell, Faded(I == Active ? ControlKitTokens::PrimaryInk : (Hover ? ControlKitTokens::Text : ControlKitTokens::TextDim), Opacity), Labels[I], 13.0f);
+        if (I == Active) Surface.FillRectangle(Cell, Faded(Palette().Primary, Opacity), H * 0.5f);
+        TextCentred(Surface, Cell, Faded(I == Active ? Palette().PrimaryInk : (Hover ? Palette().Text : Palette().TextDim), Opacity), Labels[I], 13.0f);
         X += W + 4.0f;
     }
     return Hit;
@@ -240,12 +294,12 @@ ControlHit ControlKit::Slider(PixelSpace& Surface, const PlaneExtent& Extent, fl
     }
 
     const float R = TrackH * 0.5f;
-    Surface.FillRectangle(Track, Faded(ControlKitTokens::Raised, Opacity), R);
+    Surface.FillRectangle(Track, Faded(Palette().Raised, Opacity), R);
     const float ThumbCx = Extent.MinimumX + Thumb * 0.5f + T * (Extent.Width() - Thumb);
     if (ThumbCx - Extent.MinimumX > 0.5f)
-        Surface.FillRectangle(Spanning(Extent.MinimumX, Track.MinimumY, ThumbCx - Extent.MinimumX, TrackH), Faded(HighlightFill ? ControlKitTokens::Highlight : ControlKitTokens::SliderFill, Opacity), R);
+        Surface.FillRectangle(Spanning(Extent.MinimumX, Track.MinimumY, ThumbCx - Extent.MinimumX, TrackH), Faded(HighlightFill ? Palette().Highlight : Palette().SliderFill, Opacity), R);
     const float ThumbR = Thumb * 0.5f * (Hit.Dragging && Pointer.Down ? 1.1f : 1.0f);   // :active scale(1.1)
-    FillCircle(Surface, ThumbCx, Cy, ThumbR, Faded(ControlKitTokens::SliderThumb, Opacity));
+    FillCircle(Surface, ThumbCx, Cy, ThumbR, Faded(Palette().SliderThumb, Opacity));
     return Hit;
 }
 
@@ -255,14 +309,14 @@ void ControlKit::ValuePill(PixelSpace& Surface, float X, float Y, const char* Nu
     const PlaneExtent Whole = Spanning(X, Y, ValuePillWidth, H);
     const PlaneExtent Num   = Spanning(X, Y, ValuePillWidth - ValuePillUnitWidth, H);
     const PlaneExtent Cell  = Spanning(X + ValuePillWidth - ValuePillUnitWidth, Y, ValuePillUnitWidth, H);
-    Surface.FillRectangle(Whole, Faded(ControlKitTokens::Inset, Opacity), H * 0.5f);              // unit cell colour behind
-    Surface.FillRectangle(Spanning(X, Y, ValuePillWidth - ValuePillUnitWidth + H * 0.5f, H), Faded(ControlKitTokens::Field, Opacity), H * 0.5f);   // number cell (left rounded)
-    Surface.FillRectangle(Spanning(Cell.MinimumX, Y, 1.0f, H), Faded(ControlKitTokens::Stroke, Opacity));
+    Surface.FillRectangle(Whole, Faded(Palette().Inset, Opacity), H * 0.5f);              // unit cell colour behind
+    Surface.FillRectangle(Spanning(X, Y, ValuePillWidth - ValuePillUnitWidth + H * 0.5f, H), Faded(Palette().Field, Opacity), H * 0.5f);   // number cell (left rounded)
+    Surface.FillRectangle(Spanning(Cell.MinimumX, Y, 1.0f, H), Faded(Palette().Stroke, Opacity));
     // square the seam: repaint the unit cell's left edge over the number cell's right rounding
-    Surface.FillRectangle(Spanning(Cell.MinimumX, Y, H * 0.5f, H), Faded(ControlKitTokens::Inset, Opacity));
-    OutlineRounded(Surface, Whole, Faded(ControlKitTokens::Stroke, Opacity), H * 0.5f);
-    TextCentred(Surface, Num,  Faded(ControlKitTokens::Text,      Opacity), Number, 15.0f);
-    TextCentred(Surface, Cell, Faded(ControlKitTokens::TextFaint, Opacity), Unit,   12.5f);
+    Surface.FillRectangle(Spanning(Cell.MinimumX, Y, H * 0.5f, H), Faded(Palette().Inset, Opacity));
+    OutlineRounded(Surface, Whole, Faded(Palette().Stroke, Opacity), H * 0.5f);
+    TextCentred(Surface, Num,  Faded(Palette().Text,      Opacity), Number, 15.0f);
+    TextCentred(Surface, Cell, Faded(Palette().TextFaint, Opacity), Unit,   12.5f);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -279,13 +333,13 @@ ControlHit ControlKit::Dropdown(PixelSpace& Surface, const PlaneExtent& Extent, 
     const float H = Extent.Height(), R = H * 0.5f;
     const float CaretW = 44.0f;
     const PlaneExtent Caret = Spanning(Extent.MaximumX - CaretW, Extent.MinimumY, CaretW, H);
-    Surface.FillRectangle(Extent, Faded(ControlKitTokens::Field, Opacity), R);
-    Surface.FillRectangle(Spanning(Caret.MinimumX - R, Extent.MinimumY, CaretW + R, H), Faded(Hit.Hovered ? ControlKitTokens::Raised : ControlKitTokens::Inset, Opacity), R);
-    Surface.FillRectangle(Spanning(Caret.MinimumX - R, Extent.MinimumY, R, H), Faded(ControlKitTokens::Field, Opacity));   // square the seam
-    Surface.FillRectangle(Spanning(Caret.MinimumX, Extent.MinimumY, 1.0f, H), Faded(ControlKitTokens::Stroke, Opacity));
-    OutlineRounded(Surface, Extent, Faded(ControlKitTokens::Stroke, Opacity), R);
-    TextLeading(Surface, Extent, 16.0f, Faded(ControlKitTokens::Text, Opacity), Current, 13.5f);
-    GlyphCentred(Surface, Caret, 16.0f, Faded(ControlKitTokens::TextDim, Opacity), Open ? ControlCentreIconCategory::ChevronUp : ControlCentreIconCategory::ChevronDown);
+    Surface.FillRectangle(Extent, Faded(Palette().Field, Opacity), R);
+    Surface.FillRectangle(Spanning(Caret.MinimumX - R, Extent.MinimumY, CaretW + R, H), Faded(Hit.Hovered ? Palette().Raised : Palette().Inset, Opacity), R);
+    Surface.FillRectangle(Spanning(Caret.MinimumX - R, Extent.MinimumY, R, H), Faded(Palette().Field, Opacity));   // square the seam
+    Surface.FillRectangle(Spanning(Caret.MinimumX, Extent.MinimumY, 1.0f, H), Faded(Palette().Stroke, Opacity));
+    OutlineRounded(Surface, Extent, Faded(Palette().Stroke, Opacity), R);
+    TextLeading(Surface, Extent, 16.0f, Faded(Palette().Text, Opacity), Current, 13.5f);
+    GlyphCentred(Surface, Caret, 16.0f, Faded(Palette().TextDim, Opacity), Open ? ControlCentreIconCategory::ChevronUp : ControlCentreIconCategory::ChevronDown);
     return Hit;
 }
 
@@ -298,17 +352,17 @@ ControlHit ControlKit::DropdownMenu(PixelSpace& Surface, const PlaneExtent& Butt
 {
     ControlHit Hit{};
     const PlaneExtent Menu = DropdownMenuExtent(ButtonExtent, Count);
-    Surface.FillRectangle(Menu, Faded(ControlKitTokens::Field, Opacity), 20.0f);
-    OutlineRounded(Surface, Menu, Faded(ControlKitTokens::StrokeStrong, Opacity), 20.0f);
+    Surface.FillRectangle(Menu, Faded(Palette().Field, Opacity), 20.0f);
+    OutlineRounded(Surface, Menu, Faded(Palette().StrokeStrong, Opacity), 20.0f);
     float Y = Menu.MinimumY + 6.0f;
     for (uint32_t I = 0u; I < Count; ++I)
     {
         const PlaneExtent Row = Spanning(Menu.MinimumX + 6.0f, Y, Menu.Width() - 12.0f, DropdownOptionHeight);
         const bool Hover = Over(Row, Pointer);
         if (Hover) { Hit.Hovered = true; if (Pointer.Pressed) Hit.Pressed = true; if (Pointer.Released) { Hit.Clicked = true; OutIndex = I; } }
-        if (I == Selected)  Surface.FillRectangle(Row, Faded(ColorQuad{ 0x18 / 255.0f, 0x18 / 255.0f, 0x18 / 255.0f, 1.0f }, Opacity), DropdownOptionHeight * 0.5f);
-        else if (Hover)     Surface.FillRectangle(Row, Faded(ColorQuad{ 0x14 / 255.0f, 0x14 / 255.0f, 0x14 / 255.0f, 1.0f }, Opacity), DropdownOptionHeight * 0.5f);
-        TextLeading(Surface, Row, 14.0f, Faded(I == Selected || Hover ? ControlKitTokens::Text : ControlKitTokens::TextDim, Opacity), Options[I], 13.0f);
+        if (I == Selected)  Surface.FillRectangle(Row, Faded(Palette().Raised, Opacity), DropdownOptionHeight * 0.5f);
+        else if (Hover)     Surface.FillRectangle(Row, Faded(Palette().Inset, Opacity), DropdownOptionHeight * 0.5f);
+        TextLeading(Surface, Row, 14.0f, Faded(I == Selected || Hover ? Palette().Text : Palette().TextDim, Opacity), Options[I], 13.0f);
         Y += DropdownOptionHeight + 2.0f;
     }
     Hit.Hovered = Hit.Hovered || Over(Menu, Pointer);
@@ -321,8 +375,8 @@ ControlHit ControlKit::DropdownMenu(PixelSpace& Surface, const PlaneExtent& Butt
 
 PlaneExtent ControlKit::SectionCard(PixelSpace& Surface, const PlaneExtent& Extent, float Radius, float Opacity) noexcept
 {
-    Surface.FillRectangle(Extent, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.05f }, Opacity), Radius);            // colors.inputBg = bg-white/5
-    OutlineRounded(Surface, Extent, Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.06f }, Opacity), Radius);         // colors.panelBorder = border-white/[0.06]
+    Surface.FillRectangle(Extent, Faded(Palette().Inset, Opacity), Radius);            // colors.inputBg
+    OutlineRounded(Surface, Extent, Faded(Palette().Stroke, Opacity), Radius);         // colors.panelBorder
     return PlaneExtent{ Extent.MinimumX + SectionPadding, Extent.MinimumY + SectionPadding, Extent.MaximumX - SectionPadding, Extent.MaximumY - SectionPadding };
 }
 
@@ -355,10 +409,10 @@ ControlHit ControlKit::Swatch(PixelSpace& Surface, float Cx, float Cy, ColorQuad
         if (RingStyle)
         {
             OutlineCircle(Surface, Cx, Cy, R + 4.0f, Faded(Colour, Opacity), 2.0f);      // inset-[-4px] border-2 in the colour
-            FillCircle(Surface, Cx, Cy, 4.0f, Faded(ColorQuad{ 0.0f, 0.0f, 0.0f, 1.0f }, Opacity));   // 2×2 → w-2 h-2 black dot
+            FillCircle(Surface, Cx, Cy, 4.0f, Faded(Palette().Field, Opacity));   // 2×2 → w-2 h-2 dot in the canvas colour (bg-black)
         }
         else
-            OutlineCircle(Surface, Cx, Cy, R - 1.0f, Faded(ControlKitTokens::Accent, Opacity), 2.0f);   // border-2 border-white
+            OutlineCircle(Surface, Cx, Cy, R - 1.0f, Faded(Palette().Primary, Opacity), 2.0f);   // border-2 border-white
     }
     return Hit;
 }

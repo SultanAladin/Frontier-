@@ -687,6 +687,25 @@ int main()
     Tap(R.Host.QueryPageCloseExtent()); R.Idle(80);
     R.Snapshot("ControlCentre_Settings_46_Hub_In_Applied_Typeface");
 
+    // Step 5B — the applied theme recolours everything: hub/dashboard under Nord/Rose, then Light applied → page, hub, dashboard.
+    Tap(R.Host.QueryHubBackExtent()); R.Idle(80);
+    R.Snapshot("ControlCentre_Settings_47_Dashboard_Nord_Rose_Themed");
+    Tap(R.Host.QueryHeaderGearExtent()); R.Idle(30);
+    { const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(1u); Focus(Row); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(80); }
+    Tap(R.Host.QueryPageTabExtent(2u)); R.Idle(30);
+    Tap(R.Host.QueryAppearance().QueryThemeTileExtent(2u)); R.Idle(3);
+    { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); for (int I = 0; I < 7; ++I) { R.PendingWheel = -1.0f; R.Idle(1); } R.Idle(3); }
+    Tap(R.Host.QueryAppearance().QueryAccentSwatchExtent(6u)); R.Idle(3);
+    std::printf("   [48] draft theme=%u accent=%u dirty=%d\n", static_cast<unsigned>(Draft().Theme), static_cast<unsigned>(Draft().Accent), Dirty());
+    R.Snapshot("ControlCentre_Settings_48_Theme_Light_Draft_Not_Applied");
+    Tap(R.Host.QueryPageButtonExtent(true)); R.Idle(30);   // Apply commits directly (Step 4 behaviour)
+    std::printf("   [49] applied theme=%u accent=%u dirty=%d\n", static_cast<unsigned>(R.Host.QueryAppearance().QueryApplied().Theme), static_cast<unsigned>(R.Host.QueryAppearance().QueryApplied().Accent), Dirty());
+    R.Snapshot("ControlCentre_Settings_49_Theme_Light_Applied_Page");
+    Tap(R.Host.QueryPageCloseExtent()); R.Idle(80);
+    R.Snapshot("ControlCentre_Settings_50_Hub_Light_Themed");
+    Tap(R.Host.QueryHubBackExtent()); R.Idle(80);
+    R.Snapshot("ControlCentre_Settings_51_Dashboard_Light_Themed");
+
     // Step 5A — persistence round trip: applied state → TOML → fresh host seeded from it (textual proof).
     {
         Frontier::UserPreferences P;
