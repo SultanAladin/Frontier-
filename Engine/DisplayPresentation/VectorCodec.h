@@ -79,7 +79,13 @@ enum class ControlCentreIconCategory : uint32_t
     ChevronBack                         = 15,                   // ‹ lucide "chevron-left" — hub back button
     ChevronForward                      = 16,                   // › lucide "chevron-right" — hub row affordance
     ShieldInput                         = 17,                   // ⛨ lucide "shield" — Input & Keybindings row
-    Count                               = 18
+    ChevronDown                         = 18,                   // ⌄ lucide "chevron-down" — dropdown caret
+    ChevronUp                           = 19,                   // ⌃ lucide "chevron-up" — dropdown caret (open)
+    TriangleAlert                       = 20,                   // ⚠ lucide "triangle-alert" — warning tone
+    CircleCheck                         = 21,                   // ✓ lucide "circle-check-big" — success tone
+    CircleInfo                          = 22,                   // ⓘ lucide "info" — info tone
+    OctagonAlert                        = 23,                   // ⛔ lucide "octagon-alert" — caution / danger tone
+    Count                               = 24
 };
 
 // Lucide glyphs are authored as several <path>/<circle>/<rect> children. VectorGlyphRecord stores them

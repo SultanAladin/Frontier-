@@ -180,6 +180,9 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/GlyphSpace.cpp
     Engine/DisplayPresentation/NotificationQueue.cpp
     Engine/DisplayPresentation/TelemetryMetrics.cpp
+    Engine/DisplayPresentation/ControlKit.cpp
+    Engine/DisplayPresentation/DialogueHost.cpp
+    Engine/DisplayPresentation/AppearanceInspector.cpp
     Engine/DisplayPresentation/WorkspaceHost.cpp
     Engine/DisplayPresentation/CycleScheduler.cpp
     Engine/DisplayPresentation/FidelityClassifier.cpp

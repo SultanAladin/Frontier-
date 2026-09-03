@@ -221,7 +221,19 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategor
         "ShieldInput",
         "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
         24, 24, 2.0f
-    }
+    },
+    // 18: ChevronDown — lucide "chevron-down"
+    VectorGlyphRecord{ "ChevronDown", "m6 9 6 6 6-6", 24, 24, 2.0f },
+    // 19: ChevronUp — lucide "chevron-up"
+    VectorGlyphRecord{ "ChevronUp", "m18 15-6-6-6 6", 24, 24, 2.0f },
+    // 20: TriangleAlert — lucide "triangle-alert"
+    VectorGlyphRecord{ "TriangleAlert", "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3ZM12 9v4M12 17h.01", 24, 24, 2.0f },
+    // 21: CircleCheck — lucide "circle-check-big"
+    VectorGlyphRecord{ "CircleCheck", "M22 11.08V12a10 10 0 1 1-5.93-9.14M9 11l3 3L22 4", 24, 24, 2.0f },
+    // 22: CircleInfo — lucide "info"
+    VectorGlyphRecord{ "CircleInfo", "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM12 16v-4M12 8h.01", 24, 24, 2.0f },
+    // 23: OctagonAlert — lucide "octagon-alert"
+    VectorGlyphRecord{ "OctagonAlert", "M12 16h.01M12 8v4M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z", 24, 24, 2.0f }
 };
 
 //------------------------------------------------------------------------------------------------------------------------

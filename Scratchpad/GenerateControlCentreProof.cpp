@@ -177,6 +177,7 @@ struct Rig
     float CursorX = 640.0f, CursorY = 300.0f;
     const unsigned char* Tex = nullptr; int TexW = 0, TexH = 0;
     uint32_t FrameCounter = 0u;
+    float PendingWheel = 0.0f;
 
     Rig()
     {
@@ -188,6 +189,8 @@ struct Rig
     void Frame(Canvas* Out)
     {
         Input.AssignCursorPosition(CursorX, CursorY);
+        Input.ResetMouseScroll();
+        if (PendingWheel != 0.0f) { Input.AssignMouseScroll(PendingWheel); PendingWheel = 0.0f; }
         Host.AdvanceInteraction(Input, CursorX, CursorY);
         Host.AdvanceLocomotion(Step);
         Notifications.Advance(Step);
@@ -505,6 +508,114 @@ int main()
     R.CursorX = 640.0f; R.CursorY = 18.0f; R.Idle(2);
     R.Press(); R.Idle(2); R.Release(); R.Idle(150);
     R.Snapshot("ControlCentre_Settings_22_Reopened_Dashboard_Reset");
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //                                     STEP 4 · DISPLAY / THEME CONTENT · DIRTY FOOTER · DIALOGUES
+    //--------------------------------------------------------------------------------------------------------------------
+
+    auto Focus = [&](const Frontier::PlaneExtent& E) { R.CursorX = (E.MinimumX + E.MaximumX) * 0.5f; R.CursorY = (E.MinimumY + E.MaximumY) * 0.5f; };
+    auto Tap = [&](const Frontier::PlaneExtent& E) { Focus(E); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(2); };
+    auto Dirty = [&]{ return R.Host.QueryAppearance().IsDirty() ? 1 : 0; };
+    auto Draft = [&]() -> const Frontier::AppearanceSettings& { return R.Host.QueryAppearance().QueryDraft(); };
+
+    // Open shade → hub → Appearance (Fonts is initial) → Display tab.
+    R.CursorX = 640.0f; R.CursorY = 18.0f; R.Idle(2);
+    R.Press(); R.Idle(2); R.Release(); R.Idle(150);
+    Tap(R.Host.QueryHeaderGearExtent()); R.Idle(30);
+    { const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(1u); Focus(Row); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(80); }
+    Tap(R.Host.QueryPageTabExtent(0u)); R.Idle(30);
+    std::printf("   [23] Display tab: dirty=%d\n", Dirty());
+    R.Snapshot("ControlCentre_Settings_23_Display_Tab_Clean_Buttons_Disabled");
+
+    // Drag the UI-scale slider to the right → draft changes, footer enables.
+    {
+        const Frontier::PlaneExtent S = R.Host.QueryAppearance().QueryScaleSliderExtent();
+        R.CursorX = S.MinimumX + 13.0f + (S.Width() - 26.0f) * (50.0f / 150.0f); R.CursorY = (S.MinimumY + S.MaximumY) * 0.5f;   // ≈ current 100 %
+        R.Idle(2); R.Press();
+        R.Drag(S.MinimumX + S.Width() * 0.72f, R.CursorY, 20);
+        std::printf("   [24] dragging UI scale: %.0f%% dirty=%d\n", Draft().InterfaceScale, Dirty());
+        R.Snapshot("ControlCentre_Settings_24_Display_UIScale_Dragging_Footer_Enabled");
+        R.Release(); R.Idle(4);
+    }
+
+    // Open the Resolution dropdown, pick 1080p.
+    {
+        Tap(R.Host.QueryAppearance().QueryResolutionDropdownExtent()); R.Idle(3);
+        R.Snapshot("ControlCentre_Settings_25_Display_Resolution_Dropdown_Open");
+        const Frontier::PlaneExtent Btn = R.Host.QueryAppearance().QueryResolutionDropdownExtent();
+        const Frontier::PlaneExtent Menu = Frontier::ControlKit::DropdownMenuExtent(Btn, 4u);
+        R.CursorX = Menu.MinimumX + 40.0f; R.CursorY = Menu.MinimumY + 6.0f + 2.0f * (Frontier::ControlKit::DropdownOptionHeight + 2.0f) + 18.0f;   // third option
+        R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(3);
+        std::printf("   [26] resolution=%u\n", static_cast<unsigned>(Draft().Resolution));
+    }
+
+    // Scroll the body down with the wheel.
+    { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); for (int I = 0; I < 6; ++I) { R.PendingWheel = -1.0f; R.Idle(1); } R.Idle(3); }
+    std::printf("   [26] scroll=%.0f\n", R.Host.QueryBodyScroll());
+    R.Snapshot("ControlCentre_Settings_26_Display_Scrolled");
+
+    // Fullscreen switch + V-Sync segmented "Adaptive".
+    // Presentation section lies below the fold: the extents above are only valid once scrolled into view.
+    Tap(R.Host.QueryAppearance().QueryFullscreenSwitchExtent());
+    {
+        const Frontier::PlaneExtent Seg = R.Host.QueryAppearance().QueryVsyncSegmentExtent();
+        R.CursorX = Seg.MaximumX - 30.0f; R.CursorY = (Seg.MinimumY + Seg.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(3);
+    }
+    std::printf("   [27] fullscreen=%d vsync=%u dirty=%d\n", Draft().Fullscreen ? 1 : 0, static_cast<unsigned>(Draft().VerticalSync), Dirty());
+    R.Snapshot("ControlCentre_Settings_27_Display_Resolution_Fullscreen_VSync_Changed");
+
+    // Discard → confirmation dialogue → Cancel keeps edits → Discard again → confirm → clean.
+    Tap(R.Host.QueryPageButtonExtent(false)); R.Idle(30);
+    std::printf("   [28] dialogue open=%d preset=%u\n", R.Host.IsDialogueOpen() ? 1 : 0, static_cast<unsigned>(R.Host.QueryDialogue().QueryActive()));
+    R.Snapshot("ControlCentre_Settings_28_Discard_Dialogue");
+    Tap(R.Host.QueryDialogue().QueryButtonExtent(Frontier::DialogueVerdictCategory::Cancel)); R.Idle(30);
+    std::printf("   [28] after Cancel: dialogue=%d dirty=%d\n", R.Host.IsDialogueOpen() ? 1 : 0, Dirty());
+    Tap(R.Host.QueryPageButtonExtent(false)); R.Idle(30);
+    Tap(R.Host.QueryDialogue().QueryButtonExtent(Frontier::DialogueVerdictCategory::Primary)); R.Idle(30);
+    std::printf("   [29] after Discard: dirty=%d scale=%.0f res=%u\n", Dirty(), Draft().InterfaceScale, static_cast<unsigned>(Draft().Resolution));
+    R.Snapshot("ControlCentre_Settings_29_After_Discard_Clean");
+
+    // Theme tab: select Nord, drag corner radius, pick Rose accent, pick a success swatch.
+    Tap(R.Host.QueryPageTabExtent(2u)); R.Idle(30);
+    R.Snapshot("ControlCentre_Settings_30_Theme_Tab");
+    // Second tile row sits below the fold: scroll 3 clicks, then pick Nord.
+    { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); for (int I = 0; I < 3; ++I) { R.PendingWheel = -1.0f; R.Idle(1); } R.Idle(3); }
+    Tap(R.Host.QueryAppearance().QueryThemeTileExtent(5u)); R.Idle(3);
+    // Corner Radius card is the next one down: 4 more clicks bring it into the body.
+    { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); for (int I = 0; I < 4; ++I) { R.PendingWheel = -1.0f; R.Idle(1); } R.Idle(3); }
+    {
+        const Frontier::PlaneExtent S = R.Host.QueryAppearance().QueryRadiusSliderExtent();
+        R.CursorX = S.MinimumX + 9.0f + (S.Width() - 18.0f) * 0.5f; R.CursorY = (S.MinimumY + S.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Drag(S.MinimumX + S.Width() * 0.92f, R.CursorY, 20);
+        R.Snapshot("ControlCentre_Settings_31_Theme_Nord_Radius_Dragging");
+        R.Release(); R.Idle(3);
+    }
+    // Accent section is below the fold: scroll it into view, then pick Rose (swatch 9).
+    { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); for (int I = 0; I < 3; ++I) { R.PendingWheel = -1.0f; R.Idle(1); } R.Idle(3); }
+    Tap(R.Host.QueryAppearance().QueryAccentSwatchExtent(9u)); R.Idle(3);
+    std::printf("   [32] theme=%u radius=%.0f accent=%u dirty=%d\n", static_cast<unsigned>(Draft().Theme), Draft().CornerRadius, static_cast<unsigned>(Draft().Accent), Dirty());
+    R.Snapshot("ControlCentre_Settings_32_Theme_Changed_Footer_Enabled");
+
+    // Scroll to the semantic rows.
+    { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); for (int I = 0; I < 7; ++I) { R.PendingWheel = -1.0f; R.Idle(1); } R.Idle(3); }
+    R.Snapshot("ControlCentre_Settings_33_Theme_Semantic_Colours");
+
+    // X with unsaved edits → Unsaved-changes dialogue; choose Apply → applied + back to hub.
+    Tap(R.Host.QueryPageCloseExtent()); R.Idle(30);
+    std::printf("   [34] close requested: dialogue=%d preset=%u page=%u\n", R.Host.IsDialogueOpen() ? 1 : 0, static_cast<unsigned>(R.Host.QueryDialogue().QueryActive()), static_cast<unsigned>(R.Host.QueryActivePage()));
+    R.Snapshot("ControlCentre_Settings_34_Unsaved_Changes_Dialogue");
+    Tap(R.Host.QueryDialogue().QueryButtonExtent(Frontier::DialogueVerdictCategory::Primary)); R.Idle(80);
+    {
+        const Frontier::AppearanceSettings& A = R.Host.QueryAppearance().QueryApplied();
+        std::printf("   [35] after Apply: page=%u applied theme=%u radius=%.0f accent=%u dirty=%d rev=%u\n", static_cast<unsigned>(R.Host.QueryActivePage()),
+                    static_cast<unsigned>(A.Theme), A.CornerRadius, static_cast<unsigned>(A.Accent), Dirty(), R.Host.QueryAppearance().QueryRevision());
+    }
+    R.Snapshot("ControlCentre_Settings_35_Applied_Back_On_Hub");
+
+    // Re-enter Appearance: Theme tab shows the applied state, buttons disabled again.
+    { const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(1u); Focus(Row); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(80); }
+    R.Snapshot("ControlCentre_Settings_36_Reentered_Theme_Applied_Clean");
 
     ImGui::DestroyContext();
     return 0;

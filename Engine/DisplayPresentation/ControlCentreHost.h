@@ -45,6 +45,8 @@
 
 #include "ThemeStructure.h"
 #include "MotionIntegrator.h"
+#include "AppearanceInspector.h"
+#include "DialogueHost.h"
 #include "PixelSpace.h"
 #include "FidelityClassifier.h"
 #include "VectorCodec.h"
@@ -83,7 +85,6 @@ enum class ControlCentrePageCategory : uint32_t
 
 // Notch SettingsModal tab order: Display · Fonts · Theme (Fonts is the initial tab).
 enum class AppearanceSubTabCategory : uint32_t { Display = 0, Fonts = 1, Theme = 2, Count = 3 };
-enum class DialogueCategory         : uint32_t { None = 0, ApplyPreferences = 1, DiscardChanges = 2, Count = 3 };
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                   QUICK TILE
@@ -217,7 +218,7 @@ public:
     // ── Per-frame ─────────────────────────────────────────────────────────────────────────────────────────────────
     void                    AdvanceInteraction(const InputExchange& Input, float CursorX, float CursorY) noexcept;
     void                    AdvanceLocomotion(float DeltaSeconds) noexcept;
-    void                    ConstructControlLayout(PixelSpace& Surface) const noexcept;
+    void                    ConstructControlLayout(PixelSpace& Surface) noexcept;   // non-const: page widgets edit draft state
 
     // ── Commands ──────────────────────────────────────────────────────────────────────────────────────────────────
     void                    OpenNotch() noexcept;
@@ -257,10 +258,12 @@ public:
     void                    AssignAppearanceSubTab(AppearanceSubTabCategory SubTab) noexcept { ActiveAppearanceSubTab = SubTab; }
     [[nodiscard]] AppearanceSubTabCategory QueryAppearanceSubTab() const noexcept { return ActiveAppearanceSubTab; }
 
-    void                    OpenDialogue(DialogueCategory Dialogue) noexcept { ActiveDialogue = Dialogue; }
-    void                    CloseDialogue() noexcept { ActiveDialogue = DialogueCategory::None; }
-    [[nodiscard]] DialogueCategory QueryActiveDialogue() const noexcept { return ActiveDialogue; }
-    [[nodiscard]] bool      IsDialogueOpen() const noexcept { return ActiveDialogue != DialogueCategory::None; }
+    [[nodiscard]] bool      IsDialogueOpen() const noexcept { return Dialogue.IsOpen(); }
+    [[nodiscard]] const DialogueHost& QueryDialogue() const noexcept { return Dialogue; }
+    [[nodiscard]] const AppearanceInspector& QueryAppearance() const noexcept { return Appearance; }
+    [[nodiscard]] bool      IsPageDirty() const noexcept;                                       // active page has unapplied edits
+    [[nodiscard]] float     QueryBodyScroll() const noexcept { return BodyScrollY; }
+    [[nodiscard]] PlaneExtent QueryPageBodyExtent() const noexcept;
 
     // ── Theme ─────────────────────────────────────────────────────────────────────────────────────────────────────
     void                    SelectTheme(ThemeCategory Theme) noexcept { ActiveTheme.AssignTheme(Theme); }
@@ -300,9 +303,13 @@ private:
     }
     void                    ResizeCardForPage() noexcept;
     [[nodiscard]] PlaneExtent QueryPageButtonExtentFor(uint32_t Index, bool Primary, PixelSpace& Surface) const noexcept;
-    void                    ConstructPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity, float SlideX, float Scale) const noexcept;
+    [[nodiscard]] PlaneExtent QueryPageFooterExtent() const noexcept;
+    void                    ConstructPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity, float SlideX, float Scale, bool Live) noexcept;
     void                    ConstructHubLayout(PixelSpace& Surface, float Opacity) const noexcept;
-    void                    ConstructSubPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity) const noexcept;
+    void                    ConstructSubPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity, bool Live) noexcept;
+    void                    ConstructPageBodyLayout(PixelSpace& Surface, ControlCentrePageCategory Page, const PlaneExtent& Body, float Opacity, bool Live) noexcept;
+    void                    RequestLeave(bool Back) noexcept;    // X / back / shade-close with dirty-check
+    void                    ResolveDialogueVerdict() noexcept;
     void                    ConstructDashboardLayout(PixelSpace& Surface, float Opacity) const noexcept;
     void                    ConstructTileLayout(PixelSpace& Surface, uint32_t Slot, float Opacity) const noexcept;
     void                    ConstructPillLayout(PixelSpace& Surface, float Opacity) const noexcept;
@@ -352,7 +359,16 @@ private:
     ControlCentrePageCategory ActivePage;
     ControlCentrePageCategory PreviousPage;
     AppearanceSubTabCategory  ActiveAppearanceSubTab;
-    DialogueCategory          ActiveDialogue;
+    DialogueHost              Dialogue;
+    AppearanceInspector       Appearance;
+    ControlCentrePageCategory PendingLeave;     // page navigation deferred behind an Unsaved-changes dialogue
+    bool                      PendingLeaveBack; // true: NavigateBack, false: close shade
+    float                     BodyScrollY;      // [px] sub-page body scroll
+    float                     BodyContentHeight;// [px] measured last frame
+    float                     WheelDelta;       // [clicks] accumulated this frame from AdvanceInteraction
+    ControlPointer            Pointer;          // pointer snapshot handed to widgets during recording
+    bool                      PressedInBody;
+    DialoguePresetCategory    LastDialoguePreset;
     std::vector<ControlCentrePageCategory> PageHistoryStack;
 
     // ── Dashboard ─────────────────────────────────────────────────────────────────────────────────────────────────

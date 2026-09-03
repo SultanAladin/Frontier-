@@ -120,6 +120,22 @@ void PixelSpace::Text(float X, float Y, ColorQuad Colour, const char* Utf8, floa
 }
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                                       CLIPPING
+//------------------------------------------------------------------------------------------------------------------------
+
+void PixelSpace::PushClip(const PlaneExtent& Extent) noexcept
+{
+    if (!Commands) return;
+    List(Commands)->PushClipRect(ImVec2(Extent.MinimumX, Extent.MinimumY), ImVec2(Extent.MaximumX, Extent.MaximumY), true);
+}
+
+void PixelSpace::PopClip() noexcept
+{
+    if (!Commands) return;
+    List(Commands)->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                        GROUPS
 //------------------------------------------------------------------------------------------------------------------------
 

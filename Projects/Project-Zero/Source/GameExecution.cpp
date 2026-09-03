@@ -135,6 +135,7 @@ int main(int, char**)
     uint32_t AppliedSettingsRevision = ~0u;   // forces the first application
     float    SettingsQuietSeconds    = 0.0f;  // [s] since the last change; the toast waits for the slider to rest
     bool     SettingsToastPending    = false;
+    uint32_t AppliedAppearanceRevision = 0u;   // AppearanceInspector::Apply bumps its own revision
 
     // Push the Control Centre settings into the renderer. Called whenever the settings revision changes.
     auto ApplyControlCentreSettings = [&](const Frontier::ControlCentreSettings& S, bool Announce)
@@ -218,6 +219,25 @@ int main(int, char**)
                     ApplyControlCentreSettings(S, true);
                     SettingsToastPending = false;
                 }
+            }
+        }
+
+        // ①d Appearance page → Apply (explicit, dialogue-confirmed when leaving dirty). The renderer consumes what it
+        //    can today (FPS overlay); resolution / V-Sync / fullscreen land with the swapchain step (5+) and are
+        //    acknowledged here so the user sees the commit.
+        {
+            const Frontier::AppearanceInspector& A = ControlCentre.QueryAppearance();
+            if (A.QueryRevision() != AppliedAppearanceRevision)
+            {
+                const Frontier::AppearanceSettings& P = A.QueryApplied();
+                AppliedAppearanceRevision = A.QueryRevision();
+                char Body[128];
+                std::snprintf(Body, sizeof(Body), "%s  |  UI %d%%  |  radius %dpx  |  V-Sync %s%s",
+                              Frontier::AppearanceInspector::QueryThemeName(P.Theme), static_cast<int>(P.InterfaceScale),
+                              static_cast<int>(P.CornerRadius),
+                              P.VerticalSync == Frontier::VerticalSyncCategory::Off ? "off" : P.VerticalSync == Frontier::VerticalSyncCategory::On ? "on" : "adaptive",
+                              P.Fullscreen ? "  |  fullscreen" : "");
+                Notifications.Push("Appearance applied", Body);
             }
         }
 

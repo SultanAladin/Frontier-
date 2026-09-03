@@ -82,6 +82,10 @@ public:
     void StrokePolyline(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour, float Thickness, bool Closed) noexcept;
     void Text          (float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels = 0.0f) noexcept;
 
+    // ── Clipping ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    void PushClip(const PlaneExtent& Extent) noexcept;
+    void PopClip() noexcept;
+
     // ── Groups ───────────────────────────────────────────────────────────────────────────────────────────────────────
     // A group is every primitive recorded between BeginGroup and EndGroup. EndGroup applies, in this order, a
     //    uniform scale about (PivotX, PivotY), a translation, and an alpha multiplier — the framer-motion
