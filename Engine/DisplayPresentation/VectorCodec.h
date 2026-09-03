@@ -75,7 +75,11 @@ enum class ControlCentreIconCategory : uint32_t
     GaugeFrameRate                      = 11,                   // ◔ lucide "gauge" — FPS overlay tile
     SlidersQuality                      = 12,                   // ☰ lucide "sliders-horizontal" — quality tile
     VideoRenderScale                    = 13,                   // ▭ lucide "video" — render-scale pill
-    Count                               = 14
+    CloseCross                          = 14,                   // ✕ lucide "x" — page close button
+    ChevronBack                         = 15,                   // ‹ lucide "chevron-left" — hub back button
+    ChevronForward                      = 16,                   // › lucide "chevron-right" — hub row affordance
+    ShieldInput                         = 17,                   // ⛨ lucide "shield" — Input & Keybindings row
+    Count                               = 18
 };
 
 // Lucide glyphs are authored as several <path>/<circle>/<rect> children. VectorGlyphRecord stores them

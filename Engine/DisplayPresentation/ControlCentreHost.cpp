@@ -3,9 +3,11 @@
 //============================================================================================================================================
 
 #include "ControlCentreHost.h"
+#include "FidelityClassifier.h"
 #include "GlyphSpace.h"
 
 #include <algorithm>
+#include <string>
 #include <cmath>
 #include <cstdio>
 
@@ -41,13 +43,24 @@ ControlCentreHost::ControlCentreHost() noexcept
     , LastDeltaSeconds(1.0f / 60.0f)
     , ActivePage(ControlCentrePageCategory::Dashboard)
     , PreviousPage(ControlCentrePageCategory::Dashboard)
-    , ActiveAppearanceSubTab(AppearanceSubTabCategory::Theme)
+    , ActiveAppearanceSubTab(AppearanceSubTabCategory::Fonts)   // Notch SettingsModal: useState<TabId>("fonts")
     , ActiveDialogue(DialogueCategory::None)
     , PageHistoryStack{}
     , Settings{}
     , HoveredSlot(-1)
     , GrabbedSlot(-1)
     , PillGrabbed(false)
+    , CardWidthChannel(0u)
+    , CardHeightChannel(0u)
+    , PageSwapProgress(1.0f)
+    , PageSwapForward(true)
+    , HoveredHubRow(-1)
+    , GrabbedHubRow(-1)
+    , GrabbedTab(-1)
+    , GrabbedPrimaryButton(false)
+    , CloseResetTimer(-1.0f)
+    , TabWidthCache{}
+    , ButtonWidthCache{}
     , ActiveTheme{}
     , ProjectName("Frontier")
     , HandleContour{}
@@ -56,6 +69,19 @@ ControlCentreHost::ControlCentreHost() noexcept
     ShadeChannel = Motion.Register(0.0);
     NotchChannel = Motion.Register(0.0);
     SlideChannel = Motion.Register(0.0);
+    CardWidthChannel  = Motion.Register(static_cast<double>(CardWidth));
+    CardHeightChannel = Motion.Register(static_cast<double>(CardHeight));
+
+    // framer-motion { type: "spring", bounce: 0.15, duration: 0.5 } → ζ = 1 − 0.15 = 0.85,
+    //    ω₀ = 2π / (duration · 1.2)... framer's duration-based spring solves for stiffness/damping from
+    //    (duration, bounce) with mass 1: ω₀ = 2π·(1/duration)·… Reproduced with its published formula:
+    //    stiffness = (2π / duration)², damping = 2ζ·√stiffness  →  k = 157.9, c = 21.4 for 0.5 s / 0.15.
+    for (uint32_t Channel : { CardWidthChannel, CardHeightChannel })
+    {
+        SpringChannel& Card = Motion.Spring(Channel);
+        Card.Stiffness = 157.9;
+        Card.Damping   = 21.4;
+    }
 
     ActiveTheme.AssignTheme(ThemeCategory::Dark);   // dark is the default per direction; palette below
 }
@@ -103,10 +129,20 @@ void ControlCentreHost::NavigateToPage(ControlCentrePageCategory TargetPage) noe
 {
     if (ActivePage == TargetPage) return;
     PageHistoryStack.push_back(ActivePage);
-    PreviousPage = ActivePage;
-    ActivePage   = TargetPage;
-    Motion.Spring(SlideChannel).Place(static_cast<double>(DisplayWidth) * 0.65);
-    Motion.Spring(SlideChannel).Depart(0.0);
+    PreviousPage     = ActivePage;
+    ActivePage       = TargetPage;
+    PageSwapForward  = true;
+    PageSwapProgress = 0.0f;
+    Motion.Spring(SlideChannel).Place(0.0);
+    ResizeCardForPage();
+}
+
+void ControlCentreHost::ResizeCardForPage() noexcept
+{
+    // ArcNotch.tsx: animate={{ maxWidth: activeSetting ? 840 : 420, height: activeSetting ? 600 : 480 }}
+    const bool Sub = IsSubPage(ActivePage);
+    Motion.Spring(CardWidthChannel ).Depart(Sub ? PageCardWidth  : CardWidth);
+    Motion.Spring(CardHeightChannel).Depart(Sub ? PageCardHeight : CardHeight);
 }
 
 void ControlCentreHost::NavigateBack() noexcept
@@ -123,18 +159,23 @@ void ControlCentreHost::NavigateBack() noexcept
         ActivePage   = PageHistoryStack.back();
         PageHistoryStack.pop_back();
     }
-    Motion.Spring(SlideChannel).Place(-static_cast<double>(DisplayWidth) * 0.65);
-    Motion.Spring(SlideChannel).Depart(0.0);
+    PageSwapForward  = false;
+    PageSwapProgress = 0.0f;
+    ResizeCardForPage();
 }
 
 float ControlCentreHost::QuerySlideOffset() const noexcept
 {
-    return static_cast<float>(Motion.Spring(SlideChannel).Current);
+    // Signed entry offset of the active page in pixels (Notch: x 20 for the hub, 40 for sub-pages, −20 back).
+    const float Remaining = 1.0f - PageSwapProgress;
+    const float Entry = IsSubPage(ActivePage) ? 40.0f : 20.0f;
+    return (PageSwapForward ? Entry : -Entry) * Remaining;
 }
 
 bool ControlCentreHost::IsSlideTransitionActive() const noexcept
 {
-    return !Motion.Spring(SlideChannel).Settled;
+    return PageSwapProgress < 1.0f
+        || !Motion.Spring(CardWidthChannel).Settled || !Motion.Spring(CardHeightChannel).Settled;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -221,6 +262,9 @@ void ControlCentreHost::Depart(bool Opening) noexcept
 {
     Motion.Spring(ShadeChannel).Depart(Opening ? OpenTravel() : 0.0);
     Pose = Opening ? ControlCentreHostState::Opening : ControlCentreHostState::Closing;
+
+    // ArcNotch.tsx closePanel / handleDragEnd: setTimeout(() => { setShowSettings(false); setActiveSetting(null) }, 300)
+    CloseResetTimer = Opening ? -1.0f : 0.3f;
 }
 
 void ControlCentreHost::OpenNotch()  noexcept { Depart(true);  }
@@ -330,6 +374,35 @@ void ControlCentreHost::Relinquish() noexcept
             && static_cast<uint32_t>(GrabbedSlot) < static_cast<uint32_t>(QuickTileCategory::Count))
             ToggleTile(static_cast<QuickTileCategory>(GrabbedSlot));
     }
+    else if (GrabbedSubject == GrabSubject::Gear)
+    {
+        // ArcNotch.tsx: <Settings size={16}/> onClick → setShowSettings(true)
+        if (Tap && QueryHeaderGearExtent().Encloses(PreviousCursorX, PreviousCursorY))
+            NavigateToPage(ControlCentrePageCategory::SettingsHub);
+    }
+    else if (GrabbedSubject == GrabSubject::HubBack)
+    {
+        // ChevronLeft onClick → setShowSettings(false)
+        if (Tap && QueryHubBackExtent().Encloses(PreviousCursorX, PreviousCursorY)) NavigateBack();
+    }
+    else if (GrabbedSubject == GrabSubject::PageClose)
+    {
+        // X onClose → setActiveSetting(null): back to the hub
+        if (Tap && QueryPageCloseExtent().Encloses(PreviousCursorX, PreviousCursorY)) NavigateBack();
+    }
+    else if (GrabbedSubject == GrabSubject::PageTab)
+    {
+        if (Tap && GrabbedTab >= 0 && QueryPageTabExtent(static_cast<uint32_t>(GrabbedTab)).Encloses(PreviousCursorX, PreviousCursorY))
+            ActiveAppearanceSubTab = static_cast<AppearanceSubTabCategory>(GrabbedTab);
+    }
+    else if (GrabbedSubject == GrabSubject::PageButton)
+    {
+        // Footer pills: content is blank in this step, so Apply / Discard have nothing to commit yet.
+        //    Notch's "Discard Changes" on the Input page calls onClose; the others are inert. Reproduced.
+        if (Tap && QueryPageButtonExtent(GrabbedPrimaryButton).Encloses(PreviousCursorX, PreviousCursorY)
+            && !GrabbedPrimaryButton && ActivePage == ControlCentrePageCategory::Input)
+            NavigateBack();
+    }
     else if (GrabbedSubject == GrabSubject::Notch)
     {
         if (Tap)
@@ -370,6 +443,8 @@ void ControlCentreHost::Relinquish() noexcept
     Grabbed        = false;
     GrabbedSubject = GrabSubject::Nothing;
     GrabbedSlot    = -1;
+    GrabbedHubRow  = -1;
+    GrabbedTab     = -1;
     PillGrabbed    = false;
 }
 
@@ -390,10 +465,34 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
     const bool ShadeOpenish = QueryCurrentHeight() > 50.0f;   // Notch: scrim intercepts pointer once y > 50
 
     // Dashboard hit-testing: Notch enables pointer events on the panel once y > 100.
+    //    A page in mid-swap (AnimatePresence mode="wait") is not interactive until it has fully entered.
     const bool CardActive = QueryCurrentHeight() > 100.0f;
-    HoveredSlot = CardActive ? SlotUnder(CursorX, CursorY) : -1;
+    const bool PageSettled = PageSwapProgress >= 1.0f;
+    const bool OnDashboard = ActivePage == ControlCentrePageCategory::Dashboard;
+    const bool OnHub       = ActivePage == ControlCentrePageCategory::SettingsHub;
+    const bool OnSubPage   = IsSubPage(ActivePage);
+
+    HoveredSlot   = (CardActive && PageSettled && OnDashboard) ? SlotUnder(CursorX, CursorY) : -1;
+    HoveredHubRow = -1;
+    if (CardActive && PageSettled && OnHub)
+        for (uint32_t Row = 0u; Row < 4u; ++Row)
+            if (QueryHubRowExtent(Row).Encloses(CursorX, CursorY)) HoveredHubRow = static_cast<int>(Row);
+
     const bool OverCard = CardActive && QueryCardExtent().Encloses(CursorX, CursorY);
-    const bool OverPill = CardActive && [&]
+    const bool OverGear = CardActive && PageSettled && OnDashboard && QueryHeaderGearExtent().Encloses(CursorX, CursorY);
+    const bool OverBack = CardActive && PageSettled && OnHub       && QueryHubBackExtent().Encloses(CursorX, CursorY);
+    const bool OverClose= CardActive && PageSettled && OnSubPage   && QueryPageCloseExtent().Encloses(CursorX, CursorY);
+    int OverTab = -1;
+    if (CardActive && PageSettled && ActivePage == ControlCentrePageCategory::Appearance)
+        for (uint32_t Tab = 0u; Tab < static_cast<uint32_t>(AppearanceSubTabCategory::Count); ++Tab)
+            if (QueryPageTabExtent(Tab).Encloses(CursorX, CursorY)) OverTab = static_cast<int>(Tab);
+    int OverButton = -1;   // 0 secondary (Discard / Reset), 1 primary (Apply)
+    if (CardActive && PageSettled && OnSubPage)
+    {
+        if (QueryPageButtonExtent(true ).Encloses(CursorX, CursorY)) OverButton = 1;
+        if (QueryPageButtonExtent(false).Encloses(CursorX, CursorY)) OverButton = 0;
+    }
+    const bool OverPill = CardActive && PageSettled && OnDashboard && [&]
     {
         PlaneExtent Track = QueryPillTrackExtent();
         Track.MinimumY -= (PillCell - PillTrack) * 0.5f;   // the whole 48 px pill row is grabbable
@@ -404,6 +503,19 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
     if (Pressed)
     {
         if (Hovered)                       Grab(GrabSubject::Notch, CursorX, CursorY);
+        else if (OverGear)                 Grab(GrabSubject::Gear, CursorX, CursorY);
+        else if (OverBack)                 Grab(GrabSubject::HubBack, CursorX, CursorY);
+        else if (OverClose)                Grab(GrabSubject::PageClose, CursorX, CursorY);
+        else if (OverTab >= 0)             { Grab(GrabSubject::PageTab, CursorX, CursorY); GrabbedTab = OverTab; }
+        else if (OverButton >= 0)          { Grab(GrabSubject::PageButton, CursorX, CursorY); GrabbedPrimaryButton = OverButton == 1; }
+        else if (HoveredHubRow >= 0)
+        {
+            // ArcNotch.tsx hub rows fire on onPointerDown, not on release.
+            Grab(GrabSubject::HubRow, CursorX, CursorY);
+            GrabbedHubRow = HoveredHubRow;
+            NavigateToPage(static_cast<ControlCentrePageCategory>(
+                static_cast<uint32_t>(ControlCentrePageCategory::RenderSettings) + static_cast<uint32_t>(HoveredHubRow)));
+        }
         else if (HoveredSlot >= 0)         { Grab(GrabSubject::Tile, CursorX, CursorY); GrabbedSlot = HoveredSlot; }
         else if (OverPill)                 { Grab(GrabSubject::Pill, CursorX, CursorY); PillGrabbed = true; Carry(CursorX, CursorY, LastDeltaSeconds); }
         else if (OverCard)                 Grab(GrabSubject::Card, CursorX, CursorY);   // swallow; card is not a scrim
@@ -432,6 +544,30 @@ void ControlCentreHost::AdvanceLocomotion(float DeltaSeconds) noexcept
     if (Grabbed) ContactDuration += DeltaSeconds;
 
     Motion.Advance(static_cast<double>(DeltaSeconds));
+
+    // Page swap: linear 200 ms tween (framer-motion default easing for opacity/x/scale is easeOut; approximated
+    //    by the cubic below — deviation noted in the step report).
+    if (PageSwapProgress < 1.0f)
+        PageSwapProgress = std::min(1.0f, PageSwapProgress + DeltaSeconds / PageSwapDuration);
+
+    // Deferred reset after close (300 ms): back to the dashboard with the card at rest size.
+    if (CloseResetTimer >= 0.0f)
+    {
+        CloseResetTimer -= DeltaSeconds;
+        if (CloseResetTimer < 0.0f)
+        {
+            CloseResetTimer = -1.0f;
+            if (ActivePage != ControlCentrePageCategory::Dashboard)
+            {
+                PageHistoryStack.clear();
+                PreviousPage     = ActivePage;
+                ActivePage       = ControlCentrePageCategory::Dashboard;
+                PageSwapProgress = 1.0f;   // the shade is shut; nothing to animate
+                Motion.Spring(CardWidthChannel ).Place(CardWidth);
+                Motion.Spring(CardHeightChannel).Place(CardHeight);
+            }
+        }
+    }
 
     // Settle the pose once the shade spring comes to rest.
     if (Pose == ControlCentreHostState::Opening && Motion.Spring(ShadeChannel).Settled) Pose = ControlCentreHostState::Open;
@@ -469,7 +605,25 @@ void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) const noexce
     // ②b Dashboard card inside the sheet, faded per Notch's panelOpacity = useTransform(y, [100, H/2], [0, 1]).
     const float CardOpacity = QueryCardOpacity();
     if (CardOpacity > 0.0f)
-        ConstructDashboardLayout(Surface, CardOpacity);
+    {
+        // AnimatePresence mode="wait": the outgoing page finishes its 200 ms exit before the incoming page
+        //    starts its 200 ms entry. Both halves run inside PageSwapProgress ∈ [0, 1].
+        const float P = PageSwapProgress;
+        auto Eased = [](float T) { const float U = 1.0f - T; return 1.0f - U * U * U; };   // easeOut cubic
+        if (P < 0.5f)
+        {
+            const float T = Eased(P * 2.0f);                              // 0 → 1 across the exit half
+            const float Exit = (PageSwapForward || !IsSubPage(PreviousPage)) ? -20.0f : 40.0f;
+            //   forward: outgoing exits x −20 (dashboard & hub both exit −20); back from a sub-page: exits x +40
+            ConstructPageLayout(Surface, PreviousPage, CardOpacity * (1.0f - T), Exit * T, 1.0f - 0.05f * T);
+        }
+        else
+        {
+            const float T = Eased((P - 0.5f) * 2.0f);                     // 0 → 1 across the entry half
+            const float Entry = PageSwapForward ? (IsSubPage(ActivePage) ? 40.0f : 20.0f) : -20.0f;
+            ConstructPageLayout(Surface, ActivePage, CardOpacity * T, Entry * (1.0f - T), 0.95f + 0.05f * T);
+        }
+    }
 
     // ③ Notch handle: tessellated SVG outline translated to (NotchX, ShadeY).
     std::vector<PlanePoint> Outline;
@@ -577,16 +731,18 @@ PlaneExtent ControlCentreHost::QueryCardExtent() const noexcept
     const float ShadeY = QueryCurrentHeight();
     const float BoxTop = ShadeY - H;
     const float BoxBottom = ShadeY - 35.0f;
-    const float CardX = (static_cast<float>(DisplayWidth) - CardWidth) * 0.5f;
-    const float CardY = BoxTop + ((BoxBottom - BoxTop) - CardHeight) * 0.5f;
-    return Spanning(CardX, CardY, CardWidth, CardHeight);
+    const float LiveW = static_cast<float>(Motion.Spring(CardWidthChannel ).Current);
+    const float LiveH = static_cast<float>(Motion.Spring(CardHeightChannel).Current);
+    const float CardX = (static_cast<float>(DisplayWidth) - LiveW) * 0.5f;
+    const float CardY = BoxTop + ((BoxBottom - BoxTop) - LiveH) * 0.5f;
+    return Spanning(CardX, CardY, LiveW, LiveH);
 }
 
 PlaneExtent ControlCentreHost::QueryTileDiscExtent(uint32_t Slot) const noexcept
 {
     const PlaneExtent Card = QueryCardExtent();
     const float GridTop   = Card.MinimumY + HeaderIconSize + CardGap;        // header row is 16 px tall (icon height)
-    const float CellWidth = (CardWidth - GridColumnGap * (GridColumns - 1u)) / GridColumns;
+    const float CellWidth = (Card.Width() - GridColumnGap * (GridColumns - 1u)) / GridColumns;
     const float RowHeight = TileDisc + TileLabelGap + TileLabelSize + 2.0f;  // label leading-tight ≈ size + 2
     const uint32_t Column = Slot % GridColumns, Row = Slot / GridColumns;
     const float CellX = Card.MinimumX + Column * (CellWidth + GridColumnGap);
@@ -603,7 +759,7 @@ PlaneExtent ControlCentreHost::QueryPillTrackExtent() const noexcept
     const float PillTop   = GridBottom + CardGap + PillTopMargin;
     const float PillH     = PillPadding * 2.0f + PillCell;
     const float TrackX    = Card.MinimumX + PillPadding + PillCell + PillGapX;
-    const float TrackW    = CardWidth - 2.0f * (PillPadding + PillCell + PillGapX);
+    const float TrackW    = Card.Width() - 2.0f * (PillPadding + PillCell + PillGapX);
     return Spanning(TrackX, PillTop + (PillH - PillTrack) * 0.5f, TrackW, PillTrack);
 }
 
@@ -680,7 +836,7 @@ void ControlCentreHost::ConstructPillLayout(PixelSpace& Surface, float Opacity) 
     const float PillH = PillPadding * 2.0f + PillCell;
     const float PillY = Track.MinimumY - (PillH - PillTrack) * 0.5f;
 
-    Surface.FillRectangle(Spanning(Card.MinimumX, PillY, CardWidth, PillH), Faded(TileIdle, Opacity), PillH * 0.5f);
+    Surface.FillRectangle(Spanning(Card.MinimumX, PillY, Card.Width(), PillH), Faded(TileIdle, Opacity), PillH * 0.5f);
 
     GlyphPlacement Video{};
     Video.Size = PillGlyph; Video.StrokeWidth = 2.0f; Video.Colour = Faded(Ink50, Opacity);
@@ -699,6 +855,371 @@ void ControlCentreHost::ConstructPillLayout(PixelSpace& Surface, float Opacity) 
     const float CellX = Card.MaximumX - PillPadding - PillCell;
     Surface.Text(CellX + (PillCell - ValueSize.X) * 0.5f, PillY + PillPadding + (PillCell - ValueSize.Y) * 0.5f,
                  Faded(Ink50, Opacity), Value, PillValueSize);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                    SETTINGS PAGES
+//------------------------------------------------------------------------------------------------------------------------
+
+namespace {
+
+struct HubRowStructure
+{
+    ControlCentreIconCategory Icon;
+    const char*               Label;
+    const char*               Description;
+};
+
+// Direction (supersedes ArcNotch.tsx's Appearance / Display & Workspace / Input & Keybindings / Telemetry rows):
+//    Render Settings · Appearance · Input · Notifications, in that order.
+constexpr HubRowStructure HubRows[4] =
+{
+    { ControlCentreIconCategory::SlidersQuality,    "Render Settings", "Global illumination, anti-aliasing, quality" },
+    { ControlCentreIconCategory::AppearancePalette, "Appearance",      "Theme, fonts, and system colors"             },
+    { ControlCentreIconCategory::ShieldInput,       "Input",           "Shortcuts, mouse sensitivity, controllers"   },
+    { ControlCentreIconCategory::NotificationsBell, "Notifications",   "RAM usage, FPS, baking complete alerts"      },
+};
+
+struct PageChromeStructure
+{
+    const char* Title;
+    const char* Subtitle;
+    const char* SecondaryButton;
+    const char* PrimaryButton;
+};
+
+// Titles / subtitles / footer pills verbatim from Notch OtherModals.tsx & SettingsModal.tsx.
+constexpr PageChromeStructure PageChrome[4] =
+{
+    { "Render Settings",            "Configure output rendering quality and passes.",       "Discard Changes", "Apply Render Settings" },
+    { "Display Settings",           "Appearance & typography",                              "Reset",           "Apply"                 },
+    { "Keybindings Setup",          "Configure navigation style and keyboard shortcuts.",   "Discard Changes", "Save keybindings"      },
+    { "Telemetry & Notifications",  "System resource overlay and alert preferences.",       "Discard Changes", "Save Preferences"      },
+};
+
+constexpr const char* AppearanceTabs[3] = { "Display", "Fonts", "Theme" };   // SettingsModal tabs, in order
+
+constexpr ColorQuad HubList     { 0x14 / 255.0f, 0x14 / 255.0f, 0x15 / 255.0f, 1.0f };   // bg-[#141415]
+constexpr ColorQuad HubDisc     { 0x09 / 255.0f, 0x09 / 255.0f, 0x0A / 255.0f, 1.0f };   // bg-[#09090A]
+constexpr ColorQuad PageSheet   { 0x16 / 255.0f, 0x14 / 255.0f, 0x15 / 255.0f, 1.0f };   // bg-[#161415]
+constexpr ColorQuad Ink90       { 1.0f, 1.0f, 1.0f, 0.90f };                              // text-white/90 (dark theme colors.text)
+constexpr ColorQuad Ink40       { 1.0f, 1.0f, 1.0f, 0.40f };
+constexpr ColorQuad Ink30       { 1.0f, 1.0f, 1.0f, 0.30f };
+constexpr ColorQuad Ink10       { 1.0f, 1.0f, 1.0f, 0.10f };                              // border-white/10
+constexpr ColorQuad Ink06       { 1.0f, 1.0f, 1.0f, 0.06f };                              // border-white/[0.06] (dark divider)
+constexpr ColorQuad Ink05       { 1.0f, 1.0f, 1.0f, 0.05f };                              // border-white/5, hover:bg-white/5
+constexpr ColorQuad Black20     { 0.0f, 0.0f, 0.0f, 0.20f };                              // bg-black/20 footer
+constexpr ColorQuad InputInk    { 0xEC / 255.0f, 0xEC / 255.0f, 0xEC / 255.0f, 1.0f };   // #ececec
+constexpr ColorQuad InputMuted  { 0x86 / 255.0f, 0x83 / 255.0f, 0x84 / 255.0f, 1.0f };   // #868384
+constexpr ColorQuad InputBorder { 0x2A / 255.0f, 0x26 / 255.0f, 0x27 / 255.0f, 1.0f };   // #2a2627
+constexpr ColorQuad InputAccent { 0xE2 / 255.0f, 0x54 / 255.0f, 0xEB / 255.0f, 1.0f };   // #e254eb
+
+constexpr float LineHeight(float Size) noexcept { return Size * 1.5f; }   // Tailwind default leading for text-sm etc.
+
+void StrokeRoundedRectangle(PixelSpace& Surface, const PlaneExtent& Extent, ColorQuad Colour, float Radius, float Thickness) noexcept
+{
+    // Poly-line approximation of a rounded rectangle outline (ImGui AddRect is not exposed through PixelSpace).
+    std::vector<PlanePoint> Points;
+    const float R = std::min(Radius, std::min(Extent.Width(), Extent.Height()) * 0.5f);
+    constexpr int Segments = 8;
+    auto Arc = [&](float Cx, float Cy, float From)
+    {
+        for (int I = 0; I <= Segments; ++I)
+        {
+            const float A = From + (3.14159265f * 0.5f) * (static_cast<float>(I) / Segments);
+            Points.push_back(PlanePoint{ Cx + std::cos(A) * R, Cy + std::sin(A) * R });
+        }
+    };
+    Arc(Extent.MaximumX - R, Extent.MinimumY + R, -3.14159265f * 0.5f);
+    Arc(Extent.MaximumX - R, Extent.MaximumY - R, 0.0f);
+    Arc(Extent.MinimumX + R, Extent.MaximumY - R, 3.14159265f * 0.5f);
+    Arc(Extent.MinimumX + R, Extent.MinimumY + R, 3.14159265f);
+    Surface.StrokePolyline(Points.data(), static_cast<uint32_t>(Points.size()), Colour, Thickness, true);
+}
+
+} // namespace
+
+PlaneExtent ControlCentreHost::QueryHeaderGearExtent() const noexcept
+{
+    const PlaneExtent Card = QueryCardExtent();
+    return Spanning(Card.MaximumX - HeaderPadX - HeaderIconSize, Card.MinimumY, HeaderIconSize, HeaderIconSize);
+}
+
+PlaneExtent ControlCentreHost::QueryHubBackExtent() const noexcept
+{
+    // Hub header: px-2 py-1, ChevronLeft 24 with pr-3; row height = 22 px text line (≈ 33 px leading).
+    const PlaneExtent Card = QueryCardExtent();
+    const float RowH = LineHeight(HubTitleSize) + 8.0f;   // py-1 ×2
+    return Spanning(Card.MinimumX + 8.0f, Card.MinimumY + (RowH - HubBackGlyph) * 0.5f, HubBackGlyph + 12.0f, HubBackGlyph);
+}
+
+PlaneExtent ControlCentreHost::QueryHubRowExtent(uint32_t Row) const noexcept
+{
+    // Hub: flex-col gap-10 → header (py-1 + mb-2) then the list; each row p-4 around a 44 px disc → 76 px.
+    const PlaneExtent Card = QueryCardExtent();
+    const float HeaderH = LineHeight(HubTitleSize) + 8.0f + 8.0f;   // py-1 ×2 + mb-2
+    const float ListTop = Card.MinimumY + HeaderH + 40.0f;          // gap-10
+    const float RowH    = HubRowDisc + HubRowPadding * 2.0f;
+    return Spanning(Card.MinimumX, ListTop + Row * (RowH + 1.0f), Card.Width(), RowH);   // +1: border-b
+}
+
+PlaneExtent ControlCentreHost::QueryPageCloseExtent() const noexcept
+{
+    // p-2 rounded-full button around a 16 px X → 32 px disc, at the header's top-right (p-8).
+    const PlaneExtent Card = QueryCardExtent();
+    const float Disc = PageCloseGlyph + 16.0f;
+    return Spanning(Card.MaximumX - PagePadding - Disc, Card.MinimumY + PagePadding, Disc, Disc);
+}
+
+PlaneExtent ControlCentreHost::QueryPageTabExtent(uint32_t Tab) const noexcept
+{
+    // Header: p-8 pb-4 → title (24 px, mb-2) + subtitle (14 px). Tabs row: px-8, gap-6, pb-4.
+    const PlaneExtent Card = QueryCardExtent();
+    const float HeaderBottom = Card.MinimumY + PagePadding + LineHeight(PageTitleSize) + 8.0f + LineHeight(PageSubtitleSize) + 16.0f;
+    float X = Card.MinimumX + PagePadding;
+    for (uint32_t Index = 0u; Index < 3u; ++Index)
+    {
+        // Widths are measured at record time; hit-testing uses the last measured widths cached below.
+        const float W = TabWidthCache[Index] > 0.0f ? TabWidthCache[Index] : 44.0f;
+        if (Index == Tab) return Spanning(X, HeaderBottom, W, LineHeight(PageTabSize) + PageTabPadBottom);
+        X += W + PageTabGap;
+    }
+    return {};
+}
+
+PlaneExtent ControlCentreHost::QueryPageButtonExtent(bool Primary) const noexcept
+{
+    // Footer: p-6, pills px-6 py-2 text-sm, gap-3, right-aligned.
+    const PlaneExtent Card = QueryCardExtent();
+    const float PillH = LineHeight(PageButtonSize) + PageButtonPadY * 2.0f;
+    const float FooterTop = Card.MaximumY - PageFooterPad * 2.0f - PillH;
+    const uint32_t Page = static_cast<uint32_t>(ActivePage) - static_cast<uint32_t>(ControlCentrePageCategory::RenderSettings);
+    const float PrimaryW   = (Page < 4u ? ButtonWidthCache[Page][1] : 0.0f) + PageButtonPadX * 2.0f;
+    const float SecondaryW = (Page < 4u ? ButtonWidthCache[Page][0] : 0.0f) + PageButtonPadX * 2.0f;
+    const float PrimaryX   = Card.MaximumX - PageFooterPad - PrimaryW;
+    if (Primary) return Spanning(PrimaryX, FooterTop + PageFooterPad, PrimaryW, PillH);
+    return Spanning(PrimaryX - PageButtonGap - SecondaryW, FooterTop + PageFooterPad, SecondaryW, PillH);
+}
+
+void ControlCentreHost::ConstructPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity, float SlideX, float Scale) const noexcept
+{
+    const PlaneExtent Card = QueryCardExtent();
+    const float PivotX = (Card.MinimumX + Card.MaximumX) * 0.5f;
+    const float PivotY = (Card.MinimumY + Card.MaximumY) * 0.5f;
+
+    const uint32_t Mark = Surface.BeginGroup();
+    switch (Page)
+    {
+        case ControlCentrePageCategory::Dashboard:   ConstructDashboardLayout(Surface, 1.0f); break;
+        case ControlCentrePageCategory::SettingsHub: ConstructHubLayout(Surface, 1.0f);       break;
+        default:                                     ConstructSubPageLayout(Surface, Page, 1.0f); break;
+    }
+    Surface.EndGroup(Mark, SlideX, 0.0f, Scale, PivotX, PivotY, Opacity);
+}
+
+void ControlCentreHost::ConstructHubLayout(PixelSpace& Surface, float Opacity) const noexcept
+{
+    const PlaneExtent Card = QueryCardExtent();
+
+    // Header: ChevronLeft 24 (pr-3) + "Settings" text-[22px] font-bold text-white.
+    const PlaneExtent Back = QueryHubBackExtent();
+    GlyphPlacement Chevron{};
+    Chevron.Size = HubBackGlyph; Chevron.StrokeWidth = 2.0f; Chevron.Colour = Faded(InkFull, Opacity);
+    Chevron.X = Back.MinimumX; Chevron.Y = Back.MinimumY;
+    GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::ChevronBack), Chevron);
+
+    const PlanePoint TitleSize = Surface.MeasureText("Settings", HubTitleSize);
+    Surface.Text(Back.MaximumX, Back.MinimumY + (HubBackGlyph - TitleSize.Y) * 0.5f, Faded(InkFull, Opacity), "Settings", HubTitleSize);
+
+    // List: bg-[#141415] rounded-[24px]; 4 rows.
+    const PlaneExtent First = QueryHubRowExtent(0u), Last = QueryHubRowExtent(3u);
+    Surface.FillRectangle(PlaneExtent{ First.MinimumX, First.MinimumY, Last.MaximumX, Last.MaximumY }, Faded(HubList, Opacity), HubListRadius);
+
+    const uint32_t GroupMark = Surface.BeginGroup();   // rows are clipped visually by the rounded list via same colour; hover fill is inset
+    for (uint32_t Row = 0u; Row < 4u; ++Row)
+    {
+        const PlaneExtent Extent = QueryHubRowExtent(Row);
+        const HubRowStructure& Item = HubRows[Row];
+
+        if (HoveredHubRow == static_cast<int>(Row))
+            Surface.FillRectangle(Extent, Faded(Ink05, Opacity), Row == 0u || Row == 3u ? HubListRadius : 0.0f);
+
+        // Disc 44 px #09090A with a 20 px white/70 glyph (strokeWidth 2).
+        const float DiscX = Extent.MinimumX + HubRowPadding, DiscY = Extent.MinimumY + HubRowPadding;
+        Surface.FillRectangle(Spanning(DiscX, DiscY, HubRowDisc, HubRowDisc), Faded(HubDisc, Opacity), HubRowDisc * 0.5f);
+        GlyphPlacement Icon{};
+        Icon.Size = HubRowGlyph; Icon.StrokeWidth = 2.0f; Icon.Colour = Faded(Ink70, Opacity);
+        Icon.X = DiscX + (HubRowDisc - HubRowGlyph) * 0.5f; Icon.Y = DiscY + (HubRowDisc - HubRowGlyph) * 0.5f;
+        GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(Item.Icon), Icon);
+
+        // Label 15 px white/90 + description 13 px white/40, gap-0.5 (2 px), vertically centred on the disc.
+        const PlanePoint LabelSize = Surface.MeasureText(Item.Label, HubLabelSize);
+        const PlanePoint DescSize  = Surface.MeasureText(Item.Description, HubDescSize);
+        const float TextH = LabelSize.Y + 2.0f + DescSize.Y;
+        const float TextX = DiscX + HubRowDisc + HubRowGap;
+        const float TextY = DiscY + (HubRowDisc - TextH) * 0.5f;
+        Surface.Text(TextX, TextY, Faded(Ink90, Opacity), Item.Label, HubLabelSize);
+        Surface.Text(TextX, TextY + LabelSize.Y + 2.0f, Faded(Ink40, Opacity), Item.Description, HubDescSize);
+
+        // ChevronRight 18 white/30, mr-2.
+        GlyphPlacement Forward{};
+        Forward.Size = HubChevron; Forward.StrokeWidth = 2.0f; Forward.Colour = Faded(Ink30, Opacity);
+        Forward.X = Extent.MaximumX - HubRowPadding - 8.0f - HubChevron;
+        Forward.Y = Extent.MinimumY + (Extent.Height() - HubChevron) * 0.5f;
+        GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::ChevronForward), Forward);
+
+        // border-b border-white/5 (not on the last row)
+        if (Row < 3u)
+            Surface.FillRectangle(Spanning(Extent.MinimumX, Extent.MaximumY, Extent.Width(), 1.0f), Faded(Ink05, Opacity));
+    }
+    Surface.EndGroup(GroupMark, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+}
+
+void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity) const noexcept
+{
+    const PlaneExtent Card = QueryCardExtent();
+    const uint32_t Index = static_cast<uint32_t>(Page) - static_cast<uint32_t>(ControlCentrePageCategory::RenderSettings);
+    if (Index >= 4u) return;
+    const PageChromeStructure& Chrome = PageChrome[Index];
+    const bool InputStyle = Page == ControlCentrePageCategory::Input;   // Notch's Input modal uses its own palette
+
+    // Sheet: bg-[#161415] rounded-[32px] border border-white/5.
+    Surface.FillRectangle(Card, Faded(PageSheet, Opacity), PageRadius);
+    StrokeRoundedRectangle(Surface, Card, Faded(Ink05, Opacity), PageRadius, 1.0f);
+
+    // Header p-8 pb-4: title text-2xl semibold (mb-2) + subtitle text-sm muted; X button top-right.
+    const ColorQuad TextInk  = InputStyle ? InputInk   : Ink90;
+    const ColorQuad MutedInk = InputStyle ? InputMuted : Ink50;
+    const float HeaderX = Card.MinimumX + PagePadding;
+    float Y = Card.MinimumY + PagePadding;
+    const PlanePoint TitleSize = Surface.MeasureText(Chrome.Title, PageTitleSize);
+    Surface.Text(HeaderX, Y + (LineHeight(PageTitleSize) - TitleSize.Y) * 0.5f, Faded(TextInk, Opacity), Chrome.Title, PageTitleSize);
+    Y += LineHeight(PageTitleSize) + 8.0f;
+    const PlanePoint SubSize = Surface.MeasureText(Chrome.Subtitle, PageSubtitleSize);
+    Surface.Text(HeaderX, Y + (LineHeight(PageSubtitleSize) - SubSize.Y) * 0.5f, Faded(MutedInk, Opacity), Chrome.Subtitle, PageSubtitleSize);
+    Y += LineHeight(PageSubtitleSize) + 16.0f;   // pb-4
+
+    const PlaneExtent Close = QueryPageCloseExtent();
+    StrokeRoundedRectangle(Surface, Close, Faded(InputStyle ? Ink10 : Ink06, Opacity), Close.Width() * 0.5f, 1.0f);
+    GlyphPlacement Cross{};
+    Cross.Size = PageCloseGlyph; Cross.StrokeWidth = 2.0f; Cross.Colour = Faded(MutedInk, Opacity);
+    Cross.X = Close.MinimumX + 8.0f; Cross.Y = Close.MinimumY + 8.0f;
+    GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::CloseCross), Cross);
+
+    // Appearance only: tab bar Display · Fonts · Theme with a 2 px white underline under the active tab.
+    if (Page == ControlCentrePageCategory::Appearance)
+    {
+        float X = HeaderX;
+        const float TabsBottom = Y + LineHeight(PageTabSize) + PageTabPadBottom;
+        Surface.FillRectangle(Spanning(Card.MinimumX + PagePadding, TabsBottom, Card.Width() - PagePadding * 2.0f, 1.0f), Faded(Ink06, Opacity));
+        for (uint32_t Tab = 0u; Tab < 3u; ++Tab)
+        {
+            const PlanePoint Size = Surface.MeasureText(AppearanceTabs[Tab], PageTabSize);
+            TabWidthCache[Tab] = Size.X;
+            const bool Active = static_cast<uint32_t>(ActiveAppearanceSubTab) == Tab;
+            Surface.Text(X, Y + (LineHeight(PageTabSize) - Size.Y) * 0.5f, Faded(Active ? Ink90 : Ink50, Opacity), AppearanceTabs[Tab], PageTabSize);
+            if (Active)
+                Surface.FillRectangle(Spanning(X, TabsBottom - 1.0f, Size.X, 2.0f), Faded(InkFull, Opacity));   // bottom-[-1px] h-0.5
+            X += Size.X + PageTabGap;
+        }
+        Y = TabsBottom + 1.0f;
+    }
+
+    // Content: blank by direction for this step (the scrollable p-8 body carries nothing yet).
+
+    // Footer p-6 border-t bg-black/20: status text-[10px] muted left, pills right.
+    const float PillH = LineHeight(PageButtonSize) + PageButtonPadY * 2.0f;
+    const float FooterTop = Card.MaximumY - PageFooterPad * 2.0f - PillH;
+    if (!InputStyle)
+    {
+        // Notch's Input modal keeps its buttons inside the body (no footer band); every other page has one.
+        Surface.FillRectangleBottomRounded(PlaneExtent{ Card.MinimumX, FooterTop, Card.MaximumX, Card.MaximumY }, Faded(Black20, Opacity), PageRadius);
+        Surface.FillRectangle(Spanning(Card.MinimumX, FooterTop, Card.Width(), 1.0f), Faded(Ink06, Opacity));
+    }
+
+    std::string Status;
+    switch (Page)
+    {
+        case ControlCentrePageCategory::RenderSettings:
+            Status  = Settings.GlobalIllumination ? "Global illumination" : "Direct only";
+            Status += " - ";
+            Status += Settings.AntiAliasing ? "AA on" : "AA off";
+            Status += " - ";
+            Status += FidelityLabel(Settings.Quality);
+            {
+                char Scale[16];
+                std::snprintf(Scale, sizeof(Scale), " - %d%%", static_cast<int>(std::lround(Settings.RenderScale * 100.0f)));
+                Status += Scale;
+            }
+            break;
+        case ControlCentrePageCategory::Appearance:
+            Status = "Inter - Medium - 11px - MSAA 1x";   // SettingsModal.tsx verbatim
+            break;
+        case ControlCentrePageCategory::Notifications:
+            Status  = Settings.FrameRateOverlay ? "FPS overlay on" : "FPS overlay off";
+            Status += " - ";
+            Status += Settings.Notifications ? "Alerts on" : "Alerts off";
+            break;
+        default:
+            Status = "Ready to apply changes.";   // GenericSettingsModal verbatim
+            break;
+    }
+
+    const PlanePoint StatusSize = Surface.MeasureText(Status.c_str(), PageFooterNote);
+    const PlaneExtent Primary   = QueryPageButtonExtentFor(Index, true, Surface);
+    const PlaneExtent Secondary = QueryPageButtonExtentFor(Index, false, Surface);
+    if (!InputStyle)
+        Surface.Text(Card.MinimumX + PageFooterPad, Primary.MinimumY + (PillH - StatusSize.Y) * 0.5f, Faded(MutedInk, Opacity), Status.c_str(), PageFooterNote);
+
+    if (InputStyle)
+    {
+        // Input page: bordered rounded-xl pills, #ececec 13 px; primary filled #e254eb.
+        StrokeRoundedRectangle(Surface, Secondary, Faded(InputBorder, Opacity), 12.0f, 1.0f);
+        Surface.FillRectangle(Primary, Faded(InputAccent, Opacity), 12.0f);
+        // Middle "Reset Defaults" pill (inert in Notch as well), gap-3 left of the primary.
+        {
+            const PlanePoint RSize = Surface.MeasureText("Reset Defaults", 13.0f);
+            const float RW = RSize.X + 40.0f;
+            const PlaneExtent Reset = Spanning(Primary.MinimumX - PageButtonGap - RW, Primary.MinimumY, RW, PillH);
+            StrokeRoundedRectangle(Surface, Reset, Faded(InputBorder, Opacity), 12.0f, 1.0f);
+            Surface.Text(Reset.MinimumX + 20.0f, Reset.MinimumY + (PillH - RSize.Y) * 0.5f, Faded(InputInk, Opacity), "Reset Defaults", 13.0f);
+        }
+        const PlanePoint S = Surface.MeasureText(Chrome.SecondaryButton, 13.0f);
+        const PlanePoint P = Surface.MeasureText(Chrome.PrimaryButton, 13.0f);
+        Surface.Text(Secondary.MinimumX + (Secondary.Width() - S.X) * 0.5f, Secondary.MinimumY + (PillH - S.Y) * 0.5f, Faded(InputInk, Opacity), Chrome.SecondaryButton, 13.0f);
+        Surface.Text(Primary.MinimumX   + (Primary.Width()   - P.X) * 0.5f, Primary.MinimumY   + (PillH - P.Y) * 0.5f, Faded(InkFull,  Opacity), Chrome.PrimaryButton,   13.0f);
+    }
+    else
+    {
+        // Secondary: muted text, no fill. Primary: bg-white text-black rounded-full.
+        const PlanePoint S = Surface.MeasureText(Chrome.SecondaryButton, PageButtonSize);
+        const PlanePoint P = Surface.MeasureText(Chrome.PrimaryButton, PageButtonSize);
+        Surface.Text(Secondary.MinimumX + PageButtonPadX, Secondary.MinimumY + (PillH - S.Y) * 0.5f, Faded(MutedInk, Opacity), Chrome.SecondaryButton, PageButtonSize);
+        Surface.FillRectangle(Primary, Faded(InkFull, Opacity), PillH * 0.5f);
+        Surface.Text(Primary.MinimumX + PageButtonPadX, Primary.MinimumY + (PillH - P.Y) * 0.5f, ColorQuad{ 0.0f, 0.0f, 0.0f, Opacity }, Chrome.PrimaryButton, PageButtonSize);
+    }
+}
+
+PlaneExtent ControlCentreHost::QueryPageButtonExtentFor(uint32_t Index, bool Primary, PixelSpace& Surface) const noexcept
+{
+    // Measures the labels (cached for hit-testing) and lays the two pills out right-to-left in the footer band.
+    const bool InputStyle = Index == 2u;
+    const float Size = InputStyle ? 13.0f : PageButtonSize;
+    const float PadX = InputStyle ? 20.0f : PageButtonPadX;   // px-5 vs px-6
+    ButtonWidthCache[Index][0] = Surface.MeasureText(PageChrome[Index].SecondaryButton, Size).X + (PadX - PageButtonPadX) * 2.0f;
+    ButtonWidthCache[Index][1] = Surface.MeasureText(PageChrome[Index].PrimaryButton,   Size).X + (PadX - PageButtonPadX) * 2.0f;
+    if (InputStyle)
+    {
+        // Input modal: "Discard Changes" flush-left in the body, "Reset Defaults" + "Save keybindings" flush-right.
+        const PlaneExtent Card = QueryCardExtent();
+        const float PillH = LineHeight(13.0f) + 10.0f * 2.0f;   // py-2.5
+        const float Top = Card.MaximumY - PagePadding - 24.0f - PillH;   // pb-6 inside py-8 body
+        const float PrimaryW   = ButtonWidthCache[Index][1] + PageButtonPadX * 2.0f;
+        const float SecondaryW = ButtonWidthCache[Index][0] + PageButtonPadX * 2.0f;
+        if (Primary) return Spanning(Card.MaximumX - 48.0f - PrimaryW, Top, PrimaryW, PillH);   // lg:px-12
+        return Spanning(Card.MinimumX + 48.0f, Top, SecondaryW, PillH);
+    }
+    return QueryPageButtonExtent(Primary);
 }
 
 } // namespace Frontier

@@ -410,6 +410,102 @@ int main()
     R.Press(); R.Idle(2); R.Release(); R.Idle(150);
     R.Snapshot("ControlCentre_Dashboard_10_Closed_FPS_Overlay_Persists");
 
+    //--------------------------------------------------------------------------------------------------------------------
+    //                                              STEP 3 · SETTINGS PAGES
+    //--------------------------------------------------------------------------------------------------------------------
+
+    auto TapExtent = [&](const Frontier::PlaneExtent& E)
+    {
+        R.CursorX = (E.MinimumX + E.MaximumX) * 0.5f; R.CursorY = (E.MinimumY + E.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Idle(3); R.Release();
+    };
+    auto Page = [&]{ return static_cast<unsigned>(R.Host.QueryActivePage()); };
+
+    // Open the shade (tap the notch) and settle.
+    R.CursorX = 640.0f; R.CursorY = 18.0f; R.Idle(2);
+    R.Press(); R.Idle(2); R.Release(); R.Idle(150);
+
+    // ⑪ Hover the gear, then tap it → hub slides in (capture mid-swap and settled).
+    {
+        const Frontier::PlaneExtent Gear = R.Host.QueryHeaderGearExtent();
+        R.CursorX = (Gear.MinimumX + Gear.MaximumX) * 0.5f; R.CursorY = (Gear.MinimumY + Gear.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Idle(3); R.Release();
+        R.Idle(18);  // swap ≈ 0.75: exit half done, entry half under way
+        std::printf("   page=%u swap=%.2f slide=%.1f\n", Page(), R.Host.QueryPageSwapProgress(), R.Host.QuerySlideOffset());
+        R.Snapshot("ControlCentre_Settings_11_Gear_Tapped_Hub_Entering");
+        R.Idle(20);
+        R.Snapshot("ControlCentre_Settings_12_Hub");
+    }
+
+    // ⑫ Hover the second row (Appearance) — hover fill visible.
+    {
+        const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(1u);
+        R.CursorX = (Row.MinimumX + Row.MaximumX) * 0.5f; R.CursorY = (Row.MinimumY + Row.MaximumY) * 0.5f;
+        R.Idle(3);
+        std::printf("   hub hover row=%d\n", R.Host.QueryHoveredHubRow());
+        R.Snapshot("ControlCentre_Settings_13_Hub_Hover_Appearance");
+    }
+
+    // ⑬ Press the Render Settings row (fires on pointer-down) → card springs 420×480 → 840×600 while the page enters.
+    {
+        const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(0u);
+        R.CursorX = (Row.MinimumX + Row.MaximumX) * 0.5f; R.CursorY = (Row.MinimumY + Row.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Idle(1);
+        R.Snapshot("ControlCentre_Settings_14_Render_Row_Pressed_Card_Growing");
+        R.Idle(6); R.Release(); R.Idle(8);
+        std::printf("   page=%u swap=%.2f slide=%.1f card=%.0fx%.0f\n", Page(), R.Host.QueryPageSwapProgress(), R.Host.QuerySlideOffset(), R.Host.QueryCardExtent().Width(), R.Host.QueryCardExtent().Height());
+        R.Snapshot("ControlCentre_Settings_15_Render_Page_Entering");
+        R.Idle(60);
+        const Frontier::PlaneExtent Card = R.Host.QueryCardExtent();
+        std::printf("   page=%u card=%.0fx%.0f\n", Page(), Card.Width(), Card.Height());
+        R.Snapshot("ControlCentre_Settings_16_Render_Page");
+    }
+
+    // ⑭ X close → back to the hub, card springs back.
+    TapExtent(R.Host.QueryPageCloseExtent());
+    R.Idle(16);
+    std::printf("   page=%u swap=%.2f card=%.0fx%.0f\n", Page(), R.Host.QueryPageSwapProgress(), R.Host.QueryCardExtent().Width(), R.Host.QueryCardExtent().Height());
+    R.Snapshot("ControlCentre_Settings_17_Close_Card_Shrinking");
+    R.Idle(60);
+    std::printf("   page=%u\n", Page());
+
+    // ⑮ Appearance page: tabs Display · Fonts · Theme (Fonts initial); tap Theme → underline moves, content slides.
+    {
+        const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(1u);
+        R.CursorX = (Row.MinimumX + Row.MaximumX) * 0.5f; R.CursorY = (Row.MinimumY + Row.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(70);
+        R.Snapshot("ControlCentre_Settings_18_Appearance_Page_Fonts_Tab");
+        TapExtent(R.Host.QueryPageTabExtent(2u));
+        R.Idle(4);
+        std::printf("   page=%u tab=%u\n", Page(), static_cast<unsigned>(R.Host.QueryAppearanceSubTab()));
+        R.Snapshot("ControlCentre_Settings_19_Appearance_Theme_Tab_Tapped");
+        TapExtent(R.Host.QueryPageCloseExtent()); R.Idle(70);
+    }
+
+    // ⑯ Input page (Notch's own palette: #161415 sheet, #e254eb primary) and Notifications page.
+    {
+        const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(2u);
+        R.CursorX = (Row.MinimumX + Row.MaximumX) * 0.5f; R.CursorY = (Row.MinimumY + Row.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(70);
+        R.Snapshot("ControlCentre_Settings_20_Input_Page");
+        // "Discard Changes" on the Input page calls onClose in Notch → hub.
+        TapExtent(R.Host.QueryPageButtonExtent(false)); R.Idle(70);
+        std::printf("   after Discard: page=%u\n", Page());
+
+        const Frontier::PlaneExtent Row3 = R.Host.QueryHubRowExtent(3u);
+        R.CursorX = (Row3.MinimumX + Row3.MaximumX) * 0.5f; R.CursorY = (Row3.MinimumY + Row3.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(70);
+        R.Snapshot("ControlCentre_Settings_21_Notifications_Page");
+    }
+
+    // ⑰ Close the shade from a sub-page: 300 ms later the host has reset to the dashboard at 420×480.
+    R.CursorX = 640.0f; R.CursorY = Height - 18.0f; R.Idle(2);
+    R.Press(); R.Idle(2); R.Release(); R.Idle(150);
+    std::printf("   after close: page=%u card=%.0fx%.0f\n", Page(), R.Host.QueryCardExtent().Width(), R.Host.QueryCardExtent().Height());
+    R.CursorX = 640.0f; R.CursorY = 18.0f; R.Idle(2);
+    R.Press(); R.Idle(2); R.Release(); R.Idle(150);
+    R.Snapshot("ControlCentre_Settings_22_Reopened_Dashboard_Reset");
+
     ImGui::DestroyContext();
     return 0;
 }

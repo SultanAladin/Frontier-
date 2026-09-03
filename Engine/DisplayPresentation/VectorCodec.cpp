@@ -135,13 +135,13 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategor
     // 1: AppearancePalette
     VectorGlyphRecord{
         "AppearancePalette",
-        "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z",
+        "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8zM14 6.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zM18 10.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zM7 12.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zM9 7.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z",
         24, 24, 2.0f
     },
     // 2: DisplayMonitor
     VectorGlyphRecord{
         "DisplayMonitor",
-        "M2 5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5zm6 16h8m-4-4v4",
+        "M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 21h8M12 17v4",
         24, 24, 2.0f
     },
     // 3: InputDevices
@@ -208,6 +208,18 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategor
     VectorGlyphRecord{
         "VideoRenderScale",
         "m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+        24, 24, 2.0f
+    },
+    // 14: CloseCross — lucide "x"
+    VectorGlyphRecord{ "CloseCross", "M18 6 6 18M6 6l12 12", 24, 24, 2.0f },
+    // 15: ChevronBack — lucide "chevron-left"
+    VectorGlyphRecord{ "ChevronBack", "m15 18-6-6 6-6", 24, 24, 2.0f },
+    // 16: ChevronForward — lucide "chevron-right"
+    VectorGlyphRecord{ "ChevronForward", "m9 18 6-6-6-6", 24, 24, 2.0f },
+    // 17: ShieldInput — lucide "shield"
+    VectorGlyphRecord{
+        "ShieldInput",
+        "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
         24, 24, 2.0f
     }
 };

@@ -77,9 +77,17 @@ public:
 
     // ── Primitives ───────────────────────────────────────────────────────────────────────────────────────────────────
     void FillRectangle (const PlaneExtent& Extent, ColorQuad Colour, float Radius = 0.0f) noexcept;
+    void FillRectangleBottomRounded(const PlaneExtent& Extent, ColorQuad Colour, float Radius) noexcept;   // only the two lower corners rounded
     void FillPolygon   (const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour) noexcept;   // convex or concave, anti-aliased
     void StrokePolyline(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour, float Thickness, bool Closed) noexcept;
     void Text          (float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels = 0.0f) noexcept;
+
+    // ── Groups ───────────────────────────────────────────────────────────────────────────────────────────────────────
+    // A group is every primitive recorded between BeginGroup and EndGroup. EndGroup applies, in this order, a
+    //    uniform scale about (PivotX, PivotY), a translation, and an alpha multiplier — the framer-motion
+    //    "opacity / x / scale" triple that Notch animates on whole pages.
+    [[nodiscard]] uint32_t BeginGroup() const noexcept;
+    void EndGroup(uint32_t Mark, float OffsetX, float OffsetY, float Scale, float PivotX, float PivotY, float Alpha) noexcept;
 
     // ── Measurement ──────────────────────────────────────────────────────────────────────────────────────────────────
     [[nodiscard]] PlanePoint MeasureText(const char* Utf8, float FontSizePixels = 0.0f) const noexcept;

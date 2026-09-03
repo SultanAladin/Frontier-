@@ -73,15 +73,16 @@ struct BezierPointIndex
 enum class ControlCentrePageCategory : uint32_t
 {
     Dashboard      = 0,
-    SettingsHub    = 1,
-    Appearance     = 2,
-    Display        = 3,
+    SettingsHub    = 1,      // list of the four settings rows (420 × 480 card)
+    RenderSettings = 2,      // sub-pages: card springs to 840 × 600
+    Appearance     = 3,
     Input          = 4,
     Notifications  = 5,
     Count          = 6
 };
 
-enum class AppearanceSubTabCategory : uint32_t { Theme = 0, Fonts = 1, Display = 2, Count = 3 };
+// Notch SettingsModal tab order: Display · Fonts · Theme (Fonts is the initial tab).
+enum class AppearanceSubTabCategory : uint32_t { Display = 0, Fonts = 1, Theme = 2, Count = 3 };
 enum class DialogueCategory         : uint32_t { None = 0, ApplyPreferences = 1, DiscardChanges = 2, Count = 3 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -173,6 +174,35 @@ public:
     static constexpr float  PillTopMargin     =   8.0f;   // [px]  mt-2
     static constexpr float  RenderScaleMinimum=   0.25f;  // [-]
 
+    // Settings hub / sub-page figures (Notch ArcNotch.tsx, SettingsModal.tsx, GenericSettingsModal)
+    static constexpr float  PageCardWidth     = 840.0f;   // [px]  maxWidth when a sub-page is active
+    static constexpr float  PageCardHeight    = 600.0f;   // [px]
+    static constexpr float  PageRadius        =  32.0f;   // [px]  rounded-[32px]
+    static constexpr float  HubTitleSize      =  22.0f;   // [px]  text-[22px] font-bold
+    static constexpr float  HubBackGlyph      =  24.0f;   // [px]  ChevronLeft size 24
+    static constexpr float  HubListRadius     =  24.0f;   // [px]  rounded-[24px]
+    static constexpr float  HubRowPadding     =  16.0f;   // [px]  p-4
+    static constexpr float  HubRowDisc        =  44.0f;   // [px]  w-11 h-11
+    static constexpr float  HubRowGlyph       =  20.0f;   // [px]  size 20
+    static constexpr float  HubRowGap         =  16.0f;   // [px]  gap-4
+    static constexpr float  HubLabelSize      =  15.0f;   // [px]  text-[15px]
+    static constexpr float  HubDescSize       =  13.0f;   // [px]  text-[13px]
+    static constexpr float  HubChevron        =  18.0f;   // [px]  ChevronRight size 18, mr-2
+    static constexpr float  PagePadding       =  32.0f;   // [px]  p-8
+    static constexpr float  PageTitleSize     =  24.0f;   // [px]  text-2xl
+    static constexpr float  PageSubtitleSize  =  14.0f;   // [px]  text-sm
+    static constexpr float  PageCloseGlyph    =  16.0f;   // [px]  X size 16 in a p-2 bordered round button (32 px)
+    static constexpr float  PageTabSize       =  14.0f;   // [px]  text-sm
+    static constexpr float  PageTabGap        =  24.0f;   // [px]  gap-6
+    static constexpr float  PageTabPadBottom  =  16.0f;   // [px]  pb-4
+    static constexpr float  PageFooterPad     =  24.0f;   // [px]  p-6
+    static constexpr float  PageFooterNote    =  10.0f;   // [px]  text-[10px]
+    static constexpr float  PageButtonSize    =  14.0f;   // [px]  text-sm
+    static constexpr float  PageButtonPadX    =  24.0f;   // [px]  px-6
+    static constexpr float  PageButtonPadY    =   8.0f;   // [px]  py-2
+    static constexpr float  PageButtonGap     =  12.0f;   // [px]  gap-3
+    static constexpr float  PageSwapDuration  =   0.20f;  // [s]   transition duration 0.2
+
     ControlCentreHost() noexcept;
     ~ControlCentreHost() noexcept = default;
 
@@ -208,13 +238,21 @@ public:
     [[nodiscard]] int       QueryHoveredSlot() const noexcept { return HoveredSlot; }
     [[nodiscard]] static const QuickTileStructure& QueryTile(uint32_t Slot) noexcept;
 
-    // ── Page navigation (state only in this step; pages are recorded in later steps) ─────────────────────────────
+    // ── Page navigation ───────────────────────────────────────────────────────────────────────────────────────────
     void                    NavigateToPage(ControlCentrePageCategory TargetPage) noexcept;
     void                    NavigateBack() noexcept;
     [[nodiscard]] ControlCentrePageCategory QueryActivePage()   const noexcept { return ActivePage; }
     [[nodiscard]] ControlCentrePageCategory QueryPreviousPage() const noexcept { return PreviousPage; }
     [[nodiscard]] float     QuerySlideOffset() const noexcept;
     [[nodiscard]] bool      IsSlideTransitionActive() const noexcept;
+    [[nodiscard]] float     QueryPageSwapProgress() const noexcept { return PageSwapProgress; }   // 0 → 1 over 200 ms
+    [[nodiscard]] PlaneExtent QueryHubRowExtent(uint32_t Row) const noexcept;                    // [px] rows 0..3
+    [[nodiscard]] PlaneExtent QueryHubBackExtent() const noexcept;
+    [[nodiscard]] PlaneExtent QueryHeaderGearExtent() const noexcept;
+    [[nodiscard]] PlaneExtent QueryPageCloseExtent() const noexcept;
+    [[nodiscard]] PlaneExtent QueryPageTabExtent(uint32_t Tab) const noexcept;                   // Appearance tabs
+    [[nodiscard]] PlaneExtent QueryPageButtonExtent(bool Primary) const noexcept;               // footer Apply / Discard
+    [[nodiscard]] int       QueryHoveredHubRow() const noexcept { return HoveredHubRow; }
 
     void                    AssignAppearanceSubTab(AppearanceSubTabCategory SubTab) noexcept { ActiveAppearanceSubTab = SubTab; }
     [[nodiscard]] AppearanceSubTabCategory QueryAppearanceSubTab() const noexcept { return ActiveAppearanceSubTab; }
@@ -253,8 +291,18 @@ public:
     [[nodiscard]] TargetType Convert() const noexcept;
 
 private:
-    enum class GrabSubject : uint32_t { Nothing = 0, Notch = 1, Scrim = 2, Tile = 3, Pill = 4, Card = 5 };
+    enum class GrabSubject : uint32_t { Nothing = 0, Notch = 1, Scrim = 2, Tile = 3, Pill = 4, Card = 5,
+                                        Gear = 6, HubBack = 7, HubRow = 8, PageClose = 9, PageTab = 10, PageButton = 11 };
 
+    [[nodiscard]] bool      IsSubPage(ControlCentrePageCategory Page) const noexcept
+    {
+        return Page != ControlCentrePageCategory::Dashboard && Page != ControlCentrePageCategory::SettingsHub;
+    }
+    void                    ResizeCardForPage() noexcept;
+    [[nodiscard]] PlaneExtent QueryPageButtonExtentFor(uint32_t Index, bool Primary, PixelSpace& Surface) const noexcept;
+    void                    ConstructPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity, float SlideX, float Scale) const noexcept;
+    void                    ConstructHubLayout(PixelSpace& Surface, float Opacity) const noexcept;
+    void                    ConstructSubPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity) const noexcept;
     void                    ConstructDashboardLayout(PixelSpace& Surface, float Opacity) const noexcept;
     void                    ConstructTileLayout(PixelSpace& Surface, uint32_t Slot, float Opacity) const noexcept;
     void                    ConstructPillLayout(PixelSpace& Surface, float Opacity) const noexcept;
@@ -312,6 +360,19 @@ private:
     int                     HoveredSlot;             // [-] grid slot under the pointer, -1 none
     int                     GrabbedSlot;             // [-] slot the press landed on
     bool                    PillGrabbed;
+
+    // ── Pages ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    uint32_t                CardWidthChannel;        // [px] spring: 420 ↔ 840
+    uint32_t                CardHeightChannel;       // [px] spring: 480 ↔ 600
+    float                   PageSwapProgress;        // [-]  0 → 1 over PageSwapDuration after a page change
+    bool                    PageSwapForward;         // [-]  true: entering from the right (deeper), false: from the left
+    int                     HoveredHubRow;           // [-]  -1 none
+    int                     GrabbedHubRow;
+    int                     GrabbedTab;
+    bool                    GrabbedPrimaryButton;
+    float                   CloseResetTimer;         // [s]  Notch resets to the dashboard 300 ms after closing
+    mutable float           TabWidthCache[3];        // [px] measured tab label widths (record → hit-test)
+    mutable float           ButtonWidthCache[4][2];  // [px] measured footer pill label widths per page
 
     // ── Appearance ────────────────────────────────────────────────────────────────────────────────────────────────
     ThemeStructure          ActiveTheme;
