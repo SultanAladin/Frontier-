@@ -349,10 +349,25 @@ function Invoke-ShaderLowering([string] $VulkanRoot)
     $SpirvRoot = Join-Path $EngineRoot 'Shaders'
     $SpirvPath = Join-Path $SpirvRoot  'ReSTIRViewport.spv'
 
-    if ((-not $Rebuild) -and (Test-Path $SpirvPath) -and
-        (Get-Item $SpirvPath).LastWriteTimeUtc -gt (Get-Item $SlangSrc).LastWriteTimeUtc)
+    # Shared includes pulled in by ReSTIRViewport.slang - any of them changing must re-lower the shader
+    $ShaderIncludes = @(
+        (Join-Path $EngineRoot 'Shaders\CameraRayGeneration.slang')
+    )
+
+    $Fresh = (-not $Rebuild) -and (Test-Path $SpirvPath) -and
+             ((Get-Item $SpirvPath).LastWriteTimeUtc -gt (Get-Item $SlangSrc).LastWriteTimeUtc)
+    foreach ($Include in $ShaderIncludes)
     {
-        Write-Skipped 'ReSTIRViewport.slang unchanged'
+        if ((Test-Path $Include) -and $Fresh -and
+            ((Get-Item $SpirvPath).LastWriteTimeUtc -le (Get-Item $Include).LastWriteTimeUtc))
+        {
+            $Fresh = $false
+        }
+    }
+
+    if ($Fresh)
+    {
+        Write-Skipped 'ReSTIRViewport.slang and its includes unchanged'
         return
     }
 
@@ -561,6 +576,8 @@ $EngineRelative = @(
     'Engine\DisplayPresentation\VectorCodec.cpp'
     'Engine\DisplayPresentation\FontCodec.cpp'
     'Engine\DisplayPresentation\ControlCentreHost.cpp'
+    'Engine\DisplayPresentation\RecordingSurface.cpp'
+    'Engine\DisplayPresentation\MotionIntegrator.cpp'
     'Engine\DisplayPresentation\WorkspaceHost.cpp'
     'Engine\DisplayPresentation\CycleScheduler.cpp'
     'Engine\DisplayPresentation\FidelityClassifier.cpp'

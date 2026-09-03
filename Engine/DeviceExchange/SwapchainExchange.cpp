@@ -75,6 +75,12 @@ struct SwapchainExchange::VulkanRecord
     VkDeviceMemory           StorageMemory         = VK_NULL_HANDLE;
     VkImageView              StorageImageView      = VK_NULL_HANDLE;
 
+    // ── History image (linear HDR running mean for temporal accumulation; rgba32f, .a = sample count) ────────────────
+    VkImage                  HistoryImage          = VK_NULL_HANDLE;
+    VkDeviceMemory           HistoryMemory         = VK_NULL_HANDLE;
+    VkImageView              HistoryImageView      = VK_NULL_HANDLE;
+    bool                     HistoryInitialised    = false;             // [-]  layout transitioned to GENERAL once
+
     // ── Scene SSBO geometry and materials ────────────────────────────────────────────────────────────────────────────
     VkBuffer                 TriangleBuffer        = VK_NULL_HANDLE;
     VkDeviceMemory           TriangleMemory        = VK_NULL_HANDLE;
@@ -246,6 +252,7 @@ SwapchainExchange::SwapchainExchange(const SwapchainConfiguration& InitialConfig
     , PreviousCursorX(0.0)
     , PreviousCursorY(0.0)
     , CursorInitialised(false)
+    , PendingInputReset(false)
 {
 }
 
@@ -301,6 +308,7 @@ bool SwapchainExchange::Bring() noexcept
     glfwSetCursorPosCallback      (GlfwWindow, OnCursorMove);
     glfwSetScrollCallback         (GlfwWindow, OnScroll);
     glfwSetFramebufferSizeCallback(GlfwWindow, OnFramebuffer);
+    glfwSetWindowFocusCallback    (GlfwWindow, OnFocus);
 
     std::cerr << "[SwapchainExchange] Window created: " << Configuration.Width << "x" << Configuration.Height << "\n";
 
@@ -398,6 +406,14 @@ void SwapchainExchange::RetireSwapchain() noexcept
     Vulkan->StorageImageView = VK_NULL_HANDLE;
     Vulkan->StorageImage     = VK_NULL_HANDLE;
     Vulkan->StorageMemory    = VK_NULL_HANDLE;
+
+    if (Vulkan->HistoryImageView)  vkDestroyImageView(Vulkan->Device, Vulkan->HistoryImageView,  nullptr);
+    if (Vulkan->HistoryImage)      vkDestroyImage    (Vulkan->Device, Vulkan->HistoryImage,      nullptr);
+    if (Vulkan->HistoryMemory)     vkFreeMemory      (Vulkan->Device, Vulkan->HistoryMemory,     nullptr);
+    Vulkan->HistoryImageView   = VK_NULL_HANDLE;
+    Vulkan->HistoryImage       = VK_NULL_HANDLE;
+    Vulkan->HistoryMemory      = VK_NULL_HANDLE;
+    Vulkan->HistoryInitialised = false;
 
     for (auto& ImageView : Vulkan->SwapchainImageViews)
         if (ImageView) vkDestroyImageView(Vulkan->Device, ImageView, nullptr);
@@ -734,50 +750,84 @@ bool SwapchainExchange::BringSwapchain() noexcept
     return true;
 }
 
-bool SwapchainExchange::BringStorageImage() noexcept
+static bool CreateStorageImage(VkDevice Device, const VkPhysicalDeviceMemoryProperties& MemoryProperties,
+                               VkFormat Format, VkExtent2D Extent, VkImageUsageFlags Usage,
+                               VkImage& OutImage, VkDeviceMemory& OutMemory, VkImageView& OutView, const char* Label) noexcept
 {
     VkImageCreateInfo ImageInfo{};
     ImageInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     ImageInfo.imageType     = VK_IMAGE_TYPE_2D;
-    ImageInfo.format        = VK_FORMAT_R8G8B8A8_UNORM;
-    ImageInfo.extent        = { Configuration.Width, Configuration.Height, 1u };
+    ImageInfo.format        = Format;
+    ImageInfo.extent        = { Extent.width, Extent.height, 1u };
     ImageInfo.mipLevels     = 1u;
     ImageInfo.arrayLayers   = 1u;
     ImageInfo.samples       = VK_SAMPLE_COUNT_1_BIT;
     ImageInfo.tiling        = VK_IMAGE_TILING_OPTIMAL;
-    ImageInfo.usage         = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    ImageInfo.usage         = Usage;
     ImageInfo.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
     ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    if (vkCreateImage(Vulkan->Device, &ImageInfo, nullptr, &Vulkan->StorageImage) != VK_SUCCESS)
+    if (vkCreateImage(Device, &ImageInfo, nullptr, &OutImage) != VK_SUCCESS)
     {
-        std::cerr << "[SwapchainExchange] vkCreateImage (storage image) failed.\n";
+        std::cerr << "[SwapchainExchange] vkCreateImage (" << Label << ") failed.\n";
         return false;
     }
 
     VkMemoryRequirements Requirements{};
-    vkGetImageMemoryRequirements(Vulkan->Device, Vulkan->StorageImage, &Requirements);
+    vkGetImageMemoryRequirements(Device, OutImage, &Requirements);
 
     VkMemoryAllocateInfo AllocateInfo{};
     AllocateInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     AllocateInfo.allocationSize  = Requirements.size;
-    AllocateInfo.memoryTypeIndex = ResolveMemoryType(Requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    if (vkAllocateMemory(Vulkan->Device, &AllocateInfo, nullptr, &Vulkan->StorageMemory) != VK_SUCCESS)
+    AllocateInfo.memoryTypeIndex = 0u;
+    for (uint32_t Index = 0u; Index < MemoryProperties.memoryTypeCount; ++Index)
     {
-        std::cerr << "[SwapchainExchange] vkAllocateMemory (storage image) failed.\n";
+        if ((Requirements.memoryTypeBits & (1u << Index)) &&
+            (MemoryProperties.memoryTypes[Index].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        {
+            AllocateInfo.memoryTypeIndex = Index;
+            break;
+        }
+    }
+    if (vkAllocateMemory(Device, &AllocateInfo, nullptr, &OutMemory) != VK_SUCCESS)
+    {
+        std::cerr << "[SwapchainExchange] vkAllocateMemory (" << Label << ") failed.\n";
         return false;
     }
-    vkBindImageMemory(Vulkan->Device, Vulkan->StorageImage, Vulkan->StorageMemory, 0);
+    vkBindImageMemory(Device, OutImage, OutMemory, 0);
 
     VkImageViewCreateInfo ViewInfo{};
     ViewInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    ViewInfo.image                           = Vulkan->StorageImage;
+    ViewInfo.image                           = OutImage;
     ViewInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-    ViewInfo.format                          = VK_FORMAT_R8G8B8A8_UNORM;
+    ViewInfo.format                          = Format;
     ViewInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
     ViewInfo.subresourceRange.levelCount     = 1u;
     ViewInfo.subresourceRange.layerCount     = 1u;
-    (void)vkCreateImageView(Vulkan->Device, &ViewInfo, nullptr, &Vulkan->StorageImageView);
+    if (vkCreateImageView(Device, &ViewInfo, nullptr, &OutView) != VK_SUCCESS)
+    {
+        std::cerr << "[SwapchainExchange] vkCreateImageView (" << Label << ") failed.\n";
+        return false;
+    }
+    return true;
+}
 
+bool SwapchainExchange::BringStorageImage() noexcept
+{
+    const VkExtent2D Extent{ Configuration.Width, Configuration.Height };
+
+    // ① Presentation image — the compute pass writes tone-mapped 8-bit colour, blitted to the swapchain.
+    if (!CreateStorageImage(Vulkan->Device, Vulkan->MemoryProperties, VK_FORMAT_R8G8B8A8_UNORM, Extent,
+                            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                            Vulkan->StorageImage, Vulkan->StorageMemory, Vulkan->StorageImageView, "storage image"))
+        return false;
+
+    // ② History image — linear HDR running mean, persists across frames (temporal accumulation).
+    if (!CreateStorageImage(Vulkan->Device, Vulkan->MemoryProperties, VK_FORMAT_R32G32B32A32_SFLOAT, Extent,
+                            VK_IMAGE_USAGE_STORAGE_BIT,
+                            Vulkan->HistoryImage, Vulkan->HistoryMemory, Vulkan->HistoryImageView, "history image"))
+        return false;
+
+    Vulkan->HistoryInitialised = false;
     return true;
 }
 
@@ -809,8 +859,8 @@ bool SwapchainExchange::BringCommandRecording() noexcept
 
 bool SwapchainExchange::BringComputePipeline() noexcept
 {
-    // ① Descriptor set layout — binding 0: storage image, 1: triangle SSBO, 2: material SSBO
-    std::array<VkDescriptorSetLayoutBinding, 3u> LayoutBindings{};
+    // ① Descriptor set layout — binding 0: output image, 1: triangle SSBO, 2: material SSBO, 3: history image
+    std::array<VkDescriptorSetLayoutBinding, 4u> LayoutBindings{};
     LayoutBindings[0].binding         = 0u;
     LayoutBindings[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     LayoutBindings[0].descriptorCount = 1u;
@@ -823,14 +873,18 @@ bool SwapchainExchange::BringComputePipeline() noexcept
     LayoutBindings[2].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     LayoutBindings[2].descriptorCount = 1u;
     LayoutBindings[2].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
+    LayoutBindings[3].binding         = 3u;
+    LayoutBindings[3].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    LayoutBindings[3].descriptorCount = 1u;
+    LayoutBindings[3].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
 
     VkDescriptorSetLayoutCreateInfo LayoutInfo{};
     LayoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    LayoutInfo.bindingCount = 3u;
+    LayoutInfo.bindingCount = 4u;
     LayoutInfo.pBindings    = LayoutBindings.data();
     (void)vkCreateDescriptorSetLayout(Vulkan->Device, &LayoutInfo, nullptr, &Vulkan->ComputeDescriptorLayout);
 
-    // ② Push constant range — matches DispatchConfiguration exactly (80 bytes)
+    // ② Push constant range — matches DispatchConfiguration exactly (96 bytes, static_assert in ReSTIRIntegrator.h)
     VkPushConstantRange PushRange{};
     PushRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     PushRange.offset     = 0u;
@@ -883,7 +937,7 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
 {
     std::array<VkDescriptorPoolSize, 2u> PoolSizes{};
     PoolSizes[0].type            = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    PoolSizes[0].descriptorCount = 1u;
+    PoolSizes[0].descriptorCount = 2u;
     PoolSizes[1].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     PoolSizes[1].descriptorCount = 2u;
 
@@ -930,7 +984,11 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
     MaterialBufferInfo.offset = 0u;
     MaterialBufferInfo.range  = VK_WHOLE_SIZE;
 
-    std::array<VkWriteDescriptorSet, 3u> Writes{};
+    VkDescriptorImageInfo HistoryInfo{};
+    HistoryInfo.imageView   = Vulkan->HistoryImageView;
+    HistoryInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    std::array<VkWriteDescriptorSet, 4u> Writes{};
     uint32_t WriteCount = 0u;
 
     if (Vulkan->StorageImageView)
@@ -964,6 +1022,17 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
         Write.descriptorCount = 1u;
         Write.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         Write.pBufferInfo     = &MaterialBufferInfo;
+    }
+
+    if (Vulkan->HistoryImageView)
+    {
+        VkWriteDescriptorSet& Write = Writes[WriteCount++];
+        Write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        Write.dstSet          = Vulkan->ComputeDescriptorSet;
+        Write.dstBinding      = 3u;
+        Write.descriptorCount = 1u;
+        Write.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        Write.pImageInfo      = &HistoryInfo;
     }
 
     if (WriteCount > 0u)
@@ -1163,7 +1232,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     if (AcquireResult == VK_ERROR_OUT_OF_DATE_KHR || ResizePending)
     {
         ResizePending = false;
-        RebuildSwapchain();
+        (void)RebuildSwapchain();
         return;
     }
 
@@ -1211,7 +1280,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     if (PresentResult == VK_ERROR_OUT_OF_DATE_KHR || PresentResult == VK_SUBOPTIMAL_KHR || ResizePending)
     {
         ResizePending = false;
-        RebuildSwapchain();
+        (void)RebuildSwapchain();
     }
 
     Vulkan->ActiveSlot = (ActiveSlot + 1u) % kCycleSlotCount;
@@ -1246,6 +1315,27 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         vkCmdPipelineBarrier(Command,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+    }
+
+    // ①b History image → GENERAL; first use transitions from UNDEFINED, later uses order the previous frame's writes
+    {
+        VkImageMemoryBarrier Barrier{};
+        Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        Barrier.oldLayout                       = Vulkan->HistoryInitialised ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;
+        Barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+        Barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        Barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        Barrier.image                           = Vulkan->HistoryImage;
+        Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        Barrier.subresourceRange.levelCount     = 1u;
+        Barrier.subresourceRange.layerCount     = 1u;
+        Barrier.srcAccessMask                   = Vulkan->HistoryInitialised ? VK_ACCESS_SHADER_WRITE_BIT : 0u;
+        Barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(Command,
+            Vulkan->HistoryInitialised ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        Vulkan->HistoryInitialised = true;
     }
 
     // ② Dispatch ReSTIR compute
@@ -1397,8 +1487,13 @@ bool SwapchainExchange::CloseRequested() const noexcept
 void SwapchainExchange::PollInput(InputExchange& TargetInput) noexcept
 {
     ForwardInput = &TargetInput;
-    TargetInput.AssignCursorDelta(0.0f, 0.0f);
-    TargetInput.AssignMouseScroll(0.0f);
+    TargetInput.ResetCursorDelta();
+    TargetInput.ResetMouseScroll();
+    if (PendingInputReset)
+    {
+        TargetInput.ReleaseAllInputs();
+        PendingInputReset = false;
+    }
     glfwPollEvents();
     ForwardInput = nullptr;
 }
@@ -1431,6 +1526,10 @@ void SwapchainExchange::OnKey(GLFWwindow* Window, int Key, int, int Action, int)
     if (!Self || !Self->ForwardInput) return;
 
     const bool Pressed = (Action == GLFW_PRESS || Action == GLFW_REPEAT);
+
+    // 📝 Text fields in the overlay own the keyboard while focused; releases always pass so nothing sticks.
+    if (Pressed && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard) return;
+
     auto MapKey = [&](int GlfwKey, VirtualKeyCategory EngineKey)
     {
         if (Key == GlfwKey) Self->ForwardInput->AssignKeyState(EngineKey, Pressed);
@@ -1456,6 +1555,10 @@ void SwapchainExchange::OnMouseButton(GLFWwindow* Window, int Button, int Action
     if (!Self || !Self->ForwardInput) return;
 
     const bool Pressed = (Action == GLFW_PRESS);
+
+    // 📝 A press that lands on the overlay belongs to the overlay; releases always pass so nothing sticks.
+    if (Pressed && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;
+
     if (Button == GLFW_MOUSE_BUTTON_RIGHT)
     {
         Self->ForwardInput->AssignMouseButton(MouseButtonCategory::ButtonRight, Pressed);
@@ -1493,7 +1596,23 @@ void SwapchainExchange::OnScroll(GLFWwindow* Window, double, double OffsetY) noe
 {
     auto* Self = static_cast<SwapchainExchange*>(glfwGetWindowUserPointer(Window));
     if (!Self || !Self->ForwardInput) return;
+    if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;   // 📝 wheel over the overlay scrolls it, not the camera
     Self->ForwardInput->AssignMouseScroll(static_cast<float>(OffsetY));
+}
+
+void SwapchainExchange::OnFocus(GLFWwindow* Window, int Focused) noexcept
+{
+    auto* Self = static_cast<SwapchainExchange*>(glfwGetWindowUserPointer(Window));
+    if (!Self) return;
+
+    // 📝 Losing focus while a key or button is held means GLFW will never deliver the release; clear
+    //    everything so the camera does not keep flying / steering when the user Alt-Tabs back.
+    if (!Focused)
+    {
+        Self->PendingInputReset = true;
+        glfwSetInputMode(Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        Self->CursorInitialised = false;
+    }
 }
 
 void SwapchainExchange::OnFramebuffer(GLFWwindow* Window, int, int) noexcept

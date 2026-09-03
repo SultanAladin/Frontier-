@@ -7,6 +7,8 @@
 #include "../../../Engine/DisplayPresentation/ReSTIRIntegrator.h"
 #include "../../../Engine/DisplayPresentation/RenderScheduler.h"
 #include "../../../Engine/DeviceExchange/DiagnosticMetrics.h"
+#include "../../../Engine/DisplayPresentation/ControlCentreHost.h"
+#include "../../../Engine/DisplayPresentation/RecordingSurface.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
@@ -27,7 +29,8 @@ int main(int, char**)
     DiagnosticConfig.MarkdownTableFormatEnabled = true;
 
     Frontier::DiagnosticMetrics Logger(DiagnosticConfig);
-    Logger.InitializeSink();
+    if (!Logger.InitializeSink())
+        std::cerr << "[Project-Zero] Telemetry sink could not be opened; continuing with console output only.\n";
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
                          "Bootstrap", "Project-Zero windowed ReSTIR renderer starting.");
 
@@ -52,13 +55,14 @@ int main(int, char**)
     {
         2.5f,       // [m/s]    base flight speed
         3.0f,       // [-]      Shift boost multiplier
-        0.0025f,    // [rad/px] mouse sensitivity
+        0.00125f,   // [rad/px] mouse sensitivity (≈ 0.07°/px)
         0.5f,       // [m/s]    scroll speed increment
         12.0f       // [-]      acceleration damping
     };
 
+    // 📐 Z-up: stand 1.95 m in front of the open face (Y < 0), eye height 1 m, looking along +Y into the box.
     Frontier::ProjectZero::FlyThroughSolver Camera(CameraConfig);
-    Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, 1.0f, -1.95f });
+    Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -1.95f, 1.0f });
     Camera.AssignOrientationEuler(0.0f, 0.0f, 0.0f);
     Camera.AssignFieldOfView(55.0f);
     Camera.AssignAspectRatio(1280.0f / 720.0f);
@@ -111,6 +115,14 @@ int main(int, char**)
     Frontier::RenderScheduler Panel;
     Panel.ApplyTheme();
 
+    //──────────────────────────────────────────────────────────────────────────
+    // Control Centre — top notch + pull-down shade (engine overlay, drawn above every ImGui window)
+    //──────────────────────────────────────────────────────────────────────────
+    Frontier::ControlCentreHost ControlCentre;
+    ControlCentre.AssignProjectName("Project-Zero");
+    (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
+    Frontier::RecordingSurface OverlaySurface;
+
     Camera.AssignAspectRatio(
         static_cast<float>(Surface.QueryWidth()) /
         static_cast<float>(Surface.QueryHeight()));
@@ -143,17 +155,32 @@ int main(int, char**)
         // ① Poll input — GLFW callbacks forward into Input
         Surface.PollInput(Input);
 
-        // ② Advance camera kinematics
-        Camera.AdvanceLocomotion(Input, Δτ);
+        // ①b Control Centre owns the pointer while hovered / grabbed / pulled down; the camera never sees those clicks
+        ControlCentre.Resize(Surface.QueryWidth(), Surface.QueryHeight());
+        ControlCentre.AdvanceInteraction(Input, Input.QueryCursorPositionX(), Input.QueryCursorPositionY());
+        ControlCentre.AdvanceLocomotion(Δτ);
+
+        // ② Advance camera kinematics (frozen while the overlay owns the pointer)
+        if (!ControlCentre.CoversPointer())
+            Camera.AdvanceLocomotion(Input, Δτ);
         Camera.AssignAspectRatio(
             static_cast<float>(Surface.QueryWidth()) /
             static_cast<float>(Surface.QueryHeight()));
 
-        // ③ Build ImGui draw data (calls ImGui::NewFrame → ImGui::Render internally)
+        // ③ Build ImGui draw data (calls ImGui::NewFrame → ImGui::Render internally); the Control Centre records
+        //    itself onto the foreground list between NewFrame and Render via the overlay hook.
         Panel.Present(Integrator, Camera, Scene,
-                      Surface.QueryWidth(), Surface.QueryHeight());
+                      Surface.QueryWidth(), Surface.QueryHeight(),
+                      [&]()
+                      {
+                          if (OverlaySurface.Begin(Frontier::SurfaceLayer::Above,
+                                                   static_cast<float>(Surface.QueryWidth()),
+                                                   static_cast<float>(Surface.QueryHeight())))
+                              ControlCentre.Record(OverlaySurface);
+                      });
 
-        // ④ Build dispatch configuration from live camera + integrator state
+        // ④ Build dispatch configuration from live camera + integrator state (camera motion restarts accumulation)
+        Integrator.ObserveCamera(Camera, Surface.QueryWidth(), Surface.QueryHeight());
         const Frontier::DispatchConfiguration Dispatch = Integrator.BuildDispatch(
             Camera,
             Surface.QueryWidth(),

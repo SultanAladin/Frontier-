@@ -1,0 +1,96 @@
+//============================================================================================================================================
+//                                                       RECORDINGSURFACE.H
+//============================================================================================================================================
+// 🧩 Primitives in, recorded draw commands out — the one seam between engine UI hosts and the immediate-mode backend.
+//    Hosts (ControlCentreHost, future panels) speak only in pixels and colours; nothing above this header names ImGui.
+//
+// 📐 Coordinate convention: display pixels, origin top-left, +X right, +Y DOWN. This matches the Vulkan swapchain
+//    image the overlay is composited onto; it is unrelated to the world-space convention in CLAUDE.md §7.
+
+#pragma once
+
+#include "ThemeStructure.h"
+#include <cstdint>
+
+namespace Frontier {
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                     PLANE EXTENT
+//------------------------------------------------------------------------------------------------------------------------
+
+struct PlaneExtent
+{
+    float MinimumX = 0.0f;   // [px] leading (left) edge
+    float MinimumY = 0.0f;   // [px] upper edge
+    float MaximumX = 0.0f;   // [px] trailing (right) edge
+    float MaximumY = 0.0f;   // [px] lower edge
+
+    [[nodiscard]] constexpr float Width()  const noexcept { return MaximumX - MinimumX; }
+    [[nodiscard]] constexpr float Height() const noexcept { return MaximumY - MinimumY; }
+    [[nodiscard]] constexpr bool  Encloses(float X, float Y) const noexcept
+    {
+        return X >= MinimumX && X < MaximumX && Y >= MinimumY && Y < MaximumY;
+    }
+};
+
+[[nodiscard]] constexpr PlaneExtent Spanning(float X, float Y, float Width, float Height) noexcept
+{
+    return PlaneExtent{ X, Y, X + Width, Y + Height };
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                      PLANE POINT
+//------------------------------------------------------------------------------------------------------------------------
+
+struct PlanePoint
+{
+    float X = 0.0f;          // [px]
+    float Y = 0.0f;          // [px]
+};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                    LAYER SELECTION
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class SurfaceLayer : uint32_t
+{
+    Beneath = 0u,            // behind every ImGui window (background list)
+    Above   = 1u             // in front of every ImGui window (foreground list) — overlays such as the notch
+};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                   RECORDING SURFACE
+//------------------------------------------------------------------------------------------------------------------------
+
+class RecordingSurface
+{
+public:
+    RecordingSurface() noexcept;
+    ~RecordingSurface() noexcept = default;
+
+    RecordingSurface(const RecordingSurface&)            = delete;
+    RecordingSurface& operator=(const RecordingSurface&) = delete;
+
+    // 📝 Must be called once per frame after ImGui::NewFrame() and before ImGui::Render(); selects the draw list.
+    //    Returns false when no ImGui context exists (e.g. headless proof generation without a backend).
+    bool Begin(SurfaceLayer Layer, float DisplayWidth, float DisplayHeight) noexcept;
+
+    // ── Primitives ───────────────────────────────────────────────────────────────────────────────────────────────────
+    void FillRectangle (const PlaneExtent& Extent, ColorQuad Colour, float Radius = 0.0f) noexcept;
+    void FillPolygon   (const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour) noexcept;   // convex or concave, anti-aliased
+    void StrokePolyline(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour, float Thickness, bool Closed) noexcept;
+    void Text          (float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels = 0.0f) noexcept;
+
+    // ── Measurement ──────────────────────────────────────────────────────────────────────────────────────────────────
+    [[nodiscard]] PlanePoint MeasureText(const char* Utf8, float FontSizePixels = 0.0f) const noexcept;
+    [[nodiscard]] float      QueryDisplayWidth()  const noexcept { return DisplayWidth;  }
+    [[nodiscard]] float      QueryDisplayHeight() const noexcept { return DisplayHeight; }
+    [[nodiscard]] bool       IsRecording()        const noexcept { return Commands != nullptr; }
+
+private:
+    void*   Commands;        // [-]  the backend draw list for the current frame (opaque above this seam)
+    float   DisplayWidth;    // [px]
+    float   DisplayHeight;   // [px]
+};
+
+} // namespace Frontier
