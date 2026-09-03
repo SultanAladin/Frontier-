@@ -46,7 +46,7 @@
 #include "ThemeStructure.h"
 #include "MotionIntegrator.h"
 #include "AppearanceInspector.h"
-#include "PreferenceInspector.h"
+#include "ConfigurationInspector.h"
 #include "DialogueHost.h"
 #include "PixelSpace.h"
 #include "FidelityClassifier.h"

@@ -1,6 +1,6 @@
 //========================================================================================================================
-// 🧩 PreferenceStructure — plain records for the Input and Notifications pages, shared by their inspectors, the
-//    Control Centre host and PreferenceRegistry (TOML). Kept free of widget code so projects can consume them directly.
+// 🧩 ConfigurationStructure — plain records for the Input and Notifications pages, shared by their inspectors, the
+//    Control Centre host and ConfigurationRegistry (TOML). Kept free of widget code so projects can consume them directly.
 //========================================================================================================================
 #pragma once
 

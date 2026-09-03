@@ -17,5 +17,5 @@ Scratchpad/GenerateControlPanelProof
 Scratchpad/VectorGlyphTest
 .DS_Store
 
-# Per-user Control Centre preferences (written by PreferenceRegistry at runtime)
-Projects/*/Content/UserPreferences.toml
+# Per-user Control Centre preferences (written by ConfigurationRegistry at runtime)
+Projects/*/Content/Slate.config.toml

@@ -1,8 +1,8 @@
 //========================================================================================================================
-// 🧩 PreferenceInspector — Input ("Keybindings Setup") and Notifications ("Telemetry & Notifications") page bodies.
+// 🧩 ConfigurationInspector — Input ("Keybindings Setup") and Notifications ("Telemetry & Notifications") page bodies.
 //    Geometry and colours are Notch OtherModals.tsx / SharedUI.tsx verbatim; see the header for the palette.
 //========================================================================================================================
-#include "PreferenceInspector.h"
+#include "ConfigurationInspector.h"
 
 #include <algorithm>
 #include <cmath>

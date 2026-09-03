@@ -174,7 +174,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/ThemeStructure.cpp
     Engine/DisplayPresentation/VectorCodec.cpp
     Engine/DisplayPresentation/FontCodec.cpp
-    Engine/DisplayPresentation/PreferenceRegistry.cpp
+    Engine/DisplayPresentation/ConfigurationRegistry.cpp
     Engine/DisplayPresentation/ControlCentreHost.cpp
     Engine/DisplayPresentation/PixelSpace.cpp
     Engine/DisplayPresentation/MotionIntegrator.cpp
@@ -184,7 +184,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/ControlKit.cpp
     Engine/DisplayPresentation/DialogueHost.cpp
     Engine/DisplayPresentation/AppearanceInspector.cpp
-    Engine/DisplayPresentation/PreferenceInspector.cpp
+    Engine/DisplayPresentation/ConfigurationInspector.cpp
     Engine/DisplayPresentation/TypefaceRegistry.cpp
     Engine/DisplayPresentation/WorkspaceHost.cpp
     Engine/DisplayPresentation/CycleScheduler.cpp

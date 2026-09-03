@@ -1,5 +1,5 @@
 //========================================================================================================================
-// 🧩 PreferenceInspector — content of the Control Centre's Input page ("Keybindings Setup") and Notifications page
+// 🧩 ConfigurationInspector — content of the Control Centre's Input page ("Keybindings Setup") and Notifications page
 //    ("Telemetry & Notifications"). Both are 1:1 ports of Notch OtherModals.tsx: InputSettingsModal keeps its own
 //    fixed palette (#161415 sheet, #ececec / #868384 / #c4c4c4 inks, #0d0a0b fields, #2a2627 borders, #e254eb accent);
 //    TelemetrySettingsModal is a GenericSettingsModal of FormFieldRow + FormToggle in the theme palette.
@@ -8,7 +8,7 @@
 #pragma once
 
 #include "ControlKit.h"
-#include "PreferenceStructure.h"
+#include "ConfigurationStructure.h"
 
 #include <cstdint>
 

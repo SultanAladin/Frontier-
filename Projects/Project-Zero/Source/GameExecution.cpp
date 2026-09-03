@@ -13,7 +13,7 @@
 #include "../../../Engine/DisplayPresentation/NotificationQueue.h"
 #include "../../../Engine/DisplayPresentation/TelemetryMetrics.h"
 #include "../../../Engine/DisplayPresentation/TypefaceRegistry.h"
-#include "../../../Engine/DisplayPresentation/PreferenceRegistry.h"
+#include "../../../Engine/DisplayPresentation/ConfigurationRegistry.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
@@ -137,15 +137,15 @@ int main(int, char**)
     ControlCentre.AssignProjectName("Project-Zero");
     (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
 
-    // Persisted preferences: Projects/Project-Zero/Content/UserPreferences.toml (missing file = defaults). The hosts are
+    // Persisted preferences: Projects/Project-Zero/Content/Slate.config.toml (missing file = defaults). The hosts are
     //    seeded before the first frame; every Apply / debounced dashboard change writes the file back.
-    Frontier::PreferenceRegistry Preferences;
-    if (!Preferences.Load("Projects/Project-Zero/Content/UserPreferences.toml"))
-        std::cerr << "[Preferences] " << Preferences.QueryPath() << ": " << Preferences.QueryLastError() << " - using defaults\n";
-    ControlCentre.SeedSettings(Preferences.Query().Render);
-    ControlCentre.AccessAppearance().Seed(Preferences.Query().Appearance);
-    ControlCentre.AccessInput().Seed(Preferences.Query().Input);
-    ControlCentre.AccessNotifications().Seed(Preferences.Query().Notifications);
+    Frontier::ConfigurationRegistry Configuration;
+    if (!Configuration.Load("Projects/Project-Zero/Content/Slate.config.toml"))
+        std::cerr << "[Configuration] " << Configuration.QueryPath() << ": " << Configuration.QueryLastError() << " - using defaults\n";
+    ControlCentre.SeedSettings(Configuration.Query().Render);
+    ControlCentre.AccessAppearance().Seed(Configuration.Query().Appearance);
+    ControlCentre.AccessInput().Seed(Configuration.Query().Input);
+    ControlCentre.AccessNotifications().Seed(Configuration.Query().Notifications);
     Frontier::PixelSpace OverlaySurface;
 
     // Dashboard-driven engine services: quality ladder, toasts, frame telemetry
@@ -230,7 +230,7 @@ int main(int, char**)
         ControlCentre.AdvanceInteraction(Input, Input.QueryCursorPositionX() / InterfaceScale, Input.QueryCursorPositionY() / InterfaceScale);
         ControlCentre.AdvanceLocomotion(Δτ);
         Notifications.Advance(Δτ);
-        Preferences.Advance(Δτ);
+        Configuration.Advance(Δτ);
         Telemetry.RecordFrame(Δτ);
 
         // ①c Dashboard settings → renderer (only when something changed)
@@ -241,7 +241,7 @@ int main(int, char**)
                 const bool First = AppliedSettingsRevision == ~0u;
                 ApplyControlCentreSettings(S, false);      // renderer follows every tick (live slider)
                 AppliedSettingsRevision = S.Revision;
-                if (!First) { Preferences.Access().Render = S; Preferences.MarkDirty(); }   // debounced write, one per gesture
+                if (!First) { Configuration.Access().Render = S; Configuration.MarkDirty(); }   // debounced write, one per gesture
                 SettingsQuietSeconds = 0.0f;
                 SettingsToastPending = !First;
             }
@@ -269,8 +269,8 @@ int main(int, char**)
                 AppearanceEverApplied = true;
                 if (!FirstAppearance)   // start-up seed: apply silently, nothing to persist or announce
                 {
-                    Preferences.Access().Appearance = P;
-                    if (!Preferences.Save()) std::cerr << "[Preferences] save failed: " << Preferences.QueryLastError() << "\n";
+                    Configuration.Access().Appearance = P;
+                    if (!Configuration.Save()) std::cerr << "[Configuration] save failed: " << Configuration.QueryLastError() << "\n";
                 }
                 Surface.AssignPresentPacing(P.VerticalSync == Frontier::VerticalSyncCategory::Off      ? Frontier::PresentPacingCategory::VerticalSyncOff
                                           : P.VerticalSync == Frontier::VerticalSyncCategory::Adaptive ? Frontier::PresentPacingCategory::VerticalSyncAdaptive
@@ -309,8 +309,8 @@ int main(int, char**)
                 Camera.AssignConfiguration(C);
                 if (!First)
                 {
-                    Preferences.Access().Input = P;
-                    if (!Preferences.Save()) std::cerr << "[Preferences] save failed: " << Preferences.QueryLastError() << "\n";
+                    Configuration.Access().Input = P;
+                    if (!Configuration.Save()) std::cerr << "[Configuration] save failed: " << Configuration.QueryLastError() << "\n";
                     char Body[96];
                     std::snprintf(Body, sizeof(Body), "%s  |  sensitivity %d%%  |  Y-axis %s",
                                   Frontier::InputInspector::QueryProfileName(P.Profile), static_cast<int>(P.MouseSensitivity), P.InvertPitch ? "inverted" : "normal");
@@ -334,8 +334,8 @@ int main(int, char**)
                 Telemetry.AssignRows(Rows);
                 if (!First)
                 {
-                    Preferences.Access().Notifications = P;
-                    if (!Preferences.Save()) std::cerr << "[Preferences] save failed: " << Preferences.QueryLastError() << "\n";
+                    Configuration.Access().Notifications = P;
+                    if (!Configuration.Save()) std::cerr << "[Configuration] save failed: " << Configuration.QueryLastError() << "\n";
                     if (P.RenderFinished) Notifications.Push("Notification preferences saved");
                 }
             }
@@ -345,10 +345,10 @@ int main(int, char**)
         //    "Frame-rate Drops" (2 s average under 30 fps, once per episode).
         {
             const Frontier::NotificationPreferences& P = ControlCentre.QueryNotifications().QueryApplied();
-            if (P.AutosaveErrors && !Preferences.QueryLastError().empty() && Preferences.QueryLastError() != LastSaveError)
+            if (P.AutosaveErrors && !Configuration.QueryLastError().empty() && Configuration.QueryLastError() != LastSaveError)
             {
-                LastSaveError = Preferences.QueryLastError();
-                Notifications.Push("Preferences could not be saved", LastSaveError);
+                LastSaveError = Configuration.QueryLastError();
+                Notifications.Push("Configuration could not be saved", LastSaveError);
             }
             if (Integrator.QueryAccumulationIndex() < BakeFrameCount) BakeAnnounced = false;
             else if (!BakeAnnounced)

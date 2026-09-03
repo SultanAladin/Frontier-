@@ -1,9 +1,9 @@
 //============================================================================================================================================
-//                                                     PREFERENCEREGISTRY.CPP
+//                                                     CONFIGURATIONREGISTRY.CPP
 //============================================================================================================================================
-// 🧩 UserPreferences ⇄ TOML. Enumerations round-trip by name; unknown names fall back to the default.
+// 🧩 SlateConfiguration ⇄ TOML. Enumerations round-trip by name; unknown names fall back to the default.
 
-#include "PreferenceRegistry.h"
+#include "ConfigurationRegistry.h"
 #include "TypefaceRegistry.h"
 #include <toml++/toml.hpp>
 #include <filesystem>
@@ -105,12 +105,12 @@ const char* FamilyNameOf(uint32_t Index) noexcept
 //                                                      LIFECYCLE
 //------------------------------------------------------------------------------------------------------------------------
 
-PreferenceRegistry::PreferenceRegistry() noexcept
-    : Preferences{}, StoragePath{}, LastError{}, LoadedFromDisk(false), Dirty(false), QuietSeconds(0.0f)
+ConfigurationRegistry::ConfigurationRegistry() noexcept
+    : Configuration{}, StoragePath{}, LastError{}, LoadedFromDisk(false), Dirty(false), QuietSeconds(0.0f)
 {
 }
 
-void PreferenceRegistry::Advance(float DeltaSeconds) noexcept
+void ConfigurationRegistry::Advance(float DeltaSeconds) noexcept
 {
     if (!Dirty) return;
     QuietSeconds += DeltaSeconds;
@@ -121,10 +121,10 @@ void PreferenceRegistry::Advance(float DeltaSeconds) noexcept
 //                                                     SERIALISE
 //------------------------------------------------------------------------------------------------------------------------
 
-std::string PreferenceRegistry::Serialise(const UserPreferences& P) noexcept
+std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexcept
 {
     toml::table Root;
-    Root.insert("preferences", toml::table{ { "version", static_cast<int64_t>(UserPreferences::SchemaVersion) } });
+    Root.insert("configuration", toml::table{ { "version", static_cast<int64_t>(SlateConfiguration::SchemaVersion) } });
 
     Root.insert("render", toml::table{
         { "global_illumination", P.Render.GlobalIllumination },
@@ -193,7 +193,7 @@ std::string PreferenceRegistry::Serialise(const UserPreferences& P) noexcept
     });
 
     std::ostringstream Out;
-    Out << "# Frontier user preferences - written by PreferenceRegistry; edit freely, unknown keys are ignored.\n\n" << Root << "\n";
+    Out << "# Slate configuration - written by ConfigurationRegistry; edit freely, unknown keys are ignored.\n\n" << Root << "\n";
     return Out.str();
 }
 
@@ -201,7 +201,7 @@ std::string PreferenceRegistry::Serialise(const UserPreferences& P) noexcept
 //                                                    DESERIALISE
 //------------------------------------------------------------------------------------------------------------------------
 
-bool PreferenceRegistry::Deserialise(std::string_view Toml, UserPreferences& Out, std::string* Error) noexcept
+bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguration& Out, std::string* Error) noexcept
 {
     toml::table Root;
     try { Root = toml::parse(Toml); }
@@ -299,7 +299,7 @@ bool PreferenceRegistry::Deserialise(std::string_view Toml, UserPreferences& Out
 //                                                      FILE I/O
 //------------------------------------------------------------------------------------------------------------------------
 
-bool PreferenceRegistry::Load(std::string_view Path) noexcept
+bool ConfigurationRegistry::Load(std::string_view Path) noexcept
 {
     StoragePath.assign(Path);
     LoadedFromDisk = false;
@@ -311,30 +311,30 @@ bool PreferenceRegistry::Load(std::string_view Path) noexcept
     if (!In) { LastError = "cannot open"; return false; }
     std::stringstream Buffer; Buffer << In.rdbuf();
 
-    UserPreferences Parsed{};
+    SlateConfiguration Parsed{};
     if (!Deserialise(Buffer.str(), Parsed, &LastError)) return false;
-    Preferences = Parsed;
+    Configuration = Parsed;
     LoadedFromDisk = true;
     return true;
 }
 
-bool PreferenceRegistry::Save() noexcept
+bool ConfigurationRegistry::Save() noexcept
 {
     return StoragePath.empty() ? false : SaveTo(StoragePath);
 }
 
-bool PreferenceRegistry::SaveTo(std::string_view Path) noexcept
+bool ConfigurationRegistry::SaveTo(std::string_view Path) noexcept
 {
     std::error_code Ec;
     const std::filesystem::path Target(Path);
     if (Target.has_parent_path()) std::filesystem::create_directories(Target.parent_path(), Ec);
 
-    // Write to a sibling temp file, then rename — a crash mid-write never leaves a truncated preferences file.
+    // Write to a sibling temp file, then rename — a crash mid-write never leaves a truncated configuration file.
     const std::filesystem::path Temp = Target.string() + ".tmp";
     {
         std::ofstream Out(Temp, std::ios::binary | std::ios::trunc);
         if (!Out) { LastError = "cannot write"; return false; }
-        Out << Serialise(Preferences);
+        Out << Serialise(Configuration);
     }
     std::filesystem::rename(Temp, Target, Ec);
     if (Ec) { LastError = Ec.message(); return false; }

@@ -22,7 +22,7 @@
 #include "../Engine/DisplayPresentation/TelemetryMetrics.h"
 #include "../Engine/DisplayPresentation/FidelityClassifier.h"
 #include "../Engine/DisplayPresentation/TypefaceRegistry.h"
-#include "../Engine/DisplayPresentation/PreferenceRegistry.h"
+#include "../Engine/DisplayPresentation/ConfigurationRegistry.h"
 
 #include <imgui.h>
 
@@ -735,17 +735,17 @@ int main()
 
     // Step 5A — persistence round trip: applied state → TOML → fresh host seeded from it (textual proof).
     {
-        Frontier::UserPreferences P;
+        Frontier::SlateConfiguration P;
         P.Render     = R.Host.QuerySettings();
         P.Appearance = R.Host.QueryAppearance().QueryApplied();
-        const std::string Toml = Frontier::PreferenceRegistry::Serialise(P);
-        Frontier::UserPreferences Q; std::string Error;
-        const bool Parsed = Frontier::PreferenceRegistry::Deserialise(Toml, Q, &Error);
+        const std::string Toml = Frontier::ConfigurationRegistry::Serialise(P);
+        Frontier::SlateConfiguration Q; std::string Error;
+        const bool Parsed = Frontier::ConfigurationRegistry::Deserialise(Toml, Q, &Error);
         std::printf("   [5A] toml=%zu bytes parsed=%d appearance-equal=%d render-equal=%d %s\n", Toml.size(), Parsed,
                     Q.Appearance == P.Appearance,
                     Q.Render.GlobalIllumination == P.Render.GlobalIllumination && Q.Render.Quality == P.Render.Quality
                         && Q.Render.RenderScale == P.Render.RenderScale && Q.Render.Notifications == P.Render.Notifications, Error.c_str());
-        std::FILE* F = std::fopen("Scratchpad/ControlCentre_Settings_5A_UserPreferences.toml", "wb");
+        std::FILE* F = std::fopen("Scratchpad/ControlCentre_Settings_5A_Slate.config.toml", "wb");
         if (F) { std::fwrite(Toml.data(), 1, Toml.size(), F); std::fclose(F); }
     }
 
@@ -843,14 +843,14 @@ int main()
 
     // 5E persistence: Input + Notifications round-trip through TOML.
     {
-        Frontier::UserPreferences P;
+        Frontier::SlateConfiguration P;
         P.Input         = R.Host.QueryInput().QueryApplied();
         P.Notifications = R.Host.QueryNotifications().QueryApplied();
-        const std::string Toml = Frontier::PreferenceRegistry::Serialise(P);
-        Frontier::UserPreferences Q; std::string Error;
-        const bool Parsed = Frontier::PreferenceRegistry::Deserialise(Toml, Q, &Error);
+        const std::string Toml = Frontier::ConfigurationRegistry::Serialise(P);
+        Frontier::SlateConfiguration Q; std::string Error;
+        const bool Parsed = Frontier::ConfigurationRegistry::Deserialise(Toml, Q, &Error);
         std::printf("   [5E] toml parsed=%d input-equal=%d notifications-equal=%d %s\n", Parsed, Q.Input == P.Input, Q.Notifications == P.Notifications, Error.c_str());
-        std::FILE* F = std::fopen("Scratchpad/ControlCentre_Settings_5E_UserPreferences.toml", "wb");
+        std::FILE* F = std::fopen("Scratchpad/ControlCentre_Settings_5E_Slate.config.toml", "wb");
         if (F) { std::fwrite(Toml.data(), 1, Toml.size(), F); std::fclose(F); }
     }
 

@@ -1,4 +1,4 @@
-# Frontier user preferences - written by PreferenceRegistry; edit freely, unknown keys are ignored.
+# Frontier user preferences - written by ConfigurationRegistry; edit freely, unknown keys are ignored.
 
 [appearance.display]
 anti_aliasing = '1x'
@@ -72,7 +72,7 @@ show_frame_rate_overlay = true
 show_memory_usage = true
 show_scene_metadata = false
 
-[preferences]
+[configuration]
 version = 1
 
 [render]
