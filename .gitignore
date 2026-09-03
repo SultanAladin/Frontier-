@@ -4,8 +4,15 @@
 *.exe
 *.a
 *.lib
+*.ppm
 bin/
 build/
-lib/
-FrontierEngine
+Projects/**/bin/
+Projects/**/build/
+Scratchpad/GenerateDialogueProofs
+Scratchpad/GenerateFontSectionProofs
+Scratchpad/GenerateThemeSectionProofs
+Scratchpad/GenerateCarouselProofs
+Scratchpad/GenerateControlPanelProof
+Scratchpad/VectorGlyphTest
 .DS_Store

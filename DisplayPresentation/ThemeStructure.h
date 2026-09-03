@@ -51,6 +51,23 @@ enum class AccentCategory : uint32_t
 };
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                               FONT FAMILY CATEGORY
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class FontFamilyCategory : uint32_t
+{
+    GeneralSans                         = 0,                    // General Sans (Default - Clean & Modern)
+    Inter                               = 1,                    // Inter (Author)
+    Archivo                             = 2,                    // Archivo (Technical & Solid)
+    SpaceGrotesk                        = 3,                    // Space Grotesk (Grotesque Display)
+    ClashDisplay                        = 4,                    // Clash Display (Bold & Distinct)
+    Montserrat                          = 5,                    // Montserrat (Geometric & Wide)
+    Poppins                             = 6,                    // Poppins (Friendly & Round)
+    JetBrainsMono                       = 7,                    // JetBrains Mono (Monospaced Code)
+    Count                               = 8
+};
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                               TYPOGRAPHY ROLE CATEGORY
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -118,6 +135,9 @@ public:
     void                    AssignCornerRadius(float RadiusPixels) noexcept;
     [[nodiscard]] float     QueryCornerRadius() const noexcept { return CornerRadiusPixels; }
 
+    void                    AssignFontFamily(FontFamilyCategory DesiredFamily) noexcept { ActiveFontFamily = DesiredFamily; }
+    [[nodiscard]] FontFamilyCategory QueryActiveFontFamily() const noexcept { return ActiveFontFamily; }
+
     [[nodiscard]] const ThemePalette& QueryPalette() const noexcept;
     [[nodiscard]] ColorQuad QueryAccentColor() const noexcept;
     [[nodiscard]] float     QueryTypographySize(TypographyRoleCategory Role) const noexcept;
@@ -129,6 +149,7 @@ public:
 private:
     ThemeCategory           ActiveTheme;                        // [category] active surface theme (default OLED)
     AccentCategory          ActiveAccent;                       // [category] active accent swatch (default Blue)
+    FontFamilyCategory      ActiveFontFamily;                   // [category] active font family (default GeneralSans)
     float                   CornerRadiusPixels;                 // [px] UI corner roundness (default 24.0px)
     std::array<ThemePalette, static_cast<size_t>(ThemeCategory::Count)> PaletteArray; // [palettes] 8 surface definitions
     std::array<ColorQuad, static_cast<size_t>(AccentCategory::Count)> AccentArray;     // [accents] 10 accent swatches

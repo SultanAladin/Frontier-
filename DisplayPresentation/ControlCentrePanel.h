@@ -44,6 +44,30 @@ enum class ControlCentrePageCategory : uint32_t
 };
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                        APPEARANCE SUB-TAB CATEGORY
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class AppearanceSubTabCategory : uint32_t
+{
+    Theme                               = 0,                    // 0: Color scheme, 8 surface presets & corner radius
+    Fonts                               = 1,                    // 1: 8 font families, style playground & 6 type scales
+    Display                             = 2,                    // 2: Hardware resolution, refresh rate & Vulkan AA
+    Count                               = 3
+};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                           DIALOGUE MODAL CATEGORY
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class DialogueCategory : uint32_t
+{
+    None                                = 0,                    // No modal dialogue active
+    ApplyPreferences                    = 1,                    // Apply changes confirmation dialogue
+    DiscardChanges                      = 2,                    // Discard changes confirmation dialogue
+    Count                               = 3
+};
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                             CONTROL CENTRE PANEL STATE
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -87,11 +111,23 @@ public:
     [[nodiscard]] float     QuerySlideOffset() const noexcept { return CurrentSlideOffset; }
     [[nodiscard]] bool      IsSlideTransitionActive() const noexcept;
 
+    // Appearance Sub-Tab Navigation
+    void                    AssignAppearanceSubTab(AppearanceSubTabCategory SubTab) noexcept { ActiveAppearanceSubTab = SubTab; }
+    [[nodiscard]] AppearanceSubTabCategory QueryAppearanceSubTab() const noexcept { return ActiveAppearanceSubTab; }
+
+    // Dialogue Modal System (Apply Preferences & Discard Confirmations)
+    void                    OpenDialogue(DialogueCategory Dialogue) noexcept { ActiveDialogue = Dialogue; }
+    void                    CloseDialogue() noexcept { ActiveDialogue = DialogueCategory::None; }
+    [[nodiscard]] DialogueCategory QueryActiveDialogue() const noexcept { return ActiveDialogue; }
+    [[nodiscard]] bool      IsDialogueOpen() const noexcept { return ActiveDialogue != DialogueCategory::None; }
+
     // Theme & Global UI Rounding Controls
     void                    SelectTheme(ThemeCategory Theme) noexcept { ActiveTheme.AssignTheme(Theme); }
     void                    AssignCornerRadius(float RadiusPixels) noexcept { ActiveTheme.AssignCornerRadius(RadiusPixels); }
+    void                    SelectFontFamily(FontFamilyCategory Family) noexcept { ActiveTheme.AssignFontFamily(Family); }
     [[nodiscard]] ThemeCategory QueryThemeCategory() const noexcept { return ActiveTheme.QueryActiveTheme(); }
     [[nodiscard]] float     QueryCornerRadius() const noexcept { return ActiveTheme.QueryCornerRadius(); }
+    [[nodiscard]] FontFamilyCategory QueryFontFamily() const noexcept { return ActiveTheme.QueryActiveFontFamily(); }
 
     [[nodiscard]] bool      IsOpen() const noexcept { return OpenCondition; }
     [[nodiscard]] bool      IsDragging() const noexcept { return DraggingCondition; }
@@ -124,6 +160,8 @@ private:
     // Stepper Carousel Sliding Dynamics
     ControlCentrePageCategory ActivePage;                       // [page] currently visible page
     ControlCentrePageCategory PreviousPage;                     // [page] source page during slide transition
+    AppearanceSubTabCategory ActiveAppearanceSubTab;            // [subtab] active appearance subtab (Theme/Fonts/Display)
+    DialogueCategory        ActiveDialogue;                     // [dialogue] active confirmation modal dialogue
     float                   CurrentSlideOffset;                 // [px] horizontal carousel slide displacement
     float                   TargetSlideOffset;                  // [px] destination horizontal displacement
     float                   SlideVelocity;                      // [px/s] carousel horizontal spring velocity

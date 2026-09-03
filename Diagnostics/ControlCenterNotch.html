@@ -615,6 +615,37 @@ input[type=range].slider:active::-webkit-slider-thumb {
   cursor: pointer; transition: color 0.15s;
 }
 .btn-ghost-cancel:hover { color: var(--text-main); }
+/* ── DIALOGUE MODALS (from UIComponents.html) ── */
+.dialog-overlay {
+  position: fixed; inset: 0; z-index: 250;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.15s ease-out;
+}
+.dialog-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--corner-radius);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.85);
+  width: 100%; max-width: 460px;
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: scaleUp 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+}
+.dialog-header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 24px; border-bottom: 1px solid var(--divider);
+  background: rgba(255, 255, 255, 0.02);
+}
+.dialog-body {
+  padding: 22px 24px; display: flex; flex-direction: column; gap: 14px;
+}
+.dialog-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+  padding: 16px 24px; border-top: 1px solid var(--divider);
+  background: rgba(0, 0, 0, 0.2);
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 </style>
 </head>
 
@@ -1083,61 +1114,227 @@ input[type=range].slider:active::-webkit-slider-thumb {
                 </div>
               </div>
 
-              <!-- SUB-TAB 2: FONTS & 8 TYPOGRAPHY ROLES -->
-              <div id="tab-content-fonts" style="display:none; flex-direction:column; gap:20px;">
-                <!-- 8 Master Typography Roles (Title, Header, Subheader, Body, Label, Caption, Warning, Alert) -->
-                <div class="role-typography-card">
-                  <div class="role-header-row">
-                    <span class="role-name-tag">Title</span>
-                    <span class="role-spec-tag">24px · Bold (700)</span>
+              <!-- SUB-TAB 2: FONTS & TYPOGRAPHY SYSTEM (1-to-1 from FontsTab.tsx) -->
+              <div id="tab-content-fonts" style="display:none; flex-direction:column; gap:28px;">
+                <!-- 1. Font Family Carousel Selection -->
+                <section>
+                  <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:14px;">
+                    <div>
+                      <h3 style="font-size:14px; font-weight:600; color:var(--text-main);">Typography</h3>
+                      <p style="font-size:12px; color:var(--text-muted);">Typeface, type scale, and font weights</p>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                      <button class="btn-icon-ghost" style="border:1px solid var(--panel-border);" onclick="scrollFontCards('left')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+                      <button class="btn-icon-ghost" style="border:1px solid var(--panel-border);" onclick="scrollFontCards('right')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+                    </div>
                   </div>
-                  <div class="role-weights-strip">
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Thin</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Light</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Regular</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Medium</button>
-                    <button class="weight-pill-btn active" onclick="selectWeight(this)">Bold</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Black</button>
-                  </div>
-                </div>
 
-                <div class="role-typography-card">
-                  <div class="role-header-row">
-                    <span class="role-name-tag">Header</span>
-                    <span class="role-spec-tag">20px · Semibold (600)</span>
-                  </div>
-                  <div class="role-weights-strip">
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Regular</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Medium</button>
-                    <button class="weight-pill-btn active" onclick="selectWeight(this)">Semibold</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Bold</button>
-                  </div>
-                </div>
+                  <div id="font-carousel-scroll" style="display:flex; gap:14px; overflow-x:auto; padding-bottom:8px; scroll-behavior:smooth;">
+                    <!-- 1. General Sans -->
+                    <div class="font-select-card active" onclick="selectLiveFontFamily('general', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--accent-color); border-radius:var(--corner-radius); background:var(--active-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'General Sans', sans-serif;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">General Sans</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Clean & Modern</div>
+                    </div>
 
-                <div class="role-typography-card">
-                  <div class="role-header-row">
-                    <span class="role-name-tag">Body</span>
-                    <span class="role-spec-tag">14px · Regular (400)</span>
-                  </div>
-                  <div class="role-weights-strip">
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Light</button>
-                    <button class="weight-pill-btn active" onclick="selectWeight(this)">Regular</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Medium</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Bold</button>
-                  </div>
-                </div>
+                    <!-- 2. Inter -->
+                    <div class="font-select-card" onclick="selectLiveFontFamily('inter', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--panel-border); border-radius:var(--corner-radius); background:var(--input-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'Inter', sans-serif;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">Inter</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Author</div>
+                    </div>
 
-                <div class="role-typography-card">
-                  <div class="role-header-row">
-                    <span class="role-name-tag">Label & Monospace</span>
-                    <span class="role-spec-tag">12px · Medium (500)</span>
+                    <!-- 3. Archivo -->
+                    <div class="font-select-card" onclick="selectLiveFontFamily('archivo', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--panel-border); border-radius:var(--corner-radius); background:var(--input-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'Archivo', sans-serif;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">Archivo</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Technical & Solid</div>
+                    </div>
+
+                    <!-- 4. Space Grotesk -->
+                    <div class="font-select-card" onclick="selectLiveFontFamily('space', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--panel-border); border-radius:var(--corner-radius); background:var(--input-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'Space Grotesk', sans-serif;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">Space Grotesk</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Grotesque Display</div>
+                    </div>
+
+                    <!-- 5. Clash Display -->
+                    <div class="font-select-card" onclick="selectLiveFontFamily('clash', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--panel-border); border-radius:var(--corner-radius); background:var(--input-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'Clash Display', sans-serif;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">Clash Display</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Bold & Distinct</div>
+                    </div>
+
+                    <!-- 6. Montserrat -->
+                    <div class="font-select-card" onclick="selectLiveFontFamily('montserrat', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--panel-border); border-radius:var(--corner-radius); background:var(--input-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'Montserrat', sans-serif;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">Montserrat</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Geometric & Wide</div>
+                    </div>
+
+                    <!-- 7. Poppins -->
+                    <div class="font-select-card" onclick="selectLiveFontFamily('poppins', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--panel-border); border-radius:var(--corner-radius); background:var(--input-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'Poppins', sans-serif;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">Poppins</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Friendly & Round</div>
+                    </div>
+
+                    <!-- 8. JetBrains Mono -->
+                    <div class="font-select-card" onclick="selectLiveFontFamily('mono', this)" style="flex-shrink:0; width:180px; padding:18px; border:1px solid var(--panel-border); border-radius:var(--corner-radius); background:var(--input-bg); cursor:pointer;">
+                      <div style="font-size:26px; font-weight:700; color:var(--text-main); margin-bottom:12px; font-family:'JetBrains Mono', monospace;">Aa</div>
+                      <div style="font-size:14px; font-weight:600; color:var(--text-main); margin-bottom:2px;">JetBrains Mono</div>
+                      <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Monospaced Code</div>
+                    </div>
                   </div>
-                  <div class="role-weights-strip">
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Regular</button>
-                    <button class="weight-pill-btn active" onclick="selectWeight(this)">Medium</button>
-                    <button class="weight-pill-btn" onclick="selectWeight(this)">Bold</button>
+                </section>
+
+                <!-- 2. Style Playground (Typeface & Colors) -->
+                <section style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:24px;">
+                  <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:20px;">Typeface & Colors</h3>
+
+                  <div style="display:grid; grid-template-columns:1fr 300px; gap:24px; align-items:stretch;">
+                    <!-- Left Hero Spec Box -->
+                    <div style="background:var(--card-bg); border:1px solid var(--panel-border); border-radius:calc(var(--corner-radius) * 0.8); padding:32px; display:flex; flex-direction:column; justify-content:center;">
+                      <div id="font-hero-display" style="font-size:54px; font-weight:700; letter-spacing:-1px; line-height:1; color:var(--text-main); margin-bottom:10px;">General Sans</div>
+                      <div style="font-size:13px; color:var(--text-muted);">(72px bold display)</div>
+                    </div>
+
+                    <!-- Right Specs & Swatches -->
+                    <div style="display:flex; flex-direction:column; justify-content:center; gap:16px;">
+                      <div style="font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--text-muted); line-height:1.6; display:flex; flex-direction:column; gap:2px;">
+                        <span>ABCDEFGHIJKLMNOPQRSTUVWXYZ</span>
+                        <span>abcdefghijklmnopqrstuvwxyz</span>
+                        <span>0123456789 !@#$%^&*()</span>
+                      </div>
+
+                      <div style="font-size:12px; color:var(--accent-color); font-weight:500;">
+                        <span style="font-weight:700;">Accent</span> — The quick brown fox jumps over...
+                      </div>
+
+                      <div style="display:flex; gap:16px; margin-top:4px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                          <div style="width:36px; height:36px; border-radius:50%; background:var(--accent-color); border:1px solid rgba(255,255,255,0.1);"></div>
+                          <span style="font-size:10px; font-weight:600; color:var(--text-main);">ACCENT</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                          <div style="width:36px; height:36px; border-radius:50%; background:#ffffff; border:1px solid rgba(255,255,255,0.1);"></div>
+                          <span style="font-size:10px; font-weight:600; color:var(--text-main);">#FFFFFF</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                          <div style="width:36px; height:36px; border-radius:50%; background:#000000; border:1px solid rgba(255,255,255,0.1);"></div>
+                          <span style="font-size:10px; font-weight:600; color:var(--text-main);">#000000</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </section>
+
+                <!-- 3. Type Scale - Desktop -->
+                <section>
+                  <h3 style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--text-muted); margin-bottom:16px;">Type Scale - Desktop</h3>
+
+                  <div style="display:flex; flex-direction:column; gap:16px;">
+                    <!-- Title -->
+                    <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:20px; display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:center;">
+                      <div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                          <span style="font-size:13.5px; font-weight:600; color:var(--text-main);">Title</span>
+                          <span id="scale-val-title" style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text-muted);">32px</span>
+                        </div>
+                        <div class="crow" style="min-height:32px;">
+                          <div class="vpill" style="height:32px; width:84px;">
+                            <div class="num" id="scale-num-title" style="font-size:13px;">32</div>
+                            <div class="unit">px</div>
+                          </div>
+                          <input type="range" class="slider" min="8" max="72" value="32" oninput="updateTypeScale('title', this.value)">
+                        </div>
+                        <div class="role-weights-strip" style="margin-top:14px;">
+                          <button class="weight-pill-btn" onclick="setTypeWeight('title', 'Light', this)">Light</button>
+                          <button class="weight-pill-btn" onclick="setTypeWeight('title', 'Regular', this)">Regular</button>
+                          <button class="weight-pill-btn" onclick="setTypeWeight('title', 'Medium', this)">Medium</button>
+                          <button class="weight-pill-btn active" onclick="setTypeWeight('title', 'Bold', this)">Bold</button>
+                        </div>
+                      </div>
+                      <div id="scale-preview-title" style="background:var(--card-bg); border:1px solid var(--panel-border); border-radius:calc(var(--corner-radius) * 0.7); padding:16px 20px; font-size:32px; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        Display Title
+                      </div>
+                    </div>
+
+                    <!-- Header -->
+                    <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:20px; display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:center;">
+                      <div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                          <span style="font-size:13.5px; font-weight:600; color:var(--text-main);">Header</span>
+                          <span id="scale-val-header" style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text-muted);">24px</span>
+                        </div>
+                        <div class="crow" style="min-height:32px;">
+                          <div class="vpill" style="height:32px; width:84px;">
+                            <div class="num" id="scale-num-header" style="font-size:13px;">24</div>
+                            <div class="unit">px</div>
+                          </div>
+                          <input type="range" class="slider" min="8" max="72" value="24" oninput="updateTypeScale('header', this.value)">
+                        </div>
+                        <div class="role-weights-strip" style="margin-top:14px;">
+                          <button class="weight-pill-btn" onclick="setTypeWeight('header', 'Regular', this)">Regular</button>
+                          <button class="weight-pill-btn" onclick="setTypeWeight('header', 'Medium', this)">Medium</button>
+                          <button class="weight-pill-btn active" onclick="setTypeWeight('header', 'SemiBold', this)">SemiBold</button>
+                          <button class="weight-pill-btn" onclick="setTypeWeight('header', 'Bold', this)">Bold</button>
+                        </div>
+                      </div>
+                      <div id="scale-preview-header" style="background:var(--card-bg); border:1px solid var(--panel-border); border-radius:calc(var(--corner-radius) * 0.7); padding:16px 20px; font-size:24px; font-weight:600; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        Section Header
+                      </div>
+                    </div>
+
+                    <!-- Body -->
+                    <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:20px; display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:center;">
+                      <div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                          <span style="font-size:13.5px; font-weight:600; color:var(--text-main);">Body</span>
+                          <span id="scale-val-body" style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text-muted);">14px</span>
+                        </div>
+                        <div class="crow" style="min-height:32px;">
+                          <div class="vpill" style="height:32px; width:84px;">
+                            <div class="num" id="scale-num-body" style="font-size:13px;">14</div>
+                            <div class="unit">px</div>
+                          </div>
+                          <input type="range" class="slider" min="8" max="72" value="14" oninput="updateTypeScale('body', this.value)">
+                        </div>
+                        <div class="role-weights-strip" style="margin-top:14px;">
+                          <button class="weight-pill-btn" onclick="setTypeWeight('body', 'Light', this)">Light</button>
+                          <button class="weight-pill-btn active" onclick="setTypeWeight('body', 'Regular', this)">Regular</button>
+                          <button class="weight-pill-btn" onclick="setTypeWeight('body', 'Medium', this)">Medium</button>
+                          <button class="weight-pill-btn" onclick="setTypeWeight('body', 'Bold', this)">Bold</button>
+                        </div>
+                      </div>
+                      <div id="scale-preview-body" style="background:var(--card-bg); border:1px solid var(--panel-border); border-radius:calc(var(--corner-radius) * 0.7); padding:16px 20px; font-size:14px; font-weight:400; color:var(--text-main); line-height:1.5;">
+                        The quick brown fox jumps over the lazy dog.
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <!-- 4. Font Rendering Toggles -->
+                <section style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:var(--corner-radius); padding:20px;">
+                  <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Font Rendering</h3>
+                  <div style="display:flex; flex-direction:column; gap:14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <div>
+                        <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Antialiasing</div>
+                        <div style="font-size:12px; color:var(--text-muted);">Enable subpixel antialiasing</div>
+                      </div>
+                      <button class="form-toggle-switch active" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+                    </div>
+                    <div style="height:1px; background:var(--divider);"></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <div>
+                        <div style="font-size:13.5px; font-weight:500; color:var(--text-main);">Ligatures</div>
+                        <div style="font-size:12px; color:var(--text-muted);">Enable special character combinations</div>
+                      </div>
+                      <button class="form-toggle-switch active" onclick="this.classList.toggle('active')"><div class="form-toggle-thumb"></div></button>
+                    </div>
+                  </div>
+                </section>
               </div>
 
               <!-- SUB-TAB 3: HARDWARE DISPLAY & VULKAN -->
@@ -1179,8 +1376,8 @@ input[type=range].slider:active::-webkit-slider-thumb {
             <div class="modal-bottom-bar">
               <span style="font-size:11px; color:var(--text-muted);">Slate Engine · Vulkan 1.3 · Right-Hand Z-Up</span>
               <div style="display:flex; gap:12px;">
-                <button class="btn-ghost-cancel" onclick="showView('view-settings', true)">Discard</button>
-                <button class="btn-solid-white" onclick="closeNotch()">Apply Preferences</button>
+                <button class="btn-ghost-cancel" onclick="openDiscardDialogue()">Discard</button>
+                <button class="btn-solid-white" onclick="openApplyDialogue()">Apply Preferences</button>
               </div>
             </div>
           </div>
@@ -1454,6 +1651,73 @@ input[type=range].slider:active::-webkit-slider-thumb {
   </div>
 </div>
 
+<!-- ============================================================
+     CONFIRMATION DIALOGUE MODAL 1: APPLY PREFERENCES
+     ============================================================ -->
+<div class="dialog-overlay" id="dialog-apply" style="display:none;" onclick="if(event.target===this)closeApplyDialogue()">
+  <div class="dialog-card">
+    <div class="dialog-header">
+      <div style="width:36px; height:36px; border-radius:10px; background:rgba(59,130,246,0.15); color:var(--accent-color); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div style="font-size:15px; font-weight:600; color:var(--text-main);">Apply Preferences</div>
+        <div style="font-size:12px; color:var(--text-muted);">Confirm active surface theming & typography settings</div>
+      </div>
+    </div>
+    <div class="dialog-body">
+      <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:calc(var(--corner-radius) * 0.6); padding:16px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; justify-content:space-between; font-size:13px;">
+          <span style="color:var(--text-muted);">Theme Surface:</span>
+          <span id="dlg-apply-theme" style="font-weight:600; color:var(--text-main);">OLED (Pure Black #000000)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:13px;">
+          <span style="color:var(--text-muted);">Font Family:</span>
+          <span id="dlg-apply-font" style="font-weight:600; color:var(--text-main);">General Sans (Clean & Modern)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:13px;">
+          <span style="color:var(--text-muted);">Corner Rounding:</span>
+          <span id="dlg-apply-radius" style="font-weight:600; color:var(--text-main);">24px</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:13px;">
+          <span style="color:var(--text-muted);">Font Rendering:</span>
+          <span style="font-weight:600; color:var(--text-main);">Subpixel AA & Ligatures Enabled</span>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn-ghost-cancel" onclick="closeApplyDialogue()">Keep Editing</button>
+      <button class="btn-solid-white" onclick="confirmApplyDialogue()">Confirm & Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CONFIRMATION DIALOGUE MODAL 2: DISCARD CHANGES
+     ============================================================ -->
+<div class="dialog-overlay" id="dialog-discard" style="display:none;" onclick="if(event.target===this)closeDiscardDialogue()">
+  <div class="dialog-card">
+    <div class="dialog-header">
+      <div style="width:36px; height:36px; border-radius:10px; background:rgba(239,68,68,0.15); color:#ef4444; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div>
+        <div style="font-size:15px; font-weight:600; color:var(--text-main);">Discard Modifications?</div>
+        <div style="font-size:12px; color:var(--text-muted);">Revert all settings to previous session state</div>
+      </div>
+    </div>
+    <div class="dialog-body">
+      <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.15); border-radius:calc(var(--corner-radius) * 0.6); padding:16px; color:var(--text-main); font-size:13px; line-height:1.5;">
+        Any unsaved changes to color themes, typography scales, corner rounding, and hardware preferences will be permanently lost.
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn-ghost-cancel" onclick="closeDiscardDialogue()">Cancel</button>
+      <button class="btn-solid-white" style="background:#ef4444; color:#ffffff;" onclick="confirmDiscardDialogue()">Discard All</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    SLATE CONTROL CENTRE — FULL INTERACTIVE CONTROLLER
@@ -1585,6 +1849,54 @@ function dragVolumeScale(e, el) {
   const pct = Math.round(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
   document.getElementById('volume-scale-bar-fill').style.width = `${pct}%`;
   document.getElementById('volume-scale-val-tag').innerText = `${pct}%`;
+}
+function openApplyDialogue() {
+  const themeEl = document.getElementById('dlg-apply-theme');
+  const fontEl = document.getElementById('dlg-apply-font');
+  const radiusEl = document.getElementById('dlg-apply-radius');
+  const activeFontCard = document.querySelector('.font-select-card.active');
+  const activeThemeCard = document.querySelector('.theme-select-card.active');
+
+  if (themeEl && activeThemeCard) {
+    const name = activeThemeCard.querySelector('.theme-name-label').textContent;
+    themeEl.textContent = name;
+  }
+  if (fontEl && activeFontCard) {
+    const name = activeFontCard.querySelector('div:nth-child(2)').textContent;
+    fontEl.textContent = name;
+  }
+  if (radiusEl) {
+    const r = document.getElementById('radius-num');
+    radiusEl.textContent = (r ? r.textContent : '24') + 'px';
+  }
+
+  const dlg = document.getElementById('dialog-apply');
+  if (dlg) dlg.style.display = 'flex';
+}
+
+function closeApplyDialogue() {
+  const dlg = document.getElementById('dialog-apply');
+  if (dlg) dlg.style.display = 'none';
+}
+
+function confirmApplyDialogue() {
+  closeApplyDialogue();
+  closeNotch();
+}
+
+function openDiscardDialogue() {
+  const dlg = document.getElementById('dialog-discard');
+  if (dlg) dlg.style.display = 'flex';
+}
+
+function closeDiscardDialogue() {
+  const dlg = document.getElementById('dialog-discard');
+  if (dlg) dlg.style.display = 'none';
+}
+
+function confirmDiscardDialogue() {
+  closeDiscardDialogue();
+  showView('view-settings', true);
 }
 </script>
 

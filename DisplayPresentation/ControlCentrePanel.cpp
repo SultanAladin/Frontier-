@@ -20,6 +20,8 @@ ControlCentrePanel::ControlCentrePanel() noexcept
     , LocomotionVelocity(0.0f)
     , ActivePage(ControlCentrePageCategory::Dashboard)
     , PreviousPage(ControlCentrePageCategory::Dashboard)
+    , ActiveAppearanceSubTab(AppearanceSubTabCategory::Theme)
+    , ActiveDialogue(DialogueCategory::None)
     , CurrentSlideOffset(0.0f)
     , TargetSlideOffset(0.0f)
     , SlideVelocity(0.0f)

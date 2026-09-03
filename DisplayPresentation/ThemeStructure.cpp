@@ -14,6 +14,7 @@ namespace Frontier {
 ThemeStructure::ThemeStructure() noexcept
     : ActiveTheme(ThemeCategory::Oled)                          // Default OLED (pure black #000000)
     , ActiveAccent(AccentCategory::Blue)                        // Default Blue (#3B82F6)
+    , ActiveFontFamily(FontFamilyCategory::GeneralSans)         // Default General Sans
     , CornerRadiusPixels(24.0f)                                 // Default 24px radius
     , PaletteArray{}
     , AccentArray{}

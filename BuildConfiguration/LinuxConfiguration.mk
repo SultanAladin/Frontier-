@@ -39,6 +39,7 @@ SRCS := \
 	PlatformInterchange/OnlineInterchange.cpp \
 	DisplayPresentation/ThemeStructure.cpp \
 	DisplayPresentation/VectorCodec.cpp \
+	DisplayPresentation/FontCodec.cpp \
 	DisplayPresentation/ControlCentrePanel.cpp \
 	DisplayPresentation/WorkspacePanel.cpp \
 	DisplayPresentation/CycleScheduler.cpp \

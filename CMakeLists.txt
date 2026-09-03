@@ -86,6 +86,8 @@ set(FRONTIER_ENGINE_SOURCES
     DisplayPresentation/ThemeStructure.cpp
     DisplayPresentation/VectorCodec.h
     DisplayPresentation/VectorCodec.cpp
+    DisplayPresentation/FontCodec.h
+    DisplayPresentation/FontCodec.cpp
     DisplayPresentation/ControlCentrePanel.h
     DisplayPresentation/ControlCentrePanel.cpp
     DisplayPresentation/WorkspacePanel.h
