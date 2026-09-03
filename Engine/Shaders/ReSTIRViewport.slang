@@ -347,8 +347,8 @@ void main()
             for (uint li = 0u; li < LightTriangleCount; ++li)
             {
                 uint idx = TriangleCount - LightTriangleCount + li;
-                vec3 centroid = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
-                float d = distance(centroid, res.SelectedPoint);
+                vec3 triCenter = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
+                float d = distance(triCenter, res.SelectedPoint);
                 if (d < bestD) { bestD = d; selEmissive = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
             }
 

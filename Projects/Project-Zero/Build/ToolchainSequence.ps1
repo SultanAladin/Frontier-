@@ -323,16 +323,16 @@ function Invoke-Translation([string[]] $Sources, [string] $Label, [string] $Obje
 #                                         SHADER LOWERING  (.slang -> SPIR-V)
 #---
 
-function Resolve-SlangCompiler([string] $VulkanRoot)
+function Resolve-ShaderCompiler([string] $VulkanRoot)
 {
-    $Compiler = Join-Path $VulkanRoot 'Bin\slangc.exe'
+    # Prefer glslc for GLSL shaders, fall back to slangc
+    $Glslc  = Join-Path $VulkanRoot 'Bin\glslc.exe'
+    $Slangc = Join-Path $VulkanRoot 'Bin\slangc.exe'
 
-    if (-not (Test-Path $Compiler))
-    {
-        throw "the Vulkan SDK at $VulkanRoot carries no slangc.exe; install Slang via the Vulkan SDK installer"
-    }
+    if (Test-Path $Glslc)  { return $Glslc  }
+    if (Test-Path $Slangc) { return $Slangc }
 
-    return $Compiler
+    throw "the Vulkan SDK at $VulkanRoot carries no shader compiler (glslc.exe or slangc.exe)"
 }
 
 function Invoke-ShaderLowering([string] $VulkanRoot)
@@ -345,7 +345,7 @@ function Invoke-ShaderLowering([string] $VulkanRoot)
         return
     }
 
-    $Compiler  = Resolve-SlangCompiler $VulkanRoot
+    $Compiler  = Resolve-ShaderCompiler $VulkanRoot
     $SpirvRoot = Join-Path $EngineRoot 'Shaders'
     $SpirvPath = Join-Path $SpirvRoot  'ReSTIRViewport.spv'
 
@@ -358,24 +358,44 @@ function Invoke-ShaderLowering([string] $VulkanRoot)
 
     Write-Building 'Lowering ReSTIRViewport.slang -> ReSTIRViewport.spv'
 
-    $Arguments = @(
-        $SlangSrc
-        '-DFRONTIER_SHADER_TOOLCHAIN=1'
-        "-I$EngineRoot"
-        '-target'
-        'spirv'
-        '-profile'
-        'glsl_450'
-        '-o'
-        $SpirvPath
-    )
+    # Determine compiler arguments based on which tool we have
+    $CompilerName = [System.IO.Path]::GetFileName($Compiler)
+    if ($CompilerName -eq 'glslc.exe')
+    {
+        # glslc requires a recognized extension (.glsl/.vert/.frag/.comp)
+        $TempSrc = Join-Path $SpirvRoot 'ReSTIRViewport_glslc.glsl'
+        Copy-Item $SlangSrc $TempSrc -Force
+        $Arguments = @(
+            '-DFRONTIER_SHADER_TOOLCHAIN=1'
+            "-I$EngineRoot"
+            '--target-env=vulkan1.2'
+            '-fshader-stage=compute'
+            '-o'
+            $SpirvPath
+            $TempSrc
+        )
+    }
+    else
+    {
+        $Arguments = @(
+            $SlangSrc
+            '-DFRONTIER_SHADER_TOOLCHAIN=1'
+            "-I$EngineRoot"
+            '-target'
+            'spirv'
+            '-profile'
+            'glsl_450'
+            '-o'
+            $SpirvPath
+        )
+    }
 
     & $Compiler @Arguments | ForEach-Object { Write-Host "    $_" }
 
     if ($LASTEXITCODE -ne 0)
     {
-        Write-Rejected 'slangc rejected ReSTIRViewport.slang'
-        throw 'slangc rejected ReSTIRViewport.slang'
+        Write-Rejected "$CompilerName rejected ReSTIRViewport.slang"
+        throw "$CompilerName rejected ReSTIRViewport.slang"
     }
 
     Write-Lowered $SpirvPath
@@ -413,7 +433,7 @@ Import-ToolchainEnvironment
 $VulkanRoot = Resolve-VulkanRoot
 Write-Building "Vulkan SDK $VulkanRoot"
 
-# Ensure submodules are present — all 12 packages, soft on network/SSL failure
+# Ensure submodules are present -- all 12 packages, soft on network/SSL failure
 Write-Building 'Ensuring ExternalPackages submodules are initialised...'
 Push-Location $RepositoryRoot
 $SubmoduleList = @(
@@ -430,29 +450,35 @@ $SubmoduleList = @(
     'ExternalPackages/miniaudio'
     'ExternalPackages/fast_obj'
 )
-# Pass 1 — try normal update (will use cached objects when already checked out)
+# Pass 1 -- try normal update (will use cached objects when already checked out)
+$ErrorActionBak = $ErrorActionPreference
+$ErrorActionPreference = 'SilentlyContinue'
 & git submodule update --init -- $SubmoduleList 2>&1 | Out-Null
 $UpdateOk = $LASTEXITCODE -eq 0
+$ErrorActionPreference = $ErrorActionBak
 
 if (-not $UpdateOk)
 {
-    # Pass 2 — SSL/network error; retry once with verification disabled
+    # Pass 2 -- SSL/network error; retry once with verification disabled
     Write-Skipped 'git submodule update failed; retrying with GIT_SSL_NO_VERIFY=1 ...'
     $env:GIT_SSL_NO_VERIFY = '1'
+    $ErrorActionBak2 = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
     & git submodule update --init -- $SubmoduleList 2>&1 | Out-Null
     $UpdateOk = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = $ErrorActionBak2
     Remove-Item Env:\GIT_SSL_NO_VERIFY -ErrorAction SilentlyContinue
 }
 
 if (-not $UpdateOk)
 {
-    # 💡 git submodule update fails when:
+    # [NOTE] git submodule update fails when:
     #    a) network/SSL is unavailable even with verification disabled
     #    b) the user did  git clone  without  --recurse-submodules
     #
     # In either case the directories may already be populated (manual clone or
     # prior successful init).  We check that every listed package directory is
-    # non-empty — anything with at least one file is considered present.
+    # non-empty -- anything with at least one file is considered present.
     # An empty or absent directory means the submodule is genuinely missing.
     $Missing = New-Object System.Collections.Generic.List[string]
     foreach ($Sub in $SubmoduleList)
@@ -469,7 +495,7 @@ if (-not $UpdateOk)
         Pop-Location
         throw 'git submodule update failed and one or more ExternalPackages directories are missing'
     }
-    Write-Skipped "git submodule update non-zero but all $($SubmoduleList.Count) package directories are present — continuing"
+    Write-Skipped "git submodule update non-zero but all $($SubmoduleList.Count) package directories are present -- continuing"
 }
 Pop-Location
 
@@ -605,7 +631,7 @@ if (Test-Path $ExePath)
 $LinkArgs = New-Object System.Collections.Generic.List[string]
 $LinkArgs.Add('/nologo')
 $LinkArgs.Add('/DEBUG')
-$LinkArgs.Add('/SUBSYSTEM:WINDOWS')
+$LinkArgs.Add('/SUBSYSTEM:CONSOLE')
 $LinkArgs.Add("/OUT:$ExePath")
 $LinkArgs.Add("/PDB:$(Join-Path $BinaryRoot 'Project-Zero.pdb')")
 foreach ($Obj in $ObjectFiles)                    { $LinkArgs.Add($Obj) }

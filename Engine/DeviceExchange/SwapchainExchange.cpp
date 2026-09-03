@@ -3,7 +3,6 @@
 //============================================================================================================================================
 // 🧩 Vulkan instance, surface, device, swapchain and recording-slot transport across the hardware vendor edge.
 
-#define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
 
 #define GLFW_INCLUDE_NONE
@@ -883,7 +882,6 @@ bool SwapchainExchange::BringImGui() noexcept
     // ⑤ Font upload — automatic since ImGui 1.80; ImGui_ImplVulkan_NewFrame() uploads on first call.
     // 💡 ImGui_ImplVulkan_CreateFontsTexture() was removed in ImGui 1.93 (2025-06-11).
     //    The backend now owns font atlas upload internally via ImGuiBackendFlags_RendererHasTextures.
-    vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1u, &FontCommand);
 
     return true;
 }

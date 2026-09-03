@@ -31,10 +31,28 @@ function Write-Produced([string] $Message) { Write-Report 'Compiled' Green    $M
 #                                       PREREQUISITES
 #---
 
+# Ensure cmake.exe is on PATH -- look in VS 18 / VS 2022 CMake locations
 if (-not (Get-Command cmake.exe -ErrorAction SilentlyContinue))
 {
-    throw 'cmake.exe is not on PATH; add it via Visual Studio Installer (CMake tools component) or standalone.'
+    $CmakeCandidates = @(
+        'C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin',
+        'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin',
+        'C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin'
+    )
+    foreach ($Cand in $CmakeCandidates)
+    {
+        if (Test-Path (Join-Path $Cand 'cmake.exe'))
+        {
+            $env:PATH = "$Cand;$env:PATH"
+            break
+        }
+    }
+    if (-not (Get-Command cmake.exe -ErrorAction SilentlyContinue))
+    {
+        throw 'cmake.exe is not on PATH; add it via Visual Studio Installer (CMake tools component) or standalone.'
+    }
 }
+
 
 if (-not (Test-Path $GlfwRoot))
 {
@@ -55,7 +73,7 @@ Write-Building "GLFW - cmake configure ($BuildDir)"
 $ConfigArgs = @(
     '-S', $GlfwRoot
     '-B', $BuildDir
-    '-G', 'Visual Studio 17 2022'
+    '-G', 'Visual Studio 18 2026'
     '-A', 'x64'
     '-DBUILD_SHARED_LIBS=ON'
     '-DGLFW_BUILD_EXAMPLES=OFF'

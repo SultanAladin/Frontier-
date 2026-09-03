@@ -34,13 +34,13 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
     const Vector3& Right   = Camera.QueryRightVector();
     const Vector3& Up      = Camera.QueryUpwardVector();
 
-    const float ΤanHalf = std::tan(Camera.QueryFieldOfViewRadians() * 0.5f);
+    const float TanHalf = std::tan(Camera.QueryFieldOfViewRadians() * 0.5f);
 
     DispatchConfiguration Dispatch{};
     Dispatch.CameraOriginX         = Origin.x;
     Dispatch.CameraOriginY         = Origin.y;
     Dispatch.CameraOriginZ         = Origin.z;
-    Dispatch.FieldOfViewΤanHalf    = ΤanHalf;
+    Dispatch.FieldOfViewTanHalf    = TanHalf;
     Dispatch.CameraForwardX        = Forward.x;
     Dispatch.CameraForwardY        = Forward.y;
     Dispatch.CameraForwardZ        = Forward.z;
