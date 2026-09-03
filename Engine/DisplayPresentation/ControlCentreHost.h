@@ -46,6 +46,7 @@
 #include "ThemeStructure.h"
 #include "MotionIntegrator.h"
 #include "AppearanceInspector.h"
+#include "PreferenceInspector.h"
 #include "DialogueHost.h"
 #include "PixelSpace.h"
 #include "FidelityClassifier.h"
@@ -262,6 +263,11 @@ public:
     [[nodiscard]] const DialogueHost& QueryDialogue() const noexcept { return Dialogue; }
     [[nodiscard]] const AppearanceInspector& QueryAppearance() const noexcept { return Appearance; }
     AppearanceInspector&                     AccessAppearance() noexcept { return Appearance; }
+    [[nodiscard]] const InputInspector&        QueryInput()        const noexcept { return InputPage; }
+    InputInspector&                            AccessInput()       noexcept { return InputPage; }
+    [[nodiscard]] const NotificationInspector& QueryNotifications() const noexcept { return NotificationPage; }
+    NotificationInspector&                     AccessNotifications() noexcept { return NotificationPage; }
+    [[nodiscard]] PlaneExtent QueryPageResetExtent() const noexcept;                              // Input page "Reset Defaults" pill
     // Seed the dashboard record without a revision bump beyond one (start-up from persisted preferences).
     void                    SeedSettings(const ControlCentreSettings& Persisted) noexcept { const uint32_t R = Settings.Revision; Settings = Persisted; Settings.Revision = R + 1u; }
     [[nodiscard]] bool      IsPageDirty() const noexcept;                                       // active page has unapplied edits
@@ -366,6 +372,8 @@ private:
     AppearanceSubTabCategory  ActiveAppearanceSubTab;
     DialogueHost              Dialogue;
     AppearanceInspector       Appearance;
+    InputInspector            InputPage;
+    NotificationInspector     NotificationPage;
     ControlCentrePageCategory PendingLeave;     // page navigation deferred behind an Unsaved-changes dialogue
     bool                      PendingLeaveBack; // true: NavigateBack, false: close shade
     float                     BodyScrollY;      // [px] sub-page body scroll
@@ -391,9 +399,14 @@ private:
     int                     GrabbedHubRow;
     int                     GrabbedTab;
     bool                    GrabbedPrimaryButton;
+    int                     GrabbedPageButton;       // 0 secondary · 1 primary · 2 reset (Input page)
     float                   CloseResetTimer;         // [s]  Notch resets to the dashboard 300 ms after closing
     mutable float           TabWidthCache[3];        // [px] measured tab label widths (record → hit-test)
     mutable float           ButtonWidthCache[4][2];  // [px] measured footer pill label widths per page
+    mutable float           ResetWidthCache = 0.0f;  // [px] Input page "Reset Defaults" label width
+    void                    ApplyActivePage()   noexcept;
+    void                    DiscardActivePage() noexcept;
+    void                    ResetActivePage()   noexcept;
 
     // ── Appearance ────────────────────────────────────────────────────────────────────────────────────────────────
     ThemeStructure          ActiveTheme;

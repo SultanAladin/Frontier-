@@ -11,8 +11,17 @@
 #include "PixelSpace.h"
 #include <array>
 #include <cstdint>
+#include <string>
 
 namespace Frontier {
+
+// Optional overlay rows (Control Centre › Notifications › "Show RAM Usage" / "Scene Metadata").
+struct TelemetryRowStructure
+{
+    bool        ShowMemory = false;   // "Show RAM Usage" — process resident set, sampled every 0.5 s
+    bool        ShowScene  = false;   // "Scene Metadata" — SceneLine as supplied by the project
+    std::string SceneLine;            // e.g. "Cornell  |  36 tris  |  1 luminaire  |  1280x720"
+};
 
 class TelemetryMetrics
 {
@@ -32,10 +41,24 @@ public:
 
     void ConstructTelemetryLayout(PixelSpace& Surface, float TopInset) const noexcept;
 
+    void AssignRows(const TelemetryRowStructure& Rows) noexcept { ExtraRows = Rows; }
+    [[nodiscard]] const TelemetryRowStructure& QueryRows() const noexcept { return ExtraRows; }
+    // Resident-set size of this process in MiB (0 when the platform query is unavailable); refreshed by RecordFrame.
+    [[nodiscard]] float QueryResidentMebibytes() const noexcept { return ResidentMebibytes; }
+
+    // Frame-rate drop detector (Control Centre › Notifications › Alerts › "Frame-rate Drops"): true once per episode
+    //    when the 2 s average dips below Threshold; re-arms after it recovers above Threshold × 1.2.
+    [[nodiscard]] bool ConsumeFrameRateDrop(float ThresholdFramesPerSecond) noexcept;
+
 private:
     std::array<float, SampleCount> Samples;   // [s]
     uint32_t Cursor;                          // [-] next write index
     uint32_t Filled;                          // [-] valid samples
+    TelemetryRowStructure ExtraRows;
+    float    ResidentMebibytes = 0.0f;        // [MiB]
+    float    MemorySampleAge   = 1.0f;        // [s] since the last RSS query
+    bool     DropArmed         = true;
+    static float SampleResidentMebibytes() noexcept;
 };
 
 } // namespace Frontier

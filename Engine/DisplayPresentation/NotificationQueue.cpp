@@ -21,7 +21,7 @@ void NotificationQueue::Advance(float DeltaSeconds) noexcept
 {
     if (DeltaSeconds <= 0.0f) return;
     for (NotificationRecord& R : Records) R.Age += DeltaSeconds;
-    const float Lifetime = EnterDuration + HoldDuration + ExitDuration;
+    const float Lifetime = EnterDuration + HoldSeconds + ExitDuration;
     Records.erase(std::remove_if(Records.begin(), Records.end(),
                                  [Lifetime](const NotificationRecord& R) { return R.Age >= Lifetime; }),
                   Records.end());
@@ -49,9 +49,9 @@ void NotificationQueue::ConstructNotificationLayout(PixelSpace& Surface, float T
             const float Eased = 1.0f - (1.0f - T) * (1.0f - T);
             Alpha = Eased; SlideX = 40.0f * (1.0f - Eased);
         }
-        else if (R.Age > EnterDuration + HoldDuration)
+        else if (R.Age > EnterDuration + HoldSeconds)
         {
-            Alpha = 1.0f - std::clamp((R.Age - EnterDuration - HoldDuration) / ExitDuration, 0.0f, 1.0f);
+            Alpha = 1.0f - std::clamp((R.Age - EnterDuration - HoldSeconds) / ExitDuration, 0.0f, 1.0f);
         }
 
         const bool  HasBody = !R.Body.empty();

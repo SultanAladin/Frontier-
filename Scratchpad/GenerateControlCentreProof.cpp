@@ -749,6 +749,111 @@ int main()
         if (F) { std::fwrite(Toml.data(), 1, Toml.size(), F); std::fclose(F); }
     }
 
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //                                   STEP 5E · INPUT PAGE · NOTIFICATIONS PAGE · RESET DEFAULTS
+    //--------------------------------------------------------------------------------------------------------------------
+    // Reseed Appearance to defaults (start-up path) so the 5E frames are captured at 100 % scale on the dark theme.
+    R.Host.AccessAppearance().Seed(Frontier::AppearanceSettings{}); R.Idle(60);
+    std::printf("   [5E] reseeded: logical=%ux%u page=%u gear=(%.0f,%.0f)\n", R.Host.QueryDisplayWidth(), R.Host.QueryDisplayHeight(), Page(), R.Host.QueryHeaderGearExtent().MinimumX, R.Host.QueryHeaderGearExtent().MinimumY);
+    auto InDirty = [&]{ return R.Host.QueryInput().IsDirty() ? 1 : 0; };
+    auto InDraft = [&]() -> const Frontier::InputPreferences& { return R.Host.QueryInput().QueryDraft(); };
+
+    // Hub → Input (row 2).
+    Tap(R.Host.QueryHeaderGearExtent()); R.Idle(30);
+    std::printf("   [5E] after gear: page=%u\n", Page());
+    { const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(2u); Focus(Row); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(80); }
+    std::printf("   [56] Input page: page=%u dirty=%d default=%d\n", Page(), InDirty(), R.Host.QueryInput().IsDefault());
+    R.Snapshot("ControlCentre_Settings_56_Input_Clean_Buttons_Disabled");
+
+    // Preset profile dropdown: open, capture, pick "Unreal Engine".
+    Tap(R.Host.QueryInput().QueryProfileDropdownExtent()); R.Idle(3);
+    std::printf("   [57] profile menu open=%d\n", R.Host.QueryInput().HasOpenMenu());
+    R.Snapshot("ControlCentre_Settings_57_Input_Profile_Menu_Open");
+    { const Frontier::PlaneExtent B = R.Host.QueryInput().QueryProfileDropdownExtent(); Tap(Frontier::Spanning(B.MinimumX, B.MaximumY + 6.0f + 4.0f + 40.0f * 2.0f, B.Width(), 40.0f)); R.Idle(3); }
+    // Mouse sensitivity: drag from 50 % to ~80 %.
+    {
+        const Frontier::PlaneExtent S = R.Host.QueryInput().QuerySensitivitySliderExtent();
+        R.CursorX = S.MinimumX + S.Width() * 0.5f; R.CursorY = (S.MinimumY + S.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Drag(S.MinimumX + S.Width() * 0.8f, R.CursorY, 20); R.Release(); R.Idle(3);
+    }
+    std::printf("   [58] draft profile=%u sensitivity=%.0f%% dirty=%d\n", static_cast<unsigned>(InDraft().Profile), InDraft().MouseSensitivity, InDirty());
+    R.Snapshot("ControlCentre_Settings_58_Input_Profile_Sensitivity_Draft");
+
+    // Toggles: Custom Shortcuts off (fields go read-only); scroll the body down; Advanced on, Invert Y-Axis on.
+    Tap(R.Host.QueryInput().QueryCustomShortcutsSwitchExtent()); R.Idle(3);
+    auto ScrollBody = [&](int Clicks) { const Frontier::PlaneExtent B = R.Host.QueryPageBodyExtent(); Focus(B); R.Idle(2); for (int I = 0; I < std::abs(Clicks); ++I) { R.PendingWheel = Clicks < 0 ? 1.0f : -1.0f; R.Idle(1); } R.Idle(5); };
+    ScrollBody(10);
+    Tap(R.Host.QueryInput().QueryAdvancedSwitchExtent()); R.Idle(3);
+    Tap(R.Host.QueryInput().QueryInvertSwitchExtent()); R.Idle(3);
+    std::printf("   [59] custom=%d advanced=%d invert=%d dirty=%d\n", InDraft().CustomShortcuts, InDraft().AdvancedControls, InDraft().InvertPitch, InDirty());
+    R.Snapshot("ControlCentre_Settings_59_Input_Toggles_Draft");
+
+    // Reset Defaults → ResetDefaults dialogue; cancel keeps the draft; confirm resets it.
+    Tap(R.Host.QueryPageResetExtent()); R.Idle(20);
+    std::printf("   [60] dialogue open=%d preset=%u\n", R.Host.IsDialogueOpen(), static_cast<unsigned>(R.Host.QueryDialogue().QueryActive()));
+    R.Snapshot("ControlCentre_Settings_60_Input_Reset_Defaults_Dialogue");
+    Tap(R.Host.QueryDialogue().QueryButtonExtent(Frontier::DialogueVerdictCategory::Cancel)); R.Idle(30);   // Cancel
+    std::printf("   [60b] after cancel: sensitivity=%.0f%% dirty=%d\n", InDraft().MouseSensitivity, InDirty());
+    Tap(R.Host.QueryPageResetExtent()); R.Idle(20);
+    Tap(R.Host.QueryDialogue().QueryButtonExtent(Frontier::DialogueVerdictCategory::Primary)); R.Idle(30);   // Confirm
+    std::printf("   [61] after reset: sensitivity=%.0f%% profile=%u default=%d dirty=%d\n", InDraft().MouseSensitivity, static_cast<unsigned>(InDraft().Profile), R.Host.QueryInput().IsDefault(), InDirty());
+    R.Snapshot("ControlCentre_Settings_61_Input_After_Reset_Defaults");
+
+    // Change again → Save keybindings commits; then a further change → Discard Changes asks (ConfirmDiscard).
+    ScrollBody(10);
+    Tap(R.Host.QueryInput().QueryInvertSwitchExtent()); R.Idle(3);
+    Tap(R.Host.QueryPageButtonExtent(true)); R.Idle(30);
+    std::printf("   [62] applied invert=%d rev=%u dirty=%d\n", R.Host.QueryInput().QueryApplied().InvertPitch, R.Host.QueryInput().QueryRevision(), InDirty());
+    R.Snapshot("ControlCentre_Settings_62_Input_Saved_Applied");
+    ScrollBody(-10);
+    Tap(R.Host.QueryInput().QueryCustomShortcutsSwitchExtent()); R.Idle(3);
+    Tap(R.Host.QueryPageButtonExtent(false)); R.Idle(20);
+    std::printf("   [63] discard dialogue open=%d preset=%u\n", R.Host.IsDialogueOpen(), static_cast<unsigned>(R.Host.QueryDialogue().QueryActive()));
+    R.Snapshot("ControlCentre_Settings_63_Input_Discard_Dialogue");
+    Tap(R.Host.QueryDialogue().QueryButtonExtent(Frontier::DialogueVerdictCategory::Primary)); R.Idle(30);
+    std::printf("   [63b] after discard: custom=%d dirty=%d\n", InDraft().CustomShortcuts, InDirty());
+
+    // Notifications page (hub row 3).
+    Tap(R.Host.QueryPageCloseExtent()); R.Idle(80);
+    { const Frontier::PlaneExtent Row = R.Host.QueryHubRowExtent(3u); Focus(Row); R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(80); }
+    auto NoDirty = [&]{ return R.Host.QueryNotifications().IsDirty() ? 1 : 0; };
+    auto NoDraft = [&]() -> const Frontier::NotificationPreferences& { return R.Host.QueryNotifications().QueryDraft(); };
+    std::printf("   [64] Notifications page: page=%u dirty=%d\n", Page(), NoDirty());
+    R.Snapshot("ControlCentre_Settings_64_Notifications_Clean_Buttons_Disabled");
+    Tap(R.Host.QueryNotifications().QueryToggleExtent(2u)); R.Idle(3);   // Scene Metadata on
+    Tap(R.Host.QueryNotifications().QueryToggleExtent(0u)); R.Idle(3);   // FPS overlay off
+    ScrollBody(10);
+    Tap(R.Host.QueryNotifications().QueryToggleExtent(6u)); R.Idle(3);   // Frame-rate drops on
+    {
+        const Frontier::PlaneExtent S = R.Host.QueryNotifications().QueryHoldSliderExtent();
+        const float T0 = (3.5f - 1.0f) / 9.0f;
+        R.CursorX = S.MinimumX + 9.0f + (S.Width() - 18.0f) * T0; R.CursorY = (S.MinimumY + S.MaximumY) * 0.5f;
+        R.Idle(2); R.Press(); R.Drag(S.MinimumX + 9.0f + (S.Width() - 18.0f) * 0.6f, R.CursorY, 20); R.Release(); R.Idle(3);
+    }
+    std::printf("   [65] draft fps=%d ram=%d scene=%d drops=%d hold=%.1f dirty=%d\n", NoDraft().ShowFrameRateOverlay, NoDraft().ShowMemoryUsage, NoDraft().ShowSceneMetadata, NoDraft().FrameRateDrops, NoDraft().HoldSeconds, NoDirty());
+    R.Snapshot("ControlCentre_Settings_65_Notifications_Draft_Footer_Enabled");
+    Tap(R.Host.QueryPageButtonExtent(true)); R.Idle(30);
+    std::printf("   [66] applied hold=%.1f fps-tile=%d dirty=%d\n", R.Host.QueryNotifications().QueryApplied().HoldSeconds, R.Host.QuerySettings().FrameRateOverlay, NoDirty());
+    R.Snapshot("ControlCentre_Settings_66_Notifications_Saved_Applied");
+    // Dashboard FPS tile mirrors the page flag.
+    Tap(R.Host.QueryPageCloseExtent()); R.Idle(80);
+    Tap(R.Host.QueryHubBackExtent()); R.Idle(80);
+    R.Snapshot("ControlCentre_Settings_67_Dashboard_FPS_Tile_Mirrors_Notifications");
+
+    // 5E persistence: Input + Notifications round-trip through TOML.
+    {
+        Frontier::UserPreferences P;
+        P.Input         = R.Host.QueryInput().QueryApplied();
+        P.Notifications = R.Host.QueryNotifications().QueryApplied();
+        const std::string Toml = Frontier::PreferenceRegistry::Serialise(P);
+        Frontier::UserPreferences Q; std::string Error;
+        const bool Parsed = Frontier::PreferenceRegistry::Deserialise(Toml, Q, &Error);
+        std::printf("   [5E] toml parsed=%d input-equal=%d notifications-equal=%d %s\n", Parsed, Q.Input == P.Input, Q.Notifications == P.Notifications, Error.c_str());
+        std::FILE* F = std::fopen("Scratchpad/ControlCentre_Settings_5E_UserPreferences.toml", "wb");
+        if (F) { std::fwrite(Toml.data(), 1, Toml.size(), F); std::fclose(F); }
+    }
+
     ImGui::DestroyContext();
     return 0;
 }

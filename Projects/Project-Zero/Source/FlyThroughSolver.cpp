@@ -60,7 +60,7 @@ void FlyThroughSolver::AdvanceLocomotion(const InputExchange& Input, float Δτ)
     {
         Vector3 CursorDelta = Input.QueryCursorDelta();
         float NewYaw   = YawRadians + CursorDelta.x * Config.MouseSensitivity;
-        float NewPitch = PitchRadians - CursorDelta.y * Config.MouseSensitivity;
+        float NewPitch = PitchRadians - CursorDelta.y * Config.MouseSensitivity * (Config.InvertPitch ? -1.0f : 1.0f);
         AssignOrientationEuler(NewPitch, NewYaw, 0.0f);
     }
 

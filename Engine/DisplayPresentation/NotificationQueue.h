@@ -48,6 +48,9 @@ public:
 
     void AssignEnabled(bool Enabled) noexcept { EnabledCondition = Enabled; }
     [[nodiscard]] bool IsEnabled() const noexcept { return EnabledCondition; }
+    // Control Centre › Notifications › "Hold Duration" (1 … 10 s); defaults to HoldDuration.
+    void AssignHoldSeconds(float Seconds) noexcept { HoldSeconds = Seconds < 0.5f ? 0.5f : (Seconds > 30.0f ? 30.0f : Seconds); }
+    [[nodiscard]] float QueryHoldSeconds() const noexcept { return HoldSeconds; }
 
     void Push(std::string Title, std::string Body = {}) noexcept;
     void Advance(float DeltaSeconds) noexcept;
@@ -58,6 +61,7 @@ public:
 private:
     std::vector<NotificationRecord> Records;
     bool EnabledCondition = true;
+    float HoldSeconds = HoldDuration;
 };
 
 } // namespace Frontier

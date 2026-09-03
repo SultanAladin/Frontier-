@@ -5,7 +5,7 @@ anti_aliasing = '1x'
 frame_cap = 'Unlimited'
 frame_rate_overlay = false
 fullscreen = false
-interface_scale = 163.0
+interface_scale = 100.0
 match_quality_tier = true
 overlay_corner = 'TopRight'
 resolution = 'Native'
@@ -14,9 +14,9 @@ vertical_sync = 'On'
 
 [appearance.fonts]
 antialiasing = true
-family = 'Space Grotesk'
-family_index = 2
-ligatures = false
+family = 'Inter'
+family_index = 0
+ligatures = true
 
     [appearance.fonts.roles.Body]
     size = 14.0
@@ -39,23 +39,23 @@ ligatures = false
     weight = 'Medium'
 
     [appearance.fonts.roles.Title]
-    size = 48.0
+    size = 32.0
     weight = 'Bold'
 
 [appearance.theme]
-accent = 'Rose'
+accent = 'Blue'
 caution_swatch = 0
-corner_radius = 30.0
+corner_radius = 16.0
 info_swatch = 0
 success_swatch = 1
-theme = 'Light'
+theme = 'Dark'
 warning_swatch = 0
 
 [input]
 advanced_controls = false
 custom_shortcuts = true
 frame_selected = 'Ctrl + Shift + F'
-invert_pitch = false
+invert_pitch = true
 mouse_sensitivity = 50.0
 profile = 'Blender'
 rotate_tool = 'E'
@@ -65,20 +65,20 @@ translate_tool = 'W'
 [notifications]
 autosave_errors = true
 baking_complete = true
-frame_rate_drops = false
-hold_seconds = 3.5
+frame_rate_drops = true
+hold_seconds = 6.5
 render_finished = true
-show_frame_rate_overlay = true
+show_frame_rate_overlay = false
 show_memory_usage = true
-show_scene_metadata = false
+show_scene_metadata = true
 
 [preferences]
 version = 1
 
 [render]
-anti_aliasing = false
-frame_rate_overlay = true
+anti_aliasing = true
+frame_rate_overlay = false
 global_illumination = true
-notifications = false
+notifications = true
 quality = 'Standard'
-render_scale = 0.6000249981880188
+render_scale = 1.0

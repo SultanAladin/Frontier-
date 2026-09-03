@@ -184,6 +184,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/ControlKit.cpp
     Engine/DisplayPresentation/DialogueHost.cpp
     Engine/DisplayPresentation/AppearanceInspector.cpp
+    Engine/DisplayPresentation/PreferenceInspector.cpp
     Engine/DisplayPresentation/TypefaceRegistry.cpp
     Engine/DisplayPresentation/WorkspaceHost.cpp
     Engine/DisplayPresentation/CycleScheduler.cpp
@@ -240,6 +241,9 @@ target_link_libraries(Project-Zero PRIVATE
     thorvg_static
     pthread dl
 )
+if(WIN32)
+    target_link_libraries(Project-Zero PRIVATE psapi)   # TelemetryMetrics "Show RAM Usage" (GetProcessMemoryInfo)
+endif()
 
 #============================================================================================================================================
 # FrontierEngine demo target (Linux only)

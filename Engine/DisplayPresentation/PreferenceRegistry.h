@@ -18,45 +18,12 @@
 
 #include "ControlCentreHost.h"
 #include "AppearanceInspector.h"
+#include "PreferenceStructure.h"
 #include <cstdint>
 #include <string>
 #include <string_view>
 
 namespace Frontier {
-
-//------------------------------------------------------------------------------------------------------------------------
-//                                                  INPUT PREFERENCES
-//------------------------------------------------------------------------------------------------------------------------
-
-struct InputPreferences
-{
-    float MouseSensitivity   = 1.0f;    // [×] multiplier on the project's base rad/px
-    bool  InvertPitch        = false;
-    float FlightSpeed        = 1.0f;    // [×] multiplier on the project's base m/s
-    float BoostMultiplier    = 3.0f;    // [×] while Left Shift is held
-    float ScrollSpeedStep    = 1.0f;    // [×] wheel speed increment
-    bool  RawMouseInput      = true;
-    [[nodiscard]] bool operator==(const InputPreferences&) const noexcept = default;
-};
-
-//------------------------------------------------------------------------------------------------------------------------
-//                                               NOTIFICATION PREFERENCES
-//------------------------------------------------------------------------------------------------------------------------
-
-enum class ToastPlacementCategory : uint32_t { TopRight = 0, TopLeft = 1, BottomRight = 2, BottomLeft = 3, Count = 4 };
-
-struct NotificationPreferences
-{
-    bool  RenderChanges      = true;    // "Render settings applied" / "Appearance applied"
-    bool  BakingComplete     = true;
-    bool  MemoryWarnings     = true;
-    bool  FrameRateDrops     = false;
-    float FrameRateThreshold = 30.0f;   // [fps] toast when the 1 s average dips below
-    float HoldSeconds        = 3.5f;    // [s] toast dwell (NotificationQueue::HoldDuration default)
-    ToastPlacementCategory Placement = ToastPlacementCategory::TopRight;
-    bool  Sound              = false;
-    [[nodiscard]] bool operator==(const NotificationPreferences&) const noexcept = default;
-};
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                   USER PREFERENCES

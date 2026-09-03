@@ -33,7 +33,7 @@ FRONTIER_NAMES(OverlayCornerCategory,    "TopLeft", "TopRight", "BottomLeft", "B
 FRONTIER_NAMES(SampleCountCategory,      "1x", "2x", "4x", "8x");
 FRONTIER_NAMES(ThemeCategory,            "Oled", "Dark", "Dim", "Light", "Sepia", "Dracula", "Nord", "GitHub");
 FRONTIER_NAMES(AccentCategory,           "White", "Orange", "Amber", "Lime", "Emerald", "Cyan", "Blue", "Violet", "Fuchsia", "Rose");
-FRONTIER_NAMES(ToastPlacementCategory,   "TopRight", "TopLeft", "BottomRight", "BottomLeft");
+FRONTIER_NAMES(InputProfileCategory,     "Blender", "MayaUnity", "Unreal");
 FRONTIER_NAMES(FontWeightCategory,       "Thin", "ExtraLight", "Light", "Regular", "Medium", "SemiBold", "Bold", "ExtraBold", "Black");
 #undef FRONTIER_NAMES
 
@@ -78,6 +78,11 @@ struct Reader
         else if constexpr (std::is_same_v<V, float>)    { if (auto* N = T->get_as<double>(Key)) Out = static_cast<float>(N->get()); else if (auto* I = T->get_as<int64_t>(Key)) Out = static_cast<float>(I->get()); }
         else if constexpr (std::is_same_v<V, uint32_t>) { if (auto* N = T->get_as<int64_t>(Key)) Out = static_cast<uint32_t>(std::max<int64_t>(0, N->get())); }
         else if constexpr (std::is_same_v<V, std::string>) { if (auto* N = T->get_as<std::string>(Key)) Out = N->get(); }
+    }
+    void GetText(const char* Key, char* Out, size_t Capacity) const
+    {
+        if (!T || !Out || Capacity == 0u) return;
+        if (const auto* V = T->get_as<std::string>(Key)) { const std::string& S = V->get(); const size_t N = std::min(S.size(), Capacity - 1u); std::memcpy(Out, S.data(), N); Out[N] = '\0'; }
     }
     template<typename E> void GetEnum(const char* Key, E& Out) const
     {
@@ -165,23 +170,26 @@ std::string PreferenceRegistry::Serialise(const UserPreferences& P) noexcept
     Root.insert("appearance", toml::table{ { "display", std::move(Display) }, { "fonts", std::move(Fonts) }, { "theme", std::move(Theme) } });
 
     Root.insert("input", toml::table{
+        { "profile",           NameOf(P.Input.Profile) },
         { "mouse_sensitivity", static_cast<double>(P.Input.MouseSensitivity) },
+        { "custom_shortcuts",  P.Input.CustomShortcuts },
+        { "select_tool",       std::string(P.Input.SelectTool) },
+        { "translate_tool",    std::string(P.Input.TranslateTool) },
+        { "rotate_tool",       std::string(P.Input.RotateTool) },
+        { "frame_selected",    std::string(P.Input.FrameSelected) },
+        { "advanced_controls", P.Input.AdvancedControls },
         { "invert_pitch",      P.Input.InvertPitch },
-        { "flight_speed",      static_cast<double>(P.Input.FlightSpeed) },
-        { "boost_multiplier",  static_cast<double>(P.Input.BoostMultiplier) },
-        { "scroll_speed_step", static_cast<double>(P.Input.ScrollSpeedStep) },
-        { "raw_mouse_input",   P.Input.RawMouseInput },
     });
 
     Root.insert("notifications", toml::table{
-        { "render_changes",       P.Notifications.RenderChanges },
-        { "baking_complete",      P.Notifications.BakingComplete },
-        { "memory_warnings",      P.Notifications.MemoryWarnings },
-        { "frame_rate_drops",     P.Notifications.FrameRateDrops },
-        { "frame_rate_threshold", static_cast<double>(P.Notifications.FrameRateThreshold) },
-        { "hold_seconds",         static_cast<double>(P.Notifications.HoldSeconds) },
-        { "placement",            NameOf(P.Notifications.Placement) },
-        { "sound",                P.Notifications.Sound },
+        { "show_frame_rate_overlay", P.Notifications.ShowFrameRateOverlay },
+        { "show_memory_usage",       P.Notifications.ShowMemoryUsage },
+        { "show_scene_metadata",     P.Notifications.ShowSceneMetadata },
+        { "baking_complete",         P.Notifications.BakingComplete },
+        { "render_finished",         P.Notifications.RenderFinished },
+        { "autosave_errors",         P.Notifications.AutosaveErrors },
+        { "frame_rate_drops",        P.Notifications.FrameRateDrops },
+        { "hold_seconds",            static_cast<double>(P.Notifications.HoldSeconds) },
     });
 
     std::ostringstream Out;
@@ -261,29 +269,28 @@ bool PreferenceRegistry::Deserialise(std::string_view Toml, UserPreferences& Out
     }
     {
         Reader S = R.Sub("input");
+        S.GetEnum("profile",       Out.Input.Profile);
         S.Get("mouse_sensitivity", Out.Input.MouseSensitivity);
+        S.Get("custom_shortcuts",  Out.Input.CustomShortcuts);
+        S.GetText("select_tool",    Out.Input.SelectTool,    sizeof(Out.Input.SelectTool));
+        S.GetText("translate_tool", Out.Input.TranslateTool, sizeof(Out.Input.TranslateTool));
+        S.GetText("rotate_tool",    Out.Input.RotateTool,    sizeof(Out.Input.RotateTool));
+        S.GetText("frame_selected", Out.Input.FrameSelected, sizeof(Out.Input.FrameSelected));
+        S.Get("advanced_controls", Out.Input.AdvancedControls);
         S.Get("invert_pitch",      Out.Input.InvertPitch);
-        S.Get("flight_speed",      Out.Input.FlightSpeed);
-        S.Get("boost_multiplier",  Out.Input.BoostMultiplier);
-        S.Get("scroll_speed_step", Out.Input.ScrollSpeedStep);
-        S.Get("raw_mouse_input",   Out.Input.RawMouseInput);
-        Out.Input.MouseSensitivity = std::clamp(Out.Input.MouseSensitivity, 0.1f, 5.0f);
-        Out.Input.FlightSpeed      = std::clamp(Out.Input.FlightSpeed, 0.1f, 10.0f);
-        Out.Input.BoostMultiplier  = std::clamp(Out.Input.BoostMultiplier, 1.0f, 10.0f);
-        Out.Input.ScrollSpeedStep  = std::clamp(Out.Input.ScrollSpeedStep, 0.1f, 5.0f);
+        Out.Input.MouseSensitivity = std::clamp(Out.Input.MouseSensitivity, 0.0f, 100.0f);
     }
     {
         Reader S = R.Sub("notifications");
-        S.Get("render_changes",       Out.Notifications.RenderChanges);
-        S.Get("baking_complete",      Out.Notifications.BakingComplete);
-        S.Get("memory_warnings",      Out.Notifications.MemoryWarnings);
-        S.Get("frame_rate_drops",     Out.Notifications.FrameRateDrops);
-        S.Get("frame_rate_threshold", Out.Notifications.FrameRateThreshold);
-        S.Get("hold_seconds",         Out.Notifications.HoldSeconds);
-        S.GetEnum("placement",        Out.Notifications.Placement);
-        S.Get("sound",                Out.Notifications.Sound);
-        Out.Notifications.FrameRateThreshold = std::clamp(Out.Notifications.FrameRateThreshold, 10.0f, 240.0f);
-        Out.Notifications.HoldSeconds        = std::clamp(Out.Notifications.HoldSeconds, 1.0f, 10.0f);
+        S.Get("show_frame_rate_overlay", Out.Notifications.ShowFrameRateOverlay);
+        S.Get("show_memory_usage",       Out.Notifications.ShowMemoryUsage);
+        S.Get("show_scene_metadata",     Out.Notifications.ShowSceneMetadata);
+        S.Get("baking_complete",         Out.Notifications.BakingComplete);
+        S.Get("render_finished",         Out.Notifications.RenderFinished);
+        S.Get("autosave_errors",         Out.Notifications.AutosaveErrors);
+        S.Get("frame_rate_drops",        Out.Notifications.FrameRateDrops);
+        S.Get("hold_seconds",            Out.Notifications.HoldSeconds);
+        Out.Notifications.HoldSeconds = std::clamp(Out.Notifications.HoldSeconds, 1.0f, 10.0f);
     }
     return true;
 }

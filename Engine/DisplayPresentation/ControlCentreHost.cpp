@@ -68,6 +68,7 @@ ControlCentreHost::ControlCentreHost() noexcept
     , GrabbedHubRow(-1)
     , GrabbedTab(-1)
     , GrabbedPrimaryButton(false)
+    , GrabbedPageButton(-1)
     , CloseResetTimer(-1.0f)
     , TabWidthCache{}
     , ButtonWidthCache{}
@@ -152,7 +153,50 @@ void ControlCentreHost::NavigateToPage(ControlCentrePageCategory TargetPage) noe
 
 bool ControlCentreHost::IsPageDirty() const noexcept
 {
-    return ActivePage == ControlCentrePageCategory::Appearance && Appearance.IsDirty();
+    switch (ActivePage)
+    {
+        case ControlCentrePageCategory::Appearance:    return Appearance.IsDirty();
+        case ControlCentrePageCategory::Input:         return InputPage.IsDirty();
+        case ControlCentrePageCategory::Notifications: return NotificationPage.IsDirty();
+        default: return false;
+    }
+}
+
+void ControlCentreHost::ApplyActivePage() noexcept
+{
+    switch (ActivePage)
+    {
+        case ControlCentrePageCategory::Appearance:    Appearance.Apply(); break;
+        case ControlCentrePageCategory::Input:         InputPage.Apply(); break;
+        case ControlCentrePageCategory::Notifications:
+            NotificationPage.Apply();
+            // "Show FPS Overlay" and the dashboard FPS tile are one flag.
+            if (Settings.FrameRateOverlay != NotificationPage.QueryApplied().ShowFrameRateOverlay) { Settings.FrameRateOverlay = NotificationPage.QueryApplied().ShowFrameRateOverlay; ++Settings.Revision; }
+            break;
+        default: break;
+    }
+}
+
+void ControlCentreHost::DiscardActivePage() noexcept
+{
+    switch (ActivePage)
+    {
+        case ControlCentrePageCategory::Appearance:    Appearance.Discard(); break;
+        case ControlCentrePageCategory::Input:         InputPage.Discard(); break;
+        case ControlCentrePageCategory::Notifications: NotificationPage.Discard(); break;
+        default: break;
+    }
+}
+
+void ControlCentreHost::ResetActivePage() noexcept
+{
+    switch (ActivePage)
+    {
+        case ControlCentrePageCategory::Appearance:    Appearance.ResetDefaults(); break;
+        case ControlCentrePageCategory::Input:         InputPage.ResetDefaults(); break;
+        case ControlCentrePageCategory::Notifications: NotificationPage.ResetDefaults(); break;
+        default: break;
+    }
 }
 
 void ControlCentreHost::RequestLeave(bool Back) noexcept
@@ -174,14 +218,14 @@ void ControlCentreHost::ResolveDialogueVerdict() noexcept
     switch (Dialogue.QueryActive() == DialoguePresetCategory::None ? LastDialoguePreset : Dialogue.QueryActive())
     {
         case DialoguePresetCategory::ConfirmDiscard:
-            if (V == DialogueVerdictCategory::Primary) Appearance.Discard();
+            if (V == DialogueVerdictCategory::Primary) DiscardActivePage();
             break;
         case DialoguePresetCategory::ResetDefaults:
-            if (V == DialogueVerdictCategory::Primary) Appearance.ResetDefaults();
+            if (V == DialogueVerdictCategory::Primary) ResetActivePage();
             break;
         case DialoguePresetCategory::UnsavedChanges:
-            if (V == DialogueVerdictCategory::Primary)   { Appearance.Apply(); }
-            if (V == DialogueVerdictCategory::Secondary) { Appearance.Discard(); }
+            if (V == DialogueVerdictCategory::Primary)   { ApplyActivePage(); }
+            if (V == DialogueVerdictCategory::Secondary) { DiscardActivePage(); }
             if (V != DialogueVerdictCategory::Cancel)    { if (PendingLeaveBack) NavigateBack(); else Depart(false); }
             break;
         default: break;
@@ -455,17 +499,18 @@ void ControlCentreHost::Relinquish() noexcept
     }
     else if (GrabbedSubject == GrabSubject::PageButton)
     {
-        // Footer pills: content is blank in this step, so Apply / Discard have nothing to commit yet.
-        //    Notch's "Discard Changes" on the Input page calls onClose; the others are inert. Reproduced.
-        if (Tap && QueryPageButtonExtent(GrabbedPrimaryButton).Encloses(PreviousCursorX, PreviousCursorY))
+        // Footer pills. Apply commits the page draft; Discard asks (ConfirmDiscard); Reset Defaults asks
+        //    (ResetDefaults). Render Settings has no draft (dashboard tiles apply live) so its pills are inert.
+        const PlaneExtent Target = GrabbedPageButton == 2 ? QueryPageResetExtent() : QueryPageButtonExtent(GrabbedPrimaryButton);
+        if (Tap && Target.Encloses(PreviousCursorX, PreviousCursorY))
         {
-            if (ActivePage == ControlCentrePageCategory::Appearance)
+            if (GrabbedPageButton == 2)
             {
-                if (GrabbedPrimaryButton) { if (Appearance.IsDirty()) { Appearance.Apply(); } }
-                else if (Appearance.IsDirty()) { LastDialoguePreset = DialoguePresetCategory::ConfirmDiscard; Dialogue.Open(DialoguePresetCategory::ConfirmDiscard); }
+                if (ActivePage == ControlCentrePageCategory::Input && !InputPage.IsDefault())
+                { LastDialoguePreset = DialoguePresetCategory::ResetDefaults; Dialogue.Open(DialoguePresetCategory::ResetDefaults); }
             }
-            else if (!GrabbedPrimaryButton && ActivePage == ControlCentrePageCategory::Input)
-                NavigateBack();   // Notch: Input "Discard Changes" calls onClose
+            else if (GrabbedPrimaryButton) { if (IsPageDirty()) ApplyActivePage(); }
+            else if (IsPageDirty()) { LastDialoguePreset = DialoguePresetCategory::ConfirmDiscard; Dialogue.Open(DialoguePresetCategory::ConfirmDiscard); }
         }
     }
     else if (GrabbedSubject == GrabSubject::Notch)
@@ -545,7 +590,7 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
     const bool OverBody = CardActive && PageSettled && IsSubPage(ActivePage) && Body.Encloses(CursorX, CursorY);
     if (Pressed && OverBody) PressedInBody = true;
     if (Released) { /* cleared after this frame's recording — see AdvanceLocomotion */ }
-    const bool BodyOwned = PressedInBody || Appearance.HasOpenMenu() || Dialogue.IsVisible();
+    const bool BodyOwned = PressedInBody || Appearance.HasOpenMenu() || InputPage.HasOpenMenu() || Dialogue.IsVisible();
     const bool OnDashboard = ActivePage == ControlCentrePageCategory::Dashboard;
     const bool OnHub       = ActivePage == ControlCentrePageCategory::SettingsHub;
     const bool OnSubPage   = IsSubPage(ActivePage);
@@ -564,12 +609,13 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
     if (CardActive && PageSettled && ActivePage == ControlCentrePageCategory::Appearance)
         for (uint32_t Tab = 0u; Tab < static_cast<uint32_t>(AppearanceSubTabCategory::Count); ++Tab)
             if (QueryPageTabExtent(Tab).Encloses(CursorX, CursorY)) OverTab = static_cast<int>(Tab);
-    int OverButton = -1;   // 0 secondary (Discard / Reset), 1 primary (Apply)
+    int OverButton = -1;   // 0 secondary (Discard), 1 primary (Apply), 2 Reset Defaults (Input page)
     if (CardActive && PageSettled && OnSubPage && !BodyOwned)
     {
-        const bool Enabled = ActivePage != ControlCentrePageCategory::Appearance || Appearance.IsDirty();
+        const bool Enabled = ActivePage == ControlCentrePageCategory::RenderSettings || IsPageDirty();
         if (Enabled && QueryPageButtonExtent(true ).Encloses(CursorX, CursorY)) OverButton = 1;
         if (Enabled && QueryPageButtonExtent(false).Encloses(CursorX, CursorY)) OverButton = 0;
+        if (ActivePage == ControlCentrePageCategory::Input && !InputPage.IsDefault() && QueryPageResetExtent().Encloses(CursorX, CursorY)) OverButton = 2;
     }
     const bool OverPill = CardActive && PageSettled && OnDashboard && [&]
     {
@@ -586,7 +632,7 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
         else if (OverBack)                 Grab(GrabSubject::HubBack, CursorX, CursorY);
         else if (OverClose)                Grab(GrabSubject::PageClose, CursorX, CursorY);
         else if (OverTab >= 0)             { Grab(GrabSubject::PageTab, CursorX, CursorY); GrabbedTab = OverTab; }
-        else if (OverButton >= 0)          { Grab(GrabSubject::PageButton, CursorX, CursorY); GrabbedPrimaryButton = OverButton == 1; }
+        else if (OverButton >= 0)          { Grab(GrabSubject::PageButton, CursorX, CursorY); GrabbedPrimaryButton = OverButton == 1; GrabbedPageButton = OverButton; }
         else if (HoveredHubRow >= 0)
         {
             // ArcNotch.tsx hub rows fire on onPointerDown, not on release.
@@ -815,7 +861,7 @@ void ControlCentreHost::ToggleTile(QuickTileCategory Tile) noexcept
     {
         case QuickTileCategory::GlobalIllumination: Settings.GlobalIllumination = !Settings.GlobalIllumination; break;
         case QuickTileCategory::AntiAliasing:       Settings.AntiAliasing       = !Settings.AntiAliasing;       break;
-        case QuickTileCategory::FrameRateOverlay:   Settings.FrameRateOverlay   = !Settings.FrameRateOverlay;   break;
+        case QuickTileCategory::FrameRateOverlay:   Settings.FrameRateOverlay   = !Settings.FrameRateOverlay; NotificationPage.MirrorFrameRateOverlay(Settings.FrameRateOverlay); break;
         case QuickTileCategory::Notifications:      Settings.Notifications      = !Settings.Notifications;      break;
         case QuickTileCategory::Quality:            Settings.Quality            = NextFidelity(Settings.Quality); break;
         default: return;
@@ -1113,9 +1159,27 @@ PlaneExtent ControlCentreHost::QueryPageButtonExtent(bool Primary) const noexcep
     const uint32_t Page = static_cast<uint32_t>(ActivePage) - static_cast<uint32_t>(ControlCentrePageCategory::RenderSettings);
     const float PrimaryW   = (Page < 4u ? ButtonWidthCache[Page][1] : 0.0f) + PageButtonPadX * 2.0f;
     const float SecondaryW = (Page < 4u ? ButtonWidthCache[Page][0] : 0.0f) + PageButtonPadX * 2.0f;
+    if (ActivePage == ControlCentrePageCategory::Input)
+    {
+        // Input modal: "Discard Changes" flush-left in the body, "Reset Defaults" + "Save keybindings" flush-right
+        //    (mt-2 pb-6 inside the py-8 body, lg:px-12). Recording and hit-testing share this geometry.
+        const float InputPillH = LineHeight(13.0f) + 10.0f * 2.0f;   // py-2.5
+        const float Top = Card.MaximumY - PagePadding - 24.0f - InputPillH;
+        if (Primary) return Spanning(Card.MaximumX - 48.0f - PrimaryW, Top, PrimaryW, InputPillH);
+        return Spanning(Card.MinimumX + 48.0f, Top, SecondaryW, InputPillH);
+    }
     const float PrimaryX   = Card.MaximumX - PageFooterPad - PrimaryW;
     if (Primary) return Spanning(PrimaryX, FooterTop + PageFooterPad, PrimaryW, PillH);
     return Spanning(PrimaryX - PageButtonGap - SecondaryW, FooterTop + PageFooterPad, SecondaryW, PillH);
+}
+
+PlaneExtent ControlCentreHost::QueryPageResetExtent() const noexcept
+{
+    // Input page only: "Reset Defaults" sits between the left-hand Discard and the right-hand Save pill (gap-3).
+    if (ActivePage != ControlCentrePageCategory::Input) return PlaneExtent{};
+    const PlaneExtent Primary = QueryPageButtonExtent(true);
+    const float RW = ResetWidthCache + 40.0f;
+    return Spanning(Primary.MinimumX - PageButtonGap - RW, Primary.MinimumY, RW, Primary.Height());
 }
 
 void ControlCentreHost::ConstructPageLayout(PixelSpace& Surface, ControlCentrePageCategory Page, float Opacity, float SlideX, float Scale, bool Live) noexcept
@@ -1205,7 +1269,8 @@ PlaneExtent ControlCentreHost::QueryPageBodyExtent() const noexcept
     const PlaneExtent Card = QueryCardExtent();
     float Top = Card.MinimumY + PagePadding + LineHeight(PageTitleSize) + 8.0f + LineHeight(PageSubtitleSize) + 16.0f;
     if (ActivePage == ControlCentrePageCategory::Appearance) Top += LineHeight(PageTabSize) + PageTabPadBottom + 1.0f;
-    const float Bottom = ActivePage == ControlCentrePageCategory::Input ? Card.MaximumY : QueryPageFooterExtent().MinimumY;
+    // Input page: no footer band — the body stops above the in-flow button row (mt-2) so pill taps are not body-owned.
+    const float Bottom = ActivePage == ControlCentrePageCategory::Input ? QueryPageButtonExtent(true).MinimumY - 8.0f : QueryPageFooterExtent().MinimumY;
     return PlaneExtent{ Card.MinimumX, Top, Card.MaximumX, Bottom };
 }
 
@@ -1214,7 +1279,7 @@ void ControlCentreHost::ConstructPageBodyLayout(PixelSpace& Surface, ControlCent
     // Scrollable body: px-8 py-8 (Notch overflow-y-auto p-8). Content is clipped to the body.
     const PlaneExtent Inner = PlaneExtent{ Body.MinimumX + PagePadding, Body.MinimumY + PagePadding, Body.MaximumX - PagePadding, Body.MaximumY - PagePadding };
     ControlPointer Local = Pointer;
-    Local.Enabled = Pointer.Enabled && Live && !Dialogue.IsVisible() && (Body.Encloses(Pointer.X, Pointer.Y) || PressedInBody || Appearance.HasOpenMenu());
+    Local.Enabled = Pointer.Enabled && Live && !Dialogue.IsVisible() && (Body.Encloses(Pointer.X, Pointer.Y) || PressedInBody || Appearance.HasOpenMenu() || InputPage.HasOpenMenu());
 
     Surface.PushClip(Body);
     float ContentHeight = 0.0f;
@@ -1228,6 +1293,8 @@ void ControlCentreHost::ConstructPageBodyLayout(PixelSpace& Surface, ControlCent
             default: break;
         }
     }
+    else if (Page == ControlCentrePageCategory::Input)         ContentHeight = InputPage.ConstructInputLayout(Surface, Inner, BodyScrollY, Local, Opacity);
+    else if (Page == ControlCentrePageCategory::Notifications) ContentHeight = NotificationPage.ConstructNotificationLayout(Surface, Inner, BodyScrollY, Local, Opacity);
     Surface.PopClip();
     if (Live) BodyContentHeight = ContentHeight + PagePadding * 2.0f;
 
@@ -1296,7 +1363,7 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
 
     // Body
     const PlaneExtent Footer = QueryPageFooterExtent();
-    const PlaneExtent Body = PlaneExtent{ Card.MinimumX, Y, Card.MaximumX, InputStyle ? Card.MaximumY : Footer.MinimumY };
+    const PlaneExtent Body = PlaneExtent{ Card.MinimumX, Y, Card.MaximumX, InputStyle ? QueryPageButtonExtent(true).MinimumY - 8.0f : Footer.MinimumY };
     ConstructPageBodyLayout(Surface, Page, Body, Opacity, Live);
 
     // Footer p-6 border-t bg-black/20: status text-[10px] muted left, pills right.
@@ -1308,7 +1375,7 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
         Surface.FillRectangle(Spanning(Card.MinimumX, Footer.MinimumY, Card.Width(), 1.0f), Faded(Ink06(), Opacity));
     }
 
-    const bool Dirty = Page == ControlCentrePageCategory::Appearance && Appearance.IsDirty();
+    const bool Dirty = IsPageDirty();
     std::string Status;
     switch (Page)
     {
@@ -1345,9 +1412,15 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
             }
             break;
         case ControlCentrePageCategory::Notifications:
-            Status  = Settings.FrameRateOverlay ? "FPS overlay on" : "FPS overlay off";
-            Status += " - ";
-            Status += Settings.Notifications ? "Alerts on" : "Alerts off";
+            if (Dirty)
+            {
+                uint32_t N = 0u; const NotificationPreferences& A = NotificationPage.QueryApplied(); const NotificationPreferences& D = NotificationPage.QueryDraft();
+                N += A.ShowFrameRateOverlay != D.ShowFrameRateOverlay; N += A.ShowMemoryUsage != D.ShowMemoryUsage; N += A.ShowSceneMetadata != D.ShowSceneMetadata;
+                N += A.BakingComplete != D.BakingComplete; N += A.RenderFinished != D.RenderFinished; N += A.AutosaveErrors != D.AutosaveErrors;
+                N += A.FrameRateDrops != D.FrameRateDrops; N += A.HoldSeconds != D.HoldSeconds;
+                char Head[48]; std::snprintf(Head, sizeof(Head), "%u unsaved change%s.", N, N == 1u ? "" : "s"); Status = Head;
+            }
+            else Status = "Ready to apply changes.";   // GenericSettingsModal verbatim
             break;
         default:
             Status = "Ready to apply changes.";   // GenericSettingsModal verbatim
@@ -1364,21 +1437,25 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
     //    Hits are handled by the Grab/Relinquish path (GrabSubject::PageButton) so taps obey the same rules as
     //    every other page control; the widget here only draws.
     ControlPointer Inert{}; Inert.X = Pointer.X; Inert.Y = Pointer.Y; Inert.Enabled = Live && !Dialogue.IsVisible();
-    const bool Disabled = Page == ControlCentrePageCategory::Appearance && !Dirty;
+    const bool Disabled = Page != ControlCentrePageCategory::RenderSettings && !Dirty;
     if (InputStyle)
     {
-        // Input page (Notch InputSettingsModal): bordered rounded-xl pills, #ececec 13 px; primary filled #e254eb.
-        ControlKit::OutlineRounded(Surface, Secondary, Faded(InputBorder, Opacity), 12.0f);
-        ControlKit::TextCentred(Surface, Secondary, Faded(InputInk, Opacity), Chrome.SecondaryButton, 13.0f);
+        // Input page (Notch InputSettingsModal): bordered rounded-xl pills, #ececec 13 px, hover:bg-white/5;
+        //    primary filled #e254eb hover:bg-[#d040d9]. Disabled pills follow the kit rule (opacity .35, no hit).
+        const float DimA = Disabled ? ControlKitTokens::DisabledAlpha : 1.0f;
+        auto Hover = [&](const PlaneExtent& E) { return Inert.Enabled && !Disabled && E.Encloses(Pointer.X, Pointer.Y); };
+        if (Hover(Secondary)) Surface.FillRectangle(Secondary, Faded(Ink05(), Opacity), 12.0f);
+        ControlKit::OutlineRounded(Surface, Secondary, Faded(InputBorder, Opacity * DimA), 12.0f);
+        ControlKit::TextCentred(Surface, Secondary, Faded(InputInk, Opacity * DimA), Chrome.SecondaryButton, 13.0f);
         {
-            const PlanePoint RSize = Surface.MeasureText("Reset Defaults", 13.0f);
-            const float RW = RSize.X + 40.0f;
-            const PlaneExtent Reset = Spanning(Primary.MinimumX - PageButtonGap - RW, Primary.MinimumY, RW, PillH);
-            ControlKit::OutlineRounded(Surface, Reset, Faded(InputBorder, Opacity), 12.0f);
-            ControlKit::TextCentred(Surface, Reset, Faded(InputInk, Opacity), "Reset Defaults", 13.0f);
+            const PlaneExtent Reset = QueryPageResetExtent();
+            const float ResetA = InputPage.IsDefault() ? ControlKitTokens::DisabledAlpha : 1.0f;
+            if (Inert.Enabled && !InputPage.IsDefault() && Reset.Encloses(Pointer.X, Pointer.Y)) Surface.FillRectangle(Reset, Faded(Ink05(), Opacity), 12.0f);
+            ControlKit::OutlineRounded(Surface, Reset, Faded(InputBorder, Opacity * ResetA), 12.0f);
+            ControlKit::TextCentred(Surface, Reset, Faded(InputInk, Opacity * ResetA), "Reset Defaults", 13.0f);
         }
-        Surface.FillRectangle(Primary, Faded(InputAccent, Opacity), 12.0f);
-        ControlKit::TextCentred(Surface, Primary, Faded(InkFull(), Opacity), Chrome.PrimaryButton, 13.0f);
+        Surface.FillRectangle(Primary, Faded(Hover(Primary) ? ColorQuad{ 0xD0 / 255.0f, 0x40 / 255.0f, 0xD9 / 255.0f, 1.0f } : InputAccent, Opacity * DimA), 12.0f);
+        ControlKit::TextCentred(Surface, Primary, Faded(InkFull(), Opacity * DimA), Chrome.PrimaryButton, 13.0f);
     }
     else
     {
@@ -1393,6 +1470,7 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
     if (Live)
     {
         Appearance.ConstructFloatingLayout(Surface, Pointer, Opacity);
+        InputPage.ConstructFloatingLayout(Surface, Pointer, Opacity);
         Dialogue.ConstructDialogueLayout(Surface, Card, Pointer);
     }
 }
@@ -1405,6 +1483,7 @@ PlaneExtent ControlCentreHost::QueryPageButtonExtentFor(uint32_t Index, bool Pri
     const float PadX = InputStyle ? 20.0f : PageButtonPadX;   // px-5 vs px-6
     ButtonWidthCache[Index][0] = Surface.MeasureText(PageChrome[Index].SecondaryButton, Size).X + (PadX - PageButtonPadX) * 2.0f;
     ButtonWidthCache[Index][1] = Surface.MeasureText(PageChrome[Index].PrimaryButton,   Size).X + (PadX - PageButtonPadX) * 2.0f;
+    if (InputStyle) ResetWidthCache = Surface.MeasureText("Reset Defaults", 13.0f).X;
     if (InputStyle)
     {
         // Input modal: "Discard Changes" flush-left in the body, "Reset Defaults" + "Save keybindings" flush-right.

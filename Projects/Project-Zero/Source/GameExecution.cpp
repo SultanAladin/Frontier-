@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include <string>
 #include <cstdio>
 #include <iostream>
 
@@ -143,6 +144,8 @@ int main(int, char**)
         std::cerr << "[Preferences] " << Preferences.QueryPath() << ": " << Preferences.QueryLastError() << " - using defaults\n";
     ControlCentre.SeedSettings(Preferences.Query().Render);
     ControlCentre.AccessAppearance().Seed(Preferences.Query().Appearance);
+    ControlCentre.AccessInput().Seed(Preferences.Query().Input);
+    ControlCentre.AccessNotifications().Seed(Preferences.Query().Notifications);
     Frontier::PixelSpace OverlaySurface;
 
     // Dashboard-driven engine services: quality ladder, toasts, frame telemetry
@@ -156,6 +159,11 @@ int main(int, char**)
     bool     AppearanceEverApplied     = false;
     float    FrameCapSeconds           = 0.0f;   // [s] 0 = unlimited (Display → Frame Cap)
     uint32_t FixedRenderHeight         = 0u;     // [px] 0 = native  (Display → Resolution)   // AppearanceInspector::Apply bumps its own revision
+    uint32_t AppliedInputRevision      = 0u;
+    uint32_t AppliedNotifyRevision     = 0u;
+    bool     BakeAnnounced             = false;  // "Baking Complete" = temporal accumulation reached BakeFrameCount
+    constexpr uint32_t BakeFrameCount  = 256u;
+    std::string LastSaveError;                   // de-duplicates the "Autosave Errors" toast
 
     // Push the Control Centre settings into the renderer. Called whenever the settings revision changes.
     auto ApplyControlCentreSettings = [&](const Frontier::ControlCentreSettings& S, bool Announce)
@@ -177,7 +185,7 @@ int main(int, char**)
                           Frontier::FidelityLabel(S.Quality), Criteria.ReSTIRCandidateSampleCount,
                           Criteria.ReSTIRSpatialPassCount, S.GlobalIllumination ? "on" : "off",
                           S.AntiAliasing ? "on" : "off", static_cast<int>(S.RenderScale * 100.0f + 0.5f));
-            Notifications.Push("Render settings applied", Body);
+            if (ControlCentre.QueryNotifications().QueryApplied().RenderFinished) Notifications.Push("Render settings applied", Body);
         }
     };
 
@@ -281,7 +289,77 @@ int main(int, char**)
                               static_cast<int>(P.CornerRadius),
                               P.VerticalSync == Frontier::VerticalSyncCategory::Off ? "off" : P.VerticalSync == Frontier::VerticalSyncCategory::On ? "on" : "adaptive",
                               P.Fullscreen ? "  |  fullscreen" : "");
-                if (!FirstAppearance) Notifications.Push("Appearance applied", Body);
+                if (!FirstAppearance && ControlCentre.QueryNotifications().QueryApplied().RenderFinished) Notifications.Push("Appearance applied", Body);
+            }
+        }
+
+        // ①e Input page → Save keybindings: sensitivity % → rad/px (50 % = base 0.00125, linear 0.25 × … 2 ×) and
+        //    Invert Y-Axis into the fly-through configuration. Profile / shortcut fields are persisted but not yet
+        //    consumed by the solver (flagged in the step report).
+        {
+            const Frontier::InputInspector& I = ControlCentre.QueryInput();
+            if (I.QueryRevision() != AppliedInputRevision)
+            {
+                const bool First = AppliedInputRevision == 0u;
+                AppliedInputRevision = I.QueryRevision();
+                const Frontier::InputPreferences& P = I.QueryApplied();
+                Frontier::ProjectZero::FlyThroughConfiguration C = Camera.QueryConfiguration();
+                C.MouseSensitivity = 0.00125f * (0.25f + (P.MouseSensitivity / 100.0f) * 1.75f);
+                C.InvertPitch      = P.InvertPitch;
+                Camera.AssignConfiguration(C);
+                if (!First)
+                {
+                    Preferences.Access().Input = P;
+                    if (!Preferences.Save()) std::cerr << "[Preferences] save failed: " << Preferences.QueryLastError() << "\n";
+                    char Body[96];
+                    std::snprintf(Body, sizeof(Body), "%s  |  sensitivity %d%%  |  Y-axis %s",
+                                  Frontier::InputInspector::QueryProfileName(P.Profile), static_cast<int>(P.MouseSensitivity), P.InvertPitch ? "inverted" : "normal");
+                    if (ControlCentre.QueryNotifications().QueryApplied().RenderFinished) Notifications.Push("Keybindings saved", Body);
+                }
+            }
+        }
+
+        // ①f Notifications page → Save Preferences: overlay rows, toast dwell, alert gates.
+        {
+            const Frontier::NotificationInspector& N = ControlCentre.QueryNotifications();
+            if (N.QueryRevision() != AppliedNotifyRevision)
+            {
+                const bool First = AppliedNotifyRevision == 0u;
+                AppliedNotifyRevision = N.QueryRevision();
+                const Frontier::NotificationPreferences& P = N.QueryApplied();
+                Notifications.AssignHoldSeconds(P.HoldSeconds);
+                Frontier::TelemetryRowStructure Rows = Telemetry.QueryRows();
+                Rows.ShowMemory = P.ShowMemoryUsage;
+                Rows.ShowScene  = P.ShowSceneMetadata;
+                Telemetry.AssignRows(Rows);
+                if (!First)
+                {
+                    Preferences.Access().Notifications = P;
+                    if (!Preferences.Save()) std::cerr << "[Preferences] save failed: " << Preferences.QueryLastError() << "\n";
+                    if (P.RenderFinished) Notifications.Push("Notification preferences saved");
+                }
+            }
+        }
+
+        // ①g Alert gates: "Autosave Errors" (preference writes), "Baking Complete" (accumulation converged),
+        //    "Frame-rate Drops" (2 s average under 30 fps, once per episode).
+        {
+            const Frontier::NotificationPreferences& P = ControlCentre.QueryNotifications().QueryApplied();
+            if (P.AutosaveErrors && !Preferences.QueryLastError().empty() && Preferences.QueryLastError() != LastSaveError)
+            {
+                LastSaveError = Preferences.QueryLastError();
+                Notifications.Push("Preferences could not be saved", LastSaveError);
+            }
+            if (Integrator.QueryAccumulationIndex() < BakeFrameCount) BakeAnnounced = false;
+            else if (!BakeAnnounced)
+            {
+                BakeAnnounced = true;
+                if (P.BakingComplete) { char Body[64]; std::snprintf(Body, sizeof(Body), "%u frames accumulated", BakeFrameCount); Notifications.Push("Baking complete", Body); }
+            }
+            if (Telemetry.ConsumeFrameRateDrop(30.0f) && P.FrameRateDrops)
+            {
+                char Body[64]; std::snprintf(Body, sizeof(Body), "%.0f fps average over the last 2 s", static_cast<double>(Telemetry.QueryAverageFramesPerSecond()));
+                Notifications.Push("Frame-rate drop", Body);
             }
         }
 
@@ -323,6 +401,13 @@ int main(int, char**)
         const uint32_t RenderWidth  = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryWidth())  * RenderScale * FixedFactor + 0.5f));
         const uint32_t RenderHeight = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryHeight()) * RenderScale * FixedFactor + 0.5f));
         Integrator.ObserveCamera(Camera, RenderWidth, RenderHeight);
+        if (Telemetry.QueryRows().ShowScene)
+        {
+            char Line[96];
+            std::snprintf(Line, sizeof(Line), "Cornell  |  %zu tris  |  %u luminaire tris  |  %ux%u  |  frame %u",
+                          Scene.QueryTriangles().size(), LuminaireCount, RenderWidth, RenderHeight, Integrator.QueryAccumulationIndex());
+            Frontier::TelemetryRowStructure Rows = Telemetry.QueryRows(); Rows.SceneLine = Line; Telemetry.AssignRows(Rows);
+        }
         const Frontier::DispatchConfiguration Dispatch = Integrator.BuildDispatch(
             Camera,
             RenderWidth,
