@@ -3,9 +3,11 @@
 //============================================================================================================================================
 
 #include "ControlCentreHost.h"
+#include "GlyphSpace.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 namespace Frontier {
 
@@ -42,6 +44,10 @@ ControlCentreHost::ControlCentreHost() noexcept
     , ActiveAppearanceSubTab(AppearanceSubTabCategory::Theme)
     , ActiveDialogue(DialogueCategory::None)
     , PageHistoryStack{}
+    , Settings{}
+    , HoveredSlot(-1)
+    , GrabbedSlot(-1)
+    , PillGrabbed(false)
     , ActiveTheme{}
     , ProjectName("Frontier")
     , HandleContour{}
@@ -260,10 +266,25 @@ void ControlCentreHost::Carry(float CursorX, float CursorY, float DeltaSeconds) 
         RateY = RateRetention * RateY + (1.0 - RateRetention) * InstantY;
     }
 
-    if (GrabbedSubject != GrabSubject::Notch) return;
-
     const double TravelX = static_cast<double>(CursorX - GrabCursorX);
     const double TravelY = static_cast<double>(CursorY - GrabCursorY);
+
+    if (GrabbedSubject == GrabSubject::Pill)
+    {
+        // The track is a plain slider: position along it → render scale, live while held.
+        const PlaneExtent Track = QueryPillTrackExtent();
+        const float T = Track.Width() > 0.0f ? (CursorX - Track.MinimumX) / Track.Width() : 1.0f;
+        AssignRenderScale(RenderScaleMinimum + (1.0f - RenderScaleMinimum) * std::clamp(T, 0.0f, 1.0f));
+        return;
+    }
+
+    if (GrabbedSubject != GrabSubject::Notch)
+    {
+        // Tiles and the card only care whether the press stayed put (tap) or wandered (cancel).
+        if (!TravelExceeded && (std::fabs(TravelX) > TapTravelLimit || std::fabs(TravelY) > TapTravelLimit))
+            TravelExceeded = true;
+        return;
+    }
 
     if (!TravelExceeded && (std::fabs(TravelX) > TapTravelLimit || std::fabs(TravelY) > TapTravelLimit))
         TravelExceeded = true;
@@ -301,6 +322,13 @@ void ControlCentreHost::Relinquish() noexcept
     {
         // A tap on the scrim while open closes the shade. A drag that started on the scrim does nothing.
         if (Tap && IsOpen()) Depart(false);
+    }
+    else if (GrabbedSubject == GrabSubject::Tile)
+    {
+        // A tile fires on release, only if the pointer is still over the disc it was pressed on.
+        if (Tap && GrabbedSlot >= 0 && SlotUnder(PreviousCursorX, PreviousCursorY) == GrabbedSlot
+            && static_cast<uint32_t>(GrabbedSlot) < static_cast<uint32_t>(QuickTileCategory::Count))
+            ToggleTile(static_cast<QuickTileCategory>(GrabbedSlot));
     }
     else if (GrabbedSubject == GrabSubject::Notch)
     {
@@ -341,6 +369,8 @@ void ControlCentreHost::Relinquish() noexcept
 
     Grabbed        = false;
     GrabbedSubject = GrabSubject::Nothing;
+    GrabbedSlot    = -1;
+    PillGrabbed    = false;
 }
 
 void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float CursorX, float CursorY) noexcept
@@ -359,9 +389,24 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
     const bool OverShade = CursorY < QueryCurrentHeight();
     const bool ShadeOpenish = QueryCurrentHeight() > 50.0f;   // Notch: scrim intercepts pointer once y > 50
 
+    // Dashboard hit-testing: Notch enables pointer events on the panel once y > 100.
+    const bool CardActive = QueryCurrentHeight() > 100.0f;
+    HoveredSlot = CardActive ? SlotUnder(CursorX, CursorY) : -1;
+    const bool OverCard = CardActive && QueryCardExtent().Encloses(CursorX, CursorY);
+    const bool OverPill = CardActive && [&]
+    {
+        PlaneExtent Track = QueryPillTrackExtent();
+        Track.MinimumY -= (PillCell - PillTrack) * 0.5f;   // the whole 48 px pill row is grabbable
+        Track.MaximumY += (PillCell - PillTrack) * 0.5f;
+        return Track.Encloses(CursorX, CursorY);
+    }();
+
     if (Pressed)
     {
-        if (Hovered)                      Grab(GrabSubject::Notch, CursorX, CursorY);
+        if (Hovered)                       Grab(GrabSubject::Notch, CursorX, CursorY);
+        else if (HoveredSlot >= 0)         { Grab(GrabSubject::Tile, CursorX, CursorY); GrabbedSlot = HoveredSlot; }
+        else if (OverPill)                 { Grab(GrabSubject::Pill, CursorX, CursorY); PillGrabbed = true; Carry(CursorX, CursorY, LastDeltaSeconds); }
+        else if (OverCard)                 Grab(GrabSubject::Card, CursorX, CursorY);   // swallow; card is not a scrim
         else if (ShadeOpenish && !OverShade) Grab(GrabSubject::Scrim, CursorX, CursorY);
     }
 
@@ -421,6 +466,11 @@ void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) const noexce
     if (ShadeY > 0.0f)
         Surface.FillRectangle(PlaneExtent{ 0.0f, -2000.0f, W, ShadeY }, Sheet);
 
+    // ②b Dashboard card inside the sheet, faded per Notch's panelOpacity = useTransform(y, [100, H/2], [0, 1]).
+    const float CardOpacity = QueryCardOpacity();
+    if (CardOpacity > 0.0f)
+        ConstructDashboardLayout(Surface, CardOpacity);
+
     // ③ Notch handle: tessellated SVG outline translated to (NotchX, ShadeY).
     std::vector<PlanePoint> Outline;
     Outline.reserve(HandleContour.size());
@@ -434,6 +484,221 @@ void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) const noexce
     const float TextX = NotchX + (NotchWidth  - Measured.X) * 0.5f;
     const float TextY = ShadeY + (NotchHeight - Measured.Y) * 0.5f - 2.0f;
     Surface.Text(TextX, TextY, Label, ProjectName.c_str(), LabelSize);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                       DASHBOARD
+//------------------------------------------------------------------------------------------------------------------------
+
+namespace {
+
+constexpr QuickTileStructure TileTable[static_cast<size_t>(QuickTileCategory::Count)] =
+{
+    { QuickTileCategory::GlobalIllumination, ControlCentreIconCategory::SunIllumination,      "Global Illumination", false },
+    { QuickTileCategory::AntiAliasing,       ControlCentreIconCategory::SparklesAntiAliasing, "Anti-Aliasing",       false },
+    { QuickTileCategory::FrameRateOverlay,   ControlCentreIconCategory::GaugeFrameRate,       "FPS Overlay",         false },
+    { QuickTileCategory::Notifications,      ControlCentreIconCategory::NotificationsBell,    "Notifications",       false },
+    { QuickTileCategory::Quality,            ControlCentreIconCategory::SlidersQuality,       "Quality",             true  },
+};
+
+constexpr uint32_t GridColumns = 4u;
+constexpr uint32_t GridSlots   = 8u;
+
+// Tailwind palette used by ArcNotch.tsx
+constexpr ColorQuad TileActive      { 0x3B / 255.0f, 0x82 / 255.0f, 0xF6 / 255.0f, 1.0f };   // bg-blue-500
+constexpr ColorQuad TileActiveHover { 0x60 / 255.0f, 0xA5 / 255.0f, 0xFA / 255.0f, 1.0f };   // hover:bg-blue-400
+constexpr ColorQuad TileIdle        { 0x1C / 255.0f, 0x1C / 255.0f, 0x1E / 255.0f, 1.0f };   // bg-[#1C1C1E]
+constexpr ColorQuad TileIdleHover   { 0x2C / 255.0f, 0x2C / 255.0f, 0x2E / 255.0f, 1.0f };   // hover:bg-[#2C2C2E]
+constexpr ColorQuad InkFull         { 1.0f, 1.0f, 1.0f, 1.00f };                              // text-white
+constexpr ColorQuad Ink70           { 1.0f, 1.0f, 1.0f, 0.70f };                              // text-white/70
+constexpr ColorQuad Ink50           { 1.0f, 1.0f, 1.0f, 0.50f };                              // text-white/50
+constexpr ColorQuad TrackBlack50    { 0.0f, 0.0f, 0.0f, 0.50f };                              // bg-black/50
+constexpr ColorQuad TrackFill       { 0x63 / 255.0f, 0x66 / 255.0f, 0xF1 / 255.0f, 0.90f };   // bg-indigo-500/90
+
+constexpr ColorQuad Faded(ColorQuad C, float Opacity) noexcept { C.Alpha *= Opacity; return C; }
+
+} // namespace
+
+const QuickTileStructure& ControlCentreHost::QueryTile(uint32_t Slot) noexcept
+{
+    static constexpr QuickTileStructure Empty{ QuickTileCategory::Count, ControlCentreIconCategory::Count, "", false };
+    return Slot < static_cast<uint32_t>(QuickTileCategory::Count) ? TileTable[Slot] : Empty;
+}
+
+bool ControlCentreHost::IsTileActive(QuickTileCategory Tile) const noexcept
+{
+    switch (Tile)
+    {
+        case QuickTileCategory::GlobalIllumination: return Settings.GlobalIllumination;
+        case QuickTileCategory::AntiAliasing:       return Settings.AntiAliasing;
+        case QuickTileCategory::FrameRateOverlay:   return Settings.FrameRateOverlay;
+        case QuickTileCategory::Notifications:      return Settings.Notifications;
+        case QuickTileCategory::Quality:            return true;   // a cycler is always "lit"; its label carries the state
+        default:                                    return false;
+    }
+}
+
+void ControlCentreHost::ToggleTile(QuickTileCategory Tile) noexcept
+{
+    switch (Tile)
+    {
+        case QuickTileCategory::GlobalIllumination: Settings.GlobalIllumination = !Settings.GlobalIllumination; break;
+        case QuickTileCategory::AntiAliasing:       Settings.AntiAliasing       = !Settings.AntiAliasing;       break;
+        case QuickTileCategory::FrameRateOverlay:   Settings.FrameRateOverlay   = !Settings.FrameRateOverlay;   break;
+        case QuickTileCategory::Notifications:      Settings.Notifications      = !Settings.Notifications;      break;
+        case QuickTileCategory::Quality:            Settings.Quality            = NextFidelity(Settings.Quality); break;
+        default: return;
+    }
+    ++Settings.Revision;
+}
+
+void ControlCentreHost::AssignRenderScale(float Scale) noexcept
+{
+    const float Clamped = std::clamp(Scale, RenderScaleMinimum, 1.0f);
+    if (Clamped == Settings.RenderScale) return;
+    Settings.RenderScale = Clamped;
+    ++Settings.Revision;
+}
+
+float ControlCentreHost::QueryCardOpacity() const noexcept
+{
+    // Notch: useTransform(y, [100, screenHeight * 0.5], [0, 1])
+    const float Y = QueryCurrentHeight();
+    const float Half = static_cast<float>(DisplayHeight) * 0.5f;
+    if (Half <= 100.0f) return Y > 100.0f ? 1.0f : 0.0f;
+    return std::clamp((Y - 100.0f) / (Half - 100.0f), 0.0f, 1.0f);
+}
+
+PlaneExtent ControlCentreHost::QueryCardExtent() const noexcept
+{
+    // Notch: the shade's content box is h-[100vh] with pb-[35px], items centred; the card is centred within it.
+    //    Its bottom edge is the notch top (ShadeY); the visible content box spans [ShadeY − H, ShadeY − 35].
+    const float H      = static_cast<float>(DisplayHeight);
+    const float ShadeY = QueryCurrentHeight();
+    const float BoxTop = ShadeY - H;
+    const float BoxBottom = ShadeY - 35.0f;
+    const float CardX = (static_cast<float>(DisplayWidth) - CardWidth) * 0.5f;
+    const float CardY = BoxTop + ((BoxBottom - BoxTop) - CardHeight) * 0.5f;
+    return Spanning(CardX, CardY, CardWidth, CardHeight);
+}
+
+PlaneExtent ControlCentreHost::QueryTileDiscExtent(uint32_t Slot) const noexcept
+{
+    const PlaneExtent Card = QueryCardExtent();
+    const float GridTop   = Card.MinimumY + HeaderIconSize + CardGap;        // header row is 16 px tall (icon height)
+    const float CellWidth = (CardWidth - GridColumnGap * (GridColumns - 1u)) / GridColumns;
+    const float RowHeight = TileDisc + TileLabelGap + TileLabelSize + 2.0f;  // label leading-tight ≈ size + 2
+    const uint32_t Column = Slot % GridColumns, Row = Slot / GridColumns;
+    const float CellX = Card.MinimumX + Column * (CellWidth + GridColumnGap);
+    const float CellY = GridTop + Row * (RowHeight + GridRowGap);
+    return Spanning(CellX + (CellWidth - TileDisc) * 0.5f, CellY, TileDisc, TileDisc);
+}
+
+PlaneExtent ControlCentreHost::QueryPillTrackExtent() const noexcept
+{
+    const PlaneExtent Card = QueryCardExtent();
+    const float GridTop   = Card.MinimumY + HeaderIconSize + CardGap;
+    const float RowHeight = TileDisc + TileLabelGap + TileLabelSize + 2.0f;
+    const float GridBottom = GridTop + RowHeight * 2.0f + GridRowGap;
+    const float PillTop   = GridBottom + CardGap + PillTopMargin;
+    const float PillH     = PillPadding * 2.0f + PillCell;
+    const float TrackX    = Card.MinimumX + PillPadding + PillCell + PillGapX;
+    const float TrackW    = CardWidth - 2.0f * (PillPadding + PillCell + PillGapX);
+    return Spanning(TrackX, PillTop + (PillH - PillTrack) * 0.5f, TrackW, PillTrack);
+}
+
+int ControlCentreHost::SlotUnder(float CursorX, float CursorY) const noexcept
+{
+    for (uint32_t Slot = 0u; Slot < static_cast<uint32_t>(QuickTileCategory::Count); ++Slot)
+    {
+        const PlaneExtent Disc = QueryTileDiscExtent(Slot);
+        const float Cx = (Disc.MinimumX + Disc.MaximumX) * 0.5f, Cy = (Disc.MinimumY + Disc.MaximumY) * 0.5f;
+        const float Dx = CursorX - Cx, Dy = CursorY - Cy;
+        if (Dx * Dx + Dy * Dy <= (TileDisc * 0.5f) * (TileDisc * 0.5f)) return static_cast<int>(Slot);
+    }
+    return -1;
+}
+
+void ControlCentreHost::ConstructDashboardLayout(PixelSpace& Surface, float Opacity) const noexcept
+{
+    const PlaneExtent Card = QueryCardExtent();
+
+    // Header: "Control Center" left, wifi + settings right, all white/50, row height = 16 px icon.
+    const PlanePoint TitleSize = Surface.MeasureText("Control Center", HeaderTextSize);
+    Surface.Text(Card.MinimumX + HeaderPadX, Card.MinimumY + (HeaderIconSize - TitleSize.Y) * 0.5f,
+                 Faded(Ink50, Opacity), "Control Center", HeaderTextSize);
+
+    GlyphPlacement Gear{};
+    Gear.Size = HeaderIconSize; Gear.StrokeWidth = 2.0f; Gear.Colour = Faded(Ink50, Opacity);
+    Gear.X = Card.MaximumX - HeaderPadX - HeaderIconSize; Gear.Y = Card.MinimumY;
+    GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::SettingsGear), Gear);
+
+    GlyphPlacement Wifi = Gear;
+    Wifi.X = Gear.X - HeaderIconGap - HeaderIconSize;
+    GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::WirelessSignal), Wifi);
+
+    // Grid
+    for (uint32_t Slot = 0u; Slot < GridSlots; ++Slot)
+        ConstructTileLayout(Surface, Slot, Opacity);
+
+    // Render-scale pill
+    ConstructPillLayout(Surface, Opacity);
+}
+
+void ControlCentreHost::ConstructTileLayout(PixelSpace& Surface, uint32_t Slot, float Opacity) const noexcept
+{
+    if (Slot >= static_cast<uint32_t>(QuickTileCategory::Count)) return;   // empty slot: nothing drawn
+
+    const QuickTileStructure& Tile = QueryTile(Slot);
+    const bool Active  = IsTileActive(Tile.Category);
+    const bool Hover   = HoveredSlot == static_cast<int>(Slot);
+    const PlaneExtent Disc = QueryTileDiscExtent(Slot);
+
+    const ColorQuad Fill = Active ? (Hover ? TileActiveHover : TileActive) : (Hover ? TileIdleHover : TileIdle);
+    Surface.FillRectangle(Disc, Faded(Fill, Opacity), TileDisc * 0.5f);
+
+    GlyphPlacement Glyph{};
+    Glyph.Size        = TileGlyph;
+    Glyph.StrokeWidth = Active ? 2.0f : 1.5f;
+    Glyph.Colour      = Faded(Active ? InkFull : Ink70, Opacity);
+    Glyph.X           = Disc.MinimumX + (TileDisc - TileGlyph) * 0.5f;
+    Glyph.Y           = Disc.MinimumY + (TileDisc - TileGlyph) * 0.5f;
+    const std::string_view Path = VectorCodec::QueryControlCentreSvgPath(Tile.Glyph);
+    if (Active) GlyphSpace::Fill(Surface, Path, Glyph);     // Notch: className "fill-current" on the active icon
+    GlyphSpace::Stroke(Surface, Path, Glyph);
+
+    const char* Label = Tile.Cycles ? FidelityLabel(Settings.Quality) : Tile.Label;
+    const PlanePoint LabelSize = Surface.MeasureText(Label, TileLabelSize);
+    const float LabelX = Disc.MinimumX + (TileDisc - LabelSize.X) * 0.5f;
+    Surface.Text(LabelX, Disc.MaximumY + TileLabelGap, Faded(Ink70, Opacity), Label, TileLabelSize);
+}
+
+void ControlCentreHost::ConstructPillLayout(PixelSpace& Surface, float Opacity) const noexcept
+{
+    const PlaneExtent Card  = QueryCardExtent();
+    const PlaneExtent Track = QueryPillTrackExtent();
+    const float PillH = PillPadding * 2.0f + PillCell;
+    const float PillY = Track.MinimumY - (PillH - PillTrack) * 0.5f;
+
+    Surface.FillRectangle(Spanning(Card.MinimumX, PillY, CardWidth, PillH), Faded(TileIdle, Opacity), PillH * 0.5f);
+
+    GlyphPlacement Video{};
+    Video.Size = PillGlyph; Video.StrokeWidth = 2.0f; Video.Colour = Faded(Ink50, Opacity);
+    Video.X = Card.MinimumX + PillPadding + (PillCell - PillGlyph) * 0.5f;
+    Video.Y = PillY + PillPadding + (PillCell - PillGlyph) * 0.5f;
+    GlyphSpace::Stroke(Surface, VectorCodec::QueryControlCentreSvgPath(ControlCentreIconCategory::VideoRenderScale), Video);
+
+    Surface.FillRectangle(Track, Faded(TrackBlack50, Opacity), PillTrack * 0.5f);
+    const float T = (Settings.RenderScale - RenderScaleMinimum) / (1.0f - RenderScaleMinimum);
+    Surface.FillRectangle(Spanning(Track.MinimumX, Track.MinimumY, Track.Width() * std::clamp(T, 0.0f, 1.0f), PillTrack),
+                          Faded(TrackFill, Opacity), PillTrack * 0.5f);
+
+    char Value[8];
+    std::snprintf(Value, sizeof(Value), "%d%%", static_cast<int>(std::lround(Settings.RenderScale * 100.0f)));
+    const PlanePoint ValueSize = Surface.MeasureText(Value, PillValueSize);
+    const float CellX = Card.MaximumX - PillPadding - PillCell;
+    Surface.Text(CellX + (PillCell - ValueSize.X) * 0.5f, PillY + PillPadding + (PillCell - ValueSize.Y) * 0.5f,
+                 Faded(Ink50, Opacity), Value, PillValueSize);
 }
 
 } // namespace Frontier

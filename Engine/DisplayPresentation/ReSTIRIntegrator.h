@@ -27,6 +27,8 @@ struct ReSTIRIntegratorConfiguration
     uint32_t    SpatialPassCount;           // [-]   ReSTIR spatial resampling passes
     float       Exposure;                   // [-]   ACES tone-map exposure scalar
     float       AmbientStrength;            // [-]   ambient fallback contribution
+    bool        GlobalIllumination = true;  // [-]   secondary bounce on/off
+    bool        AntiAliasing       = true;  // [-]   sub-pixel jitter on/off
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -66,6 +68,8 @@ public:
     void AssignCandidatesPerPixel(uint32_t Count) noexcept { if (ActiveConfiguration.CandidatesPerPixel != Count) { ActiveConfiguration.CandidatesPerPixel = Count; ResetAccumulation(); } }
     void AssignSpatialPassCount  (uint32_t Count) noexcept { if (ActiveConfiguration.SpatialPassCount   != Count) { ActiveConfiguration.SpatialPassCount   = Count; ResetAccumulation(); } }
     void AssignExposure          (float    Value) noexcept { if (ActiveConfiguration.Exposure            != Value) { ActiveConfiguration.Exposure            = Value; ResetAccumulation(); } }
+    void AssignGlobalIllumination(bool     On)    noexcept { if (ActiveConfiguration.GlobalIllumination  != On)    { ActiveConfiguration.GlobalIllumination  = On;    ResetAccumulation(); } }
+    void AssignAntiAliasing      (bool     On)    noexcept { if (ActiveConfiguration.AntiAliasing        != On)    { ActiveConfiguration.AntiAliasing        = On;    ResetAccumulation(); } }
 
     void ResetAccumulation() noexcept { AccumulationIndex = 0u; }
 

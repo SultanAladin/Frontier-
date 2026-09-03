@@ -21,6 +21,17 @@
 //        faster than 20 px/s or pulled more than 50 px. The release velocity is injected into the spring.
 //      • while open, a press on the scrim (outside the shade content) closes the shade.
 //
+//    Dashboard (Notch ArcNotch.tsx "control-center" page), shown inside the shade once it is pulled down:
+//      • card 420 × 480 centred in the shade, opacity 0 → 1 as shade Y goes 100 → H/2, pointer-active once Y > 100.
+//      • header row: "Control Center" 13 px white/50; right: wifi 16 px, settings gear 16 px.
+//      • quick-settings grid 4 columns, column gap 16, row gap 40: 64 px disc (#3B82F6 active / #1C1C1E idle,
+//        hover #60A5FA / #2C2C2E), 24 px lucide glyph (stroke 2 active, 1.5 idle), 12 px white/70 label under a 12 px gap.
+//      • render-scale pill: #1C1C1E rounded-full, 8 px padding, 48 px glyph cell, 8 px track black/50 with #6366F1/90
+//        fill, 48 px mono 11 px bold value cell.
+//    Tile contents are the engine's controls (the Notch mock's Blender labels are not reproduced):
+//        Global Illumination (toggle) · Anti-Aliasing (toggle) · FPS Overlay (toggle) · Notifications (toggle) ·
+//        Quality (tap cycles Minimal → Economy → Standard → Ultra → Reference) · three empty slots.
+//
 //    Rendering: ConstructControlLayout(PixelSpace&) — hosts call it after Advance*; nothing here names ImGui.
 //
 // ⚠️ Public API kept source-compatible with WorkspaceHost / Project-F20 (Initialize, Terminate, AdvanceInteraction,
@@ -35,6 +46,8 @@
 #include "ThemeStructure.h"
 #include "MotionIntegrator.h"
 #include "PixelSpace.h"
+#include "FidelityClassifier.h"
+#include "VectorCodec.h"
 #include "../DeviceExchange/InputExchange.h"
 
 #include <cstdint>
@@ -72,6 +85,41 @@ enum class AppearanceSubTabCategory : uint32_t { Theme = 0, Fonts = 1, Display =
 enum class DialogueCategory         : uint32_t { None = 0, ApplyPreferences = 1, DiscardChanges = 2, Count = 3 };
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                                   QUICK TILE
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class QuickTileCategory : uint32_t
+{
+    GlobalIllumination = 0,
+    AntiAliasing       = 1,
+    FrameRateOverlay   = 2,
+    Notifications      = 3,
+    Quality            = 4,
+    Count              = 5
+};
+
+// One entry of the 4 × 2 quick-settings grid. Slots ≥ Count are empty and draw nothing.
+struct QuickTileStructure
+{
+    QuickTileCategory         Category;
+    ControlCentreIconCategory Glyph;
+    const char*               Label;      // [text] under the disc; Quality shows the tier name instead
+    bool                      Cycles;     // [-]    true: each tap advances an enum; false: toggle
+};
+
+// Everything the dashboard controls, read by the project each frame and pushed into the renderer.
+struct ControlCentreSettings
+{
+    bool             GlobalIllumination = true;
+    bool             AntiAliasing       = true;
+    bool             FrameRateOverlay   = false;
+    bool             Notifications      = true;
+    FidelityCategory Quality            = FidelityCategory::StandardFidelity;
+    float            RenderScale        = 1.0f;     // [-] 0.25 … 1.0
+    uint32_t         Revision           = 0u;       // [-] bumps on every change; projects compare to react
+};
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                    DRAWER POSE
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -102,6 +150,29 @@ public:
     static constexpr double RateRetention     =   0.60;   // [-]    velocity estimate smoothing
     static constexpr float  ScrimMaxAlpha     =   0.40f;  // [-]    black over the scene when fully open
 
+    // Dashboard figures (Notch ArcNotch.tsx, Tailwind classes resolved to pixels)
+    static constexpr float  CardWidth         = 420.0f;   // [px]  max-w-[420px]
+    static constexpr float  CardHeight        = 480.0f;   // [px]  h-[480px]
+    static constexpr float  CardGap           =  40.0f;   // [px]  gap-10 between header, grid, pill
+    static constexpr float  HeaderTextSize    =  13.0f;   // [px]  text-[13px]
+    static constexpr float  HeaderIconSize    =  16.0f;   // [px]  size={16}
+    static constexpr float  HeaderIconGap     =  16.0f;   // [px]  gap-4
+    static constexpr float  HeaderPadX        =   8.0f;   // [px]  px-2
+    static constexpr float  TileDisc          =  64.0f;   // [px]  w-16 h-16
+    static constexpr float  TileGlyph         =  24.0f;   // [px]  size={24}
+    static constexpr float  TileLabelGap      =  12.0f;   // [px]  gap-3
+    static constexpr float  TileLabelSize     =  12.0f;   // [px]  text-[12px]
+    static constexpr float  GridColumnGap     =  16.0f;   // [px]  gap-x-4
+    static constexpr float  GridRowGap        =  40.0f;   // [px]  gap-y-10
+    static constexpr float  PillPadding       =   8.0f;   // [px]  p-2
+    static constexpr float  PillCell          =  48.0f;   // [px]  w-12 h-12
+    static constexpr float  PillGlyph         =  20.0f;   // [px]  size={20}
+    static constexpr float  PillTrack         =   8.0f;   // [px]  h-2
+    static constexpr float  PillGapX          =  16.0f;   // [px]  gap-4
+    static constexpr float  PillValueSize     =  11.0f;   // [px]  text-[11px]
+    static constexpr float  PillTopMargin     =   8.0f;   // [px]  mt-2
+    static constexpr float  RenderScaleMinimum=   0.25f;  // [-]
+
     ControlCentreHost() noexcept;
     ~ControlCentreHost() noexcept = default;
 
@@ -123,6 +194,19 @@ public:
     void                    CloseNotch() noexcept;
     void                    ToggleNotch() noexcept;
     void                    AssignProjectName(std::string Name) noexcept { ProjectName = std::move(Name); }
+
+    // ── Dashboard settings ────────────────────────────────────────────────────────────────────────────────────────
+    [[nodiscard]] const ControlCentreSettings& QuerySettings() const noexcept { return Settings; }
+    void                    AssignSettings(const ControlCentreSettings& Desired) noexcept { Settings = Desired; ++Settings.Revision; }
+    void                    ToggleTile(QuickTileCategory Tile) noexcept;             // toggles, or advances Quality
+    void                    AssignRenderScale(float Scale) noexcept;
+    [[nodiscard]] bool      IsTileActive(QuickTileCategory Tile) const noexcept;
+    [[nodiscard]] PlaneExtent QueryCardExtent() const noexcept;                      // [px] dashboard card on the display
+    [[nodiscard]] PlaneExtent QueryTileDiscExtent(uint32_t Slot) const noexcept;     // [px] disc of grid slot 0..7
+    [[nodiscard]] PlaneExtent QueryPillTrackExtent() const noexcept;                 // [px] render-scale track
+    [[nodiscard]] float     QueryCardOpacity() const noexcept;                       // [-]  Notch panelOpacity
+    [[nodiscard]] int       QueryHoveredSlot() const noexcept { return HoveredSlot; }
+    [[nodiscard]] static const QuickTileStructure& QueryTile(uint32_t Slot) noexcept;
 
     // ── Page navigation (state only in this step; pages are recorded in later steps) ─────────────────────────────
     void                    NavigateToPage(ControlCentrePageCategory TargetPage) noexcept;
@@ -169,7 +253,12 @@ public:
     [[nodiscard]] TargetType Convert() const noexcept;
 
 private:
-    enum class GrabSubject : uint32_t { Nothing = 0, Notch = 1, Scrim = 2 };
+    enum class GrabSubject : uint32_t { Nothing = 0, Notch = 1, Scrim = 2, Tile = 3, Pill = 4, Card = 5 };
+
+    void                    ConstructDashboardLayout(PixelSpace& Surface, float Opacity) const noexcept;
+    void                    ConstructTileLayout(PixelSpace& Surface, uint32_t Slot, float Opacity) const noexcept;
+    void                    ConstructPillLayout(PixelSpace& Surface, float Opacity) const noexcept;
+    [[nodiscard]] int       SlotUnder(float CursorX, float CursorY) const noexcept;  // -1 none
 
     void                    GenerateHandleContour() noexcept;
     void                    Grab(GrabSubject Subject, float CursorX, float CursorY) noexcept;
@@ -217,6 +306,12 @@ private:
     AppearanceSubTabCategory  ActiveAppearanceSubTab;
     DialogueCategory          ActiveDialogue;
     std::vector<ControlCentrePageCategory> PageHistoryStack;
+
+    // ── Dashboard ─────────────────────────────────────────────────────────────────────────────────────────────────
+    ControlCentreSettings   Settings;
+    int                     HoveredSlot;             // [-] grid slot under the pointer, -1 none
+    int                     GrabbedSlot;             // [-] slot the press landed on
+    bool                    PillGrabbed;
 
     // ── Appearance ────────────────────────────────────────────────────────────────────────────────────────────────
     ThemeStructure          ActiveTheme;

@@ -93,11 +93,18 @@ struct DispatchConfiguration
     uint32_t CandidatesPerPixel;                                   // [-]   primary DI candidates per pixel
     uint32_t TriangleCount;                                        // [-]   total triangles in scene
     uint32_t LuminaireTriangleCount;                               // [-]   emissive triangles for DI sampling
-    float    _Pad;                                                 // [-]   alignment to 96 bytes
+    uint32_t FeatureFlags;                                         // [bit] DispatchFeature bits
+};
+
+// Bits of DispatchConfiguration::FeatureFlags — mirror kFeature* in ReSTIRViewport.slang.
+enum DispatchFeature : uint32_t
+{
+    DispatchFeatureGlobalIllumination = 1u << 0,
+    DispatchFeatureAntiAliasing       = 1u << 1
 };
 
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
-//    vec3 + float pairs pack to 16 bytes each (4 × 16) followed by 7 uints + 1 float (32) = 96 bytes.
+//    vec3 + float pairs pack to 16 bytes each (4 × 16) followed by 8 uints (32) = 96 bytes.
 static_assert(sizeof(DispatchConfiguration) == 96u, "DispatchConfiguration must match the shader push-constant block (96 bytes)");
 
 //------------------------------------------------------------------------------------------------------------------------

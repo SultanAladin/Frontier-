@@ -94,7 +94,8 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
     Dispatch.CandidatesPerPixel    = ActiveConfiguration.CandidatesPerPixel;
     Dispatch.TriangleCount         = TriangleCount;
     Dispatch.LuminaireTriangleCount = LuminaireTriangleCount;
-    Dispatch._Pad                  = 0.0f;
+    Dispatch.FeatureFlags          = (ActiveConfiguration.GlobalIllumination ? DispatchFeatureGlobalIllumination : 0u)
+                                   | (ActiveConfiguration.AntiAliasing       ? DispatchFeatureAntiAliasing       : 0u);
 
     return Dispatch;
 }

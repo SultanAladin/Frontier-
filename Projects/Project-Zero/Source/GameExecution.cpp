@@ -9,10 +9,15 @@
 #include "../../../Engine/DeviceExchange/DiagnosticMetrics.h"
 #include "../../../Engine/DisplayPresentation/ControlCentreHost.h"
 #include "../../../Engine/DisplayPresentation/PixelSpace.h"
+#include "../../../Engine/DisplayPresentation/FidelityClassifier.h"
+#include "../../../Engine/DisplayPresentation/NotificationQueue.h"
+#include "../../../Engine/DisplayPresentation/TelemetryMetrics.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <iostream>
 
 int main(int, char**)
@@ -123,6 +128,38 @@ int main(int, char**)
     (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
     Frontier::PixelSpace OverlaySurface;
 
+    // Dashboard-driven engine services: quality ladder, toasts, frame telemetry
+    Frontier::FidelityClassifier Fidelity;
+    Frontier::NotificationQueue  Notifications;
+    Frontier::TelemetryMetrics   Telemetry;
+    uint32_t AppliedSettingsRevision = ~0u;   // forces the first application
+    float    SettingsQuietSeconds    = 0.0f;  // [s] since the last change; the toast waits for the slider to rest
+    bool     SettingsToastPending    = false;
+
+    // Push the Control Centre settings into the renderer. Called whenever the settings revision changes.
+    auto ApplyControlCentreSettings = [&](const Frontier::ControlCentreSettings& S, bool Announce)
+    {
+        Fidelity.AssignCategory(S.Quality);
+        const Frontier::FidelityCriteria Criteria = Fidelity.QueryActiveCriteria();
+
+        // The quality tier sets the ReSTIR budget; the GI / AA tiles override the tier's own defaults.
+        Integrator.AssignCandidatesPerPixel(Criteria.ReSTIRCandidateSampleCount);
+        Integrator.AssignSpatialPassCount(Criteria.ReSTIRSpatialPassCount);
+        Integrator.AssignGlobalIllumination(S.GlobalIllumination);
+        Integrator.AssignAntiAliasing(S.AntiAliasing);
+        Notifications.AssignEnabled(S.Notifications);
+
+        if (Announce)
+        {
+            char Body[96];
+            std::snprintf(Body, sizeof(Body), "%s  |  %u candidates, %u spatial, GI %s, AA %s, scale %d%%",
+                          Frontier::FidelityLabel(S.Quality), Criteria.ReSTIRCandidateSampleCount,
+                          Criteria.ReSTIRSpatialPassCount, S.GlobalIllumination ? "on" : "off",
+                          S.AntiAliasing ? "on" : "off", static_cast<int>(S.RenderScale * 100.0f + 0.5f));
+            Notifications.Push("Render settings applied", Body);
+        }
+    };
+
     Camera.AssignAspectRatio(
         static_cast<float>(Surface.QueryWidth()) /
         static_cast<float>(Surface.QueryHeight()));
@@ -159,6 +196,30 @@ int main(int, char**)
         ControlCentre.Resize(Surface.QueryWidth(), Surface.QueryHeight());
         ControlCentre.AdvanceInteraction(Input, Input.QueryCursorPositionX(), Input.QueryCursorPositionY());
         ControlCentre.AdvanceLocomotion(Δτ);
+        Notifications.Advance(Δτ);
+        Telemetry.RecordFrame(Δτ);
+
+        // ①c Dashboard settings → renderer (only when something changed)
+        {
+            const Frontier::ControlCentreSettings& S = ControlCentre.QuerySettings();
+            if (S.Revision != AppliedSettingsRevision)
+            {
+                const bool First = AppliedSettingsRevision == ~0u;
+                ApplyControlCentreSettings(S, false);      // renderer follows every tick (live slider)
+                AppliedSettingsRevision = S.Revision;
+                SettingsQuietSeconds = 0.0f;
+                SettingsToastPending = !First;
+            }
+            else if (SettingsToastPending)
+            {
+                SettingsQuietSeconds += Δτ;
+                if (SettingsQuietSeconds >= 0.4f)          // one toast per gesture, not per drag tick
+                {
+                    ApplyControlCentreSettings(S, true);
+                    SettingsToastPending = false;
+                }
+            }
+        }
 
         // ② Advance camera kinematics (frozen while the overlay owns the pointer)
         if (!ControlCentre.CoversPointer())
@@ -176,15 +237,28 @@ int main(int, char**)
                           if (OverlaySurface.Begin(Frontier::SurfaceLayer::Above,
                                                    static_cast<float>(Surface.QueryWidth()),
                                                    static_cast<float>(Surface.QueryHeight())))
+                          {
+                              // Scene overlays hang from the closed notch line; the pulled-down sheet covers the FPS
+                              //    readout, while toasts are drawn after the shade so a settings change is acknowledged
+                              //    on top of the dashboard that caused it.
+                              const float NotchLine = ControlCentre.QueryHandleHeight();
+                              if (ControlCentre.QuerySettings().FrameRateOverlay)
+                                  Telemetry.ConstructTelemetryLayout(OverlaySurface, NotchLine);
                               ControlCentre.ConstructControlLayout(OverlaySurface);
+                              Notifications.ConstructNotificationLayout(OverlaySurface, NotchLine);
+                          }
                       });
 
         // ④ Build dispatch configuration from live camera + integrator state (camera motion restarts accumulation)
-        Integrator.ObserveCamera(Camera, Surface.QueryWidth(), Surface.QueryHeight());
+        //    Render scale: the kernel runs on a sub-rectangle of the storage image and the blit stretches it.
+        const float    RenderScale  = ControlCentre.QuerySettings().RenderScale;
+        const uint32_t RenderWidth  = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryWidth())  * RenderScale + 0.5f));
+        const uint32_t RenderHeight = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryHeight()) * RenderScale + 0.5f));
+        Integrator.ObserveCamera(Camera, RenderWidth, RenderHeight);
         const Frontier::DispatchConfiguration Dispatch = Integrator.BuildDispatch(
             Camera,
-            Surface.QueryWidth(),
-            Surface.QueryHeight(),
+            RenderWidth,
+            RenderHeight,
             static_cast<uint32_t>(Scene.QueryTriangles().size()),
             LuminaireCount);
 

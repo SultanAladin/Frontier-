@@ -59,8 +59,11 @@ layout(push_constant) uniform ReSTIRConstants
     uint    SamplesPerPixel;        // [cnt] primary DI candidates per pixel
     uint    TriangleCount;          // [cnt] number of triangles in scene
     uint    LightTriangleCount;     // [cnt] emissive triangles for DI sampling
-    float   _pad;
+    uint    FeatureFlags;           // [bit] kFeatureGlobalIllumination | kFeatureAntiAliasing
 };
+
+const uint kFeatureGlobalIllumination = 1u;   // bit 0: trace the secondary bounce (section 4)
+const uint kFeatureAntiAliasing       = 2u;   // bit 1: sub-pixel jitter on the primary ray (off = pixel centre)
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    PCG RANDOM
@@ -285,9 +288,10 @@ void main()
 
     Ray primary;
     primary.origin = CameraOrigin;
-    primary.dir    = GeneratePrimaryDirection(camera, pixel,
-                                              vec2(RandFloat(seed), RandFloat(seed)),
-                                              uvec2(ViewportWidth, ViewportHeight));
+    vec2 jitter = ((FeatureFlags & kFeatureAntiAliasing) != 0u)
+                ? vec2(RandFloat(seed), RandFloat(seed))
+                : vec2(0.5, 0.5);
+    primary.dir    = GeneratePrimaryDirection(camera, pixel, jitter, uvec2(ViewportWidth, ViewportHeight));
 
     //------------------------------------------------------------------------------------------------------------------
     // 2. Primary visibility
@@ -419,8 +423,9 @@ void main()
     }
 
     //------------------------------------------------------------------------------------------------------------------
-    // 4. ReSTIR GI — one secondary bounce (cosine-sampled hemisphere)
+    // 4. ReSTIR GI — one secondary bounce (cosine-sampled hemisphere); skipped when the GI feature is off
     //------------------------------------------------------------------------------------------------------------------
+    if ((FeatureFlags & kFeatureGlobalIllumination) != 0u)
     {
         vec3 bounceDir = SampleCosineHemisphere(hitNormal, RandFloat(seed), RandFloat(seed));
         Ray  bounceRay;

@@ -1345,8 +1345,12 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     vkCmdPushConstants(Command, Vulkan->ComputePipelineLayout,
         VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration), &Dispatch);
 
-    const uint32_t GroupX = (Configuration.Width  + kLocalGroupSizeX - 1u) / kLocalGroupSizeX;
-    const uint32_t GroupY = (Configuration.Height + kLocalGroupSizeY - 1u) / kLocalGroupSizeY;
+    // Render scale: the kernel only covers Dispatch.ViewportWidth × ViewportHeight (the top-left sub-rectangle of
+    //    the full-size storage image); the blit below stretches that region over the whole swapchain image.
+    const uint32_t RenderWidth  = std::clamp(Dispatch.ViewportWidth,  1u, Configuration.Width);
+    const uint32_t RenderHeight = std::clamp(Dispatch.ViewportHeight, 1u, Configuration.Height);
+    const uint32_t GroupX = (RenderWidth  + kLocalGroupSizeX - 1u) / kLocalGroupSizeX;
+    const uint32_t GroupY = (RenderHeight + kLocalGroupSizeY - 1u) / kLocalGroupSizeY;
     vkCmdDispatch(Command, GroupX, GroupY, 1u);
 
     // ③ Storage image → TRANSFER_SRC for blit
@@ -1387,14 +1391,15 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     VkImageBlit BlitRegion{};
     BlitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
     BlitRegion.srcOffsets[0]  = { 0, 0, 0 };
-    BlitRegion.srcOffsets[1]  = { static_cast<int32_t>(Configuration.Width), static_cast<int32_t>(Configuration.Height), 1 };
+    BlitRegion.srcOffsets[1]  = { static_cast<int32_t>(RenderWidth), static_cast<int32_t>(RenderHeight), 1 };
     BlitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
     BlitRegion.dstOffsets[0]  = { 0, 0, 0 };
     BlitRegion.dstOffsets[1]  = { static_cast<int32_t>(Configuration.Width), static_cast<int32_t>(Configuration.Height), 1 };
+    const bool Upscaling = RenderWidth != Configuration.Width || RenderHeight != Configuration.Height;
     vkCmdBlitImage(Command,
         Vulkan->StorageImage,                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         Vulkan->SwapchainImages[ImageOrdinal],   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1u, &BlitRegion, VK_FILTER_NEAREST);
+        1u, &BlitRegion, Upscaling ? VK_FILTER_LINEAR : VK_FILTER_NEAREST);
 
     // ⑥ Swapchain image → COLOR_ATTACHMENT_OPTIMAL for ImGui
     {

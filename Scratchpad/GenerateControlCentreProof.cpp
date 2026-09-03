@@ -18,6 +18,9 @@
 #include "../Engine/DisplayPresentation/ControlCentreHost.h"
 #include "../Engine/DisplayPresentation/PixelSpace.h"
 #include "../Engine/DeviceExchange/InputExchange.h"
+#include "../Engine/DisplayPresentation/NotificationQueue.h"
+#include "../Engine/DisplayPresentation/TelemetryMetrics.h"
+#include "../Engine/DisplayPresentation/FidelityClassifier.h"
 
 #include <imgui.h>
 
@@ -168,8 +171,12 @@ struct Rig
     Frontier::ControlCentreHost Host;
     Frontier::InputExchange     Input;
     Frontier::PixelSpace  Surface;
+    Frontier::NotificationQueue Notifications;
+    Frontier::TelemetryMetrics  Telemetry;
+    uint32_t AppliedRevision = 0u;
     float CursorX = 640.0f, CursorY = 300.0f;
     const unsigned char* Tex = nullptr; int TexW = 0, TexH = 0;
+    uint32_t FrameCounter = 0u;
 
     Rig()
     {
@@ -183,13 +190,33 @@ struct Rig
         Input.AssignCursorPosition(CursorX, CursorY);
         Host.AdvanceInteraction(Input, CursorX, CursorY);
         Host.AdvanceLocomotion(Step);
+        Notifications.Advance(Step);
+        Telemetry.RecordFrame(Step * (1.0f + 0.3f * std::sin(static_cast<float>(FrameCounter++) * 0.21f)));   // wobble so the sparkline shows
+
+        // Mirror GameExecution: a settings change raises a toast
+        const Frontier::ControlCentreSettings& S = Host.QuerySettings();
+        if (S.Revision != AppliedRevision)
+        {
+            Notifications.AssignEnabled(S.Notifications);
+            char Body[96];
+            std::snprintf(Body, sizeof(Body), "%s  |  GI %s, AA %s, scale %d%%", Frontier::FidelityLabel(S.Quality),
+                          S.GlobalIllumination ? "on" : "off", S.AntiAliasing ? "on" : "off",
+                          static_cast<int>(S.RenderScale * 100.0f + 0.5f));
+            Notifications.Push("Render settings applied", Body);
+            AppliedRevision = S.Revision;
+        }
 
         ImGuiIO& IO = ImGui::GetIO();
         IO.DeltaTime   = Step;
         IO.DisplaySize = ImVec2(Width, Height);
         ImGui::NewFrame();
         if (Surface.Begin(Frontier::SurfaceLayer::Above, Width, Height))
+        {
+            const float NotchLine = Host.QueryHandleHeight();
+            if (Host.QuerySettings().FrameRateOverlay) Telemetry.ConstructTelemetryLayout(Surface, NotchLine);
             Host.ConstructControlLayout(Surface);
+            Notifications.ConstructNotificationLayout(Surface, NotchLine);
+        }
         ImGui::Render();
 
         if (Out)
@@ -221,9 +248,11 @@ struct Rig
         Canvas C;
         Frame(&C);
         SavePng(C, std::string("Diagnostics/") + Name + ".png");
-        std::printf("   pose=%u shadeY=%.1f notchX=%.1f covers=%d\n",
+        const Frontier::ControlCentreSettings& S = Host.QuerySettings();
+        std::printf("   pose=%u shadeY=%.1f notchX=%.1f covers=%d hover=%d | GI=%d AA=%d FPS=%d Notif=%d Q=%s scale=%.2f rev=%u\n",
                     static_cast<unsigned>(Host.QueryPose()), Host.QueryCurrentHeight(), Host.QueryHandleX(),
-                    Host.CoversPointer() ? 1 : 0);
+                    Host.CoversPointer() ? 1 : 0, Host.QueryHoveredSlot(), S.GlobalIllumination, S.AntiAliasing,
+                    S.FrameRateOverlay, S.Notifications, Frontier::FidelityLabel(S.Quality), S.RenderScale, S.Revision);
     }
 };
 
@@ -312,6 +341,74 @@ int main()
     R.Snapshot("ControlCentre_Notch_12_FlingClose_Mid");
     R.Idle(150);
     R.Snapshot("ControlCentre_Notch_13_FlingClosed");
+
+    //------------------------------------------------------------------------------------------------------------------
+    // Step 2 — dashboard. Open the drawer, then exercise every tile with real press/release contacts.
+    //------------------------------------------------------------------------------------------------------------------
+    auto Centre = [](const Frontier::PlaneExtent& E, float& X, float& Y) { X = (E.MinimumX + E.MaximumX) * 0.5f; Y = (E.MinimumY + E.MaximumY) * 0.5f; };
+    auto TapSlot = [&](unsigned Slot)
+    {
+        Centre(R.Host.QueryTileDiscExtent(Slot), R.CursorX, R.CursorY);
+        R.Idle(2); R.Press(); R.Idle(3); R.Release(); R.Idle(2);
+    };
+
+    // Bring the notch back to centre and open by tap.
+    R.CursorX = R.Host.QueryHandleX() + 200.0f; R.CursorY = 18.0f; R.Idle(2);
+    R.Press(); R.Drag(640.0f, 18.0f, 30); R.Release(); R.Idle(120);
+    R.CursorX = 640.0f; R.CursorY = 18.0f; R.Idle(2);
+    R.Press(); R.Idle(2); R.Release();
+    R.Idle(20);
+    R.Snapshot("ControlCentre_Dashboard_01_Opening_CardFadingIn");
+    R.Idle(150);
+    R.Snapshot("ControlCentre_Dashboard_02_Open_Defaults");
+
+    // Hover the Anti-Aliasing tile (active → hover blue-400).
+    Centre(R.Host.QueryTileDiscExtent(1), R.CursorX, R.CursorY); R.Idle(3);
+    R.Snapshot("ControlCentre_Dashboard_03_Hover_AntiAliasing");
+
+    // Tap Global Illumination off → tile goes idle grey, toast appears.
+    TapSlot(0);
+    R.CursorX = 640.0f; R.CursorY = 300.0f; R.Idle(6);
+    R.Snapshot("ControlCentre_Dashboard_04_GI_Off_Toast");
+
+    // Tap FPS Overlay on → top-left readout appears.
+    TapSlot(2);
+    R.CursorX = 640.0f; R.CursorY = 300.0f; R.Idle(30);
+    R.Snapshot("ControlCentre_Dashboard_05_FPS_Overlay_On");
+
+    // Cycle Quality through every tier: Standard → Ultra → Reference → Minimal → Economy → Standard.
+    const char* Names[] = { "Ultra", "Reference", "Minimal", "Economy", "Standard" };
+    for (int I = 0; I < 5; ++I)
+    {
+        TapSlot(4);
+        R.CursorX = 640.0f; R.CursorY = 300.0f; R.Idle(8);
+        char Name[96]; std::snprintf(Name, sizeof(Name), "ControlCentre_Dashboard_06_Quality_%d_%s", I + 1, Names[I]);
+        R.Snapshot(Name);
+        R.Idle(500);   // let toasts expire between tiers so each frame shows one
+    }
+
+    // Drag the render-scale pill to about 60 %.
+    {
+        Frontier::PlaneExtent Track = R.Host.QueryPillTrackExtent();
+        R.CursorX = Track.MaximumX - 2.0f; R.CursorY = (Track.MinimumY + Track.MaximumY) * 0.5f; R.Idle(2);
+        R.Press();
+        R.Drag(Track.MinimumX + Track.Width() * 0.4667f, R.CursorY, 40);
+        R.Snapshot("ControlCentre_Dashboard_07_RenderScale_Dragging");
+        R.Release(); R.Idle(6);
+        R.Snapshot("ControlCentre_Dashboard_08_RenderScale_60pct");
+    }
+
+    // Notifications off, then toggle AA — no toast may appear.
+    TapSlot(3);
+    R.Idle(500);
+    TapSlot(1);
+    R.CursorX = 640.0f; R.CursorY = 300.0f; R.Idle(6);
+    R.Snapshot("ControlCentre_Dashboard_09_Notifications_Off_NoToast");
+
+    // Close by tapping the notch; the FPS overlay stays because it is a scene overlay, not part of the shade.
+    R.CursorX = 640.0f; R.CursorY = Height - 18.0f; R.Idle(2);
+    R.Press(); R.Idle(2); R.Release(); R.Idle(150);
+    R.Snapshot("ControlCentre_Dashboard_10_Closed_FPS_Overlay_Persists");
 
     ImGui::DestroyContext();
     return 0;
