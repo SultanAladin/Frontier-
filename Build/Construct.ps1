@@ -198,7 +198,8 @@ $LinkerFlags = @(
     '/DEBUG',
     "/OUT:`"$TargetExe`"",
     "/PDB:`"$BinRoot\FrontierEngine.pdb`"",
-    '/SUBSYSTEM:CONSOLE'
+    '/SUBSYSTEM:CONSOLE',
+    'user32.lib'
 )
 
 $LinkArgs = $LinkerFlags + $ObjectFiles

@@ -24,7 +24,7 @@ function Import-ToolchainEnvironment
     $Selected = $Candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
     if ($null -eq $Selected)
     {
-        $VsWhere = "$($env:ProgramFiles(x86))\Microsoft Visual Studio\Installer\vswhere.exe"
+        $VsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         if (Test-Path $VsWhere)
         {
             $InstallPath = & $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -52,7 +52,7 @@ if ($Configuration -eq 'Debug') { $CompilerFlags += @('/Od', '/Zi', '/Zf', '/DFR
 & cl.exe $CompilerFlags $SourceFiles
 if ($LASTEXITCODE -ne 0) { exit 1 }
 $GameObjFiles = Get-ChildItem -Path $OutputRoot -Filter '*.obj' | ForEach-Object { $_.FullName }
-& link.exe @('/nologo', '/DEBUG', "/OUT:`"$TargetExe`"", '/SUBSYSTEM:CONSOLE') $GameObjFiles $EngineObjFiles
+& link.exe @('/nologo', '/DEBUG', "/OUT:`"$TargetExe`"", '/SUBSYSTEM:CONSOLE', 'user32.lib') $GameObjFiles $EngineObjFiles
 if ($LASTEXITCODE -ne 0) { exit 1 }
 Write-Host "[Project-Zero] Executable built successfully: $TargetExe" -ForegroundColor Green
 if ($Run) { & $TargetExe }
