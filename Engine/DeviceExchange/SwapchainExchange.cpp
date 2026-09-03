@@ -248,6 +248,10 @@ SwapchainExchange::SwapchainExchange(const SwapchainConfiguration& InitialConfig
     , GlfwWindow(nullptr)
     , Configuration(InitialConfiguration)
     , ResizePending(false)
+    , Pacing(PresentPacingCategory::VerticalSyncOn)
+    , ResolvedPresentMode(static_cast<uint32_t>(VK_PRESENT_MODE_FIFO_KHR))
+    , FullscreenActive(false)
+    , WindowedX(0), WindowedY(0), WindowedW(0), WindowedH(0)
     , ForwardInput(nullptr)
     , PreviousCursorX(0.0)
     , PreviousCursorY(0.0)
@@ -715,7 +719,8 @@ bool SwapchainExchange::BringSwapchain() noexcept
 
     SwapchainInfo.preTransform   = SurfaceCapabilities.currentTransform;
     SwapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    SwapchainInfo.presentMode    = VK_PRESENT_MODE_FIFO_KHR;
+    ResolvedPresentMode          = ResolvePresentMode();
+    SwapchainInfo.presentMode    = static_cast<VkPresentModeKHR>(ResolvedPresentMode);
     SwapchainInfo.clipped        = VK_TRUE;
 
     const VkResult SwapchainResult = vkCreateSwapchainKHR(Vulkan->Device, &SwapchainInfo, nullptr, &Vulkan->Swapchain);
@@ -1435,6 +1440,72 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     vkCmdEndRenderPass(Command);
 
     (void)vkEndCommandBuffer(Command);
+}
+
+//============================================================================================================================================
+//                                             DISPLAY SETTINGS (present pacing · fullscreen)
+//============================================================================================================================================
+
+uint32_t SwapchainExchange::ResolvePresentMode() const noexcept
+{
+    uint32_t Count = 0u;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(Vulkan->PhysicalDevice, Vulkan->Surface, &Count, nullptr);
+    std::vector<VkPresentModeKHR> Modes(Count);
+    if (Count > 0u) vkGetPhysicalDeviceSurfacePresentModesKHR(Vulkan->PhysicalDevice, Vulkan->Surface, &Count, Modes.data());
+    const auto Supported = [&](VkPresentModeKHR M) { for (VkPresentModeKHR X : Modes) if (X == M) return true; return false; };
+
+    switch (Pacing)
+    {
+        case PresentPacingCategory::VerticalSyncOff:
+            if (Supported(VK_PRESENT_MODE_IMMEDIATE_KHR)) return VK_PRESENT_MODE_IMMEDIATE_KHR;
+            if (Supported(VK_PRESENT_MODE_MAILBOX_KHR))   return VK_PRESENT_MODE_MAILBOX_KHR;
+            break;
+        case PresentPacingCategory::VerticalSyncAdaptive:
+            if (Supported(VK_PRESENT_MODE_FIFO_RELAXED_KHR)) return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+            break;
+        case PresentPacingCategory::VerticalSyncOn:
+            break;
+    }
+    return VK_PRESENT_MODE_FIFO_KHR;   // mandated by the spec, always present
+}
+
+const char* SwapchainExchange::QueryPresentModeName() const noexcept
+{
+    switch (static_cast<VkPresentModeKHR>(ResolvedPresentMode))
+    {
+        case VK_PRESENT_MODE_IMMEDIATE_KHR:    return "IMMEDIATE";
+        case VK_PRESENT_MODE_MAILBOX_KHR:      return "MAILBOX";
+        case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
+        default:                               return "FIFO";
+    }
+}
+
+void SwapchainExchange::AssignPresentPacing(PresentPacingCategory Desired) noexcept
+{
+    if (Pacing == Desired) return;
+    Pacing = Desired;
+    ResizePending = true;   // rebuild at the next present with the new mode
+}
+
+void SwapchainExchange::AssignFullscreen(bool Desired) noexcept
+{
+    if (!GlfwWindow || FullscreenActive == Desired) return;
+    if (Desired)
+    {
+        GLFWmonitor* Monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* Mode = Monitor ? glfwGetVideoMode(Monitor) : nullptr;
+        if (!Mode) return;
+        glfwGetWindowPos (GlfwWindow, &WindowedX, &WindowedY);
+        glfwGetWindowSize(GlfwWindow, &WindowedW, &WindowedH);
+        glfwSetWindowMonitor(GlfwWindow, Monitor, 0, 0, Mode->width, Mode->height, Mode->refreshRate);
+    }
+    else
+    {
+        if (WindowedW <= 0 || WindowedH <= 0) { WindowedW = static_cast<int>(Configuration.Width); WindowedH = static_cast<int>(Configuration.Height); WindowedX = WindowedY = 64; }
+        glfwSetWindowMonitor(GlfwWindow, nullptr, WindowedX, WindowedY, WindowedW, WindowedH, GLFW_DONT_CARE);
+    }
+    FullscreenActive = Desired;
+    ResizePending = true;   // the framebuffer callback also fires; a redundant rebuild is harmless
 }
 
 //============================================================================================================================================

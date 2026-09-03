@@ -23,6 +23,14 @@ namespace Frontier {
 //                                              SWAPCHAIN CONFIGURATION
 //------------------------------------------------------------------------------------------------------------------------
 
+// Presentation pacing requested by the Control Centre Display tab; the swapchain maps it onto what the surface supports.
+enum class PresentPacingCategory : uint32_t
+{
+    VerticalSyncOff      = 0,   // IMMEDIATE (tearing allowed) → MAILBOX → FIFO fallback
+    VerticalSyncOn       = 1,   // FIFO (always available)
+    VerticalSyncAdaptive = 2,   // FIFO_RELAXED → FIFO fallback
+};
+
 struct SwapchainConfiguration
 {
     uint32_t    Width;                          // [px]  surface horizontal resolution
@@ -133,6 +141,15 @@ public:
 
     void                        SignalResize() noexcept { ResizePending = true; }
 
+    // Display settings (Step 5C). Each request is applied at the next present: pacing rebuilds the swapchain with the
+    //    best supported VkPresentModeKHR; fullscreen toggles the GLFW window between the primary monitor's video mode
+    //    and the remembered windowed rectangle (the resize callback then rebuilds the swapchain).
+    void                        AssignPresentPacing(PresentPacingCategory Desired) noexcept;
+    void                        AssignFullscreen(bool Desired) noexcept;
+    [[nodiscard]] PresentPacingCategory QueryPresentPacing() const noexcept { return Pacing; }
+    [[nodiscard]] bool          QueryFullscreen() const noexcept { return FullscreenActive; }
+    [[nodiscard]] const char*   QueryPresentModeName() const noexcept;   // resolved VkPresentModeKHR, for diagnostics
+
     [[nodiscard]] uint32_t      QueryWidth()  const noexcept { return Configuration.Width;  }
     [[nodiscard]] uint32_t      QueryHeight() const noexcept { return Configuration.Height; }
 
@@ -154,6 +171,7 @@ private:
 
     void                RetireSwapchain()       noexcept;
     [[nodiscard]] bool  RebuildSwapchain()      noexcept;
+    [[nodiscard]] uint32_t ResolvePresentMode() const noexcept;   // VkPresentModeKHR as uint32_t (header stays Vulkan-free)
 
     void                RecordComputeCommands(uint32_t ImageOrdinal,
                                               const DispatchConfiguration& Dispatch) noexcept;
@@ -176,6 +194,10 @@ private:
     GLFWwindow*             GlfwWindow;         // [-]   GLFW window pointer
     SwapchainConfiguration  Configuration;      // [-]   runtime-tunable surface parameters
     bool                    ResizePending;       // [-]   framebuffer resize signal
+    PresentPacingCategory   Pacing;              // [-]   requested pacing (default VerticalSyncOn)
+    uint32_t                ResolvedPresentMode; // [-]   VkPresentModeKHR chosen at the last swapchain build
+    bool                    FullscreenActive;    // [-]   window currently covers the primary monitor
+    int                     WindowedX, WindowedY, WindowedW, WindowedH;   // [px] rectangle to restore on leaving fullscreen
 
     InputExchange*          ForwardInput;        // [-]   target for GLFW callback forwarding (valid during PollInput)
     double                  PreviousCursorX;     // [px]  last known cursor horizontal position

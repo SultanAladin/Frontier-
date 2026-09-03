@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <thread>
 #include <cstdio>
 #include <iostream>
 
@@ -152,7 +153,9 @@ int main(int, char**)
     float    SettingsQuietSeconds    = 0.0f;  // [s] since the last change; the toast waits for the slider to rest
     bool     SettingsToastPending    = false;
     uint32_t AppliedAppearanceRevision = 0u;
-    bool     AppearanceEverApplied     = false;   // AppearanceInspector::Apply bumps its own revision
+    bool     AppearanceEverApplied     = false;
+    float    FrameCapSeconds           = 0.0f;   // [s] 0 = unlimited (Display → Frame Cap)
+    uint32_t FixedRenderHeight         = 0u;     // [px] 0 = native  (Display → Resolution)   // AppearanceInspector::Apply bumps its own revision
 
     // Push the Control Centre settings into the renderer. Called whenever the settings revision changes.
     auto ApplyControlCentreSettings = [&](const Frontier::ControlCentreSettings& S, bool Announce)
@@ -211,8 +214,12 @@ int main(int, char**)
         Surface.PollInput(Input);
 
         // ①b Control Centre owns the pointer while hovered / grabbed / pulled down; the camera never sees those clicks
-        ControlCentre.Resize(Surface.QueryWidth(), Surface.QueryHeight());
-        ControlCentre.AdvanceInteraction(Input, Input.QueryCursorPositionX(), Input.QueryCursorPositionY());
+        //    Display → UI Scale: the overlay lives in logical pixels (physical ÷ scale); the pointer is mapped the same way.
+        const float    InterfaceScale = std::clamp(ControlCentre.QueryAppearance().QueryApplied().InterfaceScale / 100.0f, 0.5f, 2.0f);
+        const uint32_t LogicalWidth   = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryWidth())  / InterfaceScale + 0.5f));
+        const uint32_t LogicalHeight  = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryHeight()) / InterfaceScale + 0.5f));
+        ControlCentre.Resize(LogicalWidth, LogicalHeight);
+        ControlCentre.AdvanceInteraction(Input, Input.QueryCursorPositionX() / InterfaceScale, Input.QueryCursorPositionY() / InterfaceScale);
         ControlCentre.AdvanceLocomotion(Δτ);
         Notifications.Advance(Δτ);
         Preferences.Advance(Δτ);
@@ -241,9 +248,9 @@ int main(int, char**)
             }
         }
 
-        // ①d Appearance page → Apply (explicit, dialogue-confirmed when leaving dirty). The renderer consumes what it
-        //    can today (FPS overlay); resolution / V-Sync / fullscreen land with the swapchain step (5+) and are
-        //    acknowledged here so the user sees the commit.
+        // ①d Appearance page → Apply (explicit, dialogue-confirmed when leaving dirty). Display settings are consumed
+        //    here: V-Sync → swapchain present mode, fullscreen → GLFW monitor switch, frame cap → loop pacing below,
+        //    resolution → render-target size (step ④).
         {
             const Frontier::AppearanceInspector& A = ControlCentre.QueryAppearance();
             if (A.QueryRevision() != AppliedAppearanceRevision)
@@ -257,6 +264,16 @@ int main(int, char**)
                     Preferences.Access().Appearance = P;
                     if (!Preferences.Save()) std::cerr << "[Preferences] save failed: " << Preferences.QueryLastError() << "\n";
                 }
+                Surface.AssignPresentPacing(P.VerticalSync == Frontier::VerticalSyncCategory::Off      ? Frontier::PresentPacingCategory::VerticalSyncOff
+                                          : P.VerticalSync == Frontier::VerticalSyncCategory::Adaptive ? Frontier::PresentPacingCategory::VerticalSyncAdaptive
+                                                                                                        : Frontier::PresentPacingCategory::VerticalSyncOn);
+                Surface.AssignFullscreen(P.Fullscreen);
+                FrameCapSeconds = P.FrameCap == Frontier::FrameCapCategory::Cap60  ? 1.0f / 60.0f
+                                : P.FrameCap == Frontier::FrameCapCategory::Cap120 ? 1.0f / 120.0f
+                                : P.FrameCap == Frontier::FrameCapCategory::Cap144 ? 1.0f / 144.0f : 0.0f;
+                FixedRenderHeight = P.Resolution == Frontier::RenderResolutionCategory::Quad1440 ? 1440u
+                                  : P.Resolution == Frontier::RenderResolutionCategory::Full1080 ? 1080u
+                                  : P.Resolution == Frontier::RenderResolutionCategory::Half720  ? 720u : 0u;
                 char Body[128];
                 const Frontier::TypefaceFamily* Fam = Typefaces.QueryFamily(P.FontFamily);
                 std::snprintf(Body, sizeof(Body), "%s  |  %s  |  UI %d%%  |  radius %dpx  |  V-Sync %s%s",
@@ -283,7 +300,8 @@ int main(int, char**)
                       {
                           if (OverlaySurface.Begin(Frontier::SurfaceLayer::Above,
                                                    static_cast<float>(Surface.QueryWidth()),
-                                                   static_cast<float>(Surface.QueryHeight())))
+                                                   static_cast<float>(Surface.QueryHeight()),
+                                                   InterfaceScale))
                           {
                               // Scene overlays hang from the closed notch line; the pulled-down sheet covers the FPS
                               //    readout, while toasts are drawn after the shade so a settings change is acknowledged
@@ -298,9 +316,12 @@ int main(int, char**)
 
         // ④ Build dispatch configuration from live camera + integrator state (camera motion restarts accumulation)
         //    Render scale: the kernel runs on a sub-rectangle of the storage image and the blit stretches it.
+        //    Display → Resolution: Native follows the dashboard render-scale slider; a fixed preset renders at that
+        //    height (window aspect preserved), never above the swapchain size, and the scale slider still multiplies it.
         const float    RenderScale  = ControlCentre.QuerySettings().RenderScale;
-        const uint32_t RenderWidth  = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryWidth())  * RenderScale + 0.5f));
-        const uint32_t RenderHeight = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryHeight()) * RenderScale + 0.5f));
+        const float    FixedFactor  = FixedRenderHeight > 0u ? std::min(1.0f, static_cast<float>(FixedRenderHeight) / static_cast<float>(std::max(1u, Surface.QueryHeight()))) : 1.0f;
+        const uint32_t RenderWidth  = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryWidth())  * RenderScale * FixedFactor + 0.5f));
+        const uint32_t RenderHeight = std::max(1u, static_cast<uint32_t>(static_cast<float>(Surface.QueryHeight()) * RenderScale * FixedFactor + 0.5f));
         Integrator.ObserveCamera(Camera, RenderWidth, RenderHeight);
         const Frontier::DispatchConfiguration Dispatch = Integrator.BuildDispatch(
             Camera,
@@ -313,6 +334,16 @@ int main(int, char**)
         Surface.RecordAndPresent(Dispatch);
 
         Integrator.IncrementAccumulationIndex();
+
+        // Display → Frame Cap: sleep out the remainder of the frame budget (coarse sleep, then spin the last ~1 ms so
+        //    the cap holds on Windows' 1 ms timer granularity). Unlimited = 0 → no pacing.
+        if (FrameCapSeconds > 0.0f)
+        {
+            const auto Deadline = NowTime + std::chrono::duration_cast<Clock::duration>(Duration(FrameCapSeconds));
+            const auto Coarse   = Deadline - std::chrono::milliseconds(1);
+            if (Clock::now() < Coarse) std::this_thread::sleep_until(Coarse);
+            while (Clock::now() < Deadline) { }
+        }
 
         // Keep the on-disk telemetry current even if the process is killed mid-run.
         if ((Integrator.QueryAccumulationIndex() & 63u) == 0u) Logger.FlushSink();
