@@ -1,0 +1,14 @@
+[font_archive]
+family         = "Archivo"
+category       = "SansSerif"
+description    = "Technical & Solid"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "Archivo-Light.ttf"
+regular   = "Archivo-Regular.ttf"
+medium    = "Archivo-Medium.ttf"
+semi_bold = "Archivo-SemiBold.ttf"
+bold      = "Archivo-Bold.ttf"

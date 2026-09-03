@@ -1,0 +1,14 @@
+[font_archive]
+family         = "Poppins"
+category       = "SansSerif"
+description    = "Rounded & Friendly"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "Poppins-Light.ttf"
+regular   = "Poppins-Regular.ttf"
+medium    = "Poppins-Medium.ttf"
+semi_bold = "Poppins-SemiBold.ttf"
+bold      = "Poppins-Bold.ttf"

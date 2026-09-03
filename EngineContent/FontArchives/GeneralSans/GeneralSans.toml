@@ -1,0 +1,14 @@
+[font_archive]
+family         = "GeneralSans"
+category       = "SansSerif"
+description    = "Geometric & Neutral"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "GeneralSans-Light.ttf"
+regular   = "GeneralSans-Regular.ttf"
+medium    = "GeneralSans-Medium.ttf"
+semi_bold = "GeneralSans-SemiBold.ttf"
+bold      = "GeneralSans-Bold.ttf"

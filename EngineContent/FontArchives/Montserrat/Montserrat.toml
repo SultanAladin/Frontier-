@@ -1,0 +1,14 @@
+[font_archive]
+family         = "Montserrat"
+category       = "SansSerif"
+description    = "Geometric & Bold"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "Montserrat-Light.ttf"
+regular   = "Montserrat-Regular.ttf"
+medium    = "Montserrat-Medium.ttf"
+semi_bold = "Montserrat-SemiBold.ttf"
+bold      = "Montserrat-Bold.ttf"

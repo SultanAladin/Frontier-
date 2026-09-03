@@ -1,0 +1,14 @@
+[font_archive]
+family         = "SpaceGrotesk"
+category       = "SansSerif"
+description    = "Technical & Distinctive"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "SpaceGrotesk-Light.ttf"
+regular   = "SpaceGrotesk-Regular.ttf"
+medium    = "SpaceGrotesk-Medium.ttf"
+semi_bold = "SpaceGrotesk-SemiBold.ttf"
+bold      = "SpaceGrotesk-Bold.ttf"

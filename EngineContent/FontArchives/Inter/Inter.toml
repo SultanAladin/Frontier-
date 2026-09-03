@@ -1,0 +1,14 @@
+[font_archive]
+family         = "Inter"
+category       = "SansSerif"
+description    = "Author"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "Inter-Light.ttf"
+regular   = "Inter-Regular.ttf"
+medium    = "Inter-Medium.ttf"
+semi_bold = "Inter-SemiBold.ttf"
+bold      = "Inter-Bold.ttf"

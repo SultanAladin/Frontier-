@@ -1,0 +1,14 @@
+[font_archive]
+family         = "JetBrains Mono"
+category       = "Monospace"
+description    = "Monospaced Code"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "JetBrainsMono-Light.ttf"
+regular   = "JetBrainsMono-Regular.ttf"
+medium    = "JetBrainsMono-Medium.ttf"
+semi_bold = "JetBrainsMono-SemiBold.ttf"
+bold      = "JetBrainsMono-Bold.ttf"

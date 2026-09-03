@@ -1,0 +1,14 @@
+[font_archive]
+family         = "ClashDisplay"
+category       = "Display"
+description    = "Editorial & Expressive"
+format         = "TrueType"
+render_mode    = "MultiChannelSignedDistanceField"
+texture_extent = 1024
+
+[variants]
+light     = "ClashDisplay-Light.ttf"
+regular   = "ClashDisplay-Regular.ttf"
+medium    = "ClashDisplay-Medium.ttf"
+semi_bold = "ClashDisplay-SemiBold.ttf"
+bold      = "ClashDisplay-Bold.ttf"

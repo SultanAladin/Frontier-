@@ -1,0 +1,8 @@
+[shader_archive]
+name             = "ReSTIRViewport"
+category         = "Shader"
+compute_pipeline = "ReSTIRDIGIIntegration"
+
+[sources]
+glsl     = "ReSTIRViewport.glsl"
+spirv    = "ReSTIRViewport.spv"
