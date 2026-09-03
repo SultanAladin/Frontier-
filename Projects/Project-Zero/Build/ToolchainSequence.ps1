@@ -413,7 +413,7 @@ Import-ToolchainEnvironment
 $VulkanRoot = Resolve-VulkanRoot
 Write-Building "Vulkan SDK $VulkanRoot"
 
-# Ensure submodules are present
+# Ensure submodules are present — soft: if dirs already exist and git update fails, continue
 Write-Building 'Ensuring ExternalPackages submodules are initialised...'
 Push-Location $RepositoryRoot
 $SubmoduleList = @(
@@ -424,7 +424,25 @@ $SubmoduleList = @(
     'ExternalPackages/jolt'
 )
 & git submodule update --init --recursive -- $SubmoduleList
-if ($LASTEXITCODE -ne 0) { throw 'git submodule update failed' }
+if ($LASTEXITCODE -ne 0)
+{
+    # 💡 If the dirs already exist (manual clone / pre-populated checkout), treat as non-fatal.
+    $AllPresent = $true
+    foreach ($Sub in $SubmoduleList)
+    {
+        $SubPath = Join-Path $RepositoryRoot $Sub
+        if (-not (Test-Path (Join-Path $SubPath 'CMakeLists.txt')) -and
+            -not (Test-Path (Join-Path $SubPath 'imgui.h')) -and
+            -not (Test-Path (Join-Path $SubPath 'include')) -and
+            -not (Test-Path (Join-Path $SubPath 'inc')))
+        {
+            $AllPresent = $false
+            break
+        }
+    }
+    if (-not $AllPresent) { throw 'git submodule update failed and ExternalPackages directories are missing' }
+    Write-Skipped 'submodule update failed but directories are present — continuing'
+}
 Pop-Location
 
 # Build GLFW DLL if absent
