@@ -62,14 +62,14 @@ public:
     BuildRadianceStructures(const ProjectZero::RayTracingSolver& Scene) noexcept;
 
     // Mutable configuration — updated live by RenderScheduler
-    // 📝 Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
+    // Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
     void AssignCandidatesPerPixel(uint32_t Count) noexcept { if (ActiveConfiguration.CandidatesPerPixel != Count) { ActiveConfiguration.CandidatesPerPixel = Count; ResetAccumulation(); } }
     void AssignSpatialPassCount  (uint32_t Count) noexcept { if (ActiveConfiguration.SpatialPassCount   != Count) { ActiveConfiguration.SpatialPassCount   = Count; ResetAccumulation(); } }
     void AssignExposure          (float    Value) noexcept { if (ActiveConfiguration.Exposure            != Value) { ActiveConfiguration.Exposure            = Value; ResetAccumulation(); } }
 
     void ResetAccumulation() noexcept { AccumulationIndex = 0u; }
 
-    // 📝 Compares the camera pose against the one used for the running history; a moved or turned camera
+    // Compares the camera pose against the one used for the running history; a moved or turned camera
     //    (or a resized viewport) restarts accumulation so no stale radiance is blended in.
     void ObserveCamera(const ProjectZero::FlyThroughSolver& Camera, uint32_t ViewportWidth, uint32_t ViewportHeight) noexcept;
 

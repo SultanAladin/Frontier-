@@ -2,13 +2,13 @@
 // 📦 Engine/Shaders/ReSTIRViewport.slang — ReSTIR DI+GI Cornell Box Compute Shader Writing Directly to a Storage Image
 //============================================================================================================================================
 // NOTE: GLSL source lowered to SPIR-V by the build scripts (glslc -fshader-stage=compute --target-env=vulkan1.2 -I Engine).
-//       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping lives in Shaders/CameraRayGeneration.slang.
+//       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping lives in Shaders/RayGeneration.slang.
 
 #version 460
 #extension GL_GOOGLE_include_directive : require
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-#include "Shaders/CameraRayGeneration.slang"
+#include "Shaders/RayGeneration.slang"
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    STORAGE IMAGE OUTPUT
@@ -248,7 +248,7 @@ vec3 ToneMap(vec3 hdr)
 //------------------------------------------------------------------------------------------------------------------------
 //                                              TEMPORAL ACCUMULATION RESOLVE
 //------------------------------------------------------------------------------------------------------------------------
-// 📝 Running mean in linear radiance. AccumulationIndex == 0 restarts the history (camera moved / parameter changed);
+// Running mean in linear radiance. AccumulationIndex == 0 restarts the history (camera moved / parameter changed);
 //    every later frame folds the new estimate in with weight 1/(n+1). Tone mapping is applied to the mean only.
 
 void Resolve(uvec2 pixel, vec3 radiance)
@@ -273,7 +273,7 @@ void main()
     uint seed = MakeSeed(pixel, FrameIndex);
 
     //------------------------------------------------------------------------------------------------------------------
-    // 1. Generate primary ray — see CameraRayGeneration.slang for the World → Vulkan-image convention
+    // 1. Generate primary ray — see RayGeneration.slang for the World → Vulkan-image convention
     //------------------------------------------------------------------------------------------------------------------
     CameraBasis camera;
     camera.Origin     = CameraOrigin;
@@ -296,10 +296,9 @@ void main()
 
     if (!primaryHit.valid)
     {
-        // Sky / background — deep blue gradient
-        float skyT  = 0.5 * (primary.dir.z + 1.0);   // +Z is up
-        vec3  sky   = mix(vec3(0.05, 0.07, 0.12), vec3(0.10, 0.15, 0.28), skyT);
-        Resolve(pixel, sky);
+        // Background: pure black. There is no sky and no environment light in the Cornell scene; anything
+        // that is not the box must read as a miss, never as a colour.
+        Resolve(pixel, vec3(0.0));
         return;
     }
 

@@ -151,7 +151,7 @@ static std::filesystem::path QueryExecutableDirectory()
 #endif
 }
 
-// 📝 Resolves a repository-relative asset path. Order of preference:
+// Resolves a repository-relative asset path. Order of preference:
 //    ① relative to the current working directory (running from the repository root)
 //    ② next to the executable, then walking up its parents (double-clicking the .exe in Build\Output\...\Binary)
 static std::filesystem::path ResolveAssetPath(const std::string& RelativePath)
@@ -314,7 +314,7 @@ bool SwapchainExchange::Bring() noexcept
 
     tvg::Initializer::init(0u);
 
-    // 📝 Each stage reports its own failure reason to stderr; the name here tells the reader which one stopped.
+    // Each stage reports its own failure reason to stderr; the name here tells the reader which one stopped.
     struct Stage { const char* Name; bool (SwapchainExchange::*Fn)() noexcept; };
     const Stage Stages[] =
     {
@@ -514,7 +514,7 @@ bool SwapchainExchange::BringPhysicalDevice() noexcept
     std::vector<VkPhysicalDevice> Devices(DeviceCount);
     vkEnumeratePhysicalDevices(Vulkan->Instance, &DeviceCount, Devices.data());
 
-    // 📝 Pick the first device that owns a queue family able to do graphics + compute + present on our surface.
+    // Pick the first device that owns a queue family able to do graphics + compute + present on our surface.
     //    Discrete GPUs are preferred over integrated ones when both qualify.
     VkPhysicalDevice ChosenDevice = VK_NULL_HANDLE;
     uint32_t         ChosenFamily = 0u;
@@ -559,7 +559,7 @@ bool SwapchainExchange::BringPhysicalDevice() noexcept
     }
 
     Vulkan->PhysicalDevice = ChosenDevice;
-    // 📝 One family drives everything: the command pool, the submit queue and the present queue must agree,
+    // One family drives everything: the command pool, the submit queue and the present queue must agree,
     //    otherwise command buffers recorded from a compute-only pool would be submitted to a graphics queue.
     Vulkan->GraphicsFamily = ChosenFamily;
     Vulkan->ComputeFamily  = ChosenFamily;
@@ -604,7 +604,7 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     DeviceInfo.ppEnabledExtensionNames = DeviceExtensions;
     DeviceInfo.pEnabledFeatures        = &DeviceFeatures;
 
-    // 📝 Only request the feature when the driver actually offers it; requesting an unsupported
+    // Only request the feature when the driver actually offers it; requesting an unsupported
     //    feature makes vkCreateDevice fail with VK_ERROR_FEATURE_NOT_PRESENT.
     VkPhysicalDeviceFeatures Supported{};
     vkGetPhysicalDeviceFeatures(Vulkan->PhysicalDevice, &Supported);
@@ -684,7 +684,7 @@ bool SwapchainExchange::BringSwapchain() noexcept
     SwapchainInfo.imageColorSpace  = ChosenFormat.colorSpace;
     SwapchainInfo.imageExtent      = Vulkan->SwapchainExtent;
     SwapchainInfo.imageArrayLayers = 1u;
-    // 📝 The compute pass writes the private storage image; swapchain images only receive the blit
+    // The compute pass writes the private storage image; swapchain images only receive the blit
     //    and the ImGui colour pass, so STORAGE usage (not universally supported) is not requested.
     SwapchainInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
                                    | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -959,7 +959,7 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
         return false;
     }
 
-    // 📝 The scene SSBOs do not exist yet (UploadTriangles / UploadRadiance run after Bring()).
+    // The scene SSBOs do not exist yet (UploadTriangles / UploadRadiance run after Bring()).
     //    WriteDescriptorSet() only writes the bindings whose resources exist - writing a VK_NULL_HANDLE
     //    buffer into a descriptor is invalid and crashes most drivers when validation is off.
     WriteDescriptorSet();
@@ -1160,7 +1160,7 @@ void SwapchainExchange::UploadTriangles(const std::vector<TriangleIndex>& Triang
     Vulkan->TriangleMemory = VK_NULL_HANDLE;
 
     Vulkan->TriangleCount      = static_cast<uint32_t>(Triangles.size());
-    // 📝 A zero-sized buffer is invalid; keep at least one record so the SSBO binding is always valid.
+    // A zero-sized buffer is invalid; keep at least one record so the SSBO binding is always valid.
     const VkDeviceSize ByteCount = std::max<VkDeviceSize>(Triangles.size(), 1u) * sizeof(TriangleIndex);
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -1244,7 +1244,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
 
     if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer)
     {
-        // 📝 Descriptors for bindings 1/2 are unwritten until the scene is uploaded; dispatching now would be UB.
+        // Descriptors for bindings 1/2 are unwritten until the scene is uploaded; dispatching now would be UB.
         std::cerr << "[SwapchainExchange] RecordAndPresent called before UploadTriangles/UploadRadiance - frame skipped.\n";
         return;
     }
@@ -1257,7 +1257,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
 
     vkResetFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot]);
 
-    // 📝 The first touch of the acquired image is the blit (transfer stage), then the ImGui colour pass.
+    // The first touch of the acquired image is the blit (transfer stage), then the ImGui colour pass.
     VkPipelineStageFlags WaitStage = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo Submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
     Submit.waitSemaphoreCount   = 1u;
@@ -1527,7 +1527,7 @@ void SwapchainExchange::OnKey(GLFWwindow* Window, int Key, int, int Action, int)
 
     const bool Pressed = (Action == GLFW_PRESS || Action == GLFW_REPEAT);
 
-    // 📝 Text fields in the overlay own the keyboard while focused; releases always pass so nothing sticks.
+    // Text fields in the overlay own the keyboard while focused; releases always pass so nothing sticks.
     if (Pressed && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard) return;
 
     auto MapKey = [&](int GlfwKey, VirtualKeyCategory EngineKey)
@@ -1556,7 +1556,7 @@ void SwapchainExchange::OnMouseButton(GLFWwindow* Window, int Button, int Action
 
     const bool Pressed = (Action == GLFW_PRESS);
 
-    // 📝 A press that lands on the overlay belongs to the overlay; releases always pass so nothing sticks.
+    // A press that lands on the overlay belongs to the overlay; releases always pass so nothing sticks.
     if (Pressed && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;
 
     if (Button == GLFW_MOUSE_BUTTON_RIGHT)
@@ -1596,7 +1596,7 @@ void SwapchainExchange::OnScroll(GLFWwindow* Window, double, double OffsetY) noe
 {
     auto* Self = static_cast<SwapchainExchange*>(glfwGetWindowUserPointer(Window));
     if (!Self || !Self->ForwardInput) return;
-    if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;   // 📝 wheel over the overlay scrolls it, not the camera
+    if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;   // wheel over the overlay scrolls it, not the camera
     Self->ForwardInput->AssignMouseScroll(static_cast<float>(OffsetY));
 }
 
@@ -1605,7 +1605,7 @@ void SwapchainExchange::OnFocus(GLFWwindow* Window, int Focused) noexcept
     auto* Self = static_cast<SwapchainExchange*>(glfwGetWindowUserPointer(Window));
     if (!Self) return;
 
-    // 📝 Losing focus while a key or button is held means GLFW will never deliver the release; clear
+    // Losing focus while a key or button is held means GLFW will never deliver the release; clear
     //    everything so the camera does not keep flying / steering when the user Alt-Tabs back.
     if (!Focused)
     {

@@ -21,7 +21,7 @@ bool MotionIntegrator::Advance(double Elapsed) noexcept
 {
     if (Elapsed <= 0.0) return Moving();
 
-    // 📝 Clamp a stalled frame so the shade does not teleport when the window was being dragged.
+    // Clamp a stalled frame so the shade does not teleport when the window was being dragged.
     Elapsed = std::min(Elapsed, 0.1);
 
     bool AnyMoving = false;

@@ -140,7 +140,7 @@ Compiled conditionally with `#ifdef FRONTIER_DEVELOPMENT`.
   - **Angles**: **Radians ($[rad]$)** for mathematical calculation, degrees ($[deg]$) only for human-facing UI input.
 - **Vulkan Projection Mapping (World → Vulkan image)**:
   - Vulkan NDC has clip $Z \in [0, 1]$ and inverted $Y$. Projections in `CameraProjection` and shaders map from Right-Handed $Z$-up World Space into Vulkan clip coordinates with appropriate depth clamping and $Y$-inversion.
-  - The single authoritative translation lives in `Engine/Shaders/CameraRayGeneration.slang` (`GeneratePrimaryRay`) and its CPU twin in `CameraProjection`. World basis: Right $=+X$, Forward $=+Y$, Up $=+Z$. Vulkan image basis: $x$ right, $y$ **down**, origin top-left, $(u,v)=(\text{pixel}+0.5)/\text{extent}$, $\text{ndc}=(2u-1,\;1-2v)$. A ray direction is therefore $\text{Forward}\cdot f + \text{Right}\cdot\text{ndc}_x\cdot a + \text{Up}\cdot\text{ndc}_y$ — the $Y$ flip happens **once**, in the NDC construction, and nowhere else. No project may re-derive this mapping; include the shared shader.
+  - The single authoritative translation lives in `Engine/Shaders/RayGeneration.slang` (`GeneratePrimaryRay`) and its CPU twin in `CameraProjection`. World basis: Right $=+X$, Forward $=+Y$, Up $=+Z$. Vulkan image basis: $x$ right, $y$ **down**, origin top-left, $(u,v)=(\text{pixel}+0.5)/\text{extent}$, $\text{ndc}=(2u-1,\;1-2v)$. A ray direction is therefore $\text{Forward}\cdot f + \text{Right}\cdot\text{ndc}_x\cdot a + \text{Up}\cdot\text{ndc}_y$ — the $Y$ flip happens **once**, in the NDC construction, and nowhere else. No project may re-derive this mapping; include the shared shader.
 
 ---
 

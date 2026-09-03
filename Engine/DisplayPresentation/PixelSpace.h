@@ -1,10 +1,10 @@
 //============================================================================================================================================
-//                                                       RECORDINGSURFACE.H
+//                                                       PIXELSPACE.H
 //============================================================================================================================================
 // 🧩 Primitives in, recorded draw commands out — the one seam between engine UI hosts and the immediate-mode backend.
 //    Hosts (ControlCentreHost, future panels) speak only in pixels and colours; nothing above this header names ImGui.
 //
-// 📐 Coordinate convention: display pixels, origin top-left, +X right, +Y DOWN. This matches the Vulkan swapchain
+// Coordinate convention: display pixels, origin top-left, +X right, +Y DOWN. This matches the Vulkan swapchain
 //    image the overlay is composited onto; it is unrelated to the world-space convention in CLAUDE.md §7.
 
 #pragma once
@@ -62,16 +62,16 @@ enum class SurfaceLayer : uint32_t
 //                                                   RECORDING SURFACE
 //------------------------------------------------------------------------------------------------------------------------
 
-class RecordingSurface
+class PixelSpace
 {
 public:
-    RecordingSurface() noexcept;
-    ~RecordingSurface() noexcept = default;
+    PixelSpace() noexcept;
+    ~PixelSpace() noexcept = default;
 
-    RecordingSurface(const RecordingSurface&)            = delete;
-    RecordingSurface& operator=(const RecordingSurface&) = delete;
+    PixelSpace(const PixelSpace&)            = delete;
+    PixelSpace& operator=(const PixelSpace&) = delete;
 
-    // 📝 Must be called once per frame after ImGui::NewFrame() and before ImGui::Render(); selects the draw list.
+    // Must be called once per frame after ImGui::NewFrame() and before ImGui::Render(); selects the draw list.
     //    Returns false when no ImGui context exists (e.g. headless proof generation without a backend).
     bool Begin(SurfaceLayer Layer, float DisplayWidth, float DisplayHeight) noexcept;
 

@@ -40,7 +40,7 @@ void RayTracingSolver::ConstructCornellBoxScene() noexcept
     // Material 5: Short Box (cool white diffuse)
     Materials.push_back(AnalyticalMaterial{ Vector3{ 0.78f, 0.78f, 0.78f }, Vector3{ 0.0f, 0.0f, 0.0f }, 0.4f, 0.0f, 5 });
 
-    // 📐 Cornell Box in the engine's right-handed Z-up world (CLAUDE.md §7):
+    // Cornell Box in the engine's right-handed Z-up world (CLAUDE.md §7):
     //      X ∈ [−1, +1]  right / east       (red wall at X = −1, green wall at X = +1)
     //      Y ∈ [ 0, +2]  forward / north    (open front at Y = 0, back wall at Y = +2)
     //      Z ∈ [ 0, +2]  up / zenith        (floor at Z = 0, ceiling + luminaire at Z = +2)
@@ -91,7 +91,7 @@ void RayTracingSolver::AppendQuad(const Vector3& v0, const Vector3& v1, const Ve
 
 void RayTracingSolver::AppendBox(const Vector3& Center, const Vector3& Extents, float RotationDegrees, uint32_t MaterialIdx) noexcept
 {
-    // 📐 Z-up: the box is rotated about the vertical (+Z) axis; Extents = half-sizes (X, Y, Z).
+    // Z-up: the box is rotated about the vertical (+Z) axis; Extents = half-sizes (X, Y, Z).
     float Rad = RotationDegrees * 3.14159265359f / 180.0f;
     float CosAngle = std::cos(Rad);
     float SinAngle = std::sin(Rad);

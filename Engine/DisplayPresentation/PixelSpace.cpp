@@ -1,9 +1,9 @@
 //============================================================================================================================================
-//                                                      RECORDINGSURFACE.CPP
+//                                                      PIXELSPACE.CPP
 //============================================================================================================================================
 // 🧩 The only translation unit in DisplayPresentation that spells ImGui. Everything above hands in pixels and colours.
 
-#include "RecordingSurface.h"
+#include "PixelSpace.h"
 
 #include <imgui.h>
 #include <vector>
@@ -32,14 +32,14 @@ ImU32 Pack(ColorQuad Colour) noexcept
 //                                                     LIFECYCLE
 //------------------------------------------------------------------------------------------------------------------------
 
-RecordingSurface::RecordingSurface() noexcept
+PixelSpace::PixelSpace() noexcept
     : Commands(nullptr)
     , DisplayWidth(0.0f)
     , DisplayHeight(0.0f)
 {
 }
 
-bool RecordingSurface::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplayHeight) noexcept
+bool PixelSpace::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplayHeight) noexcept
 {
     DisplayWidth  = InDisplayWidth;
     DisplayHeight = InDisplayHeight;
@@ -50,7 +50,7 @@ bool RecordingSurface::Begin(SurfaceLayer Layer, float InDisplayWidth, float InD
         return false;
     }
 
-    // 📝 The foreground list sits in front of every ImGui window, so the notch and its shade cover the
+    // The foreground list sits in front of every ImGui window, so the notch and its shade cover the
     //    project's own panels when pulled down — exactly what a system overlay should do.
     Commands = (Layer == SurfaceLayer::Above)
              ? static_cast<void*>(ImGui::GetForegroundDrawList())
@@ -62,7 +62,7 @@ bool RecordingSurface::Begin(SurfaceLayer Layer, float InDisplayWidth, float InD
 //                                                     PRIMITIVES
 //------------------------------------------------------------------------------------------------------------------------
 
-void RecordingSurface::FillRectangle(const PlaneExtent& Extent, ColorQuad Colour, float Radius) noexcept
+void PixelSpace::FillRectangle(const PlaneExtent& Extent, ColorQuad Colour, float Radius) noexcept
 {
     if (!Commands) return;
     List(Commands)->AddRectFilled(ImVec2(Extent.MinimumX, Extent.MinimumY),
@@ -70,11 +70,11 @@ void RecordingSurface::FillRectangle(const PlaneExtent& Extent, ColorQuad Colour
                                   Pack(Colour), Radius);
 }
 
-void RecordingSurface::FillPolygon(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour) noexcept
+void PixelSpace::FillPolygon(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour) noexcept
 {
     if (!Commands || PointCount < 3u) return;
 
-    // 📝 ImGui's AddConvexPolyFilled produces artefacts on concave outlines; the notch is concave (it narrows
+    // ImGui's AddConvexPolyFilled produces artefacts on concave outlines; the notch is concave (it narrows
     //    toward the bottom), so the concave-capable path is used. It expects ImVec2 storage.
     std::vector<ImVec2> Converted;
     Converted.reserve(PointCount);
@@ -88,7 +88,7 @@ void RecordingSurface::FillPolygon(const PlanePoint* Points, uint32_t PointCount
 #endif
 }
 
-void RecordingSurface::StrokePolyline(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour, float Thickness, bool Closed) noexcept
+void PixelSpace::StrokePolyline(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour, float Thickness, bool Closed) noexcept
 {
     if (!Commands || PointCount < 2u) return;
 
@@ -101,7 +101,7 @@ void RecordingSurface::StrokePolyline(const PlanePoint* Points, uint32_t PointCo
                                 Closed ? ImDrawFlags_Closed : ImDrawFlags_None, Thickness);
 }
 
-void RecordingSurface::Text(float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels) noexcept
+void PixelSpace::Text(float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels) noexcept
 {
     if (!Commands || !Utf8) return;
     ImFont* Font = ImGui::GetFont();
@@ -113,7 +113,7 @@ void RecordingSurface::Text(float X, float Y, ColorQuad Colour, const char* Utf8
 //                                                     MEASUREMENT
 //------------------------------------------------------------------------------------------------------------------------
 
-PlanePoint RecordingSurface::MeasureText(const char* Utf8, float FontSizePixels) const noexcept
+PlanePoint PixelSpace::MeasureText(const char* Utf8, float FontSizePixels) const noexcept
 {
     if (ImGui::GetCurrentContext() == nullptr || !Utf8) return {};
     ImFont* Font = ImGui::GetFont();

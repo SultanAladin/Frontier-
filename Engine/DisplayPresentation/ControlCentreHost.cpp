@@ -51,7 +51,7 @@ ControlCentreHost::ControlCentreHost() noexcept
     NotchChannel = Motion.Register(0.0);
     SlideChannel = Motion.Register(0.0);
 
-    ActiveTheme.AssignTheme(ThemeCategory::Dark);   // 📝 dark is the default per direction; palette below
+    ActiveTheme.AssignTheme(ThemeCategory::Dark);   // dark is the default per direction; palette below
 }
 
 bool ControlCentreHost::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) noexcept
@@ -82,7 +82,7 @@ void ControlCentreHost::Resize(uint32_t DesiredWidth, uint32_t DesiredHeight) no
     DisplayWidth  = std::max(1u, DesiredWidth);
     DisplayHeight = std::max(1u, DesiredHeight);
 
-    // 📝 Keep an open shade open at the new height and the notch inside the new admissible travel.
+    // Keep an open shade open at the new height and the notch inside the new admissible travel.
     if (WasOpen) Motion.Spring(ShadeChannel).Place(OpenTravel());
     SpringChannel& Notch = Motion.Spring(NotchChannel);
     const double Admissible = NotchAdmissible();
@@ -242,7 +242,7 @@ void ControlCentreHost::Grab(GrabSubject Subject, float CursorX, float CursorY) 
 
     if (Subject == GrabSubject::Notch)
     {
-        // 📝 Pin both springs where they stand; the pointer owns them until release.
+        // Pin both springs where they stand; the pointer owns them until release.
         Motion.Spring(ShadeChannel).Place(GrabShadeY);
         Motion.Spring(NotchChannel).Place(GrabNotchX);
         Pose = ControlCentreHostState::Dragging;
@@ -251,7 +251,7 @@ void ControlCentreHost::Grab(GrabSubject Subject, float CursorX, float CursorY) 
 
 void ControlCentreHost::Carry(float CursorX, float CursorY, float DeltaSeconds) noexcept
 {
-    // 📐 Pointer velocity estimate (px/s), smoothed with 60 % retention of the previous tick's estimate.
+    // Pointer velocity estimate (px/s), smoothed with 60 % retention of the previous tick's estimate.
     if (DeltaSeconds > 0.0f)
     {
         const double InstantX = static_cast<double>(CursorX - PreviousCursorX) / DeltaSeconds;
@@ -268,7 +268,7 @@ void ControlCentreHost::Carry(float CursorX, float CursorY, float DeltaSeconds) 
     if (!TravelExceeded && (std::fabs(TravelX) > TapTravelLimit || std::fabs(TravelY) > TapTravelLimit))
         TravelExceeded = true;
 
-    // 📐 The axis is decided ONCE, on the first travel that clears the tap ceiling, by the larger displacement.
+    // The axis is decided ONCE, on the first travel that clears the tap ceiling, by the larger displacement.
     //    Deciding per tick makes a diagonal drag alternate between sliding the notch and opening the shade.
     if (!AxisResolved && TravelExceeded)
     {
@@ -299,14 +299,14 @@ void ControlCentreHost::Relinquish() noexcept
 
     if (GrabbedSubject == GrabSubject::Scrim)
     {
-        // 📝 A tap on the scrim while open closes the shade. A drag that started on the scrim does nothing.
+        // A tap on the scrim while open closes the shade. A drag that started on the scrim does nothing.
         if (Tap && IsOpen()) Depart(false);
     }
     else if (GrabbedSubject == GrabSubject::Notch)
     {
         if (Tap)
         {
-            // 📝 A notch that cannot be tapped is a notch the user reports as dead.
+            // A notch that cannot be tapped is a notch the user reports as dead.
             Depart(!OpenBeforeGrab);
         }
         else if (!YDominant)
@@ -333,7 +333,7 @@ void ControlCentreHost::Relinquish() noexcept
 
             Depart(Opening);
 
-            // 📐 The release's own rate is injected rather than discarded: a spring departing from rest
+            // The release's own rate is injected rather than discarded: a spring departing from rest
             //    arrives visibly later than the flick that asked for it.
             Motion.Spring(ShadeChannel).Rate = RateY;
         }
@@ -371,7 +371,7 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
     if (Released)
         Relinquish();
 
-    // 📝 The overlay owns the pointer while it is over the notch, over the pulled-down shade, or during a grab —
+    // The overlay owns the pointer while it is over the notch, over the pulled-down shade, or during a grab —
     //    hosts use this to keep the pointer away from the scene camera / project panels.
     PointerWithheld = Hovered || Grabbed || ShadeOpenish;
 
@@ -397,7 +397,7 @@ void ControlCentreHost::AdvanceLocomotion(float DeltaSeconds) noexcept
 //                                                       RECORDING
 //------------------------------------------------------------------------------------------------------------------------
 
-void ControlCentreHost::Record(RecordingSurface& Surface) const noexcept
+void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) const noexcept
 {
     if (!InitializedCondition || !Surface.IsRecording()) return;
 
@@ -406,7 +406,7 @@ void ControlCentreHost::Record(RecordingSurface& Surface) const noexcept
     const float ShadeY = QueryCurrentHeight();                    // lower edge of the sheet / top of the notch
     const float NotchX = QueryHandleX();
 
-    // 📐 ArcNotch.tsx hard-codes the sheet and notch to #0A0A0B and the caption to text-white/50 regardless of
+    // ArcNotch.tsx hard-codes the sheet and notch to #0A0A0B and the caption to text-white/50 regardless of
     //    the selected theme (the theme only recolours the cards inside the shade). Reproduced verbatim.
     constexpr ColorQuad Sheet{ 10.0f / 255.0f, 10.0f / 255.0f, 11.0f / 255.0f, 1.0f };   // #0A0A0B
     constexpr ColorQuad Label{ 1.0f, 1.0f, 1.0f, 0.5f };                                  // white / 50

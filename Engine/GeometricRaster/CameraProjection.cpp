@@ -63,7 +63,7 @@ void CameraProjection::AssignOrientationEuler(float InPitch, float InYaw, float 
     constexpr float MaxPitch = 89.0f * (3.14159265359f / 180.0f);
     constexpr float TwoPi    = 2.0f * 3.14159265359f;
     PitchRadians = std::clamp(InPitch, -MaxPitch, MaxPitch);
-    // 📝 Wrap yaw into (−π, π] so it never grows unbounded (precision loss, unreadable telemetry).
+    // Wrap yaw into (−π, π] so it never grows unbounded (precision loss, unreadable telemetry).
     YawRadians   = InYaw - TwoPi * std::floor((InYaw + 3.14159265359f) / TwoPi);
     RollRadians  = InRoll;
     RecomputeDirectionalVectors();
@@ -86,10 +86,10 @@ void CameraProjection::RecomputeDirectionalVectors() noexcept
     float CosYaw   = std::cos(YawRadians);
     float SinYaw   = std::sin(YawRadians);
 
-    // 📐 Right-handed, +Z up (CLAUDE.md §7): yaw 0 / pitch 0 looks along +Y (north); positive yaw turns
+    // Right-handed, +Z up (CLAUDE.md §7): yaw 0 / pitch 0 looks along +Y (north); positive yaw turns
     //    toward +X (east, clockwise seen from above); positive pitch looks up toward +Z.
     //    Right = Forward × WorldUp, Up = Right × Forward. These three vectors are the "View" basis consumed by
-    //    Engine/Shaders/CameraRayGeneration.slang, which performs the single World → Vulkan-image mapping
+    //    Engine/Shaders/RayGeneration.slang, which performs the single World → Vulkan-image mapping
     //    (Vulkan image y grows downward; the shader maps the top pixel row to +Up — no further flip anywhere).
     ForwardVector = Vector3{ SinYaw * CosPitch, CosYaw * CosPitch, SinPitch }.Normalized();
     Vector3 WorldUp{ 0.0f, 0.0f, 1.0f }; // Strict +Z Upward Axis

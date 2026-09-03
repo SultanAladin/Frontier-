@@ -1,7 +1,7 @@
 From 52e8ce8022df14c1eff148f523948b73541d1859 Mon Sep 17 00:00:00 2001
 From: Arena Agent <agent@arena.ai>
 Date: Thu, 3 Sep 2026 18:45:51 +0000
-Subject: [PATCH] Step 0/1: RH Z-up camera ray generation, Cornell Z-up,
+Subject: [PATCH 1/2] Step 0/1: RH Z-up camera ray generation, Cornell Z-up,
  temporal accumulation, input polish; Control Centre notch (Notch 1:1 shape,
  drag/spring/slide, Notch release rules); CLAUDE.md 7/12; headless proof
  harness
@@ -7088,6 +7088,917 @@ index 0000000..c2b58e6
 +    ImGui::DestroyContext();
 +    return 0;
 +}
+-- 
+2.39.5
+
+
+From 2900ff1e75836126ebaf2d2f751e1f6586bffad7 Mon Sep 17 00:00:00 2001
+From: Arena Agent <agent@arena.ai>
+Date: Thu, 3 Sep 2026 18:56:07 +0000
+Subject: [PATCH 2/2] Rename RecordingSurface->PixelSpace,
+ CameraRayGeneration->RayGeneration, Record->ConstructControlLayout; strip
+ unauthorised emoji; black background instead of sky
+
+---
+ CLAUDE.md                                     |  2 +-
+ CMakeLists.txt                                |  2 +-
+ Engine/DeviceExchange/InputExchange.h         |  8 +++---
+ Engine/DeviceExchange/SwapchainExchange.cpp   | 28 +++++++++----------
+ Engine/DeviceExchange/SwapchainExchange.h     | 10 +++----
+ .../DisplayPresentation/ControlCentreHost.cpp | 22 +++++++--------
+ .../DisplayPresentation/ControlCentreHost.h   |  8 +++---
+ .../DisplayPresentation/MotionIntegrator.cpp  |  2 +-
+ Engine/DisplayPresentation/MotionIntegrator.h | 10 +++----
+ .../{RecordingSurface.cpp => PixelSpace.cpp}  | 22 +++++++--------
+ .../{RecordingSurface.h => PixelSpace.h}      | 16 +++++------
+ Engine/DisplayPresentation/ReSTIRIntegrator.h |  4 +--
+ Engine/DisplayPresentation/RenderScheduler.h  |  2 +-
+ Engine/GeometricRaster/CameraProjection.cpp   |  6 ++--
+ ...ayGeneration.slang => RayGeneration.slang} |  6 ++--
+ Engine/Shaders/ReSTIRViewport.slang           | 15 +++++-----
+ .../Project-Zero/Build/ToolchainSequence.ps1  |  4 +--
+ .../Project-Zero/Source/GameExecution.cpp     | 12 ++++----
+ .../Project-Zero/Source/RayTracingSolver.cpp  |  4 +--
+ Scratchpad/GenerateControlCentreProof.cpp     | 12 ++++----
+ imgui.ini                                     |  4 +++
+ 21 files changed, 101 insertions(+), 98 deletions(-)
+ rename Engine/DisplayPresentation/{RecordingSurface.cpp => PixelSpace.cpp} (80%)
+ rename Engine/DisplayPresentation/{RecordingSurface.h => PixelSpace.h} (90%)
+ rename Engine/Shaders/{CameraRayGeneration.slang => RayGeneration.slang} (92%)
+ create mode 100644 imgui.ini
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 5d936d1..329377e 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -140,7 +140,7 @@ Compiled conditionally with `#ifdef FRONTIER_DEVELOPMENT`.
+   - **Angles**: **Radians ($[rad]$)** for mathematical calculation, degrees ($[deg]$) only for human-facing UI input.
+ - **Vulkan Projection Mapping (World → Vulkan image)**:
+   - Vulkan NDC has clip $Z \in [0, 1]$ and inverted $Y$. Projections in `CameraProjection` and shaders map from Right-Handed $Z$-up World Space into Vulkan clip coordinates with appropriate depth clamping and $Y$-inversion.
+-  - The single authoritative translation lives in `Engine/Shaders/CameraRayGeneration.slang` (`GeneratePrimaryRay`) and its CPU twin in `CameraProjection`. World basis: Right $=+X$, Forward $=+Y$, Up $=+Z$. Vulkan image basis: $x$ right, $y$ **down**, origin top-left, $(u,v)=(\text{pixel}+0.5)/\text{extent}$, $\text{ndc}=(2u-1,\;1-2v)$. A ray direction is therefore $\text{Forward}\cdot f + \text{Right}\cdot\text{ndc}_x\cdot a + \text{Up}\cdot\text{ndc}_y$ — the $Y$ flip happens **once**, in the NDC construction, and nowhere else. No project may re-derive this mapping; include the shared shader.
++  - The single authoritative translation lives in `Engine/Shaders/RayGeneration.slang` (`GeneratePrimaryRay`) and its CPU twin in `CameraProjection`. World basis: Right $=+X$, Forward $=+Y$, Up $=+Z$. Vulkan image basis: $x$ right, $y$ **down**, origin top-left, $(u,v)=(\text{pixel}+0.5)/\text{extent}$, $\text{ndc}=(2u-1,\;1-2v)$. A ray direction is therefore $\text{Forward}\cdot f + \text{Right}\cdot\text{ndc}_x\cdot a + \text{Up}\cdot\text{ndc}_y$ — the $Y$ flip happens **once**, in the NDC construction, and nowhere else. No project may re-derive this mapping; include the shared shader.
+ 
+ ---
+ 
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c81d2c0..803baae 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -175,7 +175,7 @@ set(FRONTIER_ENGINE_SOURCES
+     Engine/DisplayPresentation/VectorCodec.cpp
+     Engine/DisplayPresentation/FontCodec.cpp
+     Engine/DisplayPresentation/ControlCentreHost.cpp
+-    Engine/DisplayPresentation/RecordingSurface.cpp
++    Engine/DisplayPresentation/PixelSpace.cpp
+     Engine/DisplayPresentation/MotionIntegrator.cpp
+     Engine/DisplayPresentation/WorkspaceHost.cpp
+     Engine/DisplayPresentation/CycleScheduler.cpp
+diff --git a/Engine/DeviceExchange/InputExchange.h b/Engine/DeviceExchange/InputExchange.h
+index 528797d..632cff3 100644
+--- a/Engine/DeviceExchange/InputExchange.h
++++ b/Engine/DeviceExchange/InputExchange.h
+@@ -168,10 +168,10 @@ public:
+     void                    AssignCursorDelta(float DeltaX, float DeltaY) noexcept;
+     void                    AssignCursorPosition(float PositionX, float PositionY) noexcept;
+     void                    AssignMouseButton(MouseButtonCategory Button, bool Pressed) noexcept;
+-    void                    AssignMouseScroll(float ScrollDelta) noexcept;   // 📝 accumulates within a frame
+-    void                    ResetCursorDelta() noexcept;                     // 📝 call once per frame before polling
+-    void                    ResetMouseScroll() noexcept;                     // 📝 call once per frame before polling
+-    void                    ReleaseAllInputs() noexcept;                     // 📝 focus loss: every key/button up
++    void                    AssignMouseScroll(float ScrollDelta) noexcept;   // accumulates within a frame
++    void                    ResetCursorDelta() noexcept;                     // call once per frame before polling
++    void                    ResetMouseScroll() noexcept;                     // call once per frame before polling
++    void                    ReleaseAllInputs() noexcept;                     // focus loss: every key/button up
+     void                    AssignGamepadAxis(float LeftX, float LeftY, float RightX, float RightY, float LeftTrig, float RightTrig) noexcept;
+ 
+     [[nodiscard]] bool      IsKeyPressed(VirtualKeyCategory Key) const noexcept;
+diff --git a/Engine/DeviceExchange/SwapchainExchange.cpp b/Engine/DeviceExchange/SwapchainExchange.cpp
+index 91439a6..25183dc 100644
+--- a/Engine/DeviceExchange/SwapchainExchange.cpp
++++ b/Engine/DeviceExchange/SwapchainExchange.cpp
+@@ -151,7 +151,7 @@ static std::filesystem::path QueryExecutableDirectory()
+ #endif
+ }
+ 
+-// 📝 Resolves a repository-relative asset path. Order of preference:
++// Resolves a repository-relative asset path. Order of preference:
+ //    ① relative to the current working directory (running from the repository root)
+ //    ② next to the executable, then walking up its parents (double-clicking the .exe in Build\Output\...\Binary)
+ static std::filesystem::path ResolveAssetPath(const std::string& RelativePath)
+@@ -314,7 +314,7 @@ bool SwapchainExchange::Bring() noexcept
+ 
+     tvg::Initializer::init(0u);
+ 
+-    // 📝 Each stage reports its own failure reason to stderr; the name here tells the reader which one stopped.
++    // Each stage reports its own failure reason to stderr; the name here tells the reader which one stopped.
+     struct Stage { const char* Name; bool (SwapchainExchange::*Fn)() noexcept; };
+     const Stage Stages[] =
+     {
+@@ -514,7 +514,7 @@ bool SwapchainExchange::BringPhysicalDevice() noexcept
+     std::vector<VkPhysicalDevice> Devices(DeviceCount);
+     vkEnumeratePhysicalDevices(Vulkan->Instance, &DeviceCount, Devices.data());
+ 
+-    // 📝 Pick the first device that owns a queue family able to do graphics + compute + present on our surface.
++    // Pick the first device that owns a queue family able to do graphics + compute + present on our surface.
+     //    Discrete GPUs are preferred over integrated ones when both qualify.
+     VkPhysicalDevice ChosenDevice = VK_NULL_HANDLE;
+     uint32_t         ChosenFamily = 0u;
+@@ -559,7 +559,7 @@ bool SwapchainExchange::BringPhysicalDevice() noexcept
+     }
+ 
+     Vulkan->PhysicalDevice = ChosenDevice;
+-    // 📝 One family drives everything: the command pool, the submit queue and the present queue must agree,
++    // One family drives everything: the command pool, the submit queue and the present queue must agree,
+     //    otherwise command buffers recorded from a compute-only pool would be submitted to a graphics queue.
+     Vulkan->GraphicsFamily = ChosenFamily;
+     Vulkan->ComputeFamily  = ChosenFamily;
+@@ -604,7 +604,7 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
+     DeviceInfo.ppEnabledExtensionNames = DeviceExtensions;
+     DeviceInfo.pEnabledFeatures        = &DeviceFeatures;
+ 
+-    // 📝 Only request the feature when the driver actually offers it; requesting an unsupported
++    // Only request the feature when the driver actually offers it; requesting an unsupported
+     //    feature makes vkCreateDevice fail with VK_ERROR_FEATURE_NOT_PRESENT.
+     VkPhysicalDeviceFeatures Supported{};
+     vkGetPhysicalDeviceFeatures(Vulkan->PhysicalDevice, &Supported);
+@@ -684,7 +684,7 @@ bool SwapchainExchange::BringSwapchain() noexcept
+     SwapchainInfo.imageColorSpace  = ChosenFormat.colorSpace;
+     SwapchainInfo.imageExtent      = Vulkan->SwapchainExtent;
+     SwapchainInfo.imageArrayLayers = 1u;
+-    // 📝 The compute pass writes the private storage image; swapchain images only receive the blit
++    // The compute pass writes the private storage image; swapchain images only receive the blit
+     //    and the ImGui colour pass, so STORAGE usage (not universally supported) is not requested.
+     SwapchainInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                                    | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+@@ -959,7 +959,7 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
+         return false;
+     }
+ 
+-    // 📝 The scene SSBOs do not exist yet (UploadTriangles / UploadRadiance run after Bring()).
++    // The scene SSBOs do not exist yet (UploadTriangles / UploadRadiance run after Bring()).
+     //    WriteDescriptorSet() only writes the bindings whose resources exist - writing a VK_NULL_HANDLE
+     //    buffer into a descriptor is invalid and crashes most drivers when validation is off.
+     WriteDescriptorSet();
+@@ -1160,7 +1160,7 @@ void SwapchainExchange::UploadTriangles(const std::vector<TriangleIndex>& Triang
+     Vulkan->TriangleMemory = VK_NULL_HANDLE;
+ 
+     Vulkan->TriangleCount      = static_cast<uint32_t>(Triangles.size());
+-    // 📝 A zero-sized buffer is invalid; keep at least one record so the SSBO binding is always valid.
++    // A zero-sized buffer is invalid; keep at least one record so the SSBO binding is always valid.
+     const VkDeviceSize ByteCount = std::max<VkDeviceSize>(Triangles.size(), 1u) * sizeof(TriangleIndex);
+     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+@@ -1244,7 +1244,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch)
+ 
+     if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer)
+     {
+-        // 📝 Descriptors for bindings 1/2 are unwritten until the scene is uploaded; dispatching now would be UB.
++        // Descriptors for bindings 1/2 are unwritten until the scene is uploaded; dispatching now would be UB.
+         std::cerr << "[SwapchainExchange] RecordAndPresent called before UploadTriangles/UploadRadiance - frame skipped.\n";
+         return;
+     }
+@@ -1257,7 +1257,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch)
+ 
+     vkResetFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot]);
+ 
+-    // 📝 The first touch of the acquired image is the blit (transfer stage), then the ImGui colour pass.
++    // The first touch of the acquired image is the blit (transfer stage), then the ImGui colour pass.
+     VkPipelineStageFlags WaitStage = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+     VkSubmitInfo Submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+     Submit.waitSemaphoreCount   = 1u;
+@@ -1527,7 +1527,7 @@ void SwapchainExchange::OnKey(GLFWwindow* Window, int Key, int, int Action, int)
+ 
+     const bool Pressed = (Action == GLFW_PRESS || Action == GLFW_REPEAT);
+ 
+-    // 📝 Text fields in the overlay own the keyboard while focused; releases always pass so nothing sticks.
++    // Text fields in the overlay own the keyboard while focused; releases always pass so nothing sticks.
+     if (Pressed && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard) return;
+ 
+     auto MapKey = [&](int GlfwKey, VirtualKeyCategory EngineKey)
+@@ -1556,7 +1556,7 @@ void SwapchainExchange::OnMouseButton(GLFWwindow* Window, int Button, int Action
+ 
+     const bool Pressed = (Action == GLFW_PRESS);
+ 
+-    // 📝 A press that lands on the overlay belongs to the overlay; releases always pass so nothing sticks.
++    // A press that lands on the overlay belongs to the overlay; releases always pass so nothing sticks.
+     if (Pressed && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;
+ 
+     if (Button == GLFW_MOUSE_BUTTON_RIGHT)
+@@ -1596,7 +1596,7 @@ void SwapchainExchange::OnScroll(GLFWwindow* Window, double, double OffsetY) noe
+ {
+     auto* Self = static_cast<SwapchainExchange*>(glfwGetWindowUserPointer(Window));
+     if (!Self || !Self->ForwardInput) return;
+-    if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;   // 📝 wheel over the overlay scrolls it, not the camera
++    if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;   // wheel over the overlay scrolls it, not the camera
+     Self->ForwardInput->AssignMouseScroll(static_cast<float>(OffsetY));
+ }
+ 
+@@ -1605,7 +1605,7 @@ void SwapchainExchange::OnFocus(GLFWwindow* Window, int Focused) noexcept
+     auto* Self = static_cast<SwapchainExchange*>(glfwGetWindowUserPointer(Window));
+     if (!Self) return;
+ 
+-    // 📝 Losing focus while a key or button is held means GLFW will never deliver the release; clear
++    // Losing focus while a key or button is held means GLFW will never deliver the release; clear
+     //    everything so the camera does not keep flying / steering when the user Alt-Tabs back.
+     if (!Focused)
+     {
+diff --git a/Engine/DeviceExchange/SwapchainExchange.h b/Engine/DeviceExchange/SwapchainExchange.h
+index 3b781ea..f163dda 100644
+--- a/Engine/DeviceExchange/SwapchainExchange.h
++++ b/Engine/DeviceExchange/SwapchainExchange.h
+@@ -34,7 +34,7 @@ struct SwapchainConfiguration
+ //------------------------------------------------------------------------------------------------------------------------
+ //                             FACET STRUCTURE  (GPU SSBO — triangle geometry topology)
+ //
+-// 📐 Mechanism: three vertex positions + geometric normal + material slot index,
++// Mechanism: three vertex positions + geometric normal + material slot index,
+ //    the minimal geometric facet of the Cornell Box mesh, packed as a contiguous
+ //    64-byte SSBO slot for GPU ray traversal.
+ //------------------------------------------------------------------------------------------------------------------------
+@@ -54,7 +54,7 @@ struct TriangleIndex
+ //------------------------------------------------------------------------------------------------------------------------
+ //                           RADIANCE STRUCTURE  (GPU SSBO — photometric surface topology)
+ //
+-// 📐 Mechanism: albedo reflectance, emissive radiance, roughness and metallic values
++// Mechanism: albedo reflectance, emissive radiance, roughness and metallic values
+ //    that define the surface's photometric behaviour, packed as a contiguous
+ //    48-byte SSBO slot for GPU shading.
+ //------------------------------------------------------------------------------------------------------------------------
+@@ -72,7 +72,7 @@ struct RadianceStructure
+ //------------------------------------------------------------------------------------------------------------------------
+ //                                    DISPATCH CONFIGURATION  (compute push constants)
+ //
+-// 📐 Mechanism: per-frame camera orientation and ReSTIR tuning scalars pushed
++// Mechanism: per-frame camera orientation and ReSTIR tuning scalars pushed
+ //    directly to the compute shader via vkCmdPushConstants — 80 bytes total.
+ //------------------------------------------------------------------------------------------------------------------------
+ 
+@@ -96,7 +96,7 @@ struct DispatchConfiguration
+     float    _Pad;                                                 // [-]   alignment to 96 bytes
+ };
+ 
+-// 📝 Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
++// Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
+ //    vec3 + float pairs pack to 16 bytes each (4 × 16) followed by 7 uints + 1 float (32) = 96 bytes.
+ static_assert(sizeof(DispatchConfiguration) == 96u, "DispatchConfiguration must match the shader push-constant block (96 bytes)");
+ 
+@@ -162,7 +162,7 @@ private:
+     static void OnFramebuffer (GLFWwindow*, int W, int H) noexcept;
+     static void OnFocus       (GLFWwindow*, int Focused) noexcept;
+ 
+-    // 📝 Full Vulkan object lifetimes are owned by VulkanRecord, defined only in .cpp
++    // Full Vulkan object lifetimes are owned by VulkanRecord, defined only in .cpp
+     struct VulkanRecord;
+     VulkanRecord*           Vulkan;             // [-]   heap-allocated Vulkan object lifetimes
+ 
+diff --git a/Engine/DisplayPresentation/ControlCentreHost.cpp b/Engine/DisplayPresentation/ControlCentreHost.cpp
+index 02394b5..9a2448a 100644
+--- a/Engine/DisplayPresentation/ControlCentreHost.cpp
++++ b/Engine/DisplayPresentation/ControlCentreHost.cpp
+@@ -51,7 +51,7 @@ ControlCentreHost::ControlCentreHost() noexcept
+     NotchChannel = Motion.Register(0.0);
+     SlideChannel = Motion.Register(0.0);
+ 
+-    ActiveTheme.AssignTheme(ThemeCategory::Dark);   // 📝 dark is the default per direction; palette below
++    ActiveTheme.AssignTheme(ThemeCategory::Dark);   // dark is the default per direction; palette below
+ }
+ 
+ bool ControlCentreHost::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight) noexcept
+@@ -82,7 +82,7 @@ void ControlCentreHost::Resize(uint32_t DesiredWidth, uint32_t DesiredHeight) no
+     DisplayWidth  = std::max(1u, DesiredWidth);
+     DisplayHeight = std::max(1u, DesiredHeight);
+ 
+-    // 📝 Keep an open shade open at the new height and the notch inside the new admissible travel.
++    // Keep an open shade open at the new height and the notch inside the new admissible travel.
+     if (WasOpen) Motion.Spring(ShadeChannel).Place(OpenTravel());
+     SpringChannel& Notch = Motion.Spring(NotchChannel);
+     const double Admissible = NotchAdmissible();
+@@ -242,7 +242,7 @@ void ControlCentreHost::Grab(GrabSubject Subject, float CursorX, float CursorY)
+ 
+     if (Subject == GrabSubject::Notch)
+     {
+-        // 📝 Pin both springs where they stand; the pointer owns them until release.
++        // Pin both springs where they stand; the pointer owns them until release.
+         Motion.Spring(ShadeChannel).Place(GrabShadeY);
+         Motion.Spring(NotchChannel).Place(GrabNotchX);
+         Pose = ControlCentreHostState::Dragging;
+@@ -251,7 +251,7 @@ void ControlCentreHost::Grab(GrabSubject Subject, float CursorX, float CursorY)
+ 
+ void ControlCentreHost::Carry(float CursorX, float CursorY, float DeltaSeconds) noexcept
+ {
+-    // 📐 Pointer velocity estimate (px/s), smoothed with 60 % retention of the previous tick's estimate.
++    // Pointer velocity estimate (px/s), smoothed with 60 % retention of the previous tick's estimate.
+     if (DeltaSeconds > 0.0f)
+     {
+         const double InstantX = static_cast<double>(CursorX - PreviousCursorX) / DeltaSeconds;
+@@ -268,7 +268,7 @@ void ControlCentreHost::Carry(float CursorX, float CursorY, float DeltaSeconds)
+     if (!TravelExceeded && (std::fabs(TravelX) > TapTravelLimit || std::fabs(TravelY) > TapTravelLimit))
+         TravelExceeded = true;
+ 
+-    // 📐 The axis is decided ONCE, on the first travel that clears the tap ceiling, by the larger displacement.
++    // The axis is decided ONCE, on the first travel that clears the tap ceiling, by the larger displacement.
+     //    Deciding per tick makes a diagonal drag alternate between sliding the notch and opening the shade.
+     if (!AxisResolved && TravelExceeded)
+     {
+@@ -299,14 +299,14 @@ void ControlCentreHost::Relinquish() noexcept
+ 
+     if (GrabbedSubject == GrabSubject::Scrim)
+     {
+-        // 📝 A tap on the scrim while open closes the shade. A drag that started on the scrim does nothing.
++        // A tap on the scrim while open closes the shade. A drag that started on the scrim does nothing.
+         if (Tap && IsOpen()) Depart(false);
+     }
+     else if (GrabbedSubject == GrabSubject::Notch)
+     {
+         if (Tap)
+         {
+-            // 📝 A notch that cannot be tapped is a notch the user reports as dead.
++            // A notch that cannot be tapped is a notch the user reports as dead.
+             Depart(!OpenBeforeGrab);
+         }
+         else if (!YDominant)
+@@ -333,7 +333,7 @@ void ControlCentreHost::Relinquish() noexcept
+ 
+             Depart(Opening);
+ 
+-            // 📐 The release's own rate is injected rather than discarded: a spring departing from rest
++            // The release's own rate is injected rather than discarded: a spring departing from rest
+             //    arrives visibly later than the flick that asked for it.
+             Motion.Spring(ShadeChannel).Rate = RateY;
+         }
+@@ -371,7 +371,7 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
+     if (Released)
+         Relinquish();
+ 
+-    // 📝 The overlay owns the pointer while it is over the notch, over the pulled-down shade, or during a grab —
++    // The overlay owns the pointer while it is over the notch, over the pulled-down shade, or during a grab —
+     //    hosts use this to keep the pointer away from the scene camera / project panels.
+     PointerWithheld = Hovered || Grabbed || ShadeOpenish;
+ 
+@@ -397,7 +397,7 @@ void ControlCentreHost::AdvanceLocomotion(float DeltaSeconds) noexcept
+ //                                                       RECORDING
+ //------------------------------------------------------------------------------------------------------------------------
+ 
+-void ControlCentreHost::Record(RecordingSurface& Surface) const noexcept
++void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) const noexcept
+ {
+     if (!InitializedCondition || !Surface.IsRecording()) return;
+ 
+@@ -406,7 +406,7 @@ void ControlCentreHost::Record(RecordingSurface& Surface) const noexcept
+     const float ShadeY = QueryCurrentHeight();                    // lower edge of the sheet / top of the notch
+     const float NotchX = QueryHandleX();
+ 
+-    // 📐 ArcNotch.tsx hard-codes the sheet and notch to #0A0A0B and the caption to text-white/50 regardless of
++    // ArcNotch.tsx hard-codes the sheet and notch to #0A0A0B and the caption to text-white/50 regardless of
+     //    the selected theme (the theme only recolours the cards inside the shade). Reproduced verbatim.
+     constexpr ColorQuad Sheet{ 10.0f / 255.0f, 10.0f / 255.0f, 11.0f / 255.0f, 1.0f };   // #0A0A0B
+     constexpr ColorQuad Label{ 1.0f, 1.0f, 1.0f, 0.5f };                                  // white / 50
+diff --git a/Engine/DisplayPresentation/ControlCentreHost.h b/Engine/DisplayPresentation/ControlCentreHost.h
+index 2293dc1..05763fd 100644
+--- a/Engine/DisplayPresentation/ControlCentreHost.h
++++ b/Engine/DisplayPresentation/ControlCentreHost.h
+@@ -21,7 +21,7 @@
+ //        faster than 20 px/s or pulled more than 50 px. The release velocity is injected into the spring.
+ //      • while open, a press on the scrim (outside the shade content) closes the shade.
+ //
+-//    Rendering: Record(RecordingSurface&) — hosts call it after Advance*; nothing here names ImGui.
++//    Rendering: ConstructControlLayout(PixelSpace&) — hosts call it after Advance*; nothing here names ImGui.
+ //
+ // ⚠️ Public API kept source-compatible with WorkspaceHost / Project-F20 (Initialize, Terminate, AdvanceInteraction,
+ //    AdvanceLocomotion, OpenNotch, CloseNotch, ToggleNotch, IsOpen, IsDragging, Query*/Convert).
+@@ -34,7 +34,7 @@
+ 
+ #include "ThemeStructure.h"
+ #include "MotionIntegrator.h"
+-#include "RecordingSurface.h"
++#include "PixelSpace.h"
+ #include "../DeviceExchange/InputExchange.h"
+ 
+ #include <cstdint>
+@@ -116,7 +116,7 @@ public:
+     // ── Per-frame ─────────────────────────────────────────────────────────────────────────────────────────────────
+     void                    AdvanceInteraction(const InputExchange& Input, float CursorX, float CursorY) noexcept;
+     void                    AdvanceLocomotion(float DeltaSeconds) noexcept;
+-    void                    Record(RecordingSurface& Surface) const noexcept;
++    void                    ConstructControlLayout(PixelSpace& Surface) const noexcept;
+ 
+     // ── Commands ──────────────────────────────────────────────────────────────────────────────────────────────────
+     void                    OpenNotch() noexcept;
+@@ -155,7 +155,7 @@ public:
+     [[nodiscard]] bool      IsDragging()  const noexcept { return Pose == ControlCentreHostState::Dragging; }
+     [[nodiscard]] bool      IsSelected()  const noexcept { return Grabbed; }
+     [[nodiscard]] bool      IsHovered()   const noexcept { return Hovered; }
+-    [[nodiscard]] bool      CoversPointer() const noexcept { return PointerWithheld; }   // 📝 true when the overlay owns the pointer this frame
++    [[nodiscard]] bool      CoversPointer() const noexcept { return PointerWithheld; }   // true when the overlay owns the pointer this frame
+     [[nodiscard]] ControlCentreHostState QueryPose() const noexcept { return Pose; }
+     [[nodiscard]] float     QueryCurrentHeight() const noexcept;                          // [px] shade Y (0 closed … H−36 open)
+     [[nodiscard]] float     QueryHandleX() const noexcept;                                // [px] notch left edge
+diff --git a/Engine/DisplayPresentation/MotionIntegrator.cpp b/Engine/DisplayPresentation/MotionIntegrator.cpp
+index 2ae367d..291db76 100644
+--- a/Engine/DisplayPresentation/MotionIntegrator.cpp
++++ b/Engine/DisplayPresentation/MotionIntegrator.cpp
+@@ -21,7 +21,7 @@ bool MotionIntegrator::Advance(double Elapsed) noexcept
+ {
+     if (Elapsed <= 0.0) return Moving();
+ 
+-    // 📝 Clamp a stalled frame so the shade does not teleport when the window was being dragged.
++    // Clamp a stalled frame so the shade does not teleport when the window was being dragged.
+     Elapsed = std::min(Elapsed, 0.1);
+ 
+     bool AnyMoving = false;
+diff --git a/Engine/DisplayPresentation/MotionIntegrator.h b/Engine/DisplayPresentation/MotionIntegrator.h
+index 0aa90bf..0037d1e 100644
+--- a/Engine/DisplayPresentation/MotionIntegrator.h
++++ b/Engine/DisplayPresentation/MotionIntegrator.h
+@@ -4,7 +4,7 @@
+ // 🧩 Damped-spring channels for interface locomotion. A host registers a channel per animated quantity (shade Y,
+ //    notch X, page slide …), places or targets it, and reads the settled value each frame.
+ //
+-// 📐 Each channel is a unit-mass spring:  ẍ = −k (x − target) − c ẋ   integrated semi-implicitly at a fixed
++// Each channel is a unit-mass spring:  ẍ = −k (x − target) − c ẋ   integrated semi-implicitly at a fixed
+ //    substep so a long frame (window drag, breakpoint) never blows the spring up.
+ //    Defaults k = 225, c = 24 give ζ = c / (2√k) = 0.8 and a 0.6 s settle — the framer-motion solution of
+ //    Notch's `{ type: "spring", bounce: 0.2, duration: 0.6 }` (findSpring: ζ = 1 − bounce, ω from the
+@@ -30,7 +30,7 @@ struct SpringChannel
+     double Damping    = 24.0;     // [1/s]   c
+     bool   Settled    = true;     // [-]     |x − target| and |ẋ| under tolerance
+ 
+-    // 📝 Pin the value without motion — used while the pointer carries the quantity directly.
++    // Pin the value without motion — used while the pointer carries the quantity directly.
+     void Place(double Value) noexcept
+     {
+         Current = Value;
+@@ -39,7 +39,7 @@ struct SpringChannel
+         Settled = true;
+     }
+ 
+-    // 📝 Ask the spring to travel to Value from wherever it is, keeping any rate it already has.
++    // Ask the spring to travel to Value from wherever it is, keeping any rate it already has.
+     void Depart(double Value) noexcept
+     {
+         Target  = Value;
+@@ -56,13 +56,13 @@ class MotionIntegrator
+ public:
+     MotionIntegrator() noexcept = default;
+ 
+-    // 📝 Returns the channel ordinal; channels are never released — hosts register a fixed set at construction.
++    // Returns the channel ordinal; channels are never released — hosts register a fixed set at construction.
+     [[nodiscard]] uint32_t Register(double Initial = 0.0) noexcept;
+ 
+     [[nodiscard]] SpringChannel&       Spring(uint32_t Ordinal) noexcept       { return Channels[Ordinal]; }
+     [[nodiscard]] const SpringChannel& Spring(uint32_t Ordinal) const noexcept { return Channels[Ordinal]; }
+ 
+-    // 📝 Advances every channel by Elapsed seconds. Returns true while any channel is still moving.
++    // Advances every channel by Elapsed seconds. Returns true while any channel is still moving.
+     bool Advance(double Elapsed) noexcept;
+ 
+     [[nodiscard]] bool Moving() const noexcept;
+diff --git a/Engine/DisplayPresentation/RecordingSurface.cpp b/Engine/DisplayPresentation/PixelSpace.cpp
+similarity index 80%
+rename from Engine/DisplayPresentation/RecordingSurface.cpp
+rename to Engine/DisplayPresentation/PixelSpace.cpp
+index ed9c675..4a758a6 100644
+--- a/Engine/DisplayPresentation/RecordingSurface.cpp
++++ b/Engine/DisplayPresentation/PixelSpace.cpp
+@@ -1,9 +1,9 @@
+ //============================================================================================================================================
+-//                                                      RECORDINGSURFACE.CPP
++//                                                      PIXELSPACE.CPP
+ //============================================================================================================================================
+ // 🧩 The only translation unit in DisplayPresentation that spells ImGui. Everything above hands in pixels and colours.
+ 
+-#include "RecordingSurface.h"
++#include "PixelSpace.h"
+ 
+ #include <imgui.h>
+ #include <vector>
+@@ -32,14 +32,14 @@ ImU32 Pack(ColorQuad Colour) noexcept
+ //                                                     LIFECYCLE
+ //------------------------------------------------------------------------------------------------------------------------
+ 
+-RecordingSurface::RecordingSurface() noexcept
++PixelSpace::PixelSpace() noexcept
+     : Commands(nullptr)
+     , DisplayWidth(0.0f)
+     , DisplayHeight(0.0f)
+ {
+ }
+ 
+-bool RecordingSurface::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplayHeight) noexcept
++bool PixelSpace::Begin(SurfaceLayer Layer, float InDisplayWidth, float InDisplayHeight) noexcept
+ {
+     DisplayWidth  = InDisplayWidth;
+     DisplayHeight = InDisplayHeight;
+@@ -50,7 +50,7 @@ bool RecordingSurface::Begin(SurfaceLayer Layer, float InDisplayWidth, float InD
+         return false;
+     }
+ 
+-    // 📝 The foreground list sits in front of every ImGui window, so the notch and its shade cover the
++    // The foreground list sits in front of every ImGui window, so the notch and its shade cover the
+     //    project's own panels when pulled down — exactly what a system overlay should do.
+     Commands = (Layer == SurfaceLayer::Above)
+              ? static_cast<void*>(ImGui::GetForegroundDrawList())
+@@ -62,7 +62,7 @@ bool RecordingSurface::Begin(SurfaceLayer Layer, float InDisplayWidth, float InD
+ //                                                     PRIMITIVES
+ //------------------------------------------------------------------------------------------------------------------------
+ 
+-void RecordingSurface::FillRectangle(const PlaneExtent& Extent, ColorQuad Colour, float Radius) noexcept
++void PixelSpace::FillRectangle(const PlaneExtent& Extent, ColorQuad Colour, float Radius) noexcept
+ {
+     if (!Commands) return;
+     List(Commands)->AddRectFilled(ImVec2(Extent.MinimumX, Extent.MinimumY),
+@@ -70,11 +70,11 @@ void RecordingSurface::FillRectangle(const PlaneExtent& Extent, ColorQuad Colour
+                                   Pack(Colour), Radius);
+ }
+ 
+-void RecordingSurface::FillPolygon(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour) noexcept
++void PixelSpace::FillPolygon(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour) noexcept
+ {
+     if (!Commands || PointCount < 3u) return;
+ 
+-    // 📝 ImGui's AddConvexPolyFilled produces artefacts on concave outlines; the notch is concave (it narrows
++    // ImGui's AddConvexPolyFilled produces artefacts on concave outlines; the notch is concave (it narrows
+     //    toward the bottom), so the concave-capable path is used. It expects ImVec2 storage.
+     std::vector<ImVec2> Converted;
+     Converted.reserve(PointCount);
+@@ -88,7 +88,7 @@ void RecordingSurface::FillPolygon(const PlanePoint* Points, uint32_t PointCount
+ #endif
+ }
+ 
+-void RecordingSurface::StrokePolyline(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour, float Thickness, bool Closed) noexcept
++void PixelSpace::StrokePolyline(const PlanePoint* Points, uint32_t PointCount, ColorQuad Colour, float Thickness, bool Closed) noexcept
+ {
+     if (!Commands || PointCount < 2u) return;
+ 
+@@ -101,7 +101,7 @@ void RecordingSurface::StrokePolyline(const PlanePoint* Points, uint32_t PointCo
+                                 Closed ? ImDrawFlags_Closed : ImDrawFlags_None, Thickness);
+ }
+ 
+-void RecordingSurface::Text(float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels) noexcept
++void PixelSpace::Text(float X, float Y, ColorQuad Colour, const char* Utf8, float FontSizePixels) noexcept
+ {
+     if (!Commands || !Utf8) return;
+     ImFont* Font = ImGui::GetFont();
+@@ -113,7 +113,7 @@ void RecordingSurface::Text(float X, float Y, ColorQuad Colour, const char* Utf8
+ //                                                     MEASUREMENT
+ //------------------------------------------------------------------------------------------------------------------------
+ 
+-PlanePoint RecordingSurface::MeasureText(const char* Utf8, float FontSizePixels) const noexcept
++PlanePoint PixelSpace::MeasureText(const char* Utf8, float FontSizePixels) const noexcept
+ {
+     if (ImGui::GetCurrentContext() == nullptr || !Utf8) return {};
+     ImFont* Font = ImGui::GetFont();
+diff --git a/Engine/DisplayPresentation/RecordingSurface.h b/Engine/DisplayPresentation/PixelSpace.h
+similarity index 90%
+rename from Engine/DisplayPresentation/RecordingSurface.h
+rename to Engine/DisplayPresentation/PixelSpace.h
+index 5c06f99..82853db 100644
+--- a/Engine/DisplayPresentation/RecordingSurface.h
++++ b/Engine/DisplayPresentation/PixelSpace.h
+@@ -1,10 +1,10 @@
+ //============================================================================================================================================
+-//                                                       RECORDINGSURFACE.H
++//                                                       PIXELSPACE.H
+ //============================================================================================================================================
+ // 🧩 Primitives in, recorded draw commands out — the one seam between engine UI hosts and the immediate-mode backend.
+ //    Hosts (ControlCentreHost, future panels) speak only in pixels and colours; nothing above this header names ImGui.
+ //
+-// 📐 Coordinate convention: display pixels, origin top-left, +X right, +Y DOWN. This matches the Vulkan swapchain
++// Coordinate convention: display pixels, origin top-left, +X right, +Y DOWN. This matches the Vulkan swapchain
+ //    image the overlay is composited onto; it is unrelated to the world-space convention in CLAUDE.md §7.
+ 
+ #pragma once
+@@ -62,16 +62,16 @@ enum class SurfaceLayer : uint32_t
+ //                                                   RECORDING SURFACE
+ //------------------------------------------------------------------------------------------------------------------------
+ 
+-class RecordingSurface
++class PixelSpace
+ {
+ public:
+-    RecordingSurface() noexcept;
+-    ~RecordingSurface() noexcept = default;
++    PixelSpace() noexcept;
++    ~PixelSpace() noexcept = default;
+ 
+-    RecordingSurface(const RecordingSurface&)            = delete;
+-    RecordingSurface& operator=(const RecordingSurface&) = delete;
++    PixelSpace(const PixelSpace&)            = delete;
++    PixelSpace& operator=(const PixelSpace&) = delete;
+ 
+-    // 📝 Must be called once per frame after ImGui::NewFrame() and before ImGui::Render(); selects the draw list.
++    // Must be called once per frame after ImGui::NewFrame() and before ImGui::Render(); selects the draw list.
+     //    Returns false when no ImGui context exists (e.g. headless proof generation without a backend).
+     bool Begin(SurfaceLayer Layer, float DisplayWidth, float DisplayHeight) noexcept;
+ 
+diff --git a/Engine/DisplayPresentation/ReSTIRIntegrator.h b/Engine/DisplayPresentation/ReSTIRIntegrator.h
+index 3f664e5..e0b013a 100644
+--- a/Engine/DisplayPresentation/ReSTIRIntegrator.h
++++ b/Engine/DisplayPresentation/ReSTIRIntegrator.h
+@@ -62,14 +62,14 @@ public:
+     BuildRadianceStructures(const ProjectZero::RayTracingSolver& Scene) noexcept;
+ 
+     // Mutable configuration — updated live by RenderScheduler
+-    // 📝 Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
++    // Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
+     void AssignCandidatesPerPixel(uint32_t Count) noexcept { if (ActiveConfiguration.CandidatesPerPixel != Count) { ActiveConfiguration.CandidatesPerPixel = Count; ResetAccumulation(); } }
+     void AssignSpatialPassCount  (uint32_t Count) noexcept { if (ActiveConfiguration.SpatialPassCount   != Count) { ActiveConfiguration.SpatialPassCount   = Count; ResetAccumulation(); } }
+     void AssignExposure          (float    Value) noexcept { if (ActiveConfiguration.Exposure            != Value) { ActiveConfiguration.Exposure            = Value; ResetAccumulation(); } }
+ 
+     void ResetAccumulation() noexcept { AccumulationIndex = 0u; }
+ 
+-    // 📝 Compares the camera pose against the one used for the running history; a moved or turned camera
++    // Compares the camera pose against the one used for the running history; a moved or turned camera
+     //    (or a resized viewport) restarts accumulation so no stale radiance is blended in.
+     void ObserveCamera(const ProjectZero::FlyThroughSolver& Camera, uint32_t ViewportWidth, uint32_t ViewportHeight) noexcept;
+ 
+diff --git a/Engine/DisplayPresentation/RenderScheduler.h b/Engine/DisplayPresentation/RenderScheduler.h
+index 6ab00a5..d75a1b1 100644
+--- a/Engine/DisplayPresentation/RenderScheduler.h
++++ b/Engine/DisplayPresentation/RenderScheduler.h
+@@ -35,7 +35,7 @@ public:
+ 
+     // Call every frame between ImGui::NewFrame() and ImGui::Render()
+     // Mutates integrator parameters directly via its public setters
+-    // 📝 OverlayHook runs between ImGui::NewFrame and ImGui::Render so engine overlays (Control Centre) can
++    // OverlayHook runs between ImGui::NewFrame and ImGui::Render so engine overlays (Control Centre) can
+     //    record onto the foreground draw list of the same frame. Pass nullptr / empty for none.
+     using OverlayHook = std::function<void()>;
+ 
+diff --git a/Engine/GeometricRaster/CameraProjection.cpp b/Engine/GeometricRaster/CameraProjection.cpp
+index 25208ca..7d186e3 100644
+--- a/Engine/GeometricRaster/CameraProjection.cpp
++++ b/Engine/GeometricRaster/CameraProjection.cpp
+@@ -63,7 +63,7 @@ void CameraProjection::AssignOrientationEuler(float InPitch, float InYaw, float
+     constexpr float MaxPitch = 89.0f * (3.14159265359f / 180.0f);
+     constexpr float TwoPi    = 2.0f * 3.14159265359f;
+     PitchRadians = std::clamp(InPitch, -MaxPitch, MaxPitch);
+-    // 📝 Wrap yaw into (−π, π] so it never grows unbounded (precision loss, unreadable telemetry).
++    // Wrap yaw into (−π, π] so it never grows unbounded (precision loss, unreadable telemetry).
+     YawRadians   = InYaw - TwoPi * std::floor((InYaw + 3.14159265359f) / TwoPi);
+     RollRadians  = InRoll;
+     RecomputeDirectionalVectors();
+@@ -86,10 +86,10 @@ void CameraProjection::RecomputeDirectionalVectors() noexcept
+     float CosYaw   = std::cos(YawRadians);
+     float SinYaw   = std::sin(YawRadians);
+ 
+-    // 📐 Right-handed, +Z up (CLAUDE.md §7): yaw 0 / pitch 0 looks along +Y (north); positive yaw turns
++    // Right-handed, +Z up (CLAUDE.md §7): yaw 0 / pitch 0 looks along +Y (north); positive yaw turns
+     //    toward +X (east, clockwise seen from above); positive pitch looks up toward +Z.
+     //    Right = Forward × WorldUp, Up = Right × Forward. These three vectors are the "View" basis consumed by
+-    //    Engine/Shaders/CameraRayGeneration.slang, which performs the single World → Vulkan-image mapping
++    //    Engine/Shaders/RayGeneration.slang, which performs the single World → Vulkan-image mapping
+     //    (Vulkan image y grows downward; the shader maps the top pixel row to +Up — no further flip anywhere).
+     ForwardVector = Vector3{ SinYaw * CosPitch, CosYaw * CosPitch, SinPitch }.Normalized();
+     Vector3 WorldUp{ 0.0f, 0.0f, 1.0f }; // Strict +Z Upward Axis
+diff --git a/Engine/Shaders/CameraRayGeneration.slang b/Engine/Shaders/RayGeneration.slang
+similarity index 92%
+rename from Engine/Shaders/CameraRayGeneration.slang
+rename to Engine/Shaders/RayGeneration.slang
+index 3e4bbea..9c802b8 100644
+--- a/Engine/Shaders/CameraRayGeneration.slang
++++ b/Engine/Shaders/RayGeneration.slang
+@@ -1,10 +1,10 @@
+ //============================================================================================================================================
+-//                                                    CAMERARAYGENERATION.SLANG
++//                                                    RAYGENERATION.SLANG
+ //============================================================================================================================================
+ // 🧩 The single statement of how a Vulkan image pixel becomes a world-space primary ray. Shared by every
+ //    compute path that ray-casts straight into a storage image (ReSTIR viewport, future previews, proofs).
+ //
+-// 📐 Coordinate chain (CLAUDE.md §7):
++// Coordinate chain (CLAUDE.md §7):
+ //
+ //    World   — right-handed, +X right (east), +Y forward (north), +Z up (zenith).      X × Y = Z
+ //    View    — orthonormal basis supplied by CameraProjection: Right, Up, Forward.     Right = Forward × WorldUp,
+@@ -21,7 +21,7 @@
+ //    "(1 − 2v)" IS the Vulkan Y-inversion: image row 0 (top) must look along +Up. Do not flip it again
+ //    downstream and do not apply a projection-matrix style Y-flip; that would turn the image upside down.
+ //
+-// 📝 Included by the viewport shader via #include; requires GL_GOOGLE_include_directive (glslc) or slangc.
++// Included by the viewport shader via #include; requires GL_GOOGLE_include_directive (glslc) or slangc.
+ //------------------------------------------------------------------------------------------------------------------------
+ 
+ #ifndef FRONTIER_CAMERA_RAY_GENERATION
+diff --git a/Engine/Shaders/ReSTIRViewport.slang b/Engine/Shaders/ReSTIRViewport.slang
+index c8c0762..d13de38 100644
+--- a/Engine/Shaders/ReSTIRViewport.slang
++++ b/Engine/Shaders/ReSTIRViewport.slang
+@@ -2,13 +2,13 @@
+ // 📦 Engine/Shaders/ReSTIRViewport.slang — ReSTIR DI+GI Cornell Box Compute Shader Writing Directly to a Storage Image
+ //============================================================================================================================================
+ // NOTE: GLSL source lowered to SPIR-V by the build scripts (glslc -fshader-stage=compute --target-env=vulkan1.2 -I Engine).
+-//       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping lives in Shaders/CameraRayGeneration.slang.
++//       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping lives in Shaders/RayGeneration.slang.
+ 
+ #version 460
+ #extension GL_GOOGLE_include_directive : require
+ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+ 
+-#include "Shaders/CameraRayGeneration.slang"
++#include "Shaders/RayGeneration.slang"
+ 
+ //------------------------------------------------------------------------------------------------------------------------
+ //                                                    STORAGE IMAGE OUTPUT
+@@ -248,7 +248,7 @@ vec3 ToneMap(vec3 hdr)
+ //------------------------------------------------------------------------------------------------------------------------
+ //                                              TEMPORAL ACCUMULATION RESOLVE
+ //------------------------------------------------------------------------------------------------------------------------
+-// 📝 Running mean in linear radiance. AccumulationIndex == 0 restarts the history (camera moved / parameter changed);
++// Running mean in linear radiance. AccumulationIndex == 0 restarts the history (camera moved / parameter changed);
+ //    every later frame folds the new estimate in with weight 1/(n+1). Tone mapping is applied to the mean only.
+ 
+ void Resolve(uvec2 pixel, vec3 radiance)
+@@ -273,7 +273,7 @@ void main()
+     uint seed = MakeSeed(pixel, FrameIndex);
+ 
+     //------------------------------------------------------------------------------------------------------------------
+-    // 1. Generate primary ray — see CameraRayGeneration.slang for the World → Vulkan-image convention
++    // 1. Generate primary ray — see RayGeneration.slang for the World → Vulkan-image convention
+     //------------------------------------------------------------------------------------------------------------------
+     CameraBasis camera;
+     camera.Origin     = CameraOrigin;
+@@ -296,10 +296,9 @@ void main()
+ 
+     if (!primaryHit.valid)
+     {
+-        // Sky / background — deep blue gradient
+-        float skyT  = 0.5 * (primary.dir.z + 1.0);   // +Z is up
+-        vec3  sky   = mix(vec3(0.05, 0.07, 0.12), vec3(0.10, 0.15, 0.28), skyT);
+-        Resolve(pixel, sky);
++        // Background: pure black. There is no sky and no environment light in the Cornell scene; anything
++        // that is not the box must read as a miss, never as a colour.
++        Resolve(pixel, vec3(0.0));
+         return;
+     }
+ 
+diff --git a/Projects/Project-Zero/Build/ToolchainSequence.ps1 b/Projects/Project-Zero/Build/ToolchainSequence.ps1
+index 58c822a..c45a7e5 100644
+--- a/Projects/Project-Zero/Build/ToolchainSequence.ps1
++++ b/Projects/Project-Zero/Build/ToolchainSequence.ps1
+@@ -351,7 +351,7 @@ function Invoke-ShaderLowering([string] $VulkanRoot)
+ 
+     # Shared includes pulled in by ReSTIRViewport.slang - any of them changing must re-lower the shader
+     $ShaderIncludes = @(
+-        (Join-Path $EngineRoot 'Shaders\CameraRayGeneration.slang')
++        (Join-Path $EngineRoot 'Shaders\RayGeneration.slang')
+     )
+ 
+     $Fresh = (-not $Rebuild) -and (Test-Path $SpirvPath) -and
+@@ -576,7 +576,7 @@ $EngineRelative = @(
+     'Engine\DisplayPresentation\VectorCodec.cpp'
+     'Engine\DisplayPresentation\FontCodec.cpp'
+     'Engine\DisplayPresentation\ControlCentreHost.cpp'
+-    'Engine\DisplayPresentation\RecordingSurface.cpp'
++    'Engine\DisplayPresentation\PixelSpace.cpp'
+     'Engine\DisplayPresentation\MotionIntegrator.cpp'
+     'Engine\DisplayPresentation\WorkspaceHost.cpp'
+     'Engine\DisplayPresentation\CycleScheduler.cpp'
+diff --git a/Projects/Project-Zero/Source/GameExecution.cpp b/Projects/Project-Zero/Source/GameExecution.cpp
+index c2372ca..b82ba40 100644
+--- a/Projects/Project-Zero/Source/GameExecution.cpp
++++ b/Projects/Project-Zero/Source/GameExecution.cpp
+@@ -8,7 +8,7 @@
+ #include "../../../Engine/DisplayPresentation/RenderScheduler.h"
+ #include "../../../Engine/DeviceExchange/DiagnosticMetrics.h"
+ #include "../../../Engine/DisplayPresentation/ControlCentreHost.h"
+-#include "../../../Engine/DisplayPresentation/RecordingSurface.h"
++#include "../../../Engine/DisplayPresentation/PixelSpace.h"
+ #include "FlyThroughSolver.h"
+ #include "RayTracingSolver.h"
+ 
+@@ -60,7 +60,7 @@ int main(int, char**)
+         12.0f       // [-]      acceleration damping
+     };
+ 
+-    // 📐 Z-up: stand 1.95 m in front of the open face (Y < 0), eye height 1 m, looking along +Y into the box.
++    // Z-up: stand 1.95 m in front of the open face (Y < 0), eye height 1 m, looking along +Y into the box.
+     Frontier::ProjectZero::FlyThroughSolver Camera(CameraConfig);
+     Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -1.95f, 1.0f });
+     Camera.AssignOrientationEuler(0.0f, 0.0f, 0.0f);
+@@ -121,7 +121,7 @@ int main(int, char**)
+     Frontier::ControlCentreHost ControlCentre;
+     ControlCentre.AssignProjectName("Project-Zero");
+     (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
+-    Frontier::RecordingSurface OverlaySurface;
++    Frontier::PixelSpace OverlaySurface;
+ 
+     Camera.AssignAspectRatio(
+         static_cast<float>(Surface.QueryWidth()) /
+@@ -149,7 +149,7 @@ int main(int, char**)
+         float       Δτ      = std::chrono::duration_cast<Duration>(NowTime - PreviousTime).count();
+         PreviousTime        = NowTime;
+ 
+-        // 📝 Clamp Δτ to prevent spiral-of-death on window drag or breakpoints
++        // Clamp Δτ to prevent spiral-of-death on window drag or breakpoints
+         if (Δτ > 0.1f) Δτ = 0.1f;
+ 
+         // ① Poll input — GLFW callbacks forward into Input
+@@ -176,7 +176,7 @@ int main(int, char**)
+                           if (OverlaySurface.Begin(Frontier::SurfaceLayer::Above,
+                                                    static_cast<float>(Surface.QueryWidth()),
+                                                    static_cast<float>(Surface.QueryHeight())))
+-                              ControlCentre.Record(OverlaySurface);
++                              ControlCentre.ConstructControlLayout(OverlaySurface);
+                       });
+ 
+         // ④ Build dispatch configuration from live camera + integrator state (camera motion restarts accumulation)
+@@ -193,7 +193,7 @@ int main(int, char**)
+ 
+         Integrator.IncrementAccumulationIndex();
+ 
+-        // 📝 Keep the on-disk telemetry current even if the process is killed mid-run.
++        // Keep the on-disk telemetry current even if the process is killed mid-run.
+         if ((Integrator.QueryAccumulationIndex() & 63u) == 0u) Logger.FlushSink();
+     }
+ 
+diff --git a/Projects/Project-Zero/Source/RayTracingSolver.cpp b/Projects/Project-Zero/Source/RayTracingSolver.cpp
+index d5d54e7..bbbbf2f 100644
+--- a/Projects/Project-Zero/Source/RayTracingSolver.cpp
++++ b/Projects/Project-Zero/Source/RayTracingSolver.cpp
+@@ -40,7 +40,7 @@ void RayTracingSolver::ConstructCornellBoxScene() noexcept
+     // Material 5: Short Box (cool white diffuse)
+     Materials.push_back(AnalyticalMaterial{ Vector3{ 0.78f, 0.78f, 0.78f }, Vector3{ 0.0f, 0.0f, 0.0f }, 0.4f, 0.0f, 5 });
+ 
+-    // 📐 Cornell Box in the engine's right-handed Z-up world (CLAUDE.md §7):
++    // Cornell Box in the engine's right-handed Z-up world (CLAUDE.md §7):
+     //      X ∈ [−1, +1]  right / east       (red wall at X = −1, green wall at X = +1)
+     //      Y ∈ [ 0, +2]  forward / north    (open front at Y = 0, back wall at Y = +2)
+     //      Z ∈ [ 0, +2]  up / zenith        (floor at Z = 0, ceiling + luminaire at Z = +2)
+@@ -91,7 +91,7 @@ void RayTracingSolver::AppendQuad(const Vector3& v0, const Vector3& v1, const Ve
+ 
+ void RayTracingSolver::AppendBox(const Vector3& Center, const Vector3& Extents, float RotationDegrees, uint32_t MaterialIdx) noexcept
+ {
+-    // 📐 Z-up: the box is rotated about the vertical (+Z) axis; Extents = half-sizes (X, Y, Z).
++    // Z-up: the box is rotated about the vertical (+Z) axis; Extents = half-sizes (X, Y, Z).
+     float Rad = RotationDegrees * 3.14159265359f / 180.0f;
+     float CosAngle = std::cos(Rad);
+     float SinAngle = std::sin(Rad);
+diff --git a/Scratchpad/GenerateControlCentreProof.cpp b/Scratchpad/GenerateControlCentreProof.cpp
+index c2b58e6..c584e58 100644
+--- a/Scratchpad/GenerateControlCentreProof.cpp
++++ b/Scratchpad/GenerateControlCentreProof.cpp
+@@ -3,12 +3,12 @@
+ //============================================================================================================================================
+ // 🧩 Headless proof of the Control Centre notch + drawer. Drives the REAL ControlCentreHost through scripted
+ //    InputExchange contacts (press → drag → release, taps, flings, horizontal slides), records it through the REAL
+-//    RecordingSurface onto an ImGui context with no backend, then software-rasterises the ImGui draw lists to PNG.
++//    PixelSpace onto an ImGui context with no backend, then software-rasterises the ImGui draw lists to PNG.
+ //
+ //    Build (Linux / MSYS / WSL):
+ //      g++ -std=c++20 -O2 -DGLFW_INCLUDE_NONE -I. -IEngine -IExternalPackages/imgui -IExternalPackages/stb \
+ //          Scratchpad/GenerateControlCentreProof.cpp Engine/DisplayPresentation/ControlCentreHost.cpp \
+-//          Engine/DisplayPresentation/RecordingSurface.cpp Engine/DisplayPresentation/MotionIntegrator.cpp \
++//          Engine/DisplayPresentation/PixelSpace.cpp Engine/DisplayPresentation/MotionIntegrator.cpp \
+ //          Engine/DisplayPresentation/ThemeStructure.cpp Engine/DeviceExchange/InputExchange.cpp \
+ //          ExternalPackages/imgui/imgui.cpp ExternalPackages/imgui/imgui_draw.cpp ExternalPackages/imgui/imgui_tables.cpp \
+ //          ExternalPackages/imgui/imgui_widgets.cpp -o ControlCentreProof && ./ControlCentreProof
+@@ -16,7 +16,7 @@
+ //    Output: Diagnostics/ControlCentre_Notch_*.png  (1280 × 720, scene stand-in = Cornell-box-ish gradient)
+ 
+ #include "../Engine/DisplayPresentation/ControlCentreHost.h"
+-#include "../Engine/DisplayPresentation/RecordingSurface.h"
++#include "../Engine/DisplayPresentation/PixelSpace.h"
+ #include "../Engine/DeviceExchange/InputExchange.h"
+ 
+ #include <imgui.h>
+@@ -55,7 +55,7 @@ struct Canvas
+     }
+ };
+ 
+-// 📝 Scene stand-in so the scrim is visible: a soft vertical gradient with a red / green band left / right,
++// Scene stand-in so the scrim is visible: a soft vertical gradient with a red / green band left / right,
+ //    echoing the Cornell box the overlay will sit on in Project-Zero.
+ void PaintSceneStandIn(Canvas& C)
+ {
+@@ -167,7 +167,7 @@ struct Rig
+ {
+     Frontier::ControlCentreHost Host;
+     Frontier::InputExchange     Input;
+-    Frontier::RecordingSurface  Surface;
++    Frontier::PixelSpace  Surface;
+     float CursorX = 640.0f, CursorY = 300.0f;
+     const unsigned char* Tex = nullptr; int TexW = 0, TexH = 0;
+ 
+@@ -189,7 +189,7 @@ struct Rig
+         IO.DisplaySize = ImVec2(Width, Height);
+         ImGui::NewFrame();
+         if (Surface.Begin(Frontier::SurfaceLayer::Above, Width, Height))
+-            Host.Record(Surface);
++            Host.ConstructControlLayout(Surface);
+         ImGui::Render();
+ 
+         if (Out)
+diff --git a/imgui.ini b/imgui.ini
+new file mode 100644
+index 0000000..9930887
+--- /dev/null
++++ b/imgui.ini
+@@ -0,0 +1,4 @@
++[Window][Debug##Default]
++Pos=60,60
++Size=400,400
++
 -- 
 2.39.5
 

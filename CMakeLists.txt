@@ -175,7 +175,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/VectorCodec.cpp
     Engine/DisplayPresentation/FontCodec.cpp
     Engine/DisplayPresentation/ControlCentreHost.cpp
-    Engine/DisplayPresentation/RecordingSurface.cpp
+    Engine/DisplayPresentation/PixelSpace.cpp
     Engine/DisplayPresentation/MotionIntegrator.cpp
     Engine/DisplayPresentation/WorkspaceHost.cpp
     Engine/DisplayPresentation/CycleScheduler.cpp

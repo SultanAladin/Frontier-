@@ -168,10 +168,10 @@ public:
     void                    AssignCursorDelta(float DeltaX, float DeltaY) noexcept;
     void                    AssignCursorPosition(float PositionX, float PositionY) noexcept;
     void                    AssignMouseButton(MouseButtonCategory Button, bool Pressed) noexcept;
-    void                    AssignMouseScroll(float ScrollDelta) noexcept;   // 📝 accumulates within a frame
-    void                    ResetCursorDelta() noexcept;                     // 📝 call once per frame before polling
-    void                    ResetMouseScroll() noexcept;                     // 📝 call once per frame before polling
-    void                    ReleaseAllInputs() noexcept;                     // 📝 focus loss: every key/button up
+    void                    AssignMouseScroll(float ScrollDelta) noexcept;   // accumulates within a frame
+    void                    ResetCursorDelta() noexcept;                     // call once per frame before polling
+    void                    ResetMouseScroll() noexcept;                     // call once per frame before polling
+    void                    ReleaseAllInputs() noexcept;                     // focus loss: every key/button up
     void                    AssignGamepadAxis(float LeftX, float LeftY, float RightX, float RightY, float LeftTrig, float RightTrig) noexcept;
 
     [[nodiscard]] bool      IsKeyPressed(VirtualKeyCategory Key) const noexcept;

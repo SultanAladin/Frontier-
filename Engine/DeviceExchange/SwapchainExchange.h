@@ -34,7 +34,7 @@ struct SwapchainConfiguration
 //------------------------------------------------------------------------------------------------------------------------
 //                             FACET STRUCTURE  (GPU SSBO — triangle geometry topology)
 //
-// 📐 Mechanism: three vertex positions + geometric normal + material slot index,
+// Mechanism: three vertex positions + geometric normal + material slot index,
 //    the minimal geometric facet of the Cornell Box mesh, packed as a contiguous
 //    64-byte SSBO slot for GPU ray traversal.
 //------------------------------------------------------------------------------------------------------------------------
@@ -54,7 +54,7 @@ struct TriangleIndex
 //------------------------------------------------------------------------------------------------------------------------
 //                           RADIANCE STRUCTURE  (GPU SSBO — photometric surface topology)
 //
-// 📐 Mechanism: albedo reflectance, emissive radiance, roughness and metallic values
+// Mechanism: albedo reflectance, emissive radiance, roughness and metallic values
 //    that define the surface's photometric behaviour, packed as a contiguous
 //    48-byte SSBO slot for GPU shading.
 //------------------------------------------------------------------------------------------------------------------------
@@ -72,7 +72,7 @@ struct RadianceStructure
 //------------------------------------------------------------------------------------------------------------------------
 //                                    DISPATCH CONFIGURATION  (compute push constants)
 //
-// 📐 Mechanism: per-frame camera orientation and ReSTIR tuning scalars pushed
+// Mechanism: per-frame camera orientation and ReSTIR tuning scalars pushed
 //    directly to the compute shader via vkCmdPushConstants — 80 bytes total.
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -96,7 +96,7 @@ struct DispatchConfiguration
     float    _Pad;                                                 // [-]   alignment to 96 bytes
 };
 
-// 📝 Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
+// Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
 //    vec3 + float pairs pack to 16 bytes each (4 × 16) followed by 7 uints + 1 float (32) = 96 bytes.
 static_assert(sizeof(DispatchConfiguration) == 96u, "DispatchConfiguration must match the shader push-constant block (96 bytes)");
 
@@ -162,7 +162,7 @@ private:
     static void OnFramebuffer (GLFWwindow*, int W, int H) noexcept;
     static void OnFocus       (GLFWwindow*, int Focused) noexcept;
 
-    // 📝 Full Vulkan object lifetimes are owned by VulkanRecord, defined only in .cpp
+    // Full Vulkan object lifetimes are owned by VulkanRecord, defined only in .cpp
     struct VulkanRecord;
     VulkanRecord*           Vulkan;             // [-]   heap-allocated Vulkan object lifetimes
 

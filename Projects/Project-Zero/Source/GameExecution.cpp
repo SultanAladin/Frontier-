@@ -8,7 +8,7 @@
 #include "../../../Engine/DisplayPresentation/RenderScheduler.h"
 #include "../../../Engine/DeviceExchange/DiagnosticMetrics.h"
 #include "../../../Engine/DisplayPresentation/ControlCentreHost.h"
-#include "../../../Engine/DisplayPresentation/RecordingSurface.h"
+#include "../../../Engine/DisplayPresentation/PixelSpace.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
@@ -60,7 +60,7 @@ int main(int, char**)
         12.0f       // [-]      acceleration damping
     };
 
-    // 📐 Z-up: stand 1.95 m in front of the open face (Y < 0), eye height 1 m, looking along +Y into the box.
+    // Z-up: stand 1.95 m in front of the open face (Y < 0), eye height 1 m, looking along +Y into the box.
     Frontier::ProjectZero::FlyThroughSolver Camera(CameraConfig);
     Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -1.95f, 1.0f });
     Camera.AssignOrientationEuler(0.0f, 0.0f, 0.0f);
@@ -121,7 +121,7 @@ int main(int, char**)
     Frontier::ControlCentreHost ControlCentre;
     ControlCentre.AssignProjectName("Project-Zero");
     (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
-    Frontier::RecordingSurface OverlaySurface;
+    Frontier::PixelSpace OverlaySurface;
 
     Camera.AssignAspectRatio(
         static_cast<float>(Surface.QueryWidth()) /
@@ -149,7 +149,7 @@ int main(int, char**)
         float       Δτ      = std::chrono::duration_cast<Duration>(NowTime - PreviousTime).count();
         PreviousTime        = NowTime;
 
-        // 📝 Clamp Δτ to prevent spiral-of-death on window drag or breakpoints
+        // Clamp Δτ to prevent spiral-of-death on window drag or breakpoints
         if (Δτ > 0.1f) Δτ = 0.1f;
 
         // ① Poll input — GLFW callbacks forward into Input
@@ -176,7 +176,7 @@ int main(int, char**)
                           if (OverlaySurface.Begin(Frontier::SurfaceLayer::Above,
                                                    static_cast<float>(Surface.QueryWidth()),
                                                    static_cast<float>(Surface.QueryHeight())))
-                              ControlCentre.Record(OverlaySurface);
+                              ControlCentre.ConstructControlLayout(OverlaySurface);
                       });
 
         // ④ Build dispatch configuration from live camera + integrator state (camera motion restarts accumulation)
@@ -193,7 +193,7 @@ int main(int, char**)
 
         Integrator.IncrementAccumulationIndex();
 
-        // 📝 Keep the on-disk telemetry current even if the process is killed mid-run.
+        // Keep the on-disk telemetry current even if the process is killed mid-run.
         if ((Integrator.QueryAccumulationIndex() & 63u) == 0u) Logger.FlushSink();
     }
 

@@ -1,10 +1,10 @@
 //============================================================================================================================================
-//                                                    CAMERARAYGENERATION.SLANG
+//                                                    RAYGENERATION.SLANG
 //============================================================================================================================================
 // 🧩 The single statement of how a Vulkan image pixel becomes a world-space primary ray. Shared by every
 //    compute path that ray-casts straight into a storage image (ReSTIR viewport, future previews, proofs).
 //
-// 📐 Coordinate chain (CLAUDE.md §7):
+// Coordinate chain (CLAUDE.md §7):
 //
 //    World   — right-handed, +X right (east), +Y forward (north), +Z up (zenith).      X × Y = Z
 //    View    — orthonormal basis supplied by CameraProjection: Right, Up, Forward.     Right = Forward × WorldUp,
@@ -21,7 +21,7 @@
 //    "(1 − 2v)" IS the Vulkan Y-inversion: image row 0 (top) must look along +Up. Do not flip it again
 //    downstream and do not apply a projection-matrix style Y-flip; that would turn the image upside down.
 //
-// 📝 Included by the viewport shader via #include; requires GL_GOOGLE_include_directive (glslc) or slangc.
+// Included by the viewport shader via #include; requires GL_GOOGLE_include_directive (glslc) or slangc.
 //------------------------------------------------------------------------------------------------------------------------
 
 #ifndef FRONTIER_CAMERA_RAY_GENERATION

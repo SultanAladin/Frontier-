@@ -35,7 +35,7 @@ public:
 
     // Call every frame between ImGui::NewFrame() and ImGui::Render()
     // Mutates integrator parameters directly via its public setters
-    // 📝 OverlayHook runs between ImGui::NewFrame and ImGui::Render so engine overlays (Control Centre) can
+    // OverlayHook runs between ImGui::NewFrame and ImGui::Render so engine overlays (Control Centre) can
     //    record onto the foreground draw list of the same frame. Pass nullptr / empty for none.
     using OverlayHook = std::function<void()>;
 

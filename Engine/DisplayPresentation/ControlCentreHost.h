@@ -21,7 +21,7 @@
 //        faster than 20 px/s or pulled more than 50 px. The release velocity is injected into the spring.
 //      • while open, a press on the scrim (outside the shade content) closes the shade.
 //
-//    Rendering: Record(RecordingSurface&) — hosts call it after Advance*; nothing here names ImGui.
+//    Rendering: ConstructControlLayout(PixelSpace&) — hosts call it after Advance*; nothing here names ImGui.
 //
 // ⚠️ Public API kept source-compatible with WorkspaceHost / Project-F20 (Initialize, Terminate, AdvanceInteraction,
 //    AdvanceLocomotion, OpenNotch, CloseNotch, ToggleNotch, IsOpen, IsDragging, Query*/Convert).
@@ -34,7 +34,7 @@
 
 #include "ThemeStructure.h"
 #include "MotionIntegrator.h"
-#include "RecordingSurface.h"
+#include "PixelSpace.h"
 #include "../DeviceExchange/InputExchange.h"
 
 #include <cstdint>
@@ -116,7 +116,7 @@ public:
     // ── Per-frame ─────────────────────────────────────────────────────────────────────────────────────────────────
     void                    AdvanceInteraction(const InputExchange& Input, float CursorX, float CursorY) noexcept;
     void                    AdvanceLocomotion(float DeltaSeconds) noexcept;
-    void                    Record(RecordingSurface& Surface) const noexcept;
+    void                    ConstructControlLayout(PixelSpace& Surface) const noexcept;
 
     // ── Commands ──────────────────────────────────────────────────────────────────────────────────────────────────
     void                    OpenNotch() noexcept;
@@ -155,7 +155,7 @@ public:
     [[nodiscard]] bool      IsDragging()  const noexcept { return Pose == ControlCentreHostState::Dragging; }
     [[nodiscard]] bool      IsSelected()  const noexcept { return Grabbed; }
     [[nodiscard]] bool      IsHovered()   const noexcept { return Hovered; }
-    [[nodiscard]] bool      CoversPointer() const noexcept { return PointerWithheld; }   // 📝 true when the overlay owns the pointer this frame
+    [[nodiscard]] bool      CoversPointer() const noexcept { return PointerWithheld; }   // true when the overlay owns the pointer this frame
     [[nodiscard]] ControlCentreHostState QueryPose() const noexcept { return Pose; }
     [[nodiscard]] float     QueryCurrentHeight() const noexcept;                          // [px] shade Y (0 closed … H−36 open)
     [[nodiscard]] float     QueryHandleX() const noexcept;                                // [px] notch left edge

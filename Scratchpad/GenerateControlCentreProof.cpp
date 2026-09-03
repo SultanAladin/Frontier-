@@ -3,12 +3,12 @@
 //============================================================================================================================================
 // 🧩 Headless proof of the Control Centre notch + drawer. Drives the REAL ControlCentreHost through scripted
 //    InputExchange contacts (press → drag → release, taps, flings, horizontal slides), records it through the REAL
-//    RecordingSurface onto an ImGui context with no backend, then software-rasterises the ImGui draw lists to PNG.
+//    PixelSpace onto an ImGui context with no backend, then software-rasterises the ImGui draw lists to PNG.
 //
 //    Build (Linux / MSYS / WSL):
 //      g++ -std=c++20 -O2 -DGLFW_INCLUDE_NONE -I. -IEngine -IExternalPackages/imgui -IExternalPackages/stb \
 //          Scratchpad/GenerateControlCentreProof.cpp Engine/DisplayPresentation/ControlCentreHost.cpp \
-//          Engine/DisplayPresentation/RecordingSurface.cpp Engine/DisplayPresentation/MotionIntegrator.cpp \
+//          Engine/DisplayPresentation/PixelSpace.cpp Engine/DisplayPresentation/MotionIntegrator.cpp \
 //          Engine/DisplayPresentation/ThemeStructure.cpp Engine/DeviceExchange/InputExchange.cpp \
 //          ExternalPackages/imgui/imgui.cpp ExternalPackages/imgui/imgui_draw.cpp ExternalPackages/imgui/imgui_tables.cpp \
 //          ExternalPackages/imgui/imgui_widgets.cpp -o ControlCentreProof && ./ControlCentreProof
@@ -16,7 +16,7 @@
 //    Output: Diagnostics/ControlCentre_Notch_*.png  (1280 × 720, scene stand-in = Cornell-box-ish gradient)
 
 #include "../Engine/DisplayPresentation/ControlCentreHost.h"
-#include "../Engine/DisplayPresentation/RecordingSurface.h"
+#include "../Engine/DisplayPresentation/PixelSpace.h"
 #include "../Engine/DeviceExchange/InputExchange.h"
 
 #include <imgui.h>
@@ -55,7 +55,7 @@ struct Canvas
     }
 };
 
-// 📝 Scene stand-in so the scrim is visible: a soft vertical gradient with a red / green band left / right,
+// Scene stand-in so the scrim is visible: a soft vertical gradient with a red / green band left / right,
 //    echoing the Cornell box the overlay will sit on in Project-Zero.
 void PaintSceneStandIn(Canvas& C)
 {
@@ -167,7 +167,7 @@ struct Rig
 {
     Frontier::ControlCentreHost Host;
     Frontier::InputExchange     Input;
-    Frontier::RecordingSurface  Surface;
+    Frontier::PixelSpace  Surface;
     float CursorX = 640.0f, CursorY = 300.0f;
     const unsigned char* Tex = nullptr; int TexW = 0, TexH = 0;
 
@@ -189,7 +189,7 @@ struct Rig
         IO.DisplaySize = ImVec2(Width, Height);
         ImGui::NewFrame();
         if (Surface.Begin(Frontier::SurfaceLayer::Above, Width, Height))
-            Host.Record(Surface);
+            Host.ConstructControlLayout(Surface);
         ImGui::Render();
 
         if (Out)

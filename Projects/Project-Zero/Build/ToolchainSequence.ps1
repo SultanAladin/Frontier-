@@ -351,7 +351,7 @@ function Invoke-ShaderLowering([string] $VulkanRoot)
 
     # Shared includes pulled in by ReSTIRViewport.slang - any of them changing must re-lower the shader
     $ShaderIncludes = @(
-        (Join-Path $EngineRoot 'Shaders\CameraRayGeneration.slang')
+        (Join-Path $EngineRoot 'Shaders\RayGeneration.slang')
     )
 
     $Fresh = (-not $Rebuild) -and (Test-Path $SpirvPath) -and
@@ -576,7 +576,7 @@ $EngineRelative = @(
     'Engine\DisplayPresentation\VectorCodec.cpp'
     'Engine\DisplayPresentation\FontCodec.cpp'
     'Engine\DisplayPresentation\ControlCentreHost.cpp'
-    'Engine\DisplayPresentation\RecordingSurface.cpp'
+    'Engine\DisplayPresentation\PixelSpace.cpp'
     'Engine\DisplayPresentation\MotionIntegrator.cpp'
     'Engine\DisplayPresentation\WorkspaceHost.cpp'
     'Engine\DisplayPresentation\CycleScheduler.cpp'
