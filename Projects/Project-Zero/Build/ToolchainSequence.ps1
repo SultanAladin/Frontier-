@@ -413,7 +413,7 @@ Import-ToolchainEnvironment
 $VulkanRoot = Resolve-VulkanRoot
 Write-Building "Vulkan SDK $VulkanRoot"
 
-# Ensure submodules are present — soft: if dirs already exist and git update fails, continue
+# Ensure submodules are present — all 12 packages, soft on network/SSL failure
 Write-Building 'Ensuring ExternalPackages submodules are initialised...'
 Push-Location $RepositoryRoot
 $SubmoduleList = @(
@@ -422,26 +422,54 @@ $SubmoduleList = @(
     'ExternalPackages/thorvg'
     'ExternalPackages/tomlpp'
     'ExternalPackages/jolt'
+    'ExternalPackages/ufbx'
+    'ExternalPackages/earcut'
+    'ExternalPackages/cgltf'
+    'ExternalPackages/clipper2'
+    'ExternalPackages/stb'
+    'ExternalPackages/miniaudio'
+    'ExternalPackages/fast_obj'
 )
-& git submodule update --init --recursive -- $SubmoduleList
-if ($LASTEXITCODE -ne 0)
+# Pass 1 — try normal update (will use cached objects when already checked out)
+& git submodule update --init -- $SubmoduleList 2>&1 | Out-Null
+$UpdateOk = $LASTEXITCODE -eq 0
+
+if (-not $UpdateOk)
 {
-    # 💡 If the dirs already exist (manual clone / pre-populated checkout), treat as non-fatal.
-    $AllPresent = $true
+    # Pass 2 — SSL/network error; retry once with verification disabled
+    Write-Skipped 'git submodule update failed; retrying with GIT_SSL_NO_VERIFY=1 ...'
+    $env:GIT_SSL_NO_VERIFY = '1'
+    & git submodule update --init -- $SubmoduleList 2>&1 | Out-Null
+    $UpdateOk = $LASTEXITCODE -eq 0
+    Remove-Item Env:\GIT_SSL_NO_VERIFY -ErrorAction SilentlyContinue
+}
+
+if (-not $UpdateOk)
+{
+    # 💡 git submodule update fails when:
+    #    a) network/SSL is unavailable even with verification disabled
+    #    b) the user did  git clone  without  --recurse-submodules
+    #
+    # In either case the directories may already be populated (manual clone or
+    # prior successful init).  We check that every listed package directory is
+    # non-empty — anything with at least one file is considered present.
+    # An empty or absent directory means the submodule is genuinely missing.
+    $Missing = New-Object System.Collections.Generic.List[string]
     foreach ($Sub in $SubmoduleList)
     {
-        $SubPath = Join-Path $RepositoryRoot $Sub
-        if (-not (Test-Path (Join-Path $SubPath 'CMakeLists.txt')) -and
-            -not (Test-Path (Join-Path $SubPath 'imgui.h')) -and
-            -not (Test-Path (Join-Path $SubPath 'include')) -and
-            -not (Test-Path (Join-Path $SubPath 'inc')))
-        {
-            $AllPresent = $false
-            break
-        }
+        $SubPath  = Join-Path $RepositoryRoot $Sub
+        $HasFiles = (Test-Path $SubPath) -and
+                    ((Get-ChildItem $SubPath -Force -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0)
+        if (-not $HasFiles) { $Missing.Add($Sub) }
     }
-    if (-not $AllPresent) { throw 'git submodule update failed and ExternalPackages directories are missing' }
-    Write-Skipped 'submodule update failed but directories are present — continuing'
+    if ($Missing.Count -gt 0)
+    {
+        Write-Rejected 'git submodule update failed; these directories are absent or empty:'
+        $Missing | ForEach-Object { Write-Host "    $_" }
+        Pop-Location
+        throw 'git submodule update failed and one or more ExternalPackages directories are missing'
+    }
+    Write-Skipped "git submodule update non-zero but all $($SubmoduleList.Count) package directories are present — continuing"
 }
 Pop-Location
 
