@@ -11,6 +11,7 @@
 #include "RayTracingSolver.h"
 
 #include <chrono>
+#include <iostream>
 
 int main(int, char**)
 {
@@ -22,7 +23,7 @@ int main(int, char**)
     DiagnosticConfig.OutputFileStem             = "ProjectZero_TelemetryReport";
     DiagnosticConfig.FileExtension              = ".md";
     DiagnosticConfig.TimestampPrefixEnabled     = true;
-    DiagnosticConfig.ConsoleEchoEnabled         = false;
+    DiagnosticConfig.ConsoleEchoEnabled         = true;    // 💡 mirror telemetry into the console so a failed bring-up is visible
     DiagnosticConfig.MarkdownTableFormatEnabled = true;
 
     Frontier::DiagnosticMetrics Logger(DiagnosticConfig);
@@ -91,10 +92,15 @@ int main(int, char**)
     if (!Surface.Bring())
     {
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Fatal,
-                             "Bootstrap", "SwapchainExchange bring-up failed.");
+                             "Bootstrap", "SwapchainExchange bring-up failed - see the [SwapchainExchange] lines above for the failing stage.");
         Logger.TerminateSink();
+        std::cerr << "\nProject-Zero could not open its window. Press Enter to close this console.\n";
+        std::cin.get();
         return 1;
     }
+
+    Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
+                         "Bootstrap", "Window and Vulkan swapchain ready.");
 
     Surface.UploadTriangles(GpuTriangles);
     Surface.UploadRadiance(GpuMaterials);
@@ -159,6 +165,9 @@ int main(int, char**)
         Surface.RecordAndPresent(Dispatch);
 
         Integrator.IncrementAccumulationIndex();
+
+        // 📝 Keep the on-disk telemetry current even if the process is killed mid-run.
+        if ((Integrator.QueryAccumulationIndex() & 63u) == 0u) Logger.FlushSink();
     }
 
     //──────────────────────────────────────────────────────────────────────────

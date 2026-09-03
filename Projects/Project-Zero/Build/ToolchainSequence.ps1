@@ -613,6 +613,20 @@ $ExePath = Join-Path $BinaryRoot 'Project-Zero.exe'
 $GlfwDll = Join-Path $PackageRoot 'glfw\lib-vc2022\glfw3.dll'
 if (Test-Path $GlfwDll) { Copy-Item $GlfwDll $BinaryRoot -Force }
 
+# Copy the lowered compute shader beside the executable so double-clicking the .exe works
+# (the runtime searches <cwd>\Engine\Shaders first, then <exe dir>\Engine\Shaders and its parents).
+$SpirvSource = Join-Path $EngineRoot 'Shaders\ReSTIRViewport.spv'
+if (Test-Path $SpirvSource)
+{
+    $SpirvTarget = Join-Path $BinaryRoot 'Engine\Shaders'
+    New-Item -ItemType Directory -Force -Path $SpirvTarget | Out-Null
+    Copy-Item $SpirvSource $SpirvTarget -Force
+}
+else
+{
+    Write-Rejected "Engine\Shaders\ReSTIRViewport.spv is missing - Project-Zero will fail at BringComputePipeline"
+}
+
 if (Test-Path $ExePath)
 {
     try
@@ -656,6 +670,8 @@ Write-Produced $ExePath
 
 if ($Run)
 {
-    Write-Building 'Launching Project-Zero...'
-    & "$ExePath"
+    Write-Building 'Launching Project-Zero (working directory = repository root)...'
+    Push-Location $RepositoryRoot
+    try     { & "$ExePath"; Write-Building "Project-Zero exited with code $LASTEXITCODE" }
+    finally { Pop-Location }
 }
