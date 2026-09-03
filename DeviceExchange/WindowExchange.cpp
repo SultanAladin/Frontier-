@@ -9,6 +9,10 @@
     #define WIN32_LEAN_AND_MEAN
     #define NOMINMAX
     #include <windows.h>
+#endif
+
+#if defined(FRONTIER_ENABLE_GLFW) && __has_include(<GLFW/glfw3.h>)
+    #include <GLFW/glfw3.h>
 #elif defined(__linux__) && __has_include(<X11/Xlib.h>)
     #define FRONTIER_ENABLE_X11 1
     #include <X11/Xlib.h>
@@ -42,6 +46,28 @@ bool WindowExchange::OpenDisplayWindow(const WindowConfiguration& Config) noexce
     CurrentWidth            = Config.Width;
     CurrentHeight           = Config.Height;
     CloseRequestedCondition = false;
+
+#if defined(FRONTIER_ENABLE_GLFW) && __has_include(<GLFW/glfw3.h>)
+    if (glfwInit())
+    {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // For Vulkan/Native
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+        GLFWwindow* GlfwWin = glfwCreateWindow(
+            static_cast<int>(Config.Width),
+            static_cast<int>(Config.Height),
+            Config.Title ? Config.Title : "Frontier Engine",
+            Config.FullscreenCondition ? glfwGetPrimaryMonitor() : nullptr,
+            nullptr
+        );
+        if (GlfwWin)
+        {
+            NativeWindowToken  = reinterpret_cast<void*>(GlfwWin);
+            NativeDisplayToken = reinterpret_cast<void*>(0x1);
+            OpenCondition      = true;
+            return true;
+        }
+    }
+#endif
 
 #if defined(_WIN32)
     HINSTANCE InstanceHandle = GetModuleHandle(nullptr);
@@ -133,7 +159,14 @@ void WindowExchange::CloseDisplayWindow() noexcept
 {
     if (OpenCondition)
     {
-#if defined(_WIN32)
+#if defined(FRONTIER_ENABLE_GLFW) && __has_include(<GLFW/glfw3.h>)
+        if (NativeWindowToken != nullptr && NativeWindowToken != reinterpret_cast<void*>(0xDEADBEEFULL))
+        {
+            GLFWwindow* GlfwWin = reinterpret_cast<GLFWwindow*>(NativeWindowToken);
+            glfwDestroyWindow(GlfwWin);
+            glfwTerminate();
+        }
+#elif defined(_WIN32)
         if (NativeWindowToken != nullptr && NativeWindowToken != reinterpret_cast<void*>(0xDEADBEEFULL))
         {
             DestroyWindow(reinterpret_cast<HWND>(NativeWindowToken));
@@ -168,6 +201,41 @@ void WindowExchange::PollEvents(InputExchange* TargetInputExchange) noexcept
     {
         return;
     }
+
+#if defined(FRONTIER_ENABLE_GLFW) && __has_include(<GLFW/glfw3.h>)
+    if (NativeWindowToken != nullptr && NativeWindowToken != reinterpret_cast<void*>(0xDEADBEEFULL))
+    {
+        GLFWwindow* GlfwWin = reinterpret_cast<GLFWwindow*>(NativeWindowToken);
+        if (glfwWindowShouldClose(GlfwWin))
+        {
+            CloseRequestedCondition = true;
+        }
+
+        glfwPollEvents();
+
+        if (TargetInputExchange != nullptr)
+        {
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyW, glfwGetKey(GlfwWin, GLFW_KEY_W) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyA, glfwGetKey(GlfwWin, GLFW_KEY_A) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyS, glfwGetKey(GlfwWin, GLFW_KEY_S) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyD, glfwGetKey(GlfwWin, GLFW_KEY_D) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyQ, glfwGetKey(GlfwWin, GLFW_KEY_Q) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyE, glfwGetKey(GlfwWin, GLFW_KEY_E) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyLeftShift, glfwGetKey(GlfwWin, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeySpace, glfwGetKey(GlfwWin, GLFW_KEY_SPACE) == GLFW_PRESS);
+            TargetInputExchange->AssignKeyState(VirtualKeyCategory::KeyEscape, glfwGetKey(GlfwWin, GLFW_KEY_ESCAPE) == GLFW_PRESS);
+
+            TargetInputExchange->AssignMouseButton(MouseButtonCategory::ButtonLeft, glfwGetMouseButton(GlfwWin, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
+            TargetInputExchange->AssignMouseButton(MouseButtonCategory::ButtonRight, glfwGetMouseButton(GlfwWin, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
+            TargetInputExchange->AssignMouseButton(MouseButtonCategory::ButtonMiddle, glfwGetMouseButton(GlfwWin, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS);
+
+            double MouseX, MouseY;
+            glfwGetCursorPos(GlfwWin, &MouseX, &MouseY);
+            TargetInputExchange->AssignCursorPosition(static_cast<float>(MouseX), static_cast<float>(MouseY));
+        }
+        return;
+    }
+#endif
 
 #if defined(_WIN32)
     if (NativeWindowToken != nullptr && NativeWindowToken != reinterpret_cast<void*>(0xDEADBEEFULL))
