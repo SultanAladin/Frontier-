@@ -22,6 +22,7 @@
 #include "../Engine/DisplayPresentation/TelemetryMetrics.h"
 #include "../Engine/DisplayPresentation/FidelityClassifier.h"
 #include "../Engine/DisplayPresentation/TypefaceRegistry.h"
+#include "../Engine/DisplayPresentation/PreferenceRegistry.h"
 
 #include <imgui.h>
 
@@ -685,6 +686,22 @@ int main()
     R.Snapshot("ControlCentre_Settings_45_Fonts_Applied_Chrome_Refaced");
     Tap(R.Host.QueryPageCloseExtent()); R.Idle(80);
     R.Snapshot("ControlCentre_Settings_46_Hub_In_Applied_Typeface");
+
+    // Step 5A — persistence round trip: applied state → TOML → fresh host seeded from it (textual proof).
+    {
+        Frontier::UserPreferences P;
+        P.Render     = R.Host.QuerySettings();
+        P.Appearance = R.Host.QueryAppearance().QueryApplied();
+        const std::string Toml = Frontier::PreferenceRegistry::Serialise(P);
+        Frontier::UserPreferences Q; std::string Error;
+        const bool Parsed = Frontier::PreferenceRegistry::Deserialise(Toml, Q, &Error);
+        std::printf("   [5A] toml=%zu bytes parsed=%d appearance-equal=%d render-equal=%d %s\n", Toml.size(), Parsed,
+                    Q.Appearance == P.Appearance,
+                    Q.Render.GlobalIllumination == P.Render.GlobalIllumination && Q.Render.Quality == P.Render.Quality
+                        && Q.Render.RenderScale == P.Render.RenderScale && Q.Render.Notifications == P.Render.Notifications, Error.c_str());
+        std::FILE* F = std::fopen("Scratchpad/ControlCentre_Settings_5A_UserPreferences.toml", "wb");
+        if (F) { std::fwrite(Toml.data(), 1, Toml.size(), F); std::fclose(F); }
+    }
 
     ImGui::DestroyContext();
     return 0;

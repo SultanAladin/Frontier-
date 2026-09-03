@@ -1,0 +1,21 @@
+# Build artifacts and binaries
+*.o
+*.obj
+*.exe
+*.a
+*.lib
+*.ppm
+bin/
+build/
+Projects/**/bin/
+Projects/**/build/
+Scratchpad/GenerateDialogueProofs
+Scratchpad/GenerateFontSectionProofs
+Scratchpad/GenerateThemeSectionProofs
+Scratchpad/GenerateCarouselProofs
+Scratchpad/GenerateControlPanelProof
+Scratchpad/VectorGlyphTest
+.DS_Store
+
+# Per-user Control Centre preferences (written by PreferenceRegistry at runtime)
+Projects/*/Content/UserPreferences.toml

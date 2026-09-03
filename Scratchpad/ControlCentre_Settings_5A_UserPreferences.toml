@@ -1,0 +1,81 @@
+# Frontier user preferences - written by PreferenceRegistry; edit freely, unknown keys are ignored.
+
+[appearance.display]
+anti_aliasing = '1x'
+frame_cap = 'Unlimited'
+frame_rate_overlay = false
+fullscreen = false
+interface_scale = 100.0
+match_quality_tier = true
+overlay_corner = 'TopRight'
+resolution = 'Native'
+safe_area_padding = 32.0
+vertical_sync = 'On'
+
+[appearance.fonts]
+antialiasing = true
+family = 'Space Grotesk'
+family_index = 2
+ligatures = false
+
+    [appearance.fonts.roles.Body]
+    size = 14.0
+    weight = 'Regular'
+
+    [appearance.fonts.roles.Caption]
+    size = 10.0
+    weight = 'Regular'
+
+    [appearance.fonts.roles.Header]
+    size = 24.0
+    weight = 'Bold'
+
+    [appearance.fonts.roles.Label]
+    size = 12.0
+    weight = 'Medium'
+
+    [appearance.fonts.roles.Subheader]
+    size = 18.0
+    weight = 'Medium'
+
+    [appearance.fonts.roles.Title]
+    size = 48.0
+    weight = 'Bold'
+
+[appearance.theme]
+accent = 'Rose'
+caution_swatch = 0
+corner_radius = 30.0
+info_swatch = 0
+success_swatch = 1
+theme = 'Nord'
+warning_swatch = 0
+
+[input]
+boost_multiplier = 3.0
+flight_speed = 1.0
+invert_pitch = false
+mouse_sensitivity = 1.0
+raw_mouse_input = true
+scroll_speed_step = 1.0
+
+[notifications]
+baking_complete = true
+frame_rate_drops = false
+frame_rate_threshold = 30.0
+hold_seconds = 3.5
+memory_warnings = true
+placement = 'TopRight'
+render_changes = true
+sound = false
+
+[preferences]
+version = 1
+
+[render]
+anti_aliasing = false
+frame_rate_overlay = true
+global_illumination = false
+notifications = false
+quality = 'Standard'
+render_scale = 0.6000249981880188

@@ -261,6 +261,9 @@ public:
     [[nodiscard]] bool      IsDialogueOpen() const noexcept { return Dialogue.IsOpen(); }
     [[nodiscard]] const DialogueHost& QueryDialogue() const noexcept { return Dialogue; }
     [[nodiscard]] const AppearanceInspector& QueryAppearance() const noexcept { return Appearance; }
+    AppearanceInspector&                     AccessAppearance() noexcept { return Appearance; }
+    // Seed the dashboard record without a revision bump beyond one (start-up from persisted preferences).
+    void                    SeedSettings(const ControlCentreSettings& Persisted) noexcept { const uint32_t R = Settings.Revision; Settings = Persisted; Settings.Revision = R + 1u; }
     [[nodiscard]] bool      IsPageDirty() const noexcept;                                       // active page has unapplied edits
     [[nodiscard]] float     QueryBodyScroll() const noexcept { return BodyScrollY; }
     [[nodiscard]] PlaneExtent QueryPageBodyExtent() const noexcept;

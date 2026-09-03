@@ -13,6 +13,7 @@
 #include "../../../Engine/DisplayPresentation/NotificationQueue.h"
 #include "../../../Engine/DisplayPresentation/TelemetryMetrics.h"
 #include "../../../Engine/DisplayPresentation/TypefaceRegistry.h"
+#include "../../../Engine/DisplayPresentation/PreferenceRegistry.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
@@ -133,6 +134,14 @@ int main(int, char**)
     Frontier::ControlCentreHost ControlCentre;
     ControlCentre.AssignProjectName("Project-Zero");
     (void)ControlCentre.Initialize(Surface.QueryWidth(), Surface.QueryHeight());
+
+    // Persisted preferences: Projects/Project-Zero/Content/UserPreferences.toml (missing file = defaults). The hosts are
+    //    seeded before the first frame; every Apply / debounced dashboard change writes the file back.
+    Frontier::PreferenceRegistry Preferences;
+    if (!Preferences.Load("Projects/Project-Zero/Content/UserPreferences.toml"))
+        std::cerr << "[Preferences] " << Preferences.QueryPath() << ": " << Preferences.QueryLastError() << " - using defaults\n";
+    ControlCentre.SeedSettings(Preferences.Query().Render);
+    ControlCentre.AccessAppearance().Seed(Preferences.Query().Appearance);
     Frontier::PixelSpace OverlaySurface;
 
     // Dashboard-driven engine services: quality ladder, toasts, frame telemetry
@@ -142,7 +151,8 @@ int main(int, char**)
     uint32_t AppliedSettingsRevision = ~0u;   // forces the first application
     float    SettingsQuietSeconds    = 0.0f;  // [s] since the last change; the toast waits for the slider to rest
     bool     SettingsToastPending    = false;
-    uint32_t AppliedAppearanceRevision = 0u;   // AppearanceInspector::Apply bumps its own revision
+    uint32_t AppliedAppearanceRevision = 0u;
+    bool     AppearanceEverApplied     = false;   // AppearanceInspector::Apply bumps its own revision
 
     // Push the Control Centre settings into the renderer. Called whenever the settings revision changes.
     auto ApplyControlCentreSettings = [&](const Frontier::ControlCentreSettings& S, bool Announce)
@@ -205,6 +215,7 @@ int main(int, char**)
         ControlCentre.AdvanceInteraction(Input, Input.QueryCursorPositionX(), Input.QueryCursorPositionY());
         ControlCentre.AdvanceLocomotion(Δτ);
         Notifications.Advance(Δτ);
+        Preferences.Advance(Δτ);
         Telemetry.RecordFrame(Δτ);
 
         // ①c Dashboard settings → renderer (only when something changed)
@@ -215,6 +226,7 @@ int main(int, char**)
                 const bool First = AppliedSettingsRevision == ~0u;
                 ApplyControlCentreSettings(S, false);      // renderer follows every tick (live slider)
                 AppliedSettingsRevision = S.Revision;
+                if (!First) { Preferences.Access().Render = S; Preferences.MarkDirty(); }   // debounced write, one per gesture
                 SettingsQuietSeconds = 0.0f;
                 SettingsToastPending = !First;
             }
@@ -238,6 +250,13 @@ int main(int, char**)
             {
                 const Frontier::AppearanceSettings& P = A.QueryApplied();
                 AppliedAppearanceRevision = A.QueryRevision();
+                const bool FirstAppearance = !AppearanceEverApplied;
+                AppearanceEverApplied = true;
+                if (!FirstAppearance)   // start-up seed: apply silently, nothing to persist or announce
+                {
+                    Preferences.Access().Appearance = P;
+                    if (!Preferences.Save()) std::cerr << "[Preferences] save failed: " << Preferences.QueryLastError() << "\n";
+                }
                 char Body[128];
                 const Frontier::TypefaceFamily* Fam = Typefaces.QueryFamily(P.FontFamily);
                 std::snprintf(Body, sizeof(Body), "%s  |  %s  |  UI %d%%  |  radius %dpx  |  V-Sync %s%s",
@@ -245,7 +264,7 @@ int main(int, char**)
                               static_cast<int>(P.CornerRadius),
                               P.VerticalSync == Frontier::VerticalSyncCategory::Off ? "off" : P.VerticalSync == Frontier::VerticalSyncCategory::On ? "on" : "adaptive",
                               P.Fullscreen ? "  |  fullscreen" : "");
-                Notifications.Push("Appearance applied", Body);
+                if (!FirstAppearance) Notifications.Push("Appearance applied", Body);
             }
         }
 

@@ -179,7 +179,7 @@ void ControlCentreHost::ResolveDialogueVerdict() noexcept
             if (V == DialogueVerdictCategory::Primary) Appearance.ResetDefaults();
             break;
         case DialoguePresetCategory::UnsavedChanges:
-            if (V == DialogueVerdictCategory::Primary)   { Appearance.Apply();   ++Settings.Revision; }
+            if (V == DialogueVerdictCategory::Primary)   { Appearance.Apply(); }
             if (V == DialogueVerdictCategory::Secondary) { Appearance.Discard(); }
             if (V != DialogueVerdictCategory::Cancel)    { if (PendingLeaveBack) NavigateBack(); else Depart(false); }
             break;
@@ -456,7 +456,7 @@ void ControlCentreHost::Relinquish() noexcept
         {
             if (ActivePage == ControlCentrePageCategory::Appearance)
             {
-                if (GrabbedPrimaryButton) { if (Appearance.IsDirty()) { Appearance.Apply(); ++Settings.Revision; } }
+                if (GrabbedPrimaryButton) { if (Appearance.IsDirty()) { Appearance.Apply(); } }
                 else if (Appearance.IsDirty()) { LastDialoguePreset = DialoguePresetCategory::ConfirmDiscard; Dialogue.Open(DialoguePresetCategory::ConfirmDiscard); }
             }
             else if (!GrabbedPrimaryButton && ActivePage == ControlCentrePageCategory::Input)

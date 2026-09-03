@@ -75,6 +75,8 @@ public:
     [[nodiscard]] uint32_t QueryRevision() const noexcept { return Revision; }
 
     void Apply()   noexcept { Applied = Draft; ++Revision; }
+    // Seed both applied and draft from a persisted record (start-up). Bumps Revision so hosts react once.
+    void Seed(const AppearanceSettings& Persisted) noexcept { Applied = Persisted; Draft = Persisted; ++Revision; }
     void Discard() noexcept { Draft = Applied; CloseMenus(); }
     void ResetDefaults() noexcept { Draft = AppearanceSettings{}; }
     void CloseMenus() noexcept { OpenDropdown = -1; DraggingSlider = -1; }
