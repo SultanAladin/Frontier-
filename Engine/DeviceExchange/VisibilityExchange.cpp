@@ -48,7 +48,7 @@ struct HiZPushRecord { uint32_t SourceExtent[2]; uint32_t TargetExtent[2]; uint3
 
 const char* DebugViewName(DebugViewCategory View) noexcept
 {
-    static const char* Names[] = { "Off", "Depth", "Visibility ID", "Motion Vectors", "Cluster ID", "HiZ (level 3)", "Albedo", "Normal" };
+    static const char* Names[] = { "Off", "Depth", "Visibility ID", "Motion Vectors", "Cluster ID", "HiZ (level 3)", "Albedo", "Normal", "Roughness", "Metalness", "Shading Normal" };
     const uint32_t I = static_cast<uint32_t>(View);
     return I < static_cast<uint32_t>(DebugViewCategory::Count) ? Names[I] : Names[0];
 }
@@ -86,6 +86,10 @@ struct VisibilityExchange::VulkanRecord
 
     // Scene (host-visible, uploaded once)
     GpuBuffer Vertices, Indices, Instances, Clusters, Materials, Luminaires, FlatTriangles;
+    VkBuffer  BorrowedSlabs = VK_NULL_HANDLE;                   // R4b: SwapchainExchange's MaterialSlabRecord[] (raster binding 6)
+    VkSampler BorrowedSampler = VK_NULL_HANDLE;                 // R4b: bindless table sampler + views (raster binding 7)
+    std::vector<VkImageView> BorrowedTextures;
+    uint32_t  TextureSlotCapacity = 0u;                         // 0 = no descriptor indexing: raster set stops at binding 5
     GpuBuffer Draws, Counters, VisibleBitsA, VisibleBitsB;      // per-frame cull state (device-local except counters)
     GpuBuffer CounterReadback[kMaximumCycleSlots];              // host-visible copies for telemetry
     GpuBuffer FrameConstants[kMaximumCycleSlots][2];            // [slot][phase]
@@ -305,12 +309,13 @@ void ConstructFrustumPlanes(const CameraClipConfiguration& C, float Planes[5][4]
 VisibilityExchange::VisibilityExchange() noexcept : Vulkan(new VulkanRecord{}) {}
 VisibilityExchange::~VisibilityExchange() noexcept { Retire(); delete Vulkan; }
 
-bool VisibilityExchange::Bring(void* Device, void* PhysicalDevice, uint32_t CycleSlotCount, bool DrawIndirectCount) noexcept
+bool VisibilityExchange::Bring(void* Device, void* PhysicalDevice, uint32_t CycleSlotCount, bool DrawIndirectCount, uint32_t TextureSlotCapacity) noexcept
 {
     Vulkan->Device            = static_cast<VkDevice>(Device);
     Vulkan->PhysicalDevice    = static_cast<VkPhysicalDevice>(PhysicalDevice);
     Vulkan->SlotCount         = std::clamp(CycleSlotCount, 1u, kMaximumCycleSlots);
     Vulkan->DrawIndirectCount = DrawIndirectCount;
+    Vulkan->TextureSlotCapacity = TextureSlotCapacity;
     vkGetPhysicalDeviceMemoryProperties(Vulkan->PhysicalDevice, &Vulkan->MemoryProperties);
     VkPhysicalDeviceProperties Properties{};
     vkGetPhysicalDeviceProperties(Vulkan->PhysicalDevice, &Properties);
@@ -426,8 +431,26 @@ bool VisibilityExchange::BringPipelines() noexcept
     if (!MakePipelineLayout(Vulkan->CullLayout, 0u, 0u, Vulkan->CullPipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/ClusterCull.spv", Vulkan->CullPipelineLayout, Vulkan->CullPipeline)) return false;
 
-    // ② Raster: 0 frame, 1 instances, 2 clusters, 3 vertices
-    if (!MakeLayout({ Binding(0, UBO, VS | FS), Binding(1, SSBO, VS), Binding(2, SSBO, VS | FS), Binding(3, SSBO, VS) }, Vulkan->RasterLayout)) return false;
+    // ② Raster: 0 frame, 1 instances, 2 clusters, 3 vertices — R4b: 4 (unused), 5 materials, 6 slabs, 7 Textures[] (variable count, last) for the alpha mask
+    {
+        std::vector<VkDescriptorSetLayoutBinding> RasterBindings{ Binding(0, UBO, VS | FS), Binding(1, SSBO, VS | FS), Binding(2, SSBO, VS | FS), Binding(3, SSBO, VS) };
+        if (Vulkan->TextureSlotCapacity > 0u)
+        {
+            RasterBindings.push_back(Binding(5, SSBO, FS));
+            RasterBindings.push_back(Binding(6, SSBO, FS));
+            VkDescriptorSetLayoutBinding Table = Binding(7, TEX, FS); Table.descriptorCount = Vulkan->TextureSlotCapacity;
+            RasterBindings.push_back(Table);
+            std::vector<VkDescriptorBindingFlags> Flags(RasterBindings.size(), 0u);
+            Flags.back() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            VkDescriptorSetLayoutBindingFlagsCreateInfo FlagsInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
+            FlagsInfo.bindingCount = static_cast<uint32_t>(Flags.size()); FlagsInfo.pBindingFlags = Flags.data();
+            VkDescriptorSetLayoutCreateInfo Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+            Info.pNext = &FlagsInfo; Info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+            Info.bindingCount = static_cast<uint32_t>(RasterBindings.size()); Info.pBindings = RasterBindings.data();
+            if (vkCreateDescriptorSetLayout(D, &Info, nullptr, &Vulkan->RasterLayout) != VK_SUCCESS) return false;
+        }
+        else if (!MakeLayout(RasterBindings, Vulkan->RasterLayout)) return false;
+    }
     if (!MakePipelineLayout(Vulkan->RasterLayout, 0u, 0u, Vulkan->RasterPipelineLayout)) return false;
 
     // ③ HiZ: 0 source (sampled), 1 target level (storage)
@@ -516,16 +539,21 @@ bool VisibilityExchange::BringDescriptorSets() noexcept
 {
     VkDevice D = Vulkan->Device;
     constexpr uint32_t MaxHiZLevels = 16u;
-    std::array<VkDescriptorPoolSize, 4u> Sizes{ { { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32u }, { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 128u },
-                                                  { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64u }, { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 64u } } };
+    const uint32_t RasterSetCount = kMaximumCycleSlots * 2u;
+    std::array<VkDescriptorPoolSize, 4u> Sizes{ { { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32u }, { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 128u + 2u * RasterSetCount },
+                                                  { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64u + Vulkan->TextureSlotCapacity * RasterSetCount }, { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 64u } } };
     VkDescriptorPoolCreateInfo Pool{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    Pool.flags   = Vulkan->TextureSlotCapacity > 0u ? static_cast<VkDescriptorPoolCreateFlags>(VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT) : 0u;
     Pool.maxSets = kMaximumCycleSlots * 5u + MaxHiZLevels;
     Pool.poolSizeCount = static_cast<uint32_t>(Sizes.size()); Pool.pPoolSizes = Sizes.data();
     if (vkCreateDescriptorPool(D, &Pool, nullptr, &Vulkan->Pool) != VK_SUCCESS) return false;
 
     const auto Allocate = [&](VkDescriptorSetLayout Layout, VkDescriptorSet& Out)
     {
+        VkDescriptorSetVariableDescriptorCountAllocateInfo Variable{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO };
+        Variable.descriptorSetCount = 1u; Variable.pDescriptorCounts = &Vulkan->TextureSlotCapacity;
         VkDescriptorSetAllocateInfo Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+        Info.pNext = (Layout == Vulkan->RasterLayout && Vulkan->TextureSlotCapacity > 0u) ? &Variable : nullptr;
         Info.descriptorPool = Vulkan->Pool; Info.descriptorSetCount = 1u; Info.pSetLayouts = &Layout;
         return vkAllocateDescriptorSets(D, &Info, &Out) == VK_SUCCESS;
     };
@@ -662,6 +690,11 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
             Buffer(R, 1u, SSBO, Vulkan->Instances.Buffer);
             Buffer(R, 2u, SSBO, Vulkan->Clusters.Buffer);
             Buffer(R, 3u, SSBO, Vulkan->Vertices.Buffer);
+            if (Vulkan->TextureSlotCapacity > 0u)
+            {
+                Buffer(R, 5u, SSBO, Vulkan->Materials.Buffer);
+                if (Vulkan->BorrowedSlabs) Buffer(R, 6u, SSBO, Vulkan->BorrowedSlabs);
+            }
         }
         VkDescriptorSet X = Vulkan->ResolveSets[S];
         Buffer(X, 0u, UBO,  Vulkan->FrameConstants[S][1].Buffer);
@@ -691,6 +724,32 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
         if (W.pImageInfo)  W.pImageInfo  = &Images[reinterpret_cast<size_t>(W.pImageInfo)];
     }
     vkUpdateDescriptorSets(D, static_cast<uint32_t>(Writes.size()), Writes.data(), 0u, nullptr);
+
+    // R4b: bindless table into every raster set (binding 7) — one write per set, partially bound past ViewCount.
+    if (Vulkan->TextureSlotCapacity > 0u && Vulkan->BorrowedSampler && !Vulkan->BorrowedTextures.empty())
+    {
+        std::vector<VkDescriptorImageInfo> Table; Table.reserve(Vulkan->BorrowedTextures.size());
+        for (VkImageView V : Vulkan->BorrowedTextures) Table.push_back({ Vulkan->BorrowedSampler, V, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+        for (uint32_t S = 0u; S < Vulkan->SlotCount; ++S)
+            for (uint32_t P = 0u; P < 2u; ++P)
+            {
+                VkWriteDescriptorSet W{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                W.dstSet = Vulkan->RasterSets[S][P]; W.dstBinding = 7u; W.descriptorCount = static_cast<uint32_t>(Table.size());
+                W.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; W.pImageInfo = Table.data();
+                vkUpdateDescriptorSets(D, 1u, &W, 0u, nullptr);
+            }
+    }
+}
+
+void VisibilityExchange::AssignRasterMaterials(void* SlabBuffer, void* Sampler, const void* const* Views, uint32_t ViewCount) noexcept
+{
+    Vulkan->BorrowedSlabs   = static_cast<VkBuffer>(SlabBuffer);
+    Vulkan->BorrowedSampler = static_cast<VkSampler>(Sampler);
+    Vulkan->BorrowedTextures.clear();
+    const uint32_t Count = std::min(ViewCount, Vulkan->TextureSlotCapacity);
+    for (uint32_t I = 0u; I < Count; ++I) if (Views[I]) Vulkan->BorrowedTextures.push_back(static_cast<VkImageView>(const_cast<void*>(Views[I])));
+    if (Vulkan->Device) vkDeviceWaitIdle(Vulkan->Device);
+    WriteDescriptorSets();
 }
 
 //------------------------------------------------------------------------------------------------------------------------

@@ -46,6 +46,21 @@ constexpr ParameterEntry kParameters[] = {
 };
 #undef SLATE_PARAM
 
+// Parameters core glTF + the KHR extensions can carry (EncodeGltf writes them natively). Everything else in kParameters
+//    that differs from the OpenPBR default rides in extras as a flat "identifier": value member (R4b: previously only
+//    slate_* did, which silently dropped base_diffuse_roughness / coat_ior / coat_darkening / coat_color / …).
+constexpr const char* kGltfCoveredParameters[] = {
+    "base_color", "base_metalness", "specular_weight", "specular_color", "specular_roughness", "specular_roughness_anisotropy", "specular_ior",
+    "transmission_weight", "transmission_color", "transmission_depth", "transmission_dispersion_scale", "transmission_dispersion_abbe_number",
+    "coat_weight", "coat_roughness", "fuzz_weight", "fuzz_color", "fuzz_roughness", "emission_luminance", "emission_color",
+    "thin_film_weight", "thin_film_thickness", "thin_film_ior", "geometry_opacity",
+};
+bool IsGltfCovered(const char* Identifier)
+{
+    for (const char* C : kGltfCoveredParameters) if (std::strcmp(C, Identifier) == 0) return true;
+    return false;
+}
+
 constexpr const char* kTextureChannelNames[kMaterialTextureChannelCount] = {
     "base_color", "metalness", "specular_roughness", "specular_color", "geometry_normal", "geometry_coat_normal", "emission", "geometry_opacity",
     "transmission", "subsurface", "coat", "fuzz", "thin_film", "anisotropy", "occlusion", "mask" };
@@ -368,11 +383,14 @@ bool MaterialCodec::DecodeSlateExtras(const char* ExtrasJson, MaterialDescriptor
     if (D.Slabs.empty()) D.Slabs.emplace_back();
 
     bool Found = false;
-    // Flat slate_* scalars apply to slab 0 (the plain-glTF single-slab case).
+    // Flat parameters apply to slab 0 (the plain-glTF single-slab case): slate_* and any OpenPBR parameter glTF cannot say.
     for (const ParameterEntry& E : kParameters)
     {
-        if (std::strncmp(E.Identifier, "slate_", 6) != 0) continue;
-        if (const JsonValue* V = Root.Find(E.Identifier); V && V->Kind == JsonValue::Number) { *Param(D.Slabs[0], E) = V->Scalar(0.0f); Found = true; }
+        const JsonValue* V = Root.Find(E.Identifier);
+        if (!V) continue;
+        float* F = Param(D.Slabs[0], E);
+        if (E.Components == 1) { if (V->Kind == JsonValue::Number) { F[0] = V->Scalar(F[0]); Found = true; } }
+        else if (V->Kind == JsonValue::Array && V->Items.size() >= E.Components) { for (uint8_t C = 0; C < E.Components; ++C) F[C] = V->Items[C].Scalar(F[C]); Found = true; }
     }
 
     const JsonValue* Slabs = Root.Find("slate_slabs");
@@ -517,8 +535,15 @@ std::string MaterialCodec::EncodeGltf(const MaterialDescriptor& D, std::vector<s
     if (!Graph)
     {
         for (const ParameterEntry& E : kParameters)
-            if (std::strncmp(E.Identifier, "slate_", 6) == 0 && *Param(S, E) != *Param(Default, E))
-                Member(std::string("\"") + E.Identifier + "\":" + Number(*Param(S, E)));
+        {
+            if (IsGltfCovered(E.Identifier)) continue;
+            const float* F = Param(S, E); const float* G = Param(Default, E);
+            if (std::memcmp(F, G, E.Components * sizeof(float)) == 0) continue;
+            std::string Text = std::string("\"") + E.Identifier + "\":";
+            if (E.Components == 1) Text += Number(F[0]);
+            else { Text += "["; for (uint8_t C = 0; C < E.Components; ++C) { if (C) Text += ","; Text += Number(F[C]); } Text += "]"; }
+            Member(Text);
+        }
     }
     else
     {

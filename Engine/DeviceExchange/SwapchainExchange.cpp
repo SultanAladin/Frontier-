@@ -1650,11 +1650,19 @@ void SwapchainExchange::UploadScene(const SceneStructure& Scene, const Traversal
     UploadTriangles(Scene.QueryFlatTriangles());   // kernel: material / normal lookup by CWBVH primitive index
     UploadMaterials(Scene.QueryMaterials());       // R4a: MaterialRecord + MaterialSlabRecord (bindings 2, 10)
     UploadTraversal(Traversal);                    // R3: CWBVH node + triangle blobs (bindings 8-9)
+
+    // R4b: the raster's alpha-mask test borrows the slab SSBO and the bindless table (VisibilityRaster.frag bindings 6 / 7).
+    if (Vulkan->DescriptorIndexing)
+    {
+        std::vector<const void*> Views; Views.reserve(Vulkan->Textures.size());
+        for (const VulkanRecord::ResidentTexture& T : Vulkan->Textures) Views.push_back(T.View);
+        Visibility.AssignRasterMaterials(Vulkan->SlabBuffer, Vulkan->TextureSampler, Views.data(), static_cast<uint32_t>(Views.size()));
+    }
 }
 
 bool SwapchainExchange::BringVisibility() noexcept
 {
-    if (!Visibility.Bring(Vulkan->Device, Vulkan->PhysicalDevice, kCycleSlotCount, DrawIndirectCountSupported)) return false;
+    if (!Visibility.Bring(Vulkan->Device, Vulkan->PhysicalDevice, kCycleSlotCount, DrawIndirectCountSupported, Vulkan->DescriptorIndexing ? kTextureSlotCapacity : 0u)) return false;
     if (!Visibility.Resize(Configuration.Width, Configuration.Height, Vulkan->StorageImageView)) return false;
     WriteDescriptorSet();
     return true;

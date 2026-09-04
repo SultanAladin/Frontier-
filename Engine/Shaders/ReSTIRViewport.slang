@@ -292,7 +292,7 @@ layout(push_constant) uniform ReSTIRConstants
     uint    FrameIndex;             // [cnt] temporal accumulation index
     uint    SpatialPassCount;       // [cnt] ReSTIR spatial resampling passes
     uint    SamplesPerPixel;        // [cnt] primary DI candidates per pixel
-    uint    TriangleCount;          // [cnt] number of triangles in scene
+    uint    AlphaMaskedMaterialCount; // [cnt] R4b: materials flagged kMaterialFlagAlphaMask (0 ⇒ any-hit shadow rays) — was TriangleCount (unused here)
     uint    LightTriangleCount;     // [cnt] emissive triangles for DI sampling
     uint    FeatureFlags;           // [bit] kFeatureGlobalIllumination | kFeatureAntiAliasing
 };
@@ -329,6 +329,8 @@ uint MakeSeed(uvec2 pixel, uint frame)
 //                                                    RAY / HIT STRUCTURES
 //------------------------------------------------------------------------------------------------------------------------
 
+const uint kMaterialFlagAlphaMask = 2u;      // MaterialRecord.Flags bit (SceneRecords.slang)
+const uint kAlphaMaskRetraceLimit = 4u;      // cut-out layers a shadow / bounce ray may pass through before giving up
 struct Ray    { vec3 origin; vec3 dir; };
 struct Hit    { bool valid; float t; vec3 pos; vec3 normal; uint matIdx; uint primitive; };
 
@@ -339,24 +341,52 @@ const float kInf = 1e30;
 //                                                    SCENE TRAVERSAL
 //------------------------------------------------------------------------------------------------------------------------
 
+// R4b alpha mask: true when the hit on `primitive` is a cut-out texel (kMaterialFlagAlphaMask materials only). Opacity =
+//    geometry_opacity × base-colour alpha at LOD 0 through the flat triangle's own UVs — no vertex fetch on this path.
+bool AlphaMaskCutOut(uint primitive, vec3 hitPos)
+{
+    GpuTriangle tri = Triangles[primitive];
+    GpuMaterial mat = Materials[floatBitsToUint(tri.v0.w)];
+    if ((mat.Slabs.z & kMaterialFlagAlphaMask) == 0u) return false;
+    float opacity = 1.0;
+    if (mat.Slabs.y > 0u) opacity = MaterialSlabs[mat.Slabs.x].Payload[13].y;   // geometry_opacity
+    if (mat.Textures.x != kMaterialTextureNone)
+    {
+        vec3 bc = Barycentric(hitPos, tri.v0.xyz, tri.v1.xyz, tri.v2.xyz);
+        vec2 uv = bc.x * tri.uv.xy + bc.y * tri.uv.zw + bc.z * vec2(tri.v1.w, tri.v2.w);
+        opacity *= textureLod(Textures[nonuniformEXT(mat.Textures.x)], uv, 0.0).a;
+    }
+    return opacity < mat.AlphaCutoff;
+}
+
 Hit TraceScene(Ray ray)
 {
     // R3: closest hit through the CWBVH; the primitive index addresses the flat Triangles[] for material and normal.
+    // R4b: a hit on a cut-out texel of an alpha-masked material is skipped and the ray re-traced from just past it.
     Hit closest;
     closest.valid = false;
     closest.t     = kInf;
 
     vec3 rD = vec3(1.0) / ray.dir;   // IEEE ±inf on axis-aligned rays is handled by the slab test exactly as in tinybvh
-    TraversalHit h = TraverseClosest(ray.origin, ray.dir, rD, kInf);
-    if (h.primitive == 0xFFFFFFFFu || h.t <= kEps) return closest;
+    vec3  origin = ray.origin;
+    float tBase  = 0.0;
+    uint  passes = AlphaMaskedMaterialCount == 0u ? 0u : kAlphaMaskRetraceLimit;
+    for (uint pass = 0u; pass <= passes; ++pass)
+    {
+        TraversalHit h = TraverseClosest(origin, ray.dir, rD, kInf);
+        if (h.primitive == 0xFFFFFFFFu || h.t <= kEps) return closest;
+        vec3 pos = origin + h.t * ray.dir;
+        if (passes != 0u && AlphaMaskCutOut(h.primitive, pos)) { origin = pos + ray.dir * kEps; tBase += h.t + kEps; continue; }
 
-    GpuTriangle tri = Triangles[h.primitive];
-    closest.valid  = true;
-    closest.t      = h.t;
-    closest.pos    = ray.origin + h.t * ray.dir;
-    closest.normal = normalize(cross(tri.v1.xyz - tri.v0.xyz, tri.v2.xyz - tri.v0.xyz));   // R4a: face normal from the edges (slot now carries UVs)
-    closest.matIdx = floatBitsToUint(tri.v0.w);
-    closest.primitive = h.primitive;
+        GpuTriangle tri = Triangles[h.primitive];
+        closest.valid  = true;
+        closest.t      = tBase + h.t;
+        closest.pos    = pos;
+        closest.normal = normalize(cross(tri.v1.xyz - tri.v0.xyz, tri.v2.xyz - tri.v0.xyz));   // R4a: face normal from the edges (slot now carries UVs)
+        closest.matIdx = floatBitsToUint(tri.v0.w);
+        closest.primitive = h.primitive;
+        return closest;
+    }
     return closest;
 }
 
@@ -366,7 +396,21 @@ bool TraceShadow(vec3 origin, vec3 target)
     float tMax = length(dir) - 2.0 * kEps;
     dir = normalize(dir);
     vec3 rD = vec3(1.0) / dir;
-    return TraverseOccluded(origin + dir * kEps, dir, rD, tMax);
+    if (AlphaMaskedMaterialCount == 0u)
+        return TraverseOccluded(origin + dir * kEps, dir, rD, tMax);   // R3 fast path: any-hit, no material fetch (Cornell unchanged)
+
+    // R4b: closest-hit walk that steps through cut-out texels (foliage cards); an opaque hit before the light occludes.
+    vec3 o = origin + dir * kEps;
+    for (uint pass = 0u; pass <= kAlphaMaskRetraceLimit; ++pass)
+    {
+        TraversalHit h = TraverseClosest(o, dir, rD, tMax);
+        if (h.primitive == 0xFFFFFFFFu) return false;
+        vec3 pos = o + h.t * dir;
+        if (!AlphaMaskCutOut(h.primitive, pos)) return true;
+        o = pos + dir * kEps; tMax -= h.t + kEps;
+        if (tMax <= 0.0) return false;
+    }
+    return true;   // more cut-out layers than the limit: treat as occluded (conservative, never leaks light)
 }
 
 //------------------------------------------------------------------------------------------------------------------------

@@ -28,6 +28,13 @@ struct SceneDecodeConfiguration
     bool     MergePrimitives  = false;   // [-] reserved: merge same-material primitives before clustering
 };
 
+struct SceneEncodeConfiguration
+{
+    std::string                 Name;                      // node / mesh name; empty = "CornellBox"
+    const std::vector<Vector3>* CornerNormals = nullptr;   // 3 per triangle, world space → smooth NORMAL
+    bool                        WriteTexcoords = false;    // emit TEXCOORD_0 from TriangleIndex UVs
+};
+
 class SceneCodec
 {
 public:
@@ -36,8 +43,11 @@ public:
     [[nodiscard]] static bool Decode(const std::string& Path, SceneStructure& Out, TextureIndex* Textures, const SceneDecodeConfiguration& Config, std::string* Error) noexcept;
 
     // Writes a world-space triangle soup (one mesh, one primitive per material) as an embedded-buffer .gltf.
+    //    Defaults reproduce the R2 Cornell writer byte for byte (flat normals, no TEXCOORD_0, node/mesh named "CornellBox").
+    //    R4b: CornerNormals (3 per triangle, world space) switch to smooth shading, WriteTexcoords emits TriangleIndex UVs.
     [[nodiscard]] static bool Encode(const std::string& Path, const std::vector<TriangleIndex>& Triangles,
-                                     const std::vector<MaterialDescriptor>& Materials, std::string* Error) noexcept;
+                                     const std::vector<MaterialDescriptor>& Materials, std::string* Error,
+                                     const SceneEncodeConfiguration& Configuration = {}) noexcept;
 };
 
 } // namespace Frontier

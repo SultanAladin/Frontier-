@@ -95,7 +95,7 @@ struct DispatchConfiguration
     uint32_t AccumulationIndex;                                    // [-]   temporal frame counter
     uint32_t SpatialPassCount;                                     // [-]   ReSTIR spatial resampling passes
     uint32_t CandidatesPerPixel;                                   // [-]   primary DI candidates per pixel
-    uint32_t TriangleCount;                                        // [-]   total triangles in scene
+    uint32_t AlphaMaskedMaterialCount;                             // [-]   R4b: materials with MaterialFlagAlphaMask (0 = any-hit shadow rays); was TriangleCount, unused by the kernel
     uint32_t LuminaireTriangleCount;                               // [-]   emissive triangles for DI sampling
     uint32_t FeatureFlags;                                         // [bit] DispatchFeature bits
 };

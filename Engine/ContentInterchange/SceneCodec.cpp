@@ -275,21 +275,25 @@ std::string Number(float F)
 } // namespace
 
 bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex>& Triangles,
-                        const std::vector<MaterialDescriptor>& Materials, std::string* Error) noexcept
+                        const std::vector<MaterialDescriptor>& Materials, std::string* Error,
+                        const SceneEncodeConfiguration& Configuration) noexcept
 {
     std::vector<uint8_t> Buffer;
     std::ostringstream Views, Accessors, Primitives;
     uint32_t ViewIndex = 0u, AccessorIndex = 0u;
     bool FirstPrimitive = true;
+    const std::string Name = Configuration.Name.empty() ? std::string("CornellBox") : Configuration.Name;
+    const bool Smooth = Configuration.CornerNormals && Configuration.CornerNormals->size() == Triangles.size() * 3u;
 
     for (uint32_t M = 0u; M < Materials.size(); ++M)
     {
-        std::vector<float> Positions, Normals;
+        std::vector<float> Positions, Normals, Texcoords;
         std::vector<uint32_t> Indices;
         float Minimum[3] = {  1e30f,  1e30f,  1e30f };
         float Maximum[3] = { -1e30f, -1e30f, -1e30f };
-        for (const TriangleIndex& T : Triangles)
+        for (size_t TriangleSlot = 0u; TriangleSlot < Triangles.size(); ++TriangleSlot)
         {
+            const TriangleIndex& T = Triangles[TriangleSlot];
             uint32_t Slot; std::memcpy(&Slot, &T.MaterialSlot, sizeof(Slot));
             if (Slot != M) continue;
             const Vector3 Corners[3] = { WorldToGltf(Vector3{ T.VertexAlphaX, T.VertexAlphaY, T.VertexAlphaZ }),
@@ -299,11 +303,15 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
             const Vector3 Cross = OrientationClassifier::CrossProduct(B - A, C - A);
             const float   Len   = Cross.Length();
             const Vector3 N = WorldToGltf(Len > 0.0f ? Cross / Len : Vector3{ 0.0f, 0.0f, 1.0f });
-            for (const Vector3& C : Corners)
+            const float Uv[3][2] = { { T.TextureAlphaU, T.TextureAlphaV }, { T.TextureBetaU, T.TextureBetaV }, { T.TextureGammaU, T.TextureGammaV } };
+            for (uint32_t K = 0u; K < 3u; ++K)
             {
+                const Vector3& C = Corners[K];
+                const Vector3 Ns = Smooth ? WorldToGltf((*Configuration.CornerNormals)[TriangleSlot * 3u + K]) : N;
                 Indices.push_back(static_cast<uint32_t>(Positions.size() / 3u));
                 Positions.insert(Positions.end(), { C.x, C.y, C.z });
-                Normals.insert(Normals.end(), { N.x, N.y, N.z });
+                Normals.insert(Normals.end(), { Ns.x, Ns.y, Ns.z });
+                if (Configuration.WriteTexcoords) Texcoords.insert(Texcoords.end(), { Uv[K][0], Uv[K][1] });
                 Minimum[0] = std::min(Minimum[0], C.x); Minimum[1] = std::min(Minimum[1], C.y); Minimum[2] = std::min(Minimum[2], C.z);
                 Maximum[0] = std::max(Maximum[0], C.x); Maximum[1] = std::max(Maximum[1], C.y); Maximum[2] = std::max(Maximum[2], C.z);
             }
@@ -323,6 +331,13 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
         Offset = Buffer.size();
         AppendFloats(Buffer, Normals.data(), Normals.size());
         const uint32_t NormalView = EmitView(Offset, Normals.size() * 4u, 34962);
+        uint32_t TexcoordView = 0u;
+        if (Configuration.WriteTexcoords)
+        {
+            Offset = Buffer.size();
+            AppendFloats(Buffer, Texcoords.data(), Texcoords.size());
+            TexcoordView = EmitView(Offset, Texcoords.size() * 4u, 34962);
+        }
         Offset = Buffer.size();
         Buffer.resize(Offset + Indices.size() * 4u);
         std::memcpy(Buffer.data() + Offset, Indices.data(), Indices.size() * 4u);
@@ -336,12 +351,20 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
         const uint32_t PositionAccessor = AccessorIndex++;
         Accessors << ",{\"bufferView\":" << NormalView << ",\"componentType\":5126,\"count\":" << Count << ",\"type\":\"VEC3\"}";
         const uint32_t NormalAccessor = AccessorIndex++;
+        uint32_t TexcoordAccessor = 0u;
+        if (Configuration.WriteTexcoords)
+        {
+            Accessors << ",{\"bufferView\":" << TexcoordView << ",\"componentType\":5126,\"count\":" << Count << ",\"type\":\"VEC2\"}";
+            TexcoordAccessor = AccessorIndex++;
+        }
         Accessors << ",{\"bufferView\":" << IndexView << ",\"componentType\":5125,\"count\":" << Indices.size() << ",\"type\":\"SCALAR\"}";
         const uint32_t IndexAccessor = AccessorIndex++;
 
         if (!FirstPrimitive) Primitives << ",";
         FirstPrimitive = false;
-        Primitives << "{\"attributes\":{\"POSITION\":" << PositionAccessor << ",\"NORMAL\":" << NormalAccessor << "},\"indices\":" << IndexAccessor
+        Primitives << "{\"attributes\":{\"POSITION\":" << PositionAccessor << ",\"NORMAL\":" << NormalAccessor;
+        if (Configuration.WriteTexcoords) Primitives << ",\"TEXCOORD_0\":" << TexcoordAccessor;
+        Primitives << "},\"indices\":" << IndexAccessor
                    << ",\"material\":" << M << ",\"mode\":4}";
     }
 
@@ -359,8 +382,8 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
     if (!File) { if (Error) *Error = "cannot open " + Path + " for writing"; return false; }
     File << "{\"asset\":{\"version\":\"2.0\",\"generator\":\"Frontier SceneCodec\"},"
          << "\"extensionsUsed\":[" << ExtensionsJson.str() << "],"
-         << "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"CornellBox\"}],"
-         << "\"meshes\":[{\"name\":\"CornellBox\",\"primitives\":[" << Primitives.str() << "]}],"
+         << "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"" << Name << "\"}],"
+         << "\"meshes\":[{\"name\":\"" << Name << "\",\"primitives\":[" << Primitives.str() << "]}],"
          << "\"materials\":[" << MaterialsJson.str() << "],"
          << "\"accessors\":[" << Accessors.str() << "],"
          << "\"bufferViews\":[" << Views.str() << "],"

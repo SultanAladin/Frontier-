@@ -26,6 +26,7 @@
 #include "../../../Engine/GeometricRaster/TraversalIndex.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
+#include "../../../Engine/ContentInterchange/ShaderBallStructure.h"
 
 #include <algorithm>
 #include <chrono>
@@ -45,6 +46,7 @@ int main(int argc, char** argv)
         if (std::strcmp(argv[I], "--scene") == 0) ScenePath  = argv[++I];
         if (std::strcmp(argv[I], "--scale") == 0) SceneScale = static_cast<float>(std::atof(argv[++I]));
     }
+    if (ScenePath == "shaderball") ScenePath = "Projects/Project-Zero/Content/Scenes/ShaderBall.gltf";   // R4b material test level
 
     //──────────────────────────────────────────────────────────────────────────
     // Telemetry sink
@@ -80,6 +82,15 @@ int main(int argc, char** argv)
                 std::cerr << "[Scene] Exported the Cornell box to " << ScenePath << "\n";
             else
                 std::cerr << "[Scene] Cornell export failed: " << Error << "\n";
+        }
+        const bool IsShaderBall = ScenePath.find("ShaderBall.gltf") != std::string::npos;
+        if (IsShaderBall && !std::filesystem::exists(ScenePath, FsError))
+        {
+            std::filesystem::create_directories(std::filesystem::path(ScenePath).parent_path(), FsError);
+            std::string Error;
+            Frontier::ShaderBallStructure ShaderBall; ShaderBall.Construct();
+            if (ShaderBall.Export(ScenePath, &Error)) std::cerr << "[Scene] Exported the shader-ball level to " << ScenePath << "\n";
+            else                                     std::cerr << "[Scene] Shader-ball export failed: " << Error << "\n";
         }
     }
 
@@ -121,6 +132,9 @@ int main(int argc, char** argv)
         }
     }
     const uint32_t LuminaireCount = static_cast<uint32_t>(Level.QueryLuminaires().size());
+    uint32_t AlphaMaskedMaterialCount = 0u;   // R4b: > 0 switches shadow rays to the alpha-mask-aware walk
+    for (const Frontier::MaterialRecord& R : Level.QueryMaterials().QueryRecords())
+        if (R.Flags & Frontier::MaterialFlagAlphaMask) ++AlphaMaskedMaterialCount;
 
     // R3: Tier A acceleration structure — tinybvh binned SAH → CWBVH over the flat world-space triangles.
     Frontier::TraversalIndex Traversal;
@@ -152,7 +166,13 @@ int main(int argc, char** argv)
     Frontier::ProjectZero::FlyThroughSolver Camera(CameraConfig);
     Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -1.95f, 1.0f });
     Camera.AssignOrientationEuler(0.0f, 0.0f, 0.0f);
-    if (Level.QueryName() != "CornellBox")
+    if (Level.QueryName() == "ShaderBall")
+    {
+        // Shader ball: 5 m back from the front row, 2.6 m up, pitched down ~22° so all four rows fit at 55° FoV.
+        Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -6.2f, 2.6f });
+        Camera.AssignOrientationEuler(-22.0f * 3.14159265f / 180.0f, 0.0f, 0.0f);
+    }
+    else if (Level.QueryName() != "CornellBox")
     {
         // Other levels: start at the centre of the bounds at ~eye height, looking along +Y; flight speed scales with the level.
         const Frontier::Vector3 Lo = Level.QueryBoundsMinimum(), Hi = Level.QueryBoundsMaximum();
@@ -531,7 +551,7 @@ int main(int argc, char** argv)
             Camera,
             RenderWidth,
             RenderHeight,
-            Level.QueryTriangleCount(),
+            AlphaMaskedMaterialCount,
             LuminaireCount);
 
         // ④b R2 front end: same camera, reverse-Z infinite projection; AA jitter is a per-frame Halton(2,3) offset shared

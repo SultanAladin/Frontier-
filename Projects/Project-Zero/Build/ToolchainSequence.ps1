@@ -626,6 +626,7 @@ $EngineRelative = @(
     'Engine\ContentInterchange\MaterialCodec.cpp'
     'Engine\ContentInterchange\TextureIndex.cpp'
     'Engine\ContentInterchange\SceneCodec.cpp'
+    'Engine\ContentInterchange\ShaderBallStructure.cpp'
     'Engine\ContentInterchange\FbxCodec.cpp'
     'Engine\ContentInterchange\ObjCodec.cpp'
     'Engine\ContentInterchange\ContentCodec.cpp'

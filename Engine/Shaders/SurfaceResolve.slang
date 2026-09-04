@@ -42,6 +42,9 @@ const uint kDebugCluster    = 4u;
 const uint kDebugHiZ        = 5u;   // level = Control.y & 15 is NOT used; HiZ view shows level 3 (8×8 px footprints)
 const uint kDebugAlbedo     = 6u;
 const uint kDebugNormal     = 7u;
+const uint kDebugRoughness  = 8u;   // R4b: MaterialRecord.Albedo.w (constant part; textured roughness is not resolved here)
+const uint kDebugMetalness  = 9u;   // R4b: MaterialRecord.Emissive.w
+const uint kDebugShadingNormal = 10u;   // R4b: interpolated vertex normal (⚠️ without the normal map — that needs the slab + texture table)
 
 vec3 HashColour(uint V)
 {
@@ -59,6 +62,7 @@ void main()
     vec3  Normal     = vec3(0.0, 0.0, 1.0);
     uint  Material   = 0u;
     uint  ClusterId  = 0u;
+    vec3  ShadingNormal = vec3(0.0, 0.0, 1.0);
 
     if (Visibility != kVisibilityInvalid)
     {
@@ -84,6 +88,22 @@ void main()
         float T = abs(Denominator) > 1e-8 ? dot(Normal, A - CameraOrigin.xyz) / Denominator : 0.0;
         Position = CameraOrigin.xyz + Direction * max(T, 0.0);
         if (dot(Normal, -Direction) < 0.0) Normal = -Normal;    // face the camera, as the kernel did with its primary hit
+
+        if (Control.z == kDebugShadingNormal)
+        {
+            // Barycentrics of the hit against the same triangle → interpolated vertex normal (linear part of World; flipped to the camera side).
+            vec3  E2 = Position - A;
+            float D00 = dot(Edge1, Edge1), D01 = dot(Edge1, Edge2), D11 = dot(Edge2, Edge2), D20 = dot(E2, Edge1), D21 = dot(E2, Edge2);
+            float Den = D00 * D11 - D01 * D01;
+            float V = abs(Den) > 1e-20 ? (D11 * D20 - D01 * D21) / Den : 0.0;
+            float W = abs(Den) > 1e-20 ? (D00 * D21 - D01 * D20) / Den : 0.0;
+            vec3 N = (1.0 - V - W) * Vertices[Indices[Base + 0u] + Instance.VertexOffset].Normal.xyz
+                   + V * Vertices[Indices[Base + 1u] + Instance.VertexOffset].Normal.xyz
+                   + W * Vertices[Indices[Base + 2u] + Instance.VertexOffset].Normal.xyz;
+            N = mat3(Instance.World) * N;
+            ShadingNormal = dot(N, N) > 1e-12 ? normalize(N) : Normal;
+            if (dot(ShadingNormal, Normal) < 0.0) ShadingNormal = -ShadingNormal;
+        }
     }
 
     imageStore(SurfaceImage, ivec2(Pixel), vec4(Position, uintBitsToFloat(Visibility)));
@@ -117,6 +137,9 @@ void main()
     }
     else if (View == kDebugAlbedo) Colour = Hit ? Materials[Material].Albedo.xyz : vec3(0.0);
     else if (View == kDebugNormal) Colour = Hit ? Normal * 0.5 + 0.5 : vec3(0.0);
+    else if (View == kDebugRoughness)     Colour = Hit ? vec3(Materials[Material].Albedo.w)   : vec3(0.0);
+    else if (View == kDebugMetalness)     Colour = Hit ? vec3(Materials[Material].Emissive.w) : vec3(0.0);
+    else if (View == kDebugShadingNormal) Colour = Hit ? ShadingNormal * 0.5 + 0.5 : vec3(0.0);
 
     imageStore(OutputImage, ivec2(Pixel), vec4(Colour, 1.0));
 }

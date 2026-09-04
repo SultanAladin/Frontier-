@@ -52,7 +52,7 @@ public:
     BuildDispatch(const ProjectZero::FlyThroughSolver& Camera,
                   uint32_t                             ViewportWidth,
                   uint32_t                             ViewportHeight,
-                  uint32_t                             TriangleCount,
+                  uint32_t                             AlphaMaskedMaterialCount,   // R4b: materials flagged MaterialFlagAlphaMask
                   uint32_t                             LuminaireTriangleCount) const noexcept;
 
     // Count emissive triangles in the scene (used to set LuminaireTriangleCount each frame)

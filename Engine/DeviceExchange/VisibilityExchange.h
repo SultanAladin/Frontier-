@@ -43,7 +43,10 @@ enum class DebugViewCategory : uint32_t
     HiZ          = 5,
     Albedo       = 6,
     Normal       = 7,
-    Count        = 8
+    Roughness    = 8,    // R4b
+    Metalness    = 9,    // R4b
+    ShadingNormal = 10,  // R4b: interpolated vertex normal
+    Count        = 11
 };
 
 [[nodiscard]] const char* DebugViewName(DebugViewCategory View) noexcept;
@@ -101,7 +104,8 @@ public:
     VisibilityExchange& operator=(const VisibilityExchange&) = delete;
 
     // Handles are opaque here (VkDevice, VkPhysicalDevice, VkQueue, VkCommandPool) so the header stays Vulkan-free.
-    [[nodiscard]] bool  Bring(void* Device, void* PhysicalDevice, uint32_t CycleSlotCount, bool DrawIndirectCount) noexcept;
+    // TextureSlotCapacity > 0 enables the bindless table in the raster set (descriptor indexing granted); 0 = alpha mask off.
+    [[nodiscard]] bool  Bring(void* Device, void* PhysicalDevice, uint32_t CycleSlotCount, bool DrawIndirectCount, uint32_t TextureSlotCapacity = 0u) noexcept;
     void                Retire() noexcept;
 
     // (Re)creates the render-size targets; PresentationView is the swapchain's rgba8 storage image view (debug views).
@@ -109,6 +113,10 @@ public:
 
     // Uploads every SceneStructure buffer (host-visible; a staging path is R7 work). Safe to call again with a new scene.
     void                UploadScene(const SceneStructure& Scene) noexcept;
+
+    // R4b alpha mask in the raster: the kernel's slab SSBO (VkBuffer) and bindless table (VkSampler + VkImageView[]) are
+    //    borrowed into raster bindings 6 / 7. Call after UploadScene / UploadTextures; the fragment stage reads them.
+    void                AssignRasterMaterials(void* SlabBuffer, void* Sampler, const void* const* Views, uint32_t ViewCount) noexcept;
 
     // Records cull → raster → HiZ → cull → raster → resolve into Command (a VkCommandBuffer). Call once per frame after
     //    the slot's fence has been waited on; the same slot's previous telemetry is read back first.
