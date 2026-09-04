@@ -654,7 +654,11 @@ $ExePath = Join-Path $BinaryRoot 'Project-Zero.exe'
 
 # Copy GLFW DLL beside executable
 $GlfwDll = Join-Path $PackageRoot 'glfw\lib-vc2022\glfw3.dll'
-if (Test-Path $GlfwDll) { Copy-Item $GlfwDll $BinaryRoot -Force }
+if (Test-Path $GlfwDll)
+{
+    try { Copy-Item $GlfwDll $BinaryRoot -Force -ErrorAction Stop }
+    catch { if (-not (Test-Path (Join-Path $BinaryRoot 'glfw3.dll'))) { throw $_ } }
+}
 
 # Copy the lowered shaders beside the executable so double-clicking the .exe works
 # (the runtime searches <cwd>\Engine\Shaders first, then <exe dir>\Engine\Shaders and its parents).

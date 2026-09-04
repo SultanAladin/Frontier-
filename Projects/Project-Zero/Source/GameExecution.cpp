@@ -207,7 +207,7 @@ int main(int argc, char** argv)
         1280u,
         720u,
         "Project-Zero  |  ReSTIR GI  |  Frontier Engine",
-        false       // validation layers — set true for debugging
+        true        // validation layers — set true for debugging
     };
 
     // Slate.config.toml is read before the device comes up: [render] ray_tracing_tier decides which traversal backend

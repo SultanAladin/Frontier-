@@ -134,7 +134,7 @@ struct SwapchainExchange::VulkanRecord
 
     // ── Cycle slots (one fence + two semaphores per slot) ────────────────────────────────────────────────────────────
     std::array<VkSemaphore, kCycleSlotCount> AcquireSemaphores = {};
-    std::array<VkSemaphore, kCycleSlotCount> ReleaseSemaphores = {};
+    std::vector<VkSemaphore>                ReleaseSemaphores;   // [-] per-image render-complete semaphore
     std::array<VkFence,     kCycleSlotCount> CycleFences       = {};
     std::vector<VkFence>                     ImageOrdinalFences;  // [-]  per-image in-flight fence pointer
     uint32_t                                 ActiveSlot         = 0u;
@@ -421,9 +421,13 @@ void SwapchainExchange::Retire() noexcept
     for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
     {
         if (Vulkan->AcquireSemaphores[Slot]) vkDestroySemaphore(Vulkan->Device, Vulkan->AcquireSemaphores[Slot], nullptr);
-        if (Vulkan->ReleaseSemaphores[Slot]) vkDestroySemaphore(Vulkan->Device, Vulkan->ReleaseSemaphores[Slot], nullptr);
         if (Vulkan->CycleFences[Slot])       vkDestroyFence    (Vulkan->Device, Vulkan->CycleFences[Slot],       nullptr);
     }
+    for (VkSemaphore S : Vulkan->ReleaseSemaphores)
+    {
+        if (S) vkDestroySemaphore(Vulkan->Device, S, nullptr);
+    }
+    Vulkan->ReleaseSemaphores.clear();
 
     if (Vulkan->ComputeCommandPool)    vkDestroyCommandPool       (Vulkan->Device, Vulkan->ComputeCommandPool,    nullptr);
     if (Vulkan->ComputePipeline)       vkDestroyPipeline          (Vulkan->Device, Vulkan->ComputePipeline,       nullptr);
@@ -433,6 +437,13 @@ void SwapchainExchange::Retire() noexcept
 
     if (Vulkan->Device)   vkDestroyDevice             (Vulkan->Device,             nullptr);
     if (Vulkan->Surface)  vkDestroySurfaceKHR          (Vulkan->Instance, Vulkan->Surface, nullptr);
+    if (Vulkan->DebugMessenger)
+    {
+        auto DestroyMessenger = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+            vkGetInstanceProcAddr(Vulkan->Instance, "vkDestroyDebugUtilsMessengerEXT"));
+        if (DestroyMessenger) DestroyMessenger(Vulkan->Instance, Vulkan->DebugMessenger, nullptr);
+        Vulkan->DebugMessenger = VK_NULL_HANDLE;
+    }
     if (Vulkan->Instance) vkDestroyInstance            (Vulkan->Instance,           nullptr);
 
     tvg::Initializer::term();
@@ -475,6 +486,10 @@ void SwapchainExchange::RetireSwapchain() noexcept
     for (auto& ImageView : Vulkan->SwapchainImageViews)
         if (ImageView) vkDestroyImageView(Vulkan->Device, ImageView, nullptr);
     Vulkan->SwapchainImageViews.clear();
+
+    for (VkSemaphore S : Vulkan->ReleaseSemaphores)
+        if (S) vkDestroySemaphore(Vulkan->Device, S, nullptr);
+    Vulkan->ReleaseSemaphores.clear();
 
     if (Vulkan->Swapchain) vkDestroySwapchainKHR(Vulkan->Device, Vulkan->Swapchain, nullptr);
     Vulkan->Swapchain = VK_NULL_HANDLE;
@@ -686,8 +701,15 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     Enabled12.descriptorBindingPartiallyBound           = Supported12.descriptorBindingPartiallyBound;
     Enabled12.shaderSampledImageArrayNonUniformIndexing = Supported12.shaderSampledImageArrayNonUniformIndexing;
     Enabled12.descriptorBindingVariableDescriptorCount  = Supported12.descriptorBindingVariableDescriptorCount;
+    Enabled12.descriptorBindingSampledImageUpdateAfterBind   = Supported12.descriptorBindingSampledImageUpdateAfterBind;
+    Enabled12.descriptorBindingStorageBufferUpdateAfterBind  = Supported12.descriptorBindingStorageBufferUpdateAfterBind;
+    Enabled12.descriptorBindingStorageImageUpdateAfterBind   = Supported12.descriptorBindingStorageImageUpdateAfterBind;
+    Enabled12.descriptorBindingUniformBufferUpdateAfterBind  = Supported12.descriptorBindingUniformBufferUpdateAfterBind;
+    Enabled12.descriptorBindingUpdateUnusedWhilePending     = Supported12.descriptorBindingUpdateUnusedWhilePending;
     if (!Vulkan->DescriptorIndexing) std::cerr << "[SwapchainExchange] descriptor indexing not offered - textures disabled (materials keep their constants).\n";
     DeviceFeatures.multiDrawIndirect = Supported2.features.multiDrawIndirect;
+    DeviceFeatures.geometryShader    = Supported2.features.geometryShader;
+    DeviceFeatures.shaderStorageImageWriteWithoutFormat = Supported2.features.shaderStorageImageWriteWithoutFormat;
 
     VkDeviceCreateInfo DeviceInfo{};
     DeviceInfo.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -697,12 +719,6 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     DeviceInfo.enabledExtensionCount   = 1u;
     DeviceInfo.ppEnabledExtensionNames = DeviceExtensions;
     DeviceInfo.pEnabledFeatures        = &DeviceFeatures;
-
-    // Only request the feature when the driver actually offers it; requesting an unsupported
-    //    feature makes vkCreateDevice fail with VK_ERROR_FEATURE_NOT_PRESENT.
-    VkPhysicalDeviceFeatures Supported{};
-    vkGetPhysicalDeviceFeatures(Vulkan->PhysicalDevice, &Supported);
-    DeviceFeatures.shaderStorageImageWriteWithoutFormat = Supported.shaderStorageImageWriteWithoutFormat;
 
     const VkResult DeviceResult = vkCreateDevice(Vulkan->PhysicalDevice, &DeviceInfo, nullptr, &Vulkan->Device);
     if (DeviceResult != VK_SUCCESS)
@@ -842,6 +858,14 @@ bool SwapchainExchange::BringSwapchain() noexcept
     }
 
     Vulkan->ImageOrdinalFences.assign(ActualImageCount, VK_NULL_HANDLE);
+    for (VkSemaphore S : Vulkan->ReleaseSemaphores)
+        if (S) vkDestroySemaphore(Vulkan->Device, S, nullptr);
+    Vulkan->ReleaseSemaphores.assign(ActualImageCount, VK_NULL_HANDLE);
+    for (uint32_t Index = 0u; Index < ActualImageCount; ++Index)
+    {
+        VkSemaphoreCreateInfo SemaphoreInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+        (void)vkCreateSemaphore(Vulkan->Device, &SemaphoreInfo, nullptr, &Vulkan->ReleaseSemaphores[Index]);
+    }
     return true;
 }
 
@@ -1005,7 +1029,12 @@ bool SwapchainExchange::BringComputePipeline() noexcept
     LayoutBindings[TextureBinding].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
 
     std::array<VkDescriptorBindingFlags, kComputeBindingCount> BindingFlags{};
-    BindingFlags[TextureBinding] = Vulkan->DescriptorIndexing ? static_cast<VkDescriptorBindingFlags>(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT) : 0u;
+    if (Vulkan->DescriptorIndexing)
+    {
+        BindingFlags[TextureBinding] = static_cast<VkDescriptorBindingFlags>(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT);
+        BindingFlags[16u]            = static_cast<VkDescriptorBindingFlags>(VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT);
+        BindingFlags[17u]            = static_cast<VkDescriptorBindingFlags>(VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT);
+    }
     VkDescriptorSetLayoutBindingFlagsCreateInfo FlagsInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
     FlagsInfo.bindingCount  = kComputeBindingCount;
     FlagsInfo.pBindingFlags = BindingFlags.data();
@@ -1263,7 +1292,6 @@ bool SwapchainExchange::BringCycleSlots() noexcept
     for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
     {
         (void)vkCreateSemaphore(Vulkan->Device, &SemaphoreInfo, nullptr, &Vulkan->AcquireSemaphores[Slot]);
-        (void)vkCreateSemaphore(Vulkan->Device, &SemaphoreInfo, nullptr, &Vulkan->ReleaseSemaphores[Slot]);
         vkCreateFence    (Vulkan->Device, &FenceInfo,     nullptr, &Vulkan->CycleFences[Slot]);
     }
     return true;
@@ -1271,14 +1299,21 @@ bool SwapchainExchange::BringCycleSlots() noexcept
 
 bool SwapchainExchange::BringImGui() noexcept
 {
-    // ① ImGui descriptor pool
-    VkDescriptorPoolSize ImGuiPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10u };
+    // ① ImGui descriptor pool — include SAMPLER and SAMPLED_IMAGE for ImGui font/texture uploads
+    std::array<VkDescriptorPoolSize, 6u> ImGuiPoolSizes = {{
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 16u },
+        { VK_DESCRIPTOR_TYPE_SAMPLER,                16u },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          16u },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          16u },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         16u },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         16u }
+    }};
     VkDescriptorPoolCreateInfo ImGuiPoolInfo{};
     ImGuiPoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     ImGuiPoolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    ImGuiPoolInfo.maxSets       = 10u;
-    ImGuiPoolInfo.poolSizeCount = 1u;
-    ImGuiPoolInfo.pPoolSizes    = &ImGuiPoolSize;
+    ImGuiPoolInfo.maxSets       = 64u;
+    ImGuiPoolInfo.poolSizeCount = static_cast<uint32_t>(ImGuiPoolSizes.size());
+    ImGuiPoolInfo.pPoolSizes    = ImGuiPoolSizes.data();
     (void)vkCreateDescriptorPool(Vulkan->Device, &ImGuiPoolInfo, nullptr, &Vulkan->ImGuiDescriptorPool);
 
     // ② Render pass — loads compute output, ImGui renders on top, transitions to PRESENT
@@ -1790,12 +1825,12 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     Submit.commandBufferCount   = 1u;
     Submit.pCommandBuffers      = &Vulkan->ComputeCommands[ImageOrdinal];
     Submit.signalSemaphoreCount = 1u;
-    Submit.pSignalSemaphores    = &Vulkan->ReleaseSemaphores[ActiveSlot];
+    Submit.pSignalSemaphores    = &Vulkan->ReleaseSemaphores[ImageOrdinal];
     (void)vkQueueSubmit(Vulkan->GraphicsQueue, 1u, &Submit, Vulkan->CycleFences[ActiveSlot]);
 
     VkPresentInfoKHR PresentInfo{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
     PresentInfo.waitSemaphoreCount = 1u;
-    PresentInfo.pWaitSemaphores    = &Vulkan->ReleaseSemaphores[ActiveSlot];
+    PresentInfo.pWaitSemaphores    = &Vulkan->ReleaseSemaphores[ImageOrdinal];
     PresentInfo.swapchainCount     = 1u;
     PresentInfo.pSwapchains        = &Vulkan->Swapchain;
     PresentInfo.pImageIndices      = &ImageOrdinal;
