@@ -20,7 +20,7 @@
 #include "../../../Engine/DisplayPresentation/TypefaceRegistry.h"
 #include "../../../Engine/DisplayPresentation/ConfigurationRegistry.h"
 #include "../../../Engine/DisplayPresentation/DiagnosticInspector.h"
-#include "../../../Engine/ContentInterchange/SceneCodec.h"
+#include "../../../Engine/ContentInterchange/ContentCodec.h"
 #include "../../../Engine/GeometricRaster/SceneStructure.h"
 #include "../../../Engine/GeometricRaster/TraversalIndex.h"
 #include "FlyThroughSolver.h"
@@ -93,7 +93,7 @@ int main(int argc, char** argv)
         Decode.UniformScale = SceneScale;
         Decode.SlabLimit    = Configuration.Query().Backend.SlabLimit;
         std::string Error;
-        if (!Frontier::SceneCodec::Decode(ScenePath, Level, &Textures, Decode, &Error))
+        if (!Frontier::ContentCodec::Decode(ScenePath, Level, &Textures, Decode, &Error))   // .gltf/.glb/.fbx/.obj by extension
         {
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Fatal, "Scene", ("Cannot import " + ScenePath + ": " + Error).c_str());
             Logger.TerminateSink();
