@@ -200,7 +200,7 @@ All produce one `SceneStructure` + `MaterialDescriptor[]` + the scene-graph rows
    (CLAUDE.md role 15, direct addressing — this is what the GPU record layout lives in), **`MaterialCodec`** = glTF /
    MaterialX ↔ descriptor (role 2). The R2 `RadianceStructure` GPU record stays until R4 replaces it. (Surface*/
    MaterialStructure rejected by user; `Substrate` is a banned word so Unreal's term is never used in code). Per-slab GPU record `MaterialSlabRecord`; the ≤4-slab
-   authoring graph `SurfaceLayering`; scene-graph rows `PlacementRecord` (Parent/Child/Sibling/Node/Hierarchy are
+   scene-graph rows `PlacementRecord` (Parent/Child/Sibling/Node/Hierarchy are
    banned → fields `Ancestor`, `FirstDescendant`, `NextPeer`).
 2. **Beyond-OpenPBR extras** — include **haziness (second roughness)** and **glints** from the start, stored under a
    `slate_` prefix in the record and serialised as glTF `extras.slate_*`; **specular-profile LUT deferred** (needs
