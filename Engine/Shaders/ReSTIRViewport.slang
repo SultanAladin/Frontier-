@@ -692,8 +692,8 @@ void main()
             vec3  emit2  = vec3(0.0);
             {
                 vec3  toSel2   = res.SelectedPoint - hitPos;
-                uint  mat2     = floatBitsToUint(Triangles[LightTriangle(res.SelectedLight)].v0.w);
-                emit2          = Materials[mat2].Emissive.xyz;
+                uint  matE     = floatBitsToUint(Triangles[LightTriangle(res.SelectedLight)].v0.w);
+                emit2          = Materials[matE].Emissive.xyz;
                 float pHat2 = PHatFull(frame, shading, layers, woLocal, emit2, toSel2, dot(toSel2, toSel2));
                 res.UnbiasedWeight = pHat2 > 0.0 ? res.WeightSum / (float(res.SampleCount) * pHat2) : 0.0;
             }
