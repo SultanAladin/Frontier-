@@ -114,3 +114,15 @@ vocabulary and working rules without re-reading the whole thread. Authoritative 
 * In-repo: `References/MaterialSystemResearch-2026.md` (§7 decisions, §7.1 slab design, §8 sources),
   `References/RestirRealtimeArchitecturePlan-v2.md` (tiers, frame graph, R4–R8 table),
   `References/RestirPhaseR{2,3,4a,4b}*.md` (phase notes + plans)
+
+## 6. Git safety (Arena sandbox — incident 2026-09-04, do not regress)
+* The sandbox once rewound `arena/01a06c54-slate` to its base commit: local commits vanished from `git log`
+  (the remote still had them). A blind `git add -A` + commit then squashed pushed history into one commit
+  and swept up session files. Recovery was: fetch the remote ref, `git reset --mixed origin/<branch>`
+  (keeps the working tree), stage explicit paths, recommit — no force-push, nothing lost.
+* Rules, every time: (1) `git log --oneline -4` must show the expected tip before committing; (2) stage
+  **explicit file paths, never `git add -A`**; (3) one edit per file per agent message (the edit tool
+  silently drops all but one same-file edit per batch — verify with per-item `grep -c` before committing).
+* `Tools/git-hooks/pre-commit` enforces rule (1) automatically: it fetches the remote tip and blocks the
+  commit unless the tip is an ancestor of HEAD (offline = warn-and-allow). Reinstall after a fresh clone:
+  `cp Tools/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`.
