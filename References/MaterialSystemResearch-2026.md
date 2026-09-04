@@ -111,7 +111,7 @@ Nothing here requires hardware RT; all are BSDF-side and run identically in Tier
 ### 4.1 Channel set (authoring record = OpenPBR, verbatim)
 
 Adopt all 49 OpenPBR parameters with their identifiers as the on-disk / in-memory authoring record
-(`SurfaceStructure`). Units: metres, nits, linear Rec.709 (ACEScg converted at the codec boundary — see §7.4).
+(`MaterialDescriptor`). Units: metres, nits, linear Rec.709 (ACEScg converted at the codec boundary — see §7.4).
 This satisfies your list and more:
 
 * Fuzz → `fuzz_*` (Zeltner LTC) · IOR → `specular_ior`, `coat_ior`, `thin_film_ior` · refraction/reflection →
@@ -184,7 +184,7 @@ Ks → specular_color, Ni → ior, d → opacity). MaterialX `open_pbr_surface` 
 
 `Engine/ContentInterchange/` with per-format codecs `SceneCodec` (glTF/GLB — exists, moves here), `FbxCodec`
 (ufbx, already a submodule), `ObjCodec` (fast_obj, submodule), later `UsdCodec` (tinyusdz) and `MaterialXCodec`.
-All produce one `SceneStructure` + `SurfaceStructure[]` + the scene-graph rows:
+All produce one `SceneStructure` + `MaterialDescriptor[]` + the scene-graph rows:
 
 * `PlacementRecord { Name, Ancestor, FirstDescendant, NextPeer, LocalTransform, WorldTransform, Instance, Camera,
   Luminaire }` — flat arrays, stable IDs, no UI (the outliner comes later and reads this directly).
@@ -195,9 +195,11 @@ All produce one `SceneStructure` + `SurfaceStructure[]` + the scene-graph rows:
 
 ## 7. Decisions (taken 2026-09-04)
 
-1. **Naming** — module **`ContentInterchange`** (user). Material record **`SurfaceStructure`** (CLAUDE.md role 13,
-   "spatial and physical topology representations" — a layered surface *is* physical topology; "MaterialStructure"
-   and "SurfaceSpecification" rejected by user; `Substrate` is a banned word so Unreal's term is never used in code). Per-slab GPU record `SurfaceRecord`; the ≤4-slab
+1. **Naming** — module **`ContentInterchange`** (user). Material naming starts with *Material* (user): **`MaterialDescriptor`** = one material (slab list +
+   operations, OpenPBR identifiers), **`MaterialIndex`** = the resident table of descriptors addressed by material id
+   (CLAUDE.md role 15, direct addressing — this is what the GPU record layout lives in), **`MaterialCodec`** = glTF /
+   MaterialX ↔ descriptor (role 2). The R2 `RadianceStructure` GPU record stays until R4 replaces it. (Surface*/
+   MaterialStructure rejected by user; `Substrate` is a banned word so Unreal's term is never used in code). Per-slab GPU record `MaterialSlabRecord`; the ≤4-slab
    authoring graph `SurfaceLayering`; scene-graph rows `PlacementRecord` (Parent/Child/Sibling/Node/Hierarchy are
    banned → fields `Ancestor`, `FirstDescendant`, `NextPeer`).
 2. **Beyond-OpenPBR extras** — include **haziness (second roughness)** and **glints** from the start, stored under a
@@ -212,7 +214,7 @@ All produce one `SceneStructure` + `SurfaceStructure[]` + the scene-graph rows:
    working space as long as it is declared; we declare `lin_rec709` in metadata. Switching later is one matrix at
    the codec boundary, not a shader change.
 5. **Phase placement** — R3 CWBVH stays next (the kernel is still O(N); nothing material-side is visible until
-   shading is fast enough to show it). Then **R4 = ContentInterchange** (SurfaceStructure + layering,
+   shading is fast enough to show it). Then **R4 = ContentInterchange** (MaterialDescriptor + layering,
    bindless textures, PlacementRecord scene graph, FBX/OBJ codecs) as one phase, because materials, textures
    and the importer are one data contract and splitting them would ship a half-usable importer twice. Previous
    R4 (rayQuery AS) shifts to R5, ReSTIR DI/GI to R6/R7, H-PLOC/LOD/reservoir work to R8.
@@ -223,7 +225,7 @@ A *slab* is one complete surface layer (own normal, roughness, Fresnel, coat, fu
 stacks: dust **on** lacquer **on** paint. The user plans a **layered texture-painting system** and **complex car
 paint**, so the model must not hard-wire a slab count anywhere. Design:
 
-* **Record = slab list, not fixed fields.** `SurfaceStructure` holds `Slabs[]` (each a full OpenPBR parameter set +
+* **Record = slab list, not fixed fields.** `MaterialDescriptor` holds `Slabs[]` (each a full OpenPBR parameter set +
   `slate_` haziness/glints) and `Operations[]` (`VerticalLayer`, `HorizontalMix(mask)`, `Weight`, `Coverage`) as a
   small post-order expression. Serialised as-is (glTF `extras`, later MaterialX). Nothing in the file format caps N.
 * **Runtime cap is a configuration, per tier**: `[render] slab_limit` — default **1 on Tier A** (everything
