@@ -15,6 +15,7 @@
 
 #version 460
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require   // R4a: bindless Textures[nonuniformEXT(slot)]
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -88,12 +89,45 @@ layout(std430, binding = 6) readonly buffer InstanceExtent  { GpuInstance  Insta
 layout(std430, binding = 7) readonly buffer LuminaireExtent { GpuLuminaire Luminaires[]; };
 layout(std430, binding = 8) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };   // R3: TraversalIndex node blob
 layout(std430, binding = 9) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };   // R3: TraversalIndex triangle blob
-layout(std430, binding = 10) readonly buffer MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };   // R4a: per-slab OpenPBR records (unused by the R3 kernel; R4b shading reads them)
+layout(std430, binding = 10) readonly buffer MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
+layout(binding = 11) uniform sampler2D Textures[];   // R4a: bindless table (partially bound; only slots < resident count are ever indexed)
+
+const uint kMaterialTextureNone = 0xFFFFFFFFu;
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                              R4a: TEXTURED BASE COLOUR
+//------------------------------------------------------------------------------------------------------------------------
+// Barycentrics are rebuilt from the hit position against the flat triangle (one convention for the raster-fed primary
+//    hit and the CWBVH bounce hit), then the α/β/γ UVs stored in the TriangleIndex are interpolated. Explicit LOD 0
+//    for now: the kernel has no ray differentials yet (R4b adds ray cones), and the sampler's mip chain is already
+//    resident, so switching to textureLod(…, cone) later is a one-line change.
+
+vec3 Barycentric(vec3 p, vec3 a, vec3 b, vec3 c)
+{
+    vec3 e0 = b - a, e1 = c - a, e2 = p - a;
+    float d00 = dot(e0, e0), d01 = dot(e0, e1), d11 = dot(e1, e1), d20 = dot(e2, e0), d21 = dot(e2, e1);
+    float den = d00 * d11 - d01 * d01;
+    if (abs(den) < 1e-20) return vec3(1.0, 0.0, 0.0);
+    float v = (d11 * d20 - d01 * d21) / den;
+    float w = (d00 * d21 - d01 * d20) / den;
+    return vec3(1.0 - v - w, v, w);
+}
+
+vec3 MaterialAlbedo(GpuMaterial mat, uint flatTriangle, vec3 hitPos)
+{
+    vec3 albedo = mat.Albedo.xyz;
+    if (mat.Textures.x == kMaterialTextureNone) return albedo;
+    GpuTriangle tri = Triangles[flatTriangle];
+    vec3 bc = Barycentric(hitPos, tri.v0.xyz, tri.v1.xyz, tri.v2.xyz);
+    vec2 uv = bc.x * tri.uv.xy + bc.y * tri.uv.zw + bc.z * vec2(tri.v1.w, tri.v2.w);
+    return albedo * textureLod(Textures[nonuniformEXT(mat.Textures.x)], uv, 0.0).xyz;   // record albedo = glTF baseColorFactor (multiplies the texture)
+}   // R4a: per-slab OpenPBR records (unused by the R3 kernel; R4b shading reads them)
 
 #include "TraversalCWBVH.slang"
 
 const uint kVisibilityInvalid = 0xFFFFFFFFu;
-uint VisibilityInstance(uint Packed) { return (Packed >> 14) & 0x3FFFFu; }
+uint VisibilityInstance(uint Packed)  { return (Packed >> 14) & 0x3FFFFu; }
+uint VisibilityPrimitive(uint Packed) { return Packed & 0x3FFFu; }
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    PUSH CONSTANTS
@@ -150,7 +184,7 @@ uint MakeSeed(uvec2 pixel, uint frame)
 //------------------------------------------------------------------------------------------------------------------------
 
 struct Ray    { vec3 origin; vec3 dir; };
-struct Hit    { bool valid; float t; vec3 pos; vec3 normal; uint matIdx; };
+struct Hit    { bool valid; float t; vec3 pos; vec3 normal; uint matIdx; uint primitive; };
 
 const float kEps = 1e-4;
 const float kInf = 1e30;
@@ -176,6 +210,7 @@ Hit TraceScene(Ray ray)
     closest.pos    = ray.origin + h.t * ray.dir;
     closest.normal = normalize(cross(tri.v1.xyz - tri.v0.xyz, tri.v2.xyz - tri.v0.xyz));   // R4a: face normal from the edges (slot now carries UVs)
     closest.matIdx = floatBitsToUint(tri.v0.w);
+    closest.primitive = h.primitive;
     return closest;
 }
 
@@ -310,8 +345,8 @@ void main()
         return;
     }
 
-    GpuMaterial mat = Materials[Instances[VisibilityInstance(visibility)].MaterialIndex];
-    vec3 albedo     = mat.Albedo.xyz;
+    GpuInstance primaryInstance = Instances[VisibilityInstance(visibility)];
+    GpuMaterial mat = Materials[primaryInstance.MaterialIndex];
     vec3 emissive   = mat.Emissive.xyz;
 
     // If we directly hit an emitter — return its radiance
@@ -323,6 +358,7 @@ void main()
 
     vec3 hitPos    = surface.xyz;
     vec3 hitNormal = imageLoad(NormalImage, ivec2(pixel)).xyz;   // camera-facing (SurfaceResolve applies the two-sided flip)
+    vec3 albedo    = MaterialAlbedo(mat, primaryInstance.FlatTriangleOffset + VisibilityPrimitive(visibility), hitPos);   // R4a: base colour × texture
 
     vec3 accumulatedRadiance = vec3(0.0);
 
@@ -457,7 +493,7 @@ void main()
         {
             GpuMaterial bMat      = Materials[bounceHit.matIdx];
             vec3        bEmissive = bMat.Emissive.xyz;
-            vec3        bAlbedo   = bMat.Albedo.xyz;
+            vec3        bAlbedo   = MaterialAlbedo(bMat, bounceHit.primitive, bounceHit.pos);
 
             // Direct light at bounce point
             if (dot(bEmissive, bEmissive) > 0.0)

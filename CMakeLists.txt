@@ -186,11 +186,13 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/GeometricRaster/GeometryStructure.cpp
     Engine/GeometricRaster/CameraProjection.cpp
     Engine/GeometricRaster/SceneStructure.cpp
-    Engine/GeometricRaster/SceneCodec.cpp
     Engine/GeometricRaster/TraversalIndex.cpp
     Engine/GeometricRaster/VisibilityProjection.cpp
     Engine/GeometricRaster/RasterSequence.cpp
-    Engine/GeometricRaster/MaterialCodec.cpp
+    Engine/ContentInterchange/MaterialIndex.cpp
+    Engine/ContentInterchange/MaterialCodec.cpp
+    Engine/ContentInterchange/TextureIndex.cpp
+    Engine/ContentInterchange/SceneCodec.cpp
     Engine/PhotometricIllumination/ClusteredSpace.cpp
     Engine/PhotometricIllumination/DirectIlluminationIntegrator.cpp
     Engine/PhotometricIllumination/GlobalIlluminationIntegrator.cpp
@@ -261,6 +263,8 @@ target_include_directories(Project-Zero PRIVATE
     ${EXT}/cgltf
     ${EXT}/tinybvh
     ${EXT}/stb
+    ${EXT}/ufbx
+    ${EXT}/fast_obj
 )
 
 target_compile_definitions(Project-Zero PRIVATE

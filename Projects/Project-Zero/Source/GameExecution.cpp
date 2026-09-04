@@ -205,7 +205,7 @@ int main(int argc, char** argv)
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
                          "Bootstrap", "Window and Vulkan swapchain ready.");
 
-    Surface.UploadScene(Level, Traversal);
+    Surface.UploadScene(Level, Traversal, &Textures);
 
     //──────────────────────────────────────────────────────────────────────────
     // ImGui panel — apply theme once after context exists

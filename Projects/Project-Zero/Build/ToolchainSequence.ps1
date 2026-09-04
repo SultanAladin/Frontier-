@@ -171,6 +171,9 @@ function Get-IncludePaths([string] $VulkanRoot)
         "/I$(Join-Path $PackageRoot 'jolt')"
         "/I$(Join-Path $PackageRoot 'cgltf')"
         "/I$(Join-Path $PackageRoot 'tinybvh')"
+        "/I$(Join-Path $PackageRoot 'stb')"
+        "/I$(Join-Path $PackageRoot 'ufbx')"
+        "/I$(Join-Path $PackageRoot 'fast_obj')"
     )
 }
 
@@ -613,13 +616,15 @@ $EngineRelative = @(
     'Engine\GeometricRaster\GeometryStructure.cpp'
     'Engine\GeometricRaster\CameraProjection.cpp'
     'Engine\GeometricRaster\SceneStructure.cpp'
-    'Engine\GeometricRaster\SceneCodec.cpp'
     'Engine\GeometricRaster\TraversalIndex.cpp'
     'Engine\DeviceExchange\VisibilityExchange.cpp'
     'Engine\DisplayPresentation\DiagnosticInspector.cpp'
     'Engine\GeometricRaster\VisibilityProjection.cpp'
     'Engine\GeometricRaster\RasterSequence.cpp'
-    'Engine\GeometricRaster\MaterialCodec.cpp'
+    'Engine\ContentInterchange\MaterialIndex.cpp'
+    'Engine\ContentInterchange\MaterialCodec.cpp'
+    'Engine\ContentInterchange\TextureIndex.cpp'
+    'Engine\ContentInterchange\SceneCodec.cpp'
     'Engine\PhotometricIllumination\ClusteredSpace.cpp'
     'Engine\PhotometricIllumination\DirectIlluminationIntegrator.cpp'
     'Engine\PhotometricIllumination\GlobalIlluminationIntegrator.cpp'

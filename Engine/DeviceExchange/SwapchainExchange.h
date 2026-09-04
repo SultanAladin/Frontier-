@@ -23,7 +23,9 @@ namespace Frontier {
 
 class SceneStructure;
 class TraversalIndex;   // GeometricRaster/TraversalIndex.h (R3 CWBVH)
-static constexpr uint32_t kComputeBindingCount = 11u;   // compute set 0: 0 out · 1 tris · 2 materials · 3 history · 4 surface · 5 normal · 6 instances · 7 luminaires · 8/9 CWBVH · 10 slabs
+class TextureIndex;     // ContentInterchange/TextureIndex.h (R4a)
+static constexpr uint32_t kComputeBindingCount  = 12u;    // compute set 0: 0 out · 1 tris · 2 materials · 3 history · 4 surface · 5 normal · 6 instances · 7 luminaires · 8/9 CWBVH · 10 slabs · 11 Textures[]
+static constexpr uint32_t kTextureSlotCapacity  = 1024u;  // bindless sampler2D[] size (variable-count binding; Pascal maxPerStageDescriptorSamplers ≥ 4000)
 class MaterialIndex;    // ContentInterchange/MaterialIndex.h (R4a)
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -134,7 +136,9 @@ public:
 
     // R2: the whole level becomes resident (vertices · indices · instances · clusters · materials · luminaires) and the
     //    interim kernel's flat triangle / material SSBOs are taken from the same SceneStructure — one upload, one truth.
-    void                        UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal) noexcept;
+    void                        UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal, const TextureIndex* Textures = nullptr) noexcept;
+    void                        UploadTextures(const TextureIndex& Textures) noexcept;   // R4a bindless table → binding 11
+    void                        DestroyTextures() noexcept;
     void                        UploadTraversal(const TraversalIndex& Traversal) noexcept;   // R3 CWBVH blobs → bindings 8-9
 
     // R2 frame front end (cull → visibility raster → HiZ → resolve) recorded before the kernel each frame.
