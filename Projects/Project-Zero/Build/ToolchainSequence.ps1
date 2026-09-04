@@ -582,24 +582,17 @@ $ImGuiSources = @(
 )
 
 $EngineRelative = @(
+    # NOTE: this list must match the .cpp files actually in the tree (branch arena/01a06c54-slate, 2026-09-04).
+    # Phantom entries from a foreign module layout were removed and the two missing DisplayPresentation files
+    # added; the existence guard below fails fast with names if the list ever rots again.
     'Engine\DeviceExchange\SwapchainExchange.cpp'
     'Engine\DeviceExchange\RayTracingCapabilitySet.cpp'
-    'Engine\DeviceExchange\VulkanExchange.cpp'
-    'Engine\DeviceExchange\ByteSpace.cpp'
-    'Engine\DeviceExchange\TaskScheduler.cpp'
-    'Engine\DeviceExchange\ExecutionQueue.cpp'
-    'Engine\DeviceExchange\VendorClassifier.cpp'
-    'Engine\DeviceExchange\OrientationClassifier.cpp'
-    'Engine\DeviceExchange\WindowExchange.cpp'
     'Engine\DeviceExchange\InputExchange.cpp'
-    'Engine\DeviceExchange\RenderTargetExchange.cpp'
-    'Engine\DeviceExchange\DiagnosticMetrics.cpp'
     'Engine\DisplayPresentation\ReSTIRIntegrator.cpp'
     'Engine\DisplayPresentation\ShadingTableCodec.cpp'
     'Engine\DisplayPresentation\RenderScheduler.cpp'
     'Engine\DisplayPresentation\ThemeStructure.cpp'
     'Engine\DisplayPresentation\VectorCodec.cpp'
-    'Engine\DisplayPresentation\FontCodec.cpp'
     'Engine\DisplayPresentation\ControlCentreHost.cpp'
     'Engine\DisplayPresentation\PixelSpace.cpp'
     'Engine\DisplayPresentation\MotionIntegrator.cpp'
@@ -609,19 +602,15 @@ $EngineRelative = @(
     'Engine\DisplayPresentation\ControlKit.cpp'
     'Engine\DisplayPresentation\DialogueHost.cpp'
     'Engine\DisplayPresentation\AppearanceInspector.cpp'
+    'Engine\DisplayPresentation\ConfigurationInspector.cpp'
+    'Engine\DisplayPresentation\ConfigurationRegistry.cpp'
     'Engine\DisplayPresentation\TypefaceRegistry.cpp'
-    'Engine\DisplayPresentation\WorkspaceHost.cpp'
-    'Engine\DisplayPresentation\CycleScheduler.cpp'
     'Engine\DisplayPresentation\FidelityClassifier.cpp'
-    'Engine\DisplayPresentation\FrontierHost.cpp'
-    'Engine\GeometricRaster\GeometryStructure.cpp'
     'Engine\GeometricRaster\CameraProjection.cpp'
     'Engine\GeometricRaster\SceneStructure.cpp'
     'Engine\GeometricRaster\TraversalIndex.cpp'
     'Engine\DeviceExchange\VisibilityExchange.cpp'
     'Engine\DisplayPresentation\DiagnosticInspector.cpp'
-    'Engine\GeometricRaster\VisibilityProjection.cpp'
-    'Engine\GeometricRaster\RasterSequence.cpp'
     'Engine\ContentInterchange\MaterialIndex.cpp'
     'Engine\ContentInterchange\MaterialCodec.cpp'
     'Engine\ContentInterchange\TextureIndex.cpp'
@@ -631,21 +620,6 @@ $EngineRelative = @(
     'Engine\ContentInterchange\ObjCodec.cpp'
     'Engine\ContentInterchange\ContentCodec.cpp'
     'Engine\ContentInterchange\UfbxTranslation.cpp'
-    'Engine\PhotometricIllumination\ClusteredSpace.cpp'
-    'Engine\PhotometricIllumination\DirectIlluminationIntegrator.cpp'
-    'Engine\PhotometricIllumination\GlobalIlluminationIntegrator.cpp'
-    'Engine\PhotometricIllumination\AtmosphereIntegrator.cpp'
-    'Engine\PhysicalDynamics\RigidBodySolver.cpp'
-    'Engine\PhysicalDynamics\DeformableSolver.cpp'
-    'Engine\PhysicalDynamics\LocomotionSolver.cpp'
-    'Engine\PhysicalDynamics\WorldSpace.cpp'
-    'Engine\VolumetricDynamics\LevelSetSpace.cpp'
-    'Engine\VolumetricDynamics\FluidSolver.cpp'
-    'Engine\VolumetricDynamics\ParticleIntegrator.cpp'
-    'Engine\PlatformInterchange\AcousticStructure.cpp'
-    'Engine\PlatformInterchange\AcousticIntegrator.cpp'
-    'Engine\PlatformInterchange\VoiceExchange.cpp'
-    'Engine\PlatformInterchange\OnlineInterchange.cpp'
     'Projects\Project-Zero\Source\RayTracingSolver.cpp'
     'Projects\Project-Zero\Source\FlyThroughSolver.cpp'
     'Projects\Project-Zero\Source\GameExecution.cpp'
@@ -656,6 +630,10 @@ foreach ($Rel in $EngineRelative)
 {
     $EngineSources.Add((Join-Path $RepositoryRoot $Rel))
 }
+
+# Fail fast with NAMES if the source list ever rots again (was: 73 cascading c1xx C1083s, 2026-09-04).
+$MissingSources = @($EngineSources | Where-Object { -not (Test-Path $_) }) + @($ImGuiSources | Where-Object { -not (Test-Path $_) })
+if ($MissingSources.Count -gt 0) { throw ('missing source files in the translation batch:' + [Environment]::NewLine + ($MissingSources -join [Environment]::NewLine)) }
 
 $AllSources = New-Object System.Collections.Generic.List[string]
 foreach ($S in $EngineSources) { $AllSources.Add($S) }
