@@ -108,6 +108,9 @@ vocabulary and working rules without re-reading the whole thread. Authoritative 
   Cocco anisotropic IBL (EG 2024)
 * Code: ufbx v0.23.0 / fast_obj / stb submodules; tinybvh @0e45842 (MIT); overlay base
   `SultanAladin/Slate` arena branches
+* UI + C++ reference (older incomplete project): `SultanAladin/Slate@arena/01a062a4-slate` →
+  `References/UIComponents.html` ("Slate UI — Base Component Kit": design tokens + component kit;
+  local copy already in tree, 975 lines — use for UI styling and C++ patterns)
 * In-repo: `References/MaterialSystemResearch-2026.md` (§7 decisions, §7.1 slab design, §8 sources),
   `References/RestirRealtimeArchitecturePlan-v2.md` (tiers, frame graph, R4–R8 table),
   `References/RestirPhaseR{2,3,4a,4b}*.md` (phase notes + plans)
