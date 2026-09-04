@@ -4,4 +4,16 @@
   E[pHat(z)*W] vs E[w]                                                 8.290843 (want 8.290843 +-0.082908) PASS
 [3] pairwise MIS combine: M sums, WeightSum sums, z in {zA,zB}, W exact
   bad merges                                                           0.000000 (want 0.000000 +-0.000000) PASS
+[4] M-clamp: merged M = Mcur + min(Mprev, 20*Mcur); growth bounded over 60 frames
+  M bounded by 21xMcur                                                 0.000000 (want 0.000000 +-0.000000) PASS
+  M at frame 60 (steady state)                                       168.000000 (want 168.000000 +-0.000000) PASS
+[5] validation: 25-degree normal / 10% depth / stride guard accept + reject
+  identical surface                                                    1.000000 (want 1.000000 +-0.000000) PASS
+  24-degree tilt (dot .9135)                                           1.000000 (want 1.000000 +-0.000000) PASS
+  26-degree tilt (dot .8988) rejected                                  0.000000 (want 0.000000 +-0.000000) PASS
+  9%% deeper accepted                                                  1.000000 (want 1.000000 +-0.000000) PASS
+  11%% deeper rejected                                                 0.000000 (want 0.000000 +-0.000000) PASS
+  render-scale change rejected                                         0.000000 (want 0.000000 +-0.000000) PASS
+[6] temporal merge algebra: pairwise-MIS pick + W == direct formula (5000 merges)
+  bad merges                                                           0.000000 (want 0.000000 +-0.000000) PASS
 ALL PASS (0 failures)

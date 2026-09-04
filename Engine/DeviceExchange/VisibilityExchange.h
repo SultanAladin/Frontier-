@@ -129,6 +129,7 @@ public:
     // Resources the interim kernel binds (VkImageView / VkBuffer as void*; GENERAL layout images).
     [[nodiscard]] void* QuerySurfaceView()     const noexcept;
     [[nodiscard]] void* QueryNormalView()      const noexcept;
+    [[nodiscard]] void* QueryMotionView()      const noexcept;   // R6: RG16F motion (CurrentUv − PreviousUv, [0,1]) for temporal back-projection
     [[nodiscard]] void* QueryLuminaireBuffer() const noexcept;
     [[nodiscard]] void* QueryInstanceBuffer()  const noexcept;
     [[nodiscard]] void* QueryFlatTriangleBuffer() const noexcept;

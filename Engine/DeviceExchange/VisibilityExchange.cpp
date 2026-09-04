@@ -981,6 +981,7 @@ void VisibilityExchange::RecordKernelEnd(void* CommandHandle, uint32_t Slot) noe
 
 void* VisibilityExchange::QuerySurfaceView()        const noexcept { return Vulkan->Surface.View; }
 void* VisibilityExchange::QueryNormalView()         const noexcept { return Vulkan->Normal.View; }
+void* VisibilityExchange::QueryMotionView()         const noexcept { return Vulkan->Motion.View; }
 void* VisibilityExchange::QueryLuminaireBuffer()    const noexcept { return Vulkan->Luminaires.Buffer; }
 void* VisibilityExchange::QueryInstanceBuffer()     const noexcept { return Vulkan->Instances.Buffer; }
 void* VisibilityExchange::QueryFlatTriangleBuffer() const noexcept { return Vulkan->FlatTriangles.Buffer; }

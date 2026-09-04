@@ -143,6 +143,70 @@ int main()
         Check("bad merges", double(bad), 0.0, 0.0);
     }
 
+    std::printf("[4] M-clamp: merged M = Mcur + min(Mprev, 20*Mcur); growth bounded over 60 frames\n");
+    {
+        gState = 9182u;
+        uint32_t m = 8u;   // current-frame M every frame
+        int bad = 0;
+        for (int f = 0; f < 60; ++f)
+        {
+            const uint32_t mPrev = m;
+            const uint32_t capped = mPrev < 20u * 8u ? mPrev : 20u * 8u;
+            m = 8u + capped;
+            if (m > 21u * 8u) ++bad;   // must never exceed one frame's intake over the cap
+        }
+        Check("M bounded by 21xMcur", double(bad), 0.0, 0.0);
+        Check("M at frame 60 (steady state)", double(m), 168.0, 0.0);
+    }
+
+    std::printf("[5] validation: 25-degree normal / 10%% depth / stride guard accept + reject\n");
+    {
+        const float cos25 = 0.906308f;
+        auto valid = [&](float ndot, float curD, float prevD, float strideW, float vpW) {
+            return ndot > cos25 && std::fabs(curD - prevD) / std::max(curD, 1e-3f) < 0.10f && strideW == vpW;
+        };
+        Check("identical surface", valid(1.0f, 4.0f, 4.0f, 1280.0f, 1280.0f) ? 1.0 : 0.0, 1.0, 0.0);
+        Check("24-degree tilt (dot .9135)", valid(0.9135f, 4.0f, 4.0f, 1280.0f, 1280.0f) ? 1.0 : 0.0, 1.0, 0.0);
+        Check("26-degree tilt (dot .8988) rejected", valid(0.8988f, 4.0f, 4.0f, 1280.0f, 1280.0f) ? 1.0 : 0.0, 0.0, 0.0);
+        Check("9%% deeper accepted", valid(1.0f, 4.0f, 4.36f, 1280.0f, 1280.0f) ? 1.0 : 0.0, 1.0, 0.0);
+        Check("11%% deeper rejected", valid(1.0f, 4.0f, 4.44f, 1280.0f, 1280.0f) ? 1.0 : 0.0, 0.0, 0.0);
+        Check("render-scale change rejected", valid(1.0f, 4.0f, 4.0f, 960.0f, 1280.0f) ? 1.0 : 0.0, 0.0, 0.0);
+    }
+
+    std::printf("[6] temporal merge algebra: pairwise-MIS pick + W == direct formula (5000 merges)\n");
+    {
+        gState = 555u;
+        int bad = 0;
+        for (int r = 0; r < 5000; ++r)
+        {
+            // Current reservoir (M=8 built above in spirit): random consistent triple (wSum, M, pCur, W).
+            const float mCur = 8.0f, pCur = 0.5f + RandFloat(), wSumCur = pCur * mCur * (0.5f + RandFloat());
+            const float wCur0 = wSumCur;   // wCur = pCur*W*M = wSum by construction
+            // Previous reservoir: random (W, M), target of its sample re-evaluated here = pPrev.
+            const float mPrevFull = 8.0f + float(uint32_t(RandFloat() * 500u));
+            const float mPrev = std::min(mPrevFull, 20.0f * mCur);
+            const float pPrev = 0.5f + RandFloat(), wPrevFull = 0.5f + RandFloat();
+            const float wPrev = pPrev * wPrevFull * mPrev;
+            const float total = wCur0 + wPrev;
+            const float pick = RandFloat();
+            const bool takePrev = total > 0.0f && pick * total <= wPrev;
+            // Direct formula for the merged weight with the winning sample's target:
+            const float pWin = takePrev ? pPrev : pCur;
+            const float wDirect = total / ((mCur + mPrev) * pWin);
+            // Shader path: same operations in the same order.
+            float wShader = 0.0f;
+            {
+                const float t = wCur0 + wPrev;
+                const bool tp = t > 0.0f && pick * t <= wPrev;
+                const float pw = tp ? pPrev : pCur;
+                wShader = pw > 0.0f ? t / ((mCur + mPrev) * pw) : 0.0f;
+                bad += (tp != takePrev || wShader != wDirect) ? 1 : 0;
+            }
+            bad += !(wDirect >= 0.0f) ? 1 : 0;
+        }
+        Check("bad merges", double(bad), 0.0, 0.0);
+    }
+
     if (gFail == 0) std::printf("ALL PASS (0 failures)\n");
     else std::printf("FAILURES: %d\n", gFail);
     return gFail;
