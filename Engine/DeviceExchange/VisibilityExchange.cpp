@@ -661,14 +661,15 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
     {
         Buffers.push_back({ B, 0u, VK_WHOLE_SIZE });
         VkWriteDescriptorSet W{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET }; W.dstSet = Set; W.dstBinding = Binding; W.descriptorCount = 1u; W.descriptorType = Type;
-        W.pBufferInfo = reinterpret_cast<const VkDescriptorBufferInfo*>(Buffers.size() - 1u);   // patched below (vector may grow)
+        // 1-based index: a 0-based index 0 would read back as nullptr and the patch loop below would skip it.
+        W.pBufferInfo = reinterpret_cast<const VkDescriptorBufferInfo*>(Buffers.size());   // patched below (vector may grow)
         Writes.push_back(W);
     };
     const auto Image = [&](VkDescriptorSet Set, uint32_t Binding, VkDescriptorType Type, VkImageView V)
     {
         Images.push_back({ Type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ? Vulkan->PointSampler : VK_NULL_HANDLE, V, VK_IMAGE_LAYOUT_GENERAL });
         VkWriteDescriptorSet W{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET }; W.dstSet = Set; W.dstBinding = Binding; W.descriptorCount = 1u; W.descriptorType = Type;
-        W.pImageInfo = reinterpret_cast<const VkDescriptorImageInfo*>(Images.size() - 1u);
+        W.pImageInfo = reinterpret_cast<const VkDescriptorImageInfo*>(Images.size());   // 1-based, see Buffer above
         Writes.push_back(W);
     };
     constexpr VkDescriptorType UBO = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SSBO = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, IMG = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, TEX = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -721,8 +722,8 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
 
     for (VkWriteDescriptorSet& W : Writes)
     {
-        if (W.pBufferInfo) W.pBufferInfo = &Buffers[reinterpret_cast<size_t>(W.pBufferInfo)];
-        if (W.pImageInfo)  W.pImageInfo  = &Images[reinterpret_cast<size_t>(W.pImageInfo)];
+        if (W.pBufferInfo) W.pBufferInfo = &Buffers[reinterpret_cast<size_t>(W.pBufferInfo) - 1u];
+        if (W.pImageInfo)  W.pImageInfo  = &Images[reinterpret_cast<size_t>(W.pImageInfo) - 1u];
     }
     vkUpdateDescriptorSets(D, static_cast<uint32_t>(Writes.size()), Writes.data(), 0u, nullptr);
 
