@@ -182,10 +182,14 @@ The dashboard already exposes these five; the mapping just gains real meaning.
 | R1 | Capability + frame-graph skeleton | `RayTracingCapabilitySet`; render-graph resource table; `Slate.config.toml` `[render] ray_tracing_tier`; overlay shows detected tier |
 | R2 | Resident scene + GPU culling + visibility raster | glTF import of a real level (e.g. Sponza-class) via `GeometryStructure`; indirect draws; visId/depth/motion debug views in the FPS overlay |
 | R3 | tinybvh → CWBVH + `TraceClosest/TraceAny` | BVH build stats; shadow rays from the visibility buffer; shadowed direct light on the imported level |
-| R4 | Hardware AS path | same picture on RTX through `rayQueryEXT`; toggle between tiers with identical output |
-| R5 | ReSTIR DI proper | back-projected temporal + spatial reservoirs, **visibility reuse**, M-clamp (20×), 25°/10 % neighbour rejection; many-light scene; diagnostics: M, W, age views |
-| R6 | ReSTIR GI + denoiser | GI reservoirs; internal à-trous; camera-motion capture showing no smear. R6b (optional): NRD consumer |
-| R7 | GPU H-PLOC builds, skinned refit, discrete LOD, world-space reservoir cache, reservoir splatting / ReSTIR PT | later |
+| R4 | **ContentInterchange** — `SurfaceSpecification` (OpenPBR 49 params + `slate_` haziness/glints), ≤4-slab `SurfaceLayering` flattened to 1 (Tier A) / 3 (Tier B), bindless textures, `PlacementRecord` scene graph (data only, no UI), FBX (ufbx) + OBJ (fast_obj) codecs; kernel gains EON diffuse, GGX with Kulla–Conty compensation, coat, fuzz (LTC), thin-film | Standard Shader Ball white-furnace set; Sponza with textures; FBX/OBJ round trips; see `MaterialSystemResearch-2026.md` §7 |
+| R5 | Hardware AS path | same picture on RTX through `rayQueryEXT`; toggle between tiers with identical output |
+| R6 | ReSTIR DI proper | back-projected temporal + spatial reservoirs, **visibility reuse**, M-clamp (20×), 25°/10 % neighbour rejection; many-light scene; diagnostics: M, W, age views |
+| R7 | ReSTIR GI + denoiser | GI reservoirs; internal à-trous; camera-motion capture showing no smear. R7b (optional): NRD consumer |
+| R8 | GPU H-PLOC builds, skinned refit, discrete LOD, world-space reservoir cache, reservoir splatting / ReSTIR PT | later |
+
+Renumbered 2026-09-04 (v2.2): materials/interchange inserted as R4 because the importer, textures and the surface
+record are one data contract; AS/ReSTIR phases shift by one.
 
 Estimated order of magnitude: R1–R3 are the bulk of the plumbing; R5/R6 are the research-heavy parts.
 

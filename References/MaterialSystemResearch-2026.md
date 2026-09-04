@@ -111,7 +111,7 @@ Nothing here requires hardware RT; all are BSDF-side and run identically in Tier
 ### 4.1 Channel set (authoring record = OpenPBR, verbatim)
 
 Adopt all 49 OpenPBR parameters with their identifiers as the on-disk / in-memory authoring record
-(`MaterialStructure` — no `Asset`, no `Panel`). Units: metres, nits, ACEScg (converted from sRGB at import).
+(`SurfaceSpecification`). Units: metres, nits, linear Rec.709 (ACEScg converted at the codec boundary — see §7.4).
 This satisfies your list and more:
 
 * Fuzz → `fuzz_*` (Zeltner LTC) · IOR → `specular_ior`, `coat_ior`, `thin_film_ior` · refraction/reflection →
@@ -180,29 +180,61 @@ Ks → specular_color, Ni → ior, d → opacity). MaterialX `open_pbr_surface` 
 
 ---
 
-## 6. Interchange layer plan (replaces the old "AssetInterchange" — name TBD, no "Asset")
+## 6. Interchange layer — `ContentInterchange` (replaces the old "AssetInterchange"; no "Asset")
 
-Proposed name: **`ContentInterchange`** (module) with per-format codecs `SceneCodec` (glTF/GLB — exists), `FbxCodec`
-(ufbx, already a submodule), `ObjCodec` (fast_obj, submodule), `UsdCodec` (later, via tinyusdz), `MaterialXCodec`
-(later). All produce one `SceneStructure` + `MaterialStructure[]` + the new **hierarchy** records:
+`Engine/ContentInterchange/` with per-format codecs `SceneCodec` (glTF/GLB — exists, moves here), `FbxCodec`
+(ufbx, already a submodule), `ObjCodec` (fast_obj, submodule), later `UsdCodec` (tinyusdz) and `MaterialXCodec`.
+All produce one `SceneStructure` + `SurfaceSpecification[]` + the scene-graph rows:
 
-* `NodeRecord { Name, Parent, FirstChild, NextSibling, LocalTransform, WorldTransform, MeshInstance, Camera, Light }`
-  — flat arrays, stable IDs, no UI (outliner comes later and reads this directly).
-* `SceneStructure` keeps the flat GPU-facing arrays; nodes reference instances by index so the culling/raster path is
-  unchanged.
+* `PlacementRecord { Name, Ancestor, FirstDescendant, NextPeer, LocalTransform, WorldTransform, Instance, Camera,
+  Luminaire }` — flat arrays, stable IDs, no UI (the outliner comes later and reads this directly).
+* `SceneStructure` keeps the flat GPU-facing arrays; placements reference instances by index so the culling/raster
+  path is unchanged.
 
 ---
 
-## 7. Open decisions for you
+## 7. Decisions (taken 2026-09-04)
 
-1. **Naming** of the record and module: `MaterialStructure` + `ContentInterchange` (my proposal) — or your preference.
-2. **Extensions beyond OpenPBR** (haziness, glints, specular-profile LUT): include from the start under a `slate_`
-   prefix, or defer to a later phase?
-3. **Slab count** kept at runtime on Tier B: 2, 3 or 4?
-4. **Colour space**: ACEScg internally (OpenPBR default) vs linear sRGB (cheaper, what the kernel uses today).
+1. **Naming** — module **`ContentInterchange`** (user). Material parameter record **`SurfaceSpecification`**
+   (CLAUDE.md role 10: mathematical/structural declaration; "MaterialStructure" rejected by user; `Substrate`
+   is a banned word so Unreal's term is never used in code). Per-slab GPU record `SurfaceRecord`; the ≤4-slab
+   authoring graph `SurfaceLayering`; scene-graph rows `PlacementRecord` (Parent/Child/Sibling/Node/Hierarchy are
+   banned → fields `Ancestor`, `FirstDescendant`, `NextPeer`).
+2. **Beyond-OpenPBR extras** — include **haziness (second roughness)** and **glints** from the start, stored under a
+   `slate_` prefix in the record and serialised as glTF `extras.slate_*`; **specular-profile LUT deferred** (needs
+   measured data we do not have). Rationale: haziness and glints are cheap, fully specified (Barla 2018,
+   Deliot–Belcour 2023) and are what separates "PBR" from "car paint / brushed metal / snow" visually; a LUT channel
+   without content is dead weight.
+3. **Runtime slab count on Tier B — 3.** See §7.1.
+4. **Colour space — linear Rec.709/sRGB primaries internally**, ACEScg only at import/export boundaries.
+   Rationale: every texture we will ever sample (glTF, FBX, PNG/KTX) is sRGB-primaries; converting all of them to
+   ACEScg on upload costs a 3×3 per texel and buys nothing until we have wide-gamut output. OpenPBR permits any
+   working space as long as it is declared; we declare `lin_rec709` in metadata. Switching later is one matrix at
+   the codec boundary, not a shader change.
+5. **Phase placement** — R3 CWBVH stays next (the kernel is still O(N); nothing material-side is visible until
+   shading is fast enough to show it). Then **R4 = ContentInterchange** (SurfaceSpecification + layering,
+   bindless textures, PlacementRecord scene graph, FBX/OBJ codecs) as one phase, because materials, textures
+   and the importer are one data contract and splitting them would ship a half-usable importer twice. Previous
+   R4 (rayQuery AS) shifts to R5, ReSTIR DI/GI to R6/R7, H-PLOC/LOD/reservoir work to R8.
 
-Phase placement: this lands as **R2b (Materials + bindless textures)** after R3 CWBVH as already agreed, with the
-hierarchy/node records and FBX/OBJ codecs as **R2c ContentInterchange** (data only, no UI).
+### 7.1 Why "slab count" matters and why 3
+
+A *slab* is one complete surface layer (its own diffuse/specular/coat/fuzz lobes, roughness, normal). Real objects
+are stacks: dust **on** clear-coat **on** metallic paint **on** primer. Unreal lets artists stack arbitrarily and then
+has to choose, per pixel, how many slabs survive into the G-buffer and the lighting loop:
+
+* **Flatten to 1 slab** (parameter blending): cheapest; loses the visible *difference in normal, roughness and
+  Fresnel between layers* — a scratch through a coat, wet-on-dry, rust breaking through paint all read as a single
+  averaged surface. This is what Tier A (GTX 1060, compute path tracer) gets.
+* **Keep N slabs**: each slab is evaluated as its own lobe set per light sample, so cost is ≈ N× the specular work
+  and N× the record bytes per pixel. Unreal's measured 4-slab + SSS material is ~2.8× a single slab.
+
+Why 3 rather than 2 or 4: the recurring hero cases are exactly three physically distinct layers — **top film**
+(dust/water/frost/oil, usually thin and horizontally masked), **coat** (clear lacquer / glass), **body** (paint/
+metal/skin/cloth). A 2nd slab cannot express "water on lacquered wood"; a 4th slab is almost always a horizontal
+*mix* (rust vs paint) rather than a vertical *layer*, and horizontal mixes flatten losslessly into the slab they
+belong to. Three also fits a 3-lobe-set ReSTIR candidate budget without exploding the reservoir size in R6/R7. The
+authoring graph still allows up to 4; the import step keeps 3 verticals and flattens any 4th into a horizontal mix.
 
 ---
 
