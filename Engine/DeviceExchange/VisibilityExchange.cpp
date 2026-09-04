@@ -1017,6 +1017,3 @@ void* VisibilityExchange::QueryVertexBuffer()       const noexcept { return Vulk
 void* VisibilityExchange::QueryIndexBuffer()        const noexcept { return Vulkan->Indices.Buffer; }
 
 } // namespace Frontier
-ndexBuffer()        const noexcept { return Vulkan->Indices.Buffer; }
-
-} // namespace Frontier

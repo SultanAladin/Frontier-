@@ -141,7 +141,7 @@ function Get-CompilationFlags([string] $Selection)
         '/DGLFW_DLL'
         '/DFRONTIER_DEVELOPMENT'
         '/DFRONTIER_ENABLE_GLFW'
-        '/arch:AVX2'    # tinybvh build + CWBVH CPU reference trace (GTX 1060 era hosts are all Haswell+); scalar fallback otherwise
+        '/arch:AVX'     # AVX support for Sandy Bridge+ hosts; tinybvh supports AVX/SSE scalar fallback
     )
 
     if ($Selection -eq 'Debug')
@@ -588,12 +588,15 @@ $EngineRelative = @(
     'Engine\DeviceExchange\SwapchainExchange.cpp'
     'Engine\DeviceExchange\RayTracingCapabilitySet.cpp'
     'Engine\DeviceExchange\InputExchange.cpp'
+    'Engine\DeviceExchange\DiagnosticMetrics.cpp'
+    'Engine\DeviceExchange\OrientationClassifier.cpp'
     'Engine\DisplayPresentation\ReSTIRIntegrator.cpp'
     'Engine\DisplayPresentation\ShadingTableCodec.cpp'
     'Engine\DisplayPresentation\RenderScheduler.cpp'
     'Engine\DisplayPresentation\ThemeStructure.cpp'
     'Engine\DisplayPresentation\VectorCodec.cpp'
     'Engine\DisplayPresentation\ControlCentreHost.cpp'
+    'Engine\DisplayPresentation\FontCodec.cpp'
     'Engine\DisplayPresentation\PixelSpace.cpp'
     'Engine\DisplayPresentation\MotionIntegrator.cpp'
     'Engine\DisplayPresentation\GlyphSpace.cpp'
@@ -607,6 +610,7 @@ $EngineRelative = @(
     'Engine\DisplayPresentation\TypefaceRegistry.cpp'
     'Engine\DisplayPresentation\FidelityClassifier.cpp'
     'Engine\GeometricRaster\CameraProjection.cpp'
+    'Engine\GeometricRaster\GeometryStructure.cpp'
     'Engine\GeometricRaster\SceneStructure.cpp'
     'Engine\GeometricRaster\TraversalIndex.cpp'
     'Engine\DeviceExchange\VisibilityExchange.cpp'
