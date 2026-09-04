@@ -114,32 +114,57 @@ set(IMGUI_SOURCES
 # ─── Vulkan ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 find_package(Vulkan REQUIRED)
 
-# ─── Slang shader lowering — .slang → SPIR-V ────────────────────────────────────────────────────────────────────────────────────────────────
-find_program(SLANGC_EXECUTABLE slangc
-    HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/usr/local/bin")
+# ─── Shader lowering — GLSL-in-.slang → SPIR-V (one entry per stage; mirrors $ShaderTable in ToolchainSequence.ps1) ─────────────────
+find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/usr/local/bin")
+find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/usr/local/bin")
 
-set(SLANG_SRC "${CMAKE_SOURCE_DIR}/Engine/Shaders/ReSTIRViewport.slang")
-set(SPV_OUT   "${CMAKE_SOURCE_DIR}/Engine/Shaders/ReSTIRViewport.spv")
+set(SHADER_ROOT "${CMAKE_SOURCE_DIR}/Engine/Shaders")
+set(SHADER_INCLUDES "${SHADER_ROOT}/SceneRecords.slang" "${SHADER_ROOT}/RayGeneration.slang")
+set(SHADER_TABLE
+    "ReSTIRViewport.slang|compute|ReSTIRViewport.spv"
+    "ClusterCull.slang|compute|ClusterCull.spv"
+    "HiZReduce.slang|compute|HiZReduce.spv"
+    "SurfaceResolve.slang|compute|SurfaceResolve.spv"
+    "VisibilityRaster.vert.slang|vertex|VisibilityRaster.vert.spv"
+    "VisibilityRaster.frag.slang|fragment|VisibilityRaster.frag.spv")
 
-if(SLANGC_EXECUTABLE AND EXISTS "${SLANG_SRC}")
-    add_custom_command(
-        OUTPUT  "${SPV_OUT}"
-        COMMAND "${SLANGC_EXECUTABLE}"
-                "${SLANG_SRC}"
-                "-DFRONTIER_SHADER_TOOLCHAIN=1"
-                "-I${CMAKE_SOURCE_DIR}/Engine"
-                -target spirv -profile glsl_450
-                -o "${SPV_OUT}"
-        DEPENDS "${SLANG_SRC}"
-        COMMENT "[Project-Zero] Lowering ReSTIRViewport.slang → ReSTIRViewport.spv"
-        VERBATIM)
-    add_custom_target(ReSTIRViewportSpirv DEPENDS "${SPV_OUT}")
+set(SPV_OUTPUTS)
+if(GLSLC_EXECUTABLE OR SLANGC_EXECUTABLE)
+    foreach(ENTRY IN LISTS SHADER_TABLE)
+        string(REPLACE "|" ";" FIELDS "${ENTRY}")
+        list(GET FIELDS 0 SRC_NAME)
+        list(GET FIELDS 1 STAGE)
+        list(GET FIELDS 2 OUT_NAME)
+        set(SRC "${SHADER_ROOT}/${SRC_NAME}")
+        set(OUT "${SHADER_ROOT}/${OUT_NAME}")
+        if(GLSLC_EXECUTABLE)
+            # glslc needs a recognised extension: stage the source under a .glsl name in the build tree
+            set(STAGED "${CMAKE_BINARY_DIR}/Shaders/${OUT_NAME}.glsl")
+            add_custom_command(
+                OUTPUT  "${OUT}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/Shaders"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SRC}" "${STAGED}"
+                COMMAND "${GLSLC_EXECUTABLE}" "-DFRONTIER_SHADER_TOOLCHAIN=1" "-I${CMAKE_SOURCE_DIR}/Engine" "-I${SHADER_ROOT}"
+                        --target-env=vulkan1.2 "-fshader-stage=${STAGE}" -o "${OUT}" "${STAGED}"
+                DEPENDS "${SRC}" ${SHADER_INCLUDES}
+                COMMENT "[Project-Zero] Lowering ${SRC_NAME} -> ${OUT_NAME} (${STAGE})"
+                VERBATIM)
+        else()
+            add_custom_command(
+                OUTPUT  "${OUT}"
+                COMMAND "${SLANGC_EXECUTABLE}" "${SRC}" "-DFRONTIER_SHADER_TOOLCHAIN=1" "-I${CMAKE_SOURCE_DIR}/Engine" "-I${SHADER_ROOT}"
+                        -target spirv -profile glsl_450 -stage ${STAGE} -entry main -o "${OUT}"
+                DEPENDS "${SRC}" ${SHADER_INCLUDES}
+                COMMENT "[Project-Zero] Lowering ${SRC_NAME} -> ${OUT_NAME} (${STAGE})"
+                VERBATIM)
+        endif()
+        list(APPEND SPV_OUTPUTS "${OUT}")
+    endforeach()
+    add_custom_target(ReSTIRViewportSpirv DEPENDS ${SPV_OUTPUTS})
 else()
-    message(WARNING "[Project-Zero] slangc not found or ReSTIRViewport.slang absent — SPV must be pre-compiled.")
+    message(WARNING "[Project-Zero] neither glslc nor slangc found - Engine/Shaders/*.spv must be pre-compiled.")
     add_custom_target(ReSTIRViewportSpirv)
 endif()
-
-# ─── Engine module sources ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 set(FRONTIER_ENGINE_SOURCES
     Engine/DeviceExchange/VulkanExchange.cpp
     Engine/DeviceExchange/ByteSpace.cpp
@@ -160,6 +185,8 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/VolumetricDynamics/ParticleIntegrator.cpp
     Engine/GeometricRaster/GeometryStructure.cpp
     Engine/GeometricRaster/CameraProjection.cpp
+    Engine/GeometricRaster/SceneStructure.cpp
+    Engine/GeometricRaster/SceneCodec.cpp
     Engine/GeometricRaster/VisibilityProjection.cpp
     Engine/GeometricRaster/RasterSequence.cpp
     Engine/GeometricRaster/MaterialCodec.cpp
@@ -208,6 +235,8 @@ set(PROJECT_ZERO_SOURCES
     ${FRONTIER_ENGINE_SOURCES}
     Engine/DeviceExchange/SwapchainExchange.cpp
     Engine/DeviceExchange/RayTracingCapabilitySet.cpp
+    Engine/DeviceExchange/VisibilityExchange.cpp
+    Engine/DisplayPresentation/DiagnosticInspector.cpp
     Engine/DisplayPresentation/ReSTIRIntegrator.cpp
     Engine/DisplayPresentation/RenderScheduler.cpp
     Projects/Project-Zero/Source/RayTracingSolver.cpp

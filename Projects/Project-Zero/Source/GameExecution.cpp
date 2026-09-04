@@ -1,7 +1,12 @@
 //============================================================================================================================================
 //                                                      GAMEEXECUTION.CPP
 //============================================================================================================================================
-// 🧩 Project-Zero entry point — opens the Vulkan window, uploads Cornell Box geometry, runs the ReSTIR render loop.
+// 🧩 Project-Zero entry point — opens the Vulkan window, makes a glTF level resident, runs the ReSTIR render loop.
+//
+//    Scene selection (R2): `Project-Zero.exe [--scene <file.gltf|glb>] [--scale <float>]`
+//        default  Projects/Project-Zero/Content/Scenes/CornellBox.gltf — regenerated from RayTracingSolver when missing,
+//                 so the reference image is unchanged; the CPU solver stays only as that generator.
+//        Sponza   Projects/Project-Zero/Content/Scenes/Sponza/Sponza.gltf (fetched by the build script, not committed).
 
 #include "../../../Engine/DeviceExchange/SwapchainExchange.h"
 #include "../../../Engine/DisplayPresentation/ReSTIRIntegrator.h"
@@ -14,6 +19,9 @@
 #include "../../../Engine/DisplayPresentation/TelemetryMetrics.h"
 #include "../../../Engine/DisplayPresentation/TypefaceRegistry.h"
 #include "../../../Engine/DisplayPresentation/ConfigurationRegistry.h"
+#include "../../../Engine/DisplayPresentation/DiagnosticInspector.h"
+#include "../../../Engine/GeometricRaster/SceneCodec.h"
+#include "../../../Engine/GeometricRaster/SceneStructure.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
@@ -22,10 +30,20 @@
 #include <thread>
 #include <string>
 #include <cstdio>
+#include <cstring>
+#include <filesystem>
 #include <iostream>
 
-int main(int, char**)
+int main(int argc, char** argv)
 {
+    std::string ScenePath  = "Projects/Project-Zero/Content/Scenes/CornellBox.gltf";
+    float       SceneScale = 1.0f;
+    for (int I = 1; I + 1 < argc; ++I)
+    {
+        if (std::strcmp(argv[I], "--scene") == 0) ScenePath  = argv[++I];
+        if (std::strcmp(argv[I], "--scale") == 0) SceneScale = static_cast<float>(std::atof(argv[++I]));
+    }
+
     //──────────────────────────────────────────────────────────────────────────
     // Telemetry sink
     //──────────────────────────────────────────────────────────────────────────
@@ -44,18 +62,48 @@ int main(int, char**)
                          "Bootstrap", "Project-Zero windowed ReSTIR renderer starting.");
 
     //──────────────────────────────────────────────────────────────────────────
-    // Scene — Cornell Box (CPU analytical geometry, uploaded once to GPU SSBOs)
+    // Scene — glTF level made resident (R2). The Cornell box is exported once from the analytical solver so the
+    //    reference image goes through the same import path as any other level.
     //──────────────────────────────────────────────────────────────────────────
-    Frontier::ProjectZero::RayTracingSolver Scene;
+    Frontier::ProjectZero::RayTracingSolver Scene;   // CPU reference geometry (Cornell exporter + ImGui scene section)
+    {
+        std::error_code FsError;
+        const bool IsCornell = ScenePath.find("CornellBox.gltf") != std::string::npos;
+        if (IsCornell && !std::filesystem::exists(ScenePath, FsError))
+        {
+            std::filesystem::create_directories(std::filesystem::path(ScenePath).parent_path(), FsError);
+            std::string Error;
+            if (Frontier::SceneCodec::Encode(ScenePath, Frontier::ReSTIRIntegrator::BuildTriangleIndex(Scene),
+                                             Frontier::ReSTIRIntegrator::BuildRadianceStructures(Scene), &Error))
+                std::cerr << "[Scene] Exported the Cornell box to " << ScenePath << "\n";
+            else
+                std::cerr << "[Scene] Cornell export failed: " << Error << "\n";
+        }
+    }
 
-    const std::vector<Frontier::TriangleIndex> GpuTriangles =
-        Frontier::ReSTIRIntegrator::BuildTriangleIndex(Scene);
-
-    const std::vector<Frontier::RadianceStructure> GpuMaterials =
-        Frontier::ReSTIRIntegrator::BuildRadianceStructures(Scene);
-
-    const uint32_t LuminaireCount =
-        Frontier::ReSTIRIntegrator::CountLuminaireTriangles(Scene);
+    Frontier::SceneStructure Level;
+    {
+        Frontier::SceneDecodeConfiguration Decode;
+        Decode.UniformScale = SceneScale;
+        std::string Error;
+        if (!Frontier::SceneCodec::Decode(ScenePath, Level, Decode, &Error))
+        {
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Fatal, "Scene", ("Cannot import " + ScenePath + ": " + Error).c_str());
+            Logger.TerminateSink();
+            std::cerr << "\nProject-Zero could not import the scene. Press Enter to close this console.\n";
+            std::cin.get();
+            return 1;
+        }
+        if (!Error.empty()) std::cerr << "[Scene] " << Error << "\n";
+        Level.AssignName(std::filesystem::path(ScenePath).stem().string());
+        const Frontier::Vector3 Lo = Level.QueryBoundsMinimum(), Hi = Level.QueryBoundsMaximum();
+        char Line[256];
+        std::snprintf(Line, sizeof(Line), "%s: %u triangles, %zu instances, %zu clusters, %zu materials, %zu luminaires, bounds [%.2f %.2f %.2f]..[%.2f %.2f %.2f] m",
+                      Level.QueryName().c_str(), Level.QueryTriangleCount(), Level.QueryInstances().size(), Level.QueryClusters().size(),
+                      Level.QueryMaterials().size(), Level.QueryLuminaires().size(), Lo.x, Lo.y, Lo.z, Hi.x, Hi.y, Hi.z);
+        Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Scene", Line);
+    }
+    const uint32_t LuminaireCount = static_cast<uint32_t>(Level.QueryLuminaires().size());
 
     //──────────────────────────────────────────────────────────────────────────
     // Camera — Unreal-style fly-through, right-handed +Z up
@@ -73,6 +121,14 @@ int main(int, char**)
     Frontier::ProjectZero::FlyThroughSolver Camera(CameraConfig);
     Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -1.95f, 1.0f });
     Camera.AssignOrientationEuler(0.0f, 0.0f, 0.0f);
+    if (Level.QueryName() != "CornellBox")
+    {
+        // Other levels: start at the centre of the bounds at ~eye height, looking along +Y; flight speed scales with the level.
+        const Frontier::Vector3 Lo = Level.QueryBoundsMinimum(), Hi = Level.QueryBoundsMaximum();
+        Camera.AssignSpatialLocation(Frontier::Vector3{ (Lo.x + Hi.x) * 0.5f, (Lo.y + Hi.y) * 0.5f, Lo.z + std::min(1.7f, (Hi.z - Lo.z) * 0.5f) });
+        CameraConfig.BaseFlightSpeed = std::max(2.5f, (Hi - Lo).Length() * 0.15f);
+        Camera.AssignConfiguration(CameraConfig);
+    }
     Camera.AssignFieldOfView(55.0f);
     Camera.AssignAspectRatio(1280.0f / 720.0f);
 
@@ -122,8 +178,7 @@ int main(int, char**)
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
                          "Bootstrap", "Window and Vulkan swapchain ready.");
 
-    Surface.UploadTriangles(GpuTriangles);
-    Surface.UploadRadiance(GpuMaterials);
+    Surface.UploadScene(Level);
 
     //──────────────────────────────────────────────────────────────────────────
     // ImGui panel — apply theme once after context exists
@@ -151,6 +206,10 @@ int main(int, char**)
     ControlCentre.AccessInput().Seed(Configuration.Query().Input);
     ControlCentre.AccessNotifications().Seed(Configuration.Query().Notifications);
     Frontier::PixelSpace OverlaySurface;
+
+    // R2 debug popup (F3) — seeded from [render] debug_view / occlusion_culling.
+    Frontier::DiagnosticInspector Diagnostics;
+    Diagnostics.Seed(static_cast<Frontier::DebugViewCategory>(Configuration.Query().Backend.DebugView), Configuration.Query().Backend.OcclusionCulling);
 
     // Dashboard-driven engine services: quality ladder, toasts, frame telemetry
     Frontier::FidelityClassifier Fidelity;
@@ -248,6 +307,15 @@ int main(int, char**)
         Notifications.Advance(Δτ);
         Configuration.Advance(Δτ);
         Telemetry.RecordFrame(Δτ);
+
+        // ①b' F3 debug popup: view / HiZ toggles persist to [render] and restart the accumulation.
+        if (Diagnostics.AdvanceInteraction(Input))
+        {
+            Configuration.Access().Backend.DebugView        = static_cast<Frontier::DebugViewSelection>(Diagnostics.QueryView());
+            Configuration.Access().Backend.OcclusionCulling = Diagnostics.QueryOcclusion();
+            Configuration.MarkDirty();
+            Integrator.ResetAccumulation();
+        }
 
         // ①c Dashboard settings → renderer (only when something changed)
         {
@@ -403,6 +471,8 @@ int main(int, char**)
                               const float NotchLine = ControlCentre.QueryHandleHeight();
                               if (ControlCentre.QuerySettings().FrameRateOverlay)
                                   Telemetry.ConstructTelemetryLayout(OverlaySurface, NotchLine);
+                              Diagnostics.ConstructInspectorLayout(OverlaySurface, NotchLine, static_cast<float>(LogicalWidth),
+                                                                   Surface.QueryVisibilityTelemetry(), Surface.QueryClusterCount(), Surface.QueryDrawIndirectCount());
                               ControlCentre.ConstructControlLayout(OverlaySurface);
                               Notifications.ConstructNotificationLayout(OverlaySurface, NotchLine);
                           }
@@ -420,8 +490,8 @@ int main(int, char**)
         if (Telemetry.QueryRows().ShowScene)
         {
             char Line[96];
-            std::snprintf(Line, sizeof(Line), "Cornell  |  %zu tris  |  %u luminaire tris  |  %ux%u  |  frame %u  |  %s",
-                          Scene.QueryTriangles().size(), LuminaireCount, RenderWidth, RenderHeight, Integrator.QueryAccumulationIndex(),
+            std::snprintf(Line, sizeof(Line), "%s  |  %u tris  |  %u luminaire tris  |  %ux%u  |  frame %u  |  %s",
+                          Level.QueryName().c_str(), Level.QueryTriangleCount(), LuminaireCount, RenderWidth, RenderHeight, Integrator.QueryAccumulationIndex(),
                           Frontier::RayTracingCapabilitySet::TierName(Surface.QueryRayTracingTier()));
             Frontier::TelemetryRowStructure Rows = Telemetry.QueryRows(); Rows.SceneLine = Line; Telemetry.AssignRows(Rows);
         }
@@ -429,10 +499,34 @@ int main(int, char**)
             Camera,
             RenderWidth,
             RenderHeight,
-            static_cast<uint32_t>(Scene.QueryTriangles().size()),
+            Level.QueryTriangleCount(),
             LuminaireCount);
 
-        // ⑤ Dispatch compute, blit to swapchain, submit ImGui, present
+        // ④b R2 front end: same camera, reverse-Z infinite projection; AA jitter is a per-frame Halton(2,3) offset shared
+        //    by the raster and the resolve (pixel centre when AA is off).
+        {
+            Frontier::VisibilityFrameConfiguration Frame{};
+            Frame.Camera.Origin             = Camera.QuerySpatialLocation();
+            Frame.Camera.Forward            = Camera.QueryForwardVector();
+            Frame.Camera.Right              = Camera.QueryRightVector();
+            Frame.Camera.Up                 = Camera.QueryUpwardVector();
+            Frame.Camera.TanHalfFieldOfView = Dispatch.FieldOfViewTanHalf;
+            Frame.Camera.AspectRatio        = Camera.QueryAspectRatio();
+            Frame.Camera.NearDistance       = Camera.QueryNearPlaneDistance();
+            Frame.RenderWidth               = RenderWidth;
+            Frame.RenderHeight              = RenderHeight;
+            const auto Halton = [](uint32_t Index, uint32_t Base) { float F = 1.0f, R = 0.0f; for (Index += 1u; Index > 0u; Index /= Base) { F /= static_cast<float>(Base); R += F * static_cast<float>(Index % Base); } return R; };
+            const bool Jittered = Integrator.QueryConfiguration().AntiAliasing;
+            Frame.JitterX          = Jittered ? Halton(Integrator.QueryAccumulationIndex(), 2u) : 0.5f;
+            Frame.JitterY          = Jittered ? Halton(Integrator.QueryAccumulationIndex(), 3u) : 0.5f;
+            Frame.FrameIndex       = Integrator.QueryAccumulationIndex();
+            Frame.DebugView        = Diagnostics.QueryView();
+            Frame.OcclusionCulling = Diagnostics.QueryOcclusion();
+            Frame.ConeCulling      = false;   // the kernel shades both faces; cone culling would remove back-facing walls seen from outside
+            Surface.AssignVisibilityFrame(Frame);
+        }
+
+        // ⑤ Cull → raster → HiZ → resolve → kernel, blit to swapchain, submit ImGui, present
         Surface.RecordAndPresent(Dispatch);
 
         Integrator.IncrementAccumulationIndex();

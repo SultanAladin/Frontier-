@@ -15,6 +15,7 @@
 #include <thorvg.h>
 
 #include "SwapchainExchange.h"
+#include "../GeometricRaster/SceneStructure.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -333,6 +334,7 @@ bool SwapchainExchange::Bring() noexcept
         { "BringDescriptorSet",    &SwapchainExchange::BringDescriptorSet    },
         { "BringCycleSlots",       &SwapchainExchange::BringCycleSlots       },
         { "BringImGui",            &SwapchainExchange::BringImGui            },
+        { "BringVisibility",       &SwapchainExchange::BringVisibility       },
     };
 
     for (const Stage& Current : Stages)
@@ -367,6 +369,7 @@ void SwapchainExchange::Retire() noexcept
     if (Vulkan->ImGuiRenderPass)     vkDestroyRenderPass     (Vulkan->Device, Vulkan->ImGuiRenderPass,     nullptr);
     if (Vulkan->ImGuiDescriptorPool) vkDestroyDescriptorPool (Vulkan->Device, Vulkan->ImGuiDescriptorPool, nullptr);
 
+    Visibility.Retire();
     RetireSwapchain();
 
     if (Vulkan->TriangleBuffer)  vkDestroyBuffer (Vulkan->Device, Vulkan->TriangleBuffer, nullptr);
@@ -617,8 +620,19 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     VkPhysicalDeviceFeatures DeviceFeatures{};
     DeviceFeatures.shaderStorageImageWriteWithoutFormat = VK_TRUE;
 
+    // R2: vkCmdDrawIndexedIndirectCount is a Vulkan 1.2 core feature (drawIndirectCount) — requested only when offered;
+    //    without it the raster issues a fixed-count indirect draw over zero-sized commands (same image, more CP work).
+    VkPhysicalDeviceVulkan12Features Supported12{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+    VkPhysicalDeviceFeatures2        Supported2 { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &Supported12 };
+    vkGetPhysicalDeviceFeatures2(Vulkan->PhysicalDevice, &Supported2);
+    VkPhysicalDeviceVulkan12Features Enabled12{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+    Enabled12.drawIndirectCount = Supported12.drawIndirectCount;
+    DrawIndirectCountSupported  = Supported12.drawIndirectCount == VK_TRUE;
+    DeviceFeatures.multiDrawIndirect = Supported2.features.multiDrawIndirect;
+
     VkDeviceCreateInfo DeviceInfo{};
     DeviceInfo.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    DeviceInfo.pNext                   = &Enabled12;
     DeviceInfo.queueCreateInfoCount    = static_cast<uint32_t>(QueueInfoList.size());
     DeviceInfo.pQueueCreateInfos       = QueueInfoList.data();
     DeviceInfo.enabledExtensionCount   = 1u;
@@ -881,8 +895,9 @@ bool SwapchainExchange::BringCommandRecording() noexcept
 
 bool SwapchainExchange::BringComputePipeline() noexcept
 {
-    // ① Descriptor set layout — binding 0: output image, 1: triangle SSBO, 2: material SSBO, 3: history image
-    std::array<VkDescriptorSetLayoutBinding, 4u> LayoutBindings{};
+    // ① Descriptor set layout — 0: output image, 1: triangle SSBO, 2: material SSBO, 3: history image,
+    //    R2: 4: surface image, 5: normal image, 6: instance SSBO, 7: luminaire SSBO
+    std::array<VkDescriptorSetLayoutBinding, 8u> LayoutBindings{};
     LayoutBindings[0].binding         = 0u;
     LayoutBindings[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     LayoutBindings[0].descriptorCount = 1u;
@@ -899,10 +914,17 @@ bool SwapchainExchange::BringComputePipeline() noexcept
     LayoutBindings[3].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     LayoutBindings[3].descriptorCount = 1u;
     LayoutBindings[3].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
+    for (uint32_t B = 4u; B < 8u; ++B)
+    {
+        LayoutBindings[B].binding         = B;
+        LayoutBindings[B].descriptorType  = B < 6u ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        LayoutBindings[B].descriptorCount = 1u;
+        LayoutBindings[B].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
+    }
 
     VkDescriptorSetLayoutCreateInfo LayoutInfo{};
     LayoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    LayoutInfo.bindingCount = 4u;
+    LayoutInfo.bindingCount = 8u;
     LayoutInfo.pBindings    = LayoutBindings.data();
     (void)vkCreateDescriptorSetLayout(Vulkan->Device, &LayoutInfo, nullptr, &Vulkan->ComputeDescriptorLayout);
 
@@ -959,9 +981,9 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
 {
     std::array<VkDescriptorPoolSize, 2u> PoolSizes{};
     PoolSizes[0].type            = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    PoolSizes[0].descriptorCount = 2u;
+    PoolSizes[0].descriptorCount = 4u;
     PoolSizes[1].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    PoolSizes[1].descriptorCount = 2u;
+    PoolSizes[1].descriptorCount = 4u;
 
     VkDescriptorPoolCreateInfo PoolInfo{};
     PoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1010,7 +1032,12 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
     HistoryInfo.imageView   = Vulkan->HistoryImageView;
     HistoryInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-    std::array<VkWriteDescriptorSet, 4u> Writes{};
+    VkDescriptorImageInfo SurfaceInfo{ VK_NULL_HANDLE, static_cast<VkImageView>(Visibility.QuerySurfaceView()), VK_IMAGE_LAYOUT_GENERAL };
+    VkDescriptorImageInfo NormalInfo { VK_NULL_HANDLE, static_cast<VkImageView>(Visibility.QueryNormalView()),  VK_IMAGE_LAYOUT_GENERAL };
+    VkDescriptorBufferInfo InstanceInfo { static_cast<VkBuffer>(Visibility.QueryInstanceBuffer()),  0u, VK_WHOLE_SIZE };
+    VkDescriptorBufferInfo LuminaireInfo{ static_cast<VkBuffer>(Visibility.QueryLuminaireBuffer()), 0u, VK_WHOLE_SIZE };
+
+    std::array<VkWriteDescriptorSet, 8u> Writes{};
     uint32_t WriteCount = 0u;
 
     if (Vulkan->StorageImageView)
@@ -1056,6 +1083,26 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
         Write.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         Write.pImageInfo      = &HistoryInfo;
     }
+
+    // R2 bindings — written once the visibility targets / scene exist.
+    const auto WriteImage = [&](uint32_t Binding, const VkDescriptorImageInfo& Info)
+    {
+        if (!Info.imageView) return;
+        VkWriteDescriptorSet& Write = Writes[WriteCount++];
+        Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; Write.dstSet = Vulkan->ComputeDescriptorSet; Write.dstBinding = Binding;
+        Write.descriptorCount = 1u; Write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; Write.pImageInfo = &Info;
+    };
+    const auto WriteBuffer = [&](uint32_t Binding, const VkDescriptorBufferInfo& Info)
+    {
+        if (!Info.buffer) return;
+        VkWriteDescriptorSet& Write = Writes[WriteCount++];
+        Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; Write.dstSet = Vulkan->ComputeDescriptorSet; Write.dstBinding = Binding;
+        Write.descriptorCount = 1u; Write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; Write.pBufferInfo = &Info;
+    };
+    WriteImage (4u, SurfaceInfo);
+    WriteImage (5u, NormalInfo);
+    WriteBuffer(6u, InstanceInfo);
+    WriteBuffer(7u, LuminaireInfo);
 
     if (WriteCount > 0u)
         vkUpdateDescriptorSets(Vulkan->Device, WriteCount, Writes.data(), 0u, nullptr);
@@ -1236,6 +1283,22 @@ void SwapchainExchange::UploadRadiance(const std::vector<RadianceStructure>& Mat
     WriteDescriptorSet();
 }
 
+void SwapchainExchange::UploadScene(const SceneStructure& Scene) noexcept
+{
+    if (!Vulkan->Device) return;
+    Visibility.UploadScene(Scene);
+    UploadTriangles(Scene.QueryFlatTriangles());   // interim kernel's shadow / bounce rays (R3 removes)
+    UploadRadiance(Scene.QueryMaterials());        // each Upload* rewrites the descriptor set, including bindings 4-7
+}
+
+bool SwapchainExchange::BringVisibility() noexcept
+{
+    if (!Visibility.Bring(Vulkan->Device, Vulkan->PhysicalDevice, kCycleSlotCount, DrawIndirectCountSupported)) return false;
+    if (!Visibility.Resize(Configuration.Width, Configuration.Height, Vulkan->StorageImageView)) return false;
+    WriteDescriptorSet();
+    return true;
+}
+
 //============================================================================================================================================
 //                                           RECORD AND PRESENT
 //============================================================================================================================================
@@ -1264,10 +1327,10 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
         return;
     }
 
-    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer)
+    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer || !Visibility.IsReady() || !VisibilityFrameValid)
     {
-        // Descriptors for bindings 1/2 are unwritten until the scene is uploaded; dispatching now would be UB.
-        std::cerr << "[SwapchainExchange] RecordAndPresent called before UploadTriangles/UploadRadiance - frame skipped.\n";
+        // Descriptors for bindings 1/2/4-7 are unwritten until the scene is uploaded; dispatching now would be UB.
+        std::cerr << "[SwapchainExchange] RecordAndPresent called before UploadScene / AssignVisibilityFrame - frame skipped.\n";
         return;
     }
 
@@ -1360,20 +1423,31 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         Vulkan->HistoryInitialised = true;
     }
 
-    // ② Dispatch ReSTIR compute
-    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ComputePipeline);
-    vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE,
-        Vulkan->ComputePipelineLayout, 0u, 1u, &Vulkan->ComputeDescriptorSet, 0u, nullptr);
-    vkCmdPushConstants(Command, Vulkan->ComputePipelineLayout,
-        VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration), &Dispatch);
-
-    // Render scale: the kernel only covers Dispatch.ViewportWidth × ViewportHeight (the top-left sub-rectangle of
-    //    the full-size storage image); the blit below stretches that region over the whole swapchain image.
+    // Render scale: every pass only covers Dispatch.ViewportWidth × ViewportHeight (the top-left sub-rectangle of
+    //    the full-size targets); the blit below stretches that region over the whole swapchain image.
     const uint32_t RenderWidth  = std::clamp(Dispatch.ViewportWidth,  1u, Configuration.Width);
     const uint32_t RenderHeight = std::clamp(Dispatch.ViewportHeight, 1u, Configuration.Height);
-    const uint32_t GroupX = (RenderWidth  + kLocalGroupSizeX - 1u) / kLocalGroupSizeX;
-    const uint32_t GroupY = (RenderHeight + kLocalGroupSizeY - 1u) / kLocalGroupSizeY;
-    vkCmdDispatch(Command, GroupX, GroupY, 1u);
+
+    // ①c R2 front end: cull → visibility raster → HiZ → cull → raster → surface resolve (writes bindings 4/5 for the
+    //    kernel; in a debug view it writes the presentation image directly and the kernel is skipped).
+    VisibilityFrameConfiguration Frame = VisibilityFrame;
+    Frame.RenderWidth  = RenderWidth;
+    Frame.RenderHeight = RenderHeight;
+    Visibility.RecordFrame(Command, Vulkan->ActiveSlot, Frame);
+
+    if (Frame.DebugView == DebugViewCategory::Off)
+    {
+        // ② Dispatch ReSTIR compute
+        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ComputePipeline);
+        vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE,
+            Vulkan->ComputePipelineLayout, 0u, 1u, &Vulkan->ComputeDescriptorSet, 0u, nullptr);
+        vkCmdPushConstants(Command, Vulkan->ComputePipelineLayout,
+            VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration), &Dispatch);
+        const uint32_t GroupX = (RenderWidth  + kLocalGroupSizeX - 1u) / kLocalGroupSizeX;
+        const uint32_t GroupY = (RenderHeight + kLocalGroupSizeY - 1u) / kLocalGroupSizeY;
+        vkCmdDispatch(Command, GroupX, GroupY, 1u);
+    }
+    Visibility.RecordKernelEnd(Command, Vulkan->ActiveSlot);
 
     // ③ Storage image → TRANSFER_SRC for blit
     {
@@ -1548,6 +1622,7 @@ bool SwapchainExchange::RebuildSwapchain() noexcept
     RetireSwapchain();
 
     if (!BringSwapchain() || !BringStorageImage()) return false;
+    if (!Visibility.Resize(Configuration.Width, Configuration.Height, Vulkan->StorageImageView)) return false;
 
     WriteDescriptorSet();
 

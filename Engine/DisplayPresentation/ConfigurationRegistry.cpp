@@ -35,6 +35,7 @@ FRONTIER_NAMES(ThemeCategory,            "Oled", "Dark", "Dim", "Light", "Sepia"
 FRONTIER_NAMES(AccentCategory,           "White", "Orange", "Amber", "Lime", "Emerald", "Cyan", "Blue", "Violet", "Fuchsia", "Rose");
 FRONTIER_NAMES(InputProfileCategory,     "Blender", "MayaUnity", "Unreal");
 FRONTIER_NAMES(RayTracingTierRequestCategory, "Auto", "Software", "RayQuery", "Pipeline");
+FRONTIER_NAMES(DebugViewSelection,       "Off", "Depth", "Visibility", "Motion", "Cluster", "HiZ", "Albedo", "Normal");
 FRONTIER_NAMES(FontWeightCategory,       "Thin", "ExtraLight", "Light", "Regular", "Medium", "SemiBold", "Bold", "ExtraBold", "Black");
 #undef FRONTIER_NAMES
 
@@ -135,6 +136,8 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "quality",             NameOf(P.Render.Quality) },
         { "render_scale",        static_cast<double>(P.Render.RenderScale) },
         { "ray_tracing_tier",    NameOf(P.Backend.RayTracingTier) },   // Auto | Software | RayQuery | Pipeline (never faked upward)
+        { "debug_view",          NameOf(P.Backend.DebugView) },        // Off | Depth | Visibility | Motion | Cluster | HiZ | Albedo | Normal (F3 popup)
+        { "occlusion_culling",   P.Backend.OcclusionCulling },         // HiZ two-phase cull; off = frustum only (proof 4 A/B)
     });
 
     const AppearanceSettings& A = P.Appearance;
@@ -221,6 +224,8 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         S.Get("render_scale",        Out.Render.RenderScale);
         Out.Render.RenderScale = std::clamp(Out.Render.RenderScale, 0.25f, 1.0f);
         S.GetEnum("ray_tracing_tier",    Out.Backend.RayTracingTier);
+        S.GetEnum("debug_view",          Out.Backend.DebugView);
+        S.Get("occlusion_culling",       Out.Backend.OcclusionCulling);
     }
     {
         AppearanceSettings& A = Out.Appearance;

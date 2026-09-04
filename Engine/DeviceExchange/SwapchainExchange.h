@@ -12,6 +12,7 @@
 #include "InputExchange.h"
 #include "RayTracingCapabilitySet.h"
 #include "OrientationClassifier.h"
+#include "VisibilityExchange.h"
 #include <cstdint>
 #include <vector>
 #include <array>
@@ -19,6 +20,8 @@
 struct GLFWwindow;
 
 namespace Frontier {
+
+class SceneStructure;
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                              SWAPCHAIN CONFIGURATION
@@ -139,6 +142,16 @@ public:
     void                        UploadTriangles   (const std::vector<TriangleIndex>&   Facets)    noexcept;
     void                        UploadRadiance (const std::vector<RadianceStructure>& Radiances) noexcept;
 
+    // R2: the whole level becomes resident (vertices · indices · instances · clusters · materials · luminaires) and the
+    //    interim kernel's flat triangle / material SSBOs are taken from the same SceneStructure — one upload, one truth.
+    void                        UploadScene(const SceneStructure& Scene) noexcept;
+
+    // R2 frame front end (cull → visibility raster → HiZ → resolve) recorded before the kernel each frame.
+    void                        AssignVisibilityFrame(const VisibilityFrameConfiguration& Frame) noexcept { VisibilityFrame = Frame; VisibilityFrameValid = true; }
+    [[nodiscard]] const VisibilityTelemetry& QueryVisibilityTelemetry() const noexcept { return Visibility.QueryTelemetry(); }
+    [[nodiscard]] uint32_t      QueryClusterCount() const noexcept { return Visibility.QueryClusterCount(); }
+    [[nodiscard]] bool          QueryDrawIndirectCount() const noexcept { return DrawIndirectCountSupported; }
+
     void                        RecordAndPresent(const DispatchConfiguration& Dispatch) noexcept;
 
     void                        SignalResize() noexcept { ResizePending = true; }
@@ -177,6 +190,7 @@ private:
     [[nodiscard]] bool  BringCommandRecording() noexcept;
     [[nodiscard]] bool  BringCycleSlots()       noexcept;
     [[nodiscard]] bool  BringImGui()            noexcept;
+    [[nodiscard]] bool  BringVisibility()       noexcept;
 
     void                RetireSwapchain()       noexcept;
     [[nodiscard]] bool  RebuildSwapchain()      noexcept;
@@ -207,6 +221,10 @@ private:
     uint32_t                ResolvedPresentMode; // [-]   VkPresentModeKHR chosen at the last swapchain build
     bool                    FullscreenActive;    // [-]   window currently covers the primary monitor
     RayTracingCapabilitySet Capabilities;        // [-]   probed in BringPhysicalDevice
+    VisibilityExchange      Visibility;          // [-]   R2 resident scene + cull / raster / HiZ / resolve
+    VisibilityFrameConfiguration VisibilityFrame{};
+    bool                    VisibilityFrameValid = false;
+    bool                    DrawIndirectCountSupported = false;   // [-] VkPhysicalDeviceVulkan12Features::drawIndirectCount
     RayTracingRequestCategory RayTracingRequest = RayTracingRequestCategory::Auto;
     int                     WindowedX, WindowedY, WindowedW, WindowedH;   // [px] rectangle to restore on leaving fullscreen
 

@@ -2,20 +2,20 @@
 // 📦 Engine/Shaders/ReSTIRViewport.slang — Progressive path tracer with RIS direct lighting (interim kernel)
 //============================================================================================================================================
 // 🚧 HONEST STATUS (plan v2.1 R0): this is NOT ReSTIR as published. Per pixel it does
-//       • brute-force O(TriangleCount) primary / shadow / bounce rays (no acceleration structure — R3 replaces with CWBVH),
+//       • primary visibility from the R2 visibility raster (SurfaceImage / NormalImage, no primary rays),
+//       • brute-force O(TriangleCount) shadow / bounce rays (no acceleration structure — R3 replaces with CWBVH),
 //       • ReSTIR-DI *initial candidates only*: M light samples resampled with a weighted reservoir (correct RIS),
 //         with SpatialPassCount extra candidates folded in — there is NO temporal and NO spatial neighbour reuse (R5),
 //       • one cosine-sampled bounce with next-event estimation — plain 1-bounce path tracing, no GI reservoir (R6),
-//       • a running-mean accumulation that restarts on camera motion; no motion vectors, no denoiser (R2/R6).
+//       • a running-mean accumulation that restarts on camera motion; motion vectors exist (R2) but are not consumed yet (R5), no denoiser (R6).
 //    It is kept as the reference image source until the staged frame graph replaces it.
 // NOTE: GLSL source lowered to SPIR-V by the build scripts (glslc -fshader-stage=compute --target-env=vulkan1.2 -I Engine).
-//       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping lives in Shaders/RayGeneration.slang.
+//       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping (Shaders/RayGeneration.slang) is applied by
+//       SurfaceResolve.slang — this kernel no longer generates camera rays.
 
 #version 460
 #extension GL_GOOGLE_include_directive : require
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-
-#include "Shaders/RayGeneration.slang"
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    STORAGE IMAGE OUTPUT
@@ -23,6 +23,8 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(rgba8,   binding = 0) uniform writeonly image2D OutputImage;    // tone-mapped 8-bit presentation image
 layout(rgba32f, binding = 3) uniform          image2D HistoryImage;   // linear HDR running mean, .a = sample count
+layout(rgba32f, binding = 4) uniform readonly image2D SurfaceImage;   // R2 SurfaceResolve: xyz = world position, w = visibility id bits
+layout(rgba16f, binding = 5) uniform readonly image2D NormalImage;    // R2 SurfaceResolve: xyz = camera-facing geometric normal
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    SCENE GEOMETRY BINDING
@@ -42,8 +44,39 @@ struct GpuMaterial
     vec4 emissive;      // xyz = emissive radiance, w = metallic
 };
 
-layout(std430, binding = 1) readonly buffer TriangleExtent  { GpuTriangle Triangles[]; };
-layout(std430, binding = 2) readonly buffer MaterialExtent  { GpuMaterial Materials[]; };
+struct GpuInstance          // InstanceRecord (SceneStructure.h / SceneRecords.slang) — only MaterialIndex is read here
+{
+    mat4 World;
+    mat4 PreviousWorld;
+    uint VertexOffset;
+    uint FirstIndex;
+    uint TriangleCount;
+    uint MaterialIndex;
+    uint ClusterOffset;
+    uint ClusterCount;
+    uint Flags;
+    uint FlatTriangleOffset;
+};
+
+struct GpuLuminaire         // LuminaireRecord (SceneStructure.h): emissive triangle + alias entry
+{
+    uint  TriangleSlot;     // index into Triangles[]
+    uint  InstanceIndex;
+    uint  PrimitiveIndex;
+    uint  AliasSlot;
+    float Threshold;
+    float Area;
+    float Probability;
+    float Pad;
+};
+
+layout(std430, binding = 1) readonly buffer TriangleExtent  { GpuTriangle  Triangles[];  };
+layout(std430, binding = 2) readonly buffer MaterialExtent  { GpuMaterial  Materials[];  };
+layout(std430, binding = 6) readonly buffer InstanceExtent  { GpuInstance  Instances[];  };
+layout(std430, binding = 7) readonly buffer LuminaireExtent { GpuLuminaire Luminaires[]; };
+
+const uint kVisibilityInvalid = 0xFFFFFFFFu;
+uint VisibilityInstance(uint Packed) { return (Packed >> 14) & 0x3FFFFu; }
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    PUSH CONSTANTS
@@ -70,7 +103,7 @@ layout(push_constant) uniform ReSTIRConstants
 };
 
 const uint kFeatureGlobalIllumination = 1u;   // bit 0: trace the secondary bounce (section 4)
-const uint kFeatureAntiAliasing       = 2u;   // bit 1: sub-pixel jitter on the primary ray (off = pixel centre)
+const uint kFeatureAntiAliasing       = 2u;   // bit 1: sub-pixel jitter — applied by the R2 raster/resolve, not here
 const uint kFeatureAmbientFloor       = 4u;   // bit 2: add albedo × AmbientStrength (debug fill light; default OFF)
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -205,10 +238,13 @@ vec3 SampleCosineHemisphere(vec3 normal, float u1, float u2)
 //                             LIGHT TRIANGLE AREA SAMPLING (uniform area pick)
 //------------------------------------------------------------------------------------------------------------------------
 
-// Light triangles are the last LightTriangleCount entries in the Triangles[] buffer.
+// Light triangles come from the luminaire table (R2); the pick stays UNIFORM over luminaires so the Cornell image is
+//    bit-for-bit the R0 estimator. The table also carries a Walker alias entry + area-power pdf — R5 switches to it.
+uint LightTriangle(uint lightIdx) { return Luminaires[lightIdx].TriangleSlot; }
+
 vec3 SampleLightPoint(uint lightTriIdx, float u1, float u2)
 {
-    uint idx = TriangleCount - LightTriangleCount + lightTriIdx;
+    uint idx = LightTriangle(lightTriIdx);
     vec3 v0 = Triangles[idx].v0.xyz;
     vec3 v1 = Triangles[idx].v1.xyz;
     vec3 v2 = Triangles[idx].v2.xyz;
@@ -284,37 +320,24 @@ void main()
     uint seed = MakeSeed(pixel, FrameIndex);
 
     //------------------------------------------------------------------------------------------------------------------
-    // 1. Generate primary ray — see RayGeneration.slang for the World → Vulkan-image convention
+    // 1 + 2. Primary visibility — read from the R2 visibility raster instead of tracing. SurfaceResolve intersected the
+    //    pixel's camera ray (with the frame's raster jitter) with the rasterised triangle, so hitPos / hitNormal are
+    //    what TraceScene used to return, already flipped to face the camera. ⚠️ Deviation from R0: anti-aliasing jitter
+    //    is now one Halton offset per FRAME (shared by raster and resolve) instead of one PCG offset per pixel; the
+    //    accumulated result converges to the same box-filtered image, only the per-frame noise pattern differs.
     //------------------------------------------------------------------------------------------------------------------
-    CameraBasis camera;
-    camera.Origin     = CameraOrigin;
-    camera.Forward    = CameraForward;
-    camera.Right      = CameraRight;
-    camera.Up         = CameraUp;
-    camera.TanHalfFov = FieldOfViewTanHalf;
-    camera.Aspect     = AspectRatio;
+    vec4 surface    = imageLoad(SurfaceImage, ivec2(pixel));
+    uint visibility = floatBitsToUint(surface.w);
 
-    Ray primary;
-    primary.origin = CameraOrigin;
-    vec2 jitter = ((FeatureFlags & kFeatureAntiAliasing) != 0u)
-                ? vec2(RandFloat(seed), RandFloat(seed))
-                : vec2(0.5, 0.5);
-    primary.dir    = GeneratePrimaryDirection(camera, pixel, jitter, uvec2(ViewportWidth, ViewportHeight));
-
-    //------------------------------------------------------------------------------------------------------------------
-    // 2. Primary visibility
-    //------------------------------------------------------------------------------------------------------------------
-    Hit primaryHit = TraceScene(primary);
-
-    if (!primaryHit.valid)
+    if (visibility == kVisibilityInvalid)
     {
-        // Background: pure black. There is no sky and no environment light in the Cornell scene; anything
-        // that is not the box must read as a miss, never as a colour.
+        // Background: pure black. There is no sky and no environment light; anything the raster did not cover must
+        // read as a miss, never as a colour.
         Resolve(pixel, vec3(0.0));
         return;
     }
 
-    GpuMaterial mat = Materials[primaryHit.matIdx];
+    GpuMaterial mat = Materials[Instances[VisibilityInstance(visibility)].MaterialIndex];
     vec3 albedo     = mat.albedo.xyz;
     vec3 emissive   = mat.emissive.xyz;
 
@@ -325,10 +348,8 @@ void main()
         return;
     }
 
-    vec3 hitPos    = primaryHit.pos;
-    vec3 hitNormal = primaryHit.normal;
-    // Ensure normal faces incoming ray
-    if (dot(hitNormal, -primary.dir) < 0.0) hitNormal = -hitNormal;
+    vec3 hitPos    = surface.xyz;
+    vec3 hitNormal = imageLoad(NormalImage, ivec2(pixel)).xyz;   // camera-facing (SurfaceResolve applies the two-sided flip)
 
     vec3 accumulatedRadiance = vec3(0.0);
 
@@ -356,7 +377,7 @@ void main()
 
             // Get light material
             uint lMatIdx = floatBitsToUint(
-                Triangles[TriangleCount - LightTriangleCount + li].v0.w);
+                Triangles[LightTriangle(li)].v0.w);
             vec3 lEmissive = Materials[lMatIdx].emissive.xyz;
 
             // Target function: unshadowed direct contribution
@@ -380,7 +401,7 @@ void main()
             float bestD = kInf;
             for (uint li = 0u; li < LightTriangleCount; ++li)
             {
-                uint idx = TriangleCount - LightTriangleCount + li;
+                uint idx = LightTriangle(li);
                 vec3 triCenter = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
                 float d = distance(triCenter, res.SelectedPoint);
                 if (d < bestD) { bestD = d; selEmissive = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
@@ -400,7 +421,7 @@ void main()
                 vec3   nToL   = nlp - hitPos;
                 float  nDist  = length(nToL);
                 float  nCos   = max(0.0, dot(hitNormal, nToL / nDist));
-                uint   nMIdx  = floatBitsToUint(Triangles[TriangleCount - LightTriangleCount + nli].v0.w);
+                uint   nMIdx  = floatBitsToUint(Triangles[LightTriangle(nli)].v0.w);
                 vec3   nEmit  = Materials[nMIdx].emissive.xyz;
                 float  nPHat  = nCos * length(nEmit) / (nDist * nDist + 0.001);
                 float  nW     = nPHat / (1.0 / float(LightTriangleCount));   // p̂ / p_source, same as the initial loop
@@ -415,7 +436,7 @@ void main()
                 float bd       = kInf;
                 for (uint li = 0u; li < LightTriangleCount; ++li)
                 {
-                    uint idx = TriangleCount - LightTriangleCount + li;
+                    uint idx = LightTriangle(li);
                     vec3 c = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
                     float d = distance(c, res.SelectedPoint);
                     if (d < bd) { bd = d; emit2 = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
@@ -435,7 +456,7 @@ void main()
                 float bd2 = kInf;
                 for (uint li = 0u; li < LightTriangleCount; ++li)
                 {
-                    uint idx = TriangleCount - LightTriangleCount + li;
+                    uint idx = LightTriangle(li);
                     vec3 c = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
                     float d = distance(c, res.SelectedPoint);
                     if (d < bd2) { bd2 = d; chosenEmit = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
@@ -484,7 +505,7 @@ void main()
                 float bCos  = max(0.0, dot(bHitNormal, bLDir));
 
                 uint  bLMatIdx = floatBitsToUint(
-                    Triangles[TriangleCount - LightTriangleCount + bLi].v0.w);
+                    Triangles[LightTriangle(bLi)].v0.w);
                 vec3 bLEmit = Materials[bLMatIdx].emissive.xyz;
 
                 if (!TraceShadow(bHitPos + bHitNormal * kEps, bLp))

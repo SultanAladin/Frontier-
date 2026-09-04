@@ -168,6 +168,7 @@ function Get-IncludePaths([string] $VulkanRoot)
         "/I$(Join-Path $PackageRoot 'thorvg\inc')"
         "/I$(Join-Path $PackageRoot 'tomlpp\include')"
         "/I$(Join-Path $PackageRoot 'jolt')"
+        "/I$(Join-Path $PackageRoot 'cgltf')"
     )
 }
 
@@ -335,85 +336,101 @@ function Resolve-ShaderCompiler([string] $VulkanRoot)
     throw "the Vulkan SDK at $VulkanRoot carries no shader compiler (glslc.exe or slangc.exe)"
 }
 
+# Shader table: source (under Engine\Shaders), glslc stage, output .spv. Every file includes SceneRecords.slang except the
+# kernel's own includes; the include list below re-lowers all of them when any shared header changes.
+$ShaderTable = @(
+    @{ Source = 'ReSTIRViewport.slang';        Stage = 'compute';  Output = 'ReSTIRViewport.spv' }
+    @{ Source = 'ClusterCull.slang';           Stage = 'compute';  Output = 'ClusterCull.spv' }
+    @{ Source = 'HiZReduce.slang';             Stage = 'compute';  Output = 'HiZReduce.spv' }
+    @{ Source = 'SurfaceResolve.slang';        Stage = 'compute';  Output = 'SurfaceResolve.spv' }
+    @{ Source = 'VisibilityRaster.vert.slang'; Stage = 'vertex';   Output = 'VisibilityRaster.vert.spv' }
+    @{ Source = 'VisibilityRaster.frag.slang'; Stage = 'fragment'; Output = 'VisibilityRaster.frag.spv' }
+)
+$ShaderIncludeNames = @('SceneRecords.slang', 'RayGeneration.slang')
+
 function Invoke-ShaderLowering([string] $VulkanRoot)
 {
-    $SlangSrc = Join-Path $EngineRoot 'Shaders\ReSTIRViewport.slang'
-
-    if (-not (Test-Path $SlangSrc))
-    {
-        Write-Skipped 'no .slang shaders found in Engine\Shaders\ - skipping shader lowering'
-        return
-    }
-
-    $Compiler  = Resolve-ShaderCompiler $VulkanRoot
     $SpirvRoot = Join-Path $EngineRoot 'Shaders'
-    $SpirvPath = Join-Path $SpirvRoot  'ReSTIRViewport.spv'
+    $Compiler  = Resolve-ShaderCompiler $VulkanRoot
+    $CompilerName = [System.IO.Path]::GetFileName($Compiler)
 
-    # Shared includes pulled in by ReSTIRViewport.slang - any of them changing must re-lower the shader
-    $ShaderIncludes = @(
-        (Join-Path $EngineRoot 'Shaders\RayGeneration.slang')
-    )
-
-    $Fresh = (-not $Rebuild) -and (Test-Path $SpirvPath) -and
-             ((Get-Item $SpirvPath).LastWriteTimeUtc -gt (Get-Item $SlangSrc).LastWriteTimeUtc)
-    foreach ($Include in $ShaderIncludes)
+    $IncludeStamp = [DateTime]::MinValue
+    foreach ($Name in $ShaderIncludeNames)
     {
-        if ((Test-Path $Include) -and $Fresh -and
-            ((Get-Item $SpirvPath).LastWriteTimeUtc -le (Get-Item $Include).LastWriteTimeUtc))
+        $Include = Join-Path $SpirvRoot $Name
+        if ((Test-Path $Include) -and ((Get-Item $Include).LastWriteTimeUtc -gt $IncludeStamp))
         {
-            $Fresh = $false
+            $IncludeStamp = (Get-Item $Include).LastWriteTimeUtc
         }
     }
 
-    if ($Fresh)
+    foreach ($Entry in $ShaderTable)
     {
-        Write-Skipped 'ReSTIRViewport.slang and its includes unchanged'
-        return
+        $SlangSrc  = Join-Path $SpirvRoot $Entry.Source
+        $SpirvPath = Join-Path $SpirvRoot $Entry.Output
+        if (-not (Test-Path $SlangSrc))
+        {
+            Write-Rejected "Engine\Shaders\$($Entry.Source) is missing"
+            throw "Engine\Shaders\$($Entry.Source) is missing"
+        }
+
+        $Fresh = (-not $Rebuild) -and (Test-Path $SpirvPath) -and
+                 ((Get-Item $SpirvPath).LastWriteTimeUtc -gt (Get-Item $SlangSrc).LastWriteTimeUtc) -and
+                 ((Get-Item $SpirvPath).LastWriteTimeUtc -gt $IncludeStamp)
+        if ($Fresh)
+        {
+            Write-Skipped "$($Entry.Source) and its includes unchanged"
+            continue
+        }
+
+        Write-Building "Lowering $($Entry.Source) -> $($Entry.Output)"
+
+        if ($CompilerName -eq 'glslc.exe')
+        {
+            # glslc requires a recognized extension (.glsl/.vert/.frag/.comp); stage is passed explicitly
+            $TempSrc = Join-Path $SpirvRoot ([System.IO.Path]::GetFileNameWithoutExtension($Entry.Output) + '_glslc.glsl')
+            Copy-Item $SlangSrc $TempSrc -Force
+            $Arguments = @(
+                '-DFRONTIER_SHADER_TOOLCHAIN=1'
+                "-I$EngineRoot"
+                "-I$SpirvRoot"
+                '--target-env=vulkan1.2'
+                "-fshader-stage=$($Entry.Stage)"
+                '-o'
+                $SpirvPath
+                $TempSrc
+            )
+        }
+        else
+        {
+            $Arguments = @(
+                $SlangSrc
+                '-DFRONTIER_SHADER_TOOLCHAIN=1'
+                "-I$EngineRoot"
+                "-I$SpirvRoot"
+                '-target'
+                'spirv'
+                '-profile'
+                'glsl_450'
+                '-stage'
+                $Entry.Stage
+                '-entry'
+                'main'
+                '-o'
+                $SpirvPath
+            )
+        }
+
+        & $Compiler @Arguments | ForEach-Object { Write-Host "    $_" }
+
+        if ($LASTEXITCODE -ne 0)
+        {
+            Write-Rejected "$CompilerName rejected $($Entry.Source)"
+            throw "$CompilerName rejected $($Entry.Source)"
+        }
+
+        Write-Lowered $SpirvPath
     }
-
-    Write-Building 'Lowering ReSTIRViewport.slang -> ReSTIRViewport.spv'
-
-    # Determine compiler arguments based on which tool we have
-    $CompilerName = [System.IO.Path]::GetFileName($Compiler)
-    if ($CompilerName -eq 'glslc.exe')
-    {
-        # glslc requires a recognized extension (.glsl/.vert/.frag/.comp)
-        $TempSrc = Join-Path $SpirvRoot 'ReSTIRViewport_glslc.glsl'
-        Copy-Item $SlangSrc $TempSrc -Force
-        $Arguments = @(
-            '-DFRONTIER_SHADER_TOOLCHAIN=1'
-            "-I$EngineRoot"
-            '--target-env=vulkan1.2'
-            '-fshader-stage=compute'
-            '-o'
-            $SpirvPath
-            $TempSrc
-        )
-    }
-    else
-    {
-        $Arguments = @(
-            $SlangSrc
-            '-DFRONTIER_SHADER_TOOLCHAIN=1'
-            "-I$EngineRoot"
-            '-target'
-            'spirv'
-            '-profile'
-            'glsl_450'
-            '-o'
-            $SpirvPath
-        )
-    }
-
-    & $Compiler @Arguments | ForEach-Object { Write-Host "    $_" }
-
-    if ($LASTEXITCODE -ne 0)
-    {
-        Write-Rejected "$CompilerName rejected ReSTIRViewport.slang"
-        throw "$CompilerName rejected ReSTIRViewport.slang"
-    }
-
-    Write-Lowered $SpirvPath
 }
 
 #---
@@ -560,6 +577,7 @@ $ImGuiSources = @(
 
 $EngineRelative = @(
     'Engine\DeviceExchange\SwapchainExchange.cpp'
+    'Engine\DeviceExchange\RayTracingCapabilitySet.cpp'
     'Engine\DeviceExchange\VulkanExchange.cpp'
     'Engine\DeviceExchange\ByteSpace.cpp'
     'Engine\DeviceExchange\TaskScheduler.cpp'
@@ -591,6 +609,10 @@ $EngineRelative = @(
     'Engine\DisplayPresentation\FrontierHost.cpp'
     'Engine\GeometricRaster\GeometryStructure.cpp'
     'Engine\GeometricRaster\CameraProjection.cpp'
+    'Engine\GeometricRaster\SceneStructure.cpp'
+    'Engine\GeometricRaster\SceneCodec.cpp'
+    'Engine\DeviceExchange\VisibilityExchange.cpp'
+    'Engine\DisplayPresentation\DiagnosticInspector.cpp'
     'Engine\GeometricRaster\VisibilityProjection.cpp'
     'Engine\GeometricRaster\RasterSequence.cpp'
     'Engine\GeometricRaster\MaterialCodec.cpp'
@@ -637,18 +659,15 @@ $ExePath = Join-Path $BinaryRoot 'Project-Zero.exe'
 $GlfwDll = Join-Path $PackageRoot 'glfw\lib-vc2022\glfw3.dll'
 if (Test-Path $GlfwDll) { Copy-Item $GlfwDll $BinaryRoot -Force }
 
-# Copy the lowered compute shader beside the executable so double-clicking the .exe works
+# Copy the lowered shaders beside the executable so double-clicking the .exe works
 # (the runtime searches <cwd>\Engine\Shaders first, then <exe dir>\Engine\Shaders and its parents).
-$SpirvSource = Join-Path $EngineRoot 'Shaders\ReSTIRViewport.spv'
-if (Test-Path $SpirvSource)
+$SpirvTarget = Join-Path $BinaryRoot 'Engine\Shaders'
+New-Item -ItemType Directory -Force -Path $SpirvTarget | Out-Null
+foreach ($Entry in $ShaderTable)
 {
-    $SpirvTarget = Join-Path $BinaryRoot 'Engine\Shaders'
-    New-Item -ItemType Directory -Force -Path $SpirvTarget | Out-Null
-    Copy-Item $SpirvSource $SpirvTarget -Force
-}
-else
-{
-    Write-Rejected "Engine\Shaders\ReSTIRViewport.spv is missing - Project-Zero will fail at BringComputePipeline"
+    $SpirvSource = Join-Path $EngineRoot ('Shaders\' + $Entry.Output)
+    if (Test-Path $SpirvSource) { Copy-Item $SpirvSource $SpirvTarget -Force }
+    else { Write-Rejected "Engine\Shaders\$($Entry.Output) is missing - Project-Zero will fail at bring-up" }
 }
 
 if (Test-Path $ExePath)
