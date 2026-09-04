@@ -1,0 +1,7 @@
+[1] stored-index W bit-identical to brute-force-search W (1000 reservoirs x 8 candidates)
+  mismatched W / light                                                 0.000000 (want 0.000000 +-0.000000) PASS
+[2] RIS identity E[pHat(z)*W] = E[w] within 1% (200k reservoirs)
+  E[pHat(z)*W] vs E[w]                                                 8.290843 (want 8.290843 +-0.082908) PASS
+[3] pairwise MIS combine: M sums, WeightSum sums, z in {zA,zB}, W exact
+  bad merges                                                           0.000000 (want 0.000000 +-0.000000) PASS
+ALL PASS (0 failures)

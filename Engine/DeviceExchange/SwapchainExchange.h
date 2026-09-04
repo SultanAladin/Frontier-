@@ -105,7 +105,9 @@ enum DispatchFeature : uint32_t
 {
     DispatchFeatureGlobalIllumination = 1u << 0,
     DispatchFeatureAntiAliasing       = 1u << 1,
-    DispatchFeatureAmbientFloor       = 1u << 2    // debug fill light (R0: off by default)
+    DispatchFeatureAmbientFloor       = 1u << 2,   // debug fill light (R0: off by default)
+    DispatchFeatureTemporalReuse      = 1u << 3,   // R6 row 2: temporal reservoir reuse
+    DispatchFeatureSpatialReuse       = 1u << 4    // R6 row 3: spatial neighbour reuse
 };
 
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.

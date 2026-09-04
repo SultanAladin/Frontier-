@@ -32,6 +32,8 @@ struct ReSTIRIntegratorConfiguration
     bool        GlobalIllumination = true;  // [-]   secondary bounce on/off
     bool        AntiAliasing       = true;  // [-]   sub-pixel jitter on/off
     bool        AmbientFloor       = false; // [-]   debug fill light (albedo × AmbientStrength); off by default since R0
+    bool        TemporalReuse      = true;  // [-]   R6 row 2: temporal reservoir reuse (back-projection + validation)
+    bool        SpatialReuse       = true;  // [-]   R6 row 3: spatial neighbour reuse (pairwise MIS)
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -73,6 +75,8 @@ public:
     void AssignExposure          (float    Value) noexcept { if (ActiveConfiguration.Exposure            != Value) { ActiveConfiguration.Exposure            = Value; ResetAccumulation(); } }
     void AssignGlobalIllumination(bool     On)    noexcept { if (ActiveConfiguration.GlobalIllumination  != On)    { ActiveConfiguration.GlobalIllumination  = On;    ResetAccumulation(); } }
     void AssignAntiAliasing      (bool     On)    noexcept { if (ActiveConfiguration.AntiAliasing        != On)    { ActiveConfiguration.AntiAliasing        = On;    ResetAccumulation(); } }
+    void AssignTemporalReuse     (bool     On)    noexcept { if (ActiveConfiguration.TemporalReuse       != On)    { ActiveConfiguration.TemporalReuse       = On;    ResetAccumulation(); } }
+    void AssignSpatialReuse      (bool     On)    noexcept { if (ActiveConfiguration.SpatialReuse        != On)    { ActiveConfiguration.SpatialReuse        = On;    ResetAccumulation(); } }
 
     void ResetAccumulation() noexcept { AccumulationIndex = 0u; }
 

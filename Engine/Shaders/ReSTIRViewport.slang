@@ -5,11 +5,13 @@
 //       • primary visibility from the R2 visibility raster (SurfaceImage / NormalImage, no primary rays),
 //       • shadow / bounce rays traverse the R3 CWBVH (TraversalCWBVH.slang, bindings 8-9) — O(log N), not O(N),
 //       • ReSTIR-DI *initial candidates only*: M light samples resampled with a weighted reservoir (correct RIS),
-//         with SpatialPassCount extra candidates folded in — there is NO temporal and NO spatial neighbour reuse (R5),
+//         with SpatialPassCount extra candidates folded in — there is NO temporal and NO spatial neighbour reuse (R6
+//         rows 2/3),
 //       • one BSDF-sampled bounce with next-event estimation — plain 1-bounce path tracing, no GI reservoir (R6),
 //       • R4b: surfaces are shaded with the OpenPBR lobe set of MaterialEvaluation.slang (one resolved slab, interpolated
 //         normals + normal maps from the VertexRecord buffer, ray-cone texture LOD, GGX energy / LTC sheen LUTs),
-//       • a running-mean accumulation that restarts on camera motion; motion vectors exist (R2) but are not consumed yet (R5), no denoiser (R6).
+//       • a running-mean accumulation that restarts on camera motion; motion vectors exist (R2) but are consumed only
+//         by the R6 temporal reservoir (row 2), no denoiser (R7).
 //    It is kept as the reference image source until the staged frame graph replaces it.
 // NOTE: GLSL source lowered to SPIR-V by the build scripts (glslc -fshader-stage=compute --target-env=vulkan1.2 -I Engine).
 //       World space is right-handed Z-up (CLAUDE.md §7); the pixel→ray mapping (Shaders/RayGeneration.slang) is applied by
@@ -300,6 +302,8 @@ layout(push_constant) uniform ReSTIRConstants
 const uint kFeatureGlobalIllumination = 1u;   // bit 0: trace the secondary bounce (section 4)
 const uint kFeatureAntiAliasing       = 2u;   // bit 1: sub-pixel jitter — applied by the R2 raster/resolve, not here
 const uint kFeatureAmbientFloor       = 4u;   // bit 2: add albedo × AmbientStrength (debug fill light; default OFF)
+const uint kFeatureTemporalReuse      = 8u;   // bit 3: R6 row 2 — temporal reservoir reuse (back-projection + validation)
+const uint kFeatureSpatialReuse       = 16u;  // bit 4: R6 row 3 — spatial neighbour reuse (pairwise MIS)
 
 float PixelSpreadAngle() { return 2.0 * FieldOfViewTanHalf / float(ViewportHeight); }   // [rad] R4b ray-cone spread per pixel
 
@@ -437,7 +441,8 @@ vec3 SampleCosineHemisphere(vec3 normal, float u1, float u2)
 //------------------------------------------------------------------------------------------------------------------------
 
 // Light triangles come from the luminaire table (R2); the pick stays UNIFORM over luminaires so the Cornell image is
-//    bit-for-bit the R0 estimator. The table also carries a Walker alias entry + area-power pdf — R5 switches to it.
+//    bit-for-bit the R0 estimator. The table also carries a Walker alias entry + area-power pdf — R6 row 3 switches
+//    the pick to it for many-light scenes (uniform stays behind the toggle for the identity proof).
 uint LightTriangle(uint lightIdx) { return Luminaires[lightIdx].TriangleSlot; }
 
 vec3 SampleLightPoint(uint lightTriIdx, float u1, float u2)
@@ -457,17 +462,24 @@ vec3 SampleLightPoint(uint lightTriIdx, float u1, float u2)
 struct Reservoir
 {
     vec3  SelectedPoint;    // chosen light sample position
-    float WeightSum;        // running sum of candidate weights
+    float WeightSum;        // running sum of candidate weights (Σ p̂/p_source)
     uint  SampleCount;      // M: number of considered candidates
-    float UnbiasedWeight;   // W: final unbiased contribution weight
+    float UnbiasedWeight;   // W: final unbiased contribution weight (WeightSum / (M · p̂(z)))
+    uint  SelectedLight;    // R6: luminaire-table index of the chosen sample (kills the O(L) nearest-emissive searches)
+    vec2  SelectedUv;       // R6: area-sample uv of the chosen sample on its triangle (p̂ re-evaluation on reuse)
+    uint  Visible;          // R6: visibility of the chosen sample at the shading pixel (1 = lit; re-traced on reuse)
 };
 
-void ResampleCandidate(inout Reservoir res, vec3 point, float weight, inout uint seed)
+void ResampleCandidate(inout Reservoir res, vec3 point, uint light, vec2 uv, float weight, inout uint seed)
 {
     res.WeightSum    += weight;
     res.SampleCount  += 1u;
     if (RandFloat(seed) * res.WeightSum <= weight)
+    {
         res.SelectedPoint = point;
+        res.SelectedLight = light;
+        res.SelectedUv    = uv;
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -574,11 +586,16 @@ void main()
         res.WeightSum      = 0.0;
         res.SampleCount    = 0u;
         res.UnbiasedWeight = 0.0;
+        res.SelectedLight  = 0u;
+        res.SelectedUv     = vec2(0.0);
+        res.Visible        = 0u;
 
         for (uint s = 0u; s < SamplesPerPixel; ++s)
         {
             uint   li          = uint(RandFloat(seed) * float(LightTriangleCount));
-            vec3   lp          = SampleLightPoint(li, RandFloat(seed), RandFloat(seed));
+            float  u1          = RandFloat(seed);
+            float  u2          = RandFloat(seed);
+            vec3   lp          = SampleLightPoint(li, u1, u2);
             vec3   toLight     = lp - hitPos;
             float  dist        = length(toLight);
             vec3   lDir        = toLight / dist;
@@ -593,10 +610,10 @@ void main()
             float pHat = cosTheta * length(lEmissive) / (dist * dist + 0.001);
             float w    = pHat / (1.0 / float(LightTriangleCount));
 
-            ResampleCandidate(res, lp, w, seed);
+            ResampleCandidate(res, lp, li, vec2(u1, u2), w, seed);
         }
 
-        // Compute unbiased weight W
+        // Compute unbiased weight W (R6: the chosen light comes from the reservoir — no nearest-emissive search)
         if (res.WeightSum > 0.0 && res.SampleCount > 0u)
         {
             vec3  toSel    = res.SelectedPoint - hitPos;
@@ -604,17 +621,8 @@ void main()
             vec3  selDir   = toSel / selDist;
             float cosTheta = max(0.0, dot(hitNormal, selDir));
 
-            // Find emissive of selected light triangle (nearest emissive)
-            // We stored selected point — lookup which light triangle it came from via brute-force closest match
-            vec3 selEmissive = vec3(0.0);
-            float bestD = kInf;
-            for (uint li = 0u; li < LightTriangleCount; ++li)
-            {
-                uint idx = LightTriangle(li);
-                vec3 triCenter = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
-                float d = distance(triCenter, res.SelectedPoint);
-                if (d < bestD) { bestD = d; selEmissive = Materials[floatBitsToUint(Triangles[idx].v0.w)].Emissive.xyz; }
-            }
+            uint selMatIdx = floatBitsToUint(Triangles[LightTriangle(res.SelectedLight)].v0.w);
+            vec3 selEmissive = Materials[selMatIdx].Emissive.xyz;
 
             float pHatSel = cosTheta * length(selEmissive) / (selDist * selDist + 0.001);
             if (pHatSel > 0.0)
@@ -626,7 +634,9 @@ void main()
             for (uint sp = 0u; sp < SpatialPassCount; ++sp)
             {
                 uint   nli    = uint(RandFloat(seed) * float(LightTriangleCount));
-                vec3   nlp    = SampleLightPoint(nli, RandFloat(seed), RandFloat(seed));
+                float  nu1    = RandFloat(seed);
+                float  nu2    = RandFloat(seed);
+                vec3   nlp    = SampleLightPoint(nli, nu1, nu2);
                 vec3   nToL   = nlp - hitPos;
                 float  nDist  = length(nToL);
                 float  nCos   = max(0.0, dot(hitNormal, nToL / nDist));
@@ -634,42 +644,28 @@ void main()
                 vec3   nEmit  = Materials[nMIdx].Emissive.xyz;
                 float  nPHat  = nCos * length(nEmit) / (nDist * nDist + 0.001);
                 float  nW     = nPHat / (1.0 / float(LightTriangleCount));   // p̂ / p_source, same as the initial loop
-                ResampleCandidate(res, nlp, nW, seed);
+                ResampleCandidate(res, nlp, nli, vec2(nu1, nu2), nW, seed);
             }
             // Recompute W for the final selection (the selected point may have changed).
             {
                 vec3  toSel2   = res.SelectedPoint - hitPos;
                 float selDist2 = length(toSel2);
                 float cos2     = max(0.0, dot(hitNormal, toSel2 / selDist2));
-                vec3  emit2    = vec3(0.0);
-                float bd       = kInf;
-                for (uint li = 0u; li < LightTriangleCount; ++li)
-                {
-                    uint idx = LightTriangle(li);
-                    vec3 c = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
-                    float d = distance(c, res.SelectedPoint);
-                    if (d < bd) { bd = d; emit2 = Materials[floatBitsToUint(Triangles[idx].v0.w)].Emissive.xyz; }
-                }
+                uint  mat2     = floatBitsToUint(Triangles[LightTriangle(res.SelectedLight)].v0.w);
+                vec3  emit2    = Materials[mat2].Emissive.xyz;
                 float pHat2 = cos2 * length(emit2) / (selDist2 * selDist2 + 0.001);
                 res.UnbiasedWeight = pHat2 > 0.0 ? res.WeightSum / (float(res.SampleCount) * pHat2) : 0.0;
             }
 
-            // Evaluate visibility and shade
+            // Evaluate visibility and shade (R6: the stored selection carries its light — no search)
             if (!TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint))
             {
+                res.Visible = 1u;
                 vec3 shadeDir = normalize(res.SelectedPoint - hitPos);
                 float shadeCos = max(0.0, dot(hitNormal, shadeDir));
 
-                // Re-fetch emissive of chosen point
-                vec3 chosenEmit = vec3(0.0);
-                float bd2 = kInf;
-                for (uint li = 0u; li < LightTriangleCount; ++li)
-                {
-                    uint idx = LightTriangle(li);
-                    vec3 c = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
-                    float d = distance(c, res.SelectedPoint);
-                    if (d < bd2) { bd2 = d; chosenEmit = Materials[floatBitsToUint(Triangles[idx].v0.w)].Emissive.xyz; }
-                }
+                uint shadeMatIdx = floatBitsToUint(Triangles[LightTriangle(res.SelectedLight)].v0.w);
+                vec3 chosenEmit = Materials[shadeMatIdx].Emissive.xyz;
 
                 float dist2 = dot(res.SelectedPoint - hitPos, res.SelectedPoint - hitPos);
                 vec3  wiLocal = ToLocal(frame, shadeDir);

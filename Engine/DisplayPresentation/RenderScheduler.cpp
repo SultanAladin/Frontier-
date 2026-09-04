@@ -168,6 +168,13 @@ void RenderScheduler::SectionReSTIR(
     if (ImGui::SliderFloat("Exposure", &Exposure, 0.1f, 4.0f, "%.2f"))
         Integrator.AssignExposure(Exposure);
 
+    bool Temporal = Config.TemporalReuse;   // R6: off-switches for the A/B proofs (converged image must match)
+    bool Spatial  = Config.SpatialReuse;
+    if (ImGui::Checkbox("Temporal reuse", &Temporal))
+        Integrator.AssignTemporalReuse(Temporal);
+    if (ImGui::Checkbox("Spatial reuse", &Spatial))
+        Integrator.AssignSpatialReuse(Spatial);
+
     ImGui::Spacing();
     ImGui::Text("Frame      %u", Integrator.QueryAccumulationIndex());
     ImGui::Text("Viewport   %u × %u px", ViewportWidth, ViewportHeight);
