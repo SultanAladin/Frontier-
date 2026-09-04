@@ -22,6 +22,7 @@ struct GLFWwindow;
 namespace Frontier {
 
 class SceneStructure;
+class TraversalIndex;   // GeometricRaster/TraversalIndex.h (R3 CWBVH)
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                              SWAPCHAIN CONFIGURATION
@@ -144,7 +145,8 @@ public:
 
     // R2: the whole level becomes resident (vertices · indices · instances · clusters · materials · luminaires) and the
     //    interim kernel's flat triangle / material SSBOs are taken from the same SceneStructure — one upload, one truth.
-    void                        UploadScene(const SceneStructure& Scene) noexcept;
+    void                        UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal) noexcept;
+    void                        UploadTraversal(const TraversalIndex& Traversal) noexcept;   // R3 CWBVH blobs → bindings 8-9
 
     // R2 frame front end (cull → visibility raster → HiZ → resolve) recorded before the kernel each frame.
     void                        AssignVisibilityFrame(const VisibilityFrameConfiguration& Frame) noexcept { VisibilityFrame = Frame; VisibilityFrameValid = true; }
@@ -222,6 +224,7 @@ private:
     bool                    FullscreenActive;    // [-]   window currently covers the primary monitor
     RayTracingCapabilitySet Capabilities;        // [-]   probed in BringPhysicalDevice
     VisibilityExchange      Visibility;          // [-]   R2 resident scene + cull / raster / HiZ / resolve
+    bool                    TraversalResident = false;   // [-]   R3 CWBVH uploaded (kernel refuses to run without it)
     VisibilityFrameConfiguration VisibilityFrame{};
     bool                    VisibilityFrameValid = false;
     bool                    DrawIndirectCountSupported = false;   // [-] VkPhysicalDeviceVulkan12Features::drawIndirectCount

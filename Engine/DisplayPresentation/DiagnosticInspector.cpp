@@ -83,7 +83,7 @@ void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float To
     char Rows[5][128];
     std::snprintf(Rows[0], sizeof(Rows[0]), "clusters   %s  \xE2\x86\x92  frustum %s  \xE2\x86\x92  cone %s  \xE2\x86\x92  visible %s", Total, Frustum, Cone, Visible);
     std::snprintf(Rows[1], sizeof(Rows[1]), "drawn      phase 1  %s   +   phase 2  %s   (%s triangles)", One, Two, Tris);
-    std::snprintf(Rows[2], sizeof(Rows[2]), "indirect   %s   |   HiZ occlusion %s", DrawIndirectCount ? "1 draw call per phase (count from GPU)" : "fixed-count fallback", Occlusion_ ? "on" : "OFF");
+    std::snprintf(Rows[2], sizeof(Rows[2]), "indirect   %s   |   HiZ occlusion %s   |   rays: CWBVH (Tier A)", DrawIndirectCount ? "1 draw/phase" : "fixed-count", Occlusion_ ? "on" : "OFF");
     std::snprintf(Rows[3], sizeof(Rows[3]), "gpu        cull %.2f  \xC2\xB7  raster %.2f  \xC2\xB7  HiZ %.2f  \xC2\xB7  resolve %.2f  \xC2\xB7  kernel %.2f ms",
                   static_cast<double>(T.CullMilliseconds), static_cast<double>(T.RasterMilliseconds), static_cast<double>(T.HiZMilliseconds),
                   static_cast<double>(T.ResolveMilliseconds), static_cast<double>(T.KernelMilliseconds));

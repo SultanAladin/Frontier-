@@ -141,6 +141,7 @@ function Get-CompilationFlags([string] $Selection)
         '/DGLFW_DLL'
         '/DFRONTIER_DEVELOPMENT'
         '/DFRONTIER_ENABLE_GLFW'
+        '/arch:AVX2'    # tinybvh build + CWBVH CPU reference trace (GTX 1060 era hosts are all Haswell+); scalar fallback otherwise
     )
 
     if ($Selection -eq 'Debug')
@@ -169,6 +170,7 @@ function Get-IncludePaths([string] $VulkanRoot)
         "/I$(Join-Path $PackageRoot 'tomlpp\include')"
         "/I$(Join-Path $PackageRoot 'jolt')"
         "/I$(Join-Path $PackageRoot 'cgltf')"
+        "/I$(Join-Path $PackageRoot 'tinybvh')"
     )
 }
 
@@ -346,7 +348,7 @@ $ShaderTable = @(
     @{ Source = 'VisibilityRaster.vert.slang'; Stage = 'vertex';   Output = 'VisibilityRaster.vert.spv' }
     @{ Source = 'VisibilityRaster.frag.slang'; Stage = 'fragment'; Output = 'VisibilityRaster.frag.spv' }
 )
-$ShaderIncludeNames = @('SceneRecords.slang', 'RayGeneration.slang')
+$ShaderIncludeNames = @('SceneRecords.slang', 'RayGeneration.slang', 'TraversalCWBVH.slang')
 
 function Invoke-ShaderLowering([string] $VulkanRoot)
 {
@@ -477,6 +479,7 @@ $SubmoduleList = @(
     'ExternalPackages/ufbx'
     'ExternalPackages/earcut'
     'ExternalPackages/cgltf'
+    'ExternalPackages/tinybvh'
     'ExternalPackages/clipper2'
     'ExternalPackages/stb'
     'ExternalPackages/miniaudio'
@@ -611,6 +614,7 @@ $EngineRelative = @(
     'Engine\GeometricRaster\CameraProjection.cpp'
     'Engine\GeometricRaster\SceneStructure.cpp'
     'Engine\GeometricRaster\SceneCodec.cpp'
+    'Engine\GeometricRaster\TraversalIndex.cpp'
     'Engine\DeviceExchange\VisibilityExchange.cpp'
     'Engine\DisplayPresentation\DiagnosticInspector.cpp'
     'Engine\GeometricRaster\VisibilityProjection.cpp'

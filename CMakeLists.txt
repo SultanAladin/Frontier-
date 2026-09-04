@@ -23,7 +23,7 @@ endif()
 set(EXT "${CMAKE_SOURCE_DIR}/ExternalPackages")
 
 # Verify submodules are initialised
-foreach(PKG imgui glfw thorvg tomlpp jolt cgltf clipper2 earcut fast_obj miniaudio stb ufbx)
+foreach(PKG imgui glfw thorvg tomlpp jolt cgltf tinybvh clipper2 earcut fast_obj miniaudio stb ufbx)
     if(NOT EXISTS "${EXT}/${PKG}/CMakeLists.txt" AND NOT EXISTS "${EXT}/${PKG}/include" AND NOT EXISTS "${EXT}/${PKG}/inc")
         message(WARNING "[Frontier] ExternalPackages/${PKG} appears uninitialised. Run: git submodule update --init --recursive")
     endif()
@@ -119,7 +119,7 @@ find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/us
 find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/usr/local/bin")
 
 set(SHADER_ROOT "${CMAKE_SOURCE_DIR}/Engine/Shaders")
-set(SHADER_INCLUDES "${SHADER_ROOT}/SceneRecords.slang" "${SHADER_ROOT}/RayGeneration.slang")
+set(SHADER_INCLUDES "${SHADER_ROOT}/SceneRecords.slang" "${SHADER_ROOT}/RayGeneration.slang" "${SHADER_ROOT}/TraversalCWBVH.slang")
 set(SHADER_TABLE
     "ReSTIRViewport.slang|compute|ReSTIRViewport.spv"
     "ClusterCull.slang|compute|ClusterCull.spv"
@@ -187,6 +187,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/GeometricRaster/CameraProjection.cpp
     Engine/GeometricRaster/SceneStructure.cpp
     Engine/GeometricRaster/SceneCodec.cpp
+    Engine/GeometricRaster/TraversalIndex.cpp
     Engine/GeometricRaster/VisibilityProjection.cpp
     Engine/GeometricRaster/RasterSequence.cpp
     Engine/GeometricRaster/MaterialCodec.cpp
@@ -247,6 +248,7 @@ set(PROJECT_ZERO_SOURCES
 
 add_executable(Project-Zero ${PROJECT_ZERO_SOURCES})
 add_dependencies(Project-Zero ReSTIRViewportSpirv)
+set_source_files_properties(Engine/GeometricRaster/TraversalIndex.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-msse4.2")   # tinybvh SIMD build
 
 target_include_directories(Project-Zero PRIVATE
     ${FRONTIER_ENGINE_INCLUDES}
@@ -257,6 +259,7 @@ target_include_directories(Project-Zero PRIVATE
     ${EXT}/glfw/include
     ${THORVG_SRC}/inc
     ${EXT}/cgltf
+    ${EXT}/tinybvh
     ${EXT}/stb
 )
 

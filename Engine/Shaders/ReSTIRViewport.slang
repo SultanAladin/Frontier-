@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // 🚧 HONEST STATUS (plan v2.1 R0): this is NOT ReSTIR as published. Per pixel it does
 //       • primary visibility from the R2 visibility raster (SurfaceImage / NormalImage, no primary rays),
-//       • brute-force O(TriangleCount) shadow / bounce rays (no acceleration structure — R3 replaces with CWBVH),
+//       • shadow / bounce rays traverse the R3 CWBVH (TraversalCWBVH.slang, bindings 8-9) — O(log N), not O(N),
 //       • ReSTIR-DI *initial candidates only*: M light samples resampled with a weighted reservoir (correct RIS),
 //         with SpatialPassCount extra candidates folded in — there is NO temporal and NO spatial neighbour reuse (R5),
 //       • one cosine-sampled bounce with next-event estimation — plain 1-bounce path tracing, no GI reservoir (R6),
@@ -74,6 +74,10 @@ layout(std430, binding = 1) readonly buffer TriangleExtent  { GpuTriangle  Trian
 layout(std430, binding = 2) readonly buffer MaterialExtent  { GpuMaterial  Materials[];  };
 layout(std430, binding = 6) readonly buffer InstanceExtent  { GpuInstance  Instances[];  };
 layout(std430, binding = 7) readonly buffer LuminaireExtent { GpuLuminaire Luminaires[]; };
+layout(std430, binding = 8) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };   // R3: TraversalIndex node blob
+layout(std430, binding = 9) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };   // R3: TraversalIndex triangle blob
+
+#include "TraversalCWBVH.slang"
 
 const uint kVisibilityInvalid = 0xFFFFFFFFu;
 uint VisibilityInstance(uint Packed) { return (Packed >> 14) & 0x3FFFFu; }
@@ -139,62 +143,26 @@ const float kEps = 1e-4;
 const float kInf = 1e30;
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                    MOLLER-TRUMBORE INTERSECTION
-//------------------------------------------------------------------------------------------------------------------------
-
-Hit IntersectTriangle(Ray ray, GpuTriangle tri)
-{
-    Hit h;
-    h.valid = false;
-    h.t     = kInf;
-
-    vec3 v0 = tri.v0.xyz;
-    vec3 v1 = tri.v1.xyz;
-    vec3 v2 = tri.v2.xyz;
-
-    vec3 edge1 = v1 - v0;
-    vec3 edge2 = v2 - v0;
-    vec3 pvec  = cross(ray.dir, edge2);
-    float det  = dot(edge1, pvec);
-
-    if (abs(det) < kEps) return h;
-
-    float invDet = 1.0 / det;
-    vec3  tvec   = ray.origin - v0;
-    float u      = dot(tvec, pvec) * invDet;
-    if (u < 0.0 || u > 1.0) return h;
-
-    vec3  qvec   = cross(tvec, edge1);
-    float v      = dot(ray.dir, qvec) * invDet;
-    if (v < 0.0 || u + v > 1.0) return h;
-
-    float t = dot(edge2, qvec) * invDet;
-    if (t < kEps) return h;
-
-    h.valid  = true;
-    h.t      = t;
-    h.pos    = ray.origin + t * ray.dir;
-    h.normal = tri.normal.xyz;
-    h.matIdx = floatBitsToUint(tri.v0.w);
-    return h;
-}
-
-//------------------------------------------------------------------------------------------------------------------------
 //                                                    SCENE TRAVERSAL
 //------------------------------------------------------------------------------------------------------------------------
 
 Hit TraceScene(Ray ray)
 {
+    // R3: closest hit through the CWBVH; the primitive index addresses the flat Triangles[] for material and normal.
     Hit closest;
     closest.valid = false;
     closest.t     = kInf;
 
-    for (uint i = 0u; i < TriangleCount; ++i)
-    {
-        Hit h = IntersectTriangle(ray, Triangles[i]);
-        if (h.valid && h.t < closest.t)
-            closest = h;
-    }
+    vec3 rD = vec3(1.0) / ray.dir;   // IEEE ±inf on axis-aligned rays is handled by the slab test exactly as in tinybvh
+    TraversalHit h = TraverseClosest(ray.origin, ray.dir, rD, kInf);
+    if (h.primitive == 0xFFFFFFFFu || h.t <= kEps) return closest;
+
+    GpuTriangle tri = Triangles[h.primitive];
+    closest.valid  = true;
+    closest.t      = h.t;
+    closest.pos    = ray.origin + h.t * ray.dir;
+    closest.normal = tri.normal.xyz;
+    closest.matIdx = floatBitsToUint(tri.v0.w);
     return closest;
 }
 
@@ -203,16 +171,8 @@ bool TraceShadow(vec3 origin, vec3 target)
     vec3 dir = target - origin;
     float tMax = length(dir) - 2.0 * kEps;
     dir = normalize(dir);
-    Ray shadow;
-    shadow.origin = origin + dir * kEps;
-    shadow.dir    = dir;
-
-    for (uint i = 0u; i < TriangleCount; ++i)
-    {
-        Hit h = IntersectTriangle(shadow, Triangles[i]);
-        if (h.valid && h.t < tMax) return true;
-    }
-    return false;
+    vec3 rD = vec3(1.0) / dir;
+    return TraverseOccluded(origin + dir * kEps, dir, rD, tMax);
 }
 
 //------------------------------------------------------------------------------------------------------------------------

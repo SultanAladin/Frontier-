@@ -15,6 +15,7 @@
 #include <thorvg.h>
 
 #include "SwapchainExchange.h"
+#include "../GeometricRaster/TraversalIndex.h"
 #include "../GeometricRaster/SceneStructure.h"
 #include <algorithm>
 #include <array>
@@ -87,6 +88,10 @@ struct SwapchainExchange::VulkanRecord
     VkDeviceMemory           TriangleMemory        = VK_NULL_HANDLE;
     VkBuffer                 MaterialBuffer        = VK_NULL_HANDLE;
     VkDeviceMemory           MaterialMemory        = VK_NULL_HANDLE;
+    VkBuffer                 TraversalNodeBuffer   = VK_NULL_HANDLE;   // R3 CWBVH nodes (binding 8)
+    VkDeviceMemory           TraversalNodeMemory   = VK_NULL_HANDLE;
+    VkBuffer                 TraversalLeafBuffer   = VK_NULL_HANDLE;   // R3 CWBVH triangles (binding 9)
+    VkDeviceMemory           TraversalLeafMemory   = VK_NULL_HANDLE;
     uint32_t                 TriangleCount         = 0u;
     uint32_t                 MaterialCount         = 0u;
 
@@ -376,6 +381,10 @@ void SwapchainExchange::Retire() noexcept
     if (Vulkan->TriangleMemory)  vkFreeMemory    (Vulkan->Device, Vulkan->TriangleMemory, nullptr);
     if (Vulkan->MaterialBuffer)  vkDestroyBuffer (Vulkan->Device, Vulkan->MaterialBuffer, nullptr);
     if (Vulkan->MaterialMemory)  vkFreeMemory    (Vulkan->Device, Vulkan->MaterialMemory, nullptr);
+    if (Vulkan->TraversalNodeBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalNodeBuffer, nullptr);
+    if (Vulkan->TraversalNodeMemory) vkFreeMemory   (Vulkan->Device, Vulkan->TraversalNodeMemory, nullptr);
+    if (Vulkan->TraversalLeafBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalLeafBuffer, nullptr);
+    if (Vulkan->TraversalLeafMemory) vkFreeMemory   (Vulkan->Device, Vulkan->TraversalLeafMemory, nullptr);
 
     for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
     {
@@ -897,7 +906,8 @@ bool SwapchainExchange::BringComputePipeline() noexcept
 {
     // ① Descriptor set layout — 0: output image, 1: triangle SSBO, 2: material SSBO, 3: history image,
     //    R2: 4: surface image, 5: normal image, 6: instance SSBO, 7: luminaire SSBO
-    std::array<VkDescriptorSetLayoutBinding, 8u> LayoutBindings{};
+    //    R3: 8: CWBVH node SSBO, 9: CWBVH triangle SSBO
+    std::array<VkDescriptorSetLayoutBinding, 10u> LayoutBindings{};
     LayoutBindings[0].binding         = 0u;
     LayoutBindings[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     LayoutBindings[0].descriptorCount = 1u;
@@ -914,7 +924,7 @@ bool SwapchainExchange::BringComputePipeline() noexcept
     LayoutBindings[3].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     LayoutBindings[3].descriptorCount = 1u;
     LayoutBindings[3].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
-    for (uint32_t B = 4u; B < 8u; ++B)
+    for (uint32_t B = 4u; B < 10u; ++B)
     {
         LayoutBindings[B].binding         = B;
         LayoutBindings[B].descriptorType  = B < 6u ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -924,7 +934,7 @@ bool SwapchainExchange::BringComputePipeline() noexcept
 
     VkDescriptorSetLayoutCreateInfo LayoutInfo{};
     LayoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    LayoutInfo.bindingCount = 8u;
+    LayoutInfo.bindingCount = 10u;
     LayoutInfo.pBindings    = LayoutBindings.data();
     (void)vkCreateDescriptorSetLayout(Vulkan->Device, &LayoutInfo, nullptr, &Vulkan->ComputeDescriptorLayout);
 
@@ -983,7 +993,7 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
     PoolSizes[0].type            = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     PoolSizes[0].descriptorCount = 4u;
     PoolSizes[1].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    PoolSizes[1].descriptorCount = 4u;
+    PoolSizes[1].descriptorCount = 6u;
 
     VkDescriptorPoolCreateInfo PoolInfo{};
     PoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1036,8 +1046,10 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
     VkDescriptorImageInfo NormalInfo { VK_NULL_HANDLE, static_cast<VkImageView>(Visibility.QueryNormalView()),  VK_IMAGE_LAYOUT_GENERAL };
     VkDescriptorBufferInfo InstanceInfo { static_cast<VkBuffer>(Visibility.QueryInstanceBuffer()),  0u, VK_WHOLE_SIZE };
     VkDescriptorBufferInfo LuminaireInfo{ static_cast<VkBuffer>(Visibility.QueryLuminaireBuffer()), 0u, VK_WHOLE_SIZE };
+    VkDescriptorBufferInfo NodeInfo     { Vulkan->TraversalNodeBuffer, 0u, VK_WHOLE_SIZE };
+    VkDescriptorBufferInfo LeafInfo     { Vulkan->TraversalLeafBuffer, 0u, VK_WHOLE_SIZE };
 
-    std::array<VkWriteDescriptorSet, 8u> Writes{};
+    std::array<VkWriteDescriptorSet, 10u> Writes{};
     uint32_t WriteCount = 0u;
 
     if (Vulkan->StorageImageView)
@@ -1103,6 +1115,8 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
     WriteImage (5u, NormalInfo);
     WriteBuffer(6u, InstanceInfo);
     WriteBuffer(7u, LuminaireInfo);
+    WriteBuffer(8u, NodeInfo);
+    WriteBuffer(9u, LeafInfo);
 
     if (WriteCount > 0u)
         vkUpdateDescriptorSets(Vulkan->Device, WriteCount, Writes.data(), 0u, nullptr);
@@ -1283,12 +1297,39 @@ void SwapchainExchange::UploadRadiance(const std::vector<RadianceStructure>& Mat
     WriteDescriptorSet();
 }
 
-void SwapchainExchange::UploadScene(const SceneStructure& Scene) noexcept
+void SwapchainExchange::UploadTraversal(const TraversalIndex& Traversal) noexcept
+{
+    if (!Vulkan->Device || !Traversal.IsReady()) return;
+    vkDeviceWaitIdle(Vulkan->Device);
+    if (Vulkan->TraversalNodeBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalNodeBuffer, nullptr);
+    if (Vulkan->TraversalNodeMemory) vkFreeMemory   (Vulkan->Device, Vulkan->TraversalNodeMemory, nullptr);
+    if (Vulkan->TraversalLeafBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalLeafBuffer, nullptr);
+    if (Vulkan->TraversalLeafMemory) vkFreeMemory   (Vulkan->Device, Vulkan->TraversalLeafMemory, nullptr);
+    Vulkan->TraversalNodeBuffer = Vulkan->TraversalLeafBuffer = VK_NULL_HANDLE;
+    Vulkan->TraversalNodeMemory = Vulkan->TraversalLeafMemory = VK_NULL_HANDLE;
+
+    constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    const auto Upload = [&](const std::vector<float>& Blob, VkBuffer& Buffer, VkDeviceMemory& Memory)
+    {
+        const VkDeviceSize ByteCount = static_cast<VkDeviceSize>(Blob.size()) * sizeof(float);
+        AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible, Buffer, Memory);
+        void* Mapped = nullptr;
+        (void)vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped);
+        if (Mapped) { std::memcpy(Mapped, Blob.data(), static_cast<size_t>(ByteCount)); vkUnmapMemory(Vulkan->Device, Memory); }
+    };
+    Upload(Traversal.QueryNodeBlob(), Vulkan->TraversalNodeBuffer, Vulkan->TraversalNodeMemory);
+    Upload(Traversal.QueryLeafBlob(), Vulkan->TraversalLeafBuffer, Vulkan->TraversalLeafMemory);
+    TraversalResident = true;
+    WriteDescriptorSet();
+}
+
+void SwapchainExchange::UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal) noexcept
 {
     if (!Vulkan->Device) return;
     Visibility.UploadScene(Scene);
-    UploadTriangles(Scene.QueryFlatTriangles());   // interim kernel's shadow / bounce rays (R3 removes)
+    UploadTriangles(Scene.QueryFlatTriangles());   // kernel: material / normal lookup by CWBVH primitive index
     UploadRadiance(Scene.QueryMaterials());        // each Upload* rewrites the descriptor set, including bindings 4-7
+    UploadTraversal(Traversal);                    // R3: CWBVH node + triangle blobs (bindings 8-9)
 }
 
 bool SwapchainExchange::BringVisibility() noexcept
@@ -1327,7 +1368,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
         return;
     }
 
-    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer || !Visibility.IsReady() || !VisibilityFrameValid)
+    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer || !TraversalResident || !Visibility.IsReady() || !VisibilityFrameValid)
     {
         // Descriptors for bindings 1/2/4-7 are unwritten until the scene is uploaded; dispatching now would be UB.
         std::cerr << "[SwapchainExchange] RecordAndPresent called before UploadScene / AssignVisibilityFrame - frame skipped.\n";
@@ -1414,7 +1455,7 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
         Barrier.subresourceRange.levelCount     = 1u;
         Barrier.subresourceRange.layerCount     = 1u;
-        Barrier.srcAccessMask                   = Vulkan->HistoryInitialised ? VK_ACCESS_SHADER_WRITE_BIT : 0u;
+        Barrier.srcAccessMask                   = Vulkan->HistoryInitialised ? static_cast<VkAccessFlags>(VK_ACCESS_SHADER_WRITE_BIT) : static_cast<VkAccessFlags>(0u);
         Barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         vkCmdPipelineBarrier(Command,
             Vulkan->HistoryInitialised ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,

@@ -22,6 +22,7 @@
 #include "../../../Engine/DisplayPresentation/DiagnosticInspector.h"
 #include "../../../Engine/GeometricRaster/SceneCodec.h"
 #include "../../../Engine/GeometricRaster/SceneStructure.h"
+#include "../../../Engine/GeometricRaster/TraversalIndex.h"
 #include "FlyThroughSolver.h"
 #include "RayTracingSolver.h"
 
@@ -105,6 +106,20 @@ int main(int argc, char** argv)
     }
     const uint32_t LuminaireCount = static_cast<uint32_t>(Level.QueryLuminaires().size());
 
+    // R3: Tier A acceleration structure — tinybvh binned SAH → CWBVH over the flat world-space triangles.
+    Frontier::TraversalIndex Traversal;
+    {
+        const bool HighQuality = Level.QueryTriangleCount() <= 2'000'000u;   // SBVH; ~2× build time for ~10 % fewer steps
+        Traversal.Build(Level.QueryFlatTriangles(), HighQuality);
+        const Frontier::TraversalMetrics& M = Traversal.QueryMetrics();
+        char Line[256];
+        std::snprintf(Line, sizeof(Line), "CWBVH: %u triangles → %u nodes, %.1f KB nodes + %.1f KB leaves (%.1f B/tri), SAH %.2f, built in %.1f ms (%s)",
+                      M.TriangleCount, M.NodeCount, M.NodeByteCount / 1024.0, M.LeafByteCount / 1024.0,
+                      double(M.NodeByteCount + M.LeafByteCount) / std::max(1u, M.TriangleCount), M.SahCost, M.BuildMilliseconds,
+                      M.HighQuality ? "spatial splits" : "binned SAH");
+        Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Traversal", Line);
+    }
+
     //──────────────────────────────────────────────────────────────────────────
     // Camera — Unreal-style fly-through, right-handed +Z up
     //──────────────────────────────────────────────────────────────────────────
@@ -178,7 +193,7 @@ int main(int argc, char** argv)
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
                          "Bootstrap", "Window and Vulkan swapchain ready.");
 
-    Surface.UploadScene(Level);
+    Surface.UploadScene(Level, Traversal);
 
     //──────────────────────────────────────────────────────────────────────────
     // ImGui panel — apply theme once after context exists
