@@ -138,6 +138,7 @@ function Get-CompilationFlags([string] $Selection)
         '/Zc:__cplusplus'
         '/DWIN32_LEAN_AND_MEAN'
         '/DNOMINMAX'
+        '/D_CRT_SECURE_NO_WARNINGS'   # third-party C (cgltf) uses fopen/strcpy; deprecation warnings are noise
         '/DGLFW_DLL'
         '/DFRONTIER_DEVELOPMENT'
         '/DFRONTIER_ENABLE_GLFW'
