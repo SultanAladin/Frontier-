@@ -595,6 +595,7 @@ $EngineRelative = @(
     'Engine\DeviceExchange\RenderTargetExchange.cpp'
     'Engine\DeviceExchange\DiagnosticMetrics.cpp'
     'Engine\DisplayPresentation\ReSTIRIntegrator.cpp'
+    'Engine\DisplayPresentation\ShadingTableCodec.cpp'
     'Engine\DisplayPresentation\RenderScheduler.cpp'
     'Engine\DisplayPresentation\ThemeStructure.cpp'
     'Engine\DisplayPresentation\VectorCodec.cpp'

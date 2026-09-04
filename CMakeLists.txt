@@ -245,6 +245,7 @@ set(PROJECT_ZERO_SOURCES
     Engine/DeviceExchange/VisibilityExchange.cpp
     Engine/DisplayPresentation/DiagnosticInspector.cpp
     Engine/DisplayPresentation/ReSTIRIntegrator.cpp
+    Engine/DisplayPresentation/ShadingTableCodec.cpp
     Engine/DisplayPresentation/RenderScheduler.cpp
     Projects/Project-Zero/Source/RayTracingSolver.cpp
     Projects/Project-Zero/Source/FlyThroughSolver.cpp
