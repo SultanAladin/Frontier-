@@ -1658,10 +1658,10 @@ void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sh
     std::cerr << "[SwapchainExchange] Shading tables: GGX energy + LTC sheen, 2 x " << N << "x" << N << " RGBA32F resident (bindings 13/14).\n";
 }
 
-void SwapchainExchange::SwapReservoirParity() noexcept
+void* SwapchainExchange::SwapReservoirParity() noexcept
 {
-    if (!Vulkan->Device || !Vulkan->ComputeDescriptorSet) return;
-    if (!Vulkan->ReservoirBuffers[0u] || !Vulkan->ReservoirBuffers[1u]) return;
+    if (!Vulkan->Device || !Vulkan->ComputeDescriptorSet) return nullptr;
+    if (!Vulkan->ReservoirBuffers[0u] || !Vulkan->ReservoirBuffers[1u]) return nullptr;
     Vulkan->ReservoirParity = !Vulkan->ReservoirParity;
     // Rewrite only bindings 16/17 (the full WriteDescriptorSet also writes them — same values, harmless).
     const uint32_t PrevSlot = Vulkan->ReservoirParity ? 1u : 0u;
@@ -1681,6 +1681,7 @@ void SwapchainExchange::SwapReservoirParity() noexcept
         Writes[I].pBufferInfo     = &Infos[I];
     }
     vkUpdateDescriptorSets(Vulkan->Device, 2u, Writes, 0u, nullptr);
+    return Vulkan->ReservoirBuffers[PrevSlot];
 }
 
 void SwapchainExchange::UploadTraversal(const TraversalIndex& Traversal) noexcept
@@ -1774,7 +1775,8 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
         vkWaitForFences(Vulkan->Device, 1u, &Vulkan->ImageOrdinalFences[ImageOrdinal], VK_TRUE, UINT64_MAX);
     Vulkan->ImageOrdinalFences[ImageOrdinal] = Vulkan->CycleFences[ActiveSlot];
 
-    SwapReservoirParity();   // R6: prev = last frame's curr before recording the new frame
+    void* PrevReservoirs = SwapReservoirParity();   // R6: prev = last frame's curr before recording the new frame
+    Visibility.AssignReservoirView(PrevReservoirs);   // R6 row 3: resolve binding 13 follows the kernel's prev buffer (M/W/Age views)
     RecordComputeCommands(ImageOrdinal, Dispatch);
 
     vkResetFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot]);

@@ -100,7 +100,8 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
                                    | (ActiveConfiguration.AntiAliasing       ? DispatchFeatureAntiAliasing       : 0u)
                                    | (ActiveConfiguration.AmbientFloor       ? DispatchFeatureAmbientFloor       : 0u)
                                    | (ActiveConfiguration.TemporalReuse      ? DispatchFeatureTemporalReuse      : 0u)
-                                   | (ActiveConfiguration.SpatialReuse       ? DispatchFeatureSpatialReuse       : 0u);
+                                   | (ActiveConfiguration.SpatialReuse       ? DispatchFeatureSpatialReuse       : 0u)
+                                   | (ActiveConfiguration.AliasPick          ? DispatchFeatureAliasPick          : 0u);
 
     return Dispatch;
 }

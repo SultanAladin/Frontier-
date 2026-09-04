@@ -107,7 +107,8 @@ enum DispatchFeature : uint32_t
     DispatchFeatureAntiAliasing       = 1u << 1,
     DispatchFeatureAmbientFloor       = 1u << 2,   // debug fill light (R0: off by default)
     DispatchFeatureTemporalReuse      = 1u << 3,   // R6 row 2: temporal reservoir reuse
-    DispatchFeatureSpatialReuse       = 1u << 4    // R6 row 3: spatial neighbour reuse
+    DispatchFeatureSpatialReuse       = 1u << 4,   // R6 row 3: spatial neighbour reuse
+    DispatchFeatureAliasPick          = 1u << 5    // R6 row 3: Walker-alias light pick (off = uniform, R0 identity)
 };
 
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
@@ -143,7 +144,7 @@ public:
     void                        DestroyTextures() noexcept;
     void                        UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept;   // R4b: two RGBA32F Resolution² planes (ShadingTableCodec bake) → bindings 13 / 14, once
     void                        UploadTraversal(const TraversalIndex& Traversal) noexcept;   // R3 CWBVH blobs → bindings 8-9
-    void                        SwapReservoirParity() noexcept;   // R6: flip prev/curr reservoir bindings (16/17) for the next presented frame
+    void*                       SwapReservoirParity() noexcept;   // R6: flip prev/curr reservoir bindings (16/17); returns the new prev buffer (null when unavailable)
 
     // R2 frame front end (cull → visibility raster → HiZ → resolve) recorded before the kernel each frame.
     void                        AssignVisibilityFrame(const VisibilityFrameConfiguration& Frame) noexcept { VisibilityFrame = Frame; VisibilityFrameValid = true; }

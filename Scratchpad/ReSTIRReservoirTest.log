@@ -16,4 +16,17 @@
   render-scale change rejected                                         0.000000 (want 0.000000 +-0.000000) PASS
 [6] temporal merge algebra: pairwise-MIS pick + W == direct formula (5000 merges)
   bad merges                                                           0.000000 (want 0.000000 +-0.000000) PASS
+[7] spatial taps: running-M cap, winner age+1, W == closed form (3000 pixels x 4 taps)
+  bad spatial merges                                                   0.000000 (want 0.000000 +-0.000000) PASS
+[8] spatial validation: every reject path leaves the reservoir untouched
+  reject paths with side effects                                       0.000000 (want 0.000000 +-0.000000) PASS
+  valid tap still merges                                               1.000000 (want 1.000000 +-0.000000) PASS
+[9] Walker-alias pick: frequencies == Probability and E[w] matches uniform (200k picks)
+  alias freq light 0                                                   0.750440 (want 0.750000 +-0.010000) PASS
+  alias freq light 1                                                   0.249560 (want 0.250000 +-0.010000) PASS
+  E[w] alias == pHat sum                                               8.284789 (want 8.281475 +-0.082815) PASS
+  E[w] uniform == pHat sum                                             8.277435 (want 8.281475 +-0.082815) PASS
+[10] age chain: a winning tap sets age exactly once per frame over 5 frames
+  age after 5 winning frames                                           5.000000 (want 5.000000 +-0.000000) PASS
+  age deviations                                                       0.000000 (want 0.000000 +-0.000000) PASS
 ALL PASS (0 failures)

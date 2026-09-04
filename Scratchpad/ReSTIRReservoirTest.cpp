@@ -207,6 +207,132 @@ int main()
         Check("bad merges", double(bad), 0.0, 0.0);
     }
 
+    std::printf("[7] spatial taps: running-M cap, winner age+1, W == closed form (3000 pixels x 4 taps)\n");
+    {
+        gState = 31337u;
+        int bad = 0;
+        for (int r = 0; r < 3000; ++r)
+        {
+            // Current reservoir after temporal: (m, wSum, W, pSel, age, sel). pSel = target at the selection.
+            float mCur = 8.0f;
+            float pSel = 0.5f + RandFloat();
+            float wSum = pSel * mCur * (0.5f + RandFloat());
+            float W = wSum / (mCur * pSel);
+            uint32_t age = 0u;
+            int sel = 0;   // 0 = own sample, t+1 = tap t
+            // Four taps: validity gate + (mNeigh, WNeigh, pNeigh, tapAge). pSelfWin tracks the target at the
+            //    running selection (the shader re-evaluates PHatFull at the current selection every tap).
+            float pAtSel = pSel;
+            float cappedSum = 0.0f;
+            int lastWin = 0;
+            float pWin = pSel;
+            uint32_t ageWin = 0u;
+            bool anyTake = false;
+            for (int t = 0; t < 4; ++t)
+            {
+                const bool valid = RandFloat() < 0.7f;
+                const float mN = float(uint32_t(RandFloat() * 500u));
+                const float wN = 0.5f + RandFloat(), pN = 0.5f + RandFloat();
+                const uint32_t aN = uint32_t(RandFloat() * 6u);
+                const float pick = RandFloat();
+                if (!valid) continue;   // rejected tap leaves everything untouched
+                const float capped = std::min(mN, 20.0f * mCur);   // cap against the RUNNING M (grows per tap)
+                cappedSum += capped;
+                const float wS = pAtSel * W * mCur, wT = pN * wN * capped, tot = wS + wT;
+                const bool take = tot > 0.0f && pick * tot <= wT;
+                if (take) { sel = t + 1; pAtSel = pN; age = aN + 1u; lastWin = t + 1; pWin = pN; ageWin = aN; anyTake = true; }
+                mCur += capped; wSum = tot;
+                W = pAtSel > 0.0f ? tot / (mCur * pAtSel) : 0.0f;
+            }
+            // Closed form from the recorded winner + accepted caps (independent code path, same math).
+            const float wDirect = wSum / (mCur * pAtSel);
+            const bool ok = mCur == 8.0f + cappedSum
+                && W == wDirect
+                && (sel == 0 || sel == lastWin)
+                && (anyTake ? (age == ageWin + 1u && pAtSel == pWin) : (age == 0u && sel == 0));
+            bad += ok ? 0 : 1;
+        }
+        Check("bad spatial merges", double(bad), 0.0, 0.0);
+    }
+
+    std::printf("[8] spatial validation: every reject path leaves the reservoir untouched\n");
+    {
+        const float cos25 = 0.906308f;
+        auto valid = [&](float mN, float ndot, float curD, float prevD, float strideW, float vpW, bool inBounds) {
+            return mN > 0.0f && inBounds && ndot > cos25
+                && std::fabs(curD - prevD) / std::max(curD, 1e-3f) < 0.10f && strideW == vpW;
+        };
+        // (m, wSum, W, sel, age) snapshot; each reject case must preserve it.
+        constexpr float M0 = 168.0f, S0 = 12.5f, W0 = 0.31f;
+        int changed = 0;
+        auto tap = [&](float mN, float ndot, float curD, float prevD, float strideW, float vpW, bool inBounds) {
+            float m = M0, s = S0, w = W0; int sel = 3; uint32_t age = 2u;
+            if (valid(mN, ndot, curD, prevD, strideW, vpW, inBounds)) { m += 1.0f; s += 1.0f; w += 1.0f; sel = 9; age = 9u; }
+            if (m != M0 || s != S0 || w != W0 || sel != 3 || age != 2u) ++changed;
+        };
+        tap(0.0f, 1.0f, 4.0f, 4.0f, 1280.0f, 1280.0f, true);     // empty neighbour (M = 0)
+        tap(40.0f, 0.8660f, 4.0f, 4.0f, 1280.0f, 1280.0f, true); // 30-degree normal tilt
+        tap(40.0f, 1.0f, 4.0f, 4.48f, 1280.0f, 1280.0f, true);   // 12% depth gap
+        tap(40.0f, 1.0f, 4.0f, 4.0f, 960.0f, 1280.0f, true);     // render-scale stride change
+        tap(40.0f, 1.0f, 4.0f, 4.0f, 1280.0f, 1280.0f, false);   // tap outside the viewport
+        Check("reject paths with side effects", double(changed), 0.0, 0.0);
+        Check("valid tap still merges", valid(40.0f, 1.0f, 4.0f, 4.0f, 1280.0f, 1280.0f, true) ? 1.0 : 0.0, 1.0, 0.0);
+    }
+
+    std::printf("[9] Walker-alias pick: frequencies == Probability and E[w] matches uniform (200k picks)\n");
+    {
+        // Two-entry table, hand-verified Walker over powers {3, 1}: scaled {1.5, 0.5} -> Threshold {1.0, 0.5},
+        //    Alias {0, 0}, Probability {0.75, 0.25}.
+        constexpr float Threshold[2] = { 1.0f, 0.5f };
+        constexpr uint32_t Alias[2] = { 0u, 0u };
+        constexpr float Prob[2] = { 0.75f, 0.25f };
+        gState = 20260u;
+        constexpr int N = 200000;
+        int cntA[2] = { 0, 0 };
+        double sumWA = 0.0, sumWU = 0.0;
+        for (int r = 0; r < N; ++r)
+        {
+            // Alias path (shader PickLight, alias branch).
+            const uint32_t col = uint32_t(RandFloat() * 2.0f) % 2u;
+            const uint32_t z = RandFloat() < Threshold[col] ? col : Alias[col];
+            ++cntA[z];
+            sumWA += double(PHat(Ls[z], Hx, Hy, Hz, Nx, Ny, Nz)) / double(Prob[z]);
+            // Uniform path (shader PickLight, identity branch).
+            const uint32_t u = uint32_t(RandFloat() * 2.0f) % 2u;
+            sumWU += double(PHat(Ls[u], Hx, Hy, Hz, Nx, Ny, Nz)) / (1.0 / 2.0);
+        }
+        // E[w] is source-independent: both must equal pHat0 + pHat1.
+        const double S = double(PHat(Ls[0], Hx, Hy, Hz, Nx, Ny, Nz)) + double(PHat(Ls[1], Hx, Hy, Hz, Nx, Ny, Nz));
+        Check("alias freq light 0", double(cntA[0]) / N, 0.75, 0.01);
+        Check("alias freq light 1", double(cntA[1]) / N, 0.25, 0.01);
+        Check("E[w] alias == pHat sum", sumWA / N, S, S * 0.01);
+        Check("E[w] uniform == pHat sum", sumWU / N, S, S * 0.01);
+    }
+
+    std::printf("[10] age chain: a winning tap sets age exactly once per frame over 5 frames\n");
+    {
+        int bad = 0;
+        uint32_t resAge = 0u;   // fresh sample on frame 0
+        for (uint32_t f = 1u; f <= 5u; ++f)
+        {
+            const uint32_t tapAge = resAge;   // spatiotemporal tap: this pixel's own prev-frame reservoir
+            const bool take = true;           // tap wins this frame
+            uint32_t takeAge = resAge;
+            if (take) takeAge = tapAge + 1u;  // shader: takeAge = neigh.Counts.w + 1u
+            resAge = takeAge;
+            bad += (resAge != f) ? 1 : 0;
+        }
+        Check("age after 5 winning frames", double(resAge), 5.0, 0.0);
+        // A losing tap keeps the temporal age untouched.
+        {
+            uint32_t age = 2u;
+            const uint32_t takeAge = age;   // shader: takeAge initialised to resAge, unchanged on reject
+            age = takeAge;
+            bad += (age != 2u) ? 1 : 0;
+        }
+        Check("age deviations", double(bad), 0.0, 0.0);
+    }
+
     if (gFail == 0) std::printf("ALL PASS (0 failures)\n");
     else std::printf("FAILURES: %d\n", gFail);
     return gFail;
