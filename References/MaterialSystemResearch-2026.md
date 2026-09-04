@@ -111,7 +111,7 @@ Nothing here requires hardware RT; all are BSDF-side and run identically in Tier
 ### 4.1 Channel set (authoring record = OpenPBR, verbatim)
 
 Adopt all 49 OpenPBR parameters with their identifiers as the on-disk / in-memory authoring record
-(`SurfaceSpecification`). Units: metres, nits, linear Rec.709 (ACEScg converted at the codec boundary — see §7.4).
+(`SurfaceStructure`). Units: metres, nits, linear Rec.709 (ACEScg converted at the codec boundary — see §7.4).
 This satisfies your list and more:
 
 * Fuzz → `fuzz_*` (Zeltner LTC) · IOR → `specular_ior`, `coat_ior`, `thin_film_ior` · refraction/reflection →
@@ -184,7 +184,7 @@ Ks → specular_color, Ni → ior, d → opacity). MaterialX `open_pbr_surface` 
 
 `Engine/ContentInterchange/` with per-format codecs `SceneCodec` (glTF/GLB — exists, moves here), `FbxCodec`
 (ufbx, already a submodule), `ObjCodec` (fast_obj, submodule), later `UsdCodec` (tinyusdz) and `MaterialXCodec`.
-All produce one `SceneStructure` + `SurfaceSpecification[]` + the scene-graph rows:
+All produce one `SceneStructure` + `SurfaceStructure[]` + the scene-graph rows:
 
 * `PlacementRecord { Name, Ancestor, FirstDescendant, NextPeer, LocalTransform, WorldTransform, Instance, Camera,
   Luminaire }` — flat arrays, stable IDs, no UI (the outliner comes later and reads this directly).
@@ -195,9 +195,9 @@ All produce one `SceneStructure` + `SurfaceSpecification[]` + the scene-graph ro
 
 ## 7. Decisions (taken 2026-09-04)
 
-1. **Naming** — module **`ContentInterchange`** (user). Material parameter record **`SurfaceSpecification`**
-   (CLAUDE.md role 10: mathematical/structural declaration; "MaterialStructure" rejected by user; `Substrate`
-   is a banned word so Unreal's term is never used in code). Per-slab GPU record `SurfaceRecord`; the ≤4-slab
+1. **Naming** — module **`ContentInterchange`** (user). Material record **`SurfaceStructure`** (CLAUDE.md role 13,
+   "spatial and physical topology representations" — a layered surface *is* physical topology; "MaterialStructure"
+   and "SurfaceSpecification" rejected by user; `Substrate` is a banned word so Unreal's term is never used in code). Per-slab GPU record `SurfaceRecord`; the ≤4-slab
    authoring graph `SurfaceLayering`; scene-graph rows `PlacementRecord` (Parent/Child/Sibling/Node/Hierarchy are
    banned → fields `Ancestor`, `FirstDescendant`, `NextPeer`).
 2. **Beyond-OpenPBR extras** — include **haziness (second roughness)** and **glints** from the start, stored under a
@@ -205,38 +205,46 @@ All produce one `SceneStructure` + `SurfaceSpecification[]` + the scene-graph ro
    measured data we do not have). Rationale: haziness and glints are cheap, fully specified (Barla 2018,
    Deliot–Belcour 2023) and are what separates "PBR" from "car paint / brushed metal / snow" visually; a LUT channel
    without content is dead weight.
-3. **Runtime slab count on Tier B — 3.** See §7.1.
+3. **Slab count — variable, capped per tier, never baked into the format.** See §7.1.
 4. **Colour space — linear Rec.709/sRGB primaries internally**, ACEScg only at import/export boundaries.
    Rationale: every texture we will ever sample (glTF, FBX, PNG/KTX) is sRGB-primaries; converting all of them to
    ACEScg on upload costs a 3×3 per texel and buys nothing until we have wide-gamut output. OpenPBR permits any
    working space as long as it is declared; we declare `lin_rec709` in metadata. Switching later is one matrix at
    the codec boundary, not a shader change.
 5. **Phase placement** — R3 CWBVH stays next (the kernel is still O(N); nothing material-side is visible until
-   shading is fast enough to show it). Then **R4 = ContentInterchange** (SurfaceSpecification + layering,
+   shading is fast enough to show it). Then **R4 = ContentInterchange** (SurfaceStructure + layering,
    bindless textures, PlacementRecord scene graph, FBX/OBJ codecs) as one phase, because materials, textures
    and the importer are one data contract and splitting them would ship a half-usable importer twice. Previous
    R4 (rayQuery AS) shifts to R5, ReSTIR DI/GI to R6/R7, H-PLOC/LOD/reservoir work to R8.
 
-### 7.1 Why "slab count" matters and why 3
+### 7.1 Slab design — flexible by construction (texture painting + complex car paint are the driving cases)
 
-A *slab* is one complete surface layer (its own diffuse/specular/coat/fuzz lobes, roughness, normal). Real objects
-are stacks: dust **on** clear-coat **on** metallic paint **on** primer. Unreal lets artists stack arbitrarily and then
-has to choose, per pixel, how many slabs survive into the G-buffer and the lighting loop:
+A *slab* is one complete surface layer (own normal, roughness, Fresnel, coat, fuzz, glints). Real objects are
+stacks: dust **on** lacquer **on** paint. The user plans a **layered texture-painting system** and **complex car
+paint**, so the model must not hard-wire a slab count anywhere. Design:
 
-* **Flatten to 1 slab** (parameter blending): cheapest; loses the visible *difference in normal, roughness and
-  Fresnel between layers* — a scratch through a coat, wet-on-dry, rust breaking through paint all read as a single
-  averaged surface. This is what Tier A (GTX 1060, compute path tracer) gets.
-* **Keep N slabs**: each slab is evaluated as its own lobe set per light sample, so cost is ≈ N× the specular work
-  and N× the record bytes per pixel. Unreal's measured 4-slab + SSS material is ~2.8× a single slab.
+* **Record = slab list, not fixed fields.** `SurfaceStructure` holds `Slabs[]` (each a full OpenPBR parameter set +
+  `slate_` haziness/glints) and `Operations[]` (`VerticalLayer`, `HorizontalMix(mask)`, `Weight`, `Coverage`) as a
+  small post-order expression. Serialised as-is (glTF `extras`, later MaterialX). Nothing in the file format caps N.
+* **Runtime cap is a configuration, per tier**: `[render] slab_limit` — default **1 on Tier A** (everything
+  flattened, OpenPBR §3.10 albedo-scaling rules), **4 on Tier B/C**, hard ceiling 8 in the GPU record layout. The
+  importer reduces any graph to ≤ limit *losslessly where possible* (horizontal mixes fold into their slab;
+  verticals beyond the limit fold by albedo scaling) and reports what it folded. Raising the cap later is a config
+  change plus shader permutation, not a data migration.
+* **Texture painting** = authoring-time *horizontal* layers per texel (paint, dirt, wear masks). They flatten into
+  the slab they touch at bake time — cost-free at runtime regardless of how many paint layers exist. Only when a
+  paint layer changes *physical structure* (a decal of clear resin, a metallic flake pass) does it become a vertical
+  slab.
+* **Car paint** = 3 verticals + glints: body metallic (F82-tint) → flake slab (`slate_glint_density`, Deliot–Belcour)
+  → clear coat (coat IOR/roughness/darkening, optional thin-film for pearlescent). Fits Tier B default 4 with room
+  for a top film (dust/rain). On Tier A it flattens to one slab with glints kept as a lobe modifier, so the look
+  degrades gracefully instead of disappearing.
+* **Per-pixel cost stays "pay for what you use"**: the shading permutation is chosen by the *resolved* slab count
+  and complexity class of the material, so a plain wall pixel never pays for the car's four slabs.
 
-Why 3 rather than 2 or 4: the recurring hero cases are exactly three physically distinct layers — **top film**
-(dust/water/frost/oil, usually thin and horizontally masked), **coat** (clear lacquer / glass), **body** (paint/
-metal/skin/cloth). A 2nd slab cannot express "water on lacquered wood"; a 4th slab is almost always a horizontal
-*mix* (rust vs paint) rather than a vertical *layer*, and horizontal mixes flatten losslessly into the slab they
-belong to. Three also fits a 3-lobe-set ReSTIR candidate budget without exploding the reservoir size in R6/R7. The
-authoring graph still allows up to 4; the import step keeps 3 verticals and flattens any 4th into a horizontal mix.
-
----
+Why not fix 3 (my earlier proposal): correct for today's hero cases but it would have made the painting pipeline
+and future materials fight the format. The cap-as-config keeps the same performance guarantee with none of the
+stiffness.
 
 ## 8. Sources
 
