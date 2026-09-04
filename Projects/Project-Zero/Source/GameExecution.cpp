@@ -20,7 +20,7 @@
 #include "../../../Engine/DisplayPresentation/TypefaceRegistry.h"
 #include "../../../Engine/DisplayPresentation/ConfigurationRegistry.h"
 #include "../../../Engine/DisplayPresentation/DiagnosticInspector.h"
-#include "../../../Engine/GeometricRaster/SceneCodec.h"
+#include "../../../Engine/ContentInterchange/SceneCodec.h"
 #include "../../../Engine/GeometricRaster/SceneStructure.h"
 #include "../../../Engine/GeometricRaster/TraversalIndex.h"
 #include "FlyThroughSolver.h"
@@ -75,19 +75,25 @@ int main(int argc, char** argv)
             std::filesystem::create_directories(std::filesystem::path(ScenePath).parent_path(), FsError);
             std::string Error;
             if (Frontier::SceneCodec::Encode(ScenePath, Frontier::ReSTIRIntegrator::BuildTriangleIndex(Scene),
-                                             Frontier::ReSTIRIntegrator::BuildRadianceStructures(Scene), &Error))
+                                             Frontier::ReSTIRIntegrator::BuildMaterialDescriptors(Scene), &Error))
                 std::cerr << "[Scene] Exported the Cornell box to " << ScenePath << "\n";
             else
                 std::cerr << "[Scene] Cornell export failed: " << Error << "\n";
         }
     }
 
+    Frontier::ConfigurationRegistry Configuration;
+    if (!Configuration.Load("Projects/Project-Zero/Content/Slate.config.toml"))
+        std::cerr << "[Configuration] " << Configuration.QueryPath() << ": " << Configuration.QueryLastError() << " - using defaults\n";
+
     Frontier::SceneStructure Level;
+    Frontier::TextureIndex   Textures;
     {
         Frontier::SceneDecodeConfiguration Decode;
         Decode.UniformScale = SceneScale;
+        Decode.SlabLimit    = Configuration.Query().Backend.SlabLimit;
         std::string Error;
-        if (!Frontier::SceneCodec::Decode(ScenePath, Level, Decode, &Error))
+        if (!Frontier::SceneCodec::Decode(ScenePath, Level, &Textures, Decode, &Error))
         {
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Fatal, "Scene", ("Cannot import " + ScenePath + ": " + Error).c_str());
             Logger.TerminateSink();
@@ -101,8 +107,17 @@ int main(int argc, char** argv)
         char Line[256];
         std::snprintf(Line, sizeof(Line), "%s: %u triangles, %zu instances, %zu clusters, %zu materials, %zu luminaires, bounds [%.2f %.2f %.2f]..[%.2f %.2f %.2f] m",
                       Level.QueryName().c_str(), Level.QueryTriangleCount(), Level.QueryInstances().size(), Level.QueryClusters().size(),
-                      Level.QueryMaterials().size(), Level.QueryLuminaires().size(), Lo.x, Lo.y, Lo.z, Hi.x, Hi.y, Hi.z);
+                      (size_t)Level.QueryMaterials().QueryCount(), Level.QueryLuminaires().size(), Lo.x, Lo.y, Lo.z, Hi.x, Hi.y, Hi.z);
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Scene", Line);
+        {
+            const Frontier::MaterialIndexMetrics& M = Level.QueryMaterials().QueryMetrics();
+            std::vector<std::string> TextureReport;
+            (void)Textures.Decode(Configuration.Query().Backend.TextureEdgeLimit, &TextureReport);
+            for (const std::string& L : TextureReport) Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Textures", L.c_str());
+            std::snprintf(Line, sizeof(Line), "Materials: %u descriptors -> %u records, %u slabs (limit %u, %u folded), %zu placements, %zu cameras, %zu punctual lights",
+                          M.DescriptorCount, M.DescriptorCount, M.SlabCount, M.SlabLimit, M.FoldedCount, Level.QueryPlacements().size(), Level.QueryCameras().size(), Level.QueryPunctualLuminaires().size());
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Materials", Line);
+        }
     }
     const uint32_t LuminaireCount = static_cast<uint32_t>(Level.QueryLuminaires().size());
 
@@ -173,9 +188,6 @@ int main(int argc, char** argv)
 
     // Slate.config.toml is read before the device comes up: [render] ray_tracing_tier decides which traversal backend
     //    the swapchain resolves (missing file = defaults = Auto).
-    Frontier::ConfigurationRegistry Configuration;
-    if (!Configuration.Load("Projects/Project-Zero/Content/Slate.config.toml"))
-        std::cerr << "[Configuration] " << Configuration.QueryPath() << ": " << Configuration.QueryLastError() << " - using defaults\n";
 
     Frontier::SwapchainExchange Surface(SurfaceConfig);
     Surface.AssignRayTracingRequest(static_cast<Frontier::RayTracingRequestCategory>(Configuration.Query().Backend.RayTracingTier));

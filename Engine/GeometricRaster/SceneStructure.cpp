@@ -183,19 +183,63 @@ uint32_t SceneStructure::RegisterInstance(const GeometryStructure& Mesh, const M
     return FirstInstance;
 }
 
-uint32_t SceneStructure::RegisterMaterial(const RadianceStructure& Material) noexcept
+uint32_t SceneStructure::RegisterMaterial(const MaterialDescriptor& Material) noexcept
 {
-    Materials.push_back(Material);
-    Materials.back().Identifier = static_cast<uint32_t>(Materials.size() - 1u);
-    return Materials.back().Identifier;
+    return Materials.Register(Material);
+}
+
+uint32_t SceneStructure::RegisterPlacement(std::string Name, uint32_t Ancestor, const Matrix4x4& Local, const Matrix4x4& World) noexcept
+{
+    PlacementRecord P;
+    P.Name = std::move(Name);
+    P.Ancestor = Ancestor < Placements.size() ? Ancestor : kPlacementNone;
+    for (int C = 0; C < 4; ++C) for (int R = 0; R < 4; ++R) { P.LocalTransform[C * 4 + R] = Local.Columns[C][R]; P.WorldTransform[C * 4 + R] = World.Columns[C][R]; }
+    const uint32_t Index    = static_cast<uint32_t>(Placements.size());
+    const uint32_t Ancestor2 = P.Ancestor;
+    Placements.push_back(std::move(P));
+    if (Ancestor2 != kPlacementNone)
+    {
+        uint32_t* Link = &Placements[Ancestor2].FirstDescendant;
+        while (*Link != kPlacementNone) Link = &Placements[*Link].NextPeer;
+        *Link = Index;
+    }
+    return Index;
+}
+
+uint32_t SceneStructure::RegisterCamera(const CameraRecord& Camera, uint32_t Placement) noexcept
+{
+    Cameras.push_back(Camera);
+    const uint32_t Index = static_cast<uint32_t>(Cameras.size() - 1u);
+    if (Placement < Placements.size()) Placements[Placement].Camera = Index;
+    return Index;
+}
+
+uint32_t SceneStructure::RegisterPunctualLuminaire(const PunctualLuminaireRecord& Luminaire, uint32_t Placement) noexcept
+{
+    PunctualLuminaires.push_back(Luminaire);
+    const uint32_t Index = static_cast<uint32_t>(PunctualLuminaires.size() - 1u);
+    if (Placement < Placements.size()) Placements[Placement].Luminaire = Index;
+    return Index;
+}
+
+void SceneStructure::AttachInstances(uint32_t Placement, uint32_t FirstInstance, uint32_t InstanceCount) noexcept
+{
+    if (Placement >= Placements.size()) return;
+    PlacementRecord& P = Placements[Placement];
+    if (P.InstanceCount == 0u) { P.FirstInstance = FirstInstance; P.InstanceCount = InstanceCount; }
+    else P.InstanceCount = FirstInstance + InstanceCount - P.FirstInstance;   // contiguous by construction (one codec pass)
 }
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                        FINALISE
 //------------------------------------------------------------------------------------------------------------------------
 
-void SceneStructure::Finalise() noexcept
+void SceneStructure::Finalise(uint32_t SlabLimit, std::vector<std::string>* Report) noexcept
 {
+    if (Materials.QueryCount() == 0u) Materials.Register(MaterialDescriptor{});   // never leave the kernel without a slot
+    Materials.Finalise(SlabLimit, Report);
+    const std::vector<MaterialRecord>& Records = Materials.QueryRecords();
+
     FlatTriangles.clear();
     Luminaires.clear();
     TotalLuminairePower = 0.0f;
@@ -210,7 +254,7 @@ void SceneStructure::Finalise() noexcept
         InstanceRecord& Instance = Instances[InstanceIndex];
         Instance.FlatTriangleOffset = static_cast<uint32_t>(FlatTriangles.size());
         const Matrix4x4 World = ProjectionFromColumns(Instance.World);
-        const RadianceStructure& Material = Materials[std::min<size_t>(Instance.MaterialIndex, Materials.size() - 1u)];
+        const MaterialRecord& Material = Records[std::min<size_t>(Instance.MaterialIndex, Records.size() - 1u)];
         const float Radiance = Luminance(Material.EmissiveR, Material.EmissiveG, Material.EmissiveB);
         if (Radiance > 0.0f) Instance.Flags |= InstanceFlagEmissive;
 
@@ -235,11 +279,14 @@ void SceneStructure::Finalise() noexcept
             Flat.VertexAlphaX = A.x; Flat.VertexAlphaY = A.y; Flat.VertexAlphaZ = A.z;
             Flat.VertexBetaX  = B.x; Flat.VertexBetaY  = B.y; Flat.VertexBetaZ  = B.z;
             Flat.VertexGammaX = C.x; Flat.VertexGammaY = C.y; Flat.VertexGammaZ = C.z;
-            Flat.NormalX = Normal.x; Flat.NormalY = Normal.y; Flat.NormalZ = Normal.z;
+            // R4a: the normal payload becomes the three vertex UVs (the kernel derives the face normal from the edges).
+            Flat.TextureAlphaU = Vertices[I0].TextureCoordinateU; Flat.TextureAlphaV = Vertices[I0].TextureCoordinateV;
+            Flat.TextureBetaU  = Vertices[I1].TextureCoordinateU; Flat.TextureBetaV  = Vertices[I1].TextureCoordinateV;
+            Flat.TextureGammaU = Vertices[I2].TextureCoordinateU; Flat.TextureGammaV = Vertices[I2].TextureCoordinateV;
+            (void)Normal;
             const uint32_t MaterialSlot = Instance.MaterialIndex;
             const uint32_t TriangleSlot = static_cast<uint32_t>(FlatTriangles.size());
             std::memcpy(&Flat.MaterialSlot, &MaterialSlot, sizeof(uint32_t));
-            std::memcpy(&Flat.TriangleSlot, &TriangleSlot, sizeof(uint32_t));
             FlatTriangles.push_back(Flat);
 
             if (Radiance > 0.0f && Area > 0.0f)
@@ -286,7 +333,8 @@ void SceneStructure::Finalise() noexcept
 void SceneStructure::Clear() noexcept
 {
     Vertices.clear(); Indices.clear(); Instances.clear(); Clusters.clear();
-    Materials.clear(); Luminaires.clear(); FlatTriangles.clear();
+    Materials.Clear(); Luminaires.clear(); FlatTriangles.clear();
+    Placements.clear(); Cameras.clear(); PunctualLuminaires.clear();
     TotalLuminairePower = 0.0f;
 }
 

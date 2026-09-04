@@ -24,6 +24,8 @@ struct RenderBackendConfiguration
     RayTracingTierRequestCategory RayTracingTier = RayTracingTierRequestCategory::Auto;   // [render] ray_tracing_tier
     DebugViewSelection            DebugView      = DebugViewSelection::Off;               // [render] debug_view
     bool                          OcclusionCulling = true;                                // [render] occlusion_culling (HiZ)
+    uint32_t                      SlabLimit        = 1u;                                  // [render] slab_limit (R4a: Tier A 1, Tier B/C 4, ceiling 8)
+    uint32_t                      TextureEdgeLimit = 2048u;                               // [render] texture_edge_limit (largest texture edge kept resident; 0 = unlimited)
     [[nodiscard]] bool operator==(const RenderBackendConfiguration&) const noexcept = default;
 };
 

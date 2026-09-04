@@ -23,6 +23,8 @@ namespace Frontier {
 
 class SceneStructure;
 class TraversalIndex;   // GeometricRaster/TraversalIndex.h (R3 CWBVH)
+static constexpr uint32_t kComputeBindingCount = 11u;   // compute set 0: 0 out · 1 tris · 2 materials · 3 history · 4 surface · 5 normal · 6 instances · 7 luminaires · 8/9 CWBVH · 10 slabs
+class MaterialIndex;    // ContentInterchange/MaterialIndex.h (R4a)
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                              SWAPCHAIN CONFIGURATION
@@ -47,9 +49,10 @@ struct SwapchainConfiguration
 //------------------------------------------------------------------------------------------------------------------------
 //                             FACET STRUCTURE  (GPU SSBO — triangle geometry topology)
 //
-// Mechanism: three vertex positions + geometric normal + material slot index,
-//    the minimal geometric facet of the Cornell Box mesh, packed as a contiguous
-//    64-byte SSBO slot for GPU ray traversal.
+// Mechanism: three world-space vertex positions, material slot, triangle slot and the three vertex UVs, packed as a
+//    contiguous 64-byte SSBO slot addressed by the CWBVH primitive index (R3). R4a replaced the stored face normal
+//    with the UVs — the kernel derives the normal from the edges — so texture lookup at secondary hits needs no
+//    vertex/index indirection. 🚧 R5 deletes this buffer in favour of VertexRecord/index/instance.
 //------------------------------------------------------------------------------------------------------------------------
 
 struct TriangleIndex
@@ -57,30 +60,16 @@ struct TriangleIndex
     float    VertexAlphaX,  VertexAlphaY,  VertexAlphaZ;   // [m]   vertex α world position
     float    MaterialSlot;                                   // [-]   material index (uint reinterpreted)
     float    VertexBetaX,   VertexBetaY,   VertexBetaZ;    // [m]   vertex β world position
-    float    TriangleSlot;                                   // [-]   triangle index (uint reinterpreted)
+    float    TextureGammaU;                                  // [uv]  γ u   (R4a: replaced TriangleSlot — the slot IS the array index)
     float    VertexGammaX,  VertexGammaY,  VertexGammaZ;   // [m]   vertex γ world position
-    float    _PadGamma;                                      // [-]   alignment
-    float    NormalX,       NormalY,        NormalZ;         // [-]   geometric surface normal
-    float    _PadNormal;                                     // [-]   alignment to 64 bytes
+    float    TextureGammaV;                                  // [uv]  γ v
+    float    TextureAlphaU, TextureAlphaV;                   // [uv]  α
+    float    TextureBetaU,  TextureBetaV;                    // [uv]  β
 };
+static_assert(sizeof(TriangleIndex) == 64u, "TriangleIndex must be 64 bytes (std430 mirror)");
 
-//------------------------------------------------------------------------------------------------------------------------
-//                           RADIANCE STRUCTURE  (GPU SSBO — photometric surface topology)
-//
-// Mechanism: albedo reflectance, emissive radiance, roughness and metallic values
-//    that define the surface's photometric behaviour, packed as a contiguous
-//    48-byte SSBO slot for GPU shading.
-//------------------------------------------------------------------------------------------------------------------------
-
-struct RadianceStructure
-{
-    float    AlbedoR,    AlbedoG,    AlbedoB;               // [0..1]  diffuse surface reflectance
-    float    Roughness;                                       // [0..1]  microfacet roughness
-    float    EmissiveR,  EmissiveG,  EmissiveB;              // [lux]   self-emitted radiance
-    float    Metallic;                                        // [0..1]  conductor parameter
-    uint32_t Identifier;                                      // [-]     unique material slot index
-    float    _Pad0, _Pad1, _Pad2;                            // [-]     alignment to 48 bytes
-};
+// R4a: RadianceStructure (48 B material summary) is gone — materials are MaterialRecord / MaterialSlabRecord
+//    (ContentInterchange/MaterialIndex.h), uploaded through UploadMaterials(const MaterialIndex&).
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                    DISPATCH CONFIGURATION  (compute push constants)
@@ -141,7 +130,7 @@ public:
     [[nodiscard]] bool          CloseRequested() const noexcept;
 
     void                        UploadTriangles   (const std::vector<TriangleIndex>&   Facets)    noexcept;
-    void                        UploadRadiance (const std::vector<RadianceStructure>& Radiances) noexcept;
+    void                        UploadMaterials(const MaterialIndex& Materials) noexcept;   // R4a: bindings 2 (headers) + 10 (slabs)
 
     // R2: the whole level becomes resident (vertices · indices · instances · clusters · materials · luminaires) and the
     //    interim kernel's flat triangle / material SSBOs are taken from the same SceneStructure — one upload, one truth.

@@ -11,6 +11,7 @@
 #endif
 
 #include "../DeviceExchange/SwapchainExchange.h"
+#include "../ContentInterchange/MaterialDescriptor.h"
 #include "../../Projects/Project-Zero/Source/RayTracingSolver.h"
 #include "../../Projects/Project-Zero/Source/FlyThroughSolver.h"
 #include <cstdint>
@@ -62,8 +63,8 @@ public:
     [[nodiscard]] static std::vector<TriangleIndex>
     BuildTriangleIndex(const ProjectZero::RayTracingSolver& Scene) noexcept;
 
-    [[nodiscard]] static std::vector<RadianceStructure>
-    BuildRadianceStructures(const ProjectZero::RayTracingSolver& Scene) noexcept;
+    [[nodiscard]] static std::vector<MaterialDescriptor>
+    BuildMaterialDescriptors(const ProjectZero::RayTracingSolver& Scene) noexcept;
 
     // Mutable configuration — updated live by RenderScheduler
     // Any parameter change invalidates the temporal history; the accumulation restarts at index 0.

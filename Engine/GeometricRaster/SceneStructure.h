@@ -9,9 +9,10 @@
 //    InstanceRecord  160 B  World, PreviousWorld (column-major), mesh range, material, cluster range
 //    ClusterRecord    48 B  object-space bounding sphere + normal cone + triangle range   (cull unit, ≤ 128 triangles)
 //    LuminaireRecord  32 B  emissive triangle + Walker alias entry for O(1) light selection
-//    RadianceStructure 48 B SwapchainExchange.h (material summary; texture slots land in R2b)
-//    TriangleIndex    64 B  SwapchainExchange.h — flattened world-space triangles for the interim brute-force kernel.
-//                           🚧 R3 deletes this buffer; the CWBVH reads VertexRecord/index/instance directly.
+//    MaterialRecord   64 B  ContentInterchange/MaterialIndex.h (header) + MaterialSlabRecord 288 B per slab (R4a)
+//    TriangleIndex    64 B  SwapchainExchange.h — flattened world-space triangles addressed by the CWBVH primitive index
+//                           (R4a: carries per-vertex UVs for texture lookup; 🚧 R5 deletes it).
+//    PlacementRecord / CameraRecord / PunctualLuminaireRecord — CPU-only scene-graph rows (R4a, data only, no UI).
 //
 // Visibility identifier (GeometricRaster/VisibilityProjection.h): 18-bit instance token << 14 | 14-bit primitive token.
 //    A mesh with more than 16 384 triangles is split into several InstanceRecords sharing one transform, so the
@@ -25,6 +26,7 @@
 
 #include "GeometryStructure.h"
 #include "../DeviceExchange/SwapchainExchange.h"
+#include "../ContentInterchange/MaterialIndex.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -96,6 +98,53 @@ struct LuminaireRecord
 static_assert(sizeof(LuminaireRecord) == 32u, "LuminaireRecord must be 32 bytes (std430 mirror)");
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                          PLACEMENT / CAMERA / PUNCTUAL LUMINAIRE RECORDS  (CPU only)
+//------------------------------------------------------------------------------------------------------------------------
+// The scene graph as flat rows with stable indices: each placement links to its ancestor, first descendant and next
+//    peer (first-descendant / next-peer lists, so any fan-out costs two indices). Instances, cameras and punctual
+//    luminaires hang off a placement by index. The outliner reads these directly later; nothing here is uploaded.
+
+static constexpr uint32_t kPlacementNone = 0xFFFFFFFFu;
+
+struct PlacementRecord
+{
+    std::string Name;
+    uint32_t    Ancestor        = kPlacementNone;   // [idx] enclosing placement
+    uint32_t    FirstDescendant = kPlacementNone;   // [idx]
+    uint32_t    NextPeer        = kPlacementNone;   // [idx]
+    float       LocalTransform[16];                 // [-]   column-major, relative to the ancestor (engine axes)
+    float       WorldTransform[16];                 // [-]   column-major, absolute
+    uint32_t    FirstInstance   = kPlacementNone;   // [idx] first InstanceRecord placed here (contiguous)
+    uint32_t    InstanceCount   = 0u;               // [cnt]
+    uint32_t    Camera          = kPlacementNone;   // [idx] CameraRecord
+    uint32_t    Luminaire       = kPlacementNone;   // [idx] PunctualLuminaireRecord
+};
+
+struct CameraRecord
+{
+    std::string Name;
+    float       VerticalFieldOfView = 0.8f;         // [rad]
+    float       AspectRatio         = 0.0f;         // [-]   0 = viewport
+    float       NearPlane           = 0.05f;        // [m]
+    float       FarPlane            = 0.0f;         // [m]   0 = infinite (reverse-Z)
+    bool        Orthographic        = false;
+    float       OrthographicHalfHeight = 1.0f;      // [m]
+};
+
+enum class PunctualLuminaireCategory : uint32_t { Directional = 0, Point = 1, Spot = 2 };
+
+struct PunctualLuminaireRecord                      // 🚧 stored only in R4a; the kernel does not light from these yet
+{
+    std::string               Name;
+    PunctualLuminaireCategory Category = PunctualLuminaireCategory::Point;
+    float                     Colour[3] = { 1.0f, 1.0f, 1.0f };   // [-] linear Rec.709
+    float                     Intensity = 1.0f;     // [cd] point/spot, [lux] directional (KHR_lights_punctual)
+    float                     Range     = 0.0f;     // [m]  0 = infinite
+    float                     InnerConeAngle = 0.0f;   // [rad]
+    float                     OuterConeAngle = 0.7853982f;
+};
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                     SCENE STRUCTURE
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -111,10 +160,19 @@ public:
     // Append one mesh (object space) under a world transform. The mesh is split into ≤ 16 384-triangle instances and
     //    ≤ 128-triangle clusters; returns the first InstanceRecord index. Indices are into `Mesh`'s vertex span.
     uint32_t                RegisterInstance(const GeometryStructure& Mesh, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept;
-    uint32_t                RegisterMaterial(const RadianceStructure& Material) noexcept;
+    uint32_t                RegisterMaterial(const MaterialDescriptor& Material) noexcept;
 
-    // Finalise: flatten world-space triangles for the interim kernel, gather luminaires, build the alias table.
-    void                    Finalise() noexcept;
+    // Scene graph rows (R4a). RegisterPlacement links the new row under `Ancestor` (appended as the last peer).
+    uint32_t                RegisterPlacement(std::string Name, uint32_t Ancestor, const Matrix4x4& Local, const Matrix4x4& World) noexcept;
+    uint32_t                RegisterCamera(const CameraRecord& Camera, uint32_t Placement) noexcept;
+    uint32_t                RegisterPunctualLuminaire(const PunctualLuminaireRecord& Luminaire, uint32_t Placement) noexcept;
+    void                    AttachInstances(uint32_t Placement, uint32_t FirstInstance, uint32_t InstanceCount) noexcept;
+    void                    AttachCamera(uint32_t Placement, uint32_t Camera) noexcept            { if (Placement < Placements.size() && Camera < Cameras.size()) Placements[Placement].Camera = Camera; }
+    void                    AttachPunctualLuminaire(uint32_t Placement, uint32_t Luminaire) noexcept { if (Placement < Placements.size() && Luminaire < PunctualLuminaires.size()) Placements[Placement].Luminaire = Luminaire; }
+
+    // Finalise: flatten materials at `SlabLimit`, flatten world-space triangles, gather luminaires, build the alias
+    //    table. `Report` receives the material fold lines.
+    void                    Finalise(uint32_t SlabLimit = 1u, std::vector<std::string>* Report = nullptr) noexcept;
 
     void                    Clear() noexcept;
 
@@ -122,7 +180,11 @@ public:
     [[nodiscard]] const std::vector<uint32_t>&          QueryIndices()    const noexcept { return Indices; }
     [[nodiscard]] const std::vector<InstanceRecord>&    QueryInstances()  const noexcept { return Instances; }
     [[nodiscard]] const std::vector<ClusterRecord>&     QueryClusters()   const noexcept { return Clusters; }
-    [[nodiscard]] const std::vector<RadianceStructure>& QueryMaterials()  const noexcept { return Materials; }
+    [[nodiscard]] const MaterialIndex&                  QueryMaterials()  const noexcept { return Materials; }
+    [[nodiscard]] MaterialIndex&                        ModifyMaterials()       noexcept { return Materials; }
+    [[nodiscard]] const std::vector<PlacementRecord>&   QueryPlacements() const noexcept { return Placements; }
+    [[nodiscard]] const std::vector<CameraRecord>&      QueryCameras()    const noexcept { return Cameras; }
+    [[nodiscard]] const std::vector<PunctualLuminaireRecord>& QueryPunctualLuminaires() const noexcept { return PunctualLuminaires; }
     [[nodiscard]] const std::vector<LuminaireRecord>&   QueryLuminaires() const noexcept { return Luminaires; }
     [[nodiscard]] const std::vector<TriangleIndex>&     QueryFlatTriangles() const noexcept { return FlatTriangles; }
     [[nodiscard]] float                                 QueryLuminairePower() const noexcept { return TotalLuminairePower; }
@@ -144,8 +206,11 @@ private:
     std::vector<uint32_t>          Indices;
     std::vector<InstanceRecord>    Instances;
     std::vector<ClusterRecord>     Clusters;
-    std::vector<RadianceStructure> Materials;
+    MaterialIndex                  Materials;
     std::vector<LuminaireRecord>   Luminaires;
+    std::vector<PlacementRecord>   Placements;
+    std::vector<CameraRecord>      Cameras;
+    std::vector<PunctualLuminaireRecord> PunctualLuminaires;
     std::vector<TriangleIndex>     FlatTriangles;
     float                          TotalLuminairePower = 0.0f;
     Vector3                        BoundsMinimum;

@@ -595,7 +595,7 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
     (void)UploadBuffer(D, P, Vulkan->Indices,       Scene.QueryIndices().data(),       Bytes(Scene.QueryIndices()),       S | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, "indices");
     (void)UploadBuffer(D, P, Vulkan->Instances,     Scene.QueryInstances().data(),     Bytes(Scene.QueryInstances()),     S, "instances");
     (void)UploadBuffer(D, P, Vulkan->Clusters,      Scene.QueryClusters().data(),      Bytes(Scene.QueryClusters()),      S, "clusters");
-    (void)UploadBuffer(D, P, Vulkan->Materials,     Scene.QueryMaterials().data(),     Bytes(Scene.QueryMaterials()),     S, "materials");
+    (void)UploadBuffer(D, P, Vulkan->Materials,     Scene.QueryMaterials().QueryRecords().data(), Bytes(Scene.QueryMaterials().QueryRecords()), S, "materials");   // R4a MaterialRecord[]
     (void)UploadBuffer(D, P, Vulkan->Luminaires,    Scene.QueryLuminaires().data(),    Bytes(Scene.QueryLuminaires()),    S, "luminaires");
     (void)UploadBuffer(D, P, Vulkan->FlatTriangles, Scene.QueryFlatTriangles().data(), Bytes(Scene.QueryFlatTriangles()), S, "flat triangles");
 

@@ -7,8 +7,10 @@
 #include <cgltf.h>
 
 #include "SceneCodec.h"
-#include "ClipProjection.h"
+#include "MaterialCodec.h"
+#include "../GeometricRaster/ClipProjection.h"
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -31,33 +33,33 @@ const cgltf_accessor* FindAttribute(const cgltf_primitive& Primitive, cgltf_attr
     return nullptr;
 }
 
-RadianceStructure DecodeMaterial(const cgltf_material* M, const SceneDecodeConfiguration& Config) noexcept
+// Registers a glTF texture's image in the TextureIndex: file URI (relative to the .gltf) or GLB buffer view.
+uint32_t RegisterGltfTexture(const cgltf_texture_view& View, bool Linear, TextureIndex* Textures, const std::filesystem::path& Directory) noexcept
 {
-    RadianceStructure R{};
-    R.AlbedoR = R.AlbedoG = R.AlbedoB = 0.8f;
-    R.Roughness = 0.5f;
-    R.Metallic  = 0.0f;
-    if (!M) return R;
-    if (M->has_pbr_metallic_roughness)
+    if (!Textures || !View.texture || !View.texture->image) return kMaterialTextureNone;
+    const cgltf_image& Image = *View.texture->image;
+    if (Image.uri)
     {
-        R.AlbedoR   = M->pbr_metallic_roughness.base_color_factor[0];
-        R.AlbedoG   = M->pbr_metallic_roughness.base_color_factor[1];
-        R.AlbedoB   = M->pbr_metallic_roughness.base_color_factor[2];
-        R.Roughness = M->pbr_metallic_roughness.roughness_factor;
-        R.Metallic  = M->pbr_metallic_roughness.metallic_factor;
+        if (std::strncmp(Image.uri, "data:", 5) == 0) return kMaterialTextureNone;   // base64 data URI images: not supported yet (reported by caller)
+        std::string Uri = Image.uri;
+        cgltf_decode_uri(Uri.data()); Uri.resize(std::strlen(Uri.c_str()));
+        return Textures->RegisterPath((Directory / Uri).lexically_normal().string(), Linear);
     }
-    const float Strength = (M->has_emissive_strength ? M->emissive_strength.emissive_strength : 1.0f) * Config.EmissiveRadiance;
-    R.EmissiveR = M->emissive_factor[0] * Strength;
-    R.EmissiveG = M->emissive_factor[1] * Strength;
-    R.EmissiveB = M->emissive_factor[2] * Strength;
-    return R;
+    if (Image.buffer_view)
+    {
+        const uint8_t* Bytes = cgltf_buffer_view_data(Image.buffer_view);
+        if (!Bytes) return kMaterialTextureNone;
+        return Textures->RegisterEncoded(Image.name ? Image.name : ("image_" + std::to_string(Image.buffer_view->offset)), Bytes, Image.buffer_view->size, Linear);
+    }
+    return kMaterialTextureNone;
 }
 
 } // namespace
 
-bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, const SceneDecodeConfiguration& Config, std::string* Error) noexcept
+bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex* Textures, const SceneDecodeConfiguration& Config, std::string* Error) noexcept
 {
     Out.Clear();
+    const std::filesystem::path Directory = std::filesystem::path(Path).parent_path();
 
     cgltf_options Options{};
     cgltf_data*   Data = nullptr;
@@ -67,10 +69,43 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, const Scen
     if (Result != cgltf_result_success) { if (Error) *Error = "cgltf_load_buffers failed (" + std::to_string(static_cast<int>(Result)) + ")"; cgltf_free(Data); return false; }
 
     // Materials: glTF order, plus one fallback slot at the end for primitives without a material.
+    MaterialDecodeConfiguration MaterialConfig;
+    MaterialConfig.EmissiveRadiance = Config.EmissiveRadiance;
+    const GltfTextureResolver Resolve = [&](const cgltf_texture_view& View, bool Linear) { return RegisterGltfTexture(View, Linear, Textures, Directory); };
     std::vector<uint32_t> MaterialSlot(Data->materials_count);
     for (cgltf_size I = 0; I < Data->materials_count; ++I)
-        MaterialSlot[I] = Out.RegisterMaterial(DecodeMaterial(&Data->materials[I], Config));
-    const uint32_t FallbackSlot = Out.RegisterMaterial(DecodeMaterial(nullptr, Config));
+        MaterialSlot[I] = Out.RegisterMaterial(MaterialCodec::DecodeGltf(&Data->materials[I], MaterialConfig, Resolve));
+    const uint32_t FallbackSlot = Out.RegisterMaterial(MaterialCodec::DecodeGltf(nullptr, MaterialConfig, nullptr));
+
+    // Cameras and punctual lights, glTF order (attached to placements below).
+    for (cgltf_size I = 0; I < Data->cameras_count; ++I)
+    {
+        const cgltf_camera& C = Data->cameras[I];
+        CameraRecord R; R.Name = C.name ? C.name : "";
+        if (C.type == cgltf_camera_type_perspective)
+        {
+            R.VerticalFieldOfView = C.data.perspective.yfov;
+            R.AspectRatio = C.data.perspective.has_aspect_ratio ? C.data.perspective.aspect_ratio : 0.0f;
+            R.NearPlane = C.data.perspective.znear * Config.UniformScale;
+            R.FarPlane  = C.data.perspective.has_zfar ? C.data.perspective.zfar * Config.UniformScale : 0.0f;
+        }
+        else
+        {
+            R.Orthographic = true; R.OrthographicHalfHeight = C.data.orthographic.ymag * Config.UniformScale;
+            R.NearPlane = C.data.orthographic.znear * Config.UniformScale; R.FarPlane = C.data.orthographic.zfar * Config.UniformScale;
+        }
+        (void)Out.RegisterCamera(R, kPlacementNone);
+    }
+    for (cgltf_size I = 0; I < Data->lights_count; ++I)
+    {
+        const cgltf_light& L = Data->lights[I];
+        PunctualLuminaireRecord R; R.Name = L.name ? L.name : "";
+        R.Category = L.type == cgltf_light_type_directional ? PunctualLuminaireCategory::Directional : L.type == cgltf_light_type_spot ? PunctualLuminaireCategory::Spot : PunctualLuminaireCategory::Point;
+        std::memcpy(R.Colour, L.color, sizeof(R.Colour));
+        R.Intensity = L.intensity; R.Range = L.range * Config.UniformScale;
+        R.InnerConeAngle = L.spot_inner_cone_angle; R.OuterConeAngle = L.spot_outer_cone_angle;
+        (void)Out.RegisterPunctualLuminaire(R, kPlacementNone);
+    }
 
     // Meshes are decoded once into GeometryStructures (object space, engine axes) and instanced per node.
     struct DecodedPrimitive { GeometryStructure Geometry; uint32_t Material; uint32_t Flags; };
@@ -81,15 +116,41 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, const Scen
     Scale.Columns[0][0] = Scale.Columns[1][1] = Scale.Columns[2][2] = Config.UniformScale;
     const Matrix4x4 Root = MultiplyProjection(Scale, AxisSwap);
 
-    uint32_t Skipped = 0u;
-    for (cgltf_size N = 0; N < Data->nodes_count; ++N)
+    // Placements: every node in scene order (ancestors first, so the ancestor's row exists when the descendant links).
+    std::vector<uint32_t> PlacementOf(Data->nodes_count, kPlacementNone);
+    std::vector<const cgltf_node*> Order; Order.reserve(Data->nodes_count);
     {
-        const cgltf_node& Node = Data->nodes[N];
-        if (!Node.mesh) continue;
+        std::vector<const cgltf_node*> Stack;
+        const cgltf_scene* Scene = Data->scene ? Data->scene : (Data->scenes_count ? &Data->scenes[0] : nullptr);
+        if (Scene) for (cgltf_size I = Scene->nodes_count; I-- > 0;) Stack.push_back(Scene->nodes[I]);
+        else       for (cgltf_size I = Data->nodes_count; I-- > 0;) if (!Data->nodes[I].parent) Stack.push_back(&Data->nodes[I]);
+        while (!Stack.empty())
+        {
+            const cgltf_node* N = Stack.back(); Stack.pop_back();
+            Order.push_back(N);
+            for (cgltf_size I = N->children_count; I-- > 0;) Stack.push_back(N->children[I]);
+        }
+    }
+    uint32_t Skipped = 0u, DataUriImages = 0u;
+    for (const cgltf_node* NodePointer : Order)
+    {
+        const cgltf_node& Node = *NodePointer;
+        const cgltf_size N = static_cast<cgltf_size>(&Node - Data->nodes);
 
-        float WorldColumns[16];
+        float WorldColumns[16], LocalColumns[16];
         cgltf_node_transform_world(&Node, WorldColumns);
+        cgltf_node_transform_local(&Node, LocalColumns);
         const Matrix4x4 World = MultiplyProjection(Root, ProjectionFromColumns(WorldColumns));
+        const uint32_t Ancestor = Node.parent ? PlacementOf[static_cast<size_t>(Node.parent - Data->nodes)] : kPlacementNone;
+        // Local transform in engine axes: Root · L · Root⁻¹ for roots is the same as World; for descendants the local
+        //    stays in the ancestor's frame, which is already engine-space after the ancestor's own swap.
+        const Matrix4x4 Local = Ancestor == kPlacementNone ? World : ProjectionFromColumns(LocalColumns);
+        const uint32_t Placement = Out.RegisterPlacement(Node.name ? Node.name : ("node_" + std::to_string(N)), Ancestor, Local, World);
+        PlacementOf[N] = Placement;
+        if (Node.camera) Out.AttachCamera(Placement, static_cast<uint32_t>(Node.camera - Data->cameras));
+        if (Node.light)  Out.AttachPunctualLuminaire(Placement, static_cast<uint32_t>(Node.light - Data->lights));
+        if (!Node.mesh) continue;
+        const uint32_t FirstInstance = static_cast<uint32_t>(Out.QueryInstances().size());
 
         for (cgltf_size P = 0; P < Node.mesh->primitives_count; ++P)
         {
@@ -147,13 +208,25 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, const Scen
 
             (void)Out.RegisterInstance(Found->second.Geometry, World, Found->second.Material, Found->second.Flags);
         }
+        const uint32_t InstanceCount = static_cast<uint32_t>(Out.QueryInstances().size()) - FirstInstance;
+        if (InstanceCount) Out.AttachInstances(Placement, FirstInstance, InstanceCount);
     }
+    for (cgltf_size I = 0; I < Data->images_count; ++I) if (Data->images[I].uri && std::strncmp(Data->images[I].uri, "data:", 5) == 0) ++DataUriImages;
 
     cgltf_free(Data);
-    Out.Finalise();
+    std::vector<std::string> Report;
+    Out.Finalise(Config.SlabLimit, &Report);
 
     if (Out.QueryTriangleCount() == 0u) { if (Error) *Error = "no triangle primitives found"; return false; }
-    if (Skipped && Error) *Error = std::to_string(Skipped) + " non-triangle primitive(s) skipped";
+    if (Error)
+    {
+        std::string Warning;
+        if (Skipped)       Warning += std::to_string(Skipped) + " non-triangle primitive(s) skipped; ";
+        if (DataUriImages) Warning += std::to_string(DataUriImages) + " data-URI image(s) not decoded (placeholder); ";
+        for (const std::string& Line : Report) Warning += Line + "; ";
+        if (!Warning.empty()) Warning.resize(Warning.size() - 2u);
+        *Error = Warning;
+    }
     return true;
 }
 
@@ -202,7 +275,7 @@ std::string Number(float F)
 } // namespace
 
 bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex>& Triangles,
-                        const std::vector<RadianceStructure>& Materials, std::string* Error) noexcept
+                        const std::vector<MaterialDescriptor>& Materials, std::string* Error) noexcept
 {
     std::vector<uint8_t> Buffer;
     std::ostringstream Views, Accessors, Primitives;
@@ -222,7 +295,10 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
             const Vector3 Corners[3] = { WorldToGltf(Vector3{ T.VertexAlphaX, T.VertexAlphaY, T.VertexAlphaZ }),
                                          WorldToGltf(Vector3{ T.VertexBetaX,  T.VertexBetaY,  T.VertexBetaZ  }),
                                          WorldToGltf(Vector3{ T.VertexGammaX, T.VertexGammaY, T.VertexGammaZ }) };
-            const Vector3 N = WorldToGltf(Vector3{ T.NormalX, T.NormalY, T.NormalZ });
+            const Vector3 A = Vector3{ T.VertexAlphaX, T.VertexAlphaY, T.VertexAlphaZ }, B = Vector3{ T.VertexBetaX, T.VertexBetaY, T.VertexBetaZ }, C = Vector3{ T.VertexGammaX, T.VertexGammaY, T.VertexGammaZ };
+            const Vector3 Cross = OrientationClassifier::CrossProduct(B - A, C - A);
+            const float   Len   = Cross.Length();
+            const Vector3 N = WorldToGltf(Len > 0.0f ? Cross / Len : Vector3{ 0.0f, 0.0f, 1.0f });
             for (const Vector3& C : Corners)
             {
                 Indices.push_back(static_cast<uint32_t>(Positions.size() / 3u));
@@ -270,27 +346,19 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
     }
 
     std::ostringstream MaterialsJson;
+    std::vector<std::string> ExtensionsUsed;
     for (uint32_t M = 0u; M < Materials.size(); ++M)
     {
-        const RadianceStructure& R = Materials[M];
         if (M) MaterialsJson << ",";
-        const float Peak = std::max({ R.EmissiveR, R.EmissiveG, R.EmissiveB, 0.0f });
-        MaterialsJson << "{\"name\":\"material_" << M << "\",\"pbrMetallicRoughness\":{\"baseColorFactor\":["
-                      << Number(R.AlbedoR) << "," << Number(R.AlbedoG) << "," << Number(R.AlbedoB) << ",1.0],"
-                      << "\"metallicFactor\":" << Number(R.Metallic) << ",\"roughnessFactor\":" << Number(R.Roughness) << "}";
-        if (Peak > 0.0f)
-        {
-            // emissiveFactor is clamped to [0,1] by the spec; the magnitude rides in KHR_materials_emissive_strength.
-            MaterialsJson << ",\"emissiveFactor\":[" << Number(R.EmissiveR / Peak) << "," << Number(R.EmissiveG / Peak) << "," << Number(R.EmissiveB / Peak) << "]"
-                          << ",\"extensions\":{\"KHR_materials_emissive_strength\":{\"emissiveStrength\":" << Number(Peak) << "}}";
-        }
-        MaterialsJson << "}";
+        MaterialsJson << MaterialCodec::EncodeGltf(Materials[M], ExtensionsUsed, nullptr);
     }
+    std::ostringstream ExtensionsJson;
+    for (size_t I = 0; I < ExtensionsUsed.size(); ++I) ExtensionsJson << (I ? "," : "") << "\"" << ExtensionsUsed[I] << "\"";
 
     std::ofstream File(Path, std::ios::binary | std::ios::trunc);
     if (!File) { if (Error) *Error = "cannot open " + Path + " for writing"; return false; }
     File << "{\"asset\":{\"version\":\"2.0\",\"generator\":\"Frontier SceneCodec\"},"
-         << "\"extensionsUsed\":[\"KHR_materials_emissive_strength\"],"
+         << "\"extensionsUsed\":[" << ExtensionsJson.str() << "],"
          << "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"CornellBox\"}],"
          << "\"meshes\":[{\"name\":\"CornellBox\",\"primitives\":[" << Primitives.str() << "]}],"
          << "\"materials\":[" << MaterialsJson.str() << "],"

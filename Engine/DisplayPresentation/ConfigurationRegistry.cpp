@@ -138,6 +138,8 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "ray_tracing_tier",    NameOf(P.Backend.RayTracingTier) },   // Auto | Software | RayQuery | Pipeline (never faked upward)
         { "debug_view",          NameOf(P.Backend.DebugView) },        // Off | Depth | Visibility | Motion | Cluster | HiZ | Albedo | Normal (F3 popup)
         { "occlusion_culling",   P.Backend.OcclusionCulling },         // HiZ two-phase cull; off = frustum only (proof 4 A/B)
+        { "slab_limit",          static_cast<int64_t>(P.Backend.SlabLimit) },          // R4a material slabs kept per material (1 Tier A, 4 Tier B/C, ≤ 8)
+        { "texture_edge_limit",  static_cast<int64_t>(P.Backend.TextureEdgeLimit) },   // R4a largest texture edge kept resident (0 = unlimited)
     });
 
     const AppearanceSettings& A = P.Appearance;
@@ -226,6 +228,8 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         S.GetEnum("ray_tracing_tier",    Out.Backend.RayTracingTier);
         S.GetEnum("debug_view",          Out.Backend.DebugView);
         S.Get("occlusion_culling",       Out.Backend.OcclusionCulling);
+        S.Get("slab_limit",              Out.Backend.SlabLimit);        Out.Backend.SlabLimit        = std::clamp(Out.Backend.SlabLimit, 1u, 8u);
+        S.Get("texture_edge_limit",      Out.Backend.TextureEdgeLimit); Out.Backend.TextureEdgeLimit = std::min(Out.Backend.TextureEdgeLimit, 16384u);
     }
     {
         AppearanceSettings& A = Out.Appearance;

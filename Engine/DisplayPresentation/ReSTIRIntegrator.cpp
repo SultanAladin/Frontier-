@@ -4,6 +4,8 @@
 // 🧩 Accumulates ReSTIR DI+GI radiance by numerically integrating light transport paths on the GPU compute pipeline.
 
 #include "ReSTIRIntegrator.h"
+#include <algorithm>
+#include <string>
 #include <cmath>
 
 namespace Frontier {
@@ -143,42 +145,36 @@ std::vector<TriangleIndex> ReSTIRIntegrator::BuildTriangleIndex(
         Record.VertexBetaX   = Triangle.VertexBeta.x;
         Record.VertexBetaY   = Triangle.VertexBeta.y;
         Record.VertexBetaZ   = Triangle.VertexBeta.z;
-        Record.TriangleSlot  = *reinterpret_cast<const float*>(&Triangle.TriangleIndex);
         Record.VertexGammaX  = Triangle.VertexGamma.x;
         Record.VertexGammaY  = Triangle.VertexGamma.y;
         Record.VertexGammaZ  = Triangle.VertexGamma.z;
-        Record._PadGamma     = 0.0f;
-        Record.NormalX       = Triangle.SurfaceNormal.x;
-        Record.NormalY       = Triangle.SurfaceNormal.y;
-        Record.NormalZ       = Triangle.SurfaceNormal.z;
-        Record._PadNormal    = 0.0f;
+        // R4a: no per-face normal or UVs in the analytical Cornell soup (flat-shaded, untextured)
         Records.push_back(Record);
     }
     return Records;
 }
 
-std::vector<RadianceStructure> ReSTIRIntegrator::BuildRadianceStructures(
+std::vector<MaterialDescriptor> ReSTIRIntegrator::BuildMaterialDescriptors(
     const ProjectZero::RayTracingSolver& Scene) noexcept
 {
     const auto& Materials = Scene.QueryMaterials();
 
-    std::vector<RadianceStructure> Records;
+    std::vector<MaterialDescriptor> Records;
     Records.reserve(Materials.size());
 
     for (const auto& Material : Materials)
     {
-        RadianceStructure Record{};
-        Record.AlbedoR    = Material.AlbedoColor.x;
-        Record.AlbedoG    = Material.AlbedoColor.y;
-        Record.AlbedoB    = Material.AlbedoColor.z;
-        Record.Roughness  = Material.RoughnessValue;
-        Record.EmissiveR  = Material.EmissiveRadiance.x;
-        Record.EmissiveG  = Material.EmissiveRadiance.y;
-        Record.EmissiveB  = Material.EmissiveRadiance.z;
-        Record.Metallic   = Material.MetallicValue;
-        Record.Identifier = Material.MaterialIdentifier;
-        Record._Pad0 = Record._Pad1 = Record._Pad2 = 0.0f;
-        Records.push_back(Record);
+        MaterialDescriptor D;
+        D.Name = "material_" + std::to_string(Material.MaterialIdentifier);
+        D.Slabs.emplace_back();
+        MaterialSlabDescriptor& S = D.Slabs.back();
+        S.BaseColor[0] = Material.AlbedoColor.x; S.BaseColor[1] = Material.AlbedoColor.y; S.BaseColor[2] = Material.AlbedoColor.z;
+        S.SpecularRoughness = Material.RoughnessValue;
+        S.BaseMetalness     = Material.MetallicValue;
+        const float E[3] = { Material.EmissiveRadiance.x, Material.EmissiveRadiance.y, Material.EmissiveRadiance.z };
+        const float Peak = std::max({ E[0], E[1], E[2], 0.0f });
+        if (Peak > 0.0f) { S.EmissionLuminance = Peak; S.EmissionColor[0] = E[0] / Peak; S.EmissionColor[1] = E[1] / Peak; S.EmissionColor[2] = E[2] / Peak; }
+        Records.push_back(std::move(D));
     }
     return Records;
 }

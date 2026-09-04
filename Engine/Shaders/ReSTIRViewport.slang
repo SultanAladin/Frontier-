@@ -30,18 +30,30 @@ layout(rgba16f, binding = 5) uniform readonly image2D NormalImage;    // R2 Surf
 //                                                    SCENE GEOMETRY BINDING
 //------------------------------------------------------------------------------------------------------------------------
 
-struct GpuTriangle
+struct GpuTriangle          // TriangleIndex (SwapchainExchange.h), R4a layout
 {
     vec4 v0;            // xyz = vertex α, w = materialIndex (floatBitsToUint)
-    vec4 v1;            // xyz = vertex β, w = triangleIndex (floatBitsToUint)
-    vec4 v2;            // xyz = vertex γ, w = pad
-    vec4 normal;        // xyz = surface normal, w = pad
+    vec4 v1;            // xyz = vertex β, w = γ.u
+    vec4 v2;            // xyz = vertex γ, w = γ.v
+    vec4 uv;            // xy = α.uv, zw = β.uv
 };
 
-struct GpuMaterial
+struct GpuMaterial          // MaterialRecord (ContentInterchange/MaterialIndex.h, 64 B) — R4a header; mirrors SceneRecords.slang
 {
-    vec4 albedo;        // xyz = albedo rgb, w = roughness
-    vec4 emissive;      // xyz = emissive radiance, w = metallic
+    vec4  Albedo;           // xyz = flattened base colour, w = specular roughness
+    vec4  Emissive;         // xyz = emission radiance [nit], w = metalness
+    uvec4 Slabs;            // x = SlabOffset, y = SlabCount, z = Flags, w = Complexity
+    uvec2 Textures;         // x = base colour slot, y = normal slot (0xFFFFFFFF = none)
+    float AlphaCutoff;
+    float NormalScale;
+};
+
+struct GpuMaterialSlab      // MaterialSlabRecord (288 B) — 18 vec4; field map in SceneRecords.slang. Read by R4b shading.
+{
+    vec4  Payload[15];
+    uvec4 TextureSlots0;
+    uvec4 TextureSlots1;
+    uvec4 Runtime;
 };
 
 struct GpuInstance          // InstanceRecord (SceneStructure.h / SceneRecords.slang) — only MaterialIndex is read here
@@ -76,6 +88,7 @@ layout(std430, binding = 6) readonly buffer InstanceExtent  { GpuInstance  Insta
 layout(std430, binding = 7) readonly buffer LuminaireExtent { GpuLuminaire Luminaires[]; };
 layout(std430, binding = 8) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };   // R3: TraversalIndex node blob
 layout(std430, binding = 9) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };   // R3: TraversalIndex triangle blob
+layout(std430, binding = 10) readonly buffer MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };   // R4a: per-slab OpenPBR records (unused by the R3 kernel; R4b shading reads them)
 
 #include "TraversalCWBVH.slang"
 
@@ -161,7 +174,7 @@ Hit TraceScene(Ray ray)
     closest.valid  = true;
     closest.t      = h.t;
     closest.pos    = ray.origin + h.t * ray.dir;
-    closest.normal = tri.normal.xyz;
+    closest.normal = normalize(cross(tri.v1.xyz - tri.v0.xyz, tri.v2.xyz - tri.v0.xyz));   // R4a: face normal from the edges (slot now carries UVs)
     closest.matIdx = floatBitsToUint(tri.v0.w);
     return closest;
 }
@@ -298,8 +311,8 @@ void main()
     }
 
     GpuMaterial mat = Materials[Instances[VisibilityInstance(visibility)].MaterialIndex];
-    vec3 albedo     = mat.albedo.xyz;
-    vec3 emissive   = mat.emissive.xyz;
+    vec3 albedo     = mat.Albedo.xyz;
+    vec3 emissive   = mat.Emissive.xyz;
 
     // If we directly hit an emitter — return its radiance
     if (dot(emissive, emissive) > 0.0)
@@ -338,7 +351,7 @@ void main()
             // Get light material
             uint lMatIdx = floatBitsToUint(
                 Triangles[LightTriangle(li)].v0.w);
-            vec3 lEmissive = Materials[lMatIdx].emissive.xyz;
+            vec3 lEmissive = Materials[lMatIdx].Emissive.xyz;
 
             // Target function: unshadowed direct contribution
             float pHat = cosTheta * length(lEmissive) / (dist * dist + 0.001);
@@ -364,7 +377,7 @@ void main()
                 uint idx = LightTriangle(li);
                 vec3 triCenter = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
                 float d = distance(triCenter, res.SelectedPoint);
-                if (d < bestD) { bestD = d; selEmissive = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
+                if (d < bestD) { bestD = d; selEmissive = Materials[floatBitsToUint(Triangles[idx].v0.w)].Emissive.xyz; }
             }
 
             float pHatSel = cosTheta * length(selEmissive) / (selDist * selDist + 0.001);
@@ -382,7 +395,7 @@ void main()
                 float  nDist  = length(nToL);
                 float  nCos   = max(0.0, dot(hitNormal, nToL / nDist));
                 uint   nMIdx  = floatBitsToUint(Triangles[LightTriangle(nli)].v0.w);
-                vec3   nEmit  = Materials[nMIdx].emissive.xyz;
+                vec3   nEmit  = Materials[nMIdx].Emissive.xyz;
                 float  nPHat  = nCos * length(nEmit) / (nDist * nDist + 0.001);
                 float  nW     = nPHat / (1.0 / float(LightTriangleCount));   // p̂ / p_source, same as the initial loop
                 ResampleCandidate(res, nlp, nW, seed);
@@ -399,7 +412,7 @@ void main()
                     uint idx = LightTriangle(li);
                     vec3 c = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
                     float d = distance(c, res.SelectedPoint);
-                    if (d < bd) { bd = d; emit2 = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
+                    if (d < bd) { bd = d; emit2 = Materials[floatBitsToUint(Triangles[idx].v0.w)].Emissive.xyz; }
                 }
                 float pHat2 = cos2 * length(emit2) / (selDist2 * selDist2 + 0.001);
                 res.UnbiasedWeight = pHat2 > 0.0 ? res.WeightSum / (float(res.SampleCount) * pHat2) : 0.0;
@@ -419,7 +432,7 @@ void main()
                     uint idx = LightTriangle(li);
                     vec3 c = (Triangles[idx].v0.xyz + Triangles[idx].v1.xyz + Triangles[idx].v2.xyz) / 3.0;
                     float d = distance(c, res.SelectedPoint);
-                    if (d < bd2) { bd2 = d; chosenEmit = Materials[floatBitsToUint(Triangles[idx].v0.w)].emissive.xyz; }
+                    if (d < bd2) { bd2 = d; chosenEmit = Materials[floatBitsToUint(Triangles[idx].v0.w)].Emissive.xyz; }
                 }
 
                 float dist2 = dot(res.SelectedPoint - hitPos, res.SelectedPoint - hitPos);
@@ -443,8 +456,8 @@ void main()
         if (bounceHit.valid)
         {
             GpuMaterial bMat      = Materials[bounceHit.matIdx];
-            vec3        bEmissive = bMat.emissive.xyz;
-            vec3        bAlbedo   = bMat.albedo.xyz;
+            vec3        bEmissive = bMat.Emissive.xyz;
+            vec3        bAlbedo   = bMat.Albedo.xyz;
 
             // Direct light at bounce point
             if (dot(bEmissive, bEmissive) > 0.0)
@@ -466,7 +479,7 @@ void main()
 
                 uint  bLMatIdx = floatBitsToUint(
                     Triangles[LightTriangle(bLi)].v0.w);
-                vec3 bLEmit = Materials[bLMatIdx].emissive.xyz;
+                vec3 bLEmit = Materials[bLMatIdx].Emissive.xyz;
 
                 if (!TraceShadow(bHitPos + bHitNormal * kEps, bLp))
                 {
