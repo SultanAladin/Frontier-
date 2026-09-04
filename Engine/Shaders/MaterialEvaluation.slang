@@ -23,8 +23,8 @@
 #define FRONTIER_MATERIAL_EVALUATION
 
 #ifndef FRONTIER_CPU_PORT
-layout(binding = 14) uniform sampler2D EnergyLut;   // x = μ = cosθ, y = α : (A, B, E_avg) — E_ss(μ, α) = F0·A + B (split-sum), E_avg(α) hemispherical mean
-layout(binding = 15) uniform sampler2D SheenLut;    // x = cosθ,    y = α : (aInv, bInv, R) — LtcSheenTable.h
+layout(binding = 13) uniform sampler2D EnergyLut;   // x = μ = cosθ, y = α : (A, B, E_avg) — E_ss(μ, α) = F0·A + B (split-sum), E_avg(α) hemispherical mean
+layout(binding = 14) uniform sampler2D SheenLut;    // x = cosθ,    y = α : (aInv, bInv, R) — LtcSheenTable.h
 vec3  FetchEnergy(float mu, float alpha)     { return textureLod(EnergyLut, vec2(mu, alpha), 0.0).xyz; }
 vec3  FetchSheen (float mu, float alpha)     { return textureLod(SheenLut,  vec2(mu, alpha), 0.0).xyz; }
 #endif

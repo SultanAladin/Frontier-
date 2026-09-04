@@ -92,10 +92,12 @@ struct SwapchainExchange::VulkanRecord
     VkDeviceMemory           MaterialMemory        = VK_NULL_HANDLE;
     VkBuffer                 SlabBuffer            = VK_NULL_HANDLE;   // R4a: MaterialSlabRecord[] (binding 10)
     VkDeviceMemory           SlabMemory            = VK_NULL_HANDLE;
-    // R4a bindless textures (binding 11, sampler2D[], partially bound): one image + view per resident texture
+    // R4a bindless textures (binding 15 since R4b, sampler2D[], partially bound): one image + view per resident texture
     struct ResidentTexture { VkImage Image = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; VkImageView View = VK_NULL_HANDLE; };
     std::vector<ResidentTexture> Textures;
     VkSampler                TextureSampler        = VK_NULL_HANDLE;
+    ResidentTexture          ShadingTables[2];                       // R4b: 0 = GGX energy (A, B, E_avg), 1 = LTC sheen (aInv, bInv, R) — RGBA32F 32×32
+    VkSampler                TableSampler          = VK_NULL_HANDLE; // linear, clamp-to-edge, no mips
     bool                     DescriptorIndexing    = false;   // runtimeDescriptorArray + partially bound granted by the driver
     VkBuffer                 TraversalNodeBuffer   = VK_NULL_HANDLE;   // R3 CWBVH nodes (binding 8)
     VkDeviceMemory           TraversalNodeMemory   = VK_NULL_HANDLE;
@@ -394,6 +396,13 @@ void SwapchainExchange::Retire() noexcept
     if (Vulkan->SlabMemory)      vkFreeMemory    (Vulkan->Device, Vulkan->SlabMemory, nullptr);
     DestroyTextures();
     if (Vulkan->TextureSampler)  vkDestroySampler(Vulkan->Device, Vulkan->TextureSampler, nullptr);
+    for (VulkanRecord::ResidentTexture& T : Vulkan->ShadingTables)
+    {
+        if (T.View)   vkDestroyImageView(Vulkan->Device, T.View, nullptr);
+        if (T.Image)  vkDestroyImage    (Vulkan->Device, T.Image, nullptr);
+        if (T.Memory) vkFreeMemory      (Vulkan->Device, T.Memory, nullptr);
+    }
+    if (Vulkan->TableSampler)    vkDestroySampler(Vulkan->Device, Vulkan->TableSampler, nullptr);
     if (Vulkan->TraversalNodeBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalNodeBuffer, nullptr);
     if (Vulkan->TraversalNodeMemory) vkFreeMemory   (Vulkan->Device, Vulkan->TraversalNodeMemory, nullptr);
     if (Vulkan->TraversalLeafBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalLeafBuffer, nullptr);
@@ -929,7 +938,8 @@ bool SwapchainExchange::BringComputePipeline() noexcept
     // ① Descriptor set layout — 0: output image, 1: triangle SSBO, 2: material SSBO, 3: history image,
     //    R2: 4: surface image, 5: normal image, 6: instance SSBO, 7: luminaire SSBO
     //    R3: 8: CWBVH node SSBO, 9: CWBVH triangle SSBO
-    //    R4a: 10: material slab SSBO, 11: sampler2D Textures[] (bindless, partially bound, variable count)
+    //    R4a: 10: material slab SSBO
+    //    R4b: 11: vertex SSBO, 12: index SSBO, 13: GGX energy LUT, 14: LTC sheen LUT, 15: sampler2D Textures[] (bindless, partially bound, variable count — must be last)
     std::array<VkDescriptorSetLayoutBinding, kComputeBindingCount> LayoutBindings{};
     LayoutBindings[0].binding         = 0u;
     LayoutBindings[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -950,11 +960,11 @@ bool SwapchainExchange::BringComputePipeline() noexcept
     for (uint32_t B = 4u; B < kComputeBindingCount - 1u; ++B)
     {
         LayoutBindings[B].binding         = B;
-        LayoutBindings[B].descriptorType  = B < 6u ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        LayoutBindings[B].descriptorType  = B < 6u ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : (B == 13u || B == 14u) ? VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         LayoutBindings[B].descriptorCount = 1u;
         LayoutBindings[B].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
     }
-    const uint32_t TextureBinding = kComputeBindingCount - 1u;   // 11
+    const uint32_t TextureBinding = kComputeBindingCount - 1u;   // 15
     LayoutBindings[TextureBinding].binding         = TextureBinding;
     LayoutBindings[TextureBinding].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     LayoutBindings[TextureBinding].descriptorCount = Vulkan->DescriptorIndexing ? kTextureSlotCapacity : 1u;
@@ -1029,9 +1039,9 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
     PoolSizes[0].type            = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     PoolSizes[0].descriptorCount = 4u;
     PoolSizes[1].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    PoolSizes[1].descriptorCount = kComputeBindingCount - 5u;
+    PoolSizes[1].descriptorCount = kComputeBindingCount - 7u;   // 9 storage buffers (1, 2, 6-12)
     PoolSizes[2].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    PoolSizes[2].descriptorCount = Vulkan->DescriptorIndexing ? kTextureSlotCapacity : 1u;
+    PoolSizes[2].descriptorCount = 2u + (Vulkan->DescriptorIndexing ? kTextureSlotCapacity : 1u);   // R4b: two LUTs + the bindless table
 
     VkDescriptorPoolCreateInfo PoolInfo{};
     PoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1093,6 +1103,10 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
     VkDescriptorBufferInfo NodeInfo     { Vulkan->TraversalNodeBuffer, 0u, VK_WHOLE_SIZE };
     VkDescriptorBufferInfo LeafInfo     { Vulkan->TraversalLeafBuffer, 0u, VK_WHOLE_SIZE };
     VkDescriptorBufferInfo SlabInfo     { Vulkan->SlabBuffer, 0u, VK_WHOLE_SIZE };
+    VkDescriptorBufferInfo VertexInfo   { static_cast<VkBuffer>(Visibility.QueryVertexBuffer()), 0u, VK_WHOLE_SIZE };   // R4b
+    VkDescriptorBufferInfo IndexInfo    { static_cast<VkBuffer>(Visibility.QueryIndexBuffer()),  0u, VK_WHOLE_SIZE };   // R4b
+    VkDescriptorImageInfo  EnergyInfo   { Vulkan->TableSampler, Vulkan->ShadingTables[0].View, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkDescriptorImageInfo  SheenInfo    { Vulkan->TableSampler, Vulkan->ShadingTables[1].View, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 
     std::array<VkWriteDescriptorSet, kComputeBindingCount> Writes{};
     uint32_t WriteCount = 0u;
@@ -1163,6 +1177,17 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
     WriteBuffer(8u, NodeInfo);
     WriteBuffer(9u, LeafInfo);
     WriteBuffer(10u, SlabInfo);
+    WriteBuffer(11u, VertexInfo);
+    WriteBuffer(12u, IndexInfo);
+    const auto WriteSampled = [&](uint32_t Binding, const VkDescriptorImageInfo& Info)
+    {
+        if (!Info.imageView || !Info.sampler) return;
+        VkWriteDescriptorSet& Write = Writes[WriteCount++];
+        Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; Write.dstSet = Vulkan->ComputeDescriptorSet; Write.dstBinding = Binding;
+        Write.descriptorCount = 1u; Write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; Write.pImageInfo = &Info;
+    };
+    WriteSampled(13u, EnergyInfo);
+    WriteSampled(14u, SheenInfo);
 
     // R4a: the texture table. Written in one go (partially bound: slots past the resident count stay undefined and are
     //    never indexed — the material records only reference resident slots).
@@ -1500,6 +1525,97 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
     WriteDescriptorSet();
 }
 
+void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept
+{
+    // DeviceExchange must not include DisplayPresentation (it is the layer below it) — the caller bakes with
+    //    ShadingTableCodec and hands over the two RGBA32F planes.
+    if (!Vulkan->Device || Vulkan->ShadingTables[0].View || !Energy || !Sheen || Resolution == 0u) return;
+    const uint32_t N = Resolution;
+    const float* Source[2] = { Energy, Sheen };
+
+    if (!Vulkan->TableSampler)
+    {
+        VkSamplerCreateInfo SamplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+        SamplerInfo.magFilter = SamplerInfo.minFilter = VK_FILTER_LINEAR;
+        SamplerInfo.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        SamplerInfo.addressModeU = SamplerInfo.addressModeV = SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        SamplerInfo.maxLod       = 0.0f;
+        (void)vkCreateSampler(Vulkan->Device, &SamplerInfo, nullptr, &Vulkan->TableSampler);
+    }
+
+    const VkDeviceSize TableBytes = static_cast<VkDeviceSize>(N) * N * 4u * sizeof(float);
+    VkBuffer Staging = VK_NULL_HANDLE; VkDeviceMemory StagingMemory = VK_NULL_HANDLE;
+    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, TableBytes * 2u, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging, StagingMemory);
+    {
+        void* Mapped = nullptr;
+        (void)vkMapMemory(Vulkan->Device, StagingMemory, 0u, VK_WHOLE_SIZE, 0u, &Mapped);
+        if (Mapped)
+        {
+            std::memcpy(static_cast<uint8_t*>(Mapped),              Source[0], static_cast<size_t>(TableBytes));
+            std::memcpy(static_cast<uint8_t*>(Mapped) + TableBytes, Source[1], static_cast<size_t>(TableBytes));
+            vkUnmapMemory(Vulkan->Device, StagingMemory);
+        }
+    }
+
+    VkCommandBufferAllocateInfo CommandInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+    CommandInfo.commandPool = Vulkan->ComputeCommandPool; CommandInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; CommandInfo.commandBufferCount = 1u;
+    VkCommandBuffer Command = VK_NULL_HANDLE;
+    (void)vkAllocateCommandBuffers(Vulkan->Device, &CommandInfo, &Command);
+    VkCommandBufferBeginInfo Begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+    Begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    (void)vkBeginCommandBuffer(Command, &Begin);
+
+    for (uint32_t I = 0u; I < 2u; ++I)
+    {
+        VulkanRecord::ResidentTexture& R = Vulkan->ShadingTables[I];
+        VkImageCreateInfo ImageInfo{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+        ImageInfo.imageType = VK_IMAGE_TYPE_2D; ImageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        ImageInfo.extent = { N, N, 1u }; ImageInfo.mipLevels = 1u; ImageInfo.arrayLayers = 1u;
+        ImageInfo.samples = VK_SAMPLE_COUNT_1_BIT; ImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        if (vkCreateImage(Vulkan->Device, &ImageInfo, nullptr, &R.Image) != VK_SUCCESS) { R.Image = VK_NULL_HANDLE; continue; }
+        VkMemoryRequirements Requirements{};
+        vkGetImageMemoryRequirements(Vulkan->Device, R.Image, &Requirements);
+        VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        Allocate.allocationSize = Requirements.size;
+        for (uint32_t M = 0u; M < Vulkan->MemoryProperties.memoryTypeCount; ++M)
+            if ((Requirements.memoryTypeBits & (1u << M)) && (Vulkan->MemoryProperties.memoryTypes[M].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) { Allocate.memoryTypeIndex = M; break; }
+        (void)vkAllocateMemory(Vulkan->Device, &Allocate, nullptr, &R.Memory);
+        (void)vkBindImageMemory(Vulkan->Device, R.Image, R.Memory, 0u);
+        VkImageViewCreateInfo ViewInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+        ViewInfo.image = R.Image; ViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; ViewInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        ViewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 1u, 0u, 1u };
+        (void)vkCreateImageView(Vulkan->Device, &ViewInfo, nullptr, &R.View);
+
+        VkImageMemoryBarrier ToTransfer{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        ToTransfer.srcAccessMask = 0u; ToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        ToTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; ToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        ToTransfer.srcQueueFamilyIndex = ToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ToTransfer.image = R.Image; ToTransfer.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 1u, 0u, 1u };
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToTransfer);
+        VkBufferImageCopy Copy{};
+        Copy.bufferOffset = TableBytes * I;
+        Copy.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
+        Copy.imageExtent = { N, N, 1u };
+        vkCmdCopyBufferToImage(Command, Staging, R.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1u, &Copy);
+        VkImageMemoryBarrier ToShader = ToTransfer;
+        ToShader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; ToShader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        ToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToShader);
+    }
+    (void)vkEndCommandBuffer(Command);
+    VkSubmitInfo Submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    Submit.commandBufferCount = 1u; Submit.pCommandBuffers = &Command;
+    (void)vkQueueSubmit(Vulkan->ComputeQueue, 1u, &Submit, VK_NULL_HANDLE);
+    (void)vkQueueWaitIdle(Vulkan->ComputeQueue);
+    vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1u, &Command);
+    vkDestroyBuffer(Vulkan->Device, Staging, nullptr);
+    vkFreeMemory(Vulkan->Device, StagingMemory, nullptr);
+    std::cerr << "[SwapchainExchange] Shading tables: GGX energy + LTC sheen, 2 x " << N << "x" << N << " RGBA32F resident (bindings 13/14).\n";
+}
+
 void SwapchainExchange::UploadTraversal(const TraversalIndex& Traversal) noexcept
 {
     if (!Vulkan->Device || !Traversal.IsReady()) return;
@@ -1530,7 +1646,7 @@ void SwapchainExchange::UploadScene(const SceneStructure& Scene, const Traversal
 {
     if (!Vulkan->Device) return;
     Visibility.UploadScene(Scene);
-    if (Textures) UploadTextures(*Textures);        // R4a: bindless table (binding 11) — before the descriptor writes below
+    if (Textures) UploadTextures(*Textures);        // R4a: bindless table (binding 15) — before the descriptor writes below
     UploadTriangles(Scene.QueryFlatTriangles());   // kernel: material / normal lookup by CWBVH primitive index
     UploadMaterials(Scene.QueryMaterials());       // R4a: MaterialRecord + MaterialSlabRecord (bindings 2, 10)
     UploadTraversal(Traversal);                    // R3: CWBVH node + triangle blobs (bindings 8-9)

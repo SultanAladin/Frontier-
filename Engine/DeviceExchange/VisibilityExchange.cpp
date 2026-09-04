@@ -926,5 +926,7 @@ void* VisibilityExchange::QueryLuminaireBuffer()    const noexcept { return Vulk
 void* VisibilityExchange::QueryInstanceBuffer()     const noexcept { return Vulkan->Instances.Buffer; }
 void* VisibilityExchange::QueryFlatTriangleBuffer() const noexcept { return Vulkan->FlatTriangles.Buffer; }
 void* VisibilityExchange::QueryMaterialBuffer()     const noexcept { return Vulkan->Materials.Buffer; }
+void* VisibilityExchange::QueryVertexBuffer()       const noexcept { return Vulkan->Vertices.Buffer; }
+void* VisibilityExchange::QueryIndexBuffer()        const noexcept { return Vulkan->Indices.Buffer; }
 
 } // namespace Frontier

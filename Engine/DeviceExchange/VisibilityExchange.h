@@ -125,6 +125,8 @@ public:
     [[nodiscard]] void* QueryInstanceBuffer()  const noexcept;
     [[nodiscard]] void* QueryFlatTriangleBuffer() const noexcept;
     [[nodiscard]] void* QueryMaterialBuffer()  const noexcept;
+    [[nodiscard]] void* QueryVertexBuffer()    const noexcept;   // R4b: kernel binding 11 (VertexRecord[])
+    [[nodiscard]] void* QueryIndexBuffer()     const noexcept;   // R4b: kernel binding 12 (uint[])
     [[nodiscard]] uint32_t QueryLuminaireCount() const noexcept { return LuminaireCount; }
     [[nodiscard]] uint32_t QueryTriangleCount()  const noexcept { return TriangleCount; }
     [[nodiscard]] uint32_t QueryClusterCount()   const noexcept { return ClusterCount; }

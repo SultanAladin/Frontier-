@@ -7,7 +7,7 @@ struct vec2 { float x, y; vec2() : x(0), y(0) {} vec2(float a) : x(a), y(a) {} v
 struct vec3 { float x, y, z; vec3() : x(0), y(0), z(0) {} vec3(float a) : x(a), y(a), z(a) {} vec3(float a, float b, float c) : x(a), y(b), z(c) {}
     vec2 xy() const { return {x, y}; } vec2 yz() const { return {y, z}; } vec2 xz() const { return {x, z}; } };
 struct vec4 { float x, y, z, w; vec4() : x(0), y(0), z(0), w(0) {} vec4(float a) : x(a), y(a), z(a), w(a) {} vec4(float a, float b, float c, float d) : x(a), y(b), z(c), w(d) {}
-    vec4(vec3 v, float d) : x(v.x), y(v.y), z(v.z), w(d) {} vec3 xyz() const { return {x, y, z}; } vec2 xy() const { return {x, y}; } vec2 yz() const { return {y, z}; } };
+    vec4(vec3 v, float d) : x(v.x), y(v.y), z(v.z), w(d) {} vec3 xyz() const { return {x, y, z}; } vec2 xy() const { return {x, y}; } vec2 yz() const { return {y, z}; } vec2 zw() const { return {z, w}; } };
 struct mat3 { vec3 c[3]; mat3() {} mat3(vec3 a, vec3 b, vec3 d) { c[0] = a; c[1] = b; c[2] = d; } };
 #define V2OP(op) inline vec2 operator op(vec2 a, vec2 b) { return {a.x op b.x, a.y op b.y}; } inline vec2 operator op(vec2 a, float b) { return {a.x op b, a.y op b}; } inline vec2 operator op(float a, vec2 b) { return {a op b.x, a op b.y}; }
 #define V3OP(op) inline vec3 operator op(vec3 a, vec3 b) { return {a.x op b.x, a.y op b.y, a.z op b.z}; } inline vec3 operator op(vec3 a, float b) { return {a.x op b, a.y op b, a.z op b}; } inline vec3 operator op(float a, vec3 b) { return {a op b.x, a op b.y, a op b.z}; }
@@ -43,3 +43,23 @@ inline vec3 cos(vec3 a) { return {std::cos(a.x), std::cos(a.y), std::cos(a.z)}; 
 inline vec3 pow(vec3 a, vec3 b) { return {std::pow(a.x, b.x), std::pow(a.y, b.y), std::pow(a.z, b.z)}; } inline vec3 pow(vec3 a, float b) { return pow(a, vec3(b)); }
 inline vec3 abs(vec3 a) { return {std::abs(a.x), std::abs(a.y), std::abs(a.z)}; }
 inline float luminance(vec3 c) { return 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z; }
+// ---- extras for kernel-section ports (ReSTIRViewport.slang ResolveMaterial) ----
+#include <vector>
+#include <cstring>
+typedef unsigned int uint;
+struct ivec2 { int x, y; };
+struct uvec2 { uint x, y; };
+struct uvec4 { uint x, y, z, w; uint& operator[](int i) { return i == 0 ? x : i == 1 ? y : i == 2 ? z : w; } uint operator[](int i) const { return i == 0 ? x : i == 1 ? y : i == 2 ? z : w; } };
+struct mat4 { vec4 c[4]; vec4& operator[](int i) { return c[i]; } const vec4& operator[](int i) const { return c[i]; } };
+inline mat3 mat3_from(const mat4& m) { return mat3(m.c[0].xyz(), m.c[1].xyz(), m.c[2].xyz()); }
+inline vec3 vec3_from(vec2 a, float b) { return vec3(a.x, a.y, b); }
+inline vec4 vec4_from(vec2 a, vec2 b) { return vec4(a.x, a.y, b.x, b.y); }
+inline float uintBitsToFloat(uint u) { float f; std::memcpy(&f, &u, 4); return f; }
+inline uint floatBitsToUint(float f) { uint u; std::memcpy(&u, &f, 4); return u; }
+inline float log2(float a) { return std::log2(a); }
+#define nonuniformEXT(x) (x)
+struct Sampler { int Width = 1, Height = 1; vec4 Constant = vec4(1); float LastLod = 0; };
+inline ivec2 textureSize(Sampler& s, int) { return { s.Width, s.Height }; }
+inline vec4 textureLod(Sampler& s, vec2, float lod) { s.LastLod = lod; return s.Constant; }
+inline vec3 vec3_from2(float a, vec2 b) { return vec3(a, b.x, b.y); }
+inline vec3 yzw_of(vec4 v) { return vec3(v.y, v.z, v.w); }

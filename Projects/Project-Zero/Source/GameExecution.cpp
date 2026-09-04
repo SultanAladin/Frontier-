@@ -10,6 +10,7 @@
 
 #include "../../../Engine/DeviceExchange/SwapchainExchange.h"
 #include "../../../Engine/DisplayPresentation/ReSTIRIntegrator.h"
+#include "../../../Engine/DisplayPresentation/ShadingTableCodec.h"
 #include "../../../Engine/DisplayPresentation/RenderScheduler.h"
 #include "../../../Engine/DeviceExchange/DiagnosticMetrics.h"
 #include "../../../Engine/DisplayPresentation/ControlCentreHost.h"
@@ -205,6 +206,10 @@ int main(int argc, char** argv)
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
                          "Bootstrap", "Window and Vulkan swapchain ready.");
 
+    {
+        const Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake();   // R4b: GGX energy + LTC sheen LUTs
+        Surface.UploadShadingTables(Tables.Energy.data(), Tables.Sheen.data(), Frontier::ShadingTableSet::kResolution);
+    }
     Surface.UploadScene(Level, Traversal, &Textures);
 
     //──────────────────────────────────────────────────────────────────────────
