@@ -26,7 +26,7 @@ namespace Frontier {
 struct ReSTIRIntegratorConfiguration
 {
     uint32_t    CandidatesPerPixel;         // [-]   primary DI candidates per pixel
-    uint32_t    SpatialPassCount;           // [-]   ReSTIR spatial resampling passes
+    uint32_t    ExtraCandidateCount;      // [-]   extra same-pixel RIS candidates (R6 row 3: renamed; true spatial reuse is the fixed kSpatialTaps cross)
     float       Exposure;                   // [-]   ACES tone-map exposure scalar
     float       AmbientStrength;            // [-]   ambient fallback contribution
     bool        GlobalIllumination = true;  // [-]   secondary bounce on/off
@@ -72,7 +72,7 @@ public:
     // Mutable configuration — updated live by RenderScheduler
     // Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
     void AssignCandidatesPerPixel(uint32_t Count) noexcept { if (ActiveConfiguration.CandidatesPerPixel != Count) { ActiveConfiguration.CandidatesPerPixel = Count; ResetAccumulation(); } }
-    void AssignSpatialPassCount  (uint32_t Count) noexcept { if (ActiveConfiguration.SpatialPassCount   != Count) { ActiveConfiguration.SpatialPassCount   = Count; ResetAccumulation(); } }
+    void AssignExtraCandidateCount  (uint32_t Count) noexcept { if (ActiveConfiguration.ExtraCandidateCount   != Count) { ActiveConfiguration.ExtraCandidateCount   = Count; ResetAccumulation(); } }
     void AssignExposure          (float    Value) noexcept { if (ActiveConfiguration.Exposure            != Value) { ActiveConfiguration.Exposure            = Value; ResetAccumulation(); } }
     void AssignGlobalIllumination(bool     On)    noexcept { if (ActiveConfiguration.GlobalIllumination  != On)    { ActiveConfiguration.GlobalIllumination  = On;    ResetAccumulation(); } }
     void AssignAntiAliasing      (bool     On)    noexcept { if (ActiveConfiguration.AntiAliasing        != On)    { ActiveConfiguration.AntiAliasing        = On;    ResetAccumulation(); } }

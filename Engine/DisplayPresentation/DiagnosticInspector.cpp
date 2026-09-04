@@ -96,7 +96,7 @@ void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float To
                   static_cast<double>(T.ResolveMilliseconds), static_cast<double>(T.KernelMilliseconds));
     std::snprintf(Rows[4], sizeof(Rows[4]), "restir     temporal %s  \xC2\xB7  spatial %s  \xC2\xB7  alias pick %s  \xC2\xB7  %u cand + %u extra",
                   ReSTIR.TemporalReuse ? "on" : "OFF", ReSTIR.SpatialReuse ? "on" : "OFF", ReSTIR.AliasPick ? "on" : "OFF",
-                  ReSTIR.CandidatesPerPixel, ReSTIR.SpatialPassCount);
+                  ReSTIR.CandidatesPerPixel, ReSTIR.ExtraCandidateCount);
     std::snprintf(Rows[5], sizeof(Rows[5]), "scene      %u mats -> %u slabs (S %u Si %u C %u Sp %u)  \xC2\xB7  %u tex %.1f MB <= %u mips",
                   MaterialStats.DescriptorCount, MaterialStats.SlabCount,
                   MaterialStats.ComplexityCount[0], MaterialStats.ComplexityCount[1],

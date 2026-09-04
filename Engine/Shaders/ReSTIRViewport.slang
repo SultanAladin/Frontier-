@@ -5,8 +5,8 @@
 //       • primary visibility from the R2 visibility raster (SurfaceImage / NormalImage, no primary rays),
 //       • shadow / bounce rays traverse the R3 CWBVH (TraversalCWBVH.slang, bindings 8-9) — O(log N), not O(N),
 //       • ReSTIR-DI *initial candidates only*: M light samples resampled with a weighted reservoir (correct RIS),
-//         with SpatialPassCount extra candidates folded in — there is NO temporal and NO spatial neighbour reuse (R6
-//         rows 2/3),
+//         with ExtraCandidateCount further same-pixel candidates folded in, plus temporal (R6 row 2) and
+//         spatiotemporal neighbour reuse (R6 row 3),
 //       • one BSDF-sampled bounce with next-event estimation — plain 1-bounce path tracing, no GI reservoir (R6),
 //       • R4b: surfaces are shaded with the OpenPBR lobe set of MaterialEvaluation.slang (one resolved slab, interpolated
 //         normals + normal maps from the VertexRecord buffer, ray-cone texture LOD, GGX energy / LTC sheen LUTs),
@@ -120,7 +120,7 @@ layout(binding = 18) uniform sampler2D Textures[];   // R4a bindless table — �
 const float kTemporalNormalCos = 0.906308;   // cos(25°): temporal/spatial normal validation
 const float kTemporalDepthTol  = 0.10;       // 10% relative depth validation
 const uint  kTemporalMClamp    = 20u;        // prev M capped at 20× current M (ReSTIR M-clamp)
-const uint  kSpatialTaps       = 4u;         // R6 row 3: fixed 4-tap cross (SpatialPassCount still means extra same-pixel candidates)
+const uint  kSpatialTaps       = 4u;         // R6 row 3: fixed 4-tap cross — the true spatial reuse (ExtraCandidateCount = extra same-pixel candidates)
 const float kSpatialRadiusPx   = 11.0;       // [px] tap radius at 1280 px width — scaled by RenderWidth/1280 for resolution independence
 
 const uint kMaterialTextureNone = 0xFFFFFFFFu;
@@ -308,7 +308,7 @@ layout(push_constant) uniform ReSTIRConstants
     uint    ViewportWidth;          // [px]  render width
     uint    ViewportHeight;         // [px]  render height
     uint    FrameIndex;             // [cnt] temporal accumulation index
-    uint    SpatialPassCount;       // [cnt] ReSTIR spatial resampling passes
+    uint    ExtraCandidateCount;  // [cnt] extra same-pixel RIS candidates (R6 row 3: renamed; true spatial reuse is the fixed kSpatialTaps cross)
     uint    SamplesPerPixel;        // [cnt] primary DI candidates per pixel
     uint    AlphaMaskedMaterialCount; // [cnt] R4b: materials flagged kMaterialFlagAlphaMask (0 ⇒ any-hit shadow rays) — was TriangleCount (unused here)
     uint    LightTriangleCount;     // [cnt] emissive triangles for DI sampling
@@ -624,7 +624,7 @@ void main()
 
     //------------------------------------------------------------------------------------------------------------------
     // 3. ReSTIR direct lighting — initial candidates (+ extra same-pixel passes), R6 temporal merge, R6 row 3
-    //    spatiotemporal neighbour taps, shade. (SpatialPassCount still means extra same-pixel candidates.)
+    //    spatiotemporal neighbour taps, shade.
     //------------------------------------------------------------------------------------------------------------------
 
     if (LightTriangleCount > 0u)
@@ -672,9 +672,9 @@ void main()
             if (pHatSel > 0.0)
                 res.UnbiasedWeight = res.WeightSum / (float(res.SampleCount) * pHatSel);
 
-            // Extra candidates (formerly mislabelled "spatial resampling"): SpatialPassCount further light samples
+            // Extra same-pixel candidates (R6 row 3: renamed from SpatialPassCount): ExtraCandidateCount further light samples
             //    from THIS pixel, resampled with the same target function so the reservoir stays a valid RIS estimate.
-            for (uint sp = 0u; sp < SpatialPassCount; ++sp)
+            for (uint sp = 0u; sp < ExtraCandidateCount; ++sp)
             {
                 float  npSource;
                 uint   nli    = PickLight(seed, npSource);   // R6 row 3: same alias/uniform gate as the initial loop

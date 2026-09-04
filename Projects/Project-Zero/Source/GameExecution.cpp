@@ -192,7 +192,7 @@ int main(int argc, char** argv)
     Frontier::ReSTIRIntegratorConfiguration IntegratorConfig
     {
         8u,         // [-]  candidates per pixel
-        2u,         // [-]  spatial resampling passes
+        2u,         // [-]  extra same-pixel candidates
         1.05f,      // [-]  ACES exposure
         0.015f      // [-]  ambient strength
     };
@@ -305,7 +305,7 @@ int main(int argc, char** argv)
 
         // The quality tier sets the ReSTIR budget; the GI / AA tiles override the tier's own defaults.
         Integrator.AssignCandidatesPerPixel(Criteria.ReSTIRCandidateSampleCount);
-        Integrator.AssignSpatialPassCount(Criteria.ReSTIRSpatialPassCount);
+        Integrator.AssignExtraCandidateCount(Criteria.ReSTIRExtraCandidateCount);
         Integrator.AssignGlobalIllumination(S.GlobalIllumination);
         Integrator.AssignAntiAliasing(S.AntiAliasing);
         Notifications.AssignEnabled(S.Notifications);
@@ -313,9 +313,9 @@ int main(int argc, char** argv)
         if (Announce)
         {
             char Body[96];
-            std::snprintf(Body, sizeof(Body), "%s  |  %u candidates, %u spatial, GI %s, AA %s, scale %d%%",
+            std::snprintf(Body, sizeof(Body), "%s  |  %u candidates, %u extra, GI %s, AA %s, scale %d%%",
                           Frontier::FidelityLabel(S.Quality), Criteria.ReSTIRCandidateSampleCount,
-                          Criteria.ReSTIRSpatialPassCount, S.GlobalIllumination ? "on" : "off",
+                          Criteria.ReSTIRExtraCandidateCount, S.GlobalIllumination ? "on" : "off",
                           S.AntiAliasing ? "on" : "off", static_cast<int>(S.RenderScale * 100.0f + 0.5f));
             if (ControlCentre.QueryNotifications().QueryApplied().RenderFinished) Notifications.Push("Render settings applied", Body);
         }
@@ -366,6 +366,9 @@ int main(int argc, char** argv)
         Telemetry.RecordFrame(Δτ);
 
         // ①b' F3 debug popup: view / HiZ / alias-pick toggles persist to [render] and restart the accumulation.
+        // R6 row 3: the scheduler's Alias-pick checkbox writes the integrator directly — mirror it into the popup
+        //    member before edge-detecting F5 so both toggles converge on one flag.
+        Diagnostics.AssignAliasPick(Integrator.QueryConfiguration().AliasPick);
         if (Diagnostics.AdvanceInteraction(Input))
         {
             Configuration.Access().Backend.DebugView        = static_cast<Frontier::DebugViewSelection>(Diagnostics.QueryView());

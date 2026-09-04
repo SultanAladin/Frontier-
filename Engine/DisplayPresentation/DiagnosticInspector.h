@@ -41,6 +41,10 @@ public:
     // Edge-detects F3 / Shift+F3 / F4 / F5 / Escape. Returns true when something changed (caller persists + restarts accumulation).
     bool AdvanceInteraction(const InputExchange& Input) noexcept;
 
+    // Mirrors the integrator's live flag (the scheduler's Alias-pick checkbox writes it directly). Called every
+    //    frame before AdvanceInteraction so the F5 key and the checkbox converge on one flag.
+    void AssignAliasPick(bool On) noexcept { AliasPick_ = On; }
+
     void ConstructInspectorLayout(PixelSpace& Surface, float TopInset, float DisplayWidth, const VisibilityTelemetry& Telemetry,
                                   uint32_t ClusterTotal, bool DrawIndirectCount, const ReSTIRIntegratorConfiguration& ReSTIR,
                                   const MaterialIndexMetrics& MaterialStats, const TextureIndexMetrics& TextureStats,
