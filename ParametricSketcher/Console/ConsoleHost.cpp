@@ -55,6 +55,14 @@ void ConsoleHost::DescribeItem(const SceneItem& Item) noexcept
             Item.Identity, Item.Name.c_str(), C.Degree, C.PoleCount(), C.Rational() ? "rational" : "integral", C.Closed() ? " closed" : "",
             C.Length(), B.Low.X, B.Low.Y, B.Low.Z, B.High.X, B.High.Y, B.High.Z, Item.Construction ? "  [construction]" : "", Item.Selected ? "  [selected]" : "");
     }
+    else if (Item.Kind == ItemKind::Body)
+    {
+        BodyReport R = Item.Body.Validate();
+        Row("#%-3u %-18s %-8s V%d E%d F%d  χ=%d genus %d  vol %.4f  area %.4f  bounds [%.2f %.2f %.2f]–[%.2f %.2f %.2f]%s%s%s",
+            Item.Identity, Item.Name.c_str(), Describe(Item.Body.Kind()), R.Vertices, R.Edges, R.Faces, R.EulerCharacteristic, R.Genus, R.Volume, R.Area,
+            B.Low.X, B.Low.Y, B.Low.Z, B.High.X, B.High.Y, B.High.Z, R.Solid() ? "" : (R.OpenEdges ? "  [open]" : R.MisorientedEdges ? "  [misoriented]" : "  [not solid]"),
+            Item.Selected ? "  [selected]" : "", Item.SelectedFaces.empty() && Item.SelectedEdges.empty() ? "" : "  [sub-selection]");
+    }
     else
     {
         const NurbsSurface& S = Item.Surface;
@@ -78,6 +86,16 @@ bool ConsoleHost::AddSurface(const CommandLine& C, const char* Stem, Deliver<Nur
     if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
     SceneItem& Item = Scene.AddSurface(C.FlagValue("name").value_or(Stem), std::move(Result.Payload));
     DescribeItem(Item);
+    return true;
+}
+
+bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result) noexcept
+{
+    if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
+    SceneItem& Item = Scene.AddBody(C.FlagValue("name").value_or(Stem), std::move(Result.Payload));
+    DescribeItem(Item);
+    BodyReport R = Item.Body.Validate();
+    if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges);
     return true;
 }
 
@@ -121,6 +139,11 @@ void ConsoleHost::Render() noexcept
 
     for (const SceneItem& Item : Scene.Items())
     {
+        if (Item.Hidden || Item.Kind != ItemKind::Body) continue;
+        DrawBody(Item);
+    }
+    for (const SceneItem& Item : Scene.Items())
+    {
         if (Item.Hidden || Item.Kind != ItemKind::Surface) continue;
         DrawRecord D = ScenePresentation::Tinted(Item.Tint[0], Item.Tint[1], Item.Tint[2]);
         D.PickIdentity = SceneDocument::PickOf(Item.Identity);
@@ -149,13 +172,51 @@ void ConsoleHost::Render() noexcept
 
     Surface->BeginOverlay();
     DrawToolPreview();
-    if (GizmoShown && (Scene.SelectedCount() > 0 || Scene.SelectedPoleCount() > 0) && !Tool.Active())
+    if (GizmoShown && (Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0) && !Tool.Active())
     {
         if (!GizmoState.Dragging()) RefreshGizmoFrame();
         GizmoState.Draw(*Surface, View, Surface->Width(), Surface->Height());
     }
     ScenePresentation::DrawTriad(*Surface, View.OrthographicHalfHeight() * 0.12);
     Surface->EndTarget();
+}
+
+void ConsoleHost::DrawBody(const SceneItem& Item) noexcept
+{
+    const BrepBody& B = Item.Body;
+    const bool ItemHover = SceneDocument::IdentityOf(HoverPick) == Item.Identity;
+    for (size_t F = 0; F < B.Faces.size(); ++F)
+    {
+        BrepBody::FaceTriangles T = B.TessellateFace(int(F), 2e-3);
+        SurfaceStream S;
+        for (size_t I = 0; I < T.Positions.size(); ++I)
+        {
+            S.Positions.push_back(float(T.Positions[I].X)); S.Positions.push_back(float(T.Positions[I].Y)); S.Positions.push_back(float(T.Positions[I].Z));
+            S.Normals.push_back(float(T.Normals[I].X)); S.Normals.push_back(float(T.Normals[I].Y)); S.Normals.push_back(float(T.Normals[I].Z));
+            S.Parameters.push_back(float(T.Parameters[I].X)); S.Parameters.push_back(float(T.Parameters[I].Y));
+        }
+        S.Triangles = T.Triangles;
+        DrawRecord D = ScenePresentation::Tinted(Item.Tint[0], Item.Tint[1], Item.Tint[2]);
+        D.PickIdentity = SceneDocument::PickOf(Item.Identity, SceneDocument::PickPart::Face, int(F));
+        const bool FaceSel = Item.FaceSelected(int(F));
+        const bool FaceHover = ItemHover && (Mode == SelectMode::Face ? SceneDocument::FaceOf(HoverPick) == int(F) : Mode == SelectMode::Object);
+        D.Highlight = (Item.Selected || FaceSel) ? 2.0f : (FaceHover ? 1.0f : 0.0f);
+        D.Matcap = Item.Matcap;
+        D.Shading = static_cast<uint8_t>(Shading);
+        Surface->DrawSurface(S, D);
+    }
+    for (size_t E = 0; E < B.Edges.size(); ++E)
+    {
+        std::vector<Vec3> P = B.EdgePolyline(int(E));
+        SegmentStream Seg; for (size_t I = 0; I + 1 < P.size(); ++I) Seg.Append(P[I], P[I + 1]);
+        const bool EdgeSel = Item.EdgeSelected(int(E));
+        const bool EdgeHover = ItemHover && Mode == SelectMode::Edge && SceneDocument::EdgeOf(HoverPick) == int(E);
+        DrawRecord D = EdgeSel ? ScenePresentation::Tinted(1.0f, 0.62f, 0.20f) : ScenePresentation::Tinted(0.08f, 0.09f, 0.11f, 0.9f);
+        D.LineWidth = EdgeSel ? 4.0f : (EdgeHover ? 3.0f : 1.5f);
+        D.Highlight = EdgeSel ? 2.0f : (EdgeHover ? 1.0f : 0.0f);
+        D.PickIdentity = SceneDocument::PickOf(Item.Identity, SceneDocument::PickPart::Edge, int(E));
+        Surface->DrawSegments(Seg, D);
+    }
 }
 
 void ConsoleHost::DrawControlPoints(const SceneItem& Item) noexcept
@@ -185,6 +246,16 @@ Vec3 ConsoleHost::SelectionPivot() const noexcept
         for (const SceneItem& I : Scene.Items()) for (int P : I.SelectedPoles) { Sum = Sum + I.PolePosition(P); ++N; }
         return Sum * (1.0 / N);
     }
+    if (Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0)
+    {
+        Box3 B;
+        for (const SceneItem& I : Scene.Items())
+        {
+            for (int F : I.SelectedFaces) B.Include(I.Body.Faces[F].Surface.Bounds());
+            for (int E : I.SelectedEdges) B.Include(I.Body.Edges[E].Curve.Bounds());
+        }
+        if (!B.Empty()) return B.Centre();
+    }
     return Scene.Bounds(true).Centre();
 }
 
@@ -203,8 +274,7 @@ void ConsoleHost::ApplyDeltaToSelection(const Mat4& Delta) noexcept
             {
                 for (int P : Original.SelectedPoles) I->SetPolePosition(P, Delta.TransformPoint(Original.PolePosition(P)));
             }
-            else if (I->Kind == ItemKind::Curve) I->Curve = Original.Curve.Transformed(Delta);
-            else I->Surface = Original.Surface.Transformed(Delta);
+            else { SceneItem Fresh = Original; Fresh.Transform(Delta); I->Curve = std::move(Fresh.Curve); I->Surface = std::move(Fresh.Surface); I->Body = std::move(Fresh.Body); }
         }
 }
 
@@ -312,34 +382,83 @@ void ConsoleHost::Register() noexcept
     });
 
     //---------------------------------------------- primitive surfaces ----------------------------------------------
-    Add("sphere", "sphere (cx,cy,cz) radius", [=, this](const CommandLine& C)
+    Add("box", "box (cornerA) (cornerB)  ·  box (corner) dx dy dz — solid body", [=, this](const CommandLine& C)
+    {
+        Vec3 A, B; if (!Need(C, 2, "box") || !PointArg(C, 0, A, "box")) return false;
+        if (C.Count() >= 4) { double Dx = 0, Dy = 0, Dz = 0; if (!NumberArg(C, 1, Dx, "box") || !NumberArg(C, 2, Dy, "box") || !NumberArg(C, 3, Dz, "box")) return false; B = A + Vec3{ Dx, Dy, Dz }; }
+        else if (!PointArg(C, 1, B, "box")) return false;
+        return AddBody(C, "Box", BrepBody::Box(A, B));
+    });
+    Add("sphere", "sphere (cx,cy,cz) radius [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 Ctr; double R = 0; if (!Need(C, 2, "sphere") || !PointArg(C, 0, Ctr, "sphere") || !NumberArg(C, 1, R, "sphere")) return false;
-        return AddSurface(C, "Sphere", NurbsSurface::Sphere(Ctr, R));
+        if (C.Flag("sheet")) return AddSurface(C, "Sphere", NurbsSurface::Sphere(Ctr, R));
+        return AddBody(C, "Sphere", BrepBody::Sphere(Ctr, R));
     });
-    Add("cylinder", "cylinder (foot) radius height [--axis=(x,y,z)]", [=, this](const CommandLine& C)
+    Add("cylinder", "cylinder (foot) radius height [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 F; double R = 0, H = 0; if (!Need(C, 3, "cylinder") || !PointArg(C, 0, F, "cylinder") || !NumberArg(C, 1, R, "cylinder") || !NumberArg(C, 2, H, "cylinder")) return false;
         Vec3 Axis = Plane.Normal(); if (auto A = C.FlagValue("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
-        return AddSurface(C, "Cylinder", NurbsSurface::Cylinder(F, Axis, R, H));
+        if (C.Flag("sheet")) return AddSurface(C, "Cylinder", NurbsSurface::Cylinder(F, Axis, R, H));
+        return AddBody(C, "Cylinder", BrepBody::Cylinder(F, Axis, R, H));
     });
-    Add("cone", "cone (foot) radiusFoot radiusTop height [--axis=(x,y,z)]", [=, this](const CommandLine& C)
+    Add("cone", "cone (foot) radiusFoot radiusTop height [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 F; double R0 = 0, R1 = 0, H = 0;
         if (!Need(C, 4, "cone") || !PointArg(C, 0, F, "cone") || !NumberArg(C, 1, R0, "cone") || !NumberArg(C, 2, R1, "cone") || !NumberArg(C, 3, H, "cone")) return false;
         Vec3 Axis = Plane.Normal(); if (auto A = C.FlagValue("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
-        return AddSurface(C, "Cone", NurbsSurface::Cone(F, Axis, R0, R1, H));
+        if (C.Flag("sheet")) return AddSurface(C, "Cone", NurbsSurface::Cone(F, Axis, R0, R1, H));
+        return AddBody(C, "Cone", BrepBody::Cone(F, Axis, R0, R1, H));
     });
-    Add("torus", "torus (centre) radiusMajor radiusMinor [--axis=(x,y,z)]", [=, this](const CommandLine& C)
+    Add("torus", "torus (centre) radiusMajor radiusMinor [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 Ctr; double R0 = 0, R1 = 0; if (!Need(C, 3, "torus") || !PointArg(C, 0, Ctr, "torus") || !NumberArg(C, 1, R0, "torus") || !NumberArg(C, 2, R1, "torus")) return false;
         Vec3 Axis = Plane.Normal(); if (auto A = C.FlagValue("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
-        return AddSurface(C, "Torus", NurbsSurface::Torus(Ctr, Axis, R0, R1));
+        if (C.Flag("sheet")) return AddSurface(C, "Torus", NurbsSurface::Torus(Ctr, Axis, R0, R1));
+        return AddBody(C, "Torus", BrepBody::Torus(Ctr, Axis, R0, R1));
     });
-    Add("plane", "plane (origin) lengthU lengthV", [=, this](const CommandLine& C)
+    Add("topology", "topology <body> — vertices, edges (with coedge senses), loops, faces, validation", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "topology")) return false;
+        SceneItem* I = Resolve(C.Arguments[0]); if (!I) return Refuse("no item '%s'", C.Arguments[0].c_str());
+        if (I->Kind != ItemKind::Body) return Refuse("topology: '%s' is not a body", I->Name.c_str());
+        const BrepBody& B = I->Body; BodyReport R = B.Validate();
+        Row("%s %s  V%d E%d F%d L%d  shells %d  χ=%d genus %d  closed %s manifold %s oriented %s  volume %.6f  area %.6f", I->Name.c_str(), Describe(B.Kind()),
+            R.Vertices, R.Edges, R.Faces, R.Loops, R.Shells, R.EulerCharacteristic, R.Genus, R.Closed ? "yes" : "no", R.Manifold ? "yes" : "no", R.Oriented ? "yes" : "no", R.Volume, R.Area);
+        for (size_t V = 0; V < B.Vertices.size(); ++V) Row("  v%-3zu (%9.4f %9.4f %9.4f)", V, B.Vertices[V].Point.X, B.Vertices[V].Point.Y, B.Vertices[V].Point.Z);
+        for (size_t E = 0; E < B.Edges.size(); ++E)
+        {
+            const BrepEdge& Ed = B.Edges[E];
+            std::string Users; for (int Ce : Ed.Coedges) Users += " f" + std::to_string(B.Coedges[Ce].Face) + (B.Coedges[Ce].Reversed ? "-" : "+");
+            Row("  e%-3zu v%d→v%d  %s deg %d  len %.4f  coedges[%s ]%s", E, Ed.VertexStart, Ed.VertexEnd, Describe(Ed.Curve.Classification), Ed.Curve.Degree, Ed.Curve.Length(), Users.c_str(),
+                Ed.Coedges.size() == 1 ? "  OPEN" : Ed.Coedges.size() > 2 ? "  NON-MANIFOLD" : "");
+        }
+        for (size_t F = 0; F < B.Faces.size(); ++F)
+        {
+            const BrepFace& Fa = B.Faces[F];
+            std::string Loops;
+            for (int L : Fa.Loops) { Loops += B.Loops[L].Outer ? "  outer[" : "  hole["; for (int Ce : B.Loops[L].Coedges) Loops += " e" + std::to_string(B.Coedges[Ce].Edge) + (B.Coedges[Ce].Reversed ? "-" : "+"); Loops += " ]"; }
+            Vec3 N = B.FaceNormal(int(F), 0.5 * (Fa.Surface.DomainStartU() + Fa.Surface.DomainEndU()), 0.5 * (Fa.Surface.DomainStartV() + Fa.Surface.DomainEndV()));
+            Row("  f%-3zu %-10s %s%s  n(%.2f %.2f %.2f)%s", F, Describe(Fa.Surface.Classification), Fa.Reversed ? "reversed " : "", Fa.Natural ? "natural" : "trimmed", N.X, N.Y, N.Z, Loops.c_str());
+        }
+        return true;
+    });
+    Add("sew", "sew <surface...> — stitch sheet surfaces into one body, cap planar openings, orient", [=, this](const CommandLine& C)
+    {
+        std::vector<NurbsSurface> S; std::vector<uint32_t> Ids;
+        for (SceneItem* I : ResolveMany(C, 0)) { if (I->Kind == ItemKind::Surface) { S.push_back(I->Surface); Ids.push_back(I->Identity); } else if (I->Kind == ItemKind::Body) { for (const BrepFace& F : I->Body.Faces) S.push_back(F.Surface); Ids.push_back(I->Identity); } }
+        if (S.empty()) return Refuse("sew: no surfaces");
+        if (!AddBody(C, "Sewn", BrepBody::Sew(S))) return false;
+        if (!C.Flag("keep")) for (uint32_t Id : Ids) Scene.Remove(Id);
+        return true;
+    });
+    Add("plane", "plane (origin) lengthU lengthV [--u=(x,y,z)] [--v=(x,y,z)]", [=, this](const CommandLine& C)
     {
         Vec3 O; double LU = 0, LV = 0; if (!Need(C, 3, "plane") || !PointArg(C, 0, O, "plane") || !NumberArg(C, 1, LU, "plane") || !NumberArg(C, 2, LV, "plane")) return false;
-        return AddSurface(C, "Plane", NurbsSurface::Plane(O, Plane.AxisX, Plane.AxisY, LU, LV));
+        Vec3 U = Plane.AxisX, V = Plane.AxisY;
+        if (auto A = C.FlagValue("u")) if (auto W = CommandCodec::ParsePoint(*A)) U = *W;
+        if (auto A = C.FlagValue("v")) if (auto W = CommandCodec::ParsePoint(*A)) V = *W;
+        return AddSurface(C, "Plane", NurbsSurface::Plane(O, U, V, LU, LV));
     });
     Add("patch", "patch countU countV (p00) (p01) ... row-major [--degree=3]   B-spline patch", [=, this](const CommandLine& C)
     {
@@ -351,21 +470,23 @@ void ConsoleHost::Register() noexcept
     });
 
     //---------------------------------------------- derived surfaces ----------------------------------------------
-    Add("extrude", "extrude <curve> length [--direction=(x,y,z)]", [=, this](const CommandLine& C)
+    Add("extrude", "extrude <curve> length [--direction=(x,y,z)] [--sheet] — closed profile → solid", [=, this](const CommandLine& C)
     {
         double L = 0; if (!Need(C, 2, "extrude") || !NumberArg(C, 1, L, "extrude")) return false;
         SceneItem* Item = Resolve(C.Arguments[0]); if (!Item || Item->Kind != ItemKind::Curve) return Refuse("extrude: '%s' is not a curve", C.Arguments[0].c_str());
         Vec3 Dir = Plane.Normal(); if (auto A = C.FlagValue("direction")) if (auto V = CommandCodec::ParsePoint(*A)) Dir = *V;
-        return AddSurface(C, "Extrusion", NurbsSurface::Extrusion(Item->Curve, Dir, L));
+        if (C.Flag("sheet") || !Item->Curve.Closed()) return AddSurface(C, "Extrusion", NurbsSurface::Extrusion(Item->Curve, Dir, L));
+        return AddBody(C, "Extrusion", BrepBody::Extrude(Item->Curve, Dir, L));           // closed profile → solid with caps
     });
-    Add("revolve", "revolve <curve> angleDeg [--origin=(x,y,z)] [--axis=(x,y,z)]", [=, this](const CommandLine& C)
+    Add("revolve", "revolve <curve> angleDeg [--origin=(x,y,z)] [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
         double Angle = 0; if (!Need(C, 2, "revolve") || !NumberArg(C, 1, Angle, "revolve")) return false;
         SceneItem* Item = Resolve(C.Arguments[0]); if (!Item || Item->Kind != ItemKind::Curve) return Refuse("revolve: '%s' is not a curve", C.Arguments[0].c_str());
         Vec3 O = Plane.Origin, Axis = Plane.AxisY;
         if (auto A = C.FlagValue("origin")) if (auto V = CommandCodec::ParsePoint(*A)) O = *V;
         if (auto A = C.FlagValue("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
-        return AddSurface(C, "Revolution", NurbsSurface::Revolution(Item->Curve, O, Axis, ScalarCriteria::Radians(Angle)));
+        if (C.Flag("sheet")) return AddSurface(C, "Revolution", NurbsSurface::Revolution(Item->Curve, O, Axis, ScalarCriteria::Radians(Angle)));
+        return AddBody(C, "Revolution", BrepBody::Revolve(Item->Curve, O, Axis, ScalarCriteria::Radians(Angle)));
     });
     Add("loft", "loft <curve> <curve> ... [--degree=3]", [=, this](const CommandLine& C)
     {
@@ -400,6 +521,7 @@ void ConsoleHost::Register() noexcept
             std::printf("    knots:"); for (double T : K.Knots) std::printf(" %.4g", T); std::printf("\n");
             for (int I = 0; I < K.PoleCount(); ++I) { Vec3 P = K.Poles[I].Divide(); std::printf("    pole %-3d (%9.4f %9.4f %9.4f)  w %.4f\n", I, P.X, P.Y, P.Z, K.Poles[I].W); }
         }
+        else if (Item->Kind == ItemKind::Body) return Execute("topology " + C.Arguments[0]);
         else
         {
             const NurbsSurface& S = Item->Surface;
@@ -420,7 +542,7 @@ void ConsoleHost::Register() noexcept
         Vec3 D; if (!PointArg(C, C.Count() - 1, D, "move")) return false;
         CommandLine Sub = C; Sub.Arguments.pop_back();
         Mat4 M = Mat4::Translation(D);
-        for (SceneItem* I : ResolveMany(Sub, 0)) { if (I->Kind == ItemKind::Curve) I->Curve = I->Curve.Transformed(M); else I->Surface = I->Surface.Transformed(M); DescribeItem(*I); }
+        for (SceneItem* I : ResolveMany(Sub, 0)) { I->Transform(M); DescribeItem(*I); }
         return true;
     });
 

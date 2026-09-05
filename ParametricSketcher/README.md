@@ -52,7 +52,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 3 | Workplane, snap, modal input, sketch tools (Line … control-point curve) | dimensioned profile with snap markers |
 | 4 | Pick pass, selection modes, records, undo/redo, hotkey table | highlighted selection, box select |
 | 5 | Gizmo (GizmoPRO design) + G/R/S modal + numeric input | combined and separate T/R/S gizmos |
-| 6 | B-rep topology + primitives + shell validation | all primitives, back-face tint |
+| 6 | B-rep topology (`BrepBody`), sew / cap / orient, solid primitives, face & edge selection | `TopologyVerification` — 79 checks; `Proof_06a/b/c` |
 | 7 | 2D booleans, fillet / chamfer / trim / offset / join | region tables, winding normalised |
 | 8 | Extrude / Revolve / Loft / Sweep → solids | extruded profile with hole, revolved vase |
 | 9 | Surface–surface intersection + 3D NURBS booleans | box∪box, box−cylinder, sphere∩box, coplanar subtract |
@@ -99,3 +99,26 @@ Gizmo in control mode moves only the selected poles (pivot = their centroid), so
 Inside a tool: `X`/`Y`/`Z` lock an axis (again to clear), `Shift+X/Y/Z` lock a plane, `Backspace` removes the last point,
 `Enter`/right-click confirm, `Esc` cancels, `↑`/`↓` change polygon sides or spline degree, `Ctrl` while moving suppresses snapping.
 
+
+## Boundary representation (Phase 6)
+
+`Kernel/TopologySpecification.{h,cpp}` adds `BrepBody`: vertices, edges (NURBS curves), coedges (edge + sense), loops, faces (NURBS
+surfaces + `Reversed` flag + trimming loops). Bodies are assembled with one generic operation — `BrepBody::Sew(surfaces)`:
+
+1. every surface becomes a face whose natural boundary is split at tangent kinks, so a hexagon prism gets six side faces and one
+   edge per corner while a slot extrusion stays a single side face;
+2. coincident boundary curves are merged into shared edges (`FindCoincidentEdge`, either sense);
+3. `Orient()` walks face adjacency so every interior edge has two coedges of opposite sense, then flips the whole body if the
+   divergence-theorem volume is negative;
+4. `Capped()` fits a plane (Newell) to every remaining open loop and adds a trimmed planar face, triangulated by ear clipping with
+   hole bridging;
+5. `Validate()` reports V/E/F/L, shells, open / non-manifold / mis-oriented edges, χ, genus, volume and area.
+
+`Box`, `Cylinder`, `Cone`, `Sphere`, `Torus`, `Extrude(profile, dir, length)` and `Revolve(profile, origin, axis, angle)` are thin
+wrappers over `Sew`. Tessellated volumes land within 0.1 % of the analytic values; χ = 2 for genus-0 solids, 0 for the torus and ring.
+
+Console: `box`, and `cylinder`/`cone`/`sphere`/`torus`/`extrude`/`revolve` now produce solids (`--sheet` keeps a plain surface; an
+open profile still extrudes to a sheet). `topology <body>` prints vertices, edges with their coedge senses, loops and face normals;
+`sew <items…>` stitches surfaces. Select modes 3 (face) and 2 (edge) pick faces and edges from the pick plane — each face and edge
+carries its own pick id — and `select faces|edges <body> <i…>|all|none` does it by index. Sub-selections drive the gizmo pivot and
+are hashed into the history ledger.

@@ -55,7 +55,9 @@ private:
 
     void RegisterInteraction() noexcept;                                                // Phase 3 commands
     void RegisterSelection() noexcept;                                                  // Phase 4 commands
-    void DrawControlPoints(const SceneItem& Item) noexcept;                             // cage + poles with per-pole pick ids
+    void DrawControlPoints(const SceneItem& Item) noexcept;
+    void DrawBody(const SceneItem& Item) noexcept;                                       // faces + edges with sub-pick ids
+    bool AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result) noexcept;                             // cage + poles with per-pole pick ids
     bool SelectAtPixel(double X, double Y, bool Toggle) noexcept;                       // click-select honouring the mode
     int  SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept;
     void HoverAtPixel(double X, double Y) noexcept;

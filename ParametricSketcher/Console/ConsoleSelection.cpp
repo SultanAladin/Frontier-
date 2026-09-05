@@ -14,13 +14,13 @@ namespace Frontier
 
 namespace
 {
-    void TogglePole(SceneItem& Item, int Pole, bool On) noexcept
+    void ToggleIndex(std::vector<int>& S, int Index, bool On) noexcept
     {
-        auto& S = Item.SelectedPoles;
-        auto It = std::find(S.begin(), S.end(), Pole);
-        if (On && It == S.end()) S.push_back(Pole);
+        auto It = std::find(S.begin(), S.end(), Index);
+        if (On && It == S.end()) S.push_back(Index);
         if (!On && It != S.end()) S.erase(It);
     }
+    void TogglePole(SceneItem& Item, int Pole, bool On) noexcept { ToggleIndex(Item.SelectedPoles, Pole, On); }
 }
 
 void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
@@ -28,13 +28,18 @@ void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
     if (X < 0 || Y < 0 || X >= Surface->Width() || Y >= Surface->Height()) return;
     Render();
     uint32_t Pick = Surface->Pick(uint32_t(X), uint32_t(Y));
-    if (Mode != SelectMode::Control && SceneDocument::PoleOf(Pick) >= 0) Pick = SceneDocument::PickOf(SceneDocument::IdentityOf(Pick));
+    const auto Part = SceneDocument::PartOf(Pick);
+    if (Mode == SelectMode::Object || Mode == SelectMode::Face) { if (Part == SceneDocument::PickPart::Pole || Part == SceneDocument::PickPart::Edge) Pick = SceneDocument::PickOf(SceneDocument::IdentityOf(Pick)); }
+    if (Mode == SelectMode::Control && Part != SceneDocument::PickPart::Pole) Pick = SceneDocument::PickOf(SceneDocument::IdentityOf(Pick));
+    if (Mode == SelectMode::Edge && Part != SceneDocument::PickPart::Edge) Pick = SceneDocument::PickOf(SceneDocument::IdentityOf(Pick));
     if (Pick == HoverPick) return;
     HoverPick = Pick;
     if (SceneItem* I = Scene.Find(SceneDocument::IdentityOf(Pick)))
     {
-        int Pole = SceneDocument::PoleOf(Pick);
+        int Pole = SceneDocument::PoleOf(Pick), Face = SceneDocument::FaceOf(Pick), Edge = SceneDocument::EdgeOf(Pick);
         if (Pole >= 0) Row("hover #%u %s pole %d", I->Identity, I->Name.c_str(), Pole);
+        else if (Face >= 0 && Mode == SelectMode::Face) Row("hover #%u %s face %d", I->Identity, I->Name.c_str(), Face);
+        else if (Edge >= 0) Row("hover #%u %s edge %d", I->Identity, I->Name.c_str(), Edge);
         else Row("hover #%u %s", I->Identity, I->Name.c_str());
     }
     else Row("hover nothing");
@@ -63,6 +68,26 @@ bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
         Row("pole %d of #%u %s %s  (%.4f %.4f %.4f)  ·  %d pole(s) selected", Pole, Item->Identity, Item->Name.c_str(), On ? "selected" : "deselected", P.X, P.Y, P.Z, Scene.SelectedPoleCount());
         return true;
     }
+    if (Item->Kind == ItemKind::Body && Mode == SelectMode::Face)
+    {
+        int Face = SceneDocument::FaceOf(Pick);
+        if (Face < 0) { Row("click (%d,%d): #%u %s has no face here", int(X), int(Y), Item->Identity, Item->Name.c_str()); return false; }
+        const bool On = Toggle ? !Item->FaceSelected(Face) : true;
+        ToggleIndex(Item->SelectedFaces, Face, On);
+        const BrepFace& F = Item->Body.Faces[Face];
+        Row("face %d of #%u %s %s  (%s, %zu loop(s))  ·  %d face(s) selected", Face, Item->Identity, Item->Name.c_str(), On ? "selected" : "deselected", Describe(F.Surface.Classification), F.Loops.size(), Scene.SelectedFaceCount());
+        return true;
+    }
+    if (Item->Kind == ItemKind::Body && Mode == SelectMode::Edge)
+    {
+        int Edge = SceneDocument::EdgeOf(Pick);
+        if (Edge < 0) { Row("click (%d,%d): #%u %s — no edge under the pointer (edges pick within their line width)", int(X), int(Y), Item->Identity, Item->Name.c_str()); return false; }
+        const bool On = Toggle ? !Item->EdgeSelected(Edge) : true;
+        ToggleIndex(Item->SelectedEdges, Edge, On);
+        const BrepEdge& E = Item->Body.Edges[Edge];
+        Row("edge %d of #%u %s %s  (%s, length %.4f, %zu face(s))  ·  %d edge(s) selected", Edge, Item->Identity, Item->Name.c_str(), On ? "selected" : "deselected", Describe(E.Curve.Classification), E.Curve.Length(), E.Coedges.size(), Scene.SelectedEdgeCount());
+        return true;
+    }
     Item->Selected = Toggle ? !Item->Selected : true;
     DescribeItem(*Item);
     Row("%d selected", Scene.SelectedCount());
@@ -89,6 +114,18 @@ int ConsoleHost::SelectInRectangle(double X0, double Y0, double X1, double Y1, b
             if (Pole < 0) continue;                                                     // box in control mode only takes poles
             TogglePole(*Item, Pole, !Subtract); Item->Selected = true; ++Changed;
         }
+        else if (Mode == SelectMode::Face && Item->Kind == ItemKind::Body)
+        {
+            int Face = SceneDocument::FaceOf(P); if (Face < 0) continue;
+            if (Item->FaceSelected(Face) != Subtract) continue;
+            ToggleIndex(Item->SelectedFaces, Face, !Subtract); ++Changed;
+        }
+        else if (Mode == SelectMode::Edge && Item->Kind == ItemKind::Body)
+        {
+            int Edge = SceneDocument::EdgeOf(P); if (Edge < 0) continue;
+            if (Item->EdgeSelected(Edge) != Subtract) continue;
+            ToggleIndex(Item->SelectedEdges, Edge, !Subtract); ++Changed;
+        }
         else if (Item->Selected == Subtract)
         {
             Item->Selected = !Subtract; ++Changed;
@@ -102,7 +139,7 @@ void ConsoleHost::RegisterSelection() noexcept
     auto Add = [&](const char* Verb, const char* Help, Command Fn) { Commands[Verb] = std::move(Fn); Usage[Verb] = Help; };
     auto Number = [&](const CommandLine& C, size_t I, double& Out) -> bool { auto N = C.Number(I); if (!N) return false; Out = *N; return true; };
 
-    Add("select", "select <item...> | all | none | invert  ·  select box x0 y0 x1 y1 [--add|--subtract]  ·  select poles <item> <i...>|all|none  [--add]", [=, this](const CommandLine& C)
+    Add("select", "select <item...> | all | none | invert  ·  select box x0 y0 x1 y1 [--add|--subtract]  ·  select poles|faces|edges <item> <i...>|all|none [--add]", [=, this](const CommandLine& C)
     {
         if (C.Count() == 1 && C.Arguments[0] == "none") { Scene.ClearSelection(); Row("selection cleared"); return true; }
         if (C.Count() == 1 && C.Arguments[0] == "invert")
@@ -127,6 +164,24 @@ void ConsoleHost::RegisterSelection() noexcept
             int N = SelectInRectangle(V[0], V[1], V[2], V[3], C.Flag("add"), C.Flag("subtract"));
             Row("box (%d,%d)-(%d,%d): %d change(s)", int(V[0]), int(V[1]), int(V[2]), int(V[3]), N);
         }
+        else if (C.Count() >= 3 && (C.Arguments[0] == "faces" || C.Arguments[0] == "edges"))
+        {
+            const bool Faces = C.Arguments[0] == "faces";
+            SceneItem* I = Resolve(C.Arguments[1]); if (!I) return Refuse("no item '%s'", C.Arguments[1].c_str());
+            if (I->Kind != ItemKind::Body) return Refuse("select %s: '%s' is not a body", C.Arguments[0].c_str(), I->Name.c_str());
+            std::vector<int>& Target = Faces ? I->SelectedFaces : I->SelectedEdges;
+            const int Count = Faces ? int(I->Body.Faces.size()) : int(I->Body.Edges.size());
+            if (!C.Flag("add")) for (SceneItem& J : Scene.Items()) { J.SelectedFaces.clear(); J.SelectedEdges.clear(); }
+            if (C.Arguments[2] == "all") { Target.clear(); for (int K = 0; K < Count; ++K) Target.push_back(K); }
+            else if (C.Arguments[2] == "none") Target.clear();
+            else for (size_t K = 2; K < C.Count(); ++K)
+            {
+                double Ix; if (!Number(C, K, Ix) || Ix < 0 || Ix >= Count) return Refuse("select %s: index %s out of range 0..%d", C.Arguments[0].c_str(), C.Arguments[K].c_str(), Count - 1);
+                ToggleIndex(Target, int(Ix), true);
+            }
+            SelectMode Want = Faces ? SelectMode::Face : SelectMode::Edge;
+            if (Mode != Want) { Mode = Want; Row("select mode %s", SelectModeName(Mode)); }
+        }
         else if (C.Count() >= 2 && C.Arguments[0] == "poles")
         {
             SceneItem* I = Resolve(C.Arguments[1]); if (!I) return Refuse("no item '%s'", C.Arguments[1].c_str());
@@ -148,7 +203,11 @@ void ConsoleHost::RegisterSelection() noexcept
             for (SceneItem* I : Items) I->Selected = true;
         }
         int N = 0; for (const SceneItem& I : Scene.Items()) if (I.Selected) { ++N; DescribeItem(I); }
-        Row("%d selected%s", N, Mode == SelectMode::Control ? (", " + std::to_string(Scene.SelectedPoleCount()) + " pole(s)").c_str() : "");
+        std::string Sub;
+        if (Scene.SelectedPoleCount()) Sub += ", " + std::to_string(Scene.SelectedPoleCount()) + " pole(s)";
+        if (Scene.SelectedFaceCount()) Sub += ", " + std::to_string(Scene.SelectedFaceCount()) + " face(s)";
+        if (Scene.SelectedEdgeCount()) Sub += ", " + std::to_string(Scene.SelectedEdgeCount()) + " edge(s)";
+        Row("%d selected%s", N, Sub.c_str());
         return true;
     });
     Add("delete", "delete <item...> | selected  — in control mode nothing is deleted from a NURBS (poles are structural)", [=, this](const CommandLine& C)
@@ -193,7 +252,7 @@ void ConsoleHost::RegisterSelection() noexcept
         {
             SceneItem Copy = *Scene.Find(Id);
             SceneItem& D = Scene.Duplicate(Copy);
-            if (HasOffset) { Mat4 T = Mat4::Translation(Offset); if (D.Kind == ItemKind::Curve) D.Curve = D.Curve.Transformed(T); else D.Surface = D.Surface.Transformed(T); }
+            if (HasOffset) D.Transform(Mat4::Translation(Offset));
             D.Selected = true; DescribeItem(D);
         }
         Row("duplicated %zu item(s)%s", Ids.size(), HasOffset ? "" : " in place — G to move");
@@ -216,8 +275,8 @@ void ConsoleHost::RegisterSelection() noexcept
             SceneItem* Target = Scene.Find(Id);
             if (C.Flag("copy")) { SceneItem Copy = *Target; Target = &Scene.Duplicate(Copy); Target->Selected = true; }
             // A reflection flips orientation: reverse one parametric direction so the outward normal survives.
-            if (Target->Kind == ItemKind::Curve) Target->Curve = Target->Curve.Transformed(M);
-            else Target->Surface = Target->Surface.Transformed(M).Reversed();
+            if (Target->Kind == ItemKind::Surface) Target->Surface = Target->Surface.Transformed(M).Reversed();
+            else Target->Transform(M);                                                  // bodies re-orient inside BrepBody::Transformed
             DescribeItem(*Target);
         }
         Row("mirrored %zu item(s) across %s%s", Ids.size(), Axis.c_str(), C.Flag("copy") ? " (copies)" : "");

@@ -23,10 +23,18 @@ uint64_t HistoryLedger::Fingerprint(const SceneDocument& Scene) noexcept
         Mix(H, (I.Construction ? 1 : 0) | (I.Hidden ? 2 : 0) | (I.Selected ? 4 : 0)); Mix(H, I.Matcap);
         Mix(H, Bits(I.Tint[0])); Mix(H, Bits(I.Tint[1])); Mix(H, Bits(I.Tint[2]));
         for (int P : I.SelectedPoles) Mix(H, uint64_t(P) + 7);
+        for (int P : I.SelectedFaces) Mix(H, uint64_t(P) + 11);
+        for (int P : I.SelectedEdges) Mix(H, uint64_t(P) + 13);
         if (I.Kind == ItemKind::Curve)
         {
             Mix(H, I.Curve.Degree); for (const Vec4& P : I.Curve.Poles) { Mix(H, Bits(P.X)); Mix(H, Bits(P.Y)); Mix(H, Bits(P.Z)); Mix(H, Bits(P.W)); }
             for (double K : I.Curve.Knots) Mix(H, Bits(K));
+        }
+        else if (I.Kind == ItemKind::Body)
+        {
+            Mix(H, I.Body.Faces.size()); Mix(H, I.Body.Edges.size());
+            for (const BrepVertex& V : I.Body.Vertices) { Mix(H, Bits(V.Point.X)); Mix(H, Bits(V.Point.Y)); Mix(H, Bits(V.Point.Z)); }
+            for (const BrepFace& F : I.Body.Faces) { Mix(H, F.Reversed); for (const Vec4& P : F.Surface.Poles) { Mix(H, Bits(P.X)); Mix(H, Bits(P.Y)); Mix(H, Bits(P.Z)); } }
         }
         else
         {

@@ -35,7 +35,7 @@ void ConsoleHost::OnToolOutcome(const ToolOutcome& Outcome) noexcept
     {
         int N = 0;
         for (SceneItem& I : Scene.Items())
-            if (I.Selected) { if (I.Kind == ItemKind::Curve) I.Curve = I.Curve.Transformed(Outcome.Transform); else I.Surface = I.Surface.Transformed(Outcome.Transform); ++N; DescribeItem(I); }
+            if (I.Selected) { I.Transform(Outcome.Transform); ++N; DescribeItem(I); }
         Row("%s → %d item(s)", Outcome.Summary.c_str(), N);
     }
     else Row("tool: %s", Outcome.Summary.c_str());
@@ -63,7 +63,7 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
         }
         return Refuse("%s is not bound", DescribeKeyChord(E.KeyCode, E.Modifiers).c_str());
     }
-    const bool GizmoLive = GizmoShown && (Scene.SelectedCount() > 0 || Scene.SelectedPoleCount() > 0);
+    const bool GizmoLive = GizmoShown && (Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0);
     if (E.Action == InputAction::PointerMove && GizmoLive)
     {
         if (GizmoState.Dragging())
@@ -85,7 +85,7 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
         if (GizmoState.BeginDrag(E.PixelX, E.PixelY, View, Surface->Width(), Surface->Height()))
         {
             GizmoOriginals.clear();
-            for (const SceneItem& I : Scene.Items()) if (I.Selected || !I.SelectedPoles.empty()) GizmoOriginals.emplace_back(I.Identity, I);
+            for (const SceneItem& I : Scene.Items()) if (I.Selected || !I.SelectedPoles.empty() || !I.SelectedFaces.empty() || !I.SelectedEdges.empty()) GizmoOriginals.emplace_back(I.Identity, I);
             Row("gizmo grab %s", GizmoHandleName(GizmoState.Drag().Handle));
             return true;
         }
@@ -310,11 +310,11 @@ void ConsoleHost::RegisterInteraction() noexcept
         else if (A != "status") return Refuse("selectmode: control|edge|face|object|cycle|status");
         if (Next != Mode)
         {
-            // Leaving control mode drops pole selection; entering it keeps items selected so their cages show.
-            if (Mode == SelectMode::Control) for (SceneItem& I : Scene.Items()) I.SelectedPoles.clear();
+            // Changing mode drops the sub-selection of the mode being left; item selection persists.
+            for (SceneItem& I : Scene.Items()) { I.SelectedPoles.clear(); I.SelectedFaces.clear(); I.SelectedEdges.clear(); }
             Mode = Next;
         }
-        Row("select mode %s  ·  %d item(s), %d pole(s) selected", SelectModeName(Mode), Scene.SelectedCount(), Scene.SelectedPoleCount());
+        Row("select mode %s  ·  %d item(s), %d pole(s), %d face(s), %d edge(s) selected", SelectModeName(Mode), Scene.SelectedCount(), Scene.SelectedPoleCount(), Scene.SelectedFaceCount(), Scene.SelectedEdgeCount());
         return true;
     });
 }

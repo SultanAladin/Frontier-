@@ -23,6 +23,7 @@ endif()
 add_library(SolidArcKernel STATIC
     Kernel/CurveSpecification.cpp
     Kernel/SurfaceSpecification.cpp
+    Kernel/TopologySpecification.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -74,6 +75,9 @@ add_test(NAME InteractionVerification COMMAND InteractionVerification)
 add_executable(SelectionVerification Verification/SelectionVerification.cpp)
 target_link_libraries(SelectionVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME SelectionVerification COMMAND SelectionVerification)
+add_executable(TopologyVerification Verification/TopologyVerification.cpp)
+target_link_libraries(TopologyVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME TopologyVerification COMMAND TopologyVerification)
 add_test(NAME Phase3_Sketching COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3_Sketching.arc)
 add_test(NAME Phase4_Selection COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase4_Selection.arc)
 add_test(NAME Phase3b_GizmoShading COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3b_GizmoShading.arc)

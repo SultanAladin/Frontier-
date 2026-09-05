@@ -24,9 +24,20 @@ SceneItem& SceneDocument::Duplicate(const SceneItem& Source) noexcept
 {
     SceneItem Item = Source;
     Item.Identity = NextIdentity++;
-    Item.Selected = false; Item.SelectedPoles.clear();
+    Item.Selected = false; Item.SelectedPoles.clear(); Item.SelectedFaces.clear(); Item.SelectedEdges.clear();
     std::string Stem = Source.Name; size_t Dot = Stem.rfind('.'); if (Dot != std::string::npos && Dot + 1 < Stem.size() && std::isdigit(uint8_t(Stem[Dot + 1]))) Stem.resize(Dot);
     Item.Name = UniqueName(Stem);
+    Store.push_back(std::move(Item));
+    return Store.back();
+}
+
+SceneItem& SceneDocument::AddBody(std::string Name, BrepBody Body) noexcept
+{
+    SceneItem Item;
+    Item.Identity = NextIdentity++;
+    Item.Kind = ItemKind::Body;
+    Item.Name = UniqueName(Name.empty() ? "Body" : Name);
+    Item.Body = std::move(Body);
     Store.push_back(std::move(Item));
     return Store.back();
 }

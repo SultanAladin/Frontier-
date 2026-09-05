@@ -106,10 +106,11 @@ int main()
         Panel.Expect("Mirror copy exists", Item("Cylinder.3") != nullptr);
         Panel.Within("Mirror across x flips the centre", Item("Cylinder.3")->Bounds().Centre().Distance({ -2, 0, 0.5 }), 1e-9);
         // orientation: mirrored surface must still face outward → normal at a side point points away from the axis
-        const NurbsSurface& M = Item("Cylinder.3")->Surface;
-        Vec3 Pm = M.Sample(0.125, 0.5), Nm = M.Normal(0.125, 0.5);
+        const BrepBody& M = Item("Cylinder.3")->Body;
+        const NurbsSurface& Side = M.Faces[0].Surface;
+        Vec3 Pm = Side.Sample(0.125, 0.5), Nm = M.FaceNormal(0, 0.125, 0.5);
         Vec3 Radial = Vec3{ Pm.X + 2.0, Pm.Y, 0.0 }.Normalised();
-        Panel.Expect("Mirrored cylinder keeps outward normals (Reversed after reflection)", Nm.Dot(Radial) > 0.9);
+        Panel.Expect("Mirrored cylinder keeps outward normals (body re-oriented after reflection)", Nm.Dot(Radial) > 0.9 && M.Validate().Solid());
         Host.Execute("key shift+d");
         Panel.Expect("Shift+D duplicates in place", Doc.Items().size() == 4);
         Host.Execute("render Proof_04d_DuplicateMirror");
