@@ -26,9 +26,36 @@ add_library(SolidArcKernel STATIC
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ─── Presentation + Interaction: RasterExchange contract, CPU SoftwareRaster (Slang shaders mirrored in C++), camera ─────────────────────────
+add_library(SolidArcPresentation STATIC
+    Presentation/SoftwareRaster.cpp
+    Presentation/ScenePresentation.cpp
+    Interaction/CameraProjection.cpp
+)
+target_link_libraries(SolidArcPresentation PUBLIC SolidArcKernel)
+target_include_directories(SolidArcPresentation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Presentation)
+target_compile_definitions(SolidArcPresentation PUBLIC SOLIDARC_PROOF_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/Proofs")
+
+# ─── Document + Console: item store, command codec, console host, SolidArc executable ───────────────────────────────────────────────────────
+add_library(SolidArcConsoleKit STATIC
+    Document/SceneDocument.cpp
+    Console/CommandCodec.cpp
+    Console/ConsoleHost.cpp
+)
+target_link_libraries(SolidArcConsoleKit PUBLIC SolidArcPresentation)
+
+add_executable(SolidArc Console/SolidArcConsole.cpp)
+target_link_libraries(SolidArc PRIVATE SolidArcConsoleKit)
+
 # ─── Verification: console proofs, one executable per phase, registered with ctest ──────────────────────────────────────────────────────────
 enable_testing()
 
 add_executable(KernelVerification Verification/KernelVerification.cpp)
 target_link_libraries(KernelVerification PRIVATE SolidArcKernel)
 add_test(NAME KernelVerification COMMAND KernelVerification)
+
+add_executable(RasterVerification Verification/RasterVerification.cpp)
+target_link_libraries(RasterVerification PRIVATE SolidArcPresentation)
+add_test(NAME RasterVerification COMMAND RasterVerification)
+
+add_test(NAME Phase2_Primitives COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase2_Primitives.arc)

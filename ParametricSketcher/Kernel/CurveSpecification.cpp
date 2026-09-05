@@ -858,8 +858,12 @@ void NurbsCurve::TessellateSpan(double T0, double T1, Vec3 P0, Vec3 P1, int Dept
     double ChordLength = Chord.Length();
     double Sagitta = ChordLength > ScalarCriteria::KernelTolerance ? (Pm - P0).Cross(Chord).Length() / ChordLength : (Pm - P0).Length();
     // Turning angle between the two half chords.
-    Vec3 A = (Pm - P0).Normalised(), B = (P1 - Pm).Normalised();
-    double Turn = std::acos(ScalarCriteria::Clamp(A.Dot(B), -1.0, 1.0));
+    // Turning angle is meaningless once the half chords are shorter than the chord tolerance (degenerate spans,
+    //    e.g. sphere-pole isocurves) — otherwise noise refines them to the depth limit.
+    double HalfA = (Pm - P0).Length(), HalfB = (P1 - Pm).Length();
+    double Turn = 0.0;
+    if (HalfA > ChordTolerance && HalfB > ChordTolerance)
+        Turn = std::acos(ScalarCriteria::Clamp((Pm - P0).Dot(P1 - Pm) / (HalfA * HalfB), -1.0, 1.0));
     bool Refine = (Sagitta > ChordTolerance || Turn > AngleTolerance) && Depth < 16;
     if (Depth < 2 && Degree > 1) Refine = true;                                         // never trust a single chord on a curved span
     if (Refine)

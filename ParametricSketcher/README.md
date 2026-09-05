@@ -23,9 +23,10 @@ No external packages. `-Wall -Wextra -Wpedantic -Werror`.
 | Folder | Role | Status |
 |---|---|---|
 | `Kernel/` | Pure geometry, zero dependencies (port target for anything) | **Phase 1 ✓** |
-| `Interaction/` | Camera, workplane, snapping, selection, modal input (Blender/Plasticity), commands, gizmo structure | Phase 3–5 |
-| `Presentation/` | `RasterExchange` seam · `SoftwareRaster` (CPU) · `VulkanRaster` (GPU) · Slang shaders + C++ mirror | Phase 2 |
-| `Console/` | Command codec + REPL / script runner; every op prints tables; `render` writes PNG | Phase 2 |
+| `Interaction/` | `CameraProjection` (Z-up turntable, numpad views, frame, pixel rays) ✓ · workplane, snapping, modal input, gizmo | Phase 2 ✓ / 3–5 |
+| `Presentation/` | `RasterExchange` seam · `SoftwareRaster` (CPU, pick + depth, PNG with own deflate) · Slang shaders compiled twice: by Slang for Vulkan later, by the C++ compiler through `SlangMirror.h` today · `ScenePresentation` (kernel → streams) | **Phase 2 ✓** |
+| `Console/` | `CommandCodec` (`.arc` grammar) · `ConsoleHost` (sketch, primitives, extrude/revolve/loft, scene, view, `render`, `pick`) · `SolidArc` executable (script / `-c` / REPL) | **Phase 2 ✓** |
+| `Document/` | `SceneDocument` — named items with stable identities (pick identities) | **Phase 2 ✓** |
 | `Verification/` | One console-proof executable per phase, registered with ctest | ongoing |
 | `Scripts/` | Reproducible `.arc` scripts (the visual test suite) | Phase 3+ |
 | `Proofs/` | PNG outputs shown after each phase | Phase 2+ |
@@ -56,3 +57,13 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 8 | Extrude / Revolve / Loft / Sweep → solids | extruded profile with hole, revolved vase |
 | 9 | Surface–surface intersection + 3D NURBS booleans | box∪box, box−cylinder, sphere∩box, coplanar subtract |
 | 10 | Script suite, contact sheet, Vulkan backend hand-off notes | ctest green |
+
+## Console quick start
+
+```bash
+./build/SolidArc Scripts/Phase2_Primitives.arc        # run a script; PNGs land in Proofs/
+./build/SolidArc -c "circle (0,0) 3; sphere (0,0,1) 1; view iso; view frame; render Quick"
+./build/SolidArc                                        # REPL — type help
+```
+
+Points are `(x,y)` on the active workplane or `(x,y,z)` in world. Items are addressed by name or `#id`.
