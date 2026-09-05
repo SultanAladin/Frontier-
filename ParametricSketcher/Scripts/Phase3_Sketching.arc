@@ -1,7 +1,7 @@
 # SolidArc · Phase 3 · modal sketch tools driven by pointer, keys and numeric entry, with snapping
 # Top orthographic view of an empty scene frames ±5 m: distance 16.82, half-height 6.456 m → 1 m = 61.96 px,
 # +X right, +Y up on screen (pixel Y grows downward), origin at pixel (640,400).
-view top ; view frame
+view top ; view fit
 snap status
 
 echo -- line with typed length and relative entry, Blender style
@@ -32,13 +32,13 @@ tool circle3 ; point (0,-9.5) ; point (1,-8.5) ; point (2,-9.5)
 tool arc3 ; point (4,-9.5) ; point (8,-9.5) ; point (6,-8.5)
 
 echo -- snapping through the pointer (top view: 1 m = 61.96 px, origin at 640,400)
-probe 888 400          # (4.00, 0.00) → endpoint of Line #1 / Line.2
-probe 884 404          # 5.6 px away → still that endpoint
-probe 764 400          # (2.00, 0.00) → midpoint of Line #1
-probe 330 400          # (-5.00, 0.00) → centre of Circle #6
-probe 209 402          # (-6.96, -0.03) → quadrant of Circle #6 at (-7,0)
-probe 640 214          # (0, 3.0) → endpoint where Line.3 meets Polyline
-probe 700 300          # (0.97, 1.61) → nothing near: grid (1,2)
+inspect 888 400          # (4.00, 0.00) → endpoint of Line #1 / Line.2
+inspect 884 404          # 5.6 px away → still that endpoint
+inspect 764 400          # (2.00, 0.00) → midpoint of Line #1
+inspect 330 400          # (-5.00, 0.00) → centre of Circle #6
+inspect 209 402          # (-6.96, -0.03) → quadrant of Circle #6 at (-7,0)
+inspect 640 214          # (0, 3.0) → endpoint where Line.3 meets Polyline
+inspect 700 300          # (0.97, 1.61) → nothing near: lattice (1,2)
 
 echo -- pointer-driven tool with endpoint snap: start exactly at (4,3) even though the pixel is 5 px off
 tool line ; pointer 892 218 ; hud ; click ; pointer 600 250 ; click
@@ -49,15 +49,15 @@ key a ; key alt+a
 key numpad1 ; key numpad7
 
 list
-view frame ; render Proof_03a_Sketch_Top
-view iso ; view frame ; render Proof_03b_Sketch_Iso
+view fit ; render Proof_03a_Sketch_Top
+view iso ; view fit ; render Proof_03b_Sketch_Iso
 
 echo -- move / rotate / scale through G / R / S with axis locks and typed values
 select Line Line.2 Line.3 Polyline
 key g ; key x ; type 12
 key r ; type 30
 key s ; type 0.5
-view top ; view frame ; render Proof_03c_Transformed
+view top ; view fit ; render Proof_03c_Transformed
 
 echo -- live preview: leave a circle tool running with the pointer moved, so the rubber band and snap glyph render
-view top ; view frame ; tool circle ; point (0,0) ; pointer 700 300 ; hud ; render Proof_03d_LivePreview ; key esc
+view top ; view fit ; tool circle ; point (0,0) ; pointer 700 300 ; hud ; render Proof_03d_LivePreview ; key esc

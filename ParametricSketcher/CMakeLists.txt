@@ -27,7 +27,7 @@ add_library(SolidArcKernel STATIC
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# ─── Presentation + Interaction: RasterExchange contract, CPU SoftwareRaster (Slang shaders mirrored in C++), camera ─────────────────────────
+# ─── Presentation + Interaction: RasterExchange rule, CPU SoftwareRaster (Slang shaders mirrored in C++), camera ─────────────────────────
 add_library(SolidArcPresentation STATIC
     Presentation/SoftwareRaster.cpp
     Presentation/ScenePresentation.cpp
@@ -40,12 +40,12 @@ add_library(SolidArcPresentation STATIC
 )
 target_link_libraries(SolidArcPresentation PUBLIC SolidArcKernel)
 target_include_directories(SolidArcPresentation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Presentation)
-target_compile_definitions(SolidArcPresentation PUBLIC SOLIDARC_PROOF_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/Proofs")
+target_compile_definitions(SolidArcPresentation PUBLIC SOLIDARC_PROOF_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/Proofs")
 
-# ─── Document + Console: item store, command codec, console host, SolidArc executable ───────────────────────────────────────────────────────
+# ─── Document + Console: figure store, command codec, console host, SolidArc executable ───────────────────────────────────────────────────────
 add_library(SolidArcConsoleKit STATIC
     Document/SceneDocument.cpp
-    Document/HistoryLedger.cpp
+    Document/UndoSequence.cpp
     Console/CommandCodec.cpp
     Console/ConsoleHost.cpp
     Console/ConsoleInteraction.cpp

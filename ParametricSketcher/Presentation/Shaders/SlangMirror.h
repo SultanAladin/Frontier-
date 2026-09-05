@@ -4,7 +4,7 @@
 // The shaders under Presentation/Shaders/*.slang are the source of truth for the Vulkan build. The software rasteriser
 //    executes the same shader bodies compiled as C++ by including them after this header: float2/3/4, float4x4, mul,
 //    dot, normalize, lerp, smoothstep. Screen-space derivatives are never emulated: the raster hands each fragment an
-//    explicit per-pixel footprint (see GridProjection), which is also what the .slang files take as input — the subset the
+//    explicit per-pixel footprint (see LatticeProjection), which is also what the .slang files take as input — the subset the
 //    SolidArc shaders use. Nothing here is engine-visible; it is a shader authoring convenience.
 #pragma once
 

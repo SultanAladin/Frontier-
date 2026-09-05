@@ -358,7 +358,7 @@ Box3 NurbsSurface::Bounds() const noexcept
 
 NurbsCurve NurbsSurface::IsoCurveV(double V) const noexcept
 {
-    // Curve in U at fixed V: evaluate the V-basis and blend each U-column of poles.
+    // Curve in U at fixed V: sample the V-basis and blend each U-column of poles.
     NurbsCurve AxisCurve; AxisCurve.Degree = DegreeV; AxisCurve.Knots = KnotsV; AxisCurve.Poles.assign(CountV, Vec4{});
     V = ScalarCriteria::Clamp(V, DomainStartV(), DomainEndV());
     int Span = AxisCurve.FindSpan(V);

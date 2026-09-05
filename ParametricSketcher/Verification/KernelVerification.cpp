@@ -252,7 +252,7 @@ int main()
             }
         Panel.Within("Sphere radius error (61×59 samples)", WorstR, 1e-12);
         Panel.Within("Sphere analytic normal vs radial direction", WorstN, 1e-9);
-        Panel.Expect("Sphere normals point OUTWARD everywhere (∂u×∂v contract)", WorstOut > 0.999);
+        Panel.Expect("Sphere normals point OUTWARD everywhere (∂u×∂v rule)", WorstOut > 0.999);
         Vec3 NorthPole = S.Normal(0.37, S.DomainEndV());
         Panel.Within("Sphere normal at the degenerate north pole = +Z", NorthPole.Distance(Vec3::UnitZ()), 1e-3);
 
@@ -317,18 +317,18 @@ int main()
         Panel.Within("Sphere SplitU right half still on the sphere", std::fabs(SplitS.second.Sample(0.6, 0.4).Distance({ 1, 2, 3 }) - 2.5), 1e-12);
 
         // Tessellation: every vertex on the sphere, all triangles CCW seen from outside.
-        NurbsSurface::Tessellation Mesh = S.Tessellate(1e-3);
+        NurbsSurface::Tessellation Tessellation = S.Tessellate(1e-3);
         double WorstV = 0.0; int Inward = 0;
-        for (Vec3 P : Mesh.Positions) WorstV = std::max(WorstV, std::fabs(P.Distance({ 1, 2, 3 }) - 2.5));
-        for (size_t T = 0; T < Mesh.Triangles.size(); T += 3)
+        for (Vec3 P : Tessellation.Positions) WorstV = std::max(WorstV, std::fabs(P.Distance({ 1, 2, 3 }) - 2.5));
+        for (size_t T = 0; T < Tessellation.Triangles.size(); T += 3)
         {
-            Vec3 A = Mesh.Positions[Mesh.Triangles[T]], B = Mesh.Positions[Mesh.Triangles[T + 1]], C = Mesh.Positions[Mesh.Triangles[T + 2]];
+            Vec3 A = Tessellation.Positions[Tessellation.Triangles[T]], B = Tessellation.Positions[Tessellation.Triangles[T + 1]], C = Tessellation.Positions[Tessellation.Triangles[T + 2]];
             Vec3 FaceNormal = (B - A).Cross(C - A);
             if (FaceNormal.Dot((A + B + C) / 3.0 - Vec3{ 1, 2, 3 }) < 0.0) ++Inward;
         }
         Panel.Within("Sphere tessellation vertices on surface", WorstV, 1e-12);
         Panel.Expect("Sphere tessellation: zero inward-facing triangles", Inward == 0);
-        Panel.Note("sphere tessellation: %d×%d samples, %zu triangles, inward=%d", Mesh.ColumnCount, Mesh.RowCount, Mesh.Triangles.size() / 3, Inward);
+        Panel.Note("sphere tessellation: %d×%d samples, %zu triangles, inward=%d", Tessellation.ColumnCount, Tessellation.RowCount, Tessellation.Triangles.size() / 3, Inward);
 
         // Extrusion & revolution of a profile.
         NurbsCurve Profile = NurbsCurve::Circle({}, Vec3::UnitZ(), 1.0).Payload;

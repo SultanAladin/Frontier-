@@ -9,9 +9,9 @@
 namespace Frontier
 {
 
-const char* Describe(BodyKind Kind) noexcept
+const char* Describe(BodyClassification Classification) noexcept
 {
-    switch (Kind) { case BodyKind::Wire: return "wire"; case BodyKind::Sheet: return "sheet"; default: return "solid"; }
+    switch (Classification) { case BodyClassification::Wire: return "wire"; case BodyClassification::Sheet: return "sheet"; default: return "solid"; }
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -102,7 +102,7 @@ std::vector<uint32_t> TriangulatePlanarPolygon(const std::vector<Vec3>& Points, 
         if (SignedArea(P, R) > 0) std::reverse(R.begin(), R.end());
         Holes.push_back(std::move(R));
     }
-    // Bridge holes into the outer ring, rightmost hole first (classic ear-clipping-with-holes).
+    // Join holes into the outer ring, rightmost hole first (classic ear-clipping-with-holes).
     std::sort(Holes.begin(), Holes.end(), [&](const std::vector<uint32_t>& A, const std::vector<uint32_t>& B)
     {
         double Ma = -1e300, Mb = -1e300; for (uint32_t I : A) Ma = std::max(Ma, P[I].X); for (uint32_t I : B) Mb = std::max(Mb, P[I].X); return Ma > Mb;
@@ -111,7 +111,7 @@ std::vector<uint32_t> TriangulatePlanarPolygon(const std::vector<Vec3>& Points, 
     {
         size_t Hi = 0; for (size_t I = 1; I < Hole.size(); ++I) if (P[Hole[I]].X > P[Hole[Hi]].X) Hi = I;
         Vec2 Hp = P[Hole[Hi]];
-        // pick the visible outer vertex: closest one such that the bridge crosses no outer edge
+        // pick the visible outer vertex: closest one such that the join crosses no outer edge
         size_t Best = SIZE_MAX; double BestD = 1e300;
         for (size_t O = 0; O < Outer.size(); ++O)
         {
@@ -155,7 +155,7 @@ std::vector<uint32_t> TriangulatePlanarPolygon(const std::vector<Vec3>& Points, 
             {
                 uint32_t Ij = Ring[J];
                 if (Ij == Ia || Ij == Ib || Ij == Ic) continue;
-                if (P[Ij].Distance(A) < 1e-12 || P[Ij].Distance(B) < 1e-12 || P[Ij].Distance(C) < 1e-12) continue;   // bridge duplicates
+                if (P[Ij].Distance(A) < 1e-12 || P[Ij].Distance(B) < 1e-12 || P[Ij].Distance(C) < 1e-12) continue;   // join duplicates
                 Inside = PointInTriangle(P[Ij], A, B, C);
             }
             if (Inside) continue;
@@ -424,11 +424,11 @@ void BrepBody::FlipFace(int Face) noexcept
 bool BrepBody::Orient() noexcept
 {
     if (Faces.empty()) return false;
-    std::vector<int> State(Faces.size(), 0);                                            // 0 unvisited, 1 fixed
+    std::vector<int> Fixed(Faces.size(), 0);                                            // 0 unvisited, 1 fixed
     for (size_t Seed = 0; Seed < Faces.size(); ++Seed)
     {
-        if (State[Seed]) continue;
-        std::deque<int> Queue{ static_cast<int>(Seed) }; State[Seed] = 1;
+        if (Fixed[Seed]) continue;
+        std::deque<int> Queue{ static_cast<int>(Seed) }; Fixed[Seed] = 1;
         while (!Queue.empty())
         {
             int F = Queue.front(); Queue.pop_front();
@@ -438,9 +438,9 @@ bool BrepBody::Orient() noexcept
                 if (E.Coedges.size() != 2) continue;
                 int Other = E.Coedges[0] == C ? E.Coedges[1] : E.Coedges[0];
                 int G = Coedges[Other].Face;
-                if (State[G]) continue;
+                if (Fixed[G]) continue;
                 if (Coedges[Other].Reversed == Coedges[C].Reversed) FlipFace(G);
-                State[G] = 1; Queue.push_back(G);
+                Fixed[G] = 1; Queue.push_back(G);
             }
         }
     }
@@ -562,11 +562,11 @@ Box3 BrepBody::Bounds() const noexcept
     return B;
 }
 
-BodyKind BrepBody::Kind() const noexcept
+BodyClassification BrepBody::Classification() const noexcept
 {
-    if (Faces.empty()) return BodyKind::Wire;
-    for (const BrepEdge& E : Edges) if (E.Coedges.size() < 2) return BodyKind::Sheet;
-    return BodyKind::Solid;
+    if (Faces.empty()) return BodyClassification::Wire;
+    for (const BrepEdge& E : Edges) if (E.Coedges.size() < 2) return BodyClassification::Sheet;
+    return BodyClassification::Solid;
 }
 
 BodyReport BrepBody::Validate() const noexcept
@@ -583,24 +583,24 @@ BodyReport BrepBody::Validate() const noexcept
     R.Manifold = R.NonManifoldEdges == 0;
     R.Oriented = R.MisorientedEdges == 0;
     R.EulerCharacteristic = R.Vertices - R.Edges + R.Faces;
-    // Shells: flood faces across shared edges.
+    // Hulls: flood faces across shared edges.
     std::vector<int> Label(Faces.size(), -1);
     for (size_t Seed = 0; Seed < Faces.size(); ++Seed)
     {
         if (Label[Seed] >= 0) continue;
-        std::vector<int> Stack{ static_cast<int>(Seed) }; Label[Seed] = R.Shells;
+        std::vector<int> Stack{ static_cast<int>(Seed) }; Label[Seed] = R.Hulls;
         while (!Stack.empty())
         {
             int F = Stack.back(); Stack.pop_back();
             for (int L : Faces[F].Loops) for (int C : Loops[L].Coedges) for (int Other : Edges[Coedges[C].Edge].Coedges)
             {
                 int G = Coedges[Other].Face;
-                if (Label[G] < 0) { Label[G] = R.Shells; Stack.push_back(G); }
+                if (Label[G] < 0) { Label[G] = R.Hulls; Stack.push_back(G); }
             }
         }
-        ++R.Shells;
+        ++R.Hulls;
     }
-    if (R.Closed && R.Manifold) R.Genus = R.Shells - R.EulerCharacteristic / 2;
+    if (R.Closed && R.Manifold) R.Genus = R.Hulls - R.EulerCharacteristic / 2;
     R.Volume = R.Closed ? SignedVolume() : 0.0;                                         // divergence theorem needs a closed boundary
     R.Area = Area();
     return R;
@@ -612,7 +612,7 @@ BrepBody BrepBody::Transformed(const Mat4& M) const noexcept
     for (BrepVertex& V : B.Vertices) V.Point = M.TransformPoint(V.Point);
     for (BrepEdge& E : B.Edges) E.Curve = E.Curve.Transformed(M);
     for (BrepFace& F : B.Faces) F.Surface = F.Surface.Transformed(M);
-    // A reflection turns the body inside out; the topology flags say so once the volume goes negative.
+    // A reflection turns the body inside out; the topology switch say so once the volume goes negative.
     Vec3 X = M.TransformDirection(Vec3::UnitX()), Y = M.TransformDirection(Vec3::UnitY()), Z = M.TransformDirection(Vec3::UnitZ());
     if (X.Cross(Y).Dot(Z) < 0) for (size_t F = 0; F < B.Faces.size(); ++F) B.FlipFace(static_cast<int>(F));
     return B;

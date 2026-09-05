@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ParametricSketcher/Interaction/ToolSession.h — Modal tool state machine: points in, geometry out, with preview at every step
+// 📦 ParametricSketcher/Interaction/ToolSession.h — Modal tool sequence: points in, geometry out, with preview at every step
 //============================================================================================================================================
 // A tool is a list of *prompts* ("centre", "radius", "end point"). Each prompt is satisfied by a snapped pointer click
 //    or by typed numbers (Blender style: `3`, `2,4`, `r5`, `a45`, `@2,1` relative; Tab jumps between fields). The
@@ -17,7 +17,7 @@
 namespace Frontier
 {
 
-enum class ToolKind : uint8_t
+enum class ToolChoice : uint8_t
 {
     None,
     Line, Polyline, Rectangle, CentreRectangle, Polygon, Slot, Circle, TwoPointCircle, ThreePointCircle,
@@ -25,8 +25,8 @@ enum class ToolKind : uint8_t
     Move, Rotate, Scale,
 };
 
-[[nodiscard]] const char* ToolKindName(ToolKind Kind) noexcept;
-[[nodiscard]] std::optional<ToolKind> ParseToolKind(std::string_view Name) noexcept;
+[[nodiscard]] const char* ToolName(ToolChoice Classification) noexcept;
+[[nodiscard]] std::optional<ToolChoice> ParseToolChoice(std::string_view Name) noexcept;
 
 enum class AxisLock : uint8_t { None, X, Y, Z, PlaneYZ, PlaneXZ, PlaneXY };
 [[nodiscard]] const char* AxisLockName(AxisLock Lock) noexcept;
@@ -49,7 +49,7 @@ struct ToolPreview
     std::string               NumericEntry;                                             // [-] text typed so far
 };
 
-struct ToolOutcome
+struct ToolResult
 {
     bool                    Completed = false;                                          // [-] false = cancelled
     std::vector<NurbsCurve> Curves;                                                     // [-] produced geometry
@@ -60,7 +60,7 @@ struct ToolOutcome
 class ToolSession
 {
 public:
-    using Completion = std::function<void(const ToolOutcome&)>;
+    using Completion = std::function<void(const ToolResult&)>;
 
     struct Context
     {
@@ -72,23 +72,23 @@ public:
         Vec3                    SelectionPivot;                                         // [m] for G/R/S
     };
 
-    bool Begin(ToolKind Kind, const Context& Ctx, Completion OnComplete) noexcept;
+    bool Begin(ToolChoice Classification, const Context& Ctx, Completion OnComplete) noexcept;
     void Cancel() noexcept;
-    [[nodiscard]] bool Active() const noexcept { return Kind != ToolKind::None; }
-    [[nodiscard]] ToolKind CurrentKind() const noexcept { return Kind; }
+    [[nodiscard]] bool Active() const noexcept { return Classification != ToolChoice::None; }
+    [[nodiscard]] ToolChoice CurrentTool() const noexcept { return Classification; }
     [[nodiscard]] const ToolPrompt& CurrentPrompt() const noexcept { return Prompts[std::min(PromptIndex, Prompts.size() - 1)]; }
     [[nodiscard]] size_t CurrentPromptIndex() const noexcept { return PromptIndex; }
     [[nodiscard]] const ToolPreview& Preview() const noexcept { return Live; }
     [[nodiscard]] const Context& CurrentContext() const noexcept { return Ctx; }
 
     // Feed events; returns true when consumed. Pointer coordinates are pixels.
-    bool Handle(const InputEvent& Event) noexcept;
+    bool Receive(const InputEvent& Event) noexcept;
 
     // Console shortcuts: supply a world point / typed text directly (scripts drive the tool without a pointer).
     bool SupplyPoint(Vec3 P) noexcept;
     bool SupplyText(std::string_view Text) noexcept;                                    // "3", "2,4", "@1,1", "r2.5", "a30", "n6"
     bool Confirm() noexcept;                                                            // Enter / LMB with nothing pending
-    void SetPlane(const Workplane& P) noexcept { Ctx.Plane = P; Rebuild(); }
+    void Attach(const Workplane& P) noexcept { Ctx.Plane = P; Rebuild(); }
 
 private:
     void   Rebuild() noexcept;                                                          // recompute preview from confirmed points + cursor
@@ -100,10 +100,10 @@ private:
     [[nodiscard]] Vec3 Anchor() const noexcept
     {
         if (!Confirmed.empty()) return Confirmed.back();
-        return (Kind == ToolKind::Move || Kind == ToolKind::Rotate || Kind == ToolKind::Scale) ? Ctx.SelectionPivot : Ctx.Plane.Origin;
+        return (Classification == ToolChoice::Move || Classification == ToolChoice::Rotate || Classification == ToolChoice::Scale) ? Ctx.SelectionPivot : Ctx.Plane.Origin;
     }
 
-    ToolKind                Kind = ToolKind::None;
+    ToolChoice                Classification = ToolChoice::None;
     Context                 Ctx;
     Completion              OnComplete;
     std::vector<ToolPrompt> Prompts;

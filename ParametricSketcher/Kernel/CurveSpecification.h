@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 ParametricSketcher/Kernel/CurveSpecification.h — NURBS curve: exact conics, de Boor evaluation, refinement, splitting, tessellation
 //============================================================================================================================================
-// Every sketch entity in the workspace IS a NurbsCurve. Lines are degree 1, arcs / circles / ellipses are exact rational
+// Every sketch figure in the workspace IS a NurbsCurve. Lines are degree 1, arcs / circles / ellipses are exact rational
 //    quadratics (Piegl & Tiller §7.5), splines are non-rational cubics by default. Storing one representation means every
 //    downstream solver (trim, offset, intersect, sweep, boolean) is written once.
 //
@@ -48,7 +48,7 @@ public:
     std::vector<double> Knots;                                                          // [-]  size = Poles + Degree + 1
     CurveClassification Classification = CurveClassification::Freeform;                // [-]
 
-    // Analytic memory for the classified forms (centre / radii / axes) so snapping and reporting are exact.
+    // Analytic storage for the classified forms (centre / radii / axes) so snapping and reporting are exact.
     Vec3   Centre = {};                                                                 // [m]
     Vec3   AxisZ  = Vec3::UnitZ();                                                      // [-] plane normal for planar forms
     double RadiusMajor = 0.0;                                                           // [m]

@@ -2,7 +2,7 @@
 // 📦 ParametricSketcher/Console/CommandCodec.h — Tokeniser and typed argument access for `.arc` command lines
 //============================================================================================================================================
 // Grammar: `verb arg arg ...` · `#` comment to end of line · numbers `1.5 -2 3e-2` · vectors `(x,y,z)` or `(x,y)` ·
-//    identifiers/names bare or "quoted" · flags `--name` or `--name=value` · `;` separates commands on one line.
+//    identifiers/names bare or "quoted" · switch `--name` or `--name=value` · `;` separates commands on one line.
 #pragma once
 
 #include "Kernel/VectorSpecification.h"
@@ -25,9 +25,9 @@ struct CommandLine
     [[nodiscard]] std::optional<Vec3>        Point(size_t Index) const noexcept;        // (x,y[,z]) — z defaults 0
     [[nodiscard]] std::optional<Vec2>        Point2(size_t Index) const noexcept;
     [[nodiscard]] std::optional<std::string> Text(size_t Index) const noexcept;
-    [[nodiscard]] bool                       Flag(std::string_view Name) const noexcept;
-    [[nodiscard]] std::optional<std::string> FlagValue(std::string_view Name) const noexcept;
-    [[nodiscard]] std::optional<double>      FlagNumber(std::string_view Name) const noexcept;
+    [[nodiscard]] bool                       Switch(std::string_view Name) const noexcept;
+    [[nodiscard]] std::optional<std::string> SwitchText(std::string_view Name) const noexcept;
+    [[nodiscard]] std::optional<double>      SwitchNumber(std::string_view Name) const noexcept;
 };
 
 struct CommandCodec

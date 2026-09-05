@@ -73,7 +73,7 @@ struct ScalarCriteria
         return Wrapped < 0.0 ? Wrapped + TwoPi : Wrapped;
     }
 
-    // Quantise to a step (grid snap, angle snap, scale snap). Step ≤ 0 disables quantisation.
+    // Quantise to a step (lattice snap, angle snap, scale snap). Step ≤ 0 disables quantisation.
     [[nodiscard]] static double Quantise(double A, double Step) noexcept
     {
         return Step > 0.0 ? std::round(A / Step) * Step : A;
@@ -96,7 +96,7 @@ enum class RefusalReason : uint8_t
     NoConvergence,            // Newton / marching failed to reach tolerance
     OpenWire,                 // closure required and absent
     NonPlanar,                // planarity required and absent
-    NonManifold,              // shell validation failed
+    NonManifold,              // hull validation failed
     SelfIntersecting,         // profile crosses itself
     Unsupported,              // valid input, not implemented yet
 };

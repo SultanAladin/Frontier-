@@ -17,7 +17,7 @@ namespace
     constexpr float AxisColour[3][3]  = { { 0.878f, 0.078f, 0.078f }, { 0.070f, 0.831f, 0.039f }, { 0.082f, 0.376f, 0.878f } };   // #e01414 #12d40a #1560e0
     constexpr float PlaneColour[3][3] = { { 0.122f, 0.780f, 0.780f }, { 0.784f, 0.118f, 0.784f }, { 0.878f, 0.804f, 0.071f } };  // #1fc7c7 #c81ec8 #e0cd12
 
-    struct HandleBuild                                                                  // one handle's triangles in world space
+    struct GripBuild                                                                  // one grip's triangles in world space
     {
         SurfaceStream Surface;
         void Vertex(Vec3 P, Vec3 N)
@@ -35,24 +35,24 @@ namespace
         }
     };
 
-    void BuildCone(HandleBuild& B, Vec3 Base, Vec3 Axis, Vec3 U, Vec3 V, double Radius, double Height, int Segments)
+    void BuildCone(GripBuild& B, Vec3 Foot, Vec3 Axis, Vec3 U, Vec3 V, double Radius, double Height, int Segments)
     {
-        Vec3 Apex = Base + Axis * Height;
+        Vec3 Apex = Foot + Axis * Height;
         for (int I = 0; I < Segments; ++I)
         {
             double A0 = 2 * Pi * I / Segments, A1 = 2 * Pi * (I + 1) / Segments;
             Vec3 R0 = U * std::cos(A0) + V * std::sin(A0), R1 = U * std::cos(A1) + V * std::sin(A1);
-            Vec3 P0 = Base + R0 * Radius, P1 = Base + R1 * Radius;
+            Vec3 P0 = Foot + R0 * Radius, P1 = Foot + R1 * Radius;
             Vec3 Rm = (R0 + R1).Normalised();
             Vec3 Side = (Rm * Height + Axis * Radius).Normalised();                     // cone slant normal
             uint32_t K = B.Surface.VertexCount();
             B.Vertex(P0, Side); B.Vertex(P1, Side); B.Vertex(Apex, Side); B.Triangle(K, K + 1, K + 2);
             K = B.Surface.VertexCount();
-            B.Vertex(P1, Axis * -1.0); B.Vertex(P0, Axis * -1.0); B.Vertex(Base, Axis * -1.0); B.Triangle(K, K + 1, K + 2);    // cap
+            B.Vertex(P1, Axis * -1.0); B.Vertex(P0, Axis * -1.0); B.Vertex(Foot, Axis * -1.0); B.Triangle(K, K + 1, K + 2);    // cap
         }
     }
 
-    void BuildCylinder(HandleBuild& B, Vec3 Centre, Vec3 Axis, Vec3 U, Vec3 V, double Radius, double Height, int Segments)
+    void BuildCylinder(GripBuild& B, Vec3 Centre, Vec3 Axis, Vec3 U, Vec3 V, double Radius, double Height, int Segments)
     {
         Vec3 Bottom = Centre - Axis * (Height * 0.5), Top = Centre + Axis * (Height * 0.5);
         for (int I = 0; I < Segments; ++I)
@@ -69,7 +69,7 @@ namespace
         }
     }
 
-    void BuildSector(HandleBuild& B, Vec3 Centre, Vec3 U, Vec3 V, Vec3 Normal, double Inner, double Outer, double Start, double End, int Segments)
+    void BuildSector(GripBuild& B, Vec3 Centre, Vec3 U, Vec3 V, Vec3 Normal, double Inner, double Outer, double Start, double End, int Segments)
     {
         for (int I = 0; I < Segments; ++I)
         {
@@ -80,7 +80,7 @@ namespace
         }
     }
 
-    void BuildTorus(HandleBuild& B, Vec3 Centre, Vec3 U, Vec3 V, Vec3 N, double Radius, double Tube, int Major, int Minor)
+    void BuildTorus(GripBuild& B, Vec3 Centre, Vec3 U, Vec3 V, Vec3 N, double Radius, double Tube, int Major, int Minor)
     {
         for (int I = 0; I < Major; ++I)
         {
@@ -124,38 +124,38 @@ namespace
     }
 }
 
-const char* GizmoHandleName(GizmoHandle Handle) noexcept
+const char* GizmoGripName(GizmoGrip Grip) noexcept
 {
-    switch (Handle)
+    switch (Grip)
     {
-        case GizmoHandle::TranslateX: return "X move";   case GizmoHandle::TranslateY: return "Y move";   case GizmoHandle::TranslateZ: return "Z move";
-        case GizmoHandle::ScaleX:     return "X scale";  case GizmoHandle::ScaleY:     return "Y scale";  case GizmoHandle::ScaleZ:     return "Z scale";
-        case GizmoHandle::PlaneX:     return "X-plane move"; case GizmoHandle::PlaneY:  return "Y-plane move"; case GizmoHandle::PlaneZ: return "Z-plane move";
-        case GizmoHandle::RotateX:    return "X rotate"; case GizmoHandle::RotateY:    return "Y rotate"; case GizmoHandle::RotateZ:    return "Z rotate";
+        case GizmoGrip::TranslateX: return "X move";   case GizmoGrip::TranslateY: return "Y move";   case GizmoGrip::TranslateZ: return "Z move";
+        case GizmoGrip::ScaleX:     return "X scale";  case GizmoGrip::ScaleY:     return "Y scale";  case GizmoGrip::ScaleZ:     return "Z scale";
+        case GizmoGrip::PlaneX:     return "X-plane move"; case GizmoGrip::PlaneY:  return "Y-plane move"; case GizmoGrip::PlaneZ: return "Z-plane move";
+        case GizmoGrip::RotateX:    return "X rotate"; case GizmoGrip::RotateY:    return "Y rotate"; case GizmoGrip::RotateZ:    return "Z rotate";
         default: return "none";
     }
 }
 
-int TransformGizmo::AxisOf(GizmoHandle H) noexcept
+int TransformGizmo::AxisOf(GizmoGrip H) noexcept
 {
     switch (H)
     {
-        case GizmoHandle::TranslateX: case GizmoHandle::ScaleX: case GizmoHandle::PlaneX: case GizmoHandle::RotateX: return 0;
-        case GizmoHandle::TranslateY: case GizmoHandle::ScaleY: case GizmoHandle::PlaneY: case GizmoHandle::RotateY: return 1;
-        case GizmoHandle::TranslateZ: case GizmoHandle::ScaleZ: case GizmoHandle::PlaneZ: case GizmoHandle::RotateZ: return 2;
+        case GizmoGrip::TranslateX: case GizmoGrip::ScaleX: case GizmoGrip::PlaneX: case GizmoGrip::RotateX: return 0;
+        case GizmoGrip::TranslateY: case GizmoGrip::ScaleY: case GizmoGrip::PlaneY: case GizmoGrip::RotateY: return 1;
+        case GizmoGrip::TranslateZ: case GizmoGrip::ScaleZ: case GizmoGrip::PlaneZ: case GizmoGrip::RotateZ: return 2;
         default: return -1;
     }
 }
 
-bool TransformGizmo::Visible(GizmoHandle H) const noexcept
+bool TransformGizmo::Visible(GizmoGrip H) const noexcept
 {
     if (Layout == GizmoLayout::Combined) return true;
     switch (H)
     {
-        case GizmoHandle::TranslateX: case GizmoHandle::TranslateY: case GizmoHandle::TranslateZ:
-        case GizmoHandle::PlaneX: case GizmoHandle::PlaneY: case GizmoHandle::PlaneZ: return Layout == GizmoLayout::Translate;
-        case GizmoHandle::ScaleX: case GizmoHandle::ScaleY: case GizmoHandle::ScaleZ: return Layout == GizmoLayout::Scale;
-        case GizmoHandle::RotateX: case GizmoHandle::RotateY: case GizmoHandle::RotateZ: return Layout == GizmoLayout::Rotate;
+        case GizmoGrip::TranslateX: case GizmoGrip::TranslateY: case GizmoGrip::TranslateZ:
+        case GizmoGrip::PlaneX: case GizmoGrip::PlaneY: case GizmoGrip::PlaneZ: return Layout == GizmoLayout::Translate;
+        case GizmoGrip::ScaleX: case GizmoGrip::ScaleY: case GizmoGrip::ScaleZ: return Layout == GizmoLayout::Scale;
+        case GizmoGrip::RotateX: case GizmoGrip::RotateY: case GizmoGrip::RotateZ: return Layout == GizmoLayout::Rotate;
         default: return false;
     }
 }
@@ -180,34 +180,34 @@ double TransformGizmo::WorldSize(const CameraProjection& Camera, uint32_t Viewpo
     return PixelSize * (2.0 * HalfHeight / double(ViewportHeight));
 }
 
-GizmoHandle TransformGizmo::Probe(double PixelX, double PixelY, const CameraProjection& Camera, uint32_t Width, uint32_t Height) const noexcept
+GizmoGrip TransformGizmo::Locate(double PixelX, double PixelY, const CameraProjection& Camera, uint32_t Width, uint32_t Height) const noexcept
 {
     const Ray R = Camera.PixelRay(PixelX, PixelY, Width, Height);
     const double L = WorldSize(Camera, Height);
     const double PixelToWorld = L / PixelSize;
     const double Slack = 4.0 * PixelToWorld;                                            // [m] ~4 px tolerance for thin parts
-    GizmoHandle Best = GizmoHandle::None; double BestT = 1e300;
-    auto Consider = [&](GizmoHandle H, double T) { if (Visible(H) && T < BestT) { BestT = T; Best = H; } };
+    GizmoGrip Best = GizmoGrip::None; double BestT = 1e300;
+    auto Consider = [&](GizmoGrip H, double T) { if (Visible(H) && T < BestT) { BestT = T; Best = H; } };
 
     for (int Axis = 0; Axis < 3; ++Axis)
     {
         Basis B = AxisBasis(Axis);
         const Vec3 O = Pivot.Origin;
-        // cone: segment from TIP to TIP+height, radius cone base (generous, like three.js Raycaster on a cone mesh)
+        // cone: segment from TIP to TIP+height, radius cone foot (generous, like three.js Raycaster on a cone tessellation)
         double T;
-        Vec3 ConeBase = O + B.Dir * (Tip * L), ConeApex = O + B.Dir * ((Tip + ConeHeight) * L);
-        if (RaySegmentDistance(R, ConeBase, ConeApex, T) <= ConeRadius * L + Slack) Consider(static_cast<GizmoHandle>(int(GizmoHandle::TranslateX) + Axis), T);
+        Vec3 ConeFoot = O + B.Dir * (Tip * L), ConeApex = O + B.Dir * ((Tip + ConeHeight) * L);
+        if (RaySegmentDistance(R, ConeFoot, ConeApex, T) <= ConeRadius * L + Slack) Consider(static_cast<GizmoGrip>(int(GizmoGrip::TranslateX) + Axis), T);
         // scale cylinder
         Vec3 Sc = O + B.Dir * ((Tip - ScaleOffset) * L);
         if (RaySegmentDistance(R, Sc - B.Dir * (ScaleHeight * 0.5 * L), Sc + B.Dir * (ScaleHeight * 0.5 * L), T) <= ScaleRadius * L + Slack)
-            Consider(static_cast<GizmoHandle>(int(GizmoHandle::ScaleX) + Axis), T);
+            Consider(static_cast<GizmoGrip>(int(GizmoGrip::ScaleX) + Axis), T);
         // plane quad
         if (auto Tp = RayPlane(R, O, B.Dir))
         {
             Vec3 P = R.At(*Tp) - O;
             double Cu = (Tip - PlaneHalf) * L, Cv = Cu;
             double Du = P.Dot(B.U) - Cu, Dv = P.Dot(B.V) - Cv;
-            if (std::fabs(Du) <= PlaneHalf * L + Slack && std::fabs(Dv) <= PlaneHalf * L + Slack) Consider(static_cast<GizmoHandle>(int(GizmoHandle::PlaneX) + Axis), *Tp);
+            if (std::fabs(Du) <= PlaneHalf * L + Slack && std::fabs(Dv) <= PlaneHalf * L + Slack) Consider(static_cast<GizmoGrip>(int(GizmoGrip::PlaneX) + Axis), *Tp);
             // rotate sector (same plane)
             double Radius = P.Length();
             double Rad = ArcRadiusFactor * Tip * L;
@@ -216,14 +216,14 @@ GizmoHandle TransformGizmo::Probe(double PixelX, double PixelY, const CameraProj
                 double Angle = std::atan2(P.Dot(B.V), P.Dot(B.U));
                 double Half = ArcSweepDegrees * 0.5 * Pi / 180.0;
                 double Rel = Angle - Pi / 4;
-                if (std::fabs(Rel) <= Half + Slack / Rad) Consider(static_cast<GizmoHandle>(int(GizmoHandle::RotateX) + Axis), *Tp);
+                if (std::fabs(Rel) <= Half + Slack / Rad) Consider(static_cast<GizmoGrip>(int(GizmoGrip::RotateX) + Axis), *Tp);
             }
         }
     }
     return Best;
 }
 
-Vec3 TransformGizmo::HandleAnchor(GizmoHandle H, const CameraProjection& Camera, uint32_t ViewportHeight) const noexcept
+Vec3 TransformGizmo::GripAnchor(GizmoGrip H, const CameraProjection& Camera, uint32_t ViewportHeight) const noexcept
 {
     const double L = WorldSize(Camera, ViewportHeight);
     int Axis = AxisOf(H);
@@ -231,9 +231,9 @@ Vec3 TransformGizmo::HandleAnchor(GizmoHandle H, const CameraProjection& Camera,
     Basis B = AxisBasis(Axis);
     switch (H)
     {
-        case GizmoHandle::TranslateX: case GizmoHandle::TranslateY: case GizmoHandle::TranslateZ: return Pivot.Origin + B.Dir * ((Tip + ConeHeight * 0.4) * L);
-        case GizmoHandle::ScaleX: case GizmoHandle::ScaleY: case GizmoHandle::ScaleZ:             return Pivot.Origin + B.Dir * ((Tip - ScaleOffset) * L);
-        case GizmoHandle::PlaneX: case GizmoHandle::PlaneY: case GizmoHandle::PlaneZ:             return Pivot.Origin + (B.U + B.V) * ((Tip - PlaneHalf) * L);
+        case GizmoGrip::TranslateX: case GizmoGrip::TranslateY: case GizmoGrip::TranslateZ: return Pivot.Origin + B.Dir * ((Tip + ConeHeight * 0.4) * L);
+        case GizmoGrip::ScaleX: case GizmoGrip::ScaleY: case GizmoGrip::ScaleZ:             return Pivot.Origin + B.Dir * ((Tip - ScaleOffset) * L);
+        case GizmoGrip::PlaneX: case GizmoGrip::PlaneY: case GizmoGrip::PlaneZ:             return Pivot.Origin + (B.U + B.V) * ((Tip - PlaneHalf) * L);
         default: { double R = ArcRadiusFactor * Tip * L; return Pivot.Origin + (B.U + B.V) * (R / std::sqrt(2.0)); }
     }
 }
@@ -266,24 +266,24 @@ std::optional<double> TransformGizmo::AngleAround(const Ray& R, Vec3 AxisDir, Ve
 
 bool TransformGizmo::BeginDrag(double PixelX, double PixelY, const CameraProjection& Camera, uint32_t Width, uint32_t Height) noexcept
 {
-    GizmoHandle H = Probe(PixelX, PixelY, Camera, Width, Height);
-    if (H == GizmoHandle::None) return false;
-    Active = {}; Active.Handle = H; Hover = H;
+    GizmoGrip H = Locate(PixelX, PixelY, Camera, Width, Height);
+    if (H == GizmoGrip::None) return false;
+    Active = {}; Active.Grip = H; Hover = H;
     Basis B = AxisBasis(AxisOf(H));
     AxisWorld = B.Dir; UWorld = B.U; VWorld = B.V; NormalWorld = B.Dir; ReferenceWorld = B.U;
     SizeAtStart = WorldSize(Camera, Height);
     const Ray R = Camera.PixelRay(PixelX, PixelY, Width, Height);
     switch (H)
     {
-        case GizmoHandle::TranslateX: case GizmoHandle::TranslateY: case GizmoHandle::TranslateZ:
-        case GizmoHandle::ScaleX: case GizmoHandle::ScaleY: case GizmoHandle::ScaleZ:
+        case GizmoGrip::TranslateX: case GizmoGrip::TranslateY: case GizmoGrip::TranslateZ:
+        case GizmoGrip::ScaleX: case GizmoGrip::ScaleY: case GizmoGrip::ScaleZ:
             StartParameter = AxisParameter(R, AxisWorld); break;
-        case GizmoHandle::PlaneX: case GizmoHandle::PlaneY: case GizmoHandle::PlaneZ:
+        case GizmoGrip::PlaneX: case GizmoGrip::PlaneY: case GizmoGrip::PlaneZ:
             StartHit = PlanePoint(R, NormalWorld).value_or(Pivot.Origin); break;
         default:
             StartAngle = AngleAround(R, AxisWorld, ReferenceWorld).value_or(0.0); break;
     }
-    Active.Readout = std::string(GizmoHandleName(H)) + " 0";
+    Active.Readout = std::string(GizmoGripName(H)) + " 0";
     return true;
 }
 
@@ -292,11 +292,11 @@ bool TransformGizmo::UpdateDrag(double PixelX, double PixelY, bool Snapping, con
     if (!Dragging()) return false;
     const Ray R = Camera.PixelRay(PixelX, PixelY, Width, Height);
     char Text[96] = {};
-    const int Axis = std::clamp(AxisOf(Active.Handle), 0, 2);
+    const int Axis = std::clamp(AxisOf(Active.Grip), 0, 2);
     const char AxisLetter = "XYZ"[Axis];
-    switch (Active.Handle)
+    switch (Active.Grip)
     {
-        case GizmoHandle::TranslateX: case GizmoHandle::TranslateY: case GizmoHandle::TranslateZ:
+        case GizmoGrip::TranslateX: case GizmoGrip::TranslateY: case GizmoGrip::TranslateZ:
         {
             double Delta = AxisParameter(R, AxisWorld) - StartParameter;
             if (Snapping) Delta = std::round(Delta / SnapMove) * SnapMove;
@@ -305,7 +305,7 @@ bool TransformGizmo::UpdateDrag(double PixelX, double PixelY, bool Snapping, con
             std::snprintf(Text, sizeof Text, "%c move %.3f", AxisLetter, Delta);
             break;
         }
-        case GizmoHandle::ScaleX: case GizmoHandle::ScaleY: case GizmoHandle::ScaleZ:
+        case GizmoGrip::ScaleX: case GizmoGrip::ScaleY: case GizmoGrip::ScaleZ:
         {
             // Gizmo.html: one gizmo unit of travel = +100 %; the gizmo unit is L on screen
             double Delta = (AxisParameter(R, AxisWorld) - StartParameter) / SizeAtStart;
@@ -314,14 +314,14 @@ bool TransformGizmo::UpdateDrag(double PixelX, double PixelY, bool Snapping, con
             Factor = std::max(Factor, 0.05);
             Active.Amount = Factor;
             Vec3 S = Vec3{ 1, 1, 1 }; if (Axis == 0) S.X = Factor; else if (Axis == 1) S.Y = Factor; else S.Z = Factor;
-            // scale about the pivot along the local frame
+            // scale about the pivot along the local fit
             Mat4 ToLocal = Mat4::Rotation(Pivot.Orientation);
             Mat4 FromLocal = Mat4::Rotation(Pivot.Orientation.Conjugate());
             Active.Delta = Mat4::Translation(Pivot.Origin) * ToLocal * Mat4::Scaling(S) * FromLocal * Mat4::Translation(Pivot.Origin * -1.0);
             std::snprintf(Text, sizeof Text, "%c scale %.3fx", AxisLetter, Factor);
             break;
         }
-        case GizmoHandle::PlaneX: case GizmoHandle::PlaneY: case GizmoHandle::PlaneZ:
+        case GizmoGrip::PlaneX: case GizmoGrip::PlaneY: case GizmoGrip::PlaneZ:
         {
             auto Hit = PlanePoint(R, NormalWorld);
             if (!Hit) return true;
@@ -364,9 +364,9 @@ void TransformGizmo::Draw(RasterExchange& Raster, const CameraProjection& Camera
     (void)Width;
     const double L = WorldSize(Camera, Height);
     const Vec3 O = Pivot.Origin;
-    const GizmoHandle Lit = Dragging() ? Active.Handle : Hover;
+    const GizmoGrip Lit = Dragging() ? Active.Grip : Hover;
 
-    auto Record = [&](const float* Rgb, float Alpha, GizmoHandle H)
+    auto Record = [&](const float* Rgb, float Alpha, GizmoGrip H)
     {
         DrawRecord D;
         D.Tint[0] = Rgb[0]; D.Tint[1] = Rgb[1]; D.Tint[2] = Rgb[2]; D.Tint[3] = Alpha;
@@ -379,22 +379,22 @@ void TransformGizmo::Draw(RasterExchange& Raster, const CameraProjection& Camera
     // Rotate sectors first (largest, semi-flat), then planes, then scale + translate, then the ring on top.
     for (int Axis = 0; Axis < 3; ++Axis)
     {
-        GizmoHandle H = static_cast<GizmoHandle>(int(GizmoHandle::RotateX) + Axis);
+        GizmoGrip H = static_cast<GizmoGrip>(int(GizmoGrip::RotateX) + Axis);
         if (!Visible(H)) continue;
         Basis B = AxisBasis(Axis);
-        HandleBuild Build;
+        GripBuild Build;
         double Rad = ArcRadiusFactor * Tip * L, Half = ArcSweepDegrees * 0.5 * Pi / 180.0;
         BuildSector(Build, O, B.U, B.V, B.Dir, Rad - ArcBand * L, Rad + ArcBand * L, Pi / 4 - Half, Pi / 4 + Half, 12);
         Raster.DrawSurface(Build.Surface, Record(AxisColour[Axis], 1.0f, H));
     }
     for (int Axis = 0; Axis < 3; ++Axis)
     {
-        GizmoHandle H = static_cast<GizmoHandle>(int(GizmoHandle::PlaneX) + Axis);
+        GizmoGrip H = static_cast<GizmoGrip>(int(GizmoGrip::PlaneX) + Axis);
         if (!Visible(H)) continue;
         Basis B = AxisBasis(Axis);
         double C = (Tip - PlaneHalf) * L, Hh = PlaneHalf * L;
         Vec3 Centre = O + (B.U + B.V) * C;
-        HandleBuild Build;
+        GripBuild Build;
         Build.Quad(Centre - B.U * Hh - B.V * Hh, Centre + B.U * Hh - B.V * Hh, Centre + B.U * Hh + B.V * Hh, Centre - B.U * Hh + B.V * Hh, B.Dir);
         Build.Quad(Centre - B.U * Hh + B.V * Hh, Centre + B.U * Hh + B.V * Hh, Centre + B.U * Hh - B.V * Hh, Centre - B.U * Hh - B.V * Hh, B.Dir * -1.0);
         DrawRecord Fill = Record(PlaneColour[Axis], H == Lit ? 0.55f : 0.28f, H);
@@ -410,28 +410,28 @@ void TransformGizmo::Draw(RasterExchange& Raster, const CameraProjection& Camera
     for (int Axis = 0; Axis < 3; ++Axis)
     {
         Basis B = AxisBasis(Axis);
-        GizmoHandle Hs = static_cast<GizmoHandle>(int(GizmoHandle::ScaleX) + Axis);
+        GizmoGrip Hs = static_cast<GizmoGrip>(int(GizmoGrip::ScaleX) + Axis);
         if (Visible(Hs))
         {
-            HandleBuild Build;
+            GripBuild Build;
             BuildCylinder(Build, O + B.Dir * ((Tip - ScaleOffset) * L), B.Dir, B.U, B.V, ScaleRadius * L, ScaleHeight * L, 16);
             Raster.DrawSurface(Build.Surface, Record(AxisColour[Axis], 1.0f, Hs));
         }
-        GizmoHandle Ht = static_cast<GizmoHandle>(int(GizmoHandle::TranslateX) + Axis);
+        GizmoGrip Ht = static_cast<GizmoGrip>(int(GizmoGrip::TranslateX) + Axis);
         if (Visible(Ht))
         {
-            HandleBuild Build;
+            GripBuild Build;
             BuildCone(Build, O + B.Dir * (Tip * L), B.Dir, B.U, B.V, ConeRadius * L, ConeHeight * L, 24);
             Raster.DrawSurface(Build.Surface, Record(AxisColour[Axis], 1.0f, Ht));
         }
     }
     // Billboarded white ring
     {
-        HandleBuild Build;
+        GripBuild Build;
         Vec3 N = Camera.Forward() * -1.0, U = Camera.Right(), V = Camera.Up();
         BuildTorus(Build, O, U, V, N, RingRadius * L, RingTube * L, 32, 6);
         const float White[3] = { 1.0f, 1.0f, 1.0f };
-        Raster.DrawSurface(Build.Surface, Record(White, 1.0f, GizmoHandle::None));
+        Raster.DrawSurface(Build.Surface, Record(White, 1.0f, GizmoGrip::None));
     }
 }
 

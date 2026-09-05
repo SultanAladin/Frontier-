@@ -10,7 +10,7 @@
 //    across each edge and the volume is positive. Box, cylinder, cone, extrusion and revolution all go through the same
 //    three calls, so a bug shows up everywhere at once — and so does a fix.
 //
-//    Indices are plain ints into the body's vectors (no pointers): bodies copy freely, which the undo ledger relies on.
+//    Indices are plain ints into the body's vectors (no pointers): bodies copy freely, which the undo timeline relies on.
 #pragma once
 
 #include "CurveSpecification.h"
@@ -58,18 +58,18 @@ struct BrepFace
     bool             Natural = true;                                                    // [-] loops are the surface's own boundary (no trimming)
 };
 
-enum class BodyKind : uint8_t { Wire, Sheet, Solid };
-[[nodiscard]] const char* Describe(BodyKind Kind) noexcept;
+enum class BodyClassification : uint8_t { Wire, Sheet, Solid };
+[[nodiscard]] const char* Describe(BodyClassification Classification) noexcept;
 
-struct BodyReport                                                                       // outcome of Validate()
+struct BodyReport                                                                       // result of Validate()
 {
     int    Vertices = 0, Edges = 0, Faces = 0, Loops = 0;                               // [-]
     int    OpenEdges = 0;                                                               // [-] edges with one coedge
     int    NonManifoldEdges = 0;                                                        // [-] edges with > 2 coedges
     int    MisorientedEdges = 0;                                                        // [-] two coedges with the same sense
     int    EulerCharacteristic = 0;                                                     // [-] V − E + F
-    int    Shells = 0;                                                                  // [-] edge-connected face groups
-    int    Genus = -1;                                                                  // [-] closed body: total handles = Shells − χ/2
+    int    Hulls = 0;                                                                  // [-] edge-connected face groups
+    int    Genus = -1;                                                                  // [-] closed body: total grips = Hulls − χ/2
     double Volume = 0.0;                                                                // [m³] signed
     double Area = 0.0;                                                                  // [m²]
     bool   Closed = false;                                                              // [-]
@@ -111,7 +111,7 @@ public:
     [[nodiscard]] BrepBody Transformed(const Mat4& M) const noexcept;
 
     //---------------------------------------------- queries ----------------------------------------------
-    [[nodiscard]] BodyKind    Kind() const noexcept;
+    [[nodiscard]] BodyClassification    Classification() const noexcept;
     [[nodiscard]] BodyReport  Validate() const noexcept;
     [[nodiscard]] Box3        Bounds() const noexcept;
     [[nodiscard]] Vec3        FaceNormal(int Face, double U, double V) const noexcept;  // honours Reversed
@@ -124,7 +124,7 @@ public:
     // Open boundary loops (edges with a single coedge) chained head to tail; each entry is a list of coedge indices.
     [[nodiscard]] std::vector<std::vector<int>> OpenLoops(double Tolerance = ScalarCriteria::MergeTolerance) const noexcept;
 
-    // Triangles of one face: grid tessellation for natural faces, ear-clipped loop polygon for trimmed planar faces.
+    // Triangles of one face: lattice tessellation for natural faces, ear-clipped loop polygon for trimmed planar faces.
     struct FaceTriangles
     {
         std::vector<Vec3>     Positions;                                                // [m]

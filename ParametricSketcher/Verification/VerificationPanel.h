@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 ParametricSketcher/Verification/VerificationPanel.h — Console proof reporting: named checks, tolerances, summary, exit code
 //============================================================================================================================================
-// Every verification executable prints a table: CHECK · measured · limit · verdict. Failure count is the process exit
+// Every verification executable prints a chart: CHECK · measured · limit · verdict. Failure count is the process exit
 //    code, which is what ctest reads. No framework, no macros beyond one for source location.
 #pragma once
 

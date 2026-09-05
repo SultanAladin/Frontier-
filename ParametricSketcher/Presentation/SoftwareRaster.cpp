@@ -26,20 +26,20 @@ namespace Frontier::SlangMirror
 using uint = std::uint32_t;
 inline float log(float A) { return std::log(A); }
 #include "Shaders/ShadingRecords.slang"
-#include "Shaders/GridProjection.slang"
+#include "Shaders/LatticeProjection.slang"
 #include "Shaders/SurfaceRaster.slang"
 #include "Shaders/LineRaster.slang"
 #include "Shaders/PointRaster.slang"
 
-// MatcapLookup: bilinear sample of the baked layer (declared in SurfaceRaster.slang, defined after the mirror block).
+// MatcapLookup: bilinear sample of the pre-render layer (declared in SurfaceRaster.slang, defined after the mirror tile).
 #undef out
-// ---- Matcap bake: every studio evaluated once into a 128×128 RGB layer (≈ 0.6 ms per layer), sampled bilinearly. ----
+// ---- Matcap pre-render: every studio sample once into a 128×128 RGB layer (≈ 0.6 ms per layer), sampled bilinearly. ----
 constexpr int MatcapSize = 128;
 constexpr int MatcapLayers = 10;
-struct MatcapAtlas
+struct MatcapSheet
 {
     std::vector<float> Texels;                                                          // [-] Layers × Size × Size × 3
-    MatcapAtlas()
+    MatcapSheet()
     {
         Texels.resize(size_t(MatcapLayers) * MatcapSize * MatcapSize * 3);
         for (int L = 0; L < MatcapLayers; ++L)
@@ -55,11 +55,11 @@ struct MatcapAtlas
                 }
     }
 };
-inline const MatcapAtlas& Atlas() { static MatcapAtlas A; return A; }
+inline const MatcapSheet& Sheet() { static MatcapSheet A; return A; }
 
 float3 MatcapLookup(uint Layer, float3 N)
 {
-    const MatcapAtlas& A = Atlas();
+    const MatcapSheet& A = Sheet();
     uint L = Layer < uint(MatcapLayers) ? Layer : 0u;
     float Fx = (N.x * 0.5f + 0.5f) * MatcapSize - 0.5f, Fy = (0.5f - N.y * 0.5f) * MatcapSize - 0.5f;
     int X0 = int(std::floor(Fx)), Y0 = int(std::floor(Fy));
@@ -97,11 +97,11 @@ struct SoftwareRaster::Detail
     std::vector<float>    DepthPlane;                                                   // [-] 0..1
     std::vector<uint32_t> PickPlane;                                                    // [-]
     SM::ViewRecord        View{};
-    ViewRecord            ViewSource{};
+    ViewRecord            ViewCurrent{};
     bool                  Overlay = false;
     Tally                 Count{};
 
-    // A vertex after the vertex stage: clip position + the varyings the fragment stage needs.
+    // A vertex after the vertex shaders: clip position + the varyings the fragment shaders needs.
     struct ClipVertex
     {
         SM::float4 Clip;
@@ -114,13 +114,13 @@ struct SoftwareRaster::Detail
     template<typename FragmentShade>
     void RasterClipped(const ClipVertex& V0, const ClipVertex& V1, const ClipVertex& V2, int VaryingCount, uint32_t PickIdentity, bool CullNone, FragmentShade&& Shade) noexcept;
 
-    void Blend(uint32_t X, uint32_t Y, SM::float4 Source) noexcept
+    void Cover(uint32_t X, uint32_t Y, SM::float4 Original) noexcept
     {
         float* Dst = &Colour[(static_cast<size_t>(Y) * W + X) * 4];
-        float A = SM::saturate(Source.w);
-        Dst[0] = Dst[0] * (1 - A) + Source.x * A;
-        Dst[1] = Dst[1] * (1 - A) + Source.y * A;
-        Dst[2] = Dst[2] * (1 - A) + Source.z * A;
+        float A = SM::saturate(Original.w);
+        Dst[0] = Dst[0] * (1 - A) + Original.x * A;
+        Dst[1] = Dst[1] * (1 - A) + Original.y * A;
+        Dst[2] = Dst[2] * (1 - A) + Original.z * A;
         Dst[3] = 1.0f;
     }
 };
@@ -133,7 +133,7 @@ static SM::ViewRecord MirrorView(const ViewRecord& V) noexcept
     std::memcpy(R.ViewWorld.m, V.ViewWorld, sizeof R.ViewWorld.m);
     R.EyePosition  = { V.EyePosition[0], V.EyePosition[1], V.EyePosition[2], V.EyePosition[3] };
     R.Viewport     = { V.Viewport[0], V.Viewport[1], V.Viewport[2], V.Viewport[3] };
-    R.GridStyle    = { V.GridStyle[0], V.GridStyle[1], V.GridStyle[2], V.GridStyle[3] };
+    R.LatticeStyle    = { V.LatticeStyle[0], V.LatticeStyle[1], V.LatticeStyle[2], V.LatticeStyle[3] };
     R.Illumination = { V.Illumination[0], V.Illumination[1], V.Illumination[2], V.Illumination[3] };
     return R;
 }
@@ -141,14 +141,14 @@ static SM::ViewRecord MirrorView(const ViewRecord& V) noexcept
 static SM::DrawRecord MirrorDraw(const DrawRecord& D) noexcept
 {
     SM::DrawRecord R;
-    std::memcpy(R.ModelWorld.m, D.ModelWorld, sizeof R.ModelWorld.m);
+    std::memcpy(R.LocalWorld.m, D.LocalWorld, sizeof R.LocalWorld.m);
     R.Tint      = { D.Tint[0], D.Tint[1], D.Tint[2], D.Tint[3] };
     R.Selection = { D.Highlight, 0.0f, D.LineWidth, D.PointSize };
     R.Surface   = { float(D.Matcap), float(D.Shading), D.Emissive, 0.0f };
     return R;
 }
 
-// Sutherland–Hodgman against w > ε (near) only; the guard band handles the rest via clamping in screen space.
+// Sutherland–Hodgman against w > ε (near) only; the guard band grips the rest via clamping in screen space.
 template<typename FragmentShade>
 void SoftwareRaster::Detail::Triangle(ClipVertex V0, ClipVertex V1, ClipVertex V2, int VaryingCount, uint32_t PickIdentity, bool CullNone, FragmentShade&& Shade) noexcept
 {
@@ -225,7 +225,7 @@ void SoftwareRaster::Detail::RasterClipped(const ClipVertex& V0, const ClipVerte
             for (int K = 0; K < VaryingCount; ++K) Varying[K] = (V[0]->Varying[K] * Wt[0] + V[1]->Varying[K] * Wt[1] + V[2]->Varying[K] * Wt[2]) * Norm;
             SM::float4 Fragment = Shade(Varying, FrontFacing);
             if (Fragment.w <= 0.002f) continue;
-            Blend(X, Y, Fragment);
+            Cover(X, Y, Fragment);
             if (!Overlay && Fragment.w > 0.5f) DepthPlane[Index] = Z;
             if (PickIdentity != 0 && Fragment.w > 0.5f) PickPlane[Index] = PickIdentity;
         }
@@ -264,7 +264,7 @@ void SoftwareRaster::BeginTarget(const float ClearColour[4]) noexcept
 
 void SoftwareRaster::BindView(const ViewRecord& View) noexcept
 {
-    Self->ViewSource = View;
+    Self->ViewCurrent = View;
     Self->View = MirrorView(View);
 }
 
@@ -272,12 +272,12 @@ void SoftwareRaster::BeginOverlay() noexcept { Self->Overlay = true; }
 void SoftwareRaster::EndTarget() noexcept { Self->Overlay = false; }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                  GRID (analytic, per pixel, 4-tap supersample)
+//                                                  LATTICE (analytic, per pixel, 4-tap supersample)
 //------------------------------------------------------------------------------------------------------------------------
 
-void SoftwareRaster::DrawGrid() noexcept
+void SoftwareRaster::DrawLattice() noexcept
 {
-    const ViewRecord& V = Self->ViewSource;
+    const ViewRecord& V = Self->ViewCurrent;
     Mat4 ClipView; for (int I = 0; I < 16; ++I) ClipView.M[I] = V.ClipView[I];
     bool Perspective = V.EyePosition[3] > 0.5f;
     Vec3 Eye{ V.EyePosition[0], V.EyePosition[1], V.EyePosition[2] };
@@ -295,7 +295,7 @@ void SoftwareRaster::DrawGrid() noexcept
                 Vec3 FarP  = ClipView.TransformPoint({ NdcX, NdcY, 1.0 });
                 Vec3 Origin = Perspective ? Eye : NearP;
                 Vec3 Direction = (FarP - NearP).Normalised();
-                SM::GridSample G = SM::GridShade(Self->View, SM::float3(float(Origin.X), float(Origin.Y), float(Origin.Z)),
+                SM::LatticeSample G = SM::LatticeShade(Self->View, SM::float3(float(Origin.X), float(Origin.Y), float(Origin.Z)),
                                                  SM::float3(float(Direction.X), float(Direction.Y), float(Direction.Z)), V.PixelAngle, V.PixelWorld);
                 Sum = Sum + SM::float4(G.Colour.xyz() * G.Colour.w, G.Colour.w);
                 DepthMin = std::min(DepthMin, G.Depth);
@@ -304,7 +304,7 @@ void SoftwareRaster::DrawGrid() noexcept
             SM::float4 Averaged{ Sum.x / Sum.w, Sum.y / Sum.w, Sum.z / Sum.w, Sum.w * 0.25f };
             size_t Index = static_cast<size_t>(Y) * Self->W + X;
             if (DepthMin > Self->DepthPlane[Index]) continue;
-            Self->Blend(X, Y, Averaged);
+            Self->Cover(X, Y, Averaged);
             ++Self->Count.Fragments;
         }
 }
@@ -464,9 +464,9 @@ uint32_t Crc32(const uint8_t* Bytes, size_t Length, uint32_t Seed = 0xFFFFFFFFu)
     return C;
 }
 
-void PutBigEndian(std::vector<uint8_t>& Out, uint32_t Value) noexcept
+void PutBigEndian(std::vector<uint8_t>& Out, uint32_t Number) noexcept
 {
-    Out.push_back(uint8_t(Value >> 24)); Out.push_back(uint8_t(Value >> 16)); Out.push_back(uint8_t(Value >> 8)); Out.push_back(uint8_t(Value));
+    Out.push_back(uint8_t(Number >> 24)); Out.push_back(uint8_t(Number >> 16)); Out.push_back(uint8_t(Number >> 8)); Out.push_back(uint8_t(Number));
 }
 
 void PutChunk(std::vector<uint8_t>& Out, const char* Type, const std::vector<uint8_t>& Payload) noexcept
@@ -478,16 +478,16 @@ void PutChunk(std::vector<uint8_t>& Out, const char* Type, const std::vector<uin
     PutBigEndian(Out, Crc32(&Out[Start], Out.size() - Start) ^ 0xFFFFFFFFu);
 }
 
-// Bit writer + fixed-Huffman deflate (RFC 1951 block type 1) with a hash-chain LZ77 matcher. Enough to keep proof
+// Bit writer + fixed-Huffman deflate (RFC 1951 tile type 1) with a hash-chain LZ77 matcher. Enough to keep proof
 //    PNGs at a fraction of raw size without pulling in zlib.
 struct BitSink
 {
     std::vector<uint8_t> Bytes;
     uint32_t Accumulator = 0;
     int      Count = 0;
-    void Put(uint32_t Value, int Width) noexcept                                        // LSB-first
+    void Put(uint32_t Number, int Width) noexcept                                        // LSB-first
     {
-        Accumulator |= Value << Count; Count += Width;
+        Accumulator |= Number << Count; Count += Width;
         while (Count >= 8) { Bytes.push_back(uint8_t(Accumulator & 0xFF)); Accumulator >>= 8; Count -= 8; }
     }
     void PutReversed(uint32_t Code, int Width) noexcept                                 // Huffman codes are MSB-first
@@ -509,16 +509,16 @@ void PutLiteral(BitSink& Sink, uint32_t Symbol) noexcept
 
 void PutMatch(BitSink& Sink, uint32_t Length, uint32_t Distance) noexcept
 {
-    static const uint16_t LengthBase[] = { 3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258 };
+    static const uint16_t LengthFloor[] = { 3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258 };
     static const uint8_t  LengthExtra[] = { 0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0 };
-    static const uint16_t DistanceBase[] = { 1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577 };
+    static const uint16_t DistanceFloor[] = { 1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577 };
     static const uint8_t  DistanceExtra[] = { 0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13 };
-    int L = 28; while (LengthBase[L] > Length) --L;
+    int L = 28; while (LengthFloor[L] > Length) --L;
     PutLiteral(Sink, 257 + L);
-    if (LengthExtra[L]) Sink.Put(Length - LengthBase[L], LengthExtra[L]);
-    int D = 29; while (DistanceBase[D] > Distance) --D;
+    if (LengthExtra[L]) Sink.Put(Length - LengthFloor[L], LengthExtra[L]);
+    int D = 29; while (DistanceFloor[D] > Distance) --D;
     Sink.PutReversed(static_cast<uint32_t>(D), 5);
-    if (DistanceExtra[D]) Sink.Put(Distance - DistanceBase[D], DistanceExtra[D]);
+    if (DistanceExtra[D]) Sink.Put(Distance - DistanceFloor[D], DistanceExtra[D]);
 }
 
 std::vector<uint8_t> DeflateFixed(const std::vector<uint8_t>& Raw) noexcept
@@ -529,7 +529,7 @@ std::vector<uint8_t> DeflateFixed(const std::vector<uint8_t>& Raw) noexcept
 
     BitSink Sink;
     Sink.Bytes.push_back(0x78); Sink.Bytes.push_back(0x01);                             // zlib header
-    Sink.Put(1, 1); Sink.Put(1, 2);                                                     // final block, fixed Huffman
+    Sink.Put(1, 1); Sink.Put(1, 2);                                                     // final tile, fixed Huffman
     size_t I = 0;
     while (I < Raw.size())
     {
@@ -557,7 +557,7 @@ std::vector<uint8_t> DeflateFixed(const std::vector<uint8_t>& Raw) noexcept
         }
         else { PutLiteral(Sink, Raw[I]); ++I; }
     }
-    PutLiteral(Sink, 256);                                                              // end of block
+    PutLiteral(Sink, 256);                                                              // end of tile
     Sink.Flush();
     uint32_t A = 1, B = 0;
     for (uint8_t Byte : Raw) { A = (A + Byte) % 65521; B = (B + A) % 65521; }
@@ -580,7 +580,7 @@ bool WritePng(const std::string& Path, const RasterImage& Image) noexcept
     Raw.reserve((static_cast<size_t>(Image.Width) * 4 + 1) * Image.Height);
     for (uint32_t Y = 0; Y < Image.Height; ++Y)
     {
-        Raw.push_back(2);                                                               // filter: Up (flat backdrops → zeros)
+        Raw.push_back(2);                                                               // sift: Up (flat backdrops → zeros)
         const uint8_t* Row = &Image.Pixels[static_cast<size_t>(Y) * Image.Width * 4];
         const uint8_t* Above = Y ? Row - static_cast<size_t>(Image.Width) * 4 : nullptr;
         for (size_t I = 0; I < static_cast<size_t>(Image.Width) * 4; ++I) Raw.push_back(uint8_t(Row[I] - (Above ? Above[I] : 0)));

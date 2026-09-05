@@ -2,8 +2,8 @@
 // 📦 ParametricSketcher/Presentation/ScenePresentation.h — Kernel geometry → vertex streams, plus the standard viewport dressing
 //============================================================================================================================================
 // Pure conversion: NurbsCurve → SegmentStream (adaptive tessellation), NurbsSurface → SurfaceStream (+ iso-curve
-//    SegmentStream), control polygons / nets → PointStream + SegmentStream. Also the world triad and a frame helper
-//    that runs the canonical pass order: grid → surfaces → curves → points → overlay.
+//    SegmentStream), control polygons / nets → PointStream + SegmentStream. Also the world triad and a fit support
+//    that runs the canonical step order: lattice → surfaces → curves → points → overlay.
 #pragma once
 
 #include "RasterExchange.h"

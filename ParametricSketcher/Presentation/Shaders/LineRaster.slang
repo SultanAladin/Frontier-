@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 ParametricSketcher/Presentation/Shaders/LineRaster.slang — Screen-space width polylines: curves, edges, gizmo lines, rubber band
 //============================================================================================================================================
-// One instance per segment (A, B) expanded in the vertex stage to a screen-aligned quad of constant pixel width.
+// One instance per segment (A, B) expanded in the vertex shaders to a screen-aligned quad of constant pixel width.
 //    Corner index 0..3 picks the quad vertex. Dashing is a per-draw option for construction geometry. Width and
 //    colour come from DrawRecord; selection brightens toward orange. Depth is taken from the true 3D segment so
 //    lines occlude correctly against surfaces, with a small bias so an edge lying ON a face still wins.
@@ -20,8 +20,8 @@ struct LineVarying
 LineVarying LineVertex(ViewRecord View, DrawRecord Draw, float3 A, float3 B, uint Corner)
 {
     LineVarying Out;
-    float4 ClipA = mul(View.ViewClip, mul(Draw.ModelWorld, float4(A, 1.0)));
-    float4 ClipB = mul(View.ViewClip, mul(Draw.ModelWorld, float4(B, 1.0)));
+    float4 ClipA = mul(View.ViewClip, mul(Draw.LocalWorld, float4(A, 1.0)));
+    float4 ClipB = mul(View.ViewClip, mul(Draw.LocalWorld, float4(B, 1.0)));
 
     // Clip against the near plane (w > ε) so a segment crossing behind the eye is shortened, not flipped.
     float Near = 1e-4;

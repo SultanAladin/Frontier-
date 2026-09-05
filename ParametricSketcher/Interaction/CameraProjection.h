@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // Blender / Plasticity conventions: turntable orbit about a pivot (yaw around world Z, pitch clamped short of the
 //    poles), pan in the view plane, dolly toward the pivot, numpad views (1 front −Y, 3 right +X, 7 top +Z, Ctrl for
-//    opposite), 5 toggles projection, frame-selected re-centres the pivot and fits the distance. Fills a ViewRecord.
+//    opposite), 5 toggles projection, fit-selected re-centres the pivot and fits the distance. Fills a ViewRecord.
 #pragma once
 
 #include "Kernel/VectorSpecification.h"
@@ -38,14 +38,14 @@ public:
     void Pan(double DeltaRightPixels, double DeltaUpPixels, double ViewportHeight) noexcept;
     void Dolly(double Steps) noexcept;                                                  // wheel notches, ±
     void Look(CanonicalView View) noexcept;
-    void Frame(const Box3& Bounds, double Aspect) noexcept;                             // fit bounds, keep orientation
+    void Fit(const Box3& Bounds, double Aspect) noexcept;                             // fit bounds, keep orientation
 
     // World → pixel (top-left origin); returns false when behind the eye.
     [[nodiscard]] bool WorldToPixel(Vec3 P, double ViewportWidth, double ViewportHeight, double& PixelX, double& PixelY) const noexcept;
     // Pixel → world ray (perspective) or parallel ray (ortho). Pixel origin top-left, matches raster.
     [[nodiscard]] Ray PixelRay(double PixelX, double PixelY, double ViewportWidth, double ViewportHeight) const noexcept;
 
-    [[nodiscard]] ViewRecord ToViewRecord(uint32_t Width, uint32_t Height, double GridCell = 1.0) const noexcept;
+    [[nodiscard]] ViewRecord ToViewRecord(uint32_t Width, uint32_t Height, double LatticeCell = 1.0) const noexcept;
 };
 
 } // namespace Frontier

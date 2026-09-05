@@ -165,7 +165,7 @@ Deliver<NurbsCurve> NurbsCurve::ArcThreePoints(Vec3 A, Vec3 B, Vec3 C) noexcept
     double AngleA = Axes.ToLocal(A).Angle();
     double AngleB = Axes.ToLocal(B).Angle();
     double AngleC = Axes.ToLocal(C).Angle();
-    // Sweep CCW from A to C in this frame; because the frame normal follows AB×AC, B is always on that CCW path.
+    // Sweep CCW from A to C in this fit; because the fit normal follows AB×AC, B is always on that CCW path.
     double Sweep = ScalarCriteria::WrapAngle(AngleC - AngleA);
     (void)AngleB;
     return Arc(Centre, Axes.Normal(), Radius, AngleA, Sweep);

@@ -1,7 +1,7 @@
 //============================================================================================================================================
-// 📦 ParametricSketcher/Document/HistoryLedger.cpp — Snapshot journal
+// 📦 ParametricSketcher/Document/UndoSequence.cpp — Snapshot record
 //============================================================================================================================================
-#include "HistoryLedger.h"
+#include "UndoSequence.h"
 #include <cstring>
 
 namespace Frontier
@@ -13,24 +13,24 @@ namespace
     inline uint64_t Bits(double D) noexcept { uint64_t U; std::memcpy(&U, &D, sizeof U); return U; }
 }
 
-uint64_t HistoryLedger::Fingerprint(const SceneDocument& Scene) noexcept
+uint64_t UndoSequence::Fingerprint(const SceneDocument& Scene) noexcept
 {
     uint64_t H = 1469598103934665603ull;
-    Mix(H, Scene.Items().size());
-    for (const SceneItem& I : Scene.Items())
+    Mix(H, Scene.Figures().size());
+    for (const SceneFigure& I : Scene.Figures())
     {
-        Mix(H, I.Identity); Mix(H, uint64_t(I.Kind)); Mix(H, std::hash<std::string>{}(I.Name));
+        Mix(H, I.Identity); Mix(H, uint64_t(I.Classification)); Mix(H, std::hash<std::string>{}(I.Name));
         Mix(H, (I.Construction ? 1 : 0) | (I.Hidden ? 2 : 0) | (I.Selected ? 4 : 0)); Mix(H, I.Matcap);
         Mix(H, Bits(I.Tint[0])); Mix(H, Bits(I.Tint[1])); Mix(H, Bits(I.Tint[2]));
         for (int P : I.SelectedPoles) Mix(H, uint64_t(P) + 7);
         for (int P : I.SelectedFaces) Mix(H, uint64_t(P) + 11);
         for (int P : I.SelectedEdges) Mix(H, uint64_t(P) + 13);
-        if (I.Kind == ItemKind::Curve)
+        if (I.Classification == FigureClassification::Curve)
         {
             Mix(H, I.Curve.Degree); for (const Vec4& P : I.Curve.Poles) { Mix(H, Bits(P.X)); Mix(H, Bits(P.Y)); Mix(H, Bits(P.Z)); Mix(H, Bits(P.W)); }
             for (double K : I.Curve.Knots) Mix(H, Bits(K));
         }
-        else if (I.Kind == ItemKind::Body)
+        else if (I.Classification == FigureClassification::Body)
         {
             Mix(H, I.Body.Faces.size()); Mix(H, I.Body.Edges.size());
             for (const BrepVertex& V : I.Body.Vertices) { Mix(H, Bits(V.Point.X)); Mix(H, Bits(V.Point.Y)); Mix(H, Bits(V.Point.Z)); }
@@ -47,7 +47,7 @@ uint64_t HistoryLedger::Fingerprint(const SceneDocument& Scene) noexcept
     return H;
 }
 
-void HistoryLedger::Record(const SceneDocument& Before, std::string Label) noexcept
+void UndoSequence::Record(const SceneDocument& Before, std::string Label) noexcept
 {
     PendingEntry.Before = Before;
     PendingEntry.Label = std::move(Label);
@@ -55,7 +55,7 @@ void HistoryLedger::Record(const SceneDocument& Before, std::string Label) noexc
     Pending = true;
 }
 
-bool HistoryLedger::Settle(const SceneDocument& After) noexcept
+bool UndoSequence::Settle(const SceneDocument& After) noexcept
 {
     if (!Pending) return false;
     Pending = false;
@@ -66,7 +66,7 @@ bool HistoryLedger::Settle(const SceneDocument& After) noexcept
     return true;
 }
 
-std::string HistoryLedger::Undo(SceneDocument& Current) noexcept
+std::string UndoSequence::Undo(SceneDocument& Current) noexcept
 {
     if (UndoStack.empty()) return {};
     Entry E = std::move(UndoStack.back()); UndoStack.pop_back();
@@ -75,7 +75,7 @@ std::string HistoryLedger::Undo(SceneDocument& Current) noexcept
     return RedoStack.back().Label;
 }
 
-std::string HistoryLedger::Redo(SceneDocument& Current) noexcept
+std::string UndoSequence::Redo(SceneDocument& Current) noexcept
 {
     if (RedoStack.empty()) return {};
     Entry E = std::move(RedoStack.back()); RedoStack.pop_back();

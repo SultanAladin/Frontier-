@@ -9,14 +9,14 @@ using namespace Frontier;
 
 namespace
 {
-const SceneItem* Last(ConsoleHost& H) { return H.Document().Items().empty() ? nullptr : &H.Document().Items().back(); }
+const SceneFigure* Last(ConsoleHost& H) { return H.Document().Figures().empty() ? nullptr : &H.Document().Figures().back(); }
 }
 
 int main()
 {
     VerificationPanel Panel("SolidArc · Phase 3 · Interaction Verification — ToolSession · SnapResolution · HotkeyChart · numeric entry");
     ConsoleHost Host("/tmp/SolidArcVerification", 1280, 800);
-    Host.Execute("view top; view frame");
+    Host.Execute("view top; view fit");
     const double PixelsPerMetre = 800.0 / (2.0 * Host.Camera().OrthographicHalfHeight());
     auto Px = [&](double X, double Y) { return std::pair<double, double>{ 640.0 + X * PixelsPerMetre, 400.0 - Y * PixelsPerMetre }; };
 
@@ -55,9 +55,9 @@ int main()
 
     Panel.Section("Cancel / confirm semantics");
     {
-        size_t Before = Host.Document().Items().size();
+        size_t Before = Host.Document().Figures().size();
         Host.Execute("tool line; point (0,0); key esc");
-        Panel.Expect("Esc cancels without creating geometry", Host.Document().Items().size() == Before);
+        Panel.Expect("Esc cancels without creating geometry", Host.Document().Figures().size() == Before);
         Host.Execute("tool polyline; point (0,0); point (1,0); point (1,1); key enter");
         Panel.Expect("Enter finishes an open-ended polyline (3 poles)", Last(Host)->Curve.PoleCount() == 3);
         Host.Execute("tool polyline; point (0,0); point (1,0); click --right");
@@ -65,45 +65,45 @@ int main()
         Host.Execute("tool spline; point (0,0); point (1,2); point (2,0); point (3,2); key backspace; key enter");
         Panel.Expect("Backspace removes the last point of a repeating prompt", Last(Host)->Curve.Sample(Last(Host)->Curve.DomainEnd()).Distance({ 2, 0, 0 }) < 1e-9);
         Host.Execute("tool circle; point (1,1); point (1,1)");
-        Panel.Expect("Coincident second point is refused, tool still running", Host.Document().Items().back().Kind == ItemKind::Curve && Last(Host)->Curve.Classification != CurveClassification::Circle);
+        Panel.Expect("Coincident second point is refused, tool still running", Host.Document().Figures().back().Classification == FigureClassification::Curve && Last(Host)->Curve.Classification != CurveClassification::Circle);
         Host.Execute("tool cancel");
     }
 
     Panel.Section("Snapping through pixels");
     {
         Host.Execute("clear; tool line; point (0,0); type 4; tool line; point (4,0); type @0,3; tool circle; point (-5,0); type r2; tool rect; point (2,-6); point (6,-2)");
-        auto Probe = [&](double X, double Y, const Vec3* Anchor = nullptr)
+        auto Locate = [&](double X, double Y, const Vec3* Anchor = nullptr)
         {
             return SnapResolution::Resolve(X, Y, Host.Camera(), 1280, 800, Workplane::XY(), Host.Document(), SnapSettings{}, Anchor);
         };
         auto [Ex, Ey] = Px(4.0, 0.0);
-        SnapCandidate S = Probe(Ex + 5, Ey + 4);
-        Panel.Expect("5 px off a shared endpoint → intersection/endpoint at (4,0)", (S.Kind == SnapKind::Intersection || S.Kind == SnapKind::Endpoint) && S.Position.Distance({ 4, 0, 0 }) < 1e-9);
+        SnapCandidate S = Locate(Ex + 5, Ey + 4);
+        Panel.Expect("5 px off a shared endpoint → intersection/endpoint at (4,0)", (S.Classification == SnapClassification::Intersection || S.Classification == SnapClassification::Endpoint) && S.Position.Distance({ 4, 0, 0 }) < 1e-9);
         auto [Mx, My] = Px(2.0, 0.0);
-        S = Probe(Mx + 3, My - 2);
-        Panel.Expect("Midpoint of the 4 m line", S.Kind == SnapKind::Midpoint && S.Position.Distance({ 2, 0, 0 }) < 1e-9);
+        S = Locate(Mx + 3, My - 2);
+        Panel.Expect("Midpoint of the 4 m line", S.Classification == SnapClassification::Midpoint && S.Position.Distance({ 2, 0, 0 }) < 1e-9);
         auto [Cx, Cy] = Px(-5.0, 0.0);
-        S = Probe(Cx - 4, Cy + 6);
-        Panel.Expect("Circle centre", S.Kind == SnapKind::Centre && S.Position.Distance({ -5, 0, 0 }) < 1e-9);
+        S = Locate(Cx - 4, Cy + 6);
+        Panel.Expect("Circle centre", S.Classification == SnapClassification::Centre && S.Position.Distance({ -5, 0, 0 }) < 1e-9);
         auto [Qx, Qy] = Px(-5.0, 2.0);
-        S = Probe(Qx + 2, Qy + 3);
-        Panel.Expect("Circle quadrant (top)", S.Kind == SnapKind::Quadrant && S.Position.Distance({ -5, 2, 0 }) < 1e-6);
+        S = Locate(Qx + 2, Qy + 3);
+        Panel.Expect("Circle quadrant (top)", S.Classification == SnapClassification::Quadrant && S.Position.Distance({ -5, 2, 0 }) < 1e-6);
         auto [Ox, Oy] = Px(-5.0 + 2.0 * std::cos(0.7), 2.0 * std::sin(0.7));
-        S = Probe(Ox + 3, Oy);
-        Panel.Expect("Off the special points: on-curve snap lands on the circle", S.Kind == SnapKind::OnCurve && std::fabs(S.Position.Distance({ -5, 0, 0 }) - 2.0) < 1e-9);
+        S = Locate(Ox + 3, Oy);
+        Panel.Expect("Off the special points: on-curve snap lands on the circle", S.Classification == SnapClassification::OnCurve && std::fabs(S.Position.Distance({ -5, 0, 0 }) - 2.0) < 1e-9);
         auto [Gx, Gy] = Px(0.93, 1.9);
-        S = Probe(Gx, Gy);
-        Panel.Expect("Empty space → grid (1,2)", S.Kind == SnapKind::Grid && S.Position.Distance({ 1, 2, 0 }) < 1e-9);
+        S = Locate(Gx, Gy);
+        Panel.Expect("Empty space → lattice (1,2)", S.Classification == SnapClassification::Lattice && S.Position.Distance({ 1, 2, 0 }) < 1e-9);
         Vec3 Anchor{ 0, 3, 0 };
         auto [Ax, Ay] = Px(3.0, 3.05);
-        S = Probe(Ax, Ay, &Anchor);
-        Panel.Expect("Axis-aligned with the anchor → axis-x snap keeps Y = 3", S.Kind == SnapKind::AxisX && std::fabs(S.Position.Y - 3.0) < 1e-9);
+        S = Locate(Ax, Ay, &Anchor);
+        Panel.Expect("Axis-aligned with the anchor → axis-x snap keeps Y = 3", S.Classification == SnapClassification::AxisX && std::fabs(S.Position.Y - 3.0) < 1e-9);
         auto [Rx, Ry] = Px(2.0, -2.0);
-        S = Probe(Rx + 6, Ry + 6);
-        Panel.Expect("Rectangle corner = polyline vertex endpoint", S.Kind == SnapKind::Endpoint && S.Position.Distance({ 2, -2, 0 }) < 1e-9);
+        S = Locate(Rx + 6, Ry + 6);
+        Panel.Expect("Rectangle corner = polyline vertex endpoint", S.Classification == SnapClassification::Endpoint && S.Position.Distance({ 2, -2, 0 }) < 1e-9);
         SnapSettings Off; Off.Enabled = false;
         S = SnapResolution::Resolve(Ex + 5, Ey + 4, Host.Camera(), 1280, 800, Workplane::XY(), Host.Document(), Off, nullptr);
-        Panel.Expect("Snapping disabled (Ctrl) → free workplane hit", S.Kind == SnapKind::Free && S.Position.Distance({ 4, 0, 0 }) > 0.01);
+        Panel.Expect("Snapping disabled (Ctrl) → free workplane hit", S.Classification == SnapClassification::Free && S.Position.Distance({ 4, 0, 0 }) > 0.01);
     }
 
     Panel.Section("Pointer-driven tool with snap");
@@ -132,7 +132,7 @@ int main()
         Host.Execute("bind ctrl+shift+q \"echo bound\"");
         int Before = Host.RefusalCount();
         Host.Execute("key ctrl+shift+q");
-        Panel.Expect("User binding dispatches", Host.RefusalCount() == Before);
+        Panel.Expect("User hotkey dispatches", Host.RefusalCount() == Before);
         Host.Execute("key f12");
         Panel.Expect("Unbound key is reported as a refusal", Host.RefusalCount() == Before + 1);
         Key K; uint8_t M;
@@ -143,24 +143,24 @@ int main()
     Panel.Section("GizmoPRO and shading");
     {
         ConsoleHost Host("/tmp/SolidArcVerification", 1280, 800);
-        Host.Execute("cylinder (0,0,0) 1 1.5 ; select Cylinder ; view iso ; view frame ; gizmo size 160");
+        Host.Execute("cylinder (0,0,0) 1 1.5 ; select Cylinder ; view iso ; view fit ; gizmo size 160");
         const TransformGizmo& G = Host.Gizmo();
-        Panel.Equal("Pivot = selection bounds centre z", G.CurrentFrame().Origin.Z, 0.75, 1e-9);
-        // every handle anchor probes back to itself (or to a nearer handle in front of it)
+        Panel.Equal("Pivot = selection bounds centre z", G.CurrentPivot().Origin.Z, 0.75, 1e-9);
+        // every grip anchor probes back to itself (or to a nearer grip in front of it)
         int Hits = 0;
-        for (int I = int(GizmoHandle::TranslateX); I <= int(GizmoHandle::RotateZ); ++I)
+        for (int I = int(GizmoGrip::TranslateX); I <= int(GizmoGrip::RotateZ); ++I)
         {
-            GizmoHandle H = static_cast<GizmoHandle>(I);
-            Vec3 W = G.HandleAnchor(H, Host.Camera(), 800);
+            GizmoGrip H = static_cast<GizmoGrip>(I);
+            Vec3 W = G.GripAnchor(H, Host.Camera(), 800);
             double X = 0, Y = 0; (void)Host.Camera().WorldToPixel(W, 1280, 800, X, Y);
-            if (G.Probe(X, Y, Host.Camera(), 1280, 800) != GizmoHandle::None) ++Hits;
+            if (G.Locate(X, Y, Host.Camera(), 1280, 800) != GizmoGrip::None) ++Hits;
         }
-        Panel.Expect("All 12 handle anchors are pickable", Hits == 12);
-        Panel.Expect("Empty pixel probes none", G.Probe(50, 50, Host.Camera(), 1280, 800) == GizmoHandle::None);
+        Panel.Expect("All 12 grip anchors are pickable", Hits == 12);
+        Panel.Expect("Empty pixel probes none", G.Locate(50, 50, Host.Camera(), 1280, 800) == GizmoGrip::None);
         // scripted drags
-        auto PixelOf = [&](GizmoHandle H, double& X, double& Y) { (void)Host.Camera().WorldToPixel(G.HandleAnchor(H, Host.Camera(), 800), 1280, 800, X, Y); };
+        auto PixelOf = [&](GizmoGrip H, double& X, double& Y) { (void)Host.Camera().WorldToPixel(G.GripAnchor(H, Host.Camera(), 800), 1280, 800, X, Y); };
         double X, Y;
-        PixelOf(GizmoHandle::TranslateX, X, Y);
+        PixelOf(GizmoGrip::TranslateX, X, Y);
         char Line[256];
         std::snprintf(Line, sizeof Line, "pointer %d %d ; click ; pointer %d %d --ctrl ; release", int(X), int(Y), int(X) + 97, int(Y) + 49);
         Host.Execute(Line);
@@ -168,7 +168,7 @@ int main()
         Panel.Equal("X move with Ctrl snaps to 0.25 multiples (min x)", std::fmod(std::fabs(B.Low.X + 1.0) + 1e-9, 0.25), 0.0, 1e-6);
         Panel.Expect("X move only changes x", std::fabs(B.Low.Y + 1) < 1e-9 && std::fabs(B.High.Z - 1.5) < 1e-9 && B.Low.X > -1.0 + 0.2);
         double Moved = B.Low.X + 1.0;
-        PixelOf(GizmoHandle::ScaleX, X, Y);
+        PixelOf(GizmoGrip::ScaleX, X, Y);
         std::snprintf(Line, sizeof Line, "pointer %d %d ; click ; pointer %d %d --ctrl ; release", int(X), int(Y), int(X) + 37, int(Y) + 21);
         Host.Execute(Line);
         B = Host.Document().Find(std::string("Cylinder"))->Bounds();
@@ -176,7 +176,7 @@ int main()
         Panel.Equal("X scale snaps to 0.1 multiples", std::fmod(Factor + 1e-9, 0.1), 0.0, 1e-6);
         Panel.Equal("X scale keeps the pivot fixed", (B.High.X + B.Low.X) * 0.5, Moved, 1e-6);
         Panel.Equal("X scale leaves y untouched", B.High.Y - B.Low.Y, 2.0, 1e-9);
-        PixelOf(GizmoHandle::RotateZ, X, Y);
+        PixelOf(GizmoGrip::RotateZ, X, Y);
         std::snprintf(Line, sizeof Line, "pointer %d %d ; click ; pointer %d %d --ctrl ; release", int(X), int(Y), int(X) + 47, int(Y) - 24);
         Host.Execute(Line);
         B = Host.Document().Find(std::string("Cylinder"))->Bounds();
@@ -184,12 +184,12 @@ int main()
         Panel.Equal("Z rotate keeps height", B.High.Z - B.Low.Z, 1.5, 1e-9);
         Panel.Expect("Release ends the drag", !G.Dragging());
         Host.Execute("gizmo rotate");
-        Panel.Expect("Separable layout hides translate cones", G.Probe(X, Y, Host.Camera(), 1280, 800) != GizmoHandle::TranslateX);
+        Panel.Expect("Separable layout hides translate cones", G.Locate(X, Y, Host.Camera(), 1280, 800) != GizmoGrip::TranslateX);
         // shading verbs
         int Before = Host.RefusalCount();
         Host.Execute("show shading plastic ; show shading flat ; show shading matcap ; matcap Cylinder gold ; matcap Cylinder 9 ; tint Cylinder 1 0 0");
         Panel.Expect("Shading / matcap / tint verbs accepted", Host.RefusalCount() == Before);
-        Panel.Expect("Per-object matcap stored on the item", Host.Document().Find(std::string("Cylinder"))->Matcap == 9);
+        Panel.Expect("Per-whole matcap stored on the figure", Host.Document().Find(std::string("Cylinder"))->Matcap == 9);
         Host.Execute("matcap Cylinder velvet");
         Panel.Expect("Unknown studio refused", Host.RefusalCount() == Before + 1);
         Panel.Expect("Ten studios listed", MatcapCount() == 10 && std::string(MatcapName(1)) == "chrome");

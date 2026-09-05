@@ -193,7 +193,7 @@ struct Mat4
     double M[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };                              // [-]
 
     [[nodiscard]] constexpr double At(int Row, int Column) const noexcept { return M[Column * 4 + Row]; }
-    constexpr void Set(int Row, int Column, double A) noexcept { M[Column * 4 + Row] = A; }
+    constexpr void Place(int Row, int Column, double A) noexcept { M[Column * 4 + Row] = A; }
 
     [[nodiscard]] static constexpr Mat4 Identity() noexcept { return Mat4{}; }
 
@@ -337,7 +337,7 @@ struct Mat4
 //------------------------------------------------------------------------------------------------------------------------
 //                                                  PLANE
 //------------------------------------------------------------------------------------------------------------------------
-// Signed form: Normal·P = Offset. A workplane carries a full frame (Origin, AxisX, AxisY) so sketches have a 2D basis.
+// Signed form: Normal·P = Offset. A workplane carries a full fit (Origin, AxisX, AxisY) so sketches have a 2D basis.
 
 struct Plane
 {

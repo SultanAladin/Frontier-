@@ -6,7 +6,7 @@
 //    The verbs are deliberately the ones a Vulkan command buffer records: begin a target, bind a view, issue draws
 //    from typed vertex streams with a per-draw record, switch to the overlay (depth-test-off) segment, end, read back.
 //
-// Vertex streams are float32 and tightly packed exactly as the .slang vertex stages consume them, so the GPU path
+// Vertex streams are float32 and tightly packed exactly as the .slang vertex shaders consume them, so the GPU path
 //    uploads them verbatim.
 #pragma once
 
@@ -29,7 +29,7 @@ struct ViewRecord
     float ViewWorld[16];                                                                // [-] camera → world, matcap basis
     float EyePosition[4];                                                               // [m] xyz, w = 1 perspective / 0 ortho
     float Viewport[4];                                                                  // [px] xy size, zw reciprocal
-    float GridStyle[4];                                                                 // x minor cell [m], y major every N, z fade radius [m], w half-width [px]
+    float LatticeStyle[4];                                                                 // x minor cell [m], y major every N, z fade radius [m], w half-width [px]
     float Illumination[4];                                                              // xyz key light dir, w ambient
     float PixelAngle = 0.0f;                                                            // [rad] per pixel (perspective)
     float PixelWorld = 0.0f;                                                            // [m] per pixel (orthographic)
@@ -37,14 +37,14 @@ struct ViewRecord
 
 struct DrawRecord
 {
-    float    ModelWorld[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };                   // [-]
+    float    LocalWorld[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };                   // [-]
     float    Tint[4]        = { 0.7f, 0.72f, 0.76f, 1.0f };                             // [-] rgb, a
     float    Highlight      = 0.0f;                                                     // [-] 0 none, 1 hover, 2 selected
     uint32_t PickIdentity   = 0;                                                        // [-] 0 = not pickable
     float    LineWidth      = 1.5f;                                                     // [px]
     float    PointSize      = 7.0f;                                                     // [px]
     bool     Dashed         = false;                                                    // [-] construction geometry
-    uint8_t  Matcap         = 0;                                                        // [-] studio layer, per object (see MatcapStudio.slang)
+    uint8_t  Matcap         = 0;                                                        // [-] studio layer, per whole (see MatcapStudio.slang)
     uint8_t  Shading        = 2;                                                        // [-] 0 flat, 1 plastic, 2 matcap
     float    Emissive       = 0.0f;                                                     // [-] additive boost (gizmo hover)
 };
@@ -115,10 +115,10 @@ public:
     virtual uint32_t Width() const noexcept = 0;
     virtual uint32_t Height() const noexcept = 0;
 
-    // One target per frame: clear, bind view, record draws in the main (depth-tested) segment, then overlay, then end.
+    // One target per fit: clear, bind view, record draws in the main (depth-tested) segment, then overlay, then end.
     virtual void BeginTarget(const float ClearColour[4]) noexcept = 0;
     virtual void BindView(const ViewRecord& View) noexcept = 0;
-    virtual void DrawGrid() noexcept = 0;
+    virtual void DrawLattice() noexcept = 0;
     virtual void DrawSurface(const SurfaceStream& Stream, const DrawRecord& Draw) noexcept = 0;
     virtual void DrawSegments(const SegmentStream& Stream, const DrawRecord& Draw) noexcept = 0;
     virtual void DrawPoints(const PointStream& Stream, const DrawRecord& Draw) noexcept = 0;
@@ -138,7 +138,7 @@ public:
     virtual Tally QueryTally() const noexcept = 0;
 };
 
-// PNG writer shared by every backend's proof output (stored-deflate, no dependencies). Returns false on I/O failure.
+// PNG writer shared by every Vulkan hand-off's proof output (stored-deflate, no dependencies). Returns false on I/O failure.
 [[nodiscard]] bool WritePng(const std::string& Path, const RasterImage& Image) noexcept;
 
 } // namespace Frontier

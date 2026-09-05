@@ -1,9 +1,9 @@
 //============================================================================================================================================
-// 📦 ParametricSketcher/Interaction/SnapResolution.h — Pixel-radius snapping: grid, geometry points, on-curve, axis alignment, intersections
+// 📦 ParametricSketcher/Interaction/SnapResolution.h — Pixel-radius snapping: lattice, geometry points, on-curve, axis alignment, intersections
 //============================================================================================================================================
 // Input is a pixel and a camera; candidates are ranked by pixel distance with a priority tie-break (endpoint beats
-//    midpoint beats on-curve beats grid). Every candidate reports what it snapped to so the console can print it and
-//    the presentation can draw the matching glyph. Priorities mirror Plasticity: geometry always wins over the grid.
+//    midpoint beats on-curve beats lattice). Every candidate reports what it snapped to so the console can print it and
+//    the presentation can draw the matching glyph. Priorities mirror Plasticity: geometry always wins over the lattice.
 #pragma once
 
 #include "CameraProjection.h"
@@ -13,10 +13,10 @@
 namespace Frontier
 {
 
-enum class SnapKind : uint8_t
+enum class SnapClassification : uint8_t
 {
     None,
-    Grid,                                                                               // workplane grid intersection
+    Lattice,                                                                               // workplane lattice intersection
     Endpoint,
     Midpoint,
     Centre,                                                                             // circle / arc / ellipse centre
@@ -31,14 +31,14 @@ enum class SnapKind : uint8_t
     Free                                                                                // workplane hit, nothing snapped
 };
 
-[[nodiscard]] const char* SnapKindName(SnapKind Kind) noexcept;
+[[nodiscard]] const char* SnapName(SnapClassification Classification) noexcept;
 
 struct SnapCandidate
 {
-    SnapKind Kind = SnapKind::None;                                                     // [-]
+    SnapClassification Classification = SnapClassification::None;                                                     // [-]
     Vec3     Position;                                                                  // [m] world
     double   PixelDistance = ScalarCriteria::Infinity;                                  // [px]
-    uint32_t ItemIdentity = 0;                                                          // [-] the curve it belongs to (0 = none)
+    uint32_t FigureIdentity = 0;                                                          // [-] the curve it belongs to (0 = none)
     double   Parameter = 0.0;                                                           // [-] curve parameter when on a curve
     int      Priority = 0;                                                              // [-] higher wins ties within the radius
 };
@@ -46,13 +46,13 @@ struct SnapCandidate
 struct SnapSettings
 {
     bool   Enabled = true;                                                              // [-] master toggle (Ctrl inverts)
-    bool   Grid = true;                                                                 // [-]
+    bool   Lattice = true;                                                                 // [-]
     bool   Geometry = true;                                                             // [-] endpoints/midpoints/centres/quadrants/control points
     bool   OnCurve = true;                                                              // [-]
     bool   Axis = true;                                                                 // [-] orthogonal alignment with the anchor
     bool   Intersections = true;                                                        // [-]
     double Radius = 12.0;                                                               // [px]
-    double GridStep = 1.0;                                                              // [m]
+    double LatticeStep = 1.0;                                                              // [m]
     double AngleStep = ScalarCriteria::Radians(15.0);                                   // [rad] angle quantisation with Ctrl held
 };
 

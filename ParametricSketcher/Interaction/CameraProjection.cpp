@@ -70,7 +70,7 @@ void CameraProjection::Look(CanonicalView View) noexcept
     }
 }
 
-void CameraProjection::Frame(const Box3& Bounds, double Aspect) noexcept
+void CameraProjection::Fit(const Box3& Bounds, double Aspect) noexcept
 {
     if (Bounds.Empty()) return;
     Pivot = Bounds.Centre();
@@ -105,7 +105,7 @@ Ray CameraProjection::PixelRay(double PixelX, double PixelY, double ViewportWidt
     return R;
 }
 
-ViewRecord CameraProjection::ToViewRecord(uint32_t Width, uint32_t Height, double GridCell) const noexcept
+ViewRecord CameraProjection::ToViewRecord(uint32_t Width, uint32_t Height, double LatticeCell) const noexcept
 {
     ViewRecord R{};
     double Aspect = static_cast<double>(Width) / Height;
@@ -116,7 +116,7 @@ ViewRecord CameraProjection::ToViewRecord(uint32_t Width, uint32_t Height, doubl
     Vec3 E = Orthographic ? Forward() * -1.0 : Eye();
     R.EyePosition[0] = float(E.X); R.EyePosition[1] = float(E.Y); R.EyePosition[2] = float(E.Z); R.EyePosition[3] = Orthographic ? 0.0f : 1.0f;
     R.Viewport[0] = float(Width); R.Viewport[1] = float(Height); R.Viewport[2] = 1.0f / Width; R.Viewport[3] = 1.0f / Height;
-    R.GridStyle[0] = float(GridCell); R.GridStyle[1] = 10.0f; R.GridStyle[2] = float(std::max(Distance * 6.0, 40.0)); R.GridStyle[3] = 0.6f;
+    R.LatticeStyle[0] = float(LatticeCell); R.LatticeStyle[1] = 10.0f; R.LatticeStyle[2] = float(std::max(Distance * 6.0, 40.0)); R.LatticeStyle[3] = 0.6f;
     Vec3 Key = Vec3{ -0.45, -0.35, 0.82 }.Normalised();
     R.Illumination[0] = float(Key.X); R.Illumination[1] = float(Key.Y); R.Illumination[2] = float(Key.Z); R.Illumination[3] = 0.42f;
     R.PixelAngle = Orthographic ? 0.0f : float(2.0 * std::tan(FovY * 0.5) / Height);

@@ -15,9 +15,9 @@ std::optional<double> CommandCodec::ParseNumber(std::string_view Token) noexcept
     if (Token.empty()) return std::nullopt;
     char* End = nullptr;
     std::string Copy(Token);
-    double Value = std::strtod(Copy.c_str(), &End);
+    double Number = std::strtod(Copy.c_str(), &End);
     if (End == Copy.c_str() || *End != '\0') return std::nullopt;
-    return Value;
+    return Number;
 }
 
 std::optional<Vec3> CommandCodec::ParsePoint(std::string_view Token) noexcept
@@ -114,21 +114,21 @@ std::optional<std::string> CommandLine::Text(size_t Index) const noexcept
     return Index < Arguments.size() ? std::optional<std::string>(Arguments[Index]) : std::nullopt;
 }
 
-bool CommandLine::Flag(std::string_view Name) const noexcept
+bool CommandLine::Switch(std::string_view Name) const noexcept
 {
     for (const auto& F : Flags) if (F.first == Name) return true;
     return false;
 }
 
-std::optional<std::string> CommandLine::FlagValue(std::string_view Name) const noexcept
+std::optional<std::string> CommandLine::SwitchText(std::string_view Name) const noexcept
 {
     for (const auto& F : Flags) if (F.first == Name) return F.second;
     return std::nullopt;
 }
 
-std::optional<double> CommandLine::FlagNumber(std::string_view Name) const noexcept
+std::optional<double> CommandLine::SwitchNumber(std::string_view Name) const noexcept
 {
-    auto V = FlagValue(Name);
+    auto V = SwitchText(Name);
     return V ? CommandCodec::ParseNumber(*V) : std::nullopt;
 }
 

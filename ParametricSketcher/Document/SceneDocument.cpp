@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 ParametricSketcher/Document/SceneDocument.cpp — Item store
+// 📦 ParametricSketcher/Document/SceneDocument.cpp — Figure store
 //============================================================================================================================================
 
 #include "SceneDocument.h"
@@ -9,81 +9,81 @@
 namespace Frontier
 {
 
-SceneItem& SceneDocument::AddCurve(std::string Name, NurbsCurve Curve) noexcept
+SceneFigure& SceneDocument::AddCurve(std::string Name, NurbsCurve Curve) noexcept
 {
-    SceneItem Item;
-    Item.Identity = NextIdentity++;
-    Item.Kind = ItemKind::Curve;
-    Item.Name = UniqueName(Name.empty() ? "Curve" : Name);
-    Item.Curve = std::move(Curve);
-    Store.push_back(std::move(Item));
-    return Store.back();
+    SceneFigure Figure;
+    Figure.Identity = NextIdentity++;
+    Figure.Classification = FigureClassification::Curve;
+    Figure.Name = UniqueName(Name.empty() ? "Curve" : Name);
+    Figure.Curve = std::move(Curve);
+    Entries.push_back(std::move(Figure));
+    return Entries.back();
 }
 
-SceneItem& SceneDocument::Duplicate(const SceneItem& Source) noexcept
+SceneFigure& SceneDocument::Duplicate(const SceneFigure& Original) noexcept
 {
-    SceneItem Item = Source;
-    Item.Identity = NextIdentity++;
-    Item.Selected = false; Item.SelectedPoles.clear(); Item.SelectedFaces.clear(); Item.SelectedEdges.clear();
-    std::string Stem = Source.Name; size_t Dot = Stem.rfind('.'); if (Dot != std::string::npos && Dot + 1 < Stem.size() && std::isdigit(uint8_t(Stem[Dot + 1]))) Stem.resize(Dot);
-    Item.Name = UniqueName(Stem);
-    Store.push_back(std::move(Item));
-    return Store.back();
+    SceneFigure Figure = Original;
+    Figure.Identity = NextIdentity++;
+    Figure.Selected = false; Figure.SelectedPoles.clear(); Figure.SelectedFaces.clear(); Figure.SelectedEdges.clear();
+    std::string Stem = Original.Name; size_t Dot = Stem.rfind('.'); if (Dot != std::string::npos && Dot + 1 < Stem.size() && std::isdigit(uint8_t(Stem[Dot + 1]))) Stem.resize(Dot);
+    Figure.Name = UniqueName(Stem);
+    Entries.push_back(std::move(Figure));
+    return Entries.back();
 }
 
-SceneItem& SceneDocument::AddBody(std::string Name, BrepBody Body) noexcept
+SceneFigure& SceneDocument::AddBody(std::string Name, BrepBody Body) noexcept
 {
-    SceneItem Item;
-    Item.Identity = NextIdentity++;
-    Item.Kind = ItemKind::Body;
-    Item.Name = UniqueName(Name.empty() ? "Body" : Name);
-    Item.Body = std::move(Body);
-    Store.push_back(std::move(Item));
-    return Store.back();
+    SceneFigure Figure;
+    Figure.Identity = NextIdentity++;
+    Figure.Classification = FigureClassification::Body;
+    Figure.Name = UniqueName(Name.empty() ? "Body" : Name);
+    Figure.Body = std::move(Body);
+    Entries.push_back(std::move(Figure));
+    return Entries.back();
 }
 
-SceneItem& SceneDocument::AddSurface(std::string Name, NurbsSurface Surface) noexcept
+SceneFigure& SceneDocument::AddSurface(std::string Name, NurbsSurface Surface) noexcept
 {
-    SceneItem Item;
-    Item.Identity = NextIdentity++;
-    Item.Kind = ItemKind::Surface;
-    Item.Name = UniqueName(Name.empty() ? "Surface" : Name);
-    Item.Surface = std::move(Surface);
-    Store.push_back(std::move(Item));
-    return Store.back();
+    SceneFigure Figure;
+    Figure.Identity = NextIdentity++;
+    Figure.Classification = FigureClassification::Surface;
+    Figure.Name = UniqueName(Name.empty() ? "Surface" : Name);
+    Figure.Surface = std::move(Surface);
+    Entries.push_back(std::move(Figure));
+    return Entries.back();
 }
 
 bool SceneDocument::Remove(uint32_t Identity) noexcept
 {
-    auto It = std::find_if(Store.begin(), Store.end(), [&](const SceneItem& I) { return I.Identity == Identity; });
-    if (It == Store.end()) return false;
-    Store.erase(It);
+    auto It = std::find_if(Entries.begin(), Entries.end(), [&](const SceneFigure& I) { return I.Identity == Identity; });
+    if (It == Entries.end()) return false;
+    Entries.erase(It);
     return true;
 }
 
-SceneItem* SceneDocument::Find(uint32_t Identity) noexcept
+SceneFigure* SceneDocument::Find(uint32_t Identity) noexcept
 {
-    for (SceneItem& I : Store) if (I.Identity == Identity) return &I;
+    for (SceneFigure& I : Entries) if (I.Identity == Identity) return &I;
     return nullptr;
 }
 
-SceneItem* SceneDocument::Find(const std::string& Name) noexcept
+SceneFigure* SceneDocument::Find(const std::string& Name) noexcept
 {
-    for (SceneItem& I : Store) if (I.Name == Name) return &I;
+    for (SceneFigure& I : Entries) if (I.Name == Name) return &I;
     return nullptr;
 }
 
 Box3 SceneDocument::Bounds(bool SelectedOnly) const noexcept
 {
     Box3 B;
-    for (const SceneItem& I : Store)
+    for (const SceneFigure& I : Entries)
         if (!I.Hidden && (!SelectedOnly || I.Selected)) B.Include(I.Bounds());
     return B;
 }
 
 std::string SceneDocument::UniqueName(const std::string& Stem) const noexcept
 {
-    auto Taken = [&](const std::string& N) { return std::any_of(Store.begin(), Store.end(), [&](const SceneItem& I) { return I.Name == N; }); };
+    auto Taken = [&](const std::string& N) { return std::any_of(Entries.begin(), Entries.end(), [&](const SceneFigure& I) { return I.Name == N; }); };
     if (!Taken(Stem)) return Stem;
     for (int K = 2;; ++K)
     {

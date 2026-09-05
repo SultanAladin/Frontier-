@@ -9,26 +9,26 @@
 namespace Frontier
 {
 
-const char* SnapKindName(SnapKind Kind) noexcept
+const char* SnapName(SnapClassification Classification) noexcept
 {
-    switch (Kind)
+    switch (Classification)
     {
-        case SnapKind::None:          return "none";
-        case SnapKind::Grid:          return "grid";
-        case SnapKind::Endpoint:      return "endpoint";
-        case SnapKind::Midpoint:      return "midpoint";
-        case SnapKind::Centre:        return "centre";
-        case SnapKind::Quadrant:      return "quadrant";
-        case SnapKind::ControlPoint:  return "control-point";
-        case SnapKind::OnCurve:       return "on-curve";
-        case SnapKind::Perpendicular: return "perpendicular";
-        case SnapKind::Tangent:       return "tangent";
-        case SnapKind::Intersection:  return "intersection";
-        case SnapKind::AxisX:         return "axis-x";
-        case SnapKind::AxisY:         return "axis-y";
-        case SnapKind::AxisZ:         return "axis-z";
-        case SnapKind::Origin:        return "origin";
-        case SnapKind::Free:          return "free";
+        case SnapClassification::None:          return "none";
+        case SnapClassification::Lattice:          return "lattice";
+        case SnapClassification::Endpoint:      return "endpoint";
+        case SnapClassification::Midpoint:      return "midpoint";
+        case SnapClassification::Centre:        return "centre";
+        case SnapClassification::Quadrant:      return "quadrant";
+        case SnapClassification::ControlPoint:  return "control-point";
+        case SnapClassification::OnCurve:       return "on-curve";
+        case SnapClassification::Perpendicular: return "perpendicular";
+        case SnapClassification::Tangent:       return "tangent";
+        case SnapClassification::Intersection:  return "intersection";
+        case SnapClassification::AxisX:         return "axis-x";
+        case SnapClassification::AxisY:         return "axis-y";
+        case SnapClassification::AxisZ:         return "axis-z";
+        case SnapClassification::Origin:        return "origin";
+        case SnapClassification::Free:          return "free";
     }
     return "?";
 }
@@ -36,22 +36,22 @@ const char* SnapKindName(SnapKind Kind) noexcept
 namespace
 {
 
-int PriorityOf(SnapKind Kind) noexcept
+int PriorityOf(SnapClassification Classification) noexcept
 {
-    switch (Kind)
+    switch (Classification)
     {
-        case SnapKind::Intersection:  return 90;
-        case SnapKind::Endpoint:      return 80;
-        case SnapKind::Origin:        return 78;
-        case SnapKind::Centre:        return 75;
-        case SnapKind::Midpoint:      return 70;
-        case SnapKind::Quadrant:      return 65;
-        case SnapKind::Perpendicular: return 60;
-        case SnapKind::Tangent:       return 58;
-        case SnapKind::ControlPoint:  return 50;
-        case SnapKind::OnCurve:       return 40;
-        case SnapKind::AxisX: case SnapKind::AxisY: case SnapKind::AxisZ: return 30;
-        case SnapKind::Grid:          return 10;
+        case SnapClassification::Intersection:  return 90;
+        case SnapClassification::Endpoint:      return 80;
+        case SnapClassification::Origin:        return 78;
+        case SnapClassification::Centre:        return 75;
+        case SnapClassification::Midpoint:      return 70;
+        case SnapClassification::Quadrant:      return 65;
+        case SnapClassification::Perpendicular: return 60;
+        case SnapClassification::Tangent:       return 58;
+        case SnapClassification::ControlPoint:  return 50;
+        case SnapClassification::OnCurve:       return 40;
+        case SnapClassification::AxisX: case SnapClassification::AxisY: case SnapClassification::AxisZ: return 30;
+        case SnapClassification::Lattice:          return 10;
         default:                      return 0;
     }
 }
@@ -64,7 +64,7 @@ Vec2 Project(const CameraProjection& Camera, Vec3 P, uint32_t W, uint32_t H) noe
     return { (C.X / C.W * 0.5 + 0.5) * W, (C.Y / C.W * 0.5 + 0.5) * H };
 }
 
-bool CircularKind(CurveClassification K) noexcept
+bool Circular(CurveClassification K) noexcept
 {
     return K == CurveClassification::Circle || K == CurveClassification::Arc || K == CurveClassification::Ellipse;
 }
@@ -99,38 +99,38 @@ bool SnapResolution::PlaneHit(double PixelX, double PixelY, const CameraProjecti
 std::vector<SnapCandidate> SnapResolution::GeometryCandidates(const SceneDocument& Scene, uint32_t IgnoreIdentity) noexcept
 {
     std::vector<SnapCandidate> Out;
-    auto Push = [&](SnapKind Kind, Vec3 P, uint32_t Id, double T)
+    auto Push = [&](SnapClassification Classification, Vec3 P, uint32_t Id, double T)
     {
-        SnapCandidate C; C.Kind = Kind; C.Position = P; C.ItemIdentity = Id; C.Parameter = T; C.Priority = PriorityOf(Kind);
+        SnapCandidate C; C.Classification = Classification; C.Position = P; C.FigureIdentity = Id; C.Parameter = T; C.Priority = PriorityOf(Classification);
         Out.push_back(C);
     };
-    for (const SceneItem& Item : Scene.Items())
+    for (const SceneFigure& Figure : Scene.Figures())
     {
-        if (Item.Hidden || Item.Kind != ItemKind::Curve || Item.Identity == IgnoreIdentity) continue;
-        const NurbsCurve& C = Item.Curve;
+        if (Figure.Hidden || Figure.Classification != FigureClassification::Curve || Figure.Identity == IgnoreIdentity) continue;
+        const NurbsCurve& C = Figure.Curve;
         bool Closed = C.Closed();
-        if (!Closed) { Push(SnapKind::Endpoint, C.StartPoint(), Item.Identity, C.DomainStart()); Push(SnapKind::Endpoint, C.EndPoint(), Item.Identity, C.DomainEnd()); }
+        if (!Closed) { Push(SnapClassification::Endpoint, C.StartPoint(), Figure.Identity, C.DomainStart()); Push(SnapClassification::Endpoint, C.EndPoint(), Figure.Identity, C.DomainEnd()); }
 
         if (C.Degree == 1)                                                              // polyline: every vertex is an endpoint, every edge has a midpoint
         {
             for (int I = 0; I + 1 < C.PoleCount(); ++I)
             {
                 Vec3 A = C.Poles[I].Divide(), B = C.Poles[I + 1].Divide();
-                if (I > 0) Push(SnapKind::Endpoint, A, Item.Identity, C.Knots[I + 1]);
-                Push(SnapKind::Midpoint, (A + B) * 0.5, Item.Identity, 0.5 * (C.Knots[I + 1] + C.Knots[I + 2]));
+                if (I > 0) Push(SnapClassification::Endpoint, A, Figure.Identity, C.Knots[I + 1]);
+                Push(SnapClassification::Midpoint, (A + B) * 0.5, Figure.Identity, 0.5 * (C.Knots[I + 1] + C.Knots[I + 2]));
             }
         }
         else
         {
             double Tm = C.ParameterAtLength(C.Length() * 0.5);
-            if (!Closed) Push(SnapKind::Midpoint, C.Sample(Tm), Item.Identity, Tm);
-            for (const Vec4& Pole : C.Poles) Push(SnapKind::ControlPoint, Pole.Divide(), Item.Identity, 0.0);
+            if (!Closed) Push(SnapClassification::Midpoint, C.Sample(Tm), Figure.Identity, Tm);
+            for (const Vec4& Pole : C.Poles) Push(SnapClassification::ControlPoint, Pole.Divide(), Figure.Identity, 0.0);
         }
 
-        if (CircularKind(C.Classification))
+        if (Circular(C.Classification))
         {
             Vec3 Centre = ConicCentre(C);
-            Push(SnapKind::Centre, Centre, Item.Identity, 0.0);
+            Push(SnapClassification::Centre, Centre, Figure.Identity, 0.0);
             if (C.Classification == CurveClassification::Circle)
             {
                 // Quadrants: sample the curve, find points extremal along the workplane-ish axes of the circle's own plane.
@@ -140,14 +140,14 @@ std::vector<SnapCandidate> SnapResolution::GeometryCandidates(const SceneDocumen
                     Vec3 Rim = C.StartPoint();
                     double R = Rim.Distance(Centre);
                     Vec3 Axes[4] = { W.AxisX, W.AxisY, W.AxisX * -1.0, W.AxisY * -1.0 };
-                    for (Vec3 A : Axes) { Vec3 Q = Centre + A * R; double Dist; double T = C.ClosestParameter(Q, &Dist); Push(SnapKind::Quadrant, C.Sample(T), Item.Identity, T); }
+                    for (Vec3 A : Axes) { Vec3 Q = Centre + A * R; double Dist; double T = C.ClosestParameter(Q, &Dist); Push(SnapClassification::Quadrant, C.Sample(T), Figure.Identity, T); }
                 }
             }
         }
         else if (C.Classification == CurveClassification::Rectangle || C.Classification == CurveClassification::Slot || C.Classification == CurveClassification::Polygon)
         {
             Box3 B = C.Bounds();
-            Push(SnapKind::Centre, B.Centre(), Item.Identity, 0.0);
+            Push(SnapClassification::Centre, B.Centre(), Figure.Identity, 0.0);
         }
     }
     return Out;
@@ -161,7 +161,7 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
     SnapCandidate Best;
     Vec3 Hit;
     bool HaveHit = PlaneHit(PixelX, PixelY, Camera, Width, Height, Plane, Hit);
-    if (HaveHit) { Best.Kind = SnapKind::Free; Best.Position = Hit; Best.PixelDistance = 0.0; Best.Priority = 0; }
+    if (HaveHit) { Best.Classification = SnapClassification::Free; Best.Position = Hit; Best.PixelDistance = 0.0; Best.Priority = 0; }
     if (!Settings.Enabled) return Best;
 
     auto Consider = [&](SnapCandidate C)
@@ -169,7 +169,7 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
         C.PixelDistance = Project(Camera, C.Position, Width, Height).Distance(Cursor);
         if (C.PixelDistance > Settings.Radius) return;
         // Within the radius: higher priority wins; equal priority → closer wins.
-        if (Best.Kind == SnapKind::Free || Best.Kind == SnapKind::None || C.Priority > Best.Priority ||
+        if (Best.Classification == SnapClassification::Free || Best.Classification == SnapClassification::None || C.Priority > Best.Priority ||
             (C.Priority == Best.Priority && C.PixelDistance < Best.PixelDistance))
             Best = C;
     };
@@ -180,17 +180,17 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
     if (Settings.Geometry) for (const SnapCandidate& C : Geometry) Consider(C);
 
     // Origin of the workplane.
-    { SnapCandidate C; C.Kind = SnapKind::Origin; C.Position = Plane.Origin; C.Priority = PriorityOf(SnapKind::Origin); Consider(C); }
+    { SnapCandidate C; C.Classification = SnapClassification::Origin; C.Position = Plane.Origin; C.Priority = PriorityOf(SnapClassification::Origin); Consider(C); }
 
     //---------------------------------------------- on-curve, perpendicular, tangent ----------------------------------------------
     if (Settings.OnCurve && HaveHit)
     {
-        for (const SceneItem& Item : Scene.Items())
+        for (const SceneFigure& Figure : Scene.Figures())
         {
-            if (Item.Hidden || Item.Kind != ItemKind::Curve || Item.Identity == IgnoreIdentity) continue;
-            const NurbsCurve& K = Item.Curve;
+            if (Figure.Hidden || Figure.Classification != FigureClassification::Curve || Figure.Identity == IgnoreIdentity) continue;
+            const NurbsCurve& K = Figure.Curve;
             double Dist; double T = K.ClosestParameter(Hit, &Dist);
-            SnapCandidate C; C.Kind = SnapKind::OnCurve; C.Position = K.Sample(T); C.ItemIdentity = Item.Identity; C.Parameter = T; C.Priority = PriorityOf(SnapKind::OnCurve);
+            SnapCandidate C; C.Classification = SnapClassification::OnCurve; C.Position = K.Sample(T); C.FigureIdentity = Figure.Identity; C.Parameter = T; C.Priority = PriorityOf(SnapClassification::OnCurve);
             Consider(C);
             if (Anchor)
             {
@@ -198,7 +198,7 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
                 Vec3 Foot = K.Sample(Ta);
                 if (DistA > ScalarCriteria::MergeTolerance)
                 {
-                    SnapCandidate P; P.Kind = SnapKind::Perpendicular; P.Position = Foot; P.ItemIdentity = Item.Identity; P.Parameter = Ta; P.Priority = PriorityOf(SnapKind::Perpendicular);
+                    SnapCandidate P; P.Classification = SnapClassification::Perpendicular; P.Position = Foot; P.FigureIdentity = Figure.Identity; P.Parameter = Ta; P.Priority = PriorityOf(SnapClassification::Perpendicular);
                     Consider(P);
                 }
                 if (K.Classification == CurveClassification::Circle)
@@ -217,7 +217,7 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
                             {
                                 Vec3 Tp = Centre + (U * std::cos(Angle) + V * (S * std::sin(Angle))) * R;
                                 double Tt = K.ClosestParameter(Tp, nullptr);
-                                SnapCandidate Tc; Tc.Kind = SnapKind::Tangent; Tc.Position = K.Sample(Tt); Tc.ItemIdentity = Item.Identity; Tc.Parameter = Tt; Tc.Priority = PriorityOf(SnapKind::Tangent);
+                                SnapCandidate Tc; Tc.Classification = SnapClassification::Tangent; Tc.Position = K.Sample(Tt); Tc.FigureIdentity = Figure.Identity; Tc.Parameter = Tt; Tc.Priority = PriorityOf(SnapClassification::Tangent);
                                 Consider(Tc);
                             }
                         }
@@ -231,12 +231,12 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
     if (Settings.Intersections && HaveHit)
     {
         // Cheap and honest: tessellate the two curves nearest the cursor and intersect polylines in workplane coordinates.
-        std::vector<std::pair<double, const SceneItem*>> Near;
-        for (const SceneItem& Item : Scene.Items())
+        std::vector<std::pair<double, const SceneFigure*>> Near;
+        for (const SceneFigure& Figure : Scene.Figures())
         {
-            if (Item.Hidden || Item.Kind != ItemKind::Curve || Item.Identity == IgnoreIdentity) continue;
-            double Dist; (void)Item.Curve.ClosestParameter(Hit, &Dist);
-            Near.emplace_back(Dist, &Item);
+            if (Figure.Hidden || Figure.Classification != FigureClassification::Curve || Figure.Identity == IgnoreIdentity) continue;
+            double Dist; (void)Figure.Curve.ClosestParameter(Hit, &Dist);
+            Near.emplace_back(Dist, &Figure);
         }
         std::sort(Near.begin(), Near.end(), [](auto& A, auto& B) { return A.first < B.first; });
         if (Near.size() > 4) Near.resize(4);
@@ -265,7 +265,7 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
                             X = Near[I].second->Curve.Sample(Near[I].second->Curve.ClosestParameter(X));
                             X = Near[J].second->Curve.Sample(Near[J].second->Curve.ClosestParameter(X));
                         }
-                        SnapCandidate C; C.Kind = SnapKind::Intersection; C.Position = X; C.ItemIdentity = Near[I].second->Identity; C.Priority = PriorityOf(SnapKind::Intersection);
+                        SnapCandidate C; C.Classification = SnapClassification::Intersection; C.Position = X; C.FigureIdentity = Near[I].second->Identity; C.Priority = PriorityOf(SnapClassification::Intersection);
                         Consider(C);
                     }
                 }
@@ -273,25 +273,25 @@ SnapCandidate SnapResolution::Resolve(double PixelX, double PixelY, const Camera
     }
 
     //---------------------------------------------- axis alignment with the anchor ----------------------------------------------
-    if (Settings.Axis && Anchor && HaveHit && (Best.Kind == SnapKind::Free || Best.Kind == SnapKind::Grid || Best.Kind == SnapKind::OnCurve))
+    if (Settings.Axis && Anchor && HaveHit && (Best.Classification == SnapClassification::Free || Best.Classification == SnapClassification::Lattice || Best.Classification == SnapClassification::OnCurve))
     {
         Vec3 D = Hit - *Anchor;
-        struct AxisOption { SnapKind Kind; Vec3 Dir; } Options[3] = { { SnapKind::AxisX, Plane.AxisX }, { SnapKind::AxisY, Plane.AxisY }, { SnapKind::AxisZ, Plane.Normal() } };
+        struct AxisOption { SnapClassification Classification; Vec3 Dir; } Options[3] = { { SnapClassification::AxisX, Plane.AxisX }, { SnapClassification::AxisY, Plane.AxisY }, { SnapClassification::AxisZ, Plane.Normal() } };
         for (const AxisOption& O : Options)
         {
             Vec3 Along = O.Dir * D.Dot(O.Dir);
             if (Along.Length() < ScalarCriteria::MergeTolerance) continue;
-            SnapCandidate C; C.Kind = O.Kind; C.Position = *Anchor + Along; C.Priority = PriorityOf(O.Kind);
+            SnapCandidate C; C.Classification = O.Classification; C.Position = *Anchor + Along; C.Priority = PriorityOf(O.Classification);
             Consider(C);
         }
     }
 
-    //---------------------------------------------- grid ----------------------------------------------
-    if (Settings.Grid && HaveHit && Settings.GridStep > 0.0 && (Best.Kind == SnapKind::Free))
+    //---------------------------------------------- lattice ----------------------------------------------
+    if (Settings.Lattice && HaveHit && Settings.LatticeStep > 0.0 && (Best.Classification == SnapClassification::Free))
     {
         Vec2 L = Plane.ToLocal(Hit);
-        Vec2 G{ std::round(L.X / Settings.GridStep) * Settings.GridStep, std::round(L.Y / Settings.GridStep) * Settings.GridStep };
-        SnapCandidate C; C.Kind = SnapKind::Grid; C.Position = Plane.ToWorld(G); C.Priority = PriorityOf(SnapKind::Grid);
+        Vec2 G{ std::round(L.X / Settings.LatticeStep) * Settings.LatticeStep, std::round(L.Y / Settings.LatticeStep) * Settings.LatticeStep };
+        SnapCandidate C; C.Classification = SnapClassification::Lattice; C.Position = Plane.ToWorld(G); C.Priority = PriorityOf(SnapClassification::Lattice);
         Consider(C);
     }
     return Best;

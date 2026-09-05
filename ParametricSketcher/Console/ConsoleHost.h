@@ -1,13 +1,13 @@
 //============================================================================================================================================
 // 📦 ParametricSketcher/Console/ConsoleHost.h — The SolidArc console: command dispatch over a SceneDocument, camera and raster
 //============================================================================================================================================
-// Every command prints what it did as a table row; `render <file>` writes Proofs/<file>.png through the RasterExchange.
+// Every command prints what it did as a chart row; `render <file>` writes Proofs/<file>.png through the RasterExchange.
 //    The same host runs `.arc` scripts (line by line, halting on the first refusal unless --continue) and a REPL.
 #pragma once
 
 #include "CommandCodec.h"
 #include "Document/SceneDocument.h"
-#include "Document/HistoryLedger.h"
+#include "Document/UndoSequence.h"
 #include "Interaction/CameraProjection.h"
 #include "Interaction/ToolSession.h"
 #include "Interaction/TransformGizmo.h"
@@ -23,7 +23,7 @@ namespace Frontier
 class ConsoleHost
 {
 public:
-    explicit ConsoleHost(std::string ProofDirectory, uint32_t Width = 1280, uint32_t Height = 800) noexcept;
+    explicit ConsoleHost(std::string ProofFolder, uint32_t Width = 1280, uint32_t Height = 800) noexcept;
 
     // Returns false on refusal; the reason is printed. Multiple commands per line are allowed.
     bool Execute(std::string_view Line) noexcept;
@@ -33,11 +33,11 @@ public:
     [[nodiscard]] SceneDocument&    Document() noexcept { return Scene; }
     [[nodiscard]] CameraProjection& Camera() noexcept { return View; }
     [[nodiscard]] int               RefusalCount() const noexcept { return Refusals; }
-    [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoState; }
-    [[nodiscard]] const HistoryLedger&  History() const noexcept { return Ledger; }
+    [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoRig; }
+    [[nodiscard]] const UndoSequence&  Timeline() const noexcept { return Undo; }
     [[nodiscard]] SelectMode            CurrentSelectMode() const noexcept { return Mode; }
 
-    // Renders the current document into the raster (no file); public so verification can probe pixels.
+    // Renders the current document into the raster (no file); public so verification can inspect pixels.
     void Render() noexcept;
     [[nodiscard]] const RasterExchange& Raster() const noexcept { return *Surface; }
 
@@ -46,34 +46,34 @@ private:
     void Register() noexcept;
     bool Refuse(const char* Format, ...) noexcept;
     void Row(const char* Format, ...) noexcept;
-    void DescribeItem(const SceneItem& Item) noexcept;
+    void DescribeFigure(const SceneFigure& Figure) noexcept;
     bool AddCurve(const CommandLine& C, const char* Stem, Deliver<NurbsCurve> Result) noexcept;
     bool AddSurface(const CommandLine& C, const char* Stem, Deliver<NurbsSurface> Result) noexcept;
-    [[nodiscard]] SceneItem* Resolve(const std::string& Token) noexcept;
-    [[nodiscard]] std::vector<SceneItem*> ResolveMany(const CommandLine& C, size_t FirstIndex) noexcept;
+    [[nodiscard]] SceneFigure* Resolve(const std::string& Token) noexcept;
+    [[nodiscard]] std::vector<SceneFigure*> ResolveMany(const CommandLine& C, size_t FirstIndex) noexcept;
     [[nodiscard]] Workplane ActivePlane() const noexcept { return Plane; }
 
     void RegisterInteraction() noexcept;                                                // Phase 3 commands
     void RegisterSelection() noexcept;                                                  // Phase 4 commands
-    void DrawControlPoints(const SceneItem& Item) noexcept;
-    void DrawBody(const SceneItem& Item) noexcept;                                       // faces + edges with sub-pick ids
+    void DrawControlPoints(const SceneFigure& Figure) noexcept;
+    void DrawBody(const SceneFigure& Figure) noexcept;                                       // faces + edges with sub-pick ids
     bool AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result) noexcept;                             // cage + poles with per-pole pick ids
     bool SelectAtPixel(double X, double Y, bool Toggle) noexcept;                       // click-select honouring the mode
     int  SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept;
     void HoverAtPixel(double X, double Y) noexcept;
-    [[nodiscard]] Vec3 SelectionPivot() const noexcept;                                 // item bounds centre or selected-pole centroid
+    [[nodiscard]] Vec3 SelectionPivot() const noexcept;                                 // figure bounds centre or selected-pole centroid
     void ApplyDeltaToSelection(const Mat4& Delta) noexcept;
     void DrawToolPreview() noexcept;
     bool Dispatch(const InputEvent& Event) noexcept;                                    // tool first, then hotkey chart
-    void OnToolOutcome(const ToolOutcome& Outcome) noexcept;
+    void OnToolResult(const ToolResult& Result) noexcept;
     [[nodiscard]] ToolSession::Context ToolContext() const noexcept;
 
     std::string                          Proofs;
     ToolSession                          Tool;
-    TransformGizmo                       GizmoState;
+    TransformGizmo                       GizmoRig;
     bool                                 GizmoShown = true;                             // [-] drawn whenever a selection exists
-    std::vector<std::pair<uint32_t, SceneItem>> GizmoOriginals;                         // [-] items as they were when the drag began
-    void RefreshGizmoFrame() noexcept;
+    std::vector<std::pair<uint32_t, SceneFigure>> GizmoOriginals;                         // [-] figure as they were when the drag began
+    void RefreshGizmoPivot() noexcept;
     void ApplyGizmoDelta(const Mat4& Delta) noexcept;
     SnapSettings                         Snap;
     HotkeyChart                          Hotkeys = HotkeyChart::Defaults();
@@ -81,10 +81,10 @@ private:
     std::string                          LastCommand;                                   // [-] for Shift+R
     bool                                 ToolReportedRefusal = false;
     SceneDocument                        Scene;
-    HistoryLedger                        Ledger;
-    SelectMode                           Mode = SelectMode::Object;
+    UndoSequence                        Undo;
+    SelectMode                           Mode = SelectMode::Whole;
     uint32_t                             HoverPick = 0;                                 // [-] pick id under the pointer (last HoverAtPixel)
-    bool                                 Journaling = false;                            // [-] guards nested Execute during undo
+    bool                                 Recording = false;                            // [-] guards nested Execute during undo
     CameraProjection                     View;
     Workplane                            Plane = Workplane::XY();
     std::unique_ptr<SoftwareRaster>      Surface;

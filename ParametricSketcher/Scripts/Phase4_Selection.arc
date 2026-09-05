@@ -1,7 +1,7 @@
 # SolidArc · Phase 4 · selection through the pick plane, select modes, hide / isolate, undo / redo, duplicate / mirror
 sphere (0,0,1) 1 ; cylinder (3,0,0) 0.8 2 ; line (-3,-2) (-3,2) ; torus (0,4,0.5) 1.2 0.4
 matcap Sphere chrome ; matcap Cylinder copper ; matcap Torus plastic-blue
-view top ; view frame ; gizmo off
+view top ; view fit ; gizmo off
 
 echo -- hover and click through the pick plane, Shift toggles, box selects, Ctrl+I inverts
 pointer 640 400 ; click
@@ -17,15 +17,15 @@ isolate off ; unhide all
 
 echo -- control-point mode: pick poles, gizmo moves only those poles
 clear
-cpcurve (0,0) (1,2) (3,-1) (5,1) ; view top ; view frame
+cpcurve (0,0) (1,2) (3,-1) (5,1) ; view top ; view fit
 key 1
 select ControlCurve
 select poles ControlCurve 1
-gizmo on ; gizmo size 160 ; gizmo handles
+gizmo on ; gizmo size 160 ; gizmo grips
 render Proof_04b_ControlMode
 
-echo -- undo / redo journal: every mutating command is one entry, a gizmo drag is one entry
-history
+echo -- undo / redo record: every mutating command is one entry, a gizmo drag is one entry
+timeline
 undo ; describe ControlCurve
 redo ; describe ControlCurve
 key 4
@@ -36,6 +36,6 @@ cylinder (2,0,0) 0.5 1 ; matcap Cylinder gold ; select Cylinder
 duplicate (0,3,0)
 select Cylinder ; mirror x --copy
 key shift+d
-view iso ; view frame
+view iso ; view fit
 render Proof_04d_DuplicateMirror
-history
+timeline

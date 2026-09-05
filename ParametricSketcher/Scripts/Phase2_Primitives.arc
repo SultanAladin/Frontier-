@@ -24,9 +24,9 @@ revolve Profile 360 --origin=(0,0,0) --axis=(0,0,1)
 move Revolution (10,4,0)
 
 list
-view iso ; view frame ; render Proof_02e_Script_Iso
-view top ; view frame ; render Proof_02f_Script_Top
-view front ; view frame ; render Proof_02g_Script_Front
+view iso ; view fit ; render Proof_02e_Script_Iso
+view top ; view fit ; render Proof_02f_Script_Top
+view front ; view fit ; render Proof_02g_Script_Front
 select Ring Hex Sphere
-view iso ; view frame selected ; render Proof_02h_Script_Selected
+view iso ; view fit selected ; render Proof_02h_Script_Selected
 pick 640 400

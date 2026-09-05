@@ -11,20 +11,20 @@ namespace Frontier
 void HotkeyChart::Bind(Key KeyCode, uint8_t Modifiers, std::string Verb, std::string Description) noexcept
 {
     Unbind(KeyCode, Modifiers);
-    Store.push_back({ KeyCode, Modifiers, std::move(Verb), std::move(Description) });
+    Entries.push_back({ KeyCode, Modifiers, std::move(Verb), std::move(Description) });
 }
 
 bool HotkeyChart::Unbind(Key KeyCode, uint8_t Modifiers) noexcept
 {
-    auto It = std::remove_if(Store.begin(), Store.end(), [&](const HotkeyBinding& B) { return B.KeyCode == KeyCode && B.Modifiers == Modifiers; });
-    bool Removed = It != Store.end();
-    Store.erase(It, Store.end());
+    auto It = std::remove_if(Entries.begin(), Entries.end(), [&](const HotkeyEntry& B) { return B.KeyCode == KeyCode && B.Modifiers == Modifiers; });
+    bool Removed = It != Entries.end();
+    Entries.erase(It, Entries.end());
     return Removed;
 }
 
-const HotkeyBinding* HotkeyChart::Find(Key KeyCode, uint8_t Modifiers) const noexcept
+const HotkeyEntry* HotkeyChart::Find(Key KeyCode, uint8_t Modifiers) const noexcept
 {
-    for (const HotkeyBinding& B : Store) if (B.KeyCode == KeyCode && B.Modifiers == Modifiers) return &B;
+    for (const HotkeyEntry& B : Entries) if (B.KeyCode == KeyCode && B.Modifiers == Modifiers) return &B;
     return nullptr;
 }
 
@@ -105,9 +105,9 @@ HotkeyChart HotkeyChart::Defaults() noexcept
     B("numpad2",     "view orbit 0 -15",   "Orbit down 15°");
     B("numpad+",     "view dolly 1",       "Dolly in");
     B("numpad-",     "view dolly -1",      "Dolly out");
-    B("numpad.",     "view frame selected","Frame selected (Blender Numpad .)");
-    B("home",        "view frame",         "Frame all");
-    B("space",       "view frame selected","Frame selected (Plasticity Space)");
+    B("numpad.",     "view fit selected","Fit  (Blender Numpad .)");
+    B("home",        "view fit",         "Fit ");
+    B("space",       "view fit selected","Fit  (Plasticity Space)");
     B("alt+z",       "show xray toggle",   "X-ray");
     B("alt+shift+z", "show overlays toggle","Overlays");
     B("ctrl+space",  "workplane pick",     "Construction plane from selection");

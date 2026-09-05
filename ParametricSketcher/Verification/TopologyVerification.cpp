@@ -94,7 +94,7 @@ int main()
     {
         BrepBody Sheet = BrepBody::FromSurface(NurbsSurface::Cylinder({ 0, 0, 0 }, Vec3::UnitZ(), 1, 1).Payload);
         BodyReport R = Sheet.Validate();
-        Panel.Expect("Open cylinder is a sheet with 2 open edges and one seam", Sheet.Kind() == BodyKind::Sheet && R.OpenEdges == 2 && R.Edges == 3);
+        Panel.Expect("Open cylinder is a sheet with 2 open edges and one seam", Sheet.Classification() == BodyClassification::Sheet && R.OpenEdges == 2 && R.Edges == 3);
         Panel.Expect("OpenLoops finds both rims", Sheet.OpenLoops().size() == 2);
         int Caps = Sheet.Capped();
         Panel.Expect("Capped() adds two planar faces", Caps == 2 && Sheet.Faces.size() == 3);
@@ -142,18 +142,18 @@ int main()
     Panel.Section("Console: bodies in the document, face / edge selection through the pick plane");
     {
         ConsoleHost Host("/tmp/SolidArcVerification", 1280, 800);
-        Host.Execute("box (0,0,0) 2 1.5 1 ; cylinder (4,0,0) 0.8 2 ; view iso ; view frame");
-        SceneItem* Box = Host.Document().Find(std::string("Box"));
-        Panel.Expect("box verb creates a Body item", Box && Box->Kind == ItemKind::Body && Box->Body.Validate().Solid());
-        Panel.Expect("cylinder verb now creates a solid body (use --sheet for the old surface)", Host.Document().Find(std::string("Cylinder"))->Kind == ItemKind::Body);
+        Host.Execute("box (0,0,0) 2 1.5 1 ; cylinder (4,0,0) 0.8 2 ; view iso ; view fit");
+        SceneFigure* Box = Host.Document().Find(std::string("Box"));
+        Panel.Expect("box verb creates a Body figure", Box && Box->Classification == FigureClassification::Body && Box->Body.Validate().Solid());
+        Panel.Expect("cylinder verb now creates a solid body (use --sheet for the old surface)", Host.Document().Find(std::string("Cylinder"))->Classification == FigureClassification::Body);
         Host.Execute("cylinder (8,0,0) 0.8 2 --sheet");
-        Panel.Expect("--sheet keeps the raw surface path", Host.Document().Find(std::string("Cylinder.2"))->Kind == ItemKind::Surface);
+        Panel.Expect("--sheet keeps the raw surface path", Host.Document().Find(std::string("Cylinder.2"))->Classification == FigureClassification::Surface);
         // top face of the box: project its centre and click in face mode
         double X = 0, Y = 0; (void)Host.Camera().WorldToPixel({ 1, 0.75, 1 }, 1280, 800, X, Y);
         char Line[160];
         Host.Execute("key 3");
         std::snprintf(Line, sizeof Line, "click %d %d", int(X), int(Y)); Host.Execute(Line);
-        Box = Host.Document().Find(std::string("Box"));                                  // item storage may have grown since
+        Box = Host.Document().Find(std::string("Box"));                                  // figure storage may have grown since
         Panel.Expect("Face mode click selects the top face (face 1 = +Z plane)", Box->SelectedFaces.size() == 1 && Box->Body.FaceNormal(Box->SelectedFaces[0], 0.5, 0.5).Z > 0.99);
         Host.Execute("key 2");
         Panel.Expect("Switching to edge mode drops the face selection", Box->SelectedFaces.empty());
@@ -162,13 +162,13 @@ int main()
         Panel.Expect("Edge mode click selects the front-top edge (length 2, z = 1)", Box->SelectedEdges.size() == 1 && std::fabs(Box->Body.Edges[Box->SelectedEdges[0]].Curve.Length() - 2.0) < 1e-9
                      && std::fabs(Box->Body.Edges[Box->SelectedEdges[0]].Curve.StartPoint().Z - 1.0) < 1e-9);
         Host.Execute("select faces Box all ; gizmo status");
-        Panel.Within("Gizmo pivot for all faces = box centre", Host.Gizmo().CurrentFrame().Origin.Distance({ 1, 0.75, 0.5 }), 1e-9);
+        Panel.Within("Gizmo pivot for all faces = box centre", Host.Gizmo().CurrentPivot().Origin.Distance({ 1, 0.75, 0.5 }), 1e-9);
         Host.Execute("key 4 ; select Box ; move Box (0,0,2) ; undo");
         Box = Host.Document().Find(std::string("Box"));                                  // undo restores the document → re-resolve
-        Panel.Within("Body move + undo round-trips through the ledger", Box->Bounds().Low.Z, 1e-12);
+        Panel.Within("Body move + undo round-trips through the undo timeline", Box->Bounds().Low.Z, 1e-12);
         Host.Execute("rect (0,0) (2,2) ; extrude Rectangle 1");
-        SceneItem* Ext = Host.Document().Find(std::string("Extrusion"));
-        Panel.Expect("extrude of a closed profile yields a solid body with caps", Ext && Ext->Kind == ItemKind::Body && Ext->Body.Faces.size() == 6 && Ext->Body.Validate().Solid());
+        SceneFigure* Ext = Host.Document().Find(std::string("Extrusion"));
+        Panel.Expect("extrude of a closed profile yields a solid body with caps", Ext && Ext->Classification == FigureClassification::Body && Ext->Body.Faces.size() == 6 && Ext->Body.Validate().Solid());
         Host.Execute("render Proof_06b_Console");
     }
 

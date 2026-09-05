@@ -6,7 +6,7 @@
 //    major by U then V: Pole(I, J) = Poles[I * CountV + J].
 //
 // Normal convention: N = ∂S/∂u × ∂S/∂v. Constructors are arranged so N points OUTWARD for every closed primitive —
-//    that is the winding contract every downstream solver (boolean classification, back-face tint) relies on.
+//    that is the winding rule every downstream solver (boolean classification, back-face tint) relies on.
 #pragma once
 
 #include "CurveSpecification.h"
@@ -46,7 +46,7 @@ public:
     std::vector<double>   KnotsV;                                                       // [-]
     SurfaceClassification Classification = SurfaceClassification::Freeform;            // [-]
 
-    // Analytic memory for classified surfaces (axis frame + radii) — exact snapping, exact intersections later.
+    // Analytic storage for classified surfaces (axis fit + radii) — exact snapping, exact intersections later.
     Vec3   Origin = {};                                                                 // [m]
     Vec3   Axis   = Vec3::UnitZ();                                                      // [-] unit
     double RadiusMajor = 0.0;                                                           // [m]
@@ -87,7 +87,7 @@ public:
     [[nodiscard]] NurbsCurve IsoCurveU(double U) const noexcept;                        // curve in V at fixed U
     [[nodiscard]] NurbsCurve IsoCurveV(double V) const noexcept;                        // curve in U at fixed V
 
-    // Closest point (U, V) to P: coarse grid seed + Newton on the two-equation system (Piegl & Tiller 6.1).
+    // Closest point (U, V) to P: coarse lattice seed + Newton on the two-equation system (Piegl & Tiller 6.1).
     void ClosestParameter(Vec3 P, double& U, double& V, double* DistanceOut = nullptr) const noexcept;
 
     //---------------------------------------------- editing ----------------------------------------------
@@ -100,8 +100,8 @@ public:
     [[nodiscard]] NurbsSurface Transposed() const noexcept { return Reversed(); }
 
     //---------------------------------------------- tessellation ----------------------------------------------
-    // Curvature-adaptive grid: per-span subdivision counts from the second-difference of the control net, then a
-    //    uniform grid inside each span. Emits positions, normals, (u,v) and CCW triangles seen from +Normal.
+    // Curvature-adaptive lattice: per-span subdivision counts from the second-difference of the control net, then a
+    //    uniform lattice inside each span. Emits positions, normals, (u,v) and CCW triangles seen from +Normal.
     struct Tessellation
     {
         std::vector<Vec3>     Positions;                                                // [m]

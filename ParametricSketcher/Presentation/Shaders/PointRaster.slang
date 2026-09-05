@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 ParametricSketcher/Presentation/Shaders/PointRaster.slang — Billboard markers: vertices, control points, snap glyphs
 //============================================================================================================================================
-// One instance per point, expanded to a screen-aligned square of DrawRecord.Selection.w pixels. The fragment stage
+// One instance per point, expanded to a screen-aligned square of DrawRecord.Selection.w pixels. The fragment shaders
 //    draws a signed-distance glyph selected per instance: 0 disc, 1 square, 2 diamond, 3 cross, 4 ring. Outline is
 //    a darker rim so markers read on both light and dark surfaces.
 
@@ -17,7 +17,7 @@ struct PointVarying
 PointVarying PointVertex(ViewRecord View, DrawRecord Draw, float3 Position, float Glyph, uint Corner)
 {
     PointVarying Out;
-    float4 Clip   = mul(View.ViewClip, mul(Draw.ModelWorld, float4(Position, 1.0)));
+    float4 Clip   = mul(View.ViewClip, mul(Draw.LocalWorld, float4(Position, 1.0)));
     float2 Local  = float2((Corner & 1u) == 1u ? 1.0 : -1.0, Corner >= 2u ? 1.0 : -1.0);
     float  Half   = Draw.Selection.w * 0.5 + 1.0;
     float2 Offset = Local * Half * View.Viewport.zw * 2.0 * Clip.w;

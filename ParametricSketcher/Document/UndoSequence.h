@@ -1,9 +1,9 @@
 //============================================================================================================================================
-// 📦 ParametricSketcher/Document/HistoryLedger.h — Undo / redo as whole-document snapshots with a cheap change fingerprint
+// 📦 ParametricSketcher/Document/UndoSequence.h — Undo / redo as whole-document snapshots with a cheap change fingerprint
 //============================================================================================================================================
 // Snapshots are the honest choice while documents are a few hundred poles: no per-command inverse logic to get wrong,
-//    and selection state undoes with the geometry (Blender behaviour). A fingerprint over identities, flags and pole
-//    bits decides whether a command changed anything, so the console can journal every command uniformly.
+//    and selection state undoes with the geometry (Blender behaviour). A fingerprint over identities, switch and pole
+//    bits decides whether a command changed anything, so the console can record every command uniformly.
 #pragma once
 
 #include "SceneDocument.h"
@@ -13,7 +13,7 @@
 namespace Frontier
 {
 
-class HistoryLedger
+class UndoSequence
 {
 public:
     struct Entry
@@ -28,7 +28,7 @@ public:
     void Record(const SceneDocument& Before, std::string Label) noexcept;
     void Relabel(std::string Label) noexcept { PendingEntry.Label = std::move(Label); }
     void Abandon() noexcept { Pending = false; }
-    // Called after the command: keeps the pending record only when the fingerprint moved. Returns true when journaled.
+    // Called after the command: keeps the pending record only when the fingerprint moved. Returns true when recorded.
     bool Settle(const SceneDocument& After) noexcept;
 
     [[nodiscard]] bool CanUndo() const noexcept { return !UndoStack.empty(); }
@@ -39,7 +39,7 @@ public:
     [[nodiscard]] const std::deque<Entry>& UndoEntries() const noexcept { return UndoStack; }
     [[nodiscard]] const std::deque<Entry>& RedoEntries() const noexcept { return RedoStack; }
     void Clear() noexcept { UndoStack.clear(); RedoStack.clear(); Pending = false; }
-    void SetLimit(size_t Steps) noexcept { Limit = Steps; }
+    void Cap(size_t Steps) noexcept { Limit = Steps; }
 
 private:
     std::deque<Entry> UndoStack;
