@@ -58,14 +58,17 @@ HotkeyChart HotkeyChart::Defaults() noexcept
     B("ctrl+shift+e","tool ellipse",       "Ellipse");
     //---------------------------------------------- solid ops ----------------------------------------------
     B("e",           "tool extrude",       "Extrude selected curve/face");
-    B("q",           "tool boolean",       "Boolean (union / subtract / intersect with Q/W/E inside tool)");
+    B("q",           "boolean union selected",     "Boolean union of the selected profiles (Plasticity Q)");
+    B("shift+q",     "boolean subtract selected",  "Boolean subtract: last selected from the rest");
+    B("ctrl+q",      "boolean intersect selected", "Boolean intersect of the selected profiles");
     B("c",           "tool cut",           "Cut");
     B("l",           "loft selected",      "Loft selected curves");
     B("shift+p",     "tool sweep",         "Sweep");
     B("p",           "tool pipe",          "Pipe");
-    B("b",           "tool fillet",        "Fillet / chamfer");
-    B("o",           "tool offset",        "Offset curve / face");
-    B("t",           "tool trim",          "Trim");
+    B("b",           "fillet selected 0.25",  "Fillet the selected curves' corners (Plasticity B; radius via `fillet`)");
+    B("shift+b",     "chamfer selected 0.25", "Chamfer the selected curves' corners");
+    B("o",           "offset selected 0.25",  "Offset the selected curves (Plasticity O)");
+    B("t",           "tool trim",             "Trim");
     B("j",           "join selected",      "Join curves");
     B("alt+j",       "explode selected",   "Explode joined curve");
     B("shift+r",     "repeat",             "Repeat last command");

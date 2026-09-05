@@ -122,3 +122,26 @@ open profile still extrudes to a sheet). `topology <body>` prints vertices, edge
 `sew <figure…>` stitches surfaces. Select modes 3 (face) and 2 (edge) pick faces and edges from the pick plane — each face and edge
 carries its own pick id — and `select faces|edges <body> <i…>|all|none` does it by index. Sub-selections drive the gizmo pivot and
 are hashed into the undo timeline.
+
+## Planar profile algebra (Phase 7)
+
+`Kernel/ProfileSolver.{h,cpp}` works on **closed planar NURBS loops** without dropping to polygons:
+
+- `Intersect(A, B)` — Bézier-piece subdivision on pole hulls, then a Newton polish on both parameters; crossings land within
+  1e-12 on both curves and tangent contacts are labelled. `SelfIntersections` uses the same machinery span against span.
+- `SignedArea`, `Winding(P)` — Green's theorem / crossing count on a 1e-5-sagitta tessellation; counter-clockwise about the
+  profile normal is material, clockwise is a hole, and a point is inside when its total winding is non-zero.
+- `Assemble` validates closure, planarity, coplanarity and simplicity, then nests loops (depth 0 outer, 1 hole, 2 island …);
+  `Normalised` fixes each loop's sense to its depth parity, so input winding never matters.
+- `Combine(A, B, union | subtract | intersect)` splits every loop at true crossings, classifies each piece by the other
+  profile's winding just left and just right of its midpoint (so coincident boundaries are kept exactly once), reverses the
+  B pieces of a subtraction, and chains survivors by sharpest-left-turn. Circle pieces stay rational quadratics — the notch
+  in a subtracted circle lies on the true circle to 1e-12.
+- `Filleted` / `Chamfered` replace corners (all, or `--corners=i,j`) by exact tangent arcs / lines with arc-length setbacks;
+  corners whose setbacks collide are left sharp. `Offset` shifts lines and arcs exactly (arcs change radius, circles remain
+  exact circles), bridges convex corners with arcs and trims concave ones. `Trimmed` removes the piece nearest a point between
+  crossings with the cutters; `Joined` chains pieces in any order or sense.
+
+Console: `boolean union|subtract|intersect <A…> -- <B…> [--keep]` (Q / Shift+Q / Ctrl+Q on the selection), `profile`,
+`intersections`, `fillet <curves> r`, `chamfer <curves> d`, `offset <curves> d [--copy]`, `trim <curve> (near) [--by=…]`,
+`join`, `explode`. Results are ordinary curves, so they extrude / revolve into solids with holes.

@@ -4,6 +4,7 @@
 
 #include "ConsoleHost.h"
 #include "Presentation/ScenePresentation.h"
+#include "Kernel/ProfileSolver.h"
 #include <chrono>
 #include <cstdarg>
 #include <filesystem>
@@ -487,6 +488,179 @@ void ConsoleHost::Register() noexcept
         if (auto A = C.SwitchText("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
         if (C.Switch("sheet")) return AddSurface(C, "Revolution", NurbsSurface::Revolution(Figure->Curve, O, Axis, ScalarCriteria::Radians(Angle)));
         return AddBody(C, "Revolution", BrepBody::Revolve(Figure->Curve, O, Axis, ScalarCriteria::Radians(Angle)));
+    });
+    //------------------------------------------------ Phase 7: planar profile algebra -------------------------------------------------
+    auto ProfileOf = [this](const std::vector<SceneFigure*>& Figures, const char* Verb, Profile& Out) -> bool
+    {
+        std::vector<NurbsCurve> Loops;
+        for (SceneFigure* F : Figures)
+        {
+            if (F->Classification != FigureClassification::Curve) return Refuse("%s: '%s' is not a curve", Verb, F->Name.c_str());
+            if (!F->Curve.Closed()) return Refuse("%s: '%s' is not closed", Verb, F->Name.c_str());
+            Loops.push_back(F->Curve);
+        }
+        if (Loops.empty()) return Refuse("%s: no closed curves", Verb);
+        Deliver<Profile> P = ProfileSolver::Assemble(Loops, Plane.Normal());
+        if (!P) return Refuse("%s: %s", Verb, P.Denial.Detail);
+        Out = std::move(P.Payload);
+        return true;
+    };
+    auto EmitProfile = [this](const CommandLine& C, const char* Stem, const Profile& P, ProfileOperation Op)
+    {
+        Row("%s → %zu loop(s), area %.6f", Describe(Op), P.Loops.size(), P.Area());
+        std::string Stem2 = C.SwitchText("name").value_or(Stem);
+        for (size_t I = 0; I < P.Loops.size(); ++I)
+        {
+            const ProfileLoop& L = P.Loops[I];
+            SceneFigure& F = Scene.AddCurve(Stem2, L.Curve);
+            Row("  · #%-3u %-18s %s  depth %d  area %+.6f  %s", F.Identity, F.Name.c_str(), L.SignedArea > 0 ? "ccw" : "cw ", L.Depth, L.SignedArea, L.Depth % 2 ? "hole" : "outer");
+            F.Selected = true;
+        }
+    };
+    Add("boolean", "boolean union|subtract|intersect <A...> -- <B...> [--keep] [--name=]   ·   2D profile boolean on closed coplanar sketch curves; A may hold holes", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 3, "boolean")) return false;
+        ProfileOperation Op;
+        const std::string& O = C.Arguments[0];
+        if (O == "union" || O == "add" || O == "u") Op = ProfileOperation::Union;
+        else if (O == "subtract" || O == "cut" || O == "difference" || O == "s") Op = ProfileOperation::Subtract;
+        else if (O == "intersect" || O == "common" || O == "i") Op = ProfileOperation::Intersect;
+        else return Refuse("boolean: unknown operation '%s' (union | subtract | intersect)", O.c_str());
+        std::vector<SceneFigure*> A, B; bool Right = false;
+        for (size_t I = 1; I < C.Count(); ++I)
+        {
+            if (C.Arguments[I] == "--") { Right = true; continue; }
+            SceneFigure* F = Resolve(C.Arguments[I]); if (!F) return Refuse("no figure '%s'", C.Arguments[I].c_str());
+            (Right ? B : A).push_back(F);
+        }
+        if (!Right && A.size() >= 2) { B.push_back(A.back()); A.pop_back(); }                 // "boolean union A B" shorthand
+        if (A.empty() || B.empty()) return Refuse("boolean: need curves on both sides (use -- to separate A from B)");
+        Profile Pa, Pb; if (!ProfileOf(A, "boolean", Pa) || !ProfileOf(B, "boolean", Pb)) return false;
+        std::vector<uint32_t> Consumed; for (SceneFigure* F : A) Consumed.push_back(F->Identity); for (SceneFigure* F : B) Consumed.push_back(F->Identity);
+        Deliver<Profile> R = ProfileSolver::Combine(Pa, Pb, Op);
+        if (!R) return Refuse("boolean: %s", R.Denial.Detail);
+        Scene.ClearSelection();
+        if (!C.Switch("keep")) for (uint32_t Id : Consumed) Scene.Remove(Id);              // before adding: pointers die with the erase
+        EmitProfile(C, Op == ProfileOperation::Union ? "Union" : Op == ProfileOperation::Subtract ? "Difference" : "Common", R.Payload, Op);
+        return true;
+    });
+    Add("profile", "profile <closed curves...> — signed areas, enclosure depth, winding orientation and combined area", [=, this](const CommandLine& C)
+    {
+        Profile P; if (!ProfileOf(ResolveMany(C, 0), "profile", P)) return false;
+        Row("profile of %zu loop(s): area %.6f  normal (%.2f %.2f %.2f)", P.Loops.size(), P.Area(), P.Normal.X, P.Normal.Y, P.Normal.Z);
+        for (const ProfileLoop& L : P.Loops) Row("  %s  depth %d  area %+.6f  %s  length %.4f", L.SignedArea > 0 ? "ccw" : "cw ", L.Depth, L.SignedArea, (L.SignedArea > 0) == (L.Depth % 2 == 0) ? "winding agrees with depth" : "WINDING INVERTED for its depth", L.Curve.Length());
+        return true;
+    });
+    Add("intersections", "intersections <curve> <curve> — exact curve–curve crossings with parameters", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "intersections")) return false;
+        SceneFigure* A = Resolve(C.Arguments[0]); SceneFigure* B = Resolve(C.Arguments[1]);
+        if (!A || !B) return Refuse("intersections: unknown figure");
+        if (A->Classification != FigureClassification::Curve || B->Classification != FigureClassification::Curve) return Refuse("intersections: both must be curves");
+        std::vector<CurveCrossing> X = A == B ? ProfileSolver::SelfIntersections(A->Curve) : ProfileSolver::Intersect(A->Curve, B->Curve);
+        Row("%zu crossing(s) between %s and %s", X.size(), A->Name.c_str(), B->Name.c_str());
+        for (const CurveCrossing& K : X) Row("  (%.6f %.6f %.6f)  tA %.6f  tB %.6f%s", K.Point.X, K.Point.Y, K.Point.Z, K.ParameterA, K.ParameterB, K.Tangent ? "  tangent" : "");
+        return true;
+    });
+    Add("fillet", "fillet <curve...> radius [--corners=i,j,…] — round the corners of a polyline / polygon / rectangle (Plasticity B)", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "fillet")) return false;
+        double R = 0; if (!NumberArg(C, C.Count() - 1, R, "fillet")) return false;
+        CommandLine Sub = C; Sub.Arguments.pop_back();
+        std::vector<int> Corners; bool Some = false;
+        if (auto T = C.SwitchText("corners")) { Some = true; size_t P = 0; while (P < T->size()) { size_t Q = T->find(',', P); Corners.push_back(std::atoi(T->substr(P, Q == std::string::npos ? std::string::npos : Q - P).c_str())); if (Q == std::string::npos) break; P = Q + 1; } }
+        int Done = 0;
+        for (SceneFigure* F : ResolveMany(Sub, 0))
+        {
+            if (F->Classification != FigureClassification::Curve) continue;
+            Deliver<NurbsCurve> N = ProfileSolver::Filleted(F->Curve, R, Some ? &Corners : nullptr);
+            if (!N) { Refuse("fillet %s: %s", F->Name.c_str(), N.Denial.Detail); continue; }
+            F->Curve = std::move(N.Payload); DescribeFigure(*F); ++Done;
+        }
+        return Done > 0;
+    });
+    Add("chamfer", "chamfer <curve...> setback [--corners=i,j,…] — bevel the corners", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "chamfer")) return false;
+        double D = 0; if (!NumberArg(C, C.Count() - 1, D, "chamfer")) return false;
+        CommandLine Sub = C; Sub.Arguments.pop_back();
+        std::vector<int> Corners; bool Some = false;
+        if (auto T = C.SwitchText("corners")) { Some = true; size_t P = 0; while (P < T->size()) { size_t Q = T->find(',', P); Corners.push_back(std::atoi(T->substr(P, Q == std::string::npos ? std::string::npos : Q - P).c_str())); if (Q == std::string::npos) break; P = Q + 1; } }
+        int Done = 0;
+        for (SceneFigure* F : ResolveMany(Sub, 0))
+        {
+            if (F->Classification != FigureClassification::Curve) continue;
+            Deliver<NurbsCurve> N = ProfileSolver::Chamfered(F->Curve, D, Some ? &Corners : nullptr);
+            if (!N) { Refuse("chamfer %s: %s", F->Name.c_str(), N.Denial.Detail); continue; }
+            F->Curve = std::move(N.Payload); DescribeFigure(*F); ++Done;
+        }
+        return Done > 0;
+    });
+    Add("offset", "offset <curve...> distance [--copy] — parallel curve; + is left of travel (inward for ccw loops), lines and arcs stay exact (Plasticity O)", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "offset")) return false;
+        double D = 0; if (!NumberArg(C, C.Count() - 1, D, "offset")) return false;
+        CommandLine Sub = C; Sub.Arguments.pop_back();
+        int Done = 0;
+        std::vector<SceneFigure*> Targets = ResolveMany(Sub, 0);
+        std::vector<uint32_t> Ids; for (SceneFigure* F : Targets) Ids.push_back(F->Identity);
+        for (uint32_t Id : Ids)
+        {
+            SceneFigure* F = Scene.Find(Id); if (!F || F->Classification != FigureClassification::Curve) continue;
+            Deliver<NurbsCurve> N = ProfileSolver::Offset(F->Curve, D, Plane.Normal());
+            if (!N) { Refuse("offset %s: %s", F->Name.c_str(), N.Denial.Detail); continue; }
+            if (C.Switch("copy")) { SceneFigure& G = Scene.AddCurve(F->Name + ".offset", std::move(N.Payload)); DescribeFigure(G); }
+            else { F->Curve = std::move(N.Payload); DescribeFigure(*F); }
+            ++Done;
+        }
+        return Done > 0;
+    });
+    Add("trim", "trim <curve> (near point) [--by=<cutter,...>] — remove the piece of the curve nearest the point between crossings with the cutters (default: every other curve) (Plasticity T)", [=, this](const CommandLine& C)
+    {
+        Vec3 Near; if (!Need(C, 2, "trim") || !PointArg(C, 1, Near, "trim")) return false;
+        SceneFigure* F = Resolve(C.Arguments[0]); if (!F || F->Classification != FigureClassification::Curve) return Refuse("trim: '%s' is not a curve", C.Arguments[0].c_str());
+        std::vector<NurbsCurve> Cutters;
+        if (auto T = C.SwitchText("by"))
+        {
+            size_t P = 0; while (P <= T->size()) { size_t Q = T->find(',', P); std::string Tok = T->substr(P, Q == std::string::npos ? std::string::npos : Q - P); if (SceneFigure* K = Resolve(Tok)) if (K->Classification == FigureClassification::Curve) Cutters.push_back(K->Curve); if (Q == std::string::npos) break; P = Q + 1; }
+        }
+        else for (SceneFigure& K : Scene.Figures()) if (&K != F && K.Classification == FigureClassification::Curve && !K.Hidden) Cutters.push_back(K.Curve);
+        Deliver<std::vector<NurbsCurve>> R = ProfileSolver::Trimmed(F->Curve, Cutters, Near);
+        if (!R) return Refuse("trim: %s", R.Denial.Detail);
+        std::string Name = F->Name; uint32_t Id = F->Identity; bool Sel = F->Selected;
+        Scene.Remove(Id);
+        Row("trim %s → %zu piece(s)", Name.c_str(), R.Payload.size());
+        for (NurbsCurve& P : R.Payload) { SceneFigure& G = Scene.AddCurve(Name, std::move(P)); G.Selected = Sel; DescribeFigure(G); }
+        return true;
+    });
+    Add("join", "join <curve...> | selected — chain curves that meet end to end into one (Plasticity J)", [=, this](const CommandLine& C)
+    {
+        std::vector<SceneFigure*> Fs = ResolveMany(C, 0);
+        std::vector<NurbsCurve> Pieces; std::vector<uint32_t> Ids; std::string Name;
+        for (SceneFigure* F : Fs) if (F->Classification == FigureClassification::Curve) { Pieces.push_back(F->Curve); Ids.push_back(F->Identity); if (Name.empty()) Name = F->Name; }
+        if (Pieces.size() < 2) return Refuse("join: need at least two curves");
+        Deliver<NurbsCurve> J = ProfileSolver::Joined(std::move(Pieces));
+        if (!J) return Refuse("join: %s", J.Denial.Detail);
+        for (uint32_t Id : Ids) Scene.Remove(Id);
+        SceneFigure& G = Scene.AddCurve(C.SwitchText("name").value_or("Joined"), std::move(J.Payload)); G.Selected = true;
+        DescribeFigure(G);
+        return true;
+    });
+    Add("explode", "explode <curve...> | selected — split a curve at its tangent kinks into separate curves (Plasticity Alt+J)", [=, this](const CommandLine& C)
+    {
+        std::vector<SceneFigure*> Fs = ResolveMany(C, 0);
+        std::vector<uint32_t> Ids; for (SceneFigure* F : Fs) if (F->Classification == FigureClassification::Curve) Ids.push_back(F->Identity);
+        if (Ids.empty()) return Refuse("explode: no curves");
+        for (uint32_t Id : Ids)
+        {
+            SceneFigure* F = Scene.Find(Id); std::string Name = F->Name; bool Sel = F->Selected;
+            std::vector<NurbsCurve> Pieces = SplitAtKinks(F->Curve);
+            if (Pieces.size() < 2) { Row("%s has no kinks — left alone", Name.c_str()); continue; }
+            Scene.Remove(Id);
+            Row("explode %s → %zu piece(s)", Name.c_str(), Pieces.size());
+            for (NurbsCurve& P : Pieces) { SceneFigure& G = Scene.AddCurve(Name, std::move(P)); G.Selected = Sel; }
+        }
+        return true;
     });
     Add("loft", "loft <curve> <curve> ... [--degree=3]", [=, this](const CommandLine& C)
     {
