@@ -227,7 +227,7 @@ void SoftwareRaster::Detail::RasterClipped(const ClipVertex& V0, const ClipVerte
             if (Fragment.w <= 0.002f) continue;
             Cover(X, Y, Fragment);
             if (!Overlay && Fragment.w > 0.5f) DepthPlane[Index] = Z;
-            if (PickIdentity != 0 && Fragment.w > 0.5f) PickPlane[Index] = PickIdentity;
+            if (PickIdentity != 0 && Fragment.w > 0.05f) PickPlane[Index] = PickIdentity;      // translucent fills still pick
         }
     }
 }

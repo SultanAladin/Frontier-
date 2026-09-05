@@ -147,8 +147,38 @@ int TransformGizmo::AxisOf(GizmoGrip H) noexcept
     }
 }
 
+void TransformGizmo::AimAt(const CameraProjection& Camera) noexcept
+{
+    AlignedAxis = -1;
+    if (!Camera.Orthographic) return;
+    Vec3 F = Camera.Forward();
+    for (int A = 0; A < 3; ++A)
+    {
+        Vec3 Axis = AxisBasis(A).Dir;
+        if (std::fabs(std::fabs(F.Dot(Axis)) - 1.0) < 1e-6) AlignedAxis = A;
+    }
+}
+
 bool TransformGizmo::Visible(GizmoGrip H) const noexcept
 {
+    if (AlignedAxis >= 0)
+    {
+        int A = AxisOf(H);
+        switch (H)
+        {
+            case GizmoGrip::TranslateX: case GizmoGrip::TranslateY: case GizmoGrip::TranslateZ:
+            case GizmoGrip::ScaleX: case GizmoGrip::ScaleY: case GizmoGrip::ScaleZ:
+                if (A == AlignedAxis) return false;                                                // cannot move along the view line
+                break;
+            case GizmoGrip::PlaneX: case GizmoGrip::PlaneY: case GizmoGrip::PlaneZ:
+                if (A != AlignedAxis) return false;                                                // only the screen-parallel plane
+                break;
+            case GizmoGrip::RotateX: case GizmoGrip::RotateY: case GizmoGrip::RotateZ:
+                if (A != AlignedAxis) return false;                                                // only the ring facing the camera
+                break;
+            default: break;
+        }
+    }
     if (Layout == GizmoLayout::Combined) return true;
     switch (H)
     {

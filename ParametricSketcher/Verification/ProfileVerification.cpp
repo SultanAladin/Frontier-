@@ -178,5 +178,66 @@ int main()
         Host.Execute("view top ; view fit ; render Proof_07b_Console");
     }
 
+    Panel.Section("Phase 7b · planar arrangement (Cells) — faces shared across edges, containment, dangling pruning");
+    {
+        auto CellsOf = [&](std::vector<NurbsCurve> C) { return ProfileSolver::Cells(C, Z); };
+        auto Sq = CellsOf({ R1, NurbsCurve::Circle({ 1, 1, 0 }, Z, 0.5).Payload });
+        Panel.Expect("square + inner circle → 2 cells (ring with 1 hole, disc)", Sq.size() == 2 && Sq[0].Holes.size() == 1 && Sq[1].Holes.empty());
+        Panel.Within("ring area 4 − π/4", Sq.size() == 2 ? std::fabs(Sq[0].Area - (4 - Pi * 0.25)) : 1.0, 1e-4);
+        Panel.Expect("disc depth 1, ring depth 0", Sq.size() == 2 && Sq[0].Depth == 0 && Sq[1].Depth == 1);
+        auto Ov = CellsOf({ R1, R2 });
+        std::vector<double> A; for (const PlanarCell& C : Ov) A.push_back(C.Area); std::sort(A.begin(), A.end());
+        Panel.Expect("two overlapping squares → 3 cells sharing edges", Ov.size() == 3);
+        Panel.Within("their areas 1, 3, 3", Ov.size() == 3 ? std::fabs(A[0] - 1) + std::fabs(A[1] - 3) + std::fabs(A[2] - 3) : 1.0, 1e-9);
+        auto Half = CellsOf({ NurbsCurve::Circle({ 0, 0, 0 }, Z, 1).Payload, NurbsCurve::Line({ -2, 0, 0 }, { 2, 0, 0 }).Payload });
+        Panel.Expect("circle cut by a longer line → 2 half discs, dangling ends pruned", Half.size() == 2);
+        Panel.Within("each half disc area π/2", Half.size() == 2 ? std::fabs(Half[0].Area - Pi / 2) + std::fabs(Half[1].Area - Pi / 2) : 1.0, 1e-4);
+        auto Tt = CellsOf({ NurbsCurve::Line({ 0, 0.3, 0 }, { 1, 0.3, 0 }).Payload, NurbsCurve::Line({ 0, 0.7, 0 }, { 1, 0.7, 0 }).Payload, NurbsCurve::Line({ 0.3, 0, 0 }, { 0.3, 1, 0 }).Payload, NurbsCurve::Line({ 0.7, 0, 0 }, { 0.7, 1, 0 }).Payload });
+        Panel.Expect("tic-tac-toe → exactly the one bounded centre cell", Tt.size() == 1);
+        Panel.Within("centre cell area 0.16", Tt.size() == 1 ? std::fabs(Tt[0].Area - 0.16) : 1.0, 1e-9);
+        auto Nest = CellsOf({ NurbsCurve::Rectangle(W, { 0, 0 }, { 4, 4 }).Payload, NurbsCurve::Circle({ 2, 2, 0 }, Z, 1.5).Payload, NurbsCurve::Rectangle(W, { 1.5, 1.5 }, { 2.5, 2.5 }).Payload });
+        Panel.Expect("three nested loops → depths 0/1/2, each with one hole except the innermost", Nest.size() == 3 && Nest[0].Depth == 0 && Nest[1].Depth == 1 && Nest[2].Depth == 2 && Nest[0].Holes.size() == 1 && Nest[1].Holes.size() == 1 && Nest[2].Holes.empty());
+        Panel.Expect("an open curve alone bounds nothing", CellsOf({ NurbsCurve::Line({ 0, 0, 0 }, { 1, 1, 0 }).Payload }).empty());
+        auto Tb = CellsOf({ R1, NurbsCurve::Line({ 0, 1, 0 }, { 2, 1, 0 }).Payload });
+        Panel.Expect("square with a line across → 2 cells of area 2", Tb.size() == 2 && std::fabs(Tb[0].Area - 2) < 1e-9 && std::fabs(Tb[1].Area - 2) < 1e-9);
+    }
+
+    Panel.Section("Phase 7b · solids with through-holes (multi-loop caps) and Euler with inner loops");
+    {
+        NurbsCurve Outer = R1, Inner = NurbsCurve::Circle({ 1, 1, 0 }, Z, 0.5).Payload;
+        BrepBody B = BrepBody::Extrude({ Outer, Inner }, Z, 1.0).Payload;
+        BodyReport R = B.Validate();
+        Panel.Expect("square with circular hole extruded → V10 E15 F7 with 9 loops", R.Vertices == 10 && R.Edges == 15 && R.Faces == 7 && R.Loops == 9);
+        Panel.Expect("one hull, χ = 0, genus 1, solid", R.Hulls == 1 && R.EulerCharacteristic == 0 && R.Genus == 1 && R.Solid());
+        Panel.Within("volume 4 − π/4 (tessellated)", std::fabs(R.Volume - (4 - Pi * 0.25)), 2e-3);
+        BrepBody Rv = BrepBody::Revolve({ NurbsCurve::Rectangle(W, { 2, 0 }, { 4, 2 }).Payload, NurbsCurve::Circle({ 3, 1, 0 }, Z, 0.4).Payload }, { 0, 0, 0 }, Vec3::UnitY(), Pi).Payload;
+        BodyReport Rr = Rv.Validate();
+        Panel.Expect("half-revolved square with hole → closed solid of genus 1", Rr.Solid() && Rr.Genus == 1);
+    }
+
+    Panel.Section("Phase 7b · sketch areas in the document: fill choice, extrude picks the area's loops");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerification", 1280, 800);
+        auto Figure = [&](const char* N) { return Host.Document().Find(std::string(N)); };
+        Host.Execute("rect (0,0) (4,4) ; circle (2,2) 1 ; circle (2,2) 0.4 ; areas");
+        Panel.Expect("three nested curves → 3 sketch areas, all filled", Host.Document().Areas().size() == 3);
+        Host.Execute("fill off a1");
+        Panel.Expect("fill off a1 empties the ring", !Host.Document().Areas()[1].Filled && Host.Document().Areas()[0].Filled);
+        Host.Execute("line (0,0) (1,1)");
+        Panel.Expect("fill survives a rebuild after adding an unrelated curve", Host.Document().Areas().size() == 3 && !Host.Document().Areas()[1].Filled);
+        Host.Execute("extrude Rectangle 1 --name=Plate");
+        Panel.Expect("extrude of the outer curve takes its filled area: genus-1 plate", Figure("Plate") && Figure("Plate")->Classification == FigureClassification::Body && Figure("Plate")->Body.Validate().Genus == 1);
+        Host.Execute("extrude a1 1 --name=Ring");
+        Panel.Expect("extrude of an unfilled area yields sheets, not a solid", Figure("Ring") && Figure("Ring")->Classification == FigureClassification::Surface);
+        Host.Execute("extrude a2 2 --name=Pin");
+        Panel.Expect("extrude of the filled centre disc is a solid cylinder", Figure("Pin") && Figure("Pin")->Body.Validate().Solid() && Figure("Pin")->Body.Validate().Genus == 0);
+        Host.Execute("fill at (3.5,3.5) off");
+        Panel.Expect("fill at (point) addresses the innermost area under it", !Host.Document().Areas()[0].Filled);
+        Host.Execute("undo");
+        Panel.Expect("undo restores the fill choice", Host.Document().Areas()[0].Filled);
+        Host.Execute("box (0,0,0) 2 2 1 --name=Ortho ; select Ortho ; view top ; view fit");
+        Host.Execute("view top ; view fit ; render Proof_07c_Areas");
+    }
+
     return Panel.Conclude();
 }

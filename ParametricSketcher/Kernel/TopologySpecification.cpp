@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <deque>
+#include "ProfileSolver.h"
 
 namespace Frontier
 {
@@ -373,38 +374,75 @@ std::vector<std::vector<int>> BrepBody::OpenLoops(double) const noexcept
 
 int BrepBody::Capped(double Tolerance) noexcept
 {
-    int Added = 0;
+    // 1. every open loop → plane fit (Newell) + planarity check
+    struct Rim { std::vector<int> Loop; Vec3 Normal; Vec3 Centroid; double Offset; std::vector<Vec3> Pts; double Area; bool Taken = false; };
+    std::vector<Rim> Rims;
     for (const std::vector<int>& Loop : OpenLoops(Tolerance))
     {
-        // gather boundary samples, fit a plane (Newell), verify planarity
-        std::vector<Vec3> Pts;
-        for (int C : Loop) { NurbsCurve K = CoedgeCurve(C); for (int I = 0; I < 8; ++I) Pts.push_back(K.Sample(K.DomainStart() + (K.DomainEnd() - K.DomainStart()) * I / 8.0)); }
-        if (Pts.size() < 3) continue;
+        Rim R; R.Loop = Loop;
+        for (int C : Loop) { NurbsCurve K = CoedgeCurve(C); for (int I = 0; I < 8; ++I) R.Pts.push_back(K.Sample(K.DomainStart() + (K.DomainEnd() - K.DomainStart()) * I / 8.0)); }
+        if (R.Pts.size() < 3) continue;
         Vec3 N, Centroid;
-        for (size_t I = 0; I < Pts.size(); ++I)
+        for (size_t I = 0; I < R.Pts.size(); ++I)
         {
-            Vec3 A = Pts[I], B = Pts[(I + 1) % Pts.size()];
+            Vec3 A = R.Pts[I], B = R.Pts[(I + 1) % R.Pts.size()];
             N.X += (A.Y - B.Y) * (A.Z + B.Z); N.Y += (A.Z - B.Z) * (A.X + B.X); N.Z += (A.X - B.X) * (A.Y + B.Y);
             Centroid = Centroid + A;
         }
-        Centroid = Centroid * (1.0 / Pts.size());
+        R.Centroid = Centroid * (1.0 / R.Pts.size());
+        R.Area = 0.5 * N.Length();
         if (N.Length() < 1e-12) continue;
-        N = N.Normalised();
-        bool Planar = true; for (Vec3 P : Pts) if (std::fabs((P - Centroid).Dot(N)) > Tolerance * 10.0) { Planar = false; break; }
+        R.Normal = N.Normalised(); R.Offset = R.Normal.Dot(R.Centroid);
+        bool Planar = true; for (Vec3 P : R.Pts) if (std::fabs((P - R.Centroid).Dot(R.Normal)) > Tolerance * 10.0) { Planar = false; break; }
         if (!Planar) continue;
-        // The existing coedges walk the loop with normal N (Newell of their order). The cap must traverse the opposite way,
-        //    so its outward normal is −N relative to the loop walk; build the plane surface with normal −N.
+        Rims.push_back(std::move(R));
+    }
+    // 2. group coplanar rims: an outer rim (largest area, walking with normal N) adopts every coplanar rim of opposite walk
+    //    sense whose points lie inside it — those become holes of the same cap.
+    std::sort(Rims.begin(), Rims.end(), [](const Rim& A, const Rim& B) { return A.Area > B.Area; });
+    int Added = 0;
+    for (size_t O = 0; O < Rims.size(); ++O)
+    {
+        if (Rims[O].Taken) continue;
+        Rim& Outer = Rims[O]; Outer.Taken = true;
+        Vec3 N = Outer.Normal;
         Planar2 Basis = PlanarBasis(N * -1.0);
+        // point-in-polygon on the outer rim's samples
+        std::vector<Vec2> Poly; for (Vec3 P : Outer.Pts) Poly.push_back(Basis.Project(P - Outer.Centroid));
+        auto Inside = [&](Vec3 P)
+        {
+            Vec2 Q = Basis.Project(P - Outer.Centroid); bool In = false;
+            for (size_t I = 0, J = Poly.size() - 1; I < Poly.size(); J = I++)
+                if ((Poly[I].Y > Q.Y) != (Poly[J].Y > Q.Y) && Q.X < (Poly[J].X - Poly[I].X) * (Q.Y - Poly[I].Y) / (Poly[J].Y - Poly[I].Y) + Poly[I].X) In = !In;
+            return In;
+        };
+        std::vector<size_t> Holes;
+        for (size_t H = O + 1; H < Rims.size(); ++H)
+        {
+            Rim& Cand = Rims[H];
+            if (Cand.Taken) continue;
+            if (std::fabs(std::fabs(Cand.Normal.Dot(N)) - 1.0) > 1e-6) continue;                   // not parallel
+            if (std::fabs(Cand.Normal.Dot(N) * Cand.Offset - Outer.Offset) > Tolerance * 10.0) continue;   // not the same plane
+            if (Cand.Normal.Dot(N) > 0) continue;                                                    // same walk sense → its own cap, not a hole
+            if (!Inside(Cand.Pts[0])) continue;
+            Cand.Taken = true; Holes.push_back(H);
+        }
         double MinU = 1e300, MaxU = -1e300, MinV = 1e300, MaxV = -1e300;
-        for (Vec3 P : Pts) { Vec2 Q = Basis.Project(P - Centroid); MinU = std::min(MinU, Q.X); MaxU = std::max(MaxU, Q.X); MinV = std::min(MinV, Q.Y); MaxV = std::max(MaxV, Q.Y); }
+        for (Vec3 P : Outer.Pts) { Vec2 Q = Basis.Project(P - Outer.Centroid); MinU = std::min(MinU, Q.X); MaxU = std::max(MaxU, Q.X); MinV = std::min(MinV, Q.Y); MaxV = std::max(MaxV, Q.Y); }
         double Pad = 0.05 * std::max(MaxU - MinU, MaxV - MinV) + Tolerance;
-        Vec3 Origin = Centroid + Basis.U * (MinU - Pad) + Basis.V * (MinV - Pad);
+        Vec3 Origin = Outer.Centroid + Basis.U * (MinU - Pad) + Basis.V * (MinV - Pad);
         Deliver<NurbsSurface> Plane = NurbsSurface::Plane(Origin, Basis.U, Basis.V, MaxU - MinU + 2 * Pad, MaxV - MinV + 2 * Pad);
         if (!Plane) continue;
         int F = AddFace(Plane.Payload);
         Faces[F].Natural = false;
+        // The rims walk with normal N; the cap's outward normal is −N so every rim is traversed the opposite way.
         int L = AddLoop(F, true);
-        for (auto It = Loop.rbegin(); It != Loop.rend(); ++It) AddCoedge(Coedges[*It].Edge, !Coedges[*It].Reversed, F, L);
+        for (auto It = Outer.Loop.rbegin(); It != Outer.Loop.rend(); ++It) AddCoedge(Coedges[*It].Edge, !Coedges[*It].Reversed, F, L);
+        for (size_t H : Holes)
+        {
+            int Lh = AddLoop(F, false);
+            for (auto It = Rims[H].Loop.rbegin(); It != Rims[H].Loop.rend(); ++It) AddCoedge(Coedges[*It].Edge, !Coedges[*It].Reversed, F, Lh);
+        }
         ++Added;
     }
     return Added;
@@ -582,7 +620,7 @@ BodyReport BrepBody::Validate() const noexcept
     R.Closed = R.OpenEdges == 0 && !Faces.empty();
     R.Manifold = R.NonManifoldEdges == 0;
     R.Oriented = R.MisorientedEdges == 0;
-    R.EulerCharacteristic = R.Vertices - R.Edges + R.Faces;
+    R.EulerCharacteristic = R.Vertices - R.Edges + R.Faces - (R.Loops - R.Faces);       // inner loops (holes in faces) count as handles
     // Hulls: flood faces across shared edges.
     std::vector<int> Label(Faces.size(), -1);
     for (size_t Seed = 0; Seed < Faces.size(); ++Seed)
@@ -679,25 +717,52 @@ Deliver<BrepBody> BrepBody::Torus(Vec3 Centre, Vec3 Axis, double RadiusMajor, do
 
 Deliver<BrepBody> BrepBody::Extrude(const NurbsCurve& Profile, Vec3 Direction, double Length) noexcept
 {
+    return Extrude(std::vector<NurbsCurve>{ Profile }, Direction, Length);
+}
+
+// Loops of one planar profile given in any sense → outer loops counter-clockwise, holes clockwise (by depth parity), so
+//    the side sheets of every loop face outward and the caps' inner loops run against the outer ones.
+static std::vector<NurbsCurve> OrientedLoops(const std::vector<NurbsCurve>& Loops) noexcept
+{
+    if (Loops.size() < 2) return Loops;
+    Vec3 N = Vec3::UnitZ();
+    for (const NurbsCurve& L : Loops) { std::vector<Vec3> P; L.Tessellate(P, nullptr, 1e-2); Vec3 A = Vec3(); for (size_t I = 0; I + 1 < P.size(); ++I) A = A + P[I].Cross(P[I + 1]); if (A.LengthSquared() > 1e-20) { N = A.Normalised(); break; } }
+    Deliver<Profile> P = ProfileSolver::Assemble(Loops, N);
+    if (!P) return Loops;
+    Profile Q = ProfileSolver::Normalised(P.Payload);
+    return Q.Curves();
+}
+
+Deliver<BrepBody> BrepBody::Extrude(const std::vector<NurbsCurve>& Loops, Vec3 Direction, double Length) noexcept
+{
     std::vector<NurbsSurface> Sides;
-    for (const NurbsCurve& Piece : SplitAtKinks(Profile))
-    {
-        Deliver<NurbsSurface> S = NurbsSurface::Extrusion(Piece, Direction, Length);
-        if (!S) return Deliver<BrepBody>::Reject(S.Denial.Reason, S.Denial.Detail);
-        Sides.push_back(std::move(S.Payload));
-    }
+    for (const NurbsCurve& Loop : OrientedLoops(Loops))
+        for (const NurbsCurve& Piece : SplitAtKinks(Loop))
+        {
+            Deliver<NurbsSurface> S = NurbsSurface::Extrusion(Piece, Direction, Length);
+            if (!S) return Deliver<BrepBody>::Reject(S.Denial.Reason, S.Denial.Detail);
+            Sides.push_back(std::move(S.Payload));
+        }
+    if (Sides.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "nothing to extrude");
     return Sew(Sides);
 }
 
 Deliver<BrepBody> BrepBody::Revolve(const NurbsCurve& Profile, Vec3 AxisOrigin, Vec3 AxisDirection, double Angle) noexcept
 {
+    return Revolve(std::vector<NurbsCurve>{ Profile }, AxisOrigin, AxisDirection, Angle);
+}
+
+Deliver<BrepBody> BrepBody::Revolve(const std::vector<NurbsCurve>& Loops, Vec3 AxisOrigin, Vec3 AxisDirection, double Angle) noexcept
+{
     std::vector<NurbsSurface> Sides;
-    for (const NurbsCurve& Piece : SplitAtKinks(Profile))
-    {
-        Deliver<NurbsSurface> S = NurbsSurface::Revolution(Piece, AxisOrigin, AxisDirection, Angle);
-        if (!S) return Deliver<BrepBody>::Reject(S.Denial.Reason, S.Denial.Detail);
-        Sides.push_back(std::move(S.Payload));
-    }
+    for (const NurbsCurve& Loop : OrientedLoops(Loops))
+        for (const NurbsCurve& Piece : SplitAtKinks(Loop))
+        {
+            Deliver<NurbsSurface> S = NurbsSurface::Revolution(Piece, AxisOrigin, AxisDirection, Angle);
+            if (!S) return Deliver<BrepBody>::Reject(S.Denial.Reason, S.Denial.Detail);
+            Sides.push_back(std::move(S.Payload));
+        }
+    if (Sides.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "nothing to revolve");
     return Sew(Sides);
 }
 

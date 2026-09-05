@@ -17,6 +17,7 @@ uint64_t UndoSequence::Fingerprint(const SceneDocument& Scene) noexcept
 {
     uint64_t H = 1469598103934665603ull;
     Mix(H, Scene.Figures().size());
+    for (const SketchArea& A : Scene.Areas()) { Mix(H, A.Identity); Mix(H, (A.Filled ? 1 : 0) | (A.Selected ? 2 : 0)); Mix(H, Bits(A.Cell.Area)); }
     for (const SceneFigure& I : Scene.Figures())
     {
         Mix(H, I.Identity); Mix(H, uint64_t(I.Classification)); Mix(H, std::hash<std::string>{}(I.Name));

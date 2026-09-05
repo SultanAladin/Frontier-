@@ -81,6 +81,12 @@ public:
     static constexpr double PlaneHalf = 0.08, ArcRadiusFactor = 0.62, ArcSweepDegrees = 31.0, ArcBand = 0.038, RingRadius = 0.16, RingTube = 0.008;
     static constexpr double SnapMove = 0.25, SnapScale = 0.1, SnapAngleDegrees = 5.0;
 
+    [[nodiscard]] bool Visible(GizmoGrip H) const noexcept;
+    // Orthographic views hide what cannot act: an axis parallel to the view direction loses its arrow, scale grip and the
+    //    two plane grips that contain it; only its rotation ring stays (that is the one rotation the view can show).
+    void AimAt(const CameraProjection& Camera) noexcept;
+    [[nodiscard]] int  ViewAxis() const noexcept { return AlignedAxis; }                // -1 = free (perspective / oblique)
+
 private:
     struct Basis { Vec3 Dir; Vec3 U; Vec3 V; };                                         // axis, and the OTHER two axes (u, v) in world
     [[nodiscard]] Basis AxisBasis(int Axis) const noexcept;
@@ -88,10 +94,10 @@ private:
     [[nodiscard]] std::optional<Vec3> PlanePoint(const Ray& R, Vec3 Normal) const noexcept;
     [[nodiscard]] std::optional<double> AngleAround(const Ray& R, Vec3 AxisDir, Vec3 Reference) const noexcept;
     [[nodiscard]] static int AxisOf(GizmoGrip H) noexcept;                            // 0 X, 1 Y, 2 Z
-    [[nodiscard]] bool Visible(GizmoGrip H) const noexcept;
 
     PivotBasis Pivot;
     GizmoLayout Layout = GizmoLayout::Combined;
+    int         AlignedAxis = -1;                                                       // [-] orthographic view axis, -1 free
     double      PixelSize = 110.0;                                                      // [px]
     GizmoGrip Hover = GizmoGrip::None;
     GizmoDrag   Active;

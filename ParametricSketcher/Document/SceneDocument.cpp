@@ -5,6 +5,7 @@
 #include "SceneDocument.h"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 
 namespace Frontier
 {
@@ -90,6 +91,75 @@ std::string SceneDocument::UniqueName(const std::string& Stem) const noexcept
         std::string Candidate = Stem + "." + std::to_string(K);
         if (!Taken(Candidate)) return Candidate;
     }
+}
+
+} // namespace Frontier
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                  SKETCH AREAS
+//------------------------------------------------------------------------------------------------------------------------
+namespace Frontier
+{
+
+void SceneDocument::RebuildAreas(const Workplane& Plane) noexcept
+{
+    // remember the fills of the current cells before they are thrown away
+    for (const SketchArea& A : Cells)
+    {
+        bool Found = false;
+        for (FillChoice& M : Fills) if (M.Centroid.Coincident(A.Centroid, 1e-6) && std::fabs(M.Area - A.Cell.Area) < 1e-9) { M.Filled = A.Filled; Found = true; }
+        if (!Found) Fills.push_back({ A.Centroid, A.Cell.Area, A.Filled });
+    }
+    std::vector<uint32_t> Selected; for (const SketchArea& A : Cells) if (A.Selected) Selected.push_back(A.Identity);
+    Cells.clear();
+    std::vector<NurbsCurve> Curves; std::vector<uint32_t> Owners;
+    Frontier::Plane Sheet = Plane.ToPlane();
+    for (const SceneFigure& F : Entries)
+    {
+        if (F.Classification != FigureClassification::Curve || F.Hidden || F.Construction) continue;
+        bool InPlane = true;
+        for (const Vec4& P : F.Curve.Poles) if (std::fabs(Sheet.SignedDistance(P.Divide())) > ScalarCriteria::MergeTolerance) { InPlane = false; break; }
+        if (!InPlane) continue;
+        Curves.push_back(F.Curve); Owners.push_back(F.Identity);
+    }
+    if (Curves.empty()) return;
+    std::vector<PlanarCell> Found = ProfileSolver::Cells(Curves, Plane.Normal());
+    uint32_t Next = AreaIdentityBase;
+    for (PlanarCell& C : Found)
+    {
+        SketchArea A; A.Identity = Next++; A.Cell = std::move(C); A.Normal = Plane.Normal();
+        std::vector<Vec3> Pts; A.Cell.Outer.Tessellate(Pts, nullptr, 1e-3);
+        Vec3 Sum; for (const Vec3& P : Pts) Sum = Sum + P; A.Centroid = Sum * (1.0 / double(Pts.size()));
+        for (uint32_t S : A.Cell.Origins) A.BoundingIdentities.push_back(Owners[S]);
+        for (const FillChoice& M : Fills) if (M.Centroid.Coincident(A.Centroid, 1e-6) && std::fabs(M.Area - A.Cell.Area) < 1e-9) A.Filled = M.Filled;
+        for (uint32_t Id : Selected) if (Id == A.Identity) A.Selected = true;
+        Cells.push_back(std::move(A));
+    }
+}
+
+SketchArea* SceneDocument::FindArea(uint32_t Identity) noexcept
+{
+    for (SketchArea& A : Cells) if (A.Identity == Identity) return &A;
+    return nullptr;
+}
+
+SketchArea* SceneDocument::AreaAt(Vec3 P) noexcept
+{
+    SketchArea* Best = nullptr;
+    for (SketchArea& A : Cells)
+    {
+        bool In = ProfileSolver::Winding(A.Cell.Outer, A.Normal, P) != 0;
+        for (const NurbsCurve& H : A.Cell.Holes) if (ProfileSolver::Winding(H, A.Normal, P) != 0) In = false;
+        if (In && (!Best || A.Cell.Area < Best->Cell.Area)) Best = &A;
+    }
+    return Best;
+}
+
+std::vector<SketchArea*> SceneDocument::AreasOf(uint32_t FigureIdentity) noexcept
+{
+    std::vector<SketchArea*> Out;
+    for (SketchArea& A : Cells) for (uint32_t S : A.BoundingIdentities) if (S == FigureIdentity) { Out.push_back(&A); break; }
+    return Out;
 }
 
 } // namespace Frontier

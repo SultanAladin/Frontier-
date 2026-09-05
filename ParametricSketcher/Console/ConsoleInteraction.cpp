@@ -74,6 +74,7 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
             return true;
         }
         RefreshGizmoPivot();
+        GizmoRig.AimAt(View);
         GizmoGrip H = GizmoRig.Locate(E.PixelX, E.PixelY, View, Surface->Width(), Surface->Height());
         if (H != GizmoRig.Hovered()) { GizmoRig.MarkHovered(H); Row("gizmo hover %s", GizmoGripName(H)); }
         if (H != GizmoGrip::None) return true;

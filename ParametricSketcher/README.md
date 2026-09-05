@@ -123,6 +123,27 @@ open profile still extrudes to a sheet). `topology <body>` prints vertices, edge
 carries its own pick id — and `select faces|edges <body> <i…>|all|none` does it by index. Sub-selections drive the gizmo pivot and
 are hashed into the undo timeline.
 
+## Sketch areas, bucket fill and through-holes (Phase 7b)
+
+Sketch curves on the workplane are arranged into **closed areas** automatically (`Kernel/ProfileSolver::Cells`): every
+crossing and T-junction splits the curves, dangling ends are pruned, and each bounded face of the arrangement is traced
+once by the leftmost-turn walk — two overlapping squares give three areas (3, 1, 3), a circle cut by a line two half discs,
+nested loops become areas with holes at depths 0/1/2. `SceneDocument::RebuildAreas` derives them after every command; the
+only user-owned part is each area's **fill**, which survives rebuilds by centroid + area signature and takes part in undo.
+
+- `areas` lists `aN`, fill, depth, area, holes, centroid and bounding curves; filled areas render as translucent sheets
+  and are hoverable / clickable (`click`, `select a0 a3`) like any figure.
+- `fill on|off|toggle <aN…>`, `fill all|none`, `fill at (x,y) [on|off]` — bucket fill: an area that is filled is material.
+- `extrude` / `revolve` accept `aN` or a curve; a filled area (or a closed curve whose filled area it bounds) extrudes as a
+  **solid with through-holes** (multi-loop caps, `BrepBody::Extrude/Revolve(loops, …)`, loop senses normalised, Euler
+  `V − E + F − (L − F)` so a plate with one hole reports χ 0 / genus 1); an unfilled area or open curve yields sheets.
+- Orthographic views hide the gizmo grips that cannot work along the view axis (`gizmo status` → `view along Z (only
+  XY-plane move + Z rotate)`; `gizmo grips` prints `hidden (orthographic view along Z)`), and `AimAt(view)` restores the
+  full rig as soon as the view is free.
+
+Script `Scripts/Phase7b_Areas.arc`, proofs `Proofs/Phase7b_Areas_Top.png` / `Proofs/Phase7b_Areas_Iso.png`,
+checks in `ProfileVerification` (103 in total).
+
 ## Planar profile algebra (Phase 7)
 
 `Kernel/ProfileSolver.{h,cpp}` works on **closed planar NURBS loops** without dropping to polygons:

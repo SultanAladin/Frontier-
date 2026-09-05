@@ -5,6 +5,7 @@
 
 #include "Kernel/SurfaceSpecification.h"
 #include "Kernel/TopologySpecification.h"
+#include "Kernel/ProfileSolver.h"
 #include <string>
 #include <vector>
 
@@ -12,6 +13,21 @@ namespace Frontier
 {
 
 enum class FigureClassification : uint8_t { Curve, Surface, Body };
+
+// A closed area of the sketch: one cell of the planar arrangement of all coplanar (workplane) curves. Derived — rebuilt after
+//    every change to the curves — so it is never edited directly; only its Filled choice is user-owned and survives rebuilds by
+//    matching the cell's centroid + area signature.
+struct SketchArea
+{
+    uint32_t              Identity = 0;                                                 // [-] pick identity (own range)
+    PlanarCell            Cell;                                                         // [-] outer + holes
+    Vec3                  Centroid;                                                     // [m] of the outer loop's tessellation
+    Vec3                  Normal = Vec3::UnitZ();                                       // [-] plane normal of the arrangement
+    bool                  Filled = true;                                                // [-] semi-transparent fill → extrudes as a solid
+    bool                  Selected = false;                                             // [-]
+    std::vector<uint32_t> BoundingIdentities;                                             // [-] figures whose curves bound it
+    [[nodiscard]] std::vector<NurbsCurve> Loops() const noexcept { return Cell.Loops(); }
+};
 
 enum class SelectMode : uint8_t { Control = 1, Edge = 2, Face = 3, Whole = 4 };           // Plasticity 1/2/3/4
 [[nodiscard]] inline const char* SelectModeName(SelectMode M) noexcept { switch (M) { case SelectMode::Control: return "control"; case SelectMode::Edge: return "edge"; case SelectMode::Face: return "face"; default: return "whole"; } }
@@ -63,13 +79,24 @@ public:
     [[nodiscard]] const std::vector<SceneFigure>& Figures() const noexcept { return Entries; }
     [[nodiscard]] std::vector<SceneFigure>&       Figures() noexcept { return Entries; }
     [[nodiscard]] Box3 Bounds(bool SelectedOnly = false) const noexcept;
+
+    // Sketch areas (derived). RebuildAreas() runs the planar arrangement over every visible, non-construction curve lying in
+    //    the given plane; fill flags are carried across by signature. Areas pick with identities ≥ AreaIdentityBase.
+    static constexpr uint32_t AreaIdentityBase = 8000;                                  // [-] below the 14-bit pick limit
+    void RebuildAreas(const Workplane& Plane) noexcept;
+    [[nodiscard]] const std::vector<SketchArea>& Areas() const noexcept { return Cells; }
+    [[nodiscard]] std::vector<SketchArea>&       Areas() noexcept { return Cells; }
+    [[nodiscard]] SketchArea* FindArea(uint32_t Identity) noexcept;
+    [[nodiscard]] SketchArea* AreaAt(Vec3 P) noexcept;                                  // innermost area containing P
+    [[nodiscard]] std::vector<SketchArea*> AreasOf(uint32_t FigureIdentity) noexcept;   // areas bounded by that curve
+    [[nodiscard]] int SelectedAreaCount() const noexcept { int N = 0; for (const SketchArea& A : Cells) if (A.Selected) ++N; return N; }
     [[nodiscard]] std::string UniqueName(const std::string& Stem) const noexcept;
     void Clear() noexcept { Entries.clear(); NextIdentity = 1; }
     [[nodiscard]] int  SelectedCount() const noexcept { int N = 0; for (const SceneFigure& I : Entries) if (I.Selected) ++N; return N; }
     [[nodiscard]] int  SelectedPoleCount() const noexcept { int N = 0; for (const SceneFigure& I : Entries) N += int(I.SelectedPoles.size()); return N; }
     [[nodiscard]] int  SelectedFaceCount() const noexcept { int N = 0; for (const SceneFigure& I : Entries) N += int(I.SelectedFaces.size()); return N; }
     [[nodiscard]] int  SelectedEdgeCount() const noexcept { int N = 0; for (const SceneFigure& I : Entries) N += int(I.SelectedEdges.size()); return N; }
-    void ClearSelection() noexcept { for (SceneFigure& I : Entries) { I.Selected = false; I.SelectedPoles.clear(); I.SelectedFaces.clear(); I.SelectedEdges.clear(); } }
+    void ClearSelection() noexcept { for (SketchArea& A : Cells) A.Selected = false; for (SceneFigure& I : Entries) { I.Selected = false; I.SelectedPoles.clear(); I.SelectedFaces.clear(); I.SelectedEdges.clear(); } }
     // Pick identities: low 14 bits figure identity, bits 14-15 the part (0 body, 1 pole, 2 face, 3 edge), high 16 bits sub index + 1.
     enum class PickPart : uint8_t { Figure = 0, Pole = 1, Face = 2, Edge = 3 };
     [[nodiscard]] static uint32_t PickOf(uint32_t Identity, int Pole = -1) noexcept { return PickOf(Identity, Pole < 0 ? PickPart::Figure : PickPart::Pole, Pole); }
@@ -85,6 +112,9 @@ public:
 
 private:
     std::vector<SceneFigure> Entries;
+    std::vector<SketchArea>  Cells;                                                     // derived
+    struct FillChoice { Vec3 Centroid; double Area; bool Filled; };
+    std::vector<FillChoice>  Fills;                                                     // fill choices, matched by signature
     uint32_t NextIdentity = 1;
 };
 

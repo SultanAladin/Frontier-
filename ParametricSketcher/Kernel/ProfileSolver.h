@@ -46,9 +46,25 @@ struct Profile
     [[nodiscard]] std::vector<NurbsCurve> Curves() const noexcept;
 };
 
+// A bounded cell of the planar arrangement of a set of coplanar curves: one outer loop (counter-clockwise) and the loops of
+//    the cells directly nested inside it (clockwise holes). Open curves that do not close anything contribute nothing.
+struct PlanarCell
+{
+    NurbsCurve              Outer;                                                      // ccw about the normal
+    std::vector<NurbsCurve> Holes;                                                      // cw
+    double                  Area = 0.0;                                                 // [m²] outer − holes
+    int                     Depth = 0;                                                  // [-] 0 outermost
+    std::vector<uint32_t>   Origins;                                                    // [-] input indices touching the outer loop
+    [[nodiscard]] std::vector<NurbsCurve> Loops() const noexcept { std::vector<NurbsCurve> L{ Outer }; L.insert(L.end(), Holes.begin(), Holes.end()); return L; }
+};
+
 class ProfileSolver
 {
 public:
+    // Planar arrangement: split every curve at every crossing, trace every minimal counter-clockwise cycle. A square with a
+    //    circle inside gives two cells — the ring (square outer, circle hole) and the disc — each independently usable.
+    [[nodiscard]] static std::vector<PlanarCell> Cells(const std::vector<NurbsCurve>& Curves, Vec3 Normal) noexcept;
+
     // ── curve level ────────────────────────────────────────────────────────────────────────────────────────────────────────
     [[nodiscard]] static std::vector<CurveCrossing> Intersect(const NurbsCurve& A, const NurbsCurve& B,
                                                               double Tolerance = ScalarCriteria::KernelTolerance) noexcept;

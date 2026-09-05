@@ -34,6 +34,7 @@ void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
     if (Mode == SelectMode::Edge && Part != SceneDocument::PickPart::Edge) Pick = SceneDocument::PickOf(SceneDocument::IdentityOf(Pick));
     if (Pick == HoverPick) return;
     HoverPick = Pick;
+    if (SketchArea* A = Scene.FindArea(SceneDocument::IdentityOf(Pick))) { Row("hover area a%u (%s, %.4f)", A->Identity - SceneDocument::AreaIdentityBase, A->Filled ? "filled" : "empty", A->Cell.Area); return; }
     if (SceneFigure* I = Scene.Find(SceneDocument::IdentityOf(Pick)))
     {
         int Pole = SceneDocument::PoleOf(Pick), Face = SceneDocument::FaceOf(Pick), Edge = SceneDocument::EdgeOf(Pick);
@@ -52,6 +53,12 @@ bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
     uint32_t Id = SceneDocument::IdentityOf(Pick); int Pole = SceneDocument::PoleOf(Pick);
     SceneFigure* Figure = Scene.Find(Id);
     if (!Toggle) Scene.ClearSelection();
+    if (SketchArea* A = Scene.FindArea(Id))
+    {
+        A->Selected = Toggle ? !A->Selected : true;
+        Row("click (%d,%d): area a%u %s  (%s, area %.4f, %zu hole(s))  ·  %d area(s) selected", int(X), int(Y), A->Identity - SceneDocument::AreaIdentityBase, A->Selected ? "selected" : "deselected", A->Filled ? "filled" : "empty", A->Cell.Area, A->Cell.Holes.size(), Scene.SelectedAreaCount());
+        return true;
+    }
     if (!Figure) { Row("click (%d,%d): nothing", int(X), int(Y)); return false; }
     if (Mode == SelectMode::Control)
     {
@@ -142,6 +149,22 @@ void ConsoleHost::RegisterSelection() noexcept
     Add("select", "select <figure...> | all | none | invert  ·  select box x0 y0 x1 y1 [--add|--subtract]  ·  select poles|faces|edges <figure> <i...>|all|none [--add]", [=, this](const CommandLine& C)
     {
         if (C.Count() == 1 && C.Arguments[0] == "none") { Scene.ClearSelection(); Row("selection cleared"); return true; }
+        // sketch areas: `select a0 a3 [--add]`
+        {
+            bool AllAreas = C.Count() > 0; std::vector<SketchArea*> Picked;
+            for (const std::string& T : C.Arguments)
+            {
+                SketchArea* A = (T.size() > 1 && (T[0] == 'a' || T[0] == 'A') && std::isdigit(static_cast<unsigned char>(T[1]))) ? Scene.FindArea(SceneDocument::AreaIdentityBase + uint32_t(std::atoi(T.c_str() + 1))) : nullptr;
+                if (!A) { AllAreas = false; break; }
+                Picked.push_back(A);
+            }
+            if (AllAreas)
+            {
+                if (!C.Switch("add")) Scene.ClearSelection();
+                for (SketchArea* A : Picked) { A->Selected = true; Row("  area a%u selected (%s, %.4f)", A->Identity - SceneDocument::AreaIdentityBase, A->Filled ? "filled" : "empty", A->Cell.Area); }
+                return true;
+            }
+        }
         if (C.Count() == 1 && C.Arguments[0] == "invert")
         {
             if (Mode == SelectMode::Control)

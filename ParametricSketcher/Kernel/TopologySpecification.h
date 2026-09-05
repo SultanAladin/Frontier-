@@ -67,7 +67,7 @@ struct BodyReport                                                               
     int    OpenEdges = 0;                                                               // [-] edges with one coedge
     int    NonManifoldEdges = 0;                                                        // [-] edges with > 2 coedges
     int    MisorientedEdges = 0;                                                        // [-] two coedges with the same sense
-    int    EulerCharacteristic = 0;                                                     // [-] V − E + F
+    int    EulerCharacteristic = 0;                                                     // [-] V − E + F − (inner loops)
     int    Hulls = 0;                                                                  // [-] edge-connected face groups
     int    Genus = -1;                                                                  // [-] closed body: total grips = Hulls − χ/2
     double Volume = 0.0;                                                                // [m³] signed
@@ -99,8 +99,10 @@ public:
     [[nodiscard]] static Deliver<BrepBody> Torus(Vec3 Centre, Vec3 Axis, double RadiusMajor, double RadiusMinor) noexcept;
     // Closed planar profile → solid. The profile is split at tangent kinks so each straight run becomes its own face (Plasticity style).
     [[nodiscard]] static Deliver<BrepBody> Extrude(const NurbsCurve& Profile, Vec3 Direction, double Length) noexcept;
+    [[nodiscard]] static Deliver<BrepBody> Extrude(const std::vector<NurbsCurve>& Loops, Vec3 Direction, double Length) noexcept;   // outer + holes → through-holes
     // Profile revolved by a full turn (closed profile → torus-like, open profile touching the axis → sphere-like) or a partial angle with caps.
     [[nodiscard]] static Deliver<BrepBody> Revolve(const NurbsCurve& Profile, Vec3 AxisOrigin, Vec3 AxisDirection, double Angle) noexcept;
+    [[nodiscard]] static Deliver<BrepBody> Revolve(const std::vector<NurbsCurve>& Loops, Vec3 AxisOrigin, Vec3 AxisDirection, double Angle) noexcept;
 
     //---------------------------------------------- editing ----------------------------------------------
     // Add planar faces on every open boundary loop that lies in a plane. Returns the number of caps added.

@@ -5,6 +5,7 @@
 #include "ConsoleHost.h"
 #include "Presentation/ScenePresentation.h"
 #include "Kernel/ProfileSolver.h"
+#include <cctype>
 #include <chrono>
 #include <cstdarg>
 #include <filesystem>
@@ -159,6 +160,7 @@ void ConsoleHost::Render() noexcept
         }
         if (ShowControlCages || Figure.Selected || Mode == SelectMode::Control) DrawControlPoints(Figure);
     }
+    DrawAreas();
     for (const SceneFigure& Figure : Scene.Figures())
     {
         if (Figure.Hidden || Figure.Classification != FigureClassification::Curve) continue;
@@ -176,10 +178,41 @@ void ConsoleHost::Render() noexcept
     if (GizmoShown && (Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0) && !Tool.Active())
     {
         if (!GizmoRig.Dragging()) RefreshGizmoPivot();
+        GizmoRig.AimAt(View);
         GizmoRig.Draw(*Surface, View, Surface->Width(), Surface->Height());
     }
     ScenePresentation::DrawTriad(*Surface, View.OrthographicHalfHeight() * 0.12);
     Surface->EndTarget();
+}
+
+void ConsoleHost::DrawAreas() noexcept
+{
+    // Filled sketch areas: translucent sheet in the workplane, ear-clipped with holes, picked by their own identity.
+    for (const SketchArea& A : Scene.Areas())
+    {
+        if (!A.Filled && !A.Selected && SceneDocument::IdentityOf(HoverPick) != A.Identity) continue;
+        std::vector<Vec3> Pts; std::vector<std::vector<uint32_t>> Rings;
+        auto Ring = [&](const NurbsCurve& C)
+        {
+            std::vector<Vec3> P; C.Tessellate(P, nullptr, 2e-3);
+            if (P.size() > 1 && P.back().Coincident(P.front(), 1e-9)) P.pop_back();
+            std::vector<uint32_t> R; for (const Vec3& Q : P) { R.push_back(uint32_t(Pts.size())); Pts.push_back(Q); }
+            Rings.push_back(std::move(R));
+        };
+        Ring(A.Cell.Outer); for (const NurbsCurve& Hh : A.Cell.Holes) Ring(Hh);
+        std::vector<uint32_t> Tri = TriangulatePlanarPolygon(Pts, Rings, A.Normal);
+        if (Tri.empty()) continue;
+        SurfaceStream S;
+        for (const Vec3& P : Pts) { S.Positions.insert(S.Positions.end(), { float(P.X), float(P.Y), float(P.Z) }); S.Normals.insert(S.Normals.end(), { float(A.Normal.X), float(A.Normal.Y), float(A.Normal.Z) }); S.Parameters.insert(S.Parameters.end(), { 0.f, 0.f }); }
+        S.Triangles = Tri;
+        const bool Hover = SceneDocument::IdentityOf(HoverPick) == A.Identity;
+        DrawRecord D = A.Selected ? ScenePresentation::Tinted(1.0f, 0.62f, 0.20f, 0.45f)
+                     : A.Filled  ? ScenePresentation::Tinted(0.55f, 0.72f, 0.95f, Hover ? 0.42f : 0.28f)
+                                 : ScenePresentation::Tinted(0.95f, 0.95f, 0.95f, 0.10f);            // unfilled: ghost only while hovered
+        D.PickIdentity = SceneDocument::PickOf(A.Identity);
+        D.Highlight = A.Selected ? 2.0f : (Hover ? 1.0f : 0.0f);
+        Surface->DrawSurface(S, D);
+    }
 }
 
 void ConsoleHost::DrawBody(const SceneFigure& Figure) noexcept
@@ -264,6 +297,7 @@ void ConsoleHost::RefreshGizmoPivot() noexcept
 {
     TransformGizmo::PivotBasis F; F.Origin = SelectionPivot();
     GizmoRig.Anchor(F);
+    GizmoRig.AimAt(View);
 }
 
 void ConsoleHost::ApplyDeltaToSelection(const Mat4& Delta) noexcept
@@ -444,6 +478,46 @@ void ConsoleHost::Register() noexcept
         }
         return true;
     });
+    Add("areas", "areas — list the closed sketch areas of the workplane (aN), their fill, holes and bounding curves", [=, this](const CommandLine&)
+    {
+        Scene.RebuildAreas(Plane);
+        if (Scene.Areas().empty()) { Row("no closed areas on the workplane"); return true; }
+        for (const SketchArea& A : Scene.Areas())
+        {
+            std::string Src; for (uint32_t Id : A.BoundingIdentities) if (SceneFigure* F = Scene.Find(Id)) Src += " " + F->Name;
+            Row("  a%-3u %-8s depth %d  area %.6f  holes %zu  centroid (%.3f %.3f %.3f)%s  bounded by%s", A.Identity - SceneDocument::AreaIdentityBase, A.Filled ? "filled" : "empty", A.Cell.Depth, A.Cell.Area, A.Cell.Holes.size(), A.Centroid.X, A.Centroid.Y, A.Centroid.Z, A.Selected ? "  [selected]" : "", Src.c_str());
+        }
+        return true;
+    });
+    Add("fill", "fill on|off|toggle <aN...> | all | none | selected  ·  fill at (x,y[,z]) [on|off] — bucket-fill: choose which closed areas are material (solid on extrude) and which stay empty (sheet)", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "fill")) return false;
+        Scene.RebuildAreas(Plane);
+        const std::string& A0 = C.Arguments[0];
+        auto Apply = [&](SketchArea& A, int Want) { A.Filled = Want < 0 ? !A.Filled : Want > 0; Row("  a%u %s  (area %.4f, %zu hole(s))", A.Identity - SceneDocument::AreaIdentityBase, A.Filled ? "filled" : "emptied", A.Cell.Area, A.Cell.Holes.size()); };
+        if (A0 == "at")
+        {
+            Vec3 P; if (!Need(C, 2, "fill at") || !PointArg(C, 1, P, "fill")) return false;
+            int Want = -1; if (C.Count() >= 3) Want = C.Arguments[2] == "on" ? 1 : C.Arguments[2] == "off" ? 0 : -1;
+            SketchArea* A = Scene.AreaAt(P); if (!A) return Refuse("fill at: no closed area under (%.3f %.3f %.3f)", P.X, P.Y, P.Z);
+            Apply(*A, Want); return true;
+        }
+        if (A0 == "all" || A0 == "none") { for (SketchArea& A : Scene.Areas()) Apply(A, A0 == "all"); return true; }
+        int Want = A0 == "on" ? 1 : A0 == "off" ? 0 : A0 == "toggle" ? -1 : -2;
+        if (Want == -2) return Refuse("fill: on|off|toggle|all|none|at expected, got '%s'", A0.c_str());
+        int Done = 0;
+        if (C.Count() == 1 || C.Arguments[1] == "selected") { for (SketchArea& A : Scene.Areas()) if (A.Selected) { Apply(A, Want); ++Done; } if (!Done) return Refuse("fill: no areas selected"); return true; }
+        for (size_t I = 1; I < C.Count(); ++I)
+        {
+            const std::string& T = C.Arguments[I];
+            if (T == "all") { for (SketchArea& A : Scene.Areas()) { Apply(A, Want); ++Done; } continue; }
+            const char* Digits = T.c_str(); if (*Digits == 'a' || *Digits == 'A') ++Digits;
+            SketchArea* A = Scene.FindArea(SceneDocument::AreaIdentityBase + uint32_t(std::atoi(Digits)));
+            if (!A) return Refuse("fill: no area '%s' (see `areas`)", T.c_str());
+            Apply(*A, Want); ++Done;
+        }
+        return Done > 0;
+    });
     Add("sew", "sew <surface...> — stitch sheet surfaces into one body, cap planar openings, orient", [=, this](const CommandLine& C)
     {
         std::vector<NurbsSurface> S; std::vector<uint32_t> Ids;
@@ -471,23 +545,60 @@ void ConsoleHost::Register() noexcept
     });
 
     //---------------------------------------------- derived surfaces ----------------------------------------------
-    Add("extrude", "extrude <curve> length [--direction=(x,y,z)] [--sheet] — closed profile → solid", [=, this](const CommandLine& C)
+    // What an extrude / revolve operates on: a sketch area (by name "area N" / "aN", or the area a curve bounds when it is
+    //    filled), else the bare curve. Filled area → solid with through-holes; unfilled area or open curve → sheet(s).
+    struct SweepSource { std::vector<NurbsCurve> Loops; bool Solid = false; std::string Label; };
+    auto ResolveSweep = [this](const CommandLine& C, size_t Index, const char* Verb, SweepSource& Out) -> bool
     {
-        double L = 0; if (!Need(C, 2, "extrude") || !NumberArg(C, 1, L, "extrude")) return false;
-        SceneFigure* Figure = Resolve(C.Arguments[0]); if (!Figure || Figure->Classification != FigureClassification::Curve) return Refuse("extrude: '%s' is not a curve", C.Arguments[0].c_str());
+        const std::string& Tok = C.Arguments[Index];
+        SketchArea* Area = nullptr;
+        if (Tok.size() > 1 && (Tok[0] == 'a' || Tok[0] == 'A') && std::isdigit(static_cast<unsigned char>(Tok[1]))) Area = Scene.FindArea(SceneDocument::AreaIdentityBase + uint32_t(std::atoi(Tok.c_str() + 1)));
+        if (!Area && Tok == "area" && Index + 1 < C.Count()) Area = Scene.FindArea(SceneDocument::AreaIdentityBase + uint32_t(std::atoi(C.Arguments[Index + 1].c_str())));
+        if (Area)
+        {
+            Out.Loops = Area->Loops(); Out.Solid = Area->Filled && !C.Switch("sheet");
+            Out.Label = "area " + std::to_string(Area->Identity - SceneDocument::AreaIdentityBase) + (Area->Filled ? " (filled)" : " (unfilled)");
+            return true;
+        }
+        SceneFigure* Figure = Resolve(Tok);
+        if (!Figure || Figure->Classification != FigureClassification::Curve) return Refuse("%s: '%s' is neither a curve nor an area (a0, a1 … see `areas`)", Verb, Tok.c_str());
+        // a closed curve that bounds exactly one filled area whose outer loop is this curve → that area (carries its holes)
+        if (Figure->Curve.Closed() && !C.Switch("sheet"))
+        {
+            for (SketchArea* A : Scene.AreasOf(Figure->Identity))
+            {
+                double D = 0; (void)A->Cell.Outer.ClosestParameter(Figure->Curve.Sample(0.37 * (Figure->Curve.DomainStart() + Figure->Curve.DomainEnd()) + 0.63 * Figure->Curve.DomainStart()), &D);
+                bool SameOuter = D < ScalarCriteria::MergeTolerance && std::fabs(std::fabs(ProfileSolver::SignedArea(Figure->Curve, A->Normal)) - (A->Cell.Area + [&] { double S = 0; for (const NurbsCurve& Hh : A->Cell.Holes) S += std::fabs(ProfileSolver::SignedArea(Hh, A->Normal)); return S; }())) < 1e-6;
+                if (!SameOuter) continue;
+                Out.Loops = A->Loops(); Out.Solid = A->Filled;
+                Out.Label = Figure->Name + " → area " + std::to_string(A->Identity - SceneDocument::AreaIdentityBase) + (A->Filled ? " (filled, " + std::to_string(A->Cell.Holes.size()) + " hole(s))" : " (unfilled → sheet)");
+                return true;
+            }
+        }
+        Out.Loops = { Figure->Curve }; Out.Solid = false; Out.Label = Figure->Name + (Figure->Curve.Closed() ? " (no filled area → sheet)" : " (open → sheet)");
+        return true;
+    };
+    Add("extrude", "extrude <curve | aN> length [--direction=(x,y,z)] [--sheet] — filled area → solid with through-holes; unfilled / open → sheet", [=, this](const CommandLine& C)
+    {
+        double L = 0; if (!Need(C, 2, "extrude") || !NumberArg(C, C.Count() - 1, L, "extrude")) return false;
+        SweepSource S; if (!ResolveSweep(C, 0, "extrude", S)) return false;
         Vec3 Dir = Plane.Normal(); if (auto A = C.SwitchText("direction")) if (auto V = CommandCodec::ParsePoint(*A)) Dir = *V;
-        if (C.Switch("sheet") || !Figure->Curve.Closed()) return AddSurface(C, "Extrusion", NurbsSurface::Extrusion(Figure->Curve, Dir, L));
-        return AddBody(C, "Extrusion", BrepBody::Extrude(Figure->Curve, Dir, L));           // closed profile → solid with caps
+        Row("extrude %s", S.Label.c_str());
+        if (S.Solid) return AddBody(C, "Extrusion", BrepBody::Extrude(S.Loops, Dir, L));
+        bool Ok = true; for (const NurbsCurve& K : S.Loops) Ok &= AddSurface(C, "Extrusion", NurbsSurface::Extrusion(K, Dir, L));
+        return Ok;
     });
     Add("revolve", "revolve <curve> angleDeg [--origin=(x,y,z)] [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
-        double Angle = 0; if (!Need(C, 2, "revolve") || !NumberArg(C, 1, Angle, "revolve")) return false;
-        SceneFigure* Figure = Resolve(C.Arguments[0]); if (!Figure || Figure->Classification != FigureClassification::Curve) return Refuse("revolve: '%s' is not a curve", C.Arguments[0].c_str());
+        double Angle = 0; if (!Need(C, 2, "revolve") || !NumberArg(C, C.Count() - 1, Angle, "revolve")) return false;
+        SweepSource S; if (!ResolveSweep(C, 0, "revolve", S)) return false;
         Vec3 O = Plane.Origin, Axis = Plane.AxisY;
         if (auto A = C.SwitchText("origin")) if (auto V = CommandCodec::ParsePoint(*A)) O = *V;
         if (auto A = C.SwitchText("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
-        if (C.Switch("sheet")) return AddSurface(C, "Revolution", NurbsSurface::Revolution(Figure->Curve, O, Axis, ScalarCriteria::Radians(Angle)));
-        return AddBody(C, "Revolution", BrepBody::Revolve(Figure->Curve, O, Axis, ScalarCriteria::Radians(Angle)));
+        Row("revolve %s", S.Label.c_str());
+        if (S.Solid) return AddBody(C, "Revolution", BrepBody::Revolve(S.Loops, O, Axis, ScalarCriteria::Radians(Angle)));
+        bool Ok = true; for (const NurbsCurve& K : S.Loops) Ok &= AddSurface(C, "Revolution", NurbsSurface::Revolution(K, O, Axis, ScalarCriteria::Radians(Angle)));
+        return Ok;
     });
     //------------------------------------------------ Phase 7: planar profile algebra -------------------------------------------------
     auto ProfileOf = [this](const std::vector<SceneFigure*>& Figures, const char* Verb, Profile& Out) -> bool
@@ -800,7 +911,9 @@ void ConsoleHost::Register() noexcept
                 GizmoGrip H = static_cast<GizmoGrip>(I);
                 Vec3 W = GizmoRig.GripAnchor(H, View, Surface->Height());
                 double X = 0, Y = 0; bool On = View.WorldToPixel(W, Surface->Width(), Surface->Height(), X, Y);
+                GizmoRig.AimAt(View);
                 GizmoGrip Locate = On ? GizmoRig.Locate(X, Y, View, Surface->Width(), Surface->Height()) : GizmoGrip::None;
+                if (!GizmoRig.Visible(H)) { Row("%-13s hidden (orthographic view along %c)", GizmoGripName(H), "XYZ"[std::clamp(GizmoRig.ViewAxis(), 0, 2)]); continue; }
                 Row("%-13s pixel (%4d,%4d)  world (%.3f %.3f %.3f)  inspect → %s", GizmoGripName(H), int(X), int(Y), W.X, W.Y, W.Z, GizmoGripName(Locate));
             }
             return true;
@@ -809,8 +922,9 @@ void ConsoleHost::Register() noexcept
         RefreshGizmoPivot();
         const char* Layouts[] = { "combined", "translate", "rotate", "scale" };
         Vec3 O = GizmoRig.CurrentPivot().Origin;
-        Row("gizmo %s  layout %s  pivot (%.3f %.3f %.3f)  hover %s%s", GizmoShown ? "on" : "off", Layouts[int(GizmoRig.CurrentLayout())], O.X, O.Y, O.Z,
-            GizmoGripName(GizmoRig.Hovered()), GizmoRig.Dragging() ? "  [dragging]" : "");
+        const char* Aim[] = { "free", "along X (only YZ-plane move + X rotate)", "along Y (only XZ-plane move + Y rotate)", "along Z (only XY-plane move + Z rotate)" };
+        Row("gizmo %s  layout %s  pivot (%.3f %.3f %.3f)  view %s  hover %s%s", GizmoShown ? "on" : "off", Layouts[int(GizmoRig.CurrentLayout())], O.X, O.Y, O.Z,
+            Aim[GizmoRig.ViewAxis() + 1], GizmoGripName(GizmoRig.Hovered()), GizmoRig.Dragging() ? "  [dragging]" : "");
         return true;
     });
     RegisterSelection();
@@ -891,6 +1005,7 @@ bool ConsoleHost::Execute(std::string_view Line) noexcept
         if (Record) { Recording = true; Undo.Record(Scene, Label); }
         if (Stepper && Recording) Undo.Abandon();                                    // `key ctrl+z` → the wrapper must not record the step
         const bool Done = It->second(C);
+        Scene.RebuildAreas(Plane);
         if (Record)
         {
             Recording = false;

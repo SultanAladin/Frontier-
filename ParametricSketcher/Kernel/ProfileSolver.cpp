@@ -388,6 +388,137 @@ Deliver<Profile> ProfileSolver::Combine(const Profile& Ain, const Profile& Bin, 
 }
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                                  PLANAR ARRANGEMENT
+//------------------------------------------------------------------------------------------------------------------------
+std::vector<PlanarCell> ProfileSolver::Cells(const std::vector<NurbsCurve>& Curves, Vec3 Normal) noexcept
+{
+    PlanarAxes Ax = AxesOf(Normal);
+    // 1. split every curve at every crossing with every other curve (and with itself)
+    struct Arc { NurbsCurve Curve; uint32_t Origin; };
+    std::vector<Arc> Arcs;
+    for (size_t I = 0; I < Curves.size(); ++I)
+    {
+        std::vector<double> Cuts;
+        for (const CurveCrossing& X : SelfIntersections(Curves[I])) { Cuts.push_back(X.ParameterA); Cuts.push_back(X.ParameterB); }
+        for (size_t J = 0; J < Curves.size(); ++J)
+        {
+            if (J == I) continue;
+            for (const CurveCrossing& X : Intersect(Curves[I], Curves[J])) Cuts.push_back(X.ParameterA);
+            // end points of open curves touching this curve also split it (T-junctions)
+            if (!Curves[J].Closed())
+                for (Vec3 E : { Curves[J].StartPoint(), Curves[J].EndPoint() })
+                {
+                    double D = 0; double T = Curves[I].ClosestParameter(E, &D);
+                    if (D < ScalarCriteria::MergeTolerance) Cuts.push_back(T);
+                }
+        }
+        // a closed curve with no cuts still needs a seam so it is one arc with distinct ends → split at its start
+        for (NurbsCurve& P : SplitAt(Curves[I], Cuts)) Arcs.push_back({ std::move(P), static_cast<uint32_t>(I) });
+    }
+    // 2. half-edges: each arc both ways, keyed by their end vertices (merged by tolerance)
+    std::vector<Vec3> Vertices;
+    auto VertexOf = [&](Vec3 P)
+    {
+        for (size_t V = 0; V < Vertices.size(); ++V) if (Vertices[V].Coincident(P, ScalarCriteria::MergeTolerance)) return static_cast<int>(V);
+        Vertices.push_back(P); return static_cast<int>(Vertices.size()) - 1;
+    };
+    struct Half { int Arc; bool Forward; int From, To; double HeadingOut, HeadingIn; bool Used = false; };
+    std::vector<Half> Halves;
+    for (size_t A = 0; A < Arcs.size(); ++A)
+    {
+        const NurbsCurve& C = Arcs[A].Curve;
+        int V0 = VertexOf(C.StartPoint()), V1 = VertexOf(C.EndPoint());
+        if (V0 == V1 && !C.Closed()) continue;
+        double H0 = HeadingAt(C, C.DomainStart(), Ax), H1 = HeadingAt(C, C.DomainEnd(), Ax);
+        // heading arriving at a vertex is the reverse of the tangent there
+        auto Flip = [](double H) { H += ScalarCriteria::Pi; while (H > ScalarCriteria::Pi) H -= ScalarCriteria::TwoPi; return H; };
+        Halves.push_back({ static_cast<int>(A), true,  V0, V1, H0, Flip(H1) });
+        Halves.push_back({ static_cast<int>(A), false, V1, V0, Flip(H1), H0 });
+    }
+    // prune dangling half-edges (vertices of degree 1) repeatedly: they cannot bound a cell
+    for (bool Changed = true; Changed;)
+    {
+        Changed = false;
+        std::vector<int> Degree(Vertices.size(), 0);
+        for (const Half& H : Halves) if (!H.Used) ++Degree[H.From];
+        for (Half& H : Halves) if (!H.Used && (Degree[H.From] <= 1 || Degree[H.To] <= 1)) { H.Used = true; Changed = true; }
+    }
+    // 3. trace cycles: from each unused half-edge, at every vertex take the next half-edge counter-clockwise from the
+    //    reverse of the arrival direction (leftmost turn) → each bounded face once as a ccw loop, the outer face once cw.
+    std::vector<PlanarCell> Cells;
+    std::vector<std::vector<int>> Outgoing(Vertices.size());
+    for (size_t H = 0; H < Halves.size(); ++H) if (!Halves[H].Used) Outgoing[Halves[H].From].push_back(static_cast<int>(H));
+    for (size_t Seed = 0; Seed < Halves.size(); ++Seed)
+    {
+        if (Halves[Seed].Used) continue;
+        std::vector<int> Cycle; int Cur = static_cast<int>(Seed); int Guard = 0;
+        while (Guard++ < 100000)
+        {
+            Halves[Cur].Used = true; Cycle.push_back(Cur);
+            const Half& H = Halves[Cur];
+            // candidates leaving H.To; pick the smallest clockwise turn from the reversed arrival heading (leftmost)
+            // Leftmost turn: among half-edges leaving H.To, the one whose outgoing heading is the first encountered
+            //    rotating clockwise from the twin's heading (the direction back along the arc). Walking a face keeps it on
+            //    the left, so every bounded face is traced counter-clockwise exactly once.
+            double Back = H.HeadingIn;
+            int Best = -1; double BestTurn = 1e300;
+            for (int Cand : Outgoing[H.To])
+            {
+                const Half& K = Halves[Cand];
+                bool Twin = K.Arc == H.Arc && K.Forward != H.Forward;
+                double Turn = Back - K.HeadingOut;                                                   // clockwise angle from Back to K
+                while (Turn <= 1e-9) Turn += ScalarCriteria::TwoPi;
+                while (Turn > ScalarCriteria::TwoPi + 1e-9) Turn -= ScalarCriteria::TwoPi;
+                if (Twin) Turn = ScalarCriteria::TwoPi;                                              // U-turn only when nothing else leaves
+                if (Turn < BestTurn) { BestTurn = Turn; Best = Cand; }
+            }
+            if (Best < 0) break;
+            if (Best == static_cast<int>(Seed)) break;
+            if (Halves[Best].Used) { Cycle.clear(); break; }                                         // merged into a traced cycle: not a face
+            Cur = Best;
+        }
+        if (Cycle.empty() || Halves[Cycle.back()].To != Halves[Seed].From) continue;
+        std::vector<NurbsCurve> Parts; std::vector<uint32_t> Src;
+        for (int Hx : Cycle) { const Half& H = Halves[Hx]; Parts.push_back(H.Forward ? Arcs[H.Arc].Curve : Arcs[H.Arc].Curve.Reversed()); Src.push_back(Arcs[H.Arc].Origin); }
+        NurbsCurve Loop = ChainPieces(std::move(Parts));
+        if (!Loop.Closed()) continue;
+        double Area = SignedArea(Loop, Normal);
+        if (Area <= 1e-12) continue;                                                                 // the unbounded face runs clockwise
+        PlanarCell Cell; Cell.Outer = std::move(Loop); Cell.Area = Area;
+        std::sort(Src.begin(), Src.end()); Src.erase(std::unique(Src.begin(), Src.end()), Src.end()); Cell.Origins = std::move(Src);
+        Cells.push_back(std::move(Cell));
+    }
+    // 4. containment: a cell nested directly inside another becomes that cell's hole (largest first so parents come first)
+    std::sort(Cells.begin(), Cells.end(), [](const PlanarCell& A, const PlanarCell& B) { return A.Area > B.Area; });
+    std::vector<int> Parent(Cells.size(), -1);
+    for (size_t I = 0; I < Cells.size(); ++I)
+    {
+        // Sample points strictly inside cell I: boundary samples nudged inward; cells sharing an edge with I must not be
+        //    fooled by a sample on that shared edge, so several samples vote and a container needs a majority.
+        std::vector<Vec3> Samples;
+        for (double F : { 0.11, 0.29, 0.43, 0.61, 0.77, 0.93 })
+        {
+            double T0 = Cells[I].Outer.DomainStart() + F * (Cells[I].Outer.DomainEnd() - Cells[I].Outer.DomainStart());
+            Vec3 Tan = Cells[I].Outer.Tangent(T0); if (Tan.LengthSquared() < 1e-30) continue;
+            Vec3 S = Cells[I].Outer.Sample(T0) + Normal.Normalised().Cross(Tan).Normalised() * 1e-5;
+            if (Winding(Cells[I].Outer, Normal, S) != 0) Samples.push_back(S);
+        }
+        for (size_t J = 0; J < I; ++J)                                                               // smaller index = larger area
+        {
+            size_t Votes = 0; for (const Vec3& S : Samples) if (Winding(Cells[J].Outer, Normal, S) != 0) ++Votes;
+            if (!Samples.empty() && Votes * 2 > Samples.size()) Parent[I] = static_cast<int>(J);        // the last (smallest) container wins
+        }
+    }
+    for (size_t I = 0; I < Cells.size(); ++I)
+    {
+        int D = 0; for (int P = Parent[I]; P >= 0; P = Parent[P]) ++D;
+        Cells[I].Depth = D;
+        if (Parent[I] >= 0) { Cells[Parent[I]].Holes.push_back(Cells[I].Outer.Reversed()); Cells[Parent[I]].Area -= Cells[I].Area; }
+    }
+    return Cells;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                  SKETCH EDITS
 //------------------------------------------------------------------------------------------------------------------------
 namespace
