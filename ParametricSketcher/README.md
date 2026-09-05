@@ -1,4 +1,6 @@
-# CadWorkspace — NURBS CAD editor (C++20, console + rasterised proofs)
+# SolidArc — parametric NURBS modelling tool (C++20, console + rasterised proofs)
+
+Folder: `ParametricSketcher/`. Application name: **SolidArc**.
 
 A standalone modelling tool that lives beside `Engine/` and `Projects/` and depends on neither. Every piece of
 geometry is a NURBS curve or surface; every solid is a B-rep of trimmed NURBS faces; every visual is drawn by a
@@ -8,7 +10,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 ## Build & verify
 
 ```bash
-cd CadWorkspace
+cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
 ctest --test-dir build --output-on-failure      # or run ./build/KernelVerification directly for the full table
@@ -25,7 +27,7 @@ No external packages. `-Wall -Wextra -Wpedantic -Werror`.
 | `Presentation/` | `RasterExchange` seam · `SoftwareRaster` (CPU) · `VulkanRaster` (GPU) · Slang shaders + C++ mirror | Phase 2 |
 | `Console/` | Command codec + REPL / script runner; every op prints tables; `render` writes PNG | Phase 2 |
 | `Verification/` | One console-proof executable per phase, registered with ctest | ongoing |
-| `Scripts/` | Reproducible `.cad` scripts (the visual test suite) | Phase 3+ |
+| `Scripts/` | Reproducible `.arc` scripts (the visual test suite) | Phase 3+ |
 | `Proofs/` | PNG outputs shown after each phase | Phase 2+ |
 
 ### Kernel (Phase 1)

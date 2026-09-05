@@ -1,10 +1,10 @@
 #=============================================================================================================================================
-# CadWorkspace/CMakeLists.txt — Standalone CAD editor: kernel, interaction, presentation (software + Vulkan), console host
+# ParametricSketcher/CMakeLists.txt — SolidArc: standalone NURBS modelling tool — kernel, interaction, presentation (software + Vulkan), console host
 #   Builds with no engine dependency and no external packages. Linux: cmake -B build -G Ninja && cmake --build build && ctest --test-dir build
 #=============================================================================================================================================
 
 cmake_minimum_required(VERSION 3.20)
-project(CadWorkspace LANGUAGES CXX)
+project(SolidArc LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,15 +20,15 @@ else()
 endif()
 
 # ─── Kernel: pure geometry, zero dependencies ───────────────────────────────────────────────────────────────────────────────────────────────
-add_library(CadKernel STATIC
+add_library(SolidArcKernel STATIC
     Kernel/CurveSpecification.cpp
     Kernel/SurfaceSpecification.cpp
 )
-target_include_directories(CadKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ─── Verification: console proofs, one executable per phase, registered with ctest ──────────────────────────────────────────────────────────
 enable_testing()
 
 add_executable(KernelVerification Verification/KernelVerification.cpp)
-target_link_libraries(KernelVerification PRIVATE CadKernel)
+target_link_libraries(KernelVerification PRIVATE SolidArcKernel)
 add_test(NAME KernelVerification COMMAND KernelVerification)

@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 CadWorkspace/Kernel/ScalarCriteria.h — Tolerance policy, scalar comparison and numeric constants for the CAD kernel
+// 📦 ParametricSketcher/Kernel/ScalarCriteria.h — Tolerance policy, scalar comparison and numeric constants for the SolidArc kernel
 //============================================================================================================================================
 // One place for every epsilon. Every solver in the kernel reads its tolerance from here, so a tolerance change is a
 //    one-line edit rather than a hunt. Three bands exist, and they are deliberately far apart:

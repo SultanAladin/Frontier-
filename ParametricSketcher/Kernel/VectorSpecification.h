@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 CadWorkspace/Kernel/VectorSpecification.h — Double-precision vectors, matrices, quaternions, planes, rays and bounds
+// 📦 ParametricSketcher/Kernel/VectorSpecification.h — Double-precision vectors, matrices, quaternions, planes, rays and bounds
 //============================================================================================================================================
 // The kernel computes in double; only the presentation layer narrows to float when it fills GPU buffers. World is
 //    right-handed, Z-up: X right, Y forward (into the screen in the default top view), Z up. Matrices are column-major

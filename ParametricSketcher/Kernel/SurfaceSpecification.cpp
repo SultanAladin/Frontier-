@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 CadWorkspace/Kernel/SurfaceSpecification.cpp — NURBS surface algorithms
+// 📦 ParametricSketcher/Kernel/SurfaceSpecification.cpp — NURBS surface algorithms
 //============================================================================================================================================
 
 #include "SurfaceSpecification.h"

@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 CadWorkspace/Kernel/SurfaceSpecification.h — NURBS tensor-product surface: exact quadrics, patches, sweeps, tessellation
+// 📦 ParametricSketcher/Kernel/SurfaceSpecification.h — NURBS tensor-product surface: exact quadrics, patches, sweeps, tessellation
 //============================================================================================================================================
 // Every face in the workspace sits on a NurbsSurface. Planes are bilinear (1×1), cylinders / cones / spheres / tori are
 //    exact rational (degree 2 around the axis), B-spline patches are whatever the user asked for. Poles are stored row-

@@ -17,5 +17,5 @@ Scratchpad/GenerateControlPanelProof
 Scratchpad/VectorGlyphTest
 .DS_Store
 
-# CadWorkspace build output
-CadWorkspace/build/
+# SolidArc (ParametricSketcher) build output
+ParametricSketcher/build/

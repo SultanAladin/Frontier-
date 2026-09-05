@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 CadWorkspace/Kernel/CurveSpecification.cpp — NURBS curve algorithms (Piegl & Tiller numbering cited per routine)
+// 📦 ParametricSketcher/Kernel/CurveSpecification.cpp — NURBS curve algorithms (Piegl & Tiller numbering cited per routine)
 //============================================================================================================================================
 
 #include "CurveSpecification.h"

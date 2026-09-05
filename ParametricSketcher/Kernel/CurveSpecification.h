@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 CadWorkspace/Kernel/CurveSpecification.h — NURBS curve: exact conics, de Boor evaluation, refinement, splitting, tessellation
+// 📦 ParametricSketcher/Kernel/CurveSpecification.h — NURBS curve: exact conics, de Boor evaluation, refinement, splitting, tessellation
 //============================================================================================================================================
 // Every sketch entity in the workspace IS a NurbsCurve. Lines are degree 1, arcs / circles / ellipses are exact rational
 //    quadratics (Piegl & Tiller §7.5), splines are non-rational cubics by default. Storing one representation means every

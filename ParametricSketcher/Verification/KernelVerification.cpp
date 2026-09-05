@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 CadWorkspace/Verification/KernelVerification.cpp — Phase 1 proofs: vectors, exact conics, de Boor, refinement, surfaces
+// 📦 ParametricSketcher/Verification/KernelVerification.cpp — Phase 1 proofs: vectors, exact conics, de Boor, refinement, surfaces
 //============================================================================================================================================
 
 #include "Kernel/SurfaceSpecification.h"
@@ -43,7 +43,7 @@ double MaxRadiusError(const NurbsCurve& C, Vec3 Centre, double Radius, int Sampl
 
 int main()
 {
-    VerificationPanel Panel("Phase 1 · Kernel Verification — VectorSpecification · CurveSpecification · SurfaceSpecification");
+    VerificationPanel Panel("SolidArc · Phase 1 · Kernel Verification — VectorSpecification · CurveSpecification · SurfaceSpecification");
 
     //------------------------------------------------------------------ vectors & matrices
     Panel.Section("VectorSpecification");
