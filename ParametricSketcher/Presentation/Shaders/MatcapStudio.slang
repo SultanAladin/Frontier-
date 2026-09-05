@@ -46,9 +46,9 @@ float3 MatcapStudioSample(uint Layer, float3 N)
     // Environment radiance seen in the reflection, blurred by roughness.
     float  Blur = Rough * Rough;
     // Metals see a higher-contrast studio: sky vs. floor gradient, sharp softbox edges; dielectrics only borrow a fraction.
-    float  SkyEdge   = smoothstep(-0.05, 0.35, R.y);                               // hard-ish horizon for mirrors
+    float  SkyEdge   = 0.35 + 0.65 * smoothstep(-0.25, 0.35, R.y);                  // horizon for mirrors; floor stays a lit studio floor, not a void
     float  Contrast  = lerp(SkyEdge, Sky, Blur);
-    float3 Env  = EnvTint * (0.10 + 0.70 * Contrast - 0.30 * lerp(Floor, 0.25, Blur) + 0.30 * lerp(Horizon, 0.15, Blur) + 0.75 * lerp(Softbox, 0.25, Blur) + FillBand + Side);
+    float3 Env  = EnvTint * (0.18 + 0.62 * Contrast - 0.12 * lerp(Floor, 0.25, Blur) + 0.30 * lerp(Horizon, 0.15, Blur) + 0.75 * lerp(Softbox, 0.25, Blur) + FillBand + Side);
 
     // Diffuse term for dielectrics (Lambert against the studio lights + hemisphere).
     float  Lambert = 0.28 + 0.55 * saturate(dot(N, Key)) + 0.20 * saturate(dot(N, Fill)) + 0.15 * saturate(N.y);

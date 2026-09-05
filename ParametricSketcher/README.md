@@ -26,7 +26,7 @@ No external packages. `-Wall -Wextra -Wpedantic -Werror`.
 | `Interaction/` | `CameraProjection` · `SnapResolution` (grid/endpoint/midpoint/centre/quadrant/on-curve/perpendicular/tangent/intersection/axis, pixel radius + priority) · `InputEvent` · `HotkeyChart` (Plasticity + Blender defaults, rebindable) · `ToolSession` (modal prompts, numeric entry, axis/plane locks, rubber-band preview, G/R/S) · `TransformGizmo` (GizmoPRO per `References/Gizmo.html`: cone/puck/plane/sector per axis, billboarded ring, analytic picking, Ctrl snapping) | **Phase 3 ✓** |
 | `Presentation/` | `RasterExchange` seam · `SoftwareRaster` (CPU, pick + depth, PNG with own deflate) · Slang shaders compiled twice: by Slang for Vulkan later, by the C++ compiler through `SlangMirror.h` today · `ScenePresentation` (kernel → streams) · `MatcapStudio.slang` (ten procedural studios baked once to a layer array; one matcap **per object**, switchable flat / plastic / matcap) | **Phase 2 ✓** |
 | `Console/` | `CommandCodec` (`.arc` grammar) · `ConsoleHost` (sketch, primitives, extrude/revolve/loft, scene, view, `render`, `pick`) · `SolidArc` executable (script / `-c` / REPL) | **Phase 2 ✓** |
-| `Document/` | `SceneDocument` — named items with stable identities (pick identities) | **Phase 2 ✓** |
+| `Document/` | `SceneDocument` — named items with stable identities (pick id = item ⊕ pole index), per-item pole selection · `HistoryLedger` — snapshot undo / redo with a change fingerprint | **Phase 4 ✓** |
 | `Verification/` | One console-proof executable per phase, registered with ctest | ongoing |
 | `Scripts/` | Reproducible `.arc` scripts (the visual test suite) | Phase 3+ |
 | `Proofs/` | PNG outputs shown after each phase | Phase 2+ |
@@ -82,6 +82,19 @@ The console is the input device — the same events a window will send later:
 
 | `gizmo on|off` · `gizmo combined|translate|rotate|scale` · `gizmo size px` · `gizmo handles` · `release` | GizmoPRO on the selection; `handles` prints every handle's pixel so scripts can grab it; `click` on a handle starts a drag, `pointer` moves it (`--ctrl` snaps 0.25 m / 0.1× / 5°), `release` commits |
 | `show shading flat|plastic|matcap` · `matcap <items> <studio>` · `matcap list` · `tint <items> r g b` | shading mode for the view; per-object studio (steel chrome gold copper plastic-white plastic-red plastic-blue clay pearl carbon) |
+
+
+## Selection and history (Phase 4)
+
+| Command | Meaning |
+|---|---|
+| `click x y [--shift]` · `select box x0 y0 x1 y1 [--add|--subtract]` · `select all|none|invert` · `select <items>` | pick-plane selection: click, toggle, marquee (hidden items never select) |
+| `selectmode control|edge|face|object|cycle` · keys `1 2 3 4`, `Tab` | Plasticity modes; control mode picks poles, `select poles <item> <i…>|all|none` |
+| `hide` `H` · `hide unselected` / `isolate` `Shift+H` · `unhide all` `Alt+H` · `delete` `X` | visibility and removal |
+| `duplicate [(dx,dy,dz)]` `Shift+D` · `mirror x|y|z [--copy]` `Alt+X` | copies keep the source's matcap / tint; mirrored surfaces are re-oriented so normals stay outward |
+| `undo [n]` `Ctrl+Z` · `redo [n]` `Ctrl+Shift+Z` / `Ctrl+Y` · `history` | every mutating command is one entry; a gizmo drag from grab to release is one entry; selection undoes with geometry |
+
+Gizmo in control mode moves only the selected poles (pivot = their centroid), so a cage edit is a drag.
 
 Inside a tool: `X`/`Y`/`Z` lock an axis (again to clear), `Shift+X/Y/Z` lock a plane, `Backspace` removes the last point,
 `Enter`/right-click confirm, `Esc` cancels, `↑`/`↓` change polygon sides or spline degree, `Ctrl` while moving suppresses snapping.

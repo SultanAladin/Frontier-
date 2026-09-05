@@ -7,6 +7,7 @@
 
 #include "CommandCodec.h"
 #include "Document/SceneDocument.h"
+#include "Document/HistoryLedger.h"
 #include "Interaction/CameraProjection.h"
 #include "Interaction/ToolSession.h"
 #include "Interaction/TransformGizmo.h"
@@ -33,6 +34,8 @@ public:
     [[nodiscard]] CameraProjection& Camera() noexcept { return View; }
     [[nodiscard]] int               RefusalCount() const noexcept { return Refusals; }
     [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoState; }
+    [[nodiscard]] const HistoryLedger&  History() const noexcept { return Ledger; }
+    [[nodiscard]] SelectMode            CurrentSelectMode() const noexcept { return Mode; }
 
     // Renders the current document into the raster (no file); public so verification can probe pixels.
     void Render() noexcept;
@@ -51,6 +54,13 @@ private:
     [[nodiscard]] Workplane ActivePlane() const noexcept { return Plane; }
 
     void RegisterInteraction() noexcept;                                                // Phase 3 commands
+    void RegisterSelection() noexcept;                                                  // Phase 4 commands
+    void DrawControlPoints(const SceneItem& Item) noexcept;                             // cage + poles with per-pole pick ids
+    bool SelectAtPixel(double X, double Y, bool Toggle) noexcept;                       // click-select honouring the mode
+    int  SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept;
+    void HoverAtPixel(double X, double Y) noexcept;
+    [[nodiscard]] Vec3 SelectionPivot() const noexcept;                                 // item bounds centre or selected-pole centroid
+    void ApplyDeltaToSelection(const Mat4& Delta) noexcept;
     void DrawToolPreview() noexcept;
     bool Dispatch(const InputEvent& Event) noexcept;                                    // tool first, then hotkey chart
     void OnToolOutcome(const ToolOutcome& Outcome) noexcept;
@@ -69,6 +79,10 @@ private:
     std::string                          LastCommand;                                   // [-] for Shift+R
     bool                                 ToolReportedRefusal = false;
     SceneDocument                        Scene;
+    HistoryLedger                        Ledger;
+    SelectMode                           Mode = SelectMode::Object;
+    uint32_t                             HoverPick = 0;                                 // [-] pick id under the pointer (last HoverAtPixel)
+    bool                                 Journaling = false;                            // [-] guards nested Execute during undo
     CameraProjection                     View;
     Workplane                            Plane = Workplane::XY();
     std::unique_ptr<SoftwareRaster>      Surface;

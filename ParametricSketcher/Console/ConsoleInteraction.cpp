@@ -18,7 +18,7 @@ ToolSession::Context ConsoleHost::ToolContext() const noexcept
     C.Camera = &View; C.Scene = &Scene; C.Snap = &Snap; C.Plane = Plane;
     C.Width = Surface->Width(); C.Height = Surface->Height();
     Box3 B = Scene.Bounds(true);
-    C.SelectionPivot = B.Empty() ? Plane.Origin : B.Centre();
+    C.SelectionPivot = B.Empty() ? Plane.Origin : SelectionPivot();
     return C;
 }
 
@@ -63,7 +63,7 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
         }
         return Refuse("%s is not bound", DescribeKeyChord(E.KeyCode, E.Modifiers).c_str());
     }
-    const bool GizmoLive = GizmoShown && !Scene.Bounds(true).Empty();
+    const bool GizmoLive = GizmoShown && (Scene.SelectedCount() > 0 || Scene.SelectedPoleCount() > 0);
     if (E.Action == InputAction::PointerMove && GizmoLive)
     {
         if (GizmoState.Dragging())
@@ -78,13 +78,14 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
         if (H != GizmoState.Hovered()) { GizmoState.SetHovered(H); Row("gizmo hover %s", GizmoHandleName(H)); }
         if (H != GizmoHandle::None) return true;
     }
+    if (E.Action == InputAction::PointerMove && !Tool.Active()) { HoverAtPixel(E.PixelX, E.PixelY); return false; }
     if (E.Action == InputAction::PointerPress && E.Button == PointerButton::Left && GizmoLive)
     {
         RefreshGizmoFrame();
         if (GizmoState.BeginDrag(E.PixelX, E.PixelY, View, Surface->Width(), Surface->Height()))
         {
             GizmoOriginals.clear();
-            for (const SceneItem& I : Scene.Items()) if (I.Selected) GizmoOriginals.emplace_back(I.Identity, I);
+            for (const SceneItem& I : Scene.Items()) if (I.Selected || !I.SelectedPoles.empty()) GizmoOriginals.emplace_back(I.Identity, I);
             Row("gizmo grab %s", GizmoHandleName(GizmoState.Drag().Handle));
             return true;
         }
@@ -96,16 +97,12 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
         GizmoOriginals.clear();
         RefreshGizmoFrame();
         Row("gizmo release %s", D.Readout.c_str());
+        Ledger.Settle(Scene);                                                           // closes the entry opened at the grab
         return true;
     }
     if (E.Action == InputAction::PointerPress && E.Button == PointerButton::Left)
     {
-        // Click-select through the pick buffer of the last render.
-        Render();
-        uint32_t Id = Surface->Pick(uint32_t(E.PixelX), uint32_t(E.PixelY));
-        if (!E.Shift()) for (SceneItem& I : Scene.Items()) I.Selected = false;
-        if (SceneItem* Item = Scene.Find(Id)) { Item->Selected = E.Shift() ? !Item->Selected : true; DescribeItem(*Item); }
-        else Row("click (%d,%d): nothing", int(E.PixelX), int(E.PixelY));
+        SelectAtPixel(E.PixelX, E.PixelY, E.Shift());
         return true;
     }
     if (E.Action == InputAction::Wheel) { View.Dolly(E.WheelSteps); return true; }
@@ -303,9 +300,22 @@ void ConsoleHost::RegisterInteraction() noexcept
         return true;
     });
     // "view toggle" for Numpad5 and the show toggles referenced by the chart.
-    Add("selectmode", "selectmode control|edge|face|solid|cycle — recorded now, enforced in Phase 4", [=, this](const CommandLine& C)
+    Add("selectmode", "selectmode control|edge|face|object|cycle|status — 1/2/3/4 and Tab", [=, this](const CommandLine& C)
     {
-        Row("select mode %s (Phase 4 enforces it)", C.Count() ? C.Arguments[0].c_str() : "?"); return true;
+        const std::string A = C.Count() ? C.Arguments[0] : "status";
+        SelectMode Next = Mode;
+        if (A == "control") Next = SelectMode::Control; else if (A == "edge") Next = SelectMode::Edge; else if (A == "face") Next = SelectMode::Face;
+        else if (A == "object" || A == "solid") Next = SelectMode::Object;
+        else if (A == "cycle") Next = Mode == SelectMode::Object ? SelectMode::Control : SelectMode::Object;   // Blender Tab: object ⇄ edit (control points)
+        else if (A != "status") return Refuse("selectmode: control|edge|face|object|cycle|status");
+        if (Next != Mode)
+        {
+            // Leaving control mode drops pole selection; entering it keeps items selected so their cages show.
+            if (Mode == SelectMode::Control) for (SceneItem& I : Scene.Items()) I.SelectedPoles.clear();
+            Mode = Next;
+        }
+        Row("select mode %s  ·  %d item(s), %d pole(s) selected", SelectModeName(Mode), Scene.SelectedCount(), Scene.SelectedPoleCount());
+        return true;
     });
 }
 

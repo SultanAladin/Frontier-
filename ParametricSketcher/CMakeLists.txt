@@ -44,9 +44,11 @@ target_compile_definitions(SolidArcPresentation PUBLIC SOLIDARC_PROOF_DIRECTORY=
 # ─── Document + Console: item store, command codec, console host, SolidArc executable ───────────────────────────────────────────────────────
 add_library(SolidArcConsoleKit STATIC
     Document/SceneDocument.cpp
+    Document/HistoryLedger.cpp
     Console/CommandCodec.cpp
     Console/ConsoleHost.cpp
     Console/ConsoleInteraction.cpp
+    Console/ConsoleSelection.cpp
 )
 target_link_libraries(SolidArcConsoleKit PUBLIC SolidArcPresentation)
 
@@ -69,5 +71,9 @@ add_test(NAME Phase2_Primitives COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scr
 add_executable(InteractionVerification Verification/InteractionVerification.cpp)
 target_link_libraries(InteractionVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME InteractionVerification COMMAND InteractionVerification)
+add_executable(SelectionVerification Verification/SelectionVerification.cpp)
+target_link_libraries(SelectionVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME SelectionVerification COMMAND SelectionVerification)
 add_test(NAME Phase3_Sketching COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3_Sketching.arc)
+add_test(NAME Phase4_Selection COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase4_Selection.arc)
 add_test(NAME Phase3b_GizmoShading COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3b_GizmoShading.arc)

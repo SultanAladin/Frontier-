@@ -4,6 +4,7 @@
 
 #include "SceneDocument.h"
 #include <algorithm>
+#include <cctype>
 
 namespace Frontier
 {
@@ -15,6 +16,17 @@ SceneItem& SceneDocument::AddCurve(std::string Name, NurbsCurve Curve) noexcept
     Item.Kind = ItemKind::Curve;
     Item.Name = UniqueName(Name.empty() ? "Curve" : Name);
     Item.Curve = std::move(Curve);
+    Store.push_back(std::move(Item));
+    return Store.back();
+}
+
+SceneItem& SceneDocument::Duplicate(const SceneItem& Source) noexcept
+{
+    SceneItem Item = Source;
+    Item.Identity = NextIdentity++;
+    Item.Selected = false; Item.SelectedPoles.clear();
+    std::string Stem = Source.Name; size_t Dot = Stem.rfind('.'); if (Dot != std::string::npos && Dot + 1 < Stem.size() && std::isdigit(uint8_t(Stem[Dot + 1]))) Stem.resize(Dot);
+    Item.Name = UniqueName(Stem);
     Store.push_back(std::move(Item));
     return Store.back();
 }

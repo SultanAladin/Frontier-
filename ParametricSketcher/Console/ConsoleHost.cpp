@@ -123,22 +123,17 @@ void ConsoleHost::Render() noexcept
     {
         if (Item.Hidden || Item.Kind != ItemKind::Surface) continue;
         DrawRecord D = ScenePresentation::Tinted(Item.Tint[0], Item.Tint[1], Item.Tint[2]);
-        D.PickIdentity = Item.Identity;
-        D.Highlight = Item.Selected ? 2.0f : 0.0f;
+        D.PickIdentity = SceneDocument::PickOf(Item.Identity);
+        D.Highlight = Item.Selected ? 2.0f : (SceneDocument::IdentityOf(HoverPick) == Item.Identity ? 1.0f : 0.0f);
         D.Matcap = Item.Matcap;
         D.Shading = static_cast<uint8_t>(Shading);
         Surface->DrawSurface(ScenePresentation::SurfaceTriangles(Item.Surface, 2e-3), D);
         if (ShowIsoCurves)
         {
-            DrawRecord Iso = ScenePresentation::Tinted(0.10f, 0.11f, 0.13f, 0.28f); Iso.LineWidth = 1.0f; Iso.PickIdentity = Item.Identity;
+            DrawRecord Iso = ScenePresentation::Tinted(0.10f, 0.11f, 0.13f, 0.28f); Iso.LineWidth = 1.0f; Iso.PickIdentity = SceneDocument::PickOf(Item.Identity);
             Surface->DrawSegments(ScenePresentation::SurfaceIsoCurves(Item.Surface, 8, 8), Iso);
         }
-        if (ShowControlCages || Item.Selected)
-        {
-            DrawRecord Net = ScenePresentation::Tinted(0.95f, 0.80f, 0.30f, 0.9f); Net.LineWidth = 1.0f; Net.Dashed = true; Net.PointSize = 6.0f;
-            Surface->DrawSegments(ScenePresentation::ControlNet(Item.Surface), Net);
-            Surface->DrawPoints(ScenePresentation::ControlPoints(Item.Surface), Net);
-        }
+        if (ShowControlCages || Item.Selected || Mode == SelectMode::Control) DrawControlPoints(Item);
     }
     for (const SceneItem& Item : Scene.Items())
     {
@@ -146,20 +141,15 @@ void ConsoleHost::Render() noexcept
         DrawRecord D = Item.Selected ? ScenePresentation::Tinted(1.0f, 0.62f, 0.20f) : ScenePresentation::Tinted(0.92f, 0.94f, 0.97f);
         D.LineWidth = Item.Selected ? 2.5f : 2.0f;
         D.Dashed = Item.Construction;
-        D.PickIdentity = Item.Identity;
-        D.Highlight = Item.Selected ? 2.0f : 0.0f;
+        D.PickIdentity = SceneDocument::PickOf(Item.Identity);
+        D.Highlight = Item.Selected ? 2.0f : (SceneDocument::IdentityOf(HoverPick) == Item.Identity ? 1.0f : 0.0f);
         Surface->DrawSegments(ScenePresentation::CurveSegments(Item.Curve), D);
-        if (ShowControlCages || Item.Selected)
-        {
-            DrawRecord Cage = ScenePresentation::Tinted(0.95f, 0.80f, 0.30f, 0.9f); Cage.LineWidth = 1.0f; Cage.Dashed = true; Cage.PointSize = 7.0f;
-            Surface->DrawSegments(ScenePresentation::ControlPolygon(Item.Curve), Cage);
-            Surface->DrawPoints(ScenePresentation::ControlPoints(Item.Curve), Cage);
-        }
+        if (ShowControlCages || Item.Selected || Mode == SelectMode::Control) DrawControlPoints(Item);
     }
 
     Surface->BeginOverlay();
     DrawToolPreview();
-    if (GizmoShown && !Scene.Bounds(true).Empty() && !Tool.Active())
+    if (GizmoShown && (Scene.SelectedCount() > 0 || Scene.SelectedPoleCount() > 0) && !Tool.Active())
     {
         if (!GizmoState.Dragging()) RefreshGizmoFrame();
         GizmoState.Draw(*Surface, View, Surface->Width(), Surface->Height());
@@ -168,21 +158,57 @@ void ConsoleHost::Render() noexcept
     Surface->EndTarget();
 }
 
+void ConsoleHost::DrawControlPoints(const SceneItem& Item) noexcept
+{
+    DrawRecord Cage = ScenePresentation::Tinted(0.95f, 0.80f, 0.30f, 0.9f); Cage.LineWidth = 1.0f; Cage.Dashed = true; Cage.PointSize = 7.0f;
+    if (Item.Kind == ItemKind::Curve) Surface->DrawSegments(ScenePresentation::ControlPolygon(Item.Curve), Cage);
+    else Surface->DrawSegments(ScenePresentation::ControlNet(Item.Surface), Cage);
+    // One draw per pole so each carries its own pick identity and highlight (still a handful of quads).
+    const int N = Item.PoleCount();
+    for (int P = 0; P < N; ++P)
+    {
+        PointStream One; One.Append(Item.PolePosition(P), PointGlyph::Square);
+        DrawRecord D = Cage;
+        D.PickIdentity = SceneDocument::PickOf(Item.Identity, P);
+        const bool Sel = Item.PoleSelected(P);
+        D.Highlight = Sel ? 2.0f : (HoverPick == D.PickIdentity ? 1.0f : 0.0f);
+        D.PointSize = Sel ? 9.0f : 7.0f;
+        Surface->DrawPoints(One, D);
+    }
+}
+
+Vec3 ConsoleHost::SelectionPivot() const noexcept
+{
+    if (Mode == SelectMode::Control && Scene.SelectedPoleCount() > 0)
+    {
+        Vec3 Sum; int N = 0;
+        for (const SceneItem& I : Scene.Items()) for (int P : I.SelectedPoles) { Sum = Sum + I.PolePosition(P); ++N; }
+        return Sum * (1.0 / N);
+    }
+    return Scene.Bounds(true).Centre();
+}
+
 void ConsoleHost::RefreshGizmoFrame() noexcept
 {
-    TransformGizmo::Frame F; F.Origin = Scene.Bounds(true).Centre();
+    TransformGizmo::Frame F; F.Origin = SelectionPivot();
     GizmoState.SetFrame(F);
 }
 
-void ConsoleHost::ApplyGizmoDelta(const Mat4& Delta) noexcept
+void ConsoleHost::ApplyDeltaToSelection(const Mat4& Delta) noexcept
 {
     for (auto& [Id, Original] : GizmoOriginals)
         if (SceneItem* I = Scene.Find(Id))
         {
-            if (I->Kind == ItemKind::Curve) I->Curve = Original.Curve.Transformed(Delta);
+            if (Mode == SelectMode::Control && !Original.SelectedPoles.empty())
+            {
+                for (int P : Original.SelectedPoles) I->SetPolePosition(P, Delta.TransformPoint(Original.PolePosition(P)));
+            }
+            else if (I->Kind == ItemKind::Curve) I->Curve = Original.Curve.Transformed(Delta);
             else I->Surface = Original.Surface.Transformed(Delta);
         }
 }
+
+void ConsoleHost::ApplyGizmoDelta(const Mat4& Delta) noexcept { ApplyDeltaToSelection(Delta); }
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                  COMMANDS
@@ -382,45 +408,12 @@ void ConsoleHost::Register() noexcept
         }
         return true;
     });
-    Add("select", "select <item...> | all | none | invert", [=, this](const CommandLine& C)
-    {
-        if (C.Count() == 1 && C.Arguments[0] == "none") { for (SceneItem& I : Scene.Items()) I.Selected = false; Row("selection cleared"); return true; }
-        if (C.Count() == 1 && C.Arguments[0] == "invert") { for (SceneItem& I : Scene.Items()) I.Selected = !I.Selected; }
-        else
-        {
-            std::vector<SceneItem*> Items = ResolveMany(C, 0); if (Items.empty()) return false;
-            if (!C.Flag("add")) for (SceneItem& I : Scene.Items()) I.Selected = false;
-            for (SceneItem* I : Items) I->Selected = true;
-        }
-        int N = 0; for (const SceneItem& I : Scene.Items()) if (I.Selected) { ++N; DescribeItem(I); }
-        Row("%d selected", N);
-        return true;
-    });
-    Add("delete", "delete <item...> | selected", [=, this](const CommandLine& C)
-    {
-        std::vector<uint32_t> Ids; for (SceneItem* I : ResolveMany(C, 0)) Ids.push_back(I->Identity);
-        for (uint32_t Id : Ids) Scene.Remove(Id);
-        Row("deleted %zu item(s)", Ids.size());
-        return true;
-    });
-    Add("hide", "hide <item...> | selected  ·  unhide all", [=, this](const CommandLine& C)
-    {
-        if (C.Count() == 1 && C.Arguments[0] == "unselected") { for (SceneItem& I : Scene.Items()) if (!I.Selected) I.Hidden = true; return true; }
-        for (SceneItem* I : ResolveMany(C, 0)) I->Hidden = true;
-        return true;
-    });
-    Add("unhide", "unhide <item...> | all", [=, this](const CommandLine& C)
-    {
-        for (SceneItem* I : ResolveMany(C, 0)) I->Hidden = false;
-        return true;
-    });
     Add("rename", "rename <item> <newName>", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "rename")) return false;
         SceneItem* I = Resolve(C.Arguments[0]); if (!I) return Refuse("no item '%s'", C.Arguments[0].c_str());
         I->Name = Scene.UniqueName(C.Arguments[1]); DescribeItem(*I); return true;
     });
-    Add("clear", "clear — empty the scene", [=, this](const CommandLine&) { Scene.Clear(); Row("scene cleared"); return true; });
     Add("move", "move <item...> (dx,dy,dz)", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "move")) return false;
@@ -524,6 +517,7 @@ void ConsoleHost::Register() noexcept
             GizmoHandleName(GizmoState.Hovered()), GizmoState.Dragging() ? "  [dragging]" : "");
         return true;
     });
+    RegisterSelection();
     Add("show", "show cages on|off  ·  show iso on|off  ·  show shading flat|plastic|matcap", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "show")) return false;
@@ -557,12 +551,14 @@ void ConsoleHost::Register() noexcept
         Row("render %s  %ux%u  %.1f ms  %u tri  %u seg  %u pts  %u frag", Path.c_str(), Surface->Width(), Surface->Height(), Ms, T.Triangles, T.Segments, T.Points, T.Fragments);
         return true;
     });
-    Add("pick", "pick x y — identity and depth under a pixel of the last render", [=, this](const CommandLine& C)
+    Add("pick", "pick x y — identity (and pole) under a pixel of the last render", [=, this](const CommandLine& C)
     {
         double X = 0, Y = 0; if (!Need(C, 2, "pick") || !NumberArg(C, 0, X, "pick") || !NumberArg(C, 1, Y, "pick")) return false;
-        uint32_t Id = Surface->Pick(uint32_t(X), uint32_t(Y));
+        uint32_t Pick = Surface->Pick(uint32_t(X), uint32_t(Y));
+        uint32_t Id = SceneDocument::IdentityOf(Pick); int Pole = SceneDocument::PoleOf(Pick);
         SceneItem* Item = Scene.Find(Id);
-        Row("pixel (%d,%d) → %s%s  depth %.5f", int(X), int(Y), Id ? "#" : "nothing", Id ? std::to_string(Id).c_str() : "", Surface->Depth(uint32_t(X), uint32_t(Y)));
+        if (Pole >= 0) Row("pixel (%d,%d) → #%u pole %d  depth %.5f", int(X), int(Y), Id, Pole, Surface->Depth(uint32_t(X), uint32_t(Y)));
+        else Row("pixel (%d,%d) → %s%s  depth %.5f", int(X), int(Y), Id ? "#" : "nothing", Id ? std::to_string(Id).c_str() : "", Surface->Depth(uint32_t(X), uint32_t(Y)));
         if (Item) DescribeItem(*Item);
         return true;
     });
@@ -592,7 +588,20 @@ bool ConsoleHost::Execute(std::string_view Line) noexcept
         for (const auto& A : C.Arguments) std::printf(" %s", A.c_str());
         for (const auto& F : C.Flags) std::printf(" --%s%s%s", F.first.c_str(), F.second.empty() ? "" : "=", F.second.c_str());
         std::printf("\n");
-        if (!It->second(C)) Ok = false;
+        // One journal entry per command — except a gizmo drag, which is journaled once from the grab to the release.
+        const bool Stepper = C.Verb == "undo" || C.Verb == "redo" || C.Verb == "history";
+        const bool Journal = !Journaling && !GizmoState.Dragging() && !Stepper;
+        std::string Label = C.Verb; for (const auto& A : C.Arguments) Label += " " + A;
+        if (Journal) { Journaling = true; Ledger.Record(Scene, Label); }
+        if (Stepper && Journaling) Ledger.Abandon();                                    // `key ctrl+z` → the wrapper must not journal the step
+        const bool Done = It->second(C);
+        if (Journal)
+        {
+            Journaling = false;
+            if (GizmoState.Dragging()) Ledger.Relabel("gizmo drag " + std::string(GizmoHandleName(GizmoState.Drag().Handle)));   // keep pending until release
+            else Ledger.Settle(Scene);
+        }
+        if (!Done) Ok = false;
         else if (C.Verb != "repeat" && C.Verb != "render" && C.Verb != "list" && C.Verb != "hud" && C.Verb != "help")
         {
             LastCommand = C.Verb;
