@@ -6,6 +6,7 @@
 #include "Kernel/SurfaceSpecification.h"
 #include "Kernel/TopologySpecification.h"
 #include "Kernel/ProfileSolver.h"
+#include "Document/FigureRecipe.h"
 #include <string>
 #include <vector>
 
@@ -48,6 +49,7 @@ struct SceneFigure
     std::vector<int> SelectedPoles;                                                     // [-] control-point selection (mode 1), pole indices
     std::vector<int> SelectedFaces;                                                     // [-] face selection (mode 3), body face indices
     std::vector<int> SelectedEdges;                                                     // [-] edge selection (mode 2), body edge indices
+    FigureRecipe     Recipe;                                                            // [-] how this figure is derived (None = authored)
     [[nodiscard]] bool FaceSelected(int I) const noexcept { for (int F : SelectedFaces) if (F == I) return true; return false; }
     [[nodiscard]] bool EdgeSelected(int I) const noexcept { for (int E : SelectedEdges) if (E == I) return true; return false; }
 
@@ -87,6 +89,13 @@ public:
     [[nodiscard]] const std::vector<SketchArea>& Areas() const noexcept { return Cells; }
     [[nodiscard]] std::vector<SketchArea>&       Areas() noexcept { return Cells; }
     [[nodiscard]] SketchArea* FindArea(uint32_t Identity) noexcept;
+    [[nodiscard]] const SketchArea* FindArea(uint32_t Identity) const noexcept;
+    [[nodiscard]] const SketchArea* AreaBySignature(Vec3 Centroid) const noexcept;      // nearest centroid within tolerance
+
+    // Derived figures: rebuild every recipe whose inputs changed. Returns the names regenerated (and fills Complaint on
+    //    figures whose recipe can no longer be satisfied — their geometry is left as it was).
+    std::vector<std::string> Regenerate(const Workplane& Plane) noexcept;
+    [[nodiscard]] std::vector<const SceneFigure*> DerivedFrom(uint32_t Identity) const noexcept;   // figures whose recipe uses Identity
     [[nodiscard]] SketchArea* AreaAt(Vec3 P) noexcept;                                  // innermost area containing P
     [[nodiscard]] std::vector<SketchArea*> AreasOf(uint32_t FigureIdentity) noexcept;   // areas bounded by that curve
     [[nodiscard]] int SelectedAreaCount() const noexcept { int N = 0; for (const SketchArea& A : Cells) if (A.Selected) ++N; return N; }

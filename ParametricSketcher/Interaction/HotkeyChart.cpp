@@ -62,9 +62,10 @@ HotkeyChart HotkeyChart::Defaults() noexcept
     B("shift+q",     "boolean subtract selected",  "Boolean subtract: last selected from the rest");
     B("ctrl+q",      "boolean intersect selected", "Boolean intersect of the selected profiles");
     B("c",           "tool cut",           "Cut");
-    B("l",           "loft selected",      "Loft selected curves");
-    B("shift+p",     "tool sweep",         "Sweep");
-    B("p",           "tool pipe",          "Pipe");
+    B("l",           "loft selected",      "Loft the selection in order (areas, curves, body edges); closed → solid");
+    B("shift+p",     "sweep selected",     "Sweep: first selected = profile, second = path");
+    B("p",           "pipe selected 0.25", "Pipe along the selected curve / edge (radius via `pipe`)");
+    B("shift+l",     "fillpatch selected", "Patch: Coons / N-sided fill over the selected boundaries");
     B("b",           "fillet selected 0.25",  "Fillet the selected curves' corners (Plasticity B; radius via `fillet`)");
     B("shift+b",     "chamfer selected 0.25", "Chamfer the selected curves' corners");
     B("o",           "offset selected 0.25",  "Offset the selected curves (Plasticity O)");

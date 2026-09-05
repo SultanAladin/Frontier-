@@ -26,6 +26,7 @@ uint64_t UndoSequence::Fingerprint(const SceneDocument& Scene) noexcept
         for (int P : I.SelectedPoles) Mix(H, uint64_t(P) + 7);
         for (int P : I.SelectedFaces) Mix(H, uint64_t(P) + 11);
         for (int P : I.SelectedEdges) Mix(H, uint64_t(P) + 13);
+        Mix(H, uint64_t(I.Recipe.Operation)); Mix(H, I.Recipe.Sections.size()); Mix(H, Bits(I.Recipe.Length)); Mix(H, Bits(I.Recipe.Angle)); Mix(H, Bits(I.Recipe.Radius));
         if (I.Classification == FigureClassification::Curve)
         {
             Mix(H, I.Curve.Degree); for (const Vec4& P : I.Curve.Poles) { Mix(H, Bits(P.X)); Mix(H, Bits(P.Y)); Mix(H, Bits(P.Z)); Mix(H, Bits(P.W)); }

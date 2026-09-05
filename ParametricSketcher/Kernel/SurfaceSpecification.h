@@ -26,6 +26,8 @@ enum class SurfaceClassification : uint8_t
     Revolution,
     Ruled,
     Loft,
+    Sweep,
+    Coons,
 };
 
 [[nodiscard]] const char* Describe(SurfaceClassification Classification) noexcept;

@@ -24,6 +24,7 @@ add_library(SolidArcKernel STATIC
     Kernel/CurveSpecification.cpp
     Kernel/SurfaceSpecification.cpp
     Kernel/TopologySpecification.cpp
+    Kernel/SkinSolver.cpp
     Kernel/ProfileSolver.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -46,6 +47,7 @@ target_compile_definitions(SolidArcPresentation PUBLIC SOLIDARC_PROOF_FOLDER="${
 # ─── Document + Console: figure store, command codec, console host, SolidArc executable ───────────────────────────────────────────────────────
 add_library(SolidArcConsoleKit STATIC
     Document/SceneDocument.cpp
+    Document/FigureRecipe.cpp
     Document/UndoSequence.cpp
     Console/CommandCodec.cpp
     Console/ConsoleHost.cpp
@@ -85,3 +87,7 @@ add_test(NAME ProfileVerification COMMAND ProfileVerification)
 add_test(NAME Phase3_Sketching COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3_Sketching.arc)
 add_test(NAME Phase4_Selection COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase4_Selection.arc)
 add_test(NAME Phase3b_GizmoShading COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3b_GizmoShading.arc)
+
+add_executable(SkinVerification Verification/SkinVerification.cpp)
+target_link_libraries(SkinVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME SkinVerification COMMAND SkinVerification)

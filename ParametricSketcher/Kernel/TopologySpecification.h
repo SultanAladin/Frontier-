@@ -91,7 +91,7 @@ public:
     // One face from a surface: its natural boundary becomes edges (seams for closed directions, no edge for degenerate sides).
     [[nodiscard]] static BrepBody FromSurface(const NurbsSurface& Surface) noexcept;
     // Sew independent faces along coincident boundary edges, then cap and orient. The generic solid builder.
-    [[nodiscard]] static Deliver<BrepBody> Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance = ScalarCriteria::MergeTolerance) noexcept;
+    [[nodiscard]] static Deliver<BrepBody> Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance = ScalarCriteria::MergeTolerance, bool Cap = true) noexcept;
     [[nodiscard]] static Deliver<BrepBody> Box(Vec3 CornerA, Vec3 CornerB) noexcept;
     [[nodiscard]] static Deliver<BrepBody> Cylinder(Vec3 FootCentre, Vec3 Axis, double Radius, double Height) noexcept;
     [[nodiscard]] static Deliver<BrepBody> Cone(Vec3 FootCentre, Vec3 Axis, double RadiusFoot, double RadiusTop, double Height) noexcept;

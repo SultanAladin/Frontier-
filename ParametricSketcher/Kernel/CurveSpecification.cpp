@@ -700,10 +700,15 @@ std::pair<NurbsCurve, NurbsCurve> NurbsCurve::Split(double T) const noexcept
 {
     T = ScalarCriteria::Clamp(T, DomainStart(), DomainEnd());
     NurbsCurve Full = InsertKnot(T, Degree);
-    int K = Full.FindSpan(T);
-    // After insertion to multiplicity Degree, knots K-Degree+1 .. K equal T; the split pole is index K-Degree.
-    int SplitPole = K - Degree;
-    if (T >= Full.DomainEnd()) SplitPole = Full.PoleCount() - 1;
+    // After insertion to multiplicity Degree the knots equal to T occupy indices L-Degree+1 .. L for the LAST such index
+    //    L, and the split pole is L-Degree. (FindSpan cannot be used here: at an existing full-multiplicity knot it
+    //    returns the span starting at T and would point one whole span too far.)
+    int Last = -1;
+    for (size_t I = 0; I < Full.Knots.size(); ++I) if (ScalarCriteria::Coincident(Full.Knots[I], T, ScalarCriteria::ParametricEpsilon)) Last = static_cast<int>(I);
+    int SplitPole = Last - Degree;
+    if (T >= Full.DomainEnd() - ScalarCriteria::ParametricEpsilon) SplitPole = Full.PoleCount() - 1;
+    if (T <= Full.DomainStart() + ScalarCriteria::ParametricEpsilon) SplitPole = 0;
+    SplitPole = std::max(0, std::min(SplitPole, Full.PoleCount() - 1));
     NurbsCurve Left, Right;
     Left.Degree = Right.Degree = Degree;
     Left.Poles.assign(Full.Poles.begin(), Full.Poles.begin() + SplitPole + 1);

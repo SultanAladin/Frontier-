@@ -23,6 +23,8 @@ const char* Describe(SurfaceClassification Classification) noexcept
         case SurfaceClassification::Revolution: return "Revolution";
         case SurfaceClassification::Ruled:      return "Ruled";
         case SurfaceClassification::Loft:       return "Loft";
+        case SurfaceClassification::Sweep:      return "Sweep";
+        case SurfaceClassification::Coons:      return "Coons";
     }
     return "Unknown";
 }

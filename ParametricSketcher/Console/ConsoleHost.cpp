@@ -101,6 +101,22 @@ bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBo
     return true;
 }
 
+// Create a derived figure from a recipe: build once now, keep the sources (Plasticity leaves the sketch in place), and
+//    let Regenerate() follow them from then on.
+bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecipe Recipe) noexcept
+{
+    Deliver<FigureRecipe::Product> P = Recipe.Produce(Scene, Plane);
+    if (!P) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(P.Denial.Reason), P.Denial.Detail);
+    Recipe.InputFingerprint = Recipe.FingerprintInputs(Scene, Plane);
+    SceneFigure& Figure = P.Payload.IsBody ? Scene.AddBody(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Body))
+                                           : Scene.AddSurface(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Sheet));
+    Figure.Recipe = std::move(Recipe);
+    DescribeFigure(Figure);
+    Row("  ↳ %s", Figure.Recipe.Summary(Scene).c_str());
+    if (Figure.Classification == FigureClassification::Body) { BodyReport R = Figure.Body.Validate(); if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges); }
+    return true;
+}
+
 SceneFigure* ConsoleHost::Resolve(const std::string& Token) noexcept
 {
     if (!Token.empty() && Token[0] == '#')
@@ -547,7 +563,7 @@ void ConsoleHost::Register() noexcept
     //---------------------------------------------- derived surfaces ----------------------------------------------
     // What an extrude / revolve operates on: a sketch area (by name "area N" / "aN", or the area a curve bounds when it is
     //    filled), else the bare curve. Filled area → solid with through-holes; unfilled area or open curve → sheet(s).
-    struct SweepSource { std::vector<NurbsCurve> Loops; bool Solid = false; std::string Label; };
+    struct SweepSource { std::vector<NurbsCurve> Loops; bool Solid = false; std::string Label; RecipeInput Input; };
     auto ResolveSweep = [this](const CommandLine& C, size_t Index, const char* Verb, SweepSource& Out) -> bool
     {
         const std::string& Tok = C.Arguments[Index];
@@ -556,12 +572,23 @@ void ConsoleHost::Register() noexcept
         if (!Area && Tok == "area" && Index + 1 < C.Count()) Area = Scene.FindArea(SceneDocument::AreaIdentityBase + uint32_t(std::atoi(C.Arguments[Index + 1].c_str())));
         if (Area)
         {
+            Out.Input.Shape = RecipeInput::Form::Area; Out.Input.Figures = Area->BoundingIdentities; Out.Input.Centroid = Area->Centroid;
             Out.Loops = Area->Loops(); Out.Solid = Area->Filled && !C.Switch("sheet");
             Out.Label = "area " + std::to_string(Area->Identity - SceneDocument::AreaIdentityBase) + (Area->Filled ? " (filled)" : " (unfilled)");
             return true;
         }
+        // body edge: Name:eN
+        if (size_t Colon = Tok.find(":e"); Colon != std::string::npos)
+        {
+            SceneFigure* Owner = Resolve(Tok.substr(0, Colon)); int E = std::atoi(Tok.c_str() + Colon + 2);
+            if (!Owner || Owner->Classification != FigureClassification::Body || E < 0 || E >= int(Owner->Body.Edges.size())) return Refuse("%s: '%s' is not an edge of a body (Name:eN)", Verb, Tok.c_str());
+            Out.Input.Shape = RecipeInput::Form::Edge; Out.Input.Figures = { Owner->Identity }; Out.Input.Edge = E;
+            Out.Loops = { Owner->Body.Edges[E].Curve }; Out.Solid = false; Out.Label = Tok;
+            return true;
+        }
         SceneFigure* Figure = Resolve(Tok);
-        if (!Figure || Figure->Classification != FigureClassification::Curve) return Refuse("%s: '%s' is neither a curve nor an area (a0, a1 … see `areas`)", Verb, Tok.c_str());
+        if (!Figure || Figure->Classification != FigureClassification::Curve) return Refuse("%s: '%s' is neither a curve, an area (a0, a1 … see `areas`) nor an edge (Name:eN)", Verb, Tok.c_str());
+        Out.Input.Shape = RecipeInput::Form::Curve; Out.Input.Figures = { Figure->Identity };
         // a closed curve that bounds exactly one filled area whose outer loop is this curve → that area (carries its holes)
         if (Figure->Curve.Closed() && !C.Switch("sheet"))
         {
@@ -570,12 +597,15 @@ void ConsoleHost::Register() noexcept
                 double D = 0; (void)A->Cell.Outer.ClosestParameter(Figure->Curve.Sample(0.37 * (Figure->Curve.DomainStart() + Figure->Curve.DomainEnd()) + 0.63 * Figure->Curve.DomainStart()), &D);
                 bool SameOuter = D < ScalarCriteria::MergeTolerance && std::fabs(std::fabs(ProfileSolver::SignedArea(Figure->Curve, A->Normal)) - (A->Cell.Area + [&] { double S = 0; for (const NurbsCurve& Hh : A->Cell.Holes) S += std::fabs(ProfileSolver::SignedArea(Hh, A->Normal)); return S; }())) < 1e-6;
                 if (!SameOuter) continue;
+                Out.Input.Shape = RecipeInput::Form::Area; Out.Input.Figures = A->BoundingIdentities; Out.Input.Centroid = A->Centroid;
                 Out.Loops = A->Loops(); Out.Solid = A->Filled;
                 Out.Label = Figure->Name + " → area " + std::to_string(A->Identity - SceneDocument::AreaIdentityBase) + (A->Filled ? " (filled, " + std::to_string(A->Cell.Holes.size()) + " hole(s))" : " (unfilled → sheet)");
                 return true;
             }
         }
-        Out.Loops = { Figure->Curve }; Out.Solid = false; Out.Label = Figure->Name + (Figure->Curve.Closed() ? " (no filled area → sheet)" : " (open → sheet)");
+        // closed curve off the workplane (or bounding no area): material by default; unfilled areas were handled above
+        Out.Loops = { Figure->Curve }; Out.Solid = Figure->Curve.Closed() && !C.Switch("sheet");
+        Out.Label = Figure->Name + (Figure->Curve.Closed() ? (Out.Solid ? " (closed → solid)" : " (closed → sheet)") : " (open → sheet)");
         return true;
     };
     Add("extrude", "extrude <curve | aN> length [--direction=(x,y,z)] [--sheet] — filled area → solid with through-holes; unfilled / open → sheet", [=, this](const CommandLine& C)
@@ -584,9 +614,8 @@ void ConsoleHost::Register() noexcept
         SweepSource S; if (!ResolveSweep(C, 0, "extrude", S)) return false;
         Vec3 Dir = Plane.Normal(); if (auto A = C.SwitchText("direction")) if (auto V = CommandCodec::ParsePoint(*A)) Dir = *V;
         Row("extrude %s", S.Label.c_str());
-        if (S.Solid) return AddBody(C, "Extrusion", BrepBody::Extrude(S.Loops, Dir, L));
-        bool Ok = true; for (const NurbsCurve& K : S.Loops) Ok &= AddSurface(C, "Extrusion", NurbsSurface::Extrusion(K, Dir, L));
-        return Ok;
+        FigureRecipe R; R.Operation = RecipeOperation::Extrude; R.Sections = { S.Input }; R.Direction = Dir; R.Length = L; R.Sheet = !S.Solid;
+        return AddDerived(C, "Extrusion", R);
     });
     Add("revolve", "revolve <curve> angleDeg [--origin=(x,y,z)] [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
@@ -596,9 +625,8 @@ void ConsoleHost::Register() noexcept
         if (auto A = C.SwitchText("origin")) if (auto V = CommandCodec::ParsePoint(*A)) O = *V;
         if (auto A = C.SwitchText("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
         Row("revolve %s", S.Label.c_str());
-        if (S.Solid) return AddBody(C, "Revolution", BrepBody::Revolve(S.Loops, O, Axis, ScalarCriteria::Radians(Angle)));
-        bool Ok = true; for (const NurbsCurve& K : S.Loops) Ok &= AddSurface(C, "Revolution", NurbsSurface::Revolution(K, O, Axis, ScalarCriteria::Radians(Angle)));
-        return Ok;
+        FigureRecipe R; R.Operation = RecipeOperation::Revolve; R.Sections = { S.Input }; R.AxisOrigin = O; R.Axis = Axis; R.Angle = ScalarCriteria::Radians(Angle); R.Sheet = !S.Solid;
+        return AddDerived(C, "Revolution", R);
     });
     //------------------------------------------------ Phase 7: planar profile algebra -------------------------------------------------
     auto ProfileOf = [this](const std::vector<SceneFigure*>& Figures, const char* Verb, Profile& Out) -> bool
@@ -773,12 +801,116 @@ void ConsoleHost::Register() noexcept
         }
         return true;
     });
-    Add("loft", "loft <curve> <curve> ... [--degree=3]", [=, this](const CommandLine& C)
+    // Sections for loft / sweep / patch: every positional argument is a curve, area (aN), or edge (Body:eN); `selected`
+    //    takes the selection in order (areas first, then curves, then selected body edges).
+    auto CollectSections = [this, ResolveSweep](const CommandLine& C, size_t First, const char* Verb, std::vector<SweepSource>& Out) -> bool
     {
-        std::vector<NurbsCurve> Sections;
-        for (SceneFigure* I : ResolveMany(C, 0)) { if (I->Classification != FigureClassification::Curve) return Refuse("loft: '%s' is not a curve", I->Name.c_str()); Sections.push_back(I->Curve); }
-        if (Sections.size() < 2) return Refuse("loft: at least two curves");
-        return AddSurface(C, "Loft", NurbsSurface::Loft(Sections, static_cast<int>(C.SwitchNumber("degree").value_or(3))));
+        if (C.Count() <= First || (C.Count() == First + 1 && C.Arguments[First] == "selected"))
+        {
+            for (SketchArea& A : Scene.Areas()) if (A.Selected) { SweepSource S; S.Input.Shape = RecipeInput::Form::Area; S.Input.Figures = A.BoundingIdentities; S.Input.Centroid = A.Centroid; S.Loops = A.Loops(); S.Solid = A.Filled; S.Label = "a" + std::to_string(A.Identity - SceneDocument::AreaIdentityBase); Out.push_back(S); }
+            for (SceneFigure& F : Scene.Figures())
+            {
+                if (!F.Selected && F.SelectedEdges.empty()) continue;
+                if (F.Classification == FigureClassification::Curve && F.Selected) { SweepSource S; S.Input.Shape = RecipeInput::Form::Curve; S.Input.Figures = { F.Identity }; S.Loops = { F.Curve }; S.Solid = F.Curve.Closed(); S.Label = F.Name; Out.push_back(S); }
+                if (F.Classification == FigureClassification::Body) for (int E : F.SelectedEdges) { SweepSource S; S.Input.Shape = RecipeInput::Form::Edge; S.Input.Figures = { F.Identity }; S.Input.Edge = E; S.Loops = { F.Body.Edges[E].Curve }; S.Label = F.Name + ":e" + std::to_string(E); Out.push_back(S); }
+            }
+            if (Out.empty()) return Refuse("%s: nothing selected", Verb);
+            return true;
+        }
+        for (size_t I = First; I < C.Count(); ++I)
+        {
+            // "Outer+Hole+Hole2" → one station made of several closed loops (outer first)
+            const std::string& Tok = C.Arguments[I];
+            if (Tok.find('+') != std::string::npos)
+            {
+                SweepSource Station; Station.Input.Shape = RecipeInput::Form::Curve; Station.Solid = true;
+                size_t Start = 0;
+                while (Start <= Tok.size())
+                {
+                    size_t Plus = Tok.find('+', Start); std::string Name = Tok.substr(Start, Plus == std::string::npos ? std::string::npos : Plus - Start);
+                    SceneFigure* F = Resolve(Name);
+                    if (!F || F->Classification != FigureClassification::Curve || !F->Curve.Closed()) return Refuse("%s: '%s' in '%s' must be a closed curve", Verb, Name.c_str(), Tok.c_str());
+                    Station.Input.Figures.push_back(F->Identity); Station.Loops.push_back(F->Curve);
+                    Station.Label += (Station.Label.empty() ? "" : "+") + F->Name;
+                    if (Plus == std::string::npos) break;
+                    Start = Plus + 1;
+                }
+                Out.push_back(Station); continue;
+            }
+            SweepSource S; if (!ResolveSweep(C, I, Verb, S)) return false; Out.push_back(S);
+        }
+        return true;
+    };
+    Add("loft", "loft <sections...>|selected [--degree=3] [--loop] [--sheet] [--no-align] — sections are curves, areas (aN), body edges (Body:eN) or Outer+Hole groups in flow order; closed sections → solid (areas with holes → through-holes)", [=, this](const CommandLine& C)
+    {
+        std::vector<SweepSource> Sections; if (!CollectSections(C, 0, "loft", Sections)) return false;
+        if (Sections.size() < 2) return Refuse("loft: at least two sections");
+        FigureRecipe R; R.Operation = RecipeOperation::Loft;
+        for (const SweepSource& S : Sections) R.Sections.push_back(S.Input);
+        R.Loft.DegreeV = int(C.SwitchNumber("degree").value_or(3)); R.Loft.Loop = C.Switch("loop"); R.Loft.AlignSeams = R.Loft.AlignSense = !C.Switch("no-align");
+        R.Sheet = C.Switch("sheet");
+        std::string Names; for (const SweepSource& S : Sections) Names += " " + S.Label;
+        Row("loft%s", Names.c_str());
+        return AddDerived(C, "Loft", R);
+    });
+    Add("sweep", "sweep <profile> <path> [--bases=minimal|frenet|fixed] [--scale=s] [--twist=deg] [--stations=n] [--sheet] — carry a profile (curve / area / edge) along a path curve or edge", [=, this](const CommandLine& C)
+    {
+        SweepSource P, Path;
+        if (C.Count() == 1 && C.Arguments[0] == "selected")
+        {
+            std::vector<SweepSource> Sel; if (!CollectSections(C, 0, "sweep", Sel)) return false;
+            if (Sel.size() != 2) return Refuse("sweep selected: select exactly the profile and then the path (%zu selected)", Sel.size());
+            P = Sel[0]; Path = Sel[1];
+        }
+        else { if (!Need(C, 2, "sweep")) return false; if (!ResolveSweep(C, 0, "sweep", P) || !ResolveSweep(C, 1, "sweep", Path)) return false; }
+        FigureRecipe R; R.Operation = RecipeOperation::Sweep; R.Sections = { P.Input }; R.Path = Path.Input; R.Sheet = C.Switch("sheet") || !P.Solid;
+        if (auto F = C.SwitchText("bases")) R.Sweep.Bases = *F == "frenet" ? SweepBases::Frenet : *F == "fixed" ? SweepBases::Fixed : SweepBases::RotationMinimising;
+        R.Sweep.ScaleEnd = C.SwitchNumber("scale").value_or(1.0); R.Sweep.TwistAngle = ScalarCriteria::Radians(C.SwitchNumber("twist").value_or(0.0)); R.Sweep.Stations = int(C.SwitchNumber("stations").value_or(0));
+        Row("sweep %s along %s", P.Label.c_str(), Path.Label.c_str());
+        return AddDerived(C, "Sweep", R);
+    });
+    Add("pipe", "pipe <path> radius [--sheet] — circular tube along a curve or edge", [=, this](const CommandLine& C)
+    {
+        double Radius = 0; if (!Need(C, 2, "pipe") || !NumberArg(C, 1, Radius, "pipe")) return false;
+        SweepSource Path;
+        if (C.Arguments[0] == "selected") { std::vector<SweepSource> Sel; if (!CollectSections(CommandLine{ C.Verb, { "selected" }, C.Flags }, 0, "pipe", Sel)) return false; if (Sel.size() != 1) return Refuse("pipe selected: select exactly one path"); Path = Sel[0]; }
+        else if (!ResolveSweep(C, 0, "pipe", Path)) return false;
+        FigureRecipe R; R.Operation = RecipeOperation::Pipe; R.Path = Path.Input; R.Radius = Radius; R.Sheet = C.Switch("sheet");
+        return AddDerived(C, "Pipe", R);
+    });
+    Add("fillpatch", "fillpatch <boundaries...>|selected — Coons sheet over 3–4 boundary curves / edges, N-sided fill over more, or one closed curve", [=, this](const CommandLine& C)
+    {
+        std::vector<SweepSource> B; if (!CollectSections(C, 0, "fillpatch", B)) return false;
+        FigureRecipe R; R.Operation = RecipeOperation::Patch; for (const SweepSource& S : B) R.Sections.push_back(S.Input);
+        return AddDerived(C, "Patch", R);
+    });
+    Add("recipe", "recipe [figure...] — how derived figures are built (sources, options, complaints)  ·  recipe bake <figure...> detaches them", [=, this](const CommandLine& C)
+    {
+        if (C.Count() >= 1 && C.Arguments[0] == "bake")
+        {
+            CommandLine Sub = C; Sub.Arguments.erase(Sub.Arguments.begin());
+            int N = 0; for (SceneFigure* F : ResolveMany(Sub, 0)) if (F->Recipe.Live()) { F->Recipe = FigureRecipe(); ++N; Row("#%u %s baked — now authored geometry", F->Identity, F->Name.c_str()); }
+            if (!N) return Refuse("recipe bake: no derived figures given");
+            return true;
+        }
+        int N = 0;
+        auto Show = [&](const SceneFigure& F)
+        {
+            if (!F.Recipe.Live()) { if (C.Count()) Row("#%u %-14s authored", F.Identity, F.Name.c_str()); return; }
+            ++N; Row("#%u %-14s %s", F.Identity, F.Name.c_str(), F.Recipe.Summary(Scene).c_str());
+        };
+        if (C.Count() == 0) { for (const SceneFigure& F : Scene.Figures()) Show(F); if (!N) Row("no derived figures"); return true; }
+        for (SceneFigure* F : ResolveMany(C, 0)) Show(*F);
+        return true;
+    });
+    Add("dependents", "dependents <figure> — derived figures that follow this one", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "dependents")) return false;
+        SceneFigure* F = Resolve(C.Arguments[0]); if (!F) return Refuse("no figure '%s'", C.Arguments[0].c_str());
+        std::vector<const SceneFigure*> D = Scene.DerivedFrom(F->Identity);
+        if (D.empty()) { Row("#%u %s: nothing depends on it", F->Identity, F->Name.c_str()); return true; }
+        for (const SceneFigure* G : D) Row("  #%u %s  (%s)", G->Identity, G->Name.c_str(), Describe(G->Recipe.Operation));
+        return true;
     });
     Add("ruled", "ruled <curveA> <curveB>", [=, this](const CommandLine& C)
     {
@@ -1006,6 +1138,7 @@ bool ConsoleHost::Execute(std::string_view Line) noexcept
         if (Stepper && Recording) Undo.Abandon();                                    // `key ctrl+z` → the wrapper must not record the step
         const bool Done = It->second(C);
         Scene.RebuildAreas(Plane);
+        for (const std::string& N : Scene.Regenerate(Plane)) Row("  ↻ %s rebuilt from its sources", N.c_str());
         if (Record)
         {
             Recording = false;

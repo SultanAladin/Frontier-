@@ -660,13 +660,13 @@ BrepBody BrepBody::Transformed(const Mat4& M) const noexcept
 //                                                  GENERIC BUILDERS
 //------------------------------------------------------------------------------------------------------------------------
 
-Deliver<BrepBody> BrepBody::Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance) noexcept
+Deliver<BrepBody> BrepBody::Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance, bool Cap) noexcept
 {
     if (Surfaces.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "no faces to sew");
     BrepBody B;
     for (const NurbsSurface& S : Surfaces) { int F = B.AddFace(S); B.AddNaturalBoundary(F, Tolerance); }
     B.Orient();                                                                         // neighbours agree before caps are derived from them
-    B.Capped(Tolerance);
+    if (Cap) B.Capped(Tolerance);
     B.Orient();
     return Deliver<BrepBody>::Accept(std::move(B));
 }

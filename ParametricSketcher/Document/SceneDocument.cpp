@@ -163,3 +163,66 @@ std::vector<SketchArea*> SceneDocument::AreasOf(uint32_t FigureIdentity) noexcep
 }
 
 } // namespace Frontier
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                  DERIVED FIGURES
+//------------------------------------------------------------------------------------------------------------------------
+namespace Frontier
+{
+
+const SketchArea* SceneDocument::FindArea(uint32_t Identity) const noexcept
+{
+    for (const SketchArea& A : Cells) if (A.Identity == Identity) return &A;
+    return nullptr;
+}
+
+const SketchArea* SceneDocument::AreaBySignature(Vec3 Centroid) const noexcept
+{
+    const SketchArea* Best = nullptr; double BestD = 1e-3;
+    for (const SketchArea& A : Cells) { double D = A.Centroid.Distance(Centroid); if (D < BestD) { BestD = D; Best = &A; } }
+    return Best;
+}
+
+std::vector<const SceneFigure*> SceneDocument::DerivedFrom(uint32_t Identity) const noexcept
+{
+    std::vector<const SceneFigure*> Out;
+    for (const SceneFigure& F : Entries)
+    {
+        if (!F.Recipe.Live()) continue;
+        bool Uses = false;
+        for (const RecipeInput& In : F.Recipe.Sections) for (uint32_t Id : In.Figures) Uses |= Id == Identity;
+        for (uint32_t Id : F.Recipe.Path.Figures) Uses |= Id == Identity;
+        if (Uses) Out.push_back(&F);
+    }
+    return Out;
+}
+
+std::vector<std::string> SceneDocument::Regenerate(const Workplane& Plane) noexcept
+{
+    std::vector<std::string> Changed;
+    // Recipes may chain (a loft of an edge of an extrusion): iterate until nothing moves, bounded.
+    for (int Round = 0; Round < 4; ++Round)
+    {
+        bool Any = false;
+        for (size_t I = 0; I < Entries.size(); ++I)
+        {
+            SceneFigure& F = Entries[I];
+            if (!F.Recipe.Live()) continue;
+            uint64_t Now = F.Recipe.FingerprintInputs(*this, Plane);
+            if (Now == F.Recipe.InputFingerprint) continue;
+            Deliver<FigureRecipe::Product> P = F.Recipe.Produce(*this, Plane);
+            F.Recipe.InputFingerprint = Now;
+            if (!P) { F.Recipe.Complaint = P.Denial.Detail; continue; }
+            F.Recipe.Complaint.clear();
+            if (P.Payload.IsBody) { F.Classification = FigureClassification::Body; F.Body = std::move(P.Payload.Body); F.Surface = NurbsSurface(); }
+            else { F.Classification = FigureClassification::Surface; F.Surface = std::move(P.Payload.Sheet); F.Body = BrepBody(); }
+            F.SelectedFaces.clear(); F.SelectedEdges.clear(); F.SelectedPoles.clear();
+            Changed.push_back(F.Name); Any = true;
+        }
+        if (!Any) break;
+        RebuildAreas(Plane);
+    }
+    return Changed;
+}
+
+} // namespace Frontier

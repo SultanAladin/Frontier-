@@ -58,7 +58,8 @@ private:
     void DrawControlPoints(const SceneFigure& Figure) noexcept;
     void DrawBody(const SceneFigure& Figure) noexcept;
     void DrawAreas() noexcept;                                       // faces + edges with sub-pick ids
-    bool AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result) noexcept;                             // cage + poles with per-pole pick ids
+    bool AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result) noexcept;
+    bool AddDerived(const CommandLine& C, const char* Stem, FigureRecipe Recipe) noexcept;                             // cage + poles with per-pole pick ids
     bool SelectAtPixel(double X, double Y, bool Toggle) noexcept;                       // click-select honouring the mode
     int  SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept;
     void HoverAtPixel(double X, double Y) noexcept;

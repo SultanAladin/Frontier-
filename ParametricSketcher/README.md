@@ -123,6 +123,36 @@ open profile still extrudes to a sheet). `topology <body>` prints vertices, edge
 carries its own pick id — and `select faces|edges <body> <i…>|all|none` does it by index. Sub-selections drive the gizmo pivot and
 are hashed into the undo timeline.
 
+## Loft, sweep, pipe, patch — derived figures that follow their sketch (Phase 8)
+
+`Kernel/SkinSolver.{h,cpp}` skins exact NURBS over curves:
+
+- **Loft** — sections are harmonised first: same sense (loop normals), seams rotated to the least twist (exact split +
+  join at the best of the knot breaks / closest point / 24 trial seams), common degree and merged knots; then interpolated
+  across in V (homogeneous, shared chord-length parameters, so circles stay circles). Closed sections → capped solid;
+  `Outer+Hole` groups or filled areas with holes → solid with through-holes (hole sheets face inward); `--loop` closes the
+  loft back onto its first section (four circles round a ring → genus-1 torus-like body); `--sheet` keeps the skin open.
+- **Sweep** — rotation-minimising frames (double reflection), or `--bases=frenet|fixed`, along any curve or body edge;
+  `--scale`, `--twist`, `--stations`. A square along a line is an exact prism (1.08 = 0.36·3); a circle along a quarter
+  arc reproduces the quarter torus to 0.2 %. **Pipe** is a sweep of an exact circle.
+- **Patch** — Coons blend over 3 or 4 boundaries in any order / sense (rational boundaries are refitted within
+  tolerance, integral ones are exact); N ≥ 5 boundaries become N Coons quads meeting at a common centre with mirrored
+  spoke tangents (Plasticity's xNURBS-style N-sided fill), delivered as one sewn sheet body; one closed curve is quartered.
+- Fixed `NurbsCurve::Split` at an existing full-multiplicity knot (it used to return a one-pole piece).
+
+**Recipes** (`Document/FigureRecipe.{h,cpp}`). Every extrude / revolve / loft / sweep / pipe / fillpatch result carries a
+recipe: the operation, its options and the identities of its sources (curves, sketch areas by bounding curves + centroid
+signature, body edges). The sources stay in the scene as ordinary curves. After every command the document regenerates
+each recipe whose inputs' geometry fingerprint changed — move a section, pull a pole in edit mode, move the box whose
+edge a pipe follows, and the result rebuilds. A recipe that can no longer be satisfied (a deleted source, a patch ring
+that no longer closes) keeps its last geometry and reports a complaint; undo brings it back. `recipe` lists them,
+`dependents <figure>` shows what follows a curve, `recipe bake` detaches a figure into plain geometry.
+
+Console: `loft <sections…>|selected [--degree] [--loop] [--sheet] [--no-align]` (L), `sweep <profile> <path>` (Shift+P),
+`pipe <path> r` (P), `fillpatch <boundaries…>` (Shift+L); sections are curves, `aN` areas, `Body:eN` edges or
+`Outer+Hole` groups. Edit-mode G/R/S now moves only the selected poles. Script `Scripts/Phase8_Skins.arc`, proofs
+`Proofs/Phase8_Skins_{Iso,Top}.png`, `SkinVerification` 48 checks.
+
 ## Sketch areas, bucket fill and through-holes (Phase 7b)
 
 Sketch curves on the workplane are arranged into **closed areas** automatically (`Kernel/ProfileSolver::Cells`): every

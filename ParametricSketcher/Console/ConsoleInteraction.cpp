@@ -33,10 +33,19 @@ void ConsoleHost::OnToolResult(const ToolResult& Result) noexcept
     }
     if (Result.Curves.empty())                                                         // transform
     {
-        int N = 0;
+        int N = 0, Poles = 0;
         for (SceneFigure& I : Scene.Figures())
-            if (I.Selected) { I.Transform(Result.Transform); ++N; DescribeFigure(I); }
-        Row("%s → %d figure(s)", Result.Summary.c_str(), N);
+        {
+            if (!I.Selected) continue;
+            if (Mode == SelectMode::Control && !I.SelectedPoles.empty())                  // edit mode: only the chosen poles move
+            {
+                for (int P : I.SelectedPoles) { I.MovePole(P, Result.Transform.TransformPoint(I.PolePosition(P))); ++Poles; }
+            }
+            else I.Transform(Result.Transform);
+            ++N; DescribeFigure(I);
+        }
+        if (Poles) Row("%s → %d pole(s) on %d figure(s)", Result.Summary.c_str(), Poles, N);
+        else Row("%s → %d figure(s)", Result.Summary.c_str(), N);
     }
     else Row("tool: %s", Result.Summary.c_str());
 }
