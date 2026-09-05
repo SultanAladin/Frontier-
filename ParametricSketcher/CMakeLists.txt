@@ -25,6 +25,7 @@ add_library(SolidArcKernel STATIC
     Kernel/SurfaceSpecification.cpp
     Kernel/TopologySpecification.cpp
     Kernel/SkinSolver.cpp
+    Kernel/IntersectionSolver.cpp
     Kernel/ProfileSolver.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -91,3 +92,7 @@ add_test(NAME Phase3b_GizmoShading COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/
 add_executable(SkinVerification Verification/SkinVerification.cpp)
 target_link_libraries(SkinVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME SkinVerification COMMAND SkinVerification)
+
+add_executable(IntersectionVerification Verification/IntersectionVerification.cpp)
+target_link_libraries(IntersectionVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME IntersectionVerification COMMAND IntersectionVerification)

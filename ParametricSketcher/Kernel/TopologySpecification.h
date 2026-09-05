@@ -41,6 +41,7 @@ struct BrepCoedge
     bool Reversed = false;                                                              // [-] traverse the edge end → start
     int  Face = -1;                                                                     // [-]
     int  Loop = -1;                                                                     // [-]
+    std::vector<Vec2> Trace;                                                            // [-] (u,v) polyline of the edge on the face, traversal order; empty ⇒ derive on demand
 };
 
 struct BrepLoop
@@ -126,7 +127,11 @@ public:
     // Open boundary loops (edges with a single coedge) chained head to tail; each entry is a list of coedge indices.
     [[nodiscard]] std::vector<std::vector<int>> OpenLoops(double Tolerance = ScalarCriteria::MergeTolerance) const noexcept;
 
-    // Triangles of one face: lattice tessellation for natural faces, ear-clipped loop polygon for trimmed planar faces.
+    // (u,v) polyline of one coedge on its face in traversal order: the stored Trace, else the iso-side of a natural face,
+    //    else a projection of the edge samples onto the surface. Parameters (edge curve parameters) are returned alongside.
+    [[nodiscard]] std::vector<Vec2> CoedgeTrace(int Coedge, std::vector<double>* Parameters = nullptr, int Samples = 24) const noexcept;
+    // Triangles of one face: lattice tessellation for natural faces, ear-clipped loop polygon for trimmed planar faces,
+    //    ear-clipped (u,v) polygon refined onto the surface for trimmed curved faces.
     struct FaceTriangles
     {
         std::vector<Vec3>     Positions;                                                // [m]
@@ -154,6 +159,16 @@ private:
 // Ear clipping of a simple polygon (with optional holes) lying in a plane; returns index triples into the input
 //    points, CCW with respect to Normal. Exposed for verification and for the 2D boolean phase.
 [[nodiscard]] std::vector<uint32_t> TriangulatePlanarPolygon(const std::vector<Vec3>& Points, const std::vector<std::vector<uint32_t>>& Rings, Vec3 Normal) noexcept;
+// The same on 2D points (first ring outer, the rest holes; any input sense). Triangles come out CCW in the plane.
+[[nodiscard]] std::vector<uint32_t> TriangulatePolygon(const std::vector<Vec2>& Points, const std::vector<std::vector<uint32_t>>& Rings) noexcept;
+// Cells of a planar arrangement: directed edges (From, To) whose left side is material; interior edges must be given in
+//    both directions. Returns cells as rings of edge indices (outer ring first, CCW; hole rings CW).
+struct PlanarEdge { int From = -1, To = -1; };
+[[nodiscard]] std::vector<std::vector<std::vector<int>>> PlanarCells(const std::vector<Vec2>& Points, const std::vector<PlanarEdge>& Edges) noexcept;
+// Point-in-polygon on a (u,v) ring (even-odd rule).
+[[nodiscard]] bool InsideRing(const std::vector<Vec2>& Ring, Vec2 P) noexcept;
+// Newton projection of a point onto a surface from a (u,v) seed; returns the distance reached. Seams and wraps are honoured.
+double SeededParameter(const NurbsSurface& S, Vec3 P, double& U, double& V, int Iterations = 30) noexcept;
 
 // Split a curve at tangent discontinuities (interior knots of full multiplicity with a bent tangent).
 [[nodiscard]] std::vector<NurbsCurve> SplitAtKinks(const NurbsCurve& Curve, double AngleTolerance = ScalarCriteria::Radians(1.0)) noexcept;

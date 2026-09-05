@@ -5,6 +5,7 @@
 #include "ConsoleHost.h"
 #include "Presentation/ScenePresentation.h"
 #include "Kernel/ProfileSolver.h"
+#include "Kernel/IntersectionSolver.h"
 #include <cctype>
 #include <chrono>
 #include <cstdarg>
@@ -656,9 +657,9 @@ void ConsoleHost::Register() noexcept
             F.Selected = true;
         }
     };
-    Add("boolean", "boolean union|subtract|intersect <A...> -- <B...> [--keep] [--name=]   ·   2D profile boolean on closed coplanar sketch curves; A may hold holes", [=, this](const CommandLine& C)
+    Add("boolean", "boolean union|subtract|intersect <A...> -- <B...> [--keep] [--name=] [--verbose]   ·   bodies: true NURBS surface–surface-intersection boolean; sketch curves: 2D profile boolean (A may hold holes)", [=, this](const CommandLine& C)
     {
-        if (!Need(C, 3, "boolean")) return false;
+        if (!Need(C, 2, "boolean")) return false;
         ProfileOperation Op;
         const std::string& O = C.Arguments[0];
         if (O == "union" || O == "add" || O == "u") Op = ProfileOperation::Union;
@@ -666,14 +667,37 @@ void ConsoleHost::Register() noexcept
         else if (O == "intersect" || O == "common" || O == "i") Op = ProfileOperation::Intersect;
         else return Refuse("boolean: unknown operation '%s' (union | subtract | intersect)", O.c_str());
         std::vector<SceneFigure*> A, B; bool Right = false;
-        for (size_t I = 1; I < C.Count(); ++I)
+        if (C.Count() == 2 && C.Arguments[1] == "selected") { for (SceneFigure& F : Scene.Figures()) if (F.Selected) A.push_back(&F); }
+        else for (size_t I = 1; I < C.Count(); ++I)
         {
             if (C.Arguments[I] == "--") { Right = true; continue; }
             SceneFigure* F = Resolve(C.Arguments[I]); if (!F) return Refuse("no figure '%s'", C.Arguments[I].c_str());
             (Right ? B : A).push_back(F);
         }
         if (!Right && A.size() >= 2) { B.push_back(A.back()); A.pop_back(); }                 // "boolean union A B" shorthand
-        if (A.empty() || B.empty()) return Refuse("boolean: need curves on both sides (use -- to separate A from B)");
+        if (A.empty() || B.empty()) return Refuse("boolean: need figures on both sides (use -- to separate A from B)");
+        bool Bodies = A.front()->Classification == FigureClassification::Body;
+        if (Bodies)
+        {
+            //------------------------------------------------ 3D: SSI boolean of two solids -------------------------------------------------
+            if (A.size() != 1 || B.size() != 1 || B.front()->Classification != FigureClassification::Body) return Refuse("boolean: body booleans take exactly one body on each side");
+            BodyOperation Op3 = Op == ProfileOperation::Union ? BodyOperation::Union : Op == ProfileOperation::Subtract ? BodyOperation::Subtract : BodyOperation::Intersect;
+            std::string NameA = A.front()->Name, NameB = B.front()->Name;
+            uint32_t IdA = A.front()->Identity, IdB = B.front()->Identity;
+            IntersectionSolver::Verbose = C.Switch("verbose");
+            auto T0 = std::chrono::steady_clock::now();
+            BooleanReport Rep;
+            Deliver<BrepBody> R = IntersectionSolver::Combine(A.front()->Body, B.front()->Body, Op3, &Rep);
+            IntersectionSolver::Verbose = false;
+            double Seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - T0).count();
+            if (!R) return Refuse("boolean %s: %s — %s", Describe(Op3), Refusal::Describe(R.Denial.Reason), R.Denial.Detail);
+            Row("boolean %s %s %s  ·  %d intersection curve(s), pieces %d + %d, kept %d + %d (inside %d / %d)  ·  %.3f s", Describe(Op3), NameA.c_str(), NameB.c_str(), Rep.Curves, Rep.PiecesA, Rep.PiecesB, Rep.KeptA, Rep.KeptB, Rep.InsideA, Rep.InsideB, Seconds);
+            Scene.ClearSelection();
+            if (!C.Switch("keep")) { Scene.Remove(IdA); Scene.Remove(IdB); }              // before adding: pointers die with the erase
+            const char* Stem = Op3 == BodyOperation::Union ? "Union" : Op3 == BodyOperation::Subtract ? "Difference" : "Common";
+            return AddBody(C, Stem, std::move(R));
+        }
+        //------------------------------------------------ 2D: planar profile boolean -------------------------------------------------
         Profile Pa, Pb; if (!ProfileOf(A, "boolean", Pa) || !ProfileOf(B, "boolean", Pb)) return false;
         std::vector<uint32_t> Consumed; for (SceneFigure* F : A) Consumed.push_back(F->Identity); for (SceneFigure* F : B) Consumed.push_back(F->Identity);
         Deliver<Profile> R = ProfileSolver::Combine(Pa, Pb, Op);
@@ -690,12 +714,25 @@ void ConsoleHost::Register() noexcept
         for (const ProfileLoop& L : P.Loops) Row("  %s  depth %d  area %+.6f  %s  length %.4f", L.SignedArea > 0 ? "ccw" : "cw ", L.Depth, L.SignedArea, (L.SignedArea > 0) == (L.Depth % 2 == 0) ? "winding agrees with depth" : "WINDING INVERTED for its depth", L.Curve.Length());
         return true;
     });
-    Add("intersections", "intersections <curve> <curve> — exact curve–curve crossings with parameters", [=, this](const CommandLine& C)
+    Add("intersections", "intersections <curve> <curve> | <body> <body> [--curves] — exact curve–curve crossings, or SSI curves between two solids (--curves adds them to the scene)", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "intersections")) return false;
         SceneFigure* A = Resolve(C.Arguments[0]); SceneFigure* B = Resolve(C.Arguments[1]);
         if (!A || !B) return Refuse("intersections: unknown figure");
-        if (A->Classification != FigureClassification::Curve || B->Classification != FigureClassification::Curve) return Refuse("intersections: both must be curves");
+        if (A->Classification == FigureClassification::Body && B->Classification == FigureClassification::Body)
+        {
+            // surface–surface intersection curves become sketch curves in the scene (Plasticity: intersect → curves)
+            std::vector<IntersectionCurve> X = IntersectionSolver::Intersect(A->Body, B->Body);
+            Row("%zu intersection curve piece(s) between %s and %s", X.size(), A->Name.c_str(), B->Name.c_str());
+            std::string NameA = A->Name, NameB = B->Name; int Index = 0;
+            for (const IntersectionCurve& K : X)
+            {
+                Row("  %s:f%d ∩ %s:f%d  %zu points  %s  deviation %.1e  length %.4f", NameA.c_str(), K.FaceA, NameB.c_str(), K.FaceB, K.Points.size(), K.Closed ? "closed" : "open", K.Deviation, K.Curve.Length());
+                if (C.Switch("curves") && K.Curve.PoleCount() >= 2) { SceneFigure& F = Scene.AddCurve(std::string("Intersection.") + std::to_string(++Index), K.Curve); F.Selected = true; }
+            }
+            return true;
+        }
+        if (A->Classification != FigureClassification::Curve || B->Classification != FigureClassification::Curve) return Refuse("intersections: both must be curves or both bodies");
         std::vector<CurveCrossing> X = A == B ? ProfileSolver::SelfIntersections(A->Curve) : ProfileSolver::Intersect(A->Curve, B->Curve);
         Row("%zu crossing(s) between %s and %s", X.size(), A->Name.c_str(), B->Name.c_str());
         for (const CurveCrossing& K : X) Row("  (%.6f %.6f %.6f)  tA %.6f  tB %.6f%s", K.Point.X, K.Point.Y, K.Point.Z, K.ParameterA, K.ParameterB, K.Tangent ? "  tangent" : "");

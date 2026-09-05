@@ -55,7 +55,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 6 | B-rep topology (`BrepBody`), sew / cap / orient, solid primitives, face & edge selection | `TopologyVerification` — 79 checks; `Proof_06a/b/c` |
 | 7 | 2D booleans, fillet / chamfer / trim / offset / join | area tables, winding normalised |
 | 8 | Extrude / Revolve / Loft / Sweep → solids | extruded profile with hole, revolved vase |
-| 9 | Surface–surface intersection + 3D NURBS booleans | box∪box, box−cylinder, sphere∩box, coplanar subtract |
+| 9 | Surface–surface intersection + 3D NURBS booleans | `IntersectionVerification` — 47 checks; `Proofs/Phase9_Booleans_{Iso,Top}.png` |
 | 10 | Script suite, contact sheet, Vulkan Vulkan hand-off hand-off notes | ctest green |
 
 ## Console quick start
@@ -122,6 +122,50 @@ open profile still extrudes to a sheet). `topology <body>` prints vertices, edge
 `sew <figure…>` stitches surfaces. Select modes 3 (face) and 2 (edge) pick faces and edges from the pick plane — each face and edge
 carries its own pick id — and `select faces|edges <body> <i…>|all|none` does it by index. Sub-selections drive the gizmo pivot and
 are hashed into the undo timeline.
+
+## True NURBS booleans — surface–surface intersection on the B-rep (Phase 9)
+
+`Kernel/IntersectionSolver.{h,cpp}` intersects and combines closed solids on their exact NURBS faces — nothing drops to
+polygons except the seeding step:
+
+1. **Seed** — coarse tessellations of the trimmed faces are intersected triangle against triangle to find where face pairs
+   meet at all.
+2. **March** — from each seed the true curve is traced: a predictor step along `Na × Nb`, then Newton on the two tangent
+   planes plus the step plane, with `(u,v)` on **both** surfaces carried along. Step size adapts to the turning angle.
+3. **Exit on edges** — when the trace leaves a face in its `(u,v)` domain, the exact point is solved as
+   *edge curve ∩ other surface* (3×3 Newton), recorded once as an **exit**, and the march continues on the neighbouring face
+   through the shared edge. Pieces therefore begin and end on real edges, and both bodies agree on those points to
+   `KernelTolerance`. Seams of closed surfaces (cylinder, sphere, torus) are ordinary edges here.
+4. **Fit** — each piece becomes a cubic interpolant; chords that stray more than 2 µm from either surface are refined.
+5. **Split** — each face is a planar arrangement in its own `(u,v)` domain: trimming loops (split at exits) plus cut
+   curves in both directions. The left-face walk (`PlanarCells`) yields the face pieces, holes attached to their cell.
+6. **Classify** — a piece touching a cut is inside the other body iff its inward direction across the cut opposes the
+   other face's normal (local, exact). Untouched pieces follow by flooding across shared edges, whole untouched hulls
+   by a three-ray parity vote.
+7. **Assemble** — union / subtract / intersect keep the right pieces (subtraction flips the tool's), share edges and
+   vertices (`AddEdge` merges), and store the `(u,v)` trace on every coedge. The result is again a closed, manifold,
+   consistently wound body; `Validate()` checks it, `Orient()` only runs if a mismatch is reported.
+
+Topology gained what trimmed curved faces need: `BrepCoedge::Trace` (the `(u,v)` polyline), `CoedgeTrace()` (stored,
+iso-side, or projected), and a `TessellateFace` for **trimmed curved faces** — the surface's own lattice is clipped by
+the trimming rings (`PlanarCells` again), so a trimmed cylinder tessellates in ~1 ms with a few hundred triangles and the
+volume quadrature matches the natural face.
+
+Refusals are explicit rather than guessed: coincident or tangent faces, a curve through a sphere pole / cone apex, a
+curve exactly through a vertex, sheets, empty results.
+
+```
+boolean subtract Brick Bore            true 3D boolean (bodies); still the 2D profile boolean for sketch curves
+boolean union selected                 Q / Shift+Q / Ctrl+Q on two selected bodies
+intersections Brick Bore --curves      SSI curve pieces (deviation, length), optionally added as sketch curves
+boolean … --keep --verbose             keep the operands · trace the marching
+```
+
+`Scripts/Phase9_Booleans.arc` → `Proofs/Phase9_Booleans_{Iso,Top}.png`: box − cylinder (genus 1, 8 − π/2), box ∪ side
+rod, sphere ∩ sphere lens (closed-form volume within 2e-3), box − torus through all four walls (10 curve pieces),
+sphere scooping a box corner (curve crossing three faces), pipe tee. `IntersectionVerification` checks exact volumes
+(box∪box = 15, box∩box = unit cube), inclusion–exclusion identities, genus, face winding of the bore wall and console
+behaviour (undo, `--keep`, hotkeys).
 
 ## Loft, sweep, pipe, patch — derived figures that follow their sketch (Phase 8)
 

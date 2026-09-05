@@ -58,9 +58,9 @@ HotkeyChart HotkeyChart::Defaults() noexcept
     B("ctrl+shift+e","tool ellipse",       "Ellipse");
     //---------------------------------------------- solid ops ----------------------------------------------
     B("e",           "tool extrude",       "Extrude selected curve/face");
-    B("q",           "boolean union selected",     "Boolean union of the selected profiles (Plasticity Q)");
-    B("shift+q",     "boolean subtract selected",  "Boolean subtract: last selected from the rest");
-    B("ctrl+q",      "boolean intersect selected", "Boolean intersect of the selected profiles");
+    B("q",           "boolean union selected",     "Boolean union of the selected bodies / profiles (Plasticity Q)");
+    B("shift+q",     "boolean subtract selected",  "Boolean subtract: last selected body / profile from the rest");
+    B("ctrl+q",      "boolean intersect selected", "Boolean intersect of the selected bodies / profiles");
     B("c",           "tool cut",           "Cut");
     B("l",           "loft selected",      "Loft the selection in order (areas, curves, body edges); closed → solid");
     B("shift+p",     "sweep selected",     "Sweep: first selected = profile, second = path");

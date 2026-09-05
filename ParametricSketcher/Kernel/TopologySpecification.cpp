@@ -87,11 +87,47 @@ namespace
 
 std::vector<uint32_t> TriangulatePlanarPolygon(const std::vector<Vec3>& Points, const std::vector<std::vector<uint32_t>>& Rings, Vec3 Normal) noexcept
 {
-    std::vector<uint32_t> Out;
-    if (Rings.empty() || Rings.front().size() < 3) return Out;
     Planar2 Basis = PlanarBasis(Normal);
     std::vector<Vec2> P(Points.size());
     for (size_t I = 0; I < Points.size(); ++I) P[I] = Basis.Project(Points[I]);
+    return TriangulatePolygon(P, Rings);
+}
+
+bool InsideRing(const std::vector<Vec2>& Ring, Vec2 Q) noexcept
+{
+    bool In = false;
+    for (size_t I = 0, J = Ring.size() - 1; I < Ring.size(); J = I++)
+        if ((Ring[I].Y > Q.Y) != (Ring[J].Y > Q.Y) && Q.X < (Ring[J].X - Ring[I].X) * (Q.Y - Ring[I].Y) / (Ring[J].Y - Ring[I].Y) + Ring[I].X) In = !In;
+    return In;
+}
+
+double SeededParameter(const NurbsSurface& S, Vec3 Target, double& U, double& V, int Iterations) noexcept
+{
+    const double U0 = S.DomainStartU(), U1 = S.DomainEndU(), V0 = S.DomainStartV(), V1 = S.DomainEndV();
+    const bool WrapU = S.ClosedU(ScalarCriteria::KernelTolerance), WrapV = S.ClosedV(ScalarCriteria::KernelTolerance);
+    for (int It = 0; It < Iterations; ++It)
+    {
+        Vec3 P, DU, DV; S.Derivatives(U, V, P, DU, DV);
+        Vec3 R = Target - P;
+        if (R.Length() <= ScalarCriteria::KernelTolerance) break;
+        // Gauss–Newton on the first-order tangent plane (2×2 normal equations).
+        double A = DU.Dot(DU), B = DU.Dot(DV), D = DV.Dot(DV), Fu = DU.Dot(R), Fv = DV.Dot(R);
+        double Det = A * D - B * B; if (std::fabs(Det) < 1e-300) break;
+        double Du = (Fu * D - Fv * B) / Det, Dv = (A * Fv - B * Fu) / Det;
+        double Nu = U + Du, Nv = V + Dv;
+        if (WrapU) { double Sp = U1 - U0; while (Nu < U0) Nu += Sp; while (Nu > U1) Nu -= Sp; } else Nu = ScalarCriteria::Clamp(Nu, U0, U1);
+        if (WrapV) { double Sp = V1 - V0; while (Nv < V0) Nv += Sp; while (Nv > V1) Nv -= Sp; } else Nv = ScalarCriteria::Clamp(Nv, V0, V1);
+        bool Done = std::fabs(Nu - U) < 1e-13 && std::fabs(Nv - V) < 1e-13;
+        U = Nu; V = Nv;
+        if (Done) break;
+    }
+    return S.Sample(U, V).Distance(Target);
+}
+
+std::vector<uint32_t> TriangulatePolygon(const std::vector<Vec2>& P, const std::vector<std::vector<uint32_t>>& Rings) noexcept
+{
+    std::vector<uint32_t> Out;
+    if (Rings.empty() || Rings.front().size() < 3) return Out;
 
     // Outer ring CCW, holes CW.
     std::vector<uint32_t> Outer = Rings.front();
@@ -179,6 +215,68 @@ std::vector<uint32_t> TriangulatePlanarPolygon(const std::vector<Vec3>& Points, 
     }
     if (Ring.size() == 3) { Out.push_back(Ring[0]); Out.push_back(Ring[1]); Out.push_back(Ring[2]); }
     return Out;
+}
+
+std::vector<std::vector<std::vector<int>>> PlanarCells(const std::vector<Vec2>& P, const std::vector<PlanarEdge>& E) noexcept
+{
+    std::vector<std::vector<int>> Outgoing(P.size());
+    for (size_t I = 0; I < E.size(); ++I) if (E[I].From >= 0 && E[I].To >= 0 && E[I].From != E[I].To) Outgoing[E[I].From].push_back(static_cast<int>(I));
+    auto Angle = [&](int Ed) { Vec2 D = P[E[Ed].To] - P[E[Ed].From]; return std::atan2(D.Y, D.X); };
+    struct Walk { std::vector<int> Edges; double Area = 0; };
+    std::vector<Walk> Walks;
+    std::vector<bool> Used(E.size(), false);
+    for (size_t Seed = 0; Seed < E.size(); ++Seed)
+    {
+        if (Used[Seed] || E[Seed].From < 0 || E[Seed].From == E[Seed].To) continue;
+        Walk W; int Cur = static_cast<int>(Seed);
+        for (int Guard = 0; Guard < 1000000; ++Guard)
+        {
+            Used[Cur] = true; W.Edges.push_back(Cur);
+            int V = E[Cur].To;
+            Vec2 Back = P[E[Cur].From] - P[V]; double Ab = std::atan2(Back.Y, Back.X);
+            int Next = -1; double Best = ScalarCriteria::Infinity;
+            for (int O : Outgoing[V])
+            {
+                double Delta = Ab - Angle(O);
+                while (Delta <= 1e-12) Delta += ScalarCriteria::TwoPi;
+                while (Delta > ScalarCriteria::TwoPi + 1e-12) Delta -= ScalarCriteria::TwoPi;
+                if (E[O].To == E[Cur].From) Delta = ScalarCriteria::TwoPi;             // the twin is the last resort
+                if (Delta < Best) { Best = Delta; Next = O; }
+            }
+            if (Next < 0 || Next == static_cast<int>(Seed) || Used[Next]) break;
+            Cur = Next;
+        }
+        for (int Ed : W.Edges) W.Area += P[E[Ed].From].Cross(P[E[Ed].To]);
+        W.Area *= 0.5;
+        Walks.push_back(std::move(W));
+    }
+    // positive walks are cells; negative walks are hole outlines (or the unbounded face) → attach to the smallest containing cell
+    std::vector<std::vector<std::vector<int>>> Cells;
+    std::vector<std::vector<Vec2>> Polys; std::vector<double> Areas;
+    double Scale = 0; for (const Vec2& Q : P) Scale = std::max(Scale, std::fabs(Q.X) + std::fabs(Q.Y));
+    const double AreaEps = 1e-14 * Scale * Scale;
+    for (Walk& W : Walks)
+    {
+        if (W.Area <= AreaEps) continue;
+        Cells.push_back({ W.Edges });
+        std::vector<Vec2> Poly; for (int Ed : W.Edges) Poly.push_back(P[E[Ed].From]);
+        Polys.push_back(std::move(Poly)); Areas.push_back(W.Area);
+    }
+    for (Walk& W : Walks)
+    {
+        if (W.Area >= -AreaEps) continue;
+        Vec2 Q = P[E[W.Edges.front()].From];
+        int Best = -1;
+        for (size_t C = 0; C < Polys.size(); ++C)
+        {
+            // a hole vertex lies on its own outline, so test a point just inside the hole's outline instead
+            bool OnOutline = false; for (int Ed : Cells[C][0]) if (E[Ed].From == E[W.Edges.front()].From) { OnOutline = true; break; }
+            if (OnOutline) continue;
+            if (InsideRing(Polys[C], Q) && (Best < 0 || Areas[C] < Areas[Best])) Best = static_cast<int>(C);
+        }
+        if (Best >= 0) Cells[Best].push_back(W.Edges);
+    }
+    return Cells;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -273,7 +371,7 @@ int BrepBody::AddEdge(NurbsCurve Curve, double Tolerance) noexcept
 
 int BrepBody::AddCoedge(int Edge, bool Reversed, int Face, int Loop) noexcept
 {
-    Coedges.push_back({ Edge, Reversed, Face, Loop });
+    Coedges.push_back({ Edge, Reversed, Face, Loop, {} });
     int Index = static_cast<int>(Coedges.size() - 1);
     Edges[Edge].Coedges.push_back(Index);
     Loops[Loop].Coedges.push_back(Index);
@@ -455,7 +553,7 @@ void BrepBody::FlipFace(int Face) noexcept
     for (int L : F.Loops)
     {
         std::reverse(Loops[L].Coedges.begin(), Loops[L].Coedges.end());
-        for (int C : Loops[L].Coedges) Coedges[C].Reversed = !Coedges[C].Reversed;
+        for (int C : Loops[L].Coedges) { Coedges[C].Reversed = !Coedges[C].Reversed; std::reverse(Coedges[C].Trace.begin(), Coedges[C].Trace.end()); }
     }
 }
 
@@ -516,6 +614,60 @@ std::vector<Vec3> BrepBody::EdgePolyline(int Edge, double ChordTolerance) const 
     return Out;
 }
 
+std::vector<Vec2> BrepBody::CoedgeTrace(int Coedge, std::vector<double>* Parameters, int Samples) const noexcept
+{
+    const BrepCoedge& Ce = Coedges[Coedge];
+    if (Parameters) Parameters->clear();
+    if (!Ce.Trace.empty()) return Ce.Trace;
+    const BrepFace& F = Faces[Ce.Face];
+    const NurbsSurface& S = F.Surface;
+    NurbsCurve K = CoedgeCurve(Coedge);
+    const double U0 = S.DomainStartU(), U1 = S.DomainEndU(), V0 = S.DomainStartV(), V1 = S.DomainEndV();
+    std::vector<double> T;
+    if (K.Degree == 1) { for (size_t I = 0; I < K.Poles.size(); ++I) T.push_back(K.Knots[I + 1]); }
+    else
+    {
+        // chord-tolerance sampling so the trimmed tessellation follows the edge as closely as the lattice follows the surface
+        std::vector<Vec3> Pts; K.Tessellate(Pts, &T, ScalarCriteria::ChordTolerance * 4.0);
+        if (static_cast<int>(T.size()) < Samples) { T.clear(); int N = std::max(Samples, static_cast<int>(K.Poles.size()) * 4); for (int I = 0; I <= N; ++I) T.push_back(K.DomainStart() + (K.DomainEnd() - K.DomainStart()) * I / N); }
+    }
+    std::vector<Vec2> Out; Out.reserve(T.size());
+    if (F.Natural)
+    {
+        // One of the four natural sides, walked CCW in (u,v): bottom (v0,u↑) right (u1,v↑) top (v1,u↓) left (u0,v↓).
+        //    Direction disambiguates the two coedges of a seam, which share one 3D curve.
+        // Five samples along the coedge (quarter points included) so the two seam coedges of a closed direction — the same
+        //    3D curve walked both ways — land on their own sides.
+        Vec3 Along[5]; for (int Q = 0; Q < 5; ++Q) Along[Q] = K.Sample(K.DomainStart() + (K.DomainEnd() - K.DomainStart()) * Q / 4.0);
+        struct Side { Vec2 From, To; };
+        const Side Sides[4] = { { { U0, V0 }, { U1, V0 } }, { { U1, V0 }, { U1, V1 } }, { { U1, V1 }, { U0, V1 } }, { { U0, V1 }, { U0, V0 } } };
+        int Best = -1; double BestErr = ScalarCriteria::Infinity;
+        for (int I = 0; I < 4; ++I)
+        {
+            double Err = 0;
+            for (int Q = 0; Q < 5; ++Q) { Vec2 At = Sides[I].From + (Sides[I].To - Sides[I].From) * (Q / 4.0); Err += S.Sample(At.X, At.Y).Distance(Along[Q]); }
+            if (Err < BestErr) { BestErr = Err; Best = I; }
+        }
+        if (Best >= 0 && BestErr <= ScalarCriteria::MergeTolerance * 50.0)
+        {
+            int N = static_cast<int>(T.size()) - 1;
+            for (int I = 0; I <= N; ++I) Out.push_back(Sides[Best].From + (Sides[Best].To - Sides[Best].From) * (static_cast<double>(I) / N));
+            if (Parameters) *Parameters = T;
+            return Out;
+        }
+    }
+    // Project the samples; the first from a global search, the rest seeded by their predecessor so seams are not crossed.
+    double U = 0, V = 0;
+    for (size_t I = 0; I < T.size(); ++I)
+    {
+        Vec3 P = K.Sample(T[I]);
+        if (I == 0) S.ClosestParameter(P, U, V); else (void)SeededParameter(S, P, U, V);
+        Out.emplace_back(U, V);
+    }
+    if (Parameters) *Parameters = T;
+    return Out;
+}
+
 BrepBody::FaceTriangles BrepBody::TessellateFace(int Face, double ChordTolerance) const noexcept
 {
     FaceTriangles Out;
@@ -527,31 +679,143 @@ BrepBody::FaceTriangles BrepBody::TessellateFace(int Face, double ChordTolerance
     }
     else
     {
-        // trimmed planar face: polygon from the loops, ear clipped
-        std::vector<std::vector<uint32_t>> Rings;
+        // Trimmed face: the surface's own lattice is clipped by the (u,v) trimming rings — lattice segments are split at
+        //    the rings, ring edges at the lattice lines, the planar arrangement is walked into cells, and each small cell is
+        //    ear clipped. Every triangle therefore spans at most one lattice cell, as on a natural face.
+        const NurbsSurface& S = F.Surface;
+        const double U0 = S.DomainStartU(), U1 = S.DomainEndU(), V0 = S.DomainStartV(), V1 = S.DomainEndV();
+        const double Eps = 1e-9 * (U1 - U0 + V1 - V0);
+        std::vector<double> SamplesU{ U0, U1 }, SamplesV{ V0, V1 };
+        if (S.DegreeU > 1 || S.DegreeV > 1)
+        {
+            NurbsSurface::Tessellation T = S.Tessellate(ChordTolerance);
+            SamplesU.clear(); SamplesV.clear();
+            for (int I = 0; I < T.ColumnCount; ++I) SamplesU.push_back(T.Parameters[I].X);
+            for (int J = 0; J < T.RowCount; ++J) SamplesV.push_back(T.Parameters[static_cast<size_t>(J) * T.ColumnCount].Y);
+        }
+        std::vector<Vec2> P;
+        std::vector<PlanarEdge> Edges;
+        // ring points
+        std::vector<std::vector<int>> Rings;
         for (int L : F.Loops)
         {
-            std::vector<uint32_t> Ring;
+            std::vector<int> Ring;
             for (int C : Loops[L].Coedges)
             {
-                NurbsCurve K = CoedgeCurve(C);
-                int N = K.Degree == 1 ? static_cast<int>(K.Poles.size()) - 1 : std::max(8, static_cast<int>(K.Poles.size()) * 6);
-                for (int I = 0; I < N; ++I)
+                std::vector<Vec2> Tr = CoedgeTrace(C);
+                for (size_t I = 0; I + 1 < Tr.size(); ++I)
                 {
-                    Vec3 P = K.Sample(K.DomainStart() + (K.DomainEnd() - K.DomainStart()) * I / N);
-                    if (!Out.Positions.empty() && Out.Positions.back().Distance(P) < ScalarCriteria::MergeTolerance) continue;
-                    Ring.push_back(static_cast<uint32_t>(Out.Positions.size()));
-                    Out.Positions.push_back(P);
+                    if (!Ring.empty() && P[Ring.back()].Distance(Tr[I]) <= Eps) continue;
+                    Ring.push_back(static_cast<int>(P.size())); P.push_back(Tr[I]);
                 }
             }
-            if (Ring.size() > 1 && Out.Positions[Ring.front()].Distance(Out.Positions[Ring.back()]) < ScalarCriteria::MergeTolerance) { Out.Positions.pop_back(); Ring.pop_back(); }
-            Rings.push_back(std::move(Ring));
+            if (Ring.size() > 1 && P[Ring.front()].Distance(P[Ring.back()]) <= Eps) Ring.pop_back();
+            if (Ring.size() >= 3) Rings.push_back(std::move(Ring));
         }
-        Vec3 N = F.Surface.Normal(0.5 * (F.Surface.DomainStartU() + F.Surface.DomainEndU()), 0.5 * (F.Surface.DomainStartV() + F.Surface.DomainEndV()));
-        Out.Triangles = TriangulatePlanarPolygon(Out.Positions, Rings, N);
-        Planar2 Basis = PlanarBasis(N);
-        Out.Normals.assign(Out.Positions.size(), N);
-        for (Vec3 P : Out.Positions) Out.Parameters.push_back(Basis.Project(P));
+        if (F.Reversed) for (std::vector<int>& R : Rings) std::reverse(R.begin(), R.end());   // material on the left in (u,v)
+        // lattice points inside the domain are added lazily; crossings split both the ring edge and the lattice segment
+        auto InsideDomain = [&](Vec2 Q)
+        {
+            for (size_t K = 0; K < Rings.size(); ++K)
+            {
+                std::vector<Vec2> R; for (int I : Rings[K]) R.push_back(P[I]);
+                bool In = InsideRing(R, Q); if (K == 0 && !In) return false; if (K > 0 && In) return false;
+            }
+            return !Rings.empty();
+        };
+        struct Cut { double Along; int Point; };                                          // a split point on a ring edge or a lattice segment
+        std::vector<std::vector<Cut>> RingCuts;                                          // per ring edge (indexed by ring, position)
+        std::vector<std::vector<int>> RingEdgeFirst;                                      // ring → first index into RingCuts
+        int EdgeCount = 0; for (auto& R : Rings) EdgeCount += static_cast<int>(R.size());
+        RingCuts.resize(EdgeCount);
+        {
+            int First = 0; for (auto& R : Rings) { RingEdgeFirst.push_back({ First }); First += static_cast<int>(R.size()); }
+        }
+        const int NU = static_cast<int>(SamplesU.size()), NV = static_cast<int>(SamplesV.size());
+        std::vector<int> LatticeIndex(static_cast<size_t>(NU) * NV, -1);
+        auto LatticeAt = [&](int I, int J) { int& N = LatticeIndex[static_cast<size_t>(I) * NV + J]; if (N < 0) { N = static_cast<int>(P.size()); P.push_back({ SamplesU[I], SamplesV[J] }); } return N; };
+        // lattice segments: (fixed line, from sample k to k+1) with their cuts
+        struct Segment { bool AlongU; int Line, K; std::vector<Cut> Cuts; };
+        std::vector<Segment> Segments;
+        for (int J = 0; J < NV; ++J) for (int I = 0; I + 1 < NU; ++I) Segments.push_back({ true, J, I, {} });
+        for (int I = 0; I < NU; ++I) for (int J = 0; J + 1 < NV; ++J) Segments.push_back({ false, I, J, {} });
+        auto SegmentEnds = [&](const Segment& Sg, Vec2& A, Vec2& B) { if (Sg.AlongU) { A = { SamplesU[Sg.K], SamplesV[Sg.Line] }; B = { SamplesU[Sg.K + 1], SamplesV[Sg.Line] }; } else { A = { SamplesU[Sg.Line], SamplesV[Sg.K] }; B = { SamplesU[Sg.Line], SamplesV[Sg.K + 1] }; } };
+        for (size_t Si = 0; Si < Segments.size(); ++Si)
+        {
+            Segment& Sg = Segments[Si]; Vec2 A, B; SegmentEnds(Sg, A, B);
+            Vec2 Dir = B - A;
+            for (size_t R = 0; R < Rings.size(); ++R)
+                for (size_t I = 0; I < Rings[R].size(); ++I)
+                {
+                    Vec2 C = P[Rings[R][I]], D = P[Rings[R][(I + 1) % Rings[R].size()]];
+                    Vec2 Sd = D - C; double Den = Dir.Cross(Sd);
+                    if (std::fabs(Den) < 1e-300) continue;
+                    double T = (C - A).Cross(Sd) / Den, U = (C - A).Cross(Dir) / Den;
+                    if (T < -1e-9 || T > 1 + 1e-9 || U < -1e-9 || U > 1 + 1e-9) continue;
+                    int N;
+                    Vec2 X = A + Dir * T;
+                    if (U <= 1e-7) N = Rings[R][I];                                     // ring vertex on the segment
+                    else if (U >= 1 - 1e-7) N = Rings[R][(I + 1) % Rings[R].size()];
+                    else
+                    {
+                        if (T <= 1e-7) N = Sg.AlongU ? LatticeAt(Sg.K, Sg.Line) : LatticeAt(Sg.Line, Sg.K);
+                        else if (T >= 1 - 1e-7) N = Sg.AlongU ? LatticeAt(Sg.K + 1, Sg.Line) : LatticeAt(Sg.Line, Sg.K + 1);
+                        else { N = static_cast<int>(P.size()); P.push_back(X); }
+                        RingCuts[RingEdgeFirst[R][0] + static_cast<int>(I)].push_back({ U, N });
+                    }
+                    Sg.Cuts.push_back({ T, N });
+                }
+        }
+        // ring edges with cuts (one direction)
+        for (size_t R = 0; R < Rings.size(); ++R)
+            for (size_t I = 0; I < Rings[R].size(); ++I)
+            {
+                std::vector<Cut>& Cs = RingCuts[RingEdgeFirst[R][0] + static_cast<int>(I)];
+                std::sort(Cs.begin(), Cs.end(), [](const Cut& X, const Cut& Y) { return X.Along < Y.Along; });
+                int Prev = Rings[R][I];
+                for (const Cut& C : Cs) { if (C.Point != Prev) Edges.push_back({ Prev, C.Point }); Prev = C.Point; }
+                int Last = Rings[R][(I + 1) % Rings[R].size()];
+                if (Last != Prev) Edges.push_back({ Prev, Last });
+            }
+        // lattice segments: sub-segments whose midpoint lies inside the domain, both directions
+        for (Segment& Sg : Segments)
+        {
+            Vec2 A, B; SegmentEnds(Sg, A, B);
+            std::vector<Cut> Cs = Sg.Cuts;
+            std::sort(Cs.begin(), Cs.end(), [](const Cut& X, const Cut& Y) { return X.Along < Y.Along; });
+            std::vector<std::pair<double, int>> Chain;                                  // (along, point) including ends (lattice points created lazily)
+            Chain.emplace_back(0.0, -1);
+            for (const Cut& C : Cs) if (Chain.back().second != C.Point && (Chain.size() == 1 || C.Along > Chain.back().first + 1e-12)) Chain.emplace_back(C.Along, C.Point);
+            if (Chain.back().first < 1 - 1e-12 || Chain.size() == 1) Chain.emplace_back(1.0, -1);
+            for (size_t K = 0; K + 1 < Chain.size(); ++K)
+            {
+                double Ta = Chain[K].first, Tb = Chain[K + 1].first;
+                if (Tb - Ta <= 1e-12) continue;
+                Vec2 M = A + (B - A) * (0.5 * (Ta + Tb));
+                if (!InsideDomain(M)) continue;
+                int Na = Chain[K].second, Nb = Chain[K + 1].second;
+                if (Na < 0) { Na = Sg.AlongU ? LatticeAt(Sg.K + (Ta > 0.5 ? 1 : 0), Sg.Line) : LatticeAt(Sg.Line, Sg.K + (Ta > 0.5 ? 1 : 0)); Chain[K].second = Na; }
+                if (Nb < 0) { Nb = Sg.AlongU ? LatticeAt(Sg.K + (Tb > 0.5 ? 1 : 0), Sg.Line) : LatticeAt(Sg.Line, Sg.K + (Tb > 0.5 ? 1 : 0)); Chain[K + 1].second = Nb; }
+                if (Na == Nb) continue;
+                Edges.push_back({ Na, Nb }); Edges.push_back({ Nb, Na });
+            }
+        }
+        // cells → triangles
+        std::vector<std::vector<std::vector<int>>> Cells = PlanarCells(P, Edges);
+        for (const std::vector<std::vector<int>>& Cell : Cells)
+        {
+            std::vector<std::vector<uint32_t>> CellRings;
+            for (const std::vector<int>& Ring : Cell)
+            {
+                std::vector<uint32_t> Rg; for (int Ed : Ring) Rg.push_back(static_cast<uint32_t>(Edges[Ed].From));
+                CellRings.push_back(std::move(Rg));
+            }
+            std::vector<uint32_t> Tri = TriangulatePolygon(P, CellRings);
+            Out.Triangles.insert(Out.Triangles.end(), Tri.begin(), Tri.end());
+        }
+        Out.Parameters = P;
+        Out.Positions.reserve(P.size()); Out.Normals.reserve(P.size());
+        for (Vec2 Q : P) { Out.Positions.push_back(S.Sample(Q.X, Q.Y)); Out.Normals.push_back(S.Normal(Q.X, Q.Y)); }
     }
     if (F.Reversed)
     {
