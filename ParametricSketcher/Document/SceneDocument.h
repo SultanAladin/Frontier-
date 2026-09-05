@@ -22,6 +22,8 @@ struct SceneItem
     bool         Construction = false;                                                  // [-] drawn dashed, never rendered as solid
     bool         Hidden = false;                                                        // [-]
     bool         Selected = false;                                                      // [-]
+    uint8_t      Matcap = 0;                                                            // [-] studio layer (Plasticity: one per object)
+    float        Tint[3] = { 0.62f, 0.66f, 0.72f };                                     // [-] base colour
 
     [[nodiscard]] Box3 Bounds() const noexcept { return Kind == ItemKind::Curve ? Curve.Bounds() : Surface.Bounds(); }
 };

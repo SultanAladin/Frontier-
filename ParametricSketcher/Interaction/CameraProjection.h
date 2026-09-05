@@ -40,6 +40,8 @@ public:
     void Look(CanonicalView View) noexcept;
     void Frame(const Box3& Bounds, double Aspect) noexcept;                             // fit bounds, keep orientation
 
+    // World → pixel (top-left origin); returns false when behind the eye.
+    [[nodiscard]] bool WorldToPixel(Vec3 P, double ViewportWidth, double ViewportHeight, double& PixelX, double& PixelY) const noexcept;
     // Pixel → world ray (perspective) or parallel ray (ortho). Pixel origin top-left, matches raster.
     [[nodiscard]] Ray PixelRay(double PixelX, double PixelY, double ViewportWidth, double ViewportHeight) const noexcept;
 

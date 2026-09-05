@@ -26,6 +26,7 @@ struct ViewRecord
 {
     float ViewClip[16];                                                                 // [-] column-major
     float ClipView[16];                                                                 // [-]
+    float ViewWorld[16];                                                                // [-] camera → world, matcap basis
     float EyePosition[4];                                                               // [m] xyz, w = 1 perspective / 0 ortho
     float Viewport[4];                                                                  // [px] xy size, zw reciprocal
     float GridStyle[4];                                                                 // x minor cell [m], y major every N, z fade radius [m], w half-width [px]
@@ -43,7 +44,14 @@ struct DrawRecord
     float    LineWidth      = 1.5f;                                                     // [px]
     float    PointSize      = 7.0f;                                                     // [px]
     bool     Dashed         = false;                                                    // [-] construction geometry
+    uint8_t  Matcap         = 0;                                                        // [-] studio layer, per object (see MatcapStudio.slang)
+    uint8_t  Shading        = 2;                                                        // [-] 0 flat, 1 plastic, 2 matcap
+    float    Emissive       = 0.0f;                                                     // [-] additive boost (gizmo hover)
 };
+
+enum class SurfaceShading : uint8_t { Flat = 0, Plastic = 1, Matcap = 2 };
+[[nodiscard]] const char* MatcapName(uint8_t Layer) noexcept;
+[[nodiscard]] int         MatcapCount() noexcept;
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                  VERTEX STREAMS

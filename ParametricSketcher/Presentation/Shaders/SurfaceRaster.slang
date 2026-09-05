@@ -7,6 +7,7 @@
 //    Selection state brightens toward the selection orange; hover toward white.
 
 #include "ShadingRecords.slang"
+#include "MatcapStudio.slang"
 
 struct SurfaceVarying
 {
@@ -27,6 +28,10 @@ SurfaceVarying SurfaceVertex(ViewRecord View, DrawRecord Draw, float3 Position, 
     return Out;
 }
 
+// The software raster passes a bilinear-baked layer sampler; the Vulkan path binds a Texture2DArray. Both resolve
+//    to the same studio function, so the interface is a plain function pointer-free call: MatcapLookup(Layer, N).
+float3 MatcapLookup(uint Layer, float3 ViewNormal);
+
 float4 SurfaceFragment(ViewRecord View, DrawRecord Draw, SurfaceVarying In, bool FrontFacing)
 {
     float3 N = normalize(In.WorldNormal);
@@ -34,19 +39,43 @@ float4 SurfaceFragment(ViewRecord View, DrawRecord Draw, SurfaceVarying In, bool
     if (View.EyePosition.w < 0.5) V = normalize(View.EyePosition.xyz);        // orthographic: EyePosition holds the view direction
     if (!FrontFacing) N = -N;
 
-    float3 Key       = normalize(View.Illumination.xyz);
-    float  Ambient   = View.Illumination.w;
-    float  Hemi      = 0.5 + 0.5 * N.z;                                        // sky above (Z-up)
-    float  Diffuse   = saturate(dot(N, Key));
-    float3 H         = normalize(Key + V);
-    float  Specular  = pow(saturate(dot(N, H)), 48.0) * 0.25;
-    float  Rim       = pow(1.0 - saturate(dot(N, V)), 3.0) * 0.18;
-
     float3 Base = Draw.Tint.xyz;
-    if (!FrontFacing) Base = lerp(Base, float3(0.85, 0.30, 0.25), 0.7);       // 🔴 back face → winding fault visible
-    if (Draw.Selection.x > 1.5)      Base = lerp(Base, float3(1.00, 0.62, 0.15), 0.55);
-    else if (Draw.Selection.x > 0.5) Base = lerp(Base, float3(1.0, 1.0, 1.0), 0.25);
+    float3 Colour;
+    uint   Mode = uint(Draw.Surface.y + 0.5);
+    if (Mode == 2u)
+    {
+        // Matcap: view-space normal from the camera basis (right, up, toward-viewer) encoded in ViewClip's rows.
+        // Column-major camera→world: column 0 = right, column 1 = up, column 2 = back (toward the viewer).
+        float3 Right = normalize(float3(View.ViewWorld.m[0], View.ViewWorld.m[1], View.ViewWorld.m[2]));
+        float3 Up    = normalize(float3(View.ViewWorld.m[4], View.ViewWorld.m[5], View.ViewWorld.m[6]));
+        float3 Vn    = float3(dot(N, Right), dot(N, Up), saturate(dot(N, V)));
+        Vn = normalize(Vn);
+        Colour = MatcapLookup(uint(Draw.Surface.x + 0.5), Vn);
+        // Tint modulates only the dielectric/neutral studios lightly so per-item colour still reads.
+        Colour = Colour * lerp(float3(1.0, 1.0, 1.0), Base / max(max(Base.x, Base.y), max(Base.z, 1e-3)), 0.20);
+    }
+    else if (Mode == 1u)
+    {
+        // Plastic: Blinn-Phong with a fresnel rim, hemisphere fill.
+        float3 Key      = normalize(View.Illumination.xyz);
+        float  Ambient  = View.Illumination.w;
+        float  Hemi     = 0.5 + 0.5 * N.z;
+        float  Diffuse  = saturate(dot(N, Key));
+        float3 H        = normalize(Key + V);
+        float  Specular = pow(saturate(dot(N, H)), 96.0) * 0.6;
+        float  Fresnel  = pow(1.0 - saturate(dot(N, V)), 4.0) * 0.35;
+        Colour = Base * (Ambient * Hemi + Diffuse * 0.8) + float3(Specular + Fresnel, Specular + Fresnel, Specular + Fresnel);
+    }
+    else
+    {
+        float3 Key     = normalize(View.Illumination.xyz);
+        float  Hemi    = 0.5 + 0.5 * N.z;
+        Colour = Base * (View.Illumination.w * Hemi + saturate(dot(N, Key)) * 0.85);
+    }
 
-    float3 Colour = Base * (Ambient * Hemi + Diffuse * 0.85) + float3(Specular + Rim, Specular + Rim, Specular + Rim);
+    if (!FrontFacing) Colour = lerp(Colour, float3(0.85, 0.30, 0.25), 0.6);   // 🔴 back face → winding fault visible
+    if (Draw.Selection.x > 1.5)      Colour = lerp(Colour, float3(1.00, 0.62, 0.15), 0.55);
+    else if (Draw.Selection.x > 0.5) Colour = lerp(Colour, float3(1.0, 1.0, 1.0), 0.25);
+    Colour += Draw.Surface.z * Base;                                           // emissive boost (gizmo hover)
     return float4(Colour, Draw.Tint.w);
 }

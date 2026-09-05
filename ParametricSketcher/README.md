@@ -23,8 +23,8 @@ No external packages. `-Wall -Wextra -Wpedantic -Werror`.
 | Folder | Role | Status |
 |---|---|---|
 | `Kernel/` | Pure geometry, zero dependencies (port target for anything) | **Phase 1 ✓** |
-| `Interaction/` | `CameraProjection` · `SnapResolution` (grid/endpoint/midpoint/centre/quadrant/on-curve/perpendicular/tangent/intersection/axis, pixel radius + priority) · `InputEvent` · `HotkeyChart` (Plasticity + Blender defaults, rebindable) · `ToolSession` (modal prompts, numeric entry, axis/plane locks, rubber-band preview, G/R/S) | **Phase 3 ✓** · gizmo Phase 5 |
-| `Presentation/` | `RasterExchange` seam · `SoftwareRaster` (CPU, pick + depth, PNG with own deflate) · Slang shaders compiled twice: by Slang for Vulkan later, by the C++ compiler through `SlangMirror.h` today · `ScenePresentation` (kernel → streams) | **Phase 2 ✓** |
+| `Interaction/` | `CameraProjection` · `SnapResolution` (grid/endpoint/midpoint/centre/quadrant/on-curve/perpendicular/tangent/intersection/axis, pixel radius + priority) · `InputEvent` · `HotkeyChart` (Plasticity + Blender defaults, rebindable) · `ToolSession` (modal prompts, numeric entry, axis/plane locks, rubber-band preview, G/R/S) · `TransformGizmo` (GizmoPRO per `References/Gizmo.html`: cone/puck/plane/sector per axis, billboarded ring, analytic picking, Ctrl snapping) | **Phase 3 ✓** |
+| `Presentation/` | `RasterExchange` seam · `SoftwareRaster` (CPU, pick + depth, PNG with own deflate) · Slang shaders compiled twice: by Slang for Vulkan later, by the C++ compiler through `SlangMirror.h` today · `ScenePresentation` (kernel → streams) · `MatcapStudio.slang` (ten procedural studios baked once to a layer array; one matcap **per object**, switchable flat / plastic / matcap) | **Phase 2 ✓** |
 | `Console/` | `CommandCodec` (`.arc` grammar) · `ConsoleHost` (sketch, primitives, extrude/revolve/loft, scene, view, `render`, `pick`) · `SolidArc` executable (script / `-c` / REPL) | **Phase 2 ✓** |
 | `Document/` | `SceneDocument` — named items with stable identities (pick identities) | **Phase 2 ✓** |
 | `Verification/` | One console-proof executable per phase, registered with ctest | ongoing |
@@ -79,6 +79,9 @@ The console is the input device — the same events a window will send later:
 | `key g` · `key shift+x` · `key numpad7` · `key enter` · `key esc` | hotkeys (global chart) or modal keys (tool) |
 | `type 4` · `type 2,5` · `type @1,1` · `type r2` · `type a45` · `type a30,2` · `type n6` · `type d2` · `type 3*2` | numeric entry: distance · absolute · relative · radius · angle · polar · sides · degree · arithmetic |
 | `probe x y` · `snap …` · `hud` · `bind`/`unbind`/`bindings` | inspect snapping, toggle it, dump modal state, edit the hotkey chart |
+
+| `gizmo on|off` · `gizmo combined|translate|rotate|scale` · `gizmo size px` · `gizmo handles` · `release` | GizmoPRO on the selection; `handles` prints every handle's pixel so scripts can grab it; `click` on a handle starts a drag, `pointer` moves it (`--ctrl` snaps 0.25 m / 0.1× / 5°), `release` commits |
+| `show shading flat|plastic|matcap` · `matcap <items> <studio>` · `matcap list` · `tint <items> r g b` | shading mode for the view; per-object studio (steel chrome gold copper plastic-white plastic-red plastic-blue clay pearl carbon) |
 
 Inside a tool: `X`/`Y`/`Z` lock an axis (again to clear), `Shift+X/Y/Z` lock a plane, `Backspace` removes the last point,
 `Enter`/right-click confirm, `Esc` cancels, `↑`/`↓` change polygon sides or spline degree, `Ctrl` while moving suppresses snapping.

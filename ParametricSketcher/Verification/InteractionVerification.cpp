@@ -140,5 +140,60 @@ int main()
         Panel.Expect("ParseKeyChord shift+space", ParseKeyChord("shift+space", K, M) && K == Key::Space && M == ModifierShift);
     }
 
+    Panel.Section("GizmoPRO and shading");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerification", 1280, 800);
+        Host.Execute("cylinder (0,0,0) 1 1.5 ; select Cylinder ; view iso ; view frame ; gizmo size 160");
+        const TransformGizmo& G = Host.Gizmo();
+        Panel.Equal("Pivot = selection bounds centre z", G.CurrentFrame().Origin.Z, 0.75, 1e-9);
+        // every handle anchor probes back to itself (or to a nearer handle in front of it)
+        int Hits = 0;
+        for (int I = int(GizmoHandle::TranslateX); I <= int(GizmoHandle::RotateZ); ++I)
+        {
+            GizmoHandle H = static_cast<GizmoHandle>(I);
+            Vec3 W = G.HandleAnchor(H, Host.Camera(), 800);
+            double X = 0, Y = 0; (void)Host.Camera().WorldToPixel(W, 1280, 800, X, Y);
+            if (G.Probe(X, Y, Host.Camera(), 1280, 800) != GizmoHandle::None) ++Hits;
+        }
+        Panel.Expect("All 12 handle anchors are pickable", Hits == 12);
+        Panel.Expect("Empty pixel probes none", G.Probe(50, 50, Host.Camera(), 1280, 800) == GizmoHandle::None);
+        // scripted drags
+        auto PixelOf = [&](GizmoHandle H, double& X, double& Y) { (void)Host.Camera().WorldToPixel(G.HandleAnchor(H, Host.Camera(), 800), 1280, 800, X, Y); };
+        double X, Y;
+        PixelOf(GizmoHandle::TranslateX, X, Y);
+        char Line[256];
+        std::snprintf(Line, sizeof Line, "pointer %d %d ; click ; pointer %d %d --ctrl ; release", int(X), int(Y), int(X) + 97, int(Y) + 49);
+        Host.Execute(Line);
+        Box3 B = Host.Document().Find(std::string("Cylinder"))->Bounds();
+        Panel.Equal("X move with Ctrl snaps to 0.25 multiples (min x)", std::fmod(std::fabs(B.Low.X + 1.0) + 1e-9, 0.25), 0.0, 1e-6);
+        Panel.Expect("X move only changes x", std::fabs(B.Low.Y + 1) < 1e-9 && std::fabs(B.High.Z - 1.5) < 1e-9 && B.Low.X > -1.0 + 0.2);
+        double Moved = B.Low.X + 1.0;
+        PixelOf(GizmoHandle::ScaleX, X, Y);
+        std::snprintf(Line, sizeof Line, "pointer %d %d ; click ; pointer %d %d --ctrl ; release", int(X), int(Y), int(X) + 37, int(Y) + 21);
+        Host.Execute(Line);
+        B = Host.Document().Find(std::string("Cylinder"))->Bounds();
+        double Factor = (B.High.X - B.Low.X) / 2.0;
+        Panel.Equal("X scale snaps to 0.1 multiples", std::fmod(Factor + 1e-9, 0.1), 0.0, 1e-6);
+        Panel.Equal("X scale keeps the pivot fixed", (B.High.X + B.Low.X) * 0.5, Moved, 1e-6);
+        Panel.Equal("X scale leaves y untouched", B.High.Y - B.Low.Y, 2.0, 1e-9);
+        PixelOf(GizmoHandle::RotateZ, X, Y);
+        std::snprintf(Line, sizeof Line, "pointer %d %d ; click ; pointer %d %d --ctrl ; release", int(X), int(Y), int(X) + 47, int(Y) - 24);
+        Host.Execute(Line);
+        B = Host.Document().Find(std::string("Cylinder"))->Bounds();
+        Panel.Expect("Z rotate widens the y extent of the stretched cylinder", B.High.Y - B.Low.Y > 2.0 + 1e-6);
+        Panel.Equal("Z rotate keeps height", B.High.Z - B.Low.Z, 1.5, 1e-9);
+        Panel.Expect("Release ends the drag", !G.Dragging());
+        Host.Execute("gizmo rotate");
+        Panel.Expect("Separable layout hides translate cones", G.Probe(X, Y, Host.Camera(), 1280, 800) != GizmoHandle::TranslateX);
+        // shading verbs
+        int Before = Host.RefusalCount();
+        Host.Execute("show shading plastic ; show shading flat ; show shading matcap ; matcap Cylinder gold ; matcap Cylinder 9 ; tint Cylinder 1 0 0");
+        Panel.Expect("Shading / matcap / tint verbs accepted", Host.RefusalCount() == Before);
+        Panel.Expect("Per-object matcap stored on the item", Host.Document().Find(std::string("Cylinder"))->Matcap == 9);
+        Host.Execute("matcap Cylinder velvet");
+        Panel.Expect("Unknown studio refused", Host.RefusalCount() == Before + 1);
+        Panel.Expect("Ten studios listed", MatcapCount() == 10 && std::string(MatcapName(1)) == "chrome");
+    }
+
     return Panel.Conclude();
 }

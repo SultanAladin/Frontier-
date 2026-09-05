@@ -67,6 +67,12 @@ SLANG_MIRROR_BINARY(float2, +) SLANG_MIRROR_BINARY(float2, -) SLANG_MIRROR_BINAR
 SLANG_MIRROR_BINARY(float3, +) SLANG_MIRROR_BINARY(float3, -) SLANG_MIRROR_BINARY(float3, *) SLANG_MIRROR_BINARY(float3, /)
 SLANG_MIRROR_BINARY(float4, +) SLANG_MIRROR_BINARY(float4, -) SLANG_MIRROR_BINARY(float4, *) SLANG_MIRROR_BINARY(float4, /)
 #undef SLANG_MIRROR_BINARY
+constexpr float2& operator+=(float2& A, float2 B) { A = A + B; return A; }
+constexpr float3& operator+=(float3& A, float3 B) { A = A + B; return A; }
+constexpr float4& operator+=(float4& A, float4 B) { A = A + B; return A; }
+constexpr float3& operator+=(float3& A, float S) { A = A + S; return A; }
+constexpr float3& operator-=(float3& A, float3 B) { A = A - B; return A; }
+constexpr float3& operator*=(float3& A, float S) { A = A * S; return A; }
 constexpr float2 operator-(float2 A) { return { -A.x, -A.y }; }
 constexpr float3 operator-(float3 A) { return { -A.x, -A.y, -A.z }; }
 constexpr float4 operator-(float4 A) { return { -A.x, -A.y, -A.z, -A.w }; }

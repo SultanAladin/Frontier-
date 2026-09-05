@@ -122,13 +122,15 @@ void ConsoleHost::Render() noexcept
     for (const SceneItem& Item : Scene.Items())
     {
         if (Item.Hidden || Item.Kind != ItemKind::Surface) continue;
-        DrawRecord D = ScenePresentation::Tinted(0.62f, 0.66f, 0.72f);
+        DrawRecord D = ScenePresentation::Tinted(Item.Tint[0], Item.Tint[1], Item.Tint[2]);
         D.PickIdentity = Item.Identity;
         D.Highlight = Item.Selected ? 2.0f : 0.0f;
+        D.Matcap = Item.Matcap;
+        D.Shading = static_cast<uint8_t>(Shading);
         Surface->DrawSurface(ScenePresentation::SurfaceTriangles(Item.Surface, 2e-3), D);
         if (ShowIsoCurves)
         {
-            DrawRecord Iso = ScenePresentation::Tinted(0.10f, 0.11f, 0.13f, 0.45f); Iso.LineWidth = 1.0f; Iso.PickIdentity = Item.Identity;
+            DrawRecord Iso = ScenePresentation::Tinted(0.10f, 0.11f, 0.13f, 0.28f); Iso.LineWidth = 1.0f; Iso.PickIdentity = Item.Identity;
             Surface->DrawSegments(ScenePresentation::SurfaceIsoCurves(Item.Surface, 8, 8), Iso);
         }
         if (ShowControlCages || Item.Selected)
@@ -157,8 +159,29 @@ void ConsoleHost::Render() noexcept
 
     Surface->BeginOverlay();
     DrawToolPreview();
+    if (GizmoShown && !Scene.Bounds(true).Empty() && !Tool.Active())
+    {
+        if (!GizmoState.Dragging()) RefreshGizmoFrame();
+        GizmoState.Draw(*Surface, View, Surface->Width(), Surface->Height());
+    }
     ScenePresentation::DrawTriad(*Surface, View.OrthographicHalfHeight() * 0.12);
     Surface->EndTarget();
+}
+
+void ConsoleHost::RefreshGizmoFrame() noexcept
+{
+    TransformGizmo::Frame F; F.Origin = Scene.Bounds(true).Centre();
+    GizmoState.SetFrame(F);
+}
+
+void ConsoleHost::ApplyGizmoDelta(const Mat4& Delta) noexcept
+{
+    for (auto& [Id, Original] : GizmoOriginals)
+        if (SceneItem* I = Scene.Find(Id))
+        {
+            if (I->Kind == ItemKind::Curve) I->Curve = Original.Curve.Transformed(Delta);
+            else I->Surface = Original.Surface.Transformed(Delta);
+        }
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -450,11 +473,70 @@ void ConsoleHost::Register() noexcept
             N.c_str(), E.X, E.Y, E.Z, View.Pivot.X, View.Pivot.Y, View.Pivot.Z, View.Distance, ScalarCriteria::Degrees(View.Yaw), ScalarCriteria::Degrees(View.Pitch), View.Orthographic ? "ortho" : "persp");
         return true;
     });
-    Add("show", "show cages on|off  ·  show iso on|off", [=, this](const CommandLine& C)
+    Add("matcap", "matcap <item...> <name|index>  ·  matcap list — per-object studio (steel chrome gold copper plastic-white plastic-red plastic-blue clay pearl carbon)", [=, this](const CommandLine& C)
+    {
+        if (C.Count() == 1 && C.Arguments[0] == "list") { for (int I = 0; I < MatcapCount(); ++I) Row("%d  %s", I, MatcapName(uint8_t(I))); return true; }
+        if (C.Count() < 2) return Refuse("matcap: items and a studio name required");
+        const std::string& Name = C.Arguments.back();
+        int Layer = -1;
+        for (int I = 0; I < MatcapCount(); ++I) if (Name == MatcapName(uint8_t(I))) Layer = I;
+        if (Layer < 0) if (auto N = CommandCodec::ParseNumber(Name)) Layer = int(*N);
+        if (Layer < 0 || Layer >= MatcapCount()) return Refuse("matcap: unknown studio '%s' (try matcap list)", Name.c_str());
+        CommandLine Sub = C; Sub.Arguments.pop_back();
+        for (SceneItem* I : ResolveMany(Sub, 0)) { I->Matcap = uint8_t(Layer); Row("#%u %s → %s", I->Identity, I->Name.c_str(), MatcapName(uint8_t(Layer))); }
+        return true;
+    });
+    Add("tint", "tint <item...> r g b — base colour 0..1", [=, this](const CommandLine& C)
+    {
+        if (C.Count() < 4) return Refuse("tint: items and r g b required");
+        double R = C.Number(C.Count() - 3).value_or(-1), G = C.Number(C.Count() - 2).value_or(-1), B = C.Number(C.Count() - 1).value_or(-1);
+        if (R < 0 || G < 0 || B < 0) return Refuse("tint: r g b must be numbers 0..1");
+        CommandLine Sub = C; Sub.Arguments.resize(C.Count() - 3);
+        for (SceneItem* I : ResolveMany(Sub, 0)) { I->Tint[0] = float(R); I->Tint[1] = float(G); I->Tint[2] = float(B); }
+        return true;
+    });
+    Add("gizmo", "gizmo on|off  ·  gizmo combined|translate|rotate|scale  ·  gizmo size px  ·  gizmo status  ·  gizmo handles", [=, this](const CommandLine& C)
+    {
+        if (C.Count() < 1) return Refuse("gizmo: argument required");
+        const std::string& A = C.Arguments[0];
+        if (A == "on") GizmoShown = true; else if (A == "off") GizmoShown = false;
+        else if (A == "combined") GizmoState.SetLayout(GizmoLayout::Combined); else if (A == "translate") GizmoState.SetLayout(GizmoLayout::Translate);
+        else if (A == "rotate") GizmoState.SetLayout(GizmoLayout::Rotate); else if (A == "scale") GizmoState.SetLayout(GizmoLayout::Scale);
+        else if (A == "size") { double S; if (!C.Number(1) || (S = *C.Number(1)) < 10) return Refuse("gizmo size: pixels ≥ 10 required"); GizmoState.SetPixelSize(S); }
+        else if (A == "handles")
+        {
+            RefreshGizmoFrame();
+            for (int I = int(GizmoHandle::TranslateX); I <= int(GizmoHandle::RotateZ); ++I)
+            {
+                GizmoHandle H = static_cast<GizmoHandle>(I);
+                Vec3 W = GizmoState.HandleAnchor(H, View, Surface->Height());
+                double X = 0, Y = 0; bool On = View.WorldToPixel(W, Surface->Width(), Surface->Height(), X, Y);
+                GizmoHandle Probe = On ? GizmoState.Probe(X, Y, View, Surface->Width(), Surface->Height()) : GizmoHandle::None;
+                Row("%-13s pixel (%4d,%4d)  world (%.3f %.3f %.3f)  probe → %s", GizmoHandleName(H), int(X), int(Y), W.X, W.Y, W.Z, GizmoHandleName(Probe));
+            }
+            return true;
+        }
+        else if (A != "status") return Refuse("gizmo: on|off|combined|translate|rotate|scale|size|status|handles");
+        RefreshGizmoFrame();
+        const char* Layouts[] = { "combined", "translate", "rotate", "scale" };
+        Vec3 O = GizmoState.CurrentFrame().Origin;
+        Row("gizmo %s  layout %s  pivot (%.3f %.3f %.3f)  hover %s%s", GizmoShown ? "on" : "off", Layouts[int(GizmoState.CurrentLayout())], O.X, O.Y, O.Z,
+            GizmoHandleName(GizmoState.Hovered()), GizmoState.Dragging() ? "  [dragging]" : "");
+        return true;
+    });
+    Add("show", "show cages on|off  ·  show iso on|off  ·  show shading flat|plastic|matcap", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "show")) return false;
         bool On = C.Arguments[1] == "on";
-        if (C.Arguments[0] == "cages") ShowControlCages = On; else if (C.Arguments[0] == "iso") ShowIsoCurves = On; else return Refuse("show: cages|iso");
+        if (C.Arguments[0] == "cages") ShowControlCages = On; else if (C.Arguments[0] == "iso") ShowIsoCurves = On;
+        else if (C.Arguments[0] == "shading")
+        {
+            const std::string& M = C.Arguments[1];
+            if (M == "flat") Shading = SurfaceShading::Flat; else if (M == "plastic") Shading = SurfaceShading::Plastic; else if (M == "matcap") Shading = SurfaceShading::Matcap;
+            else return Refuse("show shading: flat|plastic|matcap");
+            Row("shading %s", M.c_str());
+        }
+        else return Refuse("show: cages|iso|shading");
         return true;
     });
     Add("render", "render <name> [--size=WxH] — writes Proofs/<name>.png", [=, this](const CommandLine& C)

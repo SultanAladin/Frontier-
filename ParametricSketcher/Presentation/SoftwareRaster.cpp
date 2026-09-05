@@ -30,7 +30,50 @@ inline float log(float A) { return std::log(A); }
 #include "Shaders/SurfaceRaster.slang"
 #include "Shaders/LineRaster.slang"
 #include "Shaders/PointRaster.slang"
+
+// MatcapLookup: bilinear sample of the baked layer (declared in SurfaceRaster.slang, defined after the mirror block).
 #undef out
+// ---- Matcap bake: every studio evaluated once into a 128×128 RGB layer (≈ 0.6 ms per layer), sampled bilinearly. ----
+constexpr int MatcapSize = 128;
+constexpr int MatcapLayers = 10;
+struct MatcapAtlas
+{
+    std::vector<float> Texels;                                                          // [-] Layers × Size × Size × 3
+    MatcapAtlas()
+    {
+        Texels.resize(size_t(MatcapLayers) * MatcapSize * MatcapSize * 3);
+        for (int L = 0; L < MatcapLayers; ++L)
+            for (int Y = 0; Y < MatcapSize; ++Y)
+                for (int X = 0; X < MatcapSize; ++X)
+                {
+                    float U = (X + 0.5f) / MatcapSize * 2.0f - 1.0f, Vv = 1.0f - (Y + 0.5f) / MatcapSize * 2.0f;
+                    float R2 = U * U + Vv * Vv;
+                    float3 N = R2 >= 1.0f ? normalize(float3(U, Vv, 0.02f)) : float3(U, Vv, std::sqrt(1.0f - R2));
+                    float3 C = MatcapStudioSample(uint(L), N);
+                    float* T = &Texels[((size_t(L) * MatcapSize + Y) * MatcapSize + X) * 3];
+                    T[0] = C.x; T[1] = C.y; T[2] = C.z;
+                }
+    }
+};
+inline const MatcapAtlas& Atlas() { static MatcapAtlas A; return A; }
+
+float3 MatcapLookup(uint Layer, float3 N)
+{
+    const MatcapAtlas& A = Atlas();
+    uint L = Layer < uint(MatcapLayers) ? Layer : 0u;
+    float Fx = (N.x * 0.5f + 0.5f) * MatcapSize - 0.5f, Fy = (0.5f - N.y * 0.5f) * MatcapSize - 0.5f;
+    int X0 = int(std::floor(Fx)), Y0 = int(std::floor(Fy));
+    float Tx = Fx - X0, Ty = Fy - Y0;
+    auto Texel = [&](int X, int Y)
+    {
+        X = X < 0 ? 0 : (X >= MatcapSize ? MatcapSize - 1 : X); Y = Y < 0 ? 0 : (Y >= MatcapSize ? MatcapSize - 1 : Y);
+        const float* T = &A.Texels[((size_t(L) * MatcapSize + Y) * MatcapSize + X) * 3];
+        return float3(T[0], T[1], T[2]);
+    };
+    float3 Top = lerp(Texel(X0, Y0), Texel(X0 + 1, Y0), Tx), Bottom = lerp(Texel(X0, Y0 + 1), Texel(X0 + 1, Y0 + 1), Tx);
+    return lerp(Top, Bottom, Ty);
+}
+
 #pragma GCC diagnostic pop
 #undef xy
 #undef xyz
@@ -87,6 +130,7 @@ static SM::ViewRecord MirrorView(const ViewRecord& V) noexcept
     SM::ViewRecord R;
     std::memcpy(R.ViewClip.m, V.ViewClip, sizeof R.ViewClip.m);
     std::memcpy(R.ClipView.m, V.ClipView, sizeof R.ClipView.m);
+    std::memcpy(R.ViewWorld.m, V.ViewWorld, sizeof R.ViewWorld.m);
     R.EyePosition  = { V.EyePosition[0], V.EyePosition[1], V.EyePosition[2], V.EyePosition[3] };
     R.Viewport     = { V.Viewport[0], V.Viewport[1], V.Viewport[2], V.Viewport[3] };
     R.GridStyle    = { V.GridStyle[0], V.GridStyle[1], V.GridStyle[2], V.GridStyle[3] };
@@ -100,6 +144,7 @@ static SM::DrawRecord MirrorDraw(const DrawRecord& D) noexcept
     std::memcpy(R.ModelWorld.m, D.ModelWorld, sizeof R.ModelWorld.m);
     R.Tint      = { D.Tint[0], D.Tint[1], D.Tint[2], D.Tint[3] };
     R.Selection = { D.Highlight, 0.0f, D.LineWidth, D.PointSize };
+    R.Surface   = { float(D.Matcap), float(D.Shading), D.Emissive, 0.0f };
     return R;
 }
 
@@ -521,6 +566,13 @@ std::vector<uint8_t> DeflateFixed(const std::vector<uint8_t>& Raw) noexcept
 }
 
 } // namespace
+
+const char* MatcapName(uint8_t Layer) noexcept
+{
+    static const char* Names[] = { "steel", "chrome", "gold", "copper", "plastic-white", "plastic-red", "plastic-blue", "clay", "pearl", "carbon" };
+    return Layer < SlangMirror::MatcapLayers ? Names[Layer] : "?";
+}
+int MatcapCount() noexcept { return SlangMirror::MatcapLayers; }
 
 bool WritePng(const std::string& Path, const RasterImage& Image) noexcept
 {

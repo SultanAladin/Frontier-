@@ -63,6 +63,41 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
         }
         return Refuse("%s is not bound", DescribeKeyChord(E.KeyCode, E.Modifiers).c_str());
     }
+    const bool GizmoLive = GizmoShown && !Scene.Bounds(true).Empty();
+    if (E.Action == InputAction::PointerMove && GizmoLive)
+    {
+        if (GizmoState.Dragging())
+        {
+            GizmoState.UpdateDrag(E.PixelX, E.PixelY, E.Ctrl(), View, Surface->Width(), Surface->Height());
+            ApplyGizmoDelta(GizmoState.Drag().Delta);
+            Row("gizmo %s%s", GizmoState.Drag().Readout.c_str(), E.Ctrl() ? "  [snap]" : "");
+            return true;
+        }
+        RefreshGizmoFrame();
+        GizmoHandle H = GizmoState.Probe(E.PixelX, E.PixelY, View, Surface->Width(), Surface->Height());
+        if (H != GizmoState.Hovered()) { GizmoState.SetHovered(H); Row("gizmo hover %s", GizmoHandleName(H)); }
+        if (H != GizmoHandle::None) return true;
+    }
+    if (E.Action == InputAction::PointerPress && E.Button == PointerButton::Left && GizmoLive)
+    {
+        RefreshGizmoFrame();
+        if (GizmoState.BeginDrag(E.PixelX, E.PixelY, View, Surface->Width(), Surface->Height()))
+        {
+            GizmoOriginals.clear();
+            for (const SceneItem& I : Scene.Items()) if (I.Selected) GizmoOriginals.emplace_back(I.Identity, I);
+            Row("gizmo grab %s", GizmoHandleName(GizmoState.Drag().Handle));
+            return true;
+        }
+    }
+    if (E.Action == InputAction::PointerRelease && GizmoState.Dragging())
+    {
+        GizmoDrag D = GizmoState.EndDrag();
+        ApplyGizmoDelta(D.Delta);
+        GizmoOriginals.clear();
+        RefreshGizmoFrame();
+        Row("gizmo release %s", D.Readout.c_str());
+        return true;
+    }
     if (E.Action == InputAction::PointerPress && E.Button == PointerButton::Left)
     {
         // Click-select through the pick buffer of the last render.
@@ -181,6 +216,12 @@ void ConsoleHost::RegisterInteraction() noexcept
         ToolReportedRefusal = false;
         Dispatch(E);
         return !ToolReportedRefusal;
+    });
+    Add("release", "release [--ctrl] — release the pointer button (ends a gizmo drag)", [=, this](const CommandLine& C)
+    {
+        InputEvent E = Event(InputAction::PointerRelease); E.Button = PointerButton::Left; E.Modifiers = Modifiers(C);
+        if (!Dispatch(E)) Row("release: nothing held");
+        return true;
     });
     Add("key", "key <chord> — press a key: g, shift+x, ctrl+numpad1, enter, esc, tab, up, backspace", [=, this](const CommandLine& C)
     {

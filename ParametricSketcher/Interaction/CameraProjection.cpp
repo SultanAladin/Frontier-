@@ -111,7 +111,8 @@ ViewRecord CameraProjection::ToViewRecord(uint32_t Width, uint32_t Height, doubl
     double Aspect = static_cast<double>(Width) / Height;
     Mat4 ViewClip = ProjectionMatrix(Aspect) * ViewMatrix();
     Mat4 ClipView = ViewClip.Inverse();
-    for (int I = 0; I < 16; ++I) { R.ViewClip[I] = static_cast<float>(ViewClip.M[I]); R.ClipView[I] = static_cast<float>(ClipView.M[I]); }
+    Mat4 ViewWorld = ViewMatrix().Inverse();
+    for (int I = 0; I < 16; ++I) { R.ViewClip[I] = static_cast<float>(ViewClip.M[I]); R.ClipView[I] = static_cast<float>(ClipView.M[I]); R.ViewWorld[I] = static_cast<float>(ViewWorld.M[I]); }
     Vec3 E = Orthographic ? Forward() * -1.0 : Eye();
     R.EyePosition[0] = float(E.X); R.EyePosition[1] = float(E.Y); R.EyePosition[2] = float(E.Z); R.EyePosition[3] = Orthographic ? 0.0f : 1.0f;
     R.Viewport[0] = float(Width); R.Viewport[1] = float(Height); R.Viewport[2] = 1.0f / Width; R.Viewport[3] = 1.0f / Height;
@@ -124,3 +125,18 @@ ViewRecord CameraProjection::ToViewRecord(uint32_t Width, uint32_t Height, doubl
 }
 
 } // namespace Frontier
+
+namespace Frontier
+{
+bool CameraProjection::WorldToPixel(Vec3 P, double ViewportWidth, double ViewportHeight, double& PixelX, double& PixelY) const noexcept
+{
+    Mat4 ViewClip = ProjectionMatrix(ViewportWidth / ViewportHeight) * ViewMatrix();
+    double X = ViewClip.M[0] * P.X + ViewClip.M[4] * P.Y + ViewClip.M[8] * P.Z + ViewClip.M[12];
+    double Y = ViewClip.M[1] * P.X + ViewClip.M[5] * P.Y + ViewClip.M[9] * P.Z + ViewClip.M[13];
+    double W = ViewClip.M[3] * P.X + ViewClip.M[7] * P.Y + ViewClip.M[11] * P.Z + ViewClip.M[15];
+    if (W <= 1e-9) return false;
+    PixelX = (X / W * 0.5 + 0.5) * ViewportWidth;
+    PixelY = (Y / W * 0.5 + 0.5) * ViewportHeight;                                    // Vulkan: +Y down already in the projection
+    return true;
+}
+}

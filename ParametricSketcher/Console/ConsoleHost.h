@@ -9,6 +9,7 @@
 #include "Document/SceneDocument.h"
 #include "Interaction/CameraProjection.h"
 #include "Interaction/ToolSession.h"
+#include "Interaction/TransformGizmo.h"
 #include "Presentation/SoftwareRaster.h"
 #include <cstdio>
 #include <functional>
@@ -31,6 +32,7 @@ public:
     [[nodiscard]] SceneDocument&    Document() noexcept { return Scene; }
     [[nodiscard]] CameraProjection& Camera() noexcept { return View; }
     [[nodiscard]] int               RefusalCount() const noexcept { return Refusals; }
+    [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoState; }
 
     // Renders the current document into the raster (no file); public so verification can probe pixels.
     void Render() noexcept;
@@ -56,6 +58,11 @@ private:
 
     std::string                          Proofs;
     ToolSession                          Tool;
+    TransformGizmo                       GizmoState;
+    bool                                 GizmoShown = true;                             // [-] drawn whenever a selection exists
+    std::vector<std::pair<uint32_t, SceneItem>> GizmoOriginals;                         // [-] items as they were when the drag began
+    void RefreshGizmoFrame() noexcept;
+    void ApplyGizmoDelta(const Mat4& Delta) noexcept;
     SnapSettings                         Snap;
     HotkeyChart                          Hotkeys = HotkeyChart::Defaults();
     double                               PointerX = 0.0, PointerY = 0.0;                // [px] synthetic pointer
@@ -71,6 +78,7 @@ private:
     int                                  LineNumber = 0;
     bool                                 ShowControlCages = false;
     bool                                 ShowIsoCurves = true;
+    SurfaceShading                       Shading = SurfaceShading::Matcap;
 };
 
 } // namespace Frontier

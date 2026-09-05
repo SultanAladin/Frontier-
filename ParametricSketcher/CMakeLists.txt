@@ -35,6 +35,7 @@ add_library(SolidArcPresentation STATIC
     Interaction/InputEvent.cpp
     Interaction/HotkeyChart.cpp
     Interaction/ToolSession.cpp
+    Interaction/TransformGizmo.cpp
 )
 target_link_libraries(SolidArcPresentation PUBLIC SolidArcKernel)
 target_include_directories(SolidArcPresentation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Presentation)
@@ -69,3 +70,4 @@ add_executable(InteractionVerification Verification/InteractionVerification.cpp)
 target_link_libraries(InteractionVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME InteractionVerification COMMAND InteractionVerification)
 add_test(NAME Phase3_Sketching COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3_Sketching.arc)
+add_test(NAME Phase3b_GizmoShading COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3b_GizmoShading.arc)

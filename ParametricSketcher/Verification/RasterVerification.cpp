@@ -105,8 +105,8 @@ int main()
         Raster.DrawGrid();
 
         DrawRecord Steel = ScenePresentation::Tinted(0.62f, 0.66f, 0.72f); Steel.PickIdentity = 1;
-        DrawRecord Brass = ScenePresentation::Tinted(0.78f, 0.62f, 0.32f); Brass.PickIdentity = 2; Brass.Highlight = 2.0f;
-        DrawRecord Slate = ScenePresentation::Tinted(0.45f, 0.55f, 0.70f); Slate.PickIdentity = 3;
+        DrawRecord Brass = ScenePresentation::Tinted(0.78f, 0.62f, 0.32f); Brass.PickIdentity = 2; Brass.Highlight = 2.0f; Brass.Matcap = 2;   // gold studio
+        DrawRecord Slate = ScenePresentation::Tinted(0.45f, 0.55f, 0.70f); Slate.PickIdentity = 3; Slate.Matcap = 6;            // plastic-blue
         Raster.DrawSurface(ScenePresentation::SurfaceTriangles(Sphere, 2e-3), Steel);
         Raster.DrawSurface(ScenePresentation::SurfaceTriangles(Torus, 2e-3), Brass);
         Raster.DrawSurface(ScenePresentation::SurfaceTriangles(Cyl, 2e-3), Slate);
