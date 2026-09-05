@@ -22,6 +22,7 @@ ConsoleHost::ConsoleHost(std::string ProofDirectory, uint32_t Width, uint32_t He
     : Proofs(std::move(ProofDirectory)), Surface(std::make_unique<SoftwareRaster>(Width, Height))
 {
     Register();
+    RegisterInteraction();
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -155,6 +156,7 @@ void ConsoleHost::Render() noexcept
     }
 
     Surface->BeginOverlay();
+    DrawToolPreview();
     ScenePresentation::DrawTriad(*Surface, View.OrthographicHalfHeight() * 0.12);
     Surface->EndTarget();
 }
@@ -380,6 +382,7 @@ void ConsoleHost::Register() noexcept
     });
     Add("hide", "hide <item...> | selected  ·  unhide all", [=, this](const CommandLine& C)
     {
+        if (C.Count() == 1 && C.Arguments[0] == "unselected") { for (SceneItem& I : Scene.Items()) if (!I.Selected) I.Hidden = true; return true; }
         for (SceneItem* I : ResolveMany(C, 0)) I->Hidden = true;
         return true;
     });
@@ -431,6 +434,7 @@ void ConsoleHost::Register() noexcept
         else if (N == "bottom") View.Look(CanonicalView::Bottom);
         else if (N == "iso") View.Look(CanonicalView::Isometric);
         else if (N == "persp") View.Orthographic = false;
+        else if (N == "toggle") View.Orthographic = !View.Orthographic;
         else if (N == "ortho") View.Orthographic = true;
         else if (N == "orbit") { double Y = 0, P = 0; if (!NumberArg(C, 1, Y, "view") || !NumberArg(C, 2, P, "view")) return false; View.Orbit(ScalarCriteria::Radians(Y), ScalarCriteria::Radians(P)); }
         else if (N == "dolly") { double S = 0; if (!NumberArg(C, 1, S, "view")) return false; View.Dolly(S); }
@@ -507,6 +511,12 @@ bool ConsoleHost::Execute(std::string_view Line) noexcept
         for (const auto& F : C.Flags) std::printf(" --%s%s%s", F.first.c_str(), F.second.empty() ? "" : "=", F.second.c_str());
         std::printf("\n");
         if (!It->second(C)) Ok = false;
+        else if (C.Verb != "repeat" && C.Verb != "render" && C.Verb != "list" && C.Verb != "hud" && C.Verb != "help")
+        {
+            LastCommand = C.Verb;
+            for (const auto& A : C.Arguments) LastCommand += " " + A;
+            for (const auto& F : C.Flags) LastCommand += " --" + F.first + (F.second.empty() ? "" : "=" + F.second);
+        }
     }
     return Ok;
 }

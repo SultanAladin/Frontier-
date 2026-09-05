@@ -23,7 +23,7 @@ No external packages. `-Wall -Wextra -Wpedantic -Werror`.
 | Folder | Role | Status |
 |---|---|---|
 | `Kernel/` | Pure geometry, zero dependencies (port target for anything) | **Phase 1 ✓** |
-| `Interaction/` | `CameraProjection` (Z-up turntable, numpad views, frame, pixel rays) ✓ · workplane, snapping, modal input, gizmo | Phase 2 ✓ / 3–5 |
+| `Interaction/` | `CameraProjection` · `SnapResolution` (grid/endpoint/midpoint/centre/quadrant/on-curve/perpendicular/tangent/intersection/axis, pixel radius + priority) · `InputEvent` · `HotkeyChart` (Plasticity + Blender defaults, rebindable) · `ToolSession` (modal prompts, numeric entry, axis/plane locks, rubber-band preview, G/R/S) | **Phase 3 ✓** · gizmo Phase 5 |
 | `Presentation/` | `RasterExchange` seam · `SoftwareRaster` (CPU, pick + depth, PNG with own deflate) · Slang shaders compiled twice: by Slang for Vulkan later, by the C++ compiler through `SlangMirror.h` today · `ScenePresentation` (kernel → streams) | **Phase 2 ✓** |
 | `Console/` | `CommandCodec` (`.arc` grammar) · `ConsoleHost` (sketch, primitives, extrude/revolve/loft, scene, view, `render`, `pick`) · `SolidArc` executable (script / `-c` / REPL) | **Phase 2 ✓** |
 | `Document/` | `SceneDocument` — named items with stable identities (pick identities) | **Phase 2 ✓** |
@@ -67,3 +67,19 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 ```
 
 Points are `(x,y)` on the active workplane or `(x,y,z)` in world. Items are addressed by name or `#id`.
+
+## Modal input (Phase 3)
+
+The console is the input device — the same events a window will send later:
+
+| Command | Meaning |
+|---|---|
+| `tool line` / `rect` / `circle` / `arc` / `spline` / … / `move` / `rotate` / `scale` | start a modal tool (prompts print as you go) |
+| `pointer x y` · `click [--right] [--shift]` · `wheel n` | synthetic pointer; tools snap and preview |
+| `key g` · `key shift+x` · `key numpad7` · `key enter` · `key esc` | hotkeys (global chart) or modal keys (tool) |
+| `type 4` · `type 2,5` · `type @1,1` · `type r2` · `type a45` · `type a30,2` · `type n6` · `type d2` · `type 3*2` | numeric entry: distance · absolute · relative · radius · angle · polar · sides · degree · arithmetic |
+| `probe x y` · `snap …` · `hud` · `bind`/`unbind`/`bindings` | inspect snapping, toggle it, dump modal state, edit the hotkey chart |
+
+Inside a tool: `X`/`Y`/`Z` lock an axis (again to clear), `Shift+X/Y/Z` lock a plane, `Backspace` removes the last point,
+`Enter`/right-click confirm, `Esc` cancels, `↑`/`↓` change polygon sides or spline degree, `Ctrl` while moving suppresses snapping.
+

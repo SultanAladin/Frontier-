@@ -8,6 +8,7 @@
 #include "CommandCodec.h"
 #include "Document/SceneDocument.h"
 #include "Interaction/CameraProjection.h"
+#include "Interaction/ToolSession.h"
 #include "Presentation/SoftwareRaster.h"
 #include <cstdio>
 #include <functional>
@@ -47,7 +48,19 @@ private:
     [[nodiscard]] std::vector<SceneItem*> ResolveMany(const CommandLine& C, size_t FirstIndex) noexcept;
     [[nodiscard]] Workplane ActivePlane() const noexcept { return Plane; }
 
+    void RegisterInteraction() noexcept;                                                // Phase 3 commands
+    void DrawToolPreview() noexcept;
+    bool Dispatch(const InputEvent& Event) noexcept;                                    // tool first, then hotkey chart
+    void OnToolOutcome(const ToolOutcome& Outcome) noexcept;
+    [[nodiscard]] ToolSession::Context ToolContext() const noexcept;
+
     std::string                          Proofs;
+    ToolSession                          Tool;
+    SnapSettings                         Snap;
+    HotkeyChart                          Hotkeys = HotkeyChart::Defaults();
+    double                               PointerX = 0.0, PointerY = 0.0;                // [px] synthetic pointer
+    std::string                          LastCommand;                                   // [-] for Shift+R
+    bool                                 ToolReportedRefusal = false;
     SceneDocument                        Scene;
     CameraProjection                     View;
     Workplane                            Plane = Workplane::XY();

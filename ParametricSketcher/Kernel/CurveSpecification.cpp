@@ -550,7 +550,6 @@ void NurbsCurve::Derivatives(double T, int Count, Vec3* Out) const noexcept
         for (int I = 1; I <= K; ++I) V -= Out[K - I] * (Binomial(K, I) * Homogeneous[I].W);
         Out[K] = V / Homogeneous[0].W;
     }
-    for (int K = Count + 1; K < 4; ++K) Out[K] = Vec3{};
 }
 
 Vec3 NurbsCurve::Tangent(double T) const noexcept

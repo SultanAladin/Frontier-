@@ -31,6 +31,10 @@ add_library(SolidArcPresentation STATIC
     Presentation/SoftwareRaster.cpp
     Presentation/ScenePresentation.cpp
     Interaction/CameraProjection.cpp
+    Interaction/SnapResolution.cpp
+    Interaction/InputEvent.cpp
+    Interaction/HotkeyChart.cpp
+    Interaction/ToolSession.cpp
 )
 target_link_libraries(SolidArcPresentation PUBLIC SolidArcKernel)
 target_include_directories(SolidArcPresentation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Presentation)
@@ -41,6 +45,7 @@ add_library(SolidArcConsoleKit STATIC
     Document/SceneDocument.cpp
     Console/CommandCodec.cpp
     Console/ConsoleHost.cpp
+    Console/ConsoleInteraction.cpp
 )
 target_link_libraries(SolidArcConsoleKit PUBLIC SolidArcPresentation)
 
@@ -59,3 +64,8 @@ target_link_libraries(RasterVerification PRIVATE SolidArcPresentation)
 add_test(NAME RasterVerification COMMAND RasterVerification)
 
 add_test(NAME Phase2_Primitives COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase2_Primitives.arc)
+
+add_executable(InteractionVerification Verification/InteractionVerification.cpp)
+target_link_libraries(InteractionVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME InteractionVerification COMMAND InteractionVerification)
+add_test(NAME Phase3_Sketching COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3_Sketching.arc)
