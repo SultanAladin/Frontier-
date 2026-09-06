@@ -777,20 +777,54 @@ void ConsoleHost::Register() noexcept
         }
         return Done > 0;
     });
-    Add("chamfer", "chamfer <curve...> setback [--corners=i,j,…] — bevel the corners", [=, this](const CommandLine& C)
+    Add("chamfer", "chamfer <figure...> setback [--corners=i,j,…]  or  --edges=i --name=…  — bevel the corners of a polyline / polygon / rectangle, or planar-setback chamfer a body edge (rolling-ball fillet is Phase 11b). The two switches are mutually exclusive: --corners is the curve mode, --edges is the body mode.", [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "chamfer")) return false;
         double D = 0; if (!NumberArg(C, C.Count() - 1, D, "chamfer")) return false;
         CommandLine Sub = C; Sub.Arguments.pop_back();
-        std::vector<int> Corners; bool Some = false;
-        if (auto T = C.SwitchText("corners")) { Some = true; size_t P = 0; while (P < T->size()) { size_t Q = T->find(',', P); Corners.push_back(std::atoi(T->substr(P, Q == std::string::npos ? std::string::npos : Q - P).c_str())); if (Q == std::string::npos) break; P = Q + 1; } }
+        if (D <= 0) return Refuse("chamfer: setback must be positive");
+        bool BodyMode = C.Switch("edges") || C.Switch("name");                          // --edges or --name imply body chamfer
         int Done = 0;
-        for (SceneFigure* F : ResolveMany(Sub, 0))
+        if (BodyMode)
         {
-            if (F->Classification != FigureClassification::Curve) continue;
-            Deliver<NurbsCurve> N = ProfileSolver::Chamfered(F->Curve, D, Some ? &Corners : nullptr);
-            if (!N) { Refuse("chamfer %s: %s", F->Name.c_str(), N.Denial.Detail); continue; }
-            F->Curve = std::move(N.Payload); DescribeFigure(*F); ++Done;
+            // Parse --edges=i (single edge for the body verb).
+            std::vector<int> EdgeList; bool Some = false;
+            if (auto T = C.SwitchText("edges")) { Some = true; size_t P = 0; while (P < T->size()) { size_t Q = T->find(',', P); EdgeList.push_back(std::atoi(T->substr(P, Q == std::string::npos ? std::string::npos : Q - P).c_str())); if (Q == std::string::npos) break; P = Q + 1; } }
+            for (SceneFigure* I : ResolveMany(Sub, 0))
+            {
+                if (I->Classification != FigureClassification::Body) { Refuse("chamfer: '%s' is not a body", I->Name.c_str()); continue; }
+                BrepBody Working = I->Body;
+                std::vector<int> Targets;
+                if (Some) { if (EdgeList.empty()) { Refuse("chamfer: --edges= is empty"); continue; } Targets = { EdgeList.front() }; }
+                else { for (size_t E = 0; E < Working.Edges.size(); ++E) if (Working.Edges[E].Coedges.size() == 2) Targets.push_back(int(E)); }
+                int EdgesChamfered = 0;
+                std::string FailureDetail;
+                for (int E : Targets)
+                {
+                    Deliver<BrepBody> R = Working.ChamferEdge(E, D);
+                    if (!R) { FailureDetail = R.Denial.Detail; break; }
+                    Working = std::move(R.Payload);
+                    ++EdgesChamfered;
+                }
+                if (EdgesChamfered == 0) { Refuse("chamfer %s: %s", I->Name.c_str(), FailureDetail.c_str()); continue; }
+                std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
+                Scene.Remove(Id);
+                SceneFigure& F = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Chamfered"), std::move(Working));
+                F.Selected = Sel; ++Done;
+                Row("chamfer %s → %s  setback %.4f  edges %d/%d", Name.c_str(), F.Name.c_str(), D, EdgesChamfered, int(Targets.size()));
+            }
+        }
+        else
+        {
+            std::vector<int> Corners; bool Some = false;
+            if (auto T = C.SwitchText("corners")) { Some = true; size_t P = 0; while (P < T->size()) { size_t Q = T->find(',', P); Corners.push_back(std::atoi(T->substr(P, Q == std::string::npos ? std::string::npos : Q - P).c_str())); if (Q == std::string::npos) break; P = Q + 1; } }
+            for (SceneFigure* F : ResolveMany(Sub, 0))
+            {
+                if (F->Classification != FigureClassification::Curve) { Refuse("chamfer: '%s' is not a curve (use --edges= to chamfer a body)", F->Name.c_str()); continue; }
+                Deliver<NurbsCurve> N = ProfileSolver::Chamfered(F->Curve, D, Some ? &Corners : nullptr);
+                if (!N) { Refuse("chamfer %s: %s", F->Name.c_str(), N.Denial.Detail); continue; }
+                F->Curve = std::move(N.Payload); DescribeFigure(*F); ++Done;
+            }
         }
         return Done > 0;
     });

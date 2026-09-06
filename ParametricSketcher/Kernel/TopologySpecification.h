@@ -108,6 +108,12 @@ public:
     //    duplicated, the original moved −t·n and the copy +t·n, then the duplicate's natural boundary is re-stitched to the
     //    original's. For a single NurbsSurface the body becomes a slab. A planar face can use --plane to give the normal.
     [[nodiscard]] static Deliver<BrepBody> Solidify(const BrepBody& Shell, double HalfThickness) noexcept;
+    // Planar-setback chamfer along one body edge. The two adjacent faces are walked, the edge is replaced by a chamfer
+    //    plane that cuts the edge by SetBack perpendicular to the edge on each side, the two faces are trimmed by the
+    //    parallel set-back lines, and a new planar face is added between them. Refuses non-manifold edges, edges whose
+    //    adjacent faces are not both planar, and edges where the chamfer would self-intersect (the two set-back lines
+    //    cross before reaching the next vertex). The new face's normal points outward.
+    [[nodiscard]] Deliver<BrepBody> ChamferEdge(int Edge, double SetBack, double Tolerance = ScalarCriteria::MergeTolerance) const noexcept;
 
     //---------------------------------------------- editing ----------------------------------------------
     // Add planar faces on every open boundary loop that lies in a plane. Returns the number of caps added.

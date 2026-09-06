@@ -19,3 +19,5 @@ Scratchpad/VectorGlyphTest
 
 # SolidArc (ParametricSketcher) build output
 ParametricSketcher/build/
+# Sandbox-only g++ build script (kept for re-builds when cmake is unavailable, but not part of the project)
+ParametricSketcher/build_gpp.sh

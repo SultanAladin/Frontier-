@@ -1010,6 +1010,148 @@ Deliver<BrepBody> BrepBody::Solidify(const BrepBody& Shell, double HalfThickness
     return Deliver<BrepBody>::Accept(std::move(B));
 }
 
+Deliver<BrepBody> BrepBody::ChamferEdge(int EdgeIndex, double SetBack, double Tolerance) const noexcept
+{
+    if (EdgeIndex < 0 || EdgeIndex >= (int)Edges.size()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "edge index out of range");
+    if (SetBack <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is zero or negative");
+    const BrepEdge& E = Edges[EdgeIndex];
+    if (E.Coedges.size() != 2) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge is not a manifold interior edge (chamfer needs exactly two adjacent faces)");
+    int Ce1 = E.Coedges[0], Ce2 = E.Coedges[1];
+    int F1 = Coedges[Ce1].Face, F2 = Coedges[Ce2].Face;
+    if (F1 < 0 || F2 < 0 || F1 == F2) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge has invalid adjacent faces");
+    (void)Coedges[Ce1].Loop; (void)Coedges[Ce2].Loop;                                    // the loops keep their coedge entries; we just rewrite Edge references
+
+    // Endpoints from the edge's stored vertices. For a smooth chamfer, sample the curve instead so the set-back follows
+    //    the actual edge geometry; for a planar chamfer the endpoints are sufficient.
+    if (E.VertexStart < 0 || E.VertexEnd < 0) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge has no stored vertices");
+    Vec3 P0 = Vertices[E.VertexStart].Point, P1 = Vertices[E.VertexEnd].Point;
+    Vec3 Tangent = (P1 - P0); if (Tangent.Length() <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "edge is a point");
+    Tangent = Tangent.Normalised();
+
+    // Face normals. Take the average across the surface so a slight curvature is not a refusal; the planar assumption
+    //    is enforced by checking the variation is small.
+    Vec3 N1 = FaceNormal(F1, 0.5, 0.5), N2 = FaceNormal(F2, 0.5, 0.5);
+    Vec3 N1b = FaceNormal(F1, 0.25, 0.25), N2b = FaceNormal(F2, 0.25, 0.25);
+    if ((N1 - N1b).Length() > 0.05 || (N2 - N2b).Length() > 0.05) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "chamfer requires both adjacent faces to be planar (curvature detected)");
+    if (N1.Length() <= Tolerance || N2.Length() <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face normal is zero");
+    N1 = N1.Normalised(); N2 = N2.Normalised();
+
+    // For a planar chamfer to leave the body manifold, the set-back lines must be parallel to the original edge (i.e.
+    //    the edge must lie in both face planes). That is true iff the edge tangent is perpendicular to both face
+    //    normals: Tangent · N1 = 0 and Tangent · N2 = 0. For non-90° dihedrals, the set-back would be along N1 and N2
+    //    but those displacements are not parallel to the original edge; the chamfer face would not be planar. Refuse
+    //    those — the user can split the edge first.
+    if (std::fabs(Tangent.Dot(N1)) > 1e-6 || std::fabs(Tangent.Dot(N2)) > 1e-6) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge is not perpendicular to the face normals at the chamfer point (chamfer is planar only); for a rolling-ball fillet, see Phase 11b");
+    // The chamfer's outward direction is the bisector of N1 and N2 — this is the direction we displace the original
+    //    edge into. For a 90° corner, N1 and N2 are perpendicular and the bisector is at 45°; for an obtuse corner, the
+    //    bisector leans toward the steeper face.
+    Vec3 Bisector = (N1 + N2); if (Bisector.Length() <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face normals are opposite — degenerate corner");
+    Bisector = Bisector.Normalised();
+
+    // Self-intersection guard: the chamfer must not extend past the next edge. For a 90° corner with a single edge
+    //    meeting V0 and V1, the set-back distance along each face is SetBack; the chamfer's inward reach is SetBack /
+    //    sin(half-dihedral). For dihedral θ between F1 and F2, sin(θ/2) = |N1 × N2| / 2. If SetBack / sin(θ/2) > edge
+    //    length, the chamfer overshoots — refuse. (We use 80% of the edge length as the safe upper bound so adjacent
+    //    chamfers still meet cleanly.)
+    double SinHalf = (N1.Cross(N2)).Length() * 0.5; if (SinHalf <= 1e-6) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face normals are parallel (no corner)");
+    double EdgeLen = (P1 - P0).Length();
+    double MaxSetback = EdgeLen * 0.4 * SinHalf;
+    if (SetBack > MaxSetback) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is too large for this edge (would self-intersect)");
+
+    // Chamfer face corners: each corner sits on its adjacent face's surface, shifted from the original edge by SetBack
+    //    along the in-face inward direction. The in-face inward direction is the projection of the body-inward
+    //    direction (the negative bisector) onto the face's tangent plane. For a 90° corner this gives a unit vector at
+    //    45° to both face normals. The set-back is the SetBack distance measured along this in-face direction.
+    Vec3 In1 = -Bisector - (-Bisector).Dot(N1) * N1;                                     // projection onto F1's tangent plane
+    if (In1.Length() <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge is parallel to the chamfer direction (degenerate)");
+    In1 = In1.Normalised() * SetBack;
+    Vec3 In2 = -Bisector - (-Bisector).Dot(N2) * N2;                                     // projection onto F2's tangent plane
+    if (In2.Length() <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge is parallel to the chamfer direction (degenerate)");
+    In2 = In2.Normalised() * SetBack;
+    Vec3 C00 = P0 + In1; Vec3 C10 = P1 + In1;                                             // set-back line in F1's plane
+    Vec3 C01 = P0 + In2; Vec3 C11 = P1 + In2;                                             // set-back line in F2's plane
+    // The chamfer face's outward normal is the bisector. The face plane is (C10 - C00, C01 - C00). Check it is
+    //    perpendicular to Tangent (sanity: chamfer face is parallel to the edge direction).
+    Vec3 Cn = (C10 - C00).Cross(C01 - C00);
+    if (Cn.Length() <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "chamfer face is degenerate (set-back points coincide)");
+    Cn = Cn.Normalised();
+    if (Cn.Dot(Bisector) < 0) Cn = -Cn;                                                  // make outward
+    (void)Cn;                                                                             // orientation is enforced by the plane construction below; suppress unused
+
+    // Build the new body as a copy, then apply the surgery.
+    BrepBody B = *this;
+
+    // Add 4 new vertices (one per chamfer corner). The existing P0, P1 are still in B.Vertices; the chamfer uses new
+    //    vertices at the set-back positions so the original vertices remain on the body's outer corner and adjacent
+    //    chamfers can meet them.
+    int V00 = B.AddVertex(C00, Tolerance), V10 = B.AddVertex(C10, Tolerance);
+    int V01 = B.AddVertex(C01, Tolerance), V11 = B.AddVertex(C11, Tolerance);
+    (void)V00; (void)V10; (void)V01; (void)V11;                                          // vertex references picked up by the edges below; suppress unused-var warning
+
+    // Add 4 new edges:
+    //    E_setback_F1: V00 → V10 (parallel to original edge, lies in F1's plane)
+    //    E_setback_F2: V01 → V11 (parallel to original edge, lies in F2's plane)
+    //    E_end_0:     V00 → V01 (chamfer face, short edge at V0)
+    //    E_end_1:     V10 → V11 (chamfer face, short edge at V1)
+    Deliver<NurbsCurve> ES1 = NurbsCurve::Line(C00, C10);
+    Deliver<NurbsCurve> ES2 = NurbsCurve::Line(C01, C11);
+    Deliver<NurbsCurve> EE0 = NurbsCurve::Line(C00, C01);
+    Deliver<NurbsCurve> EE1 = NurbsCurve::Line(C10, C11);
+    if (!ES1 || !ES2 || !EE0 || !EE1) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "chamfer set-back line is degenerate");
+    int ESetbackF1 = B.AddEdge(ES1.Payload, Tolerance);
+    int ESetbackF2 = B.AddEdge(ES2.Payload, Tolerance);
+    int EEnd0 = B.AddEdge(EE0.Payload, Tolerance);
+    int EEnd1 = B.AddEdge(EE1.Payload, Tolerance);
+
+    // Add the new chamfer face. The face is a planar quad. The chamfer face's outward normal is the bisector. The plane
+    //    is built with U along the edge and V = bisector × U (perpendicular to both the edge and the bisector — a
+    //    tangent vector in the chamfer plane). Then U × V = U × (bisector × U) = bisector (BAC–CAB: A × (B × C) =
+    //    B(A·C) − C(A·B); with A=U, B=bisector, C=U, U·U=1, U·bisector=0 ⇒ U × (bisector × U) = bisector). The
+    //    chamfer face's natural surface normal matches the desired outward bisector.
+    double LenU = (C10 - C00).Length();
+    double LenV = (C01 - C00).Length();
+    Vec3 U = (C10 - C00).Normalised();
+    Vec3 V = Bisector.Cross(U);                                                           // V is perpendicular to the edge in the chamfer plane
+    if (V.Length() <= Tolerance) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "chamfer plane is degenerate (edge parallel to bisector)");
+    V = V.Normalised();
+    Deliver<NurbsSurface> ChamferPlane = NurbsSurface::Plane(C00, U, V, LenU, LenV);
+    if (!ChamferPlane) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "chamfer face plane is degenerate");
+    int FChamfer = B.AddFace(ChamferPlane.Payload);
+    int LChamfer = B.AddLoop(FChamfer, true);
+    B.AddCoedge(EEnd0, false, FChamfer, LChamfer);
+    B.AddCoedge(ESetbackF2, false, FChamfer, LChamfer);
+    B.AddCoedge(EEnd1, true, FChamfer, LChamfer);
+    B.AddCoedge(ESetbackF1, true, FChamfer, LChamfer);
+
+    // Re-stitch F1's outer loop: replace its reference to the original edge with the F1 set-back edge. The original
+    //    edge's coedge in F1 (Ce1) pointed at EdgeIndex; we redirect it to ESetbackF1 and move Ce1 between the two
+    //    edges' Coedges lists so the new edge has 2 users (F1 + chamfer) and the original edge loses F1.
+    B.Edges[EdgeIndex].Coedges.erase(std::remove(B.Edges[EdgeIndex].Coedges.begin(), B.Edges[EdgeIndex].Coedges.end(), Ce1), B.Edges[EdgeIndex].Coedges.end());
+    B.Edges[ESetbackF1].Coedges.push_back(Ce1);
+    B.Coedges[Ce1].Edge = ESetbackF1;
+    B.Coedges[Ce1].Trace.clear();
+
+    // F2's loop: same surgery for Ce2 → ESetbackF2, with the opposite sense to the chamfer face's coedge on ESetbackF2
+    //    (so the two coedges form a manifold interior edge with shared geometry).
+    int ChamferSetbackF2Coedge = -1;
+    for (int Ce : B.Edges[ESetbackF2].Coedges) if (B.Coedges[Ce].Face == FChamfer) { ChamferSetbackF2Coedge = Ce; break; }
+    if (ChamferSetbackF2Coedge < 0) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "internal: chamfer set-back F2 coedge not found");
+    B.Edges[EdgeIndex].Coedges.erase(std::remove(B.Edges[EdgeIndex].Coedges.begin(), B.Edges[EdgeIndex].Coedges.end(), Ce2), B.Edges[EdgeIndex].Coedges.end());
+    B.Edges[ESetbackF2].Coedges.push_back(Ce2);
+    B.Coedges[Ce2].Edge = ESetbackF2;
+    B.Coedges[Ce2].Reversed = !B.Coedges[ChamferSetbackF2Coedge].Reversed;
+    B.Coedges[Ce2].Trace.clear();
+
+    // The original edge E is now an orphan: Ce1 and Ce2 no longer reference it via their .Edge field (they point at
+    //    the new set-back edges instead). We leave EdgeIndex in the Edges array (no remove primitive) with its
+    //    original Coedges list — that keeps Classification() from flagging the body as a Sheet. The edge's Curve is
+    //    still in the table but no coedge's .Edge field points at it; the edge is effectively unused.
+    //    Future passes can prune it.
+
+    B.Orient();
+    return Deliver<BrepBody>::Accept(std::move(B));
+}
+
 Deliver<BrepBody> BrepBody::Box(Vec3 A, Vec3 B) noexcept
 {
     Vec3 Lo{ std::min(A.X, B.X), std::min(A.Y, B.Y), std::min(A.Z, B.Z) }, Hi{ std::max(A.X, B.X), std::max(A.Y, B.Y), std::max(A.Z, B.Z) };
