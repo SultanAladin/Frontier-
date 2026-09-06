@@ -57,10 +57,10 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 8 | Extrude / Revolve / Loft / Sweep → solids | extruded profile with hole, revolved vase |
 | 9 | Surface–surface intersection + 3D NURBS booleans | `IntersectionVerification` — 47 checks; `Proofs/Phase9_Booleans_{Iso,Top}.png` |
 | 9b | FairPatch — energy-fair fills with G0 / G1 / G2 rims from the adjacent faces, tension, guides, N-sided | `FairPatchVerification` — 47 checks; `Proofs/Phase9b_FairPatch_{Iso,Window,Pillow}.png` |
-| 10 | Script suite, contact sheet, Vulkan hand-off notes | `SuiteVerification` — 39 checks; `docs/HANDOFF_VULKAN.md`; `docs/CONTACT_SHEET.md`; `Proofs/Phase10_ContactSheet.png` (2×2 of 1280×800 tiles); `Proofs/Phase10_Suite.png` (one iso render of every phase) |
+| 10 | Script suite, contact sheet, Vulkan hand-off notes | `SuiteVerification` — 51 checks; `docs/HANDOFF_VULKAN.md`; `docs/CONTACT_SHEET.md`; `Proofs/Phase10_ContactSheet.png` (2×2 of 1280×800 tiles); `Proofs/Phase10_Suite.png` (one iso render of every phase) |
 | 11a | `solidify` (single-surface shell, refuses closed / closed-in-U or V / flat-sheet), `loft --guides=a,b` (plasticity-style, sheets bend through named curves via iterative projection with boundary clamping), `chamfer <body> --edges=i` (planar setback along the named body edge, with the two adjacent faces trimmed to the set-back lines and a new planar face added) | `BodyOpsVerification` — 25 checks (refusal cases for body / sphere, success on a saddle shell, bent-loft Z rises above the plain range, boundary rows preserved, single + triple sequential body chamfers reduce the volume) |
 | 12 | `bridge <curve1> <curve2> [--degree] [--no-align]` (Plasticity-style 2-section loft: connects two open curves in any orientation as a ruled/skin surface), `array <figure>... --count=N --step=(dx,dy,dz)` (linear array, N total including seed, each copy translated by `Step·T` for `T = K/(N-1)`), `array <figure>... --count=N --axis=(ox,oy,oz),(dx,dy,dz) [--angle=deg] [--scale=s]` (radial array around an arbitrary axis with optional taper), `plane --name=N` + `workplane <name>` (named construction planes, also recoverable from a face normal with `plane --from=<figure> --name=N`) | `ArrayAndBridgeVerification` — 67 checks (bridge bounds match curve extents, linear-array X-step, radial-array Z-preservation + unit volume under rotation, taper shrinks volume, named-plane round-trip, all refusal cases); `Proofs/Phase12_{Bridge,ArrayLinear,ArrayRadial,NamedPlanes,ContactSheet}.png` |
-| 13 | `dim list` / `dim <figure> --along=X\|Y\|Z` / `dim <figure> <p1> <p2>` / `dim edit <id> <value>` / `dim hide\|show\|delete <id\|all>` / `angle <polyline> [--at=K]` — dimensions are auto-emitted on every primitive (3 bbox dims on a body, arc-length on a curve, radius + circumference on a circle, Rmajor + Rminor on an ellipse); user-added dims are preserved across re-emit, the label re-formats on every render so an edit shows up immediately; dims are drawn as world-space billboard overlays with extension lines, ticks, and a tiny 5×7 bitmap-font label. A `--no-dim` switch on any primitive suppresses auto-emit. | `DimensionVerification` — 54 checks (3 bbox dims on a box, arc-length 5 on a 3-4-5 line, radius 2 + circumference 4π on a circle, user linear/bbox/free dims, angle 90° on a right triangle, dim edit/hide/show/delete mutates the tree, refusal cases, `--no-dim` suppresses auto-emit); `Proofs/Phase13_{BoxDims,CurveDims,DimEdit,Angle,ContactSheet}.png` |
+| 13 | `dim list` / `dim <figure> --along=X\|Y\|Z` / `dim <figure> <p1> <p2>` / `dim edit <id> <value>` / `dim hide\|show\|delete <id\|all>` / `angle <polyline> [--at=K]` — Plasticity-style dimensions: **white** lines (was yellow), **world-space offset of 4 cm** (was 22 px screen-space), live editing that **rebuilds the figure from its parametric source** (Box / Sphere / Cylinder / Cone / Torus / Line / Circle / Arc / Ellipse / Polyline / Spline / Rect + Extrude / ChamferEdge). Each primitive records a `Blueprint` (input parameters) and each auto-emitted dim carries a slot index pointing into that Blueprint; `dim edit <id> <v>` mutates the slot and rebuilds the body / curve in place. Dims are drawn as a world-space overlay with extension lines, ticks, and a tiny 5×7 bitmap-font label. A `--no-dim` switch on any primitive suppresses auto-emit. | `DimensionVerification` — 78 checks (3 bbox dims on a box, arc-length 5 on a 3-4-5 line, radius 2 + circumference 4π on a circle, user linear/bbox/free dims, angle 90° on a right triangle, dim edit/hide/show/delete mutates the tree, refusal cases, `--no-dim` suppresses auto-emit, **Phase 13 redo**: live-edit rebuilds the body for box / cylinder / cone / chamfer with the new value, every primitive records a `ParametricBlueprint`, dim renderer uses white + world-space offset, not yellow + 22 px); `Proofs/Phase13b_{BoxBefore,BoxAfter,ConeBefore,ConeAfter,ChamferBefore,ChamferAfter,Round,ContactSheet}.png` |
 
 ## Console quick start
 
@@ -203,13 +203,13 @@ staging buffer per `Begin/End`, an instance-rate draw record (push constant) and
 existing `.slang` sources. The acceptance criterion is a `RendersEqual` check: same scene, same view, SoftwareRaster
 vs VulkanRaster, PNG hashes within 1 LSB / channel.
 
-**Regression net.** `SuiteVerification` (39 checks) re-runs every per-phase `.arc` script, asserts each terminates
+**Regression net.** `SuiteVerification` (51 checks) re-runs every per-phase `.arc` script, asserts each terminates
 without refusal, decodes the resulting PNG to confirm the `IHDR` is `1280 × 800` `RGBA8` and the file is non-empty,
 runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` directly to confirm the new `render
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **22 suites** — 10 per-phase or per-feature verification binaries (552 checks total) and 12
+ctest now registers **22 suites** — 13 per-phase or per-feature verification binaries (734 checks total) and 12
 script smoke tests — and all 22 run green on every commit. The per-suite check counts:
 
 | Suite | Checks |
@@ -223,8 +223,11 @@ script smoke tests — and all 22 run green on every commit. The per-suite check
 | `SkinVerification`           | 48  |
 | `IntersectionVerification`   | 47  |
 | `FairPatchVerification`      | 47  |
-| `SuiteVerification`          | 39  |
-| **Total** | **552** |
+| `BodyOpsVerification`        | 25  |
+| `ArrayAndBridgeVerification` | 67  |
+| `DimensionVerification`      | 78  |
+| `SuiteVerification`          | 51  |
+| **Total** | **734** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

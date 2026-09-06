@@ -50,6 +50,34 @@ struct SceneFigure
     std::vector<int> SelectedFaces;                                                     // [-] face selection (mode 3), body face indices
     std::vector<int> SelectedEdges;                                                     // [-] edge selection (mode 2), body edge indices
     FigureRecipe     Recipe;                                                            // [-] how this figure is derived (None = authored)
+    // ---- Parametric source (Phase 13+) ----------------------------------------------------
+    // The original creation parameters for this figure, kept alongside the rebuilt geometry so a
+    //    `dim edit` on a live dim can re-derive the figure from scratch. Plasticity-style: dims on a
+    //    figure represent the *input* values, not just measurements, so editing them rebuilds the
+    //    model. Set to Form::None for figures that don't support parametric editing (e.g. booleans
+    //    derived from a sketch with no recorded source — those are read-only).
+    enum class ParametricForm : uint8_t
+    {
+        None = 0,
+        Box, Sphere, Cylinder, Cone, Torus,                       // bodies
+        Line, Circle, Arc, Ellipse, Polyline, Spline, Rectangle,  // curves
+        Extrude, Revolve, ChamferEdge,                             // derived
+    };
+    struct ParametricBlueprint
+    {
+        ParametricForm Form = ParametricForm::None;
+        // Generic positional / size params. Each primitive uses only the subset it needs.
+        Vec3   A, B, C, Axis, Normal, MajorDirection;              // [m] corners, points, axis/normal of rotation
+        double R0 = 0, R1 = 0, R2 = 0, R3 = 0;                     // [m] generic radii / lengths / angles
+        int    I0 = 0, I1 = 0;                                      // [-] generic integer slots (e.g. edge index for chamfer, degree for spline)
+        std::vector<Vec3> PolylinePoints;                           // [-] points for polyline / spline
+        bool   Closed = false;                                     // [-] closed flag
+        // For modifiers (chamfer, future fillet, boolean), record the *input* body so a live edit
+        //    re-applies the operation to a clean copy. Without this, re-chamfering a chamfered edge
+        //    would fail or be a no-op.
+        BrepBody PreOpBody;                                         // [-] for chamfer/fillet: the body the operation was applied to
+    };
+    ParametricBlueprint Blueprint;                                       // [-] the parametric blueprint for live dim editing (formerly ParametricSource.Source)
     [[nodiscard]] bool FaceSelected(int I) const noexcept { for (int F : SelectedFaces) if (F == I) return true; return false; }
     [[nodiscard]] bool EdgeSelected(int I) const noexcept { for (int E : SelectedEdges) if (E == I) return true; return false; }
 

@@ -104,6 +104,8 @@ int main()
         { "Phase12_ContactSheet.arc",  1,  "Phase 12 contact sheet"          },
         { "Phase13_Dimensions.scr",    1,  "auto-emit + explicit + edit dims" },
         { "Phase13_ContactSheet.arc",  1,  "Phase 13 contact sheet"          },
+        { "Phase13b_DimensionsRedo.scr", 1, "Phase 13 redo: live-edit rebuilds (box/cone/chamfer)"},
+        { "Phase13b_ContactSheet.arc", 1,  "Phase 13 redo contact sheet"     },
     };
     auto Snapshot = [&](std::set<std::string>& Names) -> size_t
     {

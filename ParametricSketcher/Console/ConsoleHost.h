@@ -52,8 +52,15 @@ public:
         std::string     Label;                                                         // [-] formatted text (e.g. "3.50" or "90.0°")
         bool            Auto      = true;                                              // [-] true = auto-emitted (may be re-emitted), false = user-added (preserved across re-emit)
         bool            Hidden    = false;                                             // [-] draw flag
+        // ---- Phase 13 redo: live dim editing (Plasticity-style) ----------------------------
+        // Live dims are tied to a slot on the figure's ParametricBlueprint. The slot names a specific
+        //    input (R0..R3 or A.X..A.Z or B.X..B.Z). Editing a live dim modifies that slot and
+        //    rebuilds the figure. Slot = -1 means a free-form measurement (read-only).
+        int             Slot      = -1;                                                // [-] -1 = not live, 0..N = slot index
+        SceneFigure::ParametricForm BlueprintForm = SceneFigure::ParametricForm::None;     // [-] which builder this dim is tied to
     };
     [[nodiscard]] const std::vector<DimensionEntry>& AllDimensions() const noexcept { return Dimensions; }
+    [[nodiscard]] const std::vector<SceneFigure>& AllFigures() const noexcept { return Scene.Figures(); }
 
     // Renders the current document into the raster (no file); public so verification can inspect pixels.
     void Render() noexcept;
@@ -68,6 +75,9 @@ private:
     void DescribeFigure(const SceneFigure& Figure) noexcept;
     bool AddCurve(const CommandLine& C, const char* Stem, Deliver<NurbsCurve> Result) noexcept;
     bool AddSurface(const CommandLine& C, const char* Stem, Deliver<NurbsSurface> Result) noexcept;
+    // Overloads that record a ParametricBlueprint on the figure (Phase 13 redo: live dim editing).
+    bool AddCurve(const CommandLine& C, const char* Stem, Deliver<NurbsCurve> Result, SceneFigure::ParametricBlueprint Source) noexcept;
+    bool AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result, SceneFigure::ParametricBlueprint Source) noexcept;
     [[nodiscard]] SceneFigure* Resolve(const std::string& Token) noexcept;
     [[nodiscard]] std::vector<SceneFigure*> ResolveMany(const CommandLine& C, size_t FirstIndex) noexcept;
     [[nodiscard]] Workplane ActivePlane() const noexcept { return Plane; }
@@ -92,6 +102,9 @@ private:
     [[nodiscard]] int32_t  FindDimensionAtPixel(double X, double Y) const noexcept;     // [-] dim id (0 = none)
     [[nodiscard]] Vec2     WorldToScreen(Vec3 P) const noexcept;                        // [px] world point → NDC-like pixel
     void DeleteAutoDimensionsFor(uint32_t Anchor) noexcept;
+    // Live dim editing: a `dim edit` on a live dim reaches into the source figure's ParametricBlueprint
+    //    slot, mutates the field, then calls RebuildFromSource to regenerate the geometry.
+    bool ApplyLiveEdit(DimensionEntry& D, double NewValue) noexcept;
     bool Dispatch(const InputEvent& Event) noexcept;                                    // tool first, then hotkey chart
     void OnToolResult(const ToolResult& Result) noexcept;
     [[nodiscard]] ToolSession::Context ToolContext() const noexcept;

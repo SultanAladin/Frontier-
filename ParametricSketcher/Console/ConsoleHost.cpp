@@ -167,10 +167,8 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
     {
         const NurbsCurve& C = Figure.Curve;
         if (C.PoleCount() == 0) return;
-        // Length: arc length dim. Endpoint A = curve start, B = curve end, value = arc length.
-        //    For closed analytic forms (circle, closed ellipse) the parametric Length() collapses to zero
-        //    (periodic knot multiplicity); substitute the analytic formula in that case so the user sees
-        //    a useful "2π r" rather than "0.000".
+        // Arc length dim — endpoints are the curve's endpoints (or the same point for closed curves).
+        //    Value is the analytic length (parametric Length() collapses to 0 for closed periodic forms).
         Vec3 Start = C.Sample(0.0);
         Vec3 End   = C.Sample(1.0);
         double AnalyticLength = C.Length();
@@ -181,16 +179,21 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
             AnalyticLength = 3.14159265358979323846 * (A + B) * (1.0 + 3.0 * H / (10.0 + std::sqrt(4.0 - 3.0 * H)));
         }
         if (AnalyticLength < 1e-9) AnalyticLength = C.Length();
-        DimensionEntry D; D.Form = DimensionForm::ArcLength; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " length";
-        D.A = Start; D.B = End; D.N = Plane.Normal(); D.Value = AnalyticLength;
-        D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+        // Live arc-length dim tied to source field B - A (length of A→B for a line) or to the curve's
+        //    analytic radius (for circle/ellipse) or the polyline sum. Slot assignment is per-form below.
+        {
+            DimensionEntry D; D.Form = DimensionForm::ArcLength; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " length";
+            D.A = Start; D.B = End; D.N = Plane.Normal(); D.Value = AnalyticLength; D.Slot = 14; D.BlueprintForm = Figure.Blueprint.Form;
+            D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+        }
         // For circles / arcs / ellipses we know the analytic centre and radii — emit those dims too.
         if (C.Classification == CurveClassification::Circle || C.Classification == CurveClassification::Arc)
         {
             Vec3 Ctr = C.Centre;
             Vec3 OnCurve = C.Sample(0.0);
+            // Radius dim is live: editing it changes R0 on the source (R0 = circle/arc radius).
             DimensionEntry R; R.Form = DimensionForm::Radius; R.Anchor = Figure.Identity; R.AnchorName = Figure.Name + " radius";
-            R.A = Ctr; R.B = OnCurve; R.N = Plane.Normal(); R.Value = C.RadiusMajor;
+            R.A = Ctr; R.B = OnCurve; R.N = Plane.Normal(); R.Value = C.RadiusMajor; R.Slot = 12; R.BlueprintForm = Figure.Blueprint.Form;
             R.Id = NextDimensionId++; R.Auto = true; Dimensions.push_back(std::move(R));
         }
         else if (C.Classification == CurveClassification::Ellipse)
@@ -199,11 +202,45 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
             Vec3 MajorEnd = Ctr + Vec3{ C.RadiusMajor, 0, 0 };
             Vec3 MinorEnd = Ctr + Vec3{ 0, C.RadiusMinor, 0 };
             DimensionEntry R1; R1.Form = DimensionForm::Radius; R1.Anchor = Figure.Identity; R1.AnchorName = Figure.Name + " Rmajor";
-            R1.A = Ctr; R1.B = MajorEnd; R1.N = Plane.Normal(); R1.Value = C.RadiusMajor;
+            R1.A = Ctr; R1.B = MajorEnd; R1.N = Plane.Normal(); R1.Value = C.RadiusMajor; R1.Slot = 12; R1.BlueprintForm = Figure.Blueprint.Form;
             R1.Id = NextDimensionId++; R1.Auto = true; Dimensions.push_back(std::move(R1));
             DimensionEntry R2; R2.Form = DimensionForm::Radius; R2.Anchor = Figure.Identity; R2.AnchorName = Figure.Name + " Rminor";
-            R2.A = Ctr; R2.B = MinorEnd; R2.N = Plane.Normal(); R2.Value = C.RadiusMinor;
+            R2.A = Ctr; R2.B = MinorEnd; R2.N = Plane.Normal(); R2.Value = C.RadiusMinor; R2.Slot = 13; R2.BlueprintForm = Figure.Blueprint.Form;
             R2.Id = NextDimensionId++; R2.Auto = true; Dimensions.push_back(std::move(R2));
+        }
+        // For lines, also emit a "X" and "Y" and "Z" extent dim (so editing the line's endpoints is live).
+        if (C.Classification == CurveClassification::Line)
+        {
+            auto ExtDim = [&](const char* Tag, int Slot, double V, Vec3 Lo, Vec3 Hi)
+            {
+                DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " " + Tag;
+                D.A = Lo; D.B = Hi; D.N = Vec3(0, 1, 0); D.Value = V; D.Slot = Slot; D.BlueprintForm = Figure.Blueprint.Form;
+                D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+            };
+            // Each axis dim lies along its axis, lifted slightly in +Y to keep it off the line.
+            ExtDim("X", 3, std::fabs(C.Poles[1].Divide().X - C.Poles[0].Divide().X), Vec3(C.Poles[0].Divide().X, C.Poles[0].Divide().Y + 0.04, C.Poles[0].Divide().Z), Vec3(C.Poles[1].Divide().X, C.Poles[0].Divide().Y + 0.04, C.Poles[0].Divide().Z));
+            ExtDim("Y", 4, std::fabs(C.Poles[1].Divide().Y - C.Poles[0].Divide().Y), Vec3(C.Poles[0].Divide().X - 0.04, C.Poles[0].Divide().Y, C.Poles[0].Divide().Z), Vec3(C.Poles[0].Divide().X - 0.04, C.Poles[1].Divide().Y, C.Poles[0].Divide().Z));
+            ExtDim("Z", 5, std::fabs(C.Poles[1].Divide().Z - C.Poles[0].Divide().Z), Vec3(C.Poles[0].Divide().X, C.Poles[0].Divide().Y, C.Poles[0].Divide().Z), Vec3(C.Poles[1].Divide().Z > C.Poles[0].Divide().Z ? C.Poles[0].Divide() : C.Poles[1].Divide()));
+        }
+        // For polyline: emit per-vertex X/Y/Z dims for the first and last vertex (so the user can pull
+        //    the polyline endpoints via live edit). The middle vertices are not live (the polyline's
+        //    vertex list is one slot, not per-vertex).
+        if (C.Classification == CurveClassification::Polyline && C.Poles.size() >= 2)
+        {
+            Vec3 P0 = C.Poles.front().Divide();
+            Vec3 P1 = C.Poles.back().Divide();
+            auto ExtDim = [&](const char* Tag, int Slot, double V, Vec3 Lo, Vec3 Hi)
+            {
+                DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " " + Tag;
+                D.A = Lo; D.B = Hi; D.N = Vec3(0, 1, 0); D.Value = V; D.Slot = Slot; D.BlueprintForm = Figure.Blueprint.Form;
+                D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+            };
+            ExtDim("X0", 0, P0.X, Vec3(P0.X, P0.Y + 0.04, P0.Z), Vec3(P0.X, P0.Y + 0.04, P0.Z));
+            ExtDim("Y0", 1, P0.Y, Vec3(P0.X - 0.04, P0.Y, P0.Z), Vec3(P0.X - 0.04, P0.Y, P0.Z));
+            ExtDim("Z0", 2, P0.Z, Vec3(P0.X, P0.Y, P0.Z), Vec3(P0.X, P0.Y, P0.Z));
+            ExtDim("X1", 3, P1.X, Vec3(P1.X, P1.Y + 0.04, P1.Z), Vec3(P1.X, P1.Y + 0.04, P1.Z));
+            ExtDim("Y1", 4, P1.Y, Vec3(P1.X - 0.04, P1.Y, P1.Z), Vec3(P1.X - 0.04, P1.Y, P1.Z));
+            ExtDim("Z1", 5, P1.Z, Vec3(P1.X, P1.Y, P1.Z), Vec3(P1.X, P1.Y, P1.Z));
         }
     }
     else
@@ -211,24 +248,247 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
         // Body / Surface: emit one linear dim per axis. Endpoints are the face-centres of the two
         //    opposing faces, so the dim lies on the body surface. The dim-line normal is set to the
         //    world axis perpendicular to the feature so the renderer lifts the dim line off the body
-        //    in a consistent direction (X dim → +Y, Y dim → +X, Z dim → +X, all 22 px in world units
-        //    that map to roughly 22 screen pixels at the body's depth).
+        //    in a consistent direction (X dim → +Y, Y dim → +X, Z dim → +X, all offset by a small
+        //    world-space amount so the line sits ON the face, not 22 px in screen space).
         Vec3 Centre = (B.Low + B.High) * 0.5;
-        double DY = (B.High.Y - B.Low.Y) * 0.5 + 0.05;
-        double DX = (B.High.X - B.Low.X) * 0.5 + 0.05;
-        auto EmitBbox = [&](const char* Tag, Vec3 Lo, Vec3 Hi, double V, Vec3 Lift)
+        // Per-primitive: the live slot for each bbox dim is the corresponding B component (3,4,5 for
+        //    box) or R2 (cylinder/cone height), etc. The mapping is set per-Form in the live-edit switch.
+        auto EmitBbox = [&](const char* Tag, Vec3 Lo, Vec3 Hi, double V, Vec3 Lift, int Slot)
         {
             DimensionEntry D; D.Form = DimensionForm::Bbox; D.Anchor = Figure.Identity; D.AnchorName = std::string(Figure.Name) + " " + Tag;
-            D.A = Lo; D.B = Hi; D.N = Lift; D.Value = V;
+            D.A = Lo; D.B = Hi; D.N = Lift; D.Value = V; D.Slot = Slot; D.BlueprintForm = Figure.Blueprint.Form;
             D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
         };
-        // X dim: along the X axis at the top edge, lifted in +Y.
-        EmitBbox("X", Vec3(B.Low.X, B.High.Y + DY, Centre.Z), Vec3(B.High.X, B.High.Y + DY, Centre.Z), B.High.X - B.Low.X, Vec3(0, 1, 0));
-        // Y dim: along the Y axis at the right edge, lifted in +X.
-        EmitBbox("Y", Vec3(B.High.X + DX, B.Low.Y, Centre.Z), Vec3(B.High.X + DX, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0));
-        // Z dim: along the Z axis at the top-right edge, lifted in +X (further out than Y so they don't overlap).
-        EmitBbox("Z", Vec3(B.High.X + DX, Centre.Y, B.Low.Z), Vec3(B.High.X + DX, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0));
+        // Box: B.X (3), B.Y (4), B.Z (5) — all live.
+        // Cylinder/Cone: R2 = height (slot 14). Radius is R0 (slot 12).
+        // Sphere: R0 = radius (slot 12). R1 = unused.
+        // Torus: R3 = radiusMajor (slot 15), R2 = radiusMinor (slot 14).
+        // For now, set Slot based on form. The default offset is a small world-space amount
+        //    (0.04 m ≈ 4 cm) so the line sits ON the surface, not far from it.
+        const double FaceOffset = 0.04;
+        if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Box)
+        {
+            EmitBbox("X", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), B.High.X - B.Low.X, Vec3(0, 1, 0), 3);
+            EmitBbox("Y", Vec3(B.High.X + FaceOffset, B.Low.Y, Centre.Z), Vec3(B.High.X + FaceOffset, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0), 4);
+            EmitBbox("Z", Vec3(B.High.X + FaceOffset, Centre.Y, B.Low.Z), Vec3(B.High.X + FaceOffset, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0), 5);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Cylinder || Figure.Blueprint.Form == SceneFigure::ParametricForm::Cone)
+        {
+            // For a cylinder/cone, the height dim is live (slot 14 = R2). Radius is slot 12 (R0).
+            // Place the height dim along the axis on the side of the body, offset 4 cm perpendicular.
+            Vec3 AxisU = Figure.Blueprint.Axis.LengthSquared() > 1e-12 ? Figure.Blueprint.Axis.Normalised() : Vec3(0, 0, 1);
+            Vec3 Foot = Figure.Blueprint.A;  // foot of the cylinder/cone
+            Vec3 Top  = Foot + AxisU * Figure.Blueprint.R2;
+            Vec3 Perp = std::fabs(AxisU.Z) < 0.9 ? Vec3(0, 0, 1).Cross(AxisU).Normalised() : Vec3(1, 0, 0).Cross(AxisU).Normalised();
+            EmitBbox("height", Foot + Perp * (Figure.Blueprint.R0 + FaceOffset), Top + Perp * (Figure.Blueprint.R0 + FaceOffset), Figure.Blueprint.R2, -Perp, 14);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Sphere)
+        {
+            // Radius dim from centre to a point on the sphere — live (slot 12 = R0).
+            Vec3 Ctr = Figure.Blueprint.A;  // sphere centre
+            Vec3 Pnt = Ctr + Vec3(Figure.Blueprint.R0, 0, 0);
+            EmitBbox("radius", Ctr, Pnt, Figure.Blueprint.R0, Vec3(0, 1, 0), 12);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Torus)
+        {
+            // Major radius (slot 15) and minor radius (slot 14).
+            Vec3 Ctr = Figure.Blueprint.A;  // torus centre
+            Vec3 PntMajor = Ctr + Vec3(Figure.Blueprint.R3, 0, 0);
+            Vec3 PntMinor = PntMajor + Vec3(0, Figure.Blueprint.R2, 0);
+            EmitBbox("Rmajor", Ctr, PntMajor, Figure.Blueprint.R3, Vec3(0, 1, 0), 15);
+            EmitBbox("Rminor", PntMajor, PntMinor, Figure.Blueprint.R2, Vec3(1, 0, 0), 14);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::ChamferEdge)
+        {
+            // Plasticity-style: a dim **on the chamfered edge** showing the set-back distance. Endpoints
+            //    are the edge's start/stop, the lift is perpendicular to the edge in the world frame (so
+            //    the line sits on the chamfered face, offset 4 cm), and the value is the set-back
+            //    distance (slot 12). After the chamfer dim, also emit a generic bbox X/Y/Z so the
+            //    chamfered body has the usual outline dims.
+            int EdgeIdx = Figure.Blueprint.I0;
+            if (EdgeIdx >= 0 && EdgeIdx < (int)Figure.Body.Edges.size())
+            {
+                const BrepEdge& E = Figure.Body.Edges[EdgeIdx];
+                Vec3 Lo = E.Curve.Sample(E.Curve.DomainStart());
+                Vec3 Hi = E.Curve.Sample(E.Curve.DomainEnd());
+                Vec3 EdgeDir = (Hi - Lo); if (EdgeDir.Length() < 1e-9) EdgeDir = Vec3(1, 0, 0); else EdgeDir = EdgeDir.Normalised();
+                Vec3 Perp = EdgeDir.Cross(Vec3(0, 0, 1));
+                if (Perp.LengthSquared() < 1e-12) Perp = EdgeDir.Cross(Vec3(1, 0, 0));
+                if (Perp.LengthSquared() < 1e-12) Perp = Vec3(0, 1, 0);
+                Perp = Perp.Normalised();
+                Vec3 Mid = (Lo + Hi) * 0.5;
+                EmitBbox("chamfer", Mid - EdgeDir * (Figure.Blueprint.R0 * 0.5), Mid + EdgeDir * (Figure.Blueprint.R0 * 0.5), Figure.Blueprint.R0, Perp, 12);
+            }
+            // Also emit the bbox X/Y/Z dims so the chamfered body has the standard outline set
+            //    (these are read-only, slot = -1, since editing them is meaningless for a chamfered body).
+            const double Off = 0.05;
+            EmitBbox("X", Vec3(B.Low.X, B.High.Y + Off, Centre.Z), Vec3(B.High.X, B.High.Y + Off, Centre.Z), B.High.X - B.Low.X, Vec3(0, 1, 0), -1);
+            EmitBbox("Y", Vec3(B.High.X + Off, B.Low.Y, Centre.Z), Vec3(B.High.X + Off, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0), -1);
+            EmitBbox("Z", Vec3(B.High.X + Off, Centre.Y, B.Low.Z), Vec3(B.High.X + Off, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0), -1);
+        }
+        else
+        {
+            // Generic fallback: bbox on X/Y/Z, all read-only (Slot = -1).
+            const double Off = 0.05;
+            EmitBbox("X", Vec3(B.Low.X, B.High.Y + Off, Centre.Z), Vec3(B.High.X, B.High.Y + Off, Centre.Z), B.High.X - B.Low.X, Vec3(0, 1, 0), -1);
+            EmitBbox("Y", Vec3(B.High.X + Off, B.Low.Y, Centre.Z), Vec3(B.High.X + Off, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0), -1);
+            EmitBbox("Z", Vec3(B.High.X + Off, Centre.Y, B.Low.Z), Vec3(B.High.X + Off, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0), -1);
+        }
     }
+}
+
+bool ConsoleHost::ApplyLiveEdit(DimensionEntry& D, double NewValue) noexcept
+{
+    if (D.Slot < 0) return false;                                                     // not a live dim
+    if (D.Anchor == 0) return false;                                                  // no figure anchor
+    // Find the figure.
+    SceneFigure* Fig = nullptr;
+    for (auto& F : Scene.Figures()) { if (F.Identity == D.Anchor) { Fig = &F; break; } }
+    if (Fig == nullptr) return false;
+    SceneFigure::ParametricBlueprint& S = Fig->Blueprint;
+    // Map slot index → field on the source, per form.
+    using Form = SceneFigure::ParametricForm;
+    auto SetVec3 = [&](Vec3& V, int Field)
+    {
+        if (Field == 0) V.X = NewValue; else if (Field == 1) V.Y = NewValue; else V.Z = NewValue;
+    };
+    // Slot mapping: each slot is encoded as (VecField, Component) or scalar.
+    // We define an internal encoding: slot < 100 means a scalar slot (R0=12, R1=13, R2=14, R3=15, I0=16, I1=17).
+    // slot >= 100 means a vec3 slot: 100 = A, 101 = B, 102 = C, 103 = Axis, 104 = Normal, 105 = MajorDirection.
+    // The component (X/Y/Z) is stored in D.Slot mod 3: 100+X=0, 100+Y=1, 100+Z=2.
+    // To keep the slot integer small and uniform, we re-encode: 0..2 = A.X/Y/Z, 3..5 = B.X/Y/Z,
+    //    6..8 = C.X/Y/Z, 9..11 = Axis.X/Y/Z, 12 = R0, 13 = R1, 14 = R2, 15 = R3, 16 = I0, 17 = I1.
+    // That's the encoding used in AutoEmitDimensions.
+    if (D.Slot <= 2) SetVec3(S.A, D.Slot);
+    else if (D.Slot <= 5) SetVec3(S.B, D.Slot - 3);
+    else if (D.Slot <= 8) SetVec3(S.C, D.Slot - 6);
+    else if (D.Slot <= 11) SetVec3(S.Axis, D.Slot - 9);
+    else if (D.Slot == 12) S.R0 = NewValue;
+    else if (D.Slot == 13) S.R1 = NewValue;
+    else if (D.Slot == 14) S.R2 = NewValue;
+    else if (D.Slot == 15) S.R3 = NewValue;
+    else if (D.Slot == 16) S.I0 = int(std::lround(NewValue));
+    else if (D.Slot == 17) S.I1 = int(std::lround(NewValue));
+    else return false;
+    // Rebuild the figure. The rebuild path is dispatched on S.Form.
+    // We rebuild by replacing the figure's Body / Curve / Surface with the new geometry produced by the
+    //    same primitive constructor (BrepBody::Box, BrepBody::Cylinder, etc.).
+    bool Replaced = false;
+    // Helper: take ownership of a Deliver<BrepBody> payload (refusal ⇒ return false).
+    auto TakeBody = [&](Deliver<BrepBody> D) -> bool
+    {
+        if (!D) return false;
+        Fig->Body = std::move(D.Payload);
+        return true;
+    };
+    auto TakeCurve = [&](Deliver<NurbsCurve> D) -> bool
+    {
+        if (!D) return false;
+        Fig->Curve = std::move(D.Payload);
+        return true;
+    };
+    switch (S.Form)
+    {
+        case Form::Box:
+            Replaced = TakeBody(BrepBody::Box(S.A, S.B));
+            break;
+        case Form::Sphere:
+            Replaced = TakeBody(BrepBody::Sphere(S.A, S.R0));
+            break;
+        case Form::Cylinder:
+        {
+            Vec3 Axis = S.Axis.LengthSquared() > 1e-12 ? S.Axis.Normalised() : Vec3(0, 0, 1);
+            Replaced = TakeBody(BrepBody::Cylinder(S.A, Axis, S.R0, S.R2));
+            break;
+        }
+        case Form::Cone:
+        {
+            Vec3 Axis = S.Axis.LengthSquared() > 1e-12 ? S.Axis.Normalised() : Vec3(0, 0, 1);
+            Replaced = TakeBody(BrepBody::Cone(S.A, Axis, S.R0, S.R1, S.R2));
+            break;
+        }
+        case Form::Torus:
+        {
+            Vec3 Axis = S.Axis.LengthSquared() > 1e-12 ? S.Axis.Normalised() : Vec3(0, 0, 1);
+            Replaced = TakeBody(BrepBody::Torus(S.A, Axis, S.R2, S.R3));
+            break;
+        }
+        case Form::Line:
+            Replaced = TakeCurve(NurbsCurve::Line(S.A, S.B));
+            break;
+        case Form::Circle:
+        {
+            Vec3 Nrm = S.Normal.LengthSquared() > 1e-12 ? S.Normal.Normalised() : Vec3(0, 0, 1);
+            Replaced = TakeCurve(NurbsCurve::Circle(S.A, Nrm, S.R0));
+            break;
+        }
+        case Form::Arc:
+        {
+            Vec3 Nrm = S.Normal.LengthSquared() > 1e-12 ? S.Normal.Normalised() : Vec3(0, 0, 1);
+            // I0 = start angle (deg), R3 = sweep (deg). I0/R3 → degrees.
+            double StartDeg = double(S.I0);
+            double SweepDeg = S.R3;
+            Replaced = TakeCurve(NurbsCurve::Arc(S.A, Nrm, S.R0, StartDeg, SweepDeg));
+            break;
+        }
+        case Form::Ellipse:
+        {
+            Vec3 Nrm = S.Normal.LengthSquared() > 1e-12 ? S.Normal.Normalised() : Vec3(0, 0, 1);
+            Vec3 XDir = S.MajorDirection.LengthSquared() > 1e-12 ? S.MajorDirection.Normalised() : Vec3(1, 0, 0);
+            Replaced = TakeCurve(NurbsCurve::Ellipse(S.A, Nrm, XDir, S.R0, S.R1));
+            break;
+        }
+        case Form::Polyline:
+            Replaced = TakeCurve(NurbsCurve::Polyline(S.PolylinePoints, S.Closed));
+            break;
+        case Form::Spline:
+            // I0 = spline degree; default 3 if the source is missing.
+            Replaced = TakeCurve(NurbsCurve::Interpolate(S.PolylinePoints, S.I0 > 0 ? S.I0 : 3, S.Closed));
+            break;
+        case Form::Rectangle:
+        {
+            // Rectangle = closed polyline on the workplane (XY by default).
+            std::vector<Vec3> Pts = { S.A, Vec3(S.B.X, S.A.Y, S.A.Z), S.B, Vec3(S.A.X, S.B.Y, S.A.Z) };
+            Replaced = TakeCurve(NurbsCurve::Polyline(Pts, true));
+            break;
+        }
+        case Form::Extrude:
+        {
+            // Rebuild by re-applying the recipe with the new extrude distance.
+            Vec3 Axis = S.Axis.LengthSquared() > 1e-12 ? S.Axis.Normalised() : Vec3(0, 0, 1);
+            Fig->Recipe.Length = S.R2;
+            Fig->Recipe.Direction = Axis;
+            Deliver<FigureRecipe::Product> P = Fig->Recipe.Produce(Scene, Plane);
+            if (!P || !P.Payload.IsBody) return false;
+            Fig->Body = std::move(P.Payload.Body);
+            Replaced = true;
+            break;
+        }
+        case Form::ChamferEdge:
+        {
+            // Re-apply the chamfer to the pre-operation body (so re-editing doesn't chain chamfers
+            //    and break the edge count).
+            BrepBody NewBody = S.PreOpBody;                                            // start from a clean copy
+            int EdgeIdx = S.I0;
+            double Dist = S.R0;
+            if (EdgeIdx >= 0 && EdgeIdx < (int)NewBody.Edges.size())
+            {
+                Deliver<BrepBody> R = NewBody.ChamferEdge(EdgeIdx, Dist);
+                if (!R) return false;
+                NewBody = std::move(R.Payload);
+            }
+            Fig->Body = std::move(NewBody);
+            Replaced = true;
+            break;
+        }
+        default:
+            return false;
+    }
+    if (!Replaced) return false;
+    // Re-emit dims with the new geometry. `Bounds()` is a fresh query, no cache to invalidate.
+    D.Value = NewValue;
+    AutoEmitDimensions(*Fig);
+    return true;
 }
 
 Vec2 ConsoleHost::WorldToScreen(Vec3 P) const noexcept
@@ -247,30 +507,31 @@ Vec2 ConsoleHost::WorldToScreen(Vec3 P) const noexcept
 void ConsoleHost::DrawDimensions() noexcept
 {
     if (Dimensions.empty()) return;
-    // We draw every dim in world space, billboarded so the dim line stays parallel to the screen plane
-    //    at the dim's depth. The world-space size is set so the dim "looks" the right pixel size at the
-    //    dim's anchor depth (same trick the gizmo uses). The label is a small cloud of points, one per
-    //    lit glyph pixel, arranged in a 5x7 grid scaled to a few pixels of world space.
+    // Phase 13 redo: Plasticity-style dims — white colour, world-space offset tight against the model
+    //    (≈ 0.04 m = 4 cm above the surface), drawn as an overlay. The lift vector is *world space* (so
+    //    the dim line stays parallel to the model surface, not to the screen plane), and the dim line
+    //    is the original feature's endpoints lifted in N by a constant world-space amount, then a
+    //    straight segment between them — so the line sits on the body face, not floating 22 px above
+    //    the silhouette.
     SegmentStream DimSegments;
     PointStream   DimPoints;
     Vec3 CamRight = View.Right();
     Vec3 CamUp    = View.Up();
     Vec3 Forward  = View.Forward();
-    // World size of a single screen pixel at the pivot depth (the dim "plane" is at the dim's
-    //    average depth from the camera).
+    // World size of a single screen pixel at the pivot depth (so the label / ticks look the right size
+    //    at the dim's depth).
     double PivotDepth = 0.0;
     {
-        // Pick the depth of the first dim's anchor midpoint as a representative.
-        for (const DimensionEntry& D : Dimensions) { if (D.Hidden) continue; PivotDepth = (D.A - View.Eye()).Dot(Forward); break; }
+        // Pick the depth of the first non-hidden dim's anchor midpoint as a representative.
+        for (const DimensionEntry& D : Dimensions) { if (D.Hidden) continue; PivotDepth = ((D.A + D.B) * 0.5 - View.Eye()).Dot(Forward); break; }
         if (PivotDepth < 0.05) PivotDepth = 0.05;
     }
     double HalfHeight = View.Orthographic ? View.OrthographicHalfHeight() : PivotDepth * std::tan(View.FovY * 0.5);
     double WpPx = 2.0 * HalfHeight / double(Surface->Height());                       // [m/px] at pivot depth
     const double LabelHeightPx = 18.0;
-    const double OffPx         = 22.0;
     const double TickPx        = 4.0;
+    const double OffM          = 0.04;                                                // [m] world-space lift: 4 cm above the surface
     double Lh = LabelHeightPx * WpPx;
-    double Oh = OffPx * WpPx;
     double Th = TickPx * WpPx;
 
     for (DimensionEntry& D : Dimensions)
@@ -283,44 +544,45 @@ void ConsoleHost::DrawDimensions() noexcept
         double FeatureLen = AB.Length();
         if (FeatureLen < 1e-9) continue;
         Vec3 ABu = AB / FeatureLen;
-        // Lift direction: the dim's declared normal, projected into the screen plane and oriented
-        //    so the dim line goes to the "outside" of the figure. If N is zero, fall back to screen-up.
+        // Lift direction: the dim's declared normal, in world space. For Plasticity-style placement this
+        //    is the face normal (e.g. +Y for the top face of a box, so the X dim runs along the top
+        //    face). If the dim is parallel to the lift, fall back to screen-up.
         Vec3 Lift = D.N;
         if (Lift.LengthSquared() < 1e-12) Lift = CamUp;
+        // Project the lift into the screen plane so the dim line doesn't go behind the model.
         Vec3 ScreenLift = Lift - Forward * Lift.Dot(Forward);
         if (ScreenLift.LengthSquared() < 1e-12) ScreenLift = CamUp;
         ScreenLift = ScreenLift.Normalised();
-        // Project the unit direction into the screen plane (perpendicular to Forward), normalise.
-        Vec3 ScreenABu = ABu - Forward * ABu.Dot(Forward);
-        if (ScreenABu.LengthSquared() < 1e-12) continue;                              // dim is parallel to view, skip
-        ScreenABu = ScreenABu.Normalised();
-        // Orient the lift so it always points "outward" (away from the feature direction's screen
-        //    normal) — pick whichever side has a +screen-Y component (upward).
+        // Make the lift point "upward" (toward +screen-Y) so the dim sits above the model, not below.
         if (ScreenLift.Dot(CamUp) < 0) ScreenLift = ScreenLift * -1.0;
-        // Override for the Y/Z bbox case: ScreenABu may point in screen-right (so the screen up
-        //    component is small). In that case the lift to the right is the "outward" side.
-        if (std::fabs(ScreenLift.Dot(CamUp)) < 0.1 && ScreenLift.Dot(CamRight) < 0) ScreenLift = ScreenLift * -1.0;
+        if (ScreenLift.Dot(CamUp) < 0.1 && ScreenLift.Dot(CamRight) < 0) ScreenLift = ScreenLift * -1.0;
 
-        // World-space dim endpoints
-        Vec3 L0 = D.A + ScreenLift * Oh;
-        Vec3 L1 = D.B + ScreenLift * Oh;
-        // Extension lines
+        // World-space dim endpoints: lift the original endpoints by a constant world-space amount
+        //    (OffM = 4 cm) along the *world* lift vector — so the line sits ON the surface, offset
+        //    by 4 cm in world space (not 22 px in screen space).
+        Vec3 L0 = D.A + Lift * OffM;
+        Vec3 L1 = D.B + Lift * OffM;
+        // Extension lines (from the original surface points up to the dim line)
         DimSegments.Append(D.A, L0);
         DimSegments.Append(D.B, L1);
         // Main dim line
         DimSegments.Append(L0, L1);
-        // Ticks (short segments perpendicular to the main line, in the screen plane)
-        Vec3 Tick = ScreenABu * Th;
+        // Ticks (perpendicular to the dim line, in the *world-space* feature plane, so they look
+        //    correct from any angle). We build the perpendicular by crossing the feature direction
+        //    with the lift vector, so the tick lies in the surface plane.
+        Vec3 Perp = Lift.Cross(ABu);
+        if (Perp.LengthSquared() < 1e-12) Perp = View.Up().Cross(ABu);
+        if (Perp.LengthSquared() < 1e-12) Perp = Vec3(0, 1, 0);
+        Perp = Perp.Normalised();
+        Vec3 Tick = Perp * Th;
         DimSegments.Append(L0 - Tick, L0 + Tick);
         DimSegments.Append(L1 - Tick, L1 + Tick);
 
-        // Label — a row of 5x7 glyphs, centred above the dim line midpoint.
+        // Label — a row of 5x7 glyphs, centred above the dim line midpoint, billboarded to the camera.
         Vec3 Mid = (L0 + L1) * 0.5;
         double CharW = Lh * 0.6;
         double CharSpacing = CharW * 1.1;
         double TotalW = CharSpacing * double(D.Label.size());
-        // Anchor the label so its centre is at Mid; then nudge up by one full glyph height so the
-        //    text sits above the dim line instead of on top of it.
         Vec3 Origin = Mid - CamRight * (TotalW * 0.5) + CamUp * (Lh * 1.2);
         for (size_t I = 0; I < D.Label.size(); ++I)
         {
@@ -343,14 +605,15 @@ void ConsoleHost::DrawDimensions() noexcept
             }
         }
     }
-    DrawRecord DimStyle = ScenePresentation::Tinted(0.10f, 0.05f, 0.0f, 1.0f);
-    DimStyle.LineWidth = 2.0f; DimStyle.PointSize = 2.0f;
+    // Plasticity-style: WHITE dims (was yellow 1.0, 0.85, 0.10 before). A faint dark backing keeps
+    //    the line readable over bright matcaps.
+    DrawRecord DimStyle = ScenePresentation::Tinted(0.10f, 0.10f, 0.10f, 0.85f);
+    DimStyle.LineWidth = 3.5f; DimStyle.PointSize = 2.4f;
     DimStyle.Emissive = 0.0f;
-    // Draw the dark backing once, then the bright foreground on top so the label reads on any background.
     Surface->DrawSegments(DimSegments, DimStyle);
     Surface->DrawPoints(DimPoints, DimStyle);
-    DrawRecord Hot = ScenePresentation::Tinted(1.0f, 0.85f, 0.10f, 1.0f);
-    Hot.LineWidth = 1.2f; Hot.PointSize = 1.6f; Hot.Emissive = 0.4f;
+    DrawRecord Hot = ScenePresentation::Tinted(1.0f, 1.0f, 1.0f, 1.0f);
+    Hot.LineWidth = 1.6f; Hot.PointSize = 1.8f; Hot.Emissive = 0.6f;
     Surface->DrawSegments(DimSegments, Hot);
     Surface->DrawPoints(DimPoints, Hot);
 }
@@ -410,6 +673,29 @@ bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBo
     DescribeFigure(Figure);
     BodyReport R = Figure.Body.Validate();
     if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges);
+    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
+    return true;
+}
+
+bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result, SceneFigure::ParametricBlueprint Source) noexcept
+{
+    if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
+    SceneFigure& Figure = Scene.AddBody(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
+    Figure.Blueprint = std::move(Source);
+    DescribeFigure(Figure);
+    BodyReport R = Figure.Body.Validate();
+    if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges);
+    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
+    return true;
+}
+
+bool ConsoleHost::AddCurve(const CommandLine& C, const char* Stem, Deliver<NurbsCurve> Result, SceneFigure::ParametricBlueprint Source) noexcept
+{
+    if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
+    SceneFigure& Figure = Scene.AddCurve(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
+    Figure.Construction = C.Switch("construction");
+    Figure.Blueprint = std::move(Source);
+    DescribeFigure(Figure);
     if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
     return true;
 }
@@ -683,20 +969,25 @@ void ConsoleHost::Register() noexcept
     Add("line", "line (x,y[,z]) (x,y[,z]) [--name=N] [--construction]", [=, this](const CommandLine& C)
     {
         Vec3 A, B; if (!Need(C, 2, "line") || !Lift(C, 0, A) || !Lift(C, 1, B)) return Refuse("line: two points required");
-        return AddCurve(C, "Line", NurbsCurve::Line(A, B));
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Line; S.A = A; S.B = B;
+        return AddCurve(C, "Line", NurbsCurve::Line(A, B), S);
     });
     Add("polyline", "polyline (x,y) (x,y) ... [--closed]", [=, this](const CommandLine& C)
     {
         std::vector<Vec3> Pts; Vec3 P;
         for (size_t I = 0; I < C.Count(); ++I) { if (!Lift(C, I, P)) return Refuse("polyline: argument %zu is not a point", I + 1); Pts.push_back(P); }
-        return AddCurve(C, "Polyline", NurbsCurve::Polyline(Pts, C.Switch("closed")));
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Polyline; S.PolylinePoints = Pts; S.Closed = C.Switch("closed");
+        if (Pts.size() >= 2) { S.A = Pts.front(); S.B = Pts.back(); }
+        return AddCurve(C, "Polyline", NurbsCurve::Polyline(Pts, C.Switch("closed")), S);
     });
     Add("rect", "rect (x,y) (x,y) [--radius=R] [--center]", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "rect")) return false;
         auto A = C.Point2(0), B = C.Point2(1); if (!A || !B) return Refuse("rect: two planar points required");
         if (C.Switch("center")) { Vec2 Half = *B; B = *A + Half; A = *A - Half; }
-        return AddCurve(C, "Rectangle", NurbsCurve::Rectangle(Plane, *A, *B, C.SwitchNumber("radius").value_or(0.0)));
+        Vec3 A3 = Plane.ToWorld(*A), B3 = Plane.ToWorld(*B);
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Rectangle; S.A = A3; S.B = B3;
+        return AddCurve(C, "Rectangle", NurbsCurve::Rectangle(Plane, *A, *B, C.SwitchNumber("radius").value_or(0.0)), S);
     });
     Add("polygon", "polygon (cx,cy) radius sides [--rotation=deg] [--circumscribed]", [=, this](const CommandLine& C)
     {
@@ -714,31 +1005,38 @@ void ConsoleHost::Register() noexcept
     {
         Vec3 Ctr; double R = 0; if (!Need(C, 2, "circle") || !Lift(C, 0, Ctr) || !NumberArg(C, 1, R, "circle")) return Refuse("circle: centre and radius required");
         Vec3 N = Plane.Normal(); if (auto F = C.SwitchText("normal")) if (auto V = CommandCodec::ParsePoint(*F)) N = *V;
-        return AddCurve(C, "Circle", NurbsCurve::Circle(Ctr, N, R));
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Circle; S.A = Ctr; S.Normal = N; S.R0 = R;
+        return AddCurve(C, "Circle", NurbsCurve::Circle(Ctr, N, R), S);
     });
     Add("arc", "arc (cx,cy) radius startDeg sweepDeg  |  arc --three (a) (b) (c)", [=, this](const CommandLine& C)
     {
         if (C.Switch("three"))
         {
             Vec3 A, B, D; if (!Need(C, 3, "arc") || !Lift(C, 0, A) || !Lift(C, 1, B) || !Lift(C, 2, D)) return Refuse("arc --three: three points required");
+            // For ArcThreePoints, the analytic centre+radius is recoverable at the source level; we leave Form=None
+            //    (those arcs are not yet live-editable through the centre+radius path; the user can re-arc them).
             return AddCurve(C, "Arc", NurbsCurve::ArcThreePoints(A, B, D));
         }
         Vec3 Ctr; double R = 0, S0 = 0, Sw = 0;
         if (!Need(C, 4, "arc") || !Lift(C, 0, Ctr) || !NumberArg(C, 1, R, "arc") || !NumberArg(C, 2, S0, "arc") || !NumberArg(C, 3, Sw, "arc")) return false;
-        return AddCurve(C, "Arc", NurbsCurve::Arc(Ctr, Plane.Normal(), R, ScalarCriteria::Radians(S0), ScalarCriteria::Radians(Sw)));
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Arc; S.A = Ctr; S.Normal = Plane.Normal(); S.R0 = R; S.I0 = int(std::lround(S0)); S.R3 = Sw;
+        return AddCurve(C, "Arc", NurbsCurve::Arc(Ctr, Plane.Normal(), R, ScalarCriteria::Radians(S0), ScalarCriteria::Radians(Sw)), S);
     });
     Add("ellipse", "ellipse (cx,cy) radiusMajor radiusMinor [--rotation=deg]", [=, this](const CommandLine& C)
     {
         Vec3 Ctr; double A = 0, B = 0; if (!Need(C, 3, "ellipse") || !Lift(C, 0, Ctr) || !NumberArg(C, 1, A, "ellipse") || !NumberArg(C, 2, B, "ellipse")) return false;
         double Rot = ScalarCriteria::Radians(C.SwitchNumber("rotation").value_or(0.0));
         Vec3 Major = Plane.AxisX * std::cos(Rot) + Plane.AxisY * std::sin(Rot);
-        return AddCurve(C, "Ellipse", NurbsCurve::Ellipse(Ctr, Plane.Normal(), Major, A, B));
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Ellipse; S.A = Ctr; S.Normal = Plane.Normal(); S.MajorDirection = Major; S.R0 = A; S.R1 = B;
+        return AddCurve(C, "Ellipse", NurbsCurve::Ellipse(Ctr, Plane.Normal(), Major, A, B), S);
     });
     Add("spline", "spline (p) (p) (p) ... [--degree=3] [--closed]   interpolating", [=, this](const CommandLine& C)
     {
         std::vector<Vec3> Pts; Vec3 P;
         for (size_t I = 0; I < C.Count(); ++I) { if (!Lift(C, I, P)) return Refuse("spline: argument %zu is not a point", I + 1); Pts.push_back(P); }
-        return AddCurve(C, "Spline", NurbsCurve::Interpolate(Pts, static_cast<int>(C.SwitchNumber("degree").value_or(3)), C.Switch("closed")));
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Spline; S.PolylinePoints = Pts; S.Closed = C.Switch("closed"); S.I0 = static_cast<int>(C.SwitchNumber("degree").value_or(3));
+        if (Pts.size() >= 2) { S.A = Pts.front(); S.B = Pts.back(); }
+        return AddCurve(C, "Spline", NurbsCurve::Interpolate(Pts, S.I0, S.Closed), S);
     });
     Add("cpcurve", "cpcurve (p) (p) (p) ... [--degree=3] [--periodic]   control-point curve", [=, this](const CommandLine& C)
     {
@@ -753,35 +1051,40 @@ void ConsoleHost::Register() noexcept
         Vec3 A, B; if (!Need(C, 2, "box") || !PointArg(C, 0, A, "box")) return false;
         if (C.Count() >= 4) { double Dx = 0, Dy = 0, Dz = 0; if (!NumberArg(C, 1, Dx, "box") || !NumberArg(C, 2, Dy, "box") || !NumberArg(C, 3, Dz, "box")) return false; B = A + Vec3{ Dx, Dy, Dz }; }
         else if (!PointArg(C, 1, B, "box")) return false;
-        return AddBody(C, "Box", BrepBody::Box(A, B));
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Box; S.A = A; S.B = B;
+        return AddBody(C, "Box", BrepBody::Box(A, B), S);
     });
     Add("sphere", "sphere (cx,cy,cz) radius [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 Ctr; double R = 0; if (!Need(C, 2, "sphere") || !PointArg(C, 0, Ctr, "sphere") || !NumberArg(C, 1, R, "sphere")) return false;
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Sphere; S.A = Ctr; S.R0 = R;
         if (C.Switch("sheet")) return AddSurface(C, "Sphere", NurbsSurface::Sphere(Ctr, R));
-        return AddBody(C, "Sphere", BrepBody::Sphere(Ctr, R));
+        return AddBody(C, "Sphere", BrepBody::Sphere(Ctr, R), S);
     });
     Add("cylinder", "cylinder (foot) radius height [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 F; double R = 0, H = 0; if (!Need(C, 3, "cylinder") || !PointArg(C, 0, F, "cylinder") || !NumberArg(C, 1, R, "cylinder") || !NumberArg(C, 2, H, "cylinder")) return false;
         Vec3 Axis = Plane.Normal(); if (auto A = C.SwitchText("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Cylinder; S.A = F; S.Axis = Axis; S.R0 = R; S.R2 = H;
         if (C.Switch("sheet")) return AddSurface(C, "Cylinder", NurbsSurface::Cylinder(F, Axis, R, H));
-        return AddBody(C, "Cylinder", BrepBody::Cylinder(F, Axis, R, H));
+        return AddBody(C, "Cylinder", BrepBody::Cylinder(F, Axis, R, H), S);
     });
     Add("cone", "cone (foot) radiusFoot radiusTop height [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 F; double R0 = 0, R1 = 0, H = 0;
         if (!Need(C, 4, "cone") || !PointArg(C, 0, F, "cone") || !NumberArg(C, 1, R0, "cone") || !NumberArg(C, 2, R1, "cone") || !NumberArg(C, 3, H, "cone")) return false;
         Vec3 Axis = Plane.Normal(); if (auto A = C.SwitchText("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Cone; S.A = F; S.Axis = Axis; S.R0 = R0; S.R1 = R1; S.R2 = H;
         if (C.Switch("sheet")) return AddSurface(C, "Cone", NurbsSurface::Cone(F, Axis, R0, R1, H));
-        return AddBody(C, "Cone", BrepBody::Cone(F, Axis, R0, R1, H));
+        return AddBody(C, "Cone", BrepBody::Cone(F, Axis, R0, R1, H), S);
     });
     Add("torus", "torus (centre) radiusMajor radiusMinor [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
         Vec3 Ctr; double R0 = 0, R1 = 0; if (!Need(C, 3, "torus") || !PointArg(C, 0, Ctr, "torus") || !NumberArg(C, 1, R0, "torus") || !NumberArg(C, 2, R1, "torus")) return false;
         Vec3 Axis = Plane.Normal(); if (auto A = C.SwitchText("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
+        SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::Torus; S.A = Ctr; S.Axis = Axis; S.R2 = R1; S.R3 = R0;
         if (C.Switch("sheet")) return AddSurface(C, "Torus", NurbsSurface::Torus(Ctr, Axis, R0, R1));
-        return AddBody(C, "Torus", BrepBody::Torus(Ctr, Axis, R0, R1));
+        return AddBody(C, "Torus", BrepBody::Torus(Ctr, Axis, R0, R1), S);
     });
     Add("topology", "topology <body> — vertices, edges (with coedge senses), loops, faces, validation", [=, this](const CommandLine& C)
     {
@@ -1154,9 +1457,31 @@ void ConsoleHost::Register() noexcept
                 }
                 if (EdgesChamfered == 0) { Refuse("chamfer %s: %s", I->Name.c_str(), FailureDetail.c_str()); continue; }
                 std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
+                BrepBody PreOp = I->Body;                                              // capture the pre-chamfer body BEFORE the remove
                 Scene.Remove(Id);
                 SceneFigure& F = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Chamfered"), std::move(Working));
-                F.Selected = Sel; ++Done;
+                F.Selected = Sel;
+                // Record the parametric source so a live dim can re-derive the chamfer with a new distance.
+                //    PreOpBody = the body before the chamfer, so a live edit re-applies the operation
+                //    to a clean copy (otherwise the edge count grows and the second chamfer fails).
+                if (!Targets.empty())
+                {
+                    SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::ChamferEdge;
+                    S.I0 = Targets.front();
+                    S.R0 = D;
+                    S.PreOpBody = std::move(PreOp);
+                    if (S.PreOpBody.Edges.size() > size_t(Targets.front()))
+                    {
+                        const BrepEdge& E = S.PreOpBody.Edges[Targets.front()];
+                        Vec3 Lo = E.Curve.Sample(E.Curve.DomainStart());
+                        Vec3 Hi = E.Curve.Sample(E.Curve.DomainEnd());
+                        S.A = (Lo + Hi) * 0.5;
+                        S.Axis = (Hi - Lo).Normalised();
+                    }
+                    F.Blueprint = std::move(S);
+                }
+                if (!C.Switch("no-dim")) AutoEmitDimensions(F);
+                ++Done;
                 Row("chamfer %s → %s  setback %.4f  edges %d/%d", Name.c_str(), F.Name.c_str(), D, EdgesChamfered, int(Targets.size()));
             }
         }
@@ -1535,7 +1860,17 @@ void ConsoleHost::Register() noexcept
         {
             int32_t Id = IdArg(1); if (Id <= 0) return Refuse("dim edit: a numeric dim id required");
             double NewVal = 0; if (!NumberArg(C, 2, NewVal, "dim edit")) return false;
-            for (DimensionEntry& D : Dimensions) if (int32_t(D.Id) == Id) { D.Value = NewVal; D.Label = ""; Row("dim #%u  value %.4f", D.Id, D.Value); return true; }
+            for (DimensionEntry& D : Dimensions) if (int32_t(D.Id) == Id)
+            {
+                // Try a live edit first (Phase 13 redo: rebuilds the figure from its source).
+                if (D.Slot >= 0)
+                {
+                    if (ApplyLiveEdit(D, NewVal)) { D.Label = ""; Row("dim #%u  value %.4f  (live edit, figure rebuilt)", D.Id, D.Value); return true; }
+                    return Refuse("dim #%u: live edit refused (slot %d on form %d)", D.Id, D.Slot, int(D.BlueprintForm));
+                }
+                // Free-form / non-live dim: just update the label.
+                D.Value = NewVal; D.Label = ""; Row("dim #%u  value %.4f  (read-only label override)", D.Id, D.Value); return true;
+            }
             return Refuse("dim edit: no dim with id %d", Id);
         }
         if (Sub == "hide" || Sub == "show" || Sub == "delete")
