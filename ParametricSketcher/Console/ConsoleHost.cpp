@@ -566,8 +566,40 @@ void ConsoleHost::Register() noexcept
         }
         return Done > 0;
     });
-    Add("plane", "plane (origin) lengthU lengthV [--u=(x,y,z)] [--v=(x,y,z)]", [=, this](const CommandLine& C)
+    Add("plane", "plane (origin) lengthU lengthV [--u=(x,y,z)] [--v=(x,y,z)] [--name=N]  ·  plane --from=<figure> --name=N — make a plane primitive (default), or save the current workplane as a named plane (with --name= alone), or save the plane implied by a figure's bounding face (with --from= and --name=).", [=, this](const CommandLine& C)
     {
+        if (C.Switch("name") && !C.Switch("from") && C.Count() == 0)
+        {
+            // Just save the current workplane under a name.
+            std::string N = *C.SwitchText("name");
+            if (N.empty()) return Refuse("plane --name=: name is empty");
+            NamedPlanes[N] = Plane;
+            Row("plane %s saved  origin (%.3f %.3f %.3f) normal (%.3f %.3f %.3f)", N.c_str(), Plane.Origin.X, Plane.Origin.Y, Plane.Origin.Z, Plane.Normal().X, Plane.Normal().Y, Plane.Normal().Z);
+            return true;
+        }
+        if (auto From = C.SwitchText("from"))
+        {
+            // Save a plane derived from a figure's natural face.
+            SceneFigure* F = Resolve(*From);
+            if (!F) return Refuse("plane --from=: no figure '%s'", From->c_str());
+            std::string N = *C.SwitchText("name");
+            if (N.empty()) return Refuse("plane --from=: --name= is required");
+            Workplane P;
+            if (F->Classification == FigureClassification::Surface) P = Workplane::FromNormal(F->Surface.Origin, F->Surface.Normal(0.5, 0.5));
+            else if (F->Classification == FigureClassification::Body)
+            {
+                if (F->Body.Faces.empty()) return Refuse("plane --from=: body has no faces");
+                const auto& Face = F->Body.Faces.front();
+                Vec3 Nv = Face.Surface.Normal(0.5, 0.5);
+                if (Face.Reversed) Nv = -Nv;
+                P = Workplane::FromNormal(Face.Surface.Origin, Nv);
+            }
+            else return Refuse("plane --from=: figure '%s' must be a surface or body (not a curve)", From->c_str());
+            NamedPlanes[N] = P;
+            Row("plane %s saved from %s  origin (%.3f %.3f %.3f) normal (%.3f %.3f %.3f)", N.c_str(), From->c_str(), P.Origin.X, P.Origin.Y, P.Origin.Z, P.Normal().X, P.Normal().Y, P.Normal().Z);
+            return true;
+        }
+        // Default: build a plane primitive (the original behaviour).
         Vec3 O; double LU = 0, LV = 0; if (!Need(C, 3, "plane") || !PointArg(C, 0, O, "plane") || !NumberArg(C, 1, LU, "plane") || !NumberArg(C, 2, LV, "plane")) return false;
         Vec3 U = Plane.AxisX, V = Plane.AxisY;
         if (auto A = C.SwitchText("u")) if (auto W = CommandCodec::ParsePoint(*A)) U = *W;
@@ -1032,6 +1064,77 @@ void ConsoleHost::Register() noexcept
             Rep.Quads, Rep.Unknowns, ScalarCriteria::Degrees(Rep.TangentBreak), Rep.CurvatureBreak, ScalarCriteria::Degrees(Rep.SeamBreak), Rep.GuideDeviation, Rep.Energy, Rep.CoonsEnergy, Rep.UnsupportedRims ? "  ⚠ unsupported rims fell back to G0" : "");
         return true;
     });
+    Add("bridge", "bridge <curve> <curve> [--degree=3] [--no-align] — surface that connects two open curves end-to-end (a 2-section loft; --sheet implied because the two curves are open). This is a thin convenience over `loft` with two sections, named for Plasticity parity.", [=, this](const CommandLine& C)
+    {
+        std::vector<SweepSource> Sections; if (!CollectSections(C, 0, "bridge", Sections)) return false;
+        if (Sections.size() != 2) return Refuse("bridge: exactly two sections (got %zu)", Sections.size());
+        if (Sections[0].Loops.size() != 1 || Sections[1].Loops.size() != 1) return Refuse("bridge: each section must be a single open curve (not a closed outer + holes)");
+        FigureRecipe R; R.Operation = RecipeOperation::Loft;
+        for (const SweepSource& S : Sections) R.Sections.push_back(S.Input);
+        R.Loft.DegreeV = int(C.SwitchNumber("degree").value_or(3));
+        R.Loft.AlignSeams = R.Loft.AlignSense = !C.Switch("no-align");
+        R.Sheet = true;                                                                   // bridge is always a sheet (open curves → open body)
+        Row("bridge %s → %s", Sections[0].Label.c_str(), Sections[1].Label.c_str());
+        return AddDerived(C, "Bridge", R);
+    });
+    Add("array", "array <figure...> --count=N --step=(dx,dy,dz)  or  --axis=(ox,oy,oz),(dx,dy,dz) [--angle=deg] [--scale=s] --name=… — linear or radial array of N copies of the figure (a copy at the source, plus N-1 transforms). Linear: --count and --step. Radial: --count, --axis (origin, direction), --angle (total sweep in degrees, default 360). --scale tapers the last copy (1.0 = no taper).", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "array")) return false;
+        int Count = int(C.SwitchNumber("count").value_or(0));
+        if (Count < 2) return Refuse("array: --count must be ≥ 2 (got %d)", Count);
+        bool Radial = C.Switch("axis");
+        if (!Radial && !C.Switch("step")) return Refuse("array: specify either --step=(dx,dy,dz) (linear) or --axis=(ox,oy,oz),(dx,dy,dz) (radial)");
+        Vec3 Step{ 0, 0, 0 }; Vec3 Origin{ 0, 0, 0 }; Vec3 Axis{ 0, 0, 1 }; double TotalAngle = 360.0; double ScaleEnd = 1.0;
+        if (auto S = C.SwitchText("step")) { auto V = CommandCodec::ParsePoint(*S); if (!V) return Refuse("array: --step must be a point"); Step = *V; }
+        if (auto S = C.SwitchText("axis"))
+        {
+            // --axis=(ox,oy,oz),(dx,dy,dz) — split on the first comma between the two triples.
+            std::string Tok = *S; size_t Comma = Tok.find("),("); if (Comma == std::string::npos) return Refuse("array: --axis must be '(ox,oy,oz),(dx,dy,dz)'");
+            std::string A = Tok.substr(0, Comma + 1); std::string B = Tok.substr(Comma + 2);
+            auto P1 = CommandCodec::ParsePoint(A); auto P2 = CommandCodec::ParsePoint(B);
+            if (!P1 || !P2) return Refuse("array: --axis must be '(ox,oy,oz),(dx,dy,dz)'");
+            Origin = *P1; Axis = *P2;
+            if (Axis.Length() <= ScalarCriteria::KernelTolerance) return Refuse("array: --axis direction is zero");
+            Axis = Axis.Normalised();
+        }
+        if (auto A = C.SwitchNumber("angle")) TotalAngle = *A;
+        if (auto A = C.SwitchNumber("scale")) ScaleEnd = *A;
+        if (ScaleEnd <= 0) return Refuse("array: --scale must be positive");
+
+        int TotalCreated = 0;
+        // Resolve first; copy out the data we need so subsequent AddBody calls (which can reallocate Entries and
+        //    invalidate the SceneFigure* pointer) don't break the loop.
+        struct Seed { FigureClassification Class; std::string Name; NurbsCurve Curve; NurbsSurface Surface; BrepBody Body; };
+        std::vector<Seed> Seeds;
+        for (SceneFigure* I : ResolveMany(C, 0)) Seeds.push_back({ I->Classification, I->Name, I->Curve, I->Surface, I->Body });
+        for (const Seed& S : Seeds)
+        {
+            std::string BaseName = C.SwitchText("name").value_or(S.Name + ".Array");
+            for (int K = 1; K < Count; ++K)                                                // K=0 is the seed itself, no transform needed
+            {
+                double T = double(K) / double(Count - 1);                                 // 0..1 across the array
+                Mat4 M;
+                if (Radial)
+                {
+                    double A = TotalAngle * T * (ScalarCriteria::Pi / 180.0);
+                    M = Mat4::Translation(Origin) * Mat4::Rotation(Axis, A) * Mat4::Translation(-Origin);
+                    if (ScaleEnd != 1.0) { double S = 1.0 + (ScaleEnd - 1.0) * T; M = Mat4::Translation(Origin) * Mat4::Scaling(Vec3{ S, S, S }) * Mat4::Translation(-Origin) * M; }
+                }
+                else
+                {
+                    M = Mat4::Translation(Step * T);
+                }
+                std::string Name = BaseName + "." + std::to_string(K);
+                if (S.Class == FigureClassification::Curve)        (void)Scene.AddCurve(Name, S.Curve.Transformed(M));
+                else if (S.Class == FigureClassification::Surface) (void)Scene.AddSurface(Name, S.Surface.Transformed(M));
+                else                                               (void)Scene.AddBody(Name, S.Body.Transformed(M));
+                ++TotalCreated;
+            }
+        }
+        if (TotalCreated == 0) return Refuse("array: no copies created (no figures matched)");
+        Row("array → %d copies%s", TotalCreated, Radial ? "  (radial)" : "  (linear)");
+        return true;
+    });
     Add("recipe", "recipe [figure...] — how derived figures are built (sources, options, complaints)  ·  recipe bake <figure...> detaches them", [=, this](const CommandLine& C)
     {
         if (C.Count() >= 1 && C.Arguments[0] == "bake")
@@ -1120,17 +1223,65 @@ void ConsoleHost::Register() noexcept
     });
 
     //---------------------------------------------- workplane & view ----------------------------------------------
-    Add("workplane", "workplane xy|xz|yz [--origin=(x,y,z)]", [=, this](const CommandLine& C)
+    Add("workplane", "workplane xy|xz|yz [--origin=(x,y,z)]  ·  workplane <name>  — recall a named plane (see `plane --name=…`)", [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "workplane")) return false;
         const std::string& N = C.Arguments[0];
         if (N == "xy")      Plane = Workplane::XY();
         else if (N == "xz") Plane = Workplane::XZ();
         else if (N == "yz") Plane = Workplane::YZ();
-        else return Refuse("workplane: xy, xz or yz");
+        else
+        {
+            // Named-plane recall: workplane <name> pops a plane previously saved with `plane --name=…`.
+            auto It = NamedPlanes.find(N);
+            if (It == NamedPlanes.end()) return Refuse("workplane: unknown plane '%s' (use xy, xz, yz, or a named plane saved with `plane --name=…`)", N.c_str());
+            Plane = It->second;
+            Row("workplane %s origin (%.3f %.3f %.3f) normal (%.3f %.3f %.3f)  [named]", N.c_str(), Plane.Origin.X, Plane.Origin.Y, Plane.Origin.Z, Plane.Normal().X, Plane.Normal().Y, Plane.Normal().Z);
+            return true;
+        }
         if (auto O = C.SwitchText("origin")) if (auto V = CommandCodec::ParsePoint(*O)) Plane.Origin = *V;
         Row("workplane %s origin (%.3f %.3f %.3f) normal (%.0f %.0f %.0f)", N.c_str(), Plane.Origin.X, Plane.Origin.Y, Plane.Origin.Z, Plane.Normal().X, Plane.Normal().Y, Plane.Normal().Z);
         return true;
+    });
+    Add("plane", "plane (origin) lengthU lengthV [--u=(x,y,z)] [--v=(x,y,z)] [--name=N]  ·  plane --from=<figure> --name=N — make a plane primitive (default), or save the current workplane as a named plane (with --name= alone), or save the plane implied by a figure's bounding face (with --from= and --name=).", [=, this](const CommandLine& C)
+    {
+        if (C.Switch("name") && !C.Switch("from") && C.Count() == 0)
+        {
+            // Just save the current workplane under a name.
+            std::string N = *C.SwitchText("name");
+            if (N.empty()) return Refuse("plane --name=: name is empty");
+            NamedPlanes[N] = Plane;
+            Row("plane %s saved  origin (%.3f %.3f %.3f) normal (%.3f %.3f %.3f)", N.c_str(), Plane.Origin.X, Plane.Origin.Y, Plane.Origin.Z, Plane.Normal().X, Plane.Normal().Y, Plane.Normal().Z);
+            return true;
+        }
+        if (auto From = C.SwitchText("from"))
+        {
+            // Save a plane derived from a figure's natural face.
+            SceneFigure* F = Resolve(*From);
+            if (!F) return Refuse("plane --from=: no figure '%s'", From->c_str());
+            std::string N = *C.SwitchText("name");
+            if (N.empty()) return Refuse("plane --from=: --name= is required");
+            Workplane P;
+            if (F->Classification == FigureClassification::Surface) P = Workplane::FromNormal(F->Surface.Origin, F->Surface.Normal(0.5, 0.5));
+            else if (F->Classification == FigureClassification::Body)
+            {
+                if (F->Body.Faces.empty()) return Refuse("plane --from=: body has no faces");
+                const auto& Face = F->Body.Faces.front();
+                Vec3 Nv = Face.Surface.Normal(0.5, 0.5);
+                if (Face.Reversed) Nv = -Nv;
+                P = Workplane::FromNormal(Face.Surface.Origin, Nv);
+            }
+            else return Refuse("plane --from=: figure '%s' must be a surface or body (not a curve)", From->c_str());
+            NamedPlanes[N] = P;
+            Row("plane %s saved from %s  origin (%.3f %.3f %.3f) normal (%.3f %.3f %.3f)", N.c_str(), From->c_str(), P.Origin.X, P.Origin.Y, P.Origin.Z, P.Normal().X, P.Normal().Y, P.Normal().Z);
+            return true;
+        }
+        // Default: build a plane primitive (the original behaviour).
+        Vec3 O; double LU = 0, LV = 0; if (!Need(C, 3, "plane") || !PointArg(C, 0, O, "plane") || !NumberArg(C, 1, LU, "plane") || !NumberArg(C, 2, LV, "plane")) return false;
+        Vec3 U = Plane.AxisX, V = Plane.AxisY;
+        if (auto A = C.SwitchText("u")) if (auto W = CommandCodec::ParsePoint(*A)) U = *W;
+        if (auto A = C.SwitchText("v")) if (auto W = CommandCodec::ParsePoint(*A)) V = *W;
+        return AddSurface(C, "Plane", NurbsSurface::Plane(O, U, V, LU, LV));
     });
     Add("view", "view front|back|right|left|top|bottom|iso|persp|ortho  ·  view orbit yawDeg pitchDeg  ·  view fit [selected]  ·  view dolly steps", [=, this](const CommandLine& C)
     {

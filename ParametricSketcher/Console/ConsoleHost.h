@@ -40,6 +40,7 @@ public:
     // Renders the current document into the raster (no file); public so verification can inspect pixels.
     void Render() noexcept;
     [[nodiscard]] const RasterExchange& Raster() const noexcept { return *Surface; }
+    [[nodiscard]] const Workplane&     WorkPlane() const noexcept { return Plane; }
 
 private:
     using Command = std::function<bool(const CommandLine&)>;
@@ -89,6 +90,7 @@ private:
     bool                                 Recording = false;                            // [-] guards nested Execute during undo
     CameraProjection                     View;
     Workplane                            Plane = Workplane::XY();
+    std::map<std::string, Workplane>     NamedPlanes;                                  // [-] named construction planes recalled by `workplane <name>`
     std::unique_ptr<SoftwareRaster>      Surface;
     std::map<std::string, Command>       Commands;
     std::map<std::string, std::string>   Usage;

@@ -100,6 +100,8 @@ int main()
         { "Phase8_Skins.arc",          1,  "loft / sweep / pipe"   },
         { "Phase9_Booleans.arc",       1,  "NURBS booleans"        },
         { "Phase9b_FairPatch.arc",     1,  "FairPatch"             },
+        { "Phase12_ArrayBridge.scr",   1,  "bridge + arrays + named planes" },
+        { "Phase12_ContactSheet.arc",  1,  "Phase 12 contact sheet"          },
     };
     auto Snapshot = [&](std::set<std::string>& Names) -> size_t
     {
