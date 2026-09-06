@@ -345,6 +345,49 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
             EmitBbox("Y", Vec3(B.High.X + Off, B.Low.Y, Centre.Z), Vec3(B.High.X + Off, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0), -1);
             EmitBbox("Z", Vec3(B.High.X + Off, Centre.Y, B.Low.Z), Vec3(B.High.X + Off, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0), -1);
         }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Revolve)
+        {
+            // Phase 16: live angle dim. The dim is drawn between the curve's foot on the axis and a
+            //    point swept by the axis + a perpendicular direction, so it reads as a sector.
+            // For now, emit a linear dim showing the swept angle in degrees (slot 12 = R0 in radians).
+            //    The endpoints sit on the axis above and below the foot, lifted by the axis unit vector.
+            Vec3 AxisU = Figure.Blueprint.B.LengthSquared() > 1e-12 ? Figure.Blueprint.B.Normalised() : Vec3(0, 1, 0);
+            Vec3 Lo = Figure.Blueprint.A;
+            Vec3 Hi = Lo + AxisU * 0.4;
+            EmitBbox("angle", Lo, Hi, ScalarCriteria::Degrees(Figure.Blueprint.R0), Vec3(0, 1, 0), 12);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Loft)
+        {
+            // Phase 16: V-degree (I0). Emit a label dim on the bbox top, read-only-ish but live.
+            EmitBbox("degree", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), double(Figure.Blueprint.I0), Vec3(0, 1, 0), 16);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Sweep)
+        {
+            // Phase 16: scale + twist + stations dims. Each on the body's top edge with a small offset.
+            EmitBbox("scale", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), Figure.Blueprint.R0, Vec3(0, 1, 0), 12);
+            EmitBbox("twist", Vec3(B.Low.X, B.High.Y + FaceOffset * 1.5, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset * 1.5, Centre.Z), ScalarCriteria::Degrees(Figure.Blueprint.R1), Vec3(0, 1, 0), 13);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Pipe)
+        {
+            // Phase 16: radius dim. Drawn as a chord through the tube cross-section, on the side of the tube.
+            Vec3 Ctr = (B.Low + B.High) * 0.5;
+            Vec3 Pnt = Ctr + Vec3(Figure.Blueprint.R0, 0, 0);
+            EmitBbox("radius", Ctr, Pnt, Figure.Blueprint.R0, Vec3(0, 1, 0), 12);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Boolean)
+        {
+            // Phase 16: no live slot — the boolean consumed its inputs. Emit a label dim only (slot = -1).
+            EmitBbox("boolean", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), 0.0, Vec3(0, 1, 0), -1);
+        }
+        else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Extrude)
+        {
+            // Phase 16: live length dim. Slot 14 = R2 (the extrude length).
+            Vec3 AxisU = Figure.Blueprint.Axis.LengthSquared() > 1e-12 ? Figure.Blueprint.Axis.Normalised() : Vec3(0, 0, 1);
+            Vec3 Foot = B.Low;
+            Vec3 Top  = Foot + AxisU * Figure.Blueprint.R2;
+            Vec3 Perp = std::fabs(AxisU.Z) < 0.9 ? Vec3(0, 0, 1).Cross(AxisU).Normalised() : Vec3(1, 0, 0).Cross(AxisU).Normalised();
+            EmitBbox("length", Foot + Perp * 0.05, Top + Perp * 0.05, Figure.Blueprint.R2, -Perp, 14);
+        }
         else
         {
             // Generic fallback: bbox on X/Y/Z, all read-only (Slot = -1).
@@ -493,6 +536,65 @@ bool ConsoleHost::ApplyLiveEdit(DimensionEntry& D, double NewValue) noexcept
             Fig->Body = std::move(P.Payload.Body);
             Replaced = true;
             break;
+        }
+        case Form::Revolve:
+        {
+            // Phase 16: live-edit the angle. The Blueprint stores the angle in radians (so the dim
+            //    emit can convert to degrees with ScalarCriteria::Degrees); the user passes a value
+            //    in degrees, so convert on edit and update S.R0 to match.
+            S.R0 = ScalarCriteria::Radians(S.R0);
+            Fig->Recipe.AxisOrigin = S.A;
+            Fig->Recipe.Axis = (S.B.LengthSquared() > 1e-12 ? S.B.Normalised() : Vec3(0, 1, 0));
+            Fig->Recipe.Angle = S.R0;
+            Deliver<FigureRecipe::Product> P = Fig->Recipe.Produce(Scene, Plane);
+            if (!P) return false;
+            if (P.Payload.IsBody) Fig->Body = std::move(P.Payload.Body);
+            else                  Fig->Surface = std::move(P.Payload.Sheet);
+            Replaced = true;
+            break;
+        }
+        case Form::Loft:
+        {
+            // Phase 16: live-edit the degree (rebuilds the loft's V-degree via I0).
+            Fig->Recipe.Loft.DegreeV = std::clamp(S.I0, 1, 7);
+            Deliver<FigureRecipe::Product> P = Fig->Recipe.Produce(Scene, Plane);
+            if (!P) return false;
+            if (P.Payload.IsBody) Fig->Body = std::move(P.Payload.Body);
+            else                  Fig->Surface = std::move(P.Payload.Sheet);
+            Replaced = true;
+            break;
+        }
+        case Form::Sweep:
+        {
+            // Phase 16: live-edit ScaleEnd / TwistAngle / Stations. Twist is stored in radians
+            //    (so the dim emit can convert to degrees with ScalarCriteria::Degrees); the user
+            //    passes degrees, so convert on edit and update S.R1 to match.
+            S.R1 = ScalarCriteria::Radians(S.R1);
+            Fig->Recipe.Sweep.ScaleEnd = S.R0;
+            Fig->Recipe.Sweep.TwistAngle = S.R1;
+            Fig->Recipe.Sweep.Stations = std::max(0, S.I0);
+            Deliver<FigureRecipe::Product> P = Fig->Recipe.Produce(Scene, Plane);
+            if (!P) return false;
+            if (P.Payload.IsBody) Fig->Body = std::move(P.Payload.Body);
+            else                  Fig->Surface = std::move(P.Payload.Sheet);
+            Replaced = true;
+            break;
+        }
+        case Form::Pipe:
+        {
+            // Phase 16: live-edit the radius.
+            Fig->Recipe.Radius = std::max(1e-6, S.R0);
+            Deliver<FigureRecipe::Product> P = Fig->Recipe.Produce(Scene, Plane);
+            if (!P) return false;
+            if (P.Payload.IsBody) Fig->Body = std::move(P.Payload.Body);
+            else                  Fig->Surface = std::move(P.Payload.Sheet);
+            Replaced = true;
+            break;
+        }
+        case Form::Boolean:
+        {
+            // Phase 16: no live slot — the boolean consumed its inputs. Refuse so the dim is read-only.
+            return false;
         }
         case Form::ChamferEdge:
         {
@@ -765,7 +867,26 @@ bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecip
     DescribeFigure(Figure);
     Row("  ↳ %s", Figure.Recipe.Summary(Scene).c_str());
     if (Figure.Classification == FigureClassification::Body) { BodyReport R = Figure.Body.Validate(); if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges); }
-    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
+    if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
+    return true;
+}
+
+bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecipe Recipe, SceneFigure::ParametricBlueprint Source) noexcept
+{
+    // Phase 16: derived-op live edit. Produce the body, then attach the Blueprint that records the
+    //    recipe's scalar/vector inputs. `dim edit` on a Blueprint dim mutates the Blueprint, then
+    //    ApplyLiveEdit re-produces the body from the recipe with the new value.
+    Deliver<FigureRecipe::Product> P = Recipe.Produce(Scene, Plane);
+    if (!P) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(P.Denial.Reason), P.Denial.Detail);
+    Recipe.InputFingerprint = Recipe.FingerprintInputs(Scene, Plane);
+    SceneFigure& Figure = P.Payload.IsBody ? Scene.AddBody(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Body))
+                                           : Scene.AddSurface(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Sheet));
+    Figure.Recipe = std::move(Recipe);
+    Figure.Blueprint = std::move(Source);                                            // Phase 16: live-edit the figure from the Blueprint
+    DescribeFigure(Figure);
+    Row("  ↳ %s", Figure.Recipe.Summary(Scene).c_str());
+    if (Figure.Classification == FigureClassification::Body) { BodyReport R = Figure.Body.Validate(); if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges); }
+    if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -1339,7 +1460,12 @@ void ConsoleHost::Register() noexcept
         Vec3 Dir = Plane.Normal(); if (auto A = C.SwitchText("direction")) if (auto V = CommandCodec::ParsePoint(*A)) Dir = *V;
         Row("extrude %s", S.Label.c_str());
         FigureRecipe R; R.Operation = RecipeOperation::Extrude; R.Sections = { S.Input }; R.Direction = Dir; R.Length = L; R.Sheet = !S.Solid;
-        return AddDerived(C, "Extrusion", R);
+        // Phase 16: explicit Blueprint for extrude. (The existing live-edit path already works via the
+        //    Recipe, but a Blueprint makes the dim tree emit a clean "length" / "direction" dim set.)
+        SceneFigure::ParametricBlueprint BP;
+        BP.Form = SceneFigure::ParametricForm::Extrude;
+        BP.Axis = Dir; BP.R2 = L;                                                            // Phase 13 convention: extrude length is R2
+        return AddDerived(C, "Extrusion", R, BP);
     });
     Add("revolve", "revolve <curve> angleDeg [--origin=(x,y,z)] [--axis=(x,y,z)] [--sheet]", [=, this](const CommandLine& C)
     {
@@ -1350,7 +1476,11 @@ void ConsoleHost::Register() noexcept
         if (auto A = C.SwitchText("axis")) if (auto V = CommandCodec::ParsePoint(*A)) Axis = *V;
         Row("revolve %s", S.Label.c_str());
         FigureRecipe R; R.Operation = RecipeOperation::Revolve; R.Sections = { S.Input }; R.AxisOrigin = O; R.Axis = Axis; R.Angle = ScalarCriteria::Radians(Angle); R.Sheet = !S.Solid;
-        return AddDerived(C, "Revolution", R);
+        // Phase 16: live-edit Blueprint. Slots 0..2 = AxisOrigin.X/Y/Z, 3..5 = Axis.X/Y/Z, 12 = Angle (radians).
+        SceneFigure::ParametricBlueprint BP;
+        BP.Form = SceneFigure::ParametricForm::Revolve;
+        BP.A = O; BP.B = Axis; BP.R0 = ScalarCriteria::Radians(Angle);
+        return AddDerived(C, "Revolution", R, BP);
     });
     //------------------------------------------------ Phase 7: planar profile algebra -------------------------------------------------
     auto ProfileOf = [this](const std::vector<SceneFigure*>& Figures, const char* Verb, Profile& Out) -> bool
@@ -1418,7 +1548,13 @@ void ConsoleHost::Register() noexcept
             Scene.ClearSelection();
             if (!C.Switch("keep")) { Scene.Remove(IdA); Scene.Remove(IdB); }              // before adding: pointers die with the erase
             const char* Stem = Op3 == BodyOperation::Union ? "Union" : Op3 == BodyOperation::Subtract ? "Difference" : "Common";
-            return AddBody(C, Stem, std::move(R));
+            // Phase 16: stamp a Boolean Blueprint so the dim tree shows a header dim. No live slot
+            //    (the inputs were consumed; re-running boolean needs the original bodies).
+            SceneFigure::ParametricBlueprint BP;
+            BP.Form = SceneFigure::ParametricForm::Boolean;
+            BP.R0 = Op3 == BodyOperation::Union ? 0.0 : Op3 == BodyOperation::Subtract ? 1.0 : 2.0;     // op encoding
+            BP.Axis = Vec3(double(IdA), double(IdB), 0.0);                                                // record the source ids
+            return AddBody(C, Stem, std::move(R), BP);
         }
         //------------------------------------------------ 2D: planar profile boolean -------------------------------------------------
         Profile Pa, Pb; if (!ProfileOf(A, "boolean", Pa) || !ProfileOf(B, "boolean", Pb)) return false;
@@ -1674,7 +1810,11 @@ void ConsoleHost::Register() noexcept
         R.LoftGuides.SamplesPerGuide = int(C.SwitchNumber("guide-samples").value_or(R.LoftGuides.SamplesPerGuide));
         std::string Names; for (const SweepSource& S : Sections) Names += " " + S.Label;
         Row("loft%s%s", Names.c_str(), R.LoftGuideInputs.empty() ? "" : " (guides)");
-        return AddDerived(C, "Loft", R);
+        // Phase 16: live-edit Blueprint. Slot 16 = Loft.DegreeV (I0).
+        SceneFigure::ParametricBlueprint BP;
+        BP.Form = SceneFigure::ParametricForm::Loft;
+        BP.I0 = R.Loft.DegreeV;
+        return AddDerived(C, "Loft", R, BP);
     });
     Add("sweep", "sweep <profile> <path> [--bases=minimal|frenet|fixed] [--scale=s] [--twist=deg] [--stations=n] [--sheet] — carry a profile (curve / area / edge) along a path curve or edge", [=, this](const CommandLine& C)
     {
@@ -1690,7 +1830,13 @@ void ConsoleHost::Register() noexcept
         if (auto F = C.SwitchText("bases")) R.Sweep.Bases = *F == "frenet" ? SweepBases::Frenet : *F == "fixed" ? SweepBases::Fixed : SweepBases::RotationMinimising;
         R.Sweep.ScaleEnd = C.SwitchNumber("scale").value_or(1.0); R.Sweep.TwistAngle = ScalarCriteria::Radians(C.SwitchNumber("twist").value_or(0.0)); R.Sweep.Stations = int(C.SwitchNumber("stations").value_or(0));
         Row("sweep %s along %s", P.Label.c_str(), Path.Label.c_str());
-        return AddDerived(C, "Sweep", R);
+        // Phase 16: live-edit Blueprint. Slot 12 = ScaleEnd, 13 = TwistAngle, 16 = Stations.
+        SceneFigure::ParametricBlueprint BP;
+        BP.Form = SceneFigure::ParametricForm::Sweep;
+        BP.R0 = R.Sweep.ScaleEnd;
+        BP.R1 = R.Sweep.TwistAngle;
+        BP.I0 = R.Sweep.Stations;
+        return AddDerived(C, "Sweep", R, BP);
     });
     Add("pipe", "pipe <path> radius [--sheet] — circular tube along a curve or edge", [=, this](const CommandLine& C)
     {
@@ -1699,7 +1845,11 @@ void ConsoleHost::Register() noexcept
         if (C.Arguments[0] == "selected") { std::vector<SweepSource> Sel; if (!CollectSections(CommandLine{ C.Verb, { "selected" }, C.Flags }, 0, "pipe", Sel)) return false; if (Sel.size() != 1) return Refuse("pipe selected: select exactly one path"); Path = Sel[0]; }
         else if (!ResolveSweep(C, 0, "pipe", Path)) return false;
         FigureRecipe R; R.Operation = RecipeOperation::Pipe; R.Path = Path.Input; R.Radius = Radius; R.Sheet = C.Switch("sheet");
-        return AddDerived(C, "Pipe", R);
+        // Phase 16: live-edit Blueprint. Slot 12 = Radius.
+        SceneFigure::ParametricBlueprint BP;
+        BP.Form = SceneFigure::ParametricForm::Pipe;
+        BP.R0 = Radius;
+        return AddDerived(C, "Pipe", R, BP);
     });
     Add("fillpatch", "fillpatch <boundaries...>|selected — Coons sheet over 3–4 boundary curves / edges, N-sided fill over more, or one closed curve", [=, this](const CommandLine& C)
     {

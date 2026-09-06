@@ -107,6 +107,7 @@ int main()
         { "Phase13b_DimensionsRedo.scr", 1, "Phase 13 redo: live-edit rebuilds (box/cone/chamfer)"},
         { "Phase13b_ContactSheet.arc", 1,  "Phase 13 redo contact sheet"     },
         { "Phase15_PolylineUndo.scr",  1,  "Phase 15: per-vertex polyline + construction suppression + undo"},
+        { "Phase16_DerivedLiveEdit.scr", 1, "Phase 16: live-edit for revolve / pipe / sweep / boolean"},
     };
     auto Snapshot = [&](std::set<std::string>& Names) -> size_t
     {

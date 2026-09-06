@@ -61,7 +61,8 @@ struct SceneFigure
         None = 0,
         Box, Sphere, Cylinder, Cone, Torus,                       // bodies
         Line, Circle, Arc, Ellipse, Polyline, Spline, Rectangle,  // curves
-        Extrude, Revolve, ChamferEdge,                             // derived
+        Extrude, Revolve, Loft, Sweep, Pipe, Boolean,             // derived (Phase 16: live-edit for the rest)
+        ChamferEdge,                                              // modifier
     };
     struct ParametricBlueprint
     {

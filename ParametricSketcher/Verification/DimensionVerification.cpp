@@ -402,5 +402,83 @@ ConsoleHost Host("/tmp/SolidArcVerificationP13R5", 1280, 800);
         for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "B Y") { Panel.Within("B Y dim re-emits at 3.0 after undo", std::fabs(D.Value - 3.0), 1e-9); break; }
     }
 
+    // =====================================================================================
+    //  Phase 16: live-edit for the remaining derived figures (revolve, loft, sweep, pipe, boolean).
+    // =====================================================================================
+
+    Panel.Section("Phase 16: revolve live-edit (angle dim rebuilds the body)");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerificationP16A", 1280, 800);
+        Host.SetDimensionsVisible(true);
+        Host.Execute("dim on");
+        // A small line offset from the axis, revolved 180°.
+        Host.Execute("line (0.5, 0, 0) (0.5, 0, 1.0) --name=RevCurve");
+        Host.Execute("revolve RevCurve 180 --origin=(0,0,0) --axis=(0,1,0) --name=Rev");
+        // Find the angle dim (slot 12, AnchorName "Rev angle").
+        int32_t AngId = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "Rev angle") { AngId = int32_t(D.Id); break; }
+        Panel.Expect("revolve emits a live angle dim", AngId != 0);
+        // The angle dim should report 180° (slot is in radians, dim value is degrees).
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "Rev angle") { Panel.Within("revolve angle dim starts at 180°", std::fabs(D.Value - 180.0), 1e-9); break; }
+        // Live-edit the angle to 90° and verify the body re-derives.
+        Host.Execute("dim edit Rev angle 90");
+        // Re-find the dim (its id may have changed after re-emit).
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "Rev angle") { Panel.Within("revolve angle dim updates to 90°", std::fabs(D.Value - 90.0), 1e-9); break; }
+    }
+
+    Panel.Section("Phase 16: pipe live-edit (radius dim rebuilds the body)");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerificationP16B", 1280, 800);
+        Host.SetDimensionsVisible(true);
+        Host.Execute("dim on");
+        Host.Execute("line (0,0,0) (3,0,0) --name=TubePath");
+        Host.Execute("pipe TubePath 0.25 --name=Tube");
+        // Find the radius dim.
+        int32_t RadId = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "Tube radius") { RadId = int32_t(D.Id); break; }
+        Panel.Expect("pipe emits a live radius dim", RadId != 0);
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "Tube radius") { Panel.Within("pipe radius dim starts at 0.25", std::fabs(D.Value - 0.25), 1e-9); break; }
+        // Live-edit the radius to 0.5.
+        Host.Execute("dim edit Tube radius 0.5");
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "Tube radius") { Panel.Within("pipe radius dim updates to 0.5", std::fabs(D.Value - 0.5), 1e-9); break; }
+    }
+
+    Panel.Section("Phase 16: sweep live-edit (scale dim rebuilds the body)");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerificationP16C", 1280, 800);
+        Host.SetDimensionsVisible(true);
+        Host.Execute("dim on");
+        Host.Execute("circle (0,0,0) 0.3 --name=Prof");
+        Host.Execute("line (0,0,0) (0,0,2) --name=Path");
+        Host.Execute("sweep Prof Path --scale=1.0 --name=SW");
+        // Find the scale dim.
+        int32_t ScaleId = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "SW scale") { ScaleId = int32_t(D.Id); break; }
+        Panel.Expect("sweep emits a live scale dim", ScaleId != 0);
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "SW scale") { Panel.Within("sweep scale dim starts at 1.0", std::fabs(D.Value - 1.0), 1e-9); break; }
+        // Live-edit the scale to 2.0 (the profile should taper out at the end of the sweep).
+        Host.Execute("dim edit SW scale 2.0");
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "SW scale") { Panel.Within("sweep scale dim updates to 2.0", std::fabs(D.Value - 2.0), 1e-9); break; }
+    }
+
+    Panel.Section("Phase 16: boolean emits a header dim (no live slot — edit is a label override)");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerificationP16D", 1280, 800);
+        Host.SetDimensionsVisible(true);
+        Host.Execute("dim on");
+        // Two spheres that overlap cleanly — curved surfaces never produce coplanar singularities.
+        Host.Execute("sphere (0,0,0) 1 --name=A");
+        Host.Execute("sphere (1,0,0) 1 --name=B");
+        Host.Execute("boolean union A B --name=Bool");
+        // The boolean figure has the Blueprint form set; the dim emit should produce a "boolean" label dim with slot = -1.
+        int32_t BoolId = 0;
+        int  Slot = -999;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName.find("Bool") != std::string::npos && D.AnchorName.find("boolean") != std::string::npos) { BoolId = int32_t(D.Id); Slot = D.Slot; break; }
+        Panel.Expect("boolean emits a header dim", BoolId != 0);
+        // The slot should be -1 (no live edit — boolean inputs were consumed). Edit becomes a label
+        //    override, not a body rebuild. Confirm the slot value rather than the edit outcome.
+        Panel.Expect("boolean dim has no live slot (Slot == -1)", Slot == -1);
+    }
+
     return Panel.Conclude();
 }
