@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <deque>
+#include <optional>
 #include "ProfileSolver.h"
 
 namespace Frontier
@@ -931,6 +932,80 @@ Deliver<BrepBody> BrepBody::Sew(const std::vector<NurbsSurface>& Surfaces, doubl
     for (const NurbsSurface& S : Surfaces) { int F = B.AddFace(S); B.AddNaturalBoundary(F, Tolerance); }
     B.Orient();                                                                         // neighbours agree before caps are derived from them
     if (Cap) B.Capped(Tolerance);
+    B.Orient();
+    return Deliver<BrepBody>::Accept(std::move(B));
+}
+
+Deliver<BrepBody> BrepBody::Solidify(const BrepBody& Shell, double HalfThickness) noexcept
+{
+    // Solidify turns a NURBS surface into a slab of total thickness 2·HalfThickness. The two layers are the original
+    //    surface translated ± HalfThickness along its centre normal. The side wall is the ruled surface between each
+    //    natural-boundary loop and its translated copy, which is meaningful only when the boundary is non-degenerate
+    //    under the translation (a flat sheet's boundary, when translated along the surface normal, is parallel to itself
+    //    and yields a zero-area side wall — that case is refused, with a hint to use `extrude` on a planar curve).
+    //
+    // Full-surface-offset (a different operation) is a later phase.
+    if (HalfThickness <= ScalarCriteria::KernelTolerance) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "thickness must be positive");
+    if (Shell.Faces.size() != 1) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "solidify currently operates on a single surface; pass a sheet body with one face");
+
+    const BrepFace& F = Shell.Faces[0];
+    if (F.Loops.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "surface has no boundary to thicken");
+
+    auto StitchLoop = [&](int L) -> std::optional<NurbsCurve>
+    {
+        const BrepLoop& Lp = Shell.Loops[L];
+        if (Lp.Coedges.empty()) return std::nullopt;
+        std::vector<Vec3> Pts;
+        for (int Ce : Lp.Coedges)
+        {
+            const BrepCoedge& C = Shell.Coedges[Ce];
+            const BrepEdge& E = Shell.Edges[C.Edge];
+            std::vector<Vec3> P; E.Curve.Tessellate(P, nullptr, 2e-3);
+            if (C.Reversed) std::reverse(P.begin(), P.end());
+            if (!Pts.empty()) P.erase(P.begin());
+            Pts.insert(Pts.end(), P.begin(), P.end());
+        }
+        if (Pts.size() < 4) return std::nullopt;
+        Deliver<NurbsCurve> Loop = NurbsCurve::Polyline(Pts, true);
+        if (!Loop) return std::nullopt;
+        return Loop.Payload;
+    };
+    std::vector<NurbsCurve> Loops; Loops.reserve(F.Loops.size());
+    for (int L : F.Loops) { auto Lc = StitchLoop(L); if (Lc) Loops.push_back(*Lc); }
+    if (Loops.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "no usable boundary loop");
+
+    Vec3 Normal = F.Surface.Normal(0.5 * (F.Surface.DomainStartU() + F.Surface.DomainEndU()),
+                                   0.5 * (F.Surface.DomainStartV() + F.Surface.DomainEndV()));
+    if (F.Reversed) Normal = -Normal;
+    Mat4 Out = Mat4::Translation(Normal *  HalfThickness);
+    Mat4 In  = Mat4::Translation(Normal * -HalfThickness);
+
+    // The side wall between C and C.Transformed(Out) has non-zero area only when C is not parallel to the translation
+    //    direction (i.e. C has some component orthogonal to Normal). For a planar surface whose boundary lies in the
+    //    surface's own plane, every point of C is orthogonal to Normal, so the ruled surface collapses. Refuse early.
+    if (F.Surface.ClosedU() || F.Surface.ClosedV()) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "surface is closed in at least one direction (cylinder, sphere, torus, closed patch) — Solidify only works on open sheets; use a regular closed body instead");
+    bool AnyWall = false;
+    for (const NurbsCurve& C : Loops)
+    {
+        if (C.Length() <= ScalarCriteria::KernelTolerance) continue;
+        // Sample the curve's midpoint and check the tangent has any component orthogonal to the translation
+        Vec3 Mid = C.Sample(0.5 * (C.DomainStart() + C.DomainEnd()));
+        Vec3 Translated = Mat4::Translation(Normal * HalfThickness).TransformPoint(Mid);
+        if ((Translated - Mid).Length() > 1e-9) { AnyWall = true; break; }
+    }
+    if (!AnyWall) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "surface boundary is parallel to its own normal — the side wall would be zero area; use `extrude <curve> t` on a planar curve instead");
+
+    BrepBody B;
+    int Top = B.AddFace(F.Surface.Transformed(Out));   B.AddNaturalBoundary(Top, ScalarCriteria::MergeTolerance);
+    int Bottom = B.AddFace(F.Surface.Transformed(In)); B.AddNaturalBoundary(Bottom, ScalarCriteria::MergeTolerance);
+    for (const NurbsCurve& C : Loops)
+    {
+        if (C.Length() <= ScalarCriteria::KernelTolerance) continue;
+        NurbsCurve T = C.Transformed(Out);
+        Deliver<NurbsSurface> Wall = NurbsSurface::Ruled(C, T);
+        if (!Wall) continue;
+        int Side = B.AddFace(Wall.Payload); B.AddNaturalBoundary(Side, ScalarCriteria::MergeTolerance);
+    }
     B.Orient();
     return Deliver<BrepBody>::Accept(std::move(B));
 }

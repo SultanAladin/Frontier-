@@ -101,6 +101,11 @@ add_executable(FairPatchVerification Verification/FairPatchVerification.cpp)
 target_link_libraries(FairPatchVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME FairPatchVerification COMMAND FairPatchVerification)
 
+# Phase 11a: Solidify (single-surface shell), Loft with guides, and the body operations added next.
+add_executable(BodyOpsVerification Verification/BodyOpsVerification.cpp)
+target_link_libraries(BodyOpsVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME BodyOpsVerification COMMAND BodyOpsVerification)
+
 # Phase 10: chain-run every per-phase script and check the contact sheet.
 add_executable(SuiteVerification Verification/SuiteVerification.cpp)
 target_link_libraries(SuiteVerification PRIVATE SolidArcConsoleKit)

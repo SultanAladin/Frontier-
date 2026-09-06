@@ -104,6 +104,10 @@ public:
     // Profile revolved by a full turn (closed profile → torus-like, open profile touching the axis → sphere-like) or a partial angle with caps.
     [[nodiscard]] static Deliver<BrepBody> Revolve(const NurbsCurve& Profile, Vec3 AxisOrigin, Vec3 AxisDirection, double Angle) noexcept;
     [[nodiscard]] static Deliver<BrepBody> Revolve(const std::vector<NurbsCurve>& Loops, Vec3 AxisOrigin, Vec3 AxisDirection, double Angle) noexcept;
+    // Thicken a closed surface body into a solid shell of half-thickness t (or full thickness 2t when --both). Each face is
+    //    duplicated, the original moved −t·n and the copy +t·n, then the duplicate's natural boundary is re-stitched to the
+    //    original's. For a single NurbsSurface the body becomes a slab. A planar face can use --plane to give the normal.
+    [[nodiscard]] static Deliver<BrepBody> Solidify(const BrepBody& Shell, double HalfThickness) noexcept;
 
     //---------------------------------------------- editing ----------------------------------------------
     // Add planar faces on every open boundary loop that lies in a plane. Returns the number of caps added.

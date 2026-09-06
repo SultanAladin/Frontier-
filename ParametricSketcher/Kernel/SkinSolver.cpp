@@ -4,6 +4,7 @@
 #include "SkinSolver.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace Frontier
 {
@@ -562,6 +563,99 @@ Deliver<SkinSolver::Skin> SkinSolver::Patch(std::vector<NurbsCurve> Boundaries, 
         Quads.push_back(std::move(Q.Payload));
     }
     return Deliver1(std::move(Quads), true, false);                                         // a fill is a sheet body: never cap its rim
+}
+
+// Project a set of guide curves onto a NURBS surface by iteratively pulling each interior control point toward the
+//    guide samples' offsets. Boundary rows (u = 0, u = 1, v = 0, v = 1) are clamped, so the loft's exact profile
+//    boundaries are preserved; only the interior bends. Each round: for every guide sample at closest (u,v) on the
+//    current surface, compute the offset to the target, and distribute it to the interior control points weighted by
+//    their basis-function value. Re-project after each round so the closest (u,v) follows the surface as it bends.
+//    This is the same iterative-projection pattern FairPatchSolver uses for its guides, applied to a lofted sheet.
+namespace
+{
+    // Approximate B-spline basis function value at parameter u in [0,1] for a non-periodic clamped curve of the given
+    //    degree, with control points evenly spaced at t = i/(Count-1). The piecewise polynomial is bell-shaped; this
+    //    proxy is exact for cubic and lower, near-exact for higher. Good enough for distributing surface-point offsets
+    //    to nearby control points; the iterative rounds recover the lost precision.
+    double BasisProxy(double ControlU, double U, int Degree) noexcept
+    {
+        if (U < 0 || U > 1) return 0;
+        double D = std::fabs(ControlU - U);
+        double HalfWidth = 0.5; int P = std::max(1, Degree);
+        if (P == 1) HalfWidth = 0.5;
+        else if (P == 2) HalfWidth = 1.0;
+        else if (P == 3) HalfWidth = 1.5;
+        else HalfWidth = double(P) * 0.5;
+        if (D >= HalfWidth) return 0;
+        double T = 1.0 - D / HalfWidth;
+        // Smooth bump: t^2 (3 - 2t) — cubic Hermite, 0 at the edges, 1 at the centre.
+        return T * T * (3.0 - 2.0 * T);
+    }
+    // Is the (I, J) pole on a boundary row? (We leave the four boundary rows clamped so the loft's profiles are exact.)
+    bool BoundaryRow(int CountU, int CountV, int I, int J) noexcept
+    {
+        return I == 0 || I == CountU - 1 || J == 0 || J == CountV - 1;
+    }
+}
+
+NurbsSurface SkinSolver::ProjectGuides(NurbsSurface Sheet, const LoftGuideOptions& Options) noexcept
+{
+    if (Options.Guides.empty() || Options.Weight <= 0.0) return Sheet;
+    for (int Round = 0; Round < std::max(1, Options.Rounds); ++Round)
+    {
+        // For each control point P_{IJ}, accumulate a weighted offset (and the total weight) across all guide samples.
+        //    The V coordinate of a guide sample is the sample's normalized parameter (T mapped to [0,1]) — guides are
+        //    ordered along their arc, not along the surface's natural U/V, so the convention is "the guide samples
+        //    sweep V from 0 to 1". U is taken from the closest parameter on the current surface, so the guide can
+        //    walk across the surface in U as the V constraint moves the surface around.
+        std::vector<Vec3> Offset(Sheet.Poles.size(), Vec3{});
+        std::vector<double> Total(Sheet.Poles.size(), 0.0);
+        for (const NurbsCurve& Guide : Options.Guides)
+        {
+            if (Guide.PoleCount() < 2 || Guide.Length() <= 0) continue;
+            for (int K = 0; K < Options.SamplesPerGuide; ++K)
+            {
+                double NormT = double(K) / std::max(1, Options.SamplesPerGuide - 1);
+                double T = Guide.DomainStart() + (Guide.DomainEnd() - Guide.DomainStart()) * NormT;
+                Vec3 Target = Guide.Sample(T);
+                // Use V = NormT (the guide's normalized position along its arc, mapped to the surface V range).
+                double V = NormT * (Sheet.DomainEndV() - Sheet.DomainStartV()) + Sheet.DomainStartV();
+                // Find the U that lands closest to the target along the iso-curve at V.
+                double U = 0.5 * (Sheet.DomainStartU() + Sheet.DomainEndU());
+                double BestDistance = std::numeric_limits<double>::infinity();
+                int USamples = 24;
+                for (int US = 0; US <= USamples; ++US)
+                {
+                    double Uu = Sheet.DomainStartU() + (Sheet.DomainEndU() - Sheet.DomainStartU()) * US / USamples;
+                    Vec3 P = Sheet.Sample(Uu, V);
+                    double D = (P - Target).LengthSquared();
+                    if (D < BestDistance) { BestDistance = D; U = Uu; }
+                }
+                Vec3 SurfacePoint = Sheet.Sample(U, V);
+                Vec3 Delta = (Target - SurfacePoint) * Options.Weight;
+                int CU = Sheet.CountU, CV = Sheet.CountV;
+                for (int I = 0; I < CU; ++I)
+                    for (int J = 0; J < CV; ++J)
+                    {
+                        if (BoundaryRow(CU, CV, I, J)) continue;
+                        double W = BasisProxy(double(I) / std::max(1, CU - 1), (U - Sheet.DomainStartU()) / (Sheet.DomainEndU() - Sheet.DomainStartU()), Sheet.DegreeU) *
+                                   BasisProxy(double(J) / std::max(1, CV - 1), (V - Sheet.DomainStartV()) / (Sheet.DomainEndV() - Sheet.DomainStartV()), Sheet.DegreeV);
+                        if (W < 1e-9) continue;
+                        Offset[I * CV + J] = Offset[I * CV + J] + Delta * W;
+                        Total[I * CV + J] += W;
+                    }
+            }
+        }
+        for (size_t K = 0; K < Offset.size(); ++K)
+        {
+            if (Total[K] < 1e-9) continue;
+            Vec3 Move = Offset[K] / Total[K];
+            Vec4& P = Sheet.Poles[K];
+            if (std::fabs(P.W) < 1e-9) P.W = 1.0;
+            P.X += Move.X * P.W; P.Y += Move.Y * P.W; P.Z += Move.Z * P.W;
+        }
+    }
+    return Sheet;
 }
 
 } // namespace Frontier

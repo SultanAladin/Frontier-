@@ -228,6 +228,27 @@ Deliver<FigureRecipe::Product> FigureRecipe::Produce(const SceneDocument& Scene,
         case RecipeOperation::Loft:
         {
             LoftOptions L = Loft; if (Sheet) L.Solid = false;
+            // With guides we always take the sheet-only path; re-wrapping a body around a deformed sheet would re-sew
+            //    against the original sections, undoing the deformation. We use each station's first loop as the
+            //    outer profile (multi-loop loft with guides is rare; the typical case is two to four open sections).
+            if (!LoftGuideInputs.empty())
+            {
+                LoftGuideOptions Opts = LoftGuides;
+                for (const RecipeInput& In : LoftGuideInputs)
+                {
+                    Deliver<std::vector<NurbsCurve>> R = ResolveInput(In, Scene, Work);
+                    if (!R) return Out::Reject(R.Denial.Reason, R.Denial.Detail);
+                    for (NurbsCurve& C : R.Payload) Opts.Guides.push_back(std::move(C));
+                }
+                std::vector<NurbsCurve> Outers;
+                for (const std::vector<NurbsCurve>& S : Stations) if (!S.empty()) Outers.push_back(S.front());
+                if (Outers.size() < 2) return Out::Reject(RefusalReason::DegenerateInput, "loft with guides needs at least two sections");
+                Deliver<NurbsSurface> Built = SkinSolver::LoftSheet(Outers, L);
+                if (!Built) return Out::Reject(Built.Denial.Reason, Built.Denial.Detail);
+                NurbsSurface Projected = SkinSolver::ProjectGuides(Built.Payload, Opts);
+                Product P; P.IsBody = false; P.Sheet = std::move(Projected);
+                return Out::Accept(std::move(P));
+            }
             return FromSkin(SkinSolver::Loft(Stations, L));
         }
         case RecipeOperation::Sweep:

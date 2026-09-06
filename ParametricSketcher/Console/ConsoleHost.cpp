@@ -544,6 +544,28 @@ void ConsoleHost::Register() noexcept
         if (!C.Switch("keep")) for (uint32_t Id : Ids) Scene.Remove(Id);
         return true;
     });
+    Add("solidify", "solidify <figure...> thickness — turn a sheet (single NURBS surface) into a solid slab of the given total thickness; the face is duplicated and translated along its normal by ± t/2, then the side wall is added as a ruled surface and the slab is re-sewn", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "solidify")) return false;
+        double T = 0; if (!NumberArg(C, C.Count() - 1, T, "solidify")) return false;
+        CommandLine Sub = C; Sub.Arguments.pop_back();
+        if (T <= 0) return Refuse("solidify: thickness must be positive");
+        int Done = 0;
+        for (SceneFigure* I : ResolveMany(Sub, 0))
+        {
+            BrepBody Shell;
+            if (I->Classification == FigureClassification::Surface) Shell = BrepBody::FromSurface(I->Surface);
+            else { Refuse("solidify: '%s' must be a sheet (NURBS surface), not a body or curve", I->Name.c_str()); continue; }
+            Deliver<BrepBody> R = BrepBody::Solidify(Shell, T * 0.5);
+            if (!R) { Refuse("solidify %s: %s", I->Name.c_str(), R.Denial.Detail); continue; }
+            std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
+            Scene.Remove(Id);
+            SceneFigure& F = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Solid"), std::move(R.Payload));
+            F.Selected = Sel; ++Done;
+            Row("solidify %s → %s  thickness %.4f", Name.c_str(), F.Name.c_str(), T);
+        }
+        return Done > 0;
+    });
     Add("plane", "plane (origin) lengthU lengthV [--u=(x,y,z)] [--v=(x,y,z)]", [=, this](const CommandLine& C)
     {
         Vec3 O; double LU = 0, LV = 0; if (!Need(C, 3, "plane") || !PointArg(C, 0, O, "plane") || !NumberArg(C, 1, LU, "plane") || !NumberArg(C, 2, LV, "plane")) return false;
@@ -878,7 +900,7 @@ void ConsoleHost::Register() noexcept
         }
         return true;
     };
-    Add("loft", "loft <sections...>|selected [--degree=3] [--loop] [--sheet] [--no-align] — sections are curves, areas (aN), body edges (Body:eN) or Outer+Hole groups in flow order; closed sections → solid (areas with holes → through-holes)", [=, this](const CommandLine& C)
+    Add("loft", "loft <sections...>|selected [--degree=3] [--loop] [--sheet] [--no-align] [--guides=a,b] [--guide-weight=w] [--guide-rounds=n] — sections are curves, areas (aN), body edges (Body:eN) or Outer+Hole groups in flow order; closed sections → solid (areas with holes → through-holes); --guides bends the sheet through each named curve", [=, this](const CommandLine& C)
     {
         std::vector<SweepSource> Sections; if (!CollectSections(C, 0, "loft", Sections)) return false;
         if (Sections.size() < 2) return Refuse("loft: at least two sections");
@@ -886,8 +908,15 @@ void ConsoleHost::Register() noexcept
         for (const SweepSource& S : Sections) R.Sections.push_back(S.Input);
         R.Loft.DegreeV = int(C.SwitchNumber("degree").value_or(3)); R.Loft.Loop = C.Switch("loop"); R.Loft.AlignSeams = R.Loft.AlignSense = !C.Switch("no-align");
         R.Sheet = C.Switch("sheet");
+        if (auto G = C.SwitchText("guides"))
+        {
+            std::string Tok; for (char Ch : *G + ",") { if (Ch == ',') { if (!Tok.empty()) { SceneFigure* F = Resolve(Tok); if (!F || F->Classification != FigureClassification::Curve) return Refuse("loft: guide '%s' is not a curve", Tok.c_str()); RecipeInput In; In.Shape = RecipeInput::Form::Curve; In.Figures = { F->Identity }; R.LoftGuideInputs.push_back(In); } Tok.clear(); } else Tok += Ch; }
+        }
+        R.LoftGuides.Weight = C.SwitchNumber("guide-weight").value_or(R.LoftGuides.Weight);
+        R.LoftGuides.Rounds = int(C.SwitchNumber("guide-rounds").value_or(R.LoftGuides.Rounds));
+        R.LoftGuides.SamplesPerGuide = int(C.SwitchNumber("guide-samples").value_or(R.LoftGuides.SamplesPerGuide));
         std::string Names; for (const SweepSource& S : Sections) Names += " " + S.Label;
-        Row("loft%s", Names.c_str());
+        Row("loft%s%s", Names.c_str(), R.LoftGuideInputs.empty() ? "" : " (guides)");
         return AddDerived(C, "Loft", R);
     });
     Add("sweep", "sweep <profile> <path> [--bases=minimal|frenet|fixed] [--scale=s] [--twist=deg] [--stations=n] [--sheet] — carry a profile (curve / area / edge) along a path curve or edge", [=, this](const CommandLine& C)

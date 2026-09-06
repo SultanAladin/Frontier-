@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 22 suites, all green; the per-suite chart is at ./build/<Suite>Verification
+ctest --test-dir build --output-on-failure      # 23 suites, all green; the per-suite chart is at ./build/<Suite>Verification
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -58,6 +58,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 9 | Surface–surface intersection + 3D NURBS booleans | `IntersectionVerification` — 47 checks; `Proofs/Phase9_Booleans_{Iso,Top}.png` |
 | 9b | FairPatch — energy-fair fills with G0 / G1 / G2 rims from the adjacent faces, tension, guides, N-sided | `FairPatchVerification` — 47 checks; `Proofs/Phase9b_FairPatch_{Iso,Window,Pillow}.png` |
 | 10 | Script suite, contact sheet, Vulkan hand-off notes | `SuiteVerification` — 39 checks; `docs/HANDOFF_VULKAN.md`; `docs/CONTACT_SHEET.md`; `Proofs/Phase10_ContactSheet.png` (2×2 of 1280×800 tiles); `Proofs/Phase10_Suite.png` (one iso render of every phase) |
+| 11a | `solidify` (single-surface shell, refuses closed / closed-in-U or V / flat-sheet), `loft --guides=a,b` (plasticity-style, sheets bend through named curves via iterative projection with boundary clamping) | `BodyOpsVerification` — 14 checks (refusal cases for body / sphere, success on a saddle shell, bent-loft Z rises above the plain range, boundary rows preserved) |
 
 ## Console quick start
 

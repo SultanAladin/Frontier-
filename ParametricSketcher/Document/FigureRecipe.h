@@ -43,6 +43,8 @@ struct FigureRecipe
     std::vector<RecipeInput> Guides;                                                    // [-] fair patch: interior curves to pass through
     FairPatchOptions         Fair;                                                      // [-] fair patch
     LoftOptions              Loft;                                                      // [-]
+    LoftGuideOptions         LoftGuides;                                                // [-] loft: interior curves to pass through (resolved)
+    std::vector<RecipeInput> LoftGuideInputs;                                           // [-] loft: guide inputs (FigureRecipe identities, resolved per build)
     SweepOptions             Sweep;                                                     // [-]
     Vec3                     Direction = Vec3::UnitZ();                                 // [-] extrude
     double                   Length = 0.0;                                              // [m] extrude
