@@ -28,6 +28,7 @@ enum class SurfaceClassification : uint8_t
     Loft,
     Sweep,
     Coons,
+    FairPatch,
 };
 
 [[nodiscard]] const char* Describe(SurfaceClassification Classification) noexcept;

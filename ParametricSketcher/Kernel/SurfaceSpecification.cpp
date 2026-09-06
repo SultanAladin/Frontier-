@@ -25,6 +25,7 @@ const char* Describe(SurfaceClassification Classification) noexcept
         case SurfaceClassification::Loft:       return "Loft";
         case SurfaceClassification::Sweep:      return "Sweep";
         case SurfaceClassification::Coons:      return "Coons";
+        case SurfaceClassification::FairPatch:  return "FairPatch";
     }
     return "Unknown";
 }

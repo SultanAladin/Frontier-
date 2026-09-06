@@ -26,6 +26,7 @@ add_library(SolidArcKernel STATIC
     Kernel/TopologySpecification.cpp
     Kernel/SkinSolver.cpp
     Kernel/IntersectionSolver.cpp
+    Kernel/FairPatchSolver.cpp
     Kernel/ProfileSolver.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
