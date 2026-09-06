@@ -5,6 +5,7 @@
 #   Tile 4: angle dim on a polyline
 
 echo Phase 13 -- contact sheet (4 tiles, 1 PNG)
+dim on
 gizmo off
 reset
 

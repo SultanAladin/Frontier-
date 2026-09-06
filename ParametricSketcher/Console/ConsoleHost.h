@@ -105,6 +105,10 @@ private:
     // Live dim editing: a `dim edit` on a live dim reaches into the source figure's ParametricBlueprint
     //    slot, mutates the field, then calls RebuildFromSource to regenerate the geometry.
     bool ApplyLiveEdit(DimensionEntry& D, double NewValue) noexcept;
+    // Toggle dim display (also flips Hidden on every dim). Used by tests + scripts.
+public:
+    void SetDimensionsVisible(bool Visible) noexcept { ShowDimensions = Visible; for (auto& D : Dimensions) D.Hidden = !Visible; }
+private:
     bool Dispatch(const InputEvent& Event) noexcept;                                    // tool first, then hotkey chart
     void OnToolResult(const ToolResult& Result) noexcept;
     [[nodiscard]] ToolSession::Context ToolContext() const noexcept;
@@ -141,6 +145,7 @@ private:
     int                                  LineNumber = 0;
     bool                                 ShowControlCages = false;
     bool                                 ShowIsoCurves = true;
+    bool                                 ShowDimensions = false;        // [Phase 13] dims hidden by default until the renderer is polished
     SurfaceShading                       Shading = SurfaceShading::Matcap;
 
     // Phase 10 contact sheet: four RasterImage buffers captured by `render sheet N` and tiled by

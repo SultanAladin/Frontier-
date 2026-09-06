@@ -28,7 +28,8 @@ int main()
 
     Panel.Section("Auto-emit: a body (box) gets three bbox dims, one per axis");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13A", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13A", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("box (0,0,0) (2,3,4) --name=B");
         Panel.Expect("box builds", bool(Figure(Host, "B")));
         // The box should have auto-emitted at least 3 bbox dims.
@@ -46,13 +47,15 @@ int main()
 
     Panel.Section("Auto-emit: a curve gets an arc-length dim; a circle also gets a radius dim");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13B", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13B", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("line (0,0,0) (3,4,0) --name=L");
         bool HasLength = false;
         for (const auto& D : Host.AllDimensions()) if (D.Form == ConsoleHost::DimensionForm::ArcLength && D.Anchor == 1) { HasLength = true; Panel.Within("|L length dim - 5| ≤ 1e-3 (3-4-5 triangle)", std::fabs(D.Value - 5.0), 1e-3); break; }
         Panel.Expect("line has an arc-length dim", HasLength);
 
-        ConsoleHost Host2("/tmp/SolidArcVerificationP13C", 1280, 800);
+ConsoleHost Host2("/tmp/SolidArcVerificationP13C", 1280, 800);
+        Host2.SetDimensionsVisible(true);
         Host2.Execute("circle (0,0,0) 2 --name=C");
         bool HasRadius = false; bool CircLength = false;
         for (const auto& D : Host2.AllDimensions())
@@ -66,7 +69,8 @@ int main()
 
     Panel.Section("dim <figure> --along=X|Y|Z adds a user linear dim along an axis");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13D", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13D", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("box (0,0,0) (2,3,4) --name=B");
         size_t Before = DimCount(Host);
         Panel.Expect("dim B --along=X succeeds", Host.Execute("dim B --along=X"));
@@ -93,7 +97,8 @@ int main()
 
     Panel.Section("dim <figure> <p1> <p2> adds a free-form linear dim between two world points");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13E", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13E", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("box (0,0,0) (1,1,1) --name=B");
         size_t Before = DimCount(Host);
         Panel.Expect("dim B (0,0,0) (3,4,0) succeeds", Host.Execute("dim B (0,0,0) (3,4,0)"));
@@ -110,7 +115,8 @@ int main()
 
     Panel.Section("angle <polyline> measures an interior angle (3-4-5 right triangle → 90°)");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13F", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13F", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("polyline (0,0) (4,0) (4,3) --name=Tri");
         Panel.Expect("angle Tri --at=1 succeeds", Host.Execute("angle Tri --at=1"));
         const ConsoleHost::DimensionEntry* UA = nullptr;
@@ -127,7 +133,8 @@ int main()
 
     Panel.Section("dim edit / hide / show / delete mutate the dim tree");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13G", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13G", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("box (0,0,0) (2,2,2) --name=B");
         // The three bbox dims are auto-emitted; find the X dim. After a live edit, the dim is
         //    re-emitted under a new id (the old auto-dim is deleted and replaced) — so we re-find
@@ -167,7 +174,8 @@ int main()
 
     Panel.Section("Refusal cases for the dim verb");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13H", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13H", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Panel.Expect("dim with no arguments refused", !Host.Execute("dim"));
         Panel.Expect("dim with unknown subcommand refused", !Host.Execute("dim whatnow"));
         Panel.Expect("dim edit with bad id refused", !Host.Execute("dim edit 999 1.0"));
@@ -192,7 +200,8 @@ int main()
 
     Panel.Section("Phase 13 redo: box — dim edit rebuilds the body from the source");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13R1", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13R1", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("box (0,0,0) (2,3,4) --name=BoxA");
         // Find the X dim. After live edit the auto-dim is re-emitted, so re-find by name.
         uint32_t PreY = 0;
@@ -217,7 +226,8 @@ int main()
 
     Panel.Section("Phase 13 redo: cylinder — dim edit rebuilds with new height");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13R2", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13R2", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("cylinder (0,0,0) 1.0 5.0 --name=Cyl");
         // Find the height dim.
         uint32_t HId = 0;
@@ -231,7 +241,8 @@ int main()
 
     Panel.Section("Phase 13 redo: cone — radius and height dims are live");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13R3", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13R3", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("cone (0,0,0) 2.0 0.5 4.0 --name=Cone");
         // cone: height dim on the side, no explicit radius dim. Just check the height re-emits.
         uint32_t HId = 0;
@@ -245,7 +256,8 @@ int main()
 
     Panel.Section("Phase 13 redo: chamfer — dim edit rebuilds with new set-back");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13R4", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13R4", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("box (0,0,0) (3,1,1) --name=Plank");
         Host.Execute("chamfer Plank 0.1 --edges=0 --name=PlankCham");
         // Find the chamfer dim.
@@ -264,7 +276,8 @@ int main()
 
     Panel.Section("Phase 13 redo: every primitive records a ParametricBlueprint.Form");
     {
-        ConsoleHost Host("/tmp/SolidArcVerificationP13R5", 1280, 800);
+ConsoleHost Host("/tmp/SolidArcVerificationP13R5", 1280, 800);
+        Host.SetDimensionsVisible(true);
         Host.Execute("box (0,0,0) (1,1,1)");
         Host.Execute("sphere (2,0,0) 0.5");
         Host.Execute("cylinder (4,0,0) 0.5 1.0");

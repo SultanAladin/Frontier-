@@ -5,6 +5,7 @@
 #   Tile 4: sphere + cylinder + torus, each with live radius/height dim
 
 echo Phase 13 redo -- contact sheet (4 tiles, 1 PNG)
+dim on
 gizmo off
 reset
 

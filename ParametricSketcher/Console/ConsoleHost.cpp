@@ -506,6 +506,7 @@ Vec2 ConsoleHost::WorldToScreen(Vec3 P) const noexcept
 
 void ConsoleHost::DrawDimensions() noexcept
 {
+    if (!ShowDimensions) return;                                                       // dims hidden by default (Phase 14 polish pending)
     if (Dimensions.empty()) return;
     // Phase 13 redo: Plasticity-style dims — white colour, world-space offset tight against the model
     //    (≈ 0.04 m = 4 cm above the surface), drawn as an overlay. The lift vector is *world space* (so
@@ -647,25 +648,6 @@ int32_t ConsoleHost::FindDimensionAtPixel(double X, double Y) const noexcept
 }
 
 
-bool ConsoleHost::AddCurve(const CommandLine& C, const char* Stem, Deliver<NurbsCurve> Result) noexcept
-{
-    if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
-    SceneFigure& Figure = Scene.AddCurve(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
-    Figure.Construction = C.Switch("construction");
-    DescribeFigure(Figure);
-    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
-    return true;
-}
-
-bool ConsoleHost::AddSurface(const CommandLine& C, const char* Stem, Deliver<NurbsSurface> Result) noexcept
-{
-    if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
-    SceneFigure& Figure = Scene.AddSurface(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
-    DescribeFigure(Figure);
-    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
-    return true;
-}
-
 bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBody> Result) noexcept
 {
     if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
@@ -673,7 +655,9 @@ bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBo
     DescribeFigure(Figure);
     BodyReport R = Figure.Body.Validate();
     if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges);
-    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
+    // Phase 13 dims are hidden by default while the renderer is being polished (Phase 14). Use
+    //    `dim show` to make them visible, or pass `--no-dim` to suppress auto-emit entirely.
+    if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -685,7 +669,7 @@ bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBo
     DescribeFigure(Figure);
     BodyReport R = Figure.Body.Validate();
     if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges);
-    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
+    if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -696,7 +680,26 @@ bool ConsoleHost::AddCurve(const CommandLine& C, const char* Stem, Deliver<Nurbs
     Figure.Construction = C.Switch("construction");
     Figure.Blueprint = std::move(Source);
     DescribeFigure(Figure);
-    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
+    if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
+    return true;
+}
+
+bool ConsoleHost::AddCurve(const CommandLine& C, const char* Stem, Deliver<NurbsCurve> Result) noexcept
+{
+    if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
+    SceneFigure& Figure = Scene.AddCurve(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
+    Figure.Construction = C.Switch("construction");
+    DescribeFigure(Figure);
+    if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
+    return true;
+}
+
+bool ConsoleHost::AddSurface(const CommandLine& C, const char* Stem, Deliver<NurbsSurface> Result) noexcept
+{
+    if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
+    SceneFigure& Figure = Scene.AddSurface(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
+    DescribeFigure(Figure);
+    if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -1480,7 +1483,7 @@ void ConsoleHost::Register() noexcept
                     }
                     F.Blueprint = std::move(S);
                 }
-                if (!C.Switch("no-dim")) AutoEmitDimensions(F);
+                if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(F);
                 ++Done;
                 Row("chamfer %s → %s  setback %.4f  edges %d/%d", Name.c_str(), F.Name.c_str(), D, EdgesChamfered, int(Targets.size()));
             }
@@ -1893,6 +1896,18 @@ void ConsoleHost::Register() noexcept
             // Force re-emit of all auto dims (useful after `undelete` or when an existing figure was loaded).
             for (const SceneFigure& F : Scene.Figures()) AutoEmitDimensions(F);
             Row("dim auto: re-emitted (%zu total)", Dimensions.size());
+            return true;
+        }
+        if (Sub == "on" || Sub == "off" || Sub == "show-all" || Sub == "hide-all")
+        {
+            // Phase 13: dims are hidden by default (renderer is being polished in Phase 14). `dim on`
+            //    makes them visible, `dim off` hides them again. The dim data is preserved either way.
+            bool Want = (Sub == "on" || Sub == "show-all");
+            ShowDimensions = Want;
+            // Also flip the Hidden flag on every dim so DrawDimensions skips them, since the overlay
+            //    pass checks both: cheap and avoids the world-space overlay work when dims are off.
+            for (DimensionEntry& D : Dimensions) D.Hidden = !Want;
+            Row("dim display: %s (%zu dims %s)", Want ? "on" : "off", Dimensions.size(), Want ? "shown" : "hidden");
             return true;
         }
         // dim <figure> [...]  — user-added linear dim. First figure is the anchor; the rest are switch values.

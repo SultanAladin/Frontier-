@@ -1,4 +1,5 @@
 echo Phase 13 redo -- Plasticity-style dims (white, world-space, live edit)
+dim on
 view iso
 gizmo off
 select none
