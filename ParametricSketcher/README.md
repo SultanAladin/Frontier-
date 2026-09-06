@@ -62,6 +62,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 12 | `bridge <curve1> <curve2> [--degree] [--no-align]` (Plasticity-style 2-section loft: connects two open curves in any orientation as a ruled/skin surface), `array <figure>... --count=N --step=(dx,dy,dz)` (linear array, N total including seed, each copy translated by `Step·T` for `T = K/(N-1)`), `array <figure>... --count=N --axis=(ox,oy,oz),(dx,dy,dz) [--angle=deg] [--scale=s]` (radial array around an arbitrary axis with optional taper), `plane --name=N` + `workplane <name>` (named construction planes, also recoverable from a face normal with `plane --from=<figure> --name=N`) | `ArrayAndBridgeVerification` — 67 checks (bridge bounds match curve extents, linear-array X-step, radial-array Z-preservation + unit volume under rotation, taper shrinks volume, named-plane round-trip, all refusal cases); `Proofs/Phase12_{Bridge,ArrayLinear,ArrayRadial,NamedPlanes,ContactSheet}.png` |
 | 13 | `dim list` / `dim <figure> --along=X\|Y\|Z` / `dim <figure> <p1> <p2>` / `dim edit <id> <value>` / `dim hide\|show\|delete <id\|all>` / `angle <polyline> [--at=K]` — Plasticity-style dimensions: **white** lines (was yellow), **world-space offset of 4 cm** (was 22 px screen-space), live editing that **rebuilds the figure from its parametric source** (Box / Sphere / Cylinder / Cone / Torus / Line / Circle / Arc / Ellipse / Polyline / Spline / Rect + Extrude / ChamferEdge). Each primitive records a `Blueprint` (input parameters) and each auto-emitted dim carries a slot index pointing into that Blueprint; `dim edit <id> <v>` mutates the slot and rebuilds the body / curve in place. Dims are drawn as a world-space overlay with extension lines, ticks, and a tiny 5×7 bitmap-font label. A `--no-dim` switch on any primitive suppresses auto-emit. | `DimensionVerification` — 78 checks (3 bbox dims on a box, arc-length 5 on a 3-4-5 line, radius 2 + circumference 4π on a circle, user linear/bbox/free dims, angle 90° on a right triangle, dim edit/hide/show/delete mutates the tree, refusal cases, `--no-dim` suppresses auto-emit, **Phase 13 redo**: live-edit rebuilds the body for box / cylinder / cone / chamfer with the new value, every primitive records a `ParametricBlueprint`, dim renderer uses white + world-space offset, not yellow + 22 px); `Proofs/Phase13b_{BoxBefore,BoxAfter,ConeBefore,ConeAfter,ChamferBefore,ChamferAfter,Round,ContactSheet}.png` |
 | 14 | **Dim lines are hidden by default** in the SolidArc binary (Phase 14 polish pending). The dim tree itself is still auto-emitted and editable — `dim list`, `dim edit <id> <value>`, `dim hide\|show\|delete <id\|all>` all work; only the on-screen overlay is suppressed. Turn dims back on with `dim on` (or `dim off` / `dim on` to toggle). The intent: the next phase iterates on Plasticity-style placement (smart lift direction, face-aware insertion, tick + label glyph quality) without forcing the user to look at the current draft in the meantime. The Phase 13 proof scripts have been updated to start with `dim on` so their PNGs still show the dim lines. | (no new verification — toggle is covered by `DimensionVerification` which sets `ShowDimensions=true` per host; all 78 checks still pass) |
+| 15 | **Per-vertex polyline live edit, construction-geometry dim suppression, undo for dim edits.** Polylines now get a per-vertex X/Y/Z dim set (slot 18+K·3, K=0…N-1), so `dim edit <name> <axis><K> <value>` pulls a single vertex and rebuilds the polyline. `dim edit` accepts a 2-token dim name (`B Y2`, `Penta X0`, etc.) as well as a numeric id. Construction lines (`--construction`) suppress the auto dim set — they still draw as construction geometry but contribute no live dims. `undo` / `redo` now re-emit the auto dim set so the dim tree tracks the rolled-back scene (the dim ids may renumber, but the named dims are stable). | `DimensionVerification` — 90 checks (+12: construction line emits zero auto dims, non-construction line still emits 3; 4-vertex polyline emits 12 per-vertex dims, vertex 2's Y dim live-edits to 5.0 and the polyline rebuilds with vertex 2 at y=5; box's Y dim live-edit to 7.0 then `undo` rolls back to 3.0 in both the body and the dim tree); `SuiteVerification` — 53 checks (+2: `Phase15_PolylineUndo.scr` runs without refusal and produces the 6 PNGs); `Scripts/Phase15_PolylineUndo.scr`; `Proofs/Phase15_{PolylineBefore,PolylineAfter,ConstructionSuppression,UndoBefore,UndoAfterEdit,UndoAfterUndo}.png` |
 
 ## Console quick start
 
@@ -210,7 +211,7 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **22 suites** — 13 per-phase or per-feature verification binaries (734 checks total) and 12
+ctest now registers **22 suites** — 13 per-phase or per-feature verification binaries (748 checks total) and 12
 script smoke tests — and all 22 run green on every commit. The per-suite check counts:
 
 | Suite | Checks |
@@ -226,9 +227,9 @@ script smoke tests — and all 22 run green on every commit. The per-suite check
 | `FairPatchVerification`      | 47  |
 | `BodyOpsVerification`        | 25  |
 | `ArrayAndBridgeVerification` | 67  |
-| `DimensionVerification`      | 78  |
-| `SuiteVerification`          | 51  |
-| **Total** | **734** |
+| `DimensionVerification`      | 90  |
+| `SuiteVerification`          | 53  |
+| **Total** | **748** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

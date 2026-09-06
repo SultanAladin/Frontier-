@@ -98,6 +98,7 @@ private:
     // ---- Dimension overlay (Phase 13) --------------------------------------------------------
     void DrawDimensions() noexcept;                                                     // render every non-hidden dim on the overlay pass
     void AutoEmitDimensions(const SceneFigure& Figure) noexcept;                        // auto-emit the standard dim set for a freshly-added figure
+    void ReemitAllDimensions() noexcept;                                                // Phase 15: re-emit dims for every figure (called by undo/redo so the dim tree matches the rolled-back scene)
     [[nodiscard]] uint32_t EmitDimension(DimensionForm Form, uint32_t Anchor, const std::string& AnchorName, Vec3 A, Vec3 B, Vec3 N, double Value, bool Auto = true) noexcept;
     [[nodiscard]] int32_t  FindDimensionAtPixel(double X, double Y) const noexcept;     // [-] dim id (0 = none)
     [[nodiscard]] Vec2     WorldToScreen(Vec3 P) const noexcept;                        // [px] world point → NDC-like pixel

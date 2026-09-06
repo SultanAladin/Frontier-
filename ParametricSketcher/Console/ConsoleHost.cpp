@@ -163,6 +163,13 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
     DeleteAutoDimensionsFor(Figure.Identity);
     Box3 B = Figure.Bounds();
     if (B.Low.X > B.High.X) return;                                                // empty figure — no dim
+    if (Figure.Construction)
+    {
+        // Construction geometry: no live-dim auto set (the dim tree would clutter the workplane and
+        //    live-edit a construction line doesn't make sense — they're not the design's truth).
+        //    The figure is still clickable + selectable; `dim <name> <p1> <p2>` (user-added) still works.
+        return;
+    }
     if (Figure.Classification == FigureClassification::Curve)
     {
         const NurbsCurve& C = Figure.Curve;
@@ -222,25 +229,37 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
             ExtDim("Y", 4, std::fabs(C.Poles[1].Divide().Y - C.Poles[0].Divide().Y), Vec3(C.Poles[0].Divide().X - 0.04, C.Poles[0].Divide().Y, C.Poles[0].Divide().Z), Vec3(C.Poles[0].Divide().X - 0.04, C.Poles[1].Divide().Y, C.Poles[0].Divide().Z));
             ExtDim("Z", 5, std::fabs(C.Poles[1].Divide().Z - C.Poles[0].Divide().Z), Vec3(C.Poles[0].Divide().X, C.Poles[0].Divide().Y, C.Poles[0].Divide().Z), Vec3(C.Poles[1].Divide().Z > C.Poles[0].Divide().Z ? C.Poles[0].Divide() : C.Poles[1].Divide()));
         }
-        // For polyline: emit per-vertex X/Y/Z dims for the first and last vertex (so the user can pull
-        //    the polyline endpoints via live edit). The middle vertices are not live (the polyline's
-        //    vertex list is one slot, not per-vertex).
+        // For polyline: emit per-vertex X/Y/Z dims (Phase 15: per-vertex live edit). Each vertex K
+        //    gets three dims, with slot 18+K*3 (X), 19+K*3 (Y), 20+K*3 (Z). The dim line is drawn
+        //    as a tiny 0-length line at the vertex, lifted by 4 cm along the world axis, so the user
+        //    sees a small "X0=1.23" / "Y1=-0.5" / "Z3=2.0" label per vertex. Live edit mutates
+        //    PolylinePoints[K].Component and rebuilds the polyline from the new points.
         if (C.Classification == CurveClassification::Polyline && C.Poles.size() >= 2)
         {
-            Vec3 P0 = C.Poles.front().Divide();
-            Vec3 P1 = C.Poles.back().Divide();
-            auto ExtDim = [&](const char* Tag, int Slot, double V, Vec3 Lo, Vec3 Hi)
+            // Use the source PolylinePoints if the figure has a Blueprint, else the current poles.
+            // The source is what ApplyLiveEdit mutates; emitting dims that point at the source means
+            //    the value label tracks the live value, not the rendered one.
+            const std::vector<Vec3>* Points = nullptr;
+            if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Polyline && !Figure.Blueprint.PolylinePoints.empty())
+                Points = &Figure.Blueprint.PolylinePoints;
+            size_t N = Points ? Points->size() : C.Poles.size();
+            for (size_t K = 0; K < N; ++K)
             {
-                DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " " + Tag;
-                D.A = Lo; D.B = Hi; D.N = Vec3(0, 1, 0); D.Value = V; D.Slot = Slot; D.BlueprintForm = Figure.Blueprint.Form;
-                D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
-            };
-            ExtDim("X0", 0, P0.X, Vec3(P0.X, P0.Y + 0.04, P0.Z), Vec3(P0.X, P0.Y + 0.04, P0.Z));
-            ExtDim("Y0", 1, P0.Y, Vec3(P0.X - 0.04, P0.Y, P0.Z), Vec3(P0.X - 0.04, P0.Y, P0.Z));
-            ExtDim("Z0", 2, P0.Z, Vec3(P0.X, P0.Y, P0.Z), Vec3(P0.X, P0.Y, P0.Z));
-            ExtDim("X1", 3, P1.X, Vec3(P1.X, P1.Y + 0.04, P1.Z), Vec3(P1.X, P1.Y + 0.04, P1.Z));
-            ExtDim("Y1", 4, P1.Y, Vec3(P1.X - 0.04, P1.Y, P1.Z), Vec3(P1.X - 0.04, P1.Y, P1.Z));
-            ExtDim("Z1", 5, P1.Z, Vec3(P1.X, P1.Y, P1.Z), Vec3(P1.X, P1.Y, P1.Z));
+                Vec3 P = Points ? (*Points)[K] : C.Poles[K].Divide();
+                int BaseSlot = int(18 + int(K) * 3);
+                char Tag[16];
+                auto EmitVertex = [&](const char* Axis, int Comp, int Slot, double V, Vec3 Lift)
+                {
+                    std::snprintf(Tag, sizeof(Tag), "%s%zu", Axis, K);
+                    DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " " + Tag;
+                    D.A = P; D.B = P + Lift; D.N = Vec3(0, 1, 0); D.Value = V; D.Slot = Slot; D.BlueprintForm = Figure.Blueprint.Form;
+                    D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+                };
+                // Lift along each axis; the X dim lifts in +Y, the Y dim lifts in +X, the Z dim lifts in +X.
+                EmitVertex("X", 0, BaseSlot + 0, P.X, Vec3(0, 0.04, 0));
+                EmitVertex("Y", 1, BaseSlot + 1, P.Y, Vec3(-0.04, 0, 0));
+                EmitVertex("Z", 2, BaseSlot + 2, P.Z, Vec3(0, 0, 0));
+            }
         }
     }
     else
@@ -369,6 +388,17 @@ bool ConsoleHost::ApplyLiveEdit(DimensionEntry& D, double NewValue) noexcept
     else if (D.Slot == 15) S.R3 = NewValue;
     else if (D.Slot == 16) S.I0 = int(std::lround(NewValue));
     else if (D.Slot == 17) S.I1 = int(std::lround(NewValue));
+    else if (D.Slot >= 18)
+    {
+        // Phase 15: per-vertex polyline live edit. Slot 18+K*3 = PolylinePoints[K].X, +1 = Y, +2 = Z.
+        int K = (D.Slot - 18) / 3;
+        int Comp = (D.Slot - 18) % 3;
+        if (K < 0 || K >= (int)S.PolylinePoints.size()) return false;
+        if      (Comp == 0) S.PolylinePoints[K].X = NewValue;
+        else if (Comp == 1) S.PolylinePoints[K].Y = NewValue;
+        else if (Comp == 2) S.PolylinePoints[K].Z = NewValue;
+        else return false;
+    }
     else return false;
     // Rebuild the figure. The rebuild path is dispatched on S.Form.
     // We rebuild by replacing the figure's Body / Curve / Surface with the new geometry produced by the
@@ -502,6 +532,25 @@ Vec2 ConsoleHost::WorldToScreen(Vec3 P) const noexcept
     S.X = (NdcX * 0.5 + 0.5) * Surface->Width();
     S.Y = (NdcY * 0.5 + 0.5) * Surface->Height();                                    // Vulkan: +Y down
     return S;
+}
+
+void ConsoleHost::ReemitAllDimensions() noexcept
+{
+    // Phase 15: undo/redo swap the Scene but the Dimensions vector lives here. Re-emit auto dims
+    //    for every figure so the dim tree tracks the rolled-back state. Preserves user-added dims
+    //    (Auto == false) and the Hidden flag.
+    // First, drop every auto dim whose anchor is still in the scene.
+    std::vector<uint32_t> PresentAnchors;
+    for (const SceneFigure& F : Scene.Figures()) PresentAnchors.push_back(F.Identity);
+    Dimensions.erase(std::remove_if(Dimensions.begin(), Dimensions.end(),
+        [&](const DimensionEntry& D)
+        {
+            if (!D.Auto) return false;                                                 // keep user dims
+            for (uint32_t A : PresentAnchors) if (A == D.Anchor) return true;            // drop auto dims of present figures
+            return false;                                                               // drop auto dims of figures that no longer exist
+        }), Dimensions.end());
+    // Now re-emit the auto set for every figure (covers the post-undo state and any newly-resurrected figures).
+    for (const SceneFigure& F : Scene.Figures()) AutoEmitDimensions(F);
 }
 
 void ConsoleHost::DrawDimensions() noexcept
@@ -1833,11 +1882,23 @@ void ConsoleHost::Register() noexcept
     {
         if (C.Count() == 0) return Refuse("dim: try `dim list`, `dim <figure> --along=X`, `dim edit <id> <value>`, or `dim hide|show|delete <id|all>`");
         const std::string& Sub = C.Arguments[0];
+        // Phase 15: parse a dim identifier. Accepts a numeric id ("12"), the keyword "all" (returns -1),
+        //    or a name like "B Y" / "P Y2" — matched against AnchorName. Returns the matching dim's
+        //    Id, or 0 on no match.
         auto IdArg = [&](size_t I) -> int32_t
         {
             if (I >= C.Count()) return 0;
-            if (auto N = CommandCodec::ParseNumber(C.Arguments[I])) return int32_t(*N);
-            if (C.Arguments[I] == "all") return -1;
+            const std::string& Tok = C.Arguments[I];
+            if (auto N = CommandCodec::ParseNumber(Tok)) return int32_t(*N);
+            if (Tok == "all") return -1;
+            // Try matching as a dim name. Allow two-token form: "B Y" → C.Arguments[I] + " " + C.Arguments[I+1].
+            std::string Name = Tok;
+            if (I + 1 < C.Count())
+            {
+                std::string Two = Tok + " " + C.Arguments[I + 1];
+                for (const DimensionEntry& D : Dimensions) if (D.AnchorName == Two) return int32_t(D.Id);
+            }
+            for (const DimensionEntry& D : Dimensions) if (D.AnchorName == Name) return int32_t(D.Id);
             return 0;
         };
         if (Sub == "list")
@@ -1861,8 +1922,16 @@ void ConsoleHost::Register() noexcept
         }
         if (Sub == "edit")
         {
-            int32_t Id = IdArg(1); if (Id <= 0) return Refuse("dim edit: a numeric dim id required");
-            double NewVal = 0; if (!NumberArg(C, 2, NewVal, "dim edit")) return false;
+            int32_t Id = IdArg(1); if (Id <= 0) return Refuse("dim edit: a numeric dim id or a dim name like 'B Y2' required");
+            // The value is the LAST token. If IdArg matched a 2-token name (e.g. "B Y2"), then the
+            //    value is at index 3; otherwise at index 2.
+            size_t ValIdx = 2;
+            if (C.Count() >= 3)
+            {
+                std::string Two = std::string(C.Arguments[1]) + " " + C.Arguments[2];
+                for (const DimensionEntry& D : Dimensions) if (D.AnchorName == Two) { ValIdx = 3; break; }
+            }
+            double NewVal = 0; if (!NumberArg(C, ValIdx, NewVal, "dim edit")) return false;
             for (DimensionEntry& D : Dimensions) if (int32_t(D.Id) == Id)
             {
                 // Try a live edit first (Phase 13 redo: rebuilds the figure from its source).

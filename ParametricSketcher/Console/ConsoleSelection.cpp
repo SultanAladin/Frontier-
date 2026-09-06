@@ -311,6 +311,9 @@ void ConsoleHost::RegisterSelection() noexcept
         int Done = 0; std::string Last;
         for (int I = 0; I < int(N) && Undo.CanUndo(); ++I) { Last = Undo.Undo(Scene); ++Done; }
         if (!Done) return Refuse("undo: nothing to undo");
+        // Phase 15: dims live in the host (not the scene), so `undo` doesn't restore them by itself.
+        //    Re-emit the auto dim set so the dim tree matches the rolled-back figures.
+        ReemitAllDimensions();
         Row("undo %d → '%s' reverted  ·  %zu undo / %zu redo", Done, Last.c_str(), Undo.UndoEntries().size(), Undo.RedoEntries().size());
         return true;
     });
@@ -320,6 +323,8 @@ void ConsoleHost::RegisterSelection() noexcept
         int Done = 0; std::string Last;
         for (int I = 0; I < int(N) && Undo.CanRedo(); ++I) { Last = Undo.Redo(Scene); ++Done; }
         if (!Done) return Refuse("redo: nothing to redo");
+        // Phase 15: same as undo — re-emit dims so the dim tree tracks the re-applied figures.
+        ReemitAllDimensions();
         Row("redo %d → '%s' reapplied  ·  %zu undo / %zu redo", Done, Last.c_str(), Undo.UndoEntries().size(), Undo.RedoEntries().size());
         return true;
     });

@@ -325,5 +325,82 @@ ConsoleHost Host("/tmp/SolidArcVerificationP13R5", 1280, 800);
         Panel.Expect("DrawDimensions no longer uses 22-px screen-space offset", !HasScreenOffset);
     }
 
+    // =====================================================================================
+    //  Phase 15: per-vertex polyline live edit, construction-geometry dim suppression, undo.
+    // =====================================================================================
+
+    Panel.Section("Phase 15: construction geometry suppresses the auto dim set");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerificationP15A", 1280, 800);
+        Host.SetDimensionsVisible(true);
+        Host.Execute("dim on");
+        // A construction line should NOT receive the auto X/Y/Z extent dims.
+        Host.Execute("line (0,0,0) (2,0,0) --name=ConstLine --construction");
+        size_t ConstDims = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName.find("ConstLine") != std::string::npos) ++ConstDims;
+        Panel.Expect("a --construction line emits zero auto dims", ConstDims == 0);
+        // A non-construction line in the same scene still gets its 3 extent dims.
+        Host.Execute("line (0,0,0) (2,0,0) --name=LiveLine");
+        size_t LiveDims = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName.find("LiveLine") != std::string::npos) ++LiveDims;
+        Panel.Expect("a non-construction line still emits its 3 auto extent dims", LiveDims >= 3);
+    }
+
+    Panel.Section("Phase 15: per-vertex polyline live edit (vertex K, all 3 components)");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerificationP15B", 1280, 800);
+        Host.SetDimensionsVisible(true);
+        Host.Execute("dim on");
+        // A 4-point polyline: each vertex should yield 3 dims (X/Y/Z), so 12 total.
+        Host.Execute("polyline (0,0,0) (1,0,0) (1,1,0) (0,1,0) --name=P");
+        size_t VertexDims = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName.find("P X") != std::string::npos || D.AnchorName.find("P Y") != std::string::npos || D.AnchorName.find("P Z") != std::string::npos) ++VertexDims;
+        Panel.Expect("a 4-vertex polyline emits 12 per-vertex dims (4 verts * 3 axes)", VertexDims == 12);
+
+        // Find vertex 2's Y dim (slot 18+2*3+1 = 25). The original Y of vertex 2 is 0 (it sits on the X axis).
+        int32_t Y2Id = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "P Y2") { Y2Id = int32_t(D.Id); break; }
+        Panel.Expect("vertex 2's Y dim is registered", Y2Id != 0);
+
+        // Live edit vertex 2's Y to 5.0. The polyline should rebuild with vertex 2 at (1,5,0).
+        bool Edited = Host.Execute("dim edit " + std::to_string(Y2Id) + " 5.0");
+        Panel.Expect("dim edit on vertex 2's Y succeeds", Edited);
+        // The new Y2 dim should report 5.0.
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "P Y2") { Panel.Within("vertex 2's Y dim tracks 5.0", std::fabs(D.Value - 5.0), 1e-9); break; }
+        // The polyline's actual vertex 2 should now be at y=5. Read the figure's pole directly.
+        bool VertexAt5 = false;
+        for (const auto& F : Host.AllFigures()) if (F.Name == "P") { if (std::fabs(F.Curve.Poles[2].Divide().Y - 5.0) < 1e-9) VertexAt5 = true; break; }
+        Panel.Expect("polyline vertex 2's Y position is now 5.0 (live rebuild)", VertexAt5);
+    }
+
+    Panel.Section("Phase 15: undo rolls back a live dim edit (rebuilds the original body)");
+    {
+        ConsoleHost Host("/tmp/SolidArcVerificationP15C", 1280, 800);
+        Host.SetDimensionsVisible(true);
+        Host.Execute("dim on");
+        // A 2x3x4 box. Y extent = 3.0. Edit Y to 7.0, then undo. Body should be back to Y=3.
+        Host.Execute("box (0,0,0) (2,3,4) --name=B");
+        // Find the Y dim (slot 4 = B.Y).
+        int32_t YId = 0;
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "B Y") { YId = int32_t(D.Id); break; }
+        Panel.Expect("the box's Y dim is registered", YId != 0);
+        // Capture the original Y extent.
+        double PreY = 0;
+        for (const auto& F : Host.AllFigures()) if (F.Name == "B") { PreY = F.Body.Bounds().High.Y - F.Body.Bounds().Low.Y; break; }
+        Panel.Within("box's Y extent is 3.0 before edit", std::fabs(PreY - 3.0), 1e-9);
+        // Edit Y to 7.0.
+        Host.Execute("dim edit " + std::to_string(YId) + " 7.0");
+        double PostY = 0;
+        for (const auto& F : Host.AllFigures()) if (F.Name == "B") { PostY = F.Body.Bounds().High.Y - F.Body.Bounds().Low.Y; break; }
+        Panel.Within("box's Y extent is 7.0 after live edit", std::fabs(PostY - 7.0), 1e-9);
+        // Undo. The wrapper reverts Scene and the host re-emits dims.
+        Host.Execute("undo");
+        double UndoY = 0;
+        for (const auto& F : Host.AllFigures()) if (F.Name == "B") { UndoY = F.Body.Bounds().High.Y - F.Body.Bounds().Low.Y; break; }
+        Panel.Within("box's Y extent is 3.0 after undo", std::fabs(UndoY - 3.0), 1e-9);
+        // The dim tree should also reflect the rolled-back Y value.
+        for (const auto& D : Host.AllDimensions()) if (D.AnchorName == "B Y") { Panel.Within("B Y dim re-emits at 3.0 after undo", std::fabs(D.Value - 3.0), 1e-9); break; }
+    }
+
     return Panel.Conclude();
 }
