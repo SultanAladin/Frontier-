@@ -112,6 +112,20 @@ namespace
         return M.Normalised();
     }
 
+    // Unit direction in which a rim's support continues past the rim: perpendicular to the rim tangent inside the support
+    //    plane, pointing away from the support's own interior (probed on the support); zero for an unsupported rim.
+    Vec3 Continuation(const FairRim& R, double F) noexcept
+    {
+        if (!R.Supported()) return Vec3{};
+        double T = R.Curve.DomainStart() + (R.Curve.DomainEnd() - R.Curve.DomainStart()) * F;
+        Vec3 P = R.Curve.Sample(T), Tan = R.Curve.Tangent(T);
+        Vec3 N = FairPatchSolver::SupportNormal(R, F, P);
+        Vec3 Side = N.Cross(Tan).Normalised();
+        if (Side.LengthSquared() < 0.5) return Vec3{};
+        if (R.Support) { double D = 0, U = 0, V = 0; R.Support->ClosestParameter(P + Side * 1e-2, U, V, &D); if (D < 1e-4) Side = -Side; }
+        return Side;
+    }
+
     // Reverse a rim: curve sense and its normal field.
     FairRim Reversed(FairRim R) noexcept { R.Curve = R.Curve.Reversed(); std::reverse(R.NormalField.begin(), R.NormalField.end()); return R; }
 
@@ -215,7 +229,7 @@ double FairPatchSolver::TangentBreak(const NurbsSurface& S, const FairRim& Rim, 
     double Worst = 0.0;
     for (int I = 0; I <= Samples; ++I)
     {
-        double F = (I + 0.5) / (Samples + 1);
+        double F = 0.05 + 0.9 * I / Samples;                                            // corners excluded: two supports meeting at an angle cannot both be honoured there
         Vec3 P = Rim.Curve.Sample(Rim.Curve.DomainStart() + (Rim.Curve.DomainEnd() - Rim.Curve.DomainStart()) * F);
         Vec3 Ns = SupportNormal(Rim, F, P);
         double U = 0, V = 0; S.ClosestParameter(P, U, V);
@@ -232,7 +246,7 @@ double FairPatchSolver::CurvatureBreak(const NurbsSurface& S, const FairRim& Rim
     double Worst = 0.0;
     for (int I = 0; I <= Samples; ++I)
     {
-        double F = (I + 0.5) / (Samples + 1);
+        double F = 0.2 + 0.6 * I / Samples;                                             // the outer fifths belong to the corners: curvature there is decided by the neighbouring rim
         double T = Rim.Curve.DomainStart() + (Rim.Curve.DomainEnd() - Rim.Curve.DomainStart()) * F;
         Vec3 P = Rim.Curve.Sample(T), Tan = Rim.Curve.Tangent(T);
         SupportProbe Sup = Probe(*Rim.Support, P), Own = Probe(S, P);
@@ -324,10 +338,13 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
         return D;
     };
 
-    const double WeightFair = Options.Fairness, WeightG1 = 40.0, WeightG2 = 12.0, WeightGuide = 10.0;
+    const double WeightFair = Options.Fairness, WeightG1 = 40.0, WeightG2 = 10.0, WeightGuide = 10.0;
     int Unsupported = 0;
     for (const FairRim& R : Ring) if (R.Continuity != RimContinuity::Position && !R.Supported()) ++Unsupported;
     double Hu = (S.DomainEndU() - S.DomainStartU()) / (NU - 1), Hv = (S.DomainEndV() - S.DomainStartV()) / (NV - 1);
+    std::vector<double> Gu(static_cast<size_t>(NU)), Gv(static_cast<size_t>(NV));
+    for (int I = 0; I < NU; ++I) Gu[size_t(I)] = BU.Greville(I);
+    for (int J = 0; J < NV; ++J) Gv[size_t(J)] = BV.Greville(J);
 
     for (int Round = 0; Round < std::max(1, Options.Rounds); ++Round)
     {
@@ -339,10 +356,23 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
             for (auto [K, C] : Terms) { int I = K / NV, J = K % NV; if (Interior(I, J)) Row.push_back({ Unknown(I, J), C }); else Rhs = Rhs - Poles[size_t(K)] * C; }
             if (!Row.empty()) System.Add(Row, Rhs, Weight);
         };
-        // 2. Fairness: second differences of the control net in u, v and the mixed term (scaled to parameter spacing).
-        for (int I = 1; I < NU - 1; ++I) for (int J = 0; J < NV; ++J) Emit({ { Index(I - 1, J), 1 / (Hu * Hu) }, { Index(I, J), -2 / (Hu * Hu) }, { Index(I + 1, J), 1 / (Hu * Hu) } }, Vec3{}, WeightFair);
-        for (int I = 0; I < NU; ++I) for (int J = 1; J < NV - 1; ++J) Emit({ { Index(I, J - 1), 1 / (Hv * Hv) }, { Index(I, J), -2 / (Hv * Hv) }, { Index(I, J + 1), 1 / (Hv * Hv) } }, Vec3{}, WeightFair);
-        for (int I = 0; I < NU - 1; ++I) for (int J = 0; J < NV - 1; ++J) Emit({ { Index(I + 1, J + 1), 1 / (Hu * Hv) }, { Index(I + 1, J), -1 / (Hu * Hv) }, { Index(I, J + 1), -1 / (Hu * Hv) }, { Index(I, J), 1 / (Hu * Hv) } }, Vec3{}, WeightFair * std::sqrt(2.0));
+        // 2. Fairness: second divided differences of the control net over the Greville abscissae (zero for a plane with
+        //    any knot spacing), scaled by the mean spacing so the rows are O(1) against the rim rows.
+        for (int I = 1; I < NU - 1; ++I)
+        {
+            double A = Gu[size_t(I)] - Gu[size_t(I - 1)], B = Gu[size_t(I + 1)] - Gu[size_t(I)], Sc = Hu * Hu * 2.0 / (A + B);
+            for (int J = 0; J < NV; ++J) Emit({ { Index(I - 1, J), Sc / A }, { Index(I, J), -Sc * (1 / A + 1 / B) }, { Index(I + 1, J), Sc / B } }, Vec3{}, WeightFair);
+        }
+        for (int J = 1; J < NV - 1; ++J)
+        {
+            double A = Gv[size_t(J)] - Gv[size_t(J - 1)], B = Gv[size_t(J + 1)] - Gv[size_t(J)], Sc = Hv * Hv * 2.0 / (A + B);
+            for (int I = 0; I < NU; ++I) Emit({ { Index(I, J - 1), Sc / A }, { Index(I, J), -Sc * (1 / A + 1 / B) }, { Index(I, J + 1), Sc / B } }, Vec3{}, WeightFair);
+        }
+        for (int I = 0; I < NU - 1; ++I) for (int J = 0; J < NV - 1; ++J)
+        {
+            double Sc = Hu * Hv / ((Gu[size_t(I + 1)] - Gu[size_t(I)]) * (Gv[size_t(J + 1)] - Gv[size_t(J)]));
+            Emit({ { Index(I + 1, J + 1), Sc }, { Index(I + 1, J), -Sc }, { Index(I, J + 1), -Sc }, { Index(I, J), Sc } }, Vec3{}, WeightFair * std::sqrt(2.0));
+        }
         // 3. Rim conditions, one equation per Greville abscissa along each supported rim.
         for (int Sn = 0; Sn < 4; ++Sn)
         {
@@ -352,6 +382,10 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
             for (int A = 1; A < Sd.Na - 1; ++A)
             {
                 double T = AlongParameter(Sd, A); double F = Fraction(Sd, T);
+                // Where two supports meet at an angle the corner cannot honour both; ease the rows next to the corners so
+                //    the conflict does not ring along the rim.
+                double Taper = (A == 1 || A == Sd.Na - 2) ? 0.35 : (A == 2 || A == Sd.Na - 3) ? 0.7 : 1.0;
+                double Taper2 = (A <= 3 || A >= Sd.Na - 4) ? 0.0 : Taper;               // G2 rows stay clear of the corners altogether
                 Vec3 P = Evaluate(Poles, Sd, [&] { std::vector<double> C0(size_t(Sd.Nb), 0.0); C0[0] = 1.0; return C0; }(), T);
                 SupportProbe Pr; Vec3 N = SupportNormal(R, F, P, &Pr);
                 if (N.LengthSquared() < 0.5) continue;
@@ -364,12 +398,20 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
                     //    D = (previous D projected into the tangent plane), rescaled by the tension — a fixed point that is
                     //    exactly G1 once reached and settles within the rounds.
                     Vec3 D = Evaluate(Poles, Sd, Ac.C1, T);
-                    Vec3 Target = D - N * D.Dot(N);
-                    // tension: the tangential magnitude follows the Coons cross derivative scaled by Tension
-                    Vec3 Dc = CoonsInward(Sd, Ac, T); Vec3 Tc = Dc - N * Dc.Dot(N);
-                    double Wanted = Tc.Length() * R.Tension;
-                    if (Target.LengthSquared() > 1e-18 && Wanted > 0) Target = Target.Normalised() * Wanted; else Target = Tc * R.Tension;
-                    Emit(Terms, Target, WeightG1);
+                    Vec3 Dc = CoonsInward(Sd, Ac, T);
+                    double Wanted = Dc.Length() * R.Tension;                            // magnitude: the Coons cross derivative × tension
+                    Vec3 Target = D - N * D.Dot(N);                                     // direction: the current derivative, laid into the support plane
+                    if (Target.LengthSquared() < 1e-4 * Dc.LengthSquared())
+                    {
+                        // the current derivative is (nearly) normal to the support — a 90° corner such as a hole in a box
+                        //    top: continue the support past the rim, perpendicular to the rim tangent, away from its interior
+                        Vec3 Side = Continuation(R, F);
+                        if (Side.LengthSquared() < 0.5) Side = Dc.Normalised();
+                        else if (!R.Support && Side.Dot(Dc) < 0) Side = -Side;
+                        Target = Side;
+                    }
+                    Target = Target.Normalised() * Wanted;
+                    Emit(Terms, Target, WeightG1 * Taper);
                 }
                 // G2: inward second derivative · n = II_support(inward first derivative) — via the same projection trick
                 if (R.Continuity == RimContinuity::Curvature && Pr.Live)
@@ -380,7 +422,7 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
                     Vec3 Target = D2 - N * D2.Dot(N) + N * Wanted;
                     std::vector<std::pair<int, double>> Terms2;
                     for (int Aa = 0; Aa < Sd.Na; ++Aa) { int K = Sd.ForwardA ? Aa : Sd.Na - 1 - Aa; if (Nb[size_t(K)] == 0) continue; for (int B = 0; B < Sd.Nb; ++B) if (Ac.C2[size_t(B)] != 0) { auto [I, J] = Cell(Sd, Aa, B); Terms2.push_back({ Index(I, J), Nb[size_t(K)] * Ac.C2[size_t(B)] }); } }
-                    Emit(Terms2, Target, WeightG2);
+                    if (Taper2 > 0) Emit(Terms2, Target, WeightG2 * Taper2);
                 }
             }
         }
@@ -459,22 +501,27 @@ Deliver<SkinSolver::Skin> FairPatchSolver::Build(std::vector<FairRim> Rims, cons
         MidNormal[I] = Ring[I].Supported() ? SupportNormal(Ring[I], 0.5, Mid[I]) : Vec3{};
     }
     Centre = Centre * (1.0 / double(N));
-    // centre normal: average of the rim support normals (oriented consistently against the ring's own winding), else the ring's plane normal
+    // Orientation: mid normals are flipped to agree with the ring's winding normal where they are not perpendicular
+    //    to it, else to face away from the centre. The centre normal is their mean when that is well defined (a smooth
+    //    window in a curved face) else the winding normal signed by the supports' continuation (a pillow over a box top).
     Vec3 Winding; for (size_t I = 0; I < N; ++I) Winding = Winding + (Mid[I] - Centre).Cross(Mid[(I + 1) % N] - Centre);
     Winding = Winding.Normalised();
-    Vec3 CentreNormal; int Supported = 0;
+    Vec3 CentreNormal, Lift; int Supported = 0;
     for (size_t I = 0; I < N; ++I)
     {
         if (MidNormal[I].LengthSquared() < 0.5) { MidNormal[I] = Winding; continue; }
-        if (MidNormal[I].Dot(Winding) < 0) MidNormal[I] = -MidNormal[I];
-        CentreNormal = CentreNormal + MidNormal[I]; ++Supported;
+        double Agree = MidNormal[I].Dot(Winding);
+        if (std::fabs(Agree) > 0.3) { if (Agree < 0) MidNormal[I] = -MidNormal[I]; }
+        else if (MidNormal[I].Dot(Mid[I] - Centre) < 0) MidNormal[I] = -MidNormal[I];
+        CentreNormal = CentreNormal + MidNormal[I]; Lift = Lift + Continuation(Ring[I], 0.5); ++Supported;
     }
-    CentreNormal = Supported ? CentreNormal.Normalised() : Winding;
-    // centre lifted so the spokes meet it with a fair blend: pull toward the average of the tangent-plane projections
-    if (Supported)
+    if (CentreNormal.Length() > 0.5 * Supported && Supported) CentreNormal = CentreNormal.Normalised();
+    else CentreNormal = Lift.Dot(Winding) < 0 ? -Winding : Winding;
+    // centre lifted toward the supports' continuation so the spokes meet it with a fair blend
+    if (Supported && Lift.LengthSquared() > 1e-6)
     {
-        Vec3 Sum; for (size_t I = 0; I < N; ++I) { Vec3 D = Centre - Mid[I]; Sum = Sum + Mid[I] + (D - MidNormal[I] * D.Dot(MidNormal[I])); }
-        Centre = Centre * 0.5 + Sum * (0.5 / double(N));
+        double Reach = 0; for (size_t I = 0; I < N; ++I) Reach += (Mid[I] - Centre).Length(); Reach /= double(N);
+        Centre = Centre + Lift * (Reach * 0.35 / double(Supported));
     }
     std::vector<FairRim> Spoke(N);
     for (size_t I = 0; I < N; ++I)

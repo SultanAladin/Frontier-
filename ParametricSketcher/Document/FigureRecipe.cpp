@@ -3,6 +3,7 @@
 //============================================================================================================================================
 #include "FigureRecipe.h"
 #include "SceneDocument.h"
+#include <cmath>
 #include <cstring>
 
 namespace Frontier
@@ -18,6 +19,7 @@ const char* Describe(RecipeOperation Operation) noexcept
         case RecipeOperation::Sweep:   return "sweep";
         case RecipeOperation::Pipe:    return "pipe";
         case RecipeOperation::Patch:   return "patch";
+        case RecipeOperation::FairPatch: return "fairpatch";
         default:                       return "authored";
     }
 }
@@ -95,6 +97,60 @@ Deliver<std::vector<NurbsCurve>> FigureRecipe::ResolveInput(const RecipeInput& I
     return Deliver<std::vector<NurbsCurve>>::Accept(Cells[Best].Loops());
 }
 
+const NurbsSurface* FigureRecipe::ResolveSupport(const RecipeInput& In, const SceneDocument& Scene, Vec3 Hint) noexcept
+{
+    auto Find = [&](uint32_t Id) -> const SceneFigure* { for (const SceneFigure& F : Scene.Figures()) if (F.Identity == Id) return &F; return nullptr; };
+    if (In.Support == 0)
+    {
+        // an edge's own body: the face on the other side of the edge is the support (the first face when the edge is a rim of a sheet body)
+        if (In.Shape != RecipeInput::Form::Edge || In.Figures.empty()) return nullptr;
+        const SceneFigure* F = Find(In.Figures.front());
+        if (!F || F->Classification != FigureClassification::Body || In.Edge < 0 || In.Edge >= int(F->Body.Edges.size())) return nullptr;
+        const BrepEdge& E = F->Body.Edges[size_t(In.Edge)];
+        if (E.Coedges.empty()) return nullptr;
+        if (In.Face >= 0 && In.Face < int(F->Body.Faces.size())) return &F->Body.Faces[size_t(In.Face)].Surface;
+        if (E.Coedges.size() == 1) return &F->Body.Faces[size_t(F->Body.Coedges[size_t(E.Coedges.front())].Face)].Surface;
+        // two faces meet at the edge: continue flush with the one whose normal is most perpendicular to the direction
+        //    from the rim into the fill (Hint = the fill's centroid); a window in a skin picks the skin, not the cut wall
+        Vec3 M = E.Curve.Sample(0.5 * (E.Curve.DomainStart() + E.Curve.DomainEnd()));
+        Vec3 Inward = (Hint - M).Normalised();
+        const NurbsSurface* Best = nullptr; double BestDot = 1e300;
+        for (int Ce : E.Coedges)
+        {
+            const NurbsSurface& Su = F->Body.Faces[size_t(F->Body.Coedges[size_t(Ce)].Face)].Surface;
+            double U = 0, V = 0; Su.ClosestParameter(M, U, V); double Dot = std::fabs(Su.Normal(U, V).Dot(Inward));
+            if (Dot < BestDot) { BestDot = Dot; Best = &Su; }
+        }
+        return Best;
+    }
+    const SceneFigure* F = Find(In.Support);
+    if (!F) return nullptr;
+    if (F->Classification == FigureClassification::Surface) return &F->Surface;
+    if (F->Classification == FigureClassification::Body && !F->Body.Faces.empty())
+    {
+        // the face nearest the rim's midpoint
+        Deliver<std::vector<NurbsCurve>> R = ResolveInput(In, Scene, Workplane{});
+        if (!R || R.Payload.empty()) return nullptr;
+        const NurbsCurve& C = R.Payload.front(); Vec3 M = C.Sample(0.5 * (C.DomainStart() + C.DomainEnd()));
+        const NurbsSurface* Best = nullptr; double BestD = 1e300;
+        for (const BrepFace& Fa : F->Body.Faces) { double U = 0, V = 0, D = 0; Fa.Surface.ClosestParameter(M, U, V, &D); if (D < BestD) { BestD = D; Best = &Fa.Surface; } }
+        return Best;
+    }
+    return nullptr;
+}
+
+Vec3 FigureRecipe::Hint(const SceneDocument& Scene, const Workplane& Work) const noexcept
+{
+    Vec3 Sum; int N = 0;
+    for (const RecipeInput& In : Sections)
+    {
+        Deliver<std::vector<NurbsCurve>> R = ResolveInput(In, Scene, Work);
+        if (!R) continue;
+        for (const NurbsCurve& C : R.Payload) for (int K = 0; K < 8; ++K) { Sum = Sum + C.Sample(C.DomainStart() + (C.DomainEnd() - C.DomainStart()) * (K + 0.5) / 8); ++N; }
+    }
+    return N ? Sum / double(N) : Vec3{};
+}
+
 uint64_t FigureRecipe::FingerprintInputs(const SceneDocument& Scene, const Workplane& Work) const noexcept
 {
     uint64_t H = 1469598103934665603ull;
@@ -102,12 +158,17 @@ uint64_t FigureRecipe::FingerprintInputs(const SceneDocument& Scene, const Workp
     auto MixInput = [&](const RecipeInput& In)
     {
         Mix(H, uint64_t(In.Shape)); for (uint32_t Id : In.Figures) Mix(H, Id); Mix(H, uint64_t(In.Edge + 1));
+        Mix(H, uint64_t(In.Continuity)); Mix(H, Bits(In.Tension)); Mix(H, In.Support); Mix(H, uint64_t(In.Face + 1));
         Deliver<std::vector<NurbsCurve>> R = ResolveInput(In, Scene, Work);
         if (!R) { Mix(H, 0xdeadull); return; }
         for (const NurbsCurve& C : R.Payload) MixCurve(H, C);
+        if (Operation == RecipeOperation::FairPatch && In.Continuity != RimContinuity::Position)
+            if (const NurbsSurface* Sup = ResolveSupport(In, Scene, Hint(Scene, Work))) { Mix(H, Sup->CountU); Mix(H, Sup->CountV); for (const Vec4& P : Sup->Poles) { Mix(H, Bits(P.X)); Mix(H, Bits(P.Y)); Mix(H, Bits(P.Z)); } }
     };
     for (const RecipeInput& In : Sections) MixInput(In);
     if (!Path.Figures.empty()) MixInput(Path);
+    for (const RecipeInput& In : Guides) MixInput(In);
+    Mix(H, Fair.Spans); Mix(H, Fair.Star ? 1 : 0); Mix(H, Bits(Fair.Fairness)); Mix(H, Fair.Rounds);
     Mix(H, Bits(Direction.X)); Mix(H, Bits(Direction.Y)); Mix(H, Bits(Direction.Z)); Mix(H, Bits(Length));
     Mix(H, Bits(AxisOrigin.X)); Mix(H, Bits(AxisOrigin.Y)); Mix(H, Bits(AxisOrigin.Z)); Mix(H, Bits(Axis.X)); Mix(H, Bits(Axis.Y)); Mix(H, Bits(Axis.Z)); Mix(H, Bits(Angle));
     Mix(H, Bits(Radius)); Mix(H, Sheet ? 1 : 0);
@@ -116,7 +177,7 @@ uint64_t FigureRecipe::FingerprintInputs(const SceneDocument& Scene, const Workp
     return H;
 }
 
-Deliver<FigureRecipe::Product> FigureRecipe::Produce(const SceneDocument& Scene, const Workplane& Work) const noexcept
+Deliver<FigureRecipe::Product> FigureRecipe::Produce(const SceneDocument& Scene, const Workplane& Work, FairPatchReport* Report) const noexcept
 {
     using Out = Deliver<Product>;
     std::vector<std::vector<NurbsCurve>> Stations;
@@ -184,6 +245,25 @@ Deliver<FigureRecipe::Product> FigureRecipe::Produce(const SceneDocument& Scene,
             std::vector<NurbsCurve> Boundaries; for (auto& S : Stations) for (NurbsCurve& C : S) Boundaries.push_back(std::move(C));
             return FromSkin(SkinSolver::Patch(std::move(Boundaries)));
         }
+        case RecipeOperation::FairPatch:
+        {
+            std::vector<FairRim> Rims;
+            for (size_t I = 0; I < Sections.size(); ++I)
+                for (NurbsCurve& C : Stations[I])
+                {
+                    FairRim R; R.Curve = std::move(C); R.Continuity = Sections[I].Continuity; R.Tension = Sections[I].Tension;
+                    R.Support = ResolveSupport(Sections[I], Scene, Hint(Scene, Work));
+                    Rims.push_back(std::move(R));
+                }
+            std::vector<NurbsCurve> GuideCurves;
+            for (const RecipeInput& In : Guides)
+            {
+                Deliver<std::vector<NurbsCurve>> R = ResolveInput(In, Scene, Work);
+                if (!R) return Out::Reject(R.Denial.Reason, R.Denial.Detail);
+                for (NurbsCurve& C : R.Payload) GuideCurves.push_back(std::move(C));
+            }
+            return FromSkin(FairPatchSolver::Build(std::move(Rims), GuideCurves, Fair, Report));
+        }
         default: return Out::Reject(RefusalReason::DegenerateInput, "figure is authored, not derived");
     }
 }
@@ -195,6 +275,16 @@ std::string FigureRecipe::Summary(const SceneDocument& Scene) const noexcept
     if (!Sections.empty()) S += " of";
     for (const RecipeInput& In : Sections) { S += ' '; S += In.Label(Scene); }
     if (!Path.Figures.empty()) { S += " along "; S += Path.Label(Scene); }
+    if (Operation == RecipeOperation::FairPatch)
+    {
+        S.clear(); S = "fairpatch of";
+        for (const RecipeInput& In : Sections) { S += ' '; S += In.Label(Scene); S += '['; S += Describe(In.Continuity); if (In.Face >= 0) { S += " f"; S += std::to_string(In.Face); } if (In.Tension != 1.0) { char T[32]; std::snprintf(T, sizeof T, " t%.2g", In.Tension); S += T; } S += ']'; }
+        if (!Guides.empty()) { S += " through"; for (const RecipeInput& In : Guides) { S += ' '; S += In.Label(Scene); } }
+        if (Fair.Star) S += "  star";
+        char T[64]; std::snprintf(T, sizeof T, "  spans %d", Fair.Spans); S += T;
+        if (!Complaint.empty()) { S += "  ⚠ "; S += Complaint; }
+        return S;
+    }
     char Extra[160] = {};
     switch (Operation)
     {

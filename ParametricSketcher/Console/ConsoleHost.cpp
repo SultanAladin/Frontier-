@@ -921,6 +921,54 @@ void ConsoleHost::Register() noexcept
         FigureRecipe R; R.Operation = RecipeOperation::Patch; for (const SweepSource& S : B) R.Sections.push_back(S.Input);
         return AddDerived(C, "Patch", R);
     });
+    Add("fairpatch", "fairpatch <rim[@g0|@g1|@g2][@tN][@fN]...>|selected [--g1|--g2] [--tension=t] [--on=surface] [--guides=a,b] [--star] [--spans=n] [--fairness=f] — energy-fair fill; G1/G2 rims follow the adjacent body face (or --on)", [=, this](const CommandLine& C)
+    {
+        // rim tokens may carry per-rim suffixes: Body:e3@g2@t0.5 ; the switches give the defaults
+        RimContinuity Default = C.Switch("g2") ? RimContinuity::Curvature : C.Switch("g1") ? RimContinuity::Tangent : RimContinuity::Position;
+        double DefaultTension = C.SwitchNumber("tension").value_or(1.0);
+        uint32_t Support = 0;
+        if (auto On = C.SwitchText("on")) { SceneFigure* F = Resolve(*On); if (!F || F->Classification == FigureClassification::Curve) return Refuse("fairpatch: --on needs a surface or body"); Support = F->Identity; }
+        CommandLine Bare = C; std::vector<std::pair<std::pair<RimContinuity, double>, int>> PerRim;
+        for (std::string& Tok : Bare.Arguments)
+        {
+            RimContinuity Cont = Default; double Tension = DefaultTension; int Face = -1;
+            size_t At;
+            while ((At = Tok.rfind('@')) != std::string::npos)
+            {
+                std::string Tag = Tok.substr(At + 1); Tok.erase(At);
+                if (Tag == "g0") Cont = RimContinuity::Position; else if (Tag == "g1") Cont = RimContinuity::Tangent; else if (Tag == "g2") Cont = RimContinuity::Curvature;
+                else if (!Tag.empty() && Tag[0] == 't') Tension = std::atof(Tag.c_str() + 1);
+                else if (!Tag.empty() && Tag[0] == 'f') Face = std::atoi(Tag.c_str() + 1);
+                else return Refuse("fairpatch: unknown rim tag '@%s' (use @g0 @g1 @g2 @t<tension> @f<face>)", Tag.c_str());
+            }
+            PerRim.push_back({ { Cont, Tension }, Face });
+        }
+        std::vector<SweepSource> B; if (!CollectSections(Bare, 0, "fairpatch", B)) return false;
+        FigureRecipe R; R.Operation = RecipeOperation::FairPatch;
+        bool Selected = Bare.Count() == 0 || (Bare.Count() == 1 && Bare.Arguments[0] == "selected");
+        for (size_t I = 0; I < B.size(); ++I)
+        {
+            RecipeInput In = B[I].Input;
+            In.Continuity = Selected || I >= PerRim.size() ? Default : PerRim[I].first.first;
+            In.Tension = Selected || I >= PerRim.size() ? DefaultTension : PerRim[I].first.second;
+            In.Face = Selected || I >= PerRim.size() ? -1 : PerRim[I].second;
+            In.Support = In.Shape == RecipeInput::Form::Edge ? 0 : Support;
+            if (In.Continuity != RimContinuity::Position && In.Shape != RecipeInput::Form::Edge && !Support) Row("  ⚠ %s: G1/G2 on a curve needs --on=<surface|body>; it will be G0", B[I].Label.c_str());
+            R.Sections.push_back(In);
+        }
+        if (auto G = C.SwitchText("guides"))
+        {
+            std::string Tok; for (char Ch : *G + ",") { if (Ch == ',') { if (!Tok.empty()) { SceneFigure* F = Resolve(Tok); if (!F || F->Classification != FigureClassification::Curve) return Refuse("fairpatch: guide '%s' is not a curve", Tok.c_str()); RecipeInput In; In.Shape = RecipeInput::Form::Curve; In.Figures = { F->Identity }; R.Guides.push_back(In); } Tok.clear(); } else Tok += Ch; }
+        }
+        R.Fair.Star = C.Switch("star"); R.Fair.Spans = int(C.SwitchNumber("spans").value_or(10)); R.Fair.Fairness = C.SwitchNumber("fairness").value_or(1.0); R.Fair.Rounds = int(C.SwitchNumber("rounds").value_or(3));
+        FairPatchReport Rep;
+        Deliver<FigureRecipe::Product> Probe = R.Produce(Scene, Plane, &Rep);
+        if (!Probe) return Refuse("FairPatch refused: %s — %s", Refusal::Describe(Probe.Denial.Reason), Probe.Denial.Detail);
+        if (!AddDerived(C, "FairPatch", R)) return false;
+        Row("  quads %d  unknowns %d  rim break G1 %.3f°  G2 %.4f 1/m  guide deviation %.5f  bending energy %.4f (Coons %.4f)%s",
+            Rep.Quads, Rep.Unknowns, ScalarCriteria::Degrees(Rep.TangentBreak), Rep.CurvatureBreak, Rep.GuideDeviation, Rep.Energy, Rep.CoonsEnergy, Rep.UnsupportedRims ? "  ⚠ unsupported rims fell back to G0" : "");
+        return true;
+    });
     Add("recipe", "recipe [figure...] — how derived figures are built (sources, options, complaints)  ·  recipe bake <figure...> detaches them", [=, this](const CommandLine& C)
     {
         if (C.Count() >= 1 && C.Arguments[0] == "bake")
