@@ -6,6 +6,7 @@
 #include "Presentation/ScenePresentation.h"
 #include "Kernel/ProfileSolver.h"
 #include "Kernel/IntersectionSolver.h"
+#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdarg>
@@ -75,12 +76,321 @@ void ConsoleHost::DescribeFigure(const SceneFigure& Figure) noexcept
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────────────────
+//  Dimensions (Phase 13): world-space annotations drawn as an overlay (no depth test, no pick).
+//  A dim has two endpoints A, B and an up-vector N; for linear dims N is the dim's label-plane
+//  normal (we project A and B into a screen-aligned coordinate frame), for radius dims N is the
+//  centre of the curve, for angle dims A = B = the vertex and N is the included-angle bisector
+//  of the two incident edges. The value is editable via `dim edit <id> <new-value>` and the
+//  label is recomputed from the value every frame (so an edit shows up on the next render).
+// ──────────────────────────────────────────────────────────────────────────────────────────
+
+uint32_t ConsoleHost::EmitDimension(DimensionForm Form, uint32_t Anchor, const std::string& AnchorName, Vec3 A, Vec3 B, Vec3 N, double Value, bool Auto) noexcept
+{
+    DimensionEntry D; D.Id = NextDimensionId++; D.Form = Form; D.Anchor = Anchor; D.AnchorName = AnchorName; D.A = A; D.B = B; D.N = N; D.Value = Value; D.Auto = Auto;
+    Dimensions.push_back(std::move(D));
+    return Dimensions.back().Id;
+}
+
+void ConsoleHost::DeleteAutoDimensionsFor(uint32_t Anchor) noexcept
+{
+    // Re-emitting dims for a figure starts by removing any old auto dims attached to that figure.
+    if (Anchor == 0) return;
+    Dimensions.erase(std::remove_if(Dimensions.begin(), Dimensions.end(), [Anchor](const DimensionEntry& D) { return D.Auto && D.Anchor == Anchor; }), Dimensions.end());
+}
+
+namespace
+{
+    // Format a measurement for a label: linear dims get mm precision (3 decimals), angles 1 decimal
+    //    with a degree suffix, radii 3 decimals. The user-edited value overrides anything measured.
+    std::string FormatDimensionLabel(const ConsoleHost::DimensionEntry& D) noexcept
+    {
+        char Buf[64];
+        switch (D.Form)
+        {
+            case ConsoleHost::DimensionForm::Linear:
+            case ConsoleHost::DimensionForm::Bbox:
+            case ConsoleHost::DimensionForm::Radius:
+            case ConsoleHost::DimensionForm::Diameter:
+            case ConsoleHost::DimensionForm::ArcLength:
+                std::snprintf(Buf, sizeof Buf, "%.3f", D.Value);
+                return std::string(Buf);
+            case ConsoleHost::DimensionForm::Angle:
+            {
+                // Build the label with a non-ASCII degree mark by appending the UTF-8 bytes of U+00B0.
+                std::snprintf(Buf, sizeof Buf, "%.1f", D.Value * (180.0 / 3.14159265358979323846));
+                std::string S(Buf);
+                S.push_back(char(0xC2)); S.push_back(char(0xB0));                       // U+00B0 in UTF-8
+                return S;
+            }
+        }
+        return "";
+    }
+
+    // A 5×7 bitmap font for digits, period, sign, and a degree sign. The bitmap is one bit per
+    //    pixel, packed left-to-right, top-to-bottom. We render each char as 5x7 quads (one quad
+    //    per lit pixel) so we stay in the segment stream without a font atlas. The character set
+    //    is enough for "0123456789.-<deg>" — anything else becomes '0'.
+    const uint8_t* Glyph(unsigned char C) noexcept
+    {
+        static const uint8_t G[13][7] =
+        {
+            { 0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110 }, // 0
+            { 0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110 }, // 1
+            { 0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111 }, // 2
+            { 0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110 }, // 3
+            { 0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010 }, // 4
+            { 0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110 }, // 5
+            { 0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110 }, // 6
+            { 0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000 }, // 7
+            { 0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110 }, // 8
+            { 0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100 }, // 9
+            { 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100 }, // . (bottom dots)
+            { 0b00000, 0b00000, 0b00000, 0b01110, 0b00000, 0b00000, 0b00000 }, // - (middle bar)
+            { 0b00000, 0b11000, 0b11000, 0b00000, 0b00000, 0b00000, 0b00000 }, // deg (top circles, U+00B0 first byte 0xC2)
+        };
+        if (C >= '0' && C <= '9') return G[C - '0'];
+        if (C == '.') return G[10];
+        if (C == '-') return G[11];
+        if (C == 0xC2) return G[12];                                                   // first byte of UTF-8 U+00B0
+        return G[0];
+    }
+}
+
+void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
+{
+    // Re-emit: drop the previous auto set for this anchor, then add a fresh one.
+    DeleteAutoDimensionsFor(Figure.Identity);
+    Box3 B = Figure.Bounds();
+    if (B.Low.X > B.High.X) return;                                                // empty figure — no dim
+    if (Figure.Classification == FigureClassification::Curve)
+    {
+        const NurbsCurve& C = Figure.Curve;
+        if (C.PoleCount() == 0) return;
+        // Length: arc length dim. Endpoint A = curve start, B = curve end, value = arc length.
+        //    For closed analytic forms (circle, closed ellipse) the parametric Length() collapses to zero
+        //    (periodic knot multiplicity); substitute the analytic formula in that case so the user sees
+        //    a useful "2π r" rather than "0.000".
+        Vec3 Start = C.Sample(0.0);
+        Vec3 End   = C.Sample(1.0);
+        double AnalyticLength = C.Length();
+        if (C.Classification == CurveClassification::Circle) AnalyticLength = 2.0 * 3.14159265358979323846 * C.RadiusMajor;
+        else if (C.Classification == CurveClassification::Ellipse)
+        {
+            double A = C.RadiusMajor, B = C.RadiusMinor, H = std::pow((A - B) / (A + B), 2);
+            AnalyticLength = 3.14159265358979323846 * (A + B) * (1.0 + 3.0 * H / (10.0 + std::sqrt(4.0 - 3.0 * H)));
+        }
+        if (AnalyticLength < 1e-9) AnalyticLength = C.Length();
+        DimensionEntry D; D.Form = DimensionForm::ArcLength; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " length";
+        D.A = Start; D.B = End; D.N = Plane.Normal(); D.Value = AnalyticLength;
+        D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+        // For circles / arcs / ellipses we know the analytic centre and radii — emit those dims too.
+        if (C.Classification == CurveClassification::Circle || C.Classification == CurveClassification::Arc)
+        {
+            Vec3 Ctr = C.Centre;
+            Vec3 OnCurve = C.Sample(0.0);
+            DimensionEntry R; R.Form = DimensionForm::Radius; R.Anchor = Figure.Identity; R.AnchorName = Figure.Name + " radius";
+            R.A = Ctr; R.B = OnCurve; R.N = Plane.Normal(); R.Value = C.RadiusMajor;
+            R.Id = NextDimensionId++; R.Auto = true; Dimensions.push_back(std::move(R));
+        }
+        else if (C.Classification == CurveClassification::Ellipse)
+        {
+            Vec3 Ctr = C.Centre;
+            Vec3 MajorEnd = Ctr + Vec3{ C.RadiusMajor, 0, 0 };
+            Vec3 MinorEnd = Ctr + Vec3{ 0, C.RadiusMinor, 0 };
+            DimensionEntry R1; R1.Form = DimensionForm::Radius; R1.Anchor = Figure.Identity; R1.AnchorName = Figure.Name + " Rmajor";
+            R1.A = Ctr; R1.B = MajorEnd; R1.N = Plane.Normal(); R1.Value = C.RadiusMajor;
+            R1.Id = NextDimensionId++; R1.Auto = true; Dimensions.push_back(std::move(R1));
+            DimensionEntry R2; R2.Form = DimensionForm::Radius; R2.Anchor = Figure.Identity; R2.AnchorName = Figure.Name + " Rminor";
+            R2.A = Ctr; R2.B = MinorEnd; R2.N = Plane.Normal(); R2.Value = C.RadiusMinor;
+            R2.Id = NextDimensionId++; R2.Auto = true; Dimensions.push_back(std::move(R2));
+        }
+    }
+    else
+    {
+        // Body / Surface: emit one linear dim per axis. Endpoints are the face-centres of the two
+        //    opposing faces, so the dim lies on the body surface. The dim-line normal is set to the
+        //    world axis perpendicular to the feature so the renderer lifts the dim line off the body
+        //    in a consistent direction (X dim → +Y, Y dim → +X, Z dim → +X, all 22 px in world units
+        //    that map to roughly 22 screen pixels at the body's depth).
+        Vec3 Centre = (B.Low + B.High) * 0.5;
+        double DY = (B.High.Y - B.Low.Y) * 0.5 + 0.05;
+        double DX = (B.High.X - B.Low.X) * 0.5 + 0.05;
+        auto EmitBbox = [&](const char* Tag, Vec3 Lo, Vec3 Hi, double V, Vec3 Lift)
+        {
+            DimensionEntry D; D.Form = DimensionForm::Bbox; D.Anchor = Figure.Identity; D.AnchorName = std::string(Figure.Name) + " " + Tag;
+            D.A = Lo; D.B = Hi; D.N = Lift; D.Value = V;
+            D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+        };
+        // X dim: along the X axis at the top edge, lifted in +Y.
+        EmitBbox("X", Vec3(B.Low.X, B.High.Y + DY, Centre.Z), Vec3(B.High.X, B.High.Y + DY, Centre.Z), B.High.X - B.Low.X, Vec3(0, 1, 0));
+        // Y dim: along the Y axis at the right edge, lifted in +X.
+        EmitBbox("Y", Vec3(B.High.X + DX, B.Low.Y, Centre.Z), Vec3(B.High.X + DX, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0));
+        // Z dim: along the Z axis at the top-right edge, lifted in +X (further out than Y so they don't overlap).
+        EmitBbox("Z", Vec3(B.High.X + DX, Centre.Y, B.Low.Z), Vec3(B.High.X + DX, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0));
+    }
+}
+
+Vec2 ConsoleHost::WorldToScreen(Vec3 P) const noexcept
+{
+    // Project a world point to NDC, then map to pixel coordinates.
+    double Aspect = double(Surface->Width()) / double(Surface->Height());
+    Mat4 Clip = View.ProjectionMatrix(Aspect) * View.ViewMatrix();
+    Vec4 H = Clip * Vec4(P.X, P.Y, P.Z, 1.0);
+    Vec2 S; if (std::fabs(H.W) < 1e-12) { S.X = -1e9; S.Y = -1e9; return S; }
+    double NdcX = H.X / H.W, NdcY = H.Y / H.W;
+    S.X = (NdcX * 0.5 + 0.5) * Surface->Width();
+    S.Y = (NdcY * 0.5 + 0.5) * Surface->Height();                                    // Vulkan: +Y down
+    return S;
+}
+
+void ConsoleHost::DrawDimensions() noexcept
+{
+    if (Dimensions.empty()) return;
+    // We draw every dim in world space, billboarded so the dim line stays parallel to the screen plane
+    //    at the dim's depth. The world-space size is set so the dim "looks" the right pixel size at the
+    //    dim's anchor depth (same trick the gizmo uses). The label is a small cloud of points, one per
+    //    lit glyph pixel, arranged in a 5x7 grid scaled to a few pixels of world space.
+    SegmentStream DimSegments;
+    PointStream   DimPoints;
+    Vec3 CamRight = View.Right();
+    Vec3 CamUp    = View.Up();
+    Vec3 Forward  = View.Forward();
+    // World size of a single screen pixel at the pivot depth (the dim "plane" is at the dim's
+    //    average depth from the camera).
+    double PivotDepth = 0.0;
+    {
+        // Pick the depth of the first dim's anchor midpoint as a representative.
+        for (const DimensionEntry& D : Dimensions) { if (D.Hidden) continue; PivotDepth = (D.A - View.Eye()).Dot(Forward); break; }
+        if (PivotDepth < 0.05) PivotDepth = 0.05;
+    }
+    double HalfHeight = View.Orthographic ? View.OrthographicHalfHeight() : PivotDepth * std::tan(View.FovY * 0.5);
+    double WpPx = 2.0 * HalfHeight / double(Surface->Height());                       // [m/px] at pivot depth
+    const double LabelHeightPx = 18.0;
+    const double OffPx         = 22.0;
+    const double TickPx        = 4.0;
+    double Lh = LabelHeightPx * WpPx;
+    double Oh = OffPx * WpPx;
+    double Th = TickPx * WpPx;
+
+    for (DimensionEntry& D : Dimensions)
+    {
+        if (D.Hidden) continue;
+        if (D.Label.empty()) D.Label = FormatDimensionLabel(D);
+
+        // Direction along the feature in world space (A → B)
+        Vec3 AB = D.B - D.A;
+        double FeatureLen = AB.Length();
+        if (FeatureLen < 1e-9) continue;
+        Vec3 ABu = AB / FeatureLen;
+        // Lift direction: the dim's declared normal, projected into the screen plane and oriented
+        //    so the dim line goes to the "outside" of the figure. If N is zero, fall back to screen-up.
+        Vec3 Lift = D.N;
+        if (Lift.LengthSquared() < 1e-12) Lift = CamUp;
+        Vec3 ScreenLift = Lift - Forward * Lift.Dot(Forward);
+        if (ScreenLift.LengthSquared() < 1e-12) ScreenLift = CamUp;
+        ScreenLift = ScreenLift.Normalised();
+        // Project the unit direction into the screen plane (perpendicular to Forward), normalise.
+        Vec3 ScreenABu = ABu - Forward * ABu.Dot(Forward);
+        if (ScreenABu.LengthSquared() < 1e-12) continue;                              // dim is parallel to view, skip
+        ScreenABu = ScreenABu.Normalised();
+        // Orient the lift so it always points "outward" (away from the feature direction's screen
+        //    normal) — pick whichever side has a +screen-Y component (upward).
+        if (ScreenLift.Dot(CamUp) < 0) ScreenLift = ScreenLift * -1.0;
+        // Override for the Y/Z bbox case: ScreenABu may point in screen-right (so the screen up
+        //    component is small). In that case the lift to the right is the "outward" side.
+        if (std::fabs(ScreenLift.Dot(CamUp)) < 0.1 && ScreenLift.Dot(CamRight) < 0) ScreenLift = ScreenLift * -1.0;
+
+        // World-space dim endpoints
+        Vec3 L0 = D.A + ScreenLift * Oh;
+        Vec3 L1 = D.B + ScreenLift * Oh;
+        // Extension lines
+        DimSegments.Append(D.A, L0);
+        DimSegments.Append(D.B, L1);
+        // Main dim line
+        DimSegments.Append(L0, L1);
+        // Ticks (short segments perpendicular to the main line, in the screen plane)
+        Vec3 Tick = ScreenABu * Th;
+        DimSegments.Append(L0 - Tick, L0 + Tick);
+        DimSegments.Append(L1 - Tick, L1 + Tick);
+
+        // Label — a row of 5x7 glyphs, centred above the dim line midpoint.
+        Vec3 Mid = (L0 + L1) * 0.5;
+        double CharW = Lh * 0.6;
+        double CharSpacing = CharW * 1.1;
+        double TotalW = CharSpacing * double(D.Label.size());
+        // Anchor the label so its centre is at Mid; then nudge up by one full glyph height so the
+        //    text sits above the dim line instead of on top of it.
+        Vec3 Origin = Mid - CamRight * (TotalW * 0.5) + CamUp * (Lh * 1.2);
+        for (size_t I = 0; I < D.Label.size(); ++I)
+        {
+            const uint8_t* Bmp = Glyph(D.Label[I]);
+            double Cx = Origin.X + CamRight.X * (CharSpacing * double(I));
+            double Cy = Origin.Y + CamRight.Y * (CharSpacing * double(I));
+            double Cz = Origin.Z + CamRight.Z * (CharSpacing * double(I));
+            for (int Row = 0; Row < 7; ++Row)
+            {
+                uint8_t RowBmp = Bmp[Row];
+                for (int Col = 0; Col < 5; ++Col)
+                    if (RowBmp & (1u << (4 - Col)))
+                    {
+                        Vec3 P{
+                            Cx + CamRight.X * (Col * CharW * 0.2) - CamUp.X * (Row * Lh / 7.0),
+                            Cy + CamRight.Y * (Col * CharW * 0.2) - CamUp.Y * (Row * Lh / 7.0),
+                            Cz + CamRight.Z * (Col * CharW * 0.2) - CamUp.Z * (Row * Lh / 7.0) };
+                        DimPoints.Append(P, PointGlyph::Square);
+                    }
+            }
+        }
+    }
+    DrawRecord DimStyle = ScenePresentation::Tinted(0.10f, 0.05f, 0.0f, 1.0f);
+    DimStyle.LineWidth = 2.0f; DimStyle.PointSize = 2.0f;
+    DimStyle.Emissive = 0.0f;
+    // Draw the dark backing once, then the bright foreground on top so the label reads on any background.
+    Surface->DrawSegments(DimSegments, DimStyle);
+    Surface->DrawPoints(DimPoints, DimStyle);
+    DrawRecord Hot = ScenePresentation::Tinted(1.0f, 0.85f, 0.10f, 1.0f);
+    Hot.LineWidth = 1.2f; Hot.PointSize = 1.6f; Hot.Emissive = 0.4f;
+    Surface->DrawSegments(DimSegments, Hot);
+    Surface->DrawPoints(DimPoints, Hot);
+}
+
+int32_t ConsoleHost::FindDimensionAtPixel(double X, double Y) const noexcept
+{
+    // Cheap O(N) scan: compare against each dim's main line. Tolerances are generous (12 px) so
+    //    the user can click a few pixels away from the dim line itself.
+    for (const DimensionEntry& D : Dimensions)
+    {
+        if (D.Hidden) continue;
+        Vec2 P0 = WorldToScreen(D.A);
+        Vec2 P1 = WorldToScreen(D.B);
+        if (P0.X < -1e7 || P1.X < -1e7) continue;
+        Vec2 Mid{ (P0.X + P1.X) * 0.5, (P0.Y + P1.Y) * 0.5 };
+        Vec2 Dir = P1 - P0;
+        double Len = Dir.Length();
+        Vec2 Unit = Len > 1e-6 ? Dir / Len : Vec2{ 1.0, 0.0 };
+        Vec2 Norm{ -Unit.Y, Unit.X };
+        const double Off = 22.0;
+        Vec2 L0 = P0 + Norm * Off;
+        Vec2 L1 = P1 + Norm * Off;
+        // Distance from (X, Y) to segment L0–L1
+        Vec2 AB = L1 - L0; double L = AB.Length();
+        if (L < 1e-6) continue;
+        double T = std::clamp(((X - L0.X) * AB.X + (Y - L0.Y) * AB.Y) / (L * L), 0.0, 1.0);
+        double Dx = X - (L0.X + AB.X * T), Dy = Y - (L0.Y + AB.Y * T);
+        if (Dx * Dx + Dy * Dy < 144.0) return int32_t(D.Id);                          // 12 px
+    }
+    return 0;
+}
+
+
 bool ConsoleHost::AddCurve(const CommandLine& C, const char* Stem, Deliver<NurbsCurve> Result) noexcept
 {
     if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
     SceneFigure& Figure = Scene.AddCurve(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
     Figure.Construction = C.Switch("construction");
     DescribeFigure(Figure);
+    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -89,6 +399,7 @@ bool ConsoleHost::AddSurface(const CommandLine& C, const char* Stem, Deliver<Nur
     if (!Result) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
     SceneFigure& Figure = Scene.AddSurface(C.SwitchText("name").value_or(Stem), std::move(Result.Payload));
     DescribeFigure(Figure);
+    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -99,6 +410,7 @@ bool ConsoleHost::AddBody(const CommandLine& C, const char* Stem, Deliver<BrepBo
     DescribeFigure(Figure);
     BodyReport R = Figure.Body.Validate();
     if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges);
+    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -115,6 +427,7 @@ bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecip
     DescribeFigure(Figure);
     Row("  ↳ %s", Figure.Recipe.Summary(Scene).c_str());
     if (Figure.Classification == FigureClassification::Body) { BodyReport R = Figure.Body.Validate(); if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges); }
+    if (!C.Switch("no-dim")) AutoEmitDimensions(Figure);
     return true;
 }
 
@@ -192,6 +505,7 @@ void ConsoleHost::Render() noexcept
 
     Surface->BeginOverlay();
     DrawToolPreview();
+    DrawDimensions();
     if (GizmoShown && (Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0) && !Tool.Active())
     {
         if (!GizmoRig.Dragging()) RefreshGizmoPivot();
@@ -1184,6 +1498,133 @@ void ConsoleHost::Register() noexcept
     {
         if (Scene.Figures().empty()) Row("(empty scene)");
         for (const SceneFigure& I : Scene.Figures()) DescribeFigure(I);
+        return true;
+    });
+    // ── Dimensions (Phase 13) ──────────────────────────────────────────────────────────────
+    Add("dim", "dim list  ·  dim <figure> --along=X|Y|Z [--name=label]  ·  dim <figure> <p1> <p2>  ·  dim edit <id> <value>  ·  dim hide|show|delete <id|all>  ·  dims are auto-emitted on every primitive and body", [=, this](const CommandLine& C)
+    {
+        if (C.Count() == 0) return Refuse("dim: try `dim list`, `dim <figure> --along=X`, `dim edit <id> <value>`, or `dim hide|show|delete <id|all>`");
+        const std::string& Sub = C.Arguments[0];
+        auto IdArg = [&](size_t I) -> int32_t
+        {
+            if (I >= C.Count()) return 0;
+            if (auto N = CommandCodec::ParseNumber(C.Arguments[I])) return int32_t(*N);
+            if (C.Arguments[I] == "all") return -1;
+            return 0;
+        };
+        if (Sub == "list")
+        {
+            if (Dimensions.empty()) { Row("(no dimensions)"); return true; }
+            for (const DimensionEntry& D : Dimensions)
+            {
+                const char* K = "?";
+                switch (D.Form)
+                {
+                    case DimensionForm::Linear:    K = "linear";    break;
+                    case DimensionForm::Angle:     K = "angle";     break;
+                    case DimensionForm::Radius:    K = "radius";    break;
+                    case DimensionForm::Diameter:  K = "diameter";  break;
+                    case DimensionForm::ArcLength: K = "length";    break;
+                    case DimensionForm::Bbox:      K = "bbox";      break;
+                }
+                Row("#%-3u %-8s %-24s  value %.4f  %s%s", D.Id, K, D.AnchorName.c_str(), D.Value, D.Hidden ? "  [hidden]" : "", D.Auto ? "  [auto]" : "  [user]");
+            }
+            return true;
+        }
+        if (Sub == "edit")
+        {
+            int32_t Id = IdArg(1); if (Id <= 0) return Refuse("dim edit: a numeric dim id required");
+            double NewVal = 0; if (!NumberArg(C, 2, NewVal, "dim edit")) return false;
+            for (DimensionEntry& D : Dimensions) if (int32_t(D.Id) == Id) { D.Value = NewVal; D.Label = ""; Row("dim #%u  value %.4f", D.Id, D.Value); return true; }
+            return Refuse("dim edit: no dim with id %d", Id);
+        }
+        if (Sub == "hide" || Sub == "show" || Sub == "delete")
+        {
+            int32_t Id = IdArg(1); if (Id == 0) return Refuse("dim %s: a numeric dim id (or `all`) required", Sub.c_str());
+            auto Match = [&](const DimensionEntry& D) { return Id < 0 || int32_t(D.Id) == Id; };
+            if (Sub == "delete")
+            {
+                size_t Before = Dimensions.size();
+                Dimensions.erase(std::remove_if(Dimensions.begin(), Dimensions.end(), Match), Dimensions.end());
+                Row("dim delete: removed %zu", Before - Dimensions.size());
+                return true;
+            }
+            for (DimensionEntry& D : Dimensions) if (Match(D)) D.Hidden = (Sub == "hide");
+            Row("dim %s: %s %d", Sub.c_str(), Id < 0 ? "all dims" : "dim", Id);
+            return true;
+        }
+        if (Sub == "all-auto" || Sub == "auto")
+        {
+            // Force re-emit of all auto dims (useful after `undelete` or when an existing figure was loaded).
+            for (const SceneFigure& F : Scene.Figures()) AutoEmitDimensions(F);
+            Row("dim auto: re-emitted (%zu total)", Dimensions.size());
+            return true;
+        }
+        // dim <figure> [...]  — user-added linear dim. First figure is the anchor; the rest are switch values.
+        SceneFigure* F = Resolve(Sub);
+        if (!F) return Refuse("dim: no figure '%s' and not a recognised subcommand (try `dim list`)", Sub.c_str());
+        if (C.Switch("along"))
+        {
+            std::string A = *C.SwitchText("along");
+            Box3 B = F->Bounds();
+            double V = 0; Vec3 Lo{}, Hi{}, Lift(0, 1, 0);
+            if (A == "X" || A == "x") { V = B.High.X - B.Low.X; Lo = Vec3(B.Low.X, B.High.Y, (B.Low.Z + B.High.Z) * 0.5); Hi = Vec3(B.High.X, B.High.Y, (B.Low.Z + B.High.Z) * 0.5); Lift = Vec3(0, 1, 0); }
+            else if (A == "Y" || A == "y") { V = B.High.Y - B.Low.Y; Lo = Vec3(B.High.X, B.Low.Y, (B.Low.Z + B.High.Z) * 0.5); Hi = Vec3(B.High.X, B.High.Y, (B.Low.Z + B.High.Z) * 0.5); Lift = Vec3(1, 0, 0); }
+            else if (A == "Z" || A == "z") { V = B.High.Z - B.Low.Z; Lo = Vec3((B.Low.X + B.High.X) * 0.5, (B.Low.Y + B.High.Y) * 0.5, B.Low.Z); Hi = Vec3((B.Low.X + B.High.X) * 0.5, (B.Low.Y + B.High.Y) * 0.5, B.High.Z); Lift = Vec3(1, 0, 0); }
+            else return Refuse("dim --along=: expected X, Y, or Z (got '%s')", A.c_str());
+            uint32_t NewId = EmitDimension(DimensionForm::Linear, F->Identity, F->Name + " " + A, Lo, Hi, Lift, V, false);
+            Row("dim #%u  %s %.4f", NewId, (F->Name + " " + A).c_str(), V);
+            return true;
+        }
+        // dim <figure> <p1> <p2>  — free-form linear dim between two world points.
+        if (C.Count() >= 3)
+        {
+            auto P1 = CommandCodec::ParsePoint(C.Arguments[1]);
+            auto P2 = CommandCodec::ParsePoint(C.Arguments[2]);
+            if (!P1 || !P2) return Refuse("dim <figure> <p1> <p2>: two points required");
+            double V = (*P2 - *P1).Length();
+            uint32_t NewId = EmitDimension(DimensionForm::Linear, F->Identity, F->Name + " free", *P1, *P2, Vec3(0, 1, 0), V, false);
+            Row("dim #%u  %s free %.4f", NewId, F->Name.c_str(), V);
+            return true;
+        }
+        return Refuse("dim: need `--along=X|Y|Z` or two points");
+    });
+    Add("angle", "angle <polyline> [--at=K]  — interior angle at vertex K of a polyline (K defaults to the middle; the included angle between segments K-1,K and K,K+1 is reported in degrees)", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "angle")) return false;
+        SceneFigure* F = Resolve(C.Arguments[0]); if (!F) return Refuse("angle: no figure '%s'", C.Arguments[0].c_str());
+        if (F->Classification != FigureClassification::Curve) return Refuse("angle: '%s' is not a curve (angle dims are for polylines)", C.Arguments[0].c_str());
+        int K = -1;
+        if (auto SK = C.SwitchNumber("at")) K = int(*SK);
+        const NurbsCurve& Crv = F->Curve;
+        // For a polyline we know the vertex list directly; for freeform curves we sample at 1/3, 1/2, 2/3.
+        //    K (0-based) selects the vertex: P1 = vertex K, P0 = vertex K-1, P2 = vertex K+1.
+        Vec3 P0, P1, P2;
+        if (Crv.Classification == CurveClassification::Polyline || Crv.Classification == CurveClassification::Line)
+        {
+            // Poles are homogeneous (wx, wy, wz, w); for a polyline the first N poles are the vertices.
+            // We have to divide by W to get world coords.
+            int N = Crv.PoleCount();
+            if (N < 3) return Refuse("angle: polyline '%s' has only %d vertices; need at least 3", C.Arguments[0].c_str(), N);
+            if (K < 0) K = N / 2;
+            if (K < 1 || K > N - 2) return Refuse("angle --at=K: K must be in [1, %d] (got %d)", N - 2, K);
+            Vec4 A = Crv.Poles[K - 1], B = Crv.Poles[K], C = Crv.Poles[K + 1];
+            P0 = A.Divide(); P1 = B.Divide(); P2 = C.Divide();
+        }
+        else
+        {
+            P0 = Crv.Sample(0.40);
+            P1 = Crv.Sample(0.50);
+            P2 = Crv.Sample(0.60);
+        }
+        Vec3 V1 = (P0 - P1); Vec3 V2 = (P2 - P1);
+        double Len1 = V1.Length(), Len2 = V2.Length();
+        if (Len1 < 1e-9 || Len2 < 1e-9) return Refuse("angle: degenerate vertex");
+        double Cos = V1.Dot(V2) / (Len1 * Len2);
+        Cos = std::clamp(Cos, -1.0, 1.0);
+        double Rad = std::acos(Cos);
+        uint32_t NewId = EmitDimension(DimensionForm::Angle, F->Identity, F->Name + " angle", P1, P1, Plane.Normal(), Rad, false);
+        Row("dim #%u  %s angle %.2f°", NewId, F->Name.c_str(), Rad * 180.0 / 3.14159265358979323846);
         return true;
     });
     Add("describe", "describe <figure> — poles and knots", [=, this](const CommandLine& C)

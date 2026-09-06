@@ -37,6 +37,24 @@ public:
     [[nodiscard]] const UndoSequence&  Timeline() const noexcept { return Undo; }
     [[nodiscard]] SelectMode            CurrentSelectMode() const noexcept { return Mode; }
 
+    // ---- Dimension public types (Phase 13) --------------------------------------------------
+    // The free function that formats dim labels lives in ConsoleHost.cpp's anonymous namespace and needs
+    //    to take these by reference, so the types have to be public.
+    enum class DimensionForm : uint8_t { Linear, Angle, Radius, Diameter, ArcLength, Bbox };
+    struct DimensionEntry
+    {
+        uint32_t        Id        = 0;                                                 // [-] unique within Host
+        DimensionForm   Form      = DimensionForm::Linear;
+        uint32_t        Anchor    = 0;                                                 // [-] 0 = free / not tied to a figure
+        std::string     AnchorName;                                                   // [-] human-readable anchor (figure name + axis etc.)
+        Vec3            A, B, N;                                                      // [m] world-space endpoints and orientation
+        double          Value     = 0.0;                                               // [m] or [rad] depending on Form
+        std::string     Label;                                                         // [-] formatted text (e.g. "3.50" or "90.0°")
+        bool            Auto      = true;                                              // [-] true = auto-emitted (may be re-emitted), false = user-added (preserved across re-emit)
+        bool            Hidden    = false;                                             // [-] draw flag
+    };
+    [[nodiscard]] const std::vector<DimensionEntry>& AllDimensions() const noexcept { return Dimensions; }
+
     // Renders the current document into the raster (no file); public so verification can inspect pixels.
     void Render() noexcept;
     [[nodiscard]] const RasterExchange& Raster() const noexcept { return *Surface; }
@@ -67,6 +85,13 @@ private:
     [[nodiscard]] Vec3 SelectionPivot() const noexcept;                                 // figure bounds centre or selected-pole centroid
     void ApplyDeltaToSelection(const Mat4& Delta) noexcept;
     void DrawToolPreview() noexcept;
+    // ---- Dimension overlay (Phase 13) --------------------------------------------------------
+    void DrawDimensions() noexcept;                                                     // render every non-hidden dim on the overlay pass
+    void AutoEmitDimensions(const SceneFigure& Figure) noexcept;                        // auto-emit the standard dim set for a freshly-added figure
+    [[nodiscard]] uint32_t EmitDimension(DimensionForm Form, uint32_t Anchor, const std::string& AnchorName, Vec3 A, Vec3 B, Vec3 N, double Value, bool Auto = true) noexcept;
+    [[nodiscard]] int32_t  FindDimensionAtPixel(double X, double Y) const noexcept;     // [-] dim id (0 = none)
+    [[nodiscard]] Vec2     WorldToScreen(Vec3 P) const noexcept;                        // [px] world point → NDC-like pixel
+    void DeleteAutoDimensionsFor(uint32_t Anchor) noexcept;
     bool Dispatch(const InputEvent& Event) noexcept;                                    // tool first, then hotkey chart
     void OnToolResult(const ToolResult& Result) noexcept;
     [[nodiscard]] ToolSession::Context ToolContext() const noexcept;
@@ -91,6 +116,11 @@ private:
     CameraProjection                     View;
     Workplane                            Plane = Workplane::XY();
     std::map<std::string, Workplane>     NamedPlanes;                                  // [-] named construction planes recalled by `workplane <name>`
+    std::vector<DimensionEntry>          Dimensions;                                   // [-] all live dims (public types are above; this is the live storage)
+    uint32_t                             NextDimensionId = 1;                          // [-] monotonic
+    int32_t                              HoverDimensionId = 0;                         // [-] dim id under the pointer, for click-to-edit
+    int32_t                              EditDimensionId   = 0;                         // [-] dim awaiting a new value (numeric input in REPL)
+
     std::unique_ptr<SoftwareRaster>      Surface;
     std::map<std::string, Command>       Commands;
     std::map<std::string, std::string>   Usage;

@@ -108,6 +108,9 @@ add_test(NAME BodyOpsVerification COMMAND BodyOpsVerification)
 add_executable(ArrayAndBridgeVerification Verification/ArrayAndBridgeVerification.cpp)
 target_link_libraries(ArrayAndBridgeVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME ArrayAndBridgeVerification COMMAND ArrayAndBridgeVerification)
+add_executable(DimensionVerification Verification/DimensionVerification.cpp)
+target_link_libraries(DimensionVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME DimensionVerification COMMAND DimensionVerification)
 
 # Phase 10: chain-run every per-phase script and check the contact sheet.
 add_executable(SuiteVerification Verification/SuiteVerification.cpp)
