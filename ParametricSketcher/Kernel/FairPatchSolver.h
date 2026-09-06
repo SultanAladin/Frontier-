@@ -55,6 +55,7 @@ struct FairPatchReport
     int    Unknowns = 0;                                                                // [-] interior poles solved (largest quad)
     int    UnsupportedRims = 0;                                                         // [-] rims asked for G1/G2 without a support
     double TangentBreak = 0.0;                                                          // [rad] worst normal angle against supports along G1/G2 rims
+    double SeamBreak = 0.0;                                                             // [rad] worst normal angle across the spokes between the quads of an N-sided fill
     double CurvatureBreak = 0.0;                                                        // [1/m] worst normal-curvature mismatch along G2 rims
     double GuideDeviation = 0.0;                                                        // [m] worst distance from guide samples to the surface
     double Energy = 0.0;                                                                // [m²] sampled bending energy Σ(Suu² + 2Suv² + Svv²)

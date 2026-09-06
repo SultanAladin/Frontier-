@@ -453,7 +453,8 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
         for (const FairRim& R : Ring)
         {
             if (R.Continuity == RimContinuity::Position || !R.Supported()) continue;
-            Report->TangentBreak = std::max(Report->TangentBreak, TangentBreak(S, R));
+            if (R.Support) Report->TangentBreak = std::max(Report->TangentBreak, TangentBreak(S, R));
+            else Report->SeamBreak = std::max(Report->SeamBreak, TangentBreak(S, R));
             if (R.Continuity == RimContinuity::Curvature) Report->CurvatureBreak = std::max(Report->CurvatureBreak, CurvatureBreak(S, R));
         }
         for (const NurbsCurve& G : Guides) for (int K = 0; K <= 32; ++K) { double D = 0, U = 0, V = 0; S.ClosestParameter(G.Sample(G.DomainStart() + (G.DomainEnd() - G.DomainStart()) * K / 32.0), U, V, &D); Report->GuideDeviation = std::max(Report->GuideDeviation, D); }
@@ -538,7 +539,14 @@ Deliver<SkinSolver::Skin> FairPatchSolver::Build(std::vector<FairRim> Rims, cons
         Spoke[I].Curve = B ? B.Payload : NurbsCurve::Line(P, Centre).Payload;
         Spoke[I].Continuity = RimContinuity::Tangent;
         Spoke[I].Tension = 1.0;
-        for (int K = 0; K <= 8; ++K) Spoke[I].NormalField.push_back(Slerp(MidNormal[I], CentreNormal, K / 8.0));
+        for (int K = 0; K <= 16; ++K)
+        {
+            // blend of the two end normals, made perpendicular to the spoke's tangent so both neighbouring quads can honour it
+            double T = Spoke[I].Curve.DomainStart() + (Spoke[I].Curve.DomainEnd() - Spoke[I].Curve.DomainStart()) * K / 16.0;
+            Vec3 Tan = Spoke[I].Curve.Tangent(T), Nn = Slerp(MidNormal[I], CentreNormal, K / 16.0);
+            Nn = Nn - Tan * Nn.Dot(Tan);
+            Spoke[I].NormalField.push_back(Nn.LengthSquared() > 1e-12 ? Nn.Normalised() : CentreNormal);
+        }
     }
     std::vector<NurbsSurface> Quads;
     for (size_t I = 0; I < N; ++I)

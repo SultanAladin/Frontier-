@@ -965,8 +965,8 @@ void ConsoleHost::Register() noexcept
         Deliver<FigureRecipe::Product> Probe = R.Produce(Scene, Plane, &Rep);
         if (!Probe) return Refuse("FairPatch refused: %s — %s", Refusal::Describe(Probe.Denial.Reason), Probe.Denial.Detail);
         if (!AddDerived(C, "FairPatch", R)) return false;
-        Row("  quads %d  unknowns %d  rim break G1 %.3f°  G2 %.4f 1/m  guide deviation %.5f  bending energy %.4f (Coons %.4f)%s",
-            Rep.Quads, Rep.Unknowns, ScalarCriteria::Degrees(Rep.TangentBreak), Rep.CurvatureBreak, Rep.GuideDeviation, Rep.Energy, Rep.CoonsEnergy, Rep.UnsupportedRims ? "  ⚠ unsupported rims fell back to G0" : "");
+        Row("  quads %d  unknowns %d  rim break G1 %.3f°  G2 %.4f 1/m  seam break %.3f°  guide deviation %.5f  bending energy %.4f (Coons %.4f)%s",
+            Rep.Quads, Rep.Unknowns, ScalarCriteria::Degrees(Rep.TangentBreak), Rep.CurvatureBreak, ScalarCriteria::Degrees(Rep.SeamBreak), Rep.GuideDeviation, Rep.Energy, Rep.CoonsEnergy, Rep.UnsupportedRims ? "  ⚠ unsupported rims fell back to G0" : "");
         return true;
     });
     Add("recipe", "recipe [figure...] — how derived figures are built (sources, options, complaints)  ·  recipe bake <figure...> detaches them", [=, this](const CommandLine& C)
