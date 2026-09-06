@@ -56,7 +56,8 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 7 | 2D booleans, fillet / chamfer / trim / offset / join | area tables, winding normalised |
 | 8 | Extrude / Revolve / Loft / Sweep → solids | extruded profile with hole, revolved vase |
 | 9 | Surface–surface intersection + 3D NURBS booleans | `IntersectionVerification` — 47 checks; `Proofs/Phase9_Booleans_{Iso,Top}.png` |
-| 10 | Script suite, contact sheet, Vulkan Vulkan hand-off hand-off notes | ctest green |
+| 9b | FairPatch — energy-fair fills with G0 / G1 / G2 rims from the adjacent faces, tension, guides, N-sided | `FairPatchVerification` — 47 checks; `Proofs/Phase9b_FairPatch_{Iso,Window,Pillow}.png` |
+| 10 | Script suite, contact sheet, Vulkan hand-off notes | ctest green |
 
 ## Console quick start
 
@@ -122,6 +123,49 @@ open profile still extrudes to a sheet). `topology <body>` prints vertices, edge
 `sew <figure…>` stitches surfaces. Select modes 3 (face) and 2 (edge) pick faces and edges from the pick plane — each face and edge
 carries its own pick id — and `select faces|edges <body> <i…>|all|none` does it by index. Sub-selections drive the gizmo pivot and
 are hashed into the undo timeline.
+
+## FairPatch — fills whose rims follow the neighbouring faces (Phase 9b)
+
+`Kernel/FairPatchSolver.{h,cpp}`. `fillpatch` (Phase 8) is a Coons blend: exact on its boundary, blind to what lies
+next to it, so it always meets the surrounding faces with a crease. `fairpatch` keeps the exact boundary and *solves*
+the interior instead:
+
+- **Rims** are curves or body edges, each with a continuity and a tension. A rim's *support* is the face on the other
+  side of the edge (chosen automatically as the face that continues flush with the fill; `@fN` picks one explicitly)
+  or, for a sketch curve, the surface / body named by `--on=`. G1 makes the cross-boundary derivative lie in the
+  support's tangent plane; G2 also matches the support's normal curvature across the rim (second fundamental form,
+  measured by closest point so the support's parameterisation is irrelevant). Tension scales the cross-derivative
+  magnitude relative to the Coons fill — 0.5 hugs the rim, 2 fills out.
+- **Fair interior**: the boundary pole rows are fixed; the interior poles minimise a bending energy on the control
+  net (second divided differences over the Greville abscissae in u, v and the mixed term, so a flat rim gives an
+  exactly flat sheet). One linear least-squares solve per round (Cholesky on the normal equations, x/y/z as three
+  right-hand sides); G2 and guides are re-projected for three rounds.
+- **Guides** (`--guides=a,b`) are interior interpolation conditions: samples of each guide are pulled onto the sheet at
+  their closest (u,v).
+- **Four rims → one untrimmed quad**; three, five or more rims (or `--star`) → N quads about a centre. The spokes
+  carry a shared normal field, perpendicular to the spoke tangent, so both neighbouring quads honour it and the seams
+  are tangent-continuous (0.06° across a hexagonal window; 2.5° on a strongly warped pentagon). For a window in a
+  smooth skin the centre is placed on the skin itself; for walls meeting the fill at an angle it is lifted along
+  their continuation.
+- **Report** after every fill: quads, unknowns, worst rim normal angle (G1), worst curvature mismatch (G2), seam
+  break, guide deviation and the sampled bending energy against the plain Coons fill.
+- **Associative**: `RecipeOperation::FairPatch` stores rims with their continuity / tension / face, guides and options;
+  the fingerprint includes the supports' poles, so cutting the window elsewhere or moving a guide rebuilds the fill.
+
+```
+fairpatch Windowed:e2 Windowed:e3 Windowed:e4 Windowed:e7 Windowed:e8 Windowed:e9 --g2 --name=Window
+fairpatch Block:e4@f2 Block:e5@f5 Block:e6@f3 Block:e7@f4 --g1 --guides=Crest --name=Pillow
+fairpatch L1 L2@g2@t0.5 L3 L4 --g1 --on=Tube        # sketch curves, G1 from a named surface, one rim G2 with tension 0.5
+fairpatch Bowl:e1@f0 --g2                              # one closed edge, quartered; closes a cut sphere G2
+```
+
+`Scripts/Phase9b_FairPatch.arc` → `Proofs/Phase9b_FairPatch_{Iso,Window,Pillow}.png`: a box-shaped window cut through a
+drum filled G0 / G1 / G2 (radial deviation from the drum 5.4 % → 0.7 % → 0.3 %; G2 rim curvature mismatch 0.13 of 0.5),
+a pillow over a box that leaves every wall vertically and passes through a guide crest (deviation 1 mm), five free
+sketch splines filled N-sided, a cut sphere closed G2 (rim normal error 0.005°), and the guide moved with the pillow
+following. `FairPatchVerification` (47 checks) measures all of it: planar rims give an exactly planar sheet, G1/G2 rim
+angles < 0.5° against a cylinder, tension monotone, guide within 2 mm, star / N-sided seams, refusal of open rings,
+and the console verb's per-rim tags, `--on`, `--guides`, undo and regeneration.
 
 ## True NURBS booleans — surface–surface intersection on the B-rep (Phase 9)
 

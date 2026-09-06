@@ -79,10 +79,10 @@ struct FairPatchSolver
     // Sampled thin-plate energy Σ (Suu² + 2 Suv² + Svv²) du dv over the domain (finite differences on a lattice).
     [[nodiscard]] static double BendingEnergy(const NurbsSurface& S, int Lattice = 24) noexcept;
     // Unit normal + second fundamental form of a support at the point nearest P. II(d) for a 3D tangent direction d.
-    struct SupportProbe { Vec3 Normal; Vec3 Du, Dv, Duu, Duv, Dvv; bool Live = false; [[nodiscard]] double SecondForm(Vec3 Direction) const noexcept; };
-    [[nodiscard]] static SupportProbe Probe(const NurbsSurface& Support, Vec3 P) noexcept;
+    struct SupportTouch { Vec3 Normal; Vec3 Du, Dv, Duu, Duv, Dvv; bool Live = false; [[nodiscard]] double SecondForm(Vec3 Direction) const noexcept; };
+    [[nodiscard]] static SupportTouch Touch(const NurbsSurface& Support, Vec3 P) noexcept;
     // Normal of a rim's support at fraction F ∈ [0,1] along the rim (Support → closest point; NormalField → interpolated).
-    [[nodiscard]] static Vec3 SupportNormal(const FairRim& Rim, double F, Vec3 P, SupportProbe* Full = nullptr) noexcept;
+    [[nodiscard]] static Vec3 SupportNormal(const FairRim& Rim, double F, Vec3 P, SupportTouch* Full = nullptr) noexcept;
 };
 
 } // namespace Frontier

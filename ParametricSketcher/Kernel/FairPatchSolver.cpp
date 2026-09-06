@@ -169,7 +169,7 @@ namespace
 //                                                  SUPPORT QUERIES
 //------------------------------------------------------------------------------------------------------------------------
 
-double FairPatchSolver::SupportProbe::SecondForm(Vec3 Direction) const noexcept
+double FairPatchSolver::SupportTouch::SecondForm(Vec3 Direction) const noexcept
 {
     // Direction = a·Du + b·Dv (least squares in the tangent plane), II = a²(Duu·n) + 2ab(Duv·n) + b²(Dvv·n)
     double E = Du.Dot(Du), F = Du.Dot(Dv), G = Dv.Dot(Dv), Det = E * G - F * F;
@@ -179,9 +179,9 @@ double FairPatchSolver::SupportProbe::SecondForm(Vec3 Direction) const noexcept
     return A * A * Duu.Dot(Normal) + 2 * A * B * Duv.Dot(Normal) + B * B * Dvv.Dot(Normal);
 }
 
-FairPatchSolver::SupportProbe FairPatchSolver::Probe(const NurbsSurface& Support, Vec3 P) noexcept
+FairPatchSolver::SupportTouch FairPatchSolver::Touch(const NurbsSurface& Support, Vec3 P) noexcept
 {
-    SupportProbe Out;
+    SupportTouch Out;
     double U = 0, V = 0; Support.ClosestParameter(P, U, V);
     Vec3 Point; Support.Derivatives(U, V, Point, Out.Du, Out.Dv);
     Out.Normal = Support.Normal(U, V);
@@ -199,11 +199,11 @@ FairPatchSolver::SupportProbe FairPatchSolver::Probe(const NurbsSurface& Support
     return Out;
 }
 
-Vec3 FairPatchSolver::SupportNormal(const FairRim& Rim, double F, Vec3 P, SupportProbe* Full) noexcept
+Vec3 FairPatchSolver::SupportNormal(const FairRim& Rim, double F, Vec3 P, SupportTouch* Full) noexcept
 {
     if (Rim.Support)
     {
-        SupportProbe Pr = Probe(*Rim.Support, P);
+        SupportTouch Pr = Touch(*Rim.Support, P);
         if (Full) *Full = Pr;
         return Pr.Normal;
     }
@@ -212,10 +212,10 @@ Vec3 FairPatchSolver::SupportNormal(const FairRim& Rim, double F, Vec3 P, Suppor
         double S = std::min(std::max(F, 0.0), 1.0) * double(Rim.NormalField.size() - 1);
         size_t I = std::min(size_t(S), Rim.NormalField.size() - 2);
         Vec3 N = Slerp(Rim.NormalField[I], Rim.NormalField[I + 1], S - double(I));
-        if (Full) { *Full = SupportProbe{}; Full->Normal = N; Full->Live = false; }
+        if (Full) { *Full = SupportTouch{}; Full->Normal = N; Full->Live = false; }
         return N;
     }
-    if (Full) *Full = SupportProbe{};
+    if (Full) *Full = SupportTouch{};
     return Vec3{};
 }
 
@@ -249,7 +249,7 @@ double FairPatchSolver::CurvatureBreak(const NurbsSurface& S, const FairRim& Rim
         double F = 0.2 + 0.6 * I / Samples;                                             // the outer fifths belong to the corners: curvature there is decided by the neighbouring rim
         double T = Rim.Curve.DomainStart() + (Rim.Curve.DomainEnd() - Rim.Curve.DomainStart()) * F;
         Vec3 P = Rim.Curve.Sample(T), Tan = Rim.Curve.Tangent(T);
-        SupportProbe Sup = Probe(*Rim.Support, P), Own = Probe(S, P);
+        SupportTouch Sup = Touch(*Rim.Support, P), Own = Touch(S, P);
         if (Own.Normal.Dot(Sup.Normal) < 0) { Own.Normal = -Own.Normal; }
         Vec3 D = Own.Normal.Cross(Tan).Normalised();                                    // across the rim, in the shared tangent plane
         double Ks = Own.SecondForm(D), Kp = Sup.SecondForm(D);
@@ -331,7 +331,7 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
         for (int A = 0; A < Sd.Na; ++A) { int K = Sd.ForwardA ? A : Sd.Na - 1 - A; if (N[size_t(K)] == 0) continue; for (int B = 0; B < Sd.Nb; ++B) if (Ac.C1[size_t(B)] != 0) { auto [I, J] = Cell(Sd, A, B); D = D + Start[size_t(Index(I, J))] * (N[size_t(K)] * Ac.C1[size_t(B)]); } }
         return D;
     };
-    auto Evaluate = [&](const std::vector<Vec3>& Lattice, const Side& Sd, const std::vector<double>& C, double T)
+    auto Combine = [&](const std::vector<Vec3>& Lattice, const Side& Sd, const std::vector<double>& C, double T)
     {
         std::vector<double> N = Sd.Along->Values(T); Vec3 D;
         for (int A = 0; A < Sd.Na; ++A) { int K = Sd.ForwardA ? A : Sd.Na - 1 - A; if (N[size_t(K)] == 0) continue; for (int B = 0; B < Sd.Nb; ++B) if (C[size_t(B)] != 0) { auto [I, J] = Cell(Sd, A, B); D = D + Lattice[size_t(Index(I, J))] * (N[size_t(K)] * C[size_t(B)]); } }
@@ -386,8 +386,8 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
                 //    the conflict does not ring along the rim.
                 double Taper = (A == 1 || A == Sd.Na - 2) ? 0.35 : (A == 2 || A == Sd.Na - 3) ? 0.7 : 1.0;
                 double Taper2 = (A <= 3 || A >= Sd.Na - 4) ? 0.0 : Taper;               // G2 rows stay clear of the corners altogether
-                Vec3 P = Evaluate(Poles, Sd, [&] { std::vector<double> C0(size_t(Sd.Nb), 0.0); C0[0] = 1.0; return C0; }(), T);
-                SupportProbe Pr; Vec3 N = SupportNormal(R, F, P, &Pr);
+                Vec3 P = Combine(Poles, Sd, [&] { std::vector<double> C0(size_t(Sd.Nb), 0.0); C0[0] = 1.0; return C0; }(), T);
+                SupportTouch Pr; Vec3 N = SupportNormal(R, F, P, &Pr);
                 if (N.LengthSquared() < 0.5) continue;
                 std::vector<double> Nb = Sd.Along->Values(T);
                 // G1: inward derivative · n = 0
@@ -397,7 +397,7 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
                     // x, y, z share one matrix, so the scalar condition D·n = 0 is imposed as the vector condition
                     //    D = (previous D projected into the tangent plane), rescaled by the tension — a fixed point that is
                     //    exactly G1 once reached and settles within the rounds.
-                    Vec3 D = Evaluate(Poles, Sd, Ac.C1, T);
+                    Vec3 D = Combine(Poles, Sd, Ac.C1, T);
                     Vec3 Dc = CoonsInward(Sd, Ac, T);
                     double Wanted = Dc.Length() * R.Tension;                            // magnitude: the Coons cross derivative × tension
                     Vec3 Target = D - N * D.Dot(N);                                     // direction: the current derivative, laid into the support plane
@@ -416,8 +416,8 @@ Deliver<NurbsSurface> FairPatchSolver::Quad(std::vector<FairRim> Rims, const std
                 // G2: inward second derivative · n = II_support(inward first derivative) — via the same projection trick
                 if (R.Continuity == RimContinuity::Curvature && Pr.Live)
                 {
-                    Vec3 D1 = Evaluate(Poles, Sd, Ac.C1, T);
-                    Vec3 D2 = Evaluate(Poles, Sd, Ac.C2, T);
+                    Vec3 D1 = Combine(Poles, Sd, Ac.C1, T);
+                    Vec3 D2 = Combine(Poles, Sd, Ac.C2, T);
                     double Wanted = Pr.SecondForm(D1);
                     Vec3 Target = D2 - N * D2.Dot(N) + N * Wanted;
                     std::vector<std::pair<int, double>> Terms2;
@@ -518,8 +518,19 @@ Deliver<SkinSolver::Skin> FairPatchSolver::Build(std::vector<FairRim> Rims, cons
     }
     if (CentreNormal.Length() > 0.5 * Supported && Supported) CentreNormal = CentreNormal.Normalised();
     else CentreNormal = Lift.Dot(Winding) < 0 ? -Winding : Winding;
-    // centre lifted toward the supports' continuation so the spokes meet it with a fair blend
-    if (Supported && Lift.LengthSquared() > 1e-6)
+    // A window in a smooth skin: supports whose normal runs along the winding normal continue under the fill, so the
+    //    centre is placed on them (mean of the closest points). Otherwise (walls meeting the fill at an angle) the
+    //    centre is lifted along the supports' continuation so the spokes meet it with a fair blend.
+    Vec3 Onto; int Landed = 0;
+    for (size_t I = 0; I < N; ++I)
+    {
+        if (!Ring[I].Support) continue;
+        double U = 0, V = 0; Ring[I].Support->ClosestParameter(Centre, U, V);
+        if (std::fabs(Ring[I].Support->Normal(U, V).Dot(Winding)) < 0.7) continue;
+        Onto = Onto + Ring[I].Support->Sample(U, V); ++Landed;
+    }
+    if (Landed) Centre = Onto / double(Landed);
+    else if (Supported && Lift.LengthSquared() > 1e-6)
     {
         double Reach = 0; for (size_t I = 0; I < N; ++I) Reach += (Mid[I] - Centre).Length(); Reach /= double(N);
         Centre = Centre + Lift * (Reach * 0.35 / double(Supported));

@@ -962,8 +962,8 @@ void ConsoleHost::Register() noexcept
         }
         R.Fair.Star = C.Switch("star"); R.Fair.Spans = int(C.SwitchNumber("spans").value_or(10)); R.Fair.Fairness = C.SwitchNumber("fairness").value_or(1.0); R.Fair.Rounds = int(C.SwitchNumber("rounds").value_or(3));
         FairPatchReport Rep;
-        Deliver<FigureRecipe::Product> Probe = R.Produce(Scene, Plane, &Rep);
-        if (!Probe) return Refuse("FairPatch refused: %s — %s", Refusal::Describe(Probe.Denial.Reason), Probe.Denial.Detail);
+        Deliver<FigureRecipe::Product> Trial = R.Produce(Scene, Plane, &Rep);
+        if (!Trial) return Refuse("FairPatch refused: %s — %s", Refusal::Describe(Trial.Denial.Reason), Trial.Denial.Detail);
         if (!AddDerived(C, "FairPatch", R)) return false;
         Row("  quads %d  unknowns %d  rim break G1 %.3f°  G2 %.4f 1/m  seam break %.3f°  guide deviation %.5f  bending energy %.4f (Coons %.4f)%s",
             Rep.Quads, Rep.Unknowns, ScalarCriteria::Degrees(Rep.TangentBreak), Rep.CurvatureBreak, ScalarCriteria::Degrees(Rep.SeamBreak), Rep.GuideDeviation, Rep.Energy, Rep.CoonsEnergy, Rep.UnsupportedRims ? "  ⚠ unsupported rims fell back to G0" : "");
