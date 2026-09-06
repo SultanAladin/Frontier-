@@ -97,6 +97,13 @@ private:
     bool                                 ShowControlCages = false;
     bool                                 ShowIsoCurves = true;
     SurfaceShading                       Shading = SurfaceShading::Matcap;
+
+    // Phase 10 contact sheet: four RasterImage buffers captured by `render sheet N` and tiled by
+    // `render sheet finalize <name>`. 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right.
+    // The captured tile keeps the raster's current Width/Height at capture time so a script that
+    // changes size between tiles is still composited correctly.
+    struct Tile { bool Captured = false; uint32_t W = 0; uint32_t H = 0; std::vector<uint8_t> Pixels; };
+    Tile                                 SheetTiles[4];
 };
 
 } // namespace Frontier

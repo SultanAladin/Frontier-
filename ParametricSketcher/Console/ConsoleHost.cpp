@@ -1006,6 +1006,14 @@ void ConsoleHost::Register() noexcept
     });
 
     //---------------------------------------------- scene ----------------------------------------------
+    Add("reset", "reset — clear the scene back to empty (and the workplane to XY)", [=, this](const CommandLine&)
+    {
+        Scene.Clear();
+        Undo = UndoSequence();
+        Plane = Workplane::XY();
+        Row("scene reset (empty, workplane xy)");
+        return true;
+    });
     Add("list", "list — every figure with its measurements", [=, this](const CommandLine&)
     {
         if (Scene.Figures().empty()) Row("(empty scene)");
@@ -1160,9 +1168,55 @@ void ConsoleHost::Register() noexcept
         else return Refuse("show: cages|iso|shading");
         return true;
     });
-    Add("render", "render <name> [--size=WxH] — writes Proofs/<name>.png", [=, this](const CommandLine& C)
+    Add("render", "render <name> [--size=WxH] — writes Proofs/<name>.png  ·  render sheet <0|1|2|3> captures a tile; render sheet finalize <name> writes the 2x2 contact sheet", [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "render")) return false;
+        // Phase 10: contact-sheet sub-verb. `render sheet N` captures tile N (0..3) from the live raster, `render sheet
+        //    finalize <name>` writes a 2x2 composite. See docs/CONTACT_SHEET.md.
+        if (C.Arguments[0] == "sheet")
+        {
+            if (C.Count() < 2) return Refuse("render sheet: tile index 0..3 or 'finalize <name>' required");
+            const std::string& Mode = C.Arguments[1];
+            if (Mode == "finalize")
+            {
+                if (!Need(C, 3, "render sheet finalize")) return false;
+                const std::string& Name = C.Arguments[2];
+                uint32_t W = 0, H = 0;
+                for (const Tile& T : SheetTiles) if (T.Captured) { W = std::max(W, T.W); H = std::max(H, T.H); }
+                if (W == 0 || H == 0) return Refuse("render sheet finalize: no tiles captured (call `render sheet 0..3` first)");
+                RasterImage Out; Out.Width = 2 * W; Out.Height = 2 * H; Out.Pixels.assign(size_t(Out.Width) * Out.Height * 4, uint8_t(0));
+                for (size_t I = 0; I + 3 < Out.Pixels.size(); I += 4) { Out.Pixels[I + 0] = uint8_t(Backdrop[0] * 255); Out.Pixels[I + 1] = uint8_t(Backdrop[1] * 255); Out.Pixels[I + 2] = uint8_t(Backdrop[2] * 255); Out.Pixels[I + 3] = 255; }
+                auto Stamp = [&](const Tile& T, uint32_t Ox, uint32_t Oy)
+                {
+                    if (!T.Captured) return;
+                    for (uint32_t Y = 0; Y < T.H; ++Y) for (uint32_t X = 0; X < T.W; ++X)
+                    {
+                        const uint8_t* Src = T.Pixels.data() + (size_t(Y) * T.W + X) * 4;
+                        uint8_t* Dst = Out.Pixels.data() + (size_t(Oy + Y) * Out.Width + Ox + X) * 4;
+                        Dst[0] = Src[0]; Dst[1] = Src[1]; Dst[2] = Src[2]; Dst[3] = Src[3];
+                    }
+                    if (Ox > 0) for (uint32_t Y = 0; Y < T.H; ++Y) { uint8_t* D = Out.Pixels.data() + (size_t(Oy + Y) * Out.Width + Ox) * 4; D[0] = D[1] = D[2] = 12; }
+                    if (Oy > 0) for (uint32_t X = 0; X < T.W; ++X) { uint8_t* D = Out.Pixels.data() + (size_t(Oy) * Out.Width + Ox + X) * 4; D[0] = D[1] = D[2] = 12; }
+                };
+                Stamp(SheetTiles[0], 0, 0); Stamp(SheetTiles[1], W, 0); Stamp(SheetTiles[2], 0, H); Stamp(SheetTiles[3], W, H);
+                std::filesystem::create_directories(Proofs);
+                std::string Path = (std::filesystem::path(Proofs) / (Name + ".png")).string();
+                if (!WritePng(Path, Out)) return Refuse("render sheet finalize: cannot write %s", Path.c_str());
+                for (Tile& T : SheetTiles) T = Tile();
+                Row("render sheet  %s  %ux%u  (2x2 of %ux%u tiles)", Path.c_str(), Out.Width, Out.Height, W, H);
+                return true;
+            }
+            int Index = std::atoi(Mode.c_str());
+            if (Index < 0 || Index > 3) return Refuse("render sheet: tile index must be 0, 1, 2 or 3 (got '%s')", Mode.c_str());
+            Render();
+            Tile& T = SheetTiles[Index];
+            T.Captured = true; T.W = Surface->Width(); T.H = Surface->Height();
+            T.Pixels.assign((size_t)T.W * T.H * 4, 0);
+            RasterImage Img = Surface->Readback();
+            if (Img.Pixels.size() == T.Pixels.size()) T.Pixels = std::move(Img.Pixels);
+            Row("render sheet %d  %ux%u  (tile captured; run `render sheet finalize <name>` to composite)", Index, T.W, T.H);
+            return true;
+        }
         if (auto S = C.SwitchText("size"))
         {
             size_t X = S->find('x');

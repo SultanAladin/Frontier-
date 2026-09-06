@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # or run ./build/KernelVerification directly for the full chart
+ctest --test-dir build --output-on-failure      # 22 suites, all green; the per-suite chart is at ./build/<Suite>Verification
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -57,7 +57,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 8 | Extrude / Revolve / Loft / Sweep → solids | extruded profile with hole, revolved vase |
 | 9 | Surface–surface intersection + 3D NURBS booleans | `IntersectionVerification` — 47 checks; `Proofs/Phase9_Booleans_{Iso,Top}.png` |
 | 9b | FairPatch — energy-fair fills with G0 / G1 / G2 rims from the adjacent faces, tension, guides, N-sided | `FairPatchVerification` — 47 checks; `Proofs/Phase9b_FairPatch_{Iso,Window,Pillow}.png` |
-| 10 | Script suite, contact sheet, Vulkan hand-off notes | ctest green |
+| 10 | Script suite, contact sheet, Vulkan hand-off notes | `SuiteVerification` — 39 checks; `docs/HANDOFF_VULKAN.md`; `docs/CONTACT_SHEET.md`; `Proofs/Phase10_ContactSheet.png` (2×2 of 1280×800 tiles); `Proofs/Phase10_Suite.png` (one iso render of every phase) |
 
 ## Console quick start
 
@@ -166,6 +166,66 @@ sketch splines filled N-sided, a cut sphere closed G2 (rim normal error 0.005°)
 following. `FairPatchVerification` (47 checks) measures all of it: planar rims give an exactly planar sheet, G1/G2 rim
 angles < 0.5° against a cylinder, tension monotone, guide within 2 mm, star / N-sided seams, refusal of open rings,
 and the console verb's per-rim tags, `--on`, `--guides`, undo and regeneration.
+
+## Suite, contact sheet and Vulkan hand-off (Phase 10)
+
+The closing phase is the meta-test: prove the toolchain end to end and write the spec for the GPU port.
+
+**Suite script.** `Scripts/Phase10_Suite.arc` builds one document with a contribution from every phase (sketch,
+primitives, profile algebra + areas, loft / sweep / pipe, four booleans, a FairPatch drum window) and renders one
+`1280 × 800` iso image, `Proofs/Phase10_Suite.png`. If anything in the kernel is broken the suite image shows it.
+
+**Contact sheet.** `Scripts/Phase10_ContactSheet.arc` composes a single `2560 × 1600` PNG from four separately rendered
+`1280 × 800` tiles (top / front / right / iso), each its own fresh scene. The mechanism is a new sub-verb of `render`:
+
+```
+render sheet 0                          # capture the current raster as tile 0 (top-left)
+render sheet 1                          # ... 1 = top-right
+render sheet 2                          # ... 2 = bottom-left
+render sheet 3                          # ... 3 = bottom-right
+render sheet finalize Phase10_Contact   # 2x2 composite, writes Proofs/<name>.png
+```
+
+The compositor lives in `Console/ConsoleHost.cpp` (alongside `render`); it uses the same in-tree PNG writer
+(`Presentation/SoftwareRaster::WritePng`) so the sheet has no external dependency. Four `RasterImage` tiles are
+captured in `ConsoleHost::SheetTiles[N]`, the script clears the live scene with the new `reset` verb, builds the next
+tile's scene, and `finalize` walks the four buffers into a single 2×2 RGBA8 image with a 1 px divider at the inner
+edge. `docs/CONTACT_SHEET.md` is the design doc.
+
+**Vulkan hand-off.** `docs/HANDOFF_VULKAN.md` is the contract for the next `VulkanRaster` that will sit next to
+`SoftwareRaster` and implement the same `RasterExchange`. The verbs the seam already speaks (one `Begin/End` per
+target, one `BindView` per frame, draw-record per draw, three sub-passes for lattice / opaque / overlay, a separate
+`R32_UINT` pick attachment, ten matcap studios) are mapped to a single render pass with three sub-passes, one
+staging buffer per `Begin/End`, an instance-rate draw record (push constant) and the four `.spv` outputs from the
+existing `.slang` sources. The acceptance criterion is a `RendersEqual` check: same scene, same view, SoftwareRaster
+vs VulkanRaster, PNG hashes within 1 LSB / channel.
+
+**Regression net.** `SuiteVerification` (39 checks) re-runs every per-phase `.arc` script, asserts each terminates
+without refusal, decodes the resulting PNG to confirm the `IHDR` is `1280 × 800` `RGBA8` and the file is non-empty,
+runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` directly to confirm the new `render
+sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
+the scene, the kernel and the raster still all agree after every commit.
+
+ctest now registers **22 suites** — 10 per-phase or per-feature verification binaries (552 checks total) and 12
+script smoke tests — and all 22 run green on every commit. The per-suite check counts:
+
+| Suite | Checks |
+|---|---|
+| `KernelVerification`         | 76  |
+| `InteractionVerification`    | 54  |
+| `SelectionVerification`      | 35  |
+| `RasterVerification`         | 24  |
+| `TopologyVerification`       | 79  |
+| `ProfileVerification`        | 103 |
+| `SkinVerification`           | 48  |
+| `IntersectionVerification`   | 47  |
+| `FairPatchVerification`      | 47  |
+| `SuiteVerification`          | 39  |
+| **Total** | **552** |
+
+Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
+workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact
+sheet compositor described above).
 
 ## True NURBS booleans — surface–surface intersection on the B-rep (Phase 9)
 

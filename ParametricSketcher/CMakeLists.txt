@@ -100,3 +100,20 @@ add_test(NAME IntersectionVerification COMMAND IntersectionVerification)
 add_executable(FairPatchVerification Verification/FairPatchVerification.cpp)
 target_link_libraries(FairPatchVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME FairPatchVerification COMMAND FairPatchVerification)
+
+# Phase 10: chain-run every per-phase script and check the contact sheet.
+add_executable(SuiteVerification Verification/SuiteVerification.cpp)
+target_link_libraries(SuiteVerification PRIVATE SolidArcConsoleKit)
+target_compile_definitions(SuiteVerification PRIVATE SUITEVERIFICATION_SOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME SuiteVerification COMMAND SuiteVerification)
+
+# Per-phase script smoke tests (the suite is the regression net; these are fast individual reruns so a broken phase
+#    fails locally before the whole suite does).
+add_test(NAME Phase6_Topology COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase6_Topology.arc)
+add_test(NAME Phase7_Profiles COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase7_Profiles.arc)
+add_test(NAME Phase7b_Areas COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase7b_Areas.arc)
+add_test(NAME Phase8_Skins COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase8_Skins.arc)
+add_test(NAME Phase9_Booleans COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase9_Booleans.arc)
+add_test(NAME Phase9b_FairPatch COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase9b_FairPatch.arc)
+add_test(NAME Phase10_Suite COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase10_Suite.arc)
+add_test(NAME Phase10_ContactSheet COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase10_ContactSheet.arc)
