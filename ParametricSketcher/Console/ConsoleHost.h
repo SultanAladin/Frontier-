@@ -12,6 +12,7 @@
 #include "Interaction/ToolSession.h"
 #include "Interaction/TransformGizmo.h"
 #include "Presentation/SoftwareRaster.h"
+#include "Kernel/ConstraintGraph.h"
 #include <cstdio>
 #include <functional>
 #include <map>
@@ -78,6 +79,8 @@ public:
     };
     [[nodiscard]] const std::vector<DimensionEntry>& AllDimensions() const noexcept { return Dimensions; }
     [[nodiscard]] const std::vector<SceneFigure>& AllFigures() const noexcept { return Scene.Figures(); }
+    [[nodiscard]] const std::vector<ConstraintEntry>& AllConstraints() const noexcept { return CGraph.AllConstraints(); }
+    [[nodiscard]] const std::vector<ConstraintAnchor>& AllConstraintAnchors() const noexcept { return CGraph.AllAnchors(); }
 
     // Renders the current document into the raster (no file); public so verification can inspect pixels.
     void Render() noexcept;
@@ -124,6 +127,17 @@ private:
     // Live dim editing: a `dim edit` on a live dim reaches into the source figure's ParametricBlueprint
     //    slot, mutates the field, then calls RebuildFromSource to regenerate the geometry.
     bool ApplyLiveEdit(DimensionEntry& D, double NewValue) noexcept;
+    // Phase 18: constraint graph helpers. These are used by the `constraint` verb. ParsePointRef decodes
+    //    tokens like "L1.start" / "C1.centre" / "P0.vertex3" into a (PointRef, figure, slot, sub, comp) tuple.
+    //    ReadBlueprintPoint and WriteBlueprintPoint move a 3D world point in and out of a Blueprint cell.
+    //    SolveConstraintGraph materialises the graph, runs Newton, and writes back. RebuildFigureFromBlueprint
+    //    reconstructs a figure (line / polyline / circle / rectangle) from its Blueprint after editing.
+    [[nodiscard]] bool   ParsePointRef(const std::string& Tok, PointRef& Out, std::string& Figure, int& Slot, int& SubIndex, int& Component) const noexcept;
+    [[nodiscard]] bool   ParseLineRef(const std::string& Tok, std::string& Figure) const noexcept;
+    [[nodiscard]] Vec3   ReadBlueprintPoint(SceneFigure& F, int Slot, int SubIndex, int Component) const noexcept;
+    void                 WriteBlueprintPoint(SceneFigure& F, int Slot, int SubIndex, int Component, Vec3 NewWorld) noexcept;
+    bool                 SolveConstraintGraph() noexcept;
+    void                 RebuildFigureFromBlueprint(SceneFigure& F) noexcept;
     // Toggle dim display (also flips Hidden on every dim). Used by tests + scripts.
 public:
     void SetDimensionsVisible(bool Visible) noexcept { ShowDimensions = Visible; for (auto& D : Dimensions) D.Hidden = !Visible; }
@@ -154,6 +168,10 @@ private:
     std::map<std::string, Workplane>     NamedPlanes;                                  // [-] named construction planes recalled by `workplane <name>`
     std::vector<DimensionEntry>          Dimensions;                                   // [-] all live dims (public types are above; this is the live storage)
     uint32_t                             NextDimensionId = 1;                          // [-] monotonic
+    // Phase 18: persistent constraint graph. Built by `constraint` and resolved by `constraint solve`
+    //    (or implicitly by `dim edit` on a constrained figure). The graph is purely 2D — figures are
+    //    projected to the workplane for the solve and back into Blueprints afterward.
+    ConstraintGraph                      CGraph;                                       // [-] 2D constraint network on the active workplane
     int32_t                              HoverDimensionId = 0;                         // [-] dim id under the pointer, for click-to-edit
     int32_t                              EditDimensionId   = 0;                         // [-] dim awaiting a new value (numeric input in REPL)
 

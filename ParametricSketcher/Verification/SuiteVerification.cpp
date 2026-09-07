@@ -109,6 +109,7 @@ int main()
         { "Phase15_PolylineUndo.scr",  1,  "Phase 15: per-vertex polyline + construction suppression + undo"},
         { "Phase16_DerivedLiveEdit.scr", 1, "Phase 16: live-edit for revolve / pipe / sweep / boolean"},
         { "Phase17_SubEntityDims.scr",   1, "Phase 17: sub-entity (face / edge) dims, leader lines, dim sub"},
+        { "Phase18_Constraints.scr",    1, "Phase 18: 2D constraint graph (rectangle, 3-4-5 triangle, two circles)"},
     };
     auto Snapshot = [&](std::set<std::string>& Names) -> size_t
     {

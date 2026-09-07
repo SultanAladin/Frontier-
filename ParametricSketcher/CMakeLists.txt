@@ -117,6 +117,11 @@ add_executable(SubEntityDimensionVerification Verification/SubEntityDimensionVer
 target_link_libraries(SubEntityDimensionVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME SubEntityDimensionVerification COMMAND SubEntityDimensionVerification)
 
+# Phase 18: 2D constraint solver — 9 constraint types, Newton + analytic Jacobian, dof analysis, dim-edit re-solve hook.
+add_executable(ConstraintVerification Verification/ConstraintVerification.cpp)
+target_link_libraries(ConstraintVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME ConstraintVerification COMMAND ConstraintVerification)
+
 # Phase 10: chain-run every per-phase script and check the contact sheet.
 add_executable(SuiteVerification Verification/SuiteVerification.cpp)
 target_link_libraries(SuiteVerification PRIVATE SolidArcConsoleKit)

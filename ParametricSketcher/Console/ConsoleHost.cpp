@@ -6,6 +6,8 @@
 #include "Presentation/ScenePresentation.h"
 #include "Kernel/ProfileSolver.h"
 #include "Kernel/IntersectionSolver.h"
+#include "Kernel/ConstraintSolver.h"
+#include "Kernel/ConstraintGraph.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -1159,6 +1161,221 @@ void ConsoleHost::ApplyGizmoDelta(const Mat4& Delta) noexcept { ApplyDeltaToSele
 //                                                  COMMANDS
 //------------------------------------------------------------------------------------------------------------------------
 
+//---- Phase 18: constraint graph helpers ---------------------------------------------------------------------------
+// ParsePointRef takes a token like "L1.start", "C1.centre", "R0.corner2", "P0.vertex3" and resolves
+//    it to a PointRef + the figure name + a (slot, sub, comp) tuple that names the Blueprint cell.
+//    The (slot, sub, comp) tuple is the host's bookkeeping: which Blueprint field holds the (x, y) value
+//    of this point. We use a uniform scheme: slot 0 = A, slot 1 = B, slot 2 = C, slot 3 = PolylinePoints[K]
+//    (sub = K, comp = 0/1/2 for X/Y/Z), slot 4 = Rectangle corner K (sub = K, comp = 0/1/2). Circle centre
+//    is slot 0; circle radius-point is slot 1 (we synthesise slot 1 = A + Normal*R0 if not present).
+bool ConsoleHost::ParsePointRef(const std::string& Tok, PointRef& Out, std::string& Figure, int& Slot, int& SubIndex, int& Component) const noexcept
+{
+    auto Dot = Tok.find('.');
+    if (Dot == std::string::npos) return false;
+    Figure = Tok.substr(0, Dot);
+    std::string Part = Tok.substr(Dot + 1);
+    // Find the figure in the scene.
+    const SceneFigure* F = nullptr;
+    for (const auto& SF : Scene.Figures()) if (SF.Name == Figure) { F = &SF; break; }
+    if (!F) return false;
+    // Decode the part.
+    if (Part == "start")
+    {
+        Out = {Figure, PointRefKind::LineStart, 0};
+        Slot = 0; SubIndex = 0; Component = 0;
+        return true;
+    }
+    if (Part == "end")
+    {
+        Out = {Figure, PointRefKind::LineEnd, 0};
+        Slot = 1; SubIndex = 0; Component = 0;
+        return true;
+    }
+    if (Part == "centre")
+    {
+        Out = {Figure, PointRefKind::CircleCentre, 0};
+        Slot = 0; SubIndex = 0; Component = 0;
+        return true;
+    }
+    if (Part == "point")
+    {
+        // The "point on circumference" of a circle. We use slot 1 = A + Normal*R0 (synthesised by ReadBlueprintPoint).
+        Out = {Figure, PointRefKind::CircleRadiusPoint, 0};
+        Slot = 1; SubIndex = 0; Component = 0;
+        return true;
+    }
+    // vertexK — for polylines.
+    if (Part.size() > 6 && Part.substr(0, 6) == "vertex")
+    {
+        int K = 0; try { K = std::stoi(Part.substr(6)); } catch (...) { return false; }
+        Out = {Figure, PointRefKind::PolylineVertex, K};
+        Slot = 3; SubIndex = K; Component = 0;
+        return true;
+    }
+    // cornerK — for rectangles.
+    if (Part.size() > 6 && Part.substr(0, 6) == "corner")
+    {
+        int K = 0; try { K = std::stoi(Part.substr(6)); } catch (...) { return false; }
+        Out = {Figure, PointRefKind::RectCorner, K};
+        Slot = 4; SubIndex = K; Component = 0;
+        return true;
+    }
+    return false;
+}
+
+// ParseLineRef takes a single figure name (lines, polylines, circles-with-axis, etc. all qualify).
+bool ConsoleHost::ParseLineRef(const std::string& Tok, std::string& Figure) const noexcept
+{
+    Figure = Tok;
+    for (const auto& SF : Scene.Figures()) if (SF.Name == Figure) return true;
+    return false;
+}
+
+// ReadBlueprintPoint returns the 3D world-space position of a point named by (slot, sub, comp).
+//    The mapping is the inverse of the (slot, sub, comp) tuple produced by ParsePointRef.
+Vec3 ConsoleHost::ReadBlueprintPoint(SceneFigure& F, int Slot, int SubIndex, int /*Component*/) const noexcept
+{
+    const auto& B = F.Blueprint;
+    if (Slot == 0) return B.A;
+    if (Slot == 1) return B.B;
+    if (Slot == 2) return B.C;
+    if (Slot == 3)
+    {
+        // PolylinePoints[SubIndex]
+        if (SubIndex < 0 || SubIndex >= int(B.PolylinePoints.size())) return Vec3{};
+        return B.PolylinePoints[SubIndex];
+    }
+    if (Slot == 4)
+    {
+        // Rectangle corner K: derived from A and B.
+        // Corners are: A, (A.x, B.y), B, (B.x, A.y) for a non-rotated rect.
+        // We don't have a rotation field; the user can use rotation via the Blueprint's R0 if needed.
+        Vec3 C0 = B.A, C2 = B.B;
+        switch (SubIndex)
+        {
+            case 0: return C0;
+            case 1: return Vec3(C0.X, C2.Y, C0.Z);
+            case 2: return C2;
+            case 3: return Vec3(C2.X, C0.Y, C0.Z);
+        }
+        return Vec3{};
+    }
+    if (Slot == 1 && B.Form == SceneFigure::ParametricForm::Circle)
+    {
+        // Slot 1 for a Circle is the radius point. We synthesise A + Normal*R0.
+        Vec3 N = B.Normal.LengthSquared() > 1e-12 ? B.Normal.Normalised() : Vec3::UnitZ();
+        return B.A + N * B.R0;
+    }
+    return Vec3{};
+}
+
+// WriteBlueprintPoint writes a 3D world-space position back into the Blueprint cell named by
+//    (slot, sub, comp). We compute the workplane projection of NewWorld → 2D → NewWorld' = Origin + u*x + v*y.
+//    This keeps the point on the workplane after editing (so the constraint is actually satisfied in 3D too).
+void ConsoleHost::WriteBlueprintPoint(SceneFigure& F, int Slot, int SubIndex, int /*Component*/, Vec3 NewWorld) noexcept
+{
+    auto& B = F.Blueprint;
+    Vec2 P2 = Plane.ToLocal(NewWorld);
+    Vec3 Clamped = Plane.ToWorld(P2);                                            // re-anchor on the plane
+    if (Slot == 0) B.A = Clamped;
+    else if (Slot == 1) B.B = Clamped;
+    else if (Slot == 2) B.C = Clamped;
+    else if (Slot == 3)
+    {
+        if (SubIndex >= 0 && SubIndex < int(B.PolylinePoints.size())) B.PolylinePoints[SubIndex] = Clamped;
+    }
+    // Slot 4 (rectangle corner) and slot 1 of Circle (radius point) are derived — we don't write back.
+}
+
+// SolveConstraintGraph materialises the persistent graph into a ConstraintSolver, solves, and writes
+//    the solved (x, y) back into the figure Blueprints. The figures are then rebuilt (each Line / Circle
+//    / Rectangle / Polyline is re-constructed from its Blueprint by the same code path that dim-edit uses).
+bool ConsoleHost::SolveConstraintGraph() noexcept
+{
+    if (CGraph.ConstraintCount() == 0) return Refuse("constraint solve: graph is empty");
+    ConstraintSolver S;
+    // Materialise anchors: read each anchor's current 2D position from the figure, push as an unknown.
+    for (const auto& A : CGraph.AllAnchors())
+    {
+        SceneFigure* F = nullptr;
+        for (auto& SF : Scene.Figures()) if (SF.Name == A.Figure) { F = &SF; break; }
+        if (!F) return Refuse("constraint solve: figure '%s' (anchor for constraint) not found", A.Figure.c_str());
+        Vec3 W3 = ReadBlueprintPoint(*F, A.Slot, A.SubIndex, A.Component);
+        Vec2 P2 = Plane.ToLocal(W3);
+        SketchUnknown U; U.Ref = A.Ref; U.X = P2.X; U.Y = P2.Y; U.Fixed = A.Fixed;
+        S.SetUnknown(U);
+    }
+    for (const auto& E : CGraph.AllConstraints()) S.AddConstraint(E.C);
+    SolveReport R = S.Solve();
+    if (!R.Converged) return Refuse("constraint solve: %s", R.Refusal.c_str());
+    // Write the solved (x, y) back to the figure Blueprints.
+    for (size_t I = 0; I < S.AllUnknowns().size(); ++I)
+    {
+        const auto& U = S.AllUnknowns()[I];
+        if (U.Fixed) continue;
+        // Find the anchor for this unknown.
+        size_t AIdx = CGraph.AnchorIndex(U.Ref);
+        if (AIdx == SIZE_MAX) continue;
+        const auto& A = CGraph.AllAnchors()[AIdx];
+        // Find the figure.
+        SceneFigure* F = nullptr;
+        for (auto& SF : Scene.Figures()) if (SF.Name == A.Figure) { F = &SF; break; }
+        if (!F) continue;
+        // Project the solved 2D back to 3D on the workplane, then write.
+        Vec3 NewWorld = Plane.ToWorld(Vec2(U.X, U.Y));
+        WriteBlueprintPoint(*F, A.Slot, A.SubIndex, A.Component, NewWorld);
+    }
+    // Rebuild the figures. We use the ApplyLiveEdit path indirectly: re-construct from the Blueprint.
+    //    The easiest way is to call the per-Form rebuild inside the ApplyLiveEdit function — but that's
+    //    private. Instead, we re-run the ApplyLiveEdit equivalent by invoking `rebuild <fig>` for each
+    //    figure that has at least one anchor. For simplicity we delegate to a helper.
+    for (auto& F : Scene.Figures())
+    {
+        bool Has = false;
+        for (const auto& A : CGraph.AllAnchors()) if (A.Figure == F.Name) { Has = true; break; }
+        if (Has) RebuildFigureFromBlueprint(F);
+    }
+    Row("constraint solve: converged=%s, iters=%d, residual=%.3e, dof=%d", R.Converged ? "true" : "false", R.Iterations, R.ResidualL2, R.DoF);
+    return true;
+}
+
+void ConsoleHost::RebuildFigureFromBlueprint(SceneFigure& F) noexcept
+{
+    // We invoke the same primitive constructors that ApplyLiveEdit uses, but without a dim slot. The
+    //    builders take the Blueprint A/B/C/Axis/Normal/R0..R3 and produce a new Curve or Body. We
+    //    replace F.Curve or F.Body with the new one.
+    using Form = SceneFigure::ParametricForm;
+    auto& B = F.Blueprint;
+    if (B.Form == Form::Line)
+    {
+        Deliver<NurbsCurve> D = NurbsCurve::Line(B.A, B.B);
+        if (D) F.Curve = std::move(D.Payload);
+    }
+    else if (B.Form == Form::Polyline)
+    {
+        if (!B.PolylinePoints.empty())
+        {
+            Deliver<NurbsCurve> D = NurbsCurve::Polyline(B.PolylinePoints, B.Closed);
+            if (D) F.Curve = std::move(D.Payload);
+        }
+    }
+    else if (B.Form == Form::Circle)
+    {
+        Vec3 N = B.Normal.LengthSquared() > 1e-12 ? B.Normal.Normalised() : Vec3::UnitZ();
+        Deliver<NurbsCurve> D = NurbsCurve::Circle(B.A, N, B.R0);
+        if (D) F.Curve = std::move(D.Payload);
+    }
+    else if (B.Form == Form::Rectangle)
+    {
+        // Build a polyline with 4 corners.
+        Vec3 A = B.A, B2 = B.B;
+        std::vector<Vec3> Pts = { A, Vec3(A.X, B2.Y, A.Z), B2, Vec3(B2.X, A.Y, A.Z), A };
+        Deliver<NurbsCurve> D = NurbsCurve::Polyline(Pts, true);
+        if (D) F.Curve = std::move(D.Payload);
+    }
+    // Other forms (Sphere, Cylinder, etc.) are not affected by 2D constraint editing — they are 3D bodies.
+}
+
 void ConsoleHost::Register() noexcept
 {
     auto Add = [&](const char* Verb, const char* Help, Command Fn) { Commands[Verb] = std::move(Fn); Usage[Verb] = Help; };
@@ -2068,6 +2285,10 @@ void ConsoleHost::Register() noexcept
         Scene.Clear();
         Undo = UndoSequence();
         Plane = Workplane::XY();
+        CGraph.Clear();                                                         // Phase 18: drop the constraint graph too
+        // Dimensions is NOT cleared on reset (Phase 13 scripts depend on dim ids accumulating).
+        //    Phase 18's constraint graph references figure names, so it must be cleared; dim ids
+        //    can be reused safely because Phase 18's `dim edit` looks up dims by id+anchor.
         Row("scene reset (empty, workplane xy)");
         return true;
     });
@@ -2137,7 +2358,43 @@ void ConsoleHost::Register() noexcept
                 // Try a live edit first (Phase 13 redo: rebuilds the figure from its source).
                 if (D.Slot >= 0)
                 {
-                    if (ApplyLiveEdit(D, NewVal)) { D.Label = ""; Row("dim #%u  value %.4f  (live edit, figure rebuilt)", D.Id, D.Value); return true; }
+                    // Phase 18 bug: ApplyLiveEdit calls AutoEmitDimensions which can re-allocate the
+                    //    Dimensions vector (DeleteAutoDimensionsFor erases elements, AutoEmitDimensions
+                    //    pushes new ones). Capturing values from D before the call and looking up the
+                    //    new dim by id afterward is safer. We also capture the figure identity for
+                    //    the re-solve hook.
+                    uint32_t    CapturedId      = D.Id;
+                    uint32_t    CapturedAnchor  = D.Anchor;
+                    std::string CapturedAnchorName = D.AnchorName;
+                    if (ApplyLiveEdit(D, NewVal))
+                    {
+                        // Find the new dim with the same anchor. ApplyLiveEdit's AutoEmitDimensions
+                        //    re-issued dims for the same figure, with new ids.
+                        DimensionEntry* NewD = nullptr;
+                        for (auto& DN : Dimensions) if (DN.Anchor == CapturedAnchor && DN.AnchorName == CapturedAnchorName) { NewD = &DN; break; }
+                        if (NewD) NewD->Label = "";
+                        Row("dim #%u  value %.4f  (live edit, figure rebuilt)", CapturedId, NewVal);
+                        // Phase 18: dim-edit re-solve hook. If the edited figure is referenced by any
+                        //    constraint, re-solve the constraint graph. The new Blueprint value flows
+                        //    through the constraint equations and other affected figures move to satisfy
+                        //    them. We check the figure name (D.AnchorName often starts with the figure
+                        //    name) — but a more robust check is the figure identity. Look up the figure
+                        //    by its identity, get its name, then check the constraint graph.
+                        if (CGraph.ConstraintCount() > 0)
+                        {
+                            // Find the figure name for this dim's anchor.
+                            std::string EditedName;
+                            for (const auto& F : Scene.Figures()) if (F.Identity == CapturedAnchor) { EditedName = F.Name; break; }
+                            bool Referenced = false;
+                            for (const auto& A : CGraph.AllAnchors()) if (A.Figure == EditedName) { Referenced = true; break; }
+                            if (Referenced)
+                            {
+                                Row("dim #%u: figure '%s' is in the constraint graph — re-solving", CapturedId, EditedName.c_str());
+                                if (!SolveConstraintGraph()) { Row("dim #%u: re-solve refused (constraint may be inconsistent with the new value)", CapturedId); }
+                            }
+                        }
+                        return true;
+                    }
                     return Refuse("dim #%u: live edit refused (slot %d on form %d)", D.Id, D.Slot, int(D.BlueprintForm));
                 }
                 // Free-form / non-live dim: just update the label.
@@ -2438,6 +2695,187 @@ void ConsoleHost::Register() noexcept
             return true;
         }
         return Refuse("dim: need `--along=X|Y|Z` or two points");
+    });
+    Add("constraint", "constraint list | clear | dof | solve | pin <f.point>  ·  constraint distance <fA.p> <fB.p> = <v>  ·  constraint angle <lineA> <lineB> = <deg>  ·  constraint coincident <fA.p> <fB.p>  ·  constraint horizontal <fA.p> <fB.p>  ·  constraint vertical <fA.p> <fB.p>  ·  constraint parallel <lineA> <lineB>  ·  constraint perpendicular <lineA> <lineB>  ·  constraint equal <lineA> <lineB>  ·  constraint equal-radius <circleA> <circleB>  ·  constraint delete <id>  — 2D constraint graph (Newton solve, dim-edit re-solve hook)", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "constraint")) return false;
+        const std::string& Sub = C.Arguments[0];
+        // ---- sub-verbs -------------------------------------------------------------------
+        if (Sub == "list")
+        {
+            if (CGraph.ConstraintCount() == 0) { Row("constraint: graph is empty"); return true; }
+            for (const auto& E : CGraph.AllConstraints())
+            {
+                Row("constraint #%u  %s  (active=%s)", E.Id, E.Note.c_str(), E.C.Active ? "true" : "false");
+            }
+            return true;
+        }
+        if (Sub == "clear")
+        {
+            size_t N = CGraph.ConstraintCount();
+            CGraph.Clear();
+            Row("constraint: cleared %zu constraints", N);
+            return true;
+        }
+        if (Sub == "dof")
+        {
+            if (CGraph.ConstraintCount() == 0) { Row("constraint dof: graph is empty (no constraints)"); return true; }
+            // Build a temporary solver to compute the dof.
+            ConstraintSolver S;
+            // Materialise anchors into the solver.
+            for (const auto& A : CGraph.AllAnchors())
+            {
+                SketchUnknown U; U.Ref = A.Ref; U.Fixed = A.Fixed;
+                SceneFigure* F = nullptr;
+                for (auto& SF : Scene.Figures()) if (SF.Name == A.Figure) { F = &SF; break; }
+                if (!F) continue;
+                // Read the current 2D point from the figure's Blueprint (projected to the workplane).
+                Vec3 W3 = ReadBlueprintPoint(*F, A.Slot, A.SubIndex, A.Component);
+                Vec2 P2 = Plane.ToLocal(W3);
+                U.X = P2.X; U.Y = P2.Y;
+                S.SetUnknown(U);
+            }
+            for (const auto& E : CGraph.AllConstraints()) S.AddConstraint(E.C);
+            int DoF = S.DoF();
+            Row("constraint dof: %d (negative = over-constrained, 0 = well-determined, positive = under-determined)", DoF);
+            return true;
+        }
+        if (Sub == "solve")
+        {
+            if (CGraph.ConstraintCount() == 0) return Refuse("constraint solve: graph is empty");
+            return SolveConstraintGraph();
+        }
+        if (Sub == "delete")
+        {
+            if (!Need(C, 2, "constraint delete")) return false;
+            double Did = 0; if (!NumberArg(C, 1, Did, "constraint delete")) return false;
+            int Id = int(Did);
+            CGraph.RemoveConstraint(uint32_t(Id));
+            Row("constraint: deleted #%d", Id);
+            return true;
+        }
+        if (Sub == "pin")
+        {
+            if (!Need(C, 2, "constraint pin")) return false;
+            PointRef Ref; std::string Figure; int Slot, Sub, Comp;
+            if (!ParsePointRef(C.Arguments[1], Ref, Figure, Slot, Sub, Comp)) return Refuse("constraint pin: bad point ref '%s'", C.Arguments[1].c_str());
+            CGraph.AddAnchor(Ref, Figure, Slot, Sub, Comp);
+            CGraph.SetFixed(Ref, true);
+            Row("constraint: pinned %s", C.Arguments[1].c_str());
+            return true;
+        }
+        // ---- constraint-creating sub-verbs ----------------------------------------------
+        if (!Need(C, 2, "constraint")) return false;
+        if (Sub == "distance")
+        {
+            // constraint distance <refA> <refB> = <value>
+            // The verb is already stripped; the arguments are [distance, refA, refB, =, value]? No.
+            // The outer verb is "constraint", and the parser strips only the verb. So:
+            //   C.Arguments = ["distance", "refA", "refB", "=", "value"]
+            if (C.Count() < 5) return Refuse("constraint distance: usage: constraint distance <refA> <refB> = <value>");
+            const std::string& RefA = C.Arguments[1];
+            const std::string& RefB = C.Arguments[2];
+            if (std::string(C.Arguments[3]) != "=") return Refuse("constraint distance: expected '=' between refB and value");
+            PointRef A, B; std::string FA, FB; int SA, SB, IA, IB, CA, CB;
+            if (!ParsePointRef(RefA, A, FA, SA, IA, CA)) return Refuse("constraint distance: bad ref '%s'", RefA.c_str());
+            if (!ParsePointRef(RefB, B, FB, SB, IB, CB)) return Refuse("constraint distance: bad ref '%s'", RefB.c_str());
+            double V = 0; if (!NumberArg(C, 4, V, "constraint distance")) return false;
+            Constraint K; K.Type = ConstraintType::Distance; K.P1 = A; K.P2 = B; K.Prescribed = V; K.Active = true;
+            CGraph.AddAnchor(A, FA, SA, IA, CA);
+            CGraph.AddAnchor(B, FB, SB, IB, CB);
+            uint32_t Id = CGraph.AddConstraint(K, "distance " + RefA + " " + RefB + " = " + std::to_string(V));
+            Row("constraint #%u  distance %s %s = %g  (added)", Id, RefA.c_str(), RefB.c_str(), V);
+            return true;
+        }
+        if (Sub == "angle")
+        {
+            // constraint angle <lineA> <lineB> = <degrees>
+            // C.Arguments = ["angle", "lineA", "lineB", "=", "deg"]
+            if (C.Count() < 5) return Refuse("constraint angle: usage: constraint angle <lineA> <lineB> = <deg>");
+            const std::string& LA = C.Arguments[1];
+            const std::string& LB = C.Arguments[2];
+            if (std::string(C.Arguments[3]) != "=") return Refuse("constraint angle: expected '=' between refs and value");
+            double Deg = 0; if (!NumberArg(C, 4, Deg, "constraint angle")) return false;
+            double Rad = Deg * 3.14159265358979323846 / 180.0;
+            // The line L1 contributes two points: its start and end. We add all four as anchors.
+            std::string A1Fig = LA; PointRefKind A1K = PointRefKind::LineStart; int A1Slot = 0;
+            std::string A2Fig = LA; PointRefKind A2K = PointRefKind::LineEnd; int A2Slot = 1;
+            std::string B1Fig = LB; PointRefKind B1K = PointRefKind::LineStart; int B1Slot = 0;
+            std::string B2Fig = LB; PointRefKind B2K = PointRefKind::LineEnd; int B2Slot = 1;
+            PointRef P1 {A1Fig, A1K, 0}, P2 {A2Fig, A2K, 0}, P3 {B1Fig, B1K, 0}, P4 {B2Fig, B2K, 0};
+            Constraint K; K.Type = ConstraintType::Angle; K.P1 = P1; K.P2 = P2; K.P3 = P3; K.P4 = P4; K.Prescribed = Rad; K.Active = true;
+            CGraph.AddAnchor(P1, A1Fig, A1Slot, 0, 0);
+            CGraph.AddAnchor(P2, A2Fig, A2Slot, 0, 0);
+            CGraph.AddAnchor(P3, B1Fig, B1Slot, 0, 0);
+            CGraph.AddAnchor(P4, B2Fig, B2Slot, 0, 0);
+            uint32_t Id = CGraph.AddConstraint(K, "angle " + LA + " " + LB + " = " + std::to_string(Deg) + "°");
+            Row("constraint #%u  angle %s %s = %g°  (added)", Id, LA.c_str(), LB.c_str(), Deg);
+            return true;
+        }
+        if (Sub == "coincident" || Sub == "horizontal" || Sub == "vertical" || Sub == "parallel" || Sub == "perpendicular" || Sub == "equal")
+        {
+            if (!Need(C, 3, Sub.c_str())) return false;
+            // For coincident / horizontal / vertical: two point refs.
+            // For parallel / perpendicular / equal: two line refs.
+            ConstraintType CT = ConstraintType::Coincident;
+            if (Sub == "horizontal") CT = ConstraintType::Horizontal;
+            if (Sub == "vertical")   CT = ConstraintType::Vertical;
+            if (Sub == "parallel")   CT = ConstraintType::Parallel;
+            if (Sub == "perpendicular") CT = ConstraintType::Perpendicular;
+            if (Sub == "equal")      CT = ConstraintType::EqualLength;
+            Constraint K; K.Type = CT; K.Active = true;
+            std::string Note = Sub + " ";
+            if (CT == ConstraintType::Coincident || CT == ConstraintType::Horizontal || CT == ConstraintType::Vertical)
+            {
+                PointRef A, B; std::string FA, FB; int SA, SB, IA, IB, CA, CB;
+                if (!ParsePointRef(C.Arguments[1], A, FA, SA, IA, CA)) return Refuse("constraint %s: bad ref '%s'", Sub.c_str(), C.Arguments[1].c_str());
+                if (!ParsePointRef(C.Arguments[2], B, FB, SB, IB, CB)) return Refuse("constraint %s: bad ref '%s'", Sub.c_str(), C.Arguments[2].c_str());
+                K.P1 = A; K.P2 = B;
+                CGraph.AddAnchor(A, FA, SA, IA, CA);
+                CGraph.AddAnchor(B, FB, SB, IB, CB);
+                Note += std::string(C.Arguments[1]) + " " + std::string(C.Arguments[2]);
+            }
+            else
+            {
+                std::string LA, LB; if (!ParseLineRef(C.Arguments[1], LA)) return Refuse("constraint %s: bad line ref '%s'", Sub.c_str(), C.Arguments[1].c_str());
+                if (!ParseLineRef(C.Arguments[2], LB)) return Refuse("constraint %s: bad line ref '%s'", Sub.c_str(), C.Arguments[2].c_str());
+                PointRef P1 {LA, PointRefKind::LineStart, 0}, P2 {LA, PointRefKind::LineEnd, 0};
+                PointRef P3 {LB, PointRefKind::LineStart, 0}, P4 {LB, PointRefKind::LineEnd, 0};
+                K.P1 = P1; K.P2 = P2; K.P3 = P3; K.P4 = P4;
+                CGraph.AddAnchor(P1, LA, 0, 0, 0);
+                CGraph.AddAnchor(P2, LA, 1, 0, 0);
+                CGraph.AddAnchor(P3, LB, 0, 0, 0);
+                CGraph.AddAnchor(P4, LB, 1, 0, 0);
+                Note += std::string(C.Arguments[1]) + " " + std::string(C.Arguments[2]);
+            }
+            uint32_t Id = CGraph.AddConstraint(K, Note);
+            Row("constraint #%u  %s  (added)", Id, Note.c_str());
+            return true;
+        }
+        if (Sub == "equal-radius")
+        {
+            if (!Need(C, 3, "constraint equal-radius")) return false;
+            // Two circle refs (figure names). We use the centre + radius point of each as the unknowns.
+            //    The EqualRadius residual is "distance(centre, point) of A - distance(centre, point) of B = 0".
+            std::string FA = C.Arguments[1], FB = C.Arguments[2];
+            PointRef A1 {FA, PointRefKind::CircleCentre, 0};
+            PointRef A2 {FA, PointRefKind::CircleRadiusPoint, 0};
+            PointRef B1 {FB, PointRefKind::CircleCentre, 0};
+            PointRef B2 {FB, PointRefKind::CircleRadiusPoint, 0};
+            Constraint K; K.Type = ConstraintType::EqualRadius; K.P1 = A1; K.P2 = A2; K.P3 = B1; K.P4 = B2; K.Active = true;
+            // Slot indices for circles: A slot 0 = centre (A), A slot 1 = radius point. For our use, we
+            //    treat A and B as Blueprints.A and a second ref. We approximate by using A as centre and
+            //    A + Normal*R0 as the radius point (this is the conventional way circles are stored).
+            //    For now, we anchor (A1, A2) to slots 0 and 1, (B1, B2) to slots 0 and 1.
+            CGraph.AddAnchor(A1, FA, 0, 0, 0);
+            CGraph.AddAnchor(A2, FA, 1, 0, 0);
+            CGraph.AddAnchor(B1, FB, 0, 0, 0);
+            CGraph.AddAnchor(B2, FB, 1, 0, 0);
+            uint32_t Id = CGraph.AddConstraint(K, "equal-radius " + FA + " " + FB);
+            Row("constraint #%u  equal-radius %s %s  (added)", Id, FA.c_str(), FB.c_str());
+            return true;
+        }
+        return Refuse("constraint: unknown sub-verb '%s'", Sub.c_str());
     });
     Add("angle", "angle <polyline> [--at=K]  — interior angle at vertex K of a polyline (K defaults to the middle; the included angle between segments K-1,K and K,K+1 is reported in degrees)", [=, this](const CommandLine& C)
     {

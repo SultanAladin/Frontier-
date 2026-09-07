@@ -18,6 +18,8 @@ ALL_SRCS=(
     Kernel/IntersectionSolver.cpp
     Kernel/FairPatchSolver.cpp
     Kernel/ProfileSolver.cpp
+    Kernel/ConstraintSolver.cpp
+    Kernel/ConstraintGraph.cpp
     Presentation/SoftwareRaster.cpp
     Presentation/ScenePresentation.cpp
     Interaction/CameraProjection.cpp
