@@ -20,6 +20,7 @@ ALL_SRCS=(
     Kernel/ProfileSolver.cpp
     Kernel/ConstraintSolver.cpp
     Kernel/ConstraintGraph.cpp
+    Kernel/MirrorSolver.cpp
     Presentation/SoftwareRaster.cpp
     Presentation/ScenePresentation.cpp
     Interaction/CameraProjection.cpp
@@ -48,6 +49,10 @@ done
 
 echo "── building SolidArc"
 g++ $FLAGS $INC "${OBJS[@]}" Console/SolidArcConsole.cpp -lpthread -o /tmp/solidarc-build/SolidArc
+
+# Mirror to ParametricSketcher/build/SolidArc so SuiteVerification (which resolves that path) sees the new binary.
+mkdir -p build
+cp -f /tmp/solidarc-build/SolidArc build/SolidArc
 
 # Verification binaries: one per .cpp in Verification/, each linked against the same object set.
 VERIF_DIR="Verification"

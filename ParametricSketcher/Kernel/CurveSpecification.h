@@ -56,6 +56,7 @@ public:
 
     //---------------------------------------------- construction ----------------------------------------------
     [[nodiscard]] static Deliver<NurbsCurve> Build(int Degree, std::vector<Vec4> Poles, std::vector<double> Knots) noexcept;
+    [[nodiscard]] static Deliver<NurbsCurve> Empty() noexcept;                   // Phase 19: zero-length placeholder for Empty figures
     [[nodiscard]] static Deliver<NurbsCurve> Line(Vec3 A, Vec3 B) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Polyline(const std::vector<Vec3>& Points, bool Closed) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Circle(Vec3 Centre, Vec3 Normal, double Radius) noexcept;

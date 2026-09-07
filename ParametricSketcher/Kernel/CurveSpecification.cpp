@@ -44,6 +44,18 @@ Deliver<NurbsCurve> NurbsCurve::Build(int Degree, std::vector<Vec4> Poles, std::
     return Deliver<NurbsCurve>::Accept(std::move(Curve));
 }
 
+Deliver<NurbsCurve> NurbsCurve::Empty() noexcept
+{
+    // Phase 19: Empty figures are transform handles with no geometry. We return a degenerate
+    //    degree-1 NURBS with one pole (at the origin) and matching knot vector. Validate refuses
+    //    curves with more-than-Degree poles, so we construct a degree-1 curve with 2 poles
+    //    at the same point — this is a "zero-length line" that renders to nothing and bounds
+    //    to a point. The Empty's visible axis cross is drawn by ScenePresentation, not by the curve.
+    std::vector<Vec4> Poles = { Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 1) };
+    std::vector<double> Knots = { 0, 0, 1, 1 };
+    return NurbsCurve::Build(1, std::move(Poles), std::move(Knots));
+}
+
 Refusal NurbsCurve::Validate() const noexcept
 {
     if (Degree < 1) return Refusal::Reject(RefusalReason::InvalidDegree, "degree must be ≥ 1");

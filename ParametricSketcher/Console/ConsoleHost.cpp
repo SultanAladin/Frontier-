@@ -8,6 +8,7 @@
 #include "Kernel/IntersectionSolver.h"
 #include "Kernel/ConstraintSolver.h"
 #include "Kernel/ConstraintGraph.h"
+#include "Kernel/MirrorSolver.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -68,6 +69,12 @@ void ConsoleHost::DescribeFigure(const SceneFigure& Figure) noexcept
             Figure.Identity, Figure.Name.c_str(), Describe(Figure.Body.Classification()), R.Vertices, R.Edges, R.Faces, R.EulerCharacteristic, R.Genus, R.Volume, R.Area,
             B.Low.X, B.Low.Y, B.Low.Z, B.High.X, B.High.Y, B.High.Z, R.Solid() ? "" : (R.OpenEdges ? "  [open]" : R.MisorientedEdges ? "  [misoriented]" : "  [not solid]"),
             Figure.Selected ? "  [selected]" : "", Figure.SelectedFaces.empty() && Figure.SelectedEdges.empty() ? "" : "  [sub-selection]");
+    }
+    else if (Figure.Classification == FigureClassification::Empty)
+    {
+        Row("#%-3u %-18s empty    at (%.3f, %.3f, %.3f)%s%s",
+            Figure.Identity, Figure.Name.c_str(), Figure.Blueprint.A.X, Figure.Blueprint.A.Y, Figure.Blueprint.A.Z,
+            Figure.Selected ? "  [selected]" : "", Figure.Hidden ? "  [hidden]" : "");
     }
     else
     {
@@ -1013,6 +1020,14 @@ void ConsoleHost::Render() noexcept
         Surface->DrawSegments(ScenePresentation::CurveSegments(Figure.Curve), D);
         if (ShowControlCages || Figure.Selected || Mode == SelectMode::Control) DrawControlPoints(Figure);
     }
+    for (const SceneFigure& Figure : Scene.Figures())
+    {
+        if (Figure.Hidden || Figure.Classification != FigureClassification::Empty) continue;
+        // Phase 19: Empty is a transform handle. We draw a small triad at the Blueprint.A position
+        //    so the user can see and select it. The triad is drawn in the main pass (not the overlay)
+        //    so it occludes correctly with other geometry.
+        ScenePresentation::DrawEmpty(*Surface, Figure.Blueprint.A, 0.15);
+    }
 
     Surface->BeginOverlay();
     DrawToolPreview();
@@ -1373,7 +1388,142 @@ void ConsoleHost::RebuildFigureFromBlueprint(SceneFigure& F) noexcept
         Deliver<NurbsCurve> D = NurbsCurve::Polyline(Pts, true);
         if (D) F.Curve = std::move(D.Payload);
     }
-    // Other forms (Sphere, Cylinder, etc.) are not affected by 2D constraint editing — they are 3D bodies.
+    // Phase 19: extend to body forms so mirror / radial can rebuild bodies too.
+    else if (B.Form == Form::Box)        { Deliver<BrepBody> D = BrepBody::Box(B.A, B.B); if (D) F.Body = std::move(D.Payload); }
+    else if (B.Form == Form::Sphere)     { Deliver<BrepBody> D = BrepBody::Sphere(B.A, B.R0); if (D) F.Body = std::move(D.Payload); }
+    else if (B.Form == Form::Cylinder)   { Vec3 Axis = B.Axis.LengthSquared() > 1e-12 ? B.Axis.Normalised() : Vec3(0, 0, 1); Deliver<BrepBody> D = BrepBody::Cylinder(B.A, Axis, B.R0, B.R2); if (D) F.Body = std::move(D.Payload); }
+    else if (B.Form == Form::Cone)       { Vec3 Axis = B.Axis.LengthSquared() > 1e-12 ? B.Axis.Normalised() : Vec3(0, 0, 1); Deliver<BrepBody> D = BrepBody::Cone(B.A, Axis, B.R0, B.R1, B.R2); if (D) F.Body = std::move(D.Payload); }
+    else if (B.Form == Form::Torus)      { Vec3 Axis = B.Axis.LengthSquared() > 1e-12 ? B.Axis.Normalised() : Vec3(0, 0, 1); Deliver<BrepBody> D = BrepBody::Torus(B.A, Axis, B.R2, B.R3); if (D) F.Body = std::move(D.Payload); }
+    else if (B.Form == Form::Empty)
+    {
+        Deliver<NurbsCurve> D = NurbsCurve::Empty();
+        if (D) F.Curve = std::move(D.Payload);
+    }
+}
+
+//---- Phase 19: mirror + radial + empty helpers -------------------------------------------------------------------
+
+// Parse a "plane or axis" specifier. Accepts:
+//    "xy" / "xz" / "yz" — world workplane
+//    a named workplane (e.g. "P_top") — looked up in NamedPlanes
+//    "((ox,oy,oz),(dx,dy,dz))" — an axis (3D line through origin in direction)
+//    "(nx,ny,nz)" — a plane through the origin with that normal
+// On success, fills out a list of MirrorOps (one per parsed op) and returns true. For a single
+//    workplane the result is one plane op. For a single axis spec it is one axis op. For two --across/--also
+//    flags the caller appends; we return the new ops via a callback so the verb can chain.
+//    MirrorSpec is a nested type of ConsoleHost; declared in ConsoleHost.h.
+[[nodiscard]] bool ConsoleHost::ParseMirrorSpec(const std::string& Tok, MirrorSpec& Out) const noexcept
+{
+    Out = {};
+    Out.Label = Tok;
+    if (Tok == "xy" || Tok == "XY") { Out.Kind = MirrorSpec::Kind::Plane; Out.Origin = Vec3{}; Out.NormalOrDir = Vec3::UnitZ(); return true; }
+    if (Tok == "xz" || Tok == "XZ") { Out.Kind = MirrorSpec::Kind::Plane; Out.Origin = Vec3{}; Out.NormalOrDir = Vec3::UnitY(); return true; }
+    if (Tok == "yz" || Tok == "YZ") { Out.Kind = MirrorSpec::Kind::Plane; Out.Origin = Vec3{}; Out.NormalOrDir = Vec3::UnitX(); return true; }
+    // Named workplane.
+    auto It = NamedPlanes.find(Tok);
+    if (It != NamedPlanes.end()) { Out.Kind = MirrorSpec::Kind::Plane; Out.Origin = It->second.Origin; Out.NormalOrDir = It->second.Normal(); return true; }
+    // (a,b,c) — a plane through the origin with that normal.
+    if (Tok.size() > 1 && Tok.front() == '(' && Tok.back() == ')')
+    {
+        std::string Inner = Tok.substr(1, Tok.size() - 2);
+        // Try to split on "),(" for axis form, or just a point for plane form.
+        auto P1 = CommandCodec::ParsePoint(Inner);
+        if (P1)
+        {
+            // Check if the inner is a single point (plane normal) or an axis.
+            //    An axis form is "(origin),(dir)" — look for "),(" inside.
+            size_t Sep = Inner.find("),(");
+            if (Sep != std::string::npos)
+            {
+                std::string OStr = Inner.substr(0, Sep + 1);
+                std::string DStr = Inner.substr(Sep + 2);
+                auto O = CommandCodec::ParsePoint(OStr);
+                auto D = CommandCodec::ParsePoint(DStr);
+                if (O && D) { Out.Kind = MirrorSpec::Kind::Axis; Out.Origin = *O; Out.NormalOrDir = (*D - *O).Normalised(); return true; }
+            }
+            // Plane normal through origin.
+            Out.Kind = MirrorSpec::Kind::Plane; Out.Origin = Vec3{}; Out.NormalOrDir = P1->Normalised(); return true;
+        }
+    }
+    return false;
+}
+
+// Apply a list of mirror specs to a single 3D point. Composes the operations in order.
+[[nodiscard]] Vec3 ConsoleHost::ApplyMirrors(Vec3 P, const std::vector<MirrorSpec>& Specs) const noexcept
+{
+    for (const ConsoleHost::MirrorSpec& S : Specs)
+    {
+        if (S.Kind == ConsoleHost::MirrorSpec::Kind::Plane) P = ReflectAcrossPlane(P, S.Origin, S.NormalOrDir);
+        else                                                 P = ReflectAcrossAxis(P, { S.Origin, S.NormalOrDir });
+    }
+    return P;
+}
+
+// Reflect every position-bearing Blueprint cell of a figure. Returns true if the figure is one we
+//    know how to reflect; false if the form is not yet supported.
+[[nodiscard]] bool ConsoleHost::ReflectBlueprint(SceneFigure& F, const std::vector<MirrorSpec>& Specs) const noexcept
+{
+    auto Apply = [&](Vec3 P) { return ApplyMirrors(P, Specs); };
+    auto& B = F.Blueprint;
+    B.A = Apply(B.A);
+    B.B = Apply(B.B);
+    B.C = Apply(B.C);
+    B.Axis = Apply(B.Axis);
+    B.Normal = Apply(B.Normal);                                              // normal flips sign, not a real position
+    for (auto& P : B.PolylinePoints) P = Apply(P);
+    return true;
+}
+
+// Rotate every position-bearing Blueprint cell around an axis by θ radians. Mirrors the same set
+//    of cells as ReflectBlueprint.
+[[nodiscard]] bool ConsoleHost::RotateBlueprint(SceneFigure& F, MirrorAxis Axis, double ThetaRadians) const noexcept
+{
+    auto Apply = [&](Vec3 P) { return RotateAroundAxis(P, Axis, ThetaRadians); };
+    auto& B = F.Blueprint;
+    B.A = Apply(B.A);
+    B.B = Apply(B.B);
+    B.C = Apply(B.C);
+    B.Axis = Apply(B.Axis);
+    B.Normal = Apply(B.Normal);
+    for (auto& P : B.PolylinePoints) P = Apply(P);
+    return true;
+}
+
+// Create a copy of a figure, with every Blueprint cell reflected, and rebuild its geometry. Returns
+//    the new figure by reference (added to the scene) or refuses.
+[[nodiscard]] SceneFigure& ConsoleHost::MirrorFigureCopy(const SceneFigure& Source, const std::vector<ConsoleHost::MirrorSpec>& Specs, const std::string& NewName) noexcept
+{
+    // Deep-clone the source via Scene.Duplicate, then reflect + rebuild.
+    SceneFigure& New = Scene.Duplicate(Source);
+    New.Name = NewName;
+    (void)ReflectBlueprint(New, Specs);
+    RebuildFigureFromBlueprint(New);
+    AutoEmitDimensions(New);
+    return New;
+}
+
+// Rotate a copy of a figure around an axis. Same pattern as MirrorFigureCopy.
+[[nodiscard]] SceneFigure& ConsoleHost::RadialFigureCopy(const SceneFigure& Source, MirrorAxis Axis, double ThetaRadians, const std::string& NewName) noexcept
+{
+    SceneFigure& New = Scene.Duplicate(Source);
+    New.Name = NewName;
+    (void)RotateBlueprint(New, Axis, ThetaRadians);
+    RebuildFigureFromBlueprint(New);
+    AutoEmitDimensions(New);
+    return New;
+}
+
+// Add an Empty figure to the scene. The position is stored in Blueprint.A; the Curve is the
+//    zero-length placeholder from NurbsCurve::Empty().
+[[nodiscard]] SceneFigure& ConsoleHost::AddEmpty(Vec3 Position, const std::string& Name) noexcept
+{
+    Deliver<NurbsCurve> D = NurbsCurve::Empty();
+    if (!D) return *Scene.Figures().begin();                                   // shouldn't happen, but be safe
+    SceneFigure& E = Scene.AddCurve(Name, std::move(D.Payload));
+    E.Classification = FigureClassification::Empty;
+    E.Blueprint.Form = SceneFigure::ParametricForm::Empty;
+    E.Blueprint.A = Position;
+    return E;
 }
 
 void ConsoleHost::Register() noexcept
@@ -2243,6 +2393,147 @@ void ConsoleHost::Register() noexcept
         Row("array → %d copies%s", TotalCreated, Radial ? "  (radial)" : "  (linear)");
         return true;
     });
+    Add("mirror", "mirror <fig...|selected> [--across=xy|xz|yz|<name>|(nx,ny,nz)|((ox,oy,oz),(dx,dy,dz))] [--also=<spec>]... [--in-place|--copy] [--name=<stem>]  ·  default --copy, default --across=xy. The --also flag adds a second (or third) mirror op; with 2 perpendicular planes you get 4 copies, with 3 you get 8.", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "mirror")) return false;
+        // Collect target figures.
+        std::vector<std::string> Targets;
+        bool UseSelected = false;
+        for (size_t I = 0; I < C.Count(); ++I)
+        {
+            const std::string& Tok = C.Arguments[I];
+            if (Tok == "selected") UseSelected = true;
+            else Targets.push_back(Tok);
+        }
+        if (UseSelected) for (const auto& F : Scene.Figures()) if (F.Selected) Targets.push_back(F.Name);
+        if (Targets.empty()) return Refuse("mirror: at least one figure or `selected` required");
+        // Collect mirror specs.
+        std::vector<ConsoleHost::MirrorSpec> Specs;
+        ConsoleHost::MirrorSpec DefaultSpec; DefaultSpec.Label = "xy";
+        Specs.push_back(DefaultSpec);
+        if (auto Across = C.SwitchText("across"))
+        {
+            Specs.clear();
+            ConsoleHost::MirrorSpec S;
+            if (!ParseMirrorSpec(*Across, S)) return Refuse("mirror: bad --across spec '%s'", Across->c_str());
+            Specs.push_back(S);
+        }
+        // --also=<spec> can be repeated.
+        for (size_t I = 0; I < 8; ++I)
+        {
+            char Key[16]; std::snprintf(Key, sizeof Key, "also%zu", I);
+            if (auto Also = C.SwitchText(Key))
+            {
+                ConsoleHost::MirrorSpec S;
+                if (!ParseMirrorSpec(*Also, S)) return Refuse("mirror: bad --also%zu spec '%s'", I, (*Also).c_str());
+                Specs.push_back(S);
+            }
+        }
+        // --also (shorthand for --also0) for the common two-plane case.
+        if (auto Also = C.SwitchText("also"))
+        {
+            ConsoleHost::MirrorSpec S;
+            if (!ParseMirrorSpec(*Also, S)) return Refuse("mirror: bad --also spec '%s'", Also->c_str());
+            Specs.push_back(S);
+        }
+        bool InPlace = C.Switch("in-place");
+        std::string NameStem = C.SwitchText("name").value_or("Mirror");
+        // For each target figure, generate 2^N copies (one for each combination of reflect/no-reflect across each spec).
+        // We do this by binary enumeration: bit I = 1 means we apply Specs[I] to the source.
+        int N = (int)Specs.size();
+        if (N > 6) return Refuse("mirror: too many --also specs (max 6)");
+        size_t TotalCopies = 0;
+        for (const std::string& Target : Targets)
+        {
+            // Capture by value — Scene.Duplicate may reallocate Entries and invalidate raw pointers.
+            const SceneFigure* SrcPtr = Resolve(Target);
+            if (!SrcPtr) return Refuse("mirror: no figure '%s'", Target.c_str());
+            SceneFigure Src = *SrcPtr;
+            if (InPlace)
+            {
+                // Mutate the source by applying all specs once. We don't enumerate — in-place is a single edit.
+                SceneFigure* Mutable = Resolve(Target);
+                if (!Mutable) return Refuse("mirror: figure '%s' disappeared after in-place edit", Target.c_str());
+                (void)ReflectBlueprint(*Mutable, Specs);
+                RebuildFigureFromBlueprint(*Mutable);
+                AutoEmitDimensions(*Mutable);
+                Row("mirror: '%s' reflected in-place (%zu ops)", Target.c_str(), Specs.size());
+                continue;
+            }
+            for (int Bits = 0; Bits < (1 << N); ++Bits)
+            {
+                if (Bits == 0) continue;                                          // skip the all-zero case (no transformation = source itself)
+                std::vector<ConsoleHost::MirrorSpec> Active;
+                for (int I = 0; I < N; ++I) if (Bits & (1 << I)) Active.push_back(Specs[I]);
+                std::string NewName = NameStem + "." + Target;
+                if ((1 << N) > 2) NewName += "." + std::to_string(Bits);
+                (void)MirrorFigureCopy(Src, Active, NewName);
+                ++TotalCopies;
+            }
+        }
+        Row("mirror: %zu copies from %zu figures × %d axes", TotalCopies, Targets.size(), (int)Specs.size());
+        return true;
+    });
+    Add("radial", "radial <fig...|selected> --count=N --axis=((ox,oy,oz),(dx,dy,dz)) [--angle=deg=360] [--name=<stem>]  ·  source + (N-1) copies around the axis at evenly-spaced angles. Default --angle=360 (full circle), default --count=2 (source + 1 copy).", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "radial")) return false;
+        int Count = int(C.SwitchNumber("count").value_or(2.0));
+        if (Count < 2) return Refuse("radial: --count must be ≥ 2");
+        double AngleDeg = C.SwitchNumber("angle").value_or(360.0);
+        double Step = (3.14159265358979323846 / 180.0) * AngleDeg / Count;
+        auto AxisTok = C.SwitchText("axis");
+        if (!AxisTok) return Refuse("radial: --axis=(ox,oy,oz),(dx,dy,dz) required");
+        // Parse the axis: a 3D line "(origin),(dir)" — same format as `array --axis=...`.
+        MirrorAxis Axis;
+        size_t Sep = AxisTok->find("),(");
+        if (Sep == std::string::npos) return Refuse("radial: bad --axis spec '%s' (expected (ox,oy,oz),(dx,dy,dz))", AxisTok->c_str());
+        std::string OStr = AxisTok->substr(0, Sep + 1);
+        std::string DStr = AxisTok->substr(Sep + 2);
+        auto O = CommandCodec::ParsePoint(OStr);
+        auto D = CommandCodec::ParsePoint(DStr);
+        if (!O || !D) return Refuse("radial: bad --axis points (got '%s' / '%s')", OStr.c_str(), DStr.c_str());
+        Axis.Origin = *O; Axis.Direction = (*D - *O).Normalised();
+        if (Axis.Direction.LengthSquared() < 1e-12) return Refuse("radial: axis direction is zero");
+        std::string NameStem = C.SwitchText("name").value_or("Radial");
+        // Collect target figures.
+        std::vector<std::string> Targets;
+        bool UseSelected = false;
+        for (size_t I = 0; I < C.Count(); ++I)
+        {
+            const std::string& Tok = C.Arguments[I];
+            if (Tok == "selected") UseSelected = true;
+            else Targets.push_back(Tok);
+        }
+        if (UseSelected) for (const auto& F : Scene.Figures()) if (F.Selected) Targets.push_back(F.Name);
+        if (Targets.empty()) return Refuse("radial: at least one figure or `selected` required");
+        size_t TotalCopies = 0;
+        for (const std::string& Target : Targets)
+        {
+            // Capture by value — Scene.Duplicate may reallocate Entries and invalidate raw pointers.
+            const SceneFigure* SrcPtr = Resolve(Target);
+            if (!SrcPtr) return Refuse("radial: no figure '%s'", Target.c_str());
+            SceneFigure Src = *SrcPtr;
+            for (int K = 1; K < Count; ++K)                                      // K=0 is the source itself
+            {
+                std::string NewName = NameStem + "." + Target + "." + std::to_string(K);
+                (void)RadialFigureCopy(Src, Axis, K * Step, NewName);
+                ++TotalCopies;
+            }
+        }
+        Row("radial: %zu copies from %zu figures × %d angles (step %.2f°)", TotalCopies, Targets.size(), Count - 1, Step * 180.0 / 3.14159265358979323846);
+        return true;
+    });
+    Add("empty", "empty --name=E --at=(x,y,z)  ·  create a transform handle (no geometry) at the given position. Empties can be mirrored and used as radial array centres.", [=, this](const CommandLine& C)
+    {
+        std::string Name = C.SwitchText("name").value_or("Empty");
+        auto At = C.SwitchText("at");
+        if (!At) return Refuse("empty: --at=(x,y,z) required");
+        auto P = CommandCodec::ParsePoint(*At);
+        if (!P) return Refuse("empty: bad --at point '%s'", At->c_str());
+        (void)AddEmpty(*P, Name);
+        Row("empty: created '%s' at (%.3f, %.3f, %.3f)", Name.c_str(), P->X, P->Y, P->Z);
+        return true;
+    });
     Add("recipe", "recipe [figure...] — how derived figures are built (sources, options, complaints)  ·  recipe bake <figure...> detaches them", [=, this](const CommandLine& C)
     {
         if (C.Count() >= 1 && C.Arguments[0] == "bake")
@@ -2292,8 +2583,20 @@ void ConsoleHost::Register() noexcept
         Row("scene reset (empty, workplane xy)");
         return true;
     });
-    Add("list", "list — every figure with its measurements", [=, this](const CommandLine&)
+    Add("list", "list — every figure with its measurements  ·  list empty — only Empty figures (transform handles)", [=, this](const CommandLine& C)
     {
+        if (C.Count() >= 1 && C.Arguments[0] == "empty")
+        {
+            size_t N = 0;
+            for (const auto& F : Scene.Figures())
+            {
+                if (F.Classification != FigureClassification::Empty) continue;
+                Row("empty #%u  '%s'  at (%.3f, %.3f, %.3f)", F.Identity, F.Name.c_str(), F.Blueprint.A.X, F.Blueprint.A.Y, F.Blueprint.A.Z);
+                ++N;
+            }
+            if (N == 0) Row("(no empties)");
+            return true;
+        }
         if (Scene.Figures().empty()) Row("(empty scene)");
         for (const SceneFigure& I : Scene.Figures()) DescribeFigure(I);
         return true;

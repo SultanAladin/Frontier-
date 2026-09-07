@@ -28,6 +28,7 @@ add_library(SolidArcKernel STATIC
     Kernel/IntersectionSolver.cpp
     Kernel/FairPatchSolver.cpp
     Kernel/ProfileSolver.cpp
+    Kernel/MirrorSolver.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -121,6 +122,11 @@ add_test(NAME SubEntityDimensionVerification COMMAND SubEntityDimensionVerificat
 add_executable(ConstraintVerification Verification/ConstraintVerification.cpp)
 target_link_libraries(ConstraintVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME ConstraintVerification COMMAND ConstraintVerification)
+
+# Phase 19: mirror / radial / empty operations — 3D reflection (plane / axis / multi-axis) + radial rotation around a 3D line.
+add_executable(MirrorVerification Verification/MirrorVerification.cpp)
+target_link_libraries(MirrorVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME MirrorVerification COMMAND MirrorVerification)
 
 # Phase 10: chain-run every per-phase script and check the contact sheet.
 add_executable(SuiteVerification Verification/SuiteVerification.cpp)

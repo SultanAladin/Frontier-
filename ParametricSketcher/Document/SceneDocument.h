@@ -13,7 +13,7 @@
 namespace Frontier
 {
 
-enum class FigureClassification : uint8_t { Curve, Surface, Body };
+enum class FigureClassification : uint8_t { Curve, Surface, Body, Empty };
 
 // A closed area of the sketch: one cell of the planar arrangement of all coplanar (workplane) curves. Derived — rebuilt after
 //    every change to the curves — so it is never edited directly; only its Filled choice is user-owned and survives rebuilds by
@@ -63,6 +63,7 @@ struct SceneFigure
         Line, Circle, Arc, Ellipse, Polyline, Spline, Rectangle,  // curves
         Extrude, Revolve, Loft, Sweep, Pipe, Boolean,             // derived (Phase 16: live-edit for the rest)
         ChamferEdge,                                              // modifier
+        Empty,                                                    // Phase 19: transform handle, no geometry
     };
     struct ParametricBlueprint
     {
@@ -91,7 +92,11 @@ struct SceneFigure
     }
     [[nodiscard]] bool PoleSelected(int Index) const noexcept { for (int I : SelectedPoles) if (I == Index) return true; return false; }
 
-    [[nodiscard]] Box3 Bounds() const noexcept { return Classification == FigureClassification::Curve ? Curve.Bounds() : Classification == FigureClassification::Surface ? Surface.Bounds() : Body.Bounds(); }
+    [[nodiscard]] Box3 Bounds() const noexcept
+    {
+        if (Classification == FigureClassification::Empty) { Box3 B; B.Include(Blueprint.A); return B; }
+        return Classification == FigureClassification::Curve ? Curve.Bounds() : Classification == FigureClassification::Surface ? Surface.Bounds() : Body.Bounds();
+    }
     void Transform(const Mat4& M) noexcept
     {
         if (Classification == FigureClassification::Curve) Curve = Curve.Transformed(M); else if (Classification == FigureClassification::Surface) Surface = Surface.Transformed(M); else Body = Body.Transformed(M);

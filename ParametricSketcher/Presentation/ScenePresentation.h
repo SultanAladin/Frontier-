@@ -25,6 +25,10 @@ struct ScenePresentation
     // World triad at the origin: X red, Y green, Z blue, each `Length` long, drawn in the overlay segment.
     static void DrawTriad(RasterExchange& Raster, double Length) noexcept;
 
+    // Phase 19: an Empty is a transform handle with no geometry. We draw a small triad at the Empty's
+    //    position (X red, Y green, Z blue) so the user can see and select it.
+    static void DrawEmpty(RasterExchange& Raster, Vec3 Position, double Size = 0.15) noexcept;
+
     [[nodiscard]] static DrawRecord Tinted(float R, float G, float B, float A = 1.0f) noexcept
     {
         DrawRecord D; D.Tint[0] = R; D.Tint[1] = G; D.Tint[2] = B; D.Tint[3] = A; return D;

@@ -233,8 +233,33 @@ void ConsoleHost::RegisterSelection() noexcept
         Row("%d selected%s", N, Sub.c_str());
         return true;
     });
-    Add("delete", "delete <figure...> | selected  — in control mode nothing is deleted from a NURBS (poles are structural)", [=, this](const CommandLine& C)
+    Add("delete", "delete <figure...> | selected | empty <name> | empty all  — remove figures from the scene. Phase 19 added `delete empty <name>|all` for transform handles.", [=, this](const CommandLine& C)
     {
+        // Phase 19: handle `delete empty <name>|all` separately so Empties can be removed without
+        //    touching real geometry. This runs before ResolveMany so `empty` isn't a figure name.
+        if (C.Count() >= 1 && C.Arguments[0] == "empty")
+        {
+            if (C.Count() < 2) return Refuse("delete empty: a name or `all` required");
+            const std::string& Target = C.Arguments[1];
+            size_t Before = Scene.Figures().size();
+            if (Target == "all")
+            {
+                for (size_t I = Scene.Figures().size(); I > 0; --I)
+                {
+                    auto& F = Scene.Figures()[I - 1];
+                    if (F.Classification == FigureClassification::Empty) Scene.Remove(F.Identity);
+                }
+            }
+            else
+            {
+                const SceneFigure* F = Resolve(Target);
+                if (!F) return Refuse("delete empty: no figure '%s'", Target.c_str());
+                if (F->Classification != FigureClassification::Empty) return Refuse("delete empty: '%s' is not an empty", Target.c_str());
+                Scene.Remove(F->Identity);
+            }
+            Row("delete empty: removed %zu figure(s)", Before - Scene.Figures().size());
+            return true;
+        }
         std::vector<uint32_t> Ids; for (SceneFigure* I : ResolveMany(C, 0)) Ids.push_back(I->Identity);
         if (Ids.empty()) return Refuse("delete: nothing selected");
         for (uint32_t Id : Ids) Scene.Remove(Id);
@@ -279,30 +304,6 @@ void ConsoleHost::RegisterSelection() noexcept
             D.Selected = true; DescribeFigure(D);
         }
         Row("duplicated %zu figure(s)%s", Ids.size(), WithOffset ? "" : " in place — G to move");
-        return true;
-    });
-    Add("mirror", "mirror [figure...] x|y|z [--copy] — mirror across the workplane-origin plane normal to that axis (Alt+X)", [=, this](const CommandLine& C)
-    {
-        if (C.Count() < 1) return Refuse("mirror: axis required");
-        const std::string Axis = C.Arguments.back();
-        if (Axis != "x" && Axis != "y" && Axis != "z") return Refuse("mirror: axis x|y|z");
-        CommandLine Sub = C; Sub.Arguments.pop_back();
-        std::vector<SceneFigure*> Items = ResolveMany(Sub, 0); if (Items.empty()) return Refuse("mirror: nothing selected");
-        Vec3 S{ Axis == "x" ? -1.0 : 1.0, Axis == "y" ? -1.0 : 1.0, Axis == "z" ? -1.0 : 1.0 };
-        Vec3 O = Plane.Origin;
-        Mat4 M = Mat4::Translation(O) * Mat4::Scaling(S) * Mat4::Translation(O * -1.0);
-        std::vector<uint32_t> Ids; for (SceneFigure* I : Items) Ids.push_back(I->Identity);
-        if (C.Switch("copy")) Scene.ClearSelection();
-        for (uint32_t Id : Ids)
-        {
-            SceneFigure* Target = Scene.Find(Id);
-            if (C.Switch("copy")) { SceneFigure Copy = *Target; Target = &Scene.Duplicate(Copy); Target->Selected = true; }
-            // A reflection flips orientation: reverse one parametric direction so the outward normal survives.
-            if (Target->Classification == FigureClassification::Surface) Target->Surface = Target->Surface.Transformed(M).Reversed();
-            else Target->Transform(M);                                                  // bodies re-orient inside BrepBody::Transformed
-            DescribeFigure(*Target);
-        }
-        Row("mirrored %zu figure(s) across %s%s", Ids.size(), Axis.c_str(), C.Switch("copy") ? " (copies)" : "");
         return true;
     });
     Add("undo", "undo [n] — step back (Ctrl+Z)", [=, this](const CommandLine& C)

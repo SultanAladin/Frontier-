@@ -13,6 +13,7 @@
 #include "Interaction/TransformGizmo.h"
 #include "Presentation/SoftwareRaster.h"
 #include "Kernel/ConstraintGraph.h"
+#include "Kernel/MirrorSolver.h"
 #include <cstdio>
 #include <functional>
 #include <map>
@@ -23,6 +24,19 @@ namespace Frontier
 
 class ConsoleHost
 {
+public:
+    // Phase 19: a parsed mirror spec — either a plane (origin + normal) or an axis (origin + direction).
+    //    Filled in by ParseMirrorSpec. The actual reflection is done by MirrorSolver.cpp.
+    struct MirrorSpec
+    {
+        enum class Kind : uint8_t { Plane, Axis };
+        Kind        Kind         = Kind::Plane;
+        Vec3        Origin       = Vec3{};
+        Vec3        NormalOrDir  = Vec3::UnitZ();
+        std::string Label;                                                  // [-] source token for error messages
+    };
+
+
 public:
     explicit ConsoleHost(std::string ProofFolder, uint32_t Width = 1280, uint32_t Height = 800) noexcept;
 
@@ -138,6 +152,18 @@ private:
     void                 WriteBlueprintPoint(SceneFigure& F, int Slot, int SubIndex, int Component, Vec3 NewWorld) noexcept;
     bool                 SolveConstraintGraph() noexcept;
     void                 RebuildFigureFromBlueprint(SceneFigure& F) noexcept;
+
+    // Phase 19: mirror + radial + empty helpers. ParseMirrorSpec decodes a token like "xy" / "P_top"
+    //    / "(1,2,3)" / "((0,0,0),(0,0,1))" into a plane or axis spec. ApplyMirrors composes a list
+    //    of specs. ReflectBlueprint / RotateBlueprint mutate a figure's Blueprint cells. MirrorFigureCopy
+    //    / RadialFigureCopy produce a new figure. AddEmpty creates a transform handle.
+    [[nodiscard]] bool                ParseMirrorSpec(const std::string& Tok, MirrorSpec& Out) const noexcept;
+    [[nodiscard]] Vec3                ApplyMirrors(Vec3 P, const std::vector<MirrorSpec>& Specs) const noexcept;
+    [[nodiscard]] bool                ReflectBlueprint(SceneFigure& F, const std::vector<MirrorSpec>& Specs) const noexcept;
+    [[nodiscard]] bool                RotateBlueprint(SceneFigure& F, MirrorAxis Axis, double ThetaRadians) const noexcept;
+    [[nodiscard]] SceneFigure&        MirrorFigureCopy(const SceneFigure& Source, const std::vector<MirrorSpec>& Specs, const std::string& NewName) noexcept;
+    [[nodiscard]] SceneFigure&        RadialFigureCopy(const SceneFigure& Source, MirrorAxis Axis, double ThetaRadians, const std::string& NewName) noexcept;
+    [[nodiscard]] SceneFigure&        AddEmpty(Vec3 Position, const std::string& Name) noexcept;
     // Toggle dim display (also flips Hidden on every dim). Used by tests + scripts.
 public:
     void SetDimensionsVisible(bool Visible) noexcept { ShowDimensions = Visible; for (auto& D : Dimensions) D.Hidden = !Visible; }

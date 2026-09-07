@@ -102,4 +102,23 @@ void ScenePresentation::DrawTriad(RasterExchange& Raster, double Length) noexcep
     }
 }
 
+void ScenePresentation::DrawEmpty(RasterExchange& Raster, Vec3 Position, double Size) noexcept
+{
+    // Phase 19: an Empty is a transform handle with no geometry. We draw a small triad (3 short
+    //    coloured lines, one per world axis) at the Empty's position so the user can see it.
+    const float Colours[3][3] = { { 0.90f, 0.25f, 0.25f }, { 0.30f, 0.80f, 0.30f }, { 0.30f, 0.50f, 0.95f } };
+    const Vec3 Axes[3] = { Vec3::UnitX(), Vec3::UnitY(), Vec3::UnitZ() };
+    for (int A = 0; A < 3; ++A)
+    {
+        SegmentStream S; S.Append(Position, Position + Axes[A] * Size);
+        DrawRecord D = Tinted(Colours[A][0], Colours[A][1], Colours[A][2]);
+        D.LineWidth = 2.0f;
+        Raster.DrawSegments(S, D);
+    }
+    PointStream P; P.Append(Position, PointGlyph::Disc);
+    DrawRecord D = Tinted(0.95f, 0.95f, 0.40f);
+    D.PointSize = 6.0f;
+    Raster.DrawPoints(P, D);
+}
+
 } // namespace Frontier
