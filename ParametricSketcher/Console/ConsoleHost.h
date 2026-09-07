@@ -58,6 +58,23 @@ public:
         //    rebuilds the figure. Slot = -1 means a free-form measurement (read-only).
         int             Slot      = -1;                                                // [-] -1 = not live, 0..N = slot index
         SceneFigure::ParametricForm BlueprintForm = SceneFigure::ParametricForm::None;     // [-] which builder this dim is tied to
+        // ---- Phase 17: sub-entity anchors -------------------------------------------------
+        // A dim can be tied to a specific face or edge of the body, not just the whole figure.
+        //    AnchorFace = the face index into Body.Faces; AnchorEdge = the edge index into Body.Edges.
+        //    Both are -1 when the dim is whole-figure. A dim with AnchorFace ≥ 0 was created by
+        //    `dim <figure> face <F>` (or auto-emitted by `dim sub <figure>`); a dim with AnchorEdge
+        //    ≥ 0 was created by `dim <figure> edge <E>`. Sub-entity dims are read-only measurements
+        //    (Slot = -1) — their value is recomputed from the geometry every time the body rebuilds.
+        int             AnchorFace = -1;                                              // [-] -1 = whole figure, ≥ 0 = face index
+        int             AnchorEdge = -1;                                              // [-] -1 = whole figure, ≥ 0 = edge index
+        // ---- Phase 17: leader dims --------------------------------------------------------
+        // A leader is a free-floating dim: a line from a feature point (A) to a label position
+        //    (B), with the label drawn at B. Set Leader = true and the renderer draws a leader
+        //    line + dot + offset label instead of the standard dim line + extension lines. The
+        //    label text is taken from D.Label; if D.Label is empty the renderer formats D.Value
+        //    (so `dim leader B (x,y,z) M6 hole` produces a leader with the text "M6 hole", and
+        //    a leader without a custom label still shows the measurement).
+        bool            Leader    = false;                                             // [-] true = leader dim (line + dot + label), false = standard dim
     };
     [[nodiscard]] const std::vector<DimensionEntry>& AllDimensions() const noexcept { return Dimensions; }
     [[nodiscard]] const std::vector<SceneFigure>& AllFigures() const noexcept { return Scene.Figures(); }

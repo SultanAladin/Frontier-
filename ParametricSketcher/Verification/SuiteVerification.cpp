@@ -108,6 +108,7 @@ int main()
         { "Phase13b_ContactSheet.arc", 1,  "Phase 13 redo contact sheet"     },
         { "Phase15_PolylineUndo.scr",  1,  "Phase 15: per-vertex polyline + construction suppression + undo"},
         { "Phase16_DerivedLiveEdit.scr", 1, "Phase 16: live-edit for revolve / pipe / sweep / boolean"},
+        { "Phase17_SubEntityDims.scr",   1, "Phase 17: sub-entity (face / edge) dims, leader lines, dim sub"},
     };
     auto Snapshot = [&](std::set<std::string>& Names) -> size_t
     {

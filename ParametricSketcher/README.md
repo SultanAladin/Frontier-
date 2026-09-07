@@ -64,6 +64,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 14 | **Dim lines are hidden by default** in the SolidArc binary (Phase 14 polish pending). The dim tree itself is still auto-emitted and editable — `dim list`, `dim edit <id> <value>`, `dim hide\|show\|delete <id\|all>` all work; only the on-screen overlay is suppressed. Turn dims back on with `dim on` (or `dim off` / `dim on` to toggle). The intent: the next phase iterates on Plasticity-style placement (smart lift direction, face-aware insertion, tick + label glyph quality) without forcing the user to look at the current draft in the meantime. The Phase 13 proof scripts have been updated to start with `dim on` so their PNGs still show the dim lines. | (no new verification — toggle is covered by `DimensionVerification` which sets `ShowDimensions=true` per host; all 78 checks still pass) |
 | 15 | **Per-vertex polyline live edit, construction-geometry dim suppression, undo for dim edits.** Polylines now get a per-vertex X/Y/Z dim set (slot 18+K·3, K=0…N-1), so `dim edit <name> <axis><K> <value>` pulls a single vertex and rebuilds the polyline. `dim edit` accepts a 2-token dim name (`B Y2`, `Penta X0`, etc.) as well as a numeric id. Construction lines (`--construction`) suppress the auto dim set — they still draw as construction geometry but contribute no live dims. `undo` / `redo` now re-emit the auto dim set so the dim tree tracks the rolled-back scene (the dim ids may renumber, but the named dims are stable). | `DimensionVerification` — 90 checks (+12: construction line emits zero auto dims, non-construction line still emits 3; 4-vertex polyline emits 12 per-vertex dims, vertex 2's Y dim live-edits to 5.0 and the polyline rebuilds with vertex 2 at y=5; box's Y dim live-edit to 7.0 then `undo` rolls back to 3.0 in both the body and the dim tree); `SuiteVerification` — 53 checks (+2: `Phase15_PolylineUndo.scr` runs without refusal and produces the 6 PNGs); `Scripts/Phase15_PolylineUndo.scr`; `Proofs/Phase15_{PolylineBefore,PolylineAfter,ConstructionSuppression,UndoBefore,UndoAfterEdit,UndoAfterUndo}.png` |
 | 16 | **Live-edit for the remaining derived figures: revolve, pipe, sweep, loft, boolean (and explicit Blueprint for extrude).** Each derived op now records a `ParametricBlueprint` (loft degree, sweep scale + twist, pipe radius, revolve angle + axis + origin) so `dim edit` mutates the slot and `ApplyLiveEdit` re-produces the body from the recipe. Revolve angle is stored in radians; sweep twist is in radians; both the user input (in degrees) and the dim display (back to degrees) convert via `ScalarCriteria`. Boolean has no live slot — it consumes its inputs and emits a read-only header dim (slot = -1); the dim tree just labels the result. | `DimensionVerification` — 101 checks (+11: revolve emits a live angle dim (180°→90° rebuilds); pipe emits a live radius dim (0.25→0.5 rebuilds); sweep emits a live scale dim (1.0→2.0 rebuilds); boolean emits a header dim with slot=-1, no live rebuild path); `SuiteVerification` — 55 checks (+2: `Phase16_DerivedLiveEdit.scr` runs without refusal and produces 7 PNGs); `Scripts/Phase16_DerivedLiveEdit.scr`; `Proofs/Phase16_{RevolveBefore,RevolveAfter,PipeBefore,PipeAfter,SweepBefore,SweepAfter,Boolean}.png` |
+| 17 | **Sub-entity dimensions + leader lines.** `dim <figure> face <F>` emits a face-anchored dim (face area via tessellation, perimeter = sum of edge lengths around the face's loops) — both fields are read-only (slot = -1). `dim <figure> edge <E>` emits an edge-anchored dim (length, plus a radius dim for Circle / Arc-classified edges). `dim sub <figure>` auto-emits per-face + per-edge dims for the entire body in one command (every face gets an area + perimeter dim, every edge gets a length dim, circular edges get a radius dim too). `dim leader <figure> (x,y,z) [text...]` emits a free-floating leader: a line from the feature point to the label position, with the text drawn at the label. `--leader=(x,y,z)` on `dim face` or `dim edge` switches an existing dim to leader mode. Each sub-entity dim carries an `AnchorFace` or `AnchorEdge` int, so the renderer knows where the dim is anchored (not just the figure's bounding box). The renderer draws leaders as line + dot at the feature + offset label; standard dims are unchanged. | `SubEntityDimensionVerification` — 34 checks (face dim emits area + perim with AnchorFace set; edge dim emits length with AnchorEdge set; `--leader=` flips the dim to leader mode with the right B endpoint; `dim leader` produces a labelled leader; `dim sub` adds 24 dims to a box (12 face + 12 edge) and 11 to a cylinder (6 face + 3 edge + 2 radius); out-of-range face index refuses; non-body refuses `dim sub` / `dim edge`; deleting the anchor figure doesn't crash the renderer); `SuiteVerification` — 57 checks (+2: `Phase17_SubEntityDims.scr` runs without refusal and produces 4 PNGs); `Scripts/Phase17_SubEntityDims.scr`; `Proofs/Phase17_{FaceEdgeLeader,DimSub,CylinderDimSub,FaceWithLeader}.png` |
 
 ## Console quick start
 
@@ -212,25 +213,26 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **22 suites** — 13 per-phase or per-feature verification binaries (761 checks total) and 12
+ctest now registers **22 suites** — 14 per-phase or per-feature verification binaries (797 checks total) and 12
 script smoke tests — and all 22 run green on every commit. The per-suite check counts:
 
 | Suite | Checks |
 |---|---|
-| `KernelVerification`         | 76  |
-| `InteractionVerification`    | 54  |
-| `SelectionVerification`      | 35  |
-| `RasterVerification`         | 24  |
-| `TopologyVerification`       | 79  |
-| `ProfileVerification`        | 103 |
-| `SkinVerification`           | 48  |
-| `IntersectionVerification`   | 47  |
-| `FairPatchVerification`      | 47  |
-| `BodyOpsVerification`        | 25  |
-| `ArrayAndBridgeVerification` | 67  |
-| `DimensionVerification`      | 101 |
-| `SuiteVerification`          | 55  |
-| **Total** | **761** |
+| `KernelVerification`              | 76  |
+| `InteractionVerification`         | 54  |
+| `SelectionVerification`           | 35  |
+| `RasterVerification`              | 24  |
+| `TopologyVerification`            | 79  |
+| `ProfileVerification`             | 103 |
+| `SkinVerification`                | 48  |
+| `IntersectionVerification`        | 47  |
+| `FairPatchVerification`           | 47  |
+| `BodyOpsVerification`             | 25  |
+| `ArrayAndBridgeVerification`      | 67  |
+| `DimensionVerification`           | 101 |
+| `SubEntityDimensionVerification`  | 34  |
+| `SuiteVerification`               | 57  |
+| **Total** | **797** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

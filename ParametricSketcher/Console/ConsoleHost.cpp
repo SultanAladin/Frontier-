@@ -691,6 +691,56 @@ void ConsoleHost::DrawDimensions() noexcept
         if (D.Hidden) continue;
         if (D.Label.empty()) D.Label = FormatDimensionLabel(D);
 
+        if (D.Leader)
+        {
+            // Phase 17: leader dim. A is the feature point (e.g. face centroid or hole edge),
+            //    B is the label position (free-floating in world space). Draw a line from A
+            //    to B, a small dot at A, and the label at B. No extension lines, no ticks.
+            Vec3 AB = D.B - D.A;
+            double LeaderLen = AB.Length();
+            if (LeaderLen < 1e-9) continue;
+            Vec3 ABu = AB / LeaderLen;
+            // Leader line: full length, no break for the label.
+            DimSegments.Append(D.A, D.B);
+            // Dot at the feature point (a small "+" cross so the leader's anchor reads).
+            {
+                Vec3 Right = View.Right(), Up = View.Up();
+                if (std::fabs(Right.Dot(ABu)) > 0.95) Right = Up.Cross(ABu).Normalised();
+                else                                Right = Right.Cross(ABu).Normalised();
+                Up = ABu.Cross(Right).Normalised();
+                double R = Th * 0.8;
+                DimSegments.Append(D.A - Right * R, D.A + Right * R);
+                DimSegments.Append(D.A - Up * R,    D.A + Up * R);
+            }
+            // Label at the label position, offset slightly so it sits past the end of the line.
+            Vec3 LabelOrigin = D.B + ABu * (Lh * 0.3);
+            double CharW = Lh * 0.6;
+            double CharSpacing = CharW * 1.1;
+            double TotalW = CharSpacing * double(D.Label.size());
+            Vec3 Origin = LabelOrigin - CamRight * (TotalW * 0.5) + CamUp * (Lh * 0.2);
+            for (size_t I = 0; I < D.Label.size(); ++I)
+            {
+                const uint8_t* Bmp = Glyph(D.Label[I]);
+                double Cx = Origin.X + CamRight.X * (CharSpacing * double(I));
+                double Cy = Origin.Y + CamRight.Y * (CharSpacing * double(I));
+                double Cz = Origin.Z + CamRight.Z * (CharSpacing * double(I));
+                for (int Row = 0; Row < 7; ++Row)
+                {
+                    uint8_t RowBmp = Bmp[Row];
+                    for (int Col = 0; Col < 5; ++Col)
+                        if (RowBmp & (1u << (4 - Col)))
+                        {
+                            Vec3 P{
+                                Cx + CamRight.X * (Col * CharW * 0.2) - CamUp.X * (Row * Lh / 7.0),
+                                Cy + CamRight.Y * (Col * CharW * 0.2) - CamUp.Y * (Row * Lh / 7.0),
+                                Cz + CamRight.Z * (Col * CharW * 0.2) - CamUp.Z * (Row * Lh / 7.0) };
+                            DimPoints.Append(P, PointGlyph::Square);
+                        }
+                }
+            }
+            continue;
+        }
+
         // Direction along the feature in world space (A → B)
         Vec3 AB = D.B - D.A;
         double FeatureLen = AB.Length();
@@ -2028,7 +2078,7 @@ void ConsoleHost::Register() noexcept
         return true;
     });
     // ── Dimensions (Phase 13) ──────────────────────────────────────────────────────────────
-    Add("dim", "dim list  ·  dim <figure> --along=X|Y|Z [--name=label]  ·  dim <figure> <p1> <p2>  ·  dim edit <id> <value>  ·  dim hide|show|delete <id|all>  ·  dims are auto-emitted on every primitive and body", [=, this](const CommandLine& C)
+    Add("dim", "dim list  ·  dim <figure> --along=X|Y|Z [--name=label]  ·  dim <figure> <p1> <p2>  ·  dim <figure> face <F> [--leader=(x,y,z)]  ·  dim <figure> edge <E> [--leader=(x,y,z)]  ·  dim sub <figure>  ·  dim leader <figure> (x,y,z) [text]  ·  dim edit <id> <value>  ·  dim hide|show|delete <id|all>  ·  dims are auto-emitted on every primitive and body", [=, this](const CommandLine& C)
     {
         if (C.Count() == 0) return Refuse("dim: try `dim list`, `dim <figure> --along=X`, `dim edit <id> <value>`, or `dim hide|show|delete <id|all>`");
         const std::string& Sub = C.Arguments[0];
@@ -2129,9 +2179,240 @@ void ConsoleHost::Register() noexcept
             Row("dim display: %s (%zu dims %s)", Want ? "on" : "off", Dimensions.size(), Want ? "shown" : "hidden");
             return true;
         }
+        // dim sub <figure>  — auto-emit a read-only dim on every face and every edge of the body.
+        //    Useful for dense inspection. Each sub-entity gets one dim. Phase 17.
+        if (Sub == "sub" && C.Count() >= 2)
+        {
+            SceneFigure* Fig = Resolve(C.Arguments[1]); if (!Fig) return Refuse("dim sub: no figure '%s'", C.Arguments[1].c_str());
+            if (Fig->Classification != FigureClassification::Body) return Refuse("dim sub: '%s' is not a body (sub-entity dims are body-only)", Fig->Name.c_str());
+            const BrepBody& B = Fig->Body;
+            // Helper: face area via tessellation. Phase 17: cheap enough at script speed (2 mm chord).
+            auto FaceArea = [&](int FaceIdx) -> double
+            {
+                BrepBody::FaceTriangles T = B.TessellateFace(FaceIdx, 2e-3);
+                double Sum = 0;
+                for (size_t I = 0; I + 2 < T.Triangles.size(); I += 3)
+                {
+                    Vec3 A = T.Positions[T.Triangles[I + 0]];
+                    Vec3 Bp = T.Positions[T.Triangles[I + 1]];
+                    Vec3 Cp = T.Positions[T.Triangles[I + 2]];
+                    Sum += 0.5 * (Bp - A).Cross(Cp - A).Length();
+                }
+                return Sum;
+            };
+            // Helper: face perimeter = sum of edge lengths around the outer + hole loops.
+            auto FacePerimeter = [&](int FaceIdx) -> double
+            {
+                if (FaceIdx < 0 || FaceIdx >= (int)B.Faces.size()) return 0;
+                const BrepFace& F = B.Faces[FaceIdx];
+                double Sum = 0;
+                auto WalkLoop = [&](int LoopIdx)
+                {
+                    if (LoopIdx < 0 || LoopIdx >= (int)B.Loops.size()) return;
+                    for (int Ce : B.Loops[LoopIdx].Coedges)
+                    {
+                        if (Ce < 0 || Ce >= (int)B.Coedges.size()) continue;
+                        int E = B.Coedges[Ce].Edge;
+                        if (E < 0 || E >= (int)B.Edges.size()) continue;
+                        Sum += B.Edges[E].Curve.Length();
+                    }
+                };
+                for (int L : F.Loops) WalkLoop(L);
+                return Sum;
+            };
+            int Emitted = 0;
+            // Per-face: a length dim around the face perimeter, plus a "sub-face" area dim off to the side.
+            for (int FaceIdx = 0; FaceIdx < (int)B.Faces.size(); ++FaceIdx)
+            {
+                if (B.Faces[FaceIdx].Surface.Poles.empty()) continue;
+                Box3 Fb = B.Faces[FaceIdx].Surface.Bounds();
+                Vec3 Lo = Vec3(Fb.Low.X, Fb.High.Y + 0.05, (Fb.Low.Z + Fb.High.Z) * 0.5);
+                Vec3 Hi = Vec3(Fb.High.X, Fb.High.Y + 0.05, (Fb.Low.Z + Fb.High.Z) * 0.5);
+                double Perim = FacePerimeter(FaceIdx);
+                DimensionEntry D; D.Form = DimensionForm::Bbox; D.Anchor = Fig->Identity; D.AnchorName = Fig->Name + " face" + std::to_string(FaceIdx) + " perim";
+                D.A = Lo; D.B = Hi; D.N = Vec3(0, 1, 0); D.Value = Perim; D.Slot = -1; D.AnchorFace = FaceIdx;
+                D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+                // Area dim: placed a bit further out so it doesn't overlap the perim dim.
+                double Area = FaceArea(FaceIdx);
+                Lo = Vec3(Fb.Low.X, Fb.High.Y + 0.10, (Fb.Low.Z + Fb.High.Z) * 0.5);
+                Hi = Vec3(Fb.High.X, Fb.High.Y + 0.10, (Fb.Low.Z + Fb.High.Z) * 0.5);
+                DimensionEntry A; A.Form = DimensionForm::Bbox; A.Anchor = Fig->Identity; A.AnchorName = Fig->Name + " face" + std::to_string(FaceIdx) + " area";
+                A.A = Lo; A.B = Hi; A.N = Vec3(0, 1, 0); A.Value = Area; A.Slot = -1; A.AnchorFace = FaceIdx;
+                A.Id = NextDimensionId++; A.Auto = true; Dimensions.push_back(std::move(A));
+                Emitted += 2;
+            }
+            // Per-edge: a length dim along the edge, lifted by 4 cm along the edge's outward normal (averaged from adjacent faces).
+            for (int EdgeIdx = 0; EdgeIdx < (int)B.Edges.size(); ++EdgeIdx)
+            {
+                if (B.Edges[EdgeIdx].Curve.PoleCount() == 0) continue;
+                Vec3 Lo = B.Edges[EdgeIdx].Curve.Sample(B.Edges[EdgeIdx].Curve.DomainStart());
+                Vec3 Hi = B.Edges[EdgeIdx].Curve.Sample(B.Edges[EdgeIdx].Curve.DomainEnd());
+                // Average the adjacent faces' outward normals so the lift points "out" of the body, not along one face.
+                Vec3 N(0, 0, 0); int Cnt = 0;
+                for (int Ce : B.Edges[EdgeIdx].Coedges)
+                {
+                    if (Ce < 0 || Ce >= (int)B.Coedges.size()) continue;
+                    int FaceIdx = B.Coedges[Ce].Face;
+                    if (FaceIdx < 0 || FaceIdx >= (int)B.Faces.size()) continue;
+                    double Um = 0.5 * (B.Faces[FaceIdx].Surface.DomainStartU() + B.Faces[FaceIdx].Surface.DomainEndU());
+                    double Vm = 0.5 * (B.Faces[FaceIdx].Surface.DomainStartV() + B.Faces[FaceIdx].Surface.DomainEndV());
+                    Vec3 Ff = B.FaceNormal(FaceIdx, Um, Vm);
+                    if (B.Coedges[Ce].Reversed) Ff = -Ff;
+                    N = N + Ff; ++Cnt;
+                }
+                if (Cnt > 0) N = (N * (1.0 / Cnt)).Normalised(); else N = Vec3(0, 1, 0);
+                if (N.LengthSquared() < 1e-12) N = Vec3(0, 1, 0);
+                DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = Fig->Identity; D.AnchorName = Fig->Name + " edge" + std::to_string(EdgeIdx) + " length";
+                D.A = Lo; D.B = Hi; D.N = N; D.Value = B.Edges[EdgeIdx].Curve.Length(); D.Slot = -1; D.AnchorEdge = EdgeIdx;
+                D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
+                ++Emitted;
+                // For circular / arc edges, also emit a radius dim from the edge's analytic centre so the
+                //    user can see the radius without running a separate `dim edge` command.
+                if (B.Edges[EdgeIdx].Curve.Classification == CurveClassification::Circle || B.Edges[EdgeIdx].Curve.Classification == CurveClassification::Arc)
+                {
+                    Vec3 Ctr = B.Edges[EdgeIdx].Curve.Centre;
+                    DimensionEntry R; R.Form = DimensionForm::Radius; R.Anchor = Fig->Identity; R.AnchorName = Fig->Name + " edge" + std::to_string(EdgeIdx) + " radius";
+                    R.A = Ctr; R.B = (Lo + Hi) * 0.5; R.N = N; R.Value = B.Edges[EdgeIdx].Curve.RadiusMajor; R.Slot = -1; R.AnchorEdge = EdgeIdx;
+                    R.Id = NextDimensionId++; R.Auto = true; Dimensions.push_back(std::move(R));
+                    ++Emitted;
+                }
+            }
+            Row("dim sub: %s  ·  %d face dims, %d edge dims (%d total)", Fig->Name.c_str(), 2 * (int)B.Faces.size(), (int)B.Edges.size(), Emitted);
+            return true;
+        }
+        // dim leader <figure> (x,y,z) [text...]  — a free-floating leader. Phase 17.
+        if (Sub == "leader" && C.Count() >= 3)
+        {
+            SceneFigure* Fig = Resolve(C.Arguments[1]); if (!Fig) return Refuse("dim leader: no figure '%s'", C.Arguments[1].c_str());
+            auto P = CommandCodec::ParsePoint(C.Arguments[2]); if (!P) return Refuse("dim leader: '%s' is not a point", C.Arguments[2].c_str());
+            // Feature point: if the user has a single face/edge selected, snap to the face centroid / edge midpoint.
+            //    Otherwise use the figure's bounding-box centre.
+            Vec3 Feature;
+            if (Fig->Classification == FigureClassification::Body && (Fig->SelectedFaces.size() == 1 || Fig->SelectedEdges.size() == 1))
+            {
+                const BrepBody& B = Fig->Body;
+                if (Fig->SelectedFaces.size() == 1)
+                {
+                    int FaceIdx = Fig->SelectedFaces[0];
+                    Box3 Bf = B.Faces[FaceIdx].Surface.Bounds();
+                    Feature = (Bf.Low + Bf.High) * 0.5;
+                }
+                else
+                {
+                    int EdgeIdx = Fig->SelectedEdges[0];
+                    const BrepEdge& Ed = B.Edges[EdgeIdx];
+                    Feature = (Ed.Curve.Sample(Ed.Curve.DomainStart()) + Ed.Curve.Sample(Ed.Curve.DomainEnd())) * 0.5;
+                }
+            }
+            else
+            {
+                Box3 Bf = Fig->Bounds();
+                Feature = (Bf.Low + Bf.High) * 0.5;
+            }
+            // Optional label: any remaining arguments are joined with a space.
+            std::string Text;
+            for (size_t I = 3; I < C.Count(); ++I) { if (!Text.empty()) Text += " "; Text += C.Arguments[I]; }
+            DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = Fig->Identity; D.AnchorName = Fig->Name + " leader";
+            D.A = Feature; D.B = *P; D.N = Vec3(0, 1, 0); D.Value = (*P - Feature).Length(); D.Slot = -1;
+            D.Leader = true; D.Label = Text;                                                                    // empty Label → format D.Value
+            D.Id = NextDimensionId++; D.Auto = false; Dimensions.push_back(std::move(D));
+            Row("dim #%u  %s leader → (%.3f %.3f %.3f)  text '%s'", D.Id, Fig->Name.c_str(), P->X, P->Y, P->Z, Text.c_str());
+            return true;
+        }
         // dim <figure> [...]  — user-added linear dim. First figure is the anchor; the rest are switch values.
         SceneFigure* F = Resolve(Sub);
         if (!F) return Refuse("dim: no figure '%s' and not a recognised subcommand (try `dim list`)", Sub.c_str());
+        // dim <figure> face <F> [--leader=(x,y,z)]  — emit a face-anchored dim (area + perimeter, or leader).
+        if (C.Count() >= 3 && C.Arguments[1] == "face")
+        {
+            int FaceIdx; if (auto V = CommandCodec::ParseNumber(C.Arguments[2])) FaceIdx = int(*V); else return Refuse("dim <figure> face: expected a face index");
+            if (F->Classification != FigureClassification::Body) return Refuse("dim <figure> face: '%s' is not a body", F->Name.c_str());
+            if (FaceIdx < 0 || FaceIdx >= (int)F->Body.Faces.size()) return Refuse("dim <figure> face: index %d out of range 0..%zu", FaceIdx, F->Body.Faces.size() - 1);
+            const BrepFace& Face = F->Body.Faces[FaceIdx];
+            // Face area via tessellation.
+            BrepBody::FaceTriangles T = F->Body.TessellateFace(FaceIdx, 2e-3);
+            double Area = 0;
+            for (size_t I = 0; I + 2 < T.Triangles.size(); I += 3)
+            {
+                Vec3 A = T.Positions[T.Triangles[I + 0]];
+                Vec3 Bp = T.Positions[T.Triangles[I + 1]];
+                Vec3 Cp = T.Positions[T.Triangles[I + 2]];
+                Area += 0.5 * (Bp - A).Cross(Cp - A).Length();
+            }
+            Box3 Fb = Face.Surface.Bounds();
+            Vec3 Centroid = (Fb.Low + Fb.High) * 0.5;
+            // Perimeter = sum of edge lengths around the face's outer + hole loops.
+            double Perim = 0;
+            auto WalkLoop = [&](int LoopIdx)
+            {
+                if (LoopIdx < 0 || LoopIdx >= (int)F->Body.Loops.size()) return;
+                for (int Ce : F->Body.Loops[LoopIdx].Coedges)
+                {
+                    if (Ce < 0 || Ce >= (int)F->Body.Coedges.size()) continue;
+                    int E = F->Body.Coedges[Ce].Edge;
+                    if (E < 0 || E >= (int)F->Body.Edges.size()) continue;
+                    Perim += F->Body.Edges[E].Curve.Length();
+                }
+            };
+            for (int L : Face.Loops) WalkLoop(L);
+            // Leader switch: --leader=(lx,ly,lz) places the label at that point.
+            bool WantLeader = C.Switch("leader");
+            Vec3 LabelPos = Centroid + Vec3(0, Fb.Diagonal() * 0.25, 0);
+            if (auto L = C.SwitchText("leader")) if (auto V = CommandCodec::ParsePoint(*L)) LabelPos = *V;
+            // Emit two dims: one for area (read-only), one for perimeter (read-only). Both face-anchored.
+            DimensionEntry A; A.Form = DimensionForm::Bbox; A.Anchor = F->Identity; A.AnchorName = F->Name + " face" + std::to_string(FaceIdx) + " area";
+            A.A = Centroid; A.B = LabelPos; A.N = Vec3(0, 1, 0); A.Value = Area; A.Slot = -1; A.AnchorFace = FaceIdx;
+            A.Leader = WantLeader; A.Id = NextDimensionId++; A.Auto = false; Dimensions.push_back(std::move(A));
+            DimensionEntry P; P.Form = DimensionForm::Bbox; P.Anchor = F->Identity; P.AnchorName = F->Name + " face" + std::to_string(FaceIdx) + " perim";
+            P.A = Vec3(Fb.Low.X, Fb.High.Y + 0.05, (Fb.Low.Z + Fb.High.Z) * 0.5);
+            P.B = Vec3(Fb.High.X, Fb.High.Y + 0.05, (Fb.Low.Z + Fb.High.Z) * 0.5);
+            P.N = Vec3(0, 1, 0); P.Value = Perim; P.Slot = -1; P.AnchorFace = FaceIdx;
+            P.Id = NextDimensionId++; P.Auto = false; Dimensions.push_back(std::move(P));
+            Row("dim #%u  %s face %d area %.4f  perim %.4f%s", P.Id, F->Name.c_str(), FaceIdx, Area, Perim, WantLeader ? "  (leader)" : "");
+            return true;
+        }
+        // dim <figure> edge <E> [--leader=(x,y,z)]  — emit an edge-anchored dim (length, plus radius for circle/arc edges).
+        if (C.Count() >= 3 && C.Arguments[1] == "edge")
+        {
+            int EdgeIdx; if (auto V = CommandCodec::ParseNumber(C.Arguments[2])) EdgeIdx = int(*V); else return Refuse("dim <figure> edge: expected an edge index");
+            if (F->Classification != FigureClassification::Body) return Refuse("dim <figure> edge: '%s' is not a body", F->Name.c_str());
+            if (EdgeIdx < 0 || EdgeIdx >= (int)F->Body.Edges.size()) return Refuse("dim <figure> edge: index %d out of range 0..%zu", EdgeIdx, F->Body.Edges.size() - 1);
+            const BrepEdge& Ed = F->Body.Edges[EdgeIdx];
+            Vec3 Lo = Ed.Curve.Sample(Ed.Curve.DomainStart());
+            Vec3 Hi = Ed.Curve.Sample(Ed.Curve.DomainEnd());
+            // Lift direction: average the adjacent face normals (outward) so the dim line sits above the edge.
+            Vec3 N(0, 0, 0); int Cnt = 0;
+            for (int Ce : Ed.Coedges)
+            {
+                if (Ce < 0 || Ce >= (int)F->Body.Coedges.size()) continue;
+                int Ff = F->Body.Coedges[Ce].Face;
+                if (Ff < 0 || Ff >= (int)F->Body.Faces.size()) continue;
+                double Um = 0.5 * (F->Body.Faces[Ff].Surface.DomainStartU() + F->Body.Faces[Ff].Surface.DomainEndU());
+                double Vm = 0.5 * (F->Body.Faces[Ff].Surface.DomainStartV() + F->Body.Faces[Ff].Surface.DomainEndV());
+                Vec3 Fn = F->Body.FaceNormal(Ff, Um, Vm);
+                if (F->Body.Coedges[Ce].Reversed) Fn = -Fn;
+                N = N + Fn; ++Cnt;
+            }
+            if (Cnt > 0) N = (N * (1.0 / Cnt)).Normalised(); else N = Vec3(0, 1, 0);
+            if (N.LengthSquared() < 1e-12) N = Vec3(0, 1, 0);
+            bool WantLeader = C.Switch("leader");
+            Vec3 LabelPos = (Lo + Hi) * 0.5 + N * 0.3;
+            if (auto L = C.SwitchText("leader")) if (auto V = CommandCodec::ParsePoint(*L)) LabelPos = *V;
+            // Length dim.
+            DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = F->Identity; D.AnchorName = F->Name + " edge" + std::to_string(EdgeIdx) + " length";
+            D.A = Lo; D.B = Hi; D.N = N; D.Value = Ed.Curve.Length(); D.Slot = -1; D.AnchorEdge = EdgeIdx;
+            D.Leader = WantLeader; D.Id = NextDimensionId++; D.Auto = false; Dimensions.push_back(std::move(D));
+            // If the edge is a circle or an arc, also emit a radius dim from the edge's analytic centre.
+            if (Ed.Curve.Classification == CurveClassification::Circle || Ed.Curve.Classification == CurveClassification::Arc)
+            {
+                Vec3 Ctr = Ed.Curve.Centre;
+                DimensionEntry R; R.Form = DimensionForm::Radius; R.Anchor = F->Identity; R.AnchorName = F->Name + " edge" + std::to_string(EdgeIdx) + " radius";
+                R.A = Ctr; R.B = (Lo + Hi) * 0.5; R.N = Plane.Normal(); R.Value = Ed.Curve.RadiusMajor; R.Slot = -1; R.AnchorEdge = EdgeIdx;
+                R.Id = NextDimensionId++; R.Auto = false; Dimensions.push_back(std::move(R));
+            }
+            Row("dim #%u  %s edge %d length %.4f%s", D.Id, F->Name.c_str(), EdgeIdx, Ed.Curve.Length(), WantLeader ? "  (leader)" : "");
+            return true;
+        }
         if (C.Switch("along"))
         {
             std::string A = *C.SwitchText("along");
