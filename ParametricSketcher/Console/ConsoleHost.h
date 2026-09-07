@@ -138,6 +138,10 @@ private:
     [[nodiscard]] int32_t  FindDimensionAtPixel(double X, double Y) const noexcept;     // [-] dim id (0 = none)
     [[nodiscard]] Vec2     WorldToScreen(Vec3 P) const noexcept;                        // [px] world point → NDC-like pixel
     void DeleteAutoDimensionsFor(uint32_t Anchor) noexcept;
+    // Phase 20: return a world-space normal / direction flipped to point at the camera. Used by
+    //    AutoEmitDimensions to keep dim lines on the side of the body that the viewer actually sees,
+    //    regardless of orbit / pan / dolly. `N` must be a unit vector; the returned vector is also unit.
+    [[nodiscard]] Vec3 CameraFacingSide(Vec3 N) const noexcept;
     // Live dim editing: a `dim edit` on a live dim reaches into the source figure's ParametricBlueprint
     //    slot, mutates the field, then calls RebuildFromSource to regenerate the geometry.
     bool ApplyLiveEdit(DimensionEntry& D, double NewValue) noexcept;

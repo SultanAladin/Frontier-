@@ -1,7 +1,8 @@
 echo Phase 19 -- mirror / radial / empty operations
-echo   -- mirror <fig> --across=<xy|xz|yz|name|(n)|(o,d)> [--also=...] [--copy|--in-place] [--name=stem]
-echo   -- radial <fig> --count=N --axis=(o),(d) [--angle=deg] [--name=stem]
-echo   -- empty --name=E --at=(x,y,z) | list empty | delete empty <name>|all
+echo   -- mirror <fig> --across=<xy|xz|yz|name|(n)|(o,d)> [--also=...] [--copy|--in-place] [--name=stem>
+echo   -- radial <fig> --count=N --axis=(o),(d) [--angle=deg] [--name=stem>
+echo   -- empty --name=E --at=(x,y,z) | list empty | delete empty <name>|all>
+dim on
 view iso
 gizmo off
 reset

@@ -18,7 +18,7 @@ using namespace Frontier;
 namespace
 {
 
-const float Backdrop[4] = { 0.117f, 0.129f, 0.153f, 1.0f };                            // Frontier viewport slate
+const float Backdrop[4] = { 0.0f, 0.0f, 0.0f, 1.0f };                                 // Phase 20: black background
 
 struct Texel { uint8_t R, G, B; };
 Texel Sample(const RasterImage& I, uint32_t X, uint32_t Y) noexcept
@@ -77,7 +77,7 @@ int main()
         Texel PC = Sample(Image, uint32_t(Cell.X), uint32_t(Cell.Y));
         Panel.Expect("X axis pixel is red-dominant", PX.R > PX.G + 40 && PX.R > PX.B + 40);
         Panel.Expect("Y axis pixel is green-dominant", PY.G > PY.R + 40 && PY.G > PY.B + 40);
-        Panel.Expect("Cell interior stays near backdrop (lattice is lines, not fill)", std::abs(int(PC.R) - 95) < 30 && std::abs(int(PC.B) - 110) < 30);
+        Panel.Expect("Cell interior stays near backdrop (lattice is lines, not fill)", int(PC.R) < 25 && int(PC.G) < 25 && int(PC.B) < 25);
         Panel.Note("inspect X-axis rgb(%d,%d,%d)  Y-axis rgb(%d,%d,%d)  cell rgb(%d,%d,%d)", PX.R, PX.G, PX.B, PY.R, PY.G, PY.B, PC.R, PC.G, PC.B);
 
         // Triad tip: the Z tip at (0,0,2) must be blue-ish and, being overlay, unaffected by depth.

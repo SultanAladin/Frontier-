@@ -21,7 +21,7 @@ namespace Frontier
 
 namespace
 {
-const float Backdrop[4] = { 0.117f, 0.129f, 0.153f, 1.0f };
+const float Backdrop[4] = { 0.0f, 0.0f, 0.0f, 1.0f };                              // Phase 20: black background per user request
 const char* ClassName(FigureClassification K) noexcept { return K == FigureClassification::Curve ? "curve" : "surface"; }
 }
 
@@ -93,6 +93,27 @@ void ConsoleHost::DescribeFigure(const SceneFigure& Figure) noexcept
 //  of the two incident edges. The value is editable via `dim edit <id> <new-value>` and the
 //  label is recomputed from the value every frame (so an edit shows up on the next render).
 // ──────────────────────────────────────────────────────────────────────────────────────────
+
+// Phase 20: dim placement polish. Return a unit normal pointing at the camera, picked from
+//    ±N. The logic is: project the world-space `Forward()` direction onto the plane whose
+//    normal is `N`. If the projected vector is on the +N side, return `+N`; else return `-N`.
+//    If `N` is parallel to the camera direction (the degenerate case), use the screen-right
+//    vector to pick: the dim sits on whichever side is to the right of the screen, so it
+//    reads naturally from the viewer's POV in axis-aligned views (front / back / side / top).
+Vec3 ConsoleHost::CameraFacingSide(Vec3 N) const noexcept
+{
+    if (N.LengthSquared() < 1e-12) return Vec3(0, 1, 0);
+    Vec3 Nu = N.Normalised();
+    Vec3 Fwd = View.Forward();
+    Vec3 Right = View.Right();
+    double Side = Fwd.Dot(Nu);
+    if (std::fabs(Side) < 1e-6)
+    {
+        // Degenerate: camera looks along N. Use the screen-right vector to decide which side.
+        return Right.Dot(Nu) > 0 ? Nu : -Nu;
+    }
+    return Side > 0 ? Nu : -Nu;
+}
 
 uint32_t ConsoleHost::EmitDimension(DimensionForm Form, uint32_t Anchor, const std::string& AnchorName, Vec3 A, Vec3 B, Vec3 N, double Value, bool Auto) noexcept
 {
@@ -293,38 +314,96 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
         // Torus: R3 = radiusMajor (slot 15), R2 = radiusMinor (slot 14).
         // For now, set Slot based on form. The default offset is a small world-space amount
         //    (0.04 m ≈ 4 cm) so the line sits ON the surface, not far from it.
-        const double FaceOffset = 0.04;
         if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Box)
         {
-            EmitBbox("X", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), B.High.X - B.Low.X, Vec3(0, 1, 0), 3);
-            EmitBbox("Y", Vec3(B.High.X + FaceOffset, B.Low.Y, Centre.Z), Vec3(B.High.X + FaceOffset, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0), 4);
-            EmitBbox("Z", Vec3(B.High.X + FaceOffset, Centre.Y, B.Low.Z), Vec3(B.High.X + FaceOffset, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0), 5);
+            // Phase 20: dim placement is camera-facing. The X dim's lift is ±Y — pick the side of the
+            //    box that the camera is on. The dim line endpoints sit on the face plane, with the
+            //    renderer adding the 4 cm world-space lift, so we DON'T pre-offset the endpoints.
+            Vec3 XSide = CameraFacingSide(Vec3(0, 1, 0));
+            Vec3 YSide = CameraFacingSide(Vec3(1, 0, 0));
+            Vec3 ZSide = CameraFacingSide(Vec3(1, 0, 0));
+            double Xface = (XSide.Y > 0) ? B.High.Y : B.Low.Y;
+            double Yface = (YSide.X > 0) ? B.High.X : B.Low.X;
+            double Zface = (ZSide.X > 0) ? B.High.X : B.Low.X;
+            // Y dim normal is the camera-facing X side; Z dim normal is the camera-facing X side too
+            //    (the dim sits on the ±X face of the box and points along Z).
+            Vec3 XNormal = (XSide.Y > 0) ? Vec3(0, 1, 0) : Vec3(0, -1, 0);
+            Vec3 YNormal = (YSide.X > 0) ? Vec3(1, 0, 0) : Vec3(-1, 0, 0);
+            Vec3 ZNormal = (ZSide.X > 0) ? Vec3(1, 0, 0) : Vec3(-1, 0, 0);
+            EmitBbox("X", Vec3(B.Low.X, Xface, Centre.Z), Vec3(B.High.X, Xface, Centre.Z), B.High.X - B.Low.X, XNormal, 3);
+            EmitBbox("Y", Vec3(Yface, B.Low.Y, Centre.Z), Vec3(Yface, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, YNormal, 4);
+            EmitBbox("Z", Vec3(Zface, Centre.Y, B.Low.Z), Vec3(Zface, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, ZNormal, 5);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Cylinder || Figure.Blueprint.Form == SceneFigure::ParametricForm::Cone)
         {
-            // For a cylinder/cone, the height dim is live (slot 14 = R2). Radius is slot 12 (R0).
-            // Place the height dim along the axis on the side of the body, offset 4 cm perpendicular.
+            // For a cylinder/cone, the height dim is live (slot 14 = R2).
+            // Phase 20: pick the perpendicular direction (side) that faces the camera. The dim line
+            //    sits on the side of the body at radius R0 (the surface), with the renderer adding
+            //    its 4 cm world-space lift. We no longer pre-offset by 0.04 — let the renderer do it.
             Vec3 AxisU = Figure.Blueprint.Axis.LengthSquared() > 1e-12 ? Figure.Blueprint.Axis.Normalised() : Vec3(0, 0, 1);
             Vec3 Foot = Figure.Blueprint.A;  // foot of the cylinder/cone
             Vec3 Top  = Foot + AxisU * Figure.Blueprint.R2;
+            // Build a perpendicular to the axis that points "outward" — pick any direction
+            //    perpendicular to the axis, then we'll flip it to face the camera.
             Vec3 Perp = std::fabs(AxisU.Z) < 0.9 ? Vec3(0, 0, 1).Cross(AxisU).Normalised() : Vec3(1, 0, 0).Cross(AxisU).Normalised();
-            EmitBbox("height", Foot + Perp * (Figure.Blueprint.R0 + FaceOffset), Top + Perp * (Figure.Blueprint.R0 + FaceOffset), Figure.Blueprint.R2, -Perp, 14);
+            // Camera-facing side: flip the perpendicular so its component in the camera direction
+            //    is positive. The dim line lives in this plane (it's parallel to the axis, offset
+            //    by R0 along the camera-facing perpendicular).
+            Vec3 Fwd = View.Forward();
+            if (Perp.Dot(Fwd) < 0) Perp = -Perp;
+            // The line itself sits ON the surface: the two endpoints are Foot + Perp*R0 and
+            //    Top + Perp*R0. The renderer lifts by OffM (4 cm) along Perp, so the line ends
+            //    up 4 cm off the body — close enough to read, not too far.
+            EmitBbox("height", Foot + Perp * Figure.Blueprint.R0, Top + Perp * Figure.Blueprint.R0, Figure.Blueprint.R2, Perp, 14);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Sphere)
         {
             // Radius dim from centre to a point on the sphere — live (slot 12 = R0).
+            // Phase 20: pick a direction from the centre to a point on the sphere that faces the
+            //    camera. We project the camera forward into the screen plane and use that as the
+            //    "outward" direction; the dim line goes from the centre to the sphere surface in
+            //    that direction.
             Vec3 Ctr = Figure.Blueprint.A;  // sphere centre
-            Vec3 Pnt = Ctr + Vec3(Figure.Blueprint.R0, 0, 0);
-            EmitBbox("radius", Ctr, Pnt, Figure.Blueprint.R0, Vec3(0, 1, 0), 12);
+            Vec3 Fwd = View.Forward();
+            Vec3 Up = View.Up();
+            // Screen-plane direction: project Forward into the Up+Right plane, then take the
+            //    screen-up component (so the radius dim reads "vertical" from the viewer's POV).
+            Vec3 ScreenDir = Up - Fwd * Fwd.Dot(Up);
+            if (ScreenDir.LengthSquared() < 1e-12) ScreenDir = Vec3(0, 1, 0);
+            ScreenDir = ScreenDir.Normalised();
+            Vec3 Pnt = Ctr + ScreenDir * Figure.Blueprint.R0;
+            // Lift perpendicular to the radius in the screen plane (so the dim line sits beside
+            //    the radius line, not on top of it).
+            Vec3 Lift = ScreenDir.Cross(Fwd);
+            if (Lift.LengthSquared() < 1e-12) Lift = Vec3(0, 1, 0);
+            Lift = Lift.Normalised();
+            EmitBbox("radius", Ctr, Pnt, Figure.Blueprint.R0, Lift, 12);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Torus)
         {
             // Major radius (slot 15) and minor radius (slot 14).
+            // Phase 20: pick directions that face the camera (Rmajor in the screen-up direction
+            //    from the centre, Rminor in the screen-right direction from the major point).
             Vec3 Ctr = Figure.Blueprint.A;  // torus centre
-            Vec3 PntMajor = Ctr + Vec3(Figure.Blueprint.R3, 0, 0);
-            Vec3 PntMinor = PntMajor + Vec3(0, Figure.Blueprint.R2, 0);
-            EmitBbox("Rmajor", Ctr, PntMajor, Figure.Blueprint.R3, Vec3(0, 1, 0), 15);
-            EmitBbox("Rminor", PntMajor, PntMinor, Figure.Blueprint.R2, Vec3(1, 0, 0), 14);
+            Vec3 Fwd = View.Forward();
+            Vec3 Up = View.Up();
+            Vec3 Right = View.Right();
+            Vec3 ScreenUp = Up - Fwd * Fwd.Dot(Up);
+            if (ScreenUp.LengthSquared() < 1e-12) ScreenUp = Vec3(0, 1, 0);
+            ScreenUp = ScreenUp.Normalised();
+            Vec3 ScreenRight = Right - Fwd * Fwd.Dot(Right);
+            if (ScreenRight.LengthSquared() < 1e-12) ScreenRight = Vec3(1, 0, 0);
+            ScreenRight = ScreenRight.Normalised();
+            Vec3 PntMajor = Ctr + ScreenUp * Figure.Blueprint.R3;
+            Vec3 PntMinor = PntMajor + ScreenRight * Figure.Blueprint.R2;
+            Vec3 LiftMajor = ScreenUp.Cross(Fwd);
+            if (LiftMajor.LengthSquared() < 1e-12) LiftMajor = Vec3(0, 1, 0);
+            LiftMajor = LiftMajor.Normalised();
+            Vec3 LiftMinor = ScreenRight.Cross(Fwd);
+            if (LiftMinor.LengthSquared() < 1e-12) LiftMinor = Vec3(1, 0, 0);
+            LiftMinor = LiftMinor.Normalised();
+            EmitBbox("Rmajor", Ctr, PntMajor, Figure.Blueprint.R3, LiftMajor, 15);
+            EmitBbox("Rminor", PntMajor, PntMinor, Figure.Blueprint.R2, LiftMinor, 14);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::ChamferEdge)
         {
@@ -344,15 +423,26 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
                 if (Perp.LengthSquared() < 1e-12) Perp = EdgeDir.Cross(Vec3(1, 0, 0));
                 if (Perp.LengthSquared() < 1e-12) Perp = Vec3(0, 1, 0);
                 Perp = Perp.Normalised();
+                // Phase 20: flip Perp to face the camera.
+                if (Perp.Dot(View.Forward()) < 0) Perp = -Perp;
                 Vec3 Mid = (Lo + Hi) * 0.5;
                 EmitBbox("chamfer", Mid - EdgeDir * (Figure.Blueprint.R0 * 0.5), Mid + EdgeDir * (Figure.Blueprint.R0 * 0.5), Figure.Blueprint.R0, Perp, 12);
             }
             // Also emit the bbox X/Y/Z dims so the chamfered body has the standard outline set
             //    (these are read-only, slot = -1, since editing them is meaningless for a chamfered body).
-            const double Off = 0.05;
-            EmitBbox("X", Vec3(B.Low.X, B.High.Y + Off, Centre.Z), Vec3(B.High.X, B.High.Y + Off, Centre.Z), B.High.X - B.Low.X, Vec3(0, 1, 0), -1);
-            EmitBbox("Y", Vec3(B.High.X + Off, B.Low.Y, Centre.Z), Vec3(B.High.X + Off, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, Vec3(1, 0, 0), -1);
-            EmitBbox("Z", Vec3(B.High.X + Off, Centre.Y, B.Low.Z), Vec3(B.High.X + Off, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, Vec3(1, 0, 0), -1);
+            // Phase 20: dim line on the camera-facing side of each face.
+            Vec3 XSide = CameraFacingSide(Vec3(0, 1, 0));
+            Vec3 YSide = CameraFacingSide(Vec3(1, 0, 0));
+            Vec3 ZSide = CameraFacingSide(Vec3(1, 0, 0));
+            double Xface = (XSide.Y > 0) ? B.High.Y : B.Low.Y;
+            double Yface = (YSide.X > 0) ? B.High.X : B.Low.X;
+            double Zface = (ZSide.X > 0) ? B.High.X : B.Low.X;
+            Vec3 XNormal = (XSide.Y > 0) ? Vec3(0, 1, 0) : Vec3(0, -1, 0);
+            Vec3 YNormal = (YSide.X > 0) ? Vec3(1, 0, 0) : Vec3(-1, 0, 0);
+            Vec3 ZNormal = (ZSide.X > 0) ? Vec3(1, 0, 0) : Vec3(-1, 0, 0);
+            EmitBbox("X", Vec3(B.Low.X, Xface, Centre.Z), Vec3(B.High.X, Xface, Centre.Z), B.High.X - B.Low.X, XNormal, -1);
+            EmitBbox("Y", Vec3(Yface, B.Low.Y, Centre.Z), Vec3(Yface, B.High.Y, Centre.Z), B.High.Y - B.Low.Y, YNormal, -1);
+            EmitBbox("Z", Vec3(Zface, Centre.Y, B.Low.Z), Vec3(Zface, Centre.Y, B.High.Z), B.High.Z - B.Low.Z, ZNormal, -1);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Revolve)
         {
@@ -368,34 +458,69 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Loft)
         {
             // Phase 16: V-degree (I0). Emit a label dim on the bbox top, read-only-ish but live.
-            EmitBbox("degree", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), double(Figure.Blueprint.I0), Vec3(0, 1, 0), 16);
+            // Phase 20: dim line on the camera-facing side of the top face.
+            Vec3 Side = CameraFacingSide(Vec3(0, 1, 0));
+            double Yface = (Side.Y > 0) ? B.High.Y : B.Low.Y;
+            Vec3 YNormal = (Side.Y > 0) ? Vec3(0, 1, 0) : Vec3(0, -1, 0);
+            EmitBbox("degree", Vec3(B.Low.X, Yface, Centre.Z), Vec3(B.High.X, Yface, Centre.Z), double(Figure.Blueprint.I0), YNormal, 16);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Sweep)
         {
             // Phase 16: scale + twist + stations dims. Each on the body's top edge with a small offset.
-            EmitBbox("scale", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), Figure.Blueprint.R0, Vec3(0, 1, 0), 12);
-            EmitBbox("twist", Vec3(B.Low.X, B.High.Y + FaceOffset * 1.5, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset * 1.5, Centre.Z), ScalarCriteria::Degrees(Figure.Blueprint.R1), Vec3(0, 1, 0), 13);
+            // Phase 20: dim line on the camera-facing side of the top face.
+            Vec3 Side = CameraFacingSide(Vec3(0, 1, 0));
+            double Yface = (Side.Y > 0) ? B.High.Y : B.Low.Y;
+            Vec3 YNormal = (Side.Y > 0) ? Vec3(0, 1, 0) : Vec3(0, -1, 0);
+            EmitBbox("scale", Vec3(B.Low.X, Yface, Centre.Z), Vec3(B.High.X, Yface, Centre.Z), Figure.Blueprint.R0, YNormal, 12);
+            EmitBbox("twist", Vec3(B.Low.X, Yface, Centre.Z), Vec3(B.High.X, Yface, Centre.Z), ScalarCriteria::Degrees(Figure.Blueprint.R1), YNormal, 13);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Pipe)
         {
             // Phase 16: radius dim. Drawn as a chord through the tube cross-section, on the side of the tube.
+            // Phase 20: pick a point on the side facing the camera.
             Vec3 Ctr = (B.Low + B.High) * 0.5;
-            Vec3 Pnt = Ctr + Vec3(Figure.Blueprint.R0, 0, 0);
-            EmitBbox("radius", Ctr, Pnt, Figure.Blueprint.R0, Vec3(0, 1, 0), 12);
+            Vec3 Fwd = View.Forward();
+            Vec3 Up = View.Up();
+            Vec3 ScreenUp = Up - Fwd * Fwd.Dot(Up);
+            if (ScreenUp.LengthSquared() < 1e-12) ScreenUp = Vec3(0, 1, 0);
+            ScreenUp = ScreenUp.Normalised();
+            Vec3 Pnt = Ctr + ScreenUp * Figure.Blueprint.R0;
+            Vec3 Lift = ScreenUp.Cross(Fwd);
+            if (Lift.LengthSquared() < 1e-12) Lift = Vec3(0, 1, 0);
+            Lift = Lift.Normalised();
+            EmitBbox("radius", Ctr, Pnt, Figure.Blueprint.R0, Lift, 12);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Boolean)
         {
             // Phase 16: no live slot — the boolean consumed its inputs. Emit a label dim only (slot = -1).
-            EmitBbox("boolean", Vec3(B.Low.X, B.High.Y + FaceOffset, Centre.Z), Vec3(B.High.X, B.High.Y + FaceOffset, Centre.Z), 0.0, Vec3(0, 1, 0), -1);
+            // Phase 20: dim line on the camera-facing side of the top face.
+            Vec3 Side = CameraFacingSide(Vec3(0, 1, 0));
+            double Yface = (Side.Y > 0) ? B.High.Y : B.Low.Y;
+            Vec3 YNormal = (Side.Y > 0) ? Vec3(0, 1, 0) : Vec3(0, -1, 0);
+            EmitBbox("boolean", Vec3(B.Low.X, Yface, Centre.Z), Vec3(B.High.X, Yface, Centre.Z), 0.0, YNormal, -1);
         }
         else if (Figure.Blueprint.Form == SceneFigure::ParametricForm::Extrude)
         {
             // Phase 16: live length dim. Slot 14 = R2 (the extrude length).
+            // Phase 20: pick the perpendicular side that faces the camera. The dim endpoints sit
+            //    on the body's footprint edge (Foot and Top in world space — the rectangle the
+            //    extrude sweeps). The renderer lifts by 4 cm in Perp, so the line ends up just
+            //    outside the body silhouette, on the camera-facing side.
             Vec3 AxisU = Figure.Blueprint.Axis.LengthSquared() > 1e-12 ? Figure.Blueprint.Axis.Normalised() : Vec3(0, 0, 1);
-            Vec3 Foot = B.Low;
-            Vec3 Top  = Foot + AxisU * Figure.Blueprint.R2;
             Vec3 Perp = std::fabs(AxisU.Z) < 0.9 ? Vec3(0, 0, 1).Cross(AxisU).Normalised() : Vec3(1, 0, 0).Cross(AxisU).Normalised();
-            EmitBbox("length", Foot + Perp * 0.05, Top + Perp * 0.05, Figure.Blueprint.R2, -Perp, 14);
+            // Find the corner of the footprint that is furthest in the camera direction — that's
+            //    the corner closest to the viewer. The dim endpoints sit on the footprint at that
+            //    edge, then the renderer lifts them in Perp.
+            // For a simple extrude this is "Low + (extent in the Perp direction)"; for a more
+            //    general extrude we'd want the actual footprint polygon. Keep it simple: just use
+            //    the bbox corner.
+            Vec3 Corner = B.Low + Perp * std::fabs((B.High - B.Low).Dot(Perp));
+            Corner = B.Low + (Corner - B.Low) - AxisU * (Corner - B.Low).Dot(AxisU);     // project to footprint plane
+            Vec3 DimStart = Corner;
+            Vec3 DimEnd   = DimStart + AxisU * Figure.Blueprint.R2;
+            // Flip Perp to face the camera.
+            if (Perp.Dot(View.Forward()) < 0) Perp = -Perp;
+            EmitBbox("length", DimStart, DimEnd, Figure.Blueprint.R2, Perp, 14);
         }
         else
         {
@@ -935,6 +1060,12 @@ bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecip
     // Phase 16: derived-op live edit. Produce the body, then attach the Blueprint that records the
     //    recipe's scalar/vector inputs. `dim edit` on a Blueprint dim mutates the Blueprint, then
     //    ApplyLiveEdit re-produces the body from the recipe with the new value.
+    // Phase 20: remember which source figures were consumed (so we can hide their auto-dim set
+    //    — the user wants the source curve's "radius / length / arc" dims to vanish once the
+    //    curve is consumed by an extrude / revolve / pipe / sweep / loft / boolean / bridge).
+    std::vector<uint32_t> SourceIds;
+    for (const RecipeInput& In : Recipe.Sections) for (uint32_t Id : In.Figures) SourceIds.push_back(Id);
+    for (uint32_t Id : Recipe.Path.Figures) SourceIds.push_back(Id);
     Deliver<FigureRecipe::Product> P = Recipe.Produce(Scene, Plane);
     if (!P) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(P.Denial.Reason), P.Denial.Detail);
     Recipe.InputFingerprint = Recipe.FingerprintInputs(Scene, Plane);
@@ -946,6 +1077,9 @@ bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecip
     Row("  ↳ %s", Figure.Recipe.Summary(Scene).c_str());
     if (Figure.Classification == FigureClassification::Body) { BodyReport R = Figure.Body.Validate(); if (!R.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges); }
     if (!C.Switch("no-dim") && ShowDimensions) AutoEmitDimensions(Figure);
+    // Phase 20: hide the source figures' auto dim sets (they're consumed by this op, and the user
+    //    doesn't want to see "C1 radius 1.000" AND "E1 length 2.000" — only the result's dims).
+    for (uint32_t Id : SourceIds) for (DimensionEntry& D : Dimensions) if (D.Anchor == Id && D.Auto) D.Hidden = true;
     return true;
 }
 
@@ -2580,6 +2714,16 @@ void ConsoleHost::Register() noexcept
         // Dimensions is NOT cleared on reset (Phase 13 scripts depend on dim ids accumulating).
         //    Phase 18's constraint graph references figure names, so it must be cleared; dim ids
         //    can be reused safely because Phase 18's `dim edit` looks up dims by id+anchor.
+        //    But Phase 20: hide any auto dim whose anchor figure no longer exists (otherwise the
+        //    dim is orphaned and keeps showing on the next render).
+        std::vector<uint32_t> LiveIds; for (const SceneFigure& F : Scene.Figures()) LiveIds.push_back(F.Identity);
+        for (DimensionEntry& D : Dimensions)
+        {
+            if (!D.Auto) continue;
+            bool Found = false;
+            for (uint32_t Id : LiveIds) if (Id == D.Anchor) { Found = true; break; }
+            if (!Found) D.Hidden = true;
+        }
         Row("scene reset (empty, workplane xy)");
         return true;
     });
