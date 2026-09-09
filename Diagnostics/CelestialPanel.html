@@ -327,9 +327,8 @@ input{font:inherit;color:inherit}
 
 <aside id="outliner" class="glass">
   <div class="panel-head"><h1>Outliner<span class="sub">Scene</span></h1><span style="display:flex;align-items:center;gap:10px"><span class="clock" id="clock">06:24</span><button class="cbtn" id="compactBtn" title="Compact outliner (Tab)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button></span></div>
-  <div class="tabs" id="tabs"></div>
   <div class="scene-stat" id="sceneStat"></div>
-  <div class="timeline" id="timeline"></div>
+  <div class="tabs" id="tabs" hidden></div><div class="timeline" id="timeline" hidden></div>
   <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search  Ctrl+Shift+F"></div>
   <div class="filters" id="filters"></div>
   <div class="tree" id="tree"></div>
@@ -360,7 +359,8 @@ uniform vec3 uSkyTint,uGroundColor; uniform float uSkyBright,uGroundBright,uSkyV
 uniform int uMoonCount; uniform vec3 uMoonDir[MAXM]; uniform vec3 uMoonTint[MAXM]; uniform vec4 uMoonP[MAXM]; uniform vec4 uMoonSurf[MAXM]; uniform sampler2D uMoonTex0,uMoonTex1,uMoonTex2,uMoonTex3;
 uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uHalo,uStreak,uChroma,uFlareType;
 uniform vec2 uSunUV; uniform float uSunInFront;
-uniform float uStarQuality,uStarLayers,uStarAA; uniform vec4 uPresence; // x=shadows y=GI z=collide w=spare uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
+uniform float uStarQuality,uStarLayers,uStarAA; uniform vec4 uPresence; /* x=shadows y=GI z=collide */
+uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
 
 vec3 hash33(vec3 p){ p=fract(p*vec3(.1031,.1030,.0973)); p+=dot(p,p.yxz+33.33); return fract((p.xxy+p.yxx)*p.zyx); }
 float hash13(vec3 p){ p=fract(p*.1031); p+=dot(p,p.zyx+31.32); return fract((p.x+p.y)*p.z); }
@@ -765,9 +765,9 @@ function cardHTML(id){ const e=ENTITIES[id]||{name:'Moons',icon:'moon',color:'#d
 function passF(id){ if(!activeF.size) return true; return FILTERS.some(f=>activeF.has(f.id)&&f.ids.includes(id.startsWith('moon#')?'moons':id)); }
 function sceneCounts(){ const ids=['atmosphere','sun','sky','stars','plane','camera','post',...S.moons.map((_,i)=>'moon#'+i)]; const vis=ids.filter(visOf).length; const lifted=ids.reduce((n,id)=>{ const pr=presenceOf(id); return n+(pr?['shadows','gi','collide'].filter(k=>!pr[k]).length:0); },0); return {total:ids.length,vis,hidden:ids.length-vis,lifted}; }
 function renderSceneStat(){ const c=sceneCounts(); const el=document.getElementById('sceneStat'); if(!el) return; el.innerHTML=`<div class="ss ok"><span class="ss-ico">${I('check',14)}</span><span class="ss-l">Visible</span><b>${c.vis}</b></div><div class="ss ${c.hidden?'warn':''}"><span class="ss-ico">${I('warn',14)}</span><span class="ss-l">Hidden</span><b>${c.hidden}</b></div>`; document.querySelector('.panel-head .sub').textContent=`Scene · ${c.total} nodes`; }
-function renderTabs(){ document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="${tab===t.id?'on':''}" data-tab="${t.id}" style="--c:${t.c}"><i></i>${t.l}<b>${t.ids.reduce((n,id)=>n+(id==='moons'?S.moons.length:1),0)}</b></button>`).join(''); }
+function renderTabs(){ if(document.getElementById('tabs').hidden) return; document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="${tab===t.id?'on':''}" data-tab="${t.id}" style="--c:${t.c}"><i></i>${t.l}<b>${t.ids.reduce((n,id)=>n+(id==='moons'?S.moons.length:1),0)}</b></button>`).join(''); }
 document.getElementById('tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-tab]'); if(!b) return; tab=b.dataset.tab; document.getElementById('search').value=''; renderTree(); });
-function renderTimeline(){ const el=document.getElementById('timeline'); const W=260,H=58; const N=48; const stops=[...Array(N+1)].map((_,i)=>{ const t=i/N*24; const c=skyColorsAt(sunDirAt(t).el/D2R); return `<stop offset="${(i/N*100).toFixed(1)}%" stop-color="rgb(${c.hz})"/>`; }).join('');
+function renderTimeline(){ const el=document.getElementById('timeline'); if(el.hidden) return; const W=260,H=58; const N=48; const stops=[...Array(N+1)].map((_,i)=>{ const t=i/N*24; const c=skyColorsAt(sunDirAt(t).el/D2R); return `<stop offset="${(i/N*100).toFixed(1)}%" stop-color="rgb(${c.hz})"/>`; }).join('');
   const path=[...Array(97)].map((_,i)=>{ const t=i/96*24; return `${(t/24*W).toFixed(1)},${(H/2-Math.sin(sunDirAt(t).el)*(H/2-4)).toFixed(1)}`; }).join(' ');
   const x=S.sun_time/24*W, y=H/2-Math.sin(sunDir().el)*(H/2-4); const {rise,set}=riseSet(); const [pn]=phaseName(sunElevDeg());
   const tick=t=>t==null?'':`<line x1="${t/24*W}" y1="0" x2="${t/24*W}" y2="${H}" stroke="rgba(255,255,255,.25)" stroke-dasharray="2 3"/>`;
@@ -782,9 +782,9 @@ function renderTree(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   const all=['atmosphere','sun','sky','stars','moons','plane','camera'];
   const nameOf=id=>id==='moons'?'Moons '+S.moons.map(m=>m.name).join(' '):id==='camera'?'Camera Post Process':ENTITIES[id].name;
-  const ids=all.filter(id=>passF(id)&&(q?nameOf(id).toLowerCase().includes(q):activeF.size?true:tabOf(id)===tab));
+  const ids=all.filter(id=>passF(id)&&(!q||nameOf(id).toLowerCase().includes(q)));
   const t=TABS.find(t=>t.id===tab);
-  treeEl.innerHTML=(q||activeF.size?`<div class="sec-label">${q?'Search':'Filtered'}<b>${ids.length} match${ids.length===1?'':'es'}</b></div>`:`<div class="sec-label">${t.l}<b>${ids.length} ${ids.length===1?'entity':'entities'}</b></div>`)+(ids.length?ids.map(cardHTML).join(''):`<div class="empty">Nothing here.</div>`);
+  treeEl.innerHTML=(true?`<div class="sec-label">${q?'Search':activeF.size?'Filtered':'Scene'}<b>${ids.length} match${ids.length===1?'':'es'}</b></div>`:`<div class="sec-label">${t.l}<b>${ids.length} ${ids.length===1?'entity':'entities'}</b></div>`)+(ids.length?ids.map(cardHTML).join(''):`<div class="empty">Nothing here.</div>`);
   document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderTabs(); renderSceneStat(); renderTimeline(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; }
 const tileHist={}; function renderTiles(){} function drawTiles(){}
 function miniOf(id){ // tiny inline visual per row
