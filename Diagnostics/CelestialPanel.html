@@ -823,8 +823,9 @@ vec3 starField(vec3 d,float pixAng,float am){
       bright*=mix(1.,band*2.2+.35,uMilky*.6);
       float ph=hash13(vec3(cell,5.7))*6.283; float tw=1.-uStarTwinkle*(.3+.5*clamp(am/6.,0.,1.))*(.5+.5*sin(uTime*(3.+hash13(vec3(cell,2.2))*8.)+ph));
       float T=mix(2800.,11000.,pow(hash13(vec3(cell,9.1)),1.6)); vec3 sc=mix(vec3(1.),kelvin(T),uStarColor);
-      float ps=max(uStarSize*(.0006+bright*.00028),pixAng*.5);          // crisp: core is at most ~1 px for faint stars, slightly larger for bright ones
-      float core=exp(-pow(ang/ps,2.)*2.4)*(1.+.6*step(2.5,bright));      // tight gaussian => sharp points, no smear
+      float ps=max(uStarSize*(.0006+bright*.00028),pixAng*.9);          // never smaller than a pixel: every star lands squarely on at least one pixel
+      float core=(1.-smoothstep(ps*.55,ps,ang))*(1.+.6*step(2.5,bright)); // flat-topped disc with a half-pixel edge => crisp, full-intensity points
+      core*=3.2;                                                           // energy normalisation for the small footprint
       float halo=exp(-pow(ang/(ps*(2.+6.*uStarGlow)),1.5))*.045*uStarGlow*(bright/8.+.03);
       float spikes=0.; if(o==0&&bright>2.5){ vec3 t1=normalize(cross(sdir,vec3(0.,1.,0.)+vec3(1e-3,0.,0.))); vec3 t2=cross(sdir,t1); vec2 q=vec2(dot(sd-sdir,t1),dot(sd-sdir,t2)); float w=max(pixAng*.6,ps*.35); spikes=(exp(-abs(q.x)/w*.5)*exp(-abs(q.y)*70.)+exp(-abs(q.y)/w*.5)*exp(-abs(q.x)*70.))*.3*uStarGlow*(bright/8.); }
       col+=sc*(core+halo+spikes)*bright*tw*2.6e-3;
@@ -1042,7 +1043,7 @@ void main(){
       float pixAng=2.*uTanHalf/uRes.y; vec3 st;
       if(uStarAA>1.5){ // 2x2 supersample (rotated grid) => sub-pixel stars resolve cleanly without blur
         vec3 s0=vec3(0.); for(int q=0;q<4;q++){ vec2 o=(q==0)?vec2(-.375,-.125):(q==1)?vec2(.125,-.375):(q==2)?vec2(.375,.125):vec2(-.125,.375);
-          vec3 d2=normalize(dir+(uCamRight*o.x+uCamUp*o.y)*pixAng); s0+=starField(d2,pixAng*.5,am); } st=s0*.25*trans; }
+          vec3 d2=normalize(dir+(uCamRight*o.x+uCamUp*o.y)*pixAng); s0+=starField(d2,pixAng*.7,am); } st=s0*.25*trans; }
       else st=starField(dir,pixAng,am)*trans;                 // atmospheric extinction: stars redden and dim near the horizon
       // contrast-limited visibility: a star is seen only if its radiance beats the sky radiance around it (Weber/Blackwell-ish)
       float skyL=max(skyLum,1e-7); float thresh=skyL*uStarLimit;
