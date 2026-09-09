@@ -106,7 +106,7 @@ input{font:inherit;color:inherit}
 .node.sel::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--acc)}
 .node .chev{width:14px;height:14px;display:flex;align-items:center;justify-content:center;color:var(--t3);transition:transform .2s;flex-shrink:0} .node .chev.open{transform:rotate(90deg)} .node .chev.none{visibility:hidden}
 .node .nico{width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:transparent;color:var(--acc);flex-shrink:0}
-.node .nico .moon-dot{width:14px;height:14px}
+.node .nico .moon-dot{width:14px;height:14px} .nico .pic,.c-ico .pic{display:block;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))} #inspTitle .pic{display:inline-block;vertical-align:middle;margin-right:2px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6))}
 .node .nname{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px} .node.folder .nname{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3)}
 .node .tag{font-size:9px;letter-spacing:.08em;padding:1px 6px;border-radius:999px;border:1px solid var(--stroke);color:var(--t3)}
 .node .nmeta{font-size:11px;color:var(--t3);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -2462,7 +2462,7 @@ function cardHTML(id){ const e=ENTITIES[id]||{name:'Moons',icon:'moon',color:'#d
   else if(d.kpis) foot=`<div class="c-kpis">${d.kpis.map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
   const vizId=id==='moons'?(S.moons.length?'moon#0':''):id;
   return `<div class="card ${selected===id?'sel':''} ${vis?'':'dim'}" data-id="${id}" style="--acc:${e.color}">
-    <div class="c-top"><span class="c-ico">${I(e.icon,16)}</span><div class="c-title"><b>${e.name}</b><span data-status="${id}">${d.status}</span></div><span class="c-pill ${pc}" data-pill="${id}"><i></i>${pl}</span>${id!=='moons'?`<button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',13)}</button>`:''}</div>
+    <div class="c-top"><span class="c-ico">${PIC(id,22)||I(e.icon,16)}</span><div class="c-title"><b>${e.name}</b><span data-status="${id}">${d.status}</span></div><span class="c-pill ${pc}" data-pill="${id}"><i></i>${pl}</span>${id!=='moons'?`<button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',13)}</button>`:''}</div>
     <div class="c-body"><div class="c-big" data-big="${id}">${d.big}<small>${d.unit}</small><em>${d.lab}</em></div><div class="c-viz" data-mini="${vizId}">${vizId?miniOf(vizId):''}</div></div>${foot}</div>`; }
 function passF(id){ if(!activeF.size) return true; return FILTERS.some(f=>activeF.has(f.id)&&f.ids.includes(id.startsWith('moon#')?'moons':id)); }
 function sceneCounts(){ const ids=['atmosphere','sun','sky','stars','fog','clouds','plane','terrain','plight','slight','camera','cine','post',...S.moons.map((_,i)=>'moon#'+i)]; const vis=ids.filter(visOf).length; const lifted=ids.reduce((n,id)=>{ const pr=presenceOf(id); return n+(pr?['shadows','gi','collide'].filter(k=>!pr[k]).length:0); },0); return {total:ids.length,vis,hidden:ids.length-vis,lifted}; }
@@ -2482,6 +2482,8 @@ function renderTimeline(){ const el=document.getElementById('timeline'); if(el.h
   el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
 // ---------- simple tree with parenting ----------
 const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',fog:'world',clouds:'world',moons:'world',plane:null,terrain:null,plight:'lights',slight:'lights',lights:null,camera:null,cine:null,post:'camera'};
+const PICS={atmosphere:'atmosphere',sun:'sun',sky:'sky',stars:'stars',fog:'fog',clouds:'cloud',terrain:'terrain',moons:'moon',camera:'camera',cine:'cine'};
+const PIC=(id,sz)=>PICS[id]?`<img class="pic" src="${TEXDIR}icons/${PICS[id]}.png" width="${sz}" height="${sz}" alt="" draggable="false">`:null;
 const FOLDERS={world:{name:'World',icon:'globe',color:'#5aa9ff'},lights:{name:'Lights',icon:'bulb',color:'#ffd27a'}};
 function parentOf(id){ if(id.startsWith('moon#')) return (S.parentMap&&S.parentMap[id])||'moons'; if(S.parentMap&&id in S.parentMap) return S.parentMap[id]; return DEFAULT_PARENT[id]===undefined?null:DEFAULT_PARENT[id]; }
 function setParent(id,pid){ S.parentMap=S.parentMap||{}; // refuse cycles
@@ -2500,7 +2502,7 @@ function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1
 function rowHTML(id,depth,hasKids){ const n=nodeInfo(id); const [sc,st]=statusOf(id); const vis=n.folder?true:visOf(id); const open=openF[id]!==false; const kindTag=id==='post'?'<span class="tag">Comp</span>':'';
   return `<div class="node ${selected===id?'sel':''} ${vis?'':'dim'} ${n.folder?'folder':''}" data-id="${id}" draggable="${n.folder&&FOLDERS[id]?'false':'true'}" style="--acc:${n.color};--d:${depth}">
     <span class="chev ${hasKids?'':'none'} ${open?'open':''}" data-chev="${id}">${I('chev',11)}</span>
-    <span class="nico">${n.tex?`<span class="moon-dot" style="--tex:url(${TEXDIR}${n.tex})"></span>`:I(n.icon,14)}</span>
+    <span class="nico">${n.tex?`<span class="moon-dot" style="--tex:url(${TEXDIR}${n.tex})"></span>`:(PIC(id,22)||I(n.icon,14))}</span>
     <span class="nname">${n.name}${kindTag}</span><span class="nmeta" data-meta="${id}">${metaShort(id)}</span>
     <span class="nstat ${sc}" data-stat="${id}" title="${st}">${I(sc==='ok'?'check':sc==='info'?'dot':'warn',11)}</span>
     ${n.folder&&FOLDERS[id]?'':`<button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',13)}</button>`}</div>`; }
@@ -2989,7 +2991,7 @@ function mountSkyPanel(host){ const node={props:S.skyP}; skyPanelEl=FPORT.skyPan
 function renderInspector(){
   if(FOLDERS[selected]){ const f=FOLDERS[selected]; document.getElementById('inspTitle').innerHTML=`<span style="color:${f.color}">${I(f.icon,18)}</span>${f.name}`; document.getElementById('inspKind').textContent='Collection'; insp.style.setProperty('--acc',f.color); insp.innerHTML=`<div class="ent-enter"><div id="skyHost" class="fport"></div></div>`; mountFolderPanel(selected,document.getElementById('skyHost')); return; }
   const e=getEntity(selected); if(!e){ insp.innerHTML='<div class="empty">Select something in the outliner</div>'; return; }
-  document.getElementById('inspTitle').innerHTML=`<span style="color:${e.color}">${I(e.icon,18)}</span>${e.name}`; document.getElementById('inspKind').textContent=e.kind; insp.style.setProperty('--acc',e.color);
+  document.getElementById('inspTitle').innerHTML=`<span style="color:${e.color}">${PIC(selected,28)||I(e.icon,18)}</span>${e.name}`; document.getElementById('inspKind').textContent=e.kind; insp.style.setProperty('--acc',e.color);
   const previewHTML={sunpath:`<div class="preview stats" id="pvSunStats"></div>`,
     stars:`<div class="preview"><span class="cap">Visibility vs. sky brightness</span><span class="cap r" id="pvStarCap"></span><svg id="pvStars" viewBox="0 0 340 120"></svg></div>`,
     moon:`<div class="preview" style="display:flex;gap:14px;align-items:center;padding:14px"><canvas id="pvMoon" width="192" height="192" style="width:128px;height:128px;border-radius:50%;flex-shrink:0"></canvas><div style="flex:1;font-size:12px;color:var(--t2);line-height:1.7"><div>Phase <b id="pvPhaseName" style="color:var(--text);font-weight:400"></b></div><div>Apparent size <b id="pvSize" style="color:var(--text);font-weight:400"></b></div><div>Preset <b id="pvPreset" style="color:var(--text);font-weight:400"></b></div><div id="pvUp"></div></div></div><div class="preview" style="margin-top:8px;height:64px;background-size:100% 100%;background-repeat:repeat-x" id="pvTexStrip"><span class="cap">Equirectangular map · 2048×1024</span></div>`,
