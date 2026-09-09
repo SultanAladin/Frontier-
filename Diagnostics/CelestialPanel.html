@@ -344,7 +344,7 @@ uniform vec3 uSkyTint,uGroundColor; uniform float uSkyBright,uGroundBright,uSkyV
 uniform int uMoonCount; uniform vec3 uMoonDir[MAXM]; uniform vec3 uMoonTint[MAXM]; uniform vec4 uMoonP[MAXM]; uniform vec4 uMoonSurf[MAXM]; uniform sampler2D uMoonTex0,uMoonTex1,uMoonTex2,uMoonTex3;
 uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uHalo,uStreak,uChroma,uFlareType;
 uniform vec2 uSunUV; uniform float uSunInFront;
-uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
+uniform float uStarQuality,uStarLayers,uStarAA; uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
 
 vec3 hash33(vec3 p){ p=fract(p*vec3(.1031,.1030,.0973)); p+=dot(p,p.yxz+33.33); return fract((p.xxy+p.yxx)*p.zyx); }
 float hash13(vec3 p){ p=fract(p*.1031); p+=dot(p,p.zyx+31.32); return fract((p.x+p.y)*p.z); }
@@ -375,10 +375,11 @@ vec3 starField(vec3 d,float pixAng,float am){
   col+=mix(vec3(.55,.62,.9),vec3(.95,.85,.7),dust*.6)*mw*3.2e-4;
   // ---- point stars: 3 layers on an octahedral grid, 3x3 neighbour search => no cell clipping ----
   vec2 ouv=octEncode(sd);
-  for(int o=0;o<3;o++){
-    float freq=(o==0)?18.:(o==1)?46.:110.;
-    float density=(o==0)?.28:(o==1)?.42:.6;
-    float layerGain=(o==0)?1.:(o==1)?.4:.15;
+  for(int o=0;o<4;o++){
+    if(float(o)>=uStarLayers) break;
+    float freq=(o==0)?18.:(o==1)?46.:(o==2)?110.:230.;
+    float density=(o==0)?.28:(o==1)?.42:(o==2)?.6:.7;
+    float layerGain=(o==0)?1.:(o==1)?.4:(o==2)?.15:.06;
     vec2 gp=ouv*freq; vec2 base=floor(gp);
     for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){
       vec2 cell=base+vec2(float(i),float(j)); vec3 h=hash33(vec3(cell,float(o)*17.));
@@ -389,8 +390,11 @@ vec3 starField(vec3 d,float pixAng,float am){
       bright*=mix(1.,band*2.2+.35,uMilky*.6);
       float ph=hash13(vec3(cell,5.7))*6.283; float tw=1.-uStarTwinkle*(.3+.5*clamp(am/6.,0.,1.))*(.5+.5*sin(uTime*(3.+hash13(vec3(cell,2.2))*8.)+ph));
       float T=mix(2800.,11000.,pow(hash13(vec3(cell,9.1)),1.6)); vec3 sc=mix(vec3(1.),kelvin(T),uStarColor);
-      float ps=max(uStarSize*(.0008+bright*.0003),pixAng*.75);            // never smaller than ~a pixel => no sparkle aliasing
-      float core=exp(-pow(ang/ps,2.)*1.3);
+      float ps0=uStarSize*(.0008+bright*.0003);
+      // energy-conserving AA: widen sub-pixel stars to the pixel footprint but scale peak so total flux is preserved
+      float sigma=sqrt(ps0*ps0+pixAng*pixAng*uStarAA);
+      float core=exp(-pow(ang/sigma,2.)*1.3)*(ps0*ps0)/(sigma*sigma)*mix(1.,2.2,clamp(1.-ps0/sigma,0.,1.));
+      float ps=max(ps0,pixAng*.75);
       float halo=exp(-ang/(ps*(4.+9.*uStarGlow)))*.05*uStarGlow*(bright/8.+.04);
       float spikes=0.; if(o==0&&bright>2.5){ vec3 t1=normalize(cross(sdir,vec3(0.,1.,0.)+vec3(1e-3,0.,0.))); vec3 t2=cross(sdir,t1); vec2 q=vec2(dot(sd-sdir,t1),dot(sd-sdir,t2)); float w=max(pixAng*.6,ps*.35); spikes=(exp(-abs(q.x)/w*.5)*exp(-abs(q.y)*70.)+exp(-abs(q.y)/w*.5)*exp(-abs(q.x)*70.))*.3*uStarGlow*(bright/8.); }
       col+=sc*(core+halo+spikes)*bright*tw*2.6e-3;
@@ -636,7 +640,8 @@ const ENTITIES={
     sections:[{title:'Appearance',icon:'palette',props:[COL('sky_tint','Sky Tint','#ffffff'),GAUGE('sky_bright','Sky Brightness',0,3,0.01,1,'×')]},
       {title:'Ground',icon:'ground',props:[COL('sky_ground','Ground Albedo','#2b2924'),GAUGE('sky_groundBright','Ground Brightness',0,3,0.01,1,'×')]}]},
   stars:{name:'Stars',kind:'Star Field',color:'#c4b5fd',icon:'stars',preview:'stars',hero:{label:'Naked-eye limit',unit:'mag',dec:1,fn:()=>limitMag()},
-    sections:[{title:'Field',icon:'stars',props:[CURVE('st_density','Density',0.1,2,0.01,1,'×',null,{curve:'stars',hint:'Magnitude distribution · brighter stars are rarer'}),GAUGE('st_bright','Brightness',0,4,0.01,1,'×'),GAUGE('st_size','Point Size',0.4,3,0.01,1,'×')]},
+    sections:[{title:'Rendering',icon:'sliders',props:[SEG('st_quality','Quality',['Draft','Balanced','High','Ultra'],'High'),SEG('st_look','Look',['Natural','Crisp','Cinematic','Hubble','Anime'],'Natural')]},
+      {title:'Field',icon:'stars',props:[CURVE('st_density','Density',0.1,2,0.01,1,'×',null,{curve:'stars',hint:'Magnitude distribution · brighter stars are rarer'}),GAUGE('st_bright','Brightness',0,4,0.01,1,'×'),GAUGE('st_size','Point Size',0.4,3,0.01,1,'×')]},
       {title:'Sparkle',icon:'flare',props:[PAD('st_glow','st_twinkle','Glow × Twinkle',{xmin:0,xmax:2,ymin:0,ymax:1,xl:'Glow / spikes',yl:'Scintillation',hint:'Twinkle scales with air mass near the horizon'}),GAUGE('st_color','Colour Temperature',0,1,0.01,1,'×'),GAUGE('st_limit','Sky Contrast Threshold',0.2,6,0.01,1.5,'×')]},
       {title:'Galaxy',icon:'orbit',props:[GAUGE('st_milky','Milky Way',0,2,0.01,1,'×'),ORBIT2('st_rot','st_tilt','Celestial Frame')]}]},
   moons:{name:'Moons',kind:'Atlas',color:'#dfe6f5',icon:'moon',preview:'atlas',hero:{label:'Bodies in orbit',unit:'/ 4',dec:0,fn:()=>S.moons.length},sections:[]},
@@ -718,7 +723,7 @@ function cardData(id){ const e=sunElevDeg(); switch(id){
   case 'sun':{ const [pn]=phaseName(e); const az=sunDir().az/D2R; const {rise,set}=riseSet(); return {status:pn,pill:e>-0.8?['ok','Lit']:['warn','Below'],big:`${e>=0?'+':''}${e.toFixed(1)}`,unit:'°',lab:'elevation',kpis:[['Azimuth',`${((az%360)+360)%360|0}°`],['Rise',rise==null?'—':fmtT(rise)],['Set',set==null?'—':fmtT(set)]]}; }
   case 'atmosphere': return {status:`Air mass ${airMass().toFixed(2)}`,pill:[S.atm_mie>2?'warn':'ok',S.atm_mie>2?'Hazy':'Clear'],big:airMass().toFixed(2),unit:'AM',lab:'optical depth',kpis:[['Rayleigh',`${S.atm_rayleigh.toFixed(2)}×`],['Mie',`${S.atm_mie.toFixed(2)}×`],['Ozone',`${S.atm_ozone.toFixed(1)}×`]]};
   case 'sky':{ const z=zenithLum(); return {status:'Radiance model',pill:['ok','Live'],big:z>=10?z.toFixed(0):z.toFixed(2),unit:'kcd/m²',lab:'zenith',kpis:[['Brightness',`${S.sky_bright.toFixed(2)}×`],['Dawn glow',`${S.dawn_int.toFixed(1)}×`],['Horizon line',S.hl_auto?'auto':`${S.hl_int.toFixed(1)}×`]]}; }
-  case 'stars':{ const lm=limitMag(); return {status:lm>5?'Dark sky':lm>2.5?'Twilight sky':lm>0?'Bright planets only':'Washed out',pill:lm>0?['ok',`mag ${lm.toFixed(1)}`]:['warn','Daylight'],big:lm.toFixed(1),unit:'mag',lab:'visible limit',kpis:[['Density',`${S.st_density.toFixed(2)}×`],['Twinkle',`${Math.round(S.st_twinkle*100)}%`],['Milky Way',`${S.st_milky.toFixed(1)}×`]]}; }
+  case 'stars':{ const lm=limitMag(); return {status:lm>5?'Dark sky':lm>2.5?'Twilight sky':lm>0?'Bright planets only':'Washed out',pill:lm>0?['ok',`mag ${lm.toFixed(1)}`]:['warn','Daylight'],big:lm.toFixed(1),unit:'mag',lab:'visible limit',kpis:[['Quality',S.st_quality],['Look',S.st_look],['Milky Way',`${S.st_milky.toFixed(1)}×`]]}; }
   case 'moons':{ const up=S.moons.filter(m=>m.visible&&moonDir(m)[1]>0).length; const m=S.moons[0]; return {status:S.moons.length?`${S.moons.length} in orbit · atlas`:'Atlas empty',pill:up?['ok',`${up} risen`]:['warn','Set'],big:m?`${Math.round(illum(m.phase)*100)}`:'0',unit:'%',lab:m?`${m.name} lit`:'no moon',kpis:null}; }
   case 'plane': return {status:'Infinite checker',pill:['ok','Static'],big:`${S.pl_size*2}`,unit:'m',lab:'extent',kpis:[['Cell',`${S.pl_cell} m`],['Albedo A',S.pl_a],['Albedo B',S.pl_b]]};
   case 'camera': return {status:keys.size?'Flying · WASD':'Idle · click viewport to fly',pill:keys.size?['ok','Moving']:['','Idle'],big:`${S.cam_fov.toFixed(0)}`,unit:'°',lab:'field of view',kpis:[['Yaw',`${S.cam_yaw.toFixed(0)}°`],['Pitch',`${S.cam_pitch.toFixed(0)}°`],['Height',`${S.cam_height.toFixed(1)} m`]]};
@@ -1013,7 +1018,9 @@ insp.addEventListener('click',e=>{
   const ph=e.target.closest('[data-phase]'); if(ph){ const ctl=ph.closest('.ctl'); commit(ctl?ctl.dataset.k:`moon.${getEntity(selected).moonIndex}.phase`,+ph.dataset.phase); return; }
   const rm=e.target.closest('[data-remove]'); if(rm){ S.moons.splice(+rm.dataset.remove,1); renderTree(); select('moons'); return; }
   const head=e.target.closest('.sec-head'); if(head&&head.parentElement.dataset.sec!==undefined){ head.parentElement.classList.toggle('closed'); } });
-function onChanged(k){ if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
+const STAR_LOOKS={Natural:{st_glow:.8,st_twinkle:.5,st_size:1,st_color:1,st_bright:1,st_milky:1},Crisp:{st_glow:.25,st_twinkle:.2,st_size:.7,st_color:.8,st_bright:1.2,st_milky:.6},Cinematic:{st_glow:1.6,st_twinkle:.75,st_size:1.3,st_color:1,st_bright:1.3,st_milky:1.4},Hubble:{st_glow:2,st_twinkle:0,st_size:1.1,st_color:1,st_bright:1.6,st_milky:1.8},Anime:{st_glow:1.2,st_twinkle:1,st_size:1.8,st_color:.3,st_bright:2,st_milky:.5}};
+const STAR_Q={Draft:{layers:2,aa:.35},Balanced:{layers:3,aa:.6},High:{layers:3,aa:1},Ultra:{layers:4,aa:1.4}};
+function onChanged(k){ if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ Object.assign(S,L); renderInspector(); } } if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
 
 /* ============================================================ INSPECTOR ============================================================ */
 const bigHTML=(v,dec,signed)=>{ const [a,b]=fmt(Math.abs(v),dec).split('.'); return `${signed?(v<0?'−':'+'):''}${a}${b!==undefined?`<small>.${b}</small>`:''}`; };
@@ -1180,7 +1187,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
   f3('uSkyTint',hex2rgb(S.sky_tint)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
-  f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',S.st_twinkle); f1('uStarColor',S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
+  { const Q=STAR_Q[S.st_quality]||STAR_Q.High; f1('uStarLayers',Q.layers); f1('uStarAA',Q.aa); } f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',S.st_twinkle); f1('uStarColor',S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
   const vm=S.vis_moons?S.moons.filter(m=>m.visible):[]; gl.uniform1i(u('uMoonCount'),vm.length); const md=[],t1=[],mp=[],ms=[];
   for(let i=0;i<4;i++){ const m=vm[i]; gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,m?getTex(m.tex):whiteTex); gl.uniform1i(u('uMoonTex'+i),i);
     if(m){ md.push(...moonDir(m)); t1.push(...hex2rgb(m.tint)); mp.push(m.size*D2R/2,m.bright,m.phase,m.glow); ms.push(m.spin*D2R,m.tilt*D2R,m.haze,m.gamma); } else { md.push(0,1,0); t1.push(0,0,0); mp.push(.01,0,0,0); ms.push(0,0,0,1); } }
