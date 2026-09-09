@@ -238,7 +238,7 @@ uniform vec3 uCamFwd,uCamRight,uCamUp,uCamPos; uniform float uTanHalf,uCamHeight
 uniform float uPlaneOn,uPlaneSize,uPlaneCell,uPlaneY,uPlaneGrid; uniform vec3 uPlaneA,uPlaneB;
 uniform vec3 uSunDir,uSunColor; uniform float uSunIntensity,uSunAng,uSunSoft,uSunVisible,uSunDiscBoost;
 uniform float uRayleigh,uMie,uMieG,uOzone,uPlanetR,uAtmoH,uHr,uHm,uAtmoVisible;
-uniform vec3 uSkyTint,uGroundColor; uniform float uSkyBright,uGroundBright,uSkyVisible,uHLInt,uHLSharp,uHLAuto;
+uniform vec3 uSkyTint,uGroundColor; uniform float uSkyBright,uGroundBright,uSkyVisible,uHLInt,uDawnInt,uHLAuto;
 uniform int uMoonCount; uniform vec3 uMoonDir[MAXM]; uniform vec3 uMoonTint[MAXM]; uniform vec4 uMoonP[MAXM]; uniform vec4 uMoonSurf[MAXM]; uniform sampler2D uMoonTex0,uMoonTex1,uMoonTex2,uMoonTex3;
 uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uHalo,uStreak,uChroma,uFlareType;
 uniform vec2 uSunUV; uniform float uSunInFront;
@@ -255,17 +255,17 @@ void atmosphere(vec3 ro,vec3 rd,out vec3 sky,out vec3 trans,out float ground){
   sky=vec3(0.); trans=vec3(1.); ground=0.;
   float Ra=uPlanetR+uAtmoH; vec2 ta=rsi(ro,rd,Ra); if(ta.y<0.) return;
   float t0=max(ta.x,0.), t1=ta.y; vec2 tg=rsi(ro,rd,uPlanetR); if(tg.x>0.){ t1=tg.x; ground=1.; }
-  const int N=16; const int NL=6; float seg=(t1-t0)/float(N);
+  const int N=20; const int NL=8; float len=t1-t0;
   vec3 betaR=vec3(5.8e-6,13.5e-6,33.1e-6)*uRayleigh; vec3 betaM=vec3(21e-6)*uMie; vec3 betaO=vec3(0.65e-6,1.881e-6,0.085e-6)*uOzone;
   vec3 sumR=vec3(0.),sumM=vec3(0.); float odR=0.,odM=0.; float mu=dot(rd,uSunDir); float g=uMieG;
   float pR=3./(16.*PI)*(1.+mu*mu); float pM=3./(8.*PI)*((1.-g*g)*(1.+mu*mu))/((2.+g*g)*pow(1.+g*g-2.*g*mu,1.5));
-  float t=t0;
   for(int i=0;i<N;i++){
-    vec3 p=ro+rd*(t+seg*.5); float h=length(p)-uPlanetR; float hr=exp(-h/uHr)*seg, hm=exp(-h/uHm)*seg; odR+=hr; odM+=hm;
-    vec2 tl=rsi(p,uSunDir,Ra); float segL=tl.y/float(NL); float olR=0.,olM=0.; float tt=0.; bool ok=true;
-    for(int j=0;j<NL;j++){ vec3 q=p+uSunDir*(tt+segL*.5); float hq=length(q)-uPlanetR; if(hq<0.){ok=false;break;} olR+=exp(-hq/uHr)*segL; olM+=exp(-hq/uHm)*segL; tt+=segL; }
+    float s0=float(i)/float(N), s1=float(i+1)/float(N); s0*=s0; s1*=s1;           // quadratic: dense near the camera
+    float ta=t0+len*s0, tb=t0+len*s1; float seg=tb-ta; float tm=.5*(ta+tb);
+    vec3 p=ro+rd*tm; float h=length(p)-uPlanetR; float hr=exp(-h/uHr)*seg, hm=exp(-h/uHm)*seg; odR+=hr; odM+=hm;
+    vec2 tl=rsi(p,uSunDir,Ra); float lenL=tl.y; float olR=0.,olM=0.; bool ok=true;
+    for(int j=0;j<NL;j++){ float q0=float(j)/float(NL), q1=float(j+1)/float(NL); q0*=q0; q1*=q1; float segL=lenL*(q1-q0); vec3 q=p+uSunDir*(lenL*.5*(q0+q1)); float hq=length(q)-uPlanetR; if(hq<0.){ok=false;break;} olR+=exp(-hq/uHr)*segL; olM+=exp(-hq/uHm)*segL; }
     if(ok){ vec3 att=exp(-(betaR*(odR+olR)+betaM*1.1*(odM+olM)+betaO*(odR+olR))); sumR+=att*hr; sumM+=att*hm; }
-    t+=seg;
   }
   trans=exp(-(betaR*odR+betaM*1.1*odM+betaO*odR));
   sky=(sumR*betaR*pR+sumM*betaM*pM)*uSunIntensity*uSunColor;
@@ -302,6 +302,24 @@ vec3 moons(vec3 d,vec3 trans){
   return col*trans;
 }
 
+/* ---- twilight model: bright segment, colour ramp and the pre-sunrise white line ---- */
+vec3 dawnGlow(vec3 dir,float elevDeg,float facing){
+  float alt=degrees(asin(clamp(dir.y,-1.,1.))); if(alt<-1.5) return vec3(0.);
+  float altp=max(alt,0.);
+  float az=pow(facing,3.);
+  float tw=smoothstep(-16.,-5.,elevDeg)*(1.-smoothstep(1.,9.,elevDeg));             // twilight window
+  vec3 cWhite=vec3(1.,.97,.9), cYel=vec3(1.,.82,.45), cOr=vec3(1.,.45,.14), cPink=vec3(.7,.32,.48), cBlue=vec3(.16,.26,.6);
+  vec3 c=mix(cWhite,cYel,smoothstep(0.,1.2,altp)); c=mix(c,cOr,smoothstep(1.,5.,altp)); c=mix(c,cPink,smoothstep(5.,12.,altp)); c=mix(c,cBlue,smoothstep(12.,26.,altp));
+  float band=exp(-altp/7.)*(.25+.75*az);                                              // broad coloured glow
+  float seg=exp(-altp/1.1)*(.15+.85*az);                                              // bright segment hugging the horizon
+  vec3 glow=(c*band*.55+cYel*seg*1.1)*tw;
+  // the white line: a very thin band right on the horizon during civil twilight
+  float wlWin=mix(1.,smoothstep(-7.,-3.,elevDeg)*(1.-smoothstep(-.4,1.2,elevDeg)),uHLAuto);
+  float line=exp(-altp/.16)*smoothstep(-.8,0.,alt)*mix(.3,1.,pow(facing,1.5));
+  glow+=vec3(1.,.985,.95)*line*wlWin*uHLInt*1.6;
+  return glow*uDawnInt;
+}
+float airMassOf(float e){ float z=90.-e; if(z>=96.) return 40.; return min(40.,1./(cos(radians(z))+.50572*pow(96.07995-z,-1.6364))); }
 /* ---- lens flare ---- */
 vec3 hue(float h){ return clamp(abs(mod(h*6.+vec3(0,4,2),6.)-3.)-1.,0.,1.); }
 vec3 lensFlare(vec2 uv,vec2 s,float vis){
@@ -332,34 +350,36 @@ void main(){
   sky*=uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible; if(uAtmoVisible<.5) trans=vec3(1.);
   float elevDeg=degrees(asin(clamp(uSunDir.y,-1.,1.))); float sunUp=smoothstep(-6.,4.,elevDeg);
   float skyLum=dot(sky,vec3(.2126,.7152,.0722)); float nightFade=clamp(1.-skyLum*14.,0.,1.);
+  vec2 hxz=normalize(dir.xz+1e-5); vec2 sxz=normalize(uSunDir.xz+1e-5); float facing=.5+.5*dot(hxz,sxz);
+  float hdrScale=uSunIntensity/22.*uSkyBright*uSkyVisible;
+  vec3 glow=dawnGlow(dir,elevDeg,facing)*hdrScale;                                    // this direction
+  vec3 hzGlow=dawnGlow(normalize(vec3(dir.x,0.,dir.z)+1e-5),elevDeg,facing)*hdrScale;  // at the horizon (for fog)
   vec3 col=vec3(0.);
   // ---- checker plane (local flat world, intersect before atmosphere ground) ----
   float planeHit=0.; vec3 planeCol=vec3(0.); float planeT=1e9;
   if(uPlaneOn>.5 && dir.y<-1e-4){
     float t=(uPlaneY-uCamPos.y)/dir.y; vec3 hp=uCamPos+dir*t;
-    if(t>0. && abs(hp.x)<=uPlaneSize && abs(hp.z)<=uPlaneSize){
-      planeHit=1.; planeT=t;
+    if(t>0.){
+      planeHit=1.; planeT=t; float inChk=step(max(abs(hp.x),abs(hp.z)),uPlaneSize);
       // anti-aliased checker (filtered via fwidth)
       vec2 q=hp.xz/uPlaneCell; vec2 w=fwidth(q)*1.5+1e-4;
       vec2 i=2.*(abs(fract((q-.5*w)*.5)-.5)-abs(fract((q+.5*w)*.5)-.5))/w;
       float chk=.5-.5*i.x*i.y;
-      vec3 alb=mix(uPlaneA,uPlaneB,chk);
+      vec3 alb=mix(uPlaneA,mix(uPlaneA,uPlaneB,chk),inChk);
       // grid lines every cell + bold every 10
       vec2 g1=abs(fract(q-.5)-.5)/(fwidth(q)+1e-4); float line=1.-min(min(g1.x,g1.y),1.);
       vec2 g10=abs(fract(q/10.-.5)-.5)/(fwidth(q/10.)+1e-4); float line10=1.-min(min(g10.x,g10.y),1.);
-      alb=mix(alb,alb*.55,line*uPlaneGrid*.6); alb=mix(alb,vec3(.35,.4,.5),line10*uPlaneGrid*.8);
+      alb=mix(alb,alb*.55,line*uPlaneGrid*.6*inChk); alb=mix(alb,vec3(.35,.4,.5),line10*uPlaneGrid*.8*inChk);
       // axis lines
       float ax=1.-min(abs(hp.z)/(fwidth(hp.z)*1.5+1e-4),1.); float az=1.-min(abs(hp.x)/(fwidth(hp.x)*1.5+1e-4),1.);
       alb=mix(alb,vec3(.95,.25,.3),ax*uPlaneGrid); alb=mix(alb,vec3(.25,.55,.95),az*uPlaneGrid);
       // lighting: sun + sky ambient, soft shadow-less lambert, distance fog into sky colour
       float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.11*ndl;
-      vec3 amb=sky*.55+vec3(.003,.004,.008)*uSkyBright;
+      vec3 amb=sky*.55+hzGlow*.12+vec3(.003,.004,.008)*uSkyBright;
       // moon light contribution
       for(int k=0;k<MAXM;k++){ if(k>=uMoonCount) break; amb+=uMoonTint[k]*uMoonP[k].y*max(uMoonDir[k].y,0.)*.0025*(.5+.5*cos(uMoonP[k].z*6.2832)); }
       planeCol=alb*(sunL+amb);
-      float fog=1.-exp(-t*t*2.2e-8); planeCol=mix(planeCol,sky+vec3(.0,.0,.0),clamp(fog,0.,1.));
-      // edge fade so the plane dissolves into the atmosphere ground
-      float ef=1.-smoothstep(uPlaneSize*.75,uPlaneSize,max(abs(hp.x),abs(hp.z))); planeHit*=ef;
+      float fog=1.-exp(-t*1.2e-4); planeCol=mix(planeCol,sky+hzGlow,clamp(fog,0.,1.));
     }
   }
   if(planeHit>.999){ col=planeCol; }
@@ -368,19 +388,18 @@ void main(){
     col=uGroundColor*uGroundBright*(sunL+amb)+sky;
     col=mix(col,planeCol,planeHit);
   }else{
-    col=sky;
+    col=sky+glow;
     float ext=smoothstep(-.01,.12,dir.y); // horizon extinction
     col+=moons(dir,trans);
     if(uSunVisible>.5){
       float ang=acos(clamp(dot(dir,uSunDir),-1.,1.)); float disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9),uSunAng,ang);
-      float limb=mix(1.,.55,smoothstep(0.,uSunAng,ang)); col+=disc*limb*trans*uSunColor*uSunIntensity*uSunDiscBoost;
-      float glow=exp(-ang*40.)*.35+exp(-ang*9.)*.03+exp(-ang*2.5)*.004; col+=glow*uBloom*trans*uSunColor*uSunIntensity*.6;
+      float limb=mix(1.,.55,smoothstep(0.,uSunAng,ang));
+      vec3 ext=exp(-(vec3(5.8e-6,13.5e-6,33.1e-6)*uRayleigh*uHr+vec3(21e-6)*1.1*uMie*uHm)*airMassOf(elevDeg));
+      vec3 sunCol=uSunColor*max(ext,trans*trans);                                           // deep orange at the horizon, white overhead
+      col+=disc*limb*sunCol*uSunIntensity*uSunDiscBoost;
+      float sg=exp(-ang*40.)*.35+exp(-ang*9.)*.03+exp(-ang*2.5)*.004; col+=sg*uBloom*sunCol*uSunIntensity*.6;
     }
   }
-  { float auto_=mix(1.,exp(-pow((elevDeg+.6)/4.2,2.)),uHLAuto);
-    vec2 hxz=normalize(dir.xz+1e-5); vec2 sxz=normalize(uSunDir.xz+1e-5); float facing=.5+.5*dot(hxz,sxz);
-    float band=exp(-abs(dir.y)*uHLSharp); float hl=band*uHLInt*auto_*mix(.25,1.,facing)*mix(1.,.35,ground)*uSkyVisible;
-    col+=hl*mix(vec3(1.),vec3(1.,.92,.8),.35)*.9; }
   if(uFlareOn>.5 && uSunVisible>.5){
     float inFrame=1.-smoothstep(1.25,2.2,length(uSunUV*vec2(uRes.y/uRes.x,1.)));
     float vis=uSunInFront*sunUp*inFrame*step(0.,elevDeg+.5); col+=lensFlare(uv,uSunUV,vis)*uSunIntensity*.09*uSunColor; }
@@ -425,7 +444,7 @@ const ENTITIES={
   atmosphere:{name:'Atmosphere',kind:'Atmosphere',color:'#5aa9ff',icon:'atmo',preview:'atmo',hero:{label:'Air Mass',unit:'AM',dec:2,fn:()=>airMass()},
     sections:[{title:'Scattering',icon:'wave',props:[TRK('atm_rayleigh','Rayleigh',0,4,0.01,1,'×',{hint:'Molecular — blue depth'}),TRK('atm_mie','Mie',0,6,0.01,1,'×',{hint:'Aerosol / haze'}),TRK('atm_mieG','Mie Anisotropy',0,0.99,0.005,0.78,'g'),TRK('atm_ozone','Ozone',0,4,0.01,1.2,'×')]},
       {title:'Planet',icon:'globe',props:[TRK('atm_planetR','Planet Radius',1000,12000,1,6371,'km',{log:true}),TRK('atm_height','Atmosphere Top',20,200,1,100,'km'),TRK('atm_hr','Rayleigh Scale H',2000,15000,10,8000,'m'),TRK('atm_hm','Mie Scale H',300,4000,10,1200,'m')]},
-      {title:'Horizon Line',icon:'horizon',sub:'sunrise band',props:[TRK('hl_int','Intensity',0,3,0.01,1.1,'×'),TRK('hl_sharp','Sharpness',20,800,1,260,''),TOG('hl_auto','Only at sunrise / sunset',true)]}]},
+      {title:'Twilight',icon:'horizon',sub:'dawn & dusk',props:[TRK('dawn_int','Horizon Glow',0,3,0.01,1,'×',{hint:'Bright segment + colour ramp'}),TRK('hl_int','White Line',0,3,0.01,1,'×',{hint:'Thin band just before sunrise'}),TOG('hl_auto','Line only at civil twilight',true)]}]},
   sun:{name:'Sun',kind:'Directional Light',color:'#ffb454',icon:'sun',preview:'sunpath',hero:{label:'Elevation',unit:'°',dec:1,fn:()=>sunElevDeg(),signed:true},
     sections:[{title:'Position',icon:'orbit',props:[TRK('sun_time','Time of Day',0,24,0.005,6.4,'h'),DIAL('sun_lat','Latitude',-90,90,0.5,-26,'°',{hint:'Gauteng'}),DIAL('sun_az','Azimuth Offset',0,360,1,0,'°',{full:true})]},
       {title:'Light',icon:'bulb',props:[TRK('sun_intensity','Intensity',0,60,0.1,22,'×'),TRK('sun_temp','Colour Temperature',2000,12000,50,5800,'K',{ramp:true}),TRK('sun_ang','Angular Diameter',0.1,10,0.01,0.53,'°',{log:true}),TRK('sun_soft','Disc Softness',0,1,0.01,0.25,''),TRK('sun_disc','Disc Radiance',0,40,0.1,12,'×')]}]},
@@ -441,7 +460,7 @@ const ENTITIES={
 };
 const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
-  sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Half Size',10,5000,1,600,'m',{log:true}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
+  sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[TRK('pl_cell','Cell Size',0.25,20,0.05,1,'m',{log:true}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
 function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) S[p.k]=p.d; } S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
@@ -741,7 +760,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   f1('uPlaneOn',S.vis_plane?1:0); f1('uPlaneSize',S.pl_size); f1('uPlaneCell',S.pl_cell); f1('uPlaneY',S.pl_y); f1('uPlaneGrid',S.pl_grid?1:0); f3('uPlaneA',hex2rgb(S.pl_a)); f3('uPlaneB',hex2rgb(S.pl_b));
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
-  f3('uSkyTint',hex2rgb(S.sky_tint)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uHLSharp',S.hl_sharp); f1('uHLAuto',S.hl_auto?1:0);
+  f3('uSkyTint',hex2rgb(S.sky_tint)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
   const vm=S.vis_moons?S.moons.filter(m=>m.visible):[]; gl.uniform1i(u('uMoonCount'),vm.length); const md=[],t1=[],mp=[],ms=[];
   for(let i=0;i<4;i++){ const m=vm[i]; gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,m?getTex(m.tex):whiteTex); gl.uniform1i(u('uMoonTex'+i),i);
     if(m){ md.push(...moonDir(m)); t1.push(...hex2rgb(m.tint)); mp.push(m.size*D2R/2,m.bright,m.phase,m.glow); ms.push(m.spin*D2R,m.tilt*D2R,m.haze,m.gamma); } else { md.push(0,1,0); t1.push(0,0,0); mp.push(.01,0,0,0); ms.push(0,0,0,1); } }
