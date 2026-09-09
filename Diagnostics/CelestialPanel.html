@@ -390,12 +390,9 @@ vec3 starField(vec3 d,float pixAng,float am){
       bright*=mix(1.,band*2.2+.35,uMilky*.6);
       float ph=hash13(vec3(cell,5.7))*6.283; float tw=1.-uStarTwinkle*(.3+.5*clamp(am/6.,0.,1.))*(.5+.5*sin(uTime*(3.+hash13(vec3(cell,2.2))*8.)+ph));
       float T=mix(2800.,11000.,pow(hash13(vec3(cell,9.1)),1.6)); vec3 sc=mix(vec3(1.),kelvin(T),uStarColor);
-      float ps0=uStarSize*(.0008+bright*.0003);
-      // energy-conserving AA: widen sub-pixel stars to the pixel footprint but scale peak so total flux is preserved
-      float sigma=sqrt(ps0*ps0+pixAng*pixAng*uStarAA);
-      float core=exp(-pow(ang/sigma,2.)*1.3)*(ps0*ps0)/(sigma*sigma)*mix(1.,2.2,clamp(1.-ps0/sigma,0.,1.));
-      float ps=max(ps0,pixAng*.75);
-      float halo=exp(-ang/(ps*(4.+9.*uStarGlow)))*.05*uStarGlow*(bright/8.+.04);
+      float ps=max(uStarSize*(.0006+bright*.00028),pixAng*.5);          // crisp: core is at most ~1 px for faint stars, slightly larger for bright ones
+      float core=exp(-pow(ang/ps,2.)*2.4)*(1.+.6*step(2.5,bright));      // tight gaussian => sharp points, no smear
+      float halo=exp(-pow(ang/(ps*(2.+6.*uStarGlow)),1.5))*.045*uStarGlow*(bright/8.+.03);
       float spikes=0.; if(o==0&&bright>2.5){ vec3 t1=normalize(cross(sdir,vec3(0.,1.,0.)+vec3(1e-3,0.,0.))); vec3 t2=cross(sdir,t1); vec2 q=vec2(dot(sd-sdir,t1),dot(sd-sdir,t2)); float w=max(pixAng*.6,ps*.35); spikes=(exp(-abs(q.x)/w*.5)*exp(-abs(q.y)*70.)+exp(-abs(q.y)/w*.5)*exp(-abs(q.x)*70.))*.3*uStarGlow*(bright/8.); }
       col+=sc*(core+halo+spikes)*bright*tw*2.6e-3;
     }
@@ -556,7 +553,11 @@ void main(){
     float ext=smoothstep(-.01,.12,dir.y); // horizon extinction
     if(uStarsOn>.5){
       float am=airMassOf(degrees(asin(clamp(dir.y,-1.,1.))));
-      float pixAng=2.*uTanHalf/uRes.y; vec3 st=starField(dir,pixAng,am)*trans;                 // atmospheric extinction: stars redden and dim near the horizon
+      float pixAng=2.*uTanHalf/uRes.y; vec3 st;
+      if(uStarAA>1.5){ // 2x2 supersample (rotated grid) => sub-pixel stars resolve cleanly without blur
+        vec3 s0=vec3(0.); for(int q=0;q<4;q++){ vec2 o=(q==0)?vec2(-.375,-.125):(q==1)?vec2(.125,-.375):(q==2)?vec2(.375,.125):vec2(-.125,.375);
+          vec3 d2=normalize(dir+(uCamRight*o.x+uCamUp*o.y)*pixAng); s0+=starField(d2,pixAng*.5,am); } st=s0*.25*trans; }
+      else st=starField(dir,pixAng,am)*trans;                 // atmospheric extinction: stars redden and dim near the horizon
       // contrast-limited visibility: a star is seen only if its radiance beats the sky radiance around it (Weber/Blackwell-ish)
       float skyL=max(skyLum,1e-7); float thresh=skyL*uStarLimit;
       float l=dot(st,vec3(.2126,.7152,.0722));
@@ -1019,7 +1020,7 @@ insp.addEventListener('click',e=>{
   const rm=e.target.closest('[data-remove]'); if(rm){ S.moons.splice(+rm.dataset.remove,1); renderTree(); select('moons'); return; }
   const head=e.target.closest('.sec-head'); if(head&&head.parentElement.dataset.sec!==undefined){ head.parentElement.classList.toggle('closed'); } });
 const STAR_LOOKS={Natural:{st_glow:.8,st_twinkle:.5,st_size:1,st_color:1,st_bright:1,st_milky:1},Crisp:{st_glow:.25,st_twinkle:.2,st_size:.7,st_color:.8,st_bright:1.2,st_milky:.6},Cinematic:{st_glow:1.6,st_twinkle:.75,st_size:1.3,st_color:1,st_bright:1.3,st_milky:1.4},Hubble:{st_glow:2,st_twinkle:0,st_size:1.1,st_color:1,st_bright:1.6,st_milky:1.8},Anime:{st_glow:1.2,st_twinkle:1,st_size:1.8,st_color:.3,st_bright:2,st_milky:.5}};
-const STAR_Q={Draft:{layers:2,aa:.35},Balanced:{layers:3,aa:.6},High:{layers:3,aa:1},Ultra:{layers:4,aa:1.4}};
+const STAR_Q={Draft:{layers:2,aa:1},Balanced:{layers:3,aa:1},High:{layers:3,aa:2},Ultra:{layers:4,aa:2}};
 function onChanged(k){ if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ Object.assign(S,L); renderInspector(); } } if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
 
 /* ============================================================ INSPECTOR ============================================================ */
@@ -1153,7 +1154,7 @@ const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compi
 const prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}')); gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,document.getElementById('fs').textContent)); gl.linkProgram(prog); if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog)); gl.useProgram(prog);
 const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW); const loc=gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
 const U={}; const u=n=>U[n]!==undefined?U[n]:(U[n]=gl.getUniformLocation(prog,n)); const f1=(n,v)=>gl.uniform1f(u(n),v), f2=(n,a,b)=>gl.uniform2f(u(n),a,b), f3=(n,v)=>gl.uniform3f(u(n),v[0],v[1],v[2]);
-function resize(){ const dpr=Math.min(devicePixelRatio||1,2); const w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',resize);
+function resize(){ const dpr=Math.min(devicePixelRatio||1,3); const w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',resize);
 /* Unreal-style viewport navigation: RMB (or LMB) look + WASD/QE fly, scroll while holding = speed, scroll idle = FOV */
 const keys=new Set(); let cdrag=null; let speedFlash=0;
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
