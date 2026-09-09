@@ -360,37 +360,46 @@ vec3 kelvin(float t){ // approx blackbody 2000..12000K
   vec3 c=mix(vec3(1.,.55,.25),vec3(1.,.93,.86),smoothstep(0.,.4,x)); c=mix(c,vec3(.72,.82,1.),smoothstep(.4,1.,x)); return c; }
 vec3 rotY(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(c*v.x+s*v.z,v.y,-s*v.x+c*v.z); }
 vec3 rotX(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(v.x,c*v.y-s*v.z,s*v.y+c*v.z); }
-// returns hdr radiance of stars in direction d (before atmospheric extinction)
-vec3 starField(vec3 d,float skyLum,float am){
+// smooth 3D value noise (trilinear) – no cell artefacts
+float vnoise(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  float a=hash13(i), b=hash13(i+vec3(1,0,0)), c=hash13(i+vec3(0,1,0)), d=hash13(i+vec3(1,1,0));
+  float e=hash13(i+vec3(0,0,1)), f2=hash13(i+vec3(1,0,1)), g=hash13(i+vec3(0,1,1)), h=hash13(i+vec3(1,1,1));
+  return mix(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),mix(mix(e,f2,f.x),mix(g,h,f.x),f.y),f.z); }
+// octahedral mapping: direction <-> unit square (equal-ish area, single chart)
+vec2 octEncode(vec3 n){ n/=abs(n.x)+abs(n.y)+abs(n.z); vec2 p=n.xz; if(n.y<0.) p=(1.-abs(p.yx))*vec2(p.x>=0.?1.:-1.,p.y>=0.?1.:-1.); return p*.5+.5; }
+vec3 octDecode(vec2 f){ f=f*2.-1.; vec3 n=vec3(f.x,1.-abs(f.x)-abs(f.y),f.y); float t=max(-n.y,0.); n.x+=n.x>=0.?-t:t; n.z+=n.z>=0.?-t:t; return normalize(n); }
+// returns hdr radiance of stars in direction d (before atmospheric extinction). pixAng = angular size of one pixel (rad)
+vec3 starField(vec3 d,float pixAng,float am){
   vec3 sd=rotX(rotY(d,uStarRot),uMilkyTilt);
   vec3 col=vec3(0.);
-  // ---- Milky Way: soft band around the equator of the star frame ----
-  float band=exp(-pow(sd.y/.16,2.))*(.6+.4*exp(-pow((sd.x+.3)/.9,2.)));
-  float n1=hash13(floor(sd*18.+3.)); float n2=hash13(floor(sd*45.+7.));
-  float mw=band*(.55+.45*n1)*(.7+.3*n2)*uMilky;
-  col+=vec3(.55,.62,.85)*mw*3e-4;
-  // ---- point stars: 3 octaves of cells (big bright / medium / faint field) ----
+  // ---- Milky Way: smooth band with 3-octave value noise (dust lanes darken the core) ----
+  float band=exp(-pow(sd.y/.15,2.));
+  float n=vnoise(sd*6.)*.5+vnoise(sd*13.+3.1)*.3+vnoise(sd*29.+7.3)*.2;
+  float dust=smoothstep(.35,.7,vnoise(sd*9.+vec3(5.2,1.1,8.8)))*exp(-pow(sd.y/.06,2.))*.8;
+  float mw=band*(.35+.65*n)*(1.-dust)*uMilky;
+  col+=mix(vec3(.55,.62,.9),vec3(.95,.85,.7),dust*.6)*mw*3.2e-4;
+  // ---- point stars: 3 layers on an octahedral grid, 3x3 neighbour search => no cell clipping ----
+  vec2 ouv=octEncode(sd);
   for(int o=0;o<3;o++){
-    float freq=(o==0)?22.:(o==1)?55.:130.;
-    float density=(o==0)?.22:(o==1)?.35:.55;
-    vec3 gp=sd*freq; vec3 cell=floor(gp); vec3 h=hash33(cell);
-    float exists=step(1.-density*uStarDensity,h.x);
-    vec3 pos=cell+.5+(h-.5)*.7; vec3 sdir=normalize(pos/freq);
-    float ang=acos(clamp(dot(sd,sdir),-1.,1.));
-    // magnitude: mostly faint, few bright (power law)
-    float bright=pow(hash13(cell+11.3),8.)*8.+.15;
-    if(o==1) bright*=.45; if(o==2) bright*=.18;
-    bright*=mix(1.,band*2.+.4,uMilky*.6);
-    // twinkle: scintillation grows with air mass, per-star random phase
-    float ph=hash13(cell+5.7)*6.283; float tw=1.-uStarTwinkle*(.35+.45*clamp(am/6.,0.,1.))*(.5+.5*sin(uTime*(4.+hash13(cell+2.2)*7.)+ph));
-    // colour by temperature
-    float T=mix(2800.,11000.,pow(hash13(cell+9.1),1.6)); vec3 sc=mix(vec3(1.),kelvin(T),uStarColor);
-    float ps=uStarSize*(.0009+bright*.00035); // core angular size (rad)
-    float core=exp(-pow(ang/ps,2.)*1.2);
-    float halo=exp(-ang/(ps*(5.+8.*uStarGlow)))*.06*uStarGlow*(bright/8.+.05);
-    float spikes=0.; if(o==0&&bright>3.){ vec3 t1=normalize(cross(sdir,vec3(0.,1.,0.)+1e-4)); vec3 t2=cross(sdir,t1); vec2 q=vec2(dot(sd-sdir,t1),dot(sd-sdir,t2)); spikes=(exp(-abs(q.x)*900.)*exp(-abs(q.y)*90.)+exp(-abs(q.y)*900.)*exp(-abs(q.x)*90.))*.35*uStarGlow*(bright/8.); }
-    float rad=(core+halo+spikes)*bright*exists*tw;
-    col+=sc*rad*2.6e-3;
+    float freq=(o==0)?18.:(o==1)?46.:110.;
+    float density=(o==0)?.28:(o==1)?.42:.6;
+    float layerGain=(o==0)?1.:(o==1)?.4:.15;
+    vec2 gp=ouv*freq; vec2 base=floor(gp);
+    for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){
+      vec2 cell=base+vec2(float(i),float(j)); vec3 h=hash33(vec3(cell,float(o)*17.));
+      if(h.x<1.-density*uStarDensity) continue;
+      vec2 suv=(cell+.5+(h.yz-.5)*.9)/freq; vec3 sdir=octDecode(clamp(suv,0.,1.));
+      float ang=acos(clamp(dot(sd,sdir),-1.,1.));
+      float bright=(pow(hash13(vec3(cell,3.3+float(o))),8.)*8.+.15)*layerGain;
+      bright*=mix(1.,band*2.2+.35,uMilky*.6);
+      float ph=hash13(vec3(cell,5.7))*6.283; float tw=1.-uStarTwinkle*(.3+.5*clamp(am/6.,0.,1.))*(.5+.5*sin(uTime*(3.+hash13(vec3(cell,2.2))*8.)+ph));
+      float T=mix(2800.,11000.,pow(hash13(vec3(cell,9.1)),1.6)); vec3 sc=mix(vec3(1.),kelvin(T),uStarColor);
+      float ps=max(uStarSize*(.0008+bright*.0003),pixAng*.75);            // never smaller than ~a pixel => no sparkle aliasing
+      float core=exp(-pow(ang/ps,2.)*1.3);
+      float halo=exp(-ang/(ps*(4.+9.*uStarGlow)))*.05*uStarGlow*(bright/8.+.04);
+      float spikes=0.; if(o==0&&bright>2.5){ vec3 t1=normalize(cross(sdir,vec3(0.,1.,0.)+vec3(1e-3,0.,0.))); vec3 t2=cross(sdir,t1); vec2 q=vec2(dot(sd-sdir,t1),dot(sd-sdir,t2)); float w=max(pixAng*.6,ps*.35); spikes=(exp(-abs(q.x)/w*.5)*exp(-abs(q.y)*70.)+exp(-abs(q.y)/w*.5)*exp(-abs(q.x)*70.))*.3*uStarGlow*(bright/8.); }
+      col+=sc*(core+halo+spikes)*bright*tw*2.6e-3;
+    }
   }
   return col*uStarBright;
 }
@@ -548,7 +557,7 @@ void main(){
     float ext=smoothstep(-.01,.12,dir.y); // horizon extinction
     if(uStarsOn>.5){
       float am=airMassOf(degrees(asin(clamp(dir.y,-1.,1.))));
-      vec3 st=starField(dir,skyLum,am)*trans;                 // atmospheric extinction: stars redden and dim near the horizon
+      float pixAng=2.*uTanHalf/uRes.y; vec3 st=starField(dir,pixAng,am)*trans;                 // atmospheric extinction: stars redden and dim near the horizon
       // contrast-limited visibility: a star is seen only if its radiance beats the sky radiance around it (Weber/Blackwell-ish)
       float skyL=max(skyLum,1e-7); float thresh=skyL*uStarLimit;
       float l=dot(st,vec3(.2126,.7152,.0722));
@@ -1142,7 +1151,7 @@ const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compi
 const prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}')); gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,document.getElementById('fs').textContent)); gl.linkProgram(prog); if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog)); gl.useProgram(prog);
 const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW); const loc=gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
 const U={}; const u=n=>U[n]!==undefined?U[n]:(U[n]=gl.getUniformLocation(prog,n)); const f1=(n,v)=>gl.uniform1f(u(n),v), f2=(n,a,b)=>gl.uniform2f(u(n),a,b), f3=(n,v)=>gl.uniform3f(u(n),v[0],v[1],v[2]);
-function resize(){ const dpr=Math.min(devicePixelRatio||1,1.5); const w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',resize);
+function resize(){ const dpr=Math.min(devicePixelRatio||1,2); const w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',resize);
 /* Unreal-style viewport navigation: RMB (or LMB) look + WASD/QE fly, scroll while holding = speed, scroll idle = FOV */
 const keys=new Set(); let cdrag=null; let speedFlash=0;
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
