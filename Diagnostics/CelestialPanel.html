@@ -57,6 +57,21 @@ input{font:inherit;color:inherit}
 .filters button i{width:6px;height:6px;border-radius:50%;background:var(--c)}
 .filters button.on{background:var(--g3);color:var(--text);border-color:var(--stroke2)}
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
+/* presence grid (inspector) */
+.presence{margin:-2px 0 12px} .p-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--t3);padding:0 4px 8px}
+.p-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.p-cell{border-radius:16px;border:1px solid var(--stroke);background:rgba(255,255,255,.03);padding:12px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--t2);transition:all .2s var(--ease);cursor:pointer}
+.p-cell:hover{background:rgba(255,255,255,.06)} .p-cell.on{background:rgba(255,255,255,.05);border-color:var(--stroke2)}
+.p-ico{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--red);background:rgba(255,80,80,.12)} .p-cell.on .p-ico{color:#0b1a12;background:var(--green);box-shadow:0 0 12px -2px var(--green)}
+.p-name{font-size:12px;color:var(--t2)} .p-cell.on .p-name{color:var(--text)}
+.p-state{font-size:9px;letter-spacing:.16em;font-weight:600;color:var(--red)} .p-cell.on .p-state{color:var(--green)}
+/* scene status (outliner) */
+.scene-stat{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 14px 10px}
+.ss{border-radius:18px;border:1px solid var(--stroke);background:rgba(255,255,255,.035);padding:12px 14px 10px;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;gap:4px 8px;align-items:center}
+.ss-ico{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;grid-row:1;color:var(--t3);background:rgba(255,255,255,.06)}
+.ss.ok .ss-ico{background:var(--green);color:#0b1a12} .ss.warn .ss-ico{background:rgba(255,80,80,.15);color:var(--red)}
+.ss-l{font-size:12px;color:var(--t2);grid-row:2;grid-column:1/3} .ss b{grid-row:1/3;grid-column:2;justify-self:end;align-self:end;font-size:30px;font-weight:200;line-height:1;font-variant-numeric:tabular-nums}
+#outliner.compact .scene-stat{display:none}
 /* compact mode */
 .cbtn{width:28px;height:28px;border-radius:50%;border:1px solid var(--stroke);background:transparent;color:var(--t3);display:flex;align-items:center;justify-content:center;transition:all .2s} .cbtn:hover{color:var(--text);background:var(--g3)}
 #outliner.compact{width:236px} #outliner.compact .cbtn{color:var(--text);background:var(--g3)}
@@ -311,8 +326,9 @@ input{font:inherit;color:inherit}
 </div>
 
 <aside id="outliner" class="glass">
-  <div class="panel-head"><h1>Scene<span class="sub">Outliner</span></h1><span style="display:flex;align-items:center;gap:10px"><span class="clock" id="clock">06:24</span><button class="cbtn" id="compactBtn" title="Compact outliner (Tab)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button></span></div>
+  <div class="panel-head"><h1>Outliner<span class="sub">Scene</span></h1><span style="display:flex;align-items:center;gap:10px"><span class="clock" id="clock">06:24</span><button class="cbtn" id="compactBtn" title="Compact outliner (Tab)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button></span></div>
   <div class="tabs" id="tabs"></div>
+  <div class="scene-stat" id="sceneStat"></div>
   <div class="timeline" id="timeline"></div>
   <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search  Ctrl+Shift+F"></div>
   <div class="filters" id="filters"></div>
@@ -344,7 +360,7 @@ uniform vec3 uSkyTint,uGroundColor; uniform float uSkyBright,uGroundBright,uSkyV
 uniform int uMoonCount; uniform vec3 uMoonDir[MAXM]; uniform vec3 uMoonTint[MAXM]; uniform vec4 uMoonP[MAXM]; uniform vec4 uMoonSurf[MAXM]; uniform sampler2D uMoonTex0,uMoonTex1,uMoonTex2,uMoonTex3;
 uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uHalo,uStreak,uChroma,uFlareType;
 uniform vec2 uSunUV; uniform float uSunInFront;
-uniform float uStarQuality,uStarLayers,uStarAA; uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
+uniform float uStarQuality,uStarLayers,uStarAA; uniform vec4 uPresence; // x=shadows y=GI z=collide w=spare uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
 
 vec3 hash33(vec3 p){ p=fract(p*vec3(.1031,.1030,.0973)); p+=dot(p,p.yxz+33.33); return fract((p.xxy+p.yxx)*p.zyx); }
 float hash13(vec3 p){ p=fract(p*.1031); p+=dot(p,p.zyx+31.32); return fract((p.x+p.y)*p.z); }
@@ -534,9 +550,11 @@ void main(){
       float ax=1.-min(abs(hp.z)/(fwidth(hp.z)*1.5+1e-4),1.); float az=1.-min(abs(hp.x)/(fwidth(hp.x)*1.5+1e-4),1.);
       alb=mix(alb,vec3(.95,.25,.3),ax*uPlaneGrid); alb=mix(alb,vec3(.25,.55,.95),az*uPlaneGrid);
       // lighting: sun + sky ambient, soft shadow-less lambert, distance fog into sky colour
-      float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.11*ndl;
+      float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.11*ndl; ndl=max(ndl,0.);
       // hemispherical ambient: mostly zenith sky, a little horizon glow, tiny floor so it never goes fully black
-      vec3 amb=sky*.42+hzGlow*.08+vec3(.0015,.002,.004)*uSkyBright;
+      vec3 amb=(sky*.42+hzGlow*.08+vec3(.0015,.002,.004)*uSkyBright)*mix(.55,1.,uPresence.y);   // GI off => flat, darker ambient
+      amb+=uPresence.y*uPlaneA*.5*sunL*.35;                                                       // GI on => bounced sun light from the plane
+      { float sh=1.-uPresence.x*(1.-smoothstep(-1.,3.,elevDeg))*.35*ndl; sunL*=sh; }                // shadows on => long low-sun self-shadowing of the surface micro-relief
       // moon light contribution
       for(int k=0;k<MAXM;k++){ if(k>=uMoonCount) break; amb+=uMoonTint[k]*uMoonP[k].y*max(uMoonDir[k].y,0.)*.0025*(.5+.5*cos(uMoonP[k].z*6.2832)); }
       planeCol=alb*(sunL+amb);
@@ -658,7 +676,7 @@ const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane'}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
@@ -675,6 +693,11 @@ const I=(n,s=16)=>{ const m={
   folder:`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`, atmo:`<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>`,
   sun:`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>`,
   sky:`<path d="M3 16a4 4 0 0 1 4-4 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 18 20H7a4 4 0 0 1-4-4z"/>`,
+  check:`<path d="M5 12.5l4.5 4.5L19 7.5"/>`,
+  warn:`<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.5"/>`,
+  shadow:`<circle cx="9" cy="9" r="5"/><path d="M14 12a6 6 0 1 1-6 6"/>`,
+  gi:`<path d="M4 18l6-8 4 5 3-3 3 6z"/><circle cx="17" cy="6" r="2"/>`,
+  collide:`<rect x="3" y="8" width="7" height="8" rx="1.5"/><rect x="14" y="8" width="7" height="8" rx="1.5"/><path d="M10 12h4"/>`,
   stars:`<path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7zM5 16l.5 1.3 1.3.5-1.3.5L5 19.6l-.5-1.3-1.3-.5 1.3-.5z"/>`,
   moon:`<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>`, camera:`<rect x="3" y="7" width="13" height="11" rx="2.5"/><path d="m16 11 5-3v8l-5-3z"/>`,
   fx:`<path d="M4 20 15 9M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.6 1.4L21 14l-1.4.6L19 16l-.6-1.4L17 14l1.4-.6z"/>`,
@@ -740,6 +763,8 @@ function cardHTML(id){ const e=ENTITIES[id]||{name:'Moons',icon:'moon',color:'#d
     <div class="c-top"><span class="c-ico">${I(e.icon,16)}</span><div class="c-title"><b>${e.name}</b><span data-status="${id}">${d.status}</span></div><span class="c-pill ${pc}" data-pill="${id}"><i></i>${pl}</span>${id!=='moons'?`<button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',13)}</button>`:''}</div>
     <div class="c-body"><div class="c-big" data-big="${id}">${d.big}<small>${d.unit}</small><em>${d.lab}</em></div><div class="c-viz" data-mini="${vizId}">${vizId?miniOf(vizId):''}</div></div>${foot}</div>`; }
 function passF(id){ if(!activeF.size) return true; return FILTERS.some(f=>activeF.has(f.id)&&f.ids.includes(id.startsWith('moon#')?'moons':id)); }
+function sceneCounts(){ const ids=['atmosphere','sun','sky','stars','plane','camera','post',...S.moons.map((_,i)=>'moon#'+i)]; const vis=ids.filter(visOf).length; const lifted=ids.reduce((n,id)=>{ const pr=presenceOf(id); return n+(pr?['shadows','gi','collide'].filter(k=>!pr[k]).length:0); },0); return {total:ids.length,vis,hidden:ids.length-vis,lifted}; }
+function renderSceneStat(){ const c=sceneCounts(); const el=document.getElementById('sceneStat'); if(!el) return; el.innerHTML=`<div class="ss ok"><span class="ss-ico">${I('check',14)}</span><span class="ss-l">Visible</span><b>${c.vis}</b></div><div class="ss ${c.hidden?'warn':''}"><span class="ss-ico">${I('warn',14)}</span><span class="ss-l">Hidden</span><b>${c.hidden}</b></div>`; document.querySelector('.panel-head .sub').textContent=`Scene · ${c.total} nodes`; }
 function renderTabs(){ document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="${tab===t.id?'on':''}" data-tab="${t.id}" style="--c:${t.c}"><i></i>${t.l}<b>${t.ids.reduce((n,id)=>n+(id==='moons'?S.moons.length:1),0)}</b></button>`).join(''); }
 document.getElementById('tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-tab]'); if(!b) return; tab=b.dataset.tab; document.getElementById('search').value=''; renderTree(); });
 function renderTimeline(){ const el=document.getElementById('timeline'); const W=260,H=58; const N=48; const stops=[...Array(N+1)].map((_,i)=>{ const t=i/N*24; const c=skyColorsAt(sunDirAt(t).el/D2R); return `<stop offset="${(i/N*100).toFixed(1)}%" stop-color="rgb(${c.hz})"/>`; }).join('');
@@ -760,7 +785,7 @@ function renderTree(){
   const ids=all.filter(id=>passF(id)&&(q?nameOf(id).toLowerCase().includes(q):activeF.size?true:tabOf(id)===tab));
   const t=TABS.find(t=>t.id===tab);
   treeEl.innerHTML=(q||activeF.size?`<div class="sec-label">${q?'Search':'Filtered'}<b>${ids.length} match${ids.length===1?'':'es'}</b></div>`:`<div class="sec-label">${t.l}<b>${ids.length} ${ids.length===1?'entity':'entities'}</b></div>`)+(ids.length?ids.map(cardHTML).join(''):`<div class="empty">Nothing here.</div>`);
-  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderTabs(); renderTimeline(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; }
+  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderTabs(); renderSceneStat(); renderTimeline(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; }
 const tileHist={}; function renderTiles(){} function drawTiles(){}
 function miniOf(id){ // tiny inline visual per row
   if(id==='sun'){ const pts=[...Array(25)].map((_,i)=>[i/24*56,13-sunDirAt(i).el/(Math.PI/2)*11]); const x=S.sun_time/24*56, y=13-sunDir().el/(Math.PI/2)*11; return `<svg viewBox="0 0 56 26"><line x1="0" y1="13" x2="56" y2="13" stroke="rgba(255,255,255,.15)"/><polyline points="${pts.map(q=>q.join(',')).join(' ')}" fill="none" stroke="rgba(255,180,84,.6)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="2.5" fill="#ffd166"/></svg>`; }
@@ -1010,6 +1035,7 @@ insp.addEventListener('input',e=>{ if(e.target.type==='color'){ const k=e.target
 insp.addEventListener('keydown',e=>{ if(e.target.classList.contains('val')&&e.key==='Enter') e.target.dispatchEvent(new Event('change',{bubbles:true})); });
 insp.addEventListener('wheel',e=>{ const el=e.target.closest('.ctl[data-t="trk"],.ctl[data-t="dial"],.ctl[data-t="gauge"],.ctl[data-t="curve"],.ctl[data-t="globe"],.ctl[data-t="kelvin"],.ctl[data-t="hist"],.ctl[data-t="phase"]'); if(!el) return; e.preventDefault(); const k=el.dataset.k,p=widgetProp(el)||propOf(k); commit(k,unfrac(p,frac(p,getV(k))-Math.sign(e.deltaY)*(e.shiftKey?.002:.01))); },{passive:false});
 insp.addEventListener('click',e=>{
+  const pc=e.target.closest('[data-pres]'); if(pc){ togglePresence(selected,pc.dataset.pres); return; }
   const sw=e.target.closest('.sw'); if(sw){ const k=sw.closest('.ctl').dataset.k; commit(k,!getV(k)); return; }
   const st=e.target.closest('.step button'); if(st){ const k=st.closest('.ctl').dataset.k,p=propOf(k); commit(k,Math.max(p.min,Math.min(p.max,getV(k)+ +st.dataset.d))); return; }
   const opt=e.target.closest('[data-opt]'); if(opt){ const k=opt.closest('.ctl').dataset.k; setV(k,opt.dataset.opt); opt.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===opt)); onChanged(k); return; }
@@ -1025,6 +1051,11 @@ function onChanged(k){ if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ 
 
 /* ============================================================ INSPECTOR ============================================================ */
 const bigHTML=(v,dec,signed)=>{ const [a,b]=fmt(Math.abs(v),dec).split('.'); return `${signed?(v<0?'−':'+'):''}${a}${b!==undefined?`<small>.${b}</small>`:''}`; };
+const PRES_CELLS=[['visible','Visible','eye'],['shadows','Shadows','shadow'],['gi','GI','gi'],['collide','Collide','collide']];
+function presenceOf(id){ if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; m.presence=m.presence||{visible:m.visible,shadows:false,gi:true,collide:false}; m.presence.visible=m.visible; return m.presence; } if(id==='moons') return null; S.presence[id]=S.presence[id]||{visible:true,shadows:false,gi:false,collide:false}; S.presence[id].visible=visOf(id); return S.presence[id]; }
+function presenceHTML(id){ const pr=presenceOf(id); if(!pr) return '';
+  return `<div class="presence"><div class="p-label">Presence · tap a cell to seat / lift</div><div class="p-grid">${PRES_CELLS.map(([k,l,ic])=>`<button class="p-cell ${pr[k]?'on':''}" data-pres="${k}"><span class="p-ico">${pr[k]?I('check',14):I('warn',14)}</span><span class="p-name">${l}</span><span class="p-state">${pr[k]?'SEATED':'LIFTED'}</span></button>`).join('')}</div></div>`; }
+function togglePresence(id,k){ const pr=presenceOf(id); if(!pr) return; if(k==='visible'){ if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible=!S.moons[+id.slice(5)].visible; else S['vis_'+id]=!visOf(id); } else pr[k]=!pr[k]; renderInspector(); renderTree(); }
 function renderInspector(){
   const e=getEntity(selected); if(!e){ insp.innerHTML='<div class="empty">Select something in the outliner</div>'; return; }
   document.getElementById('inspTitle').innerHTML=`<span style="color:${e.color}">${I(e.icon,18)}</span>${e.name}`; document.getElementById('inspKind').textContent=e.kind; insp.style.setProperty('--acc',e.color);
@@ -1045,7 +1076,7 @@ function renderInspector(){
     <div class="hero" style="--acc:${e.color}"><div class="label-bar">${e.hero.label}<em>live</em></div>
       <div class="big"><span class="v" id="heroV">${bigHTML(e.hero.fn(),e.hero.dec,e.hero.signed)}</span><span class="u">${e.hero.unit}</span><span class="trend" id="heroTrend">${I('flat',18)}</span></div>
       <span class="delta" id="heroDelta">± 0 ${e.hero.unit}</span>${previewHTML}</div>
-    ${atlasHTML}${moonExtra}
+    ${presenceHTML(selected)}${atlasHTML}${moonExtra}
     ${e.sections.map((sec,i)=>`<div class="sec ${sec.warm||e.warm?'warm':''}" data-sec="${i}"><div class="sec-head"><span class="sico">${I(sec.icon,16)}</span><span class="t">${sec.title}${sec.sub?`<span>(${sec.sub})</span>`:''}</span><span class="badge">${sec.props.length} props</span><span class="chev">${I('chevu',14)}</span></div><div class="sec-body">${sec.props.map(ctlHTML).join('')}</div></div>`).join('')}
     ${selected==='camera'?`<div class="sec warm"><div class="sec-head" data-goto="post"><span class="sico" style="color:${ENTITIES.post.color}">${I('fx',16)}</span><span class="t">Post Process<span>component</span></span><span class="badge">attached</span><span class="chev" style="transform:rotate(90deg)">${I('chev',14)}</span></div></div>`:''}
     ${selected==='post'?`<button class="action ghost" data-goto="camera" style="width:100%">← Back to Camera</button>`:''}
@@ -1154,6 +1185,7 @@ const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compi
 const prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}')); gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,document.getElementById('fs').textContent)); gl.linkProgram(prog); if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog)); gl.useProgram(prog);
 const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW); const loc=gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
 const U={}; const u=n=>U[n]!==undefined?U[n]:(U[n]=gl.getUniformLocation(prog,n)); const f1=(n,v)=>gl.uniform1f(u(n),v), f2=(n,a,b)=>gl.uniform2f(u(n),a,b), f3=(n,v)=>gl.uniform3f(u(n),v[0],v[1],v[2]);
+function clampCam(){ const pr=S.presence&&S.presence.plane; if(pr&&pr.collide&&S.vis_plane){ const minH=S.pl_y+.4; if(S.cam_height<minH) S.cam_height=minH; } }
 function resize(){ const dpr=Math.min(devicePixelRatio||1,3); const w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',resize);
 /* Unreal-style viewport navigation: RMB (or LMB) look + WASD/QE fly, scroll while holding = speed, scroll idle = FOV */
 const keys=new Set(); let cdrag=null; let speedFlash=0;
@@ -1182,13 +1214,13 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   if(S.play){ S.sun_time=(S.sun_time+dt*S.speed)%24; if(selected==='sun'&&fpsN%4===0) refreshCtl('sun_time'); if(selected==='sky'&&fpsN%20===0) drawSkyDay(); }
   flyStep(dt); resize(); updateClock(); const time=(now-t0)/1000; updateNavHud(dt);
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; const up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; const tanH=Math.tan(S.cam_fov*D2R/2);
-  const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
+  clampCam(); const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
   f1('uPlaneOn',S.vis_plane?1:0); f1('uPlaneSize',S.pl_size); f1('uPlaneCell',S.pl_cell); f1('uPlaneY',S.pl_y); f1('uPlaneGrid',S.pl_grid?1:0); f3('uPlaneA',hex2rgb(S.pl_a)); f3('uPlaneB',hex2rgb(S.pl_b));
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
   f3('uSkyTint',hex2rgb(S.sky_tint)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
-  { const Q=STAR_Q[S.st_quality]||STAR_Q.High; f1('uStarLayers',Q.layers); f1('uStarAA',Q.aa); } f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',S.st_twinkle); f1('uStarColor',S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
+  { const pp_=S.presence.plane||{}; gl.uniform4f(u('uPresence'),pp_.shadows?1:0,pp_.gi?1:0,pp_.collide?1:0,0); } { const Q=STAR_Q[S.st_quality]||STAR_Q.High; f1('uStarLayers',Q.layers); f1('uStarAA',Q.aa); } f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',S.st_twinkle); f1('uStarColor',S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
   const vm=S.vis_moons?S.moons.filter(m=>m.visible):[]; gl.uniform1i(u('uMoonCount'),vm.length); const md=[],t1=[],mp=[],ms=[];
   for(let i=0;i<4;i++){ const m=vm[i]; gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,m?getTex(m.tex):whiteTex); gl.uniform1i(u('uMoonTex'+i),i);
     if(m){ md.push(...moonDir(m)); t1.push(...hex2rgb(m.tint)); mp.push(m.size*D2R/2,m.bright,m.phase,m.glow); ms.push(m.spin*D2R,m.tilt*D2R,m.haze,m.gamma); } else { md.push(0,1,0); t1.push(0,0,0); mp.push(.01,0,0,0); ms.push(0,0,0,1); } }
