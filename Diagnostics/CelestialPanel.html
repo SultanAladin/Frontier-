@@ -296,6 +296,7 @@ input{font:inherit;color:inherit}
 .colorbtn code{font-family:var(--mono);font-size:12px;color:var(--t2);padding-right:10px;text-transform:uppercase}
 .colorbtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 /* segmented */
+.drop{position:relative;display:flex;align-items:center} .drop select{appearance:none;-webkit-appearance:none;height:30px;padding:0 32px 0 12px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid var(--stroke);color:#fff;font:500 12px var(--font);cursor:pointer;outline:none} .drop select:hover{background:var(--g3)} .drop .chev{position:absolute;right:10px;pointer-events:none;color:var(--t3);transform:rotate(180deg)} .drop select option{background:#151618;color:#fff}
 .seg{display:flex;gap:3px;background:rgba(0,0,0,.35);border:1px solid var(--stroke);border-radius:999px;padding:3px;flex-wrap:wrap;justify-content:flex-end}
 .seg button{height:26px;padding:0 11px;border-radius:999px;font-size:12px;color:var(--t2);transition:all .2s;white-space:nowrap}
 .seg button.on{background:#fff;color:#000;font-weight:500} .seg button:hover:not(.on){background:var(--g3);color:var(--text)}
@@ -780,6 +781,7 @@ uniform float uAFOn,uAFDensity,uAFHeight,uAFStart,uAFMie,uAFG,uAFSky; uniform ve
 uniform float uVFOn,uVFDensity,uVFNoise,uVFScale,uVFSpeed,uVFG,uVFSoft,uVFAbsorb,uVFShape,uVFSteps,uVFSelf,uVFFall; uniform vec3 uVFPos,uVFSize,uVFAlbedo;   // local volumetric fog
 uniform vec3 uPLPos,uPLCol,uSLPos,uSLDir,uSLCol; uniform float uPLOn,uPLInt,uPLReach,uPLDecay,uSLOn,uSLInt,uSLCos,uSLSoft;
 uniform float uCloudOn,uCloudCov,uCloudDen,uCloudAlt,uCloudScale,uCloudDetail,uCloudSpeed; uniform vec3 uCloudTint,uCloudShade;
+uniform float uCLOn,uCLBase,uCLThick,uCLCov,uCLDen,uCLScale,uCLDetail,uCLAnvil,uCLWind,uCLWindDir,uCLG1,uCLG2,uCLMix,uCLAbsorb,uCLAmb,uCLPowder,uCLSteps,uCLType; uniform vec3 uCLAlbedo;
 uniform float uTerrOn,uTerrSize,uTerrHeight,uTerrFreq,uTerrSeed,uTerrRough,uTerrWire; uniform vec3 uTerrLow,uTerrHigh,uTerrPos;
 uniform float uStarQuality,uStarLayers,uStarAA; uniform vec4 uPresence; /* x=shadows y=GI z=collide */
 uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
@@ -989,6 +991,51 @@ bool terrHit(vec3 ro,vec3 rd,out float tHit,out vec3 n){ tHit=-1.; if(uTerrOn<.5
     t+=dt; dt*=1.03; if(t>uTerrSize*4.) break; }
   if(!hit) return false; vec3 p=ro+rd*t; float e=uTerrSize/256.; n=normalize(vec3(terrH(p.xz-vec2(e,0.))-terrH(p.xz+vec2(e,0.)),2.*e,terrH(p.xz-vec2(0.,e))-terrH(p.xz+vec2(0.,e)))); tHit=t; return true; }
 float cnoise2(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); float a=hash13(vec3(i,7.)),b=hash13(vec3(i+vec2(1,0),7.)),c=hash13(vec3(i+vec2(0,1),7.)),d=hash13(vec3(i+vec2(1,1),7.)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+// ===== Volumetric clouds: a slab [uCLBase, uCLBase+uCLThick] ray-marched with Beer–Lambert, per-type vertical density profile
+//       (Schneider/Hillaire "Nubis"), Perlin-Worley-ish shape + eroding detail, dual-lobe HG (forward silver lining + back lobe),
+//       Beer-powder darkening in the crevices, and a 5-tap light march toward the sun with the multi-scatter octave trick (Wrenninge).
+float clHeightProfile(float hn){ // hn 0..1 within the slab; type: 0 stratus 1 stratocumulus 2 cumulus 3 cumulonimbus 4 altostratus 5 cirrus
+  float t=uCLType;
+  if(t<.5)  return smoothstep(0.,.08,hn)*(1.-smoothstep(.75,1.,hn));                       // stratus: flat sheet filling the slab
+  if(t<1.5) return smoothstep(0.,.12,hn)*(1.-smoothstep(.5,.95,hn));                        // stratocumulus: flat base, lumpy top
+  if(t<2.5) return smoothstep(0.,.07,hn)*(1.-smoothstep(.35,1.,hn))*1.15;                    // cumulus: flat base, tall bulging tops
+  if(t<3.5) return smoothstep(0.,.05,hn)*(1.-smoothstep(.85,1.,hn))*mix(1.,1.6,smoothstep(.7,1.,hn)*uCLAnvil); // cumulonimbus: full column + anvil spread
+  if(t<4.5) return smoothstep(0.,.3,hn)*(1.-smoothstep(.6,1.,hn))*.7;                         // altostratus: thin translucent mid layer
+  return smoothstep(0.,.4,hn)*(1.-smoothstep(.5,1.,hn))*.35; }                                // cirrus: wispy, low density
+float clDensity(vec3 p,float lod){
+  float hn=clamp((p.y-uCLBase)/max(1.,uCLThick),0.,1.); float prof=clHeightProfile(hn); if(prof<=0.) return 0.;
+  vec2 wd=vec2(sin(uCLWindDir),cos(uCLWindDir))*uCLWind*uTime*.8; vec3 q=p; q.xz+=wd; q.xz+=hn*uCLThick*.35*wd/max(1e-3,length(wd)+1e-3)*(uCLType>2.5?uCLAnvil:0.2); // wind shear leans the column
+  float sc=1./(uCLScale*900.); vec3 s=q*sc;
+  float shape=vnoise(s)*.5+vnoise(s*2.02+vec3(3.1,1.7,9.2))*.25+vnoise(s*4.1+vec3(7.7,2.2,1.1))*.125+vnoise(s*8.3+vec3(1.3,8.8,4.4))*.0625; shape/=.9375;
+  float cirrusStreak=(uCLType>4.5)?vnoise(vec3(s.x*.25,s.y*4.,s.z*6.)):0.; shape=mix(shape,shape*.6+cirrusStreak*.5,step(4.5,uCLType));
+  float cov=uCLCov; float base=clamp((shape-(1.-cov))/max(1e-3,cov),0.,1.)*prof;
+  if(base<=0.||lod>.5) return base*uCLDen;
+  float det=vnoise(q*sc*9.+vec3(uTime*.02))*.6+vnoise(q*sc*19.+vec3(5.))*.4; float erode=mix(det,1.-det,clamp(hn*3.,0.,1.))*uCLDetail*.45;
+  return clamp(base-erode*(1.-base),0.,1.)*uCLDen; }
+float clHG(float c,float g){ return (1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*c,1.5)); }
+float clLight(vec3 p){ // optical depth toward the sun, 5 taps with growing spacing
+  float od=0.; float st=uCLThick*.12; for(int i=1;i<=5;i++){ float d=st*float(i)*float(i)*.35; od+=clDensity(p+uSunDir*d,float(i)>3.?1.:0.)*d*.8; } return od; }
+vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5) return vec4(0.);
+  float y0=uCLBase,y1=uCLBase+uCLThick; float t0,t1;
+  if(ro.y<y0){ if(rd.y<=1e-3) return vec4(0.); t0=(y0-ro.y)/rd.y; t1=(y1-ro.y)/rd.y; }
+  else if(ro.y>y1){ if(rd.y>=-1e-3) return vec4(0.); t0=(y1-ro.y)/rd.y; t1=(y0-ro.y)/rd.y; }
+  else { t0=0.; t1=(rd.y>0.)?(y1-ro.y)/rd.y:(rd.y<0.)?(y0-ro.y)/rd.y:1e5; }
+  t1=min(t1,tmax); t1=min(t1,t0+uCLThick*14.); if(t1<=t0) return vec4(0.);
+  float N=uCLSteps; float dt=(t1-t0)/N; float t=t0+dt*hash13(vec3(gl_FragCoord.xy,fract(uTime*3.)));
+  float cosS=dot(rd,uSunDir); float ph=mix(clHG(cosS,uCLG1),clHG(cosS,-uCLG2),uCLMix)*4.*3.14159; // dual lobe
+  float sunUp=clamp(uSunDir.y*4.+.15,0.,1.); vec3 sunL=trans*uSunColor*uSunIntensity*.02*sunUp; vec3 amb=sky*uCLAmb;
+  vec3 acc=vec3(0.); float T=1.; float sigA=uCLAbsorb;
+  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015) break; vec3 p=ro+rd*t; float rho=clDensity(p,0.);
+    if(rho>1e-3){ float od=clLight(p); float hn=clamp((p.y-uCLBase)/max(1.,uCLThick),0.,1.);
+      // multi-scatter approximation: sum of 3 octaves with attenuated extinction / boosted contribution
+      float ms=0.; float a=1.,b=1.; for(int o=0;o<3;o++){ ms+=b*exp(-od*a*(1.+sigA)); a*=.5; b*=.55; }
+      float powder=1.-uCLPowder*exp(-rho*dt*2.*(1.+sigA))*(1.-.5*clamp(cosS,0.,1.));
+      vec3 Li=sunL*ph*ms*powder+amb*mix(.35,1.,hn);
+      float sigT=rho*(1.+sigA)*.06; float Ts=exp(-sigT*dt); vec3 Sc=Li*uCLAlbedo*rho*.06;
+      acc+=T*(Sc-Sc*Ts)/max(sigT,1e-6); T*=Ts; }
+    t+=dt; }
+  float aer=1.-exp(-t0*3e-5); acc=mix(acc,sky*(1.-T)*.9,aer*.6);                       // aerial perspective on far cloud
+  return vec4(acc,1.-T); }
 vec4 cloudLayer(vec3 dir,vec3 sky,vec3 trans){ // rgb premultiplied, a coverage — a thin slab at uCloudAlt above the camera
   if(uCloudOn<.5||dir.y<.015) return vec4(0.); float dz=uCloudAlt-uCamHeight; if(dz<=1.) return vec4(0.);
   float t=dz/dir.y; vec2 uv=(vec2(uCamPos.x,uCamPos.z)+dir.xz*t)*.0009*uCloudScale+vec2(uTime*.0025*uCloudSpeed,0.);
@@ -1113,6 +1160,7 @@ void main(){
     }
     col+=moons(dir,trans);
     { vec4 cl=cloudLayer(dir,sky,trans); col=col*(1.-cl.a)+cl.rgb; }
+    { vec4 cm=cloudMarch(uCamPos,dir,skyAmb,trans,1e6); col=col*(1.-cm.a)+cm.rgb; }
     if(uSunVisible>.5){
       float ang=acos(clamp(dot(dir,uSunDir),-1.,1.)); float disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9),uSunAng,ang);
       float soft=mix(1.,2.2,1.-smoothstep(0.,4.,elevDeg)); disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9*soft),uSunAng,ang);
@@ -2429,7 +2477,7 @@ const PHASE=(k,l,d)=>({k,l,t:'phase',min:0,max:1,step:0.005,d,unit:''});        
 const DISC=(kAng,kSoft,kRad,l,x={})=>({k:kAng,k2:kSoft,k3:kRad,l,t:'disc',...x});
 const LENS=(k,l,x={})=>({k,l,t:'lens',min:20,max:120,step:.5,d:72,unit:'°',...x}); const HORIZON=(kYaw,kPitch,kRoll,l,x={})=>({k:kYaw,k2:kPitch,k3:kRoll,l,t:'horizon',...x});
 const HIST=(k,l,min,max,step,d,unit)=>({k,l,t:'hist',min,max,step,d,unit});               // exposure histogram scrub
-const COL=(k,l,d)=>({k,l,t:'color',d}); const SEG=(k,l,opts,d)=>({k,l,t:'seg',opts,d});
+const COL=(k,l,d)=>({k,l,t:'color',d}); const SEG=(k,l,opts,d)=>({k,l,t:'seg',opts,d}); const DROP=(k,l,opts,d,x={})=>({k,l,t:'drop',opts,d,...x});
 
 const TEXDIR='CelestialTextures/';
 const MOON_ATLAS=[
@@ -2477,6 +2525,10 @@ const ENTITIES={
       {title:'Medium',icon:'fog',props:[TRK('vf_density','Density σ',0,2,0.01,0.35,'/m',{hint:'Extinction per metre · 0.35 ≈ 11 m sight inside'}),GAUGE('vf_noise','Heterogeneity',0,1,0.01,0.75,''),TRK('vf_scale','Noise scale',0.5,30,0.1,5,'m',{log:true}),TRK('vf_speed','Wind',0,5,0.05,0.8,'m/s'),COL('vf_albedo','Albedo','#dfe6ee'),GAUGE('vf_absorb','Absorption',0,1,0.01,0.08,'')]},
       {title:'Lighting',icon:'bulb',props:[GAUGE('vf_g','Anisotropy g',0,0.95,0.01,0.6,''),TOG('vf_self','Self-shadowing',true,'Secondary march toward the sun'),SEG('vf_steps','Quality',['Draft','Balanced','High'],'Balanced')]}]},
   clouds:{name:'Cloud Layer',kind:'Clouds',color:'#dfe6ee',icon:'cloud',preview:'none',external:true,hero:{kind:'none'},sections:[]},
+  vclouds:{name:'Clouds',kind:'Volumetric Clouds',color:'#f1f5f9',icon:'cloud',preview:'none',hero:{kind:'vclouds'},
+    sections:[{title:'Formation',icon:'cloud',props:[DROP('cl_type','Cloud type',['Stratus','Stratocumulus','Cumulus','Cumulonimbus','Altostratus','Cirrus'],'Cumulus',{hint:'Sets the vertical profile · applies typical base / thickness / density'}),GAUGE('cl_cov','Coverage',0,1,0.01,0.45,''),TRK('cl_den','Density',0,3,0.01,1,'×'),TRK('cl_scale','Cell size',0.3,6,0.05,1.4,'km',{log:true}),GAUGE('cl_detail','Erosion detail',0,1,0.01,0.6,''),GAUGE('cl_anvil','Anvil / shear',0,1,0.01,0.3,'')]},
+      {title:'Height',icon:'grid',props:[TRK('cl_base','Cloud base',100,12000,10,1500,'m',{log:true}),TRK('cl_thick','Thickness',50,8000,10,900,'m',{log:true}),TRK('cl_wind','Wind',0,40,0.5,6,'m/s'),TRK('cl_winddir','Wind heading',0,360,1,214,'°')]},
+      {title:'Scattering',icon:'wave',props:[GAUGE('cl_g1','Forward lobe g',0,0.95,0.01,0.8,''),GAUGE('cl_g2','Back lobe g',0,0.9,0.01,0.3,''),GAUGE('cl_mix','Lobe mix',0,1,0.01,0.3,''),GAUGE('cl_absorb','Absorption',0,1,0.01,0.05,''),GAUGE('cl_amb','Sky ambient',0,2,0.01,0.9,'×'),GAUGE('cl_powder','Powder',0,1,0.01,0.6,''),COL('cl_albedo','Albedo','#ffffff'),SEG('cl_steps','Quality',['Draft','Balanced','High'],'Balanced')]}]},
   terrain:{name:'Height Field',kind:'Terrain',color:'#8fb36b',icon:'globe',preview:'none',external:true,hero:{kind:'none'},sections:[]},
   plight:{name:'Point Light',kind:'Point Light',color:'#ffd27a',icon:'bulb',preview:'none',external:true,hero:{kind:'none'},sections:[]},
   slight:{name:'Spot Light',kind:'Spot Light',color:'#9fd0ff',icon:'flare',preview:'none',external:true,hero:{kind:'none'},sections:[]},
@@ -2552,7 +2604,7 @@ function skyColorsAt(e){ // rough analytic sky for timelines
 /* ============================================================ OUTLINER ============================================================ */
 let selected='sun'; const openF={environment:true,moons:true,camera:true,world:true};
 const treeEl=document.getElementById('tree');
-const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun','plight','slight','lights']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky','stars','fog','afog','vfog','clouds']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane','terrain']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','cine','post']}];
+const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun','plight','slight','lights']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky','stars','fog','afog','vfog','clouds','vclouds']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane','terrain']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','cine','post']}];
 const activeF=new Set();
 function metaOf(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}° elev · ${S.sun_temp} K`; case 'atmosphere': return `AM ${airMass().toFixed(2)} · Mie ${S.atm_mie.toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd/m²`; case 'plane': return `${S.pl_size*2} m · ${S.pl_cell} m cells`; case 'camera': return `${S.cam_fov.toFixed(0)}° · ${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; case 'post': return `${S.pp_tonemap} · ${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(2)} EV${S.pp_flare?' · flare':''}`; }
   if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${m.size.toFixed(2)}° · ${Math.round(illum(m.phase)*100)}% lit · ${moonDir(m)[1]>0?'up':'set'}`; } return ''; }
@@ -2598,14 +2650,14 @@ function renderTimeline(){ const el=document.getElementById('timeline'); if(el.h
 (()=>{ const el=document.getElementById('timeline'); let on=false; const go=e=>{ const svg=el.querySelector('svg'); if(!svg) return; const r=svg.getBoundingClientRect(); const f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); commit('sun_time',Math.round(f*24*12)/12); };
   el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
 // ---------- simple tree with parenting ----------
-const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',fog:'world',afog:'world',vfog:'world',clouds:'world',moons:'world',plane:null,terrain:null,plight:'lights',slight:'lights',lights:null,camera:null,cine:null,post:'camera'};
+const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',fog:'world',afog:'world',vfog:'world',clouds:'world',vclouds:'world',moons:'world',plane:null,terrain:null,plight:'lights',slight:'lights',lights:null,camera:null,cine:null,post:'camera'};
 const PICS={atmosphere:'atmosphere',sun:'sun',sky:'sky',stars:'stars',fog:'fog',clouds:'cloud',terrain:'terrain',moons:'moon',camera:'camera',cine:'cine'};
 const PIC=(id,sz)=>PICS[id]?`<img class="pic" src="${TEXDIR}icons/${PICS[id]}.png" width="${sz}" height="${sz}" alt="" draggable="false">`:null;
 const FOLDERS={world:{name:'World',icon:'globe',color:'#5aa9ff'},lights:{name:'Lights',icon:'bulb',color:'#ffd27a'}};
 function parentOf(id){ if(id.startsWith('moon#')) return (S.parentMap&&S.parentMap[id])||'moons'; if(S.parentMap&&id in S.parentMap) return S.parentMap[id]; return DEFAULT_PARENT[id]===undefined?null:DEFAULT_PARENT[id]; }
 function setParent(id,pid){ S.parentMap=S.parentMap||{}; // refuse cycles
   let c=pid; while(c){ if(c===id) return false; c=parentOf(c); } S.parentMap[id]=pid; if(pid) openF[pid]=true; return true; }
-function allNodes(){ return ['world','atmosphere','sun','sky','stars','fog','afog','vfog','clouds','moons',...S.moons.map((_,i)=>'moon#'+i),'plane','terrain','lights','plight','slight','camera','cine','post']; }
+function allNodes(){ return ['world','atmosphere','sun','sky','stars','fog','afog','vfog','clouds','vclouds','moons',...S.moons.map((_,i)=>'moon#'+i),'plane','terrain','lights','plight','slight','camera','cine','post']; }
 function nodeInfo(id){ if(FOLDERS[id]) return {...FOLDERS[id],folder:true}; if(id==='moons') return {name:'Moons',icon:'moon',color:'#dfe6f5',folder:true}; if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return {name:m.name,icon:'moon',color:'#dfe6f5',tex:m.tex}; } const e=ENTITIES[id]; return {name:e.name,icon:e.icon,color:e.color}; }
 function statusOf(id){ // [cls, title]
   if(FOLDERS[id]||id==='moons'){ const kids=allNodes().filter(n=>parentOf(n)===id); const bad=kids.filter(k=>['warn','err'].includes(statusOf(k)[0])).length; return bad?['warn',`${bad} issue${bad>1?'s':''}`]:['ok','All good']; }
@@ -2615,7 +2667,7 @@ function statusOf(id){ // [cls, title]
   if(id==='stars'&&limitMag()<0) return ['warn','Washed out by sky'];
   if(id.startsWith('moon#')&&moonDir(S.moons[+id.slice(5)])[1]<=0) return ['warn','Set'];
   return lifted?['info',`${lifted} lifted`]:['ok','Seated']; }
-function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}°`; case 'atmosphere': return `AM ${airMass().toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd`; case 'stars': return `mag ${limitMag().toFixed(1)}`; case 'moons': return `${S.moons.length}/4`; case 'plane': return `${S.pl_size*2} m`; case 'camera': return `${S.cam_fov.toFixed(0)}°`; case 'post': return `${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV`; case 'world': return ''; case 'fog': return S.fogP.enabled===false?'off':`${Math.round(Math.sqrt(-Math.log(.02))/Math.max(1e-4,S.fogP.density))} m`; case 'afog': return `${afVis().toFixed(0)} km`; case 'vfog': return S.vf_shape==='Sphere'||S.vf_shape==='Dome'?`r ${S.vf_sx.toFixed(0)} m`:`${(S.vf_sx*2).toFixed(0)}×${(S.vf_sz*2).toFixed(0)} m`; case 'clouds': return `${Math.round(S.cloudP.coverage*8)}/8`; case 'terrain': return `${S.terrP.height.toFixed(0)} m`; case 'plight': return `${S.plP.intensity.toFixed(0)} cd`; case 'slight': return `${S.slP.angle.toFixed(0)}°`; case 'cine': return `${S.cineP.focal.toFixed(0)} mm`; } if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${Math.round(illum(m.phase)*100)}%`; } return ''; }
+function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}°`; case 'atmosphere': return `AM ${airMass().toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd`; case 'stars': return `mag ${limitMag().toFixed(1)}`; case 'moons': return `${S.moons.length}/4`; case 'plane': return `${S.pl_size*2} m`; case 'camera': return `${S.cam_fov.toFixed(0)}°`; case 'post': return `${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV`; case 'world': return ''; case 'fog': return S.fogP.enabled===false?'off':`${Math.round(Math.sqrt(-Math.log(.02))/Math.max(1e-4,S.fogP.density))} m`; case 'afog': return `${afVis().toFixed(0)} km`; case 'vclouds': return `${S.cl_type} · ${Math.round(S.cl_cov*100)}%`; case 'vfog': return S.vf_shape==='Sphere'||S.vf_shape==='Dome'?`r ${S.vf_sx.toFixed(0)} m`:`${(S.vf_sx*2).toFixed(0)}×${(S.vf_sz*2).toFixed(0)} m`; case 'clouds': return `${Math.round(S.cloudP.coverage*8)}/8`; case 'terrain': return `${S.terrP.height.toFixed(0)} m`; case 'plight': return `${S.plP.intensity.toFixed(0)} cd`; case 'slight': return `${S.slP.angle.toFixed(0)}°`; case 'cine': return `${S.cineP.focal.toFixed(0)} mm`; } if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${Math.round(illum(m.phase)*100)}%`; } return ''; }
 function rowHTML(id,depth,hasKids){ const n=nodeInfo(id); const [sc,st]=statusOf(id); const vis=n.folder?true:visOf(id); const open=openF[id]!==false; const kindTag=id==='post'?'<span class="tag">Comp</span>':'';
   return `<div class="node ${selected===id?'sel':''} ${vis?'':'dim'} ${n.folder?'folder':''}" data-id="${id}" draggable="${n.folder&&FOLDERS[id]?'false':'true'}" style="--acc:${n.color};--d:${depth}">
     <span class="chev ${hasKids?'':'none'} ${open?'open':''}" data-chev="${id}">${I('chev',11)}</span>
@@ -2908,6 +2960,7 @@ function ctlHTML(p){ const v=getV(p.k); const lab=`<span class="l">${p.l}${p.hin
     case 'step': return `<div class="ctl" data-k="${p.k}" data-t="step"><div class="ctl-top">${lab}<div class="step"><button data-d="-1">${I('minus',12)}</button><span class="dots">${[...Array(p.max)].map((_,i)=>`<i class="${i<v?'on':''}"></i>`).join('')}</span><button data-d="1">${I('plus',12)}</button></div></div></div>`;
     case 'toggle': return `<div class="ctl" data-k="${p.k}" data-t="toggle"><div class="ctl-top">${lab}<div class="sw ${v?'on':''}"></div></div></div>`;
     case 'color': return `<div class="ctl" data-k="${p.k}" data-t="color"><div class="ctl-top">${lab}<label class="colorbtn" style="--c:${v}"><span class="sw2" style="background:${v}"></span><code>${v}</code><input type="color" value="${v}"></label></div></div>`;
+    case 'drop': return `<div class="ctl" data-k="${p.k}" data-t="drop"><div class="ctl-top">${lab}<div class="drop"><select data-drop="${p.k}">${p.opts.map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('')}</select><span class="chev">${I('chevu',14)}</span></div></div></div>`;
     case 'seg': return `<div class="ctl" data-k="${p.k}" data-t="seg"><div class="ctl-top" style="align-items:flex-start;padding-top:2px">${lab}<div class="seg">${p.opts.map(o=>`<button data-opt="${o}" class="${o===v?'on':''}">${o}</button>`).join('')}</div></div></div>`; } }
 function refreshCtl(k){ return refreshAll(k); }
 function refreshCtl_old(k){ const el=insp.querySelector(`.ctl[data-k="${CSS.escape(k)}"]`); if(!el) return; const p=propOf(k); const v=getV(k);
@@ -3000,6 +3053,7 @@ const snap=(v,p)=>{ if(!p) return v; v=Math.round(v/p.step)*p.step; return Math.
 insp.addEventListener('change',e=>{ if(e.target.closest('.fport')) return; const t=e.target; if(t.dataset.val){ const k=t.dataset.val,p=propOf(k); let v=parseFloat(t.value); if(isNaN(v)||!p){ refreshCtl(k); return; } commit(k,Math.max(p.min,Math.min(p.max,v))); t.blur(); }
   if(t.type==='color'){ const k=t.closest('.ctl').dataset.k; setV(k,t.value); const lab=t.closest('.colorbtn'); lab.style.setProperty('--c',t.value); lab.querySelector('.sw2').style.background=t.value; lab.querySelector('code').textContent=t.value; onChanged(k); } });
 insp.addEventListener('input',e=>{ if(e.target.closest('.fport')) return; if(e.target.type==='color'){ const k=e.target.closest('.ctl').dataset.k; setV(k,e.target.value); const lab=e.target.closest('.colorbtn'); lab.style.setProperty('--c',e.target.value); lab.querySelector('.sw2').style.background=e.target.value; lab.querySelector('code').textContent=e.target.value; onChanged(k); } });
+insp.addEventListener('change',e=>{ const s=e.target.closest('select[data-drop]'); if(s){ commit(s.dataset.drop,s.value); } });
 insp.addEventListener('keydown',e=>{ if(e.target.classList.contains('val')&&e.key==='Enter') e.target.dispatchEvent(new Event('change',{bubbles:true})); });
 insp.addEventListener('wheel',e=>{ const el=e.target.closest('.ctl[data-t="trk"],.ctl[data-t="dial"],.ctl[data-t="gauge"],.ctl[data-t="curve"],.ctl[data-t="globe"],.ctl[data-t="kelvin"],.ctl[data-t="hist"],.ctl[data-t="phase"]'); if(!el) return; e.preventDefault(); const k=el.dataset.k,p=widgetProp(el)||propOf(k); commit(k,unfrac(p,frac(p,getV(k))-Math.sign(e.deltaY)*(e.shiftKey?.002:.01))); },{passive:false});
 insp.addEventListener('click',e=>{
@@ -3016,7 +3070,7 @@ insp.addEventListener('click',e=>{
   const head=e.target.closest('.sec-head'); if(head&&head.parentElement.dataset.sec!==undefined){ head.parentElement.classList.toggle('closed'); } });
 const STAR_LOOKS={Natural:{st_glow:.8,st_twinkle:.5,st_size:1,st_color:1,st_bright:1,st_milky:1},Crisp:{st_glow:.25,st_twinkle:.2,st_size:.7,st_color:.8,st_bright:1.2,st_milky:.6},Cinematic:{st_glow:1.6,st_twinkle:.75,st_size:1.3,st_color:1,st_bright:1.3,st_milky:1.4},Hubble:{st_glow:2,st_twinkle:0,st_size:1.1,st_color:1,st_bright:1.6,st_milky:1.8},Anime:{st_glow:1.2,st_twinkle:1,st_size:1.8,st_color:.3,st_bright:2,st_milky:.5}};
 const STAR_Q={Draft:{layers:2,aa:1},Balanced:{layers:3,aa:1},High:{layers:3,aa:2},Ultra:{layers:4,aa:2}};
-function onChanged(k){ if(k==='vf_shape'){ if(S.vf_shape==='Sphere'||S.vf_shape==='Dome') S.vf_sz=S.vf_sx; renderInspector(); } if(k==='vf_sx'&&(S.vf_shape==='Sphere'||S.vf_shape==='Dome')) S.vf_sz=S.vf_sx; if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ Object.assign(S,L); renderInspector(); } } if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
+function onChanged(k){ if(k==='cl_type'){ const P={Stratus:{base:400,thick:350,den:1.2,cov:.85,scale:2.5,detail:.25,anvil:0},Stratocumulus:{base:900,thick:600,den:1,cov:.6,scale:1.2,detail:.5,anvil:.1},Cumulus:{base:1500,thick:900,den:1,cov:.45,scale:1.4,detail:.6,anvil:.3},Cumulonimbus:{base:1200,thick:7000,den:1.6,cov:.5,scale:3,detail:.55,anvil:.8},Altostratus:{base:4000,thick:1200,den:.6,cov:.8,scale:3,detail:.3,anvil:.1},Cirrus:{base:8500,thick:900,den:.35,cov:.5,scale:4,detail:.4,anvil:.6}}[S.cl_type]; if(P){ S.cl_base=P.base; S.cl_thick=P.thick; S.cl_den=P.den; S.cl_cov=P.cov; S.cl_scale=P.scale; S.cl_detail=P.detail; S.cl_anvil=P.anvil; renderInspector(); } } if(k==='vf_shape'){ if(S.vf_shape==='Sphere'||S.vf_shape==='Dome') S.vf_sz=S.vf_sx; renderInspector(); } if(k==='vf_sx'&&(S.vf_shape==='Sphere'||S.vf_shape==='Dome')) S.vf_sz=S.vf_sx; if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ Object.assign(S,L); renderInspector(); } } if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
 
 /* ============================================================ INSPECTOR ============================================================ */
 // reference-style stat card: colour bar + label, big light number + unit, trend arrow, delta pill, dotted day-series with threshold line
@@ -3030,6 +3084,9 @@ function sunIrr(t){ const el=sunDirAt(t).el/D2R; if(el<=-1) return 0; return 100
 function airMassOf(e){ const z=90-e; if(z>=96) return 40; return Math.min(40,1/(Math.cos(z*D2R)+.50572*Math.pow(96.07995-z,-1.6364))); }
 const prevStat={}; const dlt=(k,v)=>{ const d=prevStat[k]==null?0:v-prevStat[k]; prevStat[k]=v; return d; };
 function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
+  if(kind==='vclouds'){ const top=S.cl_base+S.cl_thick; const okta=Math.round(S.cl_cov*8); const tau=S.cl_den*S.cl_thick*.06*(1+S.cl_absorb)*.5; const T=Math.exp(-tau);
+    return `<div class="sun-top"><div class="tile ${okta<=6?'ok':'warn'}"><span class="tico">${I(okta<=6?'check':'warn',14)}</span><span class="tl">${['Clear','Few','Few','Scattered','Scattered','Broken','Broken','Overcast','Overcast'][okta]} · ${okta}/8</span><b>${S.cl_type}</b></div><div class="tile"><span class="tico dot"></span><span class="tl">Base → top</span><b>${(S.cl_base/1000).toFixed(1)}<i>→ ${(top/1000).toFixed(1)} km</i></b></div></div>
+      <div class="sun-card"><div class="sc-head"><span>Optics</span><span class="tr">${I('wave',16)}</span></div><div class="sc-meta" style="margin-top:6px"><span>Optical depth <b>τ ${tau.toFixed(1)}</b></span><span>Sun through cloud <b>${(T*100).toFixed(T<.1?1:0)}%</b></span><span>Cell <b>${S.cl_scale.toFixed(1)} km</b></span></div><div class="sc-meta"><span>Phase <b>g ${S.cl_g1.toFixed(2)} / −${S.cl_g2.toFixed(2)}</b></span><span>Wind <b>${S.cl_wind} m/s @ ${S.cl_winddir}°</b></span><span>Steps <b>${{Draft:20,Balanced:36,High:64}[S.cl_steps]}</b></span></div></div>`; }
   if(kind==='afog'){ const vis=afVis(); const od=S.af_density*1e-3*1; const T=d=>Math.exp(-S.af_density*1e-5*d); const rows=[1,5,20,50].map(d=>[`${d} km`,`${(T(d*1000)*100).toFixed(d>=20?0:1)}%`]);
     return `<div class="sun-top"><div class="tile ${vis>20?'ok':'warn'}"><span class="tico">${I(vis>20?'check':'warn',14)}</span><span class="tl">${vis>40?'Clear air':vis>20?'Light haze':vis>8?'Hazy':'Thick haze'}</span><b>${vis.toFixed(0)}<i>km</i></b></div><div class="tile"><span class="tico dot"></span><span class="tl">Scale height</span><b>${S.af_height>=1000?(S.af_height/1000).toFixed(1):S.af_height}<i>${S.af_height>=1000?'km':'m'}</i></b></div></div>
       <div class="sun-card"><div class="sc-head"><span>Transmittance ledger · sea level</span></div><div class="sc-meta" style="margin-top:6px">${rows.map(([k,v])=>`<span>${k} <b>${v}</b></span>`).join('')}</div><div class="sc-meta"><span>Mie share <b>${Math.round(S.af_mie*100)}%</b></span><span>g <b>${S.af_g.toFixed(2)}</b></span><span>Koschmieder <b>3.912 / β</b></span></div></div>`; }
@@ -3346,6 +3403,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; let up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; { const r=(S.cam_roll||0)*D2R, cr=Math.cos(r), sr=Math.sin(r); const R0=right.slice(), U0=up.slice(); for(let i=0;i<3;i++){ right[i]=R0[i]*cr+U0[i]*sr; up[i]=U0[i]*cr-R0[i]*sr; } } const tanH=Math.tan(S.cam_fov*D2R/2);
   CAM={fwd,right,up,tanH,pos:[S.cam_x,S.cam_height,S.cam_z]}; gizmoDraw(); clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
+  f1('uCLOn',S.vis_vclouds!==false?1:0); f1('uCLBase',S.cl_base); f1('uCLThick',S.cl_thick); f1('uCLCov',S.cl_cov); f1('uCLDen',S.cl_den); f1('uCLScale',S.cl_scale); f1('uCLDetail',S.cl_detail); f1('uCLAnvil',S.cl_anvil); f1('uCLWind',S.cl_wind); f1('uCLWindDir',S.cl_winddir*D2R); f1('uCLG1',S.cl_g1); f1('uCLG2',S.cl_g2); f1('uCLMix',S.cl_mix); f1('uCLAbsorb',S.cl_absorb); f1('uCLAmb',S.cl_amb); f1('uCLPowder',S.cl_powder); f1('uCLSteps',{Draft:20,Balanced:36,High:64}[S.cl_steps]||36); f1('uCLType',['Stratus','Stratocumulus','Cumulus','Cumulonimbus','Altostratus','Cirrus'].indexOf(S.cl_type)); f3('uCLAlbedo',hex2rgb(S.cl_albedo));
   f1('uAFOn',S.vis_afog!==false?1:0); f1('uAFDensity',S.af_density*1e-5); f1('uAFHeight',S.af_height); f1('uAFStart',S.af_start); f1('uAFMie',S.af_mie); f1('uAFG',S.af_g); f1('uAFSky',S.af_sky); f3('uAFTint',hex2rgb(S.af_tint));
   f1('uVFOn',S.vis_vfog!==false?1:0); f1('uVFDensity',S.vf_density); f1('uVFNoise',S.vf_noise); f1('uVFScale',S.vf_scale); f1('uVFSpeed',S.vf_speed); f1('uVFG',S.vf_g); f1('uVFSoft',S.vf_soft); f1('uVFAbsorb',S.vf_absorb); f1('uVFShape',{Box:0,Ellipsoid:1,Sphere:2,Dome:3}[S.vf_shape]||0); f1('uVFFall',S.vf_fall?1:0); f1('uVFSteps',{Draft:16,Balanced:28,High:48}[S.vf_steps]||28); f1('uVFSelf',S.vf_self?1:0); f3('uVFPos',[S.vf_x,S.vf_y,S.vf_z]); f3('uVFSize',[S.vf_sx,S.vf_sy,S.vf_sz]); f3('uVFAlbedo',hex2rgb(S.vf_albedo));
   { const F=S.fogP,C=S.cloudP,T=S.terrP; f1('uFogOn',0); f1('uFogDensity',F.density); f1('uFogHeight',F.height); f1('uFogScatter',F.sunScatter); f3('uFogColor',hex2rgb(F.color));
