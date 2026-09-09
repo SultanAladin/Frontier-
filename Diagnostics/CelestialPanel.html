@@ -355,298 +355,311 @@ input{font:inherit;color:inherit}
 .speedbar{width:70px;height:4px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden} .speedbar i{display:block;height:100%;width:30%;background:#fff;border-radius:999px;transition:width .15s}
 #hud{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:12;display:flex;gap:8px}
 @media (max-width:1200px){#outliner{width:260px}#inspector{width:350px}#dayTrack{width:200px}}
-/* ===== Sky panel styles (ported from c7egoist/Frontier styles.css, scoped) ===== */
-.skypanel{--text:#f0f0f0;--text-dim:#888;--text-faint:#5c5c5c;--stroke-strong:#2e2e2e;--r-inset:18px;--r-pill:999px;--ease:cubic-bezier(.22,.61,.36,1);--field:#000;--inset:#1a1a1a;--raised:#222;--selected:#2a2a2a;--panel:#121212;--hi:#6c77ff;--ok:#22c55e;--caution:#f59e0b;--danger:#ef4444;display:flex;flex-direction:column;gap:10px;color:var(--text);font-size:12px}
-#insp .skypanel canvas{display:block;width:100%}
-#insp .skypanel .vp-view canvas.dragging{cursor:grabbing;}
-#insp .skypanel .kslider.drag .knob{transform:translate(-50%,-50%) scale(1.12);}
-#insp .skypanel /* colour */
-#insp .skypanel .colorrow{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
-#insp .skypanel .colorchip{width:30px;height:30px;border-radius:10px;border:1px solid var(--stroke);flex-shrink:0;cursor:pointer;
-#insp .skypanel   position:relative;overflow:hidden;transition:transform .15s var(--ease);}
-#insp .skypanel .colorchip:hover{transform:scale(1.06);}
-#insp .skypanel .colorchip input{position:absolute;inset:-4px;width:150%;height:150%;opacity:0;cursor:pointer;}
-#insp .skypanel .hexval{font-size:11.5px;color:var(--text-dim);font-variant-numeric:tabular-nums;letter-spacing:.4px;}
-#insp .skypanel .pcard{background:var(--inset);border-radius:var(--r-inset);padding:12px 14px 14px;margin-bottom:10px;
-#insp .skypanel   animation:cardIn .28s var(--ease);}
-#insp .skypanel .pcard > h4{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-faint);
-#insp .skypanel   margin-bottom:10px;display:flex;align-items:center;gap:8px;cursor:pointer;}
-#insp .skypanel .pcard > h4 .cw{margin-left:auto;color:var(--text-faint);transition:transform .2s var(--ease);}
-#insp .skypanel .pcard.shut > h4 .cw{transform:rotate(-90deg);}
-#insp .skypanel .pcard.shut > h4{margin-bottom:0;}
-#insp .skypanel .pcard.shut .pbody{display:none;}
-#insp .skypanel .kids.shut{height:0 !important;opacity:0;}
-#insp .skypanel .pop-head.grabbing{cursor:grabbing;}
-#insp .skypanel .pop-body .pcard{background:rgba(255,255,255,.028);}
-#insp .skypanel /* ── bespoke panels · the moon ─────────────────────────────────────────────────────────────────
-#insp .skypanel    A moon is a thing you look at, so the panel shows you one. Everything in here is an instrument:
-#insp .skypanel    the sky scrubs the phase, the dials fly the moon across the sky (and the world clock with it),
-#insp .skypanel    and angular size is drawn against the half a degree the real moon takes up. */
-#insp .skypanel .mpanel{display:flex;flex-direction:column;gap:10px;}
-#insp .skypanel .mp-hero{padding:0;overflow:hidden;position:relative;border-radius:var(--r-inset);
-#insp .skypanel   background:#05070f;border:1px solid var(--stroke-strong);}
-#insp .skypanel .mp-sky{display:block;width:100%;cursor:ew-resize;touch-action:none;}
-#insp .skypanel .mp-sky.grabbing{cursor:grabbing;}
-#insp .skypanel .mp-cap{position:absolute;inset:auto 0 0 0;display:flex;align-items:flex-end;gap:10px;
-#insp .skypanel   padding:8px 12px 9px;background:linear-gradient(180deg,rgba(5,7,15,0),rgba(5,7,15,.88));
-#insp .skypanel   pointer-events:none;}
-#insp .skypanel .mp-cap .l{display:flex;flex-direction:column;gap:2px;min-width:0;}
-#insp .skypanel .mp-cap b{font-size:12.5px;font-weight:600;color:var(--text);letter-spacing:.2px;}
-#insp .skypanel .mp-cap .mp-illum{font-size:10px;color:var(--text-faint);letter-spacing:.6px;text-transform:uppercase;}
-#insp .skypanel .mp-cap .r{margin-left:auto;font-size:10.5px;color:var(--text-dim);text-align:right;
-#insp .skypanel   font-variant-numeric:tabular-nums;}
-#insp .skypanel .mp-cap .down{color:var(--caution);}
-#insp .skypanel .mp-strip{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;margin-bottom:10px;}
-#insp .skypanel .mp-chip{padding:4px 2px;border-radius:11px;border:1px solid transparent;background:transparent;
-#insp .skypanel   cursor:pointer;display:grid;place-items:center;min-width:0;
-#insp .skypanel   transition:background .15s var(--ease),border-color .15s var(--ease);}
-#insp .skypanel .mp-chip canvas{width:100%;max-width:30px;height:auto;aspect-ratio:1;display:block;}
-#insp .skypanel .mp-chip:hover{background:#141414;}
-#insp .skypanel .mp-chip.on{background:var(--selected);border-color:var(--stroke-strong);}
-#insp .skypanel .mp-note{font-size:10.5px;color:var(--text-faint);letter-spacing:.2px;padding:2px 2px 0;}
-#insp .skypanel .mp-dial .ring{fill:none;stroke:var(--stroke-strong);stroke-width:1;}
-#insp .skypanel .mp-dial .ring2{fill:rgba(255,255,255,.02);stroke:var(--stroke);stroke-width:1;}
-#insp .skypanel .mp-dial .tick{stroke:rgba(255,255,255,.14);stroke-width:1;}
-#insp .skypanel .mp-dial .tick.long{stroke:rgba(255,255,255,.30);}
-#insp .skypanel .mp-dial .needle,.mp-dial .ray{stroke:var(--hi);stroke-width:1.6;stroke-linecap:round;}
-#insp .skypanel .mp-dial .hub{fill:var(--hi);}
-#insp .skypanel .mp-dial .knob{fill:#e9ecff;stroke:var(--hi);stroke-width:2;}
-#insp .skypanel .mp-dial .knob.under{fill:var(--caution);stroke:var(--caution);}
-#insp .skypanel .mp-dial .arc{fill:none;stroke:var(--stroke-strong);stroke-width:1;}
-#insp .skypanel .mp-dial .fill{fill:none;stroke:rgba(108,119,255,.5);stroke-width:2.5;stroke-linecap:round;}
-#insp .skypanel .mp-dial .ground{stroke:rgba(255,255,255,.18);stroke-width:1;}
-#insp .skypanel .mp-dial .lbl{fill:var(--text-faint);font-size:8px;text-anchor:middle;letter-spacing:.6px;}
-#insp .skypanel .mp-dial .lbl.n{fill:var(--text-dim);}
-#insp .skypanel /* rise · transit · set — three columns, label over number */
-#insp .skypanel .mp-3up{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:2px 0 4px;}
-#insp .skypanel .mp-3up > div{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:var(--field);
-#insp .skypanel   border:1px solid var(--stroke);border-radius:14px;}
-#insp .skypanel .mp-3up .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .mp-3up b{font-size:14px;font-weight:500;letter-spacing:-.3px;color:var(--text);
-#insp .skypanel   font-variant-numeric:tabular-nums;}
-#insp .skypanel /* the light meter and the size ruler are both read the same way: a scale with a marker on it */
-#insp .skypanel .mp-meter{margin:2px 0 10px;background:var(--field);border:1px solid var(--stroke);
-#insp .skypanel   border-radius:var(--r-inset);overflow:hidden;padding:2px 0 0;}
-#insp .skypanel .mp-meter canvas{display:block;width:100%;}
-#insp .skypanel .mp-size{margin:2px 0 0;background:var(--field);border:1px solid var(--stroke);
-#insp .skypanel   border-radius:var(--r-inset);overflow:hidden;}
-#insp .skypanel .mp-size .hd{display:flex;align-items:baseline;gap:6px;padding:8px 11px 0;}
-#insp .skypanel .mp-size .hd .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .mp-size .hd .v{margin-left:auto;font-size:12.5px;font-weight:500;color:var(--text);
-#insp .skypanel   letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
-#insp .skypanel .mp-size .hd .v em{font-style:normal;font-size:9px;color:var(--text-dim);margin-left:1px;}
-#insp .skypanel .mp-size canvas{display:block;width:100%;}
-#insp .skypanel /* tint, as named presets with a dot each */
-#insp .skypanel .mp-subhead{display:flex;align-items:center;gap:8px;margin:12px 0 6px;}
-#insp .skypanel .mp-subhead .k{font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .mp-subhead .colorrow{margin-left:auto;flex:0 0 auto;}
-#insp .skypanel .mp-tag i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;
-#insp .skypanel   vertical-align:1px;box-shadow:0 0 0 1px rgba(0,0,0,.4);}
-#insp .skypanel .mp-tints .mp-tag{padding:5px 9px;}
-#insp .skypanel /* ── the moon panel · type scale ───────────────────────────────────────────────────────────────
-#insp .skypanel    Sizes are the whole point of this look: one big light numeral, its decimals dropped back a
-#insp .skypanel    shade, its unit shrunk to a footnote — and everything that labels it pushed down to 9.5px
-#insp .skypanel    uppercase with a lot of letter-spacing. Nothing lands in the middle. */
-#insp .skypanel .mpanel .mp-chead{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
-#insp .skypanel .mpanel .mp-chead .l{display:flex;flex-direction:column;gap:1px;min-width:0;}
-#insp .skypanel .mpanel .mp-chead .t{font-size:15px;font-weight:450;letter-spacing:-.1px;color:var(--text);}
-#insp .skypanel .mpanel .mp-chead .s{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .mpanel .mp-x{margin-left:auto;width:24px;height:24px;flex:0 0 24px;border-radius:9px;display:grid;
-#insp .skypanel   place-items:center;color:var(--text-dim);background:transparent;border:1px solid transparent;
-#insp .skypanel   cursor:pointer;transition:background .15s var(--ease),color .15s var(--ease);}
-#insp .skypanel .mpanel .mp-x:hover{background:var(--raised);color:var(--text);}
-#insp .skypanel .mp-num{display:flex;align-items:baseline;gap:0;line-height:.94;font-weight:300;
-#insp .skypanel   letter-spacing:-2.4px;font-variant-numeric:tabular-nums;margin:2px 0 6px;}
-#insp .skypanel .mp-num .i{font-size:46px;color:var(--text);}
-#insp .skypanel .mp-num .d{font-size:46px;color:var(--text-faint);}
-#insp .skypanel .mp-num .u{font-size:12px;letter-spacing:0;color:var(--text-dim);margin-left:7px;transform:translateY(-2px);}
-#insp .skypanel .mp-k{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .mp-target{display:flex;align-items:baseline;gap:6px;}
-#insp .skypanel .mp-target .v{font-size:11px;letter-spacing:.1px;text-transform:none;color:var(--text-dim);}
-#insp .skypanel .mp-metric{padding-bottom:8px;}
-#insp .skypanel .mp-chartwrap{margin:2px -4px 0;}
-#insp .skypanel .mp-chartwrap canvas{display:block;width:100%;}
-#insp .skypanel /* ── the rail ──────────────────────────────────────────────────────────────────────────────── */
-#insp .skypanel .mp-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;}
-#insp .skypanel .mp-pill{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;
-#insp .skypanel   padding:7px 9px 8px;background:var(--panel);border:1px solid var(--stroke);
-#insp .skypanel   border-radius:var(--r-pill);}
-#insp .skypanel .mp-pill .v{font-size:14px;font-weight:500;color:var(--text);letter-spacing:-.3px;
-#insp .skypanel   font-variant-numeric:tabular-nums;white-space:nowrap;max-width:100%;overflow:hidden;
-#insp .skypanel   text-overflow:ellipsis;}
-#insp .skypanel .mp-rail{grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.25fr);}
-#insp .skypanel .mp-pill .v em{font-style:normal;font-size:9.5px;font-weight:400;color:var(--text-dim);margin-left:2px;
-#insp .skypanel   letter-spacing:.4px;}
-#insp .skypanel .mp-pill .k{font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel /* ── the duo ───────────────────────────────────────────────────────────────────────────────── */
-#insp .skypanel .mp-duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-#insp .skypanel .mp-stat{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:11px 13px 10px;align-items:end;}
-#insp .skypanel .mp-stat .i{grid-column:1/-1;width:19px;height:19px;border-radius:7px;display:grid;place-items:center;
-#insp .skypanel   color:var(--ok);background:rgba(34,197,94,.13);margin-bottom:6px;}
-#insp .skypanel .mp-stat.down .i{color:var(--danger);background:rgba(239,68,68,.14);}
-#insp .skypanel .mp-stat .l{font-size:11px;color:var(--text-dim);letter-spacing:.1px;align-self:end;}
-#insp .skypanel .mp-stat .n{font-size:25px;font-weight:300;letter-spacing:-1.4px;color:var(--text);line-height:1;
-#insp .skypanel   font-variant-numeric:tabular-nums;text-align:right;}
-#insp .skypanel .mp-stat .n em{font-style:normal;font-size:11px;letter-spacing:0;color:var(--text-dim);margin-left:2px;}
-#insp .skypanel /* ── the atlas ─────────────────────────────────────────────────────────────────────────────── */
-#insp .skypanel .mp-atlas{padding-bottom:10px;}
-#insp .skypanel .mp-map{position:relative;border-radius:var(--r-inset);overflow:hidden;border:1px solid var(--stroke);
-#insp .skypanel   background:#0d0f13;}
-#insp .skypanel .mp-map canvas{display:block;width:100%;cursor:ew-resize;touch-action:none;}
-#insp .skypanel .mp-map canvas.grabbing{cursor:grabbing;}
-#insp .skypanel .mp-read{position:absolute;left:8px;bottom:6px;display:flex;align-items:baseline;gap:5px;
-#insp .skypanel   padding:3px 8px;border-radius:var(--r-pill);background:rgba(5,6,10,.72);
-#insp .skypanel   backdrop-filter:blur(6px);font-size:9.5px;color:var(--text);font-variant-numeric:tabular-nums;}
-#insp .skypanel .mp-read .k{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .mp-read b{font-weight:500;margin-right:4px;}
-#insp .skypanel .mp-tags{display:flex;gap:5px;margin:8px 0 2px;flex-wrap:wrap;}
-#insp .skypanel .mp-tag{padding:4px 9px;border-radius:var(--r-pill);border:1px solid var(--stroke);
-#insp .skypanel   background:transparent;color:var(--text-faint);font-size:8.5px;letter-spacing:1.2px;
-#insp .skypanel   cursor:pointer;transition:color .15s var(--ease),border-color .15s var(--ease);}
-#insp .skypanel .mp-tag:hover{color:var(--text-dim);}
-#insp .skypanel .mp-tag.on{color:var(--text);border-color:var(--stroke-strong);background:var(--inset);}
-#insp .skypanel .mp-tl{margin-top:8px;padding:0 2px;cursor:ew-resize;touch-action:none;}
-#insp .skypanel .mp-tl canvas{display:block;width:100%;}
-#insp .skypanel .mp-tllbl{display:flex;justify-content:space-between;padding:2px 4px 0;
-#insp .skypanel   font-size:8.5px;letter-spacing:1.2px;color:var(--text-faint);}
-#insp .skypanel /* ── the hero caption, on the same scale ───────────────────────────────────────────────────── */
-#insp .skypanel .mp-cap b{font-size:15px;font-weight:500;letter-spacing:-.2px;}
-#insp .skypanel .mp-cap .mp-illum{font-size:9px;letter-spacing:1.3px;}
-#insp .skypanel .mp-cap .r{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;}
-#insp .skypanel /* ── the compact form shrinks the display, not the labels ──────────────────────────────────── */
-#insp .skypanel .pop .mp-num .i,.pop .mp-num .d{font-size:38px;}
-#insp .skypanel .pop .mp-stat .n{font-size:21px;}
-#insp .skypanel .pop .mp-pill{padding:6px 7px 7px;}
-#insp .skypanel .pop .mp-pill .v{font-size:12.5px;}
-#insp .skypanel /* every label inside the moon panel speaks in the same small caps */
-#insp .skypanel .mpanel .prow .pl{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-faint);
-#insp .skypanel   flex-basis:64px;}
-#insp .skypanel .mpanel .mp-note{font-size:10px;letter-spacing:.2px;color:var(--text-faint);text-transform:none;}
-#insp .skypanel .mpanel .mp-k.mp-note{letter-spacing:1.1px;text-transform:uppercase;padding:6px 2px 0;}
-#insp .skypanel .mp-track2 .mp-num,.mp-light .mp-num{margin-bottom:4px;}
-#insp .skypanel .mp-track2 .mp-num .i,.mp-track2 .mp-num .d,
-#insp .skypanel .mp-light .mp-num .i,.mp-light .mp-num .d{font-size:40px;}
-#insp .skypanel .mp-chead .l{cursor:pointer;}
-#insp .skypanel .pcard.shut .mp-num,.pcard.shut .mp-target{display:none;}
-#insp .skypanel .pop .mp-track2 .mp-num .i,.pop .mp-track2 .mp-num .d,
-#insp .skypanel .pop .mp-light .mp-num .i,.pop .mp-light .mp-num .d{font-size:34px;}
-#insp .skypanel /* a sheet with an instrument in it: the generic cards borrow the same headline */
-#insp .skypanel .sheet.bespoke .pcard > h4{font-size:15px;font-weight:450;letter-spacing:-.1px;text-transform:none;
-#insp .skypanel   color:var(--text);margin-bottom:10px;}
-#insp .skypanel /* ── tapes and steppers ───────────────────────────────────────────────────────────────────────
-#insp .skypanel    A tape is a ruler with a marker on it: you can read the range off the strip, count the ticks,
-#insp .skypanel    and grab it anywhere. The stepper beside it is for the last decimal. Between them they replace
-#insp .skypanel    every slider in an instrument panel. */
-#insp .skypanel .tape{margin:10px 0 12px;}
-#insp .skypanel .tape .hd{display:flex;align-items:center;gap:8px;margin-bottom:1px;}
-#insp .skypanel .tape .hd .k{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .tape canvas{display:block;width:100%;cursor:ew-resize;touch-action:none;}
-#insp .skypanel .tape canvas.drag{cursor:grabbing;}
-#insp .skypanel .step{margin-left:auto;display:flex;align-items:center;gap:4px;}
-#insp .skypanel .step button{width:20px;height:20px;flex:0 0 20px;border-radius:7px;background:var(--raised);
-#insp .skypanel   border:1px solid var(--stroke);color:var(--text-dim);font-size:12px;line-height:1;cursor:pointer;
-#insp .skypanel   display:grid;place-items:center;padding:0;transition:background .14s var(--ease),color .14s var(--ease);}
-#insp .skypanel .step button:hover{color:var(--text);background:var(--selected);}
-#insp .skypanel .step .f{display:flex;align-items:baseline;gap:3px;background:var(--field);
-#insp .skypanel   border:1px solid var(--stroke);border-radius:9px;padding:3px 8px;}
-#insp .skypanel .step input{width:42px;background:transparent;border:0;outline:none;color:var(--text);
-#insp .skypanel   font:inherit;font-size:12.5px;font-weight:500;text-align:right;font-variant-numeric:tabular-nums;
-#insp .skypanel   letter-spacing:-.2px;}
-#insp .skypanel .step i{font-style:normal;font-size:9px;color:var(--text-dim);}
-#insp .skypanel .mp-meter{padding-top:0;}
-#insp .skypanel .mp-meter .hd,.mp-size .hd{display:flex;align-items:center;gap:6px;padding:8px 9px 2px;}
-#insp .skypanel .mp-meter .hd .k,.mp-size .hd .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;
-#insp .skypanel   color:var(--text-faint);}
-#insp .skypanel .mp-size canvas{cursor:ew-resize;touch-action:none;}
-#insp .skypanel .mp-size canvas.drag,.mp-meter canvas.drag{cursor:grabbing;}
-#insp .skypanel .mp-meter canvas{cursor:ew-resize;touch-action:none;}
-#insp .skypanel .mp-chartwrap canvas{cursor:ew-resize;touch-action:none;}
-#insp .skypanel .mp-chartwrap canvas.drag{cursor:grabbing;}
-#insp .skypanel /* state pills and the flat facts under them */
-#insp .skypanel .mp-tag.state i{background:var(--text-faint);box-shadow:none;}
-#insp .skypanel .mp-tag.state.on i{background:var(--ok);box-shadow:0 0 7px rgba(34,197,94,.65);}
-#insp .skypanel .mp-state .mp-tags{margin:0 0 10px;}
-#insp .skypanel .mp-spec{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-#insp .skypanel .mp-spec > div{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:var(--field);
-#insp .skypanel   border:1px solid var(--stroke);border-radius:14px;}
-#insp .skypanel .mp-spec .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
-#insp .skypanel .mp-spec b{font-size:13px;font-weight:500;color:var(--text);letter-spacing:-.2px;}
-#insp .skypanel .s-map canvas.drag{cursor:grabbing;}
-#insp .skypanel .s-path .mp-3up{margin-top:10px;}
-#insp .skypanel .s-path .tape{margin-bottom:2px;}
-#insp .skypanel .spanel .mp-note{padding:2px 2px 0;}
-#insp .skypanel .w-hero canvas.grabbing{cursor:grabbing;}
-#insp .skypanel .w-ramp canvas.drag{cursor:grabbing;}
-#insp .skypanel .wpanel .mp-subhead{margin:10px 0 4px;}
-#insp .skypanel .mp-cap .w-sub,.w-hero .mp-cap .r{text-transform:none;letter-spacing:.3px;}
-#insp .skypanel .wf-hero canvas.grabbing{cursor:grabbing;}
-#insp .skypanel .wf-meter canvas.drag{cursor:grabbing;}
-#insp .skypanel .wf-steady .mp-spec{grid-template-columns:1fr 1fr;margin-top:4px;}
-#insp .skypanel .wf-drives .mp-tags{margin-bottom:8px;}
-#insp .skypanel .mp-cap .wf-sub{text-transform:none;letter-spacing:.3px;}
-#insp .skypanel /* ── the sky and star panels ───────────────────────────────────────────────────────────────── */
-#insp .skypanel .sk-hero canvas{cursor:crosshair;}
-#insp .skypanel .sk-hero canvas.grabbing{cursor:grabbing;}
-#insp .skypanel .st-hero canvas.grabbing{cursor:grabbing;}
-#insp .skypanel .sk-phase canvas,.sk-grad canvas,.st-ramp canvas{display:block;width:100%;}
-#insp .skypanel .sk-phase canvas{cursor:ew-resize;touch-action:none;}
-#insp .skypanel .sk-phase canvas.drag{cursor:grabbing;}
-#insp .skypanel .sk-specs,.st-specs{grid-template-columns:1fr 1fr;margin-top:10px;}
-#insp .skypanel .mp-cap .sk-sub,.mp-cap .st-sub{text-transform:none;letter-spacing:.3px;}
-#insp .skypanel .skypanel .mp-subhead,.starpanel .mp-subhead{margin:10px 0 4px;}
-#insp .skypanel .st-mag .mp-num .i{font-size:38px;}
-#insp .skypanel .sk-hero .mp-cap{background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.55) 55%,rgba(0,0,0,.88) 100%);}
-#insp .skypanel .sk-hero .mp-cap .mp-illum,.sk-hero .mp-cap .r{color:rgba(255,255,255,.72);}
-#insp .skypanel .fg-hero canvas.grabbing{cursor:grabbing;}
-#insp .skypanel .fg-hero .mp-cap{background:linear-gradient(180deg,rgba(4,6,8,0),rgba(4,6,8,.92));}
-#insp .skypanel .mp-cap .fg-sub{text-transform:none;letter-spacing:.3px;}
-#insp .skypanel .fg-vis canvas.drag,.fg-profile canvas.drag{cursor:grabbing;}
-#insp .skypanel .fogpanel .mp-subhead{margin:10px 0 4px;}
-#insp .skypanel .mp-cap .fd-sub,.mp-cap .ge-sub{text-transform:none;letter-spacing:.3px;}
-#insp .skypanel .folderpanel .mp-subhead{margin:10px 0 4px;}
-#insp .skypanel .ge-hero canvas.grabbing{cursor:grabbing}
-#insp .skypanel .ge-plan canvas.drag,.ge-lab canvas.drag{cursor:grabbing}
-#insp .skypanel .ge-axis .step{width:100%;}
-#insp .skypanel .ge-axis .step .f{min-width:0;}
-#insp .skypanel .ge-axis .step input{width:38px;}
-#insp .skypanel .ge-colours .mp-subhead{margin:9px 0 4px;}
-#insp .skypanel .geopanel .mp-subhead{margin:10px 0 4px;}
-#insp .skypanel .cl-hero canvas.grabbing{cursor:grabbing}
-#insp .skypanel .mp-cap .cl-sub,.mp-cap .li-sub{text-transform:none;letter-spacing:.3px;}
-#insp .skypanel .cl-cover canvas.drag,.cl-section canvas.drag{cursor:grabbing}
-#insp .skypanel .cloudpanel .mp-subhead{margin:10px 0 4px}
-#insp .skypanel .li-hero canvas.grabbing{cursor:grabbing}
-#insp .skypanel .li-photo canvas.drag,.li-aim canvas.drag{cursor:grabbing}
-#insp .skypanel .lightpanel .mp-subhead{margin:10px 0 4px}
-#insp .skypanel .li-axis .step{width:100%}
-#insp .skypanel .li-axis .step .f{min-width:0}
-#insp .skypanel .li-axis .step input{width:38px}
-#insp .skypanel .al-hero canvas.grabbing{cursor:grabbing}
-#insp .skypanel .mp-cap .al-sub,.mp-cap .ef-sub{text-transform:none;letter-spacing:.3px}
-#insp .skypanel .advlightpanel .mp-subhead,.effectpanel .mp-subhead{margin:10px 0 4px}
-#insp .skypanel .al-axis .step,.ef-axis .step{width:100%}
-#insp .skypanel .al-axis .step .f,.ef-axis .step .f{min-width:0}
-#insp .skypanel .al-axis .step input,.ef-axis .step input{width:38px}
-#insp .skypanel .ca-hero canvas.grabbing{cursor:grabbing}
-#insp .skypanel .mp-cap .ca-sub{text-transform:none;letter-spacing:.3px}
-#insp .skypanel .ca-plan canvas.drag{cursor:grabbing}
-#insp .skypanel .camerapanel .mp-subhead{margin:10px 0 4px}
-#insp .skypanel .ca-axis .step{width:100%}
-#insp .skypanel .ca-axis .step .f{min-width:0}
-#insp .skypanel .ca-axis .step input{width:38px}
-#insp .skypanel .te-hero canvas.grabbing{cursor:grabbing}
-#insp .skypanel .mp-cap .te-sub,.mp-cap .as-sub{text-transform:none;letter-spacing:.3px}
-#insp .skypanel .terrainpanel .mp-subhead{margin:10px 0 4px}
-#insp .skypanel .te-axis .step,.as-axis .step{width:100%}
-#insp .skypanel .te-axis .step .f,.as-axis .step .f{min-width:0}
-#insp .skypanel .te-axis .step input,.as-axis .step input{width:38px}
-#insp .skypanel .assetpanel .mp-subhead{margin:10px 0 4px}
-#insp .skypanel .cu-hero canvas.grabbing{cursor:grabbing}
-#insp .skypanel .mp-cap .cu-sub{text-transform:none;letter-spacing:.3px}
-#insp .skypanel .curvepanel .mp-subhead{margin:10px 0 4px}
-#insp .skypanel .cu-axis .step{width:100%}
-#insp .skypanel .cu-axis .step .f{min-width:0}
-#insp .skypanel .cu-axis .step input{width:38px}
+/* ===== Ported panel styles (c7egoist/Frontier styles.css, scoped under .fport) ===== */
+.fport{--text:#f0f0f0;--text-dim:#888;--text-faint:#5c5c5c;--stroke-strong:#2e2e2e;--r-inset:18px;--r-pill:999px;--ease:cubic-bezier(.22,.61,.36,1);--field:#000;--inset:#1a1a1a;--raised:#222;--selected:#2a2a2a;--panel:#121212;--hi:#6c77ff;--ok:#22c55e;--caution:#f59e0b;--danger:#ef4444;display:flex;flex-direction:column;gap:10px;color:var(--text);font-size:12px}
+#insp .fport canvas{display:block;width:100%}
+#insp .fport .mpanel{display:flex;flex-direction:column;gap:10px}
+#insp .fport .pcard{background:var(--inset);border-radius:var(--r-inset);padding:12px 14px 14px;margin-bottom:0;animation:cardIn .28s var(--ease)}
+#insp .fport .pcard.shut .pbody{display:none}
+#insp .fport .mpanel.disabled .pcard:not(.fg-scatter){opacity:.55}
+#insp .fport button{font-family:inherit}
+#insp .fport .kslider.drag .knob{transform:translate(-50%,-50%) scale(1.12);}
+#insp .fport .colorrow{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
+#insp .fport .colorchip{width:30px;height:30px;border-radius:10px;border:1px solid var(--stroke);flex-shrink:0;cursor:pointer;
+  position:relative;overflow:hidden;transition:transform .15s var(--ease);}
+#insp .fport .colorchip:hover{transform:scale(1.06);}
+#insp .fport .colorchip input{position:absolute;inset:-4px;width:150%;height:150%;opacity:0;cursor:pointer;}
+#insp .fport .hexval{font-size:11.5px;color:var(--text-dim);font-variant-numeric:tabular-nums;letter-spacing:.4px;}
+#insp .fport .pcard{background:var(--inset);border-radius:var(--r-inset);padding:12px 14px 14px;margin-bottom:10px;
+  animation:cardIn .28s var(--ease);}
+#insp .fport .pcard > h4{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-faint);
+  margin-bottom:10px;display:flex;align-items:center;gap:8px;cursor:pointer;}
+#insp .fport .pcard > h4 .cw{margin-left:auto;color:var(--text-faint);transition:transform .2s var(--ease);}
+#insp .fport .pcard.shut > h4 .cw{transform:rotate(-90deg);}
+#insp .fport .pcard.shut > h4{margin-bottom:0;}
+#insp .fport .pcard.shut .pbody{display:none;}
+#insp .fport .multi-icon{display:block;overflow:visible}
+#insp .fport .kids.shut{height:0 !important;opacity:0;}
+#insp .fport .mpanel{display:flex;flex-direction:column;gap:10px;}
+#insp .fport .mp-hero{padding:0;overflow:hidden;position:relative;border-radius:var(--r-inset);
+  background:#05070f;border:1px solid var(--stroke-strong);}
+#insp .fport .mp-sky{display:block;width:100%;cursor:ew-resize;touch-action:none;}
+#insp .fport .mp-sky.grabbing{cursor:grabbing;}
+#insp .fport .mp-cap{position:absolute;inset:auto 0 0 0;display:flex;align-items:flex-end;gap:10px;
+  padding:8px 12px 9px;background:linear-gradient(180deg,rgba(5,7,15,0),rgba(5,7,15,.88));
+  pointer-events:none;}
+#insp .fport .mp-cap .l{display:flex;flex-direction:column;gap:2px;min-width:0;}
+#insp .fport .mp-cap b{font-size:12.5px;font-weight:600;color:var(--text);letter-spacing:.2px;}
+#insp .fport .mp-cap .mp-illum{font-size:10px;color:var(--text-faint);letter-spacing:.6px;text-transform:uppercase;}
+#insp .fport .mp-cap .r{margin-left:auto;font-size:10.5px;color:var(--text-dim);text-align:right;
+  font-variant-numeric:tabular-nums;}
+#insp .fport .mp-cap .down{color:var(--caution);}
+#insp .fport .mp-strip{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;margin-bottom:10px;}
+#insp .fport .mp-chip{padding:4px 2px;border-radius:11px;border:1px solid transparent;background:transparent;
+  cursor:pointer;display:grid;place-items:center;min-width:0;
+  transition:background .15s var(--ease),border-color .15s var(--ease);}
+#insp .fport .mp-chip canvas{width:100%;max-width:30px;height:auto;aspect-ratio:1;display:block;}
+#insp .fport .mp-chip:hover{background:#141414;}
+#insp .fport .mp-chip.on{background:var(--selected);border-color:var(--stroke-strong);}
+#insp .fport .mp-note{font-size:10.5px;color:var(--text-faint);letter-spacing:.2px;padding:2px 2px 0;}
+#insp .fport .mp-dial .ring{fill:none;stroke:var(--stroke-strong);stroke-width:1;}
+#insp .fport .mp-dial .ring2{fill:rgba(255,255,255,.02);stroke:var(--stroke);stroke-width:1;}
+#insp .fport .mp-dial .tick{stroke:rgba(255,255,255,.14);stroke-width:1;}
+#insp .fport .mp-dial .tick.long{stroke:rgba(255,255,255,.30);}
+#insp .fport .mp-dial .needle,#insp .fport .mp-dial .ray{stroke:var(--hi);stroke-width:1.6;stroke-linecap:round;}
+#insp .fport .mp-dial .hub{fill:var(--hi);}
+#insp .fport .mp-dial .knob{fill:#e9ecff;stroke:var(--hi);stroke-width:2;}
+#insp .fport .mp-dial .knob.under{fill:var(--caution);stroke:var(--caution);}
+#insp .fport .mp-dial .arc{fill:none;stroke:var(--stroke-strong);stroke-width:1;}
+#insp .fport .mp-dial .fill{fill:none;stroke:rgba(108,119,255,.5);stroke-width:2.5;stroke-linecap:round;}
+#insp .fport .mp-dial .ground{stroke:rgba(255,255,255,.18);stroke-width:1;}
+#insp .fport .mp-dial .lbl{fill:var(--text-faint);font-size:8px;text-anchor:middle;letter-spacing:.6px;}
+#insp .fport .mp-dial .lbl.n{fill:var(--text-dim);}
+#insp .fport .mp-3up{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:2px 0 4px;}
+#insp .fport .mp-3up > div{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:var(--field);
+  border:1px solid var(--stroke);border-radius:14px;}
+#insp .fport .mp-3up .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mp-3up b{font-size:14px;font-weight:500;letter-spacing:-.3px;color:var(--text);
+  font-variant-numeric:tabular-nums;}
+#insp .fport .mp-meter{margin:2px 0 10px;background:var(--field);border:1px solid var(--stroke);
+  border-radius:var(--r-inset);overflow:hidden;padding:2px 0 0;}
+#insp .fport .mp-meter canvas{display:block;width:100%;}
+#insp .fport .mp-size{margin:2px 0 0;background:var(--field);border:1px solid var(--stroke);
+  border-radius:var(--r-inset);overflow:hidden;}
+#insp .fport .mp-size .hd{display:flex;align-items:baseline;gap:6px;padding:8px 11px 0;}
+#insp .fport .mp-size .hd .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mp-size .hd .v{margin-left:auto;font-size:12.5px;font-weight:500;color:var(--text);
+  letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
+#insp .fport .mp-size .hd .v em{font-style:normal;font-size:9px;color:var(--text-dim);margin-left:1px;}
+#insp .fport .mp-size canvas{display:block;width:100%;}
+#insp .fport .mp-subhead{display:flex;align-items:center;gap:8px;margin:12px 0 6px;}
+#insp .fport .mp-subhead .k{font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mp-subhead .colorrow{margin-left:auto;flex:0 0 auto;}
+#insp .fport .mp-tag i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;
+  vertical-align:1px;box-shadow:0 0 0 1px rgba(0,0,0,.4);}
+#insp .fport .mp-tints .mp-tag{padding:5px 9px;}
+#insp .fport .mpanel .mp-chead{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
+#insp .fport .mpanel .mp-chead .l{display:flex;flex-direction:column;gap:1px;min-width:0;}
+#insp .fport .mpanel .mp-chead .t{font-size:15px;font-weight:450;letter-spacing:-.1px;color:var(--text);}
+#insp .fport .mpanel .mp-chead .s{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mpanel .mp-x{margin-left:auto;width:24px;height:24px;flex:0 0 24px;border-radius:9px;display:grid;
+  place-items:center;color:var(--text-dim);background:transparent;border:1px solid transparent;
+  cursor:pointer;transition:background .15s var(--ease),color .15s var(--ease);}
+#insp .fport .mpanel .mp-x:hover{background:var(--raised);color:var(--text);}
+#insp .fport .mp-num{display:flex;align-items:baseline;gap:0;line-height:.94;font-weight:300;
+  letter-spacing:-2.4px;font-variant-numeric:tabular-nums;margin:2px 0 6px;}
+#insp .fport .mp-num .i{font-size:46px;color:var(--text);}
+#insp .fport .mp-num .d{font-size:46px;color:var(--text-faint);}
+#insp .fport .mp-num .u{font-size:12px;letter-spacing:0;color:var(--text-dim);margin-left:7px;transform:translateY(-2px);}
+#insp .fport .mp-k{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mp-target{display:flex;align-items:baseline;gap:6px;}
+#insp .fport .mp-target .v{font-size:11px;letter-spacing:.1px;text-transform:none;color:var(--text-dim);}
+#insp .fport .mp-metric{padding-bottom:8px;}
+#insp .fport .mp-chartwrap{margin:2px -4px 0;}
+#insp .fport .mp-chartwrap canvas{display:block;width:100%;}
+#insp .fport .mp-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;}
+#insp .fport .mp-pill{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;
+  padding:7px 9px 8px;background:var(--panel);border:1px solid var(--stroke);
+  border-radius:var(--r-pill);}
+#insp .fport .mp-pill .v{font-size:14px;font-weight:500;color:var(--text);letter-spacing:-.3px;
+  font-variant-numeric:tabular-nums;white-space:nowrap;max-width:100%;overflow:hidden;
+  text-overflow:ellipsis;}
+#insp .fport .mp-rail{grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.25fr);}
+#insp .fport .mp-pill .v em{font-style:normal;font-size:9.5px;font-weight:400;color:var(--text-dim);margin-left:2px;
+  letter-spacing:.4px;}
+#insp .fport .mp-pill .k{font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mp-duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+#insp .fport .mp-stat{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:11px 13px 10px;align-items:end;}
+#insp .fport .mp-stat .i{grid-column:1/-1;width:19px;height:19px;border-radius:7px;display:grid;place-items:center;
+  color:var(--ok);background:rgba(34,197,94,.13);margin-bottom:6px;}
+#insp .fport .mp-stat.down .i{color:var(--danger);background:rgba(239,68,68,.14);}
+#insp .fport .mp-stat .l{font-size:11px;color:var(--text-dim);letter-spacing:.1px;align-self:end;}
+#insp .fport .mp-stat .n{font-size:25px;font-weight:300;letter-spacing:-1.4px;color:var(--text);line-height:1;
+  font-variant-numeric:tabular-nums;text-align:right;}
+#insp .fport .mp-stat .n em{font-style:normal;font-size:11px;letter-spacing:0;color:var(--text-dim);margin-left:2px;}
+#insp .fport .mp-atlas{padding-bottom:10px;}
+#insp .fport .mp-map{position:relative;border-radius:var(--r-inset);overflow:hidden;border:1px solid var(--stroke);
+  background:#0d0f13;}
+#insp .fport .mp-map canvas{display:block;width:100%;cursor:ew-resize;touch-action:none;}
+#insp .fport .mp-map canvas.grabbing{cursor:grabbing;}
+#insp .fport .mp-read{position:absolute;left:8px;bottom:6px;display:flex;align-items:baseline;gap:5px;
+  padding:3px 8px;border-radius:var(--r-pill);background:rgba(5,6,10,.72);
+  backdrop-filter:blur(6px);font-size:9.5px;color:var(--text);font-variant-numeric:tabular-nums;}
+#insp .fport .mp-read .k{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mp-read b{font-weight:500;margin-right:4px;}
+#insp .fport .mp-tags{display:flex;gap:5px;margin:8px 0 2px;flex-wrap:wrap;}
+#insp .fport .mp-tag{padding:4px 9px;border-radius:var(--r-pill);border:1px solid var(--stroke);
+  background:transparent;color:var(--text-faint);font-size:8.5px;letter-spacing:1.2px;
+  cursor:pointer;transition:color .15s var(--ease),border-color .15s var(--ease);}
+#insp .fport .mp-tag:hover{color:var(--text-dim);}
+#insp .fport .mp-tag.on{color:var(--text);border-color:var(--stroke-strong);background:var(--inset);}
+#insp .fport .mp-tl{margin-top:8px;padding:0 2px;cursor:ew-resize;touch-action:none;}
+#insp .fport .mp-tl canvas{display:block;width:100%;}
+#insp .fport .mp-tllbl{display:flex;justify-content:space-between;padding:2px 4px 0;
+  font-size:8.5px;letter-spacing:1.2px;color:var(--text-faint);}
+#insp .fport .mp-cap b{font-size:15px;font-weight:500;letter-spacing:-.2px;}
+#insp .fport .mp-cap .mp-illum{font-size:9px;letter-spacing:1.3px;}
+#insp .fport .mp-cap .r{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;}
+#insp .fport .mpanel .mp-note{font-size:10px;letter-spacing:.2px;color:var(--text-faint);text-transform:none;}
+#insp .fport .mpanel .mp-k.mp-note{letter-spacing:1.1px;text-transform:uppercase;padding:6px 2px 0;}
+#insp .fport .mp-track2 .mp-num,#insp .fport .mp-light .mp-num{margin-bottom:4px;}
+#insp .fport .mp-track2 .mp-num .i,#insp .fport .mp-track2 .mp-num .d,#insp .fport .mp-light .mp-num .i,#insp .fport .mp-light .mp-num .d{font-size:40px;}
+#insp .fport .mp-chead .l{cursor:pointer;}
+#insp .fport .pcard.shut .mp-num,#insp .fport .pcard.shut .mp-target{display:none;}
+#insp .fport .sheet.bespoke .pcard > h4{font-size:15px;font-weight:450;letter-spacing:-.1px;text-transform:none;
+  color:var(--text);margin-bottom:10px;}
+#insp .fport .tape{margin:10px 0 12px;}
+#insp .fport .tape .hd{display:flex;align-items:center;gap:8px;margin-bottom:1px;}
+#insp .fport .tape .hd .k{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .tape canvas{display:block;width:100%;cursor:ew-resize;touch-action:none;}
+#insp .fport .tape canvas.drag{cursor:grabbing;}
+#insp .fport .step{margin-left:auto;display:flex;align-items:center;gap:4px;}
+#insp .fport .step button{width:20px;height:20px;flex:0 0 20px;border-radius:7px;background:var(--raised);
+  border:1px solid var(--stroke);color:var(--text-dim);font-size:12px;line-height:1;cursor:pointer;
+  display:grid;place-items:center;padding:0;transition:background .14s var(--ease),color .14s var(--ease);}
+#insp .fport .step button:hover{color:var(--text);background:var(--selected);}
+#insp .fport .step .f{display:flex;align-items:baseline;gap:3px;background:var(--field);
+  border:1px solid var(--stroke);border-radius:9px;padding:3px 8px;}
+#insp .fport .step input{width:42px;background:transparent;border:0;outline:none;color:var(--text);
+  font:inherit;font-size:12.5px;font-weight:500;text-align:right;font-variant-numeric:tabular-nums;
+  letter-spacing:-.2px;}
+#insp .fport .step i{font-style:normal;font-size:9px;color:var(--text-dim);}
+#insp .fport .mp-meter{padding-top:0;}
+#insp .fport .mp-meter .hd,#insp .fport .mp-size .hd{display:flex;align-items:center;gap:6px;padding:8px 9px 2px;}
+#insp .fport .mp-meter .hd .k,#insp .fport .mp-size .hd .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--text-faint);}
+#insp .fport .mp-size canvas{cursor:ew-resize;touch-action:none;}
+#insp .fport .mp-size canvas.drag,#insp .fport .mp-meter canvas.drag{cursor:grabbing;}
+#insp .fport .mp-meter canvas{cursor:ew-resize;touch-action:none;}
+#insp .fport .mp-chartwrap canvas{cursor:ew-resize;touch-action:none;}
+#insp .fport .mp-chartwrap canvas.drag{cursor:grabbing;}
+#insp .fport .mp-tag.state i{background:var(--text-faint);box-shadow:none;}
+#insp .fport .mp-tag.state.on i{background:var(--ok);box-shadow:0 0 7px rgba(34,197,94,.65);}
+#insp .fport .mp-state .mp-tags{margin:0 0 10px;}
+#insp .fport .mp-spec{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+#insp .fport .mp-spec > div{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:var(--field);
+  border:1px solid var(--stroke);border-radius:14px;}
+#insp .fport .mp-spec .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .fport .mp-spec b{font-size:13px;font-weight:500;color:var(--text);letter-spacing:-.2px;}
+#insp .fport .s-map canvas.drag{cursor:grabbing;}
+#insp .fport .s-path .mp-3up{margin-top:10px;}
+#insp .fport .s-path .tape{margin-bottom:2px;}
+#insp .fport .spanel .mp-note{padding:2px 2px 0;}
+#insp .fport .w-hero canvas.grabbing{cursor:grabbing;}
+#insp .fport .w-ramp canvas.drag{cursor:grabbing;}
+#insp .fport .wpanel .mp-subhead{margin:10px 0 4px;}
+#insp .fport .mp-cap .w-sub,#insp .fport .w-hero .mp-cap .r{text-transform:none;letter-spacing:.3px;}
+#insp .fport .wf-hero canvas.grabbing{cursor:grabbing;}
+#insp .fport .wf-meter canvas.drag{cursor:grabbing;}
+#insp .fport .wf-steady .mp-spec{grid-template-columns:1fr 1fr;margin-top:4px;}
+#insp .fport .wf-drives .mp-tags{margin-bottom:8px;}
+#insp .fport .mp-cap .wf-sub{text-transform:none;letter-spacing:.3px;}
+#insp .fport .sk-hero canvas{cursor:crosshair;}
+#insp .fport .sk-hero canvas.grabbing{cursor:grabbing;}
+#insp .fport .st-hero canvas.grabbing{cursor:grabbing;}
+#insp .fport .sk-phase canvas,#insp .fport .sk-grad canvas,#insp .fport .st-ramp canvas{display:block;width:100%;}
+#insp .fport .sk-phase canvas{cursor:ew-resize;touch-action:none;}
+#insp .fport .sk-phase canvas.drag{cursor:grabbing;}
+#insp .fport .sk-specs,#insp .fport .st-specs{grid-template-columns:1fr 1fr;margin-top:10px;}
+#insp .fport .mp-cap .sk-sub,#insp .fport .mp-cap .st-sub{text-transform:none;letter-spacing:.3px;}
+#insp .fport .skypanel .mp-subhead,#insp .fport .starpanel .mp-subhead{margin:10px 0 4px;}
+#insp .fport .st-mag .mp-num .i{font-size:38px;}
+#insp .fport .sk-hero .mp-cap{background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.55) 55%,rgba(0,0,0,.88) 100%);}
+#insp .fport .sk-hero .mp-cap .mp-illum,#insp .fport .sk-hero .mp-cap .r{color:rgba(255,255,255,.72);}
+#insp .fport .fg-hero canvas{cursor:crosshair;touch-action:none;}
+#insp .fport .fg-hero canvas.grabbing{cursor:grabbing;}
+#insp .fport .fg-hero .mp-cap{background:linear-gradient(180deg,rgba(4,6,8,0),rgba(4,6,8,.92));}
+#insp .fport .mp-cap .fg-sub{text-transform:none;letter-spacing:.3px;}
+#insp .fport .fg-vis canvas,#insp .fport .fg-profile canvas{cursor:crosshair;touch-action:none;}
+#insp .fport .fg-vis canvas.drag,#insp .fport .fg-profile canvas.drag{cursor:grabbing;}
+#insp .fport .fg-profile canvas,#insp .fport .fg-chamber canvas{display:block;width:100%;}
+#insp .fport .fogpanel .mp-subhead{margin:10px 0 4px;}
+#insp .fport .fogpanel.disabled .fg-hero canvas,#insp .fport .fogpanel.disabled .fg-chamber canvas{filter:saturate(.25);opacity:.62;}
+#insp .fport .fd-hero canvas{display:block;width:100%;}
+#insp .fport .mp-cap .fd-sub,#insp .fport .mp-cap .ge-sub{text-transform:none;letter-spacing:.3px;}
+#insp .fport .fd-donut{display:grid;grid-template-columns:118px 1fr;align-items:center;min-height:128px;}
+#insp .fport .fd-donut canvas{display:block;width:118px;}
+#insp .fport .fd-legend{display:flex;flex-direction:column;gap:7px;padding:8px 4px 8px 8px;}
+#insp .fport .fd-legend>div{display:grid;grid-template-columns:6px 1fr auto;gap:7px;align-items:center;font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-faint);}
+#insp .fport .fd-legend i{width:5px;height:5px;border-radius:50%;}
+#insp .fport .fd-legend b{font-size:12px;color:var(--text);font-weight:500;}
+#insp .fport .fd-list{display:flex;flex-direction:column;gap:3px;}
+#insp .fport .fd-row{display:grid;grid-template-columns:24px 1fr 28px;align-items:center;gap:6px;padding:7px 7px;background:var(--field);border-radius:10px;border:1px solid var(--stroke);}
+#insp .fport .fd-ic{width:23px;height:23px;border-radius:8px;background:var(--inset);display:grid;place-items:center;}
+#insp .fport .fd-who{display:flex;flex-direction:column;gap:1px;min-width:0}
+#insp .fport .fd-who b{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#insp .fport .fd-who em{font-style:normal;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--text-faint)}
+#insp .fport .fd-eye{width:27px;height:27px;border-radius:9px;color:var(--text-faint);display:grid;place-items:center}
+#insp .fport .fd-eye:hover{background:var(--raised);color:var(--text)}
+#insp .fport .fd-empty{padding:20px;text-align:center;font-size:9px;letter-spacing:1px;color:var(--text-faint)}
+#insp .fport .folderpanel .mp-subhead{margin:10px 0 4px;}
+#insp .fport .ge-hero canvas.grabbing{cursor:grabbing}
+#insp .fport .ge-plan canvas.drag,#insp .fport .ge-lab canvas.drag{cursor:grabbing}
+#insp .fport .ge-axis .step{width:100%;}
+#insp .fport .ge-axis .step .f{min-width:0;}
+#insp .fport .ge-axis .step input{width:38px;}
+#insp .fport .ge-colours .mp-subhead{margin:9px 0 4px;}
+#insp .fport .geopanel .mp-subhead{margin:10px 0 4px;}
+#insp .fport .cl-hero canvas{display:block;width:100%;cursor:crosshair;touch-action:none}
+#insp .fport .cl-hero canvas.grabbing{cursor:grabbing}
+#insp .fport .mp-cap .cl-sub,#insp .fport .mp-cap .li-sub{text-transform:none;letter-spacing:.3px;}
+#insp .fport .cl-cover canvas,#insp .fport .cl-section canvas{display:block;width:100%;cursor:crosshair;touch-action:none}
+#insp .fport .cl-cover canvas.drag,#insp .fport .cl-section canvas.drag{cursor:grabbing}
+#insp .fport .cloudpanel .mp-subhead{margin:10px 0 4px}
+#insp .fport .cl-colours{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#insp .fport .li-hero canvas.grabbing{cursor:grabbing}
+#insp .fport .li-photo canvas.drag,#insp .fport .li-aim canvas.drag{cursor:grabbing}
+#insp .fport .lightpanel .mp-subhead{margin:10px 0 4px}
+#insp .fport .li-axis .step{width:100%}
+#insp .fport .li-axis .step .f{min-width:0}
+#insp .fport .li-axis .step input{width:38px}
+#insp .fport .al-hero canvas.grabbing{cursor:grabbing}
+#insp .fport .mp-cap .al-sub,#insp .fport .mp-cap .ef-sub{text-transform:none;letter-spacing:.3px}
+#insp .fport .advlightpanel .mp-subhead,#insp .fport .effectpanel .mp-subhead{margin:10px 0 4px}
+#insp .fport .al-axis .step,#insp .fport .ef-axis .step{width:100%}
+#insp .fport .al-axis .step .f,#insp .fport .ef-axis .step .f{min-width:0}
+#insp .fport .al-axis .step input,#insp .fport .ef-axis .step input{width:38px}
+#insp .fport .ca-hero canvas.grabbing{cursor:grabbing}
+#insp .fport .mp-cap .ca-sub{text-transform:none;letter-spacing:.3px}
+#insp .fport .ca-plan canvas.drag{cursor:grabbing}
+#insp .fport .camerapanel .mp-subhead{margin:10px 0 4px}
+#insp .fport .ca-axis .step{width:100%}
+#insp .fport .ca-axis .step .f{min-width:0}
+#insp .fport .ca-axis .step input{width:38px}
+#insp .fport .te-hero canvas{display:block;width:100%;cursor:crosshair;touch-action:none}
+#insp .fport .te-hero canvas.grabbing{cursor:grabbing}
+#insp .fport .mp-cap .te-sub,#insp .fport .mp-cap .as-sub{text-transform:none;letter-spacing:.3px}
+#insp .fport .te-section canvas{display:block;width:100%}
+#insp .fport .terrainpanel .mp-subhead{margin:10px 0 4px}
+#insp .fport .te-colours{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#insp .fport .te-res{margin:8px 0 2px}
+#insp .fport .te-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:74px;border:1px dashed var(--stroke-strong);border-radius:14px;background:var(--field);color:var(--text-dim)}
+#insp .fport .te-drop b{font-size:10px;letter-spacing:1px}
+#insp .fport .te-drop span{font-size:8px;letter-spacing:1px;color:var(--text-faint)}
+#insp .fport .te-drop.file-over{border-color:#8fb36b;background:rgba(143,179,107,.08)}
+#insp .fport .te-steppers,#insp .fport .as-steppers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:8px}
+#insp .fport .te-axis,#insp .fport .as-axis{display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--field);border:1px solid var(--stroke);border-radius:11px;min-width:0}
+#insp .fport .te-axis>span,#insp .fport .as-axis>span{font-size:8px;letter-spacing:1px;color:var(--text-faint)}
+#insp .fport .te-axis .step,#insp .fport .as-axis .step{width:100%}
+#insp .fport .te-axis .step .f,#insp .fport .as-axis .step .f{min-width:0}
+#insp .fport .te-axis .step input,#insp .fport .as-axis .step input{width:38px}
+#insp .fport .assetpanel .mp-subhead{margin:10px 0 4px}
+#insp .fport .te-modes{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:5px;background:#080808;border:1px solid var(--stroke);border-radius:14px}
+#insp .fport .te-modes button{min-width:0;height:47px;border:0;border-radius:10px;background:transparent;color:var(--text-faint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:8px;letter-spacing:.65px;text-transform:uppercase}
+#insp .fport .te-modes button i{font-style:normal;font-size:17px;line-height:16px;color:var(--text-dim)}
+#insp .fport .te-modes button:hover{background:rgba(255,255,255,.045);color:var(--text)}
+#insp .fport .te-modes button.on{background:rgba(143,179,107,.14);box-shadow:inset 0 0 0 1px rgba(143,179,107,.4);color:#c9e2af}
+#insp .fport .te-modes button.on i{color:#9fd276}
+#insp .fport .cu-hero canvas.grabbing{cursor:grabbing}
+#insp .fport .mp-cap .cu-sub{text-transform:none;letter-spacing:.3px}
+#insp .fport .curvepanel .mp-subhead{margin:10px 0 4px}
+#insp .fport .cu-axis .step{width:100%}
+#insp .fport .cu-axis .step .f{min-width:0}
+#insp .fport .cu-axis .step input{width:38px}
+
+@keyframes cardIn{from{transform:translateY(8px);opacity:0;}to{transform:none;opacity:1;}}
+
+@keyframes pillIn{from{transform:scale(.7);opacity:0;}to{transform:scale(1);opacity:1;}}
 </style>
 </head>
 <body>
@@ -687,6 +700,9 @@ uniform vec3 uSkyTint,uGroundColor; uniform float uSkyBright,uGroundBright,uSkyV
 uniform int uMoonCount; uniform vec3 uMoonDir[MAXM]; uniform vec3 uMoonTint[MAXM]; uniform vec4 uMoonP[MAXM]; uniform vec4 uMoonSurf[MAXM]; uniform sampler2D uMoonTex0,uMoonTex1,uMoonTex2,uMoonTex3;
 uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uHalo,uStreak,uChroma,uFlareType;
 uniform vec2 uSunUV; uniform float uSunInFront;
+uniform float uFogOn,uFogDensity,uFogHeight,uFogScatter; uniform vec3 uFogColor;
+uniform float uCloudOn,uCloudCov,uCloudDen,uCloudAlt,uCloudScale,uCloudDetail,uCloudSpeed; uniform vec3 uCloudTint,uCloudShade;
+uniform float uTerrOn,uTerrSize,uTerrHeight,uTerrFreq,uTerrSeed,uTerrRough,uTerrWire; uniform vec3 uTerrLow,uTerrHigh,uTerrPos;
 uniform float uStarQuality,uStarLayers,uStarAA; uniform vec4 uPresence; /* x=shadows y=GI z=collide */
 uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
 
@@ -826,6 +842,31 @@ vec3 dawnGlow(vec3 dir,float elevDeg,float facing){
 float airMassOf(float e){ float z=90.-e; if(z>=96.) return 40.; return min(40.,1./(cos(radians(z))+.50572*pow(96.07995-z,-1.6364))); }
 /* ---- lens flare ---- */
 vec3 hue(float h){ return clamp(abs(mod(h*6.+vec3(0,4,2),6.)-3.)-1.,0.,1.); }
+// ---- ported entities: height fog (exp² of distance, exp height falloff), cloud layer (value-noise slab), height field ----
+float fogT(float d,float y0,float y1){ // transmission along a segment from height y0 to y1 over distance d
+  float hh=max(1.,uFogHeight); float ya=max(0.,min(y0,y1)), yb=max(0.,max(y0,y1)); float k=(yb-ya)<1e-3?exp(-ya/hh):hh*(exp(-ya/hh)-exp(-yb/hh))/(yb-ya);
+  float od=uFogDensity*d*k; return exp(-od*od); }
+vec3 applyFog(vec3 col,vec3 dir,float d,vec3 sky,vec3 hzGlow,vec3 trans){ if(uFogOn<.5) return col;
+  float y0=uCamHeight, y1=uCamHeight+dir.y*d; float T=fogT(d,y0,y1);
+  float cosS=clamp(dot(dir,uSunDir),-1.,1.); float g=.55; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
+  vec3 inscat=uFogColor*(sky*.9+hzGlow*.5)+uFogScatter*hg*trans*uSunColor*uSunIntensity*.02*max(uSunDir.y+.1,0.);
+  return mix(inscat,col,T); }
+float tfield(vec2 q){ float f=uTerrFreq, s=uTerrSeed; return clamp(.5+.23*sin((q.x*5.3+s*.013)*f)+.16*sin((q.y*7.1-s*.019)*f)+.09*sin((q.x+q.y)*15.7*f),0.,1.); }
+float terrH(vec2 xz){ vec2 q=(xz-uTerrPos.xz)/uTerrSize+.5; return uTerrPos.y+tfield(q)*uTerrHeight; }
+bool terrHit(vec3 ro,vec3 rd,out float tHit,out vec3 n){ tHit=-1.; if(uTerrOn<.5) return false; float half_=uTerrSize*.5; float t=0., dt=max(.5,uTerrSize/160.); float prevD=0.; bool hit=false;
+  for(int i=0;i<160;i++){ vec3 p=ro+rd*t; vec2 l=abs(p.xz-uTerrPos.xz); if(l.x>half_||l.y>half_){ if(t>0.&&p.y>uTerrPos.y+uTerrHeight&&rd.y>=0.) break; } else { float d=p.y-terrH(p.xz); if(d<0.){ t-=dt*d/(d-prevD+1e-5); hit=true; break; } prevD=d; }
+    t+=dt; dt*=1.03; if(t>uTerrSize*4.) break; }
+  if(!hit) return false; vec3 p=ro+rd*t; float e=uTerrSize/256.; n=normalize(vec3(terrH(p.xz-vec2(e,0.))-terrH(p.xz+vec2(e,0.)),2.*e,terrH(p.xz-vec2(0.,e))-terrH(p.xz+vec2(0.,e)))); tHit=t; return true; }
+float cnoise2(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); float a=hash13(vec3(i,7.)),b=hash13(vec3(i+vec2(1,0),7.)),c=hash13(vec3(i+vec2(0,1),7.)),d=hash13(vec3(i+vec2(1,1),7.)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+vec4 cloudLayer(vec3 dir,vec3 sky,vec3 trans){ // rgb premultiplied, a coverage — a thin slab at uCloudAlt above the camera
+  if(uCloudOn<.5||dir.y<.015) return vec4(0.); float dz=uCloudAlt-uCamHeight; if(dz<=1.) return vec4(0.);
+  float t=dz/dir.y; vec2 uv=(vec2(uCamPos.x,uCamPos.z)+dir.xz*t)*.0009*uCloudScale+vec2(uTime*.0025*uCloudSpeed,0.);
+  float n=cnoise2(uv)*.55+cnoise2(uv*2.4+9.)*.3+cnoise2(uv*5.7-3.)*(.07+uCloudDetail*.08); n/=(.92+uCloudDetail*.08);
+  float th=1.-uCloudCov*.78; float body=clamp((n-th)/max(1e-3,1.-th),0.,1.); if(body<=0.) return vec4(0.);
+  float a=(.16+body*.72)*uCloudDen; a*=smoothstep(.015,.08,dir.y);
+  float sunUp=clamp(uSunDir.y*3.+.2,0.,1.); vec3 lit=mix(uCloudShade,uCloudTint,body*.55+.2)*(trans*uSunColor*sunUp*.9+sky*.9)*uSkyBright*.6;
+  float silver=pow(max(dot(dir,uSunDir),0.),24.)*.5; lit+=silver*trans*uSunColor*uSunIntensity*.02*(1.-body);
+  return vec4(lit*a,a); }
 vec3 lensFlare(vec2 uv,vec2 s,float vis){
   vec3 f=vec3(0.); vec2 m=uv-s; float type=uFlareType;
   float wGhost=(type==0.||type==2.)?1.:0.; float wHalo=(type==0.||type==3.)?1.:(type==2.?.5:0.);
@@ -865,9 +906,15 @@ void main(){
   vec3 col=vec3(0.);
   // ---- checker plane (local flat world, intersect before atmosphere ground) ----
   float planeHit=0.; vec3 planeCol=vec3(0.); float planeT=1e9;
+  { float tt; vec3 tn; if(uCamHeight<5000.&&terrHit(uCamPos,dir,tt,tn)){ vec3 hp=uCamPos+dir*tt; float hn=clamp((hp.y-uTerrPos.y)/max(.01,uTerrHeight),0.,1.);
+      vec3 alb=mix(uTerrLow,uTerrHigh,hn); float ndl=max(dot(tn,uSunDir),0.); float sh=1.-uPresence.x*(1.-smoothstep(-1.,3.,elevDeg))*.35*ndl;
+      vec3 spec=vec3(0.); { vec3 hv=normalize(uSunDir-dir); spec=trans*uSunColor*uSunIntensity*.02*pow(max(dot(tn,hv),0.),mix(64.,4.,uTerrRough))*(1.-uTerrRough); }
+      vec3 amb=(sky*.42+hzGlow*.08)*(.5+.5*tn.y); planeCol=alb*(trans*uSunColor*uSunIntensity*.11*ndl*sh+amb)+spec;
+      if(uTerrWire>.5){ vec2 q=(hp.xz-uTerrPos.xz)/uTerrSize*32.; vec2 gw=abs(fract(q-.5)-.5)/(fwidth(q)+1e-4); float ln=1.-min(min(gw.x,gw.y),1.); planeCol=mix(planeCol,vec3(.9),ln*.6); }
+      float fog=1.-exp(-tt*7e-5); fog=pow(clamp(fog,0.,1.),1.6); planeCol=mix(planeCol,sky*.8+hzGlow*.6,fog); planeHit=1.; planeT=tt; } }
   if(uPlaneOn>.5 && dir.y<-1e-4 && uCamHeight<2000.){
     float t=(uPlaneY-uCamPos.y)/dir.y; vec3 hp=uCamPos+dir*t;
-    if(t>0.){
+    if(t>0.&&t<planeT){
       planeHit=1.; planeT=t; float inChk=step(max(abs(hp.x),abs(hp.z)),uPlaneSize);
       // anti-aliased checker (filtered via fwidth)
       vec2 q=hp.xz/uPlaneCell; vec2 w=fwidth(q)*1.5+1e-4;
@@ -893,7 +940,7 @@ void main(){
       float fog=1.-exp(-t*7e-5); fog=pow(clamp(fog,0.,1.),1.6); planeCol=mix(planeCol,sky*.8+hzGlow*.6,fog);
     }
   }
-  if(planeHit>.999){ col=planeCol; }
+  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); }
   else if(ground>.5){
     float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.09*ndl; vec3 amb=sky*.35+vec3(.002,.003,.006)*uSkyBright;
     { // the real surface: the same checker ground, wrapped on the planet sphere (no fake earth texture)
@@ -929,6 +976,7 @@ void main(){
       col+=st*vis*ext;
     }
     col+=moons(dir,trans);
+    { vec4 cl=cloudLayer(dir,sky,trans); col=col*(1.-cl.a)+cl.rgb; }
     if(uSunVisible>.5){
       float ang=acos(clamp(dot(dir,uSunDir),-1.,1.)); float disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9),uSunAng,ang);
       float soft=mix(1.,2.2,1.-smoothstep(0.,4.,elevDeg)); disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9*soft),uSunAng,ang);
@@ -938,6 +986,7 @@ void main(){
       col+=disc*limb*sunCol*uSunIntensity*uSunDiscBoost*mix(.35,1.,smoothstep(-1.,8.,elevDeg));
       float sg=exp(-ang*40.)*.35+exp(-ang*9.)*.03+exp(-ang*2.5)*.004; col+=sg*uBloom*sunCol*uSunIntensity*.6;
     }
+    if(uFogOn>.5&&uCamHeight<3000.){ float dS=(dir.y>.002)?min(20000.,(uFogHeight*4.)/dir.y):20000.; col=applyFog(col,dir,dS,sky,hzGlow,trans); }
   }
   if(uFlareOn>.5 && uSunVisible>.5){
     float inFrame=1.-smoothstep(1.25,2.2,length(uSunUV*vec2(uRes.y/uRes.x,1.)));
@@ -952,18 +1001,13 @@ void main(){
 </script>
 
 <script>
-/* ===== Sky panel — ported verbatim from c7egoist/Frontier (src/panels/sky.js + controls.js + kit.js + icons.js) ===== */
-const SKYPANEL=(()=>{
+/* ===== Ported panels — verbatim from c7egoist/Frontier (arena/01a08158): kit.js, icons.js, panels/controls.js, sky.js, fog.js, clouds.js, terrain.js, folder.js ===== */
+const FPORT=(()=>{
+
 const svg = (path, { size = 14, color = 'currentColor', width = 1.9 } = {}) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}"
     stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
 
-
-const MULTI = {
-  folder: ['#f4c95d','#ff8a5b'], cube: ['#ff7b6b','#ffd166'], sphere: ['#75c7ff','#9b8cff'], torus: ['#b58cff','#ff87c8'], cylinder: ['#7bd6b2','#62a8ff'], plane: ['#62c7e8','#a7f3d0'],
-  light: ['#ffd84d','#ff8b3d'], spot: ['#ffe36e','#ff7657'], camera: ['#63d3ff','#8b7cff'], sky: ['#69bfff','#b899ff'], sun: ['#ffd34e','#ff7b42'], moon: ['#d2dcff','#8d9cff'], stars: ['#e8e8ff','#9d8cff'], cloud: ['#eef5ff','#8eb9dd'], fog: ['#b7c8d8','#7d91aa'], wind: ['#6ee7c2','#6ba8ff'], water: ['#52d2ef','#557cff'],
-  motion: ['#ff79c6','#62d8ff'], particles: ['#ff8bd5','#ffd15c'], probe: ['#61e2ff','#8b7cff'], audio: ['#b991ff','#ff82b8'], post: ['#ff9a63','#8d7dff'], fx: ['#ff81ca','#ffd35e'], world: ['#8fd070','#55c9e8'], layers: ['#d6a0ff','#68c9ff'],
-};
 const P = {
   folder:  '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   cube:    '<path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M12 22V12"/><path d="m3 7 9 5 9-5"/>',
@@ -1020,6 +1064,15 @@ const P = {
   grid:    '<path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
   world:   '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/>',
 };
+
+/* Entity glyphs are compact two-colour flat marks. Utility controls stay monochrome so colour
+   continues to mean “thing in the world”, never “button”. */
+const MULTI = {
+  folder: ['#f4c95d','#ff8a5b'], cube: ['#ff7b6b','#ffd166'], sphere: ['#75c7ff','#9b8cff'], torus: ['#b58cff','#ff87c8'], cylinder: ['#7bd6b2','#62a8ff'], plane: ['#62c7e8','#a7f3d0'],
+  light: ['#ffd84d','#ff8b3d'], spot: ['#ffe36e','#ff7657'], camera: ['#63d3ff','#8b7cff'], sky: ['#69bfff','#b899ff'], sun: ['#ffd34e','#ff7b42'], moon: ['#d2dcff','#8d9cff'], stars: ['#e8e8ff','#9d8cff'], cloud: ['#eef5ff','#8eb9dd'], fog: ['#b7c8d8','#7d91aa'], wind: ['#6ee7c2','#6ba8ff'], water: ['#52d2ef','#557cff'],
+  motion: ['#ff79c6','#62d8ff'], particles: ['#ff8bd5','#ffd15c'], probe: ['#61e2ff','#8b7cff'], audio: ['#b991ff','#ff82b8'], post: ['#ff9a63','#8d7dff'], fx: ['#ff81ca','#ffd35e'], world: ['#8fd070','#55c9e8'], layers: ['#d6a0ff','#68c9ff'],
+};
+const folderIcon = name => ({ Environment:'sky', Water:'water', Terrain:'world', Assets:'layers', Objects:'cube', Lighting:'light', Cameras:'camera', Effects:'fx', Curves:'motion' })[name] || 'folder';
 const ic = (name, opts = {}) => {
   const pal = MULTI[name];
   if (!pal || opts.mono) return svg(P[name] || P.cube, opts);
@@ -1729,7 +1782,383 @@ function skyPanel(node, ctx) {
   return host;
 }
 
-return { skyPanel };
+const fogPanel=(()=>{
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rgb = c => {
+  const n = parseInt((c || '#8fa4bb').slice(1), 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+};
+const rgba = (c, a = 1) => `rgba(${c.map(Math.round).join(',')},${a})`;
+
+/* THREE's exponential-squared fog: transmission at distance d. */
+const transmission = (density, d) => Math.exp(-Math.pow(Math.max(0, density) * d, 2));
+const sightRange = density => density <= 0 ? 9999 : Math.sqrt(-Math.log(0.02)) / density;
+const atHeight = (density, height, y) => density * Math.exp(-Math.max(0, y) / Math.max(1, height));
+const fogClass = range => range > 1000 ? 'Mist' : range > 500 ? 'Light fog' : range > 200 ? 'Moderate fog' : range > 50 ? 'Thick fog' : 'Dense fog';
+
+function fogPanel(node, ctx) {
+  const { compact = false, setProp, register } = ctx;
+  const P = node.props;
+  const host = el('div', 'mpanel fogpanel');
+  const D = () => P.density ?? 0.011;
+  const H = () => P.height ?? 42;
+  const S = () => P.sunScatter ?? 0.7;
+  const C = () => P.color || '#8fa4bb';
+  const on = (x, ev, fn) => x.addEventListener(ev, fn);
+
+  /* ── sight-line hero ───────────────────────────────────────────────────────────────────── */
+  const hero = el('div', 'pcard mp-hero fg-hero');
+  const heroCv = el('canvas');
+  heroCv.title = 'Drag across for density; up and down for layer height';
+  const cap = el('div', 'mp-cap', `<div class="l"><b>—</b><span class="mp-illum fg-sub">—</span></div><div class="r">—</div>`);
+  hero.append(heroCv, cap); host.appendChild(hero);
+  let heroMark = null;
+
+  function sizeCanvas(cv, h) {
+    const w = cv.clientWidth || 290, dpr = Math.min(devicePixelRatio || 1, 2);
+    if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+    cv.style.height = h + 'px';
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return [g, w, h];
+  }
+
+  function paintHero() {
+    const [g, w, h] = sizeCanvas(heroCv, compact ? 138 : 166);
+    const col = rgb(C()), horizon = h * .42;
+    const bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#090b0e'); bg.addColorStop(.42, '#181d22'); bg.addColorStop(1, '#08090a');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+
+    /* instrument floor — a coordinate field, not terrain */
+    g.strokeStyle = 'rgba(255,255,255,.075)'; g.lineWidth = 1;
+    for (let i = -7; i <= 7; i++) {
+      const xb = w / 2 + i * w * .13;
+      g.beginPath(); g.moveTo(w / 2, horizon); g.lineTo(xb, h); g.stroke();
+    }
+    for (let z = 1; z <= 12; z++) {
+      const t = z / 12, y = horizon + Math.pow(t, 1.75) * (h - horizon);
+      g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    }
+
+    /* range gates recede into the fog; their contrast obeys the actual transmission curve */
+    const ranges = [10, 25, 50, 100, 200, 400];
+    ranges.slice().reverse().forEach((m, ri) => {
+      const z = ranges.indexOf(m) / (ranges.length - 1), scale = .16 + (1 - z) * .70;
+      const x = w / 2, y = horizon + (1 - z) * (h - horizon) * .82;
+      const gh = h * .58 * scale, gw = w * .36 * scale;
+      const tr = transmission(D(), m);
+      g.strokeStyle = `rgba(255,255,255,${.05 + tr * .58})`;
+      g.strokeRect(x - gw / 2, y - gh, gw, gh);
+      g.fillStyle = `rgba(255,255,255,${.12 + tr * .55})`;
+      g.font = '8px ui-sans-serif,system-ui'; g.textAlign = 'center'; g.fillText(`${m} m`, x, y - gh + 10);
+      if (ri === 0) g.fillRect(x - 1, y - gh * .48, 2, gh * .48);
+    });
+
+    /* luminous air stacked by height falloff */
+    for (let y = 0; y < h; y += 3) {
+      const metres = Math.max(0, (horizon - y) / Math.max(1, horizon) * 200);
+      const local = atHeight(D(), H(), metres);
+      const a = clamp(local / .06, 0, 1) * .38 + (y > horizon ? clamp(D() / .06, 0, 1) * .12 : 0);
+      g.fillStyle = rgba(col, a); g.fillRect(0, y, w, 3.2);
+    }
+
+    const range = sightRange(D());
+    const frac = clamp(range / 400, 0, 1);
+    const x = 8 + frac * (w - 16);
+    g.strokeStyle = 'rgba(255,255,255,.72)'; g.setLineDash([3, 3]);
+    g.beginPath(); g.moveTo(x, 9); g.lineTo(x, h - 10); g.stroke(); g.setLineDash([]);
+    g.fillStyle = 'rgba(255,255,255,.7)'; g.textAlign = x > w - 45 ? 'right' : 'left';
+    g.fillText('2% CONTRAST', x + (x > w - 45 ? -4 : 4), 17);
+
+    if (heroMark) {
+      g.strokeStyle = 'rgba(255,255,255,.4)'; g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(heroMark.x, 0); g.lineTo(heroMark.x, h); g.moveTo(0, heroMark.y); g.lineTo(w, heroMark.y); g.stroke(); g.setLineDash([]);
+    }
+    cap.querySelector('b').textContent = fogClass(range);
+    cap.querySelector('.fg-sub').textContent = `exponential² · ${D().toFixed(4)} per metre`;
+    cap.querySelector('.r').textContent = range >= 1000 ? `${(range / 1000).toFixed(1)} km sight` : `${range.toFixed(0)} m sight`;
+  }
+
+  const heroFrom = e => {
+    const r = heroCv.getBoundingClientRect(), x = clamp((e.clientX - r.left) / r.width, 0, 1), y = clamp((e.clientY - r.top) / r.height, 0, 1);
+    heroMark = { x: x * r.width, y: y * r.height };
+    setProp(node, 'density', +(x * .06).toFixed(4));
+    setProp(node, 'height', Math.round(1 + (1 - y) * 199));
+    paintAll();
+  };
+  on(heroCv, 'pointerdown', e => { heroCv.setPointerCapture(e.pointerId); heroCv.classList.add('grabbing'); heroFrom(e); });
+  on(heroCv, 'pointermove', e => { if (heroCv.hasPointerCapture?.(e.pointerId)) heroFrom(e); });
+  const heroEnd = () => { heroMark = null; heroCv.classList.remove('grabbing'); paintHero(); };
+  on(heroCv, 'pointerup', heroEnd); on(heroCv, 'pointercancel', heroEnd);
+
+  /* ── quick rail ────────────────────────────────────────────────────────────────────────── */
+  const rail = el('div', 'mp-rail');
+  const railItem = label => { const e = el('div', 'mp-pill', `<b class="v">—</b><span class="k">${label}</span>`); rail.append(e); return e.querySelector('.v'); };
+  const rD = railItem('Density'), rR = railItem('Sight'), rH = railItem('Ceiling'), rS = railItem('Scatter');
+  host.append(rail);
+
+  const duo = el('div', 'mp-duo');
+  const stat = (icon, label) => { const e = el('div', 'pcard mp-stat', `<span class="i">${ic(icon, { size: 12 })}</span><span class="l">${label}</span><b class="n">—</b>`); duo.append(e); return e; };
+  const tr50 = stat('eye', 'Contrast at 50 m');
+  const classStat = stat('fog', 'WMO character');
+  host.append(duo);
+
+  /* ── visibility / contrast plot ────────────────────────────────────────────────────────── */
+  const vc = el('div', 'pcard mp-metric fg-vis');
+  vc.innerHTML = `<div class="mp-chead"><div class="l"><span class="t">Visibility</span><span class="s">Contrast transmission · 0–400 m</span></div><button class="mp-x">${ic('arrowout', { size: 12 })}</button></div>
+    <div class="mp-num"><span class="i">—</span><span class="d"></span><span class="u">m</span></div>
+    <div class="mp-k mp-target">Sight range <span class="v">2% contrast threshold</span></div>`;
+  const visWrap = el('div', 'mp-chartwrap'); const visCv = el('canvas'); visWrap.append(visCv); vc.append(visWrap); host.append(vc);
+  vc.querySelector('.mp-x').onclick = () => { vc.classList.toggle('tall'); paintVisibility(); };
+
+  function paintVisibility() {
+    const [g, w, h] = sizeCanvas(visCv, vc.classList.contains('tall') ? 170 : 112);
+    g.clearRect(0, 0, w, h); const L = 8, R = 30, T = 8, B = 18, px = d => L + d / 400 * (w - L - R), py = t => T + (1 - t) * (h - T - B);
+    g.font = '8px ui-sans-serif,system-ui';
+    [.02, .25, .5, .75, 1].forEach(t => { g.strokeStyle = t === .02 ? 'rgba(239,68,68,.45)' : 'rgba(255,255,255,.07)'; g.setLineDash(t === .02 ? [3, 3] : [2, 5]); g.beginPath(); g.moveTo(L, py(t)); g.lineTo(w - R, py(t)); g.stroke(); g.setLineDash([]); g.fillStyle = 'rgba(255,255,255,.28)'; g.textAlign = 'left'; g.fillText(`${Math.round(t * 100)}%`, w - R + 5, py(t) + 3); });
+    const fill = g.createLinearGradient(0, T, 0, h - B); fill.addColorStop(0, rgba(rgb(C()), .38)); fill.addColorStop(1, rgba(rgb(C()), .03));
+    g.beginPath(); g.moveTo(px(0), py(0)); for (let d = 0; d <= 400; d += 2) g.lineTo(px(d), py(transmission(D(), d))); g.lineTo(px(400), py(0)); g.closePath(); g.fillStyle = fill; g.fill();
+    g.beginPath(); for (let d = 0; d <= 400; d += 2) d ? g.lineTo(px(d), py(transmission(D(), d))) : g.moveTo(px(d), py(1)); g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1.5; g.stroke(); g.lineWidth = 1;
+    [0, 100, 200, 300, 400].forEach((d, i) => { g.fillStyle = 'rgba(255,255,255,.27)'; g.textAlign = i ? i === 4 ? 'right' : 'center' : 'left'; g.fillText(i === 2 ? '200 m' : d, px(d), h - 3); });
+    const range = sightRange(D()), x = px(clamp(range, 0, 400)); g.fillStyle = '#fff'; g.beginPath(); g.arc(x, py(.02), 3, 0, Math.PI * 2); g.fill();
+  }
+  const densityFrom = e => { const r = visCv.getBoundingClientRect(); setProp(node, 'density', +(clamp((e.clientX - r.left - 8) / Math.max(1, r.width - 38), 0, 1) * .06).toFixed(4)); paintAll(); };
+  on(visCv, 'pointerdown', e => { visCv.setPointerCapture(e.pointerId); visCv.classList.add('drag'); densityFrom(e); });
+  on(visCv, 'pointermove', e => { if (visCv.hasPointerCapture?.(e.pointerId)) densityFrom(e); });
+  on(visCv, 'pointerup', e => { visCv.releasePointerCapture?.(e.pointerId); visCv.classList.remove('drag'); });
+
+  /* ── layer profile ─────────────────────────────────────────────────────────────────────── */
+  const lc = el('div', 'pcard mp-light fg-layer');
+  lc.innerHTML = `<div class="mp-chead"><div class="l"><span class="t">Layer</span><span class="s">Extinction with altitude</span></div></div>`;
+  const lb = el('div', 'pbody'); lc.append(lb);
+  const profile = el('div', 'mp-meter fg-profile', '<div class="hd"><span class="k">vertical profile</span></div>');
+  const profileCv = el('canvas'); profile.append(profileCv); lb.append(profile);
+  const hStep = stepper({ value: H(), min: 1, max: 200, dec: 0, step: 1, unit: 'm', onInput: v => { setProp(node, 'height', v); paintAll(); } });
+  profile.querySelector('.hd').append(hStep);
+  const dTape = tape({ label: 'Density at datum', min: 0, max: .06, value: D(), dec: 4, step: .0005, marks: [{ t: 0, l: 'CLEAR 0' }, { t: .183, l: 'FOG .011' }, { t: 1, l: 'OPAQUE .060' }], onInput: v => { setProp(node, 'density', +v.toFixed(4)); paintAll(); } });
+  const hTape = tape({ label: 'Height falloff', min: 1, max: 200, value: H(), dec: 0, step: 1, unit: 'm', marks: [{ t: 0, l: '1 m' }, { t: .206, l: 'LOW 42' }, { t: 1, l: '200 m' }], onInput: v => { setProp(node, 'height', Math.round(v)); paintAll(); } });
+  lb.append(dTape, hTape); host.append(lc);
+  lc.querySelector('.mp-chead .l').onclick = () => lc.classList.toggle('shut');
+
+  function paintProfile() {
+    const [g, w, h] = sizeCanvas(profileCv, 96); g.clearRect(0, 0, w, h); const L = 32, R = 8, T = 5, B = 14, py = m => T + (1 - m / 200) * (h - T - B), px = d => L + d / .06 * (w - L - R);
+    [0, 50, 100, 150, 200].forEach(m => { g.strokeStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.moveTo(L, py(m)); g.lineTo(w - R, py(m)); g.stroke(); g.fillStyle = 'rgba(255,255,255,.28)'; g.font = '8px ui-sans-serif,system-ui'; g.textAlign = 'right'; g.fillText(m === 100 ? '100 m' : m, L - 5, py(m) + 3); });
+    const grad = g.createLinearGradient(L, 0, w - R, 0); grad.addColorStop(0, rgba(rgb(C()), .04)); grad.addColorStop(1, rgba(rgb(C()), .5));
+    g.beginPath(); g.moveTo(L, py(0)); for (let m = 0; m <= 200; m += 2) g.lineTo(px(atHeight(D(), H(), m)), py(m)); g.lineTo(L, py(200)); g.closePath(); g.fillStyle = grad; g.fill();
+    g.beginPath(); for (let m = 0; m <= 200; m += 2) m ? g.lineTo(px(atHeight(D(), H(), m)), py(m)) : g.moveTo(px(D()), py(0)); g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 1.4; g.stroke(); g.lineWidth = 1;
+    const y = py(H()); g.setLineDash([3, 3]); g.strokeStyle = 'rgba(255,255,255,.38)'; g.beginPath(); g.moveTo(L, y); g.lineTo(w - R, y); g.stroke(); g.setLineDash([]); g.fillStyle = '#fff'; g.beginPath(); g.arc(px(D() / Math.E), y, 3, 0, Math.PI * 2); g.fill();
+  }
+  const heightFrom = e => { const r = profileCv.getBoundingClientRect(); setProp(node, 'height', Math.round(clamp((1 - (e.clientY - r.top - 5) / Math.max(1, r.height - 19)) * 200, 1, 200))); paintAll(); };
+  on(profileCv, 'pointerdown', e => { profileCv.setPointerCapture(e.pointerId); profileCv.classList.add('drag'); heightFrom(e); }); on(profileCv, 'pointermove', e => { if (profileCv.hasPointerCapture?.(e.pointerId)) heightFrom(e); }); on(profileCv, 'pointerup', e => profileCv.releasePointerCapture?.(e.pointerId));
+
+  /* ── light transport ───────────────────────────────────────────────────────────────────── */
+  const sc = el('div', 'pcard mp-light fg-scatter');
+  sc.innerHTML = `<div class="mp-chead"><div class="l"><span class="t">Light transport</span><span class="s">Forward sun scatter through the volume</span></div></div>`;
+  const sb = el('div', 'pbody'); sc.append(sb);
+  const chamber = el('div', 'mp-meter fg-chamber', '<div class="hd"><span class="k">beam chamber</span></div>'); const chamberCv = el('canvas'); chamber.append(chamberCv); sb.append(chamber);
+  const scatterTape = tape({ label: 'Sun scatter', min: 0, max: 2, value: S(), dec: 2, step: .02, marks: [{ t: 0, l: 'FLAT 0' }, { t: .35, l: 'NATURAL .70' }, { t: 1, l: 'HALO 2' }], onInput: v => { setProp(node, 'sunScatter', v); paintAll(); } }); sb.append(scatterTape);
+  const colourHead = el('div', 'mp-subhead', '<span class="k">volume colour</span>'); const colour = colorChip(C(), v => { setProp(node, 'color', v); paintAll(); }); colourHead.append(colour); sb.append(colourHead);
+  const tags = el('div', 'mp-tags'); const enabled = pillToggle('VOLUME ENABLED', P.enabled !== false, v => { setProp(node, 'enabled', v); paintAll(); }); tags.append(enabled); sb.append(tags);
+  const note = el('div', 'mp-note'); sb.append(note); host.append(sc); sc.querySelector('.mp-chead .l').onclick = () => sc.classList.toggle('shut');
+
+  function paintChamber() {
+    const [g, w, h] = sizeCanvas(chamberCv, 74); g.clearRect(0, 0, w, h); g.fillStyle = '#070809'; g.fillRect(0, 0, w, h);
+    const cy = h / 2, col = rgb(C()), strength = S();
+    for (let x = 0; x < w; x += 2) { const t = x / w, spread = 3 + t * t * (12 + strength * 22), a = (.03 + strength * .10) * transmission(D(), t * 120); const grd = g.createLinearGradient(0, cy - spread, 0, cy + spread); grd.addColorStop(0, rgba(col, 0)); grd.addColorStop(.5, rgba(col, a)); grd.addColorStop(1, rgba(col, 0)); g.fillStyle = grd; g.fillRect(x, cy - spread, 2.1, spread * 2); }
+    g.fillStyle = 'rgba(255,247,220,.95)'; g.beginPath(); g.arc(10, cy, 4, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.13)'; g.beginPath(); g.moveTo(10, cy); g.lineTo(w - 8, cy); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.3)'; g.font = '8px ui-sans-serif,system-ui'; g.textAlign = 'left'; g.fillText('SUN', 7, 10); g.textAlign = 'right'; g.fillText(`${(transmission(D(), 120) * 100).toFixed(0)}% AT 120 m`, w - 7, h - 6);
+  }
+
+  function paintAll() {
+    const range = sightRange(D()), t50 = transmission(D(), 50);
+    paintHero(); paintVisibility(); paintProfile(); paintChamber();
+    rD.textContent = D().toFixed(4); rR.innerHTML = range >= 1000 ? `${(range / 1000).toFixed(1)}<em>km</em>` : `${range.toFixed(0)}<em>m</em>`; rH.innerHTML = `${H().toFixed(0)}<em>m</em>`; rS.textContent = S().toFixed(2);
+    tr50.querySelector('.n').innerHTML = `${(t50 * 100).toFixed(0)}<em>%</em>`; tr50.classList.toggle('down', t50 < .1); tr50.querySelector('.i').innerHTML = ic(t50 < .1 ? 'alert' : 'eye', { size: 12 });
+    classStat.querySelector('.n').innerHTML = fogClass(range).replace(' fog', '<em> fog</em>');
+    const whole = Math.floor(Math.min(range, 9999)), tenth = Math.round(range * 10) % 10; vc.querySelector('.mp-num .i').textContent = whole; vc.querySelector('.mp-num .d').textContent = `.${tenth}`;
+    vc.querySelector('.mp-num .u').textContent = range >= 1000 ? 'm+' : 'm';
+    hStep._set(H()); dTape._set(D()); hTape._set(H()); scatterTape._set(S()); enabled._set(P.enabled !== false); colour._set?.(C());
+    note.textContent = `${P.enabled === false ? 'The volume is bypassed.' : `${fogClass(range)} is active.`} At one falloff height (${H().toFixed(0)} m), density is 37% of its datum value. Sun scatter is ${S() < .3 ? 'flat' : S() < 1.2 ? 'natural' : 'strong'}.`;
+    host.classList.toggle('disabled', P.enabled === false);
+  }
+
+  register?.(paintAll);
+  const ro = new ResizeObserver(() => { paintHero(); paintVisibility(); paintProfile(); paintChamber(); [dTape, hTape, scatterTape].forEach(t => t._paint?.()); });
+  ro.observe(host); host._dispose = () => ro.disconnect();
+  requestAnimationFrame(paintAll); paintAll();
+  return host;
+}
+
+return fogPanel;})();
+const cloudsPanel=(()=>{
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rgb=c=>{const n=parseInt((c||'#eef3f8').slice(1),16);return[n>>16&255,n>>8&255,n&255]};
+const css=(c,a=1)=>`rgba(${c.map(Math.round).join(',')},${a})`;
+const hash=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)};
+const valueNoise=(x,y)=>{const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy),a=hash(ix,iy),b=hash(ix+1,iy),c=hash(ix,iy+1),d=hash(ix+1,iy+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v};
+const noise=(x,y,s,d)=>{
+  const f=Math.max(.2,s);let n=valueNoise(x*.028*f,y*.028*f)*.55+valueNoise(x*.067*f+9,y*.067*f-4)*.3;
+  n+=valueNoise(x*.16*f-3,y*.16*f+7)*(.07+d*.08);return clamp(n/(.92+d*.08),0,1);
+};
+const cloudName=c=>c<.12?'Few':c<.35?'Scattered':c<.65?'Broken':'Overcast';
+
+function cloudsPanel(node,ctx){
+  const{compact=false,setProp,register}=ctx,P=node.props,host=el('div','mpanel cloudpanel');
+  const C=()=>P.coverage??.46,D=()=>P.density??.62,A=()=>P.altitude??130,F=()=>P.scale??1,Q=()=>P.detail??.55,V=()=>P.speed??1;
+  const canvas=(cv,h)=>{const w=cv.clientWidth||290,d=Math.min(devicePixelRatio||1,2);if(cv.width!==w*d||cv.height!==h*d){cv.width=w*d;cv.height=h*d}cv.style.height=h+'px';const g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);return[g,w,h]};
+  const threshold=()=>1-C()*.78;
+
+  /* satellite hero */
+  const hero=el('div','pcard mp-hero cl-hero'),cv=el('canvas');cv.title='Drag across for cloud cover; vertically for optical density';const cap=el('div','mp-cap',`<div class="l"><b>—</b><span class="mp-illum cl-sub">—</span></div><div class="r">—</div>`);hero.append(cv,cap);host.append(hero);let mark=null;
+  function paintMap(){const[g,w,h]=canvas(cv,compact?142:170),tint=rgb(P.tint),shade=rgb(P.shade);g.clearRect(0,0,w,h);const sea=g.createLinearGradient(0,0,w,h);sea.addColorStop(0,'#111820');sea.addColorStop(1,'#050708');g.fillStyle=sea;g.fillRect(0,0,w,h);
+    const step=3,th=threshold();for(let y=0;y<h;y+=step)for(let x=0;x<w;x+=step){const n=noise(x,y,F(),Q());if(n>th){const body=clamp((n-th)/(1-th),0,1),light=shade.map((v,i)=>v+(tint[i]-v)*(body*.55+.2));g.fillStyle=css(light,(.16+body*.72)*D());g.fillRect(x,y,step+.3,step+.3)}}
+    g.strokeStyle='rgba(255,255,255,.10)';for(let x=0;x<w;x+=w/8){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke()}for(let y=0;y<h;y+=h/5){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke()}
+    g.font='8px ui-sans-serif,system-ui';g.fillStyle='rgba(255,255,255,.34)';g.textAlign='left';g.fillText('N',8,13);g.textAlign='right';g.fillText(`${Math.round(12/F())} km SWATH`,w-8,13);
+    const wind=(ctx.wind&&ctx.wind())||{direction:214,speed:4.2},ang=(wind.direction+90)*Math.PI/180,x=w-30,y=h-22;g.strokeStyle='rgba(255,255,255,.7)';g.beginPath();g.moveTo(x,y);g.lineTo(x+Math.cos(ang)*18,y+Math.sin(ang)*18);g.stroke();g.fillStyle='#fff';g.beginPath();g.arc(x,y,2,0,Math.PI*2);g.fill();
+    if(mark){g.strokeStyle='rgba(255,255,255,.45)';g.setLineDash([2,3]);g.beginPath();g.moveTo(mark.x,0);g.lineTo(mark.x,h);g.moveTo(0,mark.y);g.lineTo(w,mark.y);g.stroke();g.setLineDash([])}
+    cap.querySelector('b').textContent=cloudName(C());cap.querySelector('.cl-sub').textContent=`${Math.round(C()*8)} / 8 oktas · optical depth ${(D()*12).toFixed(1)}`;cap.querySelector('.r').textContent=`base ${A().toFixed(0)} m`;
+  }
+  const mapFrom=e=>{const r=cv.getBoundingClientRect(),x=clamp((e.clientX-r.left)/r.width,0,1),y=clamp((e.clientY-r.top)/r.height,0,1);mark={x:x*r.width,y:y*r.height};setProp(node,'coverage',+x.toFixed(2));setProp(node,'density',+(1-y).toFixed(2));paintAll()};cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);cv.classList.add('grabbing');mapFrom(e)};cv.onpointermove=e=>{if(cv.hasPointerCapture?.(e.pointerId))mapFrom(e)};cv.onpointerup=()=>{mark=null;cv.classList.remove('grabbing');paintMap()};
+
+  const rail=el('div','mp-rail');const metric=k=>{const e=el('div','mp-pill',`<b class="v">—</b><span class="k">${k}</span>`);rail.append(e);return e.querySelector('.v')};const rCov=metric('Coverage'),rDen=metric('Optical'),rAlt=metric('Base'),rDrift=metric('Drift');host.append(rail);
+  const duo=el('div','mp-duo');const stat=(icon,label)=>{const e=el('div','pcard mp-stat',`<span class="i">${ic(icon,{size:12})}</span><span class="l">${label}</span><b class="n">—</b>`);duo.append(e);return e};const sunlight=stat('sun','Sun reaching datum'),oktas=stat('cloud','Sky cover');host.append(duo);
+
+  /* coverage distribution */
+  const cc=el('div','pcard mp-metric cl-cover');cc.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Coverage</span><span class="s">Condensate threshold · cell population</span></div></div><div class="mp-num"><span class="i">—</span><span class="d"></span><span class="u">%</span></div><div class="mp-k mp-target">Sky fraction <span class="v">—</span></div>`;const wrap=el('div','mp-chartwrap'),hist=el('canvas');wrap.append(hist);cc.append(wrap);host.append(cc);
+  function paintHistogram(){const[g,w,h]=canvas(hist,110);g.clearRect(0,0,w,h);const bins=new Array(20).fill(0);for(let i=0;i<1600;i++)bins[Math.min(19,Math.floor(noise((i%40)*7,Math.floor(i/40)*5,F(),Q())*20))]++;const max=Math.max(...bins),L=8,R=8,T=8,B=17;bins.forEach((n,i)=>{const x=L+i/20*(w-L-R),bh=n/max*(h-T-B);g.fillStyle=i/20>threshold()?'rgba(238,243,248,.72)':'rgba(255,255,255,.11)';g.fillRect(x,h-B-bh,(w-L-R)/20-2,bh)});const x=L+threshold()*(w-L-R);g.strokeStyle='#fff';g.setLineDash([3,3]);g.beginPath();g.moveTo(x,T);g.lineTo(x,h-B);g.stroke();g.setLineDash([]);g.font='8px ui-sans-serif,system-ui';g.fillStyle='rgba(255,255,255,.3)';g.textAlign='left';g.fillText('CLEAR AIR',L,h-3);g.textAlign='right';g.fillText('CONDENSED',w-R,h-3)}
+  const coverFrom=e=>{const r=hist.getBoundingClientRect();setProp(node,'coverage',+clamp((e.clientX-r.left)/r.width,0,1).toFixed(2));paintAll()};hist.onpointerdown=e=>{hist.setPointerCapture(e.pointerId);hist.classList.add('drag');coverFrom(e)};hist.onpointermove=e=>{if(hist.hasPointerCapture?.(e.pointerId))coverFrom(e)};hist.onpointerup=e=>hist.releasePointerCapture?.(e.pointerId);
+
+  /* vertical deck */
+  const lc=el('div','pcard mp-light cl-layer');lc.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Cloud deck</span><span class="s">Base altitude · optical body</span></div></div>`;const lb=el('div','pbody'),section=el('div','mp-meter cl-section','<div class="hd"><span class="k">vertical section · 0–400 m</span></div>'),sec=el('canvas');section.append(sec);lb.append(section);lc.append(lb);
+  const alt=tape({label:'Cloud base',min:20,max:400,value:A(),dec:0,step:2,unit:'m',marks:[{t:0,l:'20 m'},{t:.289,l:'LOW 130'},{t:1,l:'400 m'}],onInput:v=>{setProp(node,'altitude',Math.round(v));paintAll()}}),den=tape({label:'Optical density',min:0,max:1,value:D(),dec:2,step:.01,marks:[{t:0,l:'VEIL'},{t:.62,l:'BODY .62'},{t:1,l:'OPAQUE'}],onInput:v=>{setProp(node,'density',v);paintAll()}});lb.append(alt,den);host.append(lc);lc.querySelector('.mp-chead .l').onclick=()=>lc.classList.toggle('shut');
+  function paintSection(){const[g,w,h]=canvas(sec,104);g.clearRect(0,0,w,h);g.fillStyle='#060708';g.fillRect(0,0,w,h);const py=m=>h-12-m/400*(h-20),base=py(A()),thick=10+34*D();for(let x=0;x<w;x+=4){const top=base-thick*(.65+.3*Math.sin(x*.08*F())+.12*Math.sin(x*.31));const gr=g.createLinearGradient(0,top,0,base+4);gr.addColorStop(0,css(rgb(P.tint),.05));gr.addColorStop(.35,css(rgb(P.tint),.75*D()));gr.addColorStop(1,css(rgb(P.shade),.72*D()));g.fillStyle=gr;g.fillRect(x,top,4.3,base-top+4)}[0,100,200,300,400].forEach(m=>{const y=py(m);g.strokeStyle='rgba(255,255,255,.07)';g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();g.fillStyle='rgba(255,255,255,.27)';g.font='8px ui-sans-serif';g.textAlign='left';g.fillText(m===0?'DATUM':m+' m',5,y-2)});g.strokeStyle='rgba(255,255,255,.65)';g.setLineDash([3,3]);g.beginPath();g.moveTo(0,base);g.lineTo(w,base);g.stroke();g.setLineDash([])}
+  const secFrom=e=>{const r=sec.getBoundingClientRect();setProp(node,'altitude',Math.round(clamp((1-(e.clientY-r.top)/r.height)*400,20,400)));paintAll()};sec.onpointerdown=e=>{sec.setPointerCapture(e.pointerId);sec.classList.add('drag');secFrom(e)};sec.onpointermove=e=>{if(sec.hasPointerCapture?.(e.pointerId))secFrom(e)};sec.onpointerup=e=>sec.releasePointerCapture?.(e.pointerId);
+
+  /* morphology + advection */
+  const mc=el('div','pcard mp-light cl-form');mc.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Morphology</span><span class="s">Cell scale · edge detail · advection</span></div></div>`;const mb=el('div','pbody');mc.append(mb);
+  const scale=tape({label:'Feature size',min:.2,max:4,value:F(),dec:2,step:.02,unit:'×',marks:[{t:0,l:'SHEETS'},{t:.21,l:'1×'},{t:1,l:'CELLS'}],onInput:v=>{setProp(node,'scale',v);paintAll()}}),detail=tape({label:'Edge detail',min:0,max:1,value:Q(),dec:2,step:.01,marks:[{t:0,l:'SOFT'},{t:.55,l:'NATURAL'},{t:1,l:'FRACTAL'}],onInput:v=>{setProp(node,'detail',v);paintAll()}}),speed=tape({label:'Drift speed',min:0,max:6,value:V(),dec:2,step:.05,unit:'×',marks:[{t:0,l:'STILL'},{t:.167,l:'REAL 1×'},{t:1,l:'6×'}],onInput:v=>{setProp(node,'speed',v);paintAll()}});mb.append(scale,detail,speed);
+  const colours=el('div','cl-colours'),th=el('div','mp-subhead','<span class="k">sunlit</span>'),tc=colorChip(P.tint,v=>{setProp(node,'tint',v);paintAll()}),sh=el('div','mp-subhead','<span class="k">shadowed</span>'),sc=colorChip(P.shade,v=>{setProp(node,'shade',v);paintAll()});th.append(tc);sh.append(sc);colours.append(th,sh);mb.append(colours);const tags=el('div','mp-tags'),wind=pillToggle('FOLLOW WIND',P.windLinked!==false,v=>{setProp(node,'windLinked',v);paintAll()});tags.append(wind);mb.append(tags);const note=el('div','mp-note');mb.append(note);host.append(mc);mc.querySelector('.mp-chead .l').onclick=()=>mc.classList.toggle('shut');
+
+  function paintAll(){paintMap();paintHistogram();paintSection();const pass=Math.exp(-D()*C()*2.2),pct=C()*100;rCov.innerHTML=`${pct.toFixed(0)}<em>%</em>`;rDen.textContent=(D()*12).toFixed(1);rAlt.innerHTML=`${A().toFixed(0)}<em>m</em>`;rDrift.innerHTML=`${V().toFixed(1)}<em>×</em>`;sunlight.querySelector('.n').innerHTML=`${(pass*100).toFixed(0)}<em>%</em>`;oktas.querySelector('.n').innerHTML=`${Math.round(C()*8)}<em>/8</em>`;cc.querySelector('.mp-num .i').textContent=Math.floor(pct);cc.querySelector('.mp-num .d').textContent='.'+Math.round(pct*10)%10;cc.querySelector('.mp-target .v').textContent=cloudName(C()).toLowerCase()+' cloud';alt._set(A());den._set(D());scale._set(F());detail._set(Q());speed._set(V());tc._set?.(P.tint);sc._set?.(P.shade);wind._set(P.windLinked!==false);note.textContent=`${P.windLinked!==false?'Advection follows the Wind Field.':'Layer has independent drift.'} Feature scale is ${F().toFixed(2)}× with ${Math.round(Q()*100)}% edge detail.`}
+  register?.(paintAll);const ro=new ResizeObserver(()=>{paintMap();paintHistogram();paintSection();[alt,den,scale,detail,speed].forEach(t=>t._paint?.())});ro.observe(host);host._dispose=()=>ro.disconnect();requestAnimationFrame(paintAll);paintAll();return host;
+}
+
+return cloudsPanel;})();
+const terrainPanel=(()=>{
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rgb=c=>{const n=parseInt((c||'#263628').slice(1),16);return[n>>16&255,n>>8&255,n&255]};
+const css=(c,a=1)=>`rgba(${c.map(Math.round).join(',')},${a})`;
+const field=(x,y,seed,f)=>clamp(.5+.23*Math.sin((x*5.3+seed*.013)*f)+.16*Math.sin((y*7.1-seed*.019)*f)+.09*Math.sin((x+y)*15.7*f),0,1);
+function terrainPanel(node,ctx){
+ const{compact=false,setProp,register}=ctx,P=node.props,host=el('div','mpanel terrainpanel'),pos=()=>P.pos||[0,0,0];
+ const canvas=(cv,h)=>{const w=cv.clientWidth||290,d=Math.min(devicePixelRatio||1,2);if(cv.width!==w*d||cv.height!==h*d){cv.width=w*d;cv.height=h*d}cv.style.height=h+'px';const g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);return[g,w,h]};
+ const hero=el('div','pcard mp-hero te-hero'),cv=el('canvas');cv.title='Drag across for feature scale; vertically for relief';const cap=el('div','mp-cap',`<div class="l"><b>Topographic field</b><span class="mp-illum te-sub">PROCEDURAL HEIGHT SOURCE</span></div><div class="r">—</div>`);hero.append(cv,cap);host.append(hero);let mark=null;
+ function paintHero(){const[g,w,h]=canvas(cv,compact?148:178),lo=rgb(P.lowColor),hi=rgb(P.highColor),step=3;g.clearRect(0,0,w,h);for(let y=0;y<h;y+=step)for(let x=0;x<w;x+=step){const n=field(x/w,y/h,P.seed,P.frequency),c=lo.map((v,i)=>v+(hi[i]-v)*n);g.fillStyle=css(c);g.fillRect(x,y,step+.2,step+.2)}
+  /* contours */for(let level=.15;level<1;level+=.12){g.strokeStyle='rgba(255,255,255,.18)';g.beginPath();let open=false;for(let x=0;x<w;x+=2){let best=0,err=9;for(let y=0;y<h;y+=2){const e=Math.abs(field(x/w,y/h,P.seed,P.frequency)-level);if(e<err){err=e;best=y}}if(err<.025){open?g.lineTo(x,best):g.moveTo(x,best);open=true}else open=false}g.stroke()}
+  g.strokeStyle='rgba(255,255,255,.14)';for(let x=0;x<w;x+=w/8){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke()}for(let y=0;y<h;y+=h/5){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke()}g.fillStyle='rgba(255,255,255,.42)';g.font='8px ui-sans-serif';g.fillText('N',8,13);g.textAlign='right';g.fillText(`${P.size.toFixed(0)} × ${P.size.toFixed(0)} m`,w-8,13);if(mark){g.strokeStyle='#fff';g.setLineDash([2,3]);g.beginPath();g.moveTo(mark.x,0);g.lineTo(mark.x,h);g.moveTo(0,mark.y);g.lineTo(w,mark.y);g.stroke();g.setLineDash([])}cap.querySelector('.te-sub').textContent=`seed ${P.seed} · ${P.resolution}² samples · ${P.frequency.toFixed(2)}× features`;cap.querySelector('.r').textContent=`${P.height.toFixed(1)} m relief`}
+ const heroFrom=e=>{const r=cv.getBoundingClientRect(),x=clamp((e.clientX-r.left)/r.width,0,1),y=clamp((e.clientY-r.top)/r.height,0,1);mark={x:x*r.width,y:y*r.height};setProp(node,'frequency',+(.1+x*7.9).toFixed(2));setProp(node,'height',+((1-y)*80).toFixed(1));paintAll()};cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);cv.classList.add('grabbing');heroFrom(e)};cv.onpointermove=e=>{if(cv.hasPointerCapture?.(e.pointerId))heroFrom(e)};cv.onpointerup=()=>{mark=null;cv.classList.remove('grabbing');paintHero()};
+ const rail=el('div','mp-rail');const metric=k=>{const e=el('div','mp-pill',`<b class="v">—</b><span class="k">${k}</span>`);rail.append(e);return e.querySelector('.v')};const mArea=metric('Area'),mRelief=metric('Relief'),mCell=metric('Cell'),mSeed=metric('Seed');host.append(rail);
+ const modes=el('div','te-modes');['Sculpt','Erode','Smooth','Paint','Stamp'].forEach((m,i)=>{const b=el('button',`${P.terrainMode===m?'on':''}`,`<i>${['↟','⌁','≈','◐','◇'][i]}</i><span>${m}</span>`);b.onclick=()=>{setProp(node,'terrainMode',m);paintAll()};modes.append(b)});host.append(modes);
+ const section=el('div','pcard mp-metric te-section');section.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Relief profile</span><span class="s">West–east section · datum referenced</span></div></div><div class="mp-num"><span class="i">—</span><span class="d"></span><span class="u">m</span></div><div class="mp-k mp-target">Maximum relief <span class="v">—</span></div>`;const sw=el('div','mp-chartwrap'),scv=el('canvas');sw.append(scv);section.append(sw);host.append(section);
+ function paintSection(){const[g,w,h]=canvas(scv,112),base=h-17;g.clearRect(0,0,w,h);g.strokeStyle='rgba(255,255,255,.07)';[.25,.5,.75,1].forEach(t=>{const y=base-t*(h-26);g.beginPath();g.moveTo(7,y);g.lineTo(w-8,y);g.stroke()});g.beginPath();g.moveTo(7,base);for(let x=0;x<=w-15;x++){const n=field(x/(w-15),.5,P.seed,P.frequency),y=base-n*(h-28);g.lineTo(7+x,y)}g.lineTo(w-8,base);g.closePath();const gr=g.createLinearGradient(0,10,0,base);gr.addColorStop(0,css(rgb(P.highColor),.7));gr.addColorStop(1,css(rgb(P.lowColor),.45));g.fillStyle=gr;g.fill();g.beginPath();for(let x=0;x<=w-15;x++){const y=base-field(x/(w-15),.5,P.seed,P.frequency)*(h-28);x?g.lineTo(7+x,y):g.moveTo(7,y)}g.strokeStyle='rgba(255,255,255,.85)';g.stroke();g.fillStyle='rgba(255,255,255,.3)';g.font='8px ui-sans-serif';g.fillText('W',7,h-3);g.textAlign='right';g.fillText('E',w-8,h-3)}
+ const shape=el('div','pcard mp-light te-shape');shape.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Height field</span><span class="s">World extent · procedural frequency</span></div></div>`;const sb=el('div','pbody');shape.append(sb);const size=tape({label:'World size',min:10,max:2000,value:P.size,dec:0,step:10,unit:'m',toPos:v=>Math.log(v/10)/Math.log(200),fromPos:t=>10*Math.pow(200,t),marks:[{t:0,l:'10 m'},{t:.546,l:'180 m'},{t:1,l:'2 km'}],onInput:v=>{setProp(node,'size',Math.round(v));paintAll()}}),relief=tape({label:'Vertical relief',min:0,max:80,value:P.height,dec:1,step:.5,unit:'m',marks:[{t:0,l:'FLAT'},{t:.15,l:'12 m'},{t:1,l:'80 m'}],onInput:v=>{setProp(node,'height',v);paintAll()}}),freq=tape({label:'Feature scale',min:.1,max:8,value:P.frequency,dec:2,step:.05,unit:'×',marks:[{t:0,l:'BROAD'},{t:.139,l:'1.2×'},{t:1,l:'FINE'}],onInput:v=>{setProp(node,'frequency',v);paintAll()}}),seed=tape({label:'Procedural seed',min:0,max:9999,value:P.seed,dec:0,step:1,marks:[{t:0,l:'0'},{t:.0417,l:'417'},{t:1,l:'9999'}],onInput:v=>{setProp(node,'seed',Math.round(v));paintAll()}});sb.append(size,relief,freq,seed);const res=el('div','mp-tags te-res');['64','128','256','512','1024'].forEach(v=>{const b=el('button',`mp-tag${P.resolution===v?' on':''}`,`${v}²`);b.onclick=()=>{setProp(node,'resolution',v);paintAll()};res.append(b)});sb.append(res);host.append(shape);shape.querySelector('.mp-chead .l').onclick=()=>shape.classList.toggle('shut');
+ const surface=el('div','pcard mp-light te-surface');surface.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Surface</span><span class="s">Hypsometric colour · shading</span></div></div>`;const ub=el('div','pbody'),colors=el('div','te-colours'),lh=el('div','mp-subhead','<span class="k">valley</span>'),lc=colorChip(P.lowColor,v=>{setProp(node,'lowColor',v);paintAll()}),hh=el('div','mp-subhead','<span class="k">peak</span>'),hc=colorChip(P.highColor,v=>{setProp(node,'highColor',v);paintAll()});lh.append(lc);hh.append(hc);colors.append(lh,hh);ub.append(colors);const rough=tape({label:'Surface roughness',min:0,max:1,value:P.roughness,dec:2,step:.01,marks:[{t:0,l:'MIRROR'},{t:.88,l:'EARTH .88'},{t:1,l:'MATTE'}],onInput:v=>{setProp(node,'roughness',v);paintAll()}});ub.append(rough);const tags=el('div','mp-tags'),wire=pillToggle('WIRE OVERLAY',P.wireframe,v=>{setProp(node,'wireframe',v);paintAll()}),shadow=pillToggle('CAST SHADOW',P.castShadow!==false,v=>{setProp(node,'castShadow',v);paintAll()});tags.append(wire,shadow);ub.append(tags);surface.append(ub);host.append(surface);
+ const source=el('div','pcard mp-light te-source');source.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Height source</span><span class="s">Procedural or imported raster</span></div></div>`;const ib=el('div','pbody'),drop=el('div','te-drop',`<b>${P.sourceName||'DROP HEIGHTMAP'}</b><span>PNG · EXR · RAW · 16-BIT TIFF</span>`);ib.append(drop);source.append(ib);host.append(source);['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('file-over')}));drop.ondragleave=()=>drop.classList.remove('file-over');drop.ondrop=e=>{e.preventDefault();drop.classList.remove('file-over');const f=e.dataTransfer.files?.[0];if(!f)return;setProp(node,'sourceName',f.name);setProp(node,'sourceBytes',f.size);paintAll()};
+ const transform=el('div','pcard mp-light te-transform');transform.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">World placement</span><span class="s">Terrain datum origin</span></div></div>`;const xb=el('div','pbody'),row=el('div','te-steppers');transform.append(xb);['X','Y','Z'].forEach((k,i)=>{const x=el('div','te-axis',`<span>${k}</span>`),s=stepper({value:pos()[i],min:-9999,max:9999,dec:1,step:.1,unit:i===0?'m':'',onInput:v=>{const a=[...pos()];a[i]=v;setProp(node,'pos',a);paintAll()}});x.append(s);x._step=s;row.append(x)});xb.append(row);host.append(transform);
+ function paintAll(){paintHero();paintSection();[...modes.children].forEach(b=>b.classList.toggle('on',b.querySelector('span').textContent===P.terrainMode));mArea.innerHTML=`${(P.size*P.size/10000).toFixed(1)}<em>ha</em>`;mRelief.innerHTML=`${P.height.toFixed(1)}<em>m</em>`;mCell.innerHTML=`${(P.size/+P.resolution).toFixed(2)}<em>m</em>`;mSeed.textContent=P.seed;section.querySelector('.mp-num .i').textContent=Math.floor(P.height);section.querySelector('.mp-num .d').textContent='.'+Math.round(P.height*10)%10;section.querySelector('.mp-target .v').textContent=`${(P.height/P.size*100).toFixed(1)}% relief ratio`;[size,relief,freq,seed,rough].forEach((t,i)=>t._set([P.size,P.height,P.frequency,P.seed,P.roughness][i]));[...res.children].forEach((b,i)=>b.classList.toggle('on',['64','128','256','512','1024'][i]===P.resolution));lc._set?.(P.lowColor);hc._set?.(P.highColor);wire._set(P.wireframe);shadow._set(P.castShadow);drop.querySelector('b').textContent=P.sourceName||'DROP HEIGHTMAP';[...row.children].forEach((x,i)=>x._step._set(pos()[i]))}
+ register?.(paintAll);const ro=new ResizeObserver(()=>{paintHero();paintSection();[size,relief,freq,seed,rough].forEach(t=>t._paint?.())});ro.observe(host);host._dispose=()=>ro.disconnect();requestAnimationFrame(paintAll);paintAll();return host;
+}
+
+return terrainPanel;})();
+const folderPanel=(()=>{
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+function folderPanel(node, ctx) {
+  const { compact = false, setProp, register, onDirty, isFolder, typeOf, folderIcon, bus } = ctx;
+  const host = el('div', 'mpanel folderpanel');
+  const all = () => { const out=[]; const walk=l=>l.forEach(n=>{out.push(n);walk(n.kids||[])}); walk(node.kids); return out; };
+  const leaves = () => all().filter(n => !isFolder(n));
+  const tint = () => node.props.tint || '#c9a24b';
+
+  /* ── hierarchy hero ────────────────────────────────────────────────────────────────────── */
+  const hero = el('div', 'pcard mp-hero fd-hero');
+  const cv = el('canvas');
+  const cap = el('div', 'mp-cap', `<div class="l"><b>${esc(node.name)} collection</b><span class="mp-illum fd-sub">—</span></div><div class="r">—</div>`);
+  hero.append(cv, cap); host.append(hero);
+
+  function canvas(cv, h) {
+    const w=cv.clientWidth||290,d=Math.min(devicePixelRatio||1,2); if(cv.width!==w*d||cv.height!==h*d){cv.width=w*d;cv.height=h*d} cv.style.height=h+'px'; const g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);return[g,w,h];
+  }
+  function paintHero() {
+    const [g,w,h]=canvas(cv,compact?132:154), list=all(); g.clearRect(0,0,w,h); g.fillStyle='#070707';g.fillRect(0,0,w,h);
+    const x0=18, rootY=h/2; g.strokeStyle='rgba(255,255,255,.12)';g.lineWidth=1;
+    g.beginPath();g.moveTo(x0+9,rootY);g.lineTo(w-15,rootY);g.stroke();
+    g.fillStyle=tint();g.beginPath();g.arc(x0,rootY,6,0,Math.PI*2);g.fill();
+    const direct=node.kids.length||1, step=(h-28)/direct;
+    node.kids.forEach((n,i)=>{
+      const y=14+step*(i+.5), branchX=70;
+      g.strokeStyle='rgba(255,255,255,.15)';g.beginPath();g.moveTo(x0+6,rootY);g.bezierCurveTo(42,rootY,42,y,branchX,y);g.stroke();
+      const col=n.props?.tint||typeOf(n).color;g.fillStyle=col;g.beginPath();g.arc(branchX,y,isFolder(n)?4.5:3,0,Math.PI*2);g.fill();
+      g.fillStyle=n.vis===false?'rgba(255,255,255,.22)':'rgba(255,255,255,.72)';g.font='9px ui-sans-serif,system-ui';g.textAlign='left';g.fillText(n.name,branchX+9,y+3);
+      if(isFolder(n)&&n.kids.length){
+        const bx=Math.min(w-20,branchX+88);g.strokeStyle='rgba(255,255,255,.10)';g.beginPath();g.moveTo(branchX+5,y);g.lineTo(bx,y);g.stroke();
+        n.kids.slice(0,7).forEach((k,j)=>{const xx=bx+j*12;g.fillStyle=k.vis===false?'rgba(255,255,255,.16)':typeOf(k).color;g.fillRect(xx-2,y-2,4,4)});
+      }
+    });
+    g.fillStyle='rgba(255,255,255,.25)';g.font='8px ui-sans-serif,system-ui';g.textAlign='right';g.fillText('ROOT  /  DIRECT CHILDREN  /  DESCENDANTS',w-10,h-7);
+    cap.querySelector('.fd-sub').textContent=`${node.kids.length} direct · ${list.length} total · depth ${Math.max(0,...list.map(n=>(n.depth??node.depth)-(node.depth??0)))}`;
+    cap.querySelector('.r').textContent=`${leaves().filter(n=>n.vis!==false).length} / ${leaves().length} visible`;
+  }
+
+  /* ── headline metrics ──────────────────────────────────────────────────────────────────── */
+  const rail=el('div','mp-rail');
+  const metric=k=>{const e=el('div','mp-pill',`<b class="v">—</b><span class="k">${k}</span>`);rail.append(e);return e.querySelector('.v')};
+  const mDirect=metric('Direct'),mTotal=metric('Total'),mLive=metric('Visible'),mDyn=metric('Dynamic'); host.append(rail);
+
+  /* ── composition ───────────────────────────────────────────────────────────────────────── */
+  const comp=el('div','pcard mp-metric fd-comp');
+  comp.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Composition</span><span class="s">Entity classes in this collection</span></div></div><div class="mp-num"><span class="i">—</span><span class="d"></span><span class="u">entities</span></div>`;
+  const cw=el('div','fd-donut'); const cc=el('canvas'); const legend=el('div','fd-legend'); cw.append(cc,legend); comp.append(cw);host.append(comp);
+  function paintComposition(){
+    const list=leaves(),groups=new Map();list.forEach(n=>{const k=typeOf(n).cat||'Scene';const v=groups.get(k)||{n:0,c:typeOf(n).color};v.n++;groups.set(k,v)});
+    const [g,w,h]=canvas(cc,128);g.clearRect(0,0,w,h);const cx=Math.min(65,w*.25),cy=h/2,r=42,total=Math.max(1,list.length);let a=-Math.PI/2;
+    [...groups].forEach(([k,v])=>{const da=v.n/total*Math.PI*2;g.beginPath();g.arc(cx,cy,r,a,a+da);g.arc(cx,cy,r-14,a+da,a,true);g.closePath();g.fillStyle=v.c;g.globalAlpha=.78;g.fill();g.globalAlpha=1;a+=da});
+    g.fillStyle='#f0f0f0';g.font='300 28px ui-sans-serif,system-ui';g.textAlign='center';g.fillText(list.length,cx,cy+7);g.fillStyle='rgba(255,255,255,.35)';g.font='8px ui-sans-serif,system-ui';g.fillText('TOTAL',cx,cy+20);
+    legend.innerHTML=[...groups].map(([k,v])=>`<div><i style="background:${v.c}"></i><span>${esc(k)}</span><b>${v.n}</b></div>`).join('')||'<div><span>EMPTY COLLECTION</span><b>0</b></div>';
+  }
+
+  /* ── manifest ──────────────────────────────────────────────────────────────────────────── */
+  const manifest=el('div','pcard mp-light fd-manifest'); manifest.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Manifest</span><span class="s">Direct children · live state</span></div></div>`;
+  const mb=el('div','pbody fd-list');manifest.append(mb);host.append(manifest);manifest.querySelector('.mp-chead .l').onclick=()=>manifest.classList.toggle('shut');
+  function buildManifest(){
+    mb.innerHTML='';
+    if(!node.kids.length){mb.innerHTML='<div class="fd-empty">NO ENTITIES IN THIS COLLECTION</div>';return}
+    node.kids.forEach(n=>{
+      const row=el('div','fd-row');row.innerHTML=`<span class="fd-ic">${ic(isFolder(n)?folderIcon(n.name):typeOf(n).icon,{size:14,color:n.props?.tint||typeOf(n).color})}</span><span class="fd-who"><b>${esc(n.name)}</b><em>${esc(typeOf(n).label)}${isFolder(n)?` · ${n.kids.length} children`:''}</em></span><button class="fd-eye" title="Toggle visibility">${ic(n.vis===false?'eyeoff':'eye',{size:13})}</button>`;
+      row.querySelector('.fd-eye').onclick=()=>{n.vis=n.vis===false;bus.emit('treechange');onDirty?.();paintAll()}; mb.append(row);
+    });
+  }
+
+  /* ── collection state ──────────────────────────────────────────────────────────────────── */
+  const state=el('div','pcard mp-light fd-state');state.innerHTML=`<div class="mp-chead"><div class="l"><span class="t">Collection state</span><span class="s">One control for the whole branch</span></div></div>`;
+  const sb=el('div','pbody');state.append(sb);const tags=el('div','mp-tags');
+  const visible=pillToggle('BRANCH VISIBLE',node.vis!==false,v=>{node.vis=v;bus.emit('treechange');onDirty?.();paintAll()});
+  const open=pillToggle('EXPANDED',node.open!==false,v=>{node.open=v;bus.emit('treechange');paintAll()});tags.append(visible,open);sb.append(tags);
+  const th=el('div','mp-subhead','<span class="k">collection colour</span>');const chip=colorChip(tint(),v=>{setProp(node,'tint',v);bus.emit('treechange');paintAll()});th.append(chip);sb.append(th);
+  const note=el('div','mp-note');sb.append(note);host.append(state);
+
+  function paintAll(){
+    const list=all(),leaf=leaves(),vis=leaf.filter(n=>n.vis!==false).length,dyn=leaf.filter(n=>n.dynamic).length;
+    paintHero();paintComposition();buildManifest();mDirect.textContent=node.kids.length;mTotal.textContent=list.length;mLive.textContent=vis;mDyn.textContent=dyn;
+    comp.querySelector('.mp-num .i').textContent=leaf.length;visible._set(node.vis!==false);open._set(node.open!==false);chip._set?.(tint());
+    note.textContent=`${node.name} contains ${leaf.length} renderable ${leaf.length===1?'entity':'entities'}. ${leaf.length-vis} hidden, ${leaf.filter(n=>n.locked).length} locked, ${dyn} dynamic.`;
+  }
+  register?.(paintAll);const ro=new ResizeObserver(()=>{paintHero();paintComposition()});ro.observe(host);host._dispose=()=>ro.disconnect();requestAnimationFrame(paintAll);paintAll();return host;
+}
+
+return folderPanel;})();
+return { skyPanel, fogPanel, cloudsPanel, terrainPanel, folderPanel, ic, el };
 })();
 
 /* ============================================================ STATE ============================================================ */
@@ -1790,6 +2219,9 @@ const ENTITIES={
       {title:'Field',icon:'stars',props:[CURVE('st_density','Density',0.1,2,0.01,1,'×',null,{curve:'stars',hint:'Magnitude distribution · brighter stars are rarer'}),GAUGE('st_bright','Brightness',0,4,0.01,1,'×'),GAUGE('st_size','Point Size',0.4,3,0.01,1,'×')]},
       {title:'Sparkle',icon:'flare',props:[PAD('st_glow','st_twinkle','Glow × Twinkle',{xmin:0,xmax:2,ymin:0,ymax:1,xl:'Glow / spikes',yl:'Scintillation',hint:'Twinkle scales with air mass near the horizon'}),GAUGE('st_color','Colour Temperature',0,1,0.01,1,'×'),GAUGE('st_limit','Sky Contrast Threshold',0.2,6,0.01,1.5,'×')]},
       {title:'Galaxy',icon:'orbit',props:[GAUGE('st_milky','Milky Way',0,2,0.01,1,'×'),ORBIT2('st_rot','st_tilt','Celestial Frame')]}]},
+  fog:{name:'Height Fog',kind:'Volumetrics',color:'#9fb0c0',icon:'fog',preview:'none',external:true,hero:{kind:'none'},sections:[]},
+  clouds:{name:'Cloud Layer',kind:'Clouds',color:'#dfe6ee',icon:'cloud',preview:'none',external:true,hero:{kind:'none'},sections:[]},
+  terrain:{name:'Height Field',kind:'Terrain',color:'#8fb36b',icon:'globe',preview:'none',external:true,hero:{kind:'none'},sections:[]},
   moons:{name:'Moons',kind:'Atlas',color:'#dfe6f5',icon:'moon',preview:'atlas',hero:{label:'Bodies in orbit',unit:'/ 4',dec:0,fn:()=>S.moons.length},sections:[]},
   camera:{name:'Camera',kind:'Perspective Camera',color:'#34c759',icon:'camera',preview:'camera',hero:{label:'Field of View',unit:'°',dec:1,fn:()=>S.cam_fov},
     sections:[{title:'Lens',icon:'aperture',props:[ORB('cam_yaw','cam_pitch','View Direction',{cam:true,hint:'Drag the eye · frustum shows FOV'}),CURVE('cam_fov','Field of View',20,120,0.5,72,'°',null,{curve:'fov'})]},
@@ -1803,7 +2235,7 @@ const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; S.skyP={rayleigh:S.atm_rayleigh*1.35,mie:.22,mieG:S.atm_mieG,turbidity:3.4,ozone:S.atm_ozone,zenith:'#2f6dd0',horizon:'#9fc4e8',ground:S.sky_ground,intensity:1,aerial:true,lightsScene:true}; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; S.fogP={enabled:true,density:.011,height:42,color:'#8fa4bb',sunScatter:.7}; S.cloudP={coverage:.46,density:.62,altitude:130,scale:1,detail:.55,speed:1,tint:'#eef3f8',shade:'#5c6a7c',windLinked:true}; S.terrP={terrainMode:'Sculpt',size:180,height:12,frequency:1.2,seed:417,resolution:'256',lowColor:'#263628',highColor:'#88917b',roughness:.88,wireframe:false,castShadow:true,pos:[0,0,0],sourceName:''}; S.folderP={world:{tint:'#5aa9ff'}}; S.skyP={rayleigh:S.atm_rayleigh*1.35,mie:.22,mieG:S.atm_mieG,turbidity:3.4,ozone:S.atm_ozone,zenith:'#2f6dd0',horizon:'#9fc4e8',ground:S.sky_ground,intensity:1,aerial:true,lightsScene:true}; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
@@ -1817,7 +2249,7 @@ const getEntity=id=>id.startsWith('moon#')?moonEntity(+id.slice(5)):ENTITIES[id]
 
 /* ============================================================ ICONS ============================================================ */
 const I=(n,s=16)=>{ const m={
-  folder:`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`, atmo:`<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>`,
+  folder:`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`, fog:`<path d="M4 14h13M6 18h11M8 10h9"/><path d="M7 10a5 5 0 0 1 9.6-1.8A3.5 3.5 0 0 1 17 15"/>`, cloud:`<path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 18z"/>`, atmo:`<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>`,
   sun:`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>`,
   sky:`<path d="M3 16a4 4 0 0 1 4-4 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 18 20H7a4 4 0 0 1-4-4z"/>`,
   check:`<path d="M5 12.5l4.5 4.5L19 7.5"/>`,
@@ -1861,7 +2293,7 @@ function skyColorsAt(e){ // rough analytic sky for timelines
 /* ============================================================ OUTLINER ============================================================ */
 let selected='sun'; const openF={environment:true,moons:true,camera:true,world:true};
 const treeEl=document.getElementById('tree');
-const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky','stars']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','post']}];
+const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky','stars','fog','clouds']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane','terrain']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','post']}];
 const activeF=new Set();
 function metaOf(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}° elev · ${S.sun_temp} K`; case 'atmosphere': return `AM ${airMass().toFixed(2)} · Mie ${S.atm_mie.toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd/m²`; case 'plane': return `${S.pl_size*2} m · ${S.pl_cell} m cells`; case 'camera': return `${S.cam_fov.toFixed(0)}° · ${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; case 'post': return `${S.pp_tonemap} · ${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(2)} EV${S.pp_flare?' · flare':''}`; }
   if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${m.size.toFixed(2)}° · ${Math.round(illum(m.phase)*100)}% lit · ${moonDir(m)[1]>0?'up':'set'}`; } return ''; }
@@ -1891,7 +2323,7 @@ function cardHTML(id){ const e=ENTITIES[id]||{name:'Moons',icon:'moon',color:'#d
     <div class="c-top"><span class="c-ico">${I(e.icon,16)}</span><div class="c-title"><b>${e.name}</b><span data-status="${id}">${d.status}</span></div><span class="c-pill ${pc}" data-pill="${id}"><i></i>${pl}</span>${id!=='moons'?`<button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',13)}</button>`:''}</div>
     <div class="c-body"><div class="c-big" data-big="${id}">${d.big}<small>${d.unit}</small><em>${d.lab}</em></div><div class="c-viz" data-mini="${vizId}">${vizId?miniOf(vizId):''}</div></div>${foot}</div>`; }
 function passF(id){ if(!activeF.size) return true; return FILTERS.some(f=>activeF.has(f.id)&&f.ids.includes(id.startsWith('moon#')?'moons':id)); }
-function sceneCounts(){ const ids=['atmosphere','sun','sky','stars','plane','camera','post',...S.moons.map((_,i)=>'moon#'+i)]; const vis=ids.filter(visOf).length; const lifted=ids.reduce((n,id)=>{ const pr=presenceOf(id); return n+(pr?['shadows','gi','collide'].filter(k=>!pr[k]).length:0); },0); return {total:ids.length,vis,hidden:ids.length-vis,lifted}; }
+function sceneCounts(){ const ids=['atmosphere','sun','sky','stars','fog','clouds','plane','terrain','camera','post',...S.moons.map((_,i)=>'moon#'+i)]; const vis=ids.filter(visOf).length; const lifted=ids.reduce((n,id)=>{ const pr=presenceOf(id); return n+(pr?['shadows','gi','collide'].filter(k=>!pr[k]).length:0); },0); return {total:ids.length,vis,hidden:ids.length-vis,lifted}; }
 function renderSceneStat(){ const c=sceneCounts(); const el=document.getElementById('sceneStat'); if(!el) return; el.innerHTML=`<div class="ss ok"><span class="ss-ico">${I('check',14)}</span><span class="ss-l">Visible</span><b>${c.vis}</b></div><div class="ss ${c.hidden?'warn':''}"><span class="ss-ico">${I('warn',14)}</span><span class="ss-l">Hidden</span><b>${c.hidden}</b></div>`; document.querySelector('.panel-head .sub').textContent=`Scene · ${c.total} nodes`; }
 function renderTabs(){ if(document.getElementById('tabs').hidden) return; document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="${tab===t.id?'on':''}" data-tab="${t.id}" style="--c:${t.c}"><i></i>${t.l}<b>${t.ids.reduce((n,id)=>n+(id==='moons'?S.moons.length:1),0)}</b></button>`).join(''); }
 document.getElementById('tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-tab]'); if(!b) return; tab=b.dataset.tab; document.getElementById('search').value=''; renderTree(); });
@@ -1907,12 +2339,12 @@ function renderTimeline(){ const el=document.getElementById('timeline'); if(el.h
 (()=>{ const el=document.getElementById('timeline'); let on=false; const go=e=>{ const svg=el.querySelector('svg'); if(!svg) return; const r=svg.getBoundingClientRect(); const f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); commit('sun_time',Math.round(f*24*12)/12); };
   el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
 // ---------- simple tree with parenting ----------
-const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',moons:'world',plane:null,camera:null,post:'camera'};
+const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',fog:'world',clouds:'world',moons:'world',plane:null,terrain:null,camera:null,post:'camera'};
 const FOLDERS={world:{name:'World',icon:'globe',color:'#5aa9ff'}};
 function parentOf(id){ if(id.startsWith('moon#')) return (S.parentMap&&S.parentMap[id])||'moons'; if(S.parentMap&&id in S.parentMap) return S.parentMap[id]; return DEFAULT_PARENT[id]===undefined?null:DEFAULT_PARENT[id]; }
 function setParent(id,pid){ S.parentMap=S.parentMap||{}; // refuse cycles
   let c=pid; while(c){ if(c===id) return false; c=parentOf(c); } S.parentMap[id]=pid; if(pid) openF[pid]=true; return true; }
-function allNodes(){ return ['world','atmosphere','sun','sky','stars','moons',...S.moons.map((_,i)=>'moon#'+i),'plane','camera','post']; }
+function allNodes(){ return ['world','atmosphere','sun','sky','stars','fog','clouds','moons',...S.moons.map((_,i)=>'moon#'+i),'plane','terrain','camera','post']; }
 function nodeInfo(id){ if(FOLDERS[id]) return {...FOLDERS[id],folder:true}; if(id==='moons') return {name:'Moons',icon:'moon',color:'#dfe6f5',folder:true}; if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return {name:m.name,icon:'moon',color:'#dfe6f5',tex:m.tex}; } const e=ENTITIES[id]; return {name:e.name,icon:e.icon,color:e.color}; }
 function statusOf(id){ // [cls, title]
   if(FOLDERS[id]||id==='moons'){ const kids=allNodes().filter(n=>parentOf(n)===id); const bad=kids.filter(k=>['warn','err'].includes(statusOf(k)[0])).length; return bad?['warn',`${bad} issue${bad>1?'s':''}`]:['ok','All good']; }
@@ -1922,7 +2354,7 @@ function statusOf(id){ // [cls, title]
   if(id==='stars'&&limitMag()<0) return ['warn','Washed out by sky'];
   if(id.startsWith('moon#')&&moonDir(S.moons[+id.slice(5)])[1]<=0) return ['warn','Set'];
   return lifted?['info',`${lifted} lifted`]:['ok','Seated']; }
-function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}°`; case 'atmosphere': return `AM ${airMass().toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd`; case 'stars': return `mag ${limitMag().toFixed(1)}`; case 'moons': return `${S.moons.length}/4`; case 'plane': return `${S.pl_size*2} m`; case 'camera': return `${S.cam_fov.toFixed(0)}°`; case 'post': return `${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV`; case 'world': return ''; } if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${Math.round(illum(m.phase)*100)}%`; } return ''; }
+function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}°`; case 'atmosphere': return `AM ${airMass().toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd`; case 'stars': return `mag ${limitMag().toFixed(1)}`; case 'moons': return `${S.moons.length}/4`; case 'plane': return `${S.pl_size*2} m`; case 'camera': return `${S.cam_fov.toFixed(0)}°`; case 'post': return `${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV`; case 'world': return ''; case 'fog': return S.fogP.enabled===false?'off':`${Math.round(Math.sqrt(-Math.log(.02))/Math.max(1e-4,S.fogP.density))} m`; case 'clouds': return `${Math.round(S.cloudP.coverage*8)}/8`; case 'terrain': return `${S.terrP.height.toFixed(0)} m`; } if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${Math.round(illum(m.phase)*100)}%`; } return ''; }
 function rowHTML(id,depth,hasKids){ const n=nodeInfo(id); const [sc,st]=statusOf(id); const vis=n.folder?true:visOf(id); const open=openF[id]!==false; const kindTag=id==='post'?'<span class="tag">Comp</span>':'';
   return `<div class="node ${selected===id?'sel':''} ${vis?'':'dim'} ${n.folder?'folder':''}" data-id="${id}" draggable="${n.folder&&FOLDERS[id]?'false':'true'}" style="--acc:${n.color};--d:${depth}">
     <span class="chev ${hasKids?'':'none'} ${open?'open':''}" data-chev="${id}">${I('chev',11)}</span>
@@ -1958,7 +2390,7 @@ function refreshMeta(){ treeEl.querySelectorAll('[data-meta]').forEach(el=>el.te
 treeEl.addEventListener('click',e=>{
   const eye=e.target.closest('[data-eye]'); if(eye){ e.stopPropagation(); const id=eye.dataset.eye; if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible^=true; else S['vis_'+id]=!visOf(id); renderTree(); if(selected===id) renderInspector(); return; }
   const ch=e.target.closest('[data-chev]'); if(ch){ e.stopPropagation(); const id=ch.dataset.chev; openF[id]=openF[id]===false; renderTree(); return; }
-  const row=e.target.closest('.node'); if(!row) return; const id=row.dataset.id; if(FOLDERS[id]){ openF[id]=openF[id]===false; renderTree(); } else select(id); });
+  const row=e.target.closest('.node'); if(!row) return; const id=row.dataset.id; select(id); });
 treeEl.addEventListener('dblclick',e=>{ const row=e.target.closest('.node'); if(row&&!FOLDERS[row.dataset.id]){ openF[row.dataset.id]=openF[row.dataset.id]===false; renderTree(); } });
 // drag to parent: drop onto a row => becomes child; drop on the gap above => sibling (root when dropped on empty space)
 let dragId=null;
@@ -2179,7 +2611,7 @@ function refreshAll(k){ if(k==='atm_hr'||k==='cam_height'){ const el=insp.queryS
 // interactions
 const insp=document.getElementById('insp'); let drag=null;
 insp.addEventListener('pointerdown',e=>{
-  if(e.target.closest('input')||e.target.closest('.skypanel')) return;
+  if(e.target.closest('input')||e.target.closest('.fport')) return;
   const bar=e.target.closest('.trk-bar'); const dial=e.target.closest('.dial-svg'); const sp=e.target.closest('.preview[data-scrub]');
   const gw=e.target.closest('.orb-svg,.globe-svg,.curve-svg,.gauge-svg,.kelvin-bar,.pad-svg,.orbit2-svg,.phase-svg,.hist-svg,.planet-svg,.skymap-svg,.lum-svg');
   const tgt=bar||dial||sp||gw; if(!tgt) return; const el=e.target.closest('.ctl,.preview'); const k=el.dataset.k;
@@ -2224,13 +2656,13 @@ function moveDrag(e){ const {kind,p,k,rect}=drag;
     else if(p.cam){ let yaw=az>180?az-360:az; setV(p.k,Math.round(yaw*2)/2); setV(p.k2,Math.max(-89,Math.min(89,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); }
     else { setV(p.k,Math.round(az)); setV(p.k2,Math.max(-20,Math.min(90,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); } } }
 const snap=(v,p)=>{ if(!p) return v; v=Math.round(v/p.step)*p.step; return Math.max(p.min,Math.min(p.max,+v.toFixed(6))); };
-insp.addEventListener('change',e=>{ if(e.target.closest('.skypanel')) return; const t=e.target; if(t.dataset.val){ const k=t.dataset.val,p=propOf(k); let v=parseFloat(t.value); if(isNaN(v)||!p){ refreshCtl(k); return; } commit(k,Math.max(p.min,Math.min(p.max,v))); t.blur(); }
+insp.addEventListener('change',e=>{ if(e.target.closest('.fport')) return; const t=e.target; if(t.dataset.val){ const k=t.dataset.val,p=propOf(k); let v=parseFloat(t.value); if(isNaN(v)||!p){ refreshCtl(k); return; } commit(k,Math.max(p.min,Math.min(p.max,v))); t.blur(); }
   if(t.type==='color'){ const k=t.closest('.ctl').dataset.k; setV(k,t.value); const lab=t.closest('.colorbtn'); lab.style.setProperty('--c',t.value); lab.querySelector('.sw2').style.background=t.value; lab.querySelector('code').textContent=t.value; onChanged(k); } });
-insp.addEventListener('input',e=>{ if(e.target.closest('.skypanel')) return; if(e.target.type==='color'){ const k=e.target.closest('.ctl').dataset.k; setV(k,e.target.value); const lab=e.target.closest('.colorbtn'); lab.style.setProperty('--c',e.target.value); lab.querySelector('.sw2').style.background=e.target.value; lab.querySelector('code').textContent=e.target.value; onChanged(k); } });
+insp.addEventListener('input',e=>{ if(e.target.closest('.fport')) return; if(e.target.type==='color'){ const k=e.target.closest('.ctl').dataset.k; setV(k,e.target.value); const lab=e.target.closest('.colorbtn'); lab.style.setProperty('--c',e.target.value); lab.querySelector('.sw2').style.background=e.target.value; lab.querySelector('code').textContent=e.target.value; onChanged(k); } });
 insp.addEventListener('keydown',e=>{ if(e.target.classList.contains('val')&&e.key==='Enter') e.target.dispatchEvent(new Event('change',{bubbles:true})); });
 insp.addEventListener('wheel',e=>{ const el=e.target.closest('.ctl[data-t="trk"],.ctl[data-t="dial"],.ctl[data-t="gauge"],.ctl[data-t="curve"],.ctl[data-t="globe"],.ctl[data-t="kelvin"],.ctl[data-t="hist"],.ctl[data-t="phase"]'); if(!el) return; e.preventDefault(); const k=el.dataset.k,p=widgetProp(el)||propOf(k); commit(k,unfrac(p,frac(p,getV(k))-Math.sign(e.deltaY)*(e.shiftKey?.002:.01))); },{passive:false});
 insp.addEventListener('click',e=>{
-  if(e.target.closest('.skypanel')) return; // ported sky panel handles its own events
+  if(e.target.closest('.fport')) return; // ported sky panel handles its own events
   const pc=e.target.closest('[data-pres]'); if(pc){ togglePresence(selected,pc.dataset.pres); return; }
   const sw=e.target.closest('.sw'); if(sw){ const k=sw.closest('.ctl').dataset.k; commit(k,!getV(k)); return; }
   const st=e.target.closest('.step button'); if(st){ const k=st.closest('.ctl').dataset.k,p=propOf(k); commit(k,Math.max(p.min,Math.min(p.max,getV(k)+ +st.dataset.d))); return; }
@@ -2295,8 +2727,28 @@ function togglePresence(id,k){ const pr=presenceOf(id); if(!pr) return; if(k==='
 let skyPanelEl=null;
 function applySkyP(){ const P=S.skyP; S.atm_rayleigh=Math.max(0,P.rayleigh/1.35); S.atm_mie=Math.max(0,P.mie/.22)*(0.6+P.turbidity/3.4*0.4); S.atm_mieG=P.mieG; S.atm_ozone=P.ozone; S.sky_ground=P.ground; S.sky_bright=P.intensity; S.sky_tint=P.zenith;
   const pr=presenceOf('sky'); if(pr){ pr.fog=P.aerial!==false; pr.gi=P.lightsScene!==false; } refreshMeta(); }
-function mountSkyPanel(host){ const node={props:S.skyP}; skyPanelEl=SKYPANEL.skyPanel(node,{compact:false,setProp:(n,k,v)=>{ n.props[k]=v; applySkyP(); },register:fn=>{ skyPanelEl&&(skyPanelEl._sync=fn); },sunAlt:()=>sunDir().el/D2R}); host.appendChild(skyPanelEl); }
+function fportCtx(extra){ return Object.assign({compact:false,register:fn=>{ skyPanelEl&&(skyPanelEl._sync=fn); }},extra); }
+function mountExternal(id,host){
+  if(skyPanelEl&&skyPanelEl._dispose) skyPanelEl._dispose(); skyPanelEl=null;
+  if(id==='sky') return mountSkyPanel(host);
+  if(id==='fog'){ skyPanelEl=FPORT.fogPanel({props:S.fogP},fportCtx({setProp:(n,k,v)=>{ n.props[k]=v; refreshMeta(); }})); }
+  else if(id==='clouds'){ skyPanelEl=FPORT.cloudsPanel({props:S.cloudP},fportCtx({setProp:(n,k,v)=>{ n.props[k]=v; refreshMeta(); },wind:()=>({direction:214,speed:4.2})})); }
+  else if(id==='terrain'){ skyPanelEl=FPORT.terrainPanel({props:S.terrP},fportCtx({setProp:(n,k,v)=>{ n.props[k]=v; refreshMeta(); }})); }
+  if(skyPanelEl) host.appendChild(skyPanelEl);
+}
+function folderNode(id){ // adapt our outliner tree to the ported folder panel's node shape
+  const nodes=allNodes(); const build=(nid,depth)=>{ const n=nodeInfo(nid); const kids=nodes.filter(k=>parentOf(k)===nid).map(k=>build(k,depth+1)); const o={id:nid,name:n.name,type:n.folder?'folder':nid.startsWith('moon#')?'moon':nid,depth,kids,props:S.folderP[nid]||(S.folderP[nid]={tint:n.color}),_ico:n.icon,_col:n.color,open:openF[nid]!==false,dynamic:nid==='sun'||nid.startsWith('moon#')};
+    Object.defineProperty(o,'vis',{get:()=>n.folder?true:visOf(nid),set:v=>{ if(n.folder) return; if(nid.startsWith('moon#')) S.moons[+nid.slice(5)].visible=!!v; else S['vis_'+nid]=!!v; }}); return o; };
+  return build(id,0); }
+function mountFolderPanel(id,host){
+  if(skyPanelEl&&skyPanelEl._dispose) skyPanelEl._dispose();
+  const node=folderNode(id); const CAT={atmosphere:'Environment',sun:'Environment',sky:'Environment',stars:'Environment',fog:'Environment',clouds:'Environment',moons:'Environment',moon:'Bodies',plane:'Geometry',terrain:'Terrain',camera:'Cameras',post:'Effects',folder:'Scene'};
+  const typeOf=n=>({label:n.type==='folder'?'Folder':n.type==='moon'?'Moon':(ENTITIES[n.type]||{}).kind||n.type,color:n._col||'#c9a24b',icon:n._ico||'cube',cat:CAT[n.type]||'Scene'});
+  skyPanelEl=FPORT.folderPanel(node,fportCtx({setProp:(n,k,v)=>{ n.props[k]=v; if(k==='tint'&&FOLDERS[n.id]) FOLDERS[n.id].color=v; renderTree(); },isFolder:n=>n.type==='folder',typeOf,folderIcon:()=>'folder',bus:{emit:()=>{ openF[id]=node.open!==false; renderTree(); }},onDirty:()=>renderTree()}));
+  host.appendChild(skyPanelEl); }
+function mountSkyPanel(host){ const node={props:S.skyP}; skyPanelEl=FPORT.skyPanel(node,{compact:false,setProp:(n,k,v)=>{ n.props[k]=v; applySkyP(); },register:fn=>{ skyPanelEl&&(skyPanelEl._sync=fn); },sunAlt:()=>sunDir().el/D2R}); host.appendChild(skyPanelEl); }
 function renderInspector(){
+  if(FOLDERS[selected]){ const f=FOLDERS[selected]; document.getElementById('inspTitle').innerHTML=`<span style="color:${f.color}">${I(f.icon,18)}</span>${f.name}`; document.getElementById('inspKind').textContent='Collection'; insp.style.setProperty('--acc',f.color); insp.innerHTML=`<div class="ent-enter"><div id="skyHost" class="fport"></div></div>`; mountFolderPanel(selected,document.getElementById('skyHost')); return; }
   const e=getEntity(selected); if(!e){ insp.innerHTML='<div class="empty">Select something in the outliner</div>'; return; }
   document.getElementById('inspTitle').innerHTML=`<span style="color:${e.color}">${I(e.icon,18)}</span>${e.name}`; document.getElementById('inspKind').textContent=e.kind; insp.style.setProperty('--acc',e.color);
   const previewHTML={sunpath:`<div class="preview stats" id="pvSunStats"></div>`,
@@ -2312,7 +2764,7 @@ function renderInspector(){
     ${S.moons.length?`<div class="hint" style="grid-column:span 2">In orbit: ${S.moons.map((m,i)=>`<b style="color:${m.tint};font-weight:400;cursor:pointer" data-goto="moon#${i}">${m.name}</b>`).join(' · ')}</div>`:''}</div></div>`:'';
   const moonExtra=e.preview==='moon'?(()=>{ const m=S.moons[e.moonIndex]; return `<div class="sec"><div class="sec-head"><span class="sico">${I('grid',16)}</span><span class="t">Preset<span>atlas</span></span><span class="badge">${m.preset}</span></div><div class="sec-body"><div class="atlas" style="grid-template-columns:repeat(6,1fr)">${MOON_ATLAS.map(a=>`<div class="card ${a.id===m.preset?'on':''}" data-preset="${a.id}" style="padding:8px 4px"><canvas data-atlas="${a.id}" width="72" height="72" style="width:36px;height:36px"></canvas><small>${a.name}</small></div>`).join('')}</div>
     </div></div>`; })():'';
-  if(e.external&&selected==='sky'){ insp.innerHTML=`<div class="ent-enter">${presenceHTML('sky')}<div id="skyHost"></div></div>`; mountSkyPanel(document.getElementById('skyHost')); return; }
+  if(e.external){ insp.innerHTML=`<div class="ent-enter">${presenceHTML(selected)}<div id="skyHost" class="fport"></div></div>`; mountExternal(selected,document.getElementById('skyHost')); return; }
   insp.innerHTML=`<div class="ent-enter">
     ${e.hero.kind?`<div class="hero state" style="--acc:${e.color}" id="heroState">${stateHero(e.hero.kind)}${previewHTML}</div>`:`<div class="hero" style="--acc:${e.color}"><div class="label-bar">${e.hero.label}<em>live</em></div>
       <div class="big"><span class="v" id="heroV">${bigHTML(e.hero.fn(),e.hero.dec,e.hero.signed)}</span><span class="u">${e.hero.unit}</span><span class="trend" id="heroTrend">${I('flat',18)}</span></div>
@@ -2457,6 +2909,9 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; const up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; const tanH=Math.tan(S.cam_fov*D2R/2);
   clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
+  { const F=S.fogP,C=S.cloudP,T=S.terrP; f1('uFogOn',(S.vis_fog!==false&&F.enabled!==false)?1:0); f1('uFogDensity',F.density); f1('uFogHeight',F.height); f1('uFogScatter',F.sunScatter); f3('uFogColor',hex2rgb(F.color));
+    f1('uCloudOn',S.vis_clouds!==false?1:0); f1('uCloudCov',C.coverage); f1('uCloudDen',C.density); f1('uCloudAlt',C.altitude); f1('uCloudScale',C.scale); f1('uCloudDetail',C.detail); f1('uCloudSpeed',C.speed); f3('uCloudTint',hex2rgb(C.tint)); f3('uCloudShade',hex2rgb(C.shade));
+    f1('uTerrOn',S.vis_terrain!==false?1:0); f1('uTerrSize',T.size); f1('uTerrHeight',T.height); f1('uTerrFreq',T.frequency); f1('uTerrSeed',T.seed); f1('uTerrRough',T.roughness); f1('uTerrWire',T.wireframe?1:0); f3('uTerrLow',hex2rgb(T.lowColor)); f3('uTerrHigh',hex2rgb(T.highColor)); f3('uTerrPos',[T.pos[0],S.pl_y+T.pos[1],T.pos[2]]); }
   f1('uPlaneOn',S.vis_plane?1:0); f1('uPlaneSize',S.pl_size); f1('uPlaneCell',S.pl_cell); f1('uPlaneY',S.pl_y); f1('uPlaneGrid',S.pl_grid?1:0); f3('uPlaneA',hex2rgb(S.pl_a)); f3('uPlaneB',hex2rgb(S.pl_b));
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
