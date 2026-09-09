@@ -555,8 +555,12 @@ void main(){
   float skyLum=dot(sky,vec3(.2126,.7152,.0722)); float nightFade=clamp(1.-skyLum*14.,0.,1.);
   vec2 hxz=normalize(dir.xz+1e-5); vec2 sxz=normalize(uSunDir.xz+1e-5); float facing=.5+.5*dot(hxz,sxz);
   float hdrScale=uSunIntensity/22.*uSkyBright*uSkyVisible;
-  vec3 glow=dawnGlow(dir,elevDeg,facing)*hdrScale;                                    // this direction
-  vec3 hzGlow=dawnGlow(normalize(vec3(dir.x,0.,dir.z)+1e-5),elevDeg,facing)*hdrScale;  // at the horizon (for fog)
+  // the analytic dawn band is a ground-observer model (horizon at dir.y=0). Above a few km the true horizon dips and the
+  // ray-marched sphere already gives the correct limb glow, so fade the flat model out with altitude.
+  float groundObs=1.-smoothstep(1500.,12000.,uCamHeight);
+  vec3 glow=dawnGlow(dir,elevDeg,facing)*hdrScale*groundObs;                                    // this direction
+  vec3 hzGlow=dawnGlow(normalize(vec3(dir.x,0.,dir.z)+1e-5),elevDeg,facing)*hdrScale*groundObs;  // at the horizon (for fog)
+  float hzDip=-acos(clamp(uPlanetR/(uPlanetR+uCamHeight),0.,1.));                              // true horizon elevation (rad, negative)
   vec3 col=vec3(0.);
   // ---- checker plane (local flat world, intersect before atmosphere ground) ----
   float planeHit=0.; vec3 planeCol=vec3(0.); float planeT=1e9;
@@ -608,7 +612,7 @@ void main(){
     col=mix(col,planeCol,planeHit);
   }else{
     col=sky+glow;
-    float ext=smoothstep(-.01,.12,dir.y); // horizon extinction
+    float ext=smoothstep(hzDip-.01,hzDip+.12*groundObs+.002,dir.y); // horizon extinction, follows the true (dipped) horizon
     if(uStarsOn>.5){
       float am=airMassOf(degrees(asin(clamp(dir.y,-1.,1.))));
       float pixAng=2.*uTanHalf/uRes.y; vec3 st;
