@@ -72,6 +72,25 @@ input{font:inherit;color:inherit}
 .ss.ok .ss-ico{background:var(--green);color:#0b1a12} .ss.warn .ss-ico{background:rgba(255,80,80,.15);color:var(--red)}
 .ss-l{font-size:12px;color:var(--t2);grid-row:2;grid-column:1/3} .ss b{grid-row:1/3;grid-column:2;justify-self:end;align-self:end;font-size:30px;font-weight:200;line-height:1;font-variant-numeric:tabular-nums}
 #outliner.compact .scene-stat{display:none}
+/* simple tree */
+.tree{padding:0 10px 10px}
+.node{display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 calc(8px + var(--d,0)*16px);border-radius:11px;cursor:pointer;color:var(--t2);position:relative;transition:background .15s;user-select:none}
+.node:hover{background:var(--g2);color:var(--text)} .node.sel{background:rgba(255,255,255,.09);color:var(--text);box-shadow:inset 0 0 0 1px var(--stroke2)}
+.node.sel::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--acc)}
+.node .chev{width:14px;height:14px;display:flex;align-items:center;justify-content:center;color:var(--t3);transition:transform .2s;flex-shrink:0} .node .chev.open{transform:rotate(90deg)} .node .chev.none{visibility:hidden}
+.node .nico{width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc);flex-shrink:0} .node.folder .nico{background:transparent}
+.node .nico .moon-dot{width:14px;height:14px}
+.node .nname{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px} .node.folder .nname{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3)}
+.node .tag{font-size:9px;letter-spacing:.08em;padding:1px 6px;border-radius:999px;border:1px solid var(--stroke);color:var(--t3)}
+.node .nmeta{font-size:11px;color:var(--t3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.node .nstat{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.nstat.ok{color:#0b1a12;background:var(--green)} .nstat.warn{color:#ffb454;background:rgba(255,180,84,.16)} .nstat.err{color:var(--red);background:rgba(255,80,80,.16)} .nstat.info{color:var(--t3);background:rgba(255,255,255,.08)}
+.node .eye{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--t3);opacity:0;transition:all .15s;flex-shrink:0}
+.node:hover .eye,.node.sel .eye,.node .eye.off{opacity:1} .node .eye.off{color:var(--red)}
+.node.dim .nname,.node.dim .nico{opacity:.4}
+.node.dragging{opacity:.35} .node.drop-into{box-shadow:inset 0 0 0 1px var(--acc);background:color-mix(in srgb,var(--acc) 12%,transparent)} .node.drop-before::after{content:'';position:absolute;left:12px;right:12px;top:-1px;height:2px;border-radius:2px;background:#fff}
+.tree.drop-root{box-shadow:inset 0 0 0 1px var(--stroke2);border-radius:14px}
+#outliner.compact .node{height:30px} #outliner.compact .nmeta{display:none}
 /* compact mode */
 .cbtn{width:28px;height:28px;border-radius:50%;border:1px solid var(--stroke);background:transparent;color:var(--t3);display:flex;align-items:center;justify-content:center;transition:all .2s} .cbtn:hover{color:var(--text);background:var(--g3)}
 #outliner.compact{width:236px} #outliner.compact .cbtn{color:var(--text);background:var(--g3)}
@@ -694,6 +713,7 @@ const I=(n,s=16)=>{ const m={
   sun:`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>`,
   sky:`<path d="M3 16a4 4 0 0 1 4-4 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 18 20H7a4 4 0 0 1-4-4z"/>`,
   check:`<path d="M5 12.5l4.5 4.5L19 7.5"/>`,
+  dot:`<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>`,
   warn:`<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.5"/>`,
   shadow:`<circle cx="9" cy="9" r="5"/><path d="M14 12a6 6 0 1 1-6 6"/>`,
   gi:`<path d="M4 18l6-8 4 5 3-3 3 6z"/><circle cx="17" cy="6" r="2"/>`,
@@ -778,14 +798,40 @@ function renderTimeline(){ const el=document.getElementById('timeline'); if(el.h
     <div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>`; }
 (()=>{ const el=document.getElementById('timeline'); let on=false; const go=e=>{ const svg=el.querySelector('svg'); if(!svg) return; const r=svg.getBoundingClientRect(); const f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); commit('sun_time',Math.round(f*24*12)/12); };
   el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
+// ---------- simple tree with parenting ----------
+const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',moons:'world',plane:null,camera:null,post:'camera'};
+const FOLDERS={world:{name:'World',icon:'globe',color:'#5aa9ff'}};
+function parentOf(id){ if(id.startsWith('moon#')) return (S.parentMap&&S.parentMap[id])||'moons'; if(S.parentMap&&id in S.parentMap) return S.parentMap[id]; return DEFAULT_PARENT[id]===undefined?null:DEFAULT_PARENT[id]; }
+function setParent(id,pid){ S.parentMap=S.parentMap||{}; // refuse cycles
+  let c=pid; while(c){ if(c===id) return false; c=parentOf(c); } S.parentMap[id]=pid; if(pid) openF[pid]=true; return true; }
+function allNodes(){ return ['world','atmosphere','sun','sky','stars','moons',...S.moons.map((_,i)=>'moon#'+i),'plane','camera','post']; }
+function nodeInfo(id){ if(FOLDERS[id]) return {...FOLDERS[id],folder:true}; if(id==='moons') return {name:'Moons',icon:'moon',color:'#dfe6f5',folder:true}; if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return {name:m.name,icon:'moon',color:'#dfe6f5',tex:m.tex}; } const e=ENTITIES[id]; return {name:e.name,icon:e.icon,color:e.color}; }
+function statusOf(id){ // [cls, title]
+  if(FOLDERS[id]||id==='moons'){ const kids=allNodes().filter(n=>parentOf(n)===id); const bad=kids.filter(k=>['warn','err'].includes(statusOf(k)[0])).length; return bad?['warn',`${bad} issue${bad>1?'s':''}`]:['ok','All good']; }
+  if(!visOf(id)) return ['err','Hidden'];
+  const pr=presenceOf(id); const lifted=pr?['shadows','gi','collide'].filter(k=>!pr[k]).length:0;
+  if(id==='sun'&&sunElevDeg()<-0.8) return ['warn','Below horizon'];
+  if(id==='stars'&&limitMag()<0) return ['warn','Washed out by sky'];
+  if(id.startsWith('moon#')&&moonDir(S.moons[+id.slice(5)])[1]<=0) return ['warn','Set'];
+  return lifted?['info',`${lifted} lifted`]:['ok','Seated']; }
+function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}°`; case 'atmosphere': return `AM ${airMass().toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd`; case 'stars': return `mag ${limitMag().toFixed(1)}`; case 'moons': return `${S.moons.length}/4`; case 'plane': return `${S.pl_size*2} m`; case 'camera': return `${S.cam_fov.toFixed(0)}°`; case 'post': return `${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV`; case 'world': return ''; } if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${Math.round(illum(m.phase)*100)}%`; } return ''; }
+function rowHTML(id,depth,hasKids){ const n=nodeInfo(id); const [sc,st]=statusOf(id); const vis=n.folder?true:visOf(id); const open=openF[id]!==false; const kindTag=id==='post'?'<span class="tag">Comp</span>':'';
+  return `<div class="node ${selected===id?'sel':''} ${vis?'':'dim'} ${n.folder?'folder':''}" data-id="${id}" draggable="${n.folder&&FOLDERS[id]?'false':'true'}" style="--acc:${n.color};--d:${depth}">
+    <span class="chev ${hasKids?'':'none'} ${open?'open':''}" data-chev="${id}">${I('chev',11)}</span>
+    <span class="nico">${n.tex?`<span class="moon-dot" style="--tex:url(${TEXDIR}${n.tex})"></span>`:I(n.icon,14)}</span>
+    <span class="nname">${n.name}${kindTag}</span><span class="nmeta" data-meta="${id}">${metaShort(id)}</span>
+    <span class="nstat ${sc}" data-stat="${id}" title="${st}">${I(sc==='ok'?'check':sc==='info'?'dot':'warn',11)}</span>
+    ${n.folder&&FOLDERS[id]?'':`<button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',13)}</button>`}</div>`; }
 function renderTree(){
   const q=(document.getElementById('search').value||'').toLowerCase();
-  const all=['atmosphere','sun','sky','stars','moons','plane','camera'];
-  const nameOf=id=>id==='moons'?'Moons '+S.moons.map(m=>m.name).join(' '):id==='camera'?'Camera Post Process':ENTITIES[id].name;
-  const ids=all.filter(id=>passF(id)&&(!q||nameOf(id).toLowerCase().includes(q)));
-  const t=TABS.find(t=>t.id===tab);
-  treeEl.innerHTML=(true?`<div class="sec-label">${q?'Search':activeF.size?'Filtered':'Scene'}<b>${ids.length} match${ids.length===1?'':'es'}</b></div>`:`<div class="sec-label">${t.l}<b>${ids.length} ${ids.length===1?'entity':'entities'}</b></div>`)+(ids.length?ids.map(cardHTML).join(''):`<div class="empty">Nothing here.</div>`);
-  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderTabs(); renderSceneStat(); renderTimeline(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; }
+  const match=id=>{ const n=nodeInfo(id); const base=id.startsWith('moon#')?'moons':id; return passF(base)&&(!q||n.name.toLowerCase().includes(q)); };
+  const nodes=allNodes(); const kidsOf=id=>nodes.filter(n=>parentOf(n)===id);
+  const visible=new Set(); for(const id of nodes){ if(match(id)&&id!=='world'){ let c=id; while(c){ visible.add(c); c=parentOf(c); } } }
+  let out=''; const walk=(id,depth)=>{ if(!visible.has(id)) return; const kids=kidsOf(id); out+=rowHTML(id,depth,kids.length>0); if(openF[id]!==false||q) kids.forEach(k=>walk(k,depth+1)); };
+  nodes.filter(n=>parentOf(n)===null).forEach(r=>walk(r,0));
+  treeEl.innerHTML=out||`<div class="empty">Nothing here.</div>`;
+  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderSceneStat(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; }
+function renderTabs(){} function renderTimeline(){}
 const tileHist={}; function renderTiles(){} function drawTiles(){}
 function miniOf(id){ // tiny inline visual per row
   if(id==='sun'){ const pts=[...Array(25)].map((_,i)=>[i/24*56,13-sunDirAt(i).el/(Math.PI/2)*11]); const x=S.sun_time/24*56, y=13-sunDir().el/(Math.PI/2)*11; return `<svg viewBox="0 0 56 26"><line x1="0" y1="13" x2="56" y2="13" stroke="rgba(255,255,255,.15)"/><polyline points="${pts.map(q=>q.join(',')).join(' ')}" fill="none" stroke="rgba(255,180,84,.6)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="2.5" fill="#ffd166"/></svg>`; }
@@ -799,16 +845,26 @@ function miniOf(id){ // tiny inline visual per row
   return ''; }
 function renderFilters(){ document.getElementById('filters').innerHTML=FILTERS.map(f=>`<button class="${activeF.has(f.id)?'on':''}" data-f="${f.id}" style="--c:${f.c}"><i></i>${f.l}</button>`).join(''); }
 document.getElementById('filters').addEventListener('click',e=>{ const b=e.target.closest('[data-f]'); if(!b) return; activeF.has(b.dataset.f)?activeF.delete(b.dataset.f):activeF.add(b.dataset.f); renderTree(); });
-function refreshMeta(){ treeEl.querySelectorAll('.card').forEach(c=>{ const id=c.dataset.id; const d=cardData(id); if(!d) return; const st=c.querySelector('[data-status]'); if(st) st.textContent=d.status; const pl=c.querySelector('[data-pill]'); if(pl){ pl.className='c-pill '+d.pill[0]; pl.innerHTML='<i></i>'+d.pill[1]; } const b=c.querySelector('[data-big]'); if(b) b.innerHTML=`${d.big}<small>${d.unit}</small><em>${d.lab}</em>`; const k=c.querySelector('.c-kpis'); if(k&&d.kpis) k.innerHTML=d.kpis.map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join(''); const mv=c.querySelector('[data-mini]'); if(mv&&mv.dataset.mini) mv.innerHTML=miniOf(mv.dataset.mini); });
-  renderTimeline(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; document.getElementById('hudCam').textContent=`${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; }
+function refreshMeta(){ treeEl.querySelectorAll('[data-meta]').forEach(el=>el.textContent=metaShort(el.dataset.meta)); treeEl.querySelectorAll('[data-stat]').forEach(el=>{ const [sc,st]=statusOf(el.dataset.stat); if(!el.classList.contains(sc)){ el.className='nstat '+sc; el.innerHTML=I(sc==='ok'?'check':sc==='info'?'dot':'warn',11); } el.title=st; });
+  renderSceneStat(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; document.getElementById('hudCam').textContent=`${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; }
 treeEl.addEventListener('click',e=>{
-  const eye=e.target.closest('[data-eye]'); if(eye){ e.stopPropagation(); const id=eye.dataset.eye; if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible^=true; else S['vis_'+id]=!visOf(id); renderTree(); return; }
-  const kid=e.target.closest('.kid'); if(kid){ select(kid.dataset.id); return; }
-  const card=e.target.closest('.card'); if(card) select(card.dataset.id); });
+  const eye=e.target.closest('[data-eye]'); if(eye){ e.stopPropagation(); const id=eye.dataset.eye; if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible^=true; else S['vis_'+id]=!visOf(id); renderTree(); if(selected===id) renderInspector(); return; }
+  const ch=e.target.closest('[data-chev]'); if(ch){ e.stopPropagation(); const id=ch.dataset.chev; openF[id]=openF[id]===false; renderTree(); return; }
+  const row=e.target.closest('.node'); if(!row) return; const id=row.dataset.id; if(FOLDERS[id]){ openF[id]=openF[id]===false; renderTree(); } else select(id); });
+treeEl.addEventListener('dblclick',e=>{ const row=e.target.closest('.node'); if(row&&!FOLDERS[row.dataset.id]){ openF[row.dataset.id]=openF[row.dataset.id]===false; renderTree(); } });
+// drag to parent: drop onto a row => becomes child; drop on the gap above => sibling (root when dropped on empty space)
+let dragId=null;
+treeEl.addEventListener('dragstart',e=>{ const row=e.target.closest('.node'); if(!row||row.getAttribute('draggable')!=='true') return e.preventDefault(); dragId=row.dataset.id; e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',dragId); row.classList.add('dragging'); });
+treeEl.addEventListener('dragend',()=>{ dragId=null; treeEl.querySelectorAll('.dragging,.drop-into,.drop-before').forEach(el=>el.classList.remove('dragging','drop-into','drop-before')); treeEl.classList.remove('drop-root'); });
+treeEl.addEventListener('dragover',e=>{ if(!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect='move'; treeEl.querySelectorAll('.drop-into,.drop-before').forEach(el=>el.classList.remove('drop-into','drop-before')); treeEl.classList.remove('drop-root');
+  const row=e.target.closest('.node'); if(!row){ treeEl.classList.add('drop-root'); return; } if(row.dataset.id===dragId) return; const r=row.getBoundingClientRect(); const before=(e.clientY-r.top)<r.height*.28; row.classList.add(before?'drop-before':'drop-into'); });
+treeEl.addEventListener('drop',e=>{ if(!dragId) return; e.preventDefault(); const row=e.target.closest('.node'); const id=dragId; let ok;
+  if(!row){ ok=setParent(id,null); } else { const tid=row.dataset.id; if(tid===id) return; const r=row.getBoundingClientRect(); const before=(e.clientY-r.top)<r.height*.28; ok=setParent(id,before?parentOf(tid):tid); }
+  dragId=null; if(ok!==false) renderTree(); });
 document.getElementById('search').addEventListener('input',renderTree);
 const outlinerEl=document.getElementById('outliner'); function setCompact(v){ outlinerEl.classList.toggle('compact',v); localStorage.setItem('cp_compact',v?'1':'0'); } document.getElementById('compactBtn').addEventListener('click',()=>setCompact(!outlinerEl.classList.contains('compact'))); if(localStorage.getItem('cp_compact')==='1') setCompact(true);
 window.addEventListener('keydown',e=>{ if(e.code==='Tab'&&!(e.target.closest&&e.target.closest('input,textarea'))){ e.preventDefault(); setCompact(!outlinerEl.classList.contains('compact')); } });
-function select(id){ selected=id; const base=id.startsWith('moon#')?'moons':id==='post'?'camera':id; if(!document.getElementById('search').value) tab=tabOf(base)||tab; renderTree(); renderInspector(); }
+function select(id){ selected=id; let c=parentOf(id); while(c){ openF[c]=true; c=parentOf(c); } renderTree(); renderInspector(); }
 setInterval(()=>{ refreshMeta(); },400);
 
 /* ============================================================ CONTROLS ============================================================ */
