@@ -777,7 +777,7 @@ uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uH
 uniform vec2 uSunUV; uniform float uSunInFront;
 uniform float uFogOn,uFogDensity,uFogHeight,uFogScatter; uniform vec3 uFogColor;
 uniform float uAFOn,uAFDensity,uAFHeight,uAFStart,uAFMie,uAFG,uAFSky; uniform vec3 uAFTint;                 // atmospheric (aerial perspective) fog
-uniform float uVFOn,uVFDensity,uVFNoise,uVFScale,uVFSpeed,uVFG,uVFSoft,uVFAbsorb,uVFShape,uVFSteps,uVFSelf; uniform vec3 uVFPos,uVFSize,uVFAlbedo;   // local volumetric fog
+uniform float uVFOn,uVFDensity,uVFNoise,uVFScale,uVFSpeed,uVFG,uVFSoft,uVFAbsorb,uVFShape,uVFSteps,uVFSelf,uVFFall; uniform vec3 uVFPos,uVFSize,uVFAlbedo;   // local volumetric fog
 uniform vec3 uPLPos,uPLCol,uSLPos,uSLDir,uSLCol; uniform float uPLOn,uPLInt,uPLReach,uPLDecay,uSLOn,uSLInt,uSLCos,uSLSoft;
 uniform float uCloudOn,uCloudCov,uCloudDen,uCloudAlt,uCloudScale,uCloudDetail,uCloudSpeed; uniform vec3 uCloudTint,uCloudShade;
 uniform float uTerrOn,uTerrSize,uTerrHeight,uTerrFreq,uTerrSeed,uTerrRough,uTerrWire; uniform vec3 uTerrLow,uTerrHigh,uTerrPos;
@@ -934,29 +934,35 @@ vec3 applyAFog(vec3 col,vec3 dir,float d,vec3 sky,vec3 hzGlow,vec3 trans){ if(uA
   vec3 beta=mix(betaR,vec3(1.),uAFMie);                                              // Mie share makes it greyer (haze/humidity)
   vec3 T=exp(-beta*od);
   float cosS=clamp(dot(dir,uSunDir),-1.,1.); float g=uAFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
-  vec3 amb=(sky*.85+hzGlow*.6)*uAFSky;                                              // light the medium receives from the sky dome
+  vec3 amb=(sky*.9+hzGlow*.25)*uAFSky;                                              // light the medium receives from the sky dome
   vec3 sun=trans*uSunColor*uSunIntensity*.02*hg*4.*3.14159*max(uSunDir.y+.08,0.)*mix(1.,.35,uAFMie); // single-scatter sun lobe (Mie forward peak)
   vec3 Lin=(amb+sun)*uAFTint;
   return col*T+Lin*(1.-T); }
 // ===== Local volumetric fog: a finite box / ellipsoid of participating medium, ray-marched with Beer–Lambert transmittance,
 //       heterogeneous density from 3-octave value noise advected by wind, HG in-scatter from the sun + the point/spot lights,
 //       self-shadowing by a short secondary march toward the sun, and separable absorption (albedo) for realistic darkening.
-float vfShapeMask(vec3 q){ // q in [-1,1] box space; soft falloff toward the shell
-  float m; if(uVFShape>.5){ m=1.-length(q); } else { vec3 a=1.-abs(q); m=min(min(a.x,a.y),a.z); }
-  return smoothstep(0.,max(.02,uVFSoft),m); }
+float vfShapeMask(vec3 q){ // q in [-1,1] normalised space; m = signed inside-distance (1 at the core, 0 on the shell)
+  float m;
+  if(uVFShape<.5){ vec3 a=1.-abs(q); m=min(min(a.x,a.y),a.z); }                                   // box
+  else if(uVFShape<1.5){ m=1.-length(q); }                                                          // ellipsoid
+  else if(uVFShape<2.5){ m=1.-length(q*uVFSize/min(uVFSize.x,min(uVFSize.y,uVFSize.z))); }         // sphere (uniform radius = smallest extent)
+  else { vec3 qq=vec3(q.x,max(q.y,0.)*1.0,q.z); m=min(1.-length(qq),q.y+1.);                        // hemisphere / dome: flat underside at the centre plane
+         m=min(m,(q.y+1.)*4.); }
+  if(uVFFall>.5) return pow(smoothstep(0.,1.,clamp(m,0.,1.)),mix(.35,3.,uVFSoft));                 // density falloff: soft toward the shell over the whole radius
+  return smoothstep(0.,max(.02,uVFSoft*.5),m); }                                                    // hard-ish shell with a thin soft rim
 float vfDensity(vec3 p){ vec3 q=(p-uVFPos)/uVFSize; float mask=vfShapeMask(q); if(mask<=0.) return 0.;
   vec3 w=vec3(uTime*uVFSpeed*.35,uTime*uVFSpeed*.05,uTime*uVFSpeed*.2); vec3 s=p/max(.5,uVFScale)+w;
   float n=vnoise(s)*.55+vnoise(s*2.3+1.7)*.3+vnoise(s*5.1+4.2)*.15;
   float het=mix(1.,smoothstep(.28,.85,n)*1.6,uVFNoise);
   float grav=1.-.35*clamp(q.y*.5+.5,0.,1.);                                      // denser at the bottom like a real cold pool
   return uVFDensity*mask*het*grav; }
-vec2 vfBox(vec3 ro,vec3 rd){ vec3 m=1./(rd+1e-6*sign(rd)+1e-9); vec3 n=m*(ro-uVFPos); vec3 k=abs(m)*uVFSize*1.0; vec3 t1=-n-k,t2=-n+k; float tn=max(max(t1.x,t1.y),t1.z),tf=min(min(t2.x,t2.y),t2.z); return (tn>tf||tf<0.)?vec2(-1.):vec2(max(tn,0.),tf); }
+vec2 vfBox(vec3 ro,vec3 rd){ vec3 c=uVFPos, sz=uVFSize; if(uVFShape>2.5){ c.y+=sz.y*.5; sz.y*=.5; } vec3 m=1./(rd+1e-6*sign(rd)+1e-9); vec3 n=m*(ro-c); vec3 k=abs(m)*sz; vec3 t1=-n-k,t2=-n+k; float tn=max(max(t1.x,t1.y),t1.z),tf=min(min(t2.x,t2.y),t2.z); return (tn>tf||tf<0.)?vec2(-1.):vec2(max(tn,0.),tf); }
 float vfShadow(vec3 p){ if(uVFSelf<.5) return 1.; float od=0.; float st=max(uVFSize.x,max(uVFSize.y,uVFSize.z))*.5; for(int i=1;i<=4;i++){ od+=vfDensity(p+uSunDir*st*float(i)*.5)*st*.5; } return exp(-od*(1.+uVFAbsorb)); }
 vec3 applyVFog(vec3 col,vec3 ro,vec3 rd,float tmax,vec3 sky,vec3 hzGlow,vec3 trans){ if(uVFOn<.5) return col;
   vec2 b=vfBox(ro,rd); if(b.x<0.) return col; float t0=b.x, t1=min(b.y,tmax); if(t1<=t0) return col;
   float N=uVFSteps; float dt=(t1-t0)/N; float jit=hash13(vec3(gl_FragCoord.xy,fract(uTime*7.))); float t=t0+dt*jit;
   float cosS=clamp(dot(rd,uSunDir),-1.,1.); float g=uVFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
-  vec3 sunL=trans*uSunColor*uSunIntensity*.02*max(uSunDir.y+.05,0.)*hg*4.*3.14159; vec3 amb=(sky*.6+hzGlow*.3);
+  vec3 sunL=trans*uSunColor*uSunIntensity*.02*max(uSunDir.y+.05,0.)*hg*4.*3.14159; vec3 amb=(sky*.75+hzGlow*.15);
   vec3 acc=vec3(0.); float T=1.; vec3 sigS=uVFAlbedo; float sigA=uVFAbsorb;
   for(int i=0;i<48;i++){ if(float(i)>=N||T<.01) break; vec3 p=ro+rd*t; float rho=vfDensity(p);
     if(rho>1e-4){ vec3 Li=amb+sunL*vfShadow(p);
@@ -1014,6 +1020,8 @@ void main(){
   vec3 sky,trans; float ground; atmosphere(ro,dir,sky,trans,ground);
   sky*=uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible; if(uAtmoVisible<.5) trans=vec3(1.);
   float elevDeg=degrees(asin(clamp(uSunDir.y,-1.,1.))); float sunUp=smoothstep(-6.,4.,elevDeg);
+  vec3 skyAmb; { vec3 sz,tz; float gz; atmosphere(ro,vec3(0.,1.,0.),sz,tz,gz); vec3 sh,th; float gh; vec3 hd=normalize(vec3(uSunDir.x,0.,uSunDir.z)+vec3(1e-4,0.,0.)); atmosphere(ro,normalize(hd+vec3(0.,.08,0.)),sh,th,gh); vec3 sb,tb; float gb; atmosphere(ro,normalize(-hd+vec3(0.,.08,0.)),sb,tb,gb);
+    skyAmb=(sz*.4+sh*.35+sb*.25)*uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible; }   // hemispherical sky irradiance the medium receives — the same whether you look up, down or from inside
   float skyLum=dot(sky,vec3(.2126,.7152,.0722)); float nightFade=clamp(1.-skyLum*14.,0.,1.);
   vec2 hxz=normalize(dir.xz+1e-5); vec2 sxz=normalize(uSunDir.xz+1e-5); float facing=.5+.5*dot(hxz,sxz);
   float hdrScale=uSunIntensity/22.*uSkyBright*uSkyVisible;
@@ -1063,7 +1071,7 @@ void main(){
       float fog=1.-exp(-t*7e-5); fog=pow(clamp(fog,0.,1.),1.6); planeCol=mix(planeCol,sky*.8+hzGlow*.6,fog);
     }
   }
-  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); col=applyAFog(col,dir,planeT,sky,hzGlow,trans); col=applyVFog(col,uCamPos,dir,planeT,sky,hzGlow,trans); }
+  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); col=applyAFog(col,dir,planeT,skyAmb,hzGlow,trans); col=applyVFog(col,uCamPos,dir,planeT,skyAmb,hzGlow,trans); }
   else if(ground>.5){
     float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.09*ndl; vec3 amb=sky*.35+vec3(.002,.003,.006)*uSkyBright;
     { // the real surface: the same checker ground, wrapped on the planet sphere (no fake earth texture)
@@ -1110,8 +1118,8 @@ void main(){
       float sg=exp(-ang*40.)*.35+exp(-ang*9.)*.03+exp(-ang*2.5)*.004; col+=sg*uBloom*sunCol*uSunIntensity*.6;
     }
     if(uFogOn>.5&&uCamHeight<3000.){ float dS=(dir.y>.002)?min(20000.,(uFogHeight*4.)/dir.y):20000.; col=applyFog(col,dir,dS,sky,hzGlow,trans); }
-    if(uAFOn>.5&&uCamHeight<6000.){ float dA=(dir.y>.002)?min(60000.,(uAFHeight*5.)/dir.y):60000.; col=applyAFog(col,dir,dA,sky,hzGlow,trans); }
-    col=applyVFog(col,uCamPos,dir,1e6,sky,hzGlow,trans);
+    if(uAFOn>.5&&uCamHeight<6000.){ float dA=(dir.y>.002)?min(60000.,(uAFHeight*5.)/dir.y):60000.; col=applyAFog(col,dir,dA,skyAmb,hzGlow,trans); }
+    col=applyVFog(col,uCamPos,dir,1e6,skyAmb,hzGlow,trans);
   }
   { // light source glyphs: a small emissive glow where the point / spot lights sit
     vec3 v=uPLPos-uCamPos; float dl=length(v); float c=dot(normalize(v),dir); float ang=acos(clamp(c,-1.,1.)); float rr=.02/max(1.,dl*.05)*(1.+uPLInt*.02);
@@ -2460,7 +2468,7 @@ const ENTITIES={
     sections:[{title:'Medium',icon:'fog',props:[TRK('af_density','Extinction β',0.5,80,0.1,7,'e-5/m',{log:true,hint:'Sea-level extinction · 7 ≈ 56 km visibility · 40 ≈ 10 km haze'}),TRK('af_height','Scale height',50,8000,10,1200,'m',{log:true,hint:'Density falls to 1/e at this altitude'}),TRK('af_start','Start distance',0,2000,5,0,'m')]},
       {title:'Scattering',icon:'wave',props:[GAUGE('af_mie','Mie share',0,1,0.01,0.35,''),GAUGE('af_g','Anisotropy g',0,0.95,0.01,0.7,''),GAUGE('af_sky','Sky light',0,2,0.01,1,'×'),COL('af_tint','Tint','#ffffff')]}]},
   vfog:{name:'Local Volumetric Fog',kind:'Fog Volume',color:'#c9d6e2',icon:'vfog',preview:'none',hero:{kind:'vfog'},
-    sections:[{title:'Volume',icon:'grid',props:[SEG('vf_shape','Shape',['Box','Ellipsoid'],'Ellipsoid'),PAD('vf_x','vf_z','Position',{xmin:-100,xmax:100,ymin:-100,ymax:100,xl:'X',yl:'Z',plane:true,hint:'Top-down · or press G in the viewport'}),TRK('vf_y','Centre height',-5,60,0.1,2.5,'m'),TRK('vf_sx','Extent X',1,200,0.5,18,'m',{log:true}),TRK('vf_sy','Extent Y',0.5,60,0.5,4,'m',{log:true}),TRK('vf_sz','Extent Z',1,200,0.5,18,'m',{log:true}),GAUGE('vf_soft','Edge softness',0.02,1,0.01,0.45,'')]},
+    sections:[{title:'Volume',icon:'grid',props:[SEG('vf_shape','Shape',['Box','Ellipsoid','Sphere','Dome'],'Ellipsoid'),TOG('vf_fall','Density falloff',true,'Density fades from the core to the shell instead of a uniform body with a soft rim'),PAD('vf_x','vf_z','Position',{xmin:-100,xmax:100,ymin:-100,ymax:100,xl:'X',yl:'Z',plane:true,hint:'Top-down · or press G in the viewport'}),TRK('vf_y','Centre height',-5,60,0.1,2.5,'m'),TRK('vf_sx','Extent X',1,200,0.5,18,'m',{log:true}),TRK('vf_sy','Extent Y',0.5,60,0.5,4,'m',{log:true}),TRK('vf_sz','Extent Z',1,200,0.5,18,'m',{log:true}),GAUGE('vf_soft','Edge softness',0.02,1,0.01,0.45,'')]},
       {title:'Medium',icon:'fog',props:[TRK('vf_density','Density σ',0,2,0.01,0.35,'/m',{hint:'Extinction per metre · 0.35 ≈ 11 m sight inside'}),GAUGE('vf_noise','Heterogeneity',0,1,0.01,0.75,''),TRK('vf_scale','Noise scale',0.5,30,0.1,5,'m',{log:true}),TRK('vf_speed','Wind',0,5,0.05,0.8,'m/s'),COL('vf_albedo','Albedo','#dfe6ee'),GAUGE('vf_absorb','Absorption',0,1,0.01,0.08,'')]},
       {title:'Lighting',icon:'bulb',props:[GAUGE('vf_g','Anisotropy g',0,0.95,0.01,0.6,''),TOG('vf_self','Self-shadowing',true,'Secondary march toward the sun'),SEG('vf_steps','Quality',['Draft','Balanced','High'],'Balanced')]}]},
   clouds:{name:'Cloud Layer',kind:'Clouds',color:'#dfe6ee',icon:'cloud',preview:'none',external:true,hero:{kind:'none'},sections:[]},
@@ -3020,7 +3028,7 @@ function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
   if(kind==='afog'){ const vis=afVis(); const od=S.af_density*1e-3*1; const T=d=>Math.exp(-S.af_density*1e-5*d); const rows=[1,5,20,50].map(d=>[`${d} km`,`${(T(d*1000)*100).toFixed(d>=20?0:1)}%`]);
     return `<div class="sun-top"><div class="tile ${vis>20?'ok':'warn'}"><span class="tico">${I(vis>20?'check':'warn',14)}</span><span class="tl">${vis>40?'Clear air':vis>20?'Light haze':vis>8?'Hazy':'Thick haze'}</span><b>${vis.toFixed(0)}<i>km</i></b></div><div class="tile"><span class="tico dot"></span><span class="tl">Scale height</span><b>${S.af_height>=1000?(S.af_height/1000).toFixed(1):S.af_height}<i>${S.af_height>=1000?'km':'m'}</i></b></div></div>
       <div class="sun-card"><div class="sc-head"><span>Transmittance ledger · sea level</span></div><div class="sc-meta" style="margin-top:6px">${rows.map(([k,v])=>`<span>${k} <b>${v}</b></span>`).join('')}</div><div class="sc-meta"><span>Mie share <b>${Math.round(S.af_mie*100)}%</b></span><span>g <b>${S.af_g.toFixed(2)}</b></span><span>Koschmieder <b>3.912 / β</b></span></div></div>`; }
-  if(kind==='vfog'){ const sight=S.vf_density>0?3.912/(S.vf_density*(1+S.vf_absorb)):Infinity; const vol=(S.vf_shape==='Ellipsoid'?4/3*Math.PI:8)*S.vf_sx*S.vf_sy*S.vf_sz; const d=Math.hypot(S.vf_x-S.cam_x,S.vf_y-S.cam_height,S.vf_z-S.cam_z);
+  if(kind==='vfog'){ const sight=S.vf_density>0?3.912/(S.vf_density*(1+S.vf_absorb)):Infinity; const rmin=Math.min(S.vf_sx,S.vf_sy,S.vf_sz); const vol=S.vf_shape==='Box'?8*S.vf_sx*S.vf_sy*S.vf_sz:S.vf_shape==='Ellipsoid'?4/3*Math.PI*S.vf_sx*S.vf_sy*S.vf_sz:S.vf_shape==='Sphere'?4/3*Math.PI*rmin**3:2/3*Math.PI*S.vf_sx*S.vf_sy*S.vf_sz; const d=Math.hypot(S.vf_x-S.cam_x,S.vf_y-S.cam_height,S.vf_z-S.cam_z);
     return `<div class="sun-top"><div class="tile ok"><span class="tico">${I('check',14)}</span><span class="tl">Sight inside</span><b>${isFinite(sight)?sight.toFixed(1):'∞'}<i>m</i></b></div><div class="tile"><span class="tico dot"></span><span class="tl">${S.vf_shape} volume</span><b>${vol>=1e4?(vol/1000).toFixed(1)+'k':vol.toFixed(0)}<i>m³</i></b></div></div>
       <div class="sun-card"><div class="sc-head"><span>Volume</span><span class="tr">${I('grid',16)}</span></div><div class="sc-meta" style="margin-top:6px"><span>Centre <b>${S.vf_x.toFixed(1)}, ${S.vf_y.toFixed(1)}, ${S.vf_z.toFixed(1)}</b></span><span>Extents <b>${(S.vf_sx*2).toFixed(0)} × ${(S.vf_sy*2).toFixed(0)} × ${(S.vf_sz*2).toFixed(0)} m</b></span></div><div class="sc-meta"><span>Distance <b>${d.toFixed(1)} m</b></span><span>Optical depth across <b>${(S.vf_density*S.vf_sx*2*(1+S.vf_absorb)).toFixed(1)}</b></span><span>Steps <b>${{Draft:16,Balanced:28,High:48}[S.vf_steps]}</b></span></div></div>`; }
   if(kind==='sun'){ const e=sunElevDeg(); const t=S.sun_time; const irr=sunIrr(t); const az=((sunDir().az/D2R)%360+360)%360; const am=airMassOf(Math.max(e,-.9)); const {rise,set}=riseSet();
@@ -3334,7 +3342,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   CAM={fwd,right,up,tanH,pos:[S.cam_x,S.cam_height,S.cam_z]}; gizmoDraw(); clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
   f1('uAFOn',S.vis_afog!==false?1:0); f1('uAFDensity',S.af_density*1e-5); f1('uAFHeight',S.af_height); f1('uAFStart',S.af_start); f1('uAFMie',S.af_mie); f1('uAFG',S.af_g); f1('uAFSky',S.af_sky); f3('uAFTint',hex2rgb(S.af_tint));
-  f1('uVFOn',S.vis_vfog!==false?1:0); f1('uVFDensity',S.vf_density); f1('uVFNoise',S.vf_noise); f1('uVFScale',S.vf_scale); f1('uVFSpeed',S.vf_speed); f1('uVFG',S.vf_g); f1('uVFSoft',S.vf_soft); f1('uVFAbsorb',S.vf_absorb); f1('uVFShape',S.vf_shape==='Ellipsoid'?1:0); f1('uVFSteps',{Draft:16,Balanced:28,High:48}[S.vf_steps]||28); f1('uVFSelf',S.vf_self?1:0); f3('uVFPos',[S.vf_x,S.vf_y,S.vf_z]); f3('uVFSize',[S.vf_sx,S.vf_sy,S.vf_sz]); f3('uVFAlbedo',hex2rgb(S.vf_albedo));
+  f1('uVFOn',S.vis_vfog!==false?1:0); f1('uVFDensity',S.vf_density); f1('uVFNoise',S.vf_noise); f1('uVFScale',S.vf_scale); f1('uVFSpeed',S.vf_speed); f1('uVFG',S.vf_g); f1('uVFSoft',S.vf_soft); f1('uVFAbsorb',S.vf_absorb); f1('uVFShape',{Box:0,Ellipsoid:1,Sphere:2,Dome:3}[S.vf_shape]||0); f1('uVFFall',S.vf_fall?1:0); f1('uVFSteps',{Draft:16,Balanced:28,High:48}[S.vf_steps]||28); f1('uVFSelf',S.vf_self?1:0); f3('uVFPos',[S.vf_x,S.vf_y,S.vf_z]); f3('uVFSize',[S.vf_sx,S.vf_sy,S.vf_sz]); f3('uVFAlbedo',hex2rgb(S.vf_albedo));
   { const F=S.fogP,C=S.cloudP,T=S.terrP; f1('uFogOn',0); f1('uFogDensity',F.density); f1('uFogHeight',F.height); f1('uFogScatter',F.sunScatter); f3('uFogColor',hex2rgb(F.color));
     f1('uCloudOn',0); f1('uCloudCov',C.coverage); f1('uCloudDen',C.density); f1('uCloudAlt',C.altitude); f1('uCloudScale',C.scale); f1('uCloudDetail',C.detail); f1('uCloudSpeed',C.speed); f3('uCloudTint',hex2rgb(C.tint)); f3('uCloudShade',hex2rgb(C.shade));
     f1('uTerrOn',0); f1('uTerrSize',T.size); f1('uTerrHeight',T.height); f1('uTerrFreq',T.frequency); f1('uTerrSeed',T.seed); f1('uTerrRough',T.roughness); f1('uTerrWire',T.wireframe?1:0); f3('uTerrLow',hex2rgb(T.lowColor)); f3('uTerrHigh',hex2rgb(T.highColor)); f3('uTerrPos',[T.pos[0],S.pl_y+T.pos[1],T.pos[2]]); }
