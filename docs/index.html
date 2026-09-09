@@ -58,6 +58,13 @@ input{font:inherit;color:inherit}
 .filters button.on{background:var(--g3);color:var(--text);border-color:var(--stroke2)}
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
 /* stat cards (reference style) */
+.sun-hero{border-radius:20px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:14px 14px 10px;position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+.sun-hero::before{content:'';position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:0 3px 3px 0;background:var(--c)}
+.sh-top{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;align-items:start;padding-left:6px}
+.sh-l{font-size:12px;color:var(--t2)} .sh-v{display:flex;align-items:baseline;gap:4px;margin-top:6px} .sh-v b{font-size:44px;font-weight:200;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums} .sh-v small{font-size:12px;color:var(--t3);font-weight:300} .sh-v .tr{margin-left:8px;color:var(--t3);align-self:center}
+.sh-sub{font-size:11px;color:var(--t3);margin-top:8px}
+.sh-col{display:flex;flex-direction:column;gap:6px;border-left:1px solid var(--stroke);padding-left:12px} .sh-col>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px} .sh-col span{font-size:10.5px;color:var(--t3)} .sh-col b{font-size:14px;font-weight:300;font-variant-numeric:tabular-nums;white-space:nowrap} .sh-col b i{font-style:normal;font-size:10px;color:var(--t3);margin-left:2px}
+.sh-arc{width:100%;height:86px;display:block;border-radius:12px;background:rgba(0,0,0,.25)} .sh-arc .tk{fill:rgba(255,255,255,.3);font-size:8px;font-family:var(--mono)}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
 .stat{border-radius:18px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:12px 12px 8px;position:relative;overflow:hidden;display:flex;flex-direction:column;gap:4px;min-height:118px}
 .stat-l{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2)} .stat-l::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--c)}
@@ -2906,11 +2913,30 @@ const prevStat={}; const dlt=(k,v)=>{ const d=prevStat[k]==null?0:v-prevStat[k];
 function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
   if(kind==='sun'){ const e=sunElevDeg(); const t=S.sun_time; const irr=sunIrr(t); const az=((sunDir().az/D2R)%360+360)%360; const am=airMassOf(Math.max(e,-.9)); const {rise,set}=riseSet();
     const dur=v=>v==null?'—':`${Math.floor(v)}h ${String(Math.floor((v%1)*60)).padStart(2,'0')}m`; const next=e>=0?['to sunset',set!=null?((set-t)%24+24)%24:null]:['to sunrise',rise!=null?((rise-t)%24+24)%24:null];
-    return `<div class="stat-grid">
-      ${statCard({label:'Irradiance',color:'#ffb454',text:irr>=100?irr.toFixed(0):irr.toFixed(1),unit:'W/m²',value:irr,series:daySeries(sunIrr),cursor:t/24,threshold:120,delta:dlt('irr',irr),pill:`${e>=0?'+':''}${e.toFixed(1)}° alt`,hot:e<0})}
-      ${statCard({label:'Air Mass',color:'#5aa9ff',text:am.toFixed(2),unit:'AM',value:am,series:daySeries(x=>Math.min(6,airMassOf(Math.max(sunDirAt(x).el/D2R,-.9)))),cursor:t/24,threshold:2,delta:-dlt('am',am),pill:`${pn}`})}
-      ${statCard({label:'Azimuth',color:'#67e8f9',text:az.toFixed(0),unit:'°',value:az,series:daySeries(x=>((sunDirAt(x).az/D2R)%360+360)%360),cursor:t/24,delta:dlt('az',az),pill:['N','NE','E','SE','S','SW','W','NW'][Math.round(az/45)%8]+' · '+kelvinName(S.sun_temp)})}
-      ${statCard({label:next[0]==='to sunset'?'Sunset':'Sunrise',color:'#c4b5fd',text:dur(next[1]),unit:'',value:next[1]||0,series:daySeries(x=>Math.max(0,sunDirAt(x).el/D2R)),cursor:t/24,threshold:0,delta:0,pill:`${rise!=null?fmtT(rise):'—'} → ${set!=null?fmtT(set):'—'}`})}
+    const arcW=320,arcH=86;
+    const yOf=el=>(arcH-14-(Math.max(-12,Math.min(90,el))+12)/102*(arcH-24)); const path=[...Array(97)].map((_,i)=>{ const tt=i/4; return `${i?'L':'M'}${(8+tt/24*(arcW-16)).toFixed(1)},${yOf(sunDirAt(tt).el/D2R).toFixed(1)}`; }).join('');
+    const cx=8+t/24*(arcW-16), cy=yOf(e); const hzY=yOf(0);
+    const tone=e<-6?'#8fa4d8':e<0?'#c9a24b':e<8?'#ffb454':'#ffe08a';
+    return `<div class="sun-hero" style="--c:${tone}">
+      <div class="sh-top">
+        <div class="sh-main"><div class="sh-l">Irradiance</div><div class="sh-v"><b>${irr>=100?irr.toFixed(0):irr.toFixed(1)}</b><small>W/m²</small><span class="tr">${I(dlt('irr',irr)>0?'up':dlt('irr',irr)<0?'down':'flat',16)}</span></div><div class="sh-sub">${pn} · ${kelvinName(S.sun_temp)} light</div></div>
+        <div class="sh-col">
+          <div><span>Altitude</span><b>${e>=0?'+':''}${e.toFixed(1)}<i>°</i></b></div>
+          <div><span>Azimuth</span><b>${az.toFixed(0)}<i>° ${['N','NE','E','SE','S','SW','W','NW'][Math.round(az/45)%8]}</i></b></div>
+          <div><span>Air mass</span><b>${am.toFixed(2)}<i>AM</i></b></div>
+          <div><span>${next[0]==='to sunset'?'Sunset in':'Sunrise in'}</span><b>${dur(next[1])}</b></div>
+        </div>
+      </div>
+      <svg class="sh-arc" viewBox="0 0 ${arcW} ${arcH}" preserveAspectRatio="none">
+        <defs><linearGradient id="shg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${tone}" stop-opacity=".28"/><stop offset="1" stop-color="${tone}" stop-opacity="0"/></linearGradient></defs>
+        <path d="${path}L${arcW-8},${arcH-2}L8,${arcH-2}Z" fill="url(#shg)"/>
+        <line x1="8" y1="${hzY.toFixed(1)}" x2="${arcW-8}" y2="${hzY.toFixed(1)}" stroke="rgba(255,255,255,.18)" stroke-dasharray="2 4"/>
+        <path d="${path}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/>
+        ${[0,6,12,18,24].map(x=>`<text x="${(8+x/24*(arcW-16)).toFixed(1)}" y="${arcH-3}" text-anchor="${x===0?'start':x===24?'end':'middle'}" class="tk">${String(x).padStart(2,'0')}:00</text>`).join('')}
+        ${rise!=null?`<circle cx="${(8+rise/24*(arcW-16)).toFixed(1)}" cy="${hzY.toFixed(1)}" r="2" fill="#fff" opacity=".6"/>`:''}${set!=null?`<circle cx="${(8+set/24*(arcW-16)).toFixed(1)}" cy="${hzY.toFixed(1)}" r="2" fill="#fff" opacity=".6"/>`:''}
+        <line x1="${cx.toFixed(1)}" y1="6" x2="${cx.toFixed(1)}" y2="${(arcH-12).toFixed(1)}" stroke="rgba(255,255,255,.22)"/>
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.6" fill="${e<0?'#ff4d4d':'#fff'}"/>
+      </svg>
     </div>`; }
   if(kind==='sky'){ const e=sunElevDeg(); const c=skyColorsAt(e); const lux=Math.max(0,zenithLum())*1000*3.1416*.25; const hz=`#${c.hz.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('')}`, top=`#${c.top.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('')}`;
     const hue=rgb=>{ const [r,g,b]=rgb.map(v=>v/255); const mx=Math.max(r,g,b),mn=Math.min(r,g,b); if(mx===mn) return 0; const d=mx-mn; let hh=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4; return ((hh*60)+360)%360; };
