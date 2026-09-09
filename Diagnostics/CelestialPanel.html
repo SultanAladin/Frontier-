@@ -3053,7 +3053,7 @@ function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
       ${statCard({label:'Turbidity',color:'#dfe6f5',text:(1.5+S.atm_mie*1.8).toFixed(1),unit:'T',value:S.atm_mie,series:daySeries(()=>S.atm_mie),cursor:S.sun_time/24,threshold:2,delta:0,pill:S.atm_mie>2?'Hazy':S.atm_mie>1.2?'Slight haze':'Clear'})}
     </div>`; }
   return ''; }
-function afVis(){ return 3.912/Math.max(1e-3,S.af_density*1e-5)/1000; }
+function afVis(){ return 3.912/Math.max(1e-7,S.af_density*1e-5)/1000; }
 function kelvinName(k){ return k<3000?'Candle-warm':k<4000?'Warm':k<5200?'Neutral':k<6500?'Daylight':'Cool'; }
 const bigHTML=(v,dec,signed)=>{ const [a,b]=fmt(Math.abs(v),dec).split('.'); return `${signed?(v<0?'−':'+'):''}${a}${b!==undefined?`<small>.${b}</small>`:''}`; };
 const PRES_SETS={
