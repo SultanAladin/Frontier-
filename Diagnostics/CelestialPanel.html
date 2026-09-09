@@ -263,6 +263,7 @@ input{font:inherit;color:inherit}
 .pad-svg .frustum{fill:rgba(52,199,89,.16);stroke:rgba(52,199,89,.8)} .pad-svg .sun{fill:#ffd166} .pad-svg .axx{stroke:rgba(224,64,76,.5)} .pad-svg .axz{stroke:rgba(63,140,242,.5)}
 .planet-svg{width:100%;height:auto;margin-top:4px;border-radius:12px;background:radial-gradient(120% 80% at 50% 0%,rgba(90,169,255,.08),rgba(0,0,0,.35) 70%);cursor:ns-resize;overflow:hidden}
 .planet-svg .shell{fill:none;stroke:#5aa9ff;stroke-width:1.5;stroke-dasharray:4 3;cursor:ns-resize} .planet-svg .limb{fill:none;stroke:#fff;stroke-width:1.5;cursor:ew-resize}
+.pv-lab,#pvStars .lab{fill:rgba(255,255,255,.55);font-size:9px;font-family:var(--mono,monospace)} #pvStars .lab.c{text-anchor:middle} #pvStars .lab.dim{fill:rgba(255,255,255,.3)}
 .planet-svg .tick{stroke:rgba(255,255,255,.4)} .planet-svg .lab{fill:rgba(255,255,255,.6);font-size:9px;font-family:var(--mono,monospace)} .planet-svg .lab.dim{fill:rgba(255,255,255,.3)} .planet-svg .lab.c{text-anchor:middle;fill:rgba(255,255,255,.3)}
 .planet-svg .inset .ref{fill:none;stroke:rgba(255,255,255,.2);stroke-dasharray:2 2} .planet-svg .inset .atmo{fill:rgba(90,169,255,.25);stroke:none} .planet-svg .inset .body{fill:#2a2f3a;stroke:rgba(255,255,255,.5)}
 .orbit2-svg{width:100%;height:auto;margin-top:4px} .orbit2-svg .globe{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.18)} .orbit2-svg .g{fill:none;stroke:rgba(255,255,255,.1)} .orbit2-svg .eq{fill:none;stroke:rgba(255,255,255,.35)} .orbit2-svg .pm{fill:none;stroke:rgba(255,180,84,.8)}
@@ -343,6 +344,7 @@ uniform vec3 uSkyTint,uGroundColor; uniform float uSkyBright,uGroundBright,uSkyV
 uniform int uMoonCount; uniform vec3 uMoonDir[MAXM]; uniform vec3 uMoonTint[MAXM]; uniform vec4 uMoonP[MAXM]; uniform vec4 uMoonSurf[MAXM]; uniform sampler2D uMoonTex0,uMoonTex1,uMoonTex2,uMoonTex3;
 uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uHalo,uStreak,uChroma,uFlareType;
 uniform vec2 uSunUV; uniform float uSunInFront;
+uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
 
 vec3 hash33(vec3 p){ p=fract(p*vec3(.1031,.1030,.0973)); p+=dot(p,p.yxz+33.33); return fract((p.xxy+p.yxx)*p.zyx); }
 float hash13(vec3 p){ p=fract(p*.1031); p+=dot(p,p.zyx+31.32); return fract((p.x+p.y)*p.z); }
@@ -352,6 +354,46 @@ float vnoise(vec3 p){ vec3 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
 float fbm(vec3 p){ float a=.5,s=0.; for(int i=0;i<5;i++){ s+=a*vnoise(p); p=p*2.03+vec3(1.7,9.2,3.1); a*=.5;} return s; }
 
 vec2 rsi(vec3 ro,vec3 rd,float r){ float b=dot(ro,rd); float c=dot(ro,ro)-r*r; float d=b*b-c; if(d<0.) return vec2(-1.,-1.); d=sqrt(d); return vec2(-b-d,-b+d); }
+// ---------- stars ----------
+vec3 kelvin(float t){ // approx blackbody 2000..12000K
+  float x=clamp((t-2000.)/10000.,0.,1.);
+  vec3 c=mix(vec3(1.,.55,.25),vec3(1.,.93,.86),smoothstep(0.,.4,x)); c=mix(c,vec3(.72,.82,1.),smoothstep(.4,1.,x)); return c; }
+vec3 rotY(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(c*v.x+s*v.z,v.y,-s*v.x+c*v.z); }
+vec3 rotX(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(v.x,c*v.y-s*v.z,s*v.y+c*v.z); }
+// returns hdr radiance of stars in direction d (before atmospheric extinction)
+vec3 starField(vec3 d,float skyLum,float am){
+  vec3 sd=rotX(rotY(d,uStarRot),uMilkyTilt);
+  vec3 col=vec3(0.);
+  // ---- Milky Way: soft band around the equator of the star frame ----
+  float band=exp(-pow(sd.y/.16,2.))*(.6+.4*exp(-pow((sd.x+.3)/.9,2.)));
+  float n1=hash13(floor(sd*18.+3.)); float n2=hash13(floor(sd*45.+7.));
+  float mw=band*(.55+.45*n1)*(.7+.3*n2)*uMilky;
+  col+=vec3(.55,.62,.85)*mw*3e-4;
+  // ---- point stars: 3 octaves of cells (big bright / medium / faint field) ----
+  for(int o=0;o<3;o++){
+    float freq=(o==0)?22.:(o==1)?55.:130.;
+    float density=(o==0)?.22:(o==1)?.35:.55;
+    vec3 gp=sd*freq; vec3 cell=floor(gp); vec3 h=hash33(cell);
+    float exists=step(1.-density*uStarDensity,h.x);
+    vec3 pos=cell+.5+(h-.5)*.7; vec3 sdir=normalize(pos/freq);
+    float ang=acos(clamp(dot(sd,sdir),-1.,1.));
+    // magnitude: mostly faint, few bright (power law)
+    float bright=pow(hash13(cell+11.3),8.)*8.+.15;
+    if(o==1) bright*=.45; if(o==2) bright*=.18;
+    bright*=mix(1.,band*2.+.4,uMilky*.6);
+    // twinkle: scintillation grows with air mass, per-star random phase
+    float ph=hash13(cell+5.7)*6.283; float tw=1.-uStarTwinkle*(.35+.45*clamp(am/6.,0.,1.))*(.5+.5*sin(uTime*(4.+hash13(cell+2.2)*7.)+ph));
+    // colour by temperature
+    float T=mix(2800.,11000.,pow(hash13(cell+9.1),1.6)); vec3 sc=mix(vec3(1.),kelvin(T),uStarColor);
+    float ps=uStarSize*(.0009+bright*.00035); // core angular size (rad)
+    float core=exp(-pow(ang/ps,2.)*1.2);
+    float halo=exp(-ang/(ps*(5.+8.*uStarGlow)))*.06*uStarGlow*(bright/8.+.05);
+    float spikes=0.; if(o==0&&bright>3.){ vec3 t1=normalize(cross(sdir,vec3(0.,1.,0.)+1e-4)); vec3 t2=cross(sdir,t1); vec2 q=vec2(dot(sd-sdir,t1),dot(sd-sdir,t2)); spikes=(exp(-abs(q.x)*900.)*exp(-abs(q.y)*90.)+exp(-abs(q.y)*900.)*exp(-abs(q.x)*90.))*.35*uStarGlow*(bright/8.); }
+    float rad=(core+halo+spikes)*bright*exists*tw;
+    col+=sc*rad*2.6e-3;
+  }
+  return col*uStarBright;
+}
 void atmosphere(vec3 ro,vec3 rd,out vec3 sky,out vec3 trans,out float ground){
   sky=vec3(0.); trans=vec3(1.); ground=0.;
   float Ra=uPlanetR+uAtmoH; vec2 ta=rsi(ro,rd,Ra); if(ta.y<0.) return;
@@ -504,6 +546,16 @@ void main(){
   }else{
     col=sky+glow;
     float ext=smoothstep(-.01,.12,dir.y); // horizon extinction
+    if(uStarsOn>.5){
+      float am=airMassOf(degrees(asin(clamp(dir.y,-1.,1.))));
+      vec3 st=starField(dir,skyLum,am)*trans;                 // atmospheric extinction: stars redden and dim near the horizon
+      // contrast-limited visibility: a star is seen only if its radiance beats the sky radiance around it (Weber/Blackwell-ish)
+      float skyL=max(skyLum,1e-7); float thresh=skyL*uStarLimit;
+      float l=dot(st,vec3(.2126,.7152,.0722));
+      float vis=smoothstep(thresh*.6,thresh*2.5,l+1e-9);
+      // thin / dim atmosphere => sky darker => more stars in daytime automatically
+      col+=st*vis*ext;
+    }
     col+=moons(dir,trans);
     if(uSunVisible>.5){
       float ang=acos(clamp(dot(dir,uSunDir),-1.,1.)); float disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9),uSunAng,ang);
@@ -574,11 +626,15 @@ const ENTITIES={
       {title:'Planet',icon:'globe',props:[CURVE('atm_hr','Rayleigh Scale H',2000,15000,10,8000,'m',null,{curve:'density'}),CURVE('atm_hm','Mie Scale H',300,4000,10,1200,'m',null,{curve:'density'}),PLANET('atm_planetR','atm_height','Planet & Atmosphere')]},
       {title:'Twilight',icon:'horizon',sub:'dawn & dusk',props:[GAUGE('dawn_int','Horizon Glow',0,3,0.01,1,'×'),GAUGE('hl_int','White Line',0,3,0.01,1,'×'),TOG('hl_auto','Line only at civil twilight',true)]}]},
   sun:{name:'Sun',kind:'Directional Light',color:'#ffb454',icon:'sun',preview:'sunpath',hero:{label:'Elevation',unit:'°',dec:1,fn:()=>sunElevDeg(),signed:true},
-    sections:[{title:'Position',icon:'orbit',props:[ORB('sun_az','sun_time','Solar Orbit',{sun:true,hint:'Drag the sun along its path · drag the ring to rotate azimuth'}),GLOBE('sun_lat','Latitude',-26,{hint:'Drag the globe'})]},
+    sections:[{title:'Position',icon:'orbit',props:[ORB('sun_az','sun_time','Solar Orbit',{sun:true,hint:'Drag the sun freely (swings azimuth + time) · drag the path for time only · ring = azimuth'}),GLOBE('sun_lat','Latitude',-26,{hint:'Drag the globe'})]},
       {title:'Light',icon:'bulb',props:[KELVIN('sun_temp','Colour Temperature',5800),GAUGE('sun_intensity','Intensity',0,60,0.1,22,'×'),GAUGE('sun_disc','Disc Radiance',0,40,0.1,12,'×'),CURVE('sun_ang','Angular Diameter',0.1,10,0.01,0.53,'°',(x,S)=>x,{log:true,curve:'disc'}),TRK('sun_soft','Disc Softness',0,1,0.01,0.25,'')]}]},
   sky:{name:'Sky',kind:'Sky Dome',color:'#67e8f9',icon:'sky',preview:'sky',hero:{label:'Zenith Luminance',unit:'kcd/m²',dec:2,fn:()=>zenithLum()},
     sections:[{title:'Appearance',icon:'palette',props:[COL('sky_tint','Sky Tint','#ffffff'),GAUGE('sky_bright','Sky Brightness',0,3,0.01,1,'×')]},
       {title:'Ground',icon:'ground',props:[COL('sky_ground','Ground Albedo','#2b2924'),GAUGE('sky_groundBright','Ground Brightness',0,3,0.01,1,'×')]}]},
+  stars:{name:'Stars',kind:'Star Field',color:'#c4b5fd',icon:'stars',preview:'stars',hero:{label:'Naked-eye limit',unit:'mag',dec:1,fn:()=>limitMag()},
+    sections:[{title:'Field',icon:'stars',props:[CURVE('st_density','Density',0.1,2,0.01,1,'×',null,{curve:'stars',hint:'Magnitude distribution · brighter stars are rarer'}),GAUGE('st_bright','Brightness',0,4,0.01,1,'×'),GAUGE('st_size','Point Size',0.4,3,0.01,1,'×')]},
+      {title:'Sparkle',icon:'flare',props:[PAD('st_glow','st_twinkle','Glow × Twinkle',{xmin:0,xmax:2,ymin:0,ymax:1,xl:'Glow / spikes',yl:'Scintillation',hint:'Twinkle scales with air mass near the horizon'}),GAUGE('st_color','Colour Temperature',0,1,0.01,1,'×'),GAUGE('st_limit','Sky Contrast Threshold',0.2,6,0.01,1.5,'×')]},
+      {title:'Galaxy',icon:'orbit',props:[GAUGE('st_milky','Milky Way',0,2,0.01,1,'×'),ORBIT2('st_rot','st_tilt','Celestial Frame')]}]},
   moons:{name:'Moons',kind:'Atlas',color:'#dfe6f5',icon:'moon',preview:'atlas',hero:{label:'Bodies in orbit',unit:'/ 4',dec:0,fn:()=>S.moons.length},sections:[]},
   camera:{name:'Camera',kind:'Perspective Camera',color:'#34c759',icon:'camera',preview:'camera',hero:{label:'Field of View',unit:'°',dec:1,fn:()=>S.cam_fov},
     sections:[{title:'Lens',icon:'aperture',props:[ORB('cam_yaw','cam_pitch','View Direction',{cam:true,hint:'Drag the eye · frustum shows FOV'}),CURVE('cam_fov','Field of View',20,120,0.5,72,'°',null,{curve:'fov'})]},
@@ -592,7 +648,7 @@ const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
@@ -644,12 +700,12 @@ function skyColorsAt(e){ // rough analytic sky for timelines
 /* ============================================================ OUTLINER ============================================================ */
 let selected='sun'; const openF={environment:true,moons:true,camera:true,world:true};
 const treeEl=document.getElementById('tree');
-const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','post']}];
+const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky','stars']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','post']}];
 const activeF=new Set();
 function metaOf(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}° elev · ${S.sun_temp} K`; case 'atmosphere': return `AM ${airMass().toFixed(2)} · Mie ${S.atm_mie.toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd/m²`; case 'plane': return `${S.pl_size*2} m · ${S.pl_cell} m cells`; case 'camera': return `${S.cam_fov.toFixed(0)}° · ${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; case 'post': return `${S.pp_tonemap} · ${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(2)} EV${S.pp_flare?' · flare':''}`; }
   if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${m.size.toFixed(2)}° · ${Math.round(illum(m.phase)*100)}% lit · ${moonDir(m)[1]>0?'up':'set'}`; } return ''; }
 const isActive=id=>id==='sun'?sunElevDeg()>-0.8:id.startsWith('moon#')?moonDir(S.moons[+id.slice(5)])[1]>0:id==='camera'?keys.size>0:false;
-const TABS=[{id:'environment',l:'Environment',c:'#5aa9ff',ids:['atmosphere','sun','sky','moons']},{id:'world',l:'World',c:'#e2e8f0',ids:['plane']},{id:'viewport',l:'Viewport',c:'#34c759',ids:['camera']}];
+const TABS=[{id:'environment',l:'Environment',c:'#5aa9ff',ids:['atmosphere','sun','sky','stars','moons']},{id:'world',l:'World',c:'#e2e8f0',ids:['plane']},{id:'viewport',l:'Viewport',c:'#34c759',ids:['camera']}];
 let tab='environment';
 const tabOf=id=>TABS.find(t=>t.ids.includes(id))?.id;
 function fmtT(t){ t=((t%24)+24)%24; const hh=Math.floor(t),mm=Math.floor((t-hh)*60); return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; }
@@ -658,6 +714,7 @@ function cardData(id){ const e=sunElevDeg(); switch(id){
   case 'sun':{ const [pn]=phaseName(e); const az=sunDir().az/D2R; const {rise,set}=riseSet(); return {status:pn,pill:e>-0.8?['ok','Lit']:['warn','Below'],big:`${e>=0?'+':''}${e.toFixed(1)}`,unit:'°',lab:'elevation',kpis:[['Azimuth',`${((az%360)+360)%360|0}°`],['Rise',rise==null?'—':fmtT(rise)],['Set',set==null?'—':fmtT(set)]]}; }
   case 'atmosphere': return {status:`Air mass ${airMass().toFixed(2)}`,pill:[S.atm_mie>2?'warn':'ok',S.atm_mie>2?'Hazy':'Clear'],big:airMass().toFixed(2),unit:'AM',lab:'optical depth',kpis:[['Rayleigh',`${S.atm_rayleigh.toFixed(2)}×`],['Mie',`${S.atm_mie.toFixed(2)}×`],['Ozone',`${S.atm_ozone.toFixed(1)}×`]]};
   case 'sky':{ const z=zenithLum(); return {status:'Radiance model',pill:['ok','Live'],big:z>=10?z.toFixed(0):z.toFixed(2),unit:'kcd/m²',lab:'zenith',kpis:[['Brightness',`${S.sky_bright.toFixed(2)}×`],['Dawn glow',`${S.dawn_int.toFixed(1)}×`],['Horizon line',S.hl_auto?'auto':`${S.hl_int.toFixed(1)}×`]]}; }
+  case 'stars':{ const lm=limitMag(); return {status:lm>5?'Dark sky':lm>2.5?'Twilight sky':lm>0?'Bright planets only':'Washed out',pill:lm>0?['ok',`mag ${lm.toFixed(1)}`]:['warn','Daylight'],big:lm.toFixed(1),unit:'mag',lab:'visible limit',kpis:[['Density',`${S.st_density.toFixed(2)}×`],['Twinkle',`${Math.round(S.st_twinkle*100)}%`],['Milky Way',`${S.st_milky.toFixed(1)}×`]]}; }
   case 'moons':{ const up=S.moons.filter(m=>m.visible&&moonDir(m)[1]>0).length; const m=S.moons[0]; return {status:S.moons.length?`${S.moons.length} in orbit · atlas`:'Atlas empty',pill:up?['ok',`${up} risen`]:['warn','Set'],big:m?`${Math.round(illum(m.phase)*100)}`:'0',unit:'%',lab:m?`${m.name} lit`:'no moon',kpis:null}; }
   case 'plane': return {status:'Infinite checker',pill:['ok','Static'],big:`${S.pl_size*2}`,unit:'m',lab:'extent',kpis:[['Cell',`${S.pl_cell} m`],['Albedo A',S.pl_a],['Albedo B',S.pl_b]]};
   case 'camera': return {status:keys.size?'Flying · WASD':'Idle · click viewport to fly',pill:keys.size?['ok','Moving']:['','Idle'],big:`${S.cam_fov.toFixed(0)}`,unit:'°',lab:'field of view',kpis:[['Yaw',`${S.cam_yaw.toFixed(0)}°`],['Pitch',`${S.cam_pitch.toFixed(0)}°`],['Height',`${S.cam_height.toFixed(1)} m`]]};
@@ -688,7 +745,7 @@ function renderTimeline(){ const el=document.getElementById('timeline'); const W
   el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
 function renderTree(){
   const q=(document.getElementById('search').value||'').toLowerCase();
-  const all=['atmosphere','sun','sky','moons','plane','camera'];
+  const all=['atmosphere','sun','sky','stars','moons','plane','camera'];
   const nameOf=id=>id==='moons'?'Moons '+S.moons.map(m=>m.name).join(' '):id==='camera'?'Camera Post Process':ENTITIES[id].name;
   const ids=all.filter(id=>passF(id)&&(q?nameOf(id).toLowerCase().includes(q):activeF.size?true:tabOf(id)===tab));
   const t=TABS.find(t=>t.id===tab);
@@ -698,6 +755,7 @@ const tileHist={}; function renderTiles(){} function drawTiles(){}
 function miniOf(id){ // tiny inline visual per row
   if(id==='sun'){ const pts=[...Array(25)].map((_,i)=>[i/24*56,13-sunDirAt(i).el/(Math.PI/2)*11]); const x=S.sun_time/24*56, y=13-sunDir().el/(Math.PI/2)*11; return `<svg viewBox="0 0 56 26"><line x1="0" y1="13" x2="56" y2="13" stroke="rgba(255,255,255,.15)"/><polyline points="${pts.map(q=>q.join(',')).join(' ')}" fill="none" stroke="rgba(255,180,84,.6)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="2.5" fill="#ffd166"/></svg>`; }
   if(id==='atmosphere'){ const r=S.atm_rayleigh/4,m=S.atm_mie/6,o=S.atm_ozone/4; return `<svg viewBox="0 0 56 26">${[[r,'#5aa9ff'],[m,'#fff'],[o,'#a78bfa']].map(([v,c],i)=>`<rect x="${i*19}" y="${24-v*22}" width="14" height="${v*22}" rx="2" fill="${c}" opacity=".7"/>`).join('')}</svg>`; }
+  if(id==='stars'){ const lm=limitMag(); const pts=[...Array(14)].map((_,i)=>{ const a=hash(i*3.1),b=hash(i*7.7),m=hash(i*1.3); return {x:4+a*88,y:3+b*34,r:.6+m*1.8,on:(m*7-1)<lm}; }); return `<svg viewBox="0 0 96 40">${pts.map(q=>`<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${q.r.toFixed(1)}" fill="#fff" opacity="${q.on?(.4+q.r/3):.08}"/>`).join('')}</svg>`; }
   if(id==='sky'){ const e=sunElevDeg(); const c=skyColorsAt(e); return `<svg viewBox="0 0 56 26"><defs><linearGradient id="mg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(${c.top})"/><stop offset="1" stop-color="rgb(${c.hz})"/></linearGradient></defs><rect width="56" height="26" rx="6" fill="url(#mg)"/></svg>`; }
   if(id==='plane'){ return `<svg viewBox="0 0 56 26"><defs><pattern id="mp" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="${S.pl_a}"/><rect x="4" y="4" width="4" height="4" fill="${S.pl_a}"/><rect x="4" width="4" height="4" fill="${S.pl_b}"/><rect y="4" width="4" height="4" fill="${S.pl_b}"/></pattern></defs><rect width="56" height="26" rx="6" fill="url(#mp)" opacity=".8"/></svg>`; }
   if(id==='camera'){ const yaw=S.cam_yaw*D2R,h=S.cam_fov/2*D2R; return `<svg viewBox="0 0 56 26"><circle cx="28" cy="13" r="11" fill="none" stroke="rgba(255,255,255,.12)"/><path d="M28,13L${28+Math.sin(yaw-h)*12},${13-Math.cos(yaw-h)*12}A12,12,0,0,1,${28+Math.sin(yaw+h)*12},${13-Math.cos(yaw+h)*12}Z" fill="rgba(52,199,89,.3)" stroke="#34c759" stroke-width="1"/></svg>`; }
@@ -782,7 +840,13 @@ function orbPick(p,rect,ex,ey){ // invert: screen -> (az,el) using nearest point
 function globeSVG(p,v){ const R=36,cx=45,cy=45; const lat=v*D2R; const ry=Math.abs(Math.sin(lat))*R; const y=cy-Math.sin(lat)*R;
   const lines=[-60,-30,0,30,60].map(l=>{ const yy=cy-Math.sin(l*D2R)*R, rr=Math.cos(l*D2R)*R; return `<line x1="${cx-rr}" y1="${yy}" x2="${cx+rr}" y2="${yy}" class="${l?'g':'eq'}"/>`; }).join('');
   const rr=Math.cos(lat)*R; return `<circle cx="${cx}" cy="${cy}" r="${R}" class="globe"/>${lines}<ellipse cx="${cx}" cy="${cy}" rx="${R*.45}" ry="${R}" class="g"/><line x1="${cx-rr}" y1="${y}" x2="${cx+rr}" y2="${y}" class="latline"/><circle cx="${cx}" cy="${y}" r="4" class="knob"/>`; }
+const hash=x=>{ const s=Math.sin(x*127.1+311.7)*43758.5453; return s-Math.floor(s); };
+function skyLumCd(){ // zenith sky luminance in cd/m² : dark-sky floor + twilight + daylight, scaled by atmosphere thickness
+  const el=sunElevDeg(); const atm=S.atm_rayleigh*(.7+.3*S.atm_mie)*S.sky_bright*(S.vis_atmosphere===false?0:1)*(S.vis_sky?1:0);
+  const day=8000*Math.pow(Math.max(0,Math.sin(el*D2R)),.8); const twi=el<0?4*Math.exp(el/2.6):4; return 1.7e-4+(day+twi)*atm*(S.sun_intensity/22); }
+function limitMag(){ const L=skyLumCd(); const m=6.6-1.35*Math.log10(Math.max(L/1.7e-4,1)); return Math.max(-4.5,Math.min(7.5,m+Math.log10(Math.max(S.st_bright,.01))*2.5-Math.log10(Math.max(S.st_limit/1.5,.05))*1.5)); }
 function curveFn(p){ switch(p.curve){
+  case 'stars': return ()=>{ const d=getV(p.k); return [...Array(61)].map((_,i)=>{ const m=i/60; return Math.pow(m,2.2)*d+0.02; }); };
   case 'hg': return x=>{ const g=getV(p.k); return [...Array(61)].map((_,i)=>{ const mu=Math.cos(i/60*Math.PI); return (1-g*g)/Math.pow(1+g*g-2*g*mu,1.5); }); };
   case 'density': return ()=>{ const Hs=getV(p.k); return [...Array(61)].map((_,i)=>Math.exp(-(i/60*40000)/Hs)); };
   case 'disc': return ()=>{ const a=getV(p.k); return [...Array(61)].map((_,i)=>{ const x=(i/60-.5)*2*Math.max(a,1); return Math.abs(x)<a/2?1:Math.exp(-Math.pow((Math.abs(x)-a/2)/(a*.35+.05),2)); }); };
@@ -879,7 +943,7 @@ function refreshCtl_old(k){ const el=insp.querySelector(`.ctl[data-k="${CSS.esca
 function widgetProp(el){ const e=getEntity(selected); for(const s of e.sections) for(const p of s.props) if(p.k===el.dataset.k&&p.t===el.dataset.t) return p; }
 function propOf(k){ const e=getEntity(selected); if(e) for(const s of e.sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet') return p; for(const id in ENTITIES) for(const s of ENTITIES[id].sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet') return p;
   // fall back to numeric ranges for keys owned by 2-D widgets
-  const R={sun_time:[0,24,.005,'h'],sun_az:[0,360,1,'°'],cam_yaw:[-180,180,.5,'°'],cam_pitch:[-89,89,.5,'°'],cam_x:[-5000,5000,.5,'m'],cam_z:[-5000,5000,.5,'m'],atm_rayleigh:[0,4,.01,'×'],atm_mie:[0,6,.01,'×'],pp_halo:[.1,1.2,.01,''],pp_streak:[0,2,.01,'×'],atm_planetR:[1000,12000,1,'km'],atm_height:[20,200,1,'km']};
+  const R={sun_time:[0,24,.005,'h'],sun_az:[0,360,1,'°'],cam_yaw:[-180,180,.5,'°'],cam_pitch:[-89,89,.5,'°'],cam_x:[-5000,5000,.5,'m'],cam_z:[-5000,5000,.5,'m'],atm_rayleigh:[0,4,.01,'×'],atm_mie:[0,6,.01,'×'],pp_halo:[.1,1.2,.01,''],pp_streak:[0,2,.01,'×'],atm_planetR:[1000,12000,1,'km'],atm_height:[20,200,1,'km'],st_rot:[0,360,1,'°'],st_tilt:[-90,90,.5,'°'],st_glow:[0,2,.01,'×'],st_twinkle:[0,1,.01,'']};
   const b=k.startsWith('moon.')?k.split('.')[2]:k; const M={elev:[-20,90,.5,'°'],az:[0,360,1,'°'],spin:[0,360,1,'°'],tilt:[-90,90,.5,'°']}; const r=R[k]||M[b]; if(r) return {k,t:'num',min:r[0],max:r[1],step:r[2],unit:r[3]}; }
 function commit(k,v){ setV(k,v); refreshAll(k); onChanged(k); }
 function refreshAll(k){ if(k==='atm_hr'||k==='cam_height'){ const el=insp.querySelector('.ctl[data-t="planet"]'); if(el) el.querySelector('svg').innerHTML=planetSVG(widgetProp(el)); } insp.querySelectorAll('.ctl').forEach(el=>{ if(el.dataset.k===k||el.dataset.k2===k){ const p=widgetProp(el); if(!p) return; const v=getV(p.k); const q=s=>el.querySelector(s);
@@ -919,7 +983,13 @@ function moveDrag(e){ const {kind,p,k,rect}=drag;
       const f=Math.max(0,Math.min(1,(x-20)/260)); const R=Math.round(1000*Math.pow(12,f)); commit(p.k,Math.max(1000,Math.min(12000,R))); } }
   else if(kind==='phase'){ const f=Math.max(0,Math.min(1,((e.clientX-rect.left)/rect.width*300-14)/272)); commit(k,+(Math.round(f*200)/200).toFixed(3)); }
   else if(kind==='orb'){ const [az,el]=orbPick(p,rect,e.clientX,e.clientY);
-    if(p.sun){ if(drag.handle==='ring'){ commit('sun_az',Math.round(az)); } else { // pick nearest time on today's path to the pointer
+    if(p.sun){ if(drag.handle==='ring'){ commit('sun_az',Math.round(az)); }
+      else if(drag.handle==='body'||e.shiftKey){ // free drag: elevation -> time on today's arc, azimuth -> rotate the whole orbit so the sun lands under the pointer
+        const elC=Math.max(-20,Math.min(90,el)); const el_=elC; const cand=[]; for(let t=0;t<24;t+=.02){ cand.push([Math.abs(sunDirAt(t).el/D2R-el_),t]); } cand.sort((a,b)=>a[0]-b[0]);
+        // choose the candidate time closest to the current time among the two sides of the arc
+        const tNow=S.sun_time; let bt=cand[0][1]; for(const [d,t] of cand.slice(0,40)){ if(Math.abs(((t-tNow+12)%24+24)%24-12)<Math.abs(((bt-tNow+12)%24+24)%24-12)) bt=t; }
+        S.sun_time=+bt.toFixed(3); const azNow=((sunDir().az/D2R)%360+360)%360; const delta=az-azNow; S.sun_az=Math.round((((S.sun_az+delta)%360)+360)%360); refreshAll('sun_time'); refreshAll('sun_az'); onChanged('sun_time'); }
+      else { // path drag: pick nearest time on today's path to the pointer
         const W=340,H=200; const x=(e.clientX-rect.left)/rect.width*W, y=(e.clientY-rect.top)/rect.height*H; let bt=0,bd=1e9; for(let t=0;t<24;t+=.02){ const [px,py]=orbProj(sunDirAt(t).v); const d=(px-x)**2+(py-y)**2; if(d<bd){bd=d;bt=t;} } commit('sun_time',+bt.toFixed(3)); } }
     else if(p.cam){ let yaw=az>180?az-360:az; setV(p.k,Math.round(yaw*2)/2); setV(p.k2,Math.max(-89,Math.min(89,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); }
     else { setV(p.k,Math.round(az)); setV(p.k2,Math.max(-20,Math.min(90,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); } } }
@@ -947,6 +1017,7 @@ function renderInspector(){
   const e=getEntity(selected); if(!e){ insp.innerHTML='<div class="empty">Select something in the outliner</div>'; return; }
   document.getElementById('inspTitle').innerHTML=`<span style="color:${e.color}">${I(e.icon,18)}</span>${e.name}`; document.getElementById('inspKind').textContent=e.kind; insp.style.setProperty('--acc',e.color);
   const previewHTML={sunpath:`<div class="preview stats" id="pvSunStats"></div>`,
+    stars:`<div class="preview"><span class="cap">Visibility vs. sky brightness</span><span class="cap r" id="pvStarCap"></span><svg id="pvStars" viewBox="0 0 340 120"></svg></div>`,
     moon:`<div class="preview" style="display:flex;gap:14px;align-items:center;padding:14px"><canvas id="pvMoon" width="192" height="192" style="width:128px;height:128px;border-radius:50%;flex-shrink:0"></canvas><div style="flex:1;font-size:12px;color:var(--t2);line-height:1.7"><div>Phase <b id="pvPhaseName" style="color:var(--text);font-weight:400"></b></div><div>Apparent size <b id="pvSize" style="color:var(--text);font-weight:400"></b></div><div>Preset <b id="pvPreset" style="color:var(--text);font-weight:400"></b></div><div id="pvUp"></div></div></div><div class="preview" style="margin-top:8px;height:64px;background-size:100% 100%;background-repeat:repeat-x" id="pvTexStrip"><span class="cap">Equirectangular map · 2048×1024</span></div>`,
     sky:`<div class="preview"><span class="cap">Live zenith → horizon</span><canvas id="pvSkyLive" class="prev" width="340" height="44" style="height:44px"></canvas></div><div class="preview" style="margin-top:8px"><span class="cap">24 h sky</span><canvas id="pvSkyDay" class="prev" width="340" height="60" style="height:60px"></canvas></div>`,
     atmo:`<div class="preview"><span class="cap">Scattering vs wavelength</span><span class="cap r">380 → 780 nm</span><svg id="pvAtmo" viewBox="0 0 340 120"></svg></div>`,
@@ -993,6 +1064,18 @@ function drawSunPath(){ const box=document.getElementById('pvSunStats'); if(box)
     ${[6,12,18].map(t=>`<line x1="${t/24*W}" y1="${hy}" x2="${t/24*W}" y2="${hy+6}" stroke="rgba(255,255,255,.3)"/><text x="${t/24*W}" y="${H-6}" fill="rgba(255,255,255,.35)" font-size="9" text-anchor="middle" font-family="Outfit">${t}:00</text>`).join('')}
     <text x="6" y="${H-6}" fill="rgba(255,255,255,.5)" font-size="9" font-family="Outfit">↑ ${hh(rise)}</text><text x="${W-6}" y="${H-6}" fill="rgba(255,255,255,.5)" font-size="9" text-anchor="end" font-family="Outfit">↓ ${hh(set)}</text>
     <line x1="${cx}" y1="18" x2="${cx}" y2="${H-16}" stroke="rgba(255,255,255,.18)" stroke-dasharray="2 3"/><circle cx="${cx}" cy="${cy}" r="9" fill="#ffb454" opacity=".25"/><circle cx="${cx}" cy="${cy}" r="4.5" fill="${cur.el>0?'#ffd166':'#7c8cff'}"/>`; }
+function drawStars(){ const svg=document.getElementById('pvStars'); if(!svg) return; const W=340,H=120; const lm=limitMag();
+  // magnitude ladder: -1 (Sirius) .. 6.5; column per magnitude, dot size by brightness; lit if under current limit; background sweeps day→night with current time marker
+  const mags=[-1,0,1,2,3,4,5,6]; const names=['Sirius','Vega','Spica','Polaris','','','','']; const x0=30,x1=W-14;
+  const grad=[...Array(25)].map((_,i)=>{ const t=i; const c=skyColorsAt(sunDirAt(t).el/D2R); return `<stop offset="${(i/24*100).toFixed(1)}%" stop-color="rgb(${c.top})"/>`; }).join('');
+  const cols=mags.map((m,i)=>{ const x=x0+(x1-x0)*i/(mags.length-1); const on=m<lm; const r=Math.max(1.2,6-m*.75); const glow=on&&S.st_glow>0?`<circle cx="${x}" cy="46" r="${r*2.4*Math.min(1,S.st_glow)}" fill="url(#sg)"/>`:''; 
+    return `${glow}<circle cx="${x}" cy="46" r="${r.toFixed(1)}" fill="${on?'#fff':'rgba(255,255,255,.12)'}"/><text x="${x}" y="78" class="lab c">${m>0?'+':''}${m}</text>${names[i]?`<text x="${x}" y="90" class="lab c dim">${names[i]}</text>`:''}`; }).join('');
+  const lx=x0+(x1-x0)*Math.max(0,Math.min(1,(lm+1)/7)); const tx=x0+(x1-x0)*S.sun_time/24;
+  svg.innerHTML=`<defs><linearGradient id="sd" x1="0" x2="1">${grad}</linearGradient><radialGradient id="sg"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+    <rect x="${x0-14}" y="100" width="${x1-x0+28}" height="12" rx="6" fill="url(#sd)" opacity=".9"/><line x1="${tx}" y1="97" x2="${tx}" y2="115" stroke="#fff" stroke-width="1.5"/><text x="${tx}" y="94" class="lab c">${fmtT(S.sun_time)}</text>
+    <line x1="${lx.toFixed(1)}" y1="20" x2="${lx.toFixed(1)}" y2="70" stroke="#c4b5fd" stroke-dasharray="3 3"/><text x="${lx.toFixed(1)}" y="14" class="lab c" fill="#c4b5fd">limit ${lm.toFixed(1)}</text>${cols}
+    <text x="${x0-14}" y="78" class="lab">mag</text>`;
+  const cap=document.getElementById('pvStarCap'); if(cap) cap.textContent=`${Math.round(Math.max(0,Math.min(1,(lm+1)/7.5))*100)}% of field visible`; }
 function drawSkyDay(){ const cv=document.getElementById('pvSkyDay'); if(!cv) return; const ctx=cv.getContext('2d'); const W=cv.width,H=cv.height; const tint=hex2rgb(S.sky_tint);
   for(let x=0;x<W;x++){ const t=x/W*24; const e=sunDirAt(t).el/D2R; const c=skyColorsAt(e); const g=ctx.createLinearGradient(0,0,0,H); const m=(a)=>a.map((v,i)=>Math.round(Math.min(255,v*tint[i]*S.sky_bright))); g.addColorStop(0,`rgb(${m(c.top)})`); g.addColorStop(1,`rgb(${m(c.hz)})`); ctx.fillStyle=g; ctx.fillRect(x,0,1.5,H); }
   const cx=S.sun_time/24*W; ctx.fillStyle='#fff'; ctx.fillRect(cx-1,0,2,H); }
@@ -1031,7 +1114,7 @@ function updatePreview(){ const e=getEntity(selected); if(!e) return;
   switch(e.preview){ case 'sunpath': drawSunPath(); break;     case 'moon': { const m=S.moons[e.moonIndex]; const c=document.getElementById('pvMoon'); if(c) drawMoon2D(c,m); const names=['Full','Waning gibbous','Last quarter','Waning crescent','New','Waxing crescent','First quarter','Waxing gibbous']; const idx=Math.round(m.phase*8)%8;
       document.getElementById('pvPhaseName').textContent=names[idx]; document.getElementById('pvSize').textContent=m.size.toFixed(2)+'° ('+(m.size/0.52).toFixed(1)+'× Luna)'; document.getElementById('pvPreset').textContent=m.preset+' · '+m.tex; const strip=document.getElementById('pvTexStrip'); if(strip){ strip.style.backgroundImage=`url(${TEXDIR}${m.tex})`; strip.style.backgroundPosition=`${-((m.spin||0)/360)*100}% 50%`; } const md=moonDir(m); document.getElementById('pvUp').innerHTML=md[1]>0?'<span style="color:#5fd77f">Above horizon</span>':'<span style="color:#ff7a70">Below horizon</span>';
       break; }
-    case 'sky': drawSkyDay(); break; case 'plane': drawPlane(); break; case 'atmo': drawAtmo(); break; case 'camera': drawCam(); break; case 'post': drawTone(); drawFlare(); break; } }
+    case 'stars': drawStars(); break; case 'sky': drawSkyDay(); break; case 'plane': drawPlane(); break; case 'atmo': drawAtmo(); break; case 'camera': drawCam(); break; case 'post': drawTone(); drawFlare(); break; } }
 
 // hero live refresh
 const hist={}; setInterval(()=>{ const e=getEntity(selected); if(!e) return; const v=e.hero.fn(); const h=hist[selected]=(hist[selected]||[]); h.push(v); if(h.length>10) h.shift(); const d=v-h[0];
@@ -1093,6 +1176,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
   f3('uSkyTint',hex2rgb(S.sky_tint)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
+  f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',S.st_twinkle); f1('uStarColor',S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
   const vm=S.vis_moons?S.moons.filter(m=>m.visible):[]; gl.uniform1i(u('uMoonCount'),vm.length); const md=[],t1=[],mp=[],ms=[];
   for(let i=0;i<4;i++){ const m=vm[i]; gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,m?getTex(m.tex):whiteTex); gl.uniform1i(u('uMoonTex'+i),i);
     if(m){ md.push(...moonDir(m)); t1.push(...hex2rgb(m.tint)); mp.push(m.size*D2R/2,m.bright,m.phase,m.glow); ms.push(m.spin*D2R,m.tilt*D2R,m.haze,m.gamma); } else { md.push(0,1,0); t1.push(0,0,0); mp.push(.01,0,0,0); ms.push(0,0,0,1); } }
