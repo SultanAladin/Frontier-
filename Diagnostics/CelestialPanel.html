@@ -45,7 +45,7 @@ input{font:inherit;color:inherit}
 .phase-badge b{font-weight:400;color:var(--text)} .phase-badge i{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 10px var(--orange)}
 
 /* outliner */
-#outliner{position:fixed;top:18px;left:18px;bottom:18px;width:300px;border-radius:28px;z-index:15;display:flex;flex-direction:column;overflow:hidden}
+#outliner{position:fixed;top:18px;left:18px;bottom:18px;width:316px;border-radius:28px;z-index:15;display:flex;flex-direction:column;overflow:hidden}
 .panel-head{padding:22px 22px 12px;display:flex;align-items:center;justify-content:space-between}
 .panel-head h1{font-size:20px;font-weight:300;display:flex;align-items:center;gap:10px}
 .panel-head h1 span.sub{color:var(--t3);font-size:12px;margin-left:4px}
@@ -57,7 +57,48 @@ input{font:inherit;color:inherit}
 .filters button i{width:6px;height:6px;border-radius:50%;background:var(--c)}
 .filters button.on{background:var(--g3);color:var(--text);border-color:var(--stroke2)}
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
-/* header tiles */
+/* scene header */
+.clock{font-size:22px;font-weight:200;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:var(--text)} .clock small{font-size:10px;color:var(--t3);margin-left:4px;letter-spacing:.1em}
+.tabs{display:flex;margin:0 14px 10px;padding:3px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid var(--stroke)}
+.tabs button{flex:1;height:30px;border-radius:999px;border:0;background:transparent;color:var(--t3);font-size:12px;font-weight:400;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .25s var(--ease);position:relative}
+.tabs button i{width:5px;height:5px;border-radius:50%;background:var(--c);opacity:.6} .tabs button b{font-weight:300;font-size:10px;color:var(--t3);background:rgba(255,255,255,.06);padding:1px 6px;border-radius:999px}
+.tabs button.on{background:rgba(255,255,255,.10);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 4px 14px -6px rgba(0,0,0,.8)} .tabs button.on i{opacity:1;box-shadow:0 0 6px var(--c)} .tabs button.on b{color:var(--text)}
+/* 24h sky timeline */
+.timeline{margin:0 14px 10px;border-radius:16px;border:1px solid var(--stroke);background:rgba(255,255,255,.025);padding:10px 12px 8px;cursor:ew-resize;user-select:none}
+.timeline .tl-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--t3);margin-bottom:6px} .timeline .tl-head b{font-weight:300;color:var(--t2)} .timeline .tl-head em{font-style:normal;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.timeline svg{display:block;width:100%;height:58px;overflow:visible}
+.timeline .axis{display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:5px;font-variant-numeric:tabular-nums;letter-spacing:.05em}
+/* cards */
+.tree{padding:0 14px 10px}
+.sec-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--t3);padding:6px 4px 8px;display:flex;justify-content:space-between} .sec-label b{font-weight:300;color:var(--t2);letter-spacing:0}
+.card{border-radius:20px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);margin-bottom:8px;padding:12px 12px 10px;cursor:pointer;position:relative;transition:background .2s,transform .2s var(--spring),border-color .2s;overflow:hidden}
+.card::before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--acc);opacity:.75}
+.card:hover{background:rgba(255,255,255,.055)} .card.sel{background:rgba(255,255,255,.075);border-color:var(--stroke2);box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 35%,transparent) inset,0 12px 30px -18px color-mix(in srgb,var(--acc) 60%,transparent)}
+.card.dim{opacity:.5}
+.c-top{display:flex;align-items:center;gap:10px}
+.c-ico{width:34px;height:34px;border-radius:12px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc);display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+.card.sel .c-ico{box-shadow:0 0 16px -2px var(--acc)}
+.c-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px} .c-title b{font-weight:400;font-size:14px;line-height:1.1} .c-title span{font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-pill{font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border-radius:999px;border:1px solid var(--stroke);color:var(--t3);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.c-pill i{width:5px;height:5px;border-radius:50%;background:currentColor}
+.c-pill.ok{color:var(--green);border-color:color-mix(in srgb,var(--green) 40%,transparent)} .c-pill.ok i{animation:pulse 2s infinite;box-shadow:0 0 6px var(--green)}
+.c-pill.warn{color:#ffb454;border-color:rgba(255,180,84,.4)} .c-pill.off{color:var(--red);border-color:rgba(255,80,80,.35)}
+.card .eye{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--t3);opacity:0;transition:all .2s;flex-shrink:0}
+.card:hover .eye,.card.sel .eye,.card .eye.off{opacity:1} .card .eye:hover{background:var(--g3);color:var(--text)} .card .eye.off{color:var(--red)}
+.c-body{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:10px}
+.c-big{font-size:28px;font-weight:200;line-height:1;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:3px} .c-big small{font-size:12px;color:var(--t3);font-weight:300} .c-big em{font-style:normal;font-size:11px;color:var(--t3);margin-left:8px;font-weight:300}
+.c-viz{width:96px;height:40px;flex-shrink:0} .c-viz svg{width:100%;height:100%;overflow:visible}
+.c-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid var(--stroke)}
+.c-kpis div{display:flex;flex-direction:column;gap:1px;min-width:0} .c-kpis span{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3)} .c-kpis b{font-weight:300;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t2)}
+.c-kids{display:flex;gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid var(--stroke);flex-wrap:wrap}
+.kid{display:flex;align-items:center;gap:7px;padding:5px 9px 5px 5px;border-radius:999px;border:1px solid var(--stroke);background:rgba(0,0,0,.25);font-size:11px;color:var(--t2);transition:all .2s}
+.kid:hover{background:rgba(255,255,255,.07);color:var(--text)} .kid.sel{border-color:var(--stroke2);background:rgba(255,255,255,.1);color:var(--text)} .kid.dim{opacity:.45}
+.kid .moon-dot{width:16px;height:16px} .kid .kico{width:16px;height:16px;border-radius:50%;background:color-mix(in srgb,var(--acc) 20%,transparent);color:var(--acc);display:flex;align-items:center;justify-content:center}
+.kid em{font-style:normal;color:var(--t3);font-size:10px}
+.kid.add{color:var(--t3);border-style:dashed;padding:5px 10px}
+.empty{padding:30px 10px;text-align:center;color:var(--t3);font-size:12px}
+
+/* header tiles (legacy) */
 .livepill{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;color:var(--t3);padding:5px 10px;border-radius:999px;border:1px solid var(--stroke)} .livepill i{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite} @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 14px 10px}
 .tile{border-radius:16px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:10px 12px 8px;position:relative;overflow:hidden;cursor:pointer;transition:background .2s}
@@ -251,8 +292,9 @@ input{font:inherit;color:inherit}
 </div>
 
 <aside id="outliner" class="glass">
-  <div class="panel-head"><h1>Outliner<span class="sub">World</span></h1><span class="livepill"><i></i>LIVE</span></div>
-  <div class="tiles" id="tiles"></div>
+  <div class="panel-head"><h1>Scene<span class="sub">Outliner</span></h1><span class="clock" id="clock">06:24</span></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="timeline" id="timeline"></div>
   <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search  Ctrl+Shift+F"></div>
   <div class="filters" id="filters"></div>
   <div class="tree" id="tree"></div>
@@ -588,37 +630,52 @@ const activeF=new Set();
 function metaOf(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}° elev · ${S.sun_temp} K`; case 'atmosphere': return `AM ${airMass().toFixed(2)} · Mie ${S.atm_mie.toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd/m²`; case 'plane': return `${S.pl_size*2} m · ${S.pl_cell} m cells`; case 'camera': return `${S.cam_fov.toFixed(0)}° · ${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; case 'post': return `${S.pp_tonemap} · ${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(2)} EV${S.pp_flare?' · flare':''}`; }
   if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${m.size.toFixed(2)}° · ${Math.round(illum(m.phase)*100)}% lit · ${moonDir(m)[1]>0?'up':'set'}`; } return ''; }
 const isActive=id=>id==='sun'?sunElevDeg()>-0.8:id.startsWith('moon#')?moonDir(S.moons[+id.slice(5)])[1]>0:id==='camera'?keys.size>0:false;
-const rowHTML=(id,e,cls='')=>{ const isM=id.startsWith('moon#'); const m=isM?S.moons[+id.slice(5)]:null; const vis=isM?m.visible:S['vis_'+id];
-  return `<div class="row ${cls} ${selected===id?'sel':''} ${vis?'':'dim'} ${isActive(id)?'active':''}" data-id="${id}" style="--acc:${e.color}">
-    <span class="ico">${m?`<span class="moon-dot" style="--tex:url(${TEXDIR}${m.tex})"></span>`:I(e.icon,15)}<i class="live"></i></span>
-    <span class="txt"><span class="name">${e.name}</span><span class="meta" data-meta="${id}">${metaOf(id)}</span></span><span class="mini" data-mini="${id}">${miniOf(id)}</span>
-    <button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',14)}</button></div>`; };
-const stratum=(key,name,acc,colors,count,body,selId)=>`<div class="stratum ${openF[key]?'open':''}" data-folder="${key}"><div class="stratum-head ${selId&&selected===selId?'sel':''}" ${selId?`data-id="${selId}"`:''} style="--acc:${acc}"><span class="chev">${I('chev',12)}</span><span class="name">${name}</span><span class="swatches">${colors.map(c=>`<i style="--c:${c}"></i>`).join('')}</span><span class="count">${count}</span></div><div class="stratum-body" style="max-height:${count*50+60}px">${body}</div></div>`;
+const TABS=[{id:'environment',l:'Environment',c:'#5aa9ff',ids:['atmosphere','sun','sky','moons']},{id:'world',l:'World',c:'#e2e8f0',ids:['plane']},{id:'viewport',l:'Viewport',c:'#34c759',ids:['camera']}];
+let tab='environment';
+const tabOf=id=>TABS.find(t=>t.ids.includes(id))?.id;
+function fmtT(t){ t=((t%24)+24)%24; const hh=Math.floor(t),mm=Math.floor((t-hh)*60); return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; }
+function riseSet(){ let rise=null,set=null,prev=sunDirAt(0).el; for(let i=1;i<=288;i++){ const t=i/12, el=sunDirAt(t).el; if(prev<0&&el>=0&&rise===null) rise=t; if(prev>=0&&el<0) set=t; prev=el; } return {rise,set}; }
+function cardData(id){ const e=sunElevDeg(); switch(id){
+  case 'sun':{ const [pn]=phaseName(e); const az=sunDir().az/D2R; const {rise,set}=riseSet(); return {status:pn,pill:e>-0.8?['ok','Lit']:['warn','Below'],big:`${e>=0?'+':''}${e.toFixed(1)}`,unit:'°',lab:'elevation',kpis:[['Azimuth',`${((az%360)+360)%360|0}°`],['Rise',rise==null?'—':fmtT(rise)],['Set',set==null?'—':fmtT(set)]]}; }
+  case 'atmosphere': return {status:`Air mass ${airMass().toFixed(2)}`,pill:[S.atm_mie>2?'warn':'ok',S.atm_mie>2?'Hazy':'Clear'],big:airMass().toFixed(2),unit:'AM',lab:'optical depth',kpis:[['Rayleigh',`${S.atm_rayleigh.toFixed(2)}×`],['Mie',`${S.atm_mie.toFixed(2)}×`],['Ozone',`${S.atm_ozone.toFixed(1)}×`]]};
+  case 'sky':{ const z=zenithLum(); return {status:'Radiance model',pill:['ok','Live'],big:z>=10?z.toFixed(0):z.toFixed(2),unit:'kcd/m²',lab:'zenith',kpis:[['Brightness',`${S.sky_bright.toFixed(2)}×`],['Dawn glow',`${S.dawn_int.toFixed(1)}×`],['Horizon line',S.hl_auto?'auto':`${S.hl_int.toFixed(1)}×`]]}; }
+  case 'moons':{ const up=S.moons.filter(m=>m.visible&&moonDir(m)[1]>0).length; const m=S.moons[0]; return {status:S.moons.length?`${S.moons.length} in orbit · atlas`:'Atlas empty',pill:up?['ok',`${up} risen`]:['warn','Set'],big:m?`${Math.round(illum(m.phase)*100)}`:'0',unit:'%',lab:m?`${m.name} lit`:'no moon',kpis:null}; }
+  case 'plane': return {status:'Infinite checker',pill:['ok','Static'],big:`${S.pl_size*2}`,unit:'m',lab:'extent',kpis:[['Cell',`${S.pl_cell} m`],['Albedo A',S.pl_a],['Albedo B',S.pl_b]]};
+  case 'camera': return {status:keys.size?'Flying · WASD':'Idle · click viewport to fly',pill:keys.size?['ok','Moving']:['','Idle'],big:`${S.cam_fov.toFixed(0)}`,unit:'°',lab:'field of view',kpis:[['Yaw',`${S.cam_yaw.toFixed(0)}°`],['Pitch',`${S.cam_pitch.toFixed(0)}°`],['Height',`${S.cam_height.toFixed(1)} m`]]};
+  } }
+const visOf=id=>id.startsWith('moon#')?S.moons[+id.slice(5)].visible:S['vis_'+id]!==false&&S['vis_'+id]!==0;
+function cardHTML(id){ const e=ENTITIES[id]||{name:'Moons',icon:'moon',color:'#dfe6f5'}; const d=cardData(id); const vis=id==='moons'?true:visOf(id); const [pc,pl]=d.pill;
+  let foot='';
+  if(id==='moons') foot=`<div class="c-kids">${S.moons.map((m,i)=>`<span class="kid ${selected==='moon#'+i?'sel':''} ${m.visible?'':'dim'}" data-id="moon#${i}"><span class="moon-dot" style="--tex:url(${TEXDIR}${m.tex})"></span>${m.name}<em>${Math.round(illum(m.phase)*100)}%</em></span>`).join('')}${S.moons.length<4?`<span class="kid add" data-id="moons">+ add</span>`:''}</div>`;
+  else if(id==='camera') foot=`<div class="c-kpis">${d.kpis.map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join('')}</div><div class="c-kids"><span class="kid ${selected==='post'?'sel':''} ${visOf('post')?'':'dim'}" data-id="post" style="--acc:#ff8a65"><span class="kico">${I('flare',10)}</span>Post Process<em>${S.pp_tonemap} · ${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV</em></span></div>`;
+  else if(d.kpis) foot=`<div class="c-kpis">${d.kpis.map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
+  const vizId=id==='moons'?(S.moons.length?'moon#0':''):id;
+  return `<div class="card ${selected===id?'sel':''} ${vis?'':'dim'}" data-id="${id}" style="--acc:${e.color}">
+    <div class="c-top"><span class="c-ico">${I(e.icon,16)}</span><div class="c-title"><b>${e.name}</b><span data-status="${id}">${d.status}</span></div><span class="c-pill ${pc}" data-pill="${id}"><i></i>${pl}</span>${id!=='moons'?`<button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',13)}</button>`:''}</div>
+    <div class="c-body"><div class="c-big" data-big="${id}">${d.big}<small>${d.unit}</small><em>${d.lab}</em></div><div class="c-viz" data-mini="${vizId}">${vizId?miniOf(vizId):''}</div></div>${foot}</div>`; }
 function passF(id){ if(!activeF.size) return true; return FILTERS.some(f=>activeF.has(f.id)&&f.ids.includes(id.startsWith('moon#')?'moons':id)); }
+function renderTabs(){ document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="${tab===t.id?'on':''}" data-tab="${t.id}" style="--c:${t.c}"><i></i>${t.l}<b>${t.ids.reduce((n,id)=>n+(id==='moons'?S.moons.length:1),0)}</b></button>`).join(''); }
+document.getElementById('tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-tab]'); if(!b) return; tab=b.dataset.tab; document.getElementById('search').value=''; renderTree(); });
+function renderTimeline(){ const el=document.getElementById('timeline'); const W=260,H=58; const N=48; const stops=[...Array(N+1)].map((_,i)=>{ const t=i/N*24; const c=skyColorsAt(sunDirAt(t).el/D2R); return `<stop offset="${(i/N*100).toFixed(1)}%" stop-color="rgb(${c.hz})"/>`; }).join('');
+  const path=[...Array(97)].map((_,i)=>{ const t=i/96*24; return `${(t/24*W).toFixed(1)},${(H/2-Math.sin(sunDirAt(t).el)*(H/2-4)).toFixed(1)}`; }).join(' ');
+  const x=S.sun_time/24*W, y=H/2-Math.sin(sunDir().el)*(H/2-4); const {rise,set}=riseSet(); const [pn]=phaseName(sunElevDeg());
+  const tick=t=>t==null?'':`<line x1="${t/24*W}" y1="0" x2="${t/24*W}" y2="${H}" stroke="rgba(255,255,255,.25)" stroke-dasharray="2 3"/>`;
+  el.innerHTML=`<div class="tl-head"><em>Sky · 24 h</em><b>${pn}</b></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="tlg" x1="0" x2="1" y1="0" y2="0">${stops}</linearGradient><linearGradient id="tlf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgba(255,180,84,.35)"/><stop offset="1" stop-color="rgba(255,180,84,0)"/></linearGradient><clipPath id="tlc"><rect width="${W}" height="${H/2}"/></clipPath></defs>
+    <rect width="${W}" height="${H}" rx="8" fill="url(#tlg)" opacity=".55"/><line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="rgba(255,255,255,.28)"/>
+    <polygon points="0,${H/2} ${path} ${W},${H/2}" fill="url(#tlf)" clip-path="url(#tlc)"/><polyline points="${path}" fill="none" stroke="rgba(255,255,255,.75)" stroke-width="1.2"/>${tick(rise)}${tick(set)}
+    <line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="#fff" stroke-width="1" opacity=".8"/><circle cx="${x}" cy="${y}" r="4.5" fill="#ffd166" stroke="#101113" stroke-width="1.5"/></svg>
+    <div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>`; }
+(()=>{ const el=document.getElementById('timeline'); let on=false; const go=e=>{ const svg=el.querySelector('svg'); if(!svg) return; const r=svg.getBoundingClientRect(); const f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); commit('sun_time',Math.round(f*24*12)/12); };
+  el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
 function renderTree(){
-  const q=(document.getElementById('search').value||'').toLowerCase(); const ok=(id,n)=>passF(id)&&(!q||n.toLowerCase().includes(q));
-  const env=['atmosphere','sun','sky'].filter(id=>ok(id,ENTITIES[id].name)); const moonKids=S.moons.map((m,i)=>[i,m]).filter(([i,m])=>ok('moon#'+i,m.name));
-  const showMoons=passF('moons')&&(!q||moonKids.length||'moons'.includes(q));
-  const envBody=env.map(id=>rowHTML(id,ENTITIES[id])).join('')+(showMoons?`<div class="row ${selected==='moons'?'sel':''}" data-id="moons" data-folder="moons" style="--acc:#dfe6f5"><span class="ico">${I('moon',15)}</span><span class="txt"><span class="name">Moons</span><span class="meta">${S.moons.length} of 4 in orbit · atlas</span></span><span class="count" style="font-size:11px;color:var(--t3)">${S.moons.length}</span><span class="chev" style="margin-left:6px;transform:rotate(${openF.moons?90:0}deg);color:var(--t3);display:flex">${I('chev',12)}</span></div><div class="kids" style="display:${openF.moons?'block':'none'}">${moonKids.map(([i,m])=>rowHTML('moon#'+i,{name:m.name,color:'#dfe6f5'},'child')).join('')}</div>`:'');
-  const worldBody=(ok('plane','Ground Plane')?rowHTML('plane',ENTITIES.plane):'');
-  const camBody=(ok('camera','Camera')?rowHTML('camera',ENTITIES.camera):'')+(ok('post','Post Process')?`<div class="kids">${rowHTML('post',ENTITIES.post,'child')}</div>`:'');
-  treeEl.innerHTML=(envBody?stratum('environment','Environment','#5aa9ff',['#5aa9ff','#ffb454','#dfe6f5'],env.length+(showMoons?1:0)+moonKids.length,envBody):'')
-    +(worldBody?stratum('world','World','#e2e8f0',['#e2e8f0'],1,worldBody):'')+(camBody?stratum('camera','Viewport','#34c759',['#34c759','#ff8a65'],2,camBody):'');
-  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderTiles(); }
-const tileHist={sun:[],temp:[],moon:[],cam:[]};
-function renderTiles(){ const el=document.getElementById('tiles'); const e=sunElevDeg(); const [pn,pc]=phaseName(e); const m=S.moons[0]; const lit=m?Math.round(illum(m.phase)*100):0;
-  el.innerHTML=[
-    {id:'sun',c:'#ffb454',l:'Sun elevation',v:`${e>=0?'+':''}${e.toFixed(1)}<small>°</small>`,h:'sun'},
-    {id:'atmosphere',c:pc,l:pn,v:`${airMass().toFixed(1)}<small>AM</small>`,h:'temp'},
-    {id:S.moons.length?'moon#0':'moons',c:'#dfe6f5',l:S.moons.length?`${m.name} · ${m.size.toFixed(1)}°`:'No moons',v:`${lit}<small>% lit</small>`,h:'moon'},
-    {id:'camera',c:'#34c759',l:keys.size?'Flying':'Camera',v:`${S.cam_fov.toFixed(0)}<small>° fov</small>`,h:'cam'},
-  ].map(t=>`<div class="tile ${selected===t.id?'sel':''}" data-id="${t.id}"><div class="tl"><i style="--c:${t.c};background:${t.c}"></i>${t.l}</div><div class="tv">${t.v}</div><span class="arrow">${I('up',12)}</span><canvas data-tile="${t.h}" width="140" height="22"></canvas></div>`).join('');
-  drawTiles(); }
-function drawTiles(){ const vals={sun:sunElevDeg(),temp:airMass(),moon:S.moons.length?illum(S.moons[0].phase)*100:0,cam:S.cam_fov}; for(const k in vals){ const hh=tileHist[k]; hh.push(vals[k]); if(hh.length>40) hh.shift(); }
-  document.querySelectorAll('canvas[data-tile]').forEach(cv=>{ const hh=tileHist[cv.dataset.tile]; const ctx=cv.getContext('2d'); const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H); if(hh.length<2) return; let mn=Math.min(...hh),mx=Math.max(...hh); if(mx-mn<1e-6){mn-=1;mx+=1;}
-    ctx.beginPath(); hh.forEach((v,i)=>{ const x=i/(hh.length-1)*W, y=H-2-(v-mn)/(mx-mn)*(H-4); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1.2; ctx.stroke(); ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'rgba(255,255,255,.14)'); g.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=g; ctx.fill();
-    const last=hh[hh.length-1]; ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(W-1,H-2-(last-mn)/(mx-mn)*(H-4),2,0,7); ctx.fill(); }); }
-document.getElementById('tiles').addEventListener('click',e=>{ const t=e.target.closest('.tile'); if(t) select(t.dataset.id); });
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const all=['atmosphere','sun','sky','moons','plane','camera'];
+  const nameOf=id=>id==='moons'?'Moons '+S.moons.map(m=>m.name).join(' '):id==='camera'?'Camera Post Process':ENTITIES[id].name;
+  const ids=all.filter(id=>passF(id)&&(q?nameOf(id).toLowerCase().includes(q):activeF.size?true:tabOf(id)===tab));
+  const t=TABS.find(t=>t.id===tab);
+  treeEl.innerHTML=(q||activeF.size?`<div class="sec-label">${q?'Search':'Filtered'}<b>${ids.length} match${ids.length===1?'':'es'}</b></div>`:`<div class="sec-label">${t.l}<b>${ids.length} ${ids.length===1?'entity':'entities'}</b></div>`)+(ids.length?ids.map(cardHTML).join(''):`<div class="empty">Nothing here.</div>`);
+  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderTabs(); renderTimeline(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; }
+const tileHist={}; function renderTiles(){} function drawTiles(){}
 function miniOf(id){ // tiny inline visual per row
   if(id==='sun'){ const pts=[...Array(25)].map((_,i)=>[i/24*56,13-sunDirAt(i).el/(Math.PI/2)*11]); const x=S.sun_time/24*56, y=13-sunDir().el/(Math.PI/2)*11; return `<svg viewBox="0 0 56 26"><line x1="0" y1="13" x2="56" y2="13" stroke="rgba(255,255,255,.15)"/><polyline points="${pts.map(q=>q.join(',')).join(' ')}" fill="none" stroke="rgba(255,180,84,.6)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="2.5" fill="#ffd166"/></svg>`; }
   if(id==='atmosphere'){ const r=S.atm_rayleigh/4,m=S.atm_mie/6,o=S.atm_ozone/4; return `<svg viewBox="0 0 56 26">${[[r,'#5aa9ff'],[m,'#fff'],[o,'#a78bfa']].map(([v,c],i)=>`<rect x="${i*19}" y="${24-v*22}" width="14" height="${v*22}" rx="2" fill="${c}" opacity=".7"/>`).join('')}</svg>`; }
@@ -630,15 +687,14 @@ function miniOf(id){ // tiny inline visual per row
   return ''; }
 function renderFilters(){ document.getElementById('filters').innerHTML=FILTERS.map(f=>`<button class="${activeF.has(f.id)?'on':''}" data-f="${f.id}" style="--c:${f.c}"><i></i>${f.l}</button>`).join(''); }
 document.getElementById('filters').addEventListener('click',e=>{ const b=e.target.closest('[data-f]'); if(!b) return; activeF.has(b.dataset.f)?activeF.delete(b.dataset.f):activeF.add(b.dataset.f); renderTree(); });
-function refreshMeta(){ treeEl.querySelectorAll('[data-meta]').forEach(el=>{ el.textContent=metaOf(el.dataset.meta); const row=el.closest('.row'); row.classList.toggle('active',isActive(el.dataset.meta)); }); treeEl.querySelectorAll('[data-mini]').forEach(el=>{ el.innerHTML=miniOf(el.dataset.mini); }); renderTiles(); document.getElementById('hudCam').textContent=`${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; }
+function refreshMeta(){ treeEl.querySelectorAll('.card').forEach(c=>{ const id=c.dataset.id; const d=cardData(id); if(!d) return; const st=c.querySelector('[data-status]'); if(st) st.textContent=d.status; const pl=c.querySelector('[data-pill]'); if(pl){ pl.className='c-pill '+d.pill[0]; pl.innerHTML='<i></i>'+d.pill[1]; } const b=c.querySelector('[data-big]'); if(b) b.innerHTML=`${d.big}<small>${d.unit}</small><em>${d.lab}</em>`; const k=c.querySelector('.c-kpis'); if(k&&d.kpis) k.innerHTML=d.kpis.map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join(''); const mv=c.querySelector('[data-mini]'); if(mv&&mv.dataset.mini) mv.innerHTML=miniOf(mv.dataset.mini); });
+  renderTimeline(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; document.getElementById('hudCam').textContent=`${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; }
 treeEl.addEventListener('click',e=>{
-  const eye=e.target.closest('[data-eye]'); if(eye){ const id=eye.dataset.eye; if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible^=true; else S['vis_'+id]=!S['vis_'+id]; renderTree(); return; }
-  const head=e.target.closest('.stratum-head'); if(head){ const key=head.parentElement.dataset.folder; if(e.target.closest('.chev')||!head.dataset.id){ openF[key]=!openF[key]; renderTree(); } else select(head.dataset.id); return; }
-  const row=e.target.closest('.row'); if(!row) return;
-  if(row.dataset.folder&&e.target.closest('.chev')){ openF[row.dataset.folder]=!openF[row.dataset.folder]; renderTree(); return; }
-  if(row.dataset.id) select(row.dataset.id); if(row.dataset.folder&&!openF[row.dataset.folder]){ openF[row.dataset.folder]=true; renderTree(); } });
+  const eye=e.target.closest('[data-eye]'); if(eye){ e.stopPropagation(); const id=eye.dataset.eye; if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible^=true; else S['vis_'+id]=!visOf(id); renderTree(); return; }
+  const kid=e.target.closest('.kid'); if(kid){ select(kid.dataset.id); return; }
+  const card=e.target.closest('.card'); if(card) select(card.dataset.id); });
 document.getElementById('search').addEventListener('input',renderTree);
-function select(id){ selected=id; renderTree(); renderInspector(); }
+function select(id){ selected=id; const base=id.startsWith('moon#')?'moons':id==='post'?'camera':id; if(!document.getElementById('search').value) tab=tabOf(base)||tab; renderTree(); renderInspector(); }
 setInterval(()=>{ refreshMeta(); },400);
 
 /* ============================================================ CONTROLS ============================================================ */
@@ -836,7 +892,7 @@ insp.addEventListener('click',e=>{
   const ph=e.target.closest('[data-phase]'); if(ph){ const ctl=ph.closest('.ctl'); commit(ctl?ctl.dataset.k:`moon.${getEntity(selected).moonIndex}.phase`,+ph.dataset.phase); return; }
   const rm=e.target.closest('[data-remove]'); if(rm){ S.moons.splice(+rm.dataset.remove,1); renderTree(); select('moons'); return; }
   const head=e.target.closest('.sec-head'); if(head&&head.parentElement.dataset.sec!==undefined){ head.parentElement.classList.toggle('closed'); } });
-function onChanged(k){ if(k==='sun_time') drawDay(); updatePreview(); }
+function onChanged(k){ if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
 
 /* ============================================================ INSPECTOR ============================================================ */
 const bigHTML=(v,dec,signed)=>{ const [a,b]=fmt(Math.abs(v),dec).split('.'); return `${signed?(v<0?'−':'+'):''}${a}${b!==undefined?`<small>.${b}</small>`:''}`; };
