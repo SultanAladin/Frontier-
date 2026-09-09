@@ -57,6 +57,20 @@ input{font:inherit;color:inherit}
 .filters button i{width:6px;height:6px;border-radius:50%;background:var(--c)}
 .filters button.on{background:var(--g3);color:var(--text);border-color:var(--stroke2)}
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
+/* compact mode */
+.cbtn{width:28px;height:28px;border-radius:50%;border:1px solid var(--stroke);background:transparent;color:var(--t3);display:flex;align-items:center;justify-content:center;transition:all .2s} .cbtn:hover{color:var(--text);background:var(--g3)}
+#outliner.compact{width:236px} #outliner.compact .cbtn{color:var(--text);background:var(--g3)}
+#outliner.compact .timeline,#outliner.compact .filters{display:none}
+#outliner.compact .panel-head{padding:16px 16px 8px} #outliner.compact .panel-head h1{font-size:16px} #outliner.compact .clock{font-size:16px}
+#outliner.compact .tabs button{font-size:0;gap:0} #outliner.compact .tabs button i{width:7px;height:7px} #outliner.compact .tabs button b{display:none}
+#outliner.compact .search{height:32px;margin-bottom:8px}
+#outliner.compact .sec-label{display:none}
+#outliner.compact .card{padding:8px 10px;border-radius:14px;margin-bottom:5px}
+#outliner.compact .c-body,#outliner.compact .c-kpis,#outliner.compact .c-title span{display:none}
+#outliner.compact .c-ico{width:26px;height:26px;border-radius:9px} #outliner.compact .c-title b{font-size:13px}
+#outliner.compact .c-pill{font-size:0;padding:0;border:0;gap:0} #outliner.compact .c-pill i{width:6px;height:6px}
+#outliner.compact .c-kids{margin-top:6px;padding-top:6px;gap:4px} #outliner.compact .kid{padding:3px 7px 3px 3px;font-size:10px} #outliner.compact .kid em{display:none} #outliner.compact .kid.add{display:none}
+#outliner.compact .outliner-foot{grid-template-columns:1fr 1fr;padding:8px 14px 10px}
 /* scene header */
 .clock{font-size:22px;font-weight:200;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:var(--text)} .clock small{font-size:10px;color:var(--t3);margin-left:4px;letter-spacing:.1em}
 .tabs{display:flex;margin:0 14px 10px;padding:3px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid var(--stroke)}
@@ -247,6 +261,10 @@ input{font:inherit;color:inherit}
 .kelvin-ticks{display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:6px;letter-spacing:.02em}
 .pad-svg{width:100%;height:auto;margin-top:4px;cursor:crosshair;border-radius:10px;background:rgba(0,0,0,.3)} .pad-svg .g{stroke:rgba(255,255,255,.06)} .pad-svg .lab{fill:rgba(255,255,255,.35);font-size:9px;font-family:var(--font)} .pad-svg .lab.e{text-anchor:end}
 .pad-svg .frustum{fill:rgba(52,199,89,.16);stroke:rgba(52,199,89,.8)} .pad-svg .sun{fill:#ffd166} .pad-svg .axx{stroke:rgba(224,64,76,.5)} .pad-svg .axz{stroke:rgba(63,140,242,.5)}
+.planet-svg{width:100%;height:auto;margin-top:4px;border-radius:12px;background:radial-gradient(120% 80% at 50% 0%,rgba(90,169,255,.08),rgba(0,0,0,.35) 70%);cursor:ns-resize;overflow:hidden}
+.planet-svg .shell{fill:none;stroke:#5aa9ff;stroke-width:1.5;stroke-dasharray:4 3;cursor:ns-resize} .planet-svg .limb{fill:none;stroke:#fff;stroke-width:1.5;cursor:ew-resize}
+.planet-svg .tick{stroke:rgba(255,255,255,.4)} .planet-svg .lab{fill:rgba(255,255,255,.6);font-size:9px;font-family:var(--mono,monospace)} .planet-svg .lab.dim{fill:rgba(255,255,255,.3)} .planet-svg .lab.c{text-anchor:middle;fill:rgba(255,255,255,.3)}
+.planet-svg .inset .ref{fill:none;stroke:rgba(255,255,255,.2);stroke-dasharray:2 2} .planet-svg .inset .atmo{fill:rgba(90,169,255,.25);stroke:none} .planet-svg .inset .body{fill:#2a2f3a;stroke:rgba(255,255,255,.5)}
 .orbit2-svg{width:100%;height:auto;margin-top:4px} .orbit2-svg .globe{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.18)} .orbit2-svg .g{fill:none;stroke:rgba(255,255,255,.1)} .orbit2-svg .eq{fill:none;stroke:rgba(255,255,255,.35)} .orbit2-svg .pm{fill:none;stroke:rgba(255,180,84,.8)}
 .orbit2-svg .axis{stroke:#fff;stroke-width:1.5;stroke-dasharray:3 3} .orbit2-svg .arc{fill:none;stroke:rgba(255,255,255,.5);stroke-width:1.5} .orbit2-svg .track{stroke:rgba(255,255,255,.12);stroke-width:4;stroke-linecap:round} .orbit2-svg .lab{fill:rgba(255,255,255,.35);font-size:9px;font-family:var(--font)}
 .phase-svg{width:100%;height:auto;margin-top:2px;cursor:ew-resize} .phase-svg .pdark{fill:#1b1d22;stroke:rgba(255,255,255,.12)} .phase-svg .plit{fill:#e8edf7} .phase-svg .track{stroke:rgba(255,255,255,.12);stroke-width:4;stroke-linecap:round} .phase-svg .arc{stroke:#fff;stroke-width:4;stroke-linecap:round} .phase-svg g{cursor:pointer}
@@ -292,7 +310,7 @@ input{font:inherit;color:inherit}
 </div>
 
 <aside id="outliner" class="glass">
-  <div class="panel-head"><h1>Scene<span class="sub">Outliner</span></h1><span class="clock" id="clock">06:24</span></div>
+  <div class="panel-head"><h1>Scene<span class="sub">Outliner</span></h1><span style="display:flex;align-items:center;gap:10px"><span class="clock" id="clock">06:24</span><button class="cbtn" id="compactBtn" title="Compact outliner (Tab)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button></span></div>
   <div class="tabs" id="tabs"></div>
   <div class="timeline" id="timeline"></div>
   <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search  Ctrl+Shift+F"></div>
@@ -523,7 +541,8 @@ const CURVE=(k,l,min,max,step,d,unit,fn,x={})=>({k,l,t:'curve',min,max,step,d,un
 const GAUGE=(k,l,min,max,step,d,unit,x={})=>({k,l,t:'gauge',min,max,step,d,unit,...x});   // arc gauge (semi-circle)
 const KELVIN=(k,l,d)=>({k,l,t:'kelvin',min:2000,max:12000,step:50,d,unit:'K'});          // spectrum bar with swatch
 const PAD=(kx,ky,l,x={})=>({k:kx,k2:ky,l,t:'pad',...x});                                  // 2D XY pad
-const ORBIT2=(kSpin,kTilt,l)=>({k:kSpin,k2:kTilt,l,t:'orbit2'});                           // spin/tilt sphere widget
+const ORBIT2=(kSpin,kTilt,l)=>({k:kSpin,k2:kTilt,l,t:'orbit2'});
+const PLANET=(kR,kH,l)=>({k:kR,k2:kH,l,t:'planet',hint:'Drag the limb to resize the planet · drag the shell for atmosphere top'});                           // spin/tilt sphere widget
 const PHASE=(k,l,d)=>({k,l,t:'phase',min:0,max:1,step:0.005,d,unit:''});                  // phase ring
 const HIST=(k,l,min,max,step,d,unit)=>({k,l,t:'hist',min,max,step,d,unit});               // exposure histogram scrub
 const COL=(k,l,d)=>({k,l,t:'color',d}); const SEG=(k,l,opts,d)=>({k,l,t:'seg',opts,d});
@@ -552,7 +571,7 @@ function makeMoon(preset,i){ const p=MOON_ATLAS.find(m=>m.id===preset); const m=
 const ENTITIES={
   atmosphere:{name:'Atmosphere',kind:'Atmosphere',color:'#5aa9ff',icon:'atmo',preview:'atmo',hero:{label:'Air Mass',unit:'AM',dec:2,fn:()=>airMass()},
     sections:[{title:'Scattering',icon:'wave',props:[PAD('atm_rayleigh','atm_mie','Rayleigh × Mie',{xmin:0,xmax:4,ymin:0,ymax:6,xl:'Rayleigh',yl:'Mie',hint:'Drag: right = deeper blue · up = hazier'}),CURVE('atm_mieG','Mie Anisotropy',0,0.99,0.005,0.78,'g',null,{curve:'hg'}),GAUGE('atm_ozone','Ozone',0,4,0.01,1.2,'×')]},
-      {title:'Planet',icon:'globe',props:[CURVE('atm_hr','Rayleigh Scale H',2000,15000,10,8000,'m',null,{curve:'density'}),CURVE('atm_hm','Mie Scale H',300,4000,10,1200,'m',null,{curve:'density'}),TRK('atm_planetR','Planet Radius',1000,12000,1,6371,'km',{log:true}),TRK('atm_height','Atmosphere Top',20,200,1,100,'km')]},
+      {title:'Planet',icon:'globe',props:[CURVE('atm_hr','Rayleigh Scale H',2000,15000,10,8000,'m',null,{curve:'density'}),CURVE('atm_hm','Mie Scale H',300,4000,10,1200,'m',null,{curve:'density'}),PLANET('atm_planetR','atm_height','Planet & Atmosphere')]},
       {title:'Twilight',icon:'horizon',sub:'dawn & dusk',props:[GAUGE('dawn_int','Horizon Glow',0,3,0.01,1,'×'),GAUGE('hl_int','White Line',0,3,0.01,1,'×'),TOG('hl_auto','Line only at civil twilight',true)]}]},
   sun:{name:'Sun',kind:'Directional Light',color:'#ffb454',icon:'sun',preview:'sunpath',hero:{label:'Elevation',unit:'°',dec:1,fn:()=>sunElevDeg(),signed:true},
     sections:[{title:'Position',icon:'orbit',props:[ORB('sun_az','sun_time','Solar Orbit',{sun:true,hint:'Drag the sun along its path · drag the ring to rotate azimuth'}),GLOBE('sun_lat','Latitude',-26,{hint:'Drag the globe'})]},
@@ -573,7 +592,7 @@ const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
@@ -694,6 +713,8 @@ treeEl.addEventListener('click',e=>{
   const kid=e.target.closest('.kid'); if(kid){ select(kid.dataset.id); return; }
   const card=e.target.closest('.card'); if(card) select(card.dataset.id); });
 document.getElementById('search').addEventListener('input',renderTree);
+const outlinerEl=document.getElementById('outliner'); function setCompact(v){ outlinerEl.classList.toggle('compact',v); localStorage.setItem('cp_compact',v?'1':'0'); } document.getElementById('compactBtn').addEventListener('click',()=>setCompact(!outlinerEl.classList.contains('compact'))); if(localStorage.getItem('cp_compact')==='1') setCompact(true);
+window.addEventListener('keydown',e=>{ if(e.code==='Tab'&&!(e.target.closest&&e.target.closest('input,textarea'))){ e.preventDefault(); setCompact(!outlinerEl.classList.contains('compact')); } });
 function select(id){ selected=id; const base=id.startsWith('moon#')?'moons':id==='post'?'camera':id; if(!document.getElementById('search').value) tab=tabOf(base)||tab; renderTree(); renderInspector(); }
 setInterval(()=>{ refreshMeta(); },400);
 
@@ -782,6 +803,26 @@ function padSVG(p){ const W=300,H=130; const fx=(getV(p.k)-p.xmin)/(p.xmax-p.xmi
     const yaw=S.cam_yaw*D2R; const half=S.cam_fov/2*D2R; const L=60; bg+=`<path d="M${x},${y}L${x+Math.sin(yaw-half)*L},${y-Math.cos(yaw-half)*L}A${L},${L},0,0,1,${x+Math.sin(yaw+half)*L},${y-Math.cos(yaw+half)*L}Z" class="frustum"/>`; const sv=sunDir().v; bg+=`<circle cx="${W/2+sv[0]*W*.45}" cy="${H/2+sv[2]*H*.45}" r="4" class="sun"/><line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" class="axz"/><line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" class="axx"/>`; }
   else { bg=`<defs><linearGradient id="padg" x1="0" x2="1" y1="1" y2="0"><stop offset="0" stop-color="var(--acc)" stop-opacity="0"/><stop offset="1" stop-color="var(--acc)" stop-opacity=".22"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#padg)"/>`; }
   return `${bg}${grid}<line x1="${x}" y1="0" x2="${x}" y2="${H}" class="cur"/><line x1="0" y1="${y}" x2="${W}" y2="${y}" class="cur"/><circle cx="${x}" cy="${y}" r="6" class="knob"/><text x="${W-6}" y="${H-6}" class="lab e">${p.xl} →</text><text x="6" y="12" class="lab">↑ ${p.yl}</text>`; }
+function planetSVG(p){ const W=300,H=150; const R=getV(p.k), Ht=getV(p.k2); // cutaway: planet limb as an arc seen from the side, atmosphere shell above, true-ratio inset
+  const cx=150, ground=118; const rPx=Math.max(90,Math.min(900,R/6371*260)); const cy=ground+rPx; // limb curvature scales with radius
+  const shellPx=Math.max(6,Math.min(60,Ht*0.42)); // 1 px ≈ 2.4 km
+  const arc=(r)=>{ const th=r>150?Math.asin(150/r):Math.PI/2; const pts=[]; for(let i=0;i<=40;i++){ const a=-Math.PI/2-th+ (2*th)*i/40; const x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r; pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);} return pts.join(' '); };
+  const limbPath=`M${arc(rPx)}`; const shellPath=`M${arc(rPx+shellPx)}`;
+  // density bands (Rayleigh scale height) inside shell
+  const Hr=S.atm_hr/1000; let bands=''; for(let i=0;i<5;i++){ const zkm=Ht*i/5; const d=Math.exp(-zkm/Hr); bands+=`<path d="M${arc(rPx+shellPx*i/5)}" fill="none" stroke="rgba(90,169,255,${(.06+d*.35).toFixed(2)})" stroke-width="${(shellPx/5).toFixed(1)}" stroke-linecap="butt" transform="translate(0,${(-shellPx/10).toFixed(1)})"/>`; }
+  // horizon dip from height 2 m is tiny; show camera & tangent ray to horizon (distance)
+  const hcam=S.cam_height/1000; const dHz=Math.sqrt(Math.max(0,2*R*hcam+hcam*hcam)); const dip=Math.acos(R/(R+hcam))/D2R;
+  // true-ratio inset (top-right): full circle with atmosphere as thin ring at real proportion, Earth reference ring dashed
+  const ir=26, icx=262, icy=40; const irR=ir*Math.min(1.6,R/6371), irA=irR*(1+Ht/R);
+  const inset=`<g class="inset"><circle cx="${icx}" cy="${icy}" r="${(ir).toFixed(1)}" class="ref"/><circle cx="${icx}" cy="${icy}" r="${irA.toFixed(1)}" class="atmo"/><circle cx="${icx}" cy="${icy}" r="${irR.toFixed(1)}" class="body"/><text x="${icx}" y="${icy+ir+13}" class="lab c">true ratio · Earth ref ⌀</text></g>`;
+  return `<defs><linearGradient id="pgnd" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3a4150"/><stop offset="1" stop-color="#14161a"/></linearGradient></defs>
+    <rect width="${W}" height="${H}" fill="transparent"/>
+    <path d="${shellPath}L300,${H}L0,${H}Z" fill="rgba(90,169,255,.05)"/>${bands}
+    <path d="${shellPath}" class="shell" data-handle="shell"/><path d="${limbPath}L300,${H}L0,${H}Z" fill="url(#pgnd)"/><path d="${limbPath}" class="limb" data-handle="limb"/>
+    <line x1="${cx}" y1="${ground}" x2="${cx}" y2="${ground-shellPx}" class="tick"/><text x="${cx+5}" y="${ground-shellPx+3}" class="lab">top ${Ht.toFixed(0)} km</text>
+    <text x="${cx+5}" y="${ground-shellPx*Math.min(1,Hr/Ht)+3}" class="lab dim">H ${Hr.toFixed(1)} km</text><line x1="${cx-4}" y1="${ground-shellPx*Math.min(1,Hr/Ht)}" x2="${cx+4}" y2="${ground-shellPx*Math.min(1,Hr/Ht)}" class="tick"/>
+    <circle cx="${cx}" cy="${ground}" r="2.5" fill="#34c759"/><text x="14" y="${H-8}" class="lab">R ${R.toFixed(0)} km · horizon ${dHz.toFixed(1)} km · dip ${dip.toFixed(2)}°</text>
+    <text x="14" y="16" class="lab">${(R/6371).toFixed(2)}× Earth · g-scale limb</text>${inset}`; }
 function orbit2SVG(p){ const cx=150,cy=55,R=40; const spin=getV(p.k)*D2R, tilt=getV(p.k2)*D2R; const ct=Math.cos(tilt),st=Math.sin(tilt);
   const lines=[-60,-30,0,30,60].map(l=>{ const pts=[]; for(let a=0;a<=Math.PI;a+=Math.PI/24){ const lon=a-Math.PI/2+spin; const x=Math.cos(l*D2R)*Math.sin(lon), y=Math.sin(l*D2R), z=Math.cos(l*D2R)*Math.cos(lon); const yy=y*ct-z*st, zz=y*st+z*ct; if(zz<0) continue; pts.push([cx+x*R,cy-yy*R]); } return pts.length>1?`<polyline points="${pts.map(q=>q.join(',')).join(' ')}" class="${l?'g':'eq'}"/>`:''; }).join('');
   const merid=[0,90,180,270].map(m=>{ const pts=[]; for(let l=-90;l<=90;l+=6){ const lon=m*D2R+spin; const x=Math.cos(l*D2R)*Math.sin(lon), y=Math.sin(l*D2R), z=Math.cos(l*D2R)*Math.cos(lon); const yy=y*ct-z*st, zz=y*st+z*ct; if(zz<0) continue; pts.push([cx+x*R,cy-yy*R]); } return pts.length>1?`<polyline points="${pts.map(q=>q.join(',')).join(' ')}" class="${m?'g':'pm'}"/>`:''; }).join('');
@@ -810,6 +851,7 @@ function ctlHTML(p){ const v=getV(p.k); const lab=`<span class="l">${p.l}${p.hin
     case 'gauge': return `<div class="ctl half" data-k="${p.k}" data-t="gauge"><div class="ctl-top">${lab}</div><div class="gauge-wrap"><svg class="gauge-svg" viewBox="0 0 120 70">${gaugeSVG(p,v)}</svg><div class="gauge-val">${valHTML(p,v)}</div></div></div>`;
     case 'kelvin': return `<div class="ctl" data-k="${p.k}" data-t="kelvin"><div class="ctl-top">${lab}${valHTML(p,v)}</div><div class="kelvin-bar" style="--p:${frac(p,v)*100}%"><i class="kmark"></i><span class="kswatch" style="background:${rgbCss(kelvinRGB(v))}"></span></div><div class="kelvin-ticks"><span>2000 candle</span><span>3200 tungsten</span><span>5800 sun</span><span>9000 shade</span><span>12000</span></div></div>`;
     case 'pad': return `<div class="ctl" data-k="${p.k}" data-k2="${p.k2}" data-t="pad"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k}" value="${fmt(v,2)}" style="width:54px;font-size:16px"><span class="u">${p.xl}</span><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),2)}" style="width:54px;font-size:16px"><span class="u">${p.yl}</span></span></div><svg class="pad-svg" viewBox="0 0 300 130">${padSVG(p)}</svg></div>`;
+    case 'planet': return `<div class="ctl" data-k="${p.k}" data-k2="${p.k2}" data-t="planet"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k}" value="${fmt(v,0)}" style="width:54px;font-size:16px"><span class="u">km R</span><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),0)}" style="width:40px;font-size:16px"><span class="u">km top</span></span></div><svg class="planet-svg" viewBox="0 0 300 150">${planetSVG(p)}</svg></div>`;
     case 'orbit2': return `<div class="ctl" data-k="${p.k}" data-k2="${p.k2}" data-t="orbit2"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k}" value="${fmt(v,0)}" style="width:44px;font-size:16px"><span class="u">spin</span><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),1)}" style="width:44px;font-size:16px"><span class="u">tilt</span></span></div><svg class="orbit2-svg" viewBox="0 0 300 110">${orbit2SVG(p)}</svg></div>`;
     case 'phase': return `<div class="ctl" data-k="${p.k}" data-t="phase"><div class="ctl-top">${lab}<span class="vwrap"><span class="hint2" data-phase-name>${phaseLabel(v)}</span>${valHTML(p,v)}</span></div><svg class="phase-svg" viewBox="0 0 300 70">${phaseSVG(p,v)}</svg></div>`;
     case 'hist': return `<div class="ctl" data-k="${p.k}" data-t="hist"><div class="ctl-top">${lab}${valHTML(p,v)}</div><svg class="hist-svg" viewBox="0 0 300 80" preserveAspectRatio="none">${histSVG(p,v)}</svg></div>`;
@@ -833,25 +875,25 @@ function refreshCtl_old(k){ const el=insp.querySelector(`.ctl[data-k="${CSS.esca
   if(p.t==='kelvin'){ el.querySelector('.kelvin-bar').style.setProperty('--p',frac(p,v)*100+'%'); el.querySelector('.kswatch').style.background=rgbCss(kelvinRGB(v)); }
   if(p.t==='phase'){ el.querySelector('.phase-svg').innerHTML=phaseSVG(p,v); el.querySelector('[data-phase-name]').textContent=phaseLabel(v); }
   if(p.t==='hist') el.querySelector('.hist-svg').innerHTML=histSVG(p,v);
-  if(p.t==='orb'||p.t==='pad'||p.t==='orbit2'){ const svg=el.querySelector('svg'); svg.innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):orbit2SVG(p); const i2=el.querySelector(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'?2:1)); const i1=el.querySelector(`input.val[data-val="${CSS.escape(p.k)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'?2:0); } }
+  if(p.t==='orb'||p.t==='pad'||p.t==='orbit2'||p.t==='planet'){ const svg=el.querySelector('svg'); svg.innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):p.t==='planet'?planetSVG(p):orbit2SVG(p); const i2=el.querySelector(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'?2:p.t==='planet'?0:1)); const i1=el.querySelector(`input.val[data-val="${CSS.escape(p.k)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'?2:0); } }
 function widgetProp(el){ const e=getEntity(selected); for(const s of e.sections) for(const p of s.props) if(p.k===el.dataset.k&&p.t===el.dataset.t) return p; }
-function propOf(k){ const e=getEntity(selected); if(e) for(const s of e.sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad') return p; for(const id in ENTITIES) for(const s of ENTITIES[id].sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad') return p;
+function propOf(k){ const e=getEntity(selected); if(e) for(const s of e.sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet') return p; for(const id in ENTITIES) for(const s of ENTITIES[id].sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet') return p;
   // fall back to numeric ranges for keys owned by 2-D widgets
-  const R={sun_time:[0,24,.005,'h'],sun_az:[0,360,1,'°'],cam_yaw:[-180,180,.5,'°'],cam_pitch:[-89,89,.5,'°'],cam_x:[-5000,5000,.5,'m'],cam_z:[-5000,5000,.5,'m'],atm_rayleigh:[0,4,.01,'×'],atm_mie:[0,6,.01,'×'],pp_halo:[.1,1.2,.01,''],pp_streak:[0,2,.01,'×']};
+  const R={sun_time:[0,24,.005,'h'],sun_az:[0,360,1,'°'],cam_yaw:[-180,180,.5,'°'],cam_pitch:[-89,89,.5,'°'],cam_x:[-5000,5000,.5,'m'],cam_z:[-5000,5000,.5,'m'],atm_rayleigh:[0,4,.01,'×'],atm_mie:[0,6,.01,'×'],pp_halo:[.1,1.2,.01,''],pp_streak:[0,2,.01,'×'],atm_planetR:[1000,12000,1,'km'],atm_height:[20,200,1,'km']};
   const b=k.startsWith('moon.')?k.split('.')[2]:k; const M={elev:[-20,90,.5,'°'],az:[0,360,1,'°'],spin:[0,360,1,'°'],tilt:[-90,90,.5,'°']}; const r=R[k]||M[b]; if(r) return {k,t:'num',min:r[0],max:r[1],step:r[2],unit:r[3]}; }
 function commit(k,v){ setV(k,v); refreshAll(k); onChanged(k); }
-function refreshAll(k){ insp.querySelectorAll('.ctl').forEach(el=>{ if(el.dataset.k===k||el.dataset.k2===k){ const p=widgetProp(el); if(!p) return; const v=getV(p.k); const q=s=>el.querySelector(s);
+function refreshAll(k){ if(k==='atm_hr'||k==='cam_height'){ const el=insp.querySelector('.ctl[data-t="planet"]'); if(el) el.querySelector('svg').innerHTML=planetSVG(widgetProp(el)); } insp.querySelectorAll('.ctl').forEach(el=>{ if(el.dataset.k===k||el.dataset.k2===k){ const p=widgetProp(el); if(!p) return; const v=getV(p.k); const q=s=>el.querySelector(s);
   const inp=q(`input.val[data-val="${CSS.escape(p.k)}"]`); if(inp&&document.activeElement!==inp&&p.step!==undefined) inp.value=fmt(v,decOf(p.step));
   switch(p.t){ case 'trk': q('.trk-bar').style.setProperty('--p',frac(p,v)*100+'%'); break; case 'dial': q('.dial-svg').innerHTML=dialSVG(p,v); break; case 'step': el.querySelectorAll('.dots i').forEach((d,i)=>d.classList.toggle('on',i<v)); break; case 'toggle': q('.sw').classList.toggle('on',!!v); break;
     case 'globe': q('.globe-svg').innerHTML=globeSVG(p,v); q('[data-globe-hint]').textContent=latName(v); break; case 'curve': q('.curve-svg').innerHTML=curveSVG(p,v); break; case 'gauge': q('.gauge-svg').innerHTML=gaugeSVG(p,v); break;
     case 'kelvin': q('.kelvin-bar').style.setProperty('--p',frac(p,v)*100+'%'); q('.kswatch').style.background=rgbCss(kelvinRGB(v)); break; case 'phase': q('.phase-svg').innerHTML=phaseSVG(p,v); q('[data-phase-name]').textContent=phaseLabel(v); break; case 'hist': q('.hist-svg').innerHTML=histSVG(p,v); break;
-    case 'orb': case 'pad': case 'orbit2': { q('svg').innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):orbit2SVG(p); const i1=q(`input.val[data-val="${CSS.escape(p.k)}"]`),i2=q(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'?2:0); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'?2:1)); break; } } } }); }
+    case 'orb': case 'pad': case 'orbit2': case 'planet': { q('svg').innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):p.t==='planet'?planetSVG(p):orbit2SVG(p); const i1=q(`input.val[data-val="${CSS.escape(p.k)}"]`),i2=q(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'?2:0); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'?2:p.t==='planet'?0:1)); break; } } } }); }
 // interactions
 const insp=document.getElementById('insp'); let drag=null;
 insp.addEventListener('pointerdown',e=>{
   if(e.target.closest('input')) return;
   const bar=e.target.closest('.trk-bar'); const dial=e.target.closest('.dial-svg'); const sp=e.target.closest('.preview[data-scrub]');
-  const gw=e.target.closest('.orb-svg,.globe-svg,.curve-svg,.gauge-svg,.kelvin-bar,.pad-svg,.orbit2-svg,.phase-svg,.hist-svg');
+  const gw=e.target.closest('.orb-svg,.globe-svg,.curve-svg,.gauge-svg,.kelvin-bar,.pad-svg,.orbit2-svg,.phase-svg,.hist-svg,.planet-svg');
   const tgt=bar||dial||sp||gw; if(!tgt) return; const el=e.target.closest('.ctl,.preview'); const k=el.dataset.k;
   const p=gw?widgetProp(el):(k?propOf(k):null); const handle=e.target.closest('[data-handle]')?.dataset.handle;
   drag={el,k,p,kind:bar?'trk':dial?'dial':sp?'scrub':p.t,rect:tgt.getBoundingClientRect(),x0:e.clientX,y0:e.clientY,v0:k?getV(k):0,v1:p&&p.k2?getV(p.k2):0,handle}; tgt.setPointerCapture(e.pointerId); moveDrag(e); });
@@ -870,6 +912,11 @@ function moveDrag(e){ const {kind,p,k,rect}=drag;
     setV(p.k,snap(p.xmin+fx*(p.xmax-p.xmin),sx)); setV(p.k2,snap(p.ymin+fy*(p.ymax-p.ymin),sy)); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); }
   else if(kind==='orbit2'){ const W=300; const x=(e.clientX-rect.left)/rect.width*W, y=(e.clientY-rect.top)/rect.height*110; const h=drag.handle||(x<95?'spin':'tilt');
     if(h==='spin'){ const f=Math.max(0,Math.min(1,(x-20)/(150-40-44))); commit(p.k,Math.round(f*360)); } else { const a=Math.atan2(x-150,-(y-55))/D2R; commit(p.k2,Math.max(-90,Math.min(90,Math.round(a*2)/2))); } }
+  else if(kind==='planet'){ const y=(e.clientY-rect.top)/rect.height*150, x=(e.clientX-rect.left)/rect.width*300; const ground=118;
+    let hnd=drag.handle; if(!hnd){ const R=getV(p.k), Ht=getV(p.k2); const shellPx=Math.max(6,Math.min(60,Ht*0.42)); hnd=y<ground-shellPx*0.5?'shell':'limb'; drag.handle=hnd; }
+    if(hnd==='shell'){ const Ht=Math.max(20,Math.min(200,(ground-y)/0.42)); commit(p.k2,Math.round(Ht)); }
+    else { // horizontal drag scales radius (log), vertical fine-tunes
+      const f=Math.max(0,Math.min(1,(x-20)/260)); const R=Math.round(1000*Math.pow(12,f)); commit(p.k,Math.max(1000,Math.min(12000,R))); } }
   else if(kind==='phase'){ const f=Math.max(0,Math.min(1,((e.clientX-rect.left)/rect.width*300-14)/272)); commit(k,+(Math.round(f*200)/200).toFixed(3)); }
   else if(kind==='orb'){ const [az,el]=orbPick(p,rect,e.clientX,e.clientY);
     if(p.sun){ if(drag.handle==='ring'){ commit('sun_az',Math.round(az)); } else { // pick nearest time on today's path to the pointer
