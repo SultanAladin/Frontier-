@@ -480,7 +480,7 @@ input{font:inherit;color:inherit}
 #insp .fport .mp-3up .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
 #insp .fport .mp-3up b{font-size:14px;font-weight:500;letter-spacing:-.3px;color:var(--text);
   font-variant-numeric:tabular-nums;}
-#insp .fport .mp-meter{margin:2px 0 10px;background:var(--field);border:1px solid var(--stroke);
+#insp .fport .mp-meter{margin:2px 0 10px;background:rgba(255,255,255,.03);border:1px solid var(--stroke);
   border-radius:var(--r-inset);overflow:hidden;padding:2px 0 0;}
 #insp .fport .mp-meter canvas{display:block;width:100%;}
 #insp .fport .mp-size{margin:2px 0 0;background:var(--field);border:1px solid var(--stroke);
@@ -1987,14 +1987,20 @@ function fogPanel(node, ctx) {
   lc.querySelector('.mp-chead .l').onclick = () => lc.classList.toggle('shut');
 
   function paintProfile() {
-    const [g, w, h] = sizeCanvas(profileCv, 96); g.clearRect(0, 0, w, h); const L = 32, R = 8, T = 5, B = 14, py = m => T + (1 - m / 200) * (h - T - B), px = d => L + d / .06 * (w - L - R);
-    [0, 50, 100, 150, 200].forEach(m => { g.strokeStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.moveTo(L, py(m)); g.lineTo(w - R, py(m)); g.stroke(); g.fillStyle = 'rgba(255,255,255,.28)'; g.font = '8px ui-sans-serif,system-ui'; g.textAlign = 'right'; g.fillText(m === 100 ? '100 m' : m, L - 5, py(m) + 3); });
-    const grad = g.createLinearGradient(L, 0, w - R, 0); grad.addColorStop(0, rgba(rgb(C()), .04)); grad.addColorStop(1, rgba(rgb(C()), .5));
-    g.beginPath(); g.moveTo(L, py(0)); for (let m = 0; m <= 200; m += 2) g.lineTo(px(atHeight(D(), H(), m)), py(m)); g.lineTo(L, py(200)); g.closePath(); g.fillStyle = grad; g.fill();
-    g.beginPath(); for (let m = 0; m <= 200; m += 2) m ? g.lineTo(px(atHeight(D(), H(), m)), py(m)) : g.moveTo(px(D()), py(0)); g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 1.4; g.stroke(); g.lineWidth = 1;
-    const y = py(H()); g.setLineDash([3, 3]); g.strokeStyle = 'rgba(255,255,255,.38)'; g.beginPath(); g.moveTo(L, y); g.lineTo(w - R, y); g.stroke(); g.setLineDash([]); g.fillStyle = '#fff'; g.beginPath(); g.arc(px(D() / Math.E), y, 3, 0, Math.PI * 2); g.fill();
+    const [g, w, h] = sizeCanvas(profileCv, 118); g.clearRect(0, 0, w, h);
+    const L = 14, R = 14, T = 12, B = 14, rows = [0, 50, 100, 150, 200]; const py = m => T + (1 - m / 200) * (h - T - B), bx = 74, bw = w - bx - R - 62;
+    g.font = '8.5px ui-sans-serif,system-ui';
+    /* left: altitude ladder */
+    rows.forEach(m => { const y = py(m); g.strokeStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.moveTo(bx, y + .5); g.lineTo(bx + bw, y + .5); g.stroke(); g.fillStyle = 'rgba(255,255,255,.35)'; g.textAlign = 'right'; g.fillText(`${m} m`, bx - 10, y + 3); });
+    /* middle: horizontal density bars per altitude band (thin, calm) */
+    const bands = 20; for (let i = 0; i < bands; i++) { const m0 = i / bands * 200, m1 = (i + 1) / bands * 200, y0 = py(m1), y1 = py(m0); const dens = atHeight(D(), H(), (m0 + m1) / 2) / .06; g.fillStyle = rgba(rgb(C()), .10 + dens * .75); g.fillRect(bx, y0 + 1, Math.max(2, dens * bw), (y1 - y0) - 2); }
+    /* falloff height marker + label column on the right */
+    const y = py(H()); g.strokeStyle = 'rgba(255,255,255,.7)'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(bx, y + .5); g.lineTo(bx + bw, y + .5); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(bx + bw, y, 3, 0, Math.PI * 2); g.fill();
+    g.textAlign = 'left'; g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(`${H().toFixed(0)} m`, bx + bw + 10, y + 3); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText('1/e', bx + bw + 10, y + 13);
+    g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText(`${(atHeight(D(), H(), 200) / D() * 100).toFixed(0)}% top`, bx + bw + 10, py(200) + 3); g.fillText('100% datum', bx + bw + 10, py(0) + 3);
   }
-  const heightFrom = e => { const r = profileCv.getBoundingClientRect(); setProp(node, 'height', Math.round(clamp((1 - (e.clientY - r.top - 5) / Math.max(1, r.height - 19)) * 200, 1, 200))); paintAll(); };
+  const heightFrom = e => { const r = profileCv.getBoundingClientRect(); setProp(node, 'height', Math.round(clamp((1 - (e.clientY - r.top - 12) / Math.max(1, r.height - 26)) * 200, 1, 200))); paintAll(); };
   on(profileCv, 'pointerdown', e => { profileCv.setPointerCapture(e.pointerId); profileCv.classList.add('drag'); heightFrom(e); }); on(profileCv, 'pointermove', e => { if (profileCv.hasPointerCapture?.(e.pointerId)) heightFrom(e); }); on(profileCv, 'pointerup', e => profileCv.releasePointerCapture?.(e.pointerId));
 
   /* ── light transport ───────────────────────────────────────────────────────────────────── */
@@ -2008,12 +2014,17 @@ function fogPanel(node, ctx) {
   const note = el('div', 'mp-note'); sb.append(note); host.append(sc); sc.querySelector('.mp-chead .l').onclick = () => sc.classList.toggle('shut');
 
   function paintChamber() {
-    const [g, w, h] = sizeCanvas(chamberCv, 74); g.clearRect(0, 0, w, h); g.fillStyle = '#070809'; g.fillRect(0, 0, w, h);
-    const cy = h / 2, col = rgb(C()), strength = S();
-    for (let x = 0; x < w; x += 2) { const t = x / w, spread = 3 + t * t * (12 + strength * 22), a = (.03 + strength * .10) * transmission(D(), t * 120); const grd = g.createLinearGradient(0, cy - spread, 0, cy + spread); grd.addColorStop(0, rgba(col, 0)); grd.addColorStop(.5, rgba(col, a)); grd.addColorStop(1, rgba(col, 0)); g.fillStyle = grd; g.fillRect(x, cy - spread, 2.1, spread * 2); }
-    g.fillStyle = 'rgba(255,247,220,.95)'; g.beginPath(); g.arc(10, cy, 4, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,.13)'; g.beginPath(); g.moveTo(10, cy); g.lineTo(w - 8, cy); g.stroke();
-    g.fillStyle = 'rgba(255,255,255,.3)'; g.font = '8px ui-sans-serif,system-ui'; g.textAlign = 'left'; g.fillText('SUN', 7, 10); g.textAlign = 'right'; g.fillText(`${(transmission(D(), 120) * 100).toFixed(0)}% AT 120 m`, w - 7, h - 6);
+    const [g, w, h] = sizeCanvas(chamberCv, 96); g.clearRect(0, 0, w, h);
+    const col = rgb(C()), strength = S(); const L = 16, R = 16, y = 30; const stops = [0, 20, 50, 100, 200]; const px = d => L + Math.log10(1 + d) / Math.log10(201) * (w - L - R);
+    g.font = '8.5px ui-sans-serif,system-ui';
+    /* beam: a single thin line whose brightness is the transmitted fraction, with in-scatter glow proportional to sun scatter */
+    for (let x = L; x < w - R; x += 2) { const d = Math.pow(201, (x - L) / (w - L - R)) - 1; const tr = transmission(D(), d); g.fillStyle = `rgba(255,247,220,${(.12 + tr * .8).toFixed(3)})`; g.fillRect(x, y - 1, 2.2, 2); const sc = (1 - tr) * strength * .22; g.fillStyle = rgba(col, sc); g.fillRect(x, y - 7, 2.2, 14); }
+    g.fillStyle = 'rgba(255,247,220,.95)'; g.beginPath(); g.arc(L, y, 4, 0, Math.PI * 2); g.fill();
+    /* ledger: transmission at fixed stops */
+    stops.forEach((d, i) => { const x = px(d), tr = transmission(D(), d); g.strokeStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.moveTo(x + .5, y + 10); g.lineTo(x + .5, y + 16); g.stroke(); g.textAlign = i === 0 ? 'left' : i === stops.length - 1 ? 'right' : 'center'; g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText(d ? `${d} m` : 'sun', x, y + 28); g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(d ? `${(tr * 100).toFixed(0)}%` : '100%', x, y + 42); });
+    /* phase readout: forward / side / back share */
+    const gg = .55, hg = c => (1 - gg * gg) / Math.pow(1 + gg * gg - 2 * gg * c, 1.5); const f = hg(1), s = hg(0), b = hg(-1), tot = f + s + b;
+    const bw = w - L - R, by = h - 12; let x0 = L; [[f, 'forward', .85], [s, 'side', .45], [b, 'back', .2]].forEach(([v, k, a]) => { const ww = v / tot * bw; g.fillStyle = rgba(col, .15 + a * strength * .5); g.fillRect(x0, by - 6, ww - 2, 6); g.fillStyle = 'rgba(255,255,255,.35)'; g.textAlign = 'left'; if (ww > 34) g.fillText(`${k} ${(v / tot * 100).toFixed(0)}%`, x0, by - 10); x0 += ww; });
   }
 
   function paintAll() {
