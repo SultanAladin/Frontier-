@@ -58,13 +58,15 @@ input{font:inherit;color:inherit}
 .filters button.on{background:var(--g3);color:var(--text);border-color:var(--stroke2)}
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
 /* stat cards (reference style) */
-.sun-hero{border-radius:20px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:14px 14px 10px;position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
-.sun-hero::before{content:'';position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:0 3px 3px 0;background:var(--c)}
-.sh-top{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;align-items:start;padding-left:6px}
-.sh-l{font-size:12px;color:var(--t2)} .sh-v{display:flex;align-items:baseline;gap:4px;margin-top:6px} .sh-v b{font-size:44px;font-weight:200;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums} .sh-v small{font-size:12px;color:var(--t3);font-weight:300} .sh-v .tr{margin-left:8px;color:var(--t3);align-self:center}
-.sh-sub{font-size:11px;color:var(--t3);margin-top:8px}
-.sh-col{display:flex;flex-direction:column;gap:6px;border-left:1px solid var(--stroke);padding-left:12px} .sh-col>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px} .sh-col span{font-size:10.5px;color:var(--t3)} .sh-col b{font-size:14px;font-weight:300;font-variant-numeric:tabular-nums;white-space:nowrap} .sh-col b i{font-style:normal;font-size:10px;color:var(--t3);margin-left:2px}
-.sh-arc{width:100%;height:86px;display:block;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--stroke)} .sh-arc .tk{fill:rgba(255,255,255,.3);font-size:8px;font-family:var(--mono)}
+.sun-top{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{border-radius:18px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:14px 14px 12px;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;gap:6px 8px;align-items:end;min-width:0}
+.tile .tico{grid-column:1;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:#34c759} .tile.warn .tico{background:#ff5a4d} .tile .tico.dot{width:10px;height:10px;background:var(--acc,#ffb454);margin:6px}
+.tile .tl{grid-column:1;font-size:13px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .tile b{grid-column:2;grid-row:1/3;font-size:34px;font-weight:200;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:nowrap} .tile b i{font-style:normal;font-size:12px;color:var(--t3);margin-left:2px}
+.sun-card{border-radius:20px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:14px 14px 10px;margin-top:8px;display:flex;flex-direction:column;gap:2px}
+.sc-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--t2)} .sc-head .tr{color:var(--t3)}
+.sc-v{display:flex;align-items:baseline;margin-top:4px} .sc-v b{font-size:46px;font-weight:200;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums} .sc-v i{font-style:normal;font-size:46px;font-weight:200;line-height:1;color:var(--t3);letter-spacing:-.02em} .sc-v small{font-size:12px;color:var(--t3);margin-left:8px}
+.sc-meta{display:flex;gap:16px;margin:10px 0 6px;font-size:11px;color:var(--t3);flex-wrap:wrap} .sc-meta b{font-weight:400;color:var(--t2);margin-left:4px}
+.sc-chart{width:100%;height:120px;display:block} .sc-chart .tk{fill:rgba(255,255,255,.3);font-size:8.5px;font-family:var(--font)}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
 .stat{border-radius:18px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:12px 12px 8px;position:relative;overflow:hidden;display:flex;flex-direction:column;gap:4px;min-height:118px}
 .stat-l{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2)} .stat-l::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--c)}
@@ -366,6 +368,7 @@ input{font:inherit;color:inherit}
 .speedbar{width:70px;height:4px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden} .speedbar i{display:block;height:100%;width:30%;background:#fff;border-radius:999px;transition:width .15s}
 #hud{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:12;display:flex;gap:8px}
 @media (max-width:1200px){#outliner{width:260px}#inspector{width:350px}#dayTrack{width:200px}}
+.disc-svg{width:100%;display:block;margin-top:8px;cursor:crosshair;touch-action:none} .disc-svg .lab{fill:rgba(255,255,255,.45);font-size:9px;font-family:var(--mono)} .disc-svg .rows .k{fill:var(--t2);font-size:12px;font-family:var(--font)} .disc-svg .rows .v{fill:#fff;font-size:13px;font-family:var(--font)}
 .lens-svg,.horizon-svg{width:100%;display:block;border-radius:14px;cursor:crosshair;touch-action:none;margin-top:8px}
 .lens-svg .lab,.horizon-svg .lab{fill:rgba(255,255,255,.45);font-size:9px;letter-spacing:.06em;font-family:var(--mono)} .lens-svg .big{fill:#fff;font-size:18px;font-weight:300;font-family:var(--font)} .lens-svg .big .u{fill:var(--t3);font-size:10px}
 .horizon-svg .row .k{fill:var(--t2);font-size:12px;font-family:var(--font)} .horizon-svg .row .v{fill:#fff;font-size:13px;font-family:var(--font)}
@@ -406,6 +409,11 @@ input{font:inherit;color:inherit}
 .insp-scroll{overflow-x:hidden}
 #insp .fport .mp-rail,#insp .fport .mp-duo{min-width:0}
 #insp .fport .mp-pill{overflow:hidden}
+#insp .fport .mp-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:0!important;border-radius:18px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);overflow:hidden}
+#insp .fport .mp-pill{background:none!important;border:0!important;border-radius:0!important;padding:11px 12px 10px!important;position:relative;gap:3px!important}
+#insp .fport .mp-pill+.mp-pill::before{content:'';position:absolute;left:0;top:11px;bottom:11px;width:1px;background:var(--stroke)}
+#insp .fport .mp-pill .v{font-size:17px!important;font-weight:200!important;letter-spacing:-.01em!important}
+#insp .fport .mp-duo{gap:8px} #insp .fport .mp-stat{background:rgba(255,255,255,.035)!important;border:1px solid var(--stroke)!important}
 #insp .fport .mp-hero canvas{width:100%!important}
 #insp .fport .mpanel{display:flex;flex-direction:column;gap:10px}
 #insp .fport .pcard{background:var(--inset);border-radius:var(--r-inset);padding:12px 14px 14px;margin-bottom:0;animation:cardIn .28s var(--ease)}
@@ -2352,6 +2360,7 @@ const SKYMAP=(kAz,kEl,l,x={})=>({k:kAz,k2:kEl,l,t:'skymap',...x});              
 const LUM=(kB,kG,l,x={})=>({k:kB,k2:kG,l,t:'lum',...x});                          // brightness + glow luminance strip
 const PLANET=(kR,kH,l)=>({k:kR,k2:kH,l,t:'planet',hint:'Drag the limb to resize the planet · drag the shell for atmosphere top'});                           // spin/tilt sphere widget
 const PHASE=(k,l,d)=>({k,l,t:'phase',min:0,max:1,step:0.005,d,unit:''});                  // phase ring
+const DISC=(kAng,kSoft,kRad,l,x={})=>({k:kAng,k2:kSoft,k3:kRad,l,t:'disc',...x});
 const LENS=(k,l,x={})=>({k,l,t:'lens',min:20,max:120,step:.5,d:72,unit:'°',...x}); const HORIZON=(kYaw,kPitch,kRoll,l,x={})=>({k:kYaw,k2:kPitch,k3:kRoll,l,t:'horizon',...x});
 const HIST=(k,l,min,max,step,d,unit)=>({k,l,t:'hist',min,max,step,d,unit});               // exposure histogram scrub
 const COL=(k,l,d)=>({k,l,t:'color',d}); const SEG=(k,l,opts,d)=>({k,l,t:'seg',opts,d});
@@ -2384,7 +2393,7 @@ const ENTITIES={
   sun:{name:'Sun',kind:'Directional Light',color:'#ffb454',icon:'sun',preview:'sunpath',hero:{kind:'sun'},
     sections:[{title:'Position',icon:'orbit',props:[ORB('sun_az','sun_time','Solar Orbit',{sun:true,hint:'Drag the sun freely (swings azimuth + time) · drag the path for time only · ring = azimuth'}),GLOBE('sun_lat','Latitude',-26,{hint:'Drag the globe'})]},
       {title:'Time',icon:'orbit',props:[TOG('sun_play','Animate (Space)',false),SEG('sun_speed','Speed',['×1','×8','×30','×100'],'×8')]},
-      {title:'Light',icon:'bulb',props:[KELVIN('sun_temp','Colour Temperature',5800),GAUGE('sun_intensity','Intensity',0,60,0.1,22,'×'),GAUGE('sun_disc','Disc Radiance',0,40,0.1,12,'×'),CURVE('sun_ang','Angular Diameter',0.1,10,0.01,0.53,'°',(x,S)=>x,{log:true,curve:'disc'}),TRK('sun_soft','Disc Softness',0,1,0.01,0.25,'')]}]},
+      {title:'Light',icon:'bulb',props:[KELVIN('sun_temp','Colour Temperature',5800),GAUGE('sun_intensity','Intensity',0,60,0.1,22,'×'),DISC('sun_ang','sun_soft','sun_disc','Solar disc',{hint:'drag the ring = angular diameter · drag inside = softness · scroll = radiance'}),GAUGE('sun_disc','Disc Radiance',0,40,0.1,12,'×')]}]},
   sky:{name:'Sky',kind:'Sky Atmosphere',color:'#67e8f9',icon:'sky',preview:'none',external:true,hero:{kind:'sky'},
     sections:[{title:'Appearance',icon:'palette',props:[COL('sky_tint','Sky Tint','#ffffff'),GAUGE('sky_bright','Sky Brightness',0,3,0.01,1,'×')]},
       {title:'Ground',icon:'ground',props:[COL('sky_ground','Ground Albedo','#2b2924'),GAUGE('sky_groundBright','Ground Brightness',0,3,0.01,1,'×')]}]},
@@ -2412,7 +2421,7 @@ const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; if(S.cam_fov==null) S.cam_fov=72; if(S.cam_roll==null) S.cam_roll=0; S.fogP={enabled:true,density:.011,height:42,color:'#8fa4bb',sunScatter:.7}; S.cloudP={coverage:.46,density:.62,altitude:130,scale:1,detail:.55,speed:1,tint:'#eef3f8',shade:'#5c6a7c',windLinked:true}; S.terrP={terrainMode:'Sculpt',size:180,height:12,frequency:1.2,seed:417,resolution:'256',lowColor:'#263628',highColor:'#88917b',roughness:.88,wireframe:false,castShadow:true,pos:[0,0,0],sourceName:''}; S.folderP={world:{tint:'#5aa9ff'},lights:{tint:'#ffd27a'}}; S.plP={pos:[6,2.2,-4],color:'#ffd9a0',intensity:14,distance:26,decay:2,shadows:false,gizmoGlow:true}; S.slP={pos:[-5,6,-8],target:[0,0,-6],angle:26,penumbra:.42,intensity:62,color:'#e8f0ff',shadows:true,showCone:true}; S.cineP={pos:[10,3,12],lookAt:[0,1,0],focal:50,sensorWidth:36,fov:39.6,focus:8,aperture:2.8,shutterAngle:180,iso:800,squeeze:1,gate:'2.39:1',showFrustum:true,shutter:60,near:.1}; S.skyP={rayleigh:S.atm_rayleigh*1.35,mie:.22,mieG:S.atm_mieG,turbidity:3.4,ozone:S.atm_ozone,zenith:'#2f6dd0',horizon:'#9fc4e8',ground:S.sky_ground,intensity:1,aerial:true,lightsScene:true}; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; if(S.sun_ang==null) S.sun_ang=0.53; if(S.sun_soft==null) S.sun_soft=0.25; if(S.cam_fov==null) S.cam_fov=72; if(S.cam_roll==null) S.cam_roll=0; S.fogP={enabled:true,density:.011,height:42,color:'#8fa4bb',sunScatter:.7}; S.cloudP={coverage:.46,density:.62,altitude:130,scale:1,detail:.55,speed:1,tint:'#eef3f8',shade:'#5c6a7c',windLinked:true}; S.terrP={terrainMode:'Sculpt',size:180,height:12,frequency:1.2,seed:417,resolution:'256',lowColor:'#263628',highColor:'#88917b',roughness:.88,wireframe:false,castShadow:true,pos:[0,0,0],sourceName:''}; S.folderP={world:{tint:'#5aa9ff'},lights:{tint:'#ffd27a'}}; S.plP={pos:[6,2.2,-4],color:'#ffd9a0',intensity:14,distance:26,decay:2,shadows:false,gizmoGlow:true}; S.slP={pos:[-5,6,-8],target:[0,0,-6],angle:26,penumbra:.42,intensity:62,color:'#e8f0ff',shadows:true,showCone:true}; S.cineP={pos:[10,3,12],lookAt:[0,1,0],focal:50,sensorWidth:36,fov:39.6,focus:8,aperture:2.8,shutterAngle:180,iso:800,squeeze:1,gate:'2.39:1',showFrustum:true,shutter:60,near:.1}; S.skyP={rayleigh:S.atm_rayleigh*1.35,mie:.22,mieG:S.atm_mieG,turbidity:3.4,ozone:S.atm_ozone,zenith:'#2f6dd0',horizon:'#9fc4e8',ground:S.sky_ground,intensity:1,aerial:true,lightsScene:true}; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
@@ -2698,6 +2707,25 @@ function lumSVG(p){ const W=300,H=110; const b=getV(p.k), g=getV(p.k2); const fb
     <text x="${x0}" y="70" class="lab">GLOW</text><text x="${x1}" y="70" class="lab e">${g.toFixed(2)}×</text><rect x="${x0}" y="76" width="${x1-x0}" height="10" rx="5" fill="url(#gramp)"/><circle cx="${gx.toFixed(1)}" cy="81" r="7" class="knob" data-handle="glow"/>
     <text x="${x0}" y="104" class="lab dim">Rel. luminance ${(fb*100).toFixed(0)}% · halo ${(6+fg*34).toFixed(0)} px</text>`;
   return `<defs><radialGradient id="lhalo"><stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset=".45" stop-color="#dfe6f5" stop-opacity=".22"/><stop offset="1" stop-color="#dfe6f5" stop-opacity="0"/></radialGradient><linearGradient id="lramp" x1="0" x2="1"><stop offset="0" stop-color="#15171c"/><stop offset="1" stop-color="#fff"/></linearGradient><linearGradient id="gramp" x1="0" x2="1"><stop offset="0" stop-color="#15171c"/><stop offset="1" stop-color="#9db4ff"/></linearGradient></defs>${disc}${ramps}`; }
+function discSVG(p){ const W=300,H=150; const ang=getV(p.k), soft=getV(p.k2), rad=getV(p.k3); const cx=88,cy=75; const R=14+Math.log(ang/0.1)/Math.log(100)*44; // 0.1°→14px, 10°→58px (log)
+  const k=[...Array(9)].map((_,i)=>{ const dd=[.1,.25,.5,1,2,4,10][i]; return dd; }).filter(Boolean);
+  const kel=S.sun_temp||5800; const col=kel<3500?'#ffb070':kel<5000?'#ffd39a':kel<6500?'#fff4e0':'#e8f0ff';
+  const inner=R*(1-soft*.9); const glow=Math.min(1,rad/40);
+  const moonR=14+Math.log(0.52/0.1)/Math.log(100)*44;
+  return `<rect width="${W}" height="${H}" rx="14" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.07)"/>
+  <defs><radialGradient id="dg" cx="50%" cy="50%" r="50%"><stop offset="${(inner/R*100).toFixed(1)}%" stop-color="${col}" stop-opacity="1"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/></radialGradient>
+  <radialGradient id="dh"><stop offset="0" stop-color="${col}" stop-opacity="${(.35*glow).toFixed(2)}"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient></defs>
+  <circle cx="${cx}" cy="${cy}" r="${(R*2.6).toFixed(1)}" fill="url(#dh)"/>
+  <circle cx="${cx}" cy="${cy}" r="${moonR.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.18)" stroke-dasharray="2 4"/>
+  <circle cx="${cx}" cy="${cy}" r="${R.toFixed(1)}" fill="url(#dg)"/>
+  <circle cx="${cx}" cy="${cy}" r="${R.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1" data-handle="ring"/>
+  <circle cx="${(cx+R).toFixed(1)}" cy="${cy}" r="4" fill="#fff" stroke="#000" stroke-width="2" data-handle="ring"/>
+  <text x="${cx}" y="${(cy+R+16).toFixed(1)}" text-anchor="middle" class="lab">${ang.toFixed(2)}°  ·  ${(ang/0.53).toFixed(1)}× sol</text>
+  <g class="rows"><text x="172" y="44"><tspan class="k">Diameter</tspan><tspan class="v" x="288" text-anchor="end">${ang.toFixed(2)}°</tspan></text>
+  <text x="172" y="70"><tspan class="k">Softness</tspan><tspan class="v" x="288" text-anchor="end">${Math.round(soft*100)}%</tspan></text>
+  <text x="172" y="96"><tspan class="k">Radiance</tspan><tspan class="v" x="288" text-anchor="end">${rad.toFixed(1)}×</tspan></text>
+  <text x="172" y="122"><tspan class="k">Colour</tspan><tspan class="v" x="288" text-anchor="end">${kel} K</tspan></text></g>
+  <line x1="172" y1="52" x2="288" y2="52" stroke="rgba(255,255,255,.07)"/><line x1="172" y1="78" x2="288" y2="78" stroke="rgba(255,255,255,.07)"/><line x1="172" y1="104" x2="288" y2="104" stroke="rgba(255,255,255,.07)"/>`; }
 function lensSVG(p){ const W=300,H=170; const fov=getV(p.k); const mm=24/(2*Math.tan(fov/2*D2R)); // 24mm-tall gate => vertical FOV ⇄ full-frame equiv
   const cx=150,cy=85; const sensorX=272, sensorH=54; const ax=cx-8-Math.max(0,(mm-8))*1.35; const lensX=Math.max(70,Math.min(235,cx+(50-mm)*1.6)); // focal group slides on the axis
   const half=Math.tan(fov/2*D2R); const L=lensX-24, span=Math.min(120,26+ (L-24)*half*1.8); const rayY=Math.min(76,half*60);
@@ -2785,6 +2813,7 @@ function ctlHTML(p){ const v=getV(p.k); const lab=`<span class="l">${p.l}${p.hin
     case 'gauge': return `<div class="ctl half" data-k="${p.k}" data-t="gauge"><div class="ctl-top">${lab}</div><div class="gauge-wrap"><svg class="gauge-svg" viewBox="0 0 120 70">${gaugeSVG(p,v)}</svg><div class="gauge-val">${valHTML(p,v)}</div></div></div>`;
     case 'kelvin': return `<div class="ctl" data-k="${p.k}" data-t="kelvin"><div class="ctl-top">${lab}${valHTML(p,v)}</div><div class="kelvin-bar" style="--p:${frac(p,v)*100}%"><i class="kmark"></i><span class="kswatch" style="background:${rgbCss(kelvinRGB(v))}"></span></div><div class="kelvin-ticks"><span>2000 candle</span><span>3200 tungsten</span><span>5800 sun</span><span>9000 shade</span><span>12000</span></div></div>`;
     case 'pad': return `<div class="ctl" data-k="${p.k}" data-k2="${p.k2}" data-t="pad"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k}" value="${fmt(v,2)}" style="width:54px;font-size:16px"><span class="u">${p.xl}</span><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),2)}" style="width:54px;font-size:16px"><span class="u">${p.yl}</span></span></div><svg class="pad-svg" viewBox="0 0 300 130">${padSVG(p)}</svg></div>`;
+    case 'disc': return `<div class="ctl wide" data-k="${p.k}" data-k2="${p.k2}" data-k3="${p.k3}" data-t="disc"><div class="ctl-top">${lab}</div><svg class="disc-svg" viewBox="0 0 300 150">${discSVG(p)}</svg></div>`;
     case 'lens': { const mm=24/(2*Math.tan(getV(p.k)/2*D2R)); return `<div class="ctl wide" data-k="${p.k}" data-t="lens"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k}" value="${fmt(v,1)}"><span class="u">°</span></span></div><div class="lens-big"><b>${Math.floor(v)}</b><i>.${Math.round(v*10)%10}</i><span class="deg">°</span></div><span class="lens-pill" data-lenspill>≈ ${mm.toFixed(0)} mm · ${v>90?'ultra wide':v>65?'wide':v>40?'normal':'tele'}</span><svg class="lens-svg" viewBox="0 0 300 170">${lensSVG(p)}</svg></div>`; }
     case 'horizon': return `<div class="ctl wide" data-k="${p.k}" data-k2="${p.k2}" data-k3="${p.k3}" data-t="horizon"><div class="ctl-top">${lab}</div><svg class="horizon-svg" viewBox="0 0 300 170">${horizonSVG(p)}</svg></div>`;
     case 'skymap': return `<div class="ctl wide" data-k="${p.k}" data-k2="${p.k2}" data-t="skymap"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),1)}"><span class="u">° alt</span><input class="val" data-val="${p.k}" value="${fmt(v,0)}" style="width:52px"><span class="u">° az</span></span></div><svg class="skymap-svg" viewBox="0 0 300 200">${skymapSVG(p)}</svg></div>`;
@@ -2815,7 +2844,7 @@ function refreshCtl_old(k){ const el=insp.querySelector(`.ctl[data-k="${CSS.esca
   if(p.t==='hist') el.querySelector('.hist-svg').innerHTML=histSVG(p,v);
   if(p.t==='orb'||p.t==='pad'||p.t==='orbit2'||p.t==='planet'||p.t==='skymap'||p.t==='lum'){ const svg=el.querySelector('svg'); svg.innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):p.t==='planet'?planetSVG(p):p.t==='skymap'?skymapSVG(p):p.t==='lum'?lumSVG(p):orbit2SVG(p); const i2=el.querySelector(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'||p.t==='lum'?2:p.t==='planet'?0:1)); const i1=el.querySelector(`input.val[data-val="${CSS.escape(p.k)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'||p.t==='lum'?2:0); } }
 function widgetProp(el){ const e=getEntity(selected); for(const s of e.sections) for(const p of s.props) if(p.k===el.dataset.k&&p.t===el.dataset.t) return p; }
-function propOf(k){ const e=getEntity(selected); if(e) for(const s of e.sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet'&&p.t!=='skymap'&&p.t!=='lum'&&p.t!=='horizon') return p; for(const id in ENTITIES) for(const s of ENTITIES[id].sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet'&&p.t!=='skymap'&&p.t!=='lum') return p;
+function propOf(k){ const e=getEntity(selected); if(e) for(const s of e.sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet'&&p.t!=='skymap'&&p.t!=='lum'&&p.t!=='horizon'&&p.t!=='disc') return p; for(const id in ENTITIES) for(const s of ENTITIES[id].sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad'&&p.t!=='planet'&&p.t!=='skymap'&&p.t!=='lum') return p;
   // fall back to numeric ranges for keys owned by 2-D widgets
   const R={sun_time:[0,24,.005,'h'],sun_az:[0,360,1,'°'],cam_yaw:[-180,180,.5,'°'],cam_pitch:[-89,89,.5,'°'],cam_x:[-5000,5000,.5,'m'],cam_z:[-5000,5000,.5,'m'],atm_rayleigh:[0,4,.01,'×'],atm_mie:[0,6,.01,'×'],pp_halo:[.1,1.2,.01,''],pp_streak:[0,2,.01,'×'],atm_planetR:[1000,12000,1,'km'],atm_height:[20,200,1,'km'],st_rot:[0,360,1,'°'],st_tilt:[-90,90,.5,'°'],st_glow:[0,2,.01,'×'],st_twinkle:[0,1,.01,'']};
   const b=k.startsWith('moon.')?k.split('.')[2]:k; const M={elev:[-20,90,.5,'°'],az:[0,360,1,'°'],spin:[0,360,1,'°'],tilt:[-90,90,.5,'°'],bright:[0,6,.01,'×'],glow:[0,3,.01,'×']}; const r=R[k]||M[b]; if(r) return {k,t:'num',min:r[0],max:r[1],step:r[2],unit:r[3]}; }
@@ -2827,13 +2856,14 @@ function refreshAll(k){ if(k==='atm_hr'||k==='cam_height'){ const el=insp.queryS
     case 'kelvin': q('.kelvin-bar').style.setProperty('--p',frac(p,v)*100+'%'); q('.kswatch').style.background=rgbCss(kelvinRGB(v)); break; case 'phase': q('.phase-svg').innerHTML=phaseSVG(p,v); q('[data-phase-name]').textContent=phaseLabel(v); break; case 'hist': q('.hist-svg').innerHTML=histSVG(p,v); break;
     case 'lens': { q('svg').innerHTML=lensSVG(p); const v=getV(p.k); const mm=24/(2*Math.tan(v/2*D2R)); q('.lens-big b').textContent=Math.floor(v); q('.lens-big i').textContent='.'+Math.round(v*10)%10; q('[data-lenspill]').textContent=`≈ ${mm.toFixed(0)} mm · ${v>90?'ultra wide':v>65?'wide':v>40?'normal':'tele'}`; const i1=q(`input.val[data-val="${CSS.escape(p.k)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(v,1); break; }
     case 'horizon': { q('svg').innerHTML=horizonSVG(p); break; }
+    case 'disc': { q('svg').innerHTML=discSVG(p); break; }
     case 'orb': case 'pad': case 'orbit2': case 'planet': case 'skymap': case 'lum': { q('svg').innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):p.t==='planet'?planetSVG(p):p.t==='skymap'?skymapSVG(p):p.t==='lum'?lumSVG(p):orbit2SVG(p); const i1=q(`input.val[data-val="${CSS.escape(p.k)}"]`),i2=q(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'||p.t==='lum'?2:0); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'||p.t==='lum'?2:p.t==='planet'?0:1)); break; } } } }); }
 // interactions
 const insp=document.getElementById('insp'); let drag=null;
 insp.addEventListener('pointerdown',e=>{
   if(e.target.closest('input')||e.target.closest('.fport')) return;
   const bar=e.target.closest('.trk-bar'); const dial=e.target.closest('.dial-svg'); const sp=e.target.closest('.preview[data-scrub]');
-  const gw=e.target.closest('.orb-svg,.globe-svg,.curve-svg,.gauge-svg,.kelvin-bar,.pad-svg,.orbit2-svg,.phase-svg,.hist-svg,.planet-svg,.skymap-svg,.lum-svg,.lens-svg,.horizon-svg');
+  const gw=e.target.closest('.orb-svg,.globe-svg,.curve-svg,.gauge-svg,.kelvin-bar,.pad-svg,.orbit2-svg,.phase-svg,.hist-svg,.planet-svg,.skymap-svg,.lum-svg,.lens-svg,.horizon-svg,.disc-svg');
   const tgt=bar||dial||sp||gw; if(!tgt) return; const el=e.target.closest('.ctl,.preview'); const k=el.dataset.k;
   const p=gw?widgetProp(el):(k?propOf(k):null); const handle=e.target.closest('[data-handle]')?.dataset.handle;
   drag={el,k,p,kind:bar?'trk':dial?'dial':sp?'scrub':p.t,rect:tgt.getBoundingClientRect(),x0:e.clientX,y0:e.clientY,v0:k?getV(k):0,v1:p&&p.k2?getV(p.k2):0,handle}; tgt.setPointerCapture(e.pointerId); moveDrag(e); });
@@ -2852,6 +2882,10 @@ function moveDrag(e){ const {kind,p,k,rect}=drag;
     setV(p.k,snap(p.xmin+fx*(p.xmax-p.xmin),sx)); setV(p.k2,snap(p.ymin+fy*(p.ymax-p.ymin),sy)); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); }
   else if(kind==='orbit2'){ const W=300; const x=(e.clientX-rect.left)/rect.width*W, y=(e.clientY-rect.top)/rect.height*110; const h=drag.handle||(x<95?'spin':'tilt');
     if(h==='spin'){ const f=Math.max(0,Math.min(1,(x-20)/(150-40-44))); commit(p.k,Math.round(f*360)); } else { const a=Math.atan2(x-150,-(y-55))/D2R; commit(p.k2,Math.max(-90,Math.min(90,Math.round(a*2)/2))); } }
+  else if(kind==='disc'){ const W=300,H=150,cx=88,cy=75; const x=(e.clientX-rect.left)/rect.width*W-cx, y=(e.clientY-rect.top)/rect.height*H-cy; const r=Math.hypot(x,y); const R=14+Math.log(getV(p.k)/0.1)/Math.log(100)*44;
+    if(!drag.handle) drag.handle=(drag.h0=r)>R-8?'ring':x>80?'none':'soft';
+    if(drag.handle==='ring'){ const ang=0.1*Math.pow(100,Math.max(0,Math.min(1,(r-14)/44))); commit(p.k,+ang.toFixed(2)); }
+    else if(drag.handle==='soft'){ const dy=(drag.y0-e.clientY)/rect.height*H; commit(p.k2,+Math.max(0,Math.min(1,drag.v1+dy/80)).toFixed(2)); } }
   else if(kind==='lens'){ const x=(e.clientX-rect.left)/rect.width*300; const mm=Math.max(6,Math.min(200,50-(x-150)/1.6)); const fov=2*Math.atan(12/mm)/D2R; commit(p.k,Math.round(Math.max(20,Math.min(120,fov))*2)/2); }
   else if(kind==='horizon'){ const W=300,H=170,cx=82,cy=85,R=66; const x=(e.clientX-rect.left)/rect.width*W, y=(e.clientY-rect.top)/rect.height*H;
     if(!drag.handle){ const d=Math.hypot(x-cx,y-cy); drag.handle=y>H-42?'tape':d>R-4&&d<R+16?'roll':'att'; drag.v2=getV(p.k3)||0; }
@@ -2917,29 +2951,23 @@ const prevStat={}; const dlt=(k,v)=>{ const d=prevStat[k]==null?0:v-prevStat[k];
 function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
   if(kind==='sun'){ const e=sunElevDeg(); const t=S.sun_time; const irr=sunIrr(t); const az=((sunDir().az/D2R)%360+360)%360; const am=airMassOf(Math.max(e,-.9)); const {rise,set}=riseSet();
     const dur=v=>v==null?'—':`${Math.floor(v)}h ${String(Math.floor((v%1)*60)).padStart(2,'0')}m`; const next=e>=0?['to sunset',set!=null?((set-t)%24+24)%24:null]:['to sunrise',rise!=null?((rise-t)%24+24)%24:null];
-    const arcW=320,arcH=86;
-    const yOf=el=>(arcH-14-(Math.max(-12,Math.min(90,el))+12)/102*(arcH-24)); const path=[...Array(97)].map((_,i)=>{ const tt=i/4; return `${i?'L':'M'}${(8+tt/24*(arcW-16)).toFixed(1)},${yOf(sunDirAt(tt).el/D2R).toFixed(1)}`; }).join('');
-    const cx=8+t/24*(arcW-16), cy=yOf(e); const hzY=yOf(0);
-    const tone=e<-6?'#8fa4d8':e<0?'#c9a24b':e<8?'#ffb454':'#ffe08a';
-    return `<div class="sun-hero" style="--c:${tone}">
-      <div class="sh-top">
-        <div class="sh-main"><div class="sh-l">Irradiance</div><div class="sh-v"><b>${irr>=100?irr.toFixed(0):irr.toFixed(1)}</b><small>W/m²</small><span class="tr">${I(dlt('irr',irr)>0?'up':dlt('irr',irr)<0?'down':'flat',16)}</span></div><div class="sh-sub">${pn} · ${kelvinName(S.sun_temp)} light</div></div>
-        <div class="sh-col">
-          <div><span>Altitude</span><b>${e>=0?'+':''}${e.toFixed(1)}<i>°</i></b></div>
-          <div><span>Azimuth</span><b>${az.toFixed(0)}<i>° ${['N','NE','E','SE','S','SW','W','NW'][Math.round(az/45)%8]}</i></b></div>
-          <div><span>Air mass</span><b>${am.toFixed(2)}<i>AM</i></b></div>
-          <div><span>${next[0]==='to sunset'?'Sunset in':'Sunrise in'}</span><b>${dur(next[1])}</b></div>
-        </div>
-      </div>
-      <svg class="sh-arc" viewBox="0 0 ${arcW} ${arcH}" preserveAspectRatio="none">
-        <defs><linearGradient id="shg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${tone}" stop-opacity=".28"/><stop offset="1" stop-color="${tone}" stop-opacity="0"/></linearGradient></defs>
-        <path d="${path}L${arcW-8},${arcH-2}L8,${arcH-2}Z" fill="url(#shg)"/>
-        <line x1="8" y1="${hzY.toFixed(1)}" x2="${arcW-8}" y2="${hzY.toFixed(1)}" stroke="rgba(255,255,255,.18)" stroke-dasharray="2 4"/>
-        <path d="${path}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/>
-        ${[0,6,12,18,24].map(x=>`<text x="${(8+x/24*(arcW-16)).toFixed(1)}" y="${arcH-3}" text-anchor="${x===0?'start':x===24?'end':'middle'}" class="tk">${String(x).padStart(2,'0')}:00</text>`).join('')}
-        ${rise!=null?`<circle cx="${(8+rise/24*(arcW-16)).toFixed(1)}" cy="${hzY.toFixed(1)}" r="2" fill="#fff" opacity=".6"/>`:''}${set!=null?`<circle cx="${(8+set/24*(arcW-16)).toFixed(1)}" cy="${hzY.toFixed(1)}" r="2" fill="#fff" opacity=".6"/>`:''}
-        <line x1="${cx.toFixed(1)}" y1="6" x2="${cx.toFixed(1)}" y2="${(arcH-12).toFixed(1)}" stroke="rgba(255,255,255,.22)"/>
-        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.6" fill="${e<0?'#ff4d4d':'#fff'}"/>
+    const W=320,H=120,L=8,R=44,T=10,B=22; const yOf=el=>T+(1-(Math.max(-15,Math.min(90,el))+15)/105)*(H-T-B); const xOf=tt=>L+tt/24*(W-L-R);
+    const path=[...Array(97)].map((_,i)=>{ const tt=i/4; return `${i?'L':'M'}${xOf(tt).toFixed(1)},${yOf(sunDirAt(tt).el/D2R).toFixed(1)}`; }).join('');
+    const cx=xOf(t), cy=yOf(e); const up=e>=0; const noonEl=Math.max(...[...Array(97)].map((_,i)=>sunDirAt(i/4).el/D2R));
+    return `<div class="sun-top">
+      <div class="tile ${up?'ok':'warn'}"><span class="tico">${I(up?'check':'warn',14)}</span><span class="tl">${up?'Above horizon':'Below horizon'}</span><b>${Math.abs(e).toFixed(1)}<i>°</i></b></div>
+      <div class="tile"><span class="tico dot"></span><span class="tl">${pn}</span><b>${az.toFixed(0)}<i>° ${['N','NE','E','SE','S','SW','W','NW'][Math.round(az/45)%8]}</i></b></div>
+    </div>
+    <div class="sun-card">
+      <div class="sc-head"><span>Irradiance</span><span class="tr">${I(dlt('irr',irr)>=0?'up':'down',16)}</span></div>
+      <div class="sc-v"><b>${irr>=100?irr.toFixed(0):Math.floor(irr)}</b><i>.${irr>=100?'':Math.round(irr*10)%10}</i><small>W/m²</small></div>
+      <div class="sc-meta"><span>Air mass <b>${am.toFixed(2)}</b></span><span>${next[0]==='to sunset'?'Sunset in':'Sunrise in'} <b>${dur(next[1])}</b></span><span>${kelvinName(S.sun_temp)} <b>${S.sun_temp} K</b></span></div>
+      <svg class="sc-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        ${[90,60,30,0].map(v=>`<line x1="${L}" y1="${yOf(v).toFixed(1)}" x2="${W-R}" y2="${yOf(v).toFixed(1)}" stroke="rgba(255,255,255,${v===0?.22:.07})" stroke-dasharray="${v===0?'3 4':'2 6'}"/><text x="${W-R+8}" y="${(yOf(v)+3).toFixed(1)}" class="tk">${v}°</text>`).join('')}
+        <rect x="${(cx-14).toFixed(1)}" y="${T}" width="28" height="${H-T-B}" fill="rgba(255,255,255,.04)"/>
+        <path d="${path}" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.1"/>
+        ${[0,6,12,18,24].map(x=>`<text x="${xOf(x).toFixed(1)}" y="${H-6}" text-anchor="${x===0?'start':x===24?'end':'middle'}" class="tk">${String(x).padStart(2,'0')}:00</text>`).join('')}
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="#fff"/><circle cx="${xOf(12).toFixed(1)}" cy="${yOf(noonEl).toFixed(1)}" r="2" fill="#fff" opacity=".5"/>
       </svg>
     </div>`; }
   if(kind==='sky'){ const e=sunElevDeg(); const c=skyColorsAt(e); const lux=Math.max(0,zenithLum())*1000*3.1416*.25; const hz=`#${c.hz.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('')}`, top=`#${c.top.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('')}`;
