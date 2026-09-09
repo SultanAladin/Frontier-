@@ -57,6 +57,14 @@ input{font:inherit;color:inherit}
 .filters button i{width:6px;height:6px;border-radius:50%;background:var(--c)}
 .filters button.on{background:var(--g3);color:var(--text);border-color:var(--stroke2)}
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
+/* stat cards (reference style) */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
+.stat{border-radius:18px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:12px 12px 8px;position:relative;overflow:hidden;display:flex;flex-direction:column;gap:4px;min-height:118px}
+.stat-l{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2)} .stat-l::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--c)}
+.stat-v{display:flex;align-items:baseline;gap:3px;margin-top:2px} .stat-v b{font-size:26px;font-weight:200;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em} .stat-v small{font-size:11px;color:var(--t3);font-weight:300} .stat-v .tr{margin-left:auto;color:var(--t3);align-self:flex-start}
+.stat-pill{align-self:flex-start;font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%} .stat-pill.pos{background:rgba(214,214,120,.14);color:#e6e6a8} .stat-pill.neg{background:rgba(255,120,120,.12);color:#ffb3b3}
+.stat svg{width:100%;height:44px;margin-top:auto;border-radius:8px;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 10%,transparent),transparent);display:block}
+.stat.swatch .sw{flex:1;border-radius:12px;min-height:70px;margin-top:4px;display:flex;flex-direction:column;justify-content:space-between;padding:8px;font-size:10px;color:rgba(255,255,255,.85);font-family:var(--mono,monospace);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
 /* state heroes */
 .hero.state{padding:16px 18px 14px}
 .sh-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -343,15 +351,6 @@ input{font:inherit;color:inherit}
 <body>
 <canvas id="gl"></canvas><div id="vignette"></div>
 
-<div id="topbar">
-  <div class="pill glass">
-    <button class="round" id="playBtn"><svg id="playIco" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
-    <div id="clock">06:24<small>SAST</small></div>
-    <div class="speed" id="speedSeg"><button data-s="0.02">×1</button><button data-s="0.15" class="on">×8</button><button data-s="0.6">×30</button><button data-s="2">×100</button></div>
-  </div>
-  <div class="phase-badge glass"><i id="phaseDot"></i><span id="phaseTxt"><b>Civil dawn</b></span></div>
-  <button class="round glass" id="resetBtn" title="Reset" style="width:52px;height:52px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
-</div>
 
 <aside id="outliner" class="glass">
   <div class="panel-head"><h1>Outliner<span class="sub">Scene</span></h1><span style="display:flex;align-items:center;gap:10px"><span class="clock" id="clock">06:24</span><button class="cbtn" id="compactBtn" title="Compact outliner (Tab)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button></span></div>
@@ -592,7 +591,12 @@ void main(){
   if(planeHit>.999){ col=planeCol; }
   else if(ground>.5){
     float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.09*ndl; vec3 amb=sky*.35+vec3(.002,.003,.006)*uSkyBright;
-    col=uGroundColor*uGroundBright*(sunL+amb)+sky;
+    { vec2 tg=rsi(ro,dir,uPlanetR); vec3 hp=ro+dir*tg.x; vec3 n=normalize(hp); float nd=max(dot(n,uSunDir),0.);
+      float mac=vnoise(n*6.)*.6+vnoise(n*14.)*.3+vnoise(n*40.)*.1; float land=smoothstep(.48,.56,mac);
+      vec3 alb=mix(vec3(.02,.05,.12),mix(vec3(.10,.14,.06),vec3(.35,.32,.26),vnoise(n*22.)),land); alb=mix(uGroundColor,alb,smoothstep(2000.,60000.,uCamHeight)); // flat colour near the ground, procedural globe from altitude
+      float spec=pow(max(dot(reflect(-uSunDir,n),-dir),0.),120.)*(1.-land)*.6; vec3 sunP=trans*uSunColor*uSunIntensity*.09*nd;
+      vec3 night=vec3(1.,.8,.5)*land*(1.-smoothstep(-.05,.15,dot(n,uSunDir)))*step(.6,vnoise(n*90.))*.002*smoothstep(2000.,60000.,uCamHeight); // city lights on the night side
+      col=alb*uGroundBright*(sunP+amb)+spec*sunP+night+sky; }
     col=mix(col,planeCol,planeHit);
   }else{
     col=sky+glow;
@@ -682,6 +686,7 @@ const ENTITIES={
       {title:'Twilight',icon:'horizon',sub:'dawn & dusk',props:[GAUGE('dawn_int','Horizon Glow',0,3,0.01,1,'×'),GAUGE('hl_int','White Line',0,3,0.01,1,'×'),TOG('hl_auto','Line only at civil twilight',true)]}]},
   sun:{name:'Sun',kind:'Directional Light',color:'#ffb454',icon:'sun',preview:'sunpath',hero:{kind:'sun'},
     sections:[{title:'Position',icon:'orbit',props:[ORB('sun_az','sun_time','Solar Orbit',{sun:true,hint:'Drag the sun freely (swings azimuth + time) · drag the path for time only · ring = azimuth'}),GLOBE('sun_lat','Latitude',-26,{hint:'Drag the globe'})]},
+      {title:'Time',icon:'orbit',props:[TOG('sun_play','Animate (Space)',false),SEG('sun_speed','Speed',['×1','×8','×30','×100'],'×8')]},
       {title:'Light',icon:'bulb',props:[KELVIN('sun_temp','Colour Temperature',5800),GAUGE('sun_intensity','Intensity',0,60,0.1,22,'×'),GAUGE('sun_disc','Disc Radiance',0,40,0.1,12,'×'),CURVE('sun_ang','Angular Diameter',0.1,10,0.01,0.53,'°',(x,S)=>x,{log:true,curve:'disc'}),TRK('sun_soft','Disc Softness',0,1,0.01,0.25,'')]}]},
   sky:{name:'Sky',kind:'Sky Dome',color:'#67e8f9',icon:'sky',preview:'sky',hero:{kind:'sky'},
     sections:[{title:'Appearance',icon:'palette',props:[COL('sky_tint','Sky Tint','#ffffff'),GAUGE('sky_bright','Sky Brightness',0,3,0.01,1,'×')]},
@@ -694,7 +699,7 @@ const ENTITIES={
   moons:{name:'Moons',kind:'Atlas',color:'#dfe6f5',icon:'moon',preview:'atlas',hero:{label:'Bodies in orbit',unit:'/ 4',dec:0,fn:()=>S.moons.length},sections:[]},
   camera:{name:'Camera',kind:'Perspective Camera',color:'#34c759',icon:'camera',preview:'camera',hero:{label:'Field of View',unit:'°',dec:1,fn:()=>S.cam_fov},
     sections:[{title:'Lens',icon:'aperture',props:[ORB('cam_yaw','cam_pitch','View Direction',{cam:true,hint:'Drag the eye · frustum shows FOV'}),CURVE('cam_fov','Field of View',20,120,0.5,72,'°',null,{curve:'fov'})]},
-      {title:'Transform',icon:'grid',props:[PAD('cam_x','cam_z','Position',{xmin:-600,xmax:600,ymin:-600,ymax:600,xl:'X',yl:'Z',plane:true,hint:'Top-down · drag to move the camera'}),TRK('cam_height','Height',0.5,20000,0.5,2,'m',{log:true})]},
+      {title:'Transform',icon:'grid',props:[PAD('cam_x','cam_z','Position',{xmin:-600,xmax:600,ymin:-600,ymax:600,xl:'X',yl:'Z',plane:true,hint:'Top-down · drag to move the camera'}),TRK('cam_height','Altitude',0.5,3000000,0.5,2,'m',{log:true,hint:'Log scale · 0.5 m → 3 000 km (orbit)'})]},
       {title:'Navigation',icon:'orbit',props:[GAUGE('cam_speed','Fly Speed',0.5,200,0.5,8,'m/s',{log:true,hint:'Scroll while flying to change'}),GAUGE('cam_sens','Look Sensitivity',0.2,3,0.05,1,'×')]}]},
   post:{name:'Post Process',kind:'Component · Camera',color:'#ff8a65',icon:'fx',warm:true,preview:'post',hero:{label:'Exposure',unit:'EV',dec:2,fn:()=>S.pp_ev,signed:true},
     sections:[{title:'Exposure & Tonemap',icon:'sliders',props:[HIST('pp_ev','Exposure',-6,6,0.05,0.4,'EV'),SEG('pp_tonemap','Tonemapper',['None','ACES','Reinhard','Filmic','AgX'],'ACES'),GAUGE('pp_bloom','Bloom',0,3,0.01,1,'×'),GAUGE('pp_vignette','Vignette',0,1,0.01,0.28,''),GAUGE('pp_grain','Film Grain',0,1,0.01,0.1,'')]},
@@ -1115,15 +1120,33 @@ const STAR_Q={Draft:{layers:2,aa:1},Balanced:{layers:3,aa:1},High:{layers:3,aa:2
 function onChanged(k){ if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ Object.assign(S,L); renderInspector(); } } if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
 
 /* ============================================================ INSPECTOR ============================================================ */
-function stateHero(kind){ const e=sunElevDeg(); const [pn,pc]=phaseName(e);
-  if(kind==='sun'){ const {rise,set}=riseSet(); const t=S.sun_time; const next=e>=0?(set!=null?['Sunset in',((set-t)%24+24)%24]:['Never sets',null]):(rise!=null?['Sunrise in',((rise-t)%24+24)%24]:['Never rises',null]);
-    const dur=v=>v==null?'—':`${Math.floor(v)}h ${String(Math.floor((v%1)*60)).padStart(2,'0')}m`; const az=((sunDir().az/D2R)%360+360)%360; const dirs=['N','NE','E','SE','S','SW','W','NW']; const cd=dirs[Math.round(az/45)%8];
-    // arc: sun on today's elevation arc (−20..90)
-    const W=300,H=64; const R=120; const cx=150,cy=60; const f=(Math.max(-20,Math.min(90,e))+20)/110; const a=Math.PI*(1-f); const sx=cx+Math.cos(a)*R, sy=cy-Math.sin(a)*R*.45;
-    return `<div class="sh-top"><div><div class="sh-kicker" style="color:${pc}">${pn}</div><div class="sh-title">${e>=0?'Above':'Below'} the horizon<small>${cd} · ${az.toFixed(0)}°</small></div></div><div class="sh-right"><div class="sh-kicker">${next[0]}</div><div class="sh-val">${dur(next[1])}</div></div></div>
-      <svg class="sh-arc" viewBox="0 0 ${W} ${H}"><path d="M${cx-R},${cy}A${R},${R*.45},0,0,1,${cx+R},${cy}" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="3 4"/><line x1="10" y1="${cy}" x2="${W-10}" y2="${cy}" stroke="rgba(255,255,255,.25)"/><circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="11" fill="rgba(255,180,84,.18)"/><circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="5" fill="#ffd166"/><text x="12" y="${cy-6}" class="sh-lab">${e>=0?'+':''}${e.toFixed(1)}°</text><text x="${W-12}" y="${cy-6}" class="sh-lab e">${kelvinName(S.sun_temp)}</text></svg>`; }
-  if(kind==='sky'){ const c=skyColorsAt(e); const z=zenithLum(); const mood=e>10?'Clear daylight':e>0?'Low sun':e>-6?'Civil twilight':e>-12?'Nautical twilight':e>-18?'Astronomical twilight':'Night';
-    return `<div class="sh-swatch" style="background:linear-gradient(180deg,rgb(${c.top}),rgb(${c.hz}))"><div class="sh-kicker" style="color:rgba(255,255,255,.75)">Sky right now</div><div class="sh-title" style="color:#fff">${mood}<small style="color:rgba(255,255,255,.7)">${pn}</small></div><div class="sh-chips"><span>Zenith rgb(${c.top})</span><span>Horizon rgb(${c.hz})</span><span>${z>=10?z.toFixed(0):z.toFixed(2)} kcd/m²</span></div></div>`; }
+// reference-style stat card: colour bar + label, big light number + unit, trend arrow, delta pill, dotted day-series with threshold line
+function statCard(o){ const W=150,H=44; const ser=o.series||[]; const mn=Math.min(...ser,o.value), mx=Math.max(...ser,o.value); const rng=(mx-mn)||1; const py=v=>H-6-(v-mn)/rng*(H-12);
+  const dots=ser.map((v,i)=>`<circle cx="${(6+i/(ser.length-1)*(W-12)).toFixed(1)}" cy="${py(v).toFixed(1)}" r="2.2" fill="rgba(255,255,255,${.35+.5*i/ser.length})"/>`).join('');
+  const cx=o.cursor!=null?6+o.cursor*(W-12):W-6; const th=o.threshold!=null?`<line x1="0" y1="${py(o.threshold).toFixed(1)}" x2="${W}" y2="${py(o.threshold).toFixed(1)}" stroke="rgba(255,255,255,.35)"/>`:'';
+  const d=o.delta||0; const tr=Math.abs(d)<1e-6?'flat':d>0?'up':'down';
+  return `<div class="stat" style="--c:${o.color}"><div class="stat-l">${o.label}</div><div class="stat-v"><b>${o.text}</b><small>${o.unit||''}</small><span class="tr">${I(tr,14)}</span></div>${o.pill?`<span class="stat-pill ${d>=0?'pos':'neg'}">${o.pill}</span>`:''}<svg viewBox="0 0 ${W} ${H}">${th}${dots}<circle cx="${cx.toFixed(1)}" cy="${py(o.value).toFixed(1)}" r="4.5" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="${cx.toFixed(1)}" cy="${py(o.value).toFixed(1)}" r="2.2" fill="${o.hot?'#ff4d4d':'#fff'}"/></svg></div>`; }
+const daySeries=fn=>[...Array(12)].map((_,i)=>fn(i*2+1));
+function sunIrr(t){ const el=sunDirAt(t).el/D2R; if(el<=-1) return 0; return 1000*Math.max(0,Math.sin(Math.max(el,0)*D2R))*Math.exp(-.12*airMassOf(Math.max(el,-.9)))+ (el<3?15*Math.exp(el/3):0); }
+function airMassOf(e){ const z=90-e; if(z>=96) return 40; return Math.min(40,1/(Math.cos(z*D2R)+.50572*Math.pow(96.07995-z,-1.6364))); }
+const prevStat={}; const dlt=(k,v)=>{ const d=prevStat[k]==null?0:v-prevStat[k]; prevStat[k]=v; return d; };
+function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
+  if(kind==='sun'){ const e=sunElevDeg(); const t=S.sun_time; const irr=sunIrr(t); const az=((sunDir().az/D2R)%360+360)%360; const am=airMassOf(Math.max(e,-.9)); const {rise,set}=riseSet();
+    const dur=v=>v==null?'—':`${Math.floor(v)}h ${String(Math.floor((v%1)*60)).padStart(2,'0')}m`; const next=e>=0?['to sunset',set!=null?((set-t)%24+24)%24:null]:['to sunrise',rise!=null?((rise-t)%24+24)%24:null];
+    return `<div class="stat-grid">
+      ${statCard({label:'Irradiance',color:'#ffb454',text:irr>=100?irr.toFixed(0):irr.toFixed(1),unit:'W/m²',value:irr,series:daySeries(sunIrr),cursor:t/24,threshold:120,delta:dlt('irr',irr),pill:`${e>=0?'+':''}${e.toFixed(1)}° alt`,hot:e<0})}
+      ${statCard({label:'Air Mass',color:'#5aa9ff',text:am.toFixed(2),unit:'AM',value:am,series:daySeries(x=>Math.min(6,airMassOf(Math.max(sunDirAt(x).el/D2R,-.9)))),cursor:t/24,threshold:2,delta:-dlt('am',am),pill:`${pn}`})}
+      ${statCard({label:'Azimuth',color:'#67e8f9',text:az.toFixed(0),unit:'°',value:az,series:daySeries(x=>((sunDirAt(x).az/D2R)%360+360)%360),cursor:t/24,delta:dlt('az',az),pill:['N','NE','E','SE','S','SW','W','NW'][Math.round(az/45)%8]+' · '+kelvinName(S.sun_temp)})}
+      ${statCard({label:next[0]==='to sunset'?'Sunset':'Sunrise',color:'#c4b5fd',text:dur(next[1]),unit:'',value:next[1]||0,series:daySeries(x=>Math.max(0,sunDirAt(x).el/D2R)),cursor:t/24,threshold:0,delta:0,pill:`${rise!=null?fmtT(rise):'—'} → ${set!=null?fmtT(set):'—'}`})}
+    </div>`; }
+  if(kind==='sky'){ const e=sunElevDeg(); const c=skyColorsAt(e); const lux=Math.max(0,zenithLum())*1000*3.1416*.25; const hz=`#${c.hz.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('')}`, top=`#${c.top.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('')}`;
+    const hue=rgb=>{ const [r,g,b]=rgb.map(v=>v/255); const mx=Math.max(r,g,b),mn=Math.min(r,g,b); if(mx===mn) return 0; const d=mx-mn; let hh=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4; return ((hh*60)+360)%360; };
+    return `<div class="stat-grid">
+      ${statCard({label:'Illuminance',color:'#67e8f9',text:lux>=1000?(lux/1000).toFixed(1)+'k':lux.toFixed(0),unit:'lux',value:lux,series:daySeries(x=>{ const el=sunDirAt(x).el; return Math.max(0,(0.02+8*Math.pow(Math.max(0,Math.sin(el)),0.8))*S.sky_bright*S.atm_rayleigh*S.sun_intensity/22)*1000*.785; }),cursor:S.sun_time/24,threshold:5000,delta:dlt('lux',lux),pill:e>10?'Clear daylight':e>0?'Low sun':e>-6?'Civil twilight':e>-12?'Nautical':e>-18?'Astronomical':'Night'})}
+      ${statCard({label:'Horizon Hue',color:hz,text:hue(c.hz).toFixed(0),unit:'°',value:hue(c.hz),series:daySeries(x=>hue(skyColorsAt(sunDirAt(x).el/D2R).hz)),cursor:S.sun_time/24,delta:dlt('hue',hue(c.hz)),pill:hz.toUpperCase()})}
+      <div class="stat swatch" style="--c:${top}"><div class="stat-l">Dome</div><div class="sw" style="background:linear-gradient(180deg,${top},${hz})"><span>${top.toUpperCase()}</span><span>${hz.toUpperCase()}</span></div></div>
+      ${statCard({label:'Turbidity',color:'#dfe6f5',text:(1.5+S.atm_mie*1.8).toFixed(1),unit:'T',value:S.atm_mie,series:daySeries(()=>S.atm_mie),cursor:S.sun_time/24,threshold:2,delta:0,pill:S.atm_mie>2?'Hazy':S.atm_mie>1.2?'Slight haze':'Clear'})}
+    </div>`; }
   return ''; }
 function kelvinName(k){ return k<3000?'Candle-warm':k<4000?'Warm':k<5200?'Neutral':k<6500?'Daylight':'Cool'; }
 const bigHTML=(v,dec,signed)=>{ const [a,b]=fmt(Math.abs(v),dec).split('.'); return `${signed?(v<0?'−':'+'):''}${a}${b!==undefined?`<small>.${b}</small>`:''}`; };
@@ -1254,15 +1277,15 @@ const hist={}; setInterval(()=>{ const e=getEntity(selected); if(!e) return; con
   if(e.preview==='sunpath'||e.preview==='camera'||e.preview==='plane'||(e.preview==='moon'&&S.moons[e.moonIndex].link)) updatePreview(); },500);
 
 /* ============================================================ TOP BAR ============================================================ */
-const playBtn=document.getElementById('playBtn');
+
 function drawDay(){}
 
-playBtn.addEventListener('click',()=>{ S.play=!S.play; playBtn.classList.toggle('on',S.play); document.getElementById('playIco').innerHTML=S.play?'<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>':'<path d="M8 5v14l11-7z"/>'; });
-document.getElementById('speedSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; S.speed=+b.dataset.s; [...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b)); });
-document.getElementById('resetBtn').addEventListener('click',()=>{ const p=S.play; defaults(); activeF.clear(); S.play=p; selected='sun'; renderTree(); renderInspector(); drawDay(); });
+
+
+
 function updateNavHud(dt){ const sp=S.cam_speed; document.getElementById('navSpeed').textContent=sp<10?sp.toFixed(1):sp.toFixed(0); document.getElementById('navBar').style.width=(Math.log(sp/.5)/Math.log(400)*100)+'%';
   document.querySelectorAll('#hud .k').forEach(k=>k.classList.toggle('on',keys.has(k.textContent.toLowerCase()))); const nav=document.querySelector('#hud .nav'); speedFlash=Math.max(0,speedFlash-dt); nav.classList.toggle('flash',speedFlash>0); }
-function updateClock(){ const t=S.sun_time,h=Math.floor(t),m=Math.floor((t-h)*60); document.getElementById('clock').innerHTML=`${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}<small>SAST</small>`; const e=sunElevDeg(); const [n,c]=phaseName(e); document.getElementById('phaseTxt').innerHTML=`<b>${n}</b>`; const d=document.getElementById('phaseDot'); d.style.background=c; d.style.boxShadow=`0 0 10px ${c}`; document.getElementById('hudSun').textContent=e.toFixed(1)+'°'; }
+function updateClock(){ const e=sunElevDeg(); document.getElementById('hudSun').textContent=e.toFixed(1)+'°'; }
 
 /* ============================================================ WEBGL ============================================================ */
 const canvas=document.getElementById('gl'); const gl=canvas.getContext('webgl',{antialias:false,alpha:false}); gl.getExtension('OES_standard_derivatives');
@@ -1283,11 +1306,11 @@ canvas.addEventListener('wheel',e=>{ if(cdrag||keys.size){ S.cam_speed=Math.max(
   else { S.cam_fov=Math.max(20,Math.min(120,S.cam_fov+e.deltaY*0.03)); if(selected==='camera'){ refreshCtl('cam_fov'); drawCam(); } } },{passive:true});
 addEventListener('keydown',e=>{ if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return; const k=e.key.toLowerCase(); if('wasdqe'.includes(k)&&k.length===1&&flyEnabled()){ keys.add(k); e.preventDefault(); } if(k==='shift') keys.add('shift'); if(k==='f'){ S.cam_x=0; S.cam_z=0; S.cam_height=2; } });
 addEventListener('keyup',e=>{ keys.delete(e.key.toLowerCase()); }); addEventListener('blur',()=>keys.clear());
-function flyStep(dt){ if(!keys.size) return; const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const sp=S.cam_speed*(keys.has('shift')?3:1)*dt;
+function flyStep(dt){ if(!keys.size) return; const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const altBoost=1.+Math.max(0,S.cam_height-50)/200.; const sp=S.cam_speed*altBoost*(keys.has('shift')?3:1)*dt;
   const f=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)], r=[Math.cos(yaw),0,Math.sin(yaw)]; let mv=[0,0,0];
   const add=(v,s)=>{ mv[0]+=v[0]*s; mv[1]+=v[1]*s; mv[2]+=v[2]*s; };
   if(keys.has('w')) add(f,1); if(keys.has('s')) add(f,-1); if(keys.has('d')) add(r,1); if(keys.has('a')) add(r,-1); if(keys.has('e')) mv[1]+=1; if(keys.has('q')) mv[1]-=1;
-  const L=Math.hypot(...mv); if(!L) return; S.cam_x=Math.max(-5000,Math.min(5000,S.cam_x+mv[0]/L*sp)); S.cam_z=Math.max(-5000,Math.min(5000,S.cam_z+mv[2]/L*sp)); S.cam_height=Math.max(.5,Math.min(20000,S.cam_height+mv[1]/L*sp));
+  const L=Math.hypot(...mv); if(!L) return; S.cam_x=Math.max(-5000,Math.min(5000,S.cam_x+mv[0]/L*sp)); S.cam_z=Math.max(-5000,Math.min(5000,S.cam_z+mv[2]/L*sp)); S.cam_height=Math.max(.5,Math.min(3e6,S.cam_height+mv[1]/L*sp));
   if(selected==='camera'){ refreshCtl('cam_x'); refreshCtl('cam_height'); } }
 // moon textures
 const glTex={}; const whiteTex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,whiteTex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([180,180,180,255]));
@@ -1297,12 +1320,12 @@ MOON_ATLAS.forEach(a=>getTex(a.tex));
 const TM={None:0,ACES:1,Reinhard:2,Filmic:3,AgX:4}, FT={Cinematic:0,Anamorphic:1,Starburst:2,Halo:3};
 let last=performance.now(),fpsAcc=0,fpsN=0,t0=last; const colBuf=new Uint8Array(4*64);
 function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
-  if(S.play){ S.sun_time=(S.sun_time+dt*S.speed)%24; if(selected==='sun'&&fpsN%4===0) refreshCtl('sun_time'); if(selected==='sky'&&fpsN%20===0) drawSkyDay(); }
+  S.play=!!S.sun_play; S.speed={'×1':.02,'×8':.15,'×30':.6,'×100':2}[S.sun_speed]||.15; if(S.play){ S.sun_time=(S.sun_time+dt*S.speed)%24; if(selected==='sun'&&fpsN%4===0) refreshCtl('sun_time'); if(selected==='sky'&&fpsN%20===0) drawSkyDay(); }
   flyStep(dt); resize(); updateClock(); const time=(now-t0)/1000; updateNavHud(dt);
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; const up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; const tanH=Math.tan(S.cam_fov*D2R/2);
   clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
-  f1('uPlaneOn',S.vis_plane?1:0); f1('uPlaneSize',S.pl_size); f1('uPlaneCell',S.pl_cell); f1('uPlaneY',S.pl_y); f1('uPlaneGrid',S.pl_grid?1:0); f3('uPlaneA',hex2rgb(S.pl_a)); f3('uPlaneB',hex2rgb(S.pl_b));
+  f1('uPlaneOn',S.vis_plane&&S.cam_height<60000?1:0); f1('uPlaneSize',S.pl_size); f1('uPlaneCell',S.pl_cell); f1('uPlaneY',S.pl_y); f1('uPlaneGrid',S.pl_grid?1:0); f3('uPlaneA',hex2rgb(S.pl_a)); f3('uPlaneB',hex2rgb(S.pl_b));
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
   f3('uSkyTint',hex2rgb(S.sky_tint)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
@@ -1318,7 +1341,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   if(selected==='sky'&&fpsN%3===0){ const cv=document.getElementById('pvSkyLive'); if(cv){ const ctx=cv.getContext('2d'); const W=cv.width; const X=canvas.width>>1; for(let i=0;i<64;i++){ const y=Math.floor(canvas.height-1-i/63*(canvas.height-1)); gl.readPixels(X,y,1,1,gl.RGBA,gl.UNSIGNED_BYTE,colBuf.subarray(i*4,i*4+4)); ctx.fillStyle=`rgb(${colBuf[i*4]},${colBuf[i*4+1]},${colBuf[i*4+2]})`; ctx.fillRect(i/64*W,0,W/64+1,cv.height); } } }
   fpsAcc+=dt; fpsN++; if(fpsAcc>.5){ document.getElementById('fps').textContent=Math.round(fpsN/fpsAcc); fpsAcc=0; fpsN=0; } requestAnimationFrame(frame); }
 renderTree(); renderInspector(); drawDay(); requestAnimationFrame(frame);
-addEventListener('keydown',e=>{ if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='f'){ e.preventDefault(); document.getElementById('search').focus(); } if(e.key===' '&&document.activeElement.tagName!=='INPUT'){ e.preventDefault(); playBtn.click(); } });
+addEventListener('keydown',e=>{ if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='f'){ e.preventDefault(); document.getElementById('search').focus(); } if(e.key===' '&&document.activeElement.tagName!=='INPUT'){ e.preventDefault(); S.sun_play=!S.sun_play; if(selected==='sun') refreshCtl('sun_play'); } });
 </script>
 </body>
 </html>
