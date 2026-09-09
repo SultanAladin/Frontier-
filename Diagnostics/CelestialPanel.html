@@ -374,6 +374,8 @@ input{font:inherit;color:inherit}
 .horizon-svg .row .k{fill:var(--t2);font-size:12px;font-family:var(--font)} .horizon-svg .row .v{fill:#fff;font-size:13px;font-family:var(--font)}
 .lens-big{display:flex;align-items:baseline;margin:6px 0 4px} .lens-big b{font-size:54px;font-weight:200;line-height:1;letter-spacing:-.02em} .lens-big i{font-style:normal;font-size:54px;font-weight:200;line-height:1;color:var(--t3);letter-spacing:-.02em} .lens-big .deg{font-size:16px;color:var(--t3);margin-left:6px}
 .lens-pill{display:inline-block;font-size:11px;font-weight:500;padding:5px 12px;border-radius:999px;background:rgba(91,140,255,.16);color:#9db8ff;border:1px solid rgba(91,140,255,.3)}
+#insp .fport .fg-hero{background:rgba(255,255,255,.035)!important;border:1px solid var(--stroke)!important}
+#insp .fport .fg-hero .mp-cap{background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35))!important}
 /* ===== Ported light/camera styles ===== */
 #insp .fport .mp-cap .cl-sub,#insp .fport .mp-cap .li-sub{text-transform:none;letter-spacing:.3px;}
 #insp .fport .li-hero canvas{display:block;width:100%;cursor:crosshair;touch-action:none}
@@ -1901,66 +1903,32 @@ function fogPanel(node, ctx) {
   }
 
   function paintHero() {
-    const [g, w, h] = sizeCanvas(heroCv, compact ? 138 : 166);
-    const col = rgb(C()), horizon = h * .42;
-    const bg = g.createLinearGradient(0, 0, 0, h);
-    bg.addColorStop(0, '#090b0e'); bg.addColorStop(.42, '#181d22'); bg.addColorStop(1, '#08090a');
-    g.fillStyle = bg; g.fillRect(0, 0, w, h);
-
-    /* instrument floor — a coordinate field, not terrain */
-    g.strokeStyle = 'rgba(255,255,255,.075)'; g.lineWidth = 1;
-    for (let i = -7; i <= 7; i++) {
-      const xb = w / 2 + i * w * .13;
-      g.beginPath(); g.moveTo(w / 2, horizon); g.lineTo(xb, h); g.stroke();
-    }
-    for (let z = 1; z <= 12; z++) {
-      const t = z / 12, y = horizon + Math.pow(t, 1.75) * (h - horizon);
-      g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
-    }
-
-    /* range gates recede into the fog; their contrast obeys the actual transmission curve */
-    const ranges = [10, 25, 50, 100, 200, 400];
-    ranges.slice().reverse().forEach((m, ri) => {
-      const z = ranges.indexOf(m) / (ranges.length - 1), scale = .16 + (1 - z) * .70;
-      const x = w / 2, y = horizon + (1 - z) * (h - horizon) * .82;
-      const gh = h * .58 * scale, gw = w * .36 * scale;
-      const tr = transmission(D(), m);
-      g.strokeStyle = `rgba(255,255,255,${.05 + tr * .58})`;
-      g.strokeRect(x - gw / 2, y - gh, gw, gh);
-      g.fillStyle = `rgba(255,255,255,${.12 + tr * .55})`;
-      g.font = '8px ui-sans-serif,system-ui'; g.textAlign = 'center'; g.fillText(`${m} m`, x, y - gh + 10);
-      if (ri === 0) g.fillRect(x - 1, y - gh * .48, 2, gh * .48);
-    });
-
-    /* luminous air stacked by height falloff */
-    for (let y = 0; y < h; y += 3) {
-      const metres = Math.max(0, (horizon - y) / Math.max(1, horizon) * 200);
-      const local = atHeight(D(), H(), metres);
-      const a = clamp(local / .06, 0, 1) * .38 + (y > horizon ? clamp(D() / .06, 0, 1) * .12 : 0);
-      g.fillStyle = rgba(col, a); g.fillRect(0, y, w, 3.2);
-    }
-
-    const range = sightRange(D());
-    const frac = clamp(range / 400, 0, 1);
-    const x = 8 + frac * (w - 16);
-    g.strokeStyle = 'rgba(255,255,255,.72)'; g.setLineDash([3, 3]);
-    g.beginPath(); g.moveTo(x, 9); g.lineTo(x, h - 10); g.stroke(); g.setLineDash([]);
-    g.fillStyle = 'rgba(255,255,255,.7)'; g.textAlign = x > w - 45 ? 'right' : 'left';
-    g.fillText('2% CONTRAST', x + (x > w - 45 ? -4 : 4), 17);
-
-    if (heroMark) {
-      g.strokeStyle = 'rgba(255,255,255,.4)'; g.setLineDash([2, 3]);
-      g.beginPath(); g.moveTo(heroMark.x, 0); g.lineTo(heroMark.x, h); g.moveTo(0, heroMark.y); g.lineTo(w, heroMark.y); g.stroke(); g.setLineDash([]);
-    }
+    const [g, w, h] = sizeCanvas(heroCv, compact ? 120 : 138);
+    const col = rgb(C()); g.clearRect(0, 0, w, h);
+    const L = 16, R = 16, base = h - 34, top = 22; const px = d => L + Math.log10(1 + d) / Math.log10(401) * (w - L - R);
+    /* the volume: a soft band whose opacity is the actual extinction along the sight line */
+    for (let x = L; x < w - R; x += 2) { const d = Math.pow(401, (x - L) / (w - L - R)) - 1; const a = (1 - transmission(D(), d)) * .42; g.fillStyle = rgba(col, a); g.fillRect(x, top, 2.2, base - top); }
+    /* horizon line and distance ticks */
+    g.strokeStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(L, base + .5); g.lineTo(w - R, base + .5); g.stroke();
+    g.font = '8.5px ui-sans-serif,system-ui'; g.textAlign = 'center';
+    [0, 10, 25, 50, 100, 200, 400].forEach((d, i) => { const x = px(d); g.strokeStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.moveTo(x, base); g.lineTo(x, base + 5); g.stroke(); g.fillStyle = 'rgba(255,255,255,.35)'; g.textAlign = i === 0 ? 'left' : i === 6 ? 'right' : 'center'; g.fillText(d ? `${d} m` : 'eye', x, base + 16); });
+    /* landmarks: posts standing at each range, drawn with the contrast they actually retain */
+    [10, 25, 50, 100, 200, 400].forEach(d => { const tr = transmission(D(), d), x = px(d), hh = 26 + 18 * (1 - Math.log10(1 + d) / Math.log10(401)); g.strokeStyle = `rgba(255,255,255,${(.08 + tr * .8).toFixed(3)})`; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, base); g.lineTo(x, base - hh); g.stroke(); g.fillStyle = `rgba(255,255,255,${(.08 + tr * .8).toFixed(3)})`; g.beginPath(); g.arc(x, base - hh - 3, 2.4, 0, Math.PI * 2); g.fill(); g.lineWidth = 1; });
+    /* the sight-range marker */
+    const range = sightRange(D()), x = px(clamp(range, 0, 400));
+    g.strokeStyle = 'rgba(255,255,255,.75)'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x, top - 6); g.lineTo(x, base); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(x, top - 6, 3.5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.7)'; g.textAlign = x > w - 70 ? 'right' : 'left'; g.font = '8.5px ui-sans-serif,system-ui'; g.fillText('2% CONTRAST', x + (x > w - 70 ? -7 : 7), top);
+    if (heroMark) { g.strokeStyle = 'rgba(255,255,255,.3)'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(0, heroMark.y); g.lineTo(w, heroMark.y); g.stroke(); g.setLineDash([]); }
     cap.querySelector('b').textContent = fogClass(range);
-    cap.querySelector('.fg-sub').textContent = `exponential² · ${D().toFixed(4)} per metre`;
+    cap.querySelector('.fg-sub').textContent = `exponential² · ${D().toFixed(4)} per metre · ceiling ${H().toFixed(0)} m`;
     cap.querySelector('.r').textContent = range >= 1000 ? `${(range / 1000).toFixed(1)} km sight` : `${range.toFixed(0)} m sight`;
   }
 
   const heroFrom = e => {
     const r = heroCv.getBoundingClientRect(), x = clamp((e.clientX - r.left) / r.width, 0, 1), y = clamp((e.clientY - r.top) / r.height, 0, 1);
     heroMark = { x: x * r.width, y: y * r.height };
-    setProp(node, 'density', +(x * .06).toFixed(4));
+    { const rr = r.width, L = 16, R = 16; const t = clamp((e.clientX - r.left - L) / Math.max(1, rr - L - R), 0, 1); const d = Math.max(4, Math.pow(401, t) - 1); const dens = Math.sqrt(-Math.log(0.02)) / d; setProp(node, 'density', +clamp(dens, 0, .06).toFixed(4)); }
     setProp(node, 'height', Math.round(1 + (1 - y) * 199));
     paintAll();
   };
