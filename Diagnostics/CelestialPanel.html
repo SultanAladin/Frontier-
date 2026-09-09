@@ -304,19 +304,31 @@ vec3 moons(vec3 d,vec3 trans){
 
 /* ---- twilight model: bright segment, colour ramp and the pre-sunrise white line ---- */
 vec3 dawnGlow(vec3 dir,float elevDeg,float facing){
-  float alt=degrees(asin(clamp(dir.y,-1.,1.))); if(alt<-1.5) return vec3(0.);
+  float alt=degrees(asin(clamp(dir.y,-1.,1.))); if(alt<-2.) return vec3(0.);
   float altp=max(alt,0.);
-  float az=pow(facing,3.);
-  float tw=smoothstep(-16.,-5.,elevDeg)*(1.-smoothstep(1.,9.,elevDeg));             // twilight window
-  vec3 cWhite=vec3(1.,.97,.9), cYel=vec3(1.,.82,.45), cOr=vec3(1.,.45,.14), cPink=vec3(.7,.32,.48), cBlue=vec3(.16,.26,.6);
-  vec3 c=mix(cWhite,cYel,smoothstep(0.,1.2,altp)); c=mix(c,cOr,smoothstep(1.,5.,altp)); c=mix(c,cPink,smoothstep(5.,12.,altp)); c=mix(c,cBlue,smoothstep(12.,26.,altp));
-  float band=exp(-altp/7.)*(.25+.75*az);                                              // broad coloured glow
-  float seg=exp(-altp/1.1)*(.15+.85*az);                                              // bright segment hugging the horizon
-  vec3 glow=(c*band*.55+cYel*seg*1.1)*tw;
-  // the white line: a very thin band right on the horizon during civil twilight
-  float wlWin=mix(1.,smoothstep(-7.,-3.,elevDeg)*(1.-smoothstep(-.4,1.2,elevDeg)),uHLAuto);
-  float line=exp(-altp/.16)*smoothstep(-.8,0.,alt)*mix(.3,1.,pow(facing,1.5));
-  glow+=vec3(1.,.985,.95)*line*wlWin*uHLInt*1.6;
+  float dAz=acos(clamp(facing*2.-1.,-1.,1.));                       // 0 at the sun's azimuth
+  float az=exp(-pow(dAz/.95,2.));                                   // segment ~55 deg half width
+  float azWide=exp(-pow(dAz/1.8,2.));
+  float tw=smoothstep(-16.,-5.,elevDeg)*(1.-smoothstep(.5,6.,elevDeg));
+  float depth=clamp(-elevDeg/10.,0.,1.);                             // 1 = deep twilight, 0 = sun at horizon
+  // colour by altitude, log spaced
+  vec3 c0=vec3(1.,.88,.62); vec3 c1=vec3(1.,.62,.28); vec3 c2=vec3(.95,.42,.30); vec3 c3=vec3(.62,.36,.48); vec3 c4=vec3(.25,.30,.58);
+  float u=log2(1.+altp*2.);
+  vec3 c=mix(c0,c1,smoothstep(0.,1.6,u)); c=mix(c,c2,smoothstep(1.6,2.9,u)); c=mix(c,c3,smoothstep(2.9,4.,u)); c=mix(c,c4,smoothstep(4.,5.2,u));
+  c=mix(c,mix(c2,c4,.6),depth*.6);                                   // deep twilight: pinker, no yellow
+  // low, tight envelope: glow hugs the horizon and doesn't bleach the dome
+  float H=mix(1.9,3.8,depth);
+  float env=exp(-altp/H)*(1.-depth*.35);
+  float rim=exp(-altp/.45)*(1.-depth);                               // bright rim only when the sun is very near
+  vec3 glow=(c*env*.30+c0*rim*.25)*(az*.85+azWide*.15)*tw;
+  // the white line: soft hairline centred on the sun, only from ~-5.5 deg to sunrise, then handed over to the disc
+  float wlWin=mix(1.,smoothstep(-5.5,-2.5,elevDeg)*(1.-smoothstep(-.6,.3,elevDeg)),uHLAuto);
+  float lineAz=exp(-pow(dAz/.55,2.));
+  float line=exp(-pow(alt/.11,2.))*(.7+.3*smoothstep(-.4,0.,alt));
+  glow+=vec3(1.,.98,.92)*line*lineAz*wlWin*uHLInt*.45;
+  // cool twilight dome fill: earth-shadow blue that dominates high up and opposite the sun
+  float domeWin=smoothstep(-16.,-8.,elevDeg)*(1.-smoothstep(-2.,4.,elevDeg));
+  glow+=vec3(.10,.15,.30)*.035*domeWin*(1.-exp(-altp/6.))*(1.-.5*az);
   return glow*uDawnInt;
 }
 float airMassOf(float e){ float z=90.-e; if(z>=96.) return 40.; return min(40.,1./(cos(radians(z))+.50572*pow(96.07995-z,-1.6364))); }
@@ -375,11 +387,12 @@ void main(){
       alb=mix(alb,vec3(.95,.25,.3),ax*uPlaneGrid); alb=mix(alb,vec3(.25,.55,.95),az*uPlaneGrid);
       // lighting: sun + sky ambient, soft shadow-less lambert, distance fog into sky colour
       float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.11*ndl;
-      vec3 amb=sky*.55+hzGlow*.12+vec3(.003,.004,.008)*uSkyBright;
+      // hemispherical ambient: mostly zenith sky, a little horizon glow, tiny floor so it never goes fully black
+      vec3 amb=sky*.42+hzGlow*.08+vec3(.0015,.002,.004)*uSkyBright;
       // moon light contribution
       for(int k=0;k<MAXM;k++){ if(k>=uMoonCount) break; amb+=uMoonTint[k]*uMoonP[k].y*max(uMoonDir[k].y,0.)*.0025*(.5+.5*cos(uMoonP[k].z*6.2832)); }
       planeCol=alb*(sunL+amb);
-      float fog=1.-exp(-t*1.2e-4); planeCol=mix(planeCol,sky+hzGlow,clamp(fog,0.,1.));
+      float fog=1.-exp(-t*7e-5); fog=pow(clamp(fog,0.,1.),1.6); planeCol=mix(planeCol,sky*.8+hzGlow*.6,fog);
     }
   }
   if(planeHit>.999){ col=planeCol; }
@@ -393,17 +406,19 @@ void main(){
     col+=moons(dir,trans);
     if(uSunVisible>.5){
       float ang=acos(clamp(dot(dir,uSunDir),-1.,1.)); float disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9),uSunAng,ang);
+      float soft=mix(1.,2.2,1.-smoothstep(0.,4.,elevDeg)); disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9*soft),uSunAng,ang);
       float limb=mix(1.,.55,smoothstep(0.,uSunAng,ang));
       vec3 ext=exp(-(vec3(5.8e-6,13.5e-6,33.1e-6)*uRayleigh*uHr+vec3(21e-6)*1.1*uMie*uHm)*airMassOf(elevDeg));
       vec3 sunCol=uSunColor*max(ext,trans*trans);                                           // deep orange at the horizon, white overhead
-      col+=disc*limb*sunCol*uSunIntensity*uSunDiscBoost;
+      col+=disc*limb*sunCol*uSunIntensity*uSunDiscBoost*mix(.35,1.,smoothstep(-1.,8.,elevDeg));
       float sg=exp(-ang*40.)*.35+exp(-ang*9.)*.03+exp(-ang*2.5)*.004; col+=sg*uBloom*sunCol*uSunIntensity*.6;
     }
   }
   if(uFlareOn>.5 && uSunVisible>.5){
     float inFrame=1.-smoothstep(1.25,2.2,length(uSunUV*vec2(uRes.y/uRes.x,1.)));
     float vis=uSunInFront*sunUp*inFrame*step(0.,elevDeg+.5); col+=lensFlare(uv,uSunUV,vis)*uSunIntensity*.09*uSunColor; }
-  col*=exp2(uEV);
+  float autoEV=-.35*smoothstep(-8.,-1.,elevDeg)-1.0*smoothstep(-1.,6.,elevDeg)-.6*smoothstep(6.,30.,elevDeg);   // tame the blow-out after sunrise
+  col*=exp2(uEV+autoEV);
   if(uTonemap==1.) col=aces(col); else if(uTonemap==2.) col=col/(1.+col); else if(uTonemap==3.) col=filmic(col); else if(uTonemap==4.) col=agxish(col); else col=clamp(col,0.,1.);
   float vig=1.-uVignette*pow(length(uv*vec2(uRes.y/uRes.x,1.)*.9),2.2); col*=clamp(vig,0.,1.);
   col=pow(max(col,0.),vec3(1./2.2)); col+=(hash13(vec3(gl_FragCoord.xy,fract(uTime)*100.))-.5)*uGrain*.12;
