@@ -360,11 +360,6 @@ vec3 kelvin(float t){ // approx blackbody 2000..12000K
   vec3 c=mix(vec3(1.,.55,.25),vec3(1.,.93,.86),smoothstep(0.,.4,x)); c=mix(c,vec3(.72,.82,1.),smoothstep(.4,1.,x)); return c; }
 vec3 rotY(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(c*v.x+s*v.z,v.y,-s*v.x+c*v.z); }
 vec3 rotX(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(v.x,c*v.y-s*v.z,s*v.y+c*v.z); }
-// smooth 3D value noise (trilinear) – no cell artefacts
-float vnoise(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
-  float a=hash13(i), b=hash13(i+vec3(1,0,0)), c=hash13(i+vec3(0,1,0)), d=hash13(i+vec3(1,1,0));
-  float e=hash13(i+vec3(0,0,1)), f2=hash13(i+vec3(1,0,1)), g=hash13(i+vec3(0,1,1)), h=hash13(i+vec3(1,1,1));
-  return mix(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),mix(mix(e,f2,f.x),mix(g,h,f.x),f.y),f.z); }
 // octahedral mapping: direction <-> unit square (equal-ish area, single chart)
 vec2 octEncode(vec3 n){ n/=abs(n.x)+abs(n.y)+abs(n.z); vec2 p=n.xz; if(n.y<0.) p=(1.-abs(p.yx))*vec2(p.x>=0.?1.:-1.,p.y>=0.?1.:-1.); return p*.5+.5; }
 vec3 octDecode(vec2 f){ f=f*2.-1.; vec3 n=vec3(f.x,1.-abs(f.x)-abs(f.y),f.y); float t=max(-n.y,0.); n.x+=n.x>=0.?-t:t; n.z+=n.z>=0.?-t:t; return normalize(n); }
@@ -1147,7 +1142,7 @@ function updateClock(){ const t=S.sun_time,h=Math.floor(t),m=Math.floor((t-h)*60
 
 /* ============================================================ WEBGL ============================================================ */
 const canvas=document.getElementById('gl'); const gl=canvas.getContext('webgl',{antialias:false,alpha:false}); gl.getExtension('OES_standard_derivatives');
-const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; };
+const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ const log=gl.getShaderInfoLog(s); console.error(log); const d=document.createElement('pre'); d.style.cssText='position:fixed;left:340px;top:80px;z-index:99;max-width:50vw;max-height:60vh;overflow:auto;padding:12px 14px;border-radius:12px;background:rgba(120,20,20,.85);color:#fff;font:12px/1.4 monospace;white-space:pre-wrap'; d.textContent='Shader compile error:\n'+log; document.body.appendChild(d); } return s; };
 const prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}')); gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,document.getElementById('fs').textContent)); gl.linkProgram(prog); if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog)); gl.useProgram(prog);
 const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW); const loc=gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
 const U={}; const u=n=>U[n]!==undefined?U[n]:(U[n]=gl.getUniformLocation(prog,n)); const f1=(n,v)=>gl.uniform1f(u(n),v), f2=(n,a,b)=>gl.uniform2f(u(n),a,b), f3=(n,v)=>gl.uniform3f(u(n),v[0],v[1],v[2]);
