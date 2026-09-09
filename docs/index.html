@@ -1294,10 +1294,12 @@ const P = {
   sun:     '<circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1"/>',
   moon:    '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   stars:   '<path d="m12 2 1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9z"/><path d="M18.5 15.5 19 17l1.5.5L19 18l-.5 1.5L18 18l-1.5-.5L18 17z"/><path d="M5 15l.4 1.2L6.6 16.6 5.4 17 5 18.2 4.6 17 3.4 16.6 4.6 16.2z"/>',
-  cloud:   '<path d="M6.5 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.6 9.3 3.9 3.9 0 0 1 17.5 18z"/>',
+  cloud:   '<path d="M7 18.5h10.5a3.75 3.75 0 0 0 .6-7.45A5.5 5.5 0 0 0 7.6 9.3 4.6 4.6 0 0 0 7 18.5z"/><path d="M3.5 18.5h1.2" opacity=".5"/><path d="M13.5 6.2a3.2 3.2 0 0 1 5.3 1.9" opacity=".55"/>',
+  vclouds: '<path d="M4.5 17.5h11a3.4 3.4 0 0 0 .5-6.77A5 5 0 0 0 6.3 9.6a4 4 0 0 0-1.8 7.9z"/><path d="M17.2 10.6a3 3 0 0 1 3.3 4.7" opacity=".6"/><path d="M2.5 21h19" opacity=".35"/><path d="M15 17.5h4.5a2.4 2.4 0 0 0 .4-4.76" opacity=".6"/>',
+  lcloud:  '<path d="M8 16.5h8.5a3.2 3.2 0 0 0 .5-6.37A4.6 4.6 0 0 0 8.2 8.9 3.9 3.9 0 0 0 8 16.5z"/><path d="M4 4l1.5 1.5M20 4l-1.5 1.5M4 20l1.5-1.5M20 20l-1.5-1.5" opacity=".55"/><rect x="3" y="3" width="18" height="18" rx="3" stroke-dasharray="2.5 3" opacity=".45"/>',
+  globe:   '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18"/><path d="M4.6 7.5h14.8M4.6 16.5h14.8" opacity=".5"/><circle cx="12" cy="12" r="10.6" opacity=".35" stroke-dasharray="1.5 3"/>',
   fog:     '<path d="M3 9h18M5 13h14M4 17h16"/><path d="M6.5 5.5a5 5 0 0 1 9.5 0"/>',
   afog:    '<path d="M3 17h18"/><path d="M3 13c3-2 6-2 9 0s6 2 9 0"/><path d="M6 8c2-1.5 4-1.5 6 0s4 1.5 6 0" opacity=".55"/><circle cx="18" cy="5" r="2"/>',
-  lcloud:  '<path d="M7 17h10a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 17z"/><path d="M3 20h18" opacity=".4"/><path d="M12 20v-3" opacity=".6"/>',
   vfog:    '<path d="M4 8 12 4l8 4-8 4z"/><path d="M4 8v8l8 4 8-4V8"/><path d="M12 12v8"/><path d="M7.5 15.5c1.5-1 3-1 4.5 0s3 1 4.5 0" opacity=".6"/>',
   wind:    '<path d="M3 8h9a3 3 0 1 0-3-3"/><path d="M3 13h13a3 3 0 1 1-3 3"/><path d="M3 18h7"/>',
   water:   '<path d="M2 8c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/><path d="M2 14c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/><path d="M2 20c2.5 0 2.5 1.6 5 1.6"/>',
@@ -2565,7 +2567,7 @@ const ENTITIES={
     sections:[{title:'Volume',icon:'grid',props:[SEG('lc_shape','Shape',['Box','Ellipsoid'],'Ellipsoid'),PAD('lc_x','lc_z','Position',{xmin:-300,xmax:300,ymin:-300,ymax:300,xl:'X',yl:'Z',plane:true,hint:'Top-down · or press G in the viewport'}),TRK('lc_y','Centre height',5,12000,1,120,'m',{log:true,hint:'Kept inside the troposphere'}),TRK('lc_sx','Extent X',5,600,1,90,'m',{log:true}),TRK('lc_sy','Extent Y',3,400,1,35,'m',{log:true}),TRK('lc_sz','Extent Z',5,600,1,70,'m',{log:true}),GAUGE('lc_soft','Edge softness',0.05,1,0.01,0.5,'')]},
       {title:'Formation',icon:'cloud',props:[DROP('lc_type','Form',['Stratiform','Cumuliform','Wispy'],'Cumuliform'),GAUGE('lc_cov','Coverage',0,1,0.01,0.6,''),TRK('lc_den','Density',0,3,0.01,1.2,'×'),TRK('lc_scale','Cell size',2,200,1,30,'m',{log:true}),GAUGE('lc_detail','Erosion detail',0,1,0.01,0.55,''),TRK('lc_wind','Drift',0,20,0.1,1.5,'m/s'),SEG('lc_steps','Quality',['Draft','Balanced','High'],'Balanced')]},
       {title:'Scattering',icon:'wave',sub:'shared with Clouds',props:[GAUGE('cl_g1','Forward lobe g',0,0.95,0.01,0.8,'',{alias:true}),GAUGE('cl_powder','Powder',0,1,0.01,0.6,'',{alias:true}),GAUGE('cl_amb','Sky ambient',0,2,0.01,0.9,'×',{alias:true})]}]},
-  vclouds:{name:'Clouds',kind:'Volumetric Clouds',color:'#f1f5f9',icon:'cloud',preview:'none',hero:{kind:'vclouds'},
+  vclouds:{name:'Clouds',kind:'Volumetric Clouds',color:'#f1f5f9',icon:'vclouds',preview:'none',hero:{kind:'vclouds'},
     sections:[{title:'Formation',icon:'cloud',props:[DROP('cl_type','Cloud type',['Stratus','Stratocumulus','Cumulus','Cumulonimbus','Altostratus','Cirrus'],'Cumulus',{hint:'Sets the vertical profile · applies typical base / thickness / density'}),GAUGE('cl_cov','Coverage',0,1,0.01,0.45,''),TRK('cl_den','Density',0,3,0.01,1,'×'),TRK('cl_scale','Cell size',0.3,6,0.05,1.4,'km',{log:true}),GAUGE('cl_detail','Erosion detail',0,1,0.01,0.6,''),GAUGE('cl_anvil','Anvil / shear',0,1,0.01,0.3,'')]},
       {title:'Height',icon:'grid',props:[TRK('cl_base','Cloud base',100,12000,10,1500,'m',{log:true}),TRK('cl_thick','Thickness',50,8000,10,900,'m',{log:true}),TRK('cl_wind','Wind',0,40,0.5,6,'m/s'),TRK('cl_winddir','Wind heading',0,360,1,214,'°')]},
       {title:'Scattering',icon:'wave',props:[GAUGE('cl_g1','Forward lobe g',0,0.95,0.01,0.8,''),GAUGE('cl_g2','Back lobe g',0,0.9,0.01,0.3,''),GAUGE('cl_mix','Lobe mix',0,1,0.01,0.3,''),GAUGE('cl_absorb','Absorption',0,1,0.01,0.05,''),GAUGE('cl_amb','Sky ambient',0,2,0.01,0.9,'×'),GAUGE('cl_powder','Powder',0,1,0.01,0.6,''),COL('cl_albedo','Albedo','#ffffff'),SEG('cl_steps','Quality',['Draft','Balanced','High'],'Balanced')]}]},
@@ -2600,7 +2602,13 @@ const getEntity=id=>id.startsWith('moon#')?moonEntity(+id.slice(5)):ENTITIES[id]
 
 /* ============================================================ ICONS ============================================================ */
 const I=(n,s=16)=>{ const m={
-  folder:`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`, fog:`<path d="M4 14h13M6 18h11M8 10h9"/><path d="M7 10a5 5 0 0 1 9.6-1.8A3.5 3.5 0 0 1 17 15"/>`, cloud:`<path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 18z"/>`, atmo:`<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>`,
+  globe:`<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18"/><path d="M4.6 7.5h14.8M4.6 16.5h14.8" opacity=".5"/>`,
+  cloud:`<path d="M7 18.5h10.5a3.75 3.75 0 0 0 .6-7.45A5.5 5.5 0 0 0 7.6 9.3 4.6 4.6 0 0 0 7 18.5z"/><path d="M13.5 6.2a3.2 3.2 0 0 1 5.3 1.9" opacity=".55"/>`,
+  vclouds:`<path d="M4.5 17.5h11a3.4 3.4 0 0 0 .5-6.77A5 5 0 0 0 6.3 9.6a4 4 0 0 0-1.8 7.9z"/><path d="M17.2 10.6a3 3 0 0 1 3.3 4.7" opacity=".6"/><path d="M2.5 21h19" opacity=".35"/><path d="M15 17.5h4.5a2.4 2.4 0 0 0 .4-4.76" opacity=".6"/>`,
+  lcloud:`<path d="M8 16.5h8.5a3.2 3.2 0 0 0 .5-6.37A4.6 4.6 0 0 0 8.2 8.9 3.9 3.9 0 0 0 8 16.5z"/><rect x="3" y="3" width="18" height="18" rx="3" stroke-dasharray="2.5 3" opacity=".45"/>`,
+  afog:`<path d="M3 17h18"/><path d="M3 13c3-2 6-2 9 0s6 2 9 0"/><path d="M6 8c2-1.5 4-1.5 6 0s4 1.5 6 0" opacity=".55"/><circle cx="18" cy="5" r="2"/>`,
+  vfog:`<path d="M4 8 12 4l8 4-8 4z"/><path d="M4 8v8l8 4 8-4V8"/><path d="M12 12v8"/><path d="M7.5 15.5c1.5-1 3-1 4.5 0s3 1 4.5 0" opacity=".6"/>`,
+  folder:`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`, fog:`<path d="M4 14h13M6 18h11M8 10h9"/><path d="M7 10a5 5 0 0 1 9.6-1.8A3.5 3.5 0 0 1 17 15"/>`, atmo:`<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>`,
   sun:`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>`,
   sky:`<path d="M3 16a4 4 0 0 1 4-4 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 18 20H7a4 4 0 0 1-4-4z"/>`,
   check:`<path d="M5 12.5l4.5 4.5L19 7.5"/>`,
@@ -2613,8 +2621,7 @@ const I=(n,s=16)=>{ const m={
   moon:`<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>`, camera:`<rect x="3" y="7" width="13" height="11" rx="2.5"/><path d="m16 11 5-3v8l-5-3z"/>`,
   fx:`<path d="M4 20 15 9M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.6 1.4L21 14l-1.4.6L19 16l-.6-1.4L17 14l1.4-.6z"/>`,
   eye:`<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`, eyeoff:`<path d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 5.1A10.5 10.5 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.2 6.2A17 17 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4-.8"/>`,
-  chev:`<path d="m9 6 6 6-6 6"/>`, chevu:`<path d="m18 15-6-6-6 6"/>`, wave:`<path d="M2 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0"/>`, globe:`<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>`,
-  horizon:`<path d="M2 15h20M6 15a6 6 0 0 1 12 0"/>`, orbit:`<circle cx="12" cy="12" r="3"/><path d="M4 12a8 8 0 1 0 16 0"/><path d="M20 12a8 8 0 0 0-16 0" stroke-dasharray="2 3"/>`,
+  chev:`<path d="m9 6 6 6-6 6"/>`, chevu:`<path d="m18 15-6-6-6 6"/>`, wave:`<path d="M2 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0"/>`, horizon:`<path d="M2 15h20M6 15a6 6 0 0 1 12 0"/>`, orbit:`<circle cx="12" cy="12" r="3"/><path d="M4 12a8 8 0 1 0 16 0"/><path d="M20 12a8 8 0 0 0-16 0" stroke-dasharray="2 3"/>`,
   bulb:`<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>`, palette:`<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="15.5" cy="10" r="1"/><path d="M12 21a3 3 0 0 0 0-6h-1a2 2 0 0 1 0-4"/>`,
   ground:`<path d="M2 18h20M4 18c3-6 6-6 8 0M12 18c2-4 5-4 8 0"/>`, grid:`<path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>`, galaxy:`<path d="M12 12a4 4 0 0 1 6 2 7 7 0 0 1-12 3M12 12a4 4 0 0 0-6-2 7 7 0 0 1 12-3"/><circle cx="12" cy="12" r="1"/>`,
   aperture:`<circle cx="12" cy="12" r="9"/><path d="M14.3 15.5 8.5 5.4M9.7 8.5h11.6M12 12l-5.8 10M9.7 15.5h11.6M14.3 8.5l-5.8 10"/>`, sliders:`<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>`,
@@ -2691,7 +2698,7 @@ function renderTimeline(){ const el=document.getElementById('timeline'); if(el.h
   el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
 // ---------- simple tree with parenting ----------
 const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',fog:'world',afog:'world',vfog:'world',clouds:'world',vclouds:'world',lcloud:'world',moons:'world',plane:null,terrain:null,plight:'lights',slight:'lights',lights:null,camera:null,cine:null,post:'camera'};
-const PICS={atmosphere:'atmosphere',sun:'sun',sky:'sky',stars:'stars',fog:'fog',clouds:'cloud',terrain:'terrain',moons:'moon',camera:'camera',cine:'cine'};
+const PICS={};
 const PIC=(id,sz)=>PICS[id]?`<img class="pic" src="${TEXDIR}icons/${PICS[id]}.png" width="${sz}" height="${sz}" alt="" draggable="false">`:null;
 const FOLDERS={world:{name:'World',icon:'globe',color:'#5aa9ff'},lights:{name:'Lights',icon:'bulb',color:'#ffd27a'}};
 function parentOf(id){ if(id.startsWith('moon#')) return (S.parentMap&&S.parentMap[id])||'moons'; if(S.parentMap&&id in S.parentMap) return S.parentMap[id]; return DEFAULT_PARENT[id]===undefined?null:DEFAULT_PARENT[id]; }
