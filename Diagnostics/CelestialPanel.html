@@ -57,6 +57,15 @@ input{font:inherit;color:inherit}
 .filters button i{width:6px;height:6px;border-radius:50%;background:var(--c)}
 .filters button.on{background:var(--g3);color:var(--text);border-color:var(--stroke2)}
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
+/* header tiles */
+.livepill{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;color:var(--t3);padding:5px 10px;border-radius:999px;border:1px solid var(--stroke)} .livepill i{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite} @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 14px 10px}
+.tile{border-radius:16px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);padding:10px 12px 8px;position:relative;overflow:hidden;cursor:pointer;transition:background .2s}
+.tile:hover{background:rgba(255,255,255,.06)} .tile.sel{box-shadow:inset 0 0 0 1px var(--stroke2)}
+.tile .tl{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)} .tile .tl i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.tile .tv{font-size:22px;font-weight:200;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.1} .tile .tv small{font-size:11px;color:var(--t3);font-weight:300;margin-left:3px}
+.tile canvas{position:absolute;right:0;bottom:0;width:100%;height:22px;opacity:.9}
+.tile .arrow{position:absolute;top:10px;right:10px;color:var(--t3)}
 /* strata (folder) */
 .stratum{margin-bottom:8px;border-radius:18px;background:rgba(255,255,255,.025);border:1px solid var(--stroke);overflow:hidden;transition:background .2s}
 .stratum.open{background:rgba(255,255,255,.035)}
@@ -82,6 +91,7 @@ input{font:inherit;color:inherit}
 .row .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .row .name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
 .row .meta{font-size:11px;color:var(--t3);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .mini{width:56px;height:26px;flex-shrink:0;opacity:.9} .row .mini svg{width:100%;height:100%;overflow:visible}
 .row .eye{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--t3);opacity:0;transition:all .2s}
 .row:hover .eye,.row.sel .eye,.row .eye.off{opacity:1}
 .row .eye:hover{background:var(--g3);color:var(--text)} .row .eye.off{color:var(--red)}
@@ -92,7 +102,8 @@ input{font:inherit;color:inherit}
 .row.child .ico{width:24px;height:24px;border-radius:8px}
 .moon-dot{width:16px;height:16px;border-radius:50%;background:var(--tex) center/200% 100%;box-shadow:inset -4px -3px 6px rgba(0,0,0,.7),inset 1px 1px 2px rgba(255,255,255,.3)}
 .kids{position:relative} .kids::before{content:'';position:absolute;left:19px;top:0;bottom:12px;width:1px;background:rgba(255,255,255,.14)}
-.outliner-foot{padding:12px 14px 14px;border-top:1px solid var(--stroke);display:flex;gap:6px;flex-wrap:wrap}
+.outliner-foot{padding:10px 16px 12px;border-top:1px solid var(--stroke);display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.foot-item{display:flex;flex-direction:column;gap:1px;min-width:0} .foot-item span{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3)} .foot-item b{font-weight:300;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .foot-item em{font-style:normal;font-size:10px;color:var(--t3)}
 .chip{display:flex;align-items:center;gap:8px;height:32px;padding:0 11px;border-radius:999px;background:var(--g2);border:1px solid var(--stroke);font-size:12px;color:var(--t2)}
 .chip b{font-weight:400;color:var(--text);font-variant-numeric:tabular-nums} .chip i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
 /* inspector */
@@ -171,6 +182,35 @@ input{font:inherit;color:inherit}
 .seg button.on{background:#fff;color:#000;font-weight:500} .seg button:hover:not(.on){background:var(--g3);color:var(--text)}
 /* temperature ramp */
 .ramp{height:10px;border-radius:999px;margin-top:8px;background:linear-gradient(90deg,#ff7a1a,#ffb46b,#ffd9b0,#fff4e6,#ffffff,#dbe7ff,#b6ccff)}
+/* ── graphical controls ── */
+.ctl.wide{grid-column:span 2}
+.ctl svg{overflow:visible;touch-action:none}
+.orb-svg{width:100%;height:auto;margin-top:2px;cursor:grab} .orb-svg:active{cursor:grabbing}
+.orb-svg .g{stroke:rgba(255,255,255,.06);stroke-width:1} .orb-svg .hz{fill:none;stroke:rgba(255,255,255,.22);stroke-width:1.2}
+.orb-svg .c{fill:rgba(255,255,255,.4);font-size:11px;text-anchor:middle;font-family:var(--font)} .orb-svg .c.n{fill:#fff;font-weight:500}
+.orb-svg .path{fill:none;stroke:rgba(255,180,84,.9);stroke-width:1.6} .orb-svg .path.below{stroke:rgba(255,255,255,.14);stroke-dasharray:3 4;stroke-width:1}
+.orb-svg .drop{stroke:rgba(255,255,255,.22);stroke-dasharray:2 3} .orb-svg .foot{fill:rgba(255,255,255,.35)}
+.orb-svg .sun{fill:#ffd166;filter:drop-shadow(0 0 6px #ffb454);cursor:grab} .orb-svg .sunglow{fill:rgba(255,180,84,.18)} .orb-svg .sun.dim,.orb-svg .moon.dim{opacity:.35} .orb-svg .sunglow.dim{opacity:.1}
+.orb-svg .moon{fill:#e6ebf5;filter:drop-shadow(0 0 6px rgba(220,230,255,.8));cursor:grab} .orb-svg .cam{fill:#34c759;filter:drop-shadow(0 0 6px #34c759);cursor:grab}
+.orb-svg .frustum{fill:rgba(52,199,89,.14);stroke:rgba(52,199,89,.7);stroke-width:1.2}
+.orb-svg .ring-handle{fill:#000;stroke:#fff;stroke-width:2;cursor:ew-resize} .orb-svg .tk{fill:rgba(255,255,255,.35);font-size:9px;text-anchor:middle;font-family:var(--font)}
+.orb-svg .stat{fill:rgba(255,255,255,.4);font-size:10px;letter-spacing:.08em;font-family:var(--font)} .orb-svg .stat tspan{fill:#fff;font-size:12px;letter-spacing:0;font-family:var(--mono)}
+.globe-svg{width:78px;height:78px;cursor:ns-resize;flex-shrink:0} .globe-svg .globe{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.18)} .globe-svg .g{fill:none;stroke:rgba(255,255,255,.08)} .globe-svg .eq{stroke:rgba(255,255,255,.28);stroke-dasharray:2 2}
+.globe-svg .latline{stroke:#fff;stroke-width:1.5} .globe-svg .knob,.curve-svg .knob,.gauge-svg .knob,.pad-svg .knob,.orbit2-svg .knob,.phase-svg .knob,.hist-svg .knob{fill:#fff;stroke:rgba(0,0,0,.6);stroke-width:1.5;filter:drop-shadow(0 0 5px rgba(255,255,255,.5))}
+.curve-svg,.hist-svg{width:100%;height:64px;cursor:ew-resize;margin-top:2px} .curve-svg .ax,.hist-svg .ax{stroke:rgba(255,255,255,.15)} .curve-svg .ln,.hist-svg .ln{fill:none;stroke:rgba(255,255,255,.7);stroke-width:1.4;vector-effect:non-scaling-stroke} .hist-svg .ln.warm{stroke:#ff8a65}
+.curve-svg .cur,.pad-svg .cur,.hist-svg .cur{stroke:rgba(255,255,255,.35);stroke-dasharray:2 3;vector-effect:non-scaling-stroke}
+.gauge-wrap{display:flex;align-items:flex-end;gap:6px;margin-top:2px} .gauge-svg{width:104px;height:62px;cursor:grab;flex-shrink:0} .gauge-svg .track{fill:none;stroke:rgba(255,255,255,.1);stroke-width:6;stroke-linecap:round} .gauge-svg .arc{fill:none;stroke:#fff;stroke-width:6;stroke-linecap:round}
+.gauge-svg .g{stroke:rgba(255,255,255,.18)} .gauge-svg .gm{stroke:rgba(255,255,255,.4);stroke-width:1.5} .gauge-val .vwrap input.val{width:64px;font-size:22px;text-align:left} .gauge-val{padding-bottom:4px}
+.kelvin-bar{position:relative;height:16px;border-radius:999px;margin-top:8px;cursor:ew-resize;background:linear-gradient(90deg,#ff5a00 0%,#ff8c1a 12%,#ffb469 24%,#ffd9b0 36%,#fff4e6 46%,#ffffff 54%,#e8efff 66%,#cfdcff 82%,#b6ccff 100%)}
+.kelvin-bar .kmark{position:absolute;top:-4px;left:var(--p);width:2px;height:24px;background:#fff;transform:translateX(-50%);box-shadow:0 0 6px rgba(0,0,0,.8)} .kelvin-bar .kswatch{position:absolute;top:50%;left:var(--p);width:22px;height:22px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.6)}
+.kelvin-ticks{display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:6px;letter-spacing:.02em}
+.pad-svg{width:100%;height:auto;margin-top:4px;cursor:crosshair;border-radius:10px;background:rgba(0,0,0,.3)} .pad-svg .g{stroke:rgba(255,255,255,.06)} .pad-svg .lab{fill:rgba(255,255,255,.35);font-size:9px;font-family:var(--font)} .pad-svg .lab.e{text-anchor:end}
+.pad-svg .frustum{fill:rgba(52,199,89,.16);stroke:rgba(52,199,89,.8)} .pad-svg .sun{fill:#ffd166} .pad-svg .axx{stroke:rgba(224,64,76,.5)} .pad-svg .axz{stroke:rgba(63,140,242,.5)}
+.orbit2-svg{width:100%;height:auto;margin-top:4px} .orbit2-svg .globe{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.18)} .orbit2-svg .g{fill:none;stroke:rgba(255,255,255,.1)} .orbit2-svg .eq{fill:none;stroke:rgba(255,255,255,.35)} .orbit2-svg .pm{fill:none;stroke:rgba(255,180,84,.8)}
+.orbit2-svg .axis{stroke:#fff;stroke-width:1.5;stroke-dasharray:3 3} .orbit2-svg .arc{fill:none;stroke:rgba(255,255,255,.5);stroke-width:1.5} .orbit2-svg .track{stroke:rgba(255,255,255,.12);stroke-width:4;stroke-linecap:round} .orbit2-svg .lab{fill:rgba(255,255,255,.35);font-size:9px;font-family:var(--font)}
+.phase-svg{width:100%;height:auto;margin-top:2px;cursor:ew-resize} .phase-svg .pdark{fill:#1b1d22;stroke:rgba(255,255,255,.12)} .phase-svg .plit{fill:#e8edf7} .phase-svg .track{stroke:rgba(255,255,255,.12);stroke-width:4;stroke-linecap:round} .phase-svg .arc{stroke:#fff;stroke-width:4;stroke-linecap:round} .phase-svg g{cursor:pointer}
+.hist-svg .lab{fill:rgba(255,255,255,.35);font-size:9px;font-family:var(--font)} .hist-svg .lab.e{text-anchor:end}
+.preview.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--stroke)} .preview.stats .st{background:rgba(14,15,17,.9);padding:10px 12px;display:flex;flex-direction:column;gap:2px} .preview.stats .st span{font-size:10px;color:var(--t3);letter-spacing:.06em;text-transform:uppercase} .preview.stats .st b{font-weight:300;font-size:16px;font-variant-numeric:tabular-nums}
 /* atlas */
 .atlas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;grid-column:span 2;padding-top:8px}
 .atlas .card{border-radius:16px;background:rgba(0,0,0,.35);border:1px solid var(--stroke);padding:12px 8px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:all .2s var(--ease);position:relative}
@@ -211,11 +251,12 @@ input{font:inherit;color:inherit}
 </div>
 
 <aside id="outliner" class="glass">
-  <div class="panel-head"><h1>Outliner<span class="sub">World</span></h1></div>
+  <div class="panel-head"><h1>Outliner<span class="sub">World</span></h1><span class="livepill"><i></i>LIVE</span></div>
+  <div class="tiles" id="tiles"></div>
   <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search  Ctrl+Shift+F"></div>
   <div class="filters" id="filters"></div>
   <div class="tree" id="tree"></div>
-  <div class="outliner-foot"><div class="chip"><i></i>Realtime <b id="fps">60</b></div><div class="chip">Sun <b id="hudSun">0.0°</b></div><div class="chip">Moons <b id="hudMoon">1</b></div></div>
+  <div class="outliner-foot"><div class="foot-item"><span>Realtime</span><b id="fps">60</b><em>fps</em></div><div class="foot-item"><span>Sun</span><b id="hudSun">0.0°</b></div><div class="foot-item"><span>Moons</span><b id="hudMoon">1</b><em>/ 4</em></div><div class="foot-item"><span>Cam</span><b id="hudCam">0, 2, 0</b></div></div>
 </aside>
 
 <aside id="inspector" class="glass">
@@ -432,7 +473,18 @@ const S={}; const D2R=Math.PI/180;
 const TRK=(k,l,min,max,step,d,unit,x={})=>({k,l,t:'trk',min,max,step,d,unit,...x});
 const DIAL=(k,l,min,max,step,d,unit,x={})=>({k,l,t:'dial',min,max,step,d,unit,...x});
 const STEP=(k,l,min,max,d)=>({k,l,t:'step',min,max,step:1,d});
-const TOG=(k,l,d,hint)=>({k,l,t:'toggle',d,hint}); const COL=(k,l,d)=>({k,l,t:'color',d}); const SEG=(k,l,opts,d)=>({k,l,t:'seg',opts,d});
+const TOG=(k,l,d,hint)=>({k,l,t:'toggle',d,hint});
+// graphical controls — each is a live, draggable chart/instrument bound to one or two keys
+const ORB=(kAz,kEl,l,x={})=>({k:kAz,k2:kEl,l,t:'orb',...x});                       // 3D orbit widget over the plane + compass (azimuth + elevation)
+const GLOBE=(k,l,d,x={})=>({k,l,t:'globe',min:-90,max:90,step:0.5,d,unit:'°',...x}); // latitude globe
+const CURVE=(k,l,min,max,step,d,unit,fn,x={})=>({k,l,t:'curve',min,max,step,d,unit,fn,...x}); // response curve, value picked on x axis
+const GAUGE=(k,l,min,max,step,d,unit,x={})=>({k,l,t:'gauge',min,max,step,d,unit,...x});   // arc gauge (semi-circle)
+const KELVIN=(k,l,d)=>({k,l,t:'kelvin',min:2000,max:12000,step:50,d,unit:'K'});          // spectrum bar with swatch
+const PAD=(kx,ky,l,x={})=>({k:kx,k2:ky,l,t:'pad',...x});                                  // 2D XY pad
+const ORBIT2=(kSpin,kTilt,l)=>({k:kSpin,k2:kTilt,l,t:'orbit2'});                           // spin/tilt sphere widget
+const PHASE=(k,l,d)=>({k,l,t:'phase',min:0,max:1,step:0.005,d,unit:''});                  // phase ring
+const HIST=(k,l,min,max,step,d,unit)=>({k,l,t:'hist',min,max,step,d,unit});               // exposure histogram scrub
+const COL=(k,l,d)=>({k,l,t:'color',d}); const SEG=(k,l,opts,d)=>({k,l,t:'seg',opts,d});
 
 const TEXDIR='CelestialTextures/';
 const MOON_ATLAS=[
@@ -444,49 +496,51 @@ const MOON_ATLAS=[
   {id:'shard',  name:'Shard',   sub:'Captured rock',   tex:'shard_2k.jpg',  tint:'#ffffff',haze:0,  size:0.6,gamma:0.9, tilt:0},
 ];
 const MOON_PROPS=[
-  DIAL('elev','Elevation',-20,90,0.5,28,'°'), DIAL('az','Azimuth',0,360,1,300,'°',{full:true}),
+  ORB('az','elev','Orbit',{hint:'Drag the moon over the plane'}), {k:'elev',t:'hidden',d:28}, {k:'az',t:'hidden',d:300},
   TOG('link','Opposite the Sun',false,'Locks anti-solar'),
-  TRK('size','Angular Diameter',0.1,40,0.05,0.9,'°',{log:true,hint:'Real moon ≈ 0.5°'}),
-  TRK('bright','Brightness',0,6,0.01,1.6,'×'), TRK('phase','Phase',0,1,0.005,0.12,''),
-  TRK('glow','Glow',0,3,0.01,0.8,'×'),
-  DIAL('spin','Spin',0,360,1,0,'°',{full:true}), DIAL('tilt','Axial Tilt',-90,90,0.5,6.7,'°'), COL('tint','Tint','#ffffff'), TRK('gamma','Contrast',0.5,2,0.01,1,'γ'), TRK('haze','Atmosphere',0,1,0.01,0,''),
+  CURVE('size','Angular Diameter',0.1,40,0.05,0.9,'°',null,{log:true,curve:'disc',hint:'Real moon ≈ 0.5°'}),
+  GAUGE('bright','Brightness',0,6,0.01,1.6,'×'), PHASE('phase','Phase',0.12),
+  GAUGE('glow','Glow',0,3,0.01,0.8,'×'),
+  ORBIT2('spin','tilt','Spin & Axial Tilt'), {k:'spin',t:'hidden',d:0}, {k:'tilt',t:'hidden',d:6.7}, COL('tint','Tint','#ffffff'), GAUGE('gamma','Contrast',0.5,2,0.01,1,'γ'), GAUGE('haze','Atmosphere',0,1,0.01,0,''),
 ];
 function applyPreset(m,p){ m.preset=p.id; m.tex=p.tex; m.tint=p.tint; m.haze=p.haze; m.size=p.size; m.gamma=p.gamma; m.tilt=p.tilt; }
 function makeMoon(preset,i){ const p=MOON_ATLAS.find(m=>m.id===preset); const m={preset,visible:true,name:p.name+(i?` ${i+1}`:'')};
-  for(const pr of MOON_PROPS) m[pr.k]=pr.d; applyPreset(m,p); m.az=(300+i*47)%360; m.elev=28-i*6; return m; }
+  for(const pr of MOON_PROPS) if(pr.d!==undefined) m[pr.k]=pr.d; applyPreset(m,p); m.az=(300+i*47)%360; m.elev=28-i*6; return m; }
 
 const ENTITIES={
   atmosphere:{name:'Atmosphere',kind:'Atmosphere',color:'#5aa9ff',icon:'atmo',preview:'atmo',hero:{label:'Air Mass',unit:'AM',dec:2,fn:()=>airMass()},
-    sections:[{title:'Scattering',icon:'wave',props:[TRK('atm_rayleigh','Rayleigh',0,4,0.01,1,'×',{hint:'Molecular — blue depth'}),TRK('atm_mie','Mie',0,6,0.01,1,'×',{hint:'Aerosol / haze'}),TRK('atm_mieG','Mie Anisotropy',0,0.99,0.005,0.78,'g'),TRK('atm_ozone','Ozone',0,4,0.01,1.2,'×')]},
-      {title:'Planet',icon:'globe',props:[TRK('atm_planetR','Planet Radius',1000,12000,1,6371,'km',{log:true}),TRK('atm_height','Atmosphere Top',20,200,1,100,'km'),TRK('atm_hr','Rayleigh Scale H',2000,15000,10,8000,'m'),TRK('atm_hm','Mie Scale H',300,4000,10,1200,'m')]},
-      {title:'Twilight',icon:'horizon',sub:'dawn & dusk',props:[TRK('dawn_int','Horizon Glow',0,3,0.01,1,'×',{hint:'Bright segment + colour ramp'}),TRK('hl_int','White Line',0,3,0.01,1,'×',{hint:'Thin band just before sunrise'}),TOG('hl_auto','Line only at civil twilight',true)]}]},
+    sections:[{title:'Scattering',icon:'wave',props:[PAD('atm_rayleigh','atm_mie','Rayleigh × Mie',{xmin:0,xmax:4,ymin:0,ymax:6,xl:'Rayleigh',yl:'Mie',hint:'Drag: right = deeper blue · up = hazier'}),CURVE('atm_mieG','Mie Anisotropy',0,0.99,0.005,0.78,'g',null,{curve:'hg'}),GAUGE('atm_ozone','Ozone',0,4,0.01,1.2,'×')]},
+      {title:'Planet',icon:'globe',props:[CURVE('atm_hr','Rayleigh Scale H',2000,15000,10,8000,'m',null,{curve:'density'}),CURVE('atm_hm','Mie Scale H',300,4000,10,1200,'m',null,{curve:'density'}),TRK('atm_planetR','Planet Radius',1000,12000,1,6371,'km',{log:true}),TRK('atm_height','Atmosphere Top',20,200,1,100,'km')]},
+      {title:'Twilight',icon:'horizon',sub:'dawn & dusk',props:[GAUGE('dawn_int','Horizon Glow',0,3,0.01,1,'×'),GAUGE('hl_int','White Line',0,3,0.01,1,'×'),TOG('hl_auto','Line only at civil twilight',true)]}]},
   sun:{name:'Sun',kind:'Directional Light',color:'#ffb454',icon:'sun',preview:'sunpath',hero:{label:'Elevation',unit:'°',dec:1,fn:()=>sunElevDeg(),signed:true},
-    sections:[{title:'Position',icon:'orbit',props:[TRK('sun_time','Time of Day',0,24,0.005,6.4,'h'),DIAL('sun_lat','Latitude',-90,90,0.5,-26,'°',{hint:'Gauteng'}),DIAL('sun_az','Azimuth Offset',0,360,1,0,'°',{full:true})]},
-      {title:'Light',icon:'bulb',props:[TRK('sun_intensity','Intensity',0,60,0.1,22,'×'),TRK('sun_temp','Colour Temperature',2000,12000,50,5800,'K',{ramp:true}),TRK('sun_ang','Angular Diameter',0.1,10,0.01,0.53,'°',{log:true}),TRK('sun_soft','Disc Softness',0,1,0.01,0.25,''),TRK('sun_disc','Disc Radiance',0,40,0.1,12,'×')]}]},
+    sections:[{title:'Position',icon:'orbit',props:[ORB('sun_az','sun_time','Solar Orbit',{sun:true,hint:'Drag the sun along its path · drag the ring to rotate azimuth'}),GLOBE('sun_lat','Latitude',-26,{hint:'Drag the globe'})]},
+      {title:'Light',icon:'bulb',props:[KELVIN('sun_temp','Colour Temperature',5800),GAUGE('sun_intensity','Intensity',0,60,0.1,22,'×'),GAUGE('sun_disc','Disc Radiance',0,40,0.1,12,'×'),CURVE('sun_ang','Angular Diameter',0.1,10,0.01,0.53,'°',(x,S)=>x,{log:true,curve:'disc'}),TRK('sun_soft','Disc Softness',0,1,0.01,0.25,'')]}]},
   sky:{name:'Sky',kind:'Sky Dome',color:'#67e8f9',icon:'sky',preview:'sky',hero:{label:'Zenith Luminance',unit:'kcd/m²',dec:2,fn:()=>zenithLum()},
-    sections:[{title:'Appearance',icon:'palette',props:[COL('sky_tint','Sky Tint','#ffffff'),TRK('sky_bright','Sky Brightness',0,3,0.01,1,'×')]},
-      {title:'Ground',icon:'ground',props:[COL('sky_ground','Ground Albedo','#2b2924'),TRK('sky_groundBright','Ground Brightness',0,3,0.01,1,'×')]}]},
+    sections:[{title:'Appearance',icon:'palette',props:[COL('sky_tint','Sky Tint','#ffffff'),GAUGE('sky_bright','Sky Brightness',0,3,0.01,1,'×')]},
+      {title:'Ground',icon:'ground',props:[COL('sky_ground','Ground Albedo','#2b2924'),GAUGE('sky_groundBright','Ground Brightness',0,3,0.01,1,'×')]}]},
   moons:{name:'Moons',kind:'Atlas',color:'#dfe6f5',icon:'moon',preview:'atlas',hero:{label:'Bodies in orbit',unit:'/ 4',dec:0,fn:()=>S.moons.length},sections:[]},
   camera:{name:'Camera',kind:'Perspective Camera',color:'#34c759',icon:'camera',preview:'camera',hero:{label:'Field of View',unit:'°',dec:1,fn:()=>S.cam_fov},
-    sections:[{title:'Lens',icon:'aperture',props:[TRK('cam_fov','FOV',20,120,0.5,72,'°'),DIAL('cam_yaw','Yaw',-180,180,0.5,92,'°',{full:true}),DIAL('cam_pitch','Pitch',-89,89,0.5,-4,'°'),TRK('cam_height','Height',0.5,20000,0.5,2,'m',{log:true}),TRK('cam_x','Position X',-5000,5000,0.5,0,'m'),TRK('cam_z','Position Z',-5000,5000,0.5,0,'m')]},{title:'Navigation',icon:'orbit',props:[TRK('cam_speed','Fly Speed',0.5,200,0.5,8,'m/s',{log:true,hint:'Scroll while flying to change'}),TRK('cam_sens','Look Sensitivity',0.2,3,0.05,1,'×')]}]},
+    sections:[{title:'Lens',icon:'aperture',props:[ORB('cam_yaw','cam_pitch','View Direction',{cam:true,hint:'Drag the eye · frustum shows FOV'}),CURVE('cam_fov','Field of View',20,120,0.5,72,'°',null,{curve:'fov'})]},
+      {title:'Transform',icon:'grid',props:[PAD('cam_x','cam_z','Position',{xmin:-600,xmax:600,ymin:-600,ymax:600,xl:'X',yl:'Z',plane:true,hint:'Top-down · drag to move the camera'}),TRK('cam_height','Height',0.5,20000,0.5,2,'m',{log:true})]},
+      {title:'Navigation',icon:'orbit',props:[GAUGE('cam_speed','Fly Speed',0.5,200,0.5,8,'m/s',{log:true,hint:'Scroll while flying to change'}),GAUGE('cam_sens','Look Sensitivity',0.2,3,0.05,1,'×')]}]},
   post:{name:'Post Process',kind:'Component · Camera',color:'#ff8a65',icon:'fx',warm:true,preview:'post',hero:{label:'Exposure',unit:'EV',dec:2,fn:()=>S.pp_ev,signed:true},
-    sections:[{title:'Exposure & Tonemap',icon:'sliders',props:[TRK('pp_ev','Exposure',-6,6,0.05,0.4,'EV'),SEG('pp_tonemap','Tonemapper',['None','ACES','Reinhard','Filmic','AgX'],'ACES'),TRK('pp_bloom','Bloom',0,3,0.01,1,'×'),TRK('pp_vignette','Vignette',0,1,0.01,0.28,''),TRK('pp_grain','Film Grain',0,1,0.01,0.1,'')]},
-      {title:'Lens Flare',icon:'flare',warm:true,props:[TOG('pp_flare','Enabled',true),SEG('pp_flareType','Type',['Cinematic','Anamorphic','Starburst','Halo'],'Cinematic'),TRK('pp_flareInt','Intensity',0,3,0.01,1,'×'),STEP('pp_ghosts','Ghosts',0,8,5),TRK('pp_halo','Halo Radius',0.1,1.2,0.01,0.55,''),TRK('pp_streak','Streak',0,2,0.01,0.8,'×'),TRK('pp_chroma','Chromatic',0,1,0.01,0.65,'')]}]},
+    sections:[{title:'Exposure & Tonemap',icon:'sliders',props:[HIST('pp_ev','Exposure',-6,6,0.05,0.4,'EV'),SEG('pp_tonemap','Tonemapper',['None','ACES','Reinhard','Filmic','AgX'],'ACES'),GAUGE('pp_bloom','Bloom',0,3,0.01,1,'×'),GAUGE('pp_vignette','Vignette',0,1,0.01,0.28,''),GAUGE('pp_grain','Film Grain',0,1,0.01,0.1,'')]},
+      {title:'Lens Flare',icon:'flare',warm:true,props:[TOG('pp_flare','Enabled',true),SEG('pp_flareType','Type',['Cinematic','Anamorphic','Starburst','Halo'],'Cinematic'),GAUGE('pp_flareInt','Intensity',0,3,0.01,1,'×'),STEP('pp_ghosts','Ghosts',0,8,5),PAD('pp_halo','pp_streak','Halo × Streak',{xmin:0.1,xmax:1.2,ymin:0,ymax:2,xl:'Halo radius',yl:'Streak'}),GAUGE('pp_chroma','Chromatic',0,1,0.01,0.65,'')]}]},
 };
 const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
-    {title:'Checker Material',icon:'palette',props:[TRK('pl_cell','Cell Size',0.25,20,0.05,1,'m',{log:true}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) S[p.k]=p.d; } S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+    {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
 const setV=(k,v)=>{ if(k.startsWith('moon.')){ const [,i,f]=k.split('.'); S.moons[+i][f]=v; } else S[k]=v; };
 function moonEntity(i){ const m=S.moons[i]; if(!m) return null; const P=k=>`moon.${i}.${k}`;
   return {name:m.name,kind:'Celestial Body',color:'#dfe6f5',icon:'moon',preview:'moon',moonIndex:i,hero:{label:'Illuminated',unit:'%',dec:0,fn:()=>illum(m.phase)*100},
-    sections:[{title:'Position',icon:'orbit',props:MOON_PROPS.slice(0,3).map(p=>({...p,k:P(p.k)}))},
-      {title:'Body',icon:'moon',props:MOON_PROPS.slice(3,7).map(p=>({...p,k:P(p.k)}))},
-      {title:'Texture',icon:'palette',sub:'UV sphere',props:MOON_PROPS.slice(7).map(p=>({...p,k:P(p.k)}))}]}; }
+    sections:[{title:'Position',icon:'orbit',props:MOON_PROPS.slice(0,4).map(p=>({...p,k:P(p.k),k2:p.k2?P(p.k2):undefined}))},
+      {title:'Body',icon:'moon',props:MOON_PROPS.slice(4,8).map(p=>({...p,k:P(p.k)}))},
+      {title:'Texture',icon:'palette',sub:'UV sphere',props:MOON_PROPS.slice(8).map(p=>({...p,k:P(p.k),k2:p.k2?P(p.k2):undefined}))}]}; }
 const getEntity=id=>id.startsWith('moon#')?moonEntity(+id.slice(5)):ENTITIES[id];
 
 /* ============================================================ ICONS ============================================================ */
@@ -537,7 +591,7 @@ const isActive=id=>id==='sun'?sunElevDeg()>-0.8:id.startsWith('moon#')?moonDir(S
 const rowHTML=(id,e,cls='')=>{ const isM=id.startsWith('moon#'); const m=isM?S.moons[+id.slice(5)]:null; const vis=isM?m.visible:S['vis_'+id];
   return `<div class="row ${cls} ${selected===id?'sel':''} ${vis?'':'dim'} ${isActive(id)?'active':''}" data-id="${id}" style="--acc:${e.color}">
     <span class="ico">${m?`<span class="moon-dot" style="--tex:url(${TEXDIR}${m.tex})"></span>`:I(e.icon,15)}<i class="live"></i></span>
-    <span class="txt"><span class="name">${e.name}</span><span class="meta" data-meta="${id}">${metaOf(id)}</span></span>${cls==='child'&&!m?'<span class="tag">Comp</span>':''}
+    <span class="txt"><span class="name">${e.name}</span><span class="meta" data-meta="${id}">${metaOf(id)}</span></span><span class="mini" data-mini="${id}">${miniOf(id)}</span>
     <button class="eye ${vis?'':'off'}" data-eye="${id}">${I(vis?'eye':'eyeoff',14)}</button></div>`; };
 const stratum=(key,name,acc,colors,count,body,selId)=>`<div class="stratum ${openF[key]?'open':''}" data-folder="${key}"><div class="stratum-head ${selId&&selected===selId?'sel':''}" ${selId?`data-id="${selId}"`:''} style="--acc:${acc}"><span class="chev">${I('chev',12)}</span><span class="name">${name}</span><span class="swatches">${colors.map(c=>`<i style="--c:${c}"></i>`).join('')}</span><span class="count">${count}</span></div><div class="stratum-body" style="max-height:${count*50+60}px">${body}</div></div>`;
 function passF(id){ if(!activeF.size) return true; return FILTERS.some(f=>activeF.has(f.id)&&f.ids.includes(id.startsWith('moon#')?'moons':id)); }
@@ -550,10 +604,33 @@ function renderTree(){
   const camBody=(ok('camera','Camera')?rowHTML('camera',ENTITIES.camera):'')+(ok('post','Post Process')?`<div class="kids">${rowHTML('post',ENTITIES.post,'child')}</div>`:'');
   treeEl.innerHTML=(envBody?stratum('environment','Environment','#5aa9ff',['#5aa9ff','#ffb454','#dfe6f5'],env.length+(showMoons?1:0)+moonKids.length,envBody):'')
     +(worldBody?stratum('world','World','#e2e8f0',['#e2e8f0'],1,worldBody):'')+(camBody?stratum('camera','Viewport','#34c759',['#34c759','#ff8a65'],2,camBody):'');
-  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); }
+  document.getElementById('hudMoon').textContent=S.moons.length; renderFilters(); renderTiles(); }
+const tileHist={sun:[],temp:[],moon:[],cam:[]};
+function renderTiles(){ const el=document.getElementById('tiles'); const e=sunElevDeg(); const [pn,pc]=phaseName(e); const m=S.moons[0]; const lit=m?Math.round(illum(m.phase)*100):0;
+  el.innerHTML=[
+    {id:'sun',c:'#ffb454',l:'Sun elevation',v:`${e>=0?'+':''}${e.toFixed(1)}<small>°</small>`,h:'sun'},
+    {id:'atmosphere',c:pc,l:pn,v:`${airMass().toFixed(1)}<small>AM</small>`,h:'temp'},
+    {id:S.moons.length?'moon#0':'moons',c:'#dfe6f5',l:S.moons.length?`${m.name} · ${m.size.toFixed(1)}°`:'No moons',v:`${lit}<small>% lit</small>`,h:'moon'},
+    {id:'camera',c:'#34c759',l:keys.size?'Flying':'Camera',v:`${S.cam_fov.toFixed(0)}<small>° fov</small>`,h:'cam'},
+  ].map(t=>`<div class="tile ${selected===t.id?'sel':''}" data-id="${t.id}"><div class="tl"><i style="--c:${t.c};background:${t.c}"></i>${t.l}</div><div class="tv">${t.v}</div><span class="arrow">${I('up',12)}</span><canvas data-tile="${t.h}" width="140" height="22"></canvas></div>`).join('');
+  drawTiles(); }
+function drawTiles(){ const vals={sun:sunElevDeg(),temp:airMass(),moon:S.moons.length?illum(S.moons[0].phase)*100:0,cam:S.cam_fov}; for(const k in vals){ const hh=tileHist[k]; hh.push(vals[k]); if(hh.length>40) hh.shift(); }
+  document.querySelectorAll('canvas[data-tile]').forEach(cv=>{ const hh=tileHist[cv.dataset.tile]; const ctx=cv.getContext('2d'); const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H); if(hh.length<2) return; let mn=Math.min(...hh),mx=Math.max(...hh); if(mx-mn<1e-6){mn-=1;mx+=1;}
+    ctx.beginPath(); hh.forEach((v,i)=>{ const x=i/(hh.length-1)*W, y=H-2-(v-mn)/(mx-mn)*(H-4); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1.2; ctx.stroke(); ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'rgba(255,255,255,.14)'); g.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=g; ctx.fill();
+    const last=hh[hh.length-1]; ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(W-1,H-2-(last-mn)/(mx-mn)*(H-4),2,0,7); ctx.fill(); }); }
+document.getElementById('tiles').addEventListener('click',e=>{ const t=e.target.closest('.tile'); if(t) select(t.dataset.id); });
+function miniOf(id){ // tiny inline visual per row
+  if(id==='sun'){ const pts=[...Array(25)].map((_,i)=>[i/24*56,13-sunDirAt(i).el/(Math.PI/2)*11]); const x=S.sun_time/24*56, y=13-sunDir().el/(Math.PI/2)*11; return `<svg viewBox="0 0 56 26"><line x1="0" y1="13" x2="56" y2="13" stroke="rgba(255,255,255,.15)"/><polyline points="${pts.map(q=>q.join(',')).join(' ')}" fill="none" stroke="rgba(255,180,84,.6)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="2.5" fill="#ffd166"/></svg>`; }
+  if(id==='atmosphere'){ const r=S.atm_rayleigh/4,m=S.atm_mie/6,o=S.atm_ozone/4; return `<svg viewBox="0 0 56 26">${[[r,'#5aa9ff'],[m,'#fff'],[o,'#a78bfa']].map(([v,c],i)=>`<rect x="${i*19}" y="${24-v*22}" width="14" height="${v*22}" rx="2" fill="${c}" opacity=".7"/>`).join('')}</svg>`; }
+  if(id==='sky'){ const e=sunElevDeg(); const c=skyColorsAt(e); return `<svg viewBox="0 0 56 26"><defs><linearGradient id="mg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(${c.top})"/><stop offset="1" stop-color="rgb(${c.hz})"/></linearGradient></defs><rect width="56" height="26" rx="6" fill="url(#mg)"/></svg>`; }
+  if(id==='plane'){ return `<svg viewBox="0 0 56 26"><defs><pattern id="mp" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="${S.pl_a}"/><rect x="4" y="4" width="4" height="4" fill="${S.pl_a}"/><rect x="4" width="4" height="4" fill="${S.pl_b}"/><rect y="4" width="4" height="4" fill="${S.pl_b}"/></pattern></defs><rect width="56" height="26" rx="6" fill="url(#mp)" opacity=".8"/></svg>`; }
+  if(id==='camera'){ const yaw=S.cam_yaw*D2R,h=S.cam_fov/2*D2R; return `<svg viewBox="0 0 56 26"><circle cx="28" cy="13" r="11" fill="none" stroke="rgba(255,255,255,.12)"/><path d="M28,13L${28+Math.sin(yaw-h)*12},${13-Math.cos(yaw-h)*12}A12,12,0,0,1,${28+Math.sin(yaw+h)*12},${13-Math.cos(yaw+h)*12}Z" fill="rgba(52,199,89,.3)" stroke="#34c759" stroke-width="1"/></svg>`; }
+  if(id==='post'){ const ev=S.pp_ev; const pts=[...Array(21)].map((_,i)=>{ const x=Math.pow(2,i/20*8-6+ev); const y=(x*(2.51*x+.03))/(x*(2.43*x+.59)+.14); return [i/20*56,24-Math.min(1,y)*22]; }); return `<svg viewBox="0 0 56 26"><polyline points="${pts.map(q=>q.join(',')).join(' ')}" fill="none" stroke="#ff8a65" stroke-width="1.2"/></svg>`; }
+  if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; const ph=m.phase; const k=Math.cos(ph*2*Math.PI); const r=10,x=28,y=13; const rx=Math.abs(k)*r; const right=ph<.5; const sweepA=right?1:0; const sweepB=(ph<=.25||ph>=.75)?(right?0:1):(right?1:0); return `<svg viewBox="0 0 56 26"><circle cx="${x}" cy="${y}" r="${r}" fill="#1b1d22" stroke="rgba(255,255,255,.12)"/><path d="M${x},${y-r}A${r},${r},0,0,${sweepA},${x},${y+r}A${rx},${r},0,0,${sweepB},${x},${y-r}Z" fill="#e8edf7"/></svg>`; }
+  return ''; }
 function renderFilters(){ document.getElementById('filters').innerHTML=FILTERS.map(f=>`<button class="${activeF.has(f.id)?'on':''}" data-f="${f.id}" style="--c:${f.c}"><i></i>${f.l}</button>`).join(''); }
 document.getElementById('filters').addEventListener('click',e=>{ const b=e.target.closest('[data-f]'); if(!b) return; activeF.has(b.dataset.f)?activeF.delete(b.dataset.f):activeF.add(b.dataset.f); renderTree(); });
-function refreshMeta(){ treeEl.querySelectorAll('[data-meta]').forEach(el=>{ el.textContent=metaOf(el.dataset.meta); const row=el.closest('.row'); row.classList.toggle('active',isActive(el.dataset.meta)); }); }
+function refreshMeta(){ treeEl.querySelectorAll('[data-meta]').forEach(el=>{ el.textContent=metaOf(el.dataset.meta); const row=el.closest('.row'); row.classList.toggle('active',isActive(el.dataset.meta)); }); treeEl.querySelectorAll('[data-mini]').forEach(el=>{ el.innerHTML=miniOf(el.dataset.mini); }); renderTiles(); document.getElementById('hudCam').textContent=`${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; }
 treeEl.addEventListener('click',e=>{
   const eye=e.target.closest('[data-eye]'); if(eye){ const id=eye.dataset.eye; if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible^=true; else S['vis_'+id]=!S['vis_'+id]; renderTree(); return; }
   const head=e.target.closest('.stratum-head'); if(head){ const key=head.parentElement.dataset.folder; if(e.target.closest('.chev')||!head.dataset.id){ openF[key]=!openF[key]; renderTree(); } else select(head.dataset.id); return; }
@@ -578,8 +655,108 @@ function dialSVG(p,v){ const full=p.full; const sweep=full?360:270, start=full?0
   const arcd=full?(a>zero+.5?arc(zero,a):''):(a>zero?arc(zero,a):a<zero?arc(a,zero):'');
   const ticks=[...Array(full?12:10)].map((_,i)=>{ const d=start+i*(sweep/(full?12:9)); const [x0,y0]=pol(d,R+6),[x1,y1]=pol(d,R+9); return `<line class="tick" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }).join('');
   const [kx,ky]=pol(a,R); return `${ticks}${track}${arcd?`<path class="arc" d="${arcd}"/>`:''}<circle class="knob" cx="${kx}" cy="${ky}" r="5"/>`; }
+/* ---------- graphical control renderers ---------- */
+const rgbCss=c=>`rgb(${c.map(v=>Math.round(v*255))})`;
+const latName=v=>Math.abs(v)<.5?'Equator':v<0?`${(-v).toFixed(1)}° S${v>-30&&v<-20?' · Gauteng':''}`:`${v.toFixed(1)}° N`;
+const phaseLabel=v=>['Full','Waning gibbous','Last quarter','Waning crescent','New','Waxing crescent','First quarter','Waxing gibbous'][Math.round(v*8)%8];
+// isometric-ish projection of a unit hemisphere over the plane
+function orbProj(v,W=340,H=200){ const cx=W/2,cy=118,rx=140,ry=52,zh=96; return [cx+v[0]*rx,cy+v[2]*ry-v[1]*zh]; }
+function orbSVG(p){
+  const W=340,H=200; const cx=W/2,cy=118,rx=140,ry=52;
+  const grid=[...Array(7)].map((_,i)=>{ const t=-1+i/3; return `<line x1="${cx-rx}" y1="${cy+t*ry}" x2="${cx+rx}" y2="${cy+t*ry}" class="g"/><line x1="${cx+t*rx}" y1="${cy-ry}" x2="${cx+t*rx}" y2="${cy+ry}" class="g"/>`; }).join('');
+  const comp=[['N',[0,0,-1]],['E',[1,0,0]],['S',[0,0,1]],['W',[-1,0,0]]].map(([n,v])=>{ const [x,y]=orbProj(v.map(a=>a*1.12)); return `<text x="${x}" y="${y+4}" class="c ${n==='N'?'n':''}">${n}</text>`; }).join('');
+  const horizon=`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" class="hz"/>`;
+  let path='',body='',extra='',shadow='';
+  if(p.sun){ // sun path for today + sun sprite
+    const pts=[];for(let t=0;t<=24;t+=.25){ const v=sunDirAt(t).v; pts.push([...orbProj(v),v[1]>=0]); }
+    path=`<path d="${pts.map((q,i)=>(i?'L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1)).join('')}" class="path below"/><path d="${pts.map((q,i)=>(q[2]?((i&&pts[i-1][2])?'L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1):'')).join('')}" class="path"/>`;
+    const v=sunDir().v; const [x,y]=orbProj(v); const [gx,gy]=orbProj([v[0],0,v[2]]); const up=v[1]>0;
+    shadow=`<line x1="${gx}" y1="${gy}" x2="${x}" y2="${y}" class="drop"/><ellipse cx="${gx}" cy="${gy}" rx="5" ry="2" class="foot"/>`;
+    body=`<circle cx="${x}" cy="${y}" r="16" class="sunglow ${up?'':'dim'}"/><circle cx="${x}" cy="${y}" r="7" class="sun ${up?'':'dim'}" data-handle="body"/>`;
+    // azimuth ring handle
+    const az=S.sun_az*D2R; const [hx,hy]=orbProj([Math.sin(az)*1.0,0,-Math.cos(az)*1.0]); extra=`<circle cx="${hx}" cy="${hy}" r="5" class="ring-handle" data-handle="ring"/>`;
+    // time ticks on path
+    extra+=[0,6,12,18].map(t=>{ const v=sunDirAt(t).v; const [tx,ty]=orbProj(v); return `<text x="${tx}" y="${ty-8}" class="tk">${t}h</text>`; }).join('');
+  } else if(p.cam){
+    const yaw=getV(p.k)*D2R,pitch=getV(p.k2)*D2R; const f=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
+    const half=S.cam_fov/2*D2R; const c=Math.cos(half),s=Math.sin(half); const r=[Math.cos(yaw),0,Math.sin(yaw)];
+    const L=[f[0]*c-r[0]*s,f[1]*c,f[2]*c-r[2]*s],Rr=[f[0]*c+r[0]*s,f[1]*c,f[2]*c+r[2]*s]; const [ox,oy]=orbProj([0,.02,0]); const [lx,ly]=orbProj(L),[rx2,ry2]=orbProj(Rr),[fx,fy]=orbProj(f);
+    extra=`<path d="M${ox},${oy}L${lx},${ly}Q${fx},${fy} ${rx2},${ry2}Z" class="frustum"/>`;
+    const [gx,gy]=orbProj([f[0],0,f[2]]); shadow=`<line x1="${gx}" y1="${gy}" x2="${fx}" y2="${fy}" class="drop"/>`;
+    body=`<circle cx="${ox}" cy="${oy}" r="4" class="foot"/><circle cx="${fx}" cy="${fy}" r="7" class="cam" data-handle="body"/>`;
+    // sun for reference
+    const sv=sunDir().v; if(sv[1]>0){ const [sx,sy]=orbProj(sv); extra+=`<circle cx="${sx}" cy="${sy}" r="4" class="sun"/>`; }
+  } else { // moon
+    const v=dirFrom(getV(p.k2),getV(p.k)); const [x,y]=orbProj(v); const [gx,gy]=orbProj([v[0],0,v[2]]); const up=v[1]>0;
+    shadow=`<line x1="${gx}" y1="${gy}" x2="${x}" y2="${y}" class="drop"/><ellipse cx="${gx}" cy="${gy}" rx="5" ry="2" class="foot"/>`;
+    const sv=sunDir().v; if(sv[1]>0){ const [sx,sy]=orbProj(sv); extra=`<circle cx="${sx}" cy="${sy}" r="4" class="sun"/>`; }
+    // elevation arc guide
+    const az=getV(p.k)*D2R; const arc=[...Array(19)].map((_,i)=>{ const e=i*5*D2R; return orbProj([Math.sin(az)*Math.cos(e),Math.sin(e),-Math.cos(az)*Math.cos(e)]); }); extra+=`<path d="${arc.map((q,i)=>(i?'L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1)).join('')}" class="path below"/>`;
+    body=`<circle cx="${x}" cy="${y}" r="7" class="moon ${up?'':'dim'}" data-handle="body"/>`;
+  }
+  const el=p.sun?sunElevDeg():p.cam?getV(p.k2):getV(p.k2); const azv=p.sun?((sunDir().az/D2R)%360+360)%360:((getV(p.k)%360)+360)%360;
+  const stat=`<text x="8" y="16" class="stat">EL <tspan>${el>=0?'+':''}${el.toFixed(1)}°</tspan></text><text x="8" y="32" class="stat">AZ <tspan>${azv.toFixed(0)}°</tspan></text>`;
+  return `<defs><radialGradient id="pg" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".07"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#pg)"/>${grid}${horizon}${comp}${path}${shadow}${extra}${body}${stat}`; }
+function orbPick(p,rect,ex,ey){ // invert: screen -> (az,el) using nearest point on hemisphere; simple search
+  const W=340,H=200; const x=(ex-rect.left)/rect.width*W, y=(ey-rect.top)/rect.height*H; let best=null,bd=1e9;
+  for(let e=-20;e<=90;e+=2) for(let a=0;a<360;a+=3){ const v=dirFrom(e,a); const [px,py]=orbProj(v); const d=(px-x)**2+(py-y)**2; if(d<bd){bd=d;best=[a,e];} }
+  // refine
+  let [a,e]=best; for(let it=0;it<3;it++){ for(const da of [-1,0,1]) for(const de of [-1,0,1]){ const v=dirFrom(e+de*.5,a+da*.5); const [px,py]=orbProj(v); const d=(px-x)**2+(py-y)**2; if(d<bd){bd=d;a+=da*.5;e+=de*.5;} } } return [((a%360)+360)%360,e]; }
+function globeSVG(p,v){ const R=36,cx=45,cy=45; const lat=v*D2R; const ry=Math.abs(Math.sin(lat))*R; const y=cy-Math.sin(lat)*R;
+  const lines=[-60,-30,0,30,60].map(l=>{ const yy=cy-Math.sin(l*D2R)*R, rr=Math.cos(l*D2R)*R; return `<line x1="${cx-rr}" y1="${yy}" x2="${cx+rr}" y2="${yy}" class="${l?'g':'eq'}"/>`; }).join('');
+  const rr=Math.cos(lat)*R; return `<circle cx="${cx}" cy="${cy}" r="${R}" class="globe"/>${lines}<ellipse cx="${cx}" cy="${cy}" rx="${R*.45}" ry="${R}" class="g"/><line x1="${cx-rr}" y1="${y}" x2="${cx+rr}" y2="${y}" class="latline"/><circle cx="${cx}" cy="${y}" r="4" class="knob"/>`; }
+function curveFn(p){ switch(p.curve){
+  case 'hg': return x=>{ const g=getV(p.k); return [...Array(61)].map((_,i)=>{ const mu=Math.cos(i/60*Math.PI); return (1-g*g)/Math.pow(1+g*g-2*g*mu,1.5); }); };
+  case 'density': return ()=>{ const Hs=getV(p.k); return [...Array(61)].map((_,i)=>Math.exp(-(i/60*40000)/Hs)); };
+  case 'disc': return ()=>{ const a=getV(p.k); return [...Array(61)].map((_,i)=>{ const x=(i/60-.5)*2*Math.max(a,1); return Math.abs(x)<a/2?1:Math.exp(-Math.pow((Math.abs(x)-a/2)/(a*.35+.05),2)); }); };
+  case 'fov': return ()=>{ const f=getV(p.k)*D2R; return [...Array(61)].map((_,i)=>{ const x=(i/60-.5)*Math.PI; return Math.abs(x)<f/2?1:0.15; }); };
+  case 'checker': return ()=>{ const c=getV(p.k); return [...Array(61)].map((_,i)=>Math.floor(i/60*30/Math.max(c,.25))%2?1:.3); };
+  default: return ()=>[...Array(61)].map((_,i)=>i/60); } }
+function curveSVG(p,v){ const W=300,H=70; const ys=curveFn(p)(); const mx=Math.max(...ys,1e-6); const pts=ys.map((y,i)=>`${i/60*W},${(H-10-(y/mx)*(H-20)).toFixed(1)}`).join(' ');
+  const f=frac(p,v); return `<defs><linearGradient id="cg-${p.k.replace(/\W/g,'')}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+  <line x1="0" y1="${H-10}" x2="${W}" y2="${H-10}" class="ax"/><polygon points="0,${H-10} ${pts} ${W},${H-10}" fill="url(#cg-${p.k.replace(/\W/g,'')})"/><polyline points="${pts}" class="ln"/>
+  <line x1="${f*W}" y1="4" x2="${f*W}" y2="${H-4}" class="cur"/><circle cx="${f*W}" cy="${H-10-(ys[Math.round(f*60)]/mx)*(H-20)}" r="4" class="knob"/>`; }
+function gaugeSVG(p,v){ const f=frac(p,v); const cx=60,cy=62,R=48; const a0=-Math.PI, a1=-Math.PI+f*Math.PI; const P=a=>[cx+R*Math.cos(a),cy+R*Math.sin(a)];
+  const [x0,y0]=P(a0),[x1,y1]=P(a1); const ticks=[...Array(11)].map((_,i)=>{ const a=-Math.PI+i/10*Math.PI; const [ax,ay]=[cx+(R+6)*Math.cos(a),cy+(R+6)*Math.sin(a)],[bx,by]=[cx+(R+(i%5?9:12))*Math.cos(a),cy+(R+(i%5?9:12))*Math.sin(a)]; return `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" class="${i%5?'g':'gm'}"/>`; }).join('');
+  return `${ticks}<path d="M${cx-R},${cy}A${R},${R},0,0,1,${cx+R},${cy}" class="track"/>${f>.002?`<path d="M${x0},${y0}A${R},${R},0,0,1,${x1},${y1}" class="arc"/>`:''}<circle cx="${x1}" cy="${y1}" r="5" class="knob"/>`; }
+function padSVG(p){ const W=300,H=130; const fx=(getV(p.k)-p.xmin)/(p.xmax-p.xmin), fy=1-(getV(p.k2)-p.ymin)/(p.ymax-p.ymin); const x=fx*W,y=fy*H;
+  const grid=[...Array(5)].map((_,i)=>`<line x1="${i/4*W}" y1="0" x2="${i/4*W}" y2="${H}" class="g"/><line x1="0" y1="${i/4*H}" x2="${W}" y2="${i/4*H}" class="g"/>`).join('');
+  let bg='';
+  if(p.plane){ const s=p.xmax/S.pl_size; const n=10; bg=`<defs><pattern id="chk" width="${W/n}" height="${H/n*2.3}" patternUnits="userSpaceOnUse"><rect width="${W/n/2}" height="${H/n*2.3/2}" fill="#fff" opacity=".06"/><rect x="${W/n/2}" y="${H/n*2.3/2}" width="${W/n/2}" height="${H/n*2.3/2}" fill="#fff" opacity=".06"/></pattern></defs><rect width="${W}" height="${H}" fill="url(#chk)"/>`;
+    const yaw=S.cam_yaw*D2R; const half=S.cam_fov/2*D2R; const L=60; bg+=`<path d="M${x},${y}L${x+Math.sin(yaw-half)*L},${y-Math.cos(yaw-half)*L}A${L},${L},0,0,1,${x+Math.sin(yaw+half)*L},${y-Math.cos(yaw+half)*L}Z" class="frustum"/>`; const sv=sunDir().v; bg+=`<circle cx="${W/2+sv[0]*W*.45}" cy="${H/2+sv[2]*H*.45}" r="4" class="sun"/><line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" class="axz"/><line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" class="axx"/>`; }
+  else { bg=`<defs><linearGradient id="padg" x1="0" x2="1" y1="1" y2="0"><stop offset="0" stop-color="var(--acc)" stop-opacity="0"/><stop offset="1" stop-color="var(--acc)" stop-opacity=".22"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#padg)"/>`; }
+  return `${bg}${grid}<line x1="${x}" y1="0" x2="${x}" y2="${H}" class="cur"/><line x1="0" y1="${y}" x2="${W}" y2="${y}" class="cur"/><circle cx="${x}" cy="${y}" r="6" class="knob"/><text x="${W-6}" y="${H-6}" class="lab e">${p.xl} →</text><text x="6" y="12" class="lab">↑ ${p.yl}</text>`; }
+function orbit2SVG(p){ const cx=150,cy=55,R=40; const spin=getV(p.k)*D2R, tilt=getV(p.k2)*D2R; const ct=Math.cos(tilt),st=Math.sin(tilt);
+  const lines=[-60,-30,0,30,60].map(l=>{ const pts=[]; for(let a=0;a<=Math.PI;a+=Math.PI/24){ const lon=a-Math.PI/2+spin; const x=Math.cos(l*D2R)*Math.sin(lon), y=Math.sin(l*D2R), z=Math.cos(l*D2R)*Math.cos(lon); const yy=y*ct-z*st, zz=y*st+z*ct; if(zz<0) continue; pts.push([cx+x*R,cy-yy*R]); } return pts.length>1?`<polyline points="${pts.map(q=>q.join(',')).join(' ')}" class="${l?'g':'eq'}"/>`:''; }).join('');
+  const merid=[0,90,180,270].map(m=>{ const pts=[]; for(let l=-90;l<=90;l+=6){ const lon=m*D2R+spin; const x=Math.cos(l*D2R)*Math.sin(lon), y=Math.sin(l*D2R), z=Math.cos(l*D2R)*Math.cos(lon); const yy=y*ct-z*st, zz=y*st+z*ct; if(zz<0) continue; pts.push([cx+x*R,cy-yy*R]); } return pts.length>1?`<polyline points="${pts.map(q=>q.join(',')).join(' ')}" class="${m?'g':'pm'}"/>`:''; }).join('');
+  const ax=[cx,cy-R*1.25*ct,cx,cy+R*1.25*ct]; const axis=`<line x1="${cx-Math.sin(0)}" y1="${cy-R*1.3*ct}" x2="${cx}" y2="${cy+R*1.3*ct}" class="axis" transform="rotate(${-getV(p.k2)*0} ${cx} ${cy})"/>`;
+  const tiltArc=`<path d="M${cx},${cy-R-14}A${R+14},${R+14},0,0,1,${cx+(R+14)*Math.sin(tilt)},${cy-(R+14)*Math.cos(tilt)}" class="arc"/><circle cx="${cx+(R+14)*Math.sin(tilt)}" cy="${cy-(R+14)*Math.cos(tilt)}" r="5" class="knob" data-handle="tilt"/>`;
+  const spinTrack=`<line x1="20" y1="${cy}" x2="${cx-R-24}" y2="${cy}" class="track"/><circle cx="${20+(cx-R-44)*(getV(p.k)/360)}" cy="${cy}" r="5" class="knob" data-handle="spin"/><text x="20" y="${cy+16}" class="lab">spin</text>`;
+  return `<circle cx="${cx}" cy="${cy}" r="${R}" class="globe"/>${lines}${merid}<line x1="${cx-R*1.3*Math.sin(tilt)}" y1="${cy-R*1.3*Math.cos(tilt)}" x2="${cx+R*1.3*Math.sin(tilt)}" y2="${cy+R*1.3*Math.cos(tilt)}" class="axis"/>${tiltArc}${spinTrack}<text x="${cx+R+30}" y="20" class="lab">tilt</text>`; }
+function phaseSVG(p,v){ const W=300,H=70; const n=16; const r=9; const items=[...Array(n)].map((_,i)=>{ const ph=i/n; const x=14+i/(n-1)*(W-28), y=30; const k=Math.cos(ph*2*Math.PI); const rx=Math.abs(k)*r; const light=ph<.5?'r':'l';
+    // moon disc: dark circle, lit part = half circle + ellipse
+    let d; if(ph<=.25||ph>=.75){ d=`M${x},${y-r}A${r},${r},0,0,${light==='r'?1:0},${x},${y+r}A${rx},${r},0,0,${(ph<=.25||ph>=.75)?(light==='r'?0:1):(light==='r'?1:0)},${x},${y-r}Z`; } else { d=`M${x},${y-r}A${r},${r},0,0,${light==='r'?1:0},${x},${y+r}A${rx},${r},0,0,${light==='r'?1:0},${x},${y-r}Z`; }
+    return `<g data-phase="${ph}"><circle cx="${x}" cy="${y}" r="${r}" class="pdark"/><path d="${d}" class="plit"/></g>`; }).join('');
+  const x=14+v*(W-28); return `<line x1="14" y1="${H-14}" x2="${W-14}" y2="${H-14}" class="track"/><line x1="14" y1="${H-14}" x2="${x}" y2="${H-14}" class="arc"/>${items}<circle cx="${x}" cy="${H-14}" r="5" class="knob"/>`; }
+function histSVG(p,v){ const W=300,H=80; const ev=v; const tm=S.pp_tonemap;
+  const tone=x=>{ x*=Math.pow(2,ev); let y; if(tm==='ACES') y=(x*(2.51*x+.03))/(x*(2.43*x+.59)+.14); else if(tm==='Reinhard') y=x/(1+x); else if(tm==='Filmic'){ const u=q=>((q*(.15*q+.05)+.004)/(q*(.15*q+.5)+.06))-.0667; y=u(x*2)/u(11.2); } else if(tm==='AgX'){ let l=Math.log2(x+1e-5); l=Math.max(0,Math.min(1,(l+12.47)/16.5)); y=l*l*(3-2*l); } else y=Math.min(1,x); return Math.max(0,Math.min(1,y)); };
+  // synthetic scene histogram: lognormal around 0.18 middle grey, shifted by EV
+  const bars=[...Array(40)].map((_,i)=>{ const lin=Math.pow(2,(i/40)*14-10); const dens=Math.exp(-Math.pow((Math.log2(lin)+2.5)/2.2,2)); const out=tone(lin); return [i,dens,out]; });
+  const rects=bars.map(([i,d,o])=>`<rect x="${i/40*W}" y="${H-14-d*(H-26)}" width="${W/40-1}" height="${d*(H-26)}" fill="${o>.97?'#ff6b60':o<.02?'#6b8cff':'#fff'}" opacity="${o>.97||o<.02?.7:.25+o*.5}"/>`).join('');
+  const curve=[...Array(61)].map((_,i)=>`${i/60*W},${(H-14-Math.pow(tone(Math.pow(2,(i/60)*14-10)),1/2.2)*(H-26)).toFixed(1)}`).join(' ');
+  const f=frac(p,v); return `${rects}<polyline points="${curve}" class="ln warm"/><line x1="0" y1="${H-14}" x2="${W}" y2="${H-14}" class="ax"/><line x1="${f*W}" y1="2" x2="${f*W}" y2="${H-2}" class="cur"/><circle cx="${f*W}" cy="${H-14}" r="5" class="knob"/><text x="4" y="${H-3}" class="lab">−10 EV</text><text x="${W-4}" y="${H-3}" class="lab e">+4 EV</text>`; }
 function ctlHTML(p){ const v=getV(p.k); const lab=`<span class="l">${p.l}${p.hint?`<small>${p.hint}</small>`:''}</span>`;
   switch(p.t){
+    case 'hidden': return '';
+    case 'orb': return `<div class="ctl wide" data-k="${p.k}" data-k2="${p.k2}" data-t="orb"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),p.sun?2:1)}"><span class="u">${p.sun?'h':'°'}</span><input class="val" data-val="${p.k}" value="${fmt(v,0)}" style="width:52px"><span class="u">°</span></span></div><svg class="orb-svg" viewBox="0 0 340 200">${orbSVG(p)}</svg></div>`;
+    case 'globe': return `<div class="ctl half" data-k="${p.k}" data-t="globe"><div class="ctl-top">${lab}</div><div class="dial-wrap"><svg class="globe-svg" viewBox="0 0 90 90">${globeSVG(p,v)}</svg><div class="dial-meta">${valHTML(p,v)}<span class="hint2" data-globe-hint>${latName(v)}</span></div></div></div>`;
+    case 'curve': return `<div class="ctl" data-k="${p.k}" data-t="curve"><div class="ctl-top">${lab}${valHTML(p,v)}</div><svg class="curve-svg" viewBox="0 0 300 70" preserveAspectRatio="none">${curveSVG(p,v)}</svg></div>`;
+    case 'gauge': return `<div class="ctl half" data-k="${p.k}" data-t="gauge"><div class="ctl-top">${lab}</div><div class="gauge-wrap"><svg class="gauge-svg" viewBox="0 0 120 70">${gaugeSVG(p,v)}</svg><div class="gauge-val">${valHTML(p,v)}</div></div></div>`;
+    case 'kelvin': return `<div class="ctl" data-k="${p.k}" data-t="kelvin"><div class="ctl-top">${lab}${valHTML(p,v)}</div><div class="kelvin-bar" style="--p:${frac(p,v)*100}%"><i class="kmark"></i><span class="kswatch" style="background:${rgbCss(kelvinRGB(v))}"></span></div><div class="kelvin-ticks"><span>2000 candle</span><span>3200 tungsten</span><span>5800 sun</span><span>9000 shade</span><span>12000</span></div></div>`;
+    case 'pad': return `<div class="ctl" data-k="${p.k}" data-k2="${p.k2}" data-t="pad"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k}" value="${fmt(v,2)}" style="width:54px;font-size:16px"><span class="u">${p.xl}</span><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),2)}" style="width:54px;font-size:16px"><span class="u">${p.yl}</span></span></div><svg class="pad-svg" viewBox="0 0 300 130">${padSVG(p)}</svg></div>`;
+    case 'orbit2': return `<div class="ctl" data-k="${p.k}" data-k2="${p.k2}" data-t="orbit2"><div class="ctl-top">${lab}<span class="vwrap"><input class="val" data-val="${p.k}" value="${fmt(v,0)}" style="width:44px;font-size:16px"><span class="u">spin</span><input class="val" data-val="${p.k2}" value="${fmt(getV(p.k2),1)}" style="width:44px;font-size:16px"><span class="u">tilt</span></span></div><svg class="orbit2-svg" viewBox="0 0 300 110">${orbit2SVG(p)}</svg></div>`;
+    case 'phase': return `<div class="ctl" data-k="${p.k}" data-t="phase"><div class="ctl-top">${lab}<span class="vwrap"><span class="hint2" data-phase-name>${phaseLabel(v)}</span>${valHTML(p,v)}</span></div><svg class="phase-svg" viewBox="0 0 300 70">${phaseSVG(p,v)}</svg></div>`;
+    case 'hist': return `<div class="ctl" data-k="${p.k}" data-t="hist"><div class="ctl-top">${lab}${valHTML(p,v)}</div><svg class="hist-svg" viewBox="0 0 300 80" preserveAspectRatio="none">${histSVG(p,v)}</svg></div>`;
     case 'trk': return `<div class="ctl" data-k="${p.k}" data-t="trk"><div class="ctl-top">${lab}${valHTML(p,v)}</div>
       <div class="trk-bar" style="--p:${frac(p,v)*100}%"><div class="ticks"></div><div class="major"></div><div class="fill"></div><div class="fillmaj"></div>${p.mark!==undefined?`<i class="mark" style="left:${frac(p,p.mark)*100}%"></i>`:''}<div class="thumb"></div></div>${p.ramp?'<div class="ramp"></div>':''}</div>`;
     case 'dial': return `<div class="ctl half" data-k="${p.k}" data-t="dial"><div class="ctl-top">${lab}</div><div class="dial-wrap"><svg class="dial-svg" viewBox="0 0 74 74">${dialSVG(p,v)}</svg><div class="dial-meta">${valHTML(p,v)}<span class="hint2">${p.min}${p.unit} → ${p.max}${p.unit}</span></div></div></div>`;
@@ -587,32 +764,68 @@ function ctlHTML(p){ const v=getV(p.k); const lab=`<span class="l">${p.l}${p.hin
     case 'toggle': return `<div class="ctl" data-k="${p.k}" data-t="toggle"><div class="ctl-top">${lab}<div class="sw ${v?'on':''}"></div></div></div>`;
     case 'color': return `<div class="ctl" data-k="${p.k}" data-t="color"><div class="ctl-top">${lab}<label class="colorbtn" style="--c:${v}"><span class="sw2" style="background:${v}"></span><code>${v}</code><input type="color" value="${v}"></label></div></div>`;
     case 'seg': return `<div class="ctl" data-k="${p.k}" data-t="seg"><div class="ctl-top" style="align-items:flex-start;padding-top:2px">${lab}<div class="seg">${p.opts.map(o=>`<button data-opt="${o}" class="${o===v?'on':''}">${o}</button>`).join('')}</div></div></div>`; } }
-function refreshCtl(k){ const el=insp.querySelector(`.ctl[data-k="${CSS.escape(k)}"]`); if(!el) return; const p=propOf(k); const v=getV(k);
+function refreshCtl(k){ return refreshAll(k); }
+function refreshCtl_old(k){ const el=insp.querySelector(`.ctl[data-k="${CSS.escape(k)}"]`); if(!el) return; const p=propOf(k); const v=getV(k);
   const inp=el.querySelector('input.val'); if(inp&&document.activeElement!==inp) inp.value=fmt(v,decOf(p.step));
   if(p.t==='trk') el.querySelector('.trk-bar').style.setProperty('--p',frac(p,v)*100+'%');
   if(p.t==='dial') el.querySelector('.dial-svg').innerHTML=dialSVG(p,v);
   if(p.t==='step') el.querySelectorAll('.dots i').forEach((d,i)=>d.classList.toggle('on',i<v));
-  if(p.t==='toggle') el.querySelector('.sw').classList.toggle('on',!!v); }
-function propOf(k){ const e=getEntity(selected); if(e) for(const s of e.sections) for(const p of s.props) if(p.k===k) return p; for(const id in ENTITIES) for(const s of ENTITIES[id].sections) for(const p of s.props) if(p.k===k) return p; }
-function commit(k,v){ setV(k,v); refreshCtl(k); onChanged(k); }
+  if(p.t==='toggle') el.querySelector('.sw').classList.toggle('on',!!v);
+  if(p.t==='globe'){ el.querySelector('.globe-svg').innerHTML=globeSVG(p,v); el.querySelector('[data-globe-hint]').textContent=latName(v); }
+  if(p.t==='curve') el.querySelector('.curve-svg').innerHTML=curveSVG(p,v);
+  if(p.t==='gauge') el.querySelector('.gauge-svg').innerHTML=gaugeSVG(p,v);
+  if(p.t==='kelvin'){ el.querySelector('.kelvin-bar').style.setProperty('--p',frac(p,v)*100+'%'); el.querySelector('.kswatch').style.background=rgbCss(kelvinRGB(v)); }
+  if(p.t==='phase'){ el.querySelector('.phase-svg').innerHTML=phaseSVG(p,v); el.querySelector('[data-phase-name]').textContent=phaseLabel(v); }
+  if(p.t==='hist') el.querySelector('.hist-svg').innerHTML=histSVG(p,v);
+  if(p.t==='orb'||p.t==='pad'||p.t==='orbit2'){ const svg=el.querySelector('svg'); svg.innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):orbit2SVG(p); const i2=el.querySelector(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'?2:1)); const i1=el.querySelector(`input.val[data-val="${CSS.escape(p.k)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'?2:0); } }
+function widgetProp(el){ const e=getEntity(selected); for(const s of e.sections) for(const p of s.props) if(p.k===el.dataset.k&&p.t===el.dataset.t) return p; }
+function propOf(k){ const e=getEntity(selected); if(e) for(const s of e.sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad') return p; for(const id in ENTITIES) for(const s of ENTITIES[id].sections) for(const p of s.props) if(p.k===k&&p.t!=='hidden'&&p.t!=='pad') return p;
+  // fall back to numeric ranges for keys owned by 2-D widgets
+  const R={sun_time:[0,24,.005,'h'],sun_az:[0,360,1,'°'],cam_yaw:[-180,180,.5,'°'],cam_pitch:[-89,89,.5,'°'],cam_x:[-5000,5000,.5,'m'],cam_z:[-5000,5000,.5,'m'],atm_rayleigh:[0,4,.01,'×'],atm_mie:[0,6,.01,'×'],pp_halo:[.1,1.2,.01,''],pp_streak:[0,2,.01,'×']};
+  const b=k.startsWith('moon.')?k.split('.')[2]:k; const M={elev:[-20,90,.5,'°'],az:[0,360,1,'°'],spin:[0,360,1,'°'],tilt:[-90,90,.5,'°']}; const r=R[k]||M[b]; if(r) return {k,t:'num',min:r[0],max:r[1],step:r[2],unit:r[3]}; }
+function commit(k,v){ setV(k,v); refreshAll(k); onChanged(k); }
+function refreshAll(k){ insp.querySelectorAll('.ctl').forEach(el=>{ if(el.dataset.k===k||el.dataset.k2===k){ const p=widgetProp(el); if(!p) return; const v=getV(p.k); const q=s=>el.querySelector(s);
+  const inp=q(`input.val[data-val="${CSS.escape(p.k)}"]`); if(inp&&document.activeElement!==inp&&p.step!==undefined) inp.value=fmt(v,decOf(p.step));
+  switch(p.t){ case 'trk': q('.trk-bar').style.setProperty('--p',frac(p,v)*100+'%'); break; case 'dial': q('.dial-svg').innerHTML=dialSVG(p,v); break; case 'step': el.querySelectorAll('.dots i').forEach((d,i)=>d.classList.toggle('on',i<v)); break; case 'toggle': q('.sw').classList.toggle('on',!!v); break;
+    case 'globe': q('.globe-svg').innerHTML=globeSVG(p,v); q('[data-globe-hint]').textContent=latName(v); break; case 'curve': q('.curve-svg').innerHTML=curveSVG(p,v); break; case 'gauge': q('.gauge-svg').innerHTML=gaugeSVG(p,v); break;
+    case 'kelvin': q('.kelvin-bar').style.setProperty('--p',frac(p,v)*100+'%'); q('.kswatch').style.background=rgbCss(kelvinRGB(v)); break; case 'phase': q('.phase-svg').innerHTML=phaseSVG(p,v); q('[data-phase-name]').textContent=phaseLabel(v); break; case 'hist': q('.hist-svg').innerHTML=histSVG(p,v); break;
+    case 'orb': case 'pad': case 'orbit2': { q('svg').innerHTML=p.t==='orb'?orbSVG(p):p.t==='pad'?padSVG(p):orbit2SVG(p); const i1=q(`input.val[data-val="${CSS.escape(p.k)}"]`),i2=q(`input.val[data-val="${CSS.escape(p.k2)}"]`); if(i1&&document.activeElement!==i1) i1.value=fmt(getV(p.k),p.t==='pad'?2:0); if(i2&&document.activeElement!==i2) i2.value=fmt(getV(p.k2),p.t==='orb'&&p.sun?2:(p.t==='pad'?2:1)); break; } } } }); }
 // interactions
 const insp=document.getElementById('insp'); let drag=null;
 insp.addEventListener('pointerdown',e=>{
+  if(e.target.closest('input')) return;
   const bar=e.target.closest('.trk-bar'); const dial=e.target.closest('.dial-svg'); const sp=e.target.closest('.preview[data-scrub]');
-  if(!bar&&!dial&&!sp) return; const el=e.target.closest('.ctl,.preview'); const k=el.dataset.k; const p=k?propOf(k):null;
-  drag={el,k,p,kind:bar?'trk':dial?'dial':'scrub',rect:(bar||dial||sp).getBoundingClientRect(),x0:e.clientX,v0:k?getV(k):0}; (bar||dial||sp).setPointerCapture(e.pointerId); moveDrag(e); });
+  const gw=e.target.closest('.orb-svg,.globe-svg,.curve-svg,.gauge-svg,.kelvin-bar,.pad-svg,.orbit2-svg,.phase-svg,.hist-svg');
+  const tgt=bar||dial||sp||gw; if(!tgt) return; const el=e.target.closest('.ctl,.preview'); const k=el.dataset.k;
+  const p=gw?widgetProp(el):(k?propOf(k):null); const handle=e.target.closest('[data-handle]')?.dataset.handle;
+  drag={el,k,p,kind:bar?'trk':dial?'dial':sp?'scrub':p.t,rect:tgt.getBoundingClientRect(),x0:e.clientX,y0:e.clientY,v0:k?getV(k):0,v1:p&&p.k2?getV(p.k2):0,handle}; tgt.setPointerCapture(e.pointerId); moveDrag(e); });
 insp.addEventListener('pointermove',e=>{ if(drag) moveDrag(e); });
 insp.addEventListener('pointerup',()=>drag=null); insp.addEventListener('pointercancel',()=>drag=null);
 function moveDrag(e){ const {kind,p,k,rect}=drag;
   if(kind==='trk'){ let f; if(e.shiftKey){ f=frac(p,drag.v0)+(e.clientX-drag.x0)/rect.width*.1; } else f=(e.clientX-rect.left)/rect.width; commit(k,unfrac(p,f)); }
   else if(kind==='dial'){ const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2; let a=Math.atan2(e.clientX-cx,-(e.clientY-cy))/D2R; // 0 at top, cw
     let f; if(p.full){ f=((a%360)+360)%360/360; } else { a=((a+135)%360+360)%360; if(a>270) a=a>315?0:270; f=a/270; } commit(k,unfrac(p,f)); }
-  else if(kind==='scrub'){ const f=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)); commit('sun_time',+(f*24).toFixed(3)); } }
-insp.addEventListener('change',e=>{ const t=e.target; if(t.dataset.val){ const k=t.dataset.val,p=propOf(k); let v=parseFloat(t.value); if(isNaN(v)){ refreshCtl(k); return; } commit(k,Math.max(p.min,Math.min(p.max,v))); t.blur(); }
+  else if(kind==='scrub'){ const f=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)); commit('sun_time',+(f*24).toFixed(3)); }
+  else if(kind==='curve'||kind==='hist'||kind==='kelvin'){ const f=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)); commit(k,unfrac(p,f)); }
+  else if(kind==='gauge'){ const cx=rect.left+rect.width/2, cy=rect.top+rect.height*62/70; let a=Math.atan2(e.clientY-cy,e.clientX-cx); // -PI..0 across the top
+    if(a>0) a=a>Math.PI/2?-Math.PI:0; const f=(a+Math.PI)/Math.PI; commit(k,unfrac(p,f)); }
+  else if(kind==='globe'){ const cy=rect.top+rect.height/2; const R=rect.height*36/90; const f=Math.max(-1,Math.min(1,(cy-e.clientY)/R)); commit(k,unfrac(p,(Math.asin(f)/D2R+90)/180)); }
+  else if(kind==='pad'){ const fx=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)), fy=1-Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height)); const rr=k=>({min:p[k+'min'],max:p[k+'max'],step:(propOf(p[k==='x'?'k':'k2'])||{}).step||.01}); const sx=rr('x'),sy=rr('y');
+    setV(p.k,snap(p.xmin+fx*(p.xmax-p.xmin),sx)); setV(p.k2,snap(p.ymin+fy*(p.ymax-p.ymin),sy)); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); }
+  else if(kind==='orbit2'){ const W=300; const x=(e.clientX-rect.left)/rect.width*W, y=(e.clientY-rect.top)/rect.height*110; const h=drag.handle||(x<95?'spin':'tilt');
+    if(h==='spin'){ const f=Math.max(0,Math.min(1,(x-20)/(150-40-44))); commit(p.k,Math.round(f*360)); } else { const a=Math.atan2(x-150,-(y-55))/D2R; commit(p.k2,Math.max(-90,Math.min(90,Math.round(a*2)/2))); } }
+  else if(kind==='phase'){ const f=Math.max(0,Math.min(1,((e.clientX-rect.left)/rect.width*300-14)/272)); commit(k,+(Math.round(f*200)/200).toFixed(3)); }
+  else if(kind==='orb'){ const [az,el]=orbPick(p,rect,e.clientX,e.clientY);
+    if(p.sun){ if(drag.handle==='ring'){ commit('sun_az',Math.round(az)); } else { // pick nearest time on today's path to the pointer
+        const W=340,H=200; const x=(e.clientX-rect.left)/rect.width*W, y=(e.clientY-rect.top)/rect.height*H; let bt=0,bd=1e9; for(let t=0;t<24;t+=.02){ const [px,py]=orbProj(sunDirAt(t).v); const d=(px-x)**2+(py-y)**2; if(d<bd){bd=d;bt=t;} } commit('sun_time',+bt.toFixed(3)); } }
+    else if(p.cam){ let yaw=az>180?az-360:az; setV(p.k,Math.round(yaw*2)/2); setV(p.k2,Math.max(-89,Math.min(89,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); }
+    else { setV(p.k,Math.round(az)); setV(p.k2,Math.max(-20,Math.min(90,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); } } }
+const snap=(v,p)=>{ if(!p) return v; v=Math.round(v/p.step)*p.step; return Math.max(p.min,Math.min(p.max,+v.toFixed(6))); };
+insp.addEventListener('change',e=>{ const t=e.target; if(t.dataset.val){ const k=t.dataset.val,p=propOf(k); let v=parseFloat(t.value); if(isNaN(v)||!p){ refreshCtl(k); return; } commit(k,Math.max(p.min,Math.min(p.max,v))); t.blur(); }
   if(t.type==='color'){ const k=t.closest('.ctl').dataset.k; setV(k,t.value); const lab=t.closest('.colorbtn'); lab.style.setProperty('--c',t.value); lab.querySelector('.sw2').style.background=t.value; lab.querySelector('code').textContent=t.value; onChanged(k); } });
 insp.addEventListener('input',e=>{ if(e.target.type==='color'){ const k=e.target.closest('.ctl').dataset.k; setV(k,e.target.value); const lab=e.target.closest('.colorbtn'); lab.style.setProperty('--c',e.target.value); lab.querySelector('.sw2').style.background=e.target.value; lab.querySelector('code').textContent=e.target.value; onChanged(k); } });
 insp.addEventListener('keydown',e=>{ if(e.target.classList.contains('val')&&e.key==='Enter') e.target.dispatchEvent(new Event('change',{bubbles:true})); });
-insp.addEventListener('wheel',e=>{ const el=e.target.closest('.ctl[data-t="trk"],.ctl[data-t="dial"]'); if(!el) return; e.preventDefault(); const k=el.dataset.k,p=propOf(k); commit(k,unfrac(p,frac(p,getV(k))-Math.sign(e.deltaY)*(e.shiftKey?.002:.01))); },{passive:false});
+insp.addEventListener('wheel',e=>{ const el=e.target.closest('.ctl[data-t="trk"],.ctl[data-t="dial"],.ctl[data-t="gauge"],.ctl[data-t="curve"],.ctl[data-t="globe"],.ctl[data-t="kelvin"],.ctl[data-t="hist"],.ctl[data-t="phase"]'); if(!el) return; e.preventDefault(); const k=el.dataset.k,p=widgetProp(el)||propOf(k); commit(k,unfrac(p,frac(p,getV(k))-Math.sign(e.deltaY)*(e.shiftKey?.002:.01))); },{passive:false});
 insp.addEventListener('click',e=>{
   const sw=e.target.closest('.sw'); if(sw){ const k=sw.closest('.ctl').dataset.k; commit(k,!getV(k)); return; }
   const st=e.target.closest('.step button'); if(st){ const k=st.closest('.ctl').dataset.k,p=propOf(k); commit(k,Math.max(p.min,Math.min(p.max,getV(k)+ +st.dataset.d))); return; }
@@ -620,7 +833,7 @@ insp.addEventListener('click',e=>{
   const go=e.target.closest('[data-goto]'); if(go){ select(go.dataset.goto); return; }
   const add=e.target.closest('[data-add]'); if(add){ if(S.moons.length>=4) return; S.moons.push(makeMoon(add.dataset.add,S.moons.length)); renderTree(); select('moon#'+(S.moons.length-1)); return; }
   const pre=e.target.closest('[data-preset]'); if(pre){ const i=getEntity(selected).moonIndex; const m=S.moons[i]; const p=MOON_ATLAS.find(x=>x.id===pre.dataset.preset); applyPreset(m,p); m.name=p.name+(i?` ${i+1}`:''); renderTree(); renderInspector(); return; }
-  const ph=e.target.closest('[data-phase]'); if(ph){ commit(`moon.${getEntity(selected).moonIndex}.phase`,+ph.dataset.phase); return; }
+  const ph=e.target.closest('[data-phase]'); if(ph){ const ctl=ph.closest('.ctl'); commit(ctl?ctl.dataset.k:`moon.${getEntity(selected).moonIndex}.phase`,+ph.dataset.phase); return; }
   const rm=e.target.closest('[data-remove]'); if(rm){ S.moons.splice(+rm.dataset.remove,1); renderTree(); select('moons'); return; }
   const head=e.target.closest('.sec-head'); if(head&&head.parentElement.dataset.sec!==undefined){ head.parentElement.classList.toggle('closed'); } });
 function onChanged(k){ if(k==='sun_time') drawDay(); updatePreview(); }
@@ -630,18 +843,18 @@ const bigHTML=(v,dec,signed)=>{ const [a,b]=fmt(Math.abs(v),dec).split('.'); ret
 function renderInspector(){
   const e=getEntity(selected); if(!e){ insp.innerHTML='<div class="empty">Select something in the outliner</div>'; return; }
   document.getElementById('inspTitle').innerHTML=`<span style="color:${e.color}">${I(e.icon,18)}</span>${e.name}`; document.getElementById('inspKind').textContent=e.kind; insp.style.setProperty('--acc',e.color);
-  const previewHTML={sunpath:`<div class="preview" data-scrub style="cursor:ew-resize"><span class="cap">Sun path · drag to scrub</span><svg id="pvSun" viewBox="0 0 340 130"></svg></div>`,
+  const previewHTML={sunpath:`<div class="preview stats" id="pvSunStats"></div>`,
     moon:`<div class="preview" style="display:flex;gap:14px;align-items:center;padding:14px"><canvas id="pvMoon" width="192" height="192" style="width:128px;height:128px;border-radius:50%;flex-shrink:0"></canvas><div style="flex:1;font-size:12px;color:var(--t2);line-height:1.7"><div>Phase <b id="pvPhaseName" style="color:var(--text);font-weight:400"></b></div><div>Apparent size <b id="pvSize" style="color:var(--text);font-weight:400"></b></div><div>Preset <b id="pvPreset" style="color:var(--text);font-weight:400"></b></div><div id="pvUp"></div></div></div><div class="preview" style="margin-top:8px;height:64px;background-size:100% 100%;background-repeat:repeat-x" id="pvTexStrip"><span class="cap">Equirectangular map · 2048×1024</span></div>`,
     sky:`<div class="preview"><span class="cap">Live zenith → horizon</span><canvas id="pvSkyLive" class="prev" width="340" height="44" style="height:44px"></canvas></div><div class="preview" style="margin-top:8px"><span class="cap">24 h sky</span><canvas id="pvSkyDay" class="prev" width="340" height="60" style="height:60px"></canvas></div>`,
     atmo:`<div class="preview"><span class="cap">Scattering vs wavelength</span><span class="cap r">380 → 780 nm</span><svg id="pvAtmo" viewBox="0 0 340 120"></svg></div>`,
-    camera:`<div class="preview"><span class="cap">Frustum · top-down</span><svg id="pvCam" viewBox="0 0 340 130"></svg></div>`,
+    camera:``,
     post:`<div class="preview"><span class="cap">Tonemap curve</span><svg id="pvTone" viewBox="0 0 340 110"></svg></div><div class="preview" style="margin-top:8px"><span class="cap">Flare</span><canvas id="pvFlare" class="prev" width="680" height="160" style="height:80px"></canvas></div>`,
     plane:`<div class="preview"><span class="cap">Material · top-down</span><canvas id="pvPlane" class="prev" width="340" height="120" style="height:120px"></canvas></div>`,
     atlas:`<div class="preview" style="padding:10px 12px 6px;font-size:12px;color:var(--t2)">Pick a body from the atlas to place it in orbit. Up to four moons render simultaneously; each has its own inspector.</div>`}[e.preview]||'';
   const atlasHTML=e.preview==='atlas'?`<div class="sec"><div class="sec-head"><span class="sico">${I('moon',16)}</span><span class="t">Atlas</span><span class="badge">${MOON_ATLAS.length} bodies</span></div><div class="sec-body"><div class="atlas">${MOON_ATLAS.map(m=>`<div class="card" data-add="${m.id}"><span class="plus">${I('plus',11)}</span><canvas data-atlas="${m.id}" width="112" height="112"></canvas><span>${m.name}</span><small>${m.sub}</small></div>`).join('')}</div>
     ${S.moons.length?`<div class="hint" style="grid-column:span 2">In orbit: ${S.moons.map((m,i)=>`<b style="color:${m.tint};font-weight:400;cursor:pointer" data-goto="moon#${i}">${m.name}</b>`).join(' · ')}</div>`:''}</div></div>`:'';
   const moonExtra=e.preview==='moon'?(()=>{ const m=S.moons[e.moonIndex]; return `<div class="sec"><div class="sec-head"><span class="sico">${I('grid',16)}</span><span class="t">Preset<span>atlas</span></span><span class="badge">${m.preset}</span></div><div class="sec-body"><div class="atlas" style="grid-template-columns:repeat(6,1fr)">${MOON_ATLAS.map(a=>`<div class="card ${a.id===m.preset?'on':''}" data-preset="${a.id}" style="padding:8px 4px"><canvas data-atlas="${a.id}" width="72" height="72" style="width:36px;height:36px"></canvas><small>${a.name}</small></div>`).join('')}</div>
-    <div class="phase-strip">${[0,.125,.25,.375,.5,.625,.75,.875].map(p=>`<canvas data-phase="${p}" data-phasecv="${p}" width="60" height="60" class="${Math.abs(m.phase-p)<.03?'on':''}"></canvas>`).join('')}</div></div></div>`; })():'';
+    </div></div>`; })():'';
   insp.innerHTML=`<div class="ent-enter">
     <div class="hero" style="--acc:${e.color}"><div class="label-bar">${e.hero.label}<em>live</em></div>
       <div class="big"><span class="v" id="heroV">${bigHTML(e.hero.fn(),e.hero.dec,e.hero.signed)}</span><span class="u">${e.hero.unit}</span><span class="trend" id="heroTrend">${I('flat',18)}</span></div>
@@ -653,7 +866,6 @@ function renderInspector(){
     ${e.preview==='moon'?`<button class="action danger" data-remove="${e.moonIndex}" style="width:100%">Remove ${e.name}</button>`:''}
     <div class="hint">${e.kind} · every change is applied to the viewport immediately · Shift-drag for fine control · scroll over a control to nudge</div></div>`;
   insp.querySelectorAll('canvas[data-atlas]').forEach(c=>{ const a=MOON_ATLAS.find(m=>m.id===c.dataset.atlas); drawMoon2D(c,{tex:a.tex,tint:a.tint,haze:a.haze,gamma:a.gamma,tilt:a.tilt,spin:0,phase:.1},true); });
-  insp.querySelectorAll('canvas[data-phasecv]').forEach(c=>{ const m=S.moons[e.moonIndex]; drawMoon2D(c,{...m,phase:+c.dataset.phasecv},true); });
   updatePreview(); }
 
 /* ---------- previews ---------- */
@@ -667,7 +879,9 @@ function drawMoon2D(cv,m,flat=false){ texPixels(m.tex,td=>{ const ctx=cv.getCont
     let ndl=nz*lz+nx*lx; const wrap=haze*.3; ndl=Math.max((ndl+wrap)/(1+wrap),0); const limb=1-Math.pow(1-nz,2)*Math.max(haze,.35)*.5; const L=Math.pow(ndl,.8)*limb+.05; const edge=Math.min(1,(1-Math.sqrt(r2))*(haze?6:30));
     for(let c=0;c<3;c++){ let a=Math.pow(tp[px+c]/255,gam)*tint[c]; d[i+c]=Math.min(255,a*L*255); } d[i+3]=255*edge; }
   ctx.putImageData(img,0,0); if(!flat&&m.glow){ ctx.globalCompositeOperation='destination-over'; const g=ctx.createRadialGradient(W/2,W/2,R*.9,W/2,W/2,W/2); g.addColorStop(0,'rgba(220,228,245,.4)'); g.addColorStop(1,'rgba(220,228,245,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,W); ctx.globalCompositeOperation='source-over'; } }); }
-function drawSunPath(){ const svg=document.getElementById('pvSun'); if(!svg) return; const W=340,H=130,hy=88; const pts=[]; for(let t=0;t<=24;t+=.25){ const e=sunDirAt(t).el/D2R; pts.push([t/24*W,hy-e/90*72]); }
+function drawSunPath(){ const box=document.getElementById('pvSunStats'); if(box){ let rise=null,set=null,prev=sunDirAt(0).el; for(let t=.05;t<=24;t+=.05){ const el=sunDirAt(t).el; if(prev<=0&&el>0) rise=t; if(prev>0&&el<=0) set=t; prev=el; } const hh=t=>t==null?'—':`${String(Math.floor(t)).padStart(2,'0')}:${String(Math.round((t%1)*60)).padStart(2,'0')}`; const noon=sunDirAt(12).el/D2R; const day=rise!=null&&set!=null?(set-rise+24)%24:(noon>0?24:0);
+    const [n,c]=phaseName(sunElevDeg()); box.innerHTML=`<div class="st"><span>Sunrise</span><b>${hh(rise)}</b></div><div class="st"><span>Sunset</span><b>${hh(set)}</b></div><div class="st"><span>Daylight</span><b>${day.toFixed(1)} h</b></div><div class="st"><span>Noon alt.</span><b>${noon.toFixed(1)}°</b></div><div class="st"><span>Phase</span><b style="color:${c}">${n}</b></div><div class="st"><span>Air mass</span><b>${airMass().toFixed(2)}</b></div>`; }
+  const svg=document.getElementById('pvSun'); if(!svg) return; const W=340,H=130,hy=88; const pts=[]; for(let t=0;t<=24;t+=.25){ const e=sunDirAt(t).el/D2R; pts.push([t/24*W,hy-e/90*72]); }
   const path=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(''); const cur=sunDirAt(S.sun_time); const cx=S.sun_time/24*W, cy=hy-cur.el/D2R/90*72;
   let rise=null,set=null; for(let i=1;i<pts.length;i++){ if(pts[i-1][1]>hy&&pts[i][1]<=hy) rise=i*.25; if(pts[i-1][1]<=hy&&pts[i][1]>hy) set=i*.25; } const hh=t=>t==null?'—':`${String(Math.floor(t)).padStart(2,'0')}:${String(Math.round((t%1)*60)).padStart(2,'0')}`;
   svg.innerHTML=`<defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ffb454" stop-opacity=".35"/><stop offset="1" stop-color="#ffb454" stop-opacity="0"/></linearGradient><clipPath id="above"><rect x="0" y="0" width="${W}" height="${hy}"/></clipPath></defs>
@@ -713,12 +927,13 @@ function drawFlare(){ const cv=document.getElementById('pvFlare'); if(!cv) retur
 function updatePreview(){ const e=getEntity(selected); if(!e) return;
   switch(e.preview){ case 'sunpath': drawSunPath(); break;     case 'moon': { const m=S.moons[e.moonIndex]; const c=document.getElementById('pvMoon'); if(c) drawMoon2D(c,m); const names=['Full','Waning gibbous','Last quarter','Waning crescent','New','Waxing crescent','First quarter','Waxing gibbous']; const idx=Math.round(m.phase*8)%8;
       document.getElementById('pvPhaseName').textContent=names[idx]; document.getElementById('pvSize').textContent=m.size.toFixed(2)+'° ('+(m.size/0.52).toFixed(1)+'× Luna)'; document.getElementById('pvPreset').textContent=m.preset+' · '+m.tex; const strip=document.getElementById('pvTexStrip'); if(strip){ strip.style.backgroundImage=`url(${TEXDIR}${m.tex})`; strip.style.backgroundPosition=`${-((m.spin||0)/360)*100}% 50%`; } const md=moonDir(m); document.getElementById('pvUp').innerHTML=md[1]>0?'<span style="color:#5fd77f">Above horizon</span>':'<span style="color:#ff7a70">Below horizon</span>';
-      insp.querySelectorAll('[data-phasecv]').forEach(c=>c.classList.toggle('on',Math.abs(m.phase-+c.dataset.phasecv)<.03)); break; }
+      break; }
     case 'sky': drawSkyDay(); break; case 'plane': drawPlane(); break; case 'atmo': drawAtmo(); break; case 'camera': drawCam(); break; case 'post': drawTone(); drawFlare(); break; } }
 
 // hero live refresh
 const hist={}; setInterval(()=>{ const e=getEntity(selected); if(!e) return; const v=e.hero.fn(); const h=hist[selected]=(hist[selected]||[]); h.push(v); if(h.length>10) h.shift(); const d=v-h[0];
   const hv=document.getElementById('heroV'); if(!hv) return; hv.innerHTML=bigHTML(v,e.hero.dec,e.hero.signed); const dl=document.getElementById('heroDelta'); dl.textContent=`${d>=0?'+':'−'}${fmt(Math.abs(d),e.hero.dec)} ${e.hero.unit} · 4 s`; dl.className='delta '+(Math.abs(d)<1e-4?'':d>0?'pos':'neg'); document.getElementById('heroTrend').innerHTML=I(Math.abs(d)<1e-4?'flat':d>0?'up':'down',18);
+  if(S.play&&e.preview!=='sunpath'){ insp.querySelectorAll('.ctl[data-t="orb"],.ctl[data-t="pad"]').forEach(el=>{ const p=widgetProp(el); if(p) refreshAll(p.k); }); }
   if(e.preview==='sunpath'||e.preview==='camera'||e.preview==='plane'||(e.preview==='moon'&&S.moons[e.moonIndex].link)) updatePreview(); },500);
 
 /* ============================================================ TOP BAR ============================================================ */
@@ -743,11 +958,10 @@ const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(g
 const U={}; const u=n=>U[n]!==undefined?U[n]:(U[n]=gl.getUniformLocation(prog,n)); const f1=(n,v)=>gl.uniform1f(u(n),v), f2=(n,a,b)=>gl.uniform2f(u(n),a,b), f3=(n,v)=>gl.uniform3f(u(n),v[0],v[1],v[2]);
 function resize(){ const dpr=Math.min(devicePixelRatio||1,1.5); const w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',resize);
 /* Unreal-style viewport navigation: RMB (or LMB) look + WASD/QE fly, scroll while holding = speed, scroll idle = FOV */
-S.cam_x=S.cam_x||0; S.cam_z=S.cam_z||0;
 const keys=new Set(); let cdrag=null; let speedFlash=0;
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointerdown',e=>{ cdrag={x:e.clientX,y:e.clientY,yaw:S.cam_yaw,pitch:S.cam_pitch,btn:e.button}; canvas.classList.add('drag'); canvas.setPointerCapture(e.pointerId); canvas.focus(); });
-canvas.addEventListener('pointermove',e=>{ if(!cdrag) return; const k=S.cam_fov/innerHeight*S.cam_sens; S.cam_yaw=((cdrag.yaw-(e.clientX-cdrag.x)*k+180)%360+360)%360-180; S.cam_pitch=Math.max(-89,Math.min(89,cdrag.pitch+(e.clientY-cdrag.y)*k)); if(selected==='camera'){ refreshCtl('cam_yaw'); refreshCtl('cam_pitch'); drawCam(); } });
+canvas.addEventListener('pointermove',e=>{ if(!cdrag) return; const k=S.cam_fov/innerHeight*S.cam_sens; S.cam_yaw=((cdrag.yaw-(e.clientX-cdrag.x)*k+180)%360+360)%360-180; S.cam_pitch=Math.max(-89,Math.min(89,cdrag.pitch+(e.clientY-cdrag.y)*k)); if(selected==='camera'){ refreshCtl('cam_yaw'); drawCam(); } });
 canvas.addEventListener('pointerup',()=>{ cdrag=null; canvas.classList.remove('drag'); });
 canvas.addEventListener('wheel',e=>{ if(cdrag||keys.size){ S.cam_speed=Math.max(.5,Math.min(200,S.cam_speed*(e.deltaY<0?1.2:1/1.2))); speedFlash=1.2; if(selected==='camera') refreshCtl('cam_speed'); }
   else { S.cam_fov=Math.max(20,Math.min(120,S.cam_fov+e.deltaY*0.03)); if(selected==='camera'){ refreshCtl('cam_fov'); drawCam(); } } },{passive:true});
@@ -758,7 +972,7 @@ function flyStep(dt){ if(!keys.size) return; const yaw=S.cam_yaw*D2R,pitch=S.cam
   const add=(v,s)=>{ mv[0]+=v[0]*s; mv[1]+=v[1]*s; mv[2]+=v[2]*s; };
   if(keys.has('w')) add(f,1); if(keys.has('s')) add(f,-1); if(keys.has('d')) add(r,1); if(keys.has('a')) add(r,-1); if(keys.has('e')) mv[1]+=1; if(keys.has('q')) mv[1]-=1;
   const L=Math.hypot(...mv); if(!L) return; S.cam_x=Math.max(-5000,Math.min(5000,S.cam_x+mv[0]/L*sp)); S.cam_z=Math.max(-5000,Math.min(5000,S.cam_z+mv[2]/L*sp)); S.cam_height=Math.max(.5,Math.min(20000,S.cam_height+mv[1]/L*sp));
-  if(selected==='camera'){ refreshCtl('cam_x'); refreshCtl('cam_z'); refreshCtl('cam_height'); } }
+  if(selected==='camera'){ refreshCtl('cam_x'); refreshCtl('cam_height'); } }
 // moon textures
 const glTex={}; const whiteTex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,whiteTex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([180,180,180,255]));
 function getTex(name){ if(glTex[name]) return glTex[name]; const t=gl.createTexture(); glTex[name]=t; gl.bindTexture(gl.TEXTURE_2D,t); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([180,180,180,255]));
@@ -767,7 +981,7 @@ MOON_ATLAS.forEach(a=>getTex(a.tex));
 const TM={None:0,ACES:1,Reinhard:2,Filmic:3,AgX:4}, FT={Cinematic:0,Anamorphic:1,Starburst:2,Halo:3};
 let last=performance.now(),fpsAcc=0,fpsN=0,t0=last; const colBuf=new Uint8Array(4*64);
 function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
-  if(S.play){ S.sun_time=(S.sun_time+dt*S.speed)%24; if(selected==='sun') refreshCtl('sun_time'); if(selected==='sky'&&fpsN%20===0) drawSkyDay(); }
+  if(S.play){ S.sun_time=(S.sun_time+dt*S.speed)%24; if(selected==='sun'&&fpsN%4===0) refreshCtl('sun_time'); if(selected==='sky'&&fpsN%20===0) drawSkyDay(); }
   flyStep(dt); resize(); updateClock(); const time=(now-t0)/1000; updateNavHud(dt);
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; const up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; const tanH=Math.tan(S.cam_fov*D2R/2);
   const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
