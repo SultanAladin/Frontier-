@@ -24,6 +24,8 @@ svg{display:block} canvas.prev{display:block;width:100%}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input{font:inherit;color:inherit}
 #gl{position:fixed;inset:0;width:100%;height:100%;cursor:grab} #gl.drag{cursor:grabbing}
+#gizmo{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:8;overflow:visible;font-family:var(--font)} #gizmo .h{pointer-events:auto;cursor:grab} #gizmo .h:hover{filter:brightness(1.35)} #gizmo.modal .h{pointer-events:none} #gizmo text{font-size:10px;fill:rgba(255,255,255,.7);font-family:var(--mono)}
+#gzHud{position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:12;display:none;align-items:center;gap:10px;padding:8px 14px;border-radius:14px;background:rgba(15,16,18,.74);backdrop-filter:blur(28px);border:1px solid rgba(255,255,255,.08);font-size:12px;color:var(--t2)} #gzHud.on{display:flex} #gzHud b{font-weight:300;font-size:16px;color:#fff;font-variant-numeric:tabular-nums} #gzHud .k{font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);color:var(--t3)} #gzHud .ax{width:8px;height:8px;border-radius:50%}
 #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.45))}
 .glass{background:var(--glass);backdrop-filter:blur(28px) saturate(1.3);-webkit-backdrop-filter:blur(28px) saturate(1.3);border:1px solid var(--stroke);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
 
@@ -735,7 +737,7 @@ input{font:inherit;color:inherit}
 </style>
 </head>
 <body>
-<canvas id="gl"></canvas><div id="vignette"></div>
+<canvas id="gl"></canvas><div id="vignette"></div><svg id="gizmo"></svg><div id="gzHud"></div>
 
 
 <aside id="outliner" class="glass">
@@ -755,7 +757,7 @@ input{font:inherit;color:inherit}
 <div id="hud">
   <div class="nav glass"><div class="keys"><span class="k">W</span><span class="k">A</span><span class="k">S</span><span class="k">D</span><span class="k dim">Q</span><span class="k dim">E</span></div>
     <div class="navmeta"><span>Fly</span><b id="navSpeed">8.0</b><em>m/s</em></div><div class="speedbar"><i id="navBar"></i></div>
-    <div class="navmeta small"><span>Drag look · Scroll = speed while flying, FOV otherwise · Shift = boost · F = home</span></div></div>
+    <div class="navmeta small"><span>Drag look · Scroll = speed / FOV · Shift = boost · F = home · G/R/S = gizmo on lights & cine camera</span></div></div>
 </div>
 
 <script id="fs" type="x-shader/x-fragment">
@@ -3130,7 +3132,71 @@ canvas.addEventListener('pointermove',e=>{ if(!cdrag) return; const k=S.cam_fov/
 canvas.addEventListener('pointerup',()=>{ cdrag=null; canvas.classList.remove('drag'); });
 canvas.addEventListener('wheel',e=>{ if(cdrag||keys.size){ S.cam_speed=Math.max(.5,Math.min(200,S.cam_speed*(e.deltaY<0?1.2:1/1.2))); speedFlash=1.2; if(selected==='camera') refreshCtl('cam_speed'); }
   else { S.cam_fov=Math.max(20,Math.min(120,S.cam_fov+e.deltaY*0.03)); if(selected==='camera'){ refreshCtl('cam_fov'); drawCam(); } } },{passive:true});
-addEventListener('keydown',e=>{ if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return; const k=e.key.toLowerCase(); if('wasdqe'.includes(k)&&k.length===1&&flyEnabled()){ keys.add(k); e.preventDefault(); } if(k==='shift') keys.add('shift'); if(k==='f'){ S.cam_x=0; S.cam_z=0; S.cam_height=2; } });
+/* ===================== Transform gizmo (G / R / S, Blender-style modal) ===================== */
+let CAM=null; const GZ={mode:'g',modal:null,hover:null}; const gzSvg=document.getElementById('gizmo'), gzHud=document.getElementById('gzHud');
+const GZC={x:'#e04b4b',y:'#4fd35a',z:'#3d7bff'}; const GZAX={x:[1,0,0],y:[0,1,0],z:[0,0,1]};
+const v3={add:(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub:(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul:(a,s)=>[a[0]*s,a[1]*s,a[2]*s],dot:(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],len:a=>Math.hypot(a[0],a[1],a[2]),
+  norm:a=>{const l=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/l,a[1]/l,a[2]/l];},cross:(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
+  rot:(v,ax,ang)=>{ const c=Math.cos(ang),s=Math.sin(ang); const k=v3.norm(ax); return v3.add(v3.add(v3.mul(v,c),v3.mul(v3.cross(k,v),s)),v3.mul(k,v3.dot(k,v)*(1-c))); }};
+function gzTarget(){ // the selected entity's world transform accessors
+  if(selected==='plight'){ const P=S.plP; return {id:'plight',col:'#ffd27a',get:()=>[P.pos[0],S.pl_y+P.pos[1],P.pos[2]],set:p=>{P.pos=[p[0],p[1]-S.pl_y,p[2]];},scale:f=>{P.distance=Math.max(.5,Math.min(200,P._d0*f));},s0:()=>{P._d0=P.distance;},sLabel:'reach',sVal:()=>`${S.plP.distance.toFixed(1)} m`}; }
+  if(selected==='slight'){ const P=S.slP; return {id:'slight',col:'#9fd0ff',get:()=>[P.pos[0],S.pl_y+P.pos[1],P.pos[2]],set:p=>{ const d=v3.sub(p,[P.pos[0],S.pl_y+P.pos[1],P.pos[2]]); P.pos=[p[0],p[1]-S.pl_y,p[2]]; P.target=v3.add(P.target,d); },
+    rot:(ax,ang)=>{ const o=P._t0; const rel=v3.sub(o,P._p0); const r=v3.rot(rel,ax,ang); P.target=v3.add(P._p0,r); },r0:()=>{P._t0=P.target.slice(); P._p0=P.pos.slice();},aim:()=>[P.target[0],S.pl_y+P.target[1],P.target[2]],
+    scale:f=>{P.angle=Math.max(2,Math.min(80,P._a0*f));},s0:()=>{P._a0=P.angle;},sLabel:'cone',sVal:()=>`${S.slP.angle.toFixed(1)}°`}; }
+  if(selected==='cine'){ const P=S.cineP; return {id:'cine',col:'#5eead4',get:()=>P.pos.slice(),set:p=>{ const d=v3.sub(p,P.pos); P.pos=p.slice(); P.lookAt=v3.add(P.lookAt,d); },
+    rot:(ax,ang)=>{ const rel=v3.sub(P._t0,P._p0); P.lookAt=v3.add(P._p0,v3.rot(rel,ax,ang)); },r0:()=>{P._t0=P.lookAt.slice(); P._p0=P.pos.slice();},aim:()=>P.lookAt.slice(),
+    scale:f=>{P.focal=Math.max(8,Math.min(400,P._f0*f)); P.fov=2*Math.atan(P.sensorWidth/2/P.focal)/D2R;},s0:()=>{P._f0=P.focal;},sLabel:'focal',sVal:()=>`${S.cineP.focal.toFixed(0)} mm`}; }
+  return null; }
+function gzProject(p){ if(!CAM) return null; const rel=v3.sub(p,CAM.pos); const x=v3.dot(rel,CAM.right),y=v3.dot(rel,CAM.up),z=v3.dot(rel,CAM.fwd); if(z<.05) return null; const H=innerHeight,W=innerWidth; return [W/2+x/z/CAM.tanH*H/2, H/2-y/z/CAM.tanH*H/2, z]; }
+function gzChanged(){ refreshMeta(); if(skyPanelEl&&skyPanelEl._sync) skyPanelEl._sync(); }
+function gzHudSet(html){ gzHud.innerHTML=html; gzHud.classList.toggle('on',!!html); }
+function gizmoDraw(){ const T=gzTarget(); if(!T||!CAM||(selected&&S['vis_'+selected]===false)){ gzSvg.innerHTML=''; if(!GZ.modal) gzHudSet(''); return; }
+  const o=T.get(); const so=gzProject(o); if(!so){ gzSvg.innerHTML=''; return; } const [ox,oy,oz]=so; const L=oz*CAM.tanH*.16; // constant on-screen size
+  const tip=k=>gzProject(v3.add(o,v3.mul(GZAX[k],L))); const m=GZ.modal; const mode=m?m.mode:GZ.mode; let s='';
+  const axes=['x','y','z'];
+  if(m&&m.axis){ // constrained: only the infinite axis line + the moving element
+    const k=m.axis; let d=''; for(let i=-60;i<=60;i++){ const q=gzProject(v3.add(o,v3.mul(GZAX[k],L*i*1.5))); if(!q){ d+='|'; continue; } d+=q[0].toFixed(1)+','+q[1].toFixed(1)+' '; }
+    d.split('|').filter(seg=>seg.trim().split(' ').length>1).forEach(seg=>{ s+=`<polyline points="${seg.trim()}" fill="none" stroke="${GZC[k]}" stroke-width="1.2" opacity=".9"/>`; });
+    s+=`<circle cx="${ox}" cy="${oy}" r="4" fill="#fff"/>`; if(m.mode==='r'){ s+=gzRing(o,k,L*.9,GZC[k],2); } }
+  else {
+    if(m&&m.mode==='r'&&!m.axis){ // free rotate: view ring
+      s+=`<circle cx="${ox}" cy="${oy}" r="${L*.9/oz/CAM.tanH*innerHeight/2}" fill="none" stroke="#fff" stroke-width="1.2" opacity=".8"/>`; }
+    if(mode==='g'){ axes.forEach(k=>{ const t=tip(k); if(!t) return; const dx=t[0]-ox,dy=t[1]-oy,l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l; const bx=t[0]-ux*12,by=t[1]-uy*12;
+        s+=`<line x1="${ox+ux*14}" y1="${oy+uy*14}" x2="${bx}" y2="${by}" stroke="${GZC[k]}" stroke-width="2"/><polygon class="h" data-ax="${k}" points="${t[0]},${t[1]} ${bx-uy*5},${by+ux*5} ${bx+uy*5},${by-ux*5}" fill="${GZC[k]}"/>`;
+        // plane pads at the corner of the other two axes
+        }); }
+    if(mode==='s'){ axes.forEach(k=>{ const t=tip(k); if(!t) return; const dx=t[0]-ox,dy=t[1]-oy,l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l; const cx=ox+ux*(l-8),cy=oy+uy*(l-8);
+        s+=`<line x1="${ox+ux*14}" y1="${oy+uy*14}" x2="${cx}" y2="${cy}" stroke="${GZC[k]}" stroke-width="2"/><rect class="h" data-ax="${k}" x="${cx-5}" y="${cy-5}" width="10" height="10" rx="2" fill="${GZC[k]}"/>`; }); }
+    if(mode==='r'){ if(T.rot) axes.forEach(k=>{ s+=gzRing(o,k,L*.9,GZC[k],2,true); }); else s+=`<text x="${ox+16}" y="${oy-14}">no rotation</text>`; }
+    s+=`<circle cx="${ox}" cy="${oy}" r="9" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.4"/><circle class="h" data-ax="free" cx="${ox}" cy="${oy}" r="9" fill="rgba(255,255,255,.001)"/>`;
+    if(T.aim){ const a=gzProject(T.aim()); if(a) s+=`<line x1="${ox}" y1="${oy}" x2="${a[0]}" y2="${a[1]}" stroke="${T.col}" stroke-dasharray="3 4" opacity=".6"/><circle cx="${a[0]}" cy="${a[1]}" r="3" fill="${T.col}"/>`; }
+  }
+  gzSvg.innerHTML=s; gzSvg.classList.toggle('modal',!!m);
+  if(!m) gzHudSet(`<span class="ax" style="background:${T.col}"></span><span>${getEntity(selected).name}</span><span class="k">${mode.toUpperCase()}</span><span>${mode==='g'?'move':mode==='r'?'rotate':T.sLabel}</span><span class="k">G</span><span class="k">R</span><span class="k">S</span>`); }
+function gzRing(o,k,r,col,w,handle){ const n=48; const u=k==='x'?[0,1,0]:[1,0,0], v=v3.cross(GZAX[k],u); let d=''; for(let i=0;i<=n;i++){ const a=i/n*Math.PI*2; const p=gzProject(v3.add(o,v3.add(v3.mul(u,Math.cos(a)*r),v3.mul(v,Math.sin(a)*r)))); if(!p) return ''; d+=(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1); }
+  return `<path ${handle?`class="h" data-ax="${k}"`:''} d="${d}Z" fill="none" stroke="${col}" stroke-width="${w}" opacity=".9"/>`; }
+function gzStart(mode,axis,e){ const T=gzTarget(); if(!T) return; if(mode==='r'&&!T.rot) return; const o=T.get(); const so=gzProject(o); if(!so) return;
+  GZ.modal={mode,axis:axis&&axis!=='free'?axis:null,T,o0:o.slice(),so,x0:e.clientX,y0:e.clientY,ang0:Math.atan2(e.clientY-so[1],e.clientX-so[0]),d0:Math.max(12,Math.hypot(e.clientX-so[0],e.clientY-so[1]))};
+  if(mode==='r'&&T.r0) T.r0(); if(mode==='s'&&T.s0) T.s0(); GZ.mode=mode; canvas.style.cursor='none'; gzUpdate(e); }
+function gzUpdate(e){ const m=GZ.modal; if(!m) return; const T=m.T; const dx=e.clientX-m.x0, dy=e.clientY-m.y0; const snap=e.ctrlKey; const perPx=m.so[2]*CAM.tanH*2/innerHeight; // world metres per screen pixel at the gizmo depth
+  let readout='';
+  if(m.mode==='g'){ let d;
+    if(m.axis){ const ax=GZAX[m.axis]; const t=gzProject(v3.add(m.o0,ax)); const sx=t?t[0]-m.so[0]:0, sy=t?t[1]-m.so[1]:0; const l2=sx*sx+sy*sy||1; let param=(dx*sx+dy*sy)/l2; if(snap) param=Math.round(param*4)/4; d=v3.mul(ax,param); readout=`${m.axis.toUpperCase()} ${param>=0?'+':''}${param.toFixed(2)} m`; }
+    else { let mx=dx*perPx,my=-dy*perPx; if(snap){ mx=Math.round(mx*4)/4; my=Math.round(my*4)/4; } d=v3.add(v3.mul(CAM.right,mx),v3.mul(CAM.up,my)); readout=`free ${v3.len(d).toFixed(2)} m`; }
+    T.set(v3.add(m.o0,d)); }
+  else if(m.mode==='r'){ let a=Math.atan2(e.clientY-m.so[1],e.clientX-m.so[0])-m.ang0; if(snap) a=Math.round(a/(5*D2R))*(5*D2R); const ax=m.axis?GZAX[m.axis]:CAM.fwd; const sign=m.axis?(v3.dot(ax,CAM.fwd)>0?1:-1):1; T.rot(ax,-a*sign); readout=`${m.axis?m.axis.toUpperCase():'view'} ${(-a*sign/D2R).toFixed(1)}°`; }
+  else if(m.mode==='s'){ let f=Math.hypot(e.clientX-m.so[0],e.clientY-m.so[1])/m.d0; if(snap) f=Math.max(.1,Math.round(f*10)/10); T.scale(f); readout=`${T.sLabel} ×${f.toFixed(2)} → ${T.sVal()}`; }
+  gzChanged(); const col=m.axis?GZC[m.axis]:'#fff'; gzHudSet(`<span class="ax" style="background:${col}"></span><span>${m.mode==='g'?'Move':m.mode==='r'?'Rotate':'Scale'}</span><b>${readout}</b><span class="k">X</span><span class="k">Y</span><span class="k">Z</span><span class="k">Ctrl snap</span><span class="k">Esc</span>`); }
+function gzEnd(cancel){ const m=GZ.modal; if(!m) return; if(cancel){ if(m.mode==='g') m.T.set(m.o0); else if(m.mode==='r') m.T.rot([0,1,0],0); else m.T.scale(1); gzChanged(); } GZ.modal=null; canvas.style.cursor=''; gzHudSet(''); }
+gzSvg.addEventListener('pointerdown',e=>{ const hnd=e.target.closest('.h'); if(!hnd||e.button!==0||GZ.modal) return; e.preventDefault(); e.stopPropagation(); gzStart(GZ.mode,hnd.dataset.ax,e); GZ.modal.grab=true; });
+addEventListener('pointermove',e=>{ if(GZ.modal) gzUpdate(e); },{passive:true});
+addEventListener('pointerup',e=>{ if(GZ.modal&&GZ.modal.grab){ gzEnd(false); } });
+canvas.addEventListener('pointerdown',e=>{ if(GZ.modal&&!GZ.modal.grab){ e.stopImmediatePropagation(); e.preventDefault(); gzEnd(e.button===2); } },true);
+addEventListener('keydown',e=>{ if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return; const k=e.key.toLowerCase(); const T=gzTarget(); if(!T) return;
+  if(GZ.modal){ if('xyz'.includes(k)&&k.length===1){ GZ.modal.axis=GZ.modal.axis===k?null:k; gzUpdate(GZ.modal.last||{clientX:GZ.modal.x0,clientY:GZ.modal.y0,ctrlKey:false}); e.preventDefault(); } else if(k==='escape'){ gzEnd(true); } else if(k==='enter'||k===' '){ gzEnd(false); e.preventDefault(); } return; }
+  if(k==='g'||k==='r'||k==='s'){ if(k==='r'&&!T.rot) return; const ev={clientX:GZ.lastX??innerWidth/2,clientY:GZ.lastY??innerHeight/2,ctrlKey:false}; gzStart(k,null,ev); e.preventDefault(); } });
+addEventListener('pointermove',e=>{ GZ.lastX=e.clientX; GZ.lastY=e.clientY; if(GZ.modal) GZ.modal.last=e; },{passive:true});
+addEventListener('keydown',e=>{ if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return; const k=e.key.toLowerCase(); if(k==='s'&&gzTarget()) return; if('wasdqe'.includes(k)&&k.length===1&&flyEnabled()){ keys.add(k); e.preventDefault(); } if(k==='shift') keys.add('shift'); if(k==='f'){ S.cam_x=0; S.cam_z=0; S.cam_height=2; } });
 addEventListener('keyup',e=>{ keys.delete(e.key.toLowerCase()); }); addEventListener('blur',()=>keys.clear());
 function flyStep(dt){ if(!keys.size) return; const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const altBoost=1.+Math.max(0,S.cam_height-50)/200.; const sp=S.cam_speed*altBoost*(keys.has('shift')?3:1)*dt;
   const f=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)], r=[Math.cos(yaw),0,Math.sin(yaw)]; let mv=[0,0,0];
@@ -3149,7 +3215,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   S.play=!!S.sun_play; S.speed={'×1':.02,'×8':.15,'×30':.6,'×100':2}[S.sun_speed]||.15; if(S.play){ S.sun_time=(S.sun_time+dt*S.speed)%24; if(selected==='sun'&&fpsN%4===0) refreshCtl('sun_time'); if(selected==='sky'&&fpsN%20===0) drawSkyDay(); }
   flyStep(dt); resize(); updateClock(); const time=(now-t0)/1000; updateNavHud(dt);
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; let up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; { const r=(S.cam_roll||0)*D2R, cr=Math.cos(r), sr=Math.sin(r); const R0=right.slice(), U0=up.slice(); for(let i=0;i<3;i++){ right[i]=R0[i]*cr+U0[i]*sr; up[i]=U0[i]*cr-R0[i]*sr; } } const tanH=Math.tan(S.cam_fov*D2R/2);
-  clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
+  CAM={fwd,right,up,tanH,pos:[S.cam_x,S.cam_height,S.cam_z]}; gizmoDraw(); clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
   { const F=S.fogP,C=S.cloudP,T=S.terrP; f1('uFogOn',0); f1('uFogDensity',F.density); f1('uFogHeight',F.height); f1('uFogScatter',F.sunScatter); f3('uFogColor',hex2rgb(F.color));
     f1('uCloudOn',0); f1('uCloudCov',C.coverage); f1('uCloudDen',C.density); f1('uCloudAlt',C.altitude); f1('uCloudScale',C.scale); f1('uCloudDetail',C.detail); f1('uCloudSpeed',C.speed); f3('uCloudTint',hex2rgb(C.tint)); f3('uCloudShade',hex2rgb(C.shade));
