@@ -776,6 +776,8 @@ uniform int uMoonCount; uniform vec3 uMoonDir[MAXM]; uniform vec3 uMoonTint[MAXM
 uniform float uEV,uTonemap,uBloom,uVignette,uGrain,uFlareOn,uFlareInt,uGhosts,uHalo,uStreak,uChroma,uFlareType;
 uniform vec2 uSunUV; uniform float uSunInFront;
 uniform float uFogOn,uFogDensity,uFogHeight,uFogScatter; uniform vec3 uFogColor;
+uniform float uAFOn,uAFDensity,uAFHeight,uAFStart,uAFMie,uAFG,uAFSky; uniform vec3 uAFTint;                 // atmospheric (aerial perspective) fog
+uniform float uVFOn,uVFDensity,uVFNoise,uVFScale,uVFSpeed,uVFG,uVFSoft,uVFAbsorb,uVFShape,uVFSteps,uVFSelf; uniform vec3 uVFPos,uVFSize,uVFAlbedo;   // local volumetric fog
 uniform vec3 uPLPos,uPLCol,uSLPos,uSLDir,uSLCol; uniform float uPLOn,uPLInt,uPLReach,uPLDecay,uSLOn,uSLInt,uSLCos,uSLSoft;
 uniform float uCloudOn,uCloudCov,uCloudDen,uCloudAlt,uCloudScale,uCloudDetail,uCloudSpeed; uniform vec3 uCloudTint,uCloudShade;
 uniform float uTerrOn,uTerrSize,uTerrHeight,uTerrFreq,uTerrSeed,uTerrRough,uTerrWire; uniform vec3 uTerrLow,uTerrHigh,uTerrPos;
@@ -923,6 +925,47 @@ vec3 hue(float h){ return clamp(abs(mod(h*6.+vec3(0,4,2),6.)-3.)-1.,0.,1.); }
 float fogT(float d,float y0,float y1){ // transmission along a segment from height y0 to y1 over distance d
   float hh=max(1.,uFogHeight); float ya=max(0.,min(y0,y1)), yb=max(0.,max(y0,y1)); float k=(yb-ya)<1e-3?exp(-ya/hh):hh*(exp(-ya/hh)-exp(-yb/hh))/(yb-ya);
   float od=uFogDensity*d*k; return exp(-od*od); }
+// ===== Atmospheric fog: aerial perspective. Exponential height density integrated analytically along the ray (Wenzel 2006 / Quilez),
+//       wavelength-dependent extinction (Rayleigh beta_R + grey Mie beta_M) so distant objects shift blue, in-scatter = sky ambient + HG sun lobe.
+float afOD(float d,float y0,float y1){ float hh=max(1.,uAFHeight); float ya=max(0.,min(y0,y1)),yb=max(0.,max(y0,y1)); float k=(yb-ya)<1e-3?exp(-ya/hh):hh*(exp(-ya/hh)-exp(-yb/hh))/(yb-ya); return uAFDensity*max(0.,d-uAFStart)*k; }
+vec3 applyAFog(vec3 col,vec3 dir,float d,vec3 sky,vec3 hzGlow,vec3 trans){ if(uAFOn<.5) return col;
+  float od=afOD(d,uCamHeight,uCamHeight+dir.y*d); if(od<1e-6) return col;
+  vec3 betaR=vec3(5.8e-6,13.5e-6,33.1e-6)/13.5e-6;                                   // normalised Rayleigh spectrum (blue extinguishes 2.5x more than red)
+  vec3 beta=mix(betaR,vec3(1.),uAFMie);                                              // Mie share makes it greyer (haze/humidity)
+  vec3 T=exp(-beta*od);
+  float cosS=clamp(dot(dir,uSunDir),-1.,1.); float g=uAFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
+  vec3 amb=(sky*.85+hzGlow*.6)*uAFSky;                                              // light the medium receives from the sky dome
+  vec3 sun=trans*uSunColor*uSunIntensity*.02*hg*4.*3.14159*max(uSunDir.y+.08,0.)*mix(1.,.35,uAFMie); // single-scatter sun lobe (Mie forward peak)
+  vec3 Lin=(amb+sun)*uAFTint;
+  return col*T+Lin*(1.-T); }
+// ===== Local volumetric fog: a finite box / ellipsoid of participating medium, ray-marched with Beer–Lambert transmittance,
+//       heterogeneous density from 3-octave value noise advected by wind, HG in-scatter from the sun + the point/spot lights,
+//       self-shadowing by a short secondary march toward the sun, and separable absorption (albedo) for realistic darkening.
+float vfShapeMask(vec3 q){ // q in [-1,1] box space; soft falloff toward the shell
+  float m; if(uVFShape>.5){ m=1.-length(q); } else { vec3 a=1.-abs(q); m=min(min(a.x,a.y),a.z); }
+  return smoothstep(0.,max(.02,uVFSoft),m); }
+float vfDensity(vec3 p){ vec3 q=(p-uVFPos)/uVFSize; float mask=vfShapeMask(q); if(mask<=0.) return 0.;
+  vec3 w=vec3(uTime*uVFSpeed*.35,uTime*uVFSpeed*.05,uTime*uVFSpeed*.2); vec3 s=p/max(.5,uVFScale)+w;
+  float n=vnoise(s)*.55+vnoise(s*2.3+1.7)*.3+vnoise(s*5.1+4.2)*.15;
+  float het=mix(1.,smoothstep(.28,.85,n)*1.6,uVFNoise);
+  float grav=1.-.35*clamp(q.y*.5+.5,0.,1.);                                      // denser at the bottom like a real cold pool
+  return uVFDensity*mask*het*grav; }
+vec2 vfBox(vec3 ro,vec3 rd){ vec3 m=1./(rd+1e-6*sign(rd)+1e-9); vec3 n=m*(ro-uVFPos); vec3 k=abs(m)*uVFSize*1.0; vec3 t1=-n-k,t2=-n+k; float tn=max(max(t1.x,t1.y),t1.z),tf=min(min(t2.x,t2.y),t2.z); return (tn>tf||tf<0.)?vec2(-1.):vec2(max(tn,0.),tf); }
+float vfShadow(vec3 p){ if(uVFSelf<.5) return 1.; float od=0.; float st=max(uVFSize.x,max(uVFSize.y,uVFSize.z))*.5; for(int i=1;i<=4;i++){ od+=vfDensity(p+uSunDir*st*float(i)*.5)*st*.5; } return exp(-od*(1.+uVFAbsorb)); }
+vec3 applyVFog(vec3 col,vec3 ro,vec3 rd,float tmax,vec3 sky,vec3 hzGlow,vec3 trans){ if(uVFOn<.5) return col;
+  vec2 b=vfBox(ro,rd); if(b.x<0.) return col; float t0=b.x, t1=min(b.y,tmax); if(t1<=t0) return col;
+  float N=uVFSteps; float dt=(t1-t0)/N; float jit=hash13(vec3(gl_FragCoord.xy,fract(uTime*7.))); float t=t0+dt*jit;
+  float cosS=clamp(dot(rd,uSunDir),-1.,1.); float g=uVFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
+  vec3 sunL=trans*uSunColor*uSunIntensity*.02*max(uSunDir.y+.05,0.)*hg*4.*3.14159; vec3 amb=(sky*.6+hzGlow*.3);
+  vec3 acc=vec3(0.); float T=1.; vec3 sigS=uVFAlbedo; float sigA=uVFAbsorb;
+  for(int i=0;i<48;i++){ if(float(i)>=N||T<.01) break; vec3 p=ro+rd*t; float rho=vfDensity(p);
+    if(rho>1e-4){ vec3 Li=amb+sunL*vfShadow(p);
+      { vec3 L=uPLPos-p; float d=length(L); L/=max(d,1e-3); float ph=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*dot(rd,L),1.5)); Li+=uPLOn*uPLCol*uPLInt/pow(max(d,1.),uPLDecay)*(1.-smoothstep(uPLReach*.7,uPLReach,d))*ph*4.*3.14159*.02; }
+      { vec3 L=uSLPos-p; float d=length(L); L/=max(d,1e-3); float ct=dot(-L,uSLDir); float cone=smoothstep(uSLCos,mix(uSLCos,1.,uSLSoft*.9)+1e-4,ct); float ph=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*dot(rd,L),1.5)); Li+=uSLOn*uSLCol*(uSLInt/max(d*d,1.))*cone*ph*4.*3.14159*.02; }
+      float sigT=rho*(1.+sigA); float Ts=exp(-sigT*dt); vec3 S=Li*sigS*rho;               // scattering source
+      acc+=T*(S-S*Ts)/max(sigT,1e-5); T*=Ts; }                                            // energy-conserving integration (Hillaire)
+    t+=dt; }
+  return col*T+acc; }
 vec3 applyFog(vec3 col,vec3 dir,float d,vec3 sky,vec3 hzGlow,vec3 trans){ if(uFogOn<.5) return col;
   float y0=uCamHeight, y1=uCamHeight+dir.y*d; float T=fogT(d,y0,y1);
   float cosS=clamp(dot(dir,uSunDir),-1.,1.); float g=.55; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
@@ -1020,7 +1063,7 @@ void main(){
       float fog=1.-exp(-t*7e-5); fog=pow(clamp(fog,0.,1.),1.6); planeCol=mix(planeCol,sky*.8+hzGlow*.6,fog);
     }
   }
-  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); }
+  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); col=applyAFog(col,dir,planeT,sky,hzGlow,trans); col=applyVFog(col,uCamPos,dir,planeT,sky,hzGlow,trans); }
   else if(ground>.5){
     float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.09*ndl; vec3 amb=sky*.35+vec3(.002,.003,.006)*uSkyBright;
     { // the real surface: the same checker ground, wrapped on the planet sphere (no fake earth texture)
@@ -1067,6 +1110,8 @@ void main(){
       float sg=exp(-ang*40.)*.35+exp(-ang*9.)*.03+exp(-ang*2.5)*.004; col+=sg*uBloom*sunCol*uSunIntensity*.6;
     }
     if(uFogOn>.5&&uCamHeight<3000.){ float dS=(dir.y>.002)?min(20000.,(uFogHeight*4.)/dir.y):20000.; col=applyFog(col,dir,dS,sky,hzGlow,trans); }
+    if(uAFOn>.5&&uCamHeight<6000.){ float dA=(dir.y>.002)?min(60000.,(uAFHeight*5.)/dir.y):60000.; col=applyAFog(col,dir,dA,sky,hzGlow,trans); }
+    col=applyVFog(col,uCamPos,dir,1e6,sky,hzGlow,trans);
   }
   { // light source glyphs: a small emissive glow where the point / spot lights sit
     vec3 v=uPLPos-uCamPos; float dl=length(v); float c=dot(normalize(v),dir); float ang=acos(clamp(c,-1.,1.)); float rr=.02/max(1.,dl*.05)*(1.+uPLInt*.02);
@@ -1155,6 +1200,8 @@ const P = {
   stars:   '<path d="m12 2 1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9z"/><path d="M18.5 15.5 19 17l1.5.5L19 18l-.5 1.5L18 18l-1.5-.5L18 17z"/><path d="M5 15l.4 1.2L6.6 16.6 5.4 17 5 18.2 4.6 17 3.4 16.6 4.6 16.2z"/>',
   cloud:   '<path d="M6.5 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.6 9.3 3.9 3.9 0 0 1 17.5 18z"/>',
   fog:     '<path d="M3 9h18M5 13h14M4 17h16"/><path d="M6.5 5.5a5 5 0 0 1 9.5 0"/>',
+  afog:    '<path d="M3 17h18"/><path d="M3 13c3-2 6-2 9 0s6 2 9 0"/><path d="M6 8c2-1.5 4-1.5 6 0s4 1.5 6 0" opacity=".55"/><circle cx="18" cy="5" r="2"/>',
+  vfog:    '<path d="M4 8 12 4l8 4-8 4z"/><path d="M4 8v8l8 4 8-4V8"/><path d="M12 12v8"/><path d="M7.5 15.5c1.5-1 3-1 4.5 0s3 1 4.5 0" opacity=".6"/>',
   wind:    '<path d="M3 8h9a3 3 0 1 0-3-3"/><path d="M3 13h13a3 3 0 1 1-3 3"/><path d="M3 18h7"/>',
   water:   '<path d="M2 8c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/><path d="M2 14c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/><path d="M2 20c2.5 0 2.5 1.6 5 1.6"/>',
   particles:'<circle cx="6" cy="7" r="1.6"/><circle cx="17" cy="5" r="1.2"/><circle cx="12" cy="12" r="2"/><circle cx="7" cy="17" r="1.3"/><circle cx="18" cy="16" r="1.7"/>',
@@ -2409,6 +2456,13 @@ const ENTITIES={
       {title:'Sparkle',icon:'flare',props:[PAD('st_glow','st_twinkle','Glow × Twinkle',{xmin:0,xmax:2,ymin:0,ymax:1,xl:'Glow / spikes',yl:'Scintillation',hint:'Twinkle scales with air mass near the horizon'}),GAUGE('st_color','Colour Temperature',0,1,0.01,1,'×'),GAUGE('st_limit','Sky Contrast Threshold',0.2,6,0.01,1.5,'×')]},
       {title:'Galaxy',icon:'orbit',props:[GAUGE('st_milky','Milky Way',0,2,0.01,1,'×'),ORBIT2('st_rot','st_tilt','Celestial Frame')]}]},
   fog:{name:'Height Fog',kind:'Volumetrics',color:'#9fb0c0',icon:'fog',preview:'none',external:true,hero:{kind:'none'},sections:[]},
+  afog:{name:'Atmospheric Fog',kind:'Aerial Perspective',color:'#8fb8d8',icon:'afog',preview:'none',hero:{kind:'afog'},
+    sections:[{title:'Medium',icon:'fog',props:[TRK('af_density','Extinction β',0.5,80,0.1,7,'e-5/m',{log:true,hint:'Sea-level extinction · 7 ≈ 56 km visibility · 40 ≈ 10 km haze'}),TRK('af_height','Scale height',50,8000,10,1200,'m',{log:true,hint:'Density falls to 1/e at this altitude'}),TRK('af_start','Start distance',0,2000,5,0,'m')]},
+      {title:'Scattering',icon:'wave',props:[GAUGE('af_mie','Mie share',0,1,0.01,0.35,''),GAUGE('af_g','Anisotropy g',0,0.95,0.01,0.7,''),GAUGE('af_sky','Sky light',0,2,0.01,1,'×'),COL('af_tint','Tint','#ffffff')]}]},
+  vfog:{name:'Local Volumetric Fog',kind:'Fog Volume',color:'#c9d6e2',icon:'vfog',preview:'none',hero:{kind:'vfog'},
+    sections:[{title:'Volume',icon:'grid',props:[SEG('vf_shape','Shape',['Box','Ellipsoid'],'Ellipsoid'),PAD('vf_x','vf_z','Position',{xmin:-100,xmax:100,ymin:-100,ymax:100,xl:'X',yl:'Z',plane:true,hint:'Top-down · or press G in the viewport'}),TRK('vf_y','Centre height',-5,60,0.1,2.5,'m'),TRK('vf_sx','Extent X',1,200,0.5,18,'m',{log:true}),TRK('vf_sy','Extent Y',0.5,60,0.5,4,'m',{log:true}),TRK('vf_sz','Extent Z',1,200,0.5,18,'m',{log:true}),GAUGE('vf_soft','Edge softness',0.02,1,0.01,0.45,'')]},
+      {title:'Medium',icon:'fog',props:[TRK('vf_density','Density σ',0,2,0.01,0.35,'/m',{hint:'Extinction per metre · 0.35 ≈ 11 m sight inside'}),GAUGE('vf_noise','Heterogeneity',0,1,0.01,0.75,''),TRK('vf_scale','Noise scale',0.5,30,0.1,5,'m',{log:true}),TRK('vf_speed','Wind',0,5,0.05,0.8,'m/s'),COL('vf_albedo','Albedo','#dfe6ee'),GAUGE('vf_absorb','Absorption',0,1,0.01,0.08,'')]},
+      {title:'Lighting',icon:'bulb',props:[GAUGE('vf_g','Anisotropy g',0,0.95,0.01,0.6,''),TOG('vf_self','Self-shadowing',true,'Secondary march toward the sun'),SEG('vf_steps','Quality',['Draft','Balanced','High'],'Balanced')]}]},
   clouds:{name:'Cloud Layer',kind:'Clouds',color:'#dfe6ee',icon:'cloud',preview:'none',external:true,hero:{kind:'none'},sections:[]},
   terrain:{name:'Height Field',kind:'Terrain',color:'#8fb36b',icon:'globe',preview:'none',external:true,hero:{kind:'none'},sections:[]},
   plight:{name:'Point Light',kind:'Point Light',color:'#ffd27a',icon:'bulb',preview:'none',external:true,hero:{kind:'none'},sections:[]},
@@ -2427,7 +2481,7 @@ const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; if(S.sun_ang==null) S.sun_ang=0.53; if(S.sun_soft==null) S.sun_soft=0.25; if(S.cam_fov==null) S.cam_fov=72; if(S.cam_roll==null) S.cam_roll=0; S.fogP={enabled:true,density:.011,height:42,color:'#8fa4bb',sunScatter:.7}; S.cloudP={coverage:.46,density:.62,altitude:130,scale:1,detail:.55,speed:1,tint:'#eef3f8',shade:'#5c6a7c',windLinked:true}; S.terrP={terrainMode:'Sculpt',size:180,height:12,frequency:1.2,seed:417,resolution:'256',lowColor:'#263628',highColor:'#88917b',roughness:.88,wireframe:false,castShadow:true,pos:[0,0,0],sourceName:''}; S.folderP={world:{tint:'#5aa9ff'},lights:{tint:'#ffd27a'}}; S.plP={pos:[6,2.2,-4],color:'#ffd9a0',intensity:14,distance:26,decay:2,shadows:false,gizmoGlow:true}; S.slP={pos:[-5,6,-8],target:[0,0,-6],angle:26,penumbra:.42,intensity:62,color:'#e8f0ff',shadows:true,showCone:true}; S.cineP={pos:[10,3,12],lookAt:[0,1,0],focal:50,sensorWidth:36,fov:39.6,focus:8,aperture:2.8,shutterAngle:180,iso:800,squeeze:1,gate:'2.39:1',showFrustum:true,shutter:60,near:.1}; S.skyP={rayleigh:S.atm_rayleigh*1.35,mie:.22,mieG:S.atm_mieG,turbidity:3.4,ozone:S.atm_ozone,zenith:'#2f6dd0',horizon:'#9fc4e8',ground:S.sky_ground,intensity:1,aerial:true,lightsScene:true}; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; if(S.sun_ang==null) S.sun_ang=0.53; if(S.sun_soft==null) S.sun_soft=0.25; if(S.cam_fov==null) S.cam_fov=72; if(S.vf_x==null){ S.vf_x=6; S.vf_z=-14; } if(S.cam_roll==null) S.cam_roll=0; S.fogP={enabled:true,density:.011,height:42,color:'#8fa4bb',sunScatter:.7}; S.cloudP={coverage:.46,density:.62,altitude:130,scale:1,detail:.55,speed:1,tint:'#eef3f8',shade:'#5c6a7c',windLinked:true}; S.terrP={terrainMode:'Sculpt',size:180,height:12,frequency:1.2,seed:417,resolution:'256',lowColor:'#263628',highColor:'#88917b',roughness:.88,wireframe:false,castShadow:true,pos:[0,0,0],sourceName:''}; S.folderP={world:{tint:'#5aa9ff'},lights:{tint:'#ffd27a'}}; S.plP={pos:[6,2.2,-4],color:'#ffd9a0',intensity:14,distance:26,decay:2,shadows:false,gizmoGlow:true}; S.slP={pos:[-5,6,-8],target:[0,0,-6],angle:26,penumbra:.42,intensity:62,color:'#e8f0ff',shadows:true,showCone:true}; S.cineP={pos:[10,3,12],lookAt:[0,1,0],focal:50,sensorWidth:36,fov:39.6,focus:8,aperture:2.8,shutterAngle:180,iso:800,squeeze:1,gate:'2.39:1',showFrustum:true,shutter:60,near:.1}; S.skyP={rayleigh:S.atm_rayleigh*1.35,mie:.22,mieG:S.atm_mieG,turbidity:3.4,ozone:S.atm_ozone,zenith:'#2f6dd0',horizon:'#9fc4e8',ground:S.sky_ground,intensity:1,aerial:true,lightsScene:true}; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
@@ -2485,7 +2539,7 @@ function skyColorsAt(e){ // rough analytic sky for timelines
 /* ============================================================ OUTLINER ============================================================ */
 let selected='sun'; const openF={environment:true,moons:true,camera:true,world:true};
 const treeEl=document.getElementById('tree');
-const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun','plight','slight','lights']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky','stars','fog','clouds']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane','terrain']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','cine','post']}];
+const FILTERS=[{id:'light',l:'Lights',c:'#ffb454',ids:['sun','plight','slight','lights']},{id:'sky',l:'Sky',c:'#5aa9ff',ids:['atmosphere','sky','stars','fog','afog','vfog','clouds']},{id:'body',l:'Bodies',c:'#dfe6f5',ids:['moons']},{id:'geo',l:'Geometry',c:'#e2e8f0',ids:['plane','terrain']},{id:'cam',l:'Camera',c:'#34c759',ids:['camera','cine','post']}];
 const activeF=new Set();
 function metaOf(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}° elev · ${S.sun_temp} K`; case 'atmosphere': return `AM ${airMass().toFixed(2)} · Mie ${S.atm_mie.toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd/m²`; case 'plane': return `${S.pl_size*2} m · ${S.pl_cell} m cells`; case 'camera': return `${S.cam_fov.toFixed(0)}° · ${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; case 'post': return `${S.pp_tonemap} · ${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(2)} EV${S.pp_flare?' · flare':''}`; }
   if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${m.size.toFixed(2)}° · ${Math.round(illum(m.phase)*100)}% lit · ${moonDir(m)[1]>0?'up':'set'}`; } return ''; }
@@ -2531,14 +2585,14 @@ function renderTimeline(){ const el=document.getElementById('timeline'); if(el.h
 (()=>{ const el=document.getElementById('timeline'); let on=false; const go=e=>{ const svg=el.querySelector('svg'); if(!svg) return; const r=svg.getBoundingClientRect(); const f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); commit('sun_time',Math.round(f*24*12)/12); };
   el.addEventListener('pointerdown',e=>{ on=true; el.setPointerCapture(e.pointerId); go(e); }); el.addEventListener('pointermove',e=>{ if(on) go(e); }); el.addEventListener('pointerup',()=>on=false); el.addEventListener('pointercancel',()=>on=false); })();
 // ---------- simple tree with parenting ----------
-const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',fog:'world',clouds:'world',moons:'world',plane:null,terrain:null,plight:'lights',slight:'lights',lights:null,camera:null,cine:null,post:'camera'};
+const DEFAULT_PARENT={atmosphere:'world',sun:'world',sky:'world',stars:'world',fog:'world',afog:'world',vfog:'world',clouds:'world',moons:'world',plane:null,terrain:null,plight:'lights',slight:'lights',lights:null,camera:null,cine:null,post:'camera'};
 const PICS={atmosphere:'atmosphere',sun:'sun',sky:'sky',stars:'stars',fog:'fog',clouds:'cloud',terrain:'terrain',moons:'moon',camera:'camera',cine:'cine'};
 const PIC=(id,sz)=>PICS[id]?`<img class="pic" src="${TEXDIR}icons/${PICS[id]}.png" width="${sz}" height="${sz}" alt="" draggable="false">`:null;
 const FOLDERS={world:{name:'World',icon:'globe',color:'#5aa9ff'},lights:{name:'Lights',icon:'bulb',color:'#ffd27a'}};
 function parentOf(id){ if(id.startsWith('moon#')) return (S.parentMap&&S.parentMap[id])||'moons'; if(S.parentMap&&id in S.parentMap) return S.parentMap[id]; return DEFAULT_PARENT[id]===undefined?null:DEFAULT_PARENT[id]; }
 function setParent(id,pid){ S.parentMap=S.parentMap||{}; // refuse cycles
   let c=pid; while(c){ if(c===id) return false; c=parentOf(c); } S.parentMap[id]=pid; if(pid) openF[pid]=true; return true; }
-function allNodes(){ return ['world','atmosphere','sun','sky','stars','fog','clouds','moons',...S.moons.map((_,i)=>'moon#'+i),'plane','terrain','lights','plight','slight','camera','cine','post']; }
+function allNodes(){ return ['world','atmosphere','sun','sky','stars','fog','afog','vfog','clouds','moons',...S.moons.map((_,i)=>'moon#'+i),'plane','terrain','lights','plight','slight','camera','cine','post']; }
 function nodeInfo(id){ if(FOLDERS[id]) return {...FOLDERS[id],folder:true}; if(id==='moons') return {name:'Moons',icon:'moon',color:'#dfe6f5',folder:true}; if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return {name:m.name,icon:'moon',color:'#dfe6f5',tex:m.tex}; } const e=ENTITIES[id]; return {name:e.name,icon:e.icon,color:e.color}; }
 function statusOf(id){ // [cls, title]
   if(FOLDERS[id]||id==='moons'){ const kids=allNodes().filter(n=>parentOf(n)===id); const bad=kids.filter(k=>['warn','err'].includes(statusOf(k)[0])).length; return bad?['warn',`${bad} issue${bad>1?'s':''}`]:['ok','All good']; }
@@ -2548,7 +2602,7 @@ function statusOf(id){ // [cls, title]
   if(id==='stars'&&limitMag()<0) return ['warn','Washed out by sky'];
   if(id.startsWith('moon#')&&moonDir(S.moons[+id.slice(5)])[1]<=0) return ['warn','Set'];
   return lifted?['info',`${lifted} lifted`]:['ok','Seated']; }
-function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}°`; case 'atmosphere': return `AM ${airMass().toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd`; case 'stars': return `mag ${limitMag().toFixed(1)}`; case 'moons': return `${S.moons.length}/4`; case 'plane': return `${S.pl_size*2} m`; case 'camera': return `${S.cam_fov.toFixed(0)}°`; case 'post': return `${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV`; case 'world': return ''; case 'fog': return S.fogP.enabled===false?'off':`${Math.round(Math.sqrt(-Math.log(.02))/Math.max(1e-4,S.fogP.density))} m`; case 'clouds': return `${Math.round(S.cloudP.coverage*8)}/8`; case 'terrain': return `${S.terrP.height.toFixed(0)} m`; case 'plight': return `${S.plP.intensity.toFixed(0)} cd`; case 'slight': return `${S.slP.angle.toFixed(0)}°`; case 'cine': return `${S.cineP.focal.toFixed(0)} mm`; } if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${Math.round(illum(m.phase)*100)}%`; } return ''; }
+function metaShort(id){ switch(id){ case 'sun': return `${sunElevDeg().toFixed(1)}°`; case 'atmosphere': return `AM ${airMass().toFixed(2)}`; case 'sky': return `${zenithLum().toFixed(2)} kcd`; case 'stars': return `mag ${limitMag().toFixed(1)}`; case 'moons': return `${S.moons.length}/4`; case 'plane': return `${S.pl_size*2} m`; case 'camera': return `${S.cam_fov.toFixed(0)}°`; case 'post': return `${S.pp_ev>=0?'+':''}${S.pp_ev.toFixed(1)} EV`; case 'world': return ''; case 'fog': return S.fogP.enabled===false?'off':`${Math.round(Math.sqrt(-Math.log(.02))/Math.max(1e-4,S.fogP.density))} m`; case 'afog': return `${afVis().toFixed(0)} km`; case 'vfog': return `${(S.vf_sx*2).toFixed(0)}×${(S.vf_sz*2).toFixed(0)} m`; case 'clouds': return `${Math.round(S.cloudP.coverage*8)}/8`; case 'terrain': return `${S.terrP.height.toFixed(0)} m`; case 'plight': return `${S.plP.intensity.toFixed(0)} cd`; case 'slight': return `${S.slP.angle.toFixed(0)}°`; case 'cine': return `${S.cineP.focal.toFixed(0)} mm`; } if(id.startsWith('moon#')){ const m=S.moons[+id.slice(5)]; return `${Math.round(illum(m.phase)*100)}%`; } return ''; }
 function rowHTML(id,depth,hasKids){ const n=nodeInfo(id); const [sc,st]=statusOf(id); const vis=n.folder?true:visOf(id); const open=openF[id]!==false; const kindTag=id==='post'?'<span class="tag">Comp</span>':'';
   return `<div class="node ${selected===id?'sel':''} ${vis?'':'dim'} ${n.folder?'folder':''}" data-id="${id}" draggable="${n.folder&&FOLDERS[id]?'false':'true'}" style="--acc:${n.color};--d:${depth}">
     <span class="chev ${hasKids?'':'none'} ${open?'open':''}" data-chev="${id}">${I('chev',11)}</span>
@@ -2963,6 +3017,12 @@ function sunIrr(t){ const el=sunDirAt(t).el/D2R; if(el<=-1) return 0; return 100
 function airMassOf(e){ const z=90-e; if(z>=96) return 40; return Math.min(40,1/(Math.cos(z*D2R)+.50572*Math.pow(96.07995-z,-1.6364))); }
 const prevStat={}; const dlt=(k,v)=>{ const d=prevStat[k]==null?0:v-prevStat[k]; prevStat[k]=v; return d; };
 function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
+  if(kind==='afog'){ const vis=afVis(); const od=S.af_density*1e-3*1; const T=d=>Math.exp(-S.af_density*1e-5*d); const rows=[1,5,20,50].map(d=>[`${d} km`,`${(T(d*1000)*100).toFixed(d>=20?0:1)}%`]);
+    return `<div class="sun-top"><div class="tile ${vis>20?'ok':'warn'}"><span class="tico">${I(vis>20?'check':'warn',14)}</span><span class="tl">${vis>40?'Clear air':vis>20?'Light haze':vis>8?'Hazy':'Thick haze'}</span><b>${vis.toFixed(0)}<i>km</i></b></div><div class="tile"><span class="tico dot"></span><span class="tl">Scale height</span><b>${S.af_height>=1000?(S.af_height/1000).toFixed(1):S.af_height}<i>${S.af_height>=1000?'km':'m'}</i></b></div></div>
+      <div class="sun-card"><div class="sc-head"><span>Transmittance ledger · sea level</span></div><div class="sc-meta" style="margin-top:6px">${rows.map(([k,v])=>`<span>${k} <b>${v}</b></span>`).join('')}</div><div class="sc-meta"><span>Mie share <b>${Math.round(S.af_mie*100)}%</b></span><span>g <b>${S.af_g.toFixed(2)}</b></span><span>Koschmieder <b>3.912 / β</b></span></div></div>`; }
+  if(kind==='vfog'){ const sight=S.vf_density>0?3.912/(S.vf_density*(1+S.vf_absorb)):Infinity; const vol=(S.vf_shape==='Ellipsoid'?4/3*Math.PI:8)*S.vf_sx*S.vf_sy*S.vf_sz; const d=Math.hypot(S.vf_x-S.cam_x,S.vf_y-S.cam_height,S.vf_z-S.cam_z);
+    return `<div class="sun-top"><div class="tile ok"><span class="tico">${I('check',14)}</span><span class="tl">Sight inside</span><b>${isFinite(sight)?sight.toFixed(1):'∞'}<i>m</i></b></div><div class="tile"><span class="tico dot"></span><span class="tl">${S.vf_shape} volume</span><b>${vol>=1e4?(vol/1000).toFixed(1)+'k':vol.toFixed(0)}<i>m³</i></b></div></div>
+      <div class="sun-card"><div class="sc-head"><span>Volume</span><span class="tr">${I('grid',16)}</span></div><div class="sc-meta" style="margin-top:6px"><span>Centre <b>${S.vf_x.toFixed(1)}, ${S.vf_y.toFixed(1)}, ${S.vf_z.toFixed(1)}</b></span><span>Extents <b>${(S.vf_sx*2).toFixed(0)} × ${(S.vf_sy*2).toFixed(0)} × ${(S.vf_sz*2).toFixed(0)} m</b></span></div><div class="sc-meta"><span>Distance <b>${d.toFixed(1)} m</b></span><span>Optical depth across <b>${(S.vf_density*S.vf_sx*2*(1+S.vf_absorb)).toFixed(1)}</b></span><span>Steps <b>${{Draft:16,Balanced:28,High:48}[S.vf_steps]}</b></span></div></div>`; }
   if(kind==='sun'){ const e=sunElevDeg(); const t=S.sun_time; const irr=sunIrr(t); const az=((sunDir().az/D2R)%360+360)%360; const am=airMassOf(Math.max(e,-.9)); const {rise,set}=riseSet();
     const dur=v=>v==null?'—':`${Math.floor(v)}h ${String(Math.floor((v%1)*60)).padStart(2,'0')}m`; const next=e>=0?['to sunset',set!=null?((set-t)%24+24)%24:null]:['to sunrise',rise!=null?((rise-t)%24+24)%24:null];
     const W=320,H=120,L=8,R=44,T=10,B=22; const yOf=el=>T+(1-(Math.max(-15,Math.min(90,el))+15)/105)*(H-T-B); const xOf=tt=>L+tt/24*(W-L-R);
@@ -2993,6 +3053,7 @@ function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
       ${statCard({label:'Turbidity',color:'#dfe6f5',text:(1.5+S.atm_mie*1.8).toFixed(1),unit:'T',value:S.atm_mie,series:daySeries(()=>S.atm_mie),cursor:S.sun_time/24,threshold:2,delta:0,pill:S.atm_mie>2?'Hazy':S.atm_mie>1.2?'Slight haze':'Clear'})}
     </div>`; }
   return ''; }
+function afVis(){ return 3.912/Math.max(1e-3,S.af_density*1e-5)/1000; }
 function kelvinName(k){ return k<3000?'Candle-warm':k<4000?'Warm':k<5200?'Neutral':k<6500?'Daylight':'Cool'; }
 const bigHTML=(v,dec,signed)=>{ const [a,b]=fmt(Math.abs(v),dec).split('.'); return `${signed?(v<0?'−':'+'):''}${a}${b!==undefined?`<small>.${b}</small>`:''}`; };
 const PRES_SETS={
@@ -3144,9 +3205,10 @@ function updatePreview(){ const e=getEntity(selected); if(!e) return;
     case 'stars': drawStars(); break; case 'sky': drawSkyDay(); break; case 'plane': drawPlane(); break; case 'atmo': drawAtmo(); break; case 'camera': drawCam(); break; case 'post': drawTone(); drawFlare(); break; } }
 
 // hero live refresh
+function refreshHero(){ const e=getEntity(selected); if(!e||!e.hero) return; const hs=document.getElementById('heroState'); if(hs&&e.hero.kind){ const html=stateHero(e.hero.kind); const tmp=document.createElement('div'); tmp.innerHTML=html; [...hs.querySelectorAll(':scope > :not(.preview)')].forEach(n=>n.remove()); hs.prepend(...tmp.childNodes); } }
 const hist={}; setInterval(()=>{ const e=getEntity(selected); if(!e) return; const v=e.hero.fn?e.hero.fn():0; const h=hist[selected]=(hist[selected]||[]); h.push(v); if(h.length>10) h.shift(); const d=v-h[0];
   if(selected==='sky'&&skyPanelEl&&skyPanelEl._sync&&S.play){ skyPanelEl._sync(); }
-  const hs=document.getElementById('heroState'); if(hs&&e.hero.kind){ const pv=hs.querySelector('.preview'); const html=stateHero(e.hero.kind); const tmp=document.createElement('div'); tmp.innerHTML=html; [...hs.querySelectorAll(':scope > :not(.preview)')].forEach(n=>n.remove()); hs.prepend(...tmp.childNodes); }
+  refreshHero();
   const hv=document.getElementById('heroV'); if(!hv) return; hv.innerHTML=bigHTML(v,e.hero.dec,e.hero.signed); const dl=document.getElementById('heroDelta'); dl.textContent=`${d>=0?'+':'−'}${fmt(Math.abs(d),e.hero.dec)} ${e.hero.unit} · 4 s`; dl.className='delta '+(Math.abs(d)<1e-4?'':d>0?'pos':'neg'); document.getElementById('heroTrend').innerHTML=I(Math.abs(d)<1e-4?'flat':d>0?'up':'down',18);
   if(S.play&&e.preview!=='sunpath'){ insp.querySelectorAll('.ctl[data-t="orb"],.ctl[data-t="pad"]').forEach(el=>{ const p=widgetProp(el); if(p) refreshAll(p.k); }); }
   if(e.preview==='sunpath'||e.preview==='camera'||e.preview==='plane'||(e.preview==='moon'&&S.moons[e.moonIndex].link)) updatePreview(); },500);
@@ -3190,12 +3252,14 @@ function gzTarget(){ // the selected entity's world transform accessors
   if(selected==='slight'){ const P=S.slP; return {id:'slight',col:'#9fd0ff',get:()=>[P.pos[0],S.pl_y+P.pos[1],P.pos[2]],set:p=>{ const d=v3.sub(p,[P.pos[0],S.pl_y+P.pos[1],P.pos[2]]); P.pos=[p[0],p[1]-S.pl_y,p[2]]; P.target=v3.add(P.target,d); },
     rot:(ax,ang)=>{ const o=P._t0; const rel=v3.sub(o,P._p0); const r=v3.rot(rel,ax,ang); P.target=v3.add(P._p0,r); },r0:()=>{P._t0=P.target.slice(); P._p0=P.pos.slice();},aim:()=>[P.target[0],S.pl_y+P.target[1],P.target[2]],
     scale:f=>{P.angle=Math.max(2,Math.min(80,P._a0*f));},s0:()=>{P._a0=P.angle;},sLabel:'cone',sVal:()=>`${S.slP.angle.toFixed(1)}°`}; }
+  if(selected==='vfog'){ return {id:'vfog',col:'#c9d6e2',get:()=>[S.vf_x,S.vf_y,S.vf_z],set:p=>{ S.vf_x=+p[0].toFixed(2); S.vf_y=+p[1].toFixed(2); S.vf_z=+p[2].toFixed(2); },
+    scale:f=>{ S.vf_sx=Math.max(1,Math.min(200,S._vs0[0]*f)); S.vf_sy=Math.max(.5,Math.min(60,S._vs0[1]*f)); S.vf_sz=Math.max(1,Math.min(200,S._vs0[2]*f)); },s0:()=>{ S._vs0=[S.vf_sx,S.vf_sy,S.vf_sz]; },sLabel:'extents',sVal:()=>`${(S.vf_sx*2).toFixed(0)}×${(S.vf_sy*2).toFixed(0)}×${(S.vf_sz*2).toFixed(0)} m`}; }
   if(selected==='cine'){ const P=S.cineP; return {id:'cine',col:'#5eead4',get:()=>P.pos.slice(),set:p=>{ const d=v3.sub(p,P.pos); P.pos=p.slice(); P.lookAt=v3.add(P.lookAt,d); },
     rot:(ax,ang)=>{ const rel=v3.sub(P._t0,P._p0); P.lookAt=v3.add(P._p0,v3.rot(rel,ax,ang)); },r0:()=>{P._t0=P.lookAt.slice(); P._p0=P.pos.slice();},aim:()=>P.lookAt.slice(),
     scale:f=>{P.focal=Math.max(8,Math.min(400,P._f0*f)); P.fov=2*Math.atan(P.sensorWidth/2/P.focal)/D2R;},s0:()=>{P._f0=P.focal;},sLabel:'focal',sVal:()=>`${S.cineP.focal.toFixed(0)} mm`}; }
   return null; }
 function gzProject(p){ if(!CAM) return null; const rel=v3.sub(p,CAM.pos); const x=v3.dot(rel,CAM.right),y=v3.dot(rel,CAM.up),z=v3.dot(rel,CAM.fwd); if(z<.05) return null; const H=innerHeight,W=innerWidth; return [W/2+x/z/CAM.tanH*H/2, H/2-y/z/CAM.tanH*H/2, z]; }
-function gzChanged(){ refreshMeta(); if(skyPanelEl&&skyPanelEl._sync) skyPanelEl._sync(); }
+function gzChanged(){ refreshMeta(); if(skyPanelEl&&skyPanelEl._sync) skyPanelEl._sync(); if(selected==='vfog'){ ['vf_x','vf_z','vf_y','vf_sx','vf_sy','vf_sz'].forEach(k=>refreshAll(k)); refreshHero(); } }
 function gzHudSet(html){ gzHud.innerHTML=html; gzHud.classList.toggle('on',!!html); }
 function gizmoDraw(){ const T=gzTarget(); if(!T||!CAM||(selected&&S['vis_'+selected]===false)){ gzSvg.innerHTML=''; if(window.G3) G3.clear(); if(!GZ.modal) gzHudSet(''); return; }
   const o=T.get(); const so=gzProject(o); if(!so){ gzSvg.innerHTML=''; if(window.G3) G3.clear(); return; } const [ox,oy,oz]=so; const L=oz*CAM.tanH*.16; // constant on-screen size
@@ -3269,6 +3333,8 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; let up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; { const r=(S.cam_roll||0)*D2R, cr=Math.cos(r), sr=Math.sin(r); const R0=right.slice(), U0=up.slice(); for(let i=0;i<3;i++){ right[i]=R0[i]*cr+U0[i]*sr; up[i]=U0[i]*cr-R0[i]*sr; } } const tanH=Math.tan(S.cam_fov*D2R/2);
   CAM={fwd,right,up,tanH,pos:[S.cam_x,S.cam_height,S.cam_z]}; gizmoDraw(); clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
+  f1('uAFOn',S.vis_afog!==false?1:0); f1('uAFDensity',S.af_density*1e-5); f1('uAFHeight',S.af_height); f1('uAFStart',S.af_start); f1('uAFMie',S.af_mie); f1('uAFG',S.af_g); f1('uAFSky',S.af_sky); f3('uAFTint',hex2rgb(S.af_tint));
+  f1('uVFOn',S.vis_vfog!==false?1:0); f1('uVFDensity',S.vf_density); f1('uVFNoise',S.vf_noise); f1('uVFScale',S.vf_scale); f1('uVFSpeed',S.vf_speed); f1('uVFG',S.vf_g); f1('uVFSoft',S.vf_soft); f1('uVFAbsorb',S.vf_absorb); f1('uVFShape',S.vf_shape==='Ellipsoid'?1:0); f1('uVFSteps',{Draft:16,Balanced:28,High:48}[S.vf_steps]||28); f1('uVFSelf',S.vf_self?1:0); f3('uVFPos',[S.vf_x,S.vf_y,S.vf_z]); f3('uVFSize',[S.vf_sx,S.vf_sy,S.vf_sz]); f3('uVFAlbedo',hex2rgb(S.vf_albedo));
   { const F=S.fogP,C=S.cloudP,T=S.terrP; f1('uFogOn',0); f1('uFogDensity',F.density); f1('uFogHeight',F.height); f1('uFogScatter',F.sunScatter); f3('uFogColor',hex2rgb(F.color));
     f1('uCloudOn',0); f1('uCloudCov',C.coverage); f1('uCloudDen',C.density); f1('uCloudAlt',C.altitude); f1('uCloudScale',C.scale); f1('uCloudDetail',C.detail); f1('uCloudSpeed',C.speed); f3('uCloudTint',hex2rgb(C.tint)); f3('uCloudShade',hex2rgb(C.shade));
     f1('uTerrOn',0); f1('uTerrSize',T.size); f1('uTerrHeight',T.height); f1('uTerrFreq',T.frequency); f1('uTerrSeed',T.seed); f1('uTerrRough',T.roughness); f1('uTerrWire',T.wireframe?1:0); f3('uTerrLow',hex2rgb(T.lowColor)); f3('uTerrHigh',hex2rgb(T.highColor)); f3('uTerrPos',[T.pos[0],S.pl_y+T.pos[1],T.pos[2]]); }
