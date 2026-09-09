@@ -1680,50 +1680,24 @@ function skyPanel(node, ctx) {
   host.appendChild(hc);
 
   function paintPhase() {
-    const w = phaseWrap.clientWidth || 280, h = 62;
+    const w = phaseWrap.clientWidth || 280, h = 92;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     if (phaseCv.width !== w * dpr || phaseCv.height !== h * dpr) { phaseCv.width = w * dpr; phaseCv.height = h * dpr; }
     phaseCv.style.height = h + 'px';
-    const g = phaseCv.getContext('2d');
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, w, h);
-    const pad = 8, span = w - pad * 2, T = 6, B = 13;
-    const gg = Math.min(0.95, MIEG());
-    const px = th => pad + th / 180 * span;
-    const top = Math.log10(hg(1, gg) + 1) * 1.1;
-    const py = v => T + (1 - Math.log10(v + 1) / top) * (h - T - B);
-
-    g.font = '8px ui-sans-serif, system-ui';
-    g.strokeStyle = 'rgba(255,255,255,.07)';
-    [45, 90, 135].forEach(th => { g.beginPath(); g.moveTo(px(th), T); g.lineTo(px(th), py(0)); g.stroke(); });
-    g.strokeStyle = 'rgba(255,255,255,.10)';
-    g.beginPath(); g.moveTo(pad, py(0) + .5); g.lineTo(pad + span, py(0) + .5); g.stroke();
-
-    g.beginPath();
-    g.moveTo(px(0), py(0));
-    for (let th = 0; th <= 180; th += 2) g.lineTo(px(th), py(hg(Math.cos(th * D2R), gg)));
-    g.lineTo(px(180), py(0));
-    g.closePath();
-    const fill = g.createLinearGradient(pad, 0, pad + span, 0);
-    fill.addColorStop(0, 'rgba(255,244,214,.35)');
-    fill.addColorStop(1, 'rgba(160,190,230,.10)');
-    g.fillStyle = fill;
-    g.fill();
-    g.beginPath();
-    for (let th = 0; th <= 180; th += 2) {
-      const y = py(hg(Math.cos(th * D2R), gg));
-      th === 0 ? g.moveTo(px(th), y) : g.lineTo(px(th), y);
-    }
-    g.strokeStyle = 'rgba(255,255,255,.85)';
-    g.lineWidth = 1.4;
-    g.stroke();
-    g.lineWidth = 1;
-
-    g.fillStyle = 'rgba(255,255,255,.30)';
-    [[0, 'FORWARD'], [90, '90°'], [180, 'BACK']].forEach(([th, l], i) => {
-      g.textAlign = i === 0 ? 'left' : i === 2 ? 'right' : 'center';
-      g.fillText(l, px(th), h - 2);
-    });
+    const g = phaseCv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const gg = Math.min(0.95, MIEG()); const angles = [0, 15, 30, 60, 90, 135, 180];
+    const vals = angles.map(a => hg(Math.cos(a * D2R), gg)); const max = Math.max(...vals); const L = 14, R = 14, top = 12, base = h - 30, span = w - L - R;
+    g.font = '8.5px ui-sans-serif,system-ui';
+    /* baseline + a single guide at half */
+    g.strokeStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(L, base + .5); g.lineTo(w - R, base + .5); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.07)'; g.setLineDash([2, 5]); g.beginPath(); g.moveTo(L, top + (base - top) / 2 + .5); g.lineTo(w - R, top + (base - top) / 2 + .5); g.stroke(); g.setLineDash([]);
+    /* one thin bar per scatter angle, log height so the back-scatter still reads */
+    angles.forEach((a, i) => { const x = L + (i + .5) / angles.length * span; const v = Math.log10(vals[i] + 1) / Math.log10(max + 1); const bh = v * (base - top); const forward = a <= 30;
+      g.fillStyle = forward ? 'rgba(255,244,214,.85)' : 'rgba(255,255,255,.35)'; g.fillRect(x - 3, base - bh, 6, bh);
+      g.fillStyle = 'rgba(255,255,255,.35)'; g.textAlign = 'center'; g.fillText(a === 0 ? 'fwd' : a === 180 ? 'back' : `${a}°`, x, base + 12);
+      g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(vals[i] >= 10 ? vals[i].toFixed(0) : vals[i].toFixed(2), x, base + 24); });
+    /* forward share pill text (top-right) */
+    const f = vals[0] + vals[1] + vals[2], b = vals[5] + vals[6]; g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(`g ${gg.toFixed(2)} · fwd:back ${(f / Math.max(1e-6, b)).toFixed(0)}:1`, w - R, top - 2);
   }
 
   /* ── colour ────────────────────────────────────────────────────────────────────────────── */
@@ -1762,29 +1736,20 @@ function skyPanel(node, ctx) {
   host.appendChild(cc);
 
   function paintGrad() {
-    const w = gradWrap.clientWidth || 280, h = 46;
+    const w = gradWrap.clientWidth || 280, h = 96;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     if (gradCv.width !== w * dpr || gradCv.height !== h * dpr) { gradCv.width = w * dpr; gradCv.height = h * dpr; }
     gradCv.style.height = h + 'px';
-    const g = gradCv.getContext('2d');
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, w, h);
-    const pad = 8, span = w - pad * 2, y = 6, bh = 20;
-    for (let x = 0; x < span; x++) {
-      g.fillStyle = css(sample(x / span * 90, 60));
-      g.fillRect(pad + x, y, 1.02, bh);
-    }
-    g.strokeStyle = 'rgba(0,0,0,.35)';
-    g.strokeRect(pad + .5, y + .5, span - 1, bh - 1);
-    g.font = '8px ui-sans-serif, system-ui';
-    [[0, '0° HORIZON'], [30, '30'], [60, '60'], [90, '90° ZENITH']].forEach(([e, l], i) => {
-      const x = pad + e / 90 * span;
-      g.strokeStyle = 'rgba(255,255,255,.18)';
-      g.beginPath(); g.moveTo(x, y + bh + 1); g.lineTo(x, y + bh + 5); g.stroke();
-      g.fillStyle = 'rgba(255,255,255,.30)';
-      g.textAlign = i === 0 ? 'left' : i === 3 ? 'right' : 'center';
-      g.fillText(l, x, h - 3);
-    });
+    const g = gradCv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const elevs = [0, 5, 15, 30, 50, 70, 90]; const L = 14, R = 14, span = w - L - R, cw = span / elevs.length; const y = 12, sh = 30;
+    g.font = '8.5px ui-sans-serif,system-ui';
+    elevs.forEach((e, i) => { const c = sample(e, 60); const x = L + i * cw; const lum = (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+      g.fillStyle = css(c); g.beginPath(); g.roundRect ? g.roundRect(x + 2, y, cw - 4, sh, 6) : g.rect(x + 2, y, cw - 4, sh); g.fill();
+      g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText(e === 0 ? 'horizon' : e === 90 ? 'zenith' : `${e}°`, x + cw / 2, y + sh + 13);
+      g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(`${Math.round(lum * 100)}%`, x + cw / 2, y + sh + 25);
+      g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText('#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('').slice(0, 6), x + cw / 2, y + sh + 37); });
+    /* hairline between swatch row and the readout */
+    g.strokeStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.moveTo(L, y + sh + 4.5); g.lineTo(w - R, y + sh + 4.5); g.stroke();
   }
 
   /* ── rendering ─────────────────────────────────────────────────────────────────────────── */
