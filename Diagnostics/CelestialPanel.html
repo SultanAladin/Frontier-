@@ -1003,8 +1003,9 @@ float clHeightProfile(float hn){ // hn 0..1 within the slab; type: 0 stratus 1 s
   if(t<3.5) return smoothstep(0.,.05,hn)*(1.-smoothstep(.85,1.,hn))*mix(1.,1.6,smoothstep(.7,1.,hn)*uCLAnvil); // cumulonimbus: full column + anvil spread
   if(t<4.5) return smoothstep(0.,.3,hn)*(1.-smoothstep(.6,1.,hn))*.7;                         // altostratus: thin translucent mid layer
   return smoothstep(0.,.4,hn)*(1.-smoothstep(.5,1.,hn))*.35; }                                // cirrus: wispy, low density
+float clAlt(vec3 p){ return length(p+vec3(0.,uPlanetR,0.))-uPlanetR; }   // altitude above the sphere (local frame: origin = camera nadir at sea level)
 float clDensity(vec3 p,float lod){
-  float hn=clamp((p.y-uCLBase)/max(1.,uCLThick),0.,1.); float prof=clHeightProfile(hn); if(prof<=0.) return 0.;
+  float hn=clamp((clAlt(p)-uCLBase)/max(1.,uCLThick),0.,1.); float prof=clHeightProfile(hn); if(prof<=0.) return 0.;
   vec2 wd=vec2(sin(uCLWindDir),cos(uCLWindDir))*uCLWind*uTime*.8; vec3 q=p; q.xz+=wd; q.xz+=hn*uCLThick*.35*wd/max(1e-3,length(wd)+1e-3)*(uCLType>2.5?uCLAnvil:0.2); // wind shear leans the column
   float sc=1./(uCLScale*900.); vec3 s=q*sc;
   float shape=vnoise(s)*.5+vnoise(s*2.02+vec3(3.1,1.7,9.2))*.25+vnoise(s*4.1+vec3(7.7,2.2,1.1))*.125+vnoise(s*8.3+vec3(1.3,8.8,4.4))*.0625; shape/=.9375;
@@ -1017,17 +1018,20 @@ float clHG(float c,float g){ return (1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*c,1.5))
 float clLight(vec3 p){ // optical depth toward the sun, 5 taps with growing spacing
   float od=0.; float st=uCLThick*.12; for(int i=1;i<=5;i++){ float d=st*float(i)*float(i)*.35; od+=clDensity(p+uSunDir*d,float(i)>3.?1.:0.)*d*.8; } return od; }
 vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5) return vec4(0.);
-  float y0=uCLBase,y1=uCLBase+uCLThick; float t0,t1;
-  if(ro.y<y0){ if(rd.y<=1e-3) return vec4(0.); t0=(y0-ro.y)/rd.y; t1=(y1-ro.y)/rd.y; }
-  else if(ro.y>y1){ if(rd.y>=-1e-3) return vec4(0.); t0=(y1-ro.y)/rd.y; t1=(y0-ro.y)/rd.y; }
-  else { t0=0.; t1=(rd.y>0.)?(y1-ro.y)/rd.y:(rd.y<0.)?(y0-ro.y)/rd.y:1e5; }
-  t1=min(t1,tmax); t1=min(t1,t0+uCLThick*14.); if(t1<=t0) return vec4(0.);
+  vec3 po=ro+vec3(0.,uPlanetR,0.); float R0=uPlanetR+uCLBase, R1=R0+uCLThick; float h=length(po)-uPlanetR;
+  vec2 i0=rsi(po,rd,R0), i1=rsi(po,rd,R1); vec2 ig=rsi(po,rd,uPlanetR); float t0,t1;
+  if(h<uCLBase){ if(i1.y<0.) return vec4(0.); t0=max(i0.y,0.); t1=i1.y; }                                    // below: enter at inner shell, leave at outer
+  else if(h>uCLBase+uCLThick){ if(i1.x<0.) return vec4(0.); t0=i1.x; t1=(i0.x>0.)?i0.x:i1.y; if(ig.x>0.&&ig.x<t0) return vec4(0.); }  // above (space): outer shell in, inner shell (or outer again at the limb) out
+  else { t0=0.; t1=(i0.x>0.)?i0.x:i1.y; }                                                                     // inside the layer
+  if(ig.x>0.) t1=min(t1,ig.x);                                                                                // planet blocks
+  t1=min(t1,tmax); float far=(h>uCLBase+uCLThick)?max(60000.,uCLThick*40.):uCLThick*14.; t1=min(t1,t0+far); if(t1<=t0) return vec4(0.);
   float N=uCLSteps; float dt=(t1-t0)/N; float t=t0+dt*hash13(vec3(gl_FragCoord.xy,fract(uTime*3.)));
+  float lodFar=smoothstep(20000.,200000.,t0);                                                                 // from orbit: coarse density, no erosion, cheaper light
   float cosS=dot(rd,uSunDir); float ph=mix(clHG(cosS,uCLG1),clHG(cosS,-uCLG2),uCLMix)*4.*3.14159; // dual lobe
   float sunUp=clamp(uSunDir.y*4.+.15,0.,1.); vec3 sunL=trans*uSunColor*uSunIntensity*.02*sunUp; vec3 amb=sky*uCLAmb;
   vec3 acc=vec3(0.); float T=1.; float sigA=uCLAbsorb;
-  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015) break; vec3 p=ro+rd*t; float rho=clDensity(p,0.);
-    if(rho>1e-3){ float od=clLight(p); float hn=clamp((p.y-uCLBase)/max(1.,uCLThick),0.,1.);
+  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015) break; vec3 p=ro+rd*t; float rho=clDensity(p,lodFar);
+    if(rho>1e-3){ float od=mix(clLight(p),rho*uCLThick*.3,lodFar); float hn=clamp((clAlt(p)-uCLBase)/max(1.,uCLThick),0.,1.);
       // multi-scatter approximation: sum of 3 octaves with attenuated extinction / boosted contribution
       float ms=0.; float a=1.,b=1.; for(int o=0;o<3;o++){ ms+=b*exp(-od*a*(1.+sigA)); a*=.5; b*=.55; }
       float powder=1.-uCLPowder*exp(-rho*dt*2.*(1.+sigA))*(1.-.5*clamp(cosS,0.,1.));
@@ -1035,7 +1039,7 @@ vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5) re
       float sigT=rho*(1.+sigA)*.06; float Ts=exp(-sigT*dt); vec3 Sc=Li*uCLAlbedo*rho*.06;
       acc+=T*(Sc-Sc*Ts)/max(sigT,1e-6); T*=Ts; }
     t+=dt; }
-  float aer=1.-exp(-t0*3e-5); acc=mix(acc,sky*(1.-T)*.9,aer*.6);                       // aerial perspective on far cloud
+  float above=step(uCLBase+uCLThick,h); float aer=(1.-exp(-t0*3e-5))*(1.-above); acc=mix(acc,sky*(1.-T)*.9,aer*.6);   // aerial perspective only when looking through air below the layer
   return vec4(acc,1.-T); }
 // ===== Local cloud: the same cloud material confined to a movable box/ellipsoid (a single cumulus you can place)
 float lcMask(vec3 q){ float m; if(uLCShape<.5){ vec3 a=1.-abs(q); m=min(min(a.x,a.y),a.z); } else { m=1.-length(q); } return smoothstep(0.,max(.05,uLCSoft),m); }
@@ -1051,6 +1055,8 @@ vec2 lcBox(vec3 ro,vec3 rd){ vec3 m=1./(rd+1e-6*sign(rd)+1e-9); vec3 n=m*(ro-uLC
 float lcLight(vec3 p){ float od=0.; float st=max(uLCSize.x,max(uLCSize.y,uLCSize.z))*.25; for(int i=1;i<=5;i++){ float d=st*float(i)*float(i)*.3; od+=lcDensity(p+uSunDir*d,float(i)>3.?1.:0.)*d*.8; } return od; }
 vec4 localCloud(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uLCOn<.5) return vec4(0.);
   vec2 b=lcBox(ro,rd); if(b.x<0.) return vec4(0.); float t0=b.x,t1=min(b.y,tmax); if(t1<=t0) return vec4(0.);
+  { vec3 po=ro+vec3(0.,uPlanetR,0.); vec2 ig=rsi(po,rd,uPlanetR); if(ig.x>0.&&ig.x<t0) return vec4(0.); }   // hidden behind the planet limb
+  float farFade=1.-smoothstep(150000.,400000.,t0); if(farFade<=0.) return vec4(0.);
   float N=uLCSteps; float dt=(t1-t0)/N; float t=t0+dt*hash13(vec3(gl_FragCoord.xy,fract(uTime*3.)+.5));
   float cosS=dot(rd,uSunDir); float ph=mix(clHG(cosS,uCLG1),clHG(cosS,-uCLG2),uCLMix)*4.*3.14159;
   float sunUp=clamp(uSunDir.y*4.+.15,0.,1.); vec3 sunL=trans*uSunColor*uSunIntensity*.02*sunUp; vec3 amb=sky*uCLAmb;
@@ -1063,7 +1069,7 @@ vec4 localCloud(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uLCOn<.5) re
       float sigT=rho*(1.+sigA)*.06; float Ts=exp(-sigT*dt); vec3 Sc=Li*uCLAlbedo*rho*.06;
       acc+=T*(Sc-Sc*Ts)/max(sigT,1e-6); T*=Ts; }
     t+=dt; }
-  return vec4(acc,1.-T); }
+  return vec4(acc,1.-T)*farFade; }
 vec4 cloudLayer(vec3 dir,vec3 sky,vec3 trans){ // rgb premultiplied, a coverage — a thin slab at uCloudAlt above the camera
   if(uCloudOn<.5||dir.y<.015) return vec4(0.); float dz=uCloudAlt-uCamHeight; if(dz<=1.) return vec4(0.);
   float t=dz/dir.y; vec2 uv=(vec2(uCamPos.x,uCamPos.z)+dir.xz*t)*.0009*uCloudScale+vec2(uTime*.0025*uCloudSpeed,0.);
@@ -2556,7 +2562,7 @@ const ENTITIES={
       {title:'Lighting',icon:'bulb',props:[GAUGE('vf_g','Anisotropy g',0,0.95,0.01,0.6,''),TOG('vf_self','Self-shadowing',true,'Secondary march toward the sun'),SEG('vf_steps','Quality',['Draft','Balanced','High'],'Balanced')]}]},
   clouds:{name:'Cloud Layer',kind:'Clouds',color:'#dfe6ee',icon:'cloud',preview:'none',external:true,hero:{kind:'none'},sections:[]},
   lcloud:{name:'Local Cloud',kind:'Cloud Volume',color:'#e8eef6',icon:'lcloud',preview:'none',hero:{kind:'lcloud'},
-    sections:[{title:'Volume',icon:'grid',props:[SEG('lc_shape','Shape',['Box','Ellipsoid'],'Ellipsoid'),PAD('lc_x','lc_z','Position',{xmin:-300,xmax:300,ymin:-300,ymax:300,xl:'X',yl:'Z',plane:true,hint:'Top-down · or press G in the viewport'}),TRK('lc_y','Centre height',5,3000,1,120,'m',{log:true}),TRK('lc_sx','Extent X',5,600,1,90,'m',{log:true}),TRK('lc_sy','Extent Y',3,400,1,35,'m',{log:true}),TRK('lc_sz','Extent Z',5,600,1,70,'m',{log:true}),GAUGE('lc_soft','Edge softness',0.05,1,0.01,0.5,'')]},
+    sections:[{title:'Volume',icon:'grid',props:[SEG('lc_shape','Shape',['Box','Ellipsoid'],'Ellipsoid'),PAD('lc_x','lc_z','Position',{xmin:-300,xmax:300,ymin:-300,ymax:300,xl:'X',yl:'Z',plane:true,hint:'Top-down · or press G in the viewport'}),TRK('lc_y','Centre height',5,12000,1,120,'m',{log:true,hint:'Kept inside the troposphere'}),TRK('lc_sx','Extent X',5,600,1,90,'m',{log:true}),TRK('lc_sy','Extent Y',3,400,1,35,'m',{log:true}),TRK('lc_sz','Extent Z',5,600,1,70,'m',{log:true}),GAUGE('lc_soft','Edge softness',0.05,1,0.01,0.5,'')]},
       {title:'Formation',icon:'cloud',props:[DROP('lc_type','Form',['Stratiform','Cumuliform','Wispy'],'Cumuliform'),GAUGE('lc_cov','Coverage',0,1,0.01,0.6,''),TRK('lc_den','Density',0,3,0.01,1.2,'×'),TRK('lc_scale','Cell size',2,200,1,30,'m',{log:true}),GAUGE('lc_detail','Erosion detail',0,1,0.01,0.55,''),TRK('lc_wind','Drift',0,20,0.1,1.5,'m/s'),SEG('lc_steps','Quality',['Draft','Balanced','High'],'Balanced')]},
       {title:'Scattering',icon:'wave',sub:'shared with Clouds',props:[GAUGE('cl_g1','Forward lobe g',0,0.95,0.01,0.8,'',{alias:true}),GAUGE('cl_powder','Powder',0,1,0.01,0.6,'',{alias:true}),GAUGE('cl_amb','Sky ambient',0,2,0.01,0.9,'×',{alias:true})]}]},
   vclouds:{name:'Clouds',kind:'Volumetric Clouds',color:'#f1f5f9',icon:'cloud',preview:'none',hero:{kind:'vclouds'},
@@ -3361,7 +3367,7 @@ function gzTarget(){ // the selected entity's world transform accessors
     scale:f=>{P.angle=Math.max(2,Math.min(80,P._a0*f));},s0:()=>{P._a0=P.angle;},sLabel:'cone',sVal:()=>`${S.slP.angle.toFixed(1)}°`}; }
   if(selected==='vfog'){ return {id:'vfog',col:'#c9d6e2',get:()=>[S.vf_x,S.vf_y,S.vf_z],set:p=>{ S.vf_x=+p[0].toFixed(2); S.vf_y=+p[1].toFixed(2); S.vf_z=+p[2].toFixed(2); },
     scale:f=>{ S.vf_sx=Math.max(1,Math.min(200,S._vs0[0]*f)); S.vf_sy=Math.max(.5,Math.min(60,S._vs0[1]*f)); S.vf_sz=(S.vf_shape==='Sphere'||S.vf_shape==='Dome')?S.vf_sx:Math.max(1,Math.min(200,S._vs0[2]*f)); },s0:()=>{ S._vs0=[S.vf_sx,S.vf_sy,S.vf_sz]; },sLabel:S.vf_shape==='Sphere'||S.vf_shape==='Dome'?'radius':'extents',sVal:()=>S.vf_shape==='Sphere'?`r ${S.vf_sx.toFixed(1)} m`:S.vf_shape==='Dome'?`r ${S.vf_sx.toFixed(1)} · h ${S.vf_sy.toFixed(1)} m`:`${(S.vf_sx*2).toFixed(0)}×${(S.vf_sy*2).toFixed(0)}×${(S.vf_sz*2).toFixed(0)} m`}; }
-  if(selected==='lcloud'){ return {id:'lcloud',col:'#e8eef6',get:()=>[S.lc_x,S.lc_y,S.lc_z],set:p=>{ S.lc_x=+p[0].toFixed(1); S.lc_y=Math.max(5,+p[1].toFixed(1)); S.lc_z=+p[2].toFixed(1); },
+  if(selected==='lcloud'){ return {id:'lcloud',col:'#e8eef6',get:()=>[S.lc_x,S.lc_y,S.lc_z],set:p=>{ S.lc_x=+p[0].toFixed(1); S.lc_y=Math.max(5,Math.min(12000,+p[1].toFixed(1))); S.lc_z=+p[2].toFixed(1); },
     scale:f=>{ S.lc_sx=Math.max(5,Math.min(600,S._ls0[0]*f)); S.lc_sy=Math.max(3,Math.min(400,S._ls0[1]*f)); S.lc_sz=Math.max(5,Math.min(600,S._ls0[2]*f)); },s0:()=>{ S._ls0=[S.lc_sx,S.lc_sy,S.lc_sz]; },sLabel:'extents',sVal:()=>`${(S.lc_sx*2).toFixed(0)}×${(S.lc_sy*2).toFixed(0)}×${(S.lc_sz*2).toFixed(0)} m`}; }
   if(selected==='cine'){ const P=S.cineP; return {id:'cine',col:'#5eead4',get:()=>P.pos.slice(),set:p=>{ const d=v3.sub(p,P.pos); P.pos=p.slice(); P.lookAt=v3.add(P.lookAt,d); },
     rot:(ax,ang)=>{ const rel=v3.sub(P._t0,P._p0); P.lookAt=v3.add(P._p0,v3.rot(rel,ax,ang)); },r0:()=>{P._t0=P.lookAt.slice(); P._p0=P.pos.slice();},aim:()=>P.lookAt.slice(),
