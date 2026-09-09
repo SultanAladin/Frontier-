@@ -105,7 +105,7 @@ input{font:inherit;color:inherit}
 .node:hover{background:var(--g2);color:var(--text)} .node.sel{background:rgba(255,255,255,.09);color:var(--text);box-shadow:inset 0 0 0 1px var(--stroke2)}
 .node.sel::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--acc)}
 .node .chev{width:14px;height:14px;display:flex;align-items:center;justify-content:center;color:var(--t3);transition:transform .2s;flex-shrink:0} .node .chev.open{transform:rotate(90deg)} .node .chev.none{visibility:hidden}
-.node .nico{width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc);flex-shrink:0} .node.folder .nico{background:transparent}
+.node .nico{width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:transparent;color:var(--acc);flex-shrink:0}
 .node .nico .moon-dot{width:14px;height:14px}
 .node .nname{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px} .node.folder .nname{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3)}
 .node .tag{font-size:9px;letter-spacing:.08em;padding:1px 6px;border-radius:999px;border:1px solid var(--stroke);color:var(--t3)}
@@ -739,7 +739,7 @@ input{font:inherit;color:inherit}
 
 
 <aside id="outliner" class="glass">
-  <div class="panel-head"><h1>Outliner<span class="sub">Scene</span></h1><span style="display:flex;align-items:center;gap:10px"><span class="clock" id="clock">06:24</span><button class="cbtn" id="compactBtn" title="Compact outliner (Tab)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button></span></div>
+  <div class="panel-head"><h1>Outliner<span class="sub">Scene</span></h1><span style="display:flex;align-items:center;gap:10px"><span class="clock" id="clock" style="display:none">06:24</span><button class="cbtn" id="compactBtn" title="Compact outliner (Tab)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button></span></div>
   <div class="scene-stat" id="sceneStat"></div>
   <div class="tabs" id="tabs" hidden></div><div class="timeline" id="timeline" hidden></div>
   <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search  Ctrl+Shift+F"></div>
