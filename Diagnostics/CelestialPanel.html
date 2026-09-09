@@ -355,6 +355,298 @@ input{font:inherit;color:inherit}
 .speedbar{width:70px;height:4px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden} .speedbar i{display:block;height:100%;width:30%;background:#fff;border-radius:999px;transition:width .15s}
 #hud{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:12;display:flex;gap:8px}
 @media (max-width:1200px){#outliner{width:260px}#inspector{width:350px}#dayTrack{width:200px}}
+/* ===== Sky panel styles (ported from c7egoist/Frontier styles.css, scoped) ===== */
+.skypanel{--text:#f0f0f0;--text-dim:#888;--text-faint:#5c5c5c;--stroke-strong:#2e2e2e;--r-inset:18px;--r-pill:999px;--ease:cubic-bezier(.22,.61,.36,1);--field:#000;--inset:#1a1a1a;--raised:#222;--selected:#2a2a2a;--panel:#121212;--hi:#6c77ff;--ok:#22c55e;--caution:#f59e0b;--danger:#ef4444;display:flex;flex-direction:column;gap:10px;color:var(--text);font-size:12px}
+#insp .skypanel canvas{display:block;width:100%}
+#insp .skypanel .vp-view canvas.dragging{cursor:grabbing;}
+#insp .skypanel .kslider.drag .knob{transform:translate(-50%,-50%) scale(1.12);}
+#insp .skypanel /* colour */
+#insp .skypanel .colorrow{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
+#insp .skypanel .colorchip{width:30px;height:30px;border-radius:10px;border:1px solid var(--stroke);flex-shrink:0;cursor:pointer;
+#insp .skypanel   position:relative;overflow:hidden;transition:transform .15s var(--ease);}
+#insp .skypanel .colorchip:hover{transform:scale(1.06);}
+#insp .skypanel .colorchip input{position:absolute;inset:-4px;width:150%;height:150%;opacity:0;cursor:pointer;}
+#insp .skypanel .hexval{font-size:11.5px;color:var(--text-dim);font-variant-numeric:tabular-nums;letter-spacing:.4px;}
+#insp .skypanel .pcard{background:var(--inset);border-radius:var(--r-inset);padding:12px 14px 14px;margin-bottom:10px;
+#insp .skypanel   animation:cardIn .28s var(--ease);}
+#insp .skypanel .pcard > h4{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-faint);
+#insp .skypanel   margin-bottom:10px;display:flex;align-items:center;gap:8px;cursor:pointer;}
+#insp .skypanel .pcard > h4 .cw{margin-left:auto;color:var(--text-faint);transition:transform .2s var(--ease);}
+#insp .skypanel .pcard.shut > h4 .cw{transform:rotate(-90deg);}
+#insp .skypanel .pcard.shut > h4{margin-bottom:0;}
+#insp .skypanel .pcard.shut .pbody{display:none;}
+#insp .skypanel .kids.shut{height:0 !important;opacity:0;}
+#insp .skypanel .pop-head.grabbing{cursor:grabbing;}
+#insp .skypanel .pop-body .pcard{background:rgba(255,255,255,.028);}
+#insp .skypanel /* ── bespoke panels · the moon ─────────────────────────────────────────────────────────────────
+#insp .skypanel    A moon is a thing you look at, so the panel shows you one. Everything in here is an instrument:
+#insp .skypanel    the sky scrubs the phase, the dials fly the moon across the sky (and the world clock with it),
+#insp .skypanel    and angular size is drawn against the half a degree the real moon takes up. */
+#insp .skypanel .mpanel{display:flex;flex-direction:column;gap:10px;}
+#insp .skypanel .mp-hero{padding:0;overflow:hidden;position:relative;border-radius:var(--r-inset);
+#insp .skypanel   background:#05070f;border:1px solid var(--stroke-strong);}
+#insp .skypanel .mp-sky{display:block;width:100%;cursor:ew-resize;touch-action:none;}
+#insp .skypanel .mp-sky.grabbing{cursor:grabbing;}
+#insp .skypanel .mp-cap{position:absolute;inset:auto 0 0 0;display:flex;align-items:flex-end;gap:10px;
+#insp .skypanel   padding:8px 12px 9px;background:linear-gradient(180deg,rgba(5,7,15,0),rgba(5,7,15,.88));
+#insp .skypanel   pointer-events:none;}
+#insp .skypanel .mp-cap .l{display:flex;flex-direction:column;gap:2px;min-width:0;}
+#insp .skypanel .mp-cap b{font-size:12.5px;font-weight:600;color:var(--text);letter-spacing:.2px;}
+#insp .skypanel .mp-cap .mp-illum{font-size:10px;color:var(--text-faint);letter-spacing:.6px;text-transform:uppercase;}
+#insp .skypanel .mp-cap .r{margin-left:auto;font-size:10.5px;color:var(--text-dim);text-align:right;
+#insp .skypanel   font-variant-numeric:tabular-nums;}
+#insp .skypanel .mp-cap .down{color:var(--caution);}
+#insp .skypanel .mp-strip{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;margin-bottom:10px;}
+#insp .skypanel .mp-chip{padding:4px 2px;border-radius:11px;border:1px solid transparent;background:transparent;
+#insp .skypanel   cursor:pointer;display:grid;place-items:center;min-width:0;
+#insp .skypanel   transition:background .15s var(--ease),border-color .15s var(--ease);}
+#insp .skypanel .mp-chip canvas{width:100%;max-width:30px;height:auto;aspect-ratio:1;display:block;}
+#insp .skypanel .mp-chip:hover{background:#141414;}
+#insp .skypanel .mp-chip.on{background:var(--selected);border-color:var(--stroke-strong);}
+#insp .skypanel .mp-note{font-size:10.5px;color:var(--text-faint);letter-spacing:.2px;padding:2px 2px 0;}
+#insp .skypanel .mp-dial .ring{fill:none;stroke:var(--stroke-strong);stroke-width:1;}
+#insp .skypanel .mp-dial .ring2{fill:rgba(255,255,255,.02);stroke:var(--stroke);stroke-width:1;}
+#insp .skypanel .mp-dial .tick{stroke:rgba(255,255,255,.14);stroke-width:1;}
+#insp .skypanel .mp-dial .tick.long{stroke:rgba(255,255,255,.30);}
+#insp .skypanel .mp-dial .needle,.mp-dial .ray{stroke:var(--hi);stroke-width:1.6;stroke-linecap:round;}
+#insp .skypanel .mp-dial .hub{fill:var(--hi);}
+#insp .skypanel .mp-dial .knob{fill:#e9ecff;stroke:var(--hi);stroke-width:2;}
+#insp .skypanel .mp-dial .knob.under{fill:var(--caution);stroke:var(--caution);}
+#insp .skypanel .mp-dial .arc{fill:none;stroke:var(--stroke-strong);stroke-width:1;}
+#insp .skypanel .mp-dial .fill{fill:none;stroke:rgba(108,119,255,.5);stroke-width:2.5;stroke-linecap:round;}
+#insp .skypanel .mp-dial .ground{stroke:rgba(255,255,255,.18);stroke-width:1;}
+#insp .skypanel .mp-dial .lbl{fill:var(--text-faint);font-size:8px;text-anchor:middle;letter-spacing:.6px;}
+#insp .skypanel .mp-dial .lbl.n{fill:var(--text-dim);}
+#insp .skypanel /* rise · transit · set — three columns, label over number */
+#insp .skypanel .mp-3up{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:2px 0 4px;}
+#insp .skypanel .mp-3up > div{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:var(--field);
+#insp .skypanel   border:1px solid var(--stroke);border-radius:14px;}
+#insp .skypanel .mp-3up .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .mp-3up b{font-size:14px;font-weight:500;letter-spacing:-.3px;color:var(--text);
+#insp .skypanel   font-variant-numeric:tabular-nums;}
+#insp .skypanel /* the light meter and the size ruler are both read the same way: a scale with a marker on it */
+#insp .skypanel .mp-meter{margin:2px 0 10px;background:var(--field);border:1px solid var(--stroke);
+#insp .skypanel   border-radius:var(--r-inset);overflow:hidden;padding:2px 0 0;}
+#insp .skypanel .mp-meter canvas{display:block;width:100%;}
+#insp .skypanel .mp-size{margin:2px 0 0;background:var(--field);border:1px solid var(--stroke);
+#insp .skypanel   border-radius:var(--r-inset);overflow:hidden;}
+#insp .skypanel .mp-size .hd{display:flex;align-items:baseline;gap:6px;padding:8px 11px 0;}
+#insp .skypanel .mp-size .hd .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .mp-size .hd .v{margin-left:auto;font-size:12.5px;font-weight:500;color:var(--text);
+#insp .skypanel   letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
+#insp .skypanel .mp-size .hd .v em{font-style:normal;font-size:9px;color:var(--text-dim);margin-left:1px;}
+#insp .skypanel .mp-size canvas{display:block;width:100%;}
+#insp .skypanel /* tint, as named presets with a dot each */
+#insp .skypanel .mp-subhead{display:flex;align-items:center;gap:8px;margin:12px 0 6px;}
+#insp .skypanel .mp-subhead .k{font-size:9px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .mp-subhead .colorrow{margin-left:auto;flex:0 0 auto;}
+#insp .skypanel .mp-tag i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;
+#insp .skypanel   vertical-align:1px;box-shadow:0 0 0 1px rgba(0,0,0,.4);}
+#insp .skypanel .mp-tints .mp-tag{padding:5px 9px;}
+#insp .skypanel /* ── the moon panel · type scale ───────────────────────────────────────────────────────────────
+#insp .skypanel    Sizes are the whole point of this look: one big light numeral, its decimals dropped back a
+#insp .skypanel    shade, its unit shrunk to a footnote — and everything that labels it pushed down to 9.5px
+#insp .skypanel    uppercase with a lot of letter-spacing. Nothing lands in the middle. */
+#insp .skypanel .mpanel .mp-chead{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
+#insp .skypanel .mpanel .mp-chead .l{display:flex;flex-direction:column;gap:1px;min-width:0;}
+#insp .skypanel .mpanel .mp-chead .t{font-size:15px;font-weight:450;letter-spacing:-.1px;color:var(--text);}
+#insp .skypanel .mpanel .mp-chead .s{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .mpanel .mp-x{margin-left:auto;width:24px;height:24px;flex:0 0 24px;border-radius:9px;display:grid;
+#insp .skypanel   place-items:center;color:var(--text-dim);background:transparent;border:1px solid transparent;
+#insp .skypanel   cursor:pointer;transition:background .15s var(--ease),color .15s var(--ease);}
+#insp .skypanel .mpanel .mp-x:hover{background:var(--raised);color:var(--text);}
+#insp .skypanel .mp-num{display:flex;align-items:baseline;gap:0;line-height:.94;font-weight:300;
+#insp .skypanel   letter-spacing:-2.4px;font-variant-numeric:tabular-nums;margin:2px 0 6px;}
+#insp .skypanel .mp-num .i{font-size:46px;color:var(--text);}
+#insp .skypanel .mp-num .d{font-size:46px;color:var(--text-faint);}
+#insp .skypanel .mp-num .u{font-size:12px;letter-spacing:0;color:var(--text-dim);margin-left:7px;transform:translateY(-2px);}
+#insp .skypanel .mp-k{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .mp-target{display:flex;align-items:baseline;gap:6px;}
+#insp .skypanel .mp-target .v{font-size:11px;letter-spacing:.1px;text-transform:none;color:var(--text-dim);}
+#insp .skypanel .mp-metric{padding-bottom:8px;}
+#insp .skypanel .mp-chartwrap{margin:2px -4px 0;}
+#insp .skypanel .mp-chartwrap canvas{display:block;width:100%;}
+#insp .skypanel /* ── the rail ──────────────────────────────────────────────────────────────────────────────── */
+#insp .skypanel .mp-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;}
+#insp .skypanel .mp-pill{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;
+#insp .skypanel   padding:7px 9px 8px;background:var(--panel);border:1px solid var(--stroke);
+#insp .skypanel   border-radius:var(--r-pill);}
+#insp .skypanel .mp-pill .v{font-size:14px;font-weight:500;color:var(--text);letter-spacing:-.3px;
+#insp .skypanel   font-variant-numeric:tabular-nums;white-space:nowrap;max-width:100%;overflow:hidden;
+#insp .skypanel   text-overflow:ellipsis;}
+#insp .skypanel .mp-rail{grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.25fr);}
+#insp .skypanel .mp-pill .v em{font-style:normal;font-size:9.5px;font-weight:400;color:var(--text-dim);margin-left:2px;
+#insp .skypanel   letter-spacing:.4px;}
+#insp .skypanel .mp-pill .k{font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel /* ── the duo ───────────────────────────────────────────────────────────────────────────────── */
+#insp .skypanel .mp-duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+#insp .skypanel .mp-stat{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:11px 13px 10px;align-items:end;}
+#insp .skypanel .mp-stat .i{grid-column:1/-1;width:19px;height:19px;border-radius:7px;display:grid;place-items:center;
+#insp .skypanel   color:var(--ok);background:rgba(34,197,94,.13);margin-bottom:6px;}
+#insp .skypanel .mp-stat.down .i{color:var(--danger);background:rgba(239,68,68,.14);}
+#insp .skypanel .mp-stat .l{font-size:11px;color:var(--text-dim);letter-spacing:.1px;align-self:end;}
+#insp .skypanel .mp-stat .n{font-size:25px;font-weight:300;letter-spacing:-1.4px;color:var(--text);line-height:1;
+#insp .skypanel   font-variant-numeric:tabular-nums;text-align:right;}
+#insp .skypanel .mp-stat .n em{font-style:normal;font-size:11px;letter-spacing:0;color:var(--text-dim);margin-left:2px;}
+#insp .skypanel /* ── the atlas ─────────────────────────────────────────────────────────────────────────────── */
+#insp .skypanel .mp-atlas{padding-bottom:10px;}
+#insp .skypanel .mp-map{position:relative;border-radius:var(--r-inset);overflow:hidden;border:1px solid var(--stroke);
+#insp .skypanel   background:#0d0f13;}
+#insp .skypanel .mp-map canvas{display:block;width:100%;cursor:ew-resize;touch-action:none;}
+#insp .skypanel .mp-map canvas.grabbing{cursor:grabbing;}
+#insp .skypanel .mp-read{position:absolute;left:8px;bottom:6px;display:flex;align-items:baseline;gap:5px;
+#insp .skypanel   padding:3px 8px;border-radius:var(--r-pill);background:rgba(5,6,10,.72);
+#insp .skypanel   backdrop-filter:blur(6px);font-size:9.5px;color:var(--text);font-variant-numeric:tabular-nums;}
+#insp .skypanel .mp-read .k{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .mp-read b{font-weight:500;margin-right:4px;}
+#insp .skypanel .mp-tags{display:flex;gap:5px;margin:8px 0 2px;flex-wrap:wrap;}
+#insp .skypanel .mp-tag{padding:4px 9px;border-radius:var(--r-pill);border:1px solid var(--stroke);
+#insp .skypanel   background:transparent;color:var(--text-faint);font-size:8.5px;letter-spacing:1.2px;
+#insp .skypanel   cursor:pointer;transition:color .15s var(--ease),border-color .15s var(--ease);}
+#insp .skypanel .mp-tag:hover{color:var(--text-dim);}
+#insp .skypanel .mp-tag.on{color:var(--text);border-color:var(--stroke-strong);background:var(--inset);}
+#insp .skypanel .mp-tl{margin-top:8px;padding:0 2px;cursor:ew-resize;touch-action:none;}
+#insp .skypanel .mp-tl canvas{display:block;width:100%;}
+#insp .skypanel .mp-tllbl{display:flex;justify-content:space-between;padding:2px 4px 0;
+#insp .skypanel   font-size:8.5px;letter-spacing:1.2px;color:var(--text-faint);}
+#insp .skypanel /* ── the hero caption, on the same scale ───────────────────────────────────────────────────── */
+#insp .skypanel .mp-cap b{font-size:15px;font-weight:500;letter-spacing:-.2px;}
+#insp .skypanel .mp-cap .mp-illum{font-size:9px;letter-spacing:1.3px;}
+#insp .skypanel .mp-cap .r{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;}
+#insp .skypanel /* ── the compact form shrinks the display, not the labels ──────────────────────────────────── */
+#insp .skypanel .pop .mp-num .i,.pop .mp-num .d{font-size:38px;}
+#insp .skypanel .pop .mp-stat .n{font-size:21px;}
+#insp .skypanel .pop .mp-pill{padding:6px 7px 7px;}
+#insp .skypanel .pop .mp-pill .v{font-size:12.5px;}
+#insp .skypanel /* every label inside the moon panel speaks in the same small caps */
+#insp .skypanel .mpanel .prow .pl{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-faint);
+#insp .skypanel   flex-basis:64px;}
+#insp .skypanel .mpanel .mp-note{font-size:10px;letter-spacing:.2px;color:var(--text-faint);text-transform:none;}
+#insp .skypanel .mpanel .mp-k.mp-note{letter-spacing:1.1px;text-transform:uppercase;padding:6px 2px 0;}
+#insp .skypanel .mp-track2 .mp-num,.mp-light .mp-num{margin-bottom:4px;}
+#insp .skypanel .mp-track2 .mp-num .i,.mp-track2 .mp-num .d,
+#insp .skypanel .mp-light .mp-num .i,.mp-light .mp-num .d{font-size:40px;}
+#insp .skypanel .mp-chead .l{cursor:pointer;}
+#insp .skypanel .pcard.shut .mp-num,.pcard.shut .mp-target{display:none;}
+#insp .skypanel .pop .mp-track2 .mp-num .i,.pop .mp-track2 .mp-num .d,
+#insp .skypanel .pop .mp-light .mp-num .i,.pop .mp-light .mp-num .d{font-size:34px;}
+#insp .skypanel /* a sheet with an instrument in it: the generic cards borrow the same headline */
+#insp .skypanel .sheet.bespoke .pcard > h4{font-size:15px;font-weight:450;letter-spacing:-.1px;text-transform:none;
+#insp .skypanel   color:var(--text);margin-bottom:10px;}
+#insp .skypanel /* ── tapes and steppers ───────────────────────────────────────────────────────────────────────
+#insp .skypanel    A tape is a ruler with a marker on it: you can read the range off the strip, count the ticks,
+#insp .skypanel    and grab it anywhere. The stepper beside it is for the last decimal. Between them they replace
+#insp .skypanel    every slider in an instrument panel. */
+#insp .skypanel .tape{margin:10px 0 12px;}
+#insp .skypanel .tape .hd{display:flex;align-items:center;gap:8px;margin-bottom:1px;}
+#insp .skypanel .tape .hd .k{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .tape canvas{display:block;width:100%;cursor:ew-resize;touch-action:none;}
+#insp .skypanel .tape canvas.drag{cursor:grabbing;}
+#insp .skypanel .step{margin-left:auto;display:flex;align-items:center;gap:4px;}
+#insp .skypanel .step button{width:20px;height:20px;flex:0 0 20px;border-radius:7px;background:var(--raised);
+#insp .skypanel   border:1px solid var(--stroke);color:var(--text-dim);font-size:12px;line-height:1;cursor:pointer;
+#insp .skypanel   display:grid;place-items:center;padding:0;transition:background .14s var(--ease),color .14s var(--ease);}
+#insp .skypanel .step button:hover{color:var(--text);background:var(--selected);}
+#insp .skypanel .step .f{display:flex;align-items:baseline;gap:3px;background:var(--field);
+#insp .skypanel   border:1px solid var(--stroke);border-radius:9px;padding:3px 8px;}
+#insp .skypanel .step input{width:42px;background:transparent;border:0;outline:none;color:var(--text);
+#insp .skypanel   font:inherit;font-size:12.5px;font-weight:500;text-align:right;font-variant-numeric:tabular-nums;
+#insp .skypanel   letter-spacing:-.2px;}
+#insp .skypanel .step i{font-style:normal;font-size:9px;color:var(--text-dim);}
+#insp .skypanel .mp-meter{padding-top:0;}
+#insp .skypanel .mp-meter .hd,.mp-size .hd{display:flex;align-items:center;gap:6px;padding:8px 9px 2px;}
+#insp .skypanel .mp-meter .hd .k,.mp-size .hd .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;
+#insp .skypanel   color:var(--text-faint);}
+#insp .skypanel .mp-size canvas{cursor:ew-resize;touch-action:none;}
+#insp .skypanel .mp-size canvas.drag,.mp-meter canvas.drag{cursor:grabbing;}
+#insp .skypanel .mp-meter canvas{cursor:ew-resize;touch-action:none;}
+#insp .skypanel .mp-chartwrap canvas{cursor:ew-resize;touch-action:none;}
+#insp .skypanel .mp-chartwrap canvas.drag{cursor:grabbing;}
+#insp .skypanel /* state pills and the flat facts under them */
+#insp .skypanel .mp-tag.state i{background:var(--text-faint);box-shadow:none;}
+#insp .skypanel .mp-tag.state.on i{background:var(--ok);box-shadow:0 0 7px rgba(34,197,94,.65);}
+#insp .skypanel .mp-state .mp-tags{margin:0 0 10px;}
+#insp .skypanel .mp-spec{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+#insp .skypanel .mp-spec > div{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:var(--field);
+#insp .skypanel   border:1px solid var(--stroke);border-radius:14px;}
+#insp .skypanel .mp-spec .k{font-size:8.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-faint);}
+#insp .skypanel .mp-spec b{font-size:13px;font-weight:500;color:var(--text);letter-spacing:-.2px;}
+#insp .skypanel .s-map canvas.drag{cursor:grabbing;}
+#insp .skypanel .s-path .mp-3up{margin-top:10px;}
+#insp .skypanel .s-path .tape{margin-bottom:2px;}
+#insp .skypanel .spanel .mp-note{padding:2px 2px 0;}
+#insp .skypanel .w-hero canvas.grabbing{cursor:grabbing;}
+#insp .skypanel .w-ramp canvas.drag{cursor:grabbing;}
+#insp .skypanel .wpanel .mp-subhead{margin:10px 0 4px;}
+#insp .skypanel .mp-cap .w-sub,.w-hero .mp-cap .r{text-transform:none;letter-spacing:.3px;}
+#insp .skypanel .wf-hero canvas.grabbing{cursor:grabbing;}
+#insp .skypanel .wf-meter canvas.drag{cursor:grabbing;}
+#insp .skypanel .wf-steady .mp-spec{grid-template-columns:1fr 1fr;margin-top:4px;}
+#insp .skypanel .wf-drives .mp-tags{margin-bottom:8px;}
+#insp .skypanel .mp-cap .wf-sub{text-transform:none;letter-spacing:.3px;}
+#insp .skypanel /* ── the sky and star panels ───────────────────────────────────────────────────────────────── */
+#insp .skypanel .sk-hero canvas{cursor:crosshair;}
+#insp .skypanel .sk-hero canvas.grabbing{cursor:grabbing;}
+#insp .skypanel .st-hero canvas.grabbing{cursor:grabbing;}
+#insp .skypanel .sk-phase canvas,.sk-grad canvas,.st-ramp canvas{display:block;width:100%;}
+#insp .skypanel .sk-phase canvas{cursor:ew-resize;touch-action:none;}
+#insp .skypanel .sk-phase canvas.drag{cursor:grabbing;}
+#insp .skypanel .sk-specs,.st-specs{grid-template-columns:1fr 1fr;margin-top:10px;}
+#insp .skypanel .mp-cap .sk-sub,.mp-cap .st-sub{text-transform:none;letter-spacing:.3px;}
+#insp .skypanel .skypanel .mp-subhead,.starpanel .mp-subhead{margin:10px 0 4px;}
+#insp .skypanel .st-mag .mp-num .i{font-size:38px;}
+#insp .skypanel .sk-hero .mp-cap{background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.55) 55%,rgba(0,0,0,.88) 100%);}
+#insp .skypanel .sk-hero .mp-cap .mp-illum,.sk-hero .mp-cap .r{color:rgba(255,255,255,.72);}
+#insp .skypanel .fg-hero canvas.grabbing{cursor:grabbing;}
+#insp .skypanel .fg-hero .mp-cap{background:linear-gradient(180deg,rgba(4,6,8,0),rgba(4,6,8,.92));}
+#insp .skypanel .mp-cap .fg-sub{text-transform:none;letter-spacing:.3px;}
+#insp .skypanel .fg-vis canvas.drag,.fg-profile canvas.drag{cursor:grabbing;}
+#insp .skypanel .fogpanel .mp-subhead{margin:10px 0 4px;}
+#insp .skypanel .mp-cap .fd-sub,.mp-cap .ge-sub{text-transform:none;letter-spacing:.3px;}
+#insp .skypanel .folderpanel .mp-subhead{margin:10px 0 4px;}
+#insp .skypanel .ge-hero canvas.grabbing{cursor:grabbing}
+#insp .skypanel .ge-plan canvas.drag,.ge-lab canvas.drag{cursor:grabbing}
+#insp .skypanel .ge-axis .step{width:100%;}
+#insp .skypanel .ge-axis .step .f{min-width:0;}
+#insp .skypanel .ge-axis .step input{width:38px;}
+#insp .skypanel .ge-colours .mp-subhead{margin:9px 0 4px;}
+#insp .skypanel .geopanel .mp-subhead{margin:10px 0 4px;}
+#insp .skypanel .cl-hero canvas.grabbing{cursor:grabbing}
+#insp .skypanel .mp-cap .cl-sub,.mp-cap .li-sub{text-transform:none;letter-spacing:.3px;}
+#insp .skypanel .cl-cover canvas.drag,.cl-section canvas.drag{cursor:grabbing}
+#insp .skypanel .cloudpanel .mp-subhead{margin:10px 0 4px}
+#insp .skypanel .li-hero canvas.grabbing{cursor:grabbing}
+#insp .skypanel .li-photo canvas.drag,.li-aim canvas.drag{cursor:grabbing}
+#insp .skypanel .lightpanel .mp-subhead{margin:10px 0 4px}
+#insp .skypanel .li-axis .step{width:100%}
+#insp .skypanel .li-axis .step .f{min-width:0}
+#insp .skypanel .li-axis .step input{width:38px}
+#insp .skypanel .al-hero canvas.grabbing{cursor:grabbing}
+#insp .skypanel .mp-cap .al-sub,.mp-cap .ef-sub{text-transform:none;letter-spacing:.3px}
+#insp .skypanel .advlightpanel .mp-subhead,.effectpanel .mp-subhead{margin:10px 0 4px}
+#insp .skypanel .al-axis .step,.ef-axis .step{width:100%}
+#insp .skypanel .al-axis .step .f,.ef-axis .step .f{min-width:0}
+#insp .skypanel .al-axis .step input,.ef-axis .step input{width:38px}
+#insp .skypanel .ca-hero canvas.grabbing{cursor:grabbing}
+#insp .skypanel .mp-cap .ca-sub{text-transform:none;letter-spacing:.3px}
+#insp .skypanel .ca-plan canvas.drag{cursor:grabbing}
+#insp .skypanel .camerapanel .mp-subhead{margin:10px 0 4px}
+#insp .skypanel .ca-axis .step{width:100%}
+#insp .skypanel .ca-axis .step .f{min-width:0}
+#insp .skypanel .ca-axis .step input{width:38px}
+#insp .skypanel .te-hero canvas.grabbing{cursor:grabbing}
+#insp .skypanel .mp-cap .te-sub,.mp-cap .as-sub{text-transform:none;letter-spacing:.3px}
+#insp .skypanel .terrainpanel .mp-subhead{margin:10px 0 4px}
+#insp .skypanel .te-axis .step,.as-axis .step{width:100%}
+#insp .skypanel .te-axis .step .f,.as-axis .step .f{min-width:0}
+#insp .skypanel .te-axis .step input,.as-axis .step input{width:38px}
+#insp .skypanel .assetpanel .mp-subhead{margin:10px 0 4px}
+#insp .skypanel .cu-hero canvas.grabbing{cursor:grabbing}
+#insp .skypanel .mp-cap .cu-sub{text-transform:none;letter-spacing:.3px}
+#insp .skypanel .curvepanel .mp-subhead{margin:10px 0 4px}
+#insp .skypanel .cu-axis .step{width:100%}
+#insp .skypanel .cu-axis .step .f{min-width:0}
+#insp .skypanel .cu-axis .step input{width:38px}
 </style>
 </head>
 <body>
@@ -660,6 +952,786 @@ void main(){
 </script>
 
 <script>
+/* ===== Sky panel — ported verbatim from c7egoist/Frontier (src/panels/sky.js + controls.js + kit.js + icons.js) ===== */
+const SKYPANEL=(()=>{
+const svg = (path, { size = 14, color = 'currentColor', width = 1.9 } = {}) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}"
+    stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+
+
+const MULTI = {
+  folder: ['#f4c95d','#ff8a5b'], cube: ['#ff7b6b','#ffd166'], sphere: ['#75c7ff','#9b8cff'], torus: ['#b58cff','#ff87c8'], cylinder: ['#7bd6b2','#62a8ff'], plane: ['#62c7e8','#a7f3d0'],
+  light: ['#ffd84d','#ff8b3d'], spot: ['#ffe36e','#ff7657'], camera: ['#63d3ff','#8b7cff'], sky: ['#69bfff','#b899ff'], sun: ['#ffd34e','#ff7b42'], moon: ['#d2dcff','#8d9cff'], stars: ['#e8e8ff','#9d8cff'], cloud: ['#eef5ff','#8eb9dd'], fog: ['#b7c8d8','#7d91aa'], wind: ['#6ee7c2','#6ba8ff'], water: ['#52d2ef','#557cff'],
+  motion: ['#ff79c6','#62d8ff'], particles: ['#ff8bd5','#ffd15c'], probe: ['#61e2ff','#8b7cff'], audio: ['#b991ff','#ff82b8'], post: ['#ff9a63','#8d7dff'], fx: ['#ff81ca','#ffd35e'], world: ['#8fd070','#55c9e8'], layers: ['#d6a0ff','#68c9ff'],
+};
+const P = {
+  folder:  '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  cube:    '<path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M12 22V12"/><path d="m3 7 9 5 9-5"/>',
+  sphere:  '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M12 3v18"/>',
+  torus:   '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="3.4"/>',
+  cylinder:'<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12a7 3 0 0 0 14 0V6"/>',
+  plane:   '<path d="m2 16 10-9 10 9-10 4z"/>',
+  light:   '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M19.1 4.9l-2.2 2.2M7.1 16.9 4.9 19.1"/>',
+  spot:    '<path d="M12 3 5 17h14z"/><ellipse cx="12" cy="18" rx="7" ry="3"/>',
+  camera:  '<rect x="2" y="6" width="13" height="12" rx="2"/><path d="m15 10 7-4v12l-7-4z"/>',
+  sky:     '<path d="M4 16a5 5 0 1 1 3-9 6 6 0 1 1 5 9z"/><path d="M2 20h20"/>',
+  sun:     '<circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1"/>',
+  moon:    '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  stars:   '<path d="m12 2 1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9z"/><path d="M18.5 15.5 19 17l1.5.5L19 18l-.5 1.5L18 18l-1.5-.5L18 17z"/><path d="M5 15l.4 1.2L6.6 16.6 5.4 17 5 18.2 4.6 17 3.4 16.6 4.6 16.2z"/>',
+  cloud:   '<path d="M6.5 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.6 9.3 3.9 3.9 0 0 1 17.5 18z"/>',
+  fog:     '<path d="M3 9h18M5 13h14M4 17h16"/><path d="M6.5 5.5a5 5 0 0 1 9.5 0"/>',
+  wind:    '<path d="M3 8h9a3 3 0 1 0-3-3"/><path d="M3 13h13a3 3 0 1 1-3 3"/><path d="M3 18h7"/>',
+  water:   '<path d="M2 8c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/><path d="M2 14c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/><path d="M2 20c2.5 0 2.5 1.6 5 1.6"/>',
+  particles:'<circle cx="6" cy="7" r="1.6"/><circle cx="17" cy="5" r="1.2"/><circle cx="12" cy="12" r="2"/><circle cx="7" cy="17" r="1.3"/><circle cx="18" cy="16" r="1.7"/>',
+  probe:   '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16"/><path d="M6.5 6.5A7.6 7.6 0 0 1 17 17"/>',
+  audio:   '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 8.5a5 5 0 0 1 0 7"/><path d="M20 6a9 9 0 0 1 0 12"/>',
+  post:    '<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 0 1 0 18" fill="currentColor" opacity=".35" stroke="none"/>',
+  fx:      '<path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.4 6.1L21.5 11.5 15.4 13.9 13 20l-2.4-6.1L4.5 11.5l6.1-2.4z"/>',
+  eye:     '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff:  '<path d="M2 12s3.5-7 10-7c2 0 3.8.7 5.3 1.6M22 12s-3.5 7-10 7c-2 0-3.8-.7-5.3-1.6"/><path d="m3 3 18 18"/>',
+  lock:    '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  unlock:  '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
+  solo:    '<path d="M12 3 14.5 9 21 9.7l-4.9 4.3 1.5 6.4L12 17l-5.6 3.4L7.9 14 3 9.7 9.5 9z"/>',
+  motion:  '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+  chev:    '<path d="m9 6 6 6-6 6"/>',
+  chevdown:'<path d="m6 9 6 6 6-6"/>',
+  search:  '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  close:   '<path d="M18 6 6 18M6 6l12 12"/>',
+  pin:     '<path d="M15 3 21 9l-4 1-3.5 3.5L14 18l-2 2-3.5-5L3 21l5.5-5.5L3.5 12l2-2 4.5.5L13.5 7z"/>',
+  focus:   '<circle cx="12" cy="12" r="3"/><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2 7 7M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8 7 17M17 7l2.8-2.8"/>',
+  layers:  '<path d="m12 2 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
+  panelL:  '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+  panelR:  '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
+  play:    '<path d="M6 4l14 8-14 8z"/>',
+  pause:   '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+  stop:    '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  tag:     '<path d="M3 12.5V4a1 1 0 0 1 1-1h8.5L21 11.5 12.5 20 3 12.5z"/><circle cx="7.5" cy="7.5" r="1.4"/>',
+  step:    '<path d="M7 5v14l9-7z"/><path d="M18 5v14"/>',
+  sim:     '<path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3.5 2"/><path d="M17 3l4 2-4 2z"/>',
+  plus:    '<path d="M12 5v14M5 12h14"/>',
+  trash:   '<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>',
+  copy:    '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
+  reset:   '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>',
+  command: '<path d="M6 3a3 3 0 1 1-3 3v12a3 3 0 1 0 3-3h12a3 3 0 1 1 3 3V6a3 3 0 1 0-3 3H6z"/>',
+  check:   '<path d="m4 12 6 6L20 6"/>',
+  alert:   '<path d="M12 3 2 20h20z"/><path d="M12 10v4"/><path d="M12 17.2v.4"/>',
+  arrowout:'<path d="M8.5 15.5 15.5 8.5"/><path d="M9.5 8.5h6v6"/>',
+  grid:    '<path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
+  world:   '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/>',
+};
+const ic = (name, opts = {}) => {
+  const pal = MULTI[name];
+  if (!pal || opts.mono) return svg(P[name] || P.cube, opts);
+  const size = opts.size || 14, primary = opts.color || pal[0], width = opts.width || 1.75;
+  return `<svg class="multi-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="1" y="1" width="22" height="22" rx="6" fill="${primary}" opacity=".13"/>
+    <g stroke="${primary}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${P[name] || P.cube}</g>
+    <circle cx="18.5" cy="5.5" r="2.25" fill="${pal[1]}" stroke="#0b0b0b" stroke-width="1"/>
+  </svg>`;
+};
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  return e;
+}
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const fmt = (v, dec) => Number(v).toFixed(dec ?? 2);
+
+function colorChip(value, onChange) {
+  const wrap = el('div', 'colorrow');
+  const chip = el('div', 'colorchip', `<input type="color" value="${value}">`);
+  chip.style.background = value;
+  const hex = el('span', 'hexval', value.toUpperCase());
+  const input = chip.querySelector('input');
+  input.oninput = () => { chip.style.background = input.value; hex.textContent = input.value.toUpperCase(); onChange(input.value); };
+  wrap.append(chip, hex);
+  wrap._set = v => { input.value = v; chip.style.background = v; hex.textContent = v.toUpperCase(); };
+  return wrap;
+}
+
+
+/* ── the number, with a nudge either side ──────────────────────────────────────────────────── */
+function stepper({ value = 0, min = -Infinity, max = Infinity, dec = 2, step = 0.1, unit = '', onInput }) {
+  const wrap = el('div', 'step');
+  wrap.innerHTML = `<button class="mn" tabindex="-1">−</button>
+    <span class="f"><input value="${fmt(value, dec)}"><i>${unit}</i></span>
+    <button class="pl" tabindex="-1">+</button>`;
+  const inp = wrap.querySelector('input');
+  let v = clamp(value, min, max);
+  const paint = () => { if (document.activeElement !== inp) inp.value = fmt(v, dec); };
+  const set = (nv, fire = true) => {
+    v = clamp(nv, min, max);
+    paint();
+    if (fire && onInput) onInput(v);
+  };
+  wrap.querySelector('.mn').onclick = () => set(v - step);
+  wrap.querySelector('.pl').onclick = () => set(v + step);
+  inp.onkeydown = e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') inp.blur();
+    if (e.key === 'ArrowUp') { e.preventDefault(); set(v + step); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); set(v - step); }
+  };
+  inp.onblur = () => { const n = parseFloat(inp.value); isFinite(n) ? set(n) : paint(); };
+  wrap._set = nv => set(nv, false);
+  return wrap;
+}
+
+/* ── the tape ──────────────────────────────────────────────────────────────────────────────── */
+function tape({
+  label, min = 0, max = 1, value = 0, dec = 2, step, unit = '', marks, height = 30,
+  toPos, fromPos, tint, onInput,
+}) {
+  const wrap = el('div', 'tape');
+  const head = el('div', 'hd', `<span class="k">${label}</span>`);
+  const st = stepper({
+    value, min, max, dec, unit,
+    step: step ?? +((max - min) / 100).toPrecision(1),
+    onInput: v => set(v),
+  });
+  head.appendChild(st);
+  const cv = el('canvas');
+  wrap.append(head, cv);
+
+  let v = clamp(value, min, max);
+  const pos = x => (toPos ? toPos(x, min, max) : (x - min) / (max - min || 1));
+  const val = t => (fromPos ? fromPos(t, min, max) : min + t * (max - min));
+
+  const g = cv.getContext('2d');
+  function paint() {
+    const w = wrap.clientWidth || 260, h = height;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+    cv.style.height = h + 'px';
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const pad = 8, span = w - pad * 2, base = h - 11;
+    g.font = '8px ui-sans-serif, system-ui';
+
+    /* the ruler */
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const major = i % 10 === 0;
+      const on = t <= pos(v);
+      g.strokeStyle = major ? 'rgba(255,255,255,.30)'
+        : `rgba(255,255,255,${on ? 0.22 : 0.09})`;
+      g.lineWidth = 1;
+      const len = major ? 9 : (i % 5 === 0 ? 6 : 4);
+      const x = pad + t * span;
+      g.beginPath(); g.moveTo(x, base - len); g.lineTo(x, base); g.stroke();
+    }
+    g.strokeStyle = 'rgba(255,255,255,.10)';
+    g.beginPath(); g.moveTo(pad, base + .5); g.lineTo(pad + span, base + .5); g.stroke();
+
+    /* what the ends and the middle mean */
+    const ms = marks || [{ t: 0, l: fmt(min, dec) }, { t: 1, l: fmt(max, dec) }];
+    g.fillStyle = 'rgba(255,255,255,.28)';
+    const taken = [];                                  /* a label that would collide is dropped */
+    ms.forEach(({ t, l }) => {
+      const x = pad + t * span, tw = g.measureText(l).width;
+      const x0 = t <= 0 ? x : t >= 1 ? x - tw : x - tw / 2;
+      const x1 = x0 + tw;
+      if (taken.some(([a, b]) => x0 < b + 5 && x1 > a - 5)) return;
+      taken.push([x0, x1]);
+      g.textAlign = t <= 0 ? 'left' : t >= 1 ? 'right' : 'center';
+      g.fillText(l, x, h - 1);
+    });
+
+    /* the marker */
+    const x = pad + pos(v) * span;
+    g.fillStyle = tint || '#fff';
+    g.beginPath();
+    g.moveTo(x, base - 13); g.lineTo(x + 4, base - 19); g.lineTo(x - 4, base - 19);
+    g.closePath(); g.fill();
+    g.strokeStyle = tint || 'rgba(255,255,255,.85)';
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(x, base - 12); g.lineTo(x, base); g.stroke();
+  }
+
+  const set = (nv, fire = true) => {
+    v = clamp(nv, min, max);
+    st._set(v);
+    paint();
+    if (fire && onInput) onInput(v);
+  };
+
+  const fromEvent = e => {
+    const r = cv.getBoundingClientRect();
+    const pad = 8, span = Math.max(1, r.width - pad * 2);
+    set(val(clamp((e.clientX - r.left - pad) / span, 0, 1)));
+  };
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId); cv.classList.add('drag'); fromEvent(e);
+  });
+  cv.addEventListener('pointermove', e => { if (cv.hasPointerCapture?.(e.pointerId)) fromEvent(e); });
+  cv.addEventListener('pointerup', e => { cv.releasePointerCapture?.(e.pointerId); cv.classList.remove('drag'); });
+  cv.addEventListener('wheel', e => { e.preventDefault(); set(v - Math.sign(e.deltaY) * (max - min) / 100); }, { passive: false });
+
+  wrap._set = nv => { v = clamp(nv, min, max); st._set(v); paint(); };
+  wrap._paint = paint;
+  requestAnimationFrame(paint);
+  return wrap;
+}
+
+/* ── a state, said as a word rather than drawn as a switch ─────────────────────────────────── */
+function pillToggle(label, value, onChange) {
+  const b = el('button', `mp-tag state${value ? ' on' : ''}`, `<i></i>${label}`);
+  b.onclick = () => {
+    const next = !b.classList.contains('on');
+    b.classList.toggle('on', next);
+    onChange(next);
+  };
+  b._set = v => b.classList.toggle('on', !!v);
+  return b;
+}
+
+/* ── the flat facts at the bottom of a card ────────────────────────────────────────────────── */
+function specList(rows) {
+  const wrap = el('div', 'mp-spec');
+  rows.forEach(([k, v]) => wrap.insertAdjacentHTML('beforeend',
+    `<div><span class="k">${k}</span><b>${v}</b></div>`));
+  return wrap;
+}
+
+
+const rgb = c => {
+  const n = parseInt((c || '#2f6dd0').slice(1), 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+};
+const mixC = (a, b, t) => {
+  const A = rgb(a), B = rgb(b), f = Math.max(0, Math.min(1, t));
+  return [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f, A[2] + (B[2] - A[2]) * f];
+};
+const css = ([r, g, b], a = 1) =>
+  `rgba(${Math.round(Math.max(0, Math.min(255, r)))},${Math.round(Math.max(0, Math.min(255, g)))},${Math.round(Math.max(0, Math.min(255, b)))},${a})`;
+
+/* Henyey–Greenstein: one number, and it decides whether haze glows around the sun or everywhere */
+const hg = (cosT, g) =>
+  (1 - g * g) / (4 * Math.PI * Math.pow(Math.max(1e-4, 1 + g * g - 2 * g * cosT), 1.5));
+
+/* Koschmieder: how far you can see before contrast is gone */
+const extinction = (turbidity, mie) => 0.02 * turbidity + mie * 1.2;   /* per km */
+const visibilityKm = (turbidity, mie) => 3.912 / Math.max(0.002, extinction(turbidity, mie));
+
+/* a wavelength, as a colour you can paint with */
+function spectrum(nm) {
+  let r = 0, g = 0, b = 0;
+  if (nm < 440) { r = -(nm - 440) / 60; b = 1; }
+  else if (nm < 490) { g = (nm - 440) / 50; b = 1; }
+  else if (nm < 510) { g = 1; b = -(nm - 510) / 20; }
+  else if (nm < 580) { r = (nm - 510) / 70; g = 1; }
+  else if (nm < 645) { r = 1; g = -(nm - 645) / 65; }
+  else { r = 1; }
+  const f = nm < 420 ? 0.3 + 0.7 * (nm - 380) / 40 : nm > 700 ? 0.3 + 0.7 * (780 - nm) / 80 : 1;
+  return [r * f * 255, g * f * 255, b * f * 255];
+}
+
+/* ── the panel ─────────────────────────────────────────────────────────────────────────────── */
+function skyPanel(node, ctx) {
+  const { compact = false, setProp, register } = ctx;
+  const P = node.props;
+  const host = el('div', 'mpanel skypanel');
+  const syncers = [];
+  const on = (elm, ev, fn) => elm.addEventListener(ev, fn);
+  const sunAlt = () => (ctx.sunAlt ? ctx.sunAlt() : 14);
+
+  const RAY = () => P.rayleigh ?? 1.35;
+  const MIE = () => P.mie ?? 0.22;
+  const MIEG = () => P.mieG ?? 0.78;
+  const TURB = () => P.turbidity ?? 3.4;
+  const OZ = () => P.ozone ?? 1;
+
+  /* one model, used by the hero and by the gradient strip, so they can never disagree */
+  function sample(elevDeg, dAzDeg) {
+    const alt = sunAlt();
+    const e = Math.max(-2, elevDeg);
+    const sinE = Math.sin(Math.max(0, e) * D2R);
+    const day = Math.max(0, Math.min(1, (alt + 6) / 12));
+    const night = 1 - day;
+    const zen = P.zenith || '#2f6dd0', hor = P.horizon || '#9fc4e8';
+
+    const rayMix = Math.min(1, Math.pow(1 - sinE, 1.1) * (0.5 + TURB() * 0.06) * (0.45 + RAY() * 0.45));
+    let c = mixC(zen, hor, rayMix);
+
+    /* night: the sky keeps its hue but loses almost all of its light */
+    const lum = 0.06 + 0.94 * day;
+    c = c.map(v => v * lum);
+
+    const oz = OZ() * night;
+    c = [c[0] * (1 - oz * 0.35), c[1] * (1 - oz * 0.18), c[2] * (1 + oz * 0.06)];
+
+    /* the sun's halo: the phase function normalised to its own peak, so it can never blow out */
+    const gAsym = Math.min(0.95, MIEG());
+    const cosT = Math.cos(e * D2R) * Math.cos(Math.abs(dAzDeg) * D2R) * Math.cos(alt * D2R)
+      + Math.sin(e * D2R) * Math.sin(alt * D2R);
+    const glow = (hg(cosT, gAsym) / hg(1, gAsym)) * (0.25 + MIE() * 1.9) * Math.max(0.04, day);
+    c = [c[0] + glow * 235, c[1] + glow * 218, c[2] + glow * 186];
+
+    const haze = Math.pow(1 - sinE, 5) * (0.08 + MIE() * 0.9) * (0.15 + day * 0.85);
+    c = [c[0] + haze * 62, c[1] + haze * 66, c[2] + haze * 74];
+
+    const sky = P.intensity ?? 1;
+    return c.map(v => v * (0.55 + sky * 0.45));
+  }
+
+  /* ── hero · a slice of the sky ─────────────────────────────────────────────────────────── */
+  const hero = el('div', 'pcard mp-hero sk-hero');
+  const cv = el('canvas', 'mp-sky');
+  cv.title = 'Drag: across for turbidity, up and down for Rayleigh';
+  const cap = el('div', 'mp-cap',
+    `<div class="l"><b class="sk-name">—</b><span class="mp-illum sk-sub">—</span></div>
+     <div class="r"><span class="sk-r">—</span></div>`);
+  hero.append(cv, cap);
+  host.appendChild(hero);
+
+  const sky = cv.getContext('2d');
+  let dragging = null;
+  function paintHero() {
+    const w = cv.clientWidth || 300, h = compact ? 140 : 168;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+    cv.style.height = h + 'px';
+    const g = sky;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+
+    const gy = h - 16;                                   /* the ground line */
+    const STEP = 3;
+    for (let x = 0; x < w; x += STEP) {
+      const dAz = (x / w - 0.5) * 180;
+      for (let y = 0; y < gy; y += STEP) {
+        const e = (1 - y / gy) * 90;
+        g.fillStyle = css(sample(e, dAz));
+        g.fillRect(x, y, STEP + 0.5, STEP + 0.5);
+      }
+    }
+
+    /* the sun, if it is up there */
+    const alt = sunAlt();
+    if (alt > -3) {
+      const sy = (1 - Math.min(90, Math.max(0, alt)) / 90) * gy;
+      const sx = w / 2;
+      const glow = g.createRadialGradient(sx, sy, 0, sx, sy, 34);
+      glow.addColorStop(0, 'rgba(255,248,226,.95)');
+      glow.addColorStop(0.25, 'rgba(255,240,205,.35)');
+      glow.addColorStop(1, 'rgba(255,240,205,0)');
+      g.fillStyle = glow;
+      g.beginPath(); g.arc(sx, sy, 34, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255,252,240,.95)';
+      g.beginPath(); g.arc(sx, sy, 5, 0, Math.PI * 2); g.fill();
+    }
+
+    /* the ground bounce, so the strip has a floor */
+    g.fillStyle = css(rgb(P.ground || '#14181d'));
+    g.fillRect(0, gy, w, h - gy);
+    g.strokeStyle = 'rgba(255,255,255,.10)';
+    g.beginPath(); g.moveTo(0, gy + .5); g.lineTo(w, gy + .5); g.stroke();
+
+    /* the scales */
+    g.font = '8px ui-sans-serif, system-ui';
+    [[0, '0°'], [30, '30'], [60, '60'], [90, '90° ZENITH']].forEach(([e, l]) => {
+      const y = (1 - e / 90) * gy;
+      g.strokeStyle = 'rgba(255,255,255,.10)';
+      g.beginPath(); g.moveTo(0, y); g.lineTo(10, y); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.42)';
+      g.textAlign = 'left';
+      g.fillText(l, 13, y + (e === 90 ? 9 : 3));
+    });
+    g.textAlign = 'center';
+    g.fillStyle = 'rgba(255,255,255,.42)';
+    [[-90, '−90°'], [0, 'SUN'], [90, '+90°']].forEach(([d, l]) => {
+      const x = (d / 180 + 0.5) * w;
+      g.textAlign = d < 0 ? 'left' : d > 0 ? 'right' : 'center';
+      g.fillText(l, Math.max(4, Math.min(w - 4, x)), h - 5);
+    });
+
+    if (dragging) {
+      g.strokeStyle = 'rgba(255,255,255,.3)';
+      g.setLineDash([2, 3]);
+      g.beginPath();
+      g.moveTo(dragging.x, 0); g.lineTo(dragging.x, h);
+      g.moveTo(0, dragging.y); g.lineTo(w, dragging.y);
+      g.stroke();
+      g.setLineDash([]);
+    }
+  }
+
+  const nameEl = cap.querySelector('.sk-name');
+  const subEl = cap.querySelector('.sk-sub');
+  const rEl = cap.querySelector('.sk-r');
+  const airName = () => {
+    const t = TURB();
+    if (t < 2) return 'Arctic air';
+    if (t < 3) return 'Clear air';
+    if (t < 5) return 'Clean air';
+    if (t < 8) return 'Hazy air';
+    if (t < 13) return 'Murky air';
+    return 'Smog';
+  };
+  function paintCap() {
+    nameEl.textContent = airName();
+    subEl.textContent = `turbidity ${TURB().toFixed(1)} · rayleigh ${RAY().toFixed(2)} · mie ${MIE().toFixed(3)}`;
+    rEl.innerHTML = `${visibilityKm(TURB(), MIE()).toFixed(0)} km`;
+  }
+
+  const heroFrom = e => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    dragging = { x: x * r.width, y: y * r.height };
+    setProp(node, 'turbidity', +(1 + x * 19).toFixed(1));
+    setProp(node, 'rayleigh', +(4 * (1 - y)).toFixed(2));
+    paintAll();
+  };
+  on(cv, 'pointerdown', e => { cv.setPointerCapture(e.pointerId); cv.classList.add('grabbing'); heroFrom(e); });
+  on(cv, 'pointermove', e => { if (cv.hasPointerCapture?.(e.pointerId)) heroFrom(e); });
+  const endDrag = () => { dragging = null; cv.classList.remove('grabbing'); paintHero(); };
+  on(cv, 'pointerup', endDrag);
+  on(cv, 'pointercancel', endDrag);
+
+  /* ── rail and duo ──────────────────────────────────────────────────────────────────────── */
+  const rail = el('div', 'mp-rail');
+  const pill = k => {
+    const b = el('div', 'mp-pill', `<b class="v">—</b><span class="k">${k}</span>`);
+    rail.appendChild(b);
+    return b.querySelector('.v');
+  };
+  const pRay = pill('Rayleigh'), pTurb = pill('Turbidity'), pMie = pill('Mie'), pOz = pill('Ozone');
+  host.appendChild(rail);
+
+  const duo = el('div', 'mp-duo');
+  const statCard = (icon, label) => {
+    const c = el('div', 'pcard mp-stat',
+      `<span class="i">${icon}</span><span class="l">${label}</span><b class="n">—</b>`);
+    duo.appendChild(c);
+    return c;
+  };
+  const sVis = statCard(ic('eye', { size: 12 }), 'Visibility');
+  const sLight = statCard(ic('sky', { size: 12 }), 'Sky light');
+  host.appendChild(duo);
+
+  /* ── extinction spectrum ───────────────────────────────────────────────────────────────── */
+  const mc = el('div', 'pcard mp-metric sk-spec');
+  mc.innerHTML = `
+    <div class="mp-chead">
+      <div class="l"><span class="t">Extinction</span><span class="s">Per kilometre · 380–720 nm</span></div>
+      <button class="mp-x" title="Taller chart">${ic('arrowout', { size: 12 })}</button>
+    </div>
+    <div class="mp-num"><span class="i">—</span><span class="d"></span><span class="u">km</span></div>
+    <div class="mp-k mp-target">Visibility <span class="v">—</span></div>`;
+  const chartWrap = el('div', 'mp-chartwrap');
+  const chart = el('canvas');
+  chartWrap.appendChild(chart);
+  mc.appendChild(chartWrap);
+  const specs = el('div', 'mp-spec sk-specs');
+  mc.appendChild(specs);
+  const numI = mc.querySelector('.mp-num .i'), numD = mc.querySelector('.mp-num .d');
+  const visV = mc.querySelector('.mp-target .v');
+  mc.querySelector('.mp-x').onclick = () => { mc.classList.toggle('tall'); paintSpectrum(); };
+  host.appendChild(mc);
+
+  /* Rayleigh goes as λ⁻⁴, which is the whole reason for the colour of everything above you */
+  const rayAt = nm => RAY() * 0.012 * Math.pow(550 / nm, 4);
+  const mieAt = () => MIE() * 1.2 + TURB() * 0.004;
+  function paintSpectrum() {
+    const w = chartWrap.clientWidth || 280, h = mc.classList.contains('tall') ? 168 : 112;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    if (chart.width !== w * dpr || chart.height !== h * dpr) { chart.width = w * dpr; chart.height = h * dpr; }
+    chart.style.height = h + 'px';
+    const g = chart.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const L = 2, R = 32, T = 8, B = 16;
+    const top = Math.max(0.12, rayAt(380) + mieAt()) * 1.15;
+    const px = nm => L + (nm - 380) / 340 * (w - L - R);
+    const py = v => T + (1 - v / top) * (h - T - B);
+    g.font = '9px ui-sans-serif, system-ui';
+
+    [0.25, 0.5, 0.75, 1].forEach(f => {
+      g.strokeStyle = 'rgba(255,255,255,.06)';
+      g.setLineDash([2, 5]);
+      g.beginPath(); g.moveTo(px(380), py(top * f)); g.lineTo(px(720), py(top * f)); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = 'rgba(255,255,255,.26)';
+      g.textAlign = 'left';
+      g.fillText((top * f).toFixed(2), w - R + 5, py(top * f) + 3);
+    });
+
+    /* the visible spectrum, painted under the curve it belongs to */
+    for (let nm = 380; nm <= 720; nm += 2) {
+      const v = rayAt(nm) + mieAt();
+      g.fillStyle = css(spectrum(nm), 0.30);
+      g.fillRect(px(nm), py(v), 2.4, py(0) - py(v));
+    }
+    /* mie alone: flat, grey, and the reason haze washes colour out */
+    g.strokeStyle = 'rgba(255,255,255,.42)';
+    g.setLineDash([4, 3]);
+    g.beginPath(); g.moveTo(px(380), py(mieAt())); g.lineTo(px(720), py(mieAt())); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = 'rgba(255,255,255,.34)';
+    g.textAlign = 'left';
+    g.fillText('MIE', px(392), py(mieAt()) - 4);
+
+    /* total */
+    g.beginPath();
+    for (let nm = 380; nm <= 720; nm += 2) {
+      const v = rayAt(nm) + mieAt();
+      nm === 380 ? g.moveTo(px(nm), py(v)) : g.lineTo(px(nm), py(v));
+    }
+    g.strokeStyle = 'rgba(255,255,255,.9)';
+    g.lineWidth = 1.6;
+    g.stroke();
+    g.lineWidth = 1;
+
+    g.fillStyle = 'rgba(255,255,255,.26)';
+    [[400, '400'], [550, '550 nm'], [700, '700']].forEach(([nm, l], i) => {
+      g.textAlign = i === 0 ? 'left' : i === 2 ? 'right' : 'center';
+      g.fillText(l, px(nm), h - 3);
+    });
+  }
+
+  /* ── haze ──────────────────────────────────────────────────────────────────────────────── */
+  const hc = el('div', 'pcard mp-light sk-haze');
+  hc.innerHTML = `
+    <div class="mp-chead">
+      <div class="l"><span class="t">Haze</span><span class="s">Mie scattering · phase</span></div>
+    </div>`;
+  const hb = el('div', 'pbody');
+  hc.appendChild(hb);
+  hc.querySelector('.mp-chead .l').onclick = () => hc.classList.toggle('shut');
+
+  const phaseWrap = el('div', 'mp-meter sk-phase');
+  phaseWrap.innerHTML = '<div class="hd"><span class="k">phase function</span></div>';
+  const phaseCv = el('canvas');
+  phaseWrap.appendChild(phaseCv);
+  const gStep = stepper({
+    value: MIEG(), min: 0, max: 0.98, dec: 2, step: 0.01,
+    onInput: v => { setProp(node, 'mieG', v); paintAll(); },
+  });
+  phaseWrap.querySelector('.hd').appendChild(gStep);
+  hb.appendChild(phaseWrap);
+  const phaseFrom = e => {
+    const r = phaseCv.getBoundingClientRect();
+    const pad = 8, span = Math.max(1, r.width - pad * 2);
+    setProp(node, 'mieG', +Math.max(0, Math.min(0.98, (e.clientX - r.left - pad) / span * 0.98)).toFixed(2));
+    paintAll();
+  };
+  on(phaseCv, 'pointerdown', e => { phaseCv.setPointerCapture(e.pointerId); phaseCv.classList.add('drag'); phaseFrom(e); });
+  on(phaseCv, 'pointermove', e => { if (phaseCv.hasPointerCapture?.(e.pointerId)) phaseFrom(e); });
+  on(phaseCv, 'pointerup', e => { phaseCv.releasePointerCapture?.(e.pointerId); phaseCv.classList.remove('drag'); });
+
+  const mieT = tape({
+    label: 'Mie haze', min: 0, max: 1, value: MIE(), dec: 3, step: 0.005,
+    marks: [{ t: 0, l: 'VACUUM' }, { t: 0.22, l: 'CLEAR' }, { t: 1, l: 'FOG' }],
+    onInput: v => { setProp(node, 'mie', v); paintAll(); },
+  });
+  const turbT = tape({
+    label: 'Turbidity', min: 1, max: 20, value: TURB(), dec: 1, step: 0.1,
+    marks: [{ t: 0, l: 'ARCTIC 1' }, { t: 2.4 / 19, l: 'CLEAR 3.4' }, { t: 1, l: 'SMOG 20' }],
+    onInput: v => { setProp(node, 'turbidity', v); paintAll(); },
+  });
+  const rayT = tape({
+    label: 'Rayleigh', min: 0, max: 4, value: RAY(), dec: 2, step: 0.01,
+    marks: [{ t: 0, l: 'NONE' }, { t: 0.3375, l: 'EARTH 1.35' }, { t: 1, l: '4×' }],
+    onInput: v => { setProp(node, 'rayleigh', v); paintAll(); },
+  });
+  const ozT = tape({
+    label: 'Ozone', min: 0, max: 3, value: OZ(), dec: 2, step: 0.01,
+    marks: [{ t: 0, l: 'NONE' }, { t: 1 / 3, l: 'EARTH 1.0' }, { t: 1, l: '3×' }],
+    onInput: v => { setProp(node, 'ozone', v); paintAll(); },
+  });
+  hb.append(mieT, turbT, rayT, ozT);
+  host.appendChild(hc);
+
+  function paintPhase() {
+    const w = phaseWrap.clientWidth || 280, h = 62;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    if (phaseCv.width !== w * dpr || phaseCv.height !== h * dpr) { phaseCv.width = w * dpr; phaseCv.height = h * dpr; }
+    phaseCv.style.height = h + 'px';
+    const g = phaseCv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const pad = 8, span = w - pad * 2, T = 6, B = 13;
+    const gg = Math.min(0.95, MIEG());
+    const px = th => pad + th / 180 * span;
+    const top = Math.log10(hg(1, gg) + 1) * 1.1;
+    const py = v => T + (1 - Math.log10(v + 1) / top) * (h - T - B);
+
+    g.font = '8px ui-sans-serif, system-ui';
+    g.strokeStyle = 'rgba(255,255,255,.07)';
+    [45, 90, 135].forEach(th => { g.beginPath(); g.moveTo(px(th), T); g.lineTo(px(th), py(0)); g.stroke(); });
+    g.strokeStyle = 'rgba(255,255,255,.10)';
+    g.beginPath(); g.moveTo(pad, py(0) + .5); g.lineTo(pad + span, py(0) + .5); g.stroke();
+
+    g.beginPath();
+    g.moveTo(px(0), py(0));
+    for (let th = 0; th <= 180; th += 2) g.lineTo(px(th), py(hg(Math.cos(th * D2R), gg)));
+    g.lineTo(px(180), py(0));
+    g.closePath();
+    const fill = g.createLinearGradient(pad, 0, pad + span, 0);
+    fill.addColorStop(0, 'rgba(255,244,214,.35)');
+    fill.addColorStop(1, 'rgba(160,190,230,.10)');
+    g.fillStyle = fill;
+    g.fill();
+    g.beginPath();
+    for (let th = 0; th <= 180; th += 2) {
+      const y = py(hg(Math.cos(th * D2R), gg));
+      th === 0 ? g.moveTo(px(th), y) : g.lineTo(px(th), y);
+    }
+    g.strokeStyle = 'rgba(255,255,255,.85)';
+    g.lineWidth = 1.4;
+    g.stroke();
+    g.lineWidth = 1;
+
+    g.fillStyle = 'rgba(255,255,255,.30)';
+    [[0, 'FORWARD'], [90, '90°'], [180, 'BACK']].forEach(([th, l], i) => {
+      g.textAlign = i === 0 ? 'left' : i === 2 ? 'right' : 'center';
+      g.fillText(l, px(th), h - 2);
+    });
+  }
+
+  /* ── colour ────────────────────────────────────────────────────────────────────────────── */
+  const cc = el('div', 'pcard mp-light sk-colour');
+  cc.innerHTML = `
+    <div class="mp-chead">
+      <div class="l"><span class="t">Colour</span><span class="s">Zenith · horizon · bounce</span></div>
+    </div>`;
+  const cb = el('div', 'pbody');
+  cc.appendChild(cb);
+  cc.querySelector('.mp-chead .l').onclick = () => cc.classList.toggle('shut');
+
+  const gradWrap = el('div', 'mp-meter sk-grad');
+  gradWrap.innerHTML = '<div class="hd"><span class="k">horizon to zenith</span></div>';
+  const gradCv = el('canvas');
+  gradWrap.appendChild(gradCv);
+  cb.appendChild(gradWrap);
+
+  const zHead = el('div', 'mp-subhead', '<span class="k">zenith</span>');
+  const zChip = colorChip(P.zenith || '#2f6dd0', v => { setProp(node, 'zenith', v); paintAll(); });
+  zHead.appendChild(zChip);
+  const hHead = el('div', 'mp-subhead', '<span class="k">horizon</span>');
+  const hChip = colorChip(P.horizon || '#9fc4e8', v => { setProp(node, 'horizon', v); paintAll(); });
+  hHead.appendChild(hChip);
+  const gHead = el('div', 'mp-subhead', '<span class="k">ground bounce</span>');
+  const gChip = colorChip(P.ground || '#14181d', v => { setProp(node, 'ground', v); paintAll(); });
+  gHead.appendChild(gChip);
+  cb.append(zHead, hHead, gHead);
+
+  const skyT = tape({
+    label: 'Sky light', min: 0, max: 4, value: P.intensity ?? 1, dec: 2, unit: '×', step: 0.05,
+    marks: [{ t: 0, l: 'DARK' }, { t: 0.25, l: 'REAL 1×' }, { t: 1, l: '4×' }],
+    onInput: v => { setProp(node, 'intensity', v); paintAll(); },
+  });
+  cb.appendChild(skyT);
+  host.appendChild(cc);
+
+  function paintGrad() {
+    const w = gradWrap.clientWidth || 280, h = 46;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    if (gradCv.width !== w * dpr || gradCv.height !== h * dpr) { gradCv.width = w * dpr; gradCv.height = h * dpr; }
+    gradCv.style.height = h + 'px';
+    const g = gradCv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const pad = 8, span = w - pad * 2, y = 6, bh = 20;
+    for (let x = 0; x < span; x++) {
+      g.fillStyle = css(sample(x / span * 90, 60));
+      g.fillRect(pad + x, y, 1.02, bh);
+    }
+    g.strokeStyle = 'rgba(0,0,0,.35)';
+    g.strokeRect(pad + .5, y + .5, span - 1, bh - 1);
+    g.font = '8px ui-sans-serif, system-ui';
+    [[0, '0° HORIZON'], [30, '30'], [60, '60'], [90, '90° ZENITH']].forEach(([e, l], i) => {
+      const x = pad + e / 90 * span;
+      g.strokeStyle = 'rgba(255,255,255,.18)';
+      g.beginPath(); g.moveTo(x, y + bh + 1); g.lineTo(x, y + bh + 5); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.30)';
+      g.textAlign = i === 0 ? 'left' : i === 3 ? 'right' : 'center';
+      g.fillText(l, x, h - 3);
+    });
+  }
+
+  /* ── rendering ─────────────────────────────────────────────────────────────────────────── */
+  const rc = el('div', 'pcard mp-light sk-render');
+  rc.innerHTML = `
+    <div class="mp-chead">
+      <div class="l"><span class="t">Rendering</span><span class="s">What the sky does to the scene</span></div>
+    </div>`;
+  const rb = el('div', 'pbody');
+  rc.appendChild(rb);
+  rc.querySelector('.mp-chead .l').onclick = () => rc.classList.toggle('shut');
+  const rTags = el('div', 'mp-tags');
+  const aerial = pillToggle('AERIAL PERSPECTIVE', P.aerial !== false, v => { setProp(node, 'aerial', v); paintAll(); });
+  const lightsScene = pillToggle('SKY LIGHTS SCENE', P.lightsScene !== false, v => { setProp(node, 'lightsScene', v); paintAll(); });
+  rTags.append(aerial, lightsScene);
+  rb.appendChild(rTags);
+  const rNote = el('div', 'mp-note', '');
+  rb.appendChild(rNote);
+  host.appendChild(rc);
+
+  /* ── keeping every surface honest ──────────────────────────────────────────────────────── */
+  function paintAll() {
+    paintHero(); paintCap(); paintSpectrum(); paintPhase(); paintGrad();
+    const vis = visibilityKm(TURB(), MIE());
+    const beta = extinction(TURB(), MIE());
+
+    pRay.innerHTML = `${RAY().toFixed(2)}`;
+    pTurb.innerHTML = `${TURB().toFixed(1)}`;
+    pMie.innerHTML = `${MIE().toFixed(3)}`;
+    pOz.innerHTML = `${OZ().toFixed(2)}`;
+
+    sVis.classList.toggle('down', vis < 5);
+    sVis.querySelector('.i').innerHTML = vis < 5 ? ic('alert', { size: 12 }) : ic('eye', { size: 12 });
+    sVis.querySelector('.n').innerHTML = `${vis.toFixed(vis < 10 ? 1 : 0)}<em>km</em>`;
+    sLight.querySelector('.n').innerHTML = `${(P.intensity ?? 1).toFixed(2)}<em>×</em>`;
+
+    numI.textContent = Math.floor(vis);
+    numD.textContent = `.${Math.round(vis * 10) % 10}`;
+    visV.textContent = `${airName().toLowerCase()} · β ${beta.toFixed(3)} per km`;
+
+    specs.innerHTML = [
+      ['rayleigh at 550', `${rayAt(550).toFixed(3)}`],
+      ['mie, flat', `${mieAt().toFixed(3)}`],
+      ['blue vs red', `${(rayAt(450) / rayAt(650)).toFixed(1)}×`],
+      ['forward g', `${MIEG().toFixed(2)}`],
+    ].map(([k, v]) => `<div><span class="k">${k}</span><b>${v}</b></div>`).join('');
+
+    rNote.textContent = `${P.aerial === false ? 'Distance is not tinted by the air.' : 'Distant geometry picks up the colour of the air between you and it.'} ${P.lightsScene === false ? 'The sky is a backdrop only.' : 'The sky itself lights the scene from every direction.'}`;
+
+    mieT._set(MIE());
+    turbT._set(TURB());
+    rayT._set(RAY());
+    ozT._set(OZ());
+    skyT._set(P.intensity ?? 1);
+    gStep._set(MIEG());
+    aerial._set(P.aerial !== false);
+    lightsScene._set(P.lightsScene !== false);
+    zChip._set && zChip._set(P.zenith || '#2f6dd0');
+    hChip._set && hChip._set(P.horizon || '#9fc4e8');
+    gChip._set && gChip._set(P.ground || '#14181d');
+  }
+
+  syncers.push(paintAll);
+  register && register(() => syncers.forEach(f => f()));
+
+  const ro = new ResizeObserver(() => {
+    paintHero(); paintSpectrum(); paintPhase(); paintGrad();
+    [mieT, turbT, rayT, ozT, skyT].forEach(t => t._paint && t._paint());
+  });
+  ro.observe(host);
+  host._dispose = () => ro.disconnect();
+
+  requestAnimationFrame(paintAll);
+  paintAll();
+  return host;
+}
+
+return { skyPanel };
+})();
+
 /* ============================================================ STATE ============================================================ */
 const S={}; const D2R=Math.PI/180;
 const TRK=(k,l,min,max,step,d,unit,x={})=>({k,l,t:'trk',min,max,step,d,unit,...x});
@@ -710,7 +1782,7 @@ const ENTITIES={
     sections:[{title:'Position',icon:'orbit',props:[ORB('sun_az','sun_time','Solar Orbit',{sun:true,hint:'Drag the sun freely (swings azimuth + time) · drag the path for time only · ring = azimuth'}),GLOBE('sun_lat','Latitude',-26,{hint:'Drag the globe'})]},
       {title:'Time',icon:'orbit',props:[TOG('sun_play','Animate (Space)',false),SEG('sun_speed','Speed',['×1','×8','×30','×100'],'×8')]},
       {title:'Light',icon:'bulb',props:[KELVIN('sun_temp','Colour Temperature',5800),GAUGE('sun_intensity','Intensity',0,60,0.1,22,'×'),GAUGE('sun_disc','Disc Radiance',0,40,0.1,12,'×'),CURVE('sun_ang','Angular Diameter',0.1,10,0.01,0.53,'°',(x,S)=>x,{log:true,curve:'disc'}),TRK('sun_soft','Disc Softness',0,1,0.01,0.25,'')]}]},
-  sky:{name:'Sky',kind:'Sky Dome',color:'#67e8f9',icon:'sky',preview:'sky',hero:{kind:'sky'},
+  sky:{name:'Sky',kind:'Sky Atmosphere',color:'#67e8f9',icon:'sky',preview:'none',external:true,hero:{kind:'sky'},
     sections:[{title:'Appearance',icon:'palette',props:[COL('sky_tint','Sky Tint','#ffffff'),GAUGE('sky_bright','Sky Brightness',0,3,0.01,1,'×')]},
       {title:'Ground',icon:'ground',props:[COL('sky_ground','Ground Albedo','#2b2924'),GAUGE('sky_groundBright','Ground Brightness',0,3,0.01,1,'×')]}]},
   stars:{name:'Stars',kind:'Star Field',color:'#c4b5fd',icon:'stars',preview:'stars',hero:{label:'Naked-eye limit',unit:'mag',dec:1,fn:()=>limitMag()},
@@ -731,7 +1803,7 @@ const ORDER=['atmosphere','sun','sky','moons'];
 ENTITIES.plane={name:'Ground Plane',kind:'Static Mesh',color:'#e2e8f0',icon:'plane',preview:'plane',hero:{label:'Extent',unit:'m',dec:0,fn:()=>S.pl_size*2},
   sections:[{title:'Geometry',icon:'grid',props:[TRK('pl_size','Checker Extent',10,5000,1,600,'m',{log:true,hint:'Plane itself is infinite'}),TRK('pl_y','Height',-50,50,0.1,0,'m')]},
     {title:'Checker Material',icon:'palette',props:[CURVE('pl_cell','Cell Size',0.25,20,0.05,1,'m',null,{log:true,curve:'checker'}),COL('pl_a','Tile A','#f2f2f2'),COL('pl_b','Tile B','#c9ccd2'),TOG('pl_grid','Grid & axis lines',true,'Bold line every 10 cells')]}]};
-function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
+function defaults(){ for(const id in ENTITIES){ S['vis_'+id]=true; for(const sec of ENTITIES[id].sections) for(const p of sec.props) if(p.d!==undefined) S[p.k]=p.d; } S.sun_time=6.4; S.sun_az=0; S.cam_yaw=35; S.cam_pitch=-4; S.cam_x=0; S.cam_z=0; S.atm_rayleigh=1; S.atm_mie=1; S.pp_halo=.55; S.pp_streak=.8; S.atm_planetR=6371; S.atm_height=100; S.st_rot=40; S.st_tilt=-62; S.skyP={rayleigh:S.atm_rayleigh*1.35,mie:.22,mieG:S.atm_mieG,turbidity:3.4,ozone:S.atm_ozone,zenith:'#2f6dd0',horizon:'#9fc4e8',ground:S.sky_ground,intensity:1,aerial:true,lightsScene:true}; S.presence={}; for(const id of ['atmosphere','sun','sky','stars','plane','camera','post']) S.presence[id]={visible:true,shadows:id==='sun'||id==='plane',gi:id==='sun'||id==='plane'||id==='sky',collide:id==='plane',flare:true,fog:true,reflect:false,scatter:true,ozone:true,twinkle:true,milky:true,color:true,fly:true,smooth:true,bloom:true,grain:S.pp_grain>0,tex:true}; S.st_glow=.8; S.st_twinkle=.5; S.moons=[makeMoon('luna',0)]; S.play=false; S.cam_pitch=-4; S.cam_yaw=35; S.speed=0.15; }
 defaults();
 // path-aware get/set  (keys like "moon.0.size")
 const getV=k=>k.startsWith('moon.')?S.moons[+k.split('.')[1]][k.split('.')[2]]:S[k];
@@ -1107,7 +2179,7 @@ function refreshAll(k){ if(k==='atm_hr'||k==='cam_height'){ const el=insp.queryS
 // interactions
 const insp=document.getElementById('insp'); let drag=null;
 insp.addEventListener('pointerdown',e=>{
-  if(e.target.closest('input')) return;
+  if(e.target.closest('input')||e.target.closest('.skypanel')) return;
   const bar=e.target.closest('.trk-bar'); const dial=e.target.closest('.dial-svg'); const sp=e.target.closest('.preview[data-scrub]');
   const gw=e.target.closest('.orb-svg,.globe-svg,.curve-svg,.gauge-svg,.kelvin-bar,.pad-svg,.orbit2-svg,.phase-svg,.hist-svg,.planet-svg,.skymap-svg,.lum-svg');
   const tgt=bar||dial||sp||gw; if(!tgt) return; const el=e.target.closest('.ctl,.preview'); const k=el.dataset.k;
@@ -1152,12 +2224,13 @@ function moveDrag(e){ const {kind,p,k,rect}=drag;
     else if(p.cam){ let yaw=az>180?az-360:az; setV(p.k,Math.round(yaw*2)/2); setV(p.k2,Math.max(-89,Math.min(89,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); }
     else { setV(p.k,Math.round(az)); setV(p.k2,Math.max(-20,Math.min(90,Math.round(el*2)/2))); refreshAll(p.k); refreshAll(p.k2); onChanged(p.k); } } }
 const snap=(v,p)=>{ if(!p) return v; v=Math.round(v/p.step)*p.step; return Math.max(p.min,Math.min(p.max,+v.toFixed(6))); };
-insp.addEventListener('change',e=>{ const t=e.target; if(t.dataset.val){ const k=t.dataset.val,p=propOf(k); let v=parseFloat(t.value); if(isNaN(v)||!p){ refreshCtl(k); return; } commit(k,Math.max(p.min,Math.min(p.max,v))); t.blur(); }
+insp.addEventListener('change',e=>{ if(e.target.closest('.skypanel')) return; const t=e.target; if(t.dataset.val){ const k=t.dataset.val,p=propOf(k); let v=parseFloat(t.value); if(isNaN(v)||!p){ refreshCtl(k); return; } commit(k,Math.max(p.min,Math.min(p.max,v))); t.blur(); }
   if(t.type==='color'){ const k=t.closest('.ctl').dataset.k; setV(k,t.value); const lab=t.closest('.colorbtn'); lab.style.setProperty('--c',t.value); lab.querySelector('.sw2').style.background=t.value; lab.querySelector('code').textContent=t.value; onChanged(k); } });
-insp.addEventListener('input',e=>{ if(e.target.type==='color'){ const k=e.target.closest('.ctl').dataset.k; setV(k,e.target.value); const lab=e.target.closest('.colorbtn'); lab.style.setProperty('--c',e.target.value); lab.querySelector('.sw2').style.background=e.target.value; lab.querySelector('code').textContent=e.target.value; onChanged(k); } });
+insp.addEventListener('input',e=>{ if(e.target.closest('.skypanel')) return; if(e.target.type==='color'){ const k=e.target.closest('.ctl').dataset.k; setV(k,e.target.value); const lab=e.target.closest('.colorbtn'); lab.style.setProperty('--c',e.target.value); lab.querySelector('.sw2').style.background=e.target.value; lab.querySelector('code').textContent=e.target.value; onChanged(k); } });
 insp.addEventListener('keydown',e=>{ if(e.target.classList.contains('val')&&e.key==='Enter') e.target.dispatchEvent(new Event('change',{bubbles:true})); });
 insp.addEventListener('wheel',e=>{ const el=e.target.closest('.ctl[data-t="trk"],.ctl[data-t="dial"],.ctl[data-t="gauge"],.ctl[data-t="curve"],.ctl[data-t="globe"],.ctl[data-t="kelvin"],.ctl[data-t="hist"],.ctl[data-t="phase"]'); if(!el) return; e.preventDefault(); const k=el.dataset.k,p=widgetProp(el)||propOf(k); commit(k,unfrac(p,frac(p,getV(k))-Math.sign(e.deltaY)*(e.shiftKey?.002:.01))); },{passive:false});
 insp.addEventListener('click',e=>{
+  if(e.target.closest('.skypanel')) return; // ported sky panel handles its own events
   const pc=e.target.closest('[data-pres]'); if(pc){ togglePresence(selected,pc.dataset.pres); return; }
   const sw=e.target.closest('.sw'); if(sw){ const k=sw.closest('.ctl').dataset.k; commit(k,!getV(k)); return; }
   const st=e.target.closest('.step button'); if(st){ const k=st.closest('.ctl').dataset.k,p=propOf(k); commit(k,Math.max(p.min,Math.min(p.max,getV(k)+ +st.dataset.d))); return; }
@@ -1219,6 +2292,10 @@ function presenceHTML(id){ const pr=presenceOf(id); if(!pr) return '';
   const cells=presSetOf(id); const lab=id==='post'?'Effects · tap to enable / disable':id==='camera'?'Controls · tap to enable / disable':'Presence · tap a cell to seat / lift'; const on=id==='post'||id==='camera'?'ON':'SEATED', off=id==='post'||id==='camera'?'OFF':'LIFTED';
   return `<div class="presence"><div class="p-label">${lab}</div><div class="p-grid">${cells.map(([k,l])=>`<button class="p-cell ${pr[k]?'on':''}" data-pres="${k}"><span class="p-ico">${(id==='post'||id==='camera')?I({bloom:'flare',flare:'flare',grain:'grid',visible:'fx',collide:'collide',fly:'camera',smooth:'wave'}[k]||'check',14):(pr[k]?I('check',14):I('warn',14))}</span><span class="p-name">${l}</span><span class="p-state">${pr[k]?on:off}</span></button>`).join('')}</div></div>`; }
 function togglePresence(id,k){ const pr=presenceOf(id); if(!pr) return; if(k==='visible'){ if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible=!S.moons[+id.slice(5)].visible; else S['vis_'+id]=!visOf(id); } else pr[k]=!pr[k]; renderInspector(); renderTree(); }
+let skyPanelEl=null;
+function applySkyP(){ const P=S.skyP; S.atm_rayleigh=Math.max(0,P.rayleigh/1.35); S.atm_mie=Math.max(0,P.mie/.22)*(0.6+P.turbidity/3.4*0.4); S.atm_mieG=P.mieG; S.atm_ozone=P.ozone; S.sky_ground=P.ground; S.sky_bright=P.intensity; S.sky_tint=P.zenith;
+  const pr=presenceOf('sky'); if(pr){ pr.fog=P.aerial!==false; pr.gi=P.lightsScene!==false; } refreshMeta(); }
+function mountSkyPanel(host){ const node={props:S.skyP}; skyPanelEl=SKYPANEL.skyPanel(node,{compact:false,setProp:(n,k,v)=>{ n.props[k]=v; applySkyP(); },register:fn=>{ skyPanelEl&&(skyPanelEl._sync=fn); },sunAlt:()=>sunDir().el/D2R}); host.appendChild(skyPanelEl); }
 function renderInspector(){
   const e=getEntity(selected); if(!e){ insp.innerHTML='<div class="empty">Select something in the outliner</div>'; return; }
   document.getElementById('inspTitle').innerHTML=`<span style="color:${e.color}">${I(e.icon,18)}</span>${e.name}`; document.getElementById('inspKind').textContent=e.kind; insp.style.setProperty('--acc',e.color);
@@ -1235,6 +2312,7 @@ function renderInspector(){
     ${S.moons.length?`<div class="hint" style="grid-column:span 2">In orbit: ${S.moons.map((m,i)=>`<b style="color:${m.tint};font-weight:400;cursor:pointer" data-goto="moon#${i}">${m.name}</b>`).join(' · ')}</div>`:''}</div></div>`:'';
   const moonExtra=e.preview==='moon'?(()=>{ const m=S.moons[e.moonIndex]; return `<div class="sec"><div class="sec-head"><span class="sico">${I('grid',16)}</span><span class="t">Preset<span>atlas</span></span><span class="badge">${m.preset}</span></div><div class="sec-body"><div class="atlas" style="grid-template-columns:repeat(6,1fr)">${MOON_ATLAS.map(a=>`<div class="card ${a.id===m.preset?'on':''}" data-preset="${a.id}" style="padding:8px 4px"><canvas data-atlas="${a.id}" width="72" height="72" style="width:36px;height:36px"></canvas><small>${a.name}</small></div>`).join('')}</div>
     </div></div>`; })():'';
+  if(e.external&&selected==='sky'){ insp.innerHTML=`<div class="ent-enter">${presenceHTML('sky')}<div id="skyHost"></div></div>`; mountSkyPanel(document.getElementById('skyHost')); return; }
   insp.innerHTML=`<div class="ent-enter">
     ${e.hero.kind?`<div class="hero state" style="--acc:${e.color}" id="heroState">${stateHero(e.hero.kind)}${previewHTML}</div>`:`<div class="hero" style="--acc:${e.color}"><div class="label-bar">${e.hero.label}<em>live</em></div>
       <div class="big"><span class="v" id="heroV">${bigHTML(e.hero.fn(),e.hero.dec,e.hero.signed)}</span><span class="u">${e.hero.unit}</span><span class="trend" id="heroTrend">${I('flat',18)}</span></div>
@@ -1324,6 +2402,7 @@ function updatePreview(){ const e=getEntity(selected); if(!e) return;
 
 // hero live refresh
 const hist={}; setInterval(()=>{ const e=getEntity(selected); if(!e) return; const v=e.hero.fn?e.hero.fn():0; const h=hist[selected]=(hist[selected]||[]); h.push(v); if(h.length>10) h.shift(); const d=v-h[0];
+  if(selected==='sky'&&skyPanelEl&&skyPanelEl._sync&&S.play){ skyPanelEl._sync(); }
   const hs=document.getElementById('heroState'); if(hs&&e.hero.kind){ const pv=hs.querySelector('.preview'); const html=stateHero(e.hero.kind); const tmp=document.createElement('div'); tmp.innerHTML=html; [...hs.querySelectorAll(':scope > :not(.preview)')].forEach(n=>n.remove()); hs.prepend(...tmp.childNodes); }
   const hv=document.getElementById('heroV'); if(!hv) return; hv.innerHTML=bigHTML(v,e.hero.dec,e.hero.signed); const dl=document.getElementById('heroDelta'); dl.textContent=`${d>=0?'+':'−'}${fmt(Math.abs(d),e.hero.dec)} ${e.hero.unit} · 4 s`; dl.className='delta '+(Math.abs(d)<1e-4?'':d>0?'pos':'neg'); document.getElementById('heroTrend').innerHTML=I(Math.abs(d)<1e-4?'flat':d>0?'up':'down',18);
   if(S.play&&e.preview!=='sunpath'){ insp.querySelectorAll('.ctl[data-t="orb"],.ctl[data-t="pad"]').forEach(el=>{ const p=widgetProp(el); if(p) refreshAll(p.k); }); }
@@ -1381,7 +2460,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   f1('uPlaneOn',S.vis_plane?1:0); f1('uPlaneSize',S.pl_size); f1('uPlaneCell',S.pl_cell); f1('uPlaneY',S.pl_y); f1('uPlaneGrid',S.pl_grid?1:0); f3('uPlaneA',hex2rgb(S.pl_a)); f3('uPlaneB',hex2rgb(S.pl_b));
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
-  f3('uSkyTint',hex2rgb(S.sky_tint)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
+  f3('uSkyTint',hex2rgb(S.sky_tint).map(v=>1-(1-v)*.35)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
   { const pp_=S.presence.plane||{}; gl.uniform4f(u('uPresence'),pp_.shadows?1:0,pp_.gi?1:0,pp_.collide?1:0,0); } { const Q=STAR_Q[S.st_quality]||STAR_Q.High; f1('uStarLayers',Q.layers); f1('uStarAA',Q.aa); } f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',stf.twinkle===false?0:S.st_twinkle); f1('uStarColor',stf.color===false?0:S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',stf.milky===false?0:S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
   const vm=S.vis_moons?S.moons.filter(m=>m.visible):[]; gl.uniform1i(u('uMoonCount'),vm.length); const md=[],t1=[],mp=[],ms=[];
   for(let i=0;i<4;i++){ const m=vm[i]; gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,m?getTex(m.tex):whiteTex); gl.uniform1i(u('uMoonTex'+i),i);
