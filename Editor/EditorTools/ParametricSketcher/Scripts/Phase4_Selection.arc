@@ -34,7 +34,7 @@ echo -- duplicate and mirror
 clear
 cylinder (2,0,0) 0.5 1 ; matcap Cylinder gold ; select Cylinder
 duplicate (0,3,0)
-select Cylinder ; mirror x --copy
+select Cylinder ; mirror selected --across=yz --copy
 key shift+d
 view iso ; view fit
 render Proof_04d_DuplicateMirror
