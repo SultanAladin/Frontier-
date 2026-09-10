@@ -9,7 +9,7 @@ function mkEl(id){return {id,style:{setProperty(){}},classList:{add(){},remove()
 global.document={querySelector:s=>els[s]||(els[s]=mkEl(s)),querySelectorAll:()=>[],createElement:()=>mkEl(),getElementById:()=>null};
 global.ResizeObserver=class{observe(){}};global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};global.innerWidth=1600;global.innerHeight=900;
 global.addEventListener=()=>{};global.location={search:process.argv.includes('--demo')?'?demo':''};global.URLSearchParams=class{constructor(q){this.q=q}has(k){return this.q.includes(k)}};global.devicePixelRatio=1;global.performance={now:()=>0};global.requestAnimationFrame=()=>{};
-const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines};')(mod);const M=mod.exports;
+const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool};')(mod);const M=mod.exports;
 let n=0;const ok=(c,m)=>{n++;if(!c){console.error('FAIL',m);process.exit(1);}};
 ok(M.doc.figures.length===0,'starts empty');
 M.doc.figures.forEach(f=>{M.build(f);const ms=M.measure(f);ok(isFinite(ms.v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
@@ -22,14 +22,15 @@ let sk=M.doc.figures.find(f=>f.kind==='sketch');ok(sk&&sk.planeId===pl.id,'sketc
 const r=M.byId(sk.children[0]);ok(r.ctype==='poly'&&r.params.closed&&r.params.pts.length===4,'rect is closed 4-gon');
 // 3. circle + polygon + polyline(3 pts + finish) + line + arc + ellipse + slot + point
 M.startOp('circle');M.toolClick(450,350);M.toolClick(480,350);
-M.startOp('polygon');M.toolClick(300,300);M.toolClick(330,300);
+M.startOp('polygon');M.toolClick(300,300);M.toolClick(330,300);M.toolClick(335,305);
 M.startOp('polyline');M.toolClick(200,200);M.toolClick(260,200);M.toolClick(260,260);M.finishTool();
 M.startOp('line');M.toolClick(100,100);M.toolClick(150,120);
 M.startOp('arc');M.toolClick(600,500);M.toolClick(640,500);M.toolClick(600,540);
 M.startOp('ellipse');M.toolClick(700,300);M.toolClick(760,300);M.toolClick(700,330);
 M.startOp('slot');M.toolClick(100,500);M.toolClick(200,500);
+M.startOp('pslot');M.toolClick(300,450);M.toolClick(380,410);M.toolClick(460,450);M.finishTool();const ps=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(ps.ctype==='poly'&&ps.params.pts.length>30&&ps.params.spine.length===3,'polyline slot outline built from 3 centres');
 M.startOp('spoint');M.toolClick(50,50);
-sk=M.byId(sk.id);ok(sk.children.length===9,'9 curves in sketch, got '+sk.children.length);
+sk=M.byId(sk.id);ok(sk.children.length===10,'10 curves in sketch, got '+sk.children.length);
 sk.children.map(M.byId).forEach(c=>{M.build(c);ok(isFinite(M.measure(c).v),'measure '+c.name);});
 const prof=M.sketchProfile(sk);ok(prof.outer.length>=4,'profile has outer loop');
 // 4. XZ workplane with tilt; a circle drawn there maps off the ground
@@ -60,14 +61,17 @@ M.setGzMode('translate');const pg=[...bx.pos];M.modalStart('g');M.gz.modal.axis=
 const pr=[...bx.rot3];M.modalStart('r');ok(M.gz.mode==='rotate','R switches gizmo to rotate mode');M.gz.modal.axis='x';M.modalApply(300,300,false);ok(bx.rot3.some((v,i)=>Math.abs(v-pr[i])>1e-6),'modal R changes rotation');M.modalCancel();ok(bx.rot3.every((v,i)=>Math.abs(v-pr[i])<1e-9),'modal cancel restores rotation');
 M.doc.sel.clear();M.draw();ok(M.gz.handles.length===0,'no handles without selection');
 // 7. live dimensions while drawing don't throw for every shape
-M.setView('top');M.resize();['circle','rect','line','arc','ellipse','polygon','slot'].forEach(id=>{M.startOp(id);M.toolClick(400,300);M.toolClick(460,300);M.draw();ok(true,'live dims '+id);M.finishTool();});
+M.setView('top');M.resize();['circle','rect','line','arc','ellipse','polygon','slot','polyline','pslot'].forEach(id=>{M.startOp(id);M.toolClick(400,300);M.toolClick(460,300);M.toolClick(470,360);M.draw();ok(true,'live dims '+id);M.finishTool();});
+// polygon sides via wheel-like adjust before confirm
+M.startOp('polygon');M.toolClick(400,300);M.toolClick(440,300);M.getTool().vals.sides=9;M.toolClick(445,305);const pg9=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(pg9.params.pts.length===9,'polygon confirm step keeps adjusted side count (9)');
 // 8. curves move individually (not the whole sketch); pick selects the curve; fill loops; resolution multiplier
 M.setView('top');M.resize();M.doc.figures.filter(f=>f.kind==='curve'||f.kind==='body').forEach(f=>f.visible=false);M.active_.plane=M.doc.figures.find(f=>f.kind==='plane'&&f.axis==='XY').id;M.active_.sketch=null;M.startOp('circle');M.toolClick(300,300);M.toolClick(340,300);M.startOp('circle');M.toolClick(520,430);M.toolClick(540,430);
 const cs=M.doc.figures.filter(f=>f.kind==='curve'&&f.ctype==='circle'&&f.visible);ok(cs.length===2,'two fresh circles, got '+cs.length);const [cA,cB]=cs;
 M.doc.sel.clear();M.pick(300,300,false);ok(M.doc.sel.has(cA.id)&&M.doc.sel.size===1,'clicking inside a filled circle selects that curve, not the sketch');
-M.finishTool();M.doc.sel=new Set([cA.id]);M.setGzMode('rotate');ok(M.gz.handles.filter(h=>h.type==='rotate').length===2&&M.gz.handles.every(h=>h.axis==='z'||h.axis==='view'),'curve rotate: normal + view rings only, got '+M.gz.handles.map(h=>h.axis));M.setGzMode('translate');ok(M.gzTarget()===cA,'gizmo targets the curve');const hcx=M.gz.handles.find(h=>h.type==='translate'&&h.axis==='x');ok(!!hcx&&!M.gz.handles.some(h=>h.axis==='z'&&h.type==='translate'),'curve gizmo: in-plane cones only');
+M.finishTool();M.doc.sel=new Set([cA.id]);M.setGzMode('rotate');ok(M.gz.handles.filter(h=>h.type==='rotate').length===2&&M.gz.handles.every(h=>h.axis==='z'||h.axis==='view'),'curve rotate: normal + view rings only, got '+M.gz.handles.map(h=>h.axis));M.setGzMode('translate');ok(M.gzTarget()===cA,'gizmo targets the curve');const hcx=M.gz.handles.find(h=>h.type==='translate'&&h.axis==='x');ok(!!hcx&&M.gz.handles.some(h=>h.axis==='z'&&h.type==='translate')&&M.gz.handles.filter(h=>h.type==='plane').length===1,'curve gizmo: X/Y/Z cones + one plane quad');
 const pa0=[...cA.pos],pb0=[...cB.pos];M.gzBegin(hcx,hcx.sx,hcx.sy);M.gzUpdate(hcx.sx+40,hcx.sy,false);M.gzEnd();
 ok(Math.abs(cA.pos[0]-pa0[0])>1&&Math.abs(cA.pos[1]-pa0[1])<1e-9,'curve moved along its plane u axis');ok(cB.pos[0]===pb0[0]&&cB.pos[1]===pb0[1],'sibling curve did not move');
+const hz=M.gz.handles.find(h=>h.type==='translate'&&h.axis==='z');const z0=cA.pos[2];M.gzBegin(hz,hz.sx,hz.sy);M.gzSetValue(7);M.gzEnd();ok(Math.abs(cA.pos[2]-z0-7)<1e-9&&Math.abs(M.xform(cA,[0,0,0])[2]-7)<1e-9,'curve moves along plane normal (Z) by 7');cA.pos[2]=0;
 const wc=M.xform(cA,[cA.params.cx,cA.params.cy,0]);ok(Math.abs(wc[0]-(cA.params.cx+cA.pos[0]))<1e-6,'xform applies curve-local offset');
 const n1=M.curveLines(cA).lines.length;M.doc.curveRes=2;const n2=M.curveLines(cA).lines.length;M.doc.curveRes=1;ok(n2===2*n1,'curve resolution multiplier doubles segments');
 cA.segs=128;ok(M.curveLines(cA).lines.length===128,'per-curve segments override');delete cA.segs;
