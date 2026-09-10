@@ -7,7 +7,7 @@ The two repositories share **no git history**, so this is a tree transplant, not
 1. Move the existing folder into the new layout (history-preserving):
    `git mv ParametricSketcher Editor/EditorTools/ParametricSketcher`
 2. Replace its contents with the newer tree. Either
-   - `git apply --3way Scratchpad/Handoff/SolidArc-Phase1-20-for-streamlinkinbox.patch`, or, simpler,
+   - `git diff` between the two trees is ~1 M lines (binary proofs) — do not patch; instead
    - `rm -rf Editor/EditorTools/ParametricSketcher && git archive --remote=<SultanAladin clone> arena/01a08c57-frontier Editor/EditorTools/ParametricSketcher | tar x`
 3. Keep the two files that only exist on your side if still wanted:
    `Presentation/Shaders/GridProjection.slang`, `Proofs/Proof_02a_Grid.png` (superseded by `LatticeProjection.slang` — "Grid" is a banned word, see CLAUDE.md §3.1).
