@@ -966,21 +966,6 @@ float vfDensity(vec3 p){ vec3 q=(p-vfCenter())/vfHalf(); float mask=vfShapeMask(
   float grav=1.-.35*clamp(q.y*.5+.5,0.,1.);                                      // denser at the bottom like a real cold pool
   return uVFDensity*mask*het*grav; }
 vec2 vfBox(vec3 ro,vec3 rd){ vec3 c=vfCenter(), sz=vfHalf(); vec3 m=1./(rd+1e-6*sign(rd)+1e-9); vec3 n=m*(ro-c); vec3 k=abs(m)*sz; vec3 t1=-n-k,t2=-n+k; float tn=max(max(t1.x,t1.y),t1.z),tf=min(min(t2.x,t2.y),t2.z); return (tn>tf||tf<0.)?vec2(-1.):vec2(max(tn,0.),tf); }
-float vfShadow(vec3 p){ if(uVFSelf<.5) return 1.; float od=0.; vec3 hf=vfHalf(); float st=max(hf.x,max(hf.y,hf.z))*.5; for(int i=1;i<=4;i++){ od+=vfDensity(p+uSunDir*st*float(i)*.5)*st*.5; } return exp(-od*(1.+uVFAbsorb)); }
-vec3 applyVFog(vec3 col,vec3 ro,vec3 rd,float tmax,vec3 sky,vec3 hzGlow,vec3 trans){ if(uVFOn<.5) return col;
-  vec2 b=vfBox(ro,rd); if(b.x<0.) return col; float t0=b.x, t1=min(b.y,tmax); if(t1<=t0) return col;
-  float N=uVFSteps; float dt=(t1-t0)/N; float jit=hash13(vec3(gl_FragCoord.xy,fract(uTime*7.))); float t=t0+dt*jit;
-  float cosS=clamp(dot(rd,uSunDir),-1.,1.); float g=uVFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
-  vec3 sunL=trans*uSunColor*uSunIntensity*.02*max(uSunDir.y+.05,0.)*hg*4.*3.14159; vec3 amb=(sky*.75+hzGlow*.15);
-  vec3 acc=vec3(0.); float T=1.; vec3 sigS=uVFAlbedo; float sigA=uVFAbsorb;
-  for(int i=0;i<48;i++){ if(float(i)>=N||T<.01) break; vec3 p=ro+rd*t; float rho=vfDensity(p);
-    if(rho>1e-4){ vec3 Li=amb+sunL*vfShadow(p);
-      { vec3 L=uPLPos-p; float d=length(L); L/=max(d,1e-3); float ph=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*dot(rd,L),1.5)); Li+=uPLOn*uPLCol*uPLInt/pow(max(d,1.),uPLDecay)*(1.-smoothstep(uPLReach*.7,uPLReach,d))*ph*4.*3.14159*.02; }
-      { vec3 L=uSLPos-p; float d=length(L); L/=max(d,1e-3); float ct=dot(-L,uSLDir); float cone=smoothstep(uSLCos,mix(uSLCos,1.,uSLSoft*.9)+1e-4,ct); float ph=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*dot(rd,L),1.5)); Li+=uSLOn*uSLCol*(uSLInt/max(d*d,1.))*cone*ph*4.*3.14159*.02; }
-      float sigT=rho*(1.+sigA); float Ts=exp(-sigT*dt); vec3 S=Li*sigS*rho;               // scattering source
-      acc+=T*(S-S*Ts)/max(sigT,1e-5); T*=Ts; }                                            // energy-conserving integration (Hillaire)
-    t+=dt; }
-  return col*T+acc; }
 vec3 applyFog(vec3 col,vec3 dir,float d,vec3 sky,vec3 hzGlow,vec3 trans){ if(uFogOn<.5) return col;
   float y0=uCamHeight, y1=uCamHeight+dir.y*d; float T=fogT(d,y0,y1);
   float cosS=clamp(dot(dir,uSunDir),-1.,1.); float g=.55; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
@@ -1018,7 +1003,7 @@ float clDensity(vec3 p,float lod){
 float clHG(float c,float g){ return (1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*c,1.5)); }
 float clLight(vec3 p){ // optical depth toward the sun, 5 taps with growing spacing
   float od=0.; float st=uCLThick*.12; for(int i=1;i<=5;i++){ float d=st*float(i)*float(i)*.35; od+=clDensity(p+uSunDir*d,float(i)>3.?1.:0.)*d*.8; } return od; }
-vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5) return vec4(0.);
+vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5||uCLCov<=.001||uCLDen<=.001) return vec4(0.);
   vec3 po=ro+vec3(0.,uPlanetR,0.); float R0=uPlanetR+uCLBase, R1=R0+uCLThick; float h=length(po)-uPlanetR;
   vec2 i0=rsi(po,rd,R0), i1=rsi(po,rd,R1); vec2 ig=rsi(po,rd,uPlanetR); float t0,t1;
   if(h<uCLBase){ if(i1.y<0.) return vec4(0.); t0=max(i0.y,0.); t1=i1.y; }                                    // below: enter at inner shell, leave at outer
@@ -1031,8 +1016,11 @@ vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5) re
   float cosS=dot(rd,uSunDir); float ph=mix(clHG(cosS,uCLG1),clHG(cosS,-uCLG2),uCLMix)*4.*3.14159; // dual lobe
   float sunUp=clamp(uSunDir.y*4.+.15,0.,1.); vec3 sunL=trans*uSunColor*uSunIntensity*.02*sunUp; vec3 amb=sky*uCLAmb;
   vec3 acc=vec3(0.); float T=1.; float sigA=uCLAbsorb;
-  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015) break; vec3 p=ro+rd*t; float rho=clDensity(p,lodFar);
-    if(rho>1e-3){ float od=mix(clLight(p),rho*uCLThick*.3,lodFar); float hn=clamp((clAlt(p)-uCLBase)/max(1.,uCLThick),0.,1.);
+  float dtBig=dt*2.5; bool inCloud=false;
+  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015||t>t1) break; vec3 p=ro+rd*t;
+    if(!inCloud){ float probe=clDensity(p,1.); if(probe<=1e-3){ t+=dtBig; continue; } inCloud=true; t=max(t0,t-dtBig*.5); p=ro+rd*t; }   // stride through clear air, step back on entry
+    float rho=clDensity(p,lodFar); if(rho<=1e-3){ inCloud=false; t+=dt; continue; }
+    { float od=mix(clLight(p),rho*uCLThick*.3,lodFar); float hn=clamp((clAlt(p)-uCLBase)/max(1.,uCLThick),0.,1.);
       // multi-scatter approximation: sum of 3 octaves with attenuated extinction / boosted contribution
       float ms=0.; float a=1.,b=1.; for(int o=0;o<3;o++){ ms+=b*exp(-od*a*(1.+sigA)); a*=.5; b*=.55; }
       float powder=1.-uCLPowder*exp(-rho*dt*2.*(1.+sigA))*(1.-.5*clamp(cosS,0.,1.));
@@ -1053,24 +1041,38 @@ float lcDensity(vec3 p,float lod){ vec3 q=(p-uLCPos)/uLCSize; float mask=lcMask(
   float det=vnoise(s*9.)*.6+vnoise(s*19.+vec3(5.))*.4; float erode=mix(det,1.-det,clamp(hn*3.,0.,1.))*uLCDetail*.45;
   return clamp(base-erode*(1.-base),0.,1.)*uLCDen; }
 vec2 lcBox(vec3 ro,vec3 rd){ vec3 m=1./(rd+1e-6*sign(rd)+1e-9); vec3 n=m*(ro-uLCPos); vec3 k=abs(m)*uLCSize; vec3 t1=-n-k,t2=-n+k; float tn=max(max(t1.x,t1.y),t1.z),tf=min(min(t2.x,t2.y),t2.z); return (tn>tf||tf<0.)?vec2(-1.):vec2(max(tn,0.),tf); }
-float lcLight(vec3 p){ float od=0.; float st=max(uLCSize.x,max(uLCSize.y,uLCSize.z))*.25; for(int i=1;i<=5;i++){ float d=st*float(i)*float(i)*.3; od+=lcDensity(p+uSunDir*d,float(i)>3.?1.:0.)*d*.8; } return od; }
-vec4 localCloud(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uLCOn<.5) return vec4(0.);
-  vec2 b=lcBox(ro,rd); if(b.x<0.) return vec4(0.); float t0=b.x,t1=min(b.y,tmax); if(t1<=t0) return vec4(0.);
-  { vec3 po=ro+vec3(0.,uPlanetR,0.); vec2 ig=rsi(po,rd,uPlanetR); if(ig.x>0.&&ig.x<t0) return vec4(0.); }   // hidden behind the planet limb
-  float farFade=1.-smoothstep(150000.,400000.,t0); if(farFade<=0.) return vec4(0.);
-  float N=uLCSteps; float dt=(t1-t0)/N; float t=t0+dt*hash13(vec3(gl_FragCoord.xy,fract(uTime*3.)+.5));
-  float cosS=dot(rd,uSunDir); float ph=mix(clHG(cosS,uCLG1),clHG(cosS,-uCLG2),uCLMix)*4.*3.14159;
-  float sunUp=clamp(uSunDir.y*4.+.15,0.,1.); vec3 sunL=trans*uSunColor*uSunIntensity*.02*sunUp; vec3 amb=sky*uCLAmb;
-  vec3 acc=vec3(0.); float T=1.; float sigA=uCLAbsorb;
-  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015) break; vec3 p=ro+rd*t; float rho=lcDensity(p,0.);
-    if(rho>1e-3){ float od=lcLight(p); float hn=clamp((p.y-uLCPos.y)/max(1.,uLCSize.y)*.5+.5,0.,1.);
-      float ms=0.; float a=1.,bb=1.; for(int o=0;o<3;o++){ ms+=bb*exp(-od*a*(1.+sigA)); a*=.5; bb*=.55; }
-      float powder=1.-uCLPowder*exp(-rho*dt*2.*(1.+sigA))*(1.-.5*clamp(cosS,0.,1.));
-      vec3 Li=sunL*ph*ms*powder+amb*mix(.35,1.,hn);
-      float sigT=rho*(1.+sigA)*.06; float Ts=exp(-sigT*dt); vec3 Sc=Li*uCLAlbedo*rho*.06;
-      acc+=T*(Sc-Sc*Ts)/max(sigT,1e-6); T*=Ts; }
+// ===== Unified local volumetrics: ONE march over the union of the local volumes' bounding intervals.
+//       Each medium contributes its own density/albedo; extinction, the sun-shadow march and the light loop are shared,
+//       so fog shadows cloud (and vice versa) for free and the per-pixel cost is one loop instead of one per volume.
+float uniShadow(vec3 p,float st){ float od=0.; for(int i=1;i<=4;i++){ vec3 q=p+uSunDir*st*float(i)*.5; od+=(vfDensity(q)*(1.+uVFAbsorb)*uVFOn+lcDensity(q,1.)*(1.+uCLAbsorb)*.06*uLCOn)*st*.5; } return exp(-od); }
+vec4 marchLocal(vec3 ro,vec3 rd,float tmax,vec3 sky,vec3 hzGlow,vec3 trans){
+  vec2 bf=(uVFOn>.5)?vfBox(ro,rd):vec2(-1.), bc=(uLCOn>.5)?lcBox(ro,rd):vec2(-1.);
+  if(bc.x>=0.){ vec3 po=ro+vec3(0.,uPlanetR,0.); vec2 ig=rsi(po,rd,uPlanetR); if(ig.x>0.&&ig.x<bc.x) bc=vec2(-1.); }
+  bool hf=bf.x>=0.&&min(bf.y,tmax)>bf.x, hc=bc.x>=0.&&min(bc.y,tmax)>bc.x; if(!hf&&!hc) return vec4(0.,0.,0.,1.);   // rgb = in-scatter, a = transmittance
+  float t0=1e9,t1=0.; if(hf){ t0=min(t0,bf.x); t1=max(t1,bf.y); } if(hc){ t0=min(t0,bc.x); t1=max(t1,bc.y); } t1=min(t1,tmax);
+  float N=max(hf?uVFSteps:0.,hc?uLCSteps:0.); float dt=(t1-t0)/N; float t=t0+dt*hash13(vec3(gl_FragCoord.xy,fract(uTime*7.)));
+  float cosS=clamp(dot(rd,uSunDir),-1.,1.);
+  float gF=uVFG; float phF=(1.-gF*gF)/(4.*3.14159*pow(1.+gF*gF-2.*gF*cosS,1.5))*4.*3.14159;
+  float phC=mix(clHG(cosS,uCLG1),clHG(cosS,-uCLG2),uCLMix)*4.*3.14159;
+  float sunUpF=max(uSunDir.y+.05,0.), sunUpC=clamp(uSunDir.y*4.+.15,0.,1.); vec3 sunBase=trans*uSunColor*uSunIntensity*.02;
+  vec3 ambF=(sky*.75+hzGlow*.15), ambC=sky*uCLAmb;
+  vec3 hfSz=vfHalf(); float stF=max(hfSz.x,max(hfSz.y,hfSz.z))*.5; float stC=max(uLCSize.x,max(uLCSize.y,uLCSize.z))*.25; float st=(hf&&hc)?min(stF,stC):(hf?stF:stC);
+  vec3 acc=vec3(0.); float T=1.;
+  for(int i=0;i<64;i++){ if(float(i)>=N||T<.01) break; vec3 p=ro+rd*t;
+    // sample only the volumes whose interval contains t
+    float rf=(hf&&t>=bf.x&&t<=bf.y)?vfDensity(p):0.; float rc=(hc&&t>=bc.x&&t<=bc.y)?lcDensity(p,0.):0.;
+    float sigF=rf*(1.+uVFAbsorb), sigC=rc*(1.+uCLAbsorb)*.06; float sigT=sigF+sigC;
+    if(sigT>1e-5){ float sh=(uVFSelf>.5||rc>0.)?uniShadow(p,st):1.;
+      vec3 S=vec3(0.);
+      if(rf>0.){ vec3 Li=ambF+sunBase*sunUpF*phF*sh;
+        { vec3 L=uPLPos-p; float d=length(L); L/=max(d,1e-3); float ph=(1.-gF*gF)/(4.*3.14159*pow(1.+gF*gF-2.*gF*dot(rd,L),1.5)); Li+=uPLOn*uPLCol*uPLInt/pow(max(d,1.),uPLDecay)*(1.-smoothstep(uPLReach*.7,uPLReach,d))*ph*4.*3.14159*.02; }
+        { vec3 L=uSLPos-p; float d=length(L); L/=max(d,1e-3); float ct=dot(-L,uSLDir); float cone=smoothstep(uSLCos,mix(uSLCos,1.,uSLSoft*.9)+1e-4,ct); float ph=(1.-gF*gF)/(4.*3.14159*pow(1.+gF*gF-2.*gF*dot(rd,L),1.5)); Li+=uSLOn*uSLCol*(uSLInt/max(d*d,1.))*cone*ph*4.*3.14159*.02; }
+        S+=Li*uVFAlbedo*rf; }
+      if(rc>0.){ float hn=clamp((p.y-uLCPos.y)/max(1.,uLCSize.y)*.5+.5,0.,1.); float powder=1.-uCLPowder*exp(-rc*dt*2.*(1.+uCLAbsorb))*(1.-.5*clamp(cosS,0.,1.));
+        float ms=sh+.55*pow(sh,.5)+.3*pow(sh,.25); vec3 Li=sunBase*sunUpC*phC*ms*powder+ambC*mix(.35,1.,hn); S+=Li*uCLAlbedo*rc*.06; }
+      float Ts=exp(-sigT*dt); acc+=T*(S-S*Ts)/max(sigT,1e-6); T*=Ts; }
     t+=dt; }
-  return vec4(acc,1.-T)*farFade; }
+  return vec4(acc,T); }
 vec4 cloudLayer(vec3 dir,vec3 sky,vec3 trans){ // rgb premultiplied, a coverage — a thin slab at uCloudAlt above the camera
   if(uCloudOn<.5||dir.y<.015) return vec4(0.); float dz=uCloudAlt-uCamHeight; if(dz<=1.) return vec4(0.);
   float t=dz/dir.y; vec2 uv=(vec2(uCamPos.x,uCamPos.z)+dir.xz*t)*.0009*uCloudScale+vec2(uTime*.0025*uCloudSpeed,0.);
@@ -1179,7 +1181,7 @@ void main(){
       float fog=1.-exp(-t*7e-5); fog=pow(clamp(fog,0.,1.),1.6); planeCol=mix(planeCol,sky*.8+hzGlow*.6,fog);
     }
   }
-  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); col=applyAFog(col,dir,planeT,skyAmb,hzGlow,trans); col=applyVFog(col,uCamPos,dir,planeT,skyAmb,hzGlow,trans); { vec4 lc=localCloud(uCamPos,dir,skyAmb,trans,planeT); col=col*(1.-lc.a)+lc.rgb; } }
+  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); col=applyAFog(col,dir,planeT,skyAmb,hzGlow,trans); { vec4 lv=marchLocal(uCamPos,dir,planeT,skyAmb,hzGlow,trans); col=col*lv.a+lv.rgb; } }
   else if(ground>.5){
     float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.09*ndl; vec3 amb=sky*.35+vec3(.002,.003,.006)*uSkyBright;
     { // the real surface: the same checker ground, wrapped on the planet sphere (no fake earth texture)
@@ -1217,7 +1219,7 @@ void main(){
     col+=moons(dir,trans);
     { vec4 cl=cloudLayer(dir,sky,trans); col=col*(1.-cl.a)+cl.rgb; }
     { vec4 cm=cloudMarch(uCamPos,dir,skyAmb,trans,1e6); col=col*(1.-cm.a)+cm.rgb; }
-    { vec4 lc=localCloud(uCamPos,dir,skyAmb,trans,1e6); col=col*(1.-lc.a)+lc.rgb; }
+    { vec4 lv=marchLocal(uCamPos,dir,1e6,skyAmb,hzGlow,trans); col=col*lv.a+lv.rgb; }
     if(uSunVisible>.5){
       float ang=acos(clamp(dot(dir,uSunDir),-1.,1.)); float disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9),uSunAng,ang);
       float soft=mix(1.,2.2,1.-smoothstep(0.,4.,elevDeg)); disc=1.-smoothstep(uSunAng*(1.-uSunSoft*.9*soft),uSunAng,ang);
@@ -1229,7 +1231,7 @@ void main(){
     }
     if(uFogOn>.5&&uCamHeight<3000.){ float dS=(dir.y>.002)?min(20000.,(uFogHeight*4.)/dir.y):20000.; col=applyFog(col,dir,dS,sky,hzGlow,trans); }
     if(uAFOn>.5&&uCamHeight<6000.){ float dA=(dir.y>.002)?min(60000.,(uAFHeight*5.)/dir.y):60000.; col=applyAFog(col,dir,dA,skyAmb,hzGlow,trans); }
-    col=applyVFog(col,uCamPos,dir,1e6,skyAmb,hzGlow,trans);
+
   }
   { // light source glyphs: a small emissive glow where the point / spot lights sit
     vec3 v=uPLPos-uCamPos; float dl=length(v); float c=dot(normalize(v),dir); float ang=acos(clamp(c,-1.,1.)); float rr=.02/max(1.,dl*.05)*(1.+uPLInt*.02);
