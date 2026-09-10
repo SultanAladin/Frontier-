@@ -13,6 +13,11 @@ Run: `python3 -m http.server 8080` in this folder → http://localhost:8080/
 | Viewport | software raster (Z-up orbit camera, ortho/persp, canonical views), wire/flat/plastic/matcap, lattice, dimension lines, GizmoPRO stub, axis triad, prompt bar for modal tools (L/C/R/B/Y), pick, body/face/edge/vertex mode | replace `draw()` with the PNG/stream from `SoftwareRaster`; forward pointer/keys as `InputEvent` |
 | Inspector | hero card (volume/area/length + B-rep stats), presence grid (Visible/Locked/Construction/Dims), transform XYZ steppers + rotation, live parameter sliders that rebuild derived figures, recipe chain, sketch curves + constraint summary, dimensions list (+ add/remove), duplicate/isolate/delete, command line (`box`, `cylinder`, `extrude`, `dim on|off`, `hide`, `show`, `select`, `view`) | `runCmd()` ← send verb to `ConsoleHost`; sliders ← `FigureRecipe` param edit |
 
+## Transform gizmo (port of Slate `References/Gizmo.html`)
+Select a body and the gizmo appears at its origin, oriented with its rotation, at a constant ~90 px on screen. Per axis (X red, Y green, Z blue): **cone** = move along axis · **short cylinder** just behind the cone = scale along axis · **corner quad** (cyan/magenta/yellow) = move in that plane · **arc bar** = rotate about the axis. Hover highlights, drag applies live to the inspector's Transform rows, a top-centre readout shows `X move 12.50 mm` / `Y scale 1.100×` / `Z rotate 15.0°`. Hold **Ctrl** to snap (5 mm / 0.1× / 5°). Every drag is one undo step.
+
+Blender-style modal: press **G / R / S** with a body selected, move the mouse; **X / Y / Z** lock an axis (press again to clear, an axis line is drawn); type a number for an exact value; **Ctrl** snaps; **LMB / Enter** confirm; **RMB / Esc** cancel. `R` with no body selected still starts the rectangle tool.
+
 ## Construction catalogue (Tab / right-click / **Construct** button)
 Popup by default (closes after you pick), **pin** it to keep it open as a panel. Rail on the left (Reference · Sketch Draw live; the rest greyed until we port them), tile grid, click → options slide, double-click / **Start drawing** → tool. Tiles are **gated** by document state: sketch tools are disabled with a "set a workplane" fix-chip until a workplane exists; header chips show the active plane and the sketch curves will go into.
 
@@ -20,4 +25,4 @@ Tools: Workplane (XY/XZ/YZ + offset + rotation, no picks) · Datum Point · Line
 
 The document starts **empty**; `?demo` in the URL loads the sample scene.
 
-Keyboard: `1–4` select mode · `5` ortho · numpad `1/3/7` front/right/top · `L ⇧L R C A E P` sketch tools · `⇧W` workplane · `Tab` catalogue · `Enter` finish polyline · `G R S` (reserved) · `H` hide · `Alt+H` unhide all · `F` frame · `D` dims · `⌫` delete · `Ctrl+Z / Ctrl+Shift+Z` undo/redo · `Esc` cancel/deselect.
+Keyboard: `1–4` select mode · `5` ortho · numpad `1/3/7` front/right/top · `L ⇧L R C A E P` sketch tools · `⇧W` workplane · `Tab` catalogue · `Enter` finish polyline · `G R S` move/rotate/scale (Blender modal) · `H` hide · `Alt+H` unhide all · `F` frame · `D` dims · `⌫` delete · `Ctrl+Z / Ctrl+Shift+Z` undo/redo · `Esc` cancel/deselect.
