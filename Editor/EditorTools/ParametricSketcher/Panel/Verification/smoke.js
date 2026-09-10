@@ -9,7 +9,7 @@ function mkEl(id){return {id,style:{setProperty(){}},classList:{add(){},remove()
 global.document={querySelector:s=>els[s]||(els[s]=mkEl(s)),querySelectorAll:()=>[],createElement:()=>mkEl(),getElementById:()=>null};
 global.ResizeObserver=class{observe(){}};global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};global.innerWidth=1600;global.innerHeight=900;
 global.addEventListener=()=>{};global.location={search:process.argv.includes('--demo')?'?demo':''};global.URLSearchParams=class{constructor(q){this.q=q}has(k){return this.q.includes(k)}};global.devicePixelRatio=1;global.performance={now:()=>0};global.requestAnimationFrame=()=>{};
-const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health,addConstraint,removeConstraint,solveSketch,evalExpr,setVar,refreshDims,dimStart,dimPickAt,dimPlaceUpdate,dimCommit,getDimTool:()=>dimTool,dimGeom,residuals,dofMap,applyConstraint,isSlot,regenSlot,setDimName,topo,planeBasis,invalidateXf,gzTarget};')(mod);const M=mod.exports;
+const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health,addConstraint,removeConstraint,solveSketch,evalExpr,setVar,refreshDims,dimStart,dimPickAt,dimPlaceUpdate,dimCommit,getDimTool:()=>dimTool,dimGeom,residuals,dofMap,applyConstraint,isSlot,regenSlot,setDimName,topo,planeBasis,invalidateXf,gzTarget,modStart,modEnd,modPick,trimApply,cutApply,cornerPick,cornerGeom,cornerApply,curveCuts,curvePlane,getMod:()=>modTool,modDown,modMove,modUp,modKey};')(mod);const M=mod.exports;
 let n=0;const ok=(c,m)=>{n++;if(!c){console.error('FAIL',m);process.exit(1);}};
 ok(M.doc.figures.length===0,'starts empty');
 M.doc.figures.forEach(f=>{M.build(f);const ms=M.measure(f);ok(isFinite(ms.v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
@@ -139,5 +139,29 @@ wp2.pos=[0,0,0];wp2.rot3=[0,0,0];wp2.scl=[1,1,1];M.invalidateXf(wp2);
 M.doc.sel=new Set([wp2.id]);M.sub_.sel.clear();M.renderInspector();const ph=document.querySelector('#insp').innerHTML;ok(ph.includes('data-pax="XZ"')&&ph.includes('In-plane rotation')&&ph.includes('id="pAct"'),'plane inspector: base axis · offset · rotation · extent · activate');ok(!ph.includes('data-adddim')&&!ph.includes('Radius'),'plane inspector has no radius / fake dimension controls');
 ok(M.gzTarget&&M.gzTarget()===wp2,'gizmo targets the selected plane');
 M.doc.figures.forEach(f=>{if(f.kind==='curve')f.visible=true;});
+{// 13. sketch modify: trim · cut · fillet · chamfer
+M.setView('top');M.resize();M.doc.figures.forEach(f=>{if(f.kind==='curve'||f.kind==='body')f.visible=false;});const wpM=M.createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});
+M.startOp('line');M.toolClick(300,300);M.toolClick(500,300);const lA=M.doc.figures.filter(f=>f.kind==='curve').pop();
+M.startOp('line');M.toolClick(400,200);M.toolClick(400,400);const lB=M.doc.figures.filter(f=>f.kind==='curve').pop();const skM=M.byId(lA.parent);
+const nC0=skM.children.length;const cutsA=M.curveCuts(lA,M.curvePlane(lA),skM);ok(cutsA.length===1&&cutsA[0]>.1&&cutsA[0]<.9,'line A crossed once by line B inside its span');
+const hA=M.modPick(450,300);ok(hA&&hA.f===lA,'trim picks line A');M.trimApply(hA);
+const PAM=lA.params.pts;const xs=PAM.map(q=>q[0]);ok(lA.ctype==='poly'&&PAM.length===2&&(Math.abs(Math.max(...xs)-lB.params.x1)<1e-6||Math.abs(Math.min(...xs)-lB.params.x1)<1e-6)&&Math.abs(xs[0]-xs[1])<40,'trim removed the span on one side of the intersection');ok(skM.children.length===nC0,'trim of an end span keeps the curve count');
+M.startOp('line');M.toolClick(300,350);M.toolClick(500,350);const lC=M.doc.figures.filter(f=>f.kind==='curve').pop();const hC=M.modPick(400,350);ok(hC&&hC.f===lC,'cut picks line C');M.cutApply(hC);
+const lC2=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(lC2!==lC&&lC2.parent===skM.id&&lC.params.pts.length===2&&lC2.params.pts.length===2,'cut split line C into two curves');const jx=lC.params.pts[1];ok(Math.abs(jx[0]-lC2.params.pts[0][0])<1e-9&&Math.abs(jx[0]-lB.params.x1)<1e-6,'cut snapped to the intersection with line B');
+// middle-span trim on a line crossed twice → two pieces
+M.startOp('line');M.toolClick(350,250);M.toolClick(350,450);const lD=M.doc.figures.filter(f=>f.kind==='curve').pop();M.startOp('line');M.toolClick(450,250);M.toolClick(450,450);const lE=M.doc.figures.filter(f=>f.kind==='curve').pop();
+M.startOp('line');M.toolClick(300,420);M.toolClick(500,420);const lF=M.doc.figures.filter(f=>f.kind==='curve').pop();const nBefore=skM.children.length;M.trimApply(M.modPick(400,420));ok(skM.children.length===nBefore+1,'trimming the middle span yields two pieces');
+// fillet a rectangle corner
+M.startOp('rect');M.toolClick(600,200);M.toolClick(700,300);const rcM=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(rcM.params.pts.length===4,'rectangle has 4 corners');
+const cnr=M.cornerPick(700,200);ok(cnr&&cnr.f===rcM,'fillet picks a rectangle corner');const GM=M.cornerGeom(cnr,5,'fillet');ok(GM&&Math.abs(GM.r-5)<1e-9&&GM.pts.length>=4,'fillet geometry: R5 arc with '+(GM&&GM.pts.length)+' points');
+const GmM=M.cornerGeom(cnr,1e6,'fillet');ok(GmM.r<=GmM.max+1e-9&&GmM.max>0,'fillet radius clamped to the corner: max '+GmM.max.toFixed(2));
+M.modStart('fillet');M.modDown({button:0,pointerId:1},700,200);ok(M.getMod().drag&&M.getMod().drag.corner.f===rcM,'click corner starts the fillet drag');M.modKey({key:'5'});M.modKey({key:'Enter'});ok(rcM.params.pts.length===4-1+GM.pts.length&&rcM.params.closed,'⏎ applies fillet: corner replaced by the arc');
+// chamfer via Tab
+const cn2=M.cornerPick(600,300);ok(cn2&&cn2.f===rcM,'chamfer picks another corner');M.modDown({button:0,pointerId:1},600,300);M.modKey({key:'Tab',preventDefault(){}});ok(M.getMod().kind==='chamfer','Tab toggles fillet → chamfer');const n1=rcM.params.pts.length;M.modKey({key:'3'});M.modKey({key:'Enter'});ok(rcM.params.pts.length===n1+1,'chamfer replaces the corner with 2 points');M.modEnd();
+// fillet across two separate lines meeting at a corner → merged into one polyline
+M.startOp('line');M.toolClick(800,200);M.toolClick(900,200);const m1=M.doc.figures.filter(f=>f.kind==='curve').pop();M.startOp('line');M.toolClick(900,200);M.toolClick(900,300);const m2=M.doc.figures.filter(f=>f.kind==='curve').pop();
+const cn3=M.cornerPick(900,200);ok(cn3&&cn3.merge,'corner between two touching lines is detected');M.modStart('fillet');M.modDown({button:0,pointerId:1},900,200);M.modKey({key:'4'});M.modKey({key:'Enter'});ok(!M.byId(m2.id)||!M.byId(m1.id),'two lines merged into one filleted polyline');M.modEnd();
+M.doc.figures.forEach(f=>{if(f.kind==='curve'||f.kind==='body')f.visible=true;});
+}
 M.renderOutliner();M.renderInspector();M.draw();
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);

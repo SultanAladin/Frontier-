@@ -39,6 +39,13 @@ Every sketch carries `cons_`, solved by a damped Gauss-Newton solver over all cu
 
 **Editing = variables.** The label editor takes a number or an expression: `W/2 + 3`, `sqrt(2)*R`, `min(A,B)`. Give the dimension a *name* and it becomes a variable other dimensions can use (drawn in blue). **Constrain → Variables** manages free variables. Changing any variable re-solves every sketch. Dragging a constrained vertex pins it and lets the solver move the rest live.
 
+### Sketch Modify — Trim · Cut · Fillet · Chamfer
+Tab → *Sketch Modify*, or hotkeys **T** trim, **K** cut, **B** fillet, **⇧B** chamfer. Plasticity-style: no pre-selection, the tool stays live until Esc / right-click.
+- **Trim** — hover a curve and the span between its neighbouring intersections lights red; click (or press-and-drag across several) to remove it. End spans shorten the curve, middle spans split it in two, closed loops open, a curve with no intersections is deleted.
+- **Cut** — hover a curve, click to split it there; the cursor snaps to nearby intersections (shown as dots). Closed loops become an open polyline at the cut.
+- **Fillet / Chamfer** — click a corner (polyline vertex or two curve ends that meet), drag to set radius / distance, or type a number; ⏎ or click applies. Tab flips between fillet and chamfer while dragging. Value is clamped to the corner's maximum. Extra vertices pre-selected on the same curve receive the same fillet. Two touching curves are merged into one polyline.
+Modified curves are baked to polylines; constraints that referenced them are dropped (logged).
+
 ### Workplanes follow their transform
 A workplane's Position / Rotation / Scale (inspector or G/R/S gizmo) now transform the plane *and everything on it* — sketches, curves, dimensions, picking, the drawing tool. `planeBasis()` composes the plane's own transform over its base axis / offset / in-plane rotation. The plane inspector is a workplane editor: base axis (XY/XZ/YZ), offset, in-plane rotation, extent, the sketches on it, and "make active"; no radius or generic dimension controls.
 
