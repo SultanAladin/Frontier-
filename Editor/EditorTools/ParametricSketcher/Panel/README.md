@@ -39,6 +39,9 @@ Every sketch carries `cons_`, solved by a damped Gauss-Newton solver over all cu
 
 **Editing = variables.** The label editor takes a number or an expression: `W/2 + 3`, `sqrt(2)*R`, `min(A,B)`. Give the dimension a *name* and it becomes a variable other dimensions can use (drawn in blue). **Constrain → Variables** manages free variables. Changing any variable re-solves every sketch. Dragging a constrained vertex pins it and lets the solver move the rest live.
 
+### Workplanes follow their transform
+A workplane's Position / Rotation / Scale (inspector or G/R/S gizmo) now transform the plane *and everything on it* — sketches, curves, dimensions, picking, the drawing tool. `planeBasis()` composes the plane's own transform over its base axis / offset / in-plane rotation. The plane inspector is a workplane editor: base axis (XY/XZ/YZ), offset, in-plane rotation, extent, the sketches on it, and "make active"; no radius or generic dimension controls.
+
 ### Select modes · topology layer (B-rep-ready)
 **Body / Face / Edge / Vertex** (`1–4`) — **Shift-click** a mode button (or `⇧1–4`) to combine modes, e.g. Vertex + Edge. Every figure exposes `topo(f)` → `{verts, edges, faces}` with stable indices: curves give their control points (poly vertices, line ends, circle centre + radius handle, ellipse centre + two axis handles) and a face when the loop is closed *and planar*; bodies derive unique vertices / edges / coplanar faces from the mesh. The B-rep kernel will later replace `topo()` and `moveCurveVertex()` only — selection, gizmo, inspector and overlay are written against that interface.
 

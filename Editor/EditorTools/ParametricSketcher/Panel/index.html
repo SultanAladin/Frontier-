@@ -568,7 +568,7 @@ function build(f){const p=f.params;
       return m;}}
   if(f.kind==='surface'){if(f.op==='loft')return {...cylMesh(p.r0,p.h,p.segs|0,p.r1,p.twist,false),twoSided:true};if(f.op==='plane')return planeMesh(p.w,p.h,p.subdiv|0);}
   if(f.kind==='curve')return curveLines(f);
-  if(f.kind==='plane'){const s=p.size/2,B=planeBasis(f);const P=(a,c)=>[B.o[0]+B.u[0]*a+B.v[0]*c,B.o[1]+B.u[1]*a+B.v[1]*c,B.o[2]+B.u[2]*a+B.v[2]*c];
+  if(f.kind==='plane'){const s=p.size/2,B=basisFor(f.axis,p.offset||0,p.tilt||0);/* local; the plane's own transform is applied by xform() */const P=(a,c)=>[B.o[0]+B.u[0]*a+B.v[0]*c,B.o[1]+B.u[1]*a+B.v[1]*c,B.o[2]+B.u[2]*a+B.v[2]*c];
     const lines=[[P(-s,-s),P(s,-s)],[P(s,-s),P(s,s)],[P(s,s),P(-s,s)],[P(-s,s),P(-s,-s)],[P(-s,0),P(s,0)],[P(0,-s),P(0,s)]];
     const N=[B.o[0]+B.n[0]*s*.25,B.o[1]+B.n[1]*s*.25,B.o[2]+B.n[2]*s*.25];lines.push([P(0,0),N]);
     return {tris:[[P(-s,-s),P(s,-s),P(s,s)],[P(-s,-s),P(s,s),P(-s,s)]],lines,cons:true,twoSided:true,planeFill:true};}
@@ -594,7 +594,7 @@ function measure(f){const p=f.params;
     if(f.ctype==='circle')return {v:2*Math.PI*p.r,u:'mm',lab:'circumference',rows:[['degree',2],['rational','yes'],['closed','yes']]};
     return {v:Math.abs(p.a1-p.a0)*Math.PI/180*p.r,u:'mm',lab:'arc length',rows:[['degree',2],['sweep',Math.abs(p.a1-p.a0)+'°'],['closed','no']]};}
   if(f.kind==='sketch'){const {outer,holes}=sketchProfile(f);const pl=byId(f.planeId);return {v:polyArea(outer)-holes.reduce((a,h)=>a+polyArea(h),0),u:'mm²',lab:'enclosed area',rows:[['plane',pl?pl.name:f.plane||'—'],['curves',f.children.length],['regions',outer.length?1+holes.length:0]]};}
-  if(f.kind==='plane')return {v:p.size,u:'mm',lab:'extent',rows:[['axis',f.axis],['origin','0 0 0'],['construction','yes']]};
+  if(f.kind==='plane'){const B=planeBasis(f);return {v:doc.figures.filter(x=>x.kind==='sketch'&&x.planeId===f.id).length,u:'',lab:'sketches',rows:[['base',f.axis+(p.offset?' +'+p.offset:'')],['origin',B.o.map(v=>fmt(v,0)).join(' ')],['normal',B.n.map(v=>fmt(v,2)).join(' ')],['extent',p.size+' mm']]};}
   if(f.kind==='dim'){const t=byId(f.target);return {v:t?t.params[f.key]:0,u:'mm',lab:f.key,rows:[['target',t?t.name:'—'],['style','linear'],['driving','yes']]};}
   return {v:0,u:'',lab:'',rows:[]};}
 function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;a+=p[i][0]*p[j][1]-p[j][0]*p[i][1];}return Math.abs(a)/2;}
@@ -725,7 +725,11 @@ function renderInspector(){let ids=[...doc.sel];const insp=$('#insp');if(!ids.le
       ${f.ctype!=='poly'?`<div class="ctl"><div class="ctl-top"><span class="lab">Segments</span><span class="val" id="segVal">${f.segs||'auto'}</span></div><input type="range" id="segRng" min="8" max="256" step="4" value="${f.segs||64}" style="width:100%"></div>`:''}`);}
   if(f.kind==='curve'&&consOfFig(f).length)html+=sec('cg','Constraints',consOfFig(f).length+' on this curve',consList(f));
   // parameters
-  const keys=Object.keys(f.params).filter(k=>PARAMS[k]);
+  if(f.kind==='plane'){const sks=doc.figures.filter(x=>x.kind==='sketch'&&x.planeId===f.id);html+=sec('wp','Workplane','base · offset · extent',`<div class="ctl"><div class="ctl-top"><span class="lab">Base</span><span class="val">${f.axis}</span></div><div class="seg" style="width:max-content;margin-top:4px">${['XY','XZ','YZ'].map(a=>`<button class="${f.axis===a?'on':''}" data-pax="${a}">${a}</button>`).join('')}</div></div>
+      ${['offset','tilt','size'].map(k=>{const [lab,mn,mx,st,u]=PARAMS[k];const lb=k==='tilt'?'In-plane rotation':k==='size'?'Extent':lab;return `<div class="ctl"><div class="ctl-top"><span class="lab">${lb}</span><span class="val" data-k="${k}">${fmt(f.params[k]||0,st<1?1:0)}<small>${u}</small></span></div>${trk('p:'+k,f.params[k]||0,mn,mx)}</div>`;}).join('')}
+      <div class="list" style="margin-top:6px"><div class="li"><span class="dot" style="background:var(--violet)"></span><span class="t">Sketches on this plane</span><span class="m">${sks.length}</span></div>${sks.map(x=>`<div class="li" data-go="${x.id}"><span class="dot"></span><span class="t">${x.name}</span><span class="m">${x.children.length} curves</span></div>`).join('')}</div>
+      <div class="xf-foot"><button class="abtn ${f.id===active_.plane?'on':''}" id="pAct">${f.id===active_.plane?'active workplane':'make active'}</button></div>`);}
+  const keys=f.kind==='plane'?[]:Object.keys(f.params).filter(k=>PARAMS[k]);
   if(keys.length)html+=sec('pa','Parameters','live edit · rebuilds',keys.map(k=>{const [lab,mn,mx,st,u]=PARAMS[k];return `<div class="ctl ${keys.length>3&&['x1','y1','x2','y2','cx','cy','a0','a1'].includes(k)?'half':''}"><div class="ctl-top"><span class="lab">${lab}</span><span class="val" data-k="${k}">${fmt(f.params[k],st<1?1:0)}<small>${u}</small></span></div>${trk('p:'+k,f.params[k],mn,mx)}</div>`}).join(''));
   // recipe
   if(f.recipe||f.src||f.parent){const chain=f.recipe||(f.parent?[byId(f.parent).name,f.ctype]:[]);html+=sec('re','Recipe','associative',`<div class="recipe">${chain.map((n,i)=>`<span class="rnode ${i===chain.length-1?'cur':''}" style="--acc:${acc}" data-n="${n}"><span class="d"></span>${n}</span>${i<chain.length-1?'<span class="rarrow">→</span>':''}`).join('')}</div>
@@ -735,7 +739,7 @@ function renderInspector(){let ids=[...doc.sel];const insp=$('#insp');if(!ids.le
     ${consList(f)}`);
   // dims attached
   const dims=doc.figures.filter(d=>d.kind==='dim'&&d.target===f.id);
-  if(f.kind!=='dim')html+=sec('dm','Dimensions',dims.length+' driving',`<div class="list">${dims.map(d=>`<div class="li" data-go="${d.id}"><span class="dot" style="background:#e5d33a"></span><span class="t">${d.key}</span><span class="m">${fmt(f.params[d.key],1)} mm</span><button class="ib" data-del="${d.id}"><svg class="i" style="width:13px;height:13px" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>`).join('')||'<div class="li"><span class="dot" style="background:var(--t3)"></span><span class="t">No dimensions</span></div>'}</div>
+  if(f.kind!=='dim'&&f.kind!=='plane')html+=sec('dm','Dimensions',dims.length+' driving',`<div class="list">${dims.map(d=>`<div class="li" data-go="${d.id}"><span class="dot" style="background:#e5d33a"></span><span class="t">${d.key}</span><span class="m">${fmt(f.params[d.key],1)} mm</span><button class="ib" data-del="${d.id}"><svg class="i" style="width:13px;height:13px" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>`).join('')||'<div class="li"><span class="dot" style="background:var(--t3)"></span><span class="t">No dimensions</span></div>'}</div>
     <div class="actions" style="margin-top:8px">${keys.slice(0,3).map(k=>`<button class="abtn" data-adddim="${k}">+ ${PARAMS[k][0]}</button>`).join('')}</div>`);
   html+=`<div class="actions"><button class="abtn" id="aDup">Duplicate</button><button class="abtn" id="aIso">Isolate</button><button class="abtn danger" id="aDel">Delete</button></div>
     <div class="console" id="log"></div>`;
@@ -766,6 +770,8 @@ function renderInspector(){let ids=[...doc.sel];const insp=$('#insp');if(!ids.le
   const sr=$('#slotR');if(sr)sr.oninput=e=>{f.params.r=+e.target.value;regenSlot(f);invalidate(f.id);invalidate(f.parent);invalidateTopo(f.id);$('#slotRV').textContent=fmt(f.params.r,1)+' mm';draw();};if(sr)sr.onchange=()=>{snapshot();solveAll();renderInspector();};
   $$('[data-go]').forEach(l=>l.onclick=e=>{if(e.target.closest('[data-del]'))return;select(+l.dataset.go,false);});
   $$('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();snapshot();doc.figures=doc.figures.filter(d=>d.id!==+b.dataset.del);rebuildAll();});
+  $$('[data-pax]').forEach(b=>b.onclick=()=>{snapshot();f.axis=b.dataset.pax;invalidate(f.id);topoCache.clear();renderOutliner();renderInspector();draw();});
+  const pA=$('#pAct');if(pA)pA.onclick=()=>{active_.plane=f.id;active_.sketch=null;renderOutliner();renderInspector();renderCat();draw();};
   $$('[data-adddim]').forEach(b=>b.onclick=()=>{snapshot();const k=b.dataset.adddim;doc.figures.push(mk('dim',`Dim · ${f.name} ${PARAMS[k][0].toLowerCase()}`,{},{target:f.id,key:k}));renderOutliner();renderInspector();draw();log(`dim ${f.name} ${k}`);});
   $$('.rnode').forEach(r=>r.onclick=()=>{const t=doc.figures.find(x=>x.name===r.dataset.n);if(t)select(t.id,false);});
   $('#aDel').onclick=delSel;$('#aDup').onclick=()=>{snapshot();const c=JSON.parse(JSON.stringify(f));c.id=nid();c.name=f.name.replace(/\d+$/,n=>String(+n+1).padStart(2,'0'));c.pos=f.pos?[f.pos[0]+20,f.pos[1],f.pos[2]]:null;doc.figures.push(c);doc.sel=new Set([c.id]);rebuildAll();log('duplicate '+f.name+' → '+c.name);};
@@ -781,7 +787,7 @@ function bindTrk(t,f){const key=t.dataset.key,mn=+t.dataset.mn,mx=+t.dataset.mx;
   t.onpointerdown=e=>{t.setPointerCapture(e.pointerId);t.classList.add('drag');if(!started){snapshot();started=true;}setFrom(e.clientX);
     t.onpointermove=ev=>setFrom(ev.clientX);t.onpointerup=()=>{t.classList.remove('drag');t.onpointermove=null;started=false;const m=measure(f);renderOutliner();drawHeroViz(f);const hv=$('#insp .hero .big .v');if(hv)hv.textContent=m.v>=10000?fmt(m.v/1000,1):fmt(m.v,m.v<10?2:1);};};}
 function dragX(el,cb){el.onpointerdown=e=>{if(e.target.tagName==='INPUT')return;el.setPointerCapture(e.pointerId);let lx=e.clientX,first=true;el.onpointermove=ev=>{dragX.shift=ev.shiftKey;const dx=ev.clientX-lx;if(first||dx){cb(dx,first);first=false;}lx=ev.clientX;};el.onpointerup=()=>{el.onpointermove=null;renderOutliner();};};}
-function invalidateXf(f){/* transforms are applied at draw time; derived children follow via xform() */}
+function invalidateXf(f){if(f&&f.kind==='plane')topoCache.clear();/* transforms are applied at draw time; derived children follow via xform() */}
 function delSub(){const byFig=new Map();sub_.sel.forEach(h=>{if(h.kind!=='vertex')return;const f=byId(h.fig);if(!f||f.kind!=='curve'||f.ctype!=='poly')return;if(!byFig.has(f.id))byFig.set(f.id,new Set());byFig.get(f.id).add(h.idx);});if(!byFig.size)return;snapshot();
   byFig.forEach((idx,id)=>{const f=byId(id);if(f.params.spine){if(f.params.spine.length-idx.size<2)return;f.params.spine=f.params.spine.filter((_,i)=>!idx.has(i));regenSlot(f);invalidate(id);invalidate(f.parent);invalidateTopo(id);return;}if(f.params.pts.length-idx.size<2)return;f.params.pts=f.params.pts.filter((_,i)=>!idx.has(i));if(f.params.vz)f.params.vz=f.params.vz.filter((_,i)=>!idx.has(i));invalidate(id);invalidate(f.parent);invalidateTopo(id);});sub_.sel.clear();renderOutliner();renderInspector();draw();log('delete vertices');}
 function delSel(){snapshot();const ids=new Set(doc.sel);doc.figures=doc.figures.filter(f=>!ids.has(f.id)&&!ids.has(f.parent)&&!(f.kind==='dim'&&ids.has(f.target)));doc.sel.clear();rebuildAll();log('delete '+[...ids].join(','));}
@@ -810,7 +816,8 @@ function basisFor(axis,offset=0,tilt=0){let u,v,n;
   if(axis==='XZ'){u=[1,0,0];v=[0,0,1];n=[0,-1,0];}else if(axis==='YZ'){u=[0,1,0];v=[0,0,1];n=[1,0,0];}else{u=[1,0,0];v=[0,1,0];n=[0,0,1];}
   if(tilt){const a=tilt*Math.PI/180,c=Math.cos(a),si=Math.sin(a);const u2=u.map((x,i)=>x*c+v[i]*si),v2=v.map((x,i)=>-u[i]*si+x*c);u=u2;v=v2;}
   return {o:n.map(x=>x*offset),u,v,n};}
-function planeBasis(pl){return basisFor(pl.axis,pl.params.offset||0,pl.params.tilt||0);}
+function planeBasis(pl){const B=basisFor(pl.axis,pl.params.offset||0,pl.params.tilt||0);const has=(pl.pos&&pl.pos.some(v=>v))||(pl.rot3&&pl.rot3.some(v=>v))||pl.rot||(pl.scl&&pl.scl.some(v=>v!==1));if(!has)return B;
+  const o=xform(pl,B.o);const D=v=>sub(xform(pl,add(B.o,v)),o);const u=D(B.u),v=D(B.v);let n=norm(cross(u,v));if(dot(n,D(B.n))<0)n=mul(n,-1);return {o,u,v,n};}
 function basisOf(f){if(!f||f.kind==='plane')return null;if(f.kind==='curve'&&f.parent)f=byId(f.parent);if(f&&f.kind==='body'&&f.src)f=byId(f.src)||f;if(!f)return null;
   if(f.kind==='sketch'){const pl=byId(f.planeId);return pl?planeBasis(pl):null;}return null;}
 function xform(f,p){const src=(f.kind==='curve'&&f.parent)?byId(f.parent):f;const o=src.pos||[0,0,0],r=src.rot3||[0,0,src.rot||0],sc=src.scl||[1,1,1];
@@ -909,7 +916,7 @@ const GZC={x:'#e01414',y:'#12d40a',z:'#1560e0',magenta:'#c81ec8',cyan:'#1fc7c7',
 const GZ_AXES=[{name:'x',dir:[1,0,0],u:[0,1,0],v:[0,0,1],plane:GZC.cyan},{name:'y',dir:[0,1,0],u:[1,0,0],v:[0,0,1],plane:GZC.magenta},{name:'z',dir:[0,0,1],u:[1,0,0],v:[0,1,0],plane:GZC.yellow}];
 const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],mul=(a,k)=>[a[0]*k,a[1]*k,a[2]*k];
 let gz={hover:null,drag:null,modal:null,handles:[],mode:'translate',edit:false};
-const gzTarget=()=>{const f=byId([...doc.sel][0]);return f&&f.pos&&f.visible&&f.kind!=='dim'&&f.kind!=='plane'?f:null;};
+const gzTarget=()=>{const f=byId([...doc.sel][0]);return f&&f.pos&&f.visible&&f.kind!=='dim'?f:null;};
 function rotMat(r3){const [ax,ay,az]=(r3||[0,0,0]).map(d=>d*Math.PI/180);const cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
   return [[cz*cy, cz*sy*sx-sz*cx, cz*sy*cx+sz*sx],[sz*cy, sz*sy*sx+cz*cx, sz*sy*cx-cz*sx],[-sy, cy*sx, cy*cx]];} // Rz·Ry·Rx, same order as xform()
 const mv=(M,v)=>[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]];
