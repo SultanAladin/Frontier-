@@ -215,6 +215,10 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 #gzHud.show{display:flex}
 #gzHud .ax{width:8px;height:8px;border-radius:50%}
 #gzHud .k{font-size:9.5px}
+#gzHud .lab{color:var(--t2)}
+#gzHud input.val{width:76px;height:22px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-radius:7px;color:var(--text);font:600 12px var(--mono);text-align:right;padding:0 7px;outline:none}
+#gzHud input.val:focus{border-color:var(--cyan);background:rgba(79,216,224,.08)}
+#gzHud .unit{color:var(--t3);font-size:11px}
 #prompt{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:3;display:none;align-items:center;gap:10px;height:34px;padding:0 14px;border-radius:999px;font-size:12px;color:var(--text)}
 #prompt.show{display:flex}
 #prompt .s{font-family:var(--mono);color:var(--cyan)}
@@ -347,6 +351,11 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
       <button data-s="flat">Flat</button>
       <button data-s="plastic" class="on">Plastic</button>
       <button data-s="matcap">Matcap</button>
+    </div>
+    <div class="seg" id="gzMode" title="gizmo mode · G / R / S">
+      <button data-g="translate" class="on">Move <kbd>G</kbd></button>
+      <button data-g="rotate">Rotate <kbd>R</kbd></button>
+      <button data-g="scale">Scale <kbd>S</kbd></button>
     </div>
     <div class="spacer"></div>
     <div class="seg" id="views">
@@ -811,16 +820,18 @@ function segDist(x,y,a,b){const dx=b[0]-a[0],dy=b[1]-a[1];const t=Math.max(0,Mat
 
 function setSeg(id,attr,val){$$(`#${id} button`).forEach(b=>b.classList.toggle('on',b.dataset[attr]===val));}
 $$('#selMode button').forEach(b=>b.onclick=()=>{view.mode=b.dataset.m;setSeg('selMode','m',view.mode);log('select mode '+view.mode);});
+$$('#gzMode button').forEach(b=>b.onclick=()=>setGzMode(b.dataset.g));
 $$('#shade button').forEach(b=>b.onclick=()=>{view.shade=b.dataset.s;setSeg('shade','s',view.shade);draw();});
 function setView(v){if(v==='ortho'){view.ortho=!view.ortho;$('#orthoBtn').classList.toggle('on',view.ortho);}
   else{const m={top:[90,89.9],front:[-90,0],right:[0,0],iso:[45,30]}[v];view.az=m[0];view.el=m[1];$$('#views button:not(#orthoBtn)').forEach(b=>b.classList.toggle('on',b.dataset.v===v));}
   $('#vname').textContent=(view.ortho?'Orthographic':'Perspective')+' · '+($('#views button.on:not(#orthoBtn)')?.textContent.replace(/\d/g,'').trim()||'free');draw();}
 $$('#views button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
 addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))return;const k=e.key.toLowerCase();
-  if(gz.modal){const m=gz.modal;if(e.key==='Escape'){modalCancel();return;}if(e.key==='Enter'){modalConfirm();return;}
+  if(gz.drag){if(e.key==='Tab'||e.key==='Enter'||e.key==='='){e.preventDefault();gz.edit=true;hudFocus();}else if(e.key==='Escape')gzEnd(false);return;}
+  if(gz.modal){const m=gz.modal;if(e.key==='Escape'){modalCancel();return;}if(e.key==='Enter'){modalConfirm();return;}if(e.key==='Tab'||e.key==='='){e.preventDefault();hudFocus();return;}
     if(['x','y','z'].includes(k)){m.axis=m.axis===k?null:k;modalApply(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
     if(/^[0-9.\-]$/.test(e.key)){m.num+=e.key;modalApply(lastMouse[0],lastMouse[1],false);return;}if(e.key==='Backspace'){m.num=m.num.slice(0,-1);modalApply(lastMouse[0],lastMouse[1],false);return;}
-    if(k==='g'||k==='r'||k==='s'){m.f.pos=m.start.pos;m.f.rot3=[...m.start.rot3];m.f.scl=m.start.scl;m.mode=k;m.axis=null;m.num='';m.mx=lastMouse[0];m.my=lastMouse[1];modalApply(lastMouse[0],lastMouse[1],false);return;}return;}
+    if(k==='g'||k==='r'||k==='s'){m.f.pos=m.start.pos;m.f.rot3=[...m.start.rot3];m.f.scl=m.start.scl;m.key=k;m.mode={g:'translate',r:'rotate',s:'scale'}[k];gz.mode=m.mode;setSeg('gzMode','g',m.mode);m.axis=null;m.num='';m.mx=lastMouse[0];m.my=lastMouse[1];modalApply(lastMouse[0],lastMouse[1],false);return;}return;}
   if(e.key==='Escape'){if(tool){endTool();return;}if($('#cat').classList.contains('show')&&!$('#cat').classList.contains('pinned')){closeCat();return;}doc.sel.clear();renderOutliner();renderInspector();draw();}
   else if(k==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();e.shiftKey?redo():undo();}
   else if(k==='1'&&!e.shiftKey&&e.code.startsWith('Numpad'))setView('front');else if(k==='3'&&e.code.startsWith('Numpad'))setView('right');else if(k==='7'&&e.code.startsWith('Numpad'))setView('top');else if(k==='5')setView('ortho');
@@ -841,7 +852,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
 const GZC={x:'#e01414',y:'#12d40a',z:'#1560e0',magenta:'#c81ec8',cyan:'#1fc7c7',yellow:'#e0cd12',ring:'#ffffff'};
 const GZ_AXES=[{name:'x',dir:[1,0,0],u:[0,1,0],v:[0,0,1],plane:GZC.cyan},{name:'y',dir:[0,1,0],u:[1,0,0],v:[0,0,1],plane:GZC.magenta},{name:'z',dir:[0,0,1],u:[1,0,0],v:[0,1,0],plane:GZC.yellow}];
 const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],mul=(a,k)=>[a[0]*k,a[1]*k,a[2]*k];
-let gz={hover:null,drag:null,modal:null,handles:[]};
+let gz={hover:null,drag:null,modal:null,handles:[],mode:'translate',edit:false};
 const gzTarget=()=>{const f=byId([...doc.sel][0]);return f&&f.pos&&f.visible&&f.kind!=='dim'&&f.kind!=='curve'&&f.kind!=='plane'?f:null;};
 function rotMat(r3){const [ax,ay,az]=(r3||[0,0,0]).map(d=>d*Math.PI/180);const cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
   return [[cz*cy, cz*sy*sx-sz*cx, cz*sy*cx+sz*sx],[sz*cy, sz*sy*sx+cz*cx, sz*sy*cx-cz*sx],[-sy, cy*sx, cy*cx]];} // Rz·Ry·Rx, same order as xform()
@@ -849,82 +860,145 @@ const mv=(M,v)=>[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],M[1][0]*v[0]+M[1][1]*v[1
 function eulerFromMat(M){const sy=-M[2][0];const ay=Math.asin(Math.max(-1,Math.min(1,sy)));let ax,az;if(Math.abs(sy)<0.99999){ax=Math.atan2(M[2][1],M[2][2]);az=Math.atan2(M[1][0],M[0][0]);}else{ax=Math.atan2(-M[1][2],M[1][1]);az=0;}return [ax,ay,az].map(a=>a*180/Math.PI);}
 function axisAngleMat(k,a){const c=Math.cos(a),s=Math.sin(a),t=1-c,[x,y,z]=k;return [[t*x*x+c,t*x*y-s*z,t*x*z+s*y],[t*x*y+s*z,t*y*y+c,t*y*z-s*x],[t*x*z-s*y,t*y*z+s*x,t*z*z+c]];}
 const matMul=(A,B)=>A.map(r=>[0,1,2].map(j=>r[0]*B[0][j]+r[1]*B[1][j]+r[2]*B[2][j]));
-const pxPerUnit=f=>{const s=project(f.pos);if(!s)return 1;return view.ortho?H/(view.dist*Math.tan(FOV/2*Math.PI/180)*2):(H/2)/Math.tan(FOV/2*Math.PI/180)/s[2];};
-function gzScale(f){const k=pxPerUnit(f);return k?90/k:0;} // gizmo ≈ 90 px on screen regardless of depth
+// pivot = centre of the body's bounding box in world space (what Blender calls the median/origin of the mesh)
+function gzPivot(f){const m=meshOf(f);const pts=[];(m.tris||[]).forEach(t=>t.forEach(p=>pts.push(p)));(m.lines||[]).forEach(l=>l.forEach(p=>pts.push(p)));if(!pts.length)return [...f.pos];
+  const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];pts.forEach(p=>{for(let i=0;i<3;i++){if(p[i]<lo[i])lo[i]=p[i];if(p[i]>hi[i])hi[i]=p[i];}});return xform(f,[(lo[0]+hi[0])/2,(lo[1]+hi[1])/2,(lo[2]+hi[2])/2]);}
+const pxPerUnit=o=>{const s=project(o);if(!s)return 1;return view.ortho?H/(view.dist*Math.tan(FOV/2*Math.PI/180)*2):(H/2)/Math.tan(FOV/2*Math.PI/180)/s[2];};
+function gzScale(o){const k=pxPerUnit(o);return k?92/k:0;} // gizmo ≈ 92 px on screen regardless of depth
 function axisParam(px,py,o,d){const {o:ro,d:rd}=rayAt(px,py);const w0=sub(o,ro);const a=dot(d,d),b=dot(d,rd),c=dot(rd,rd),dd=dot(d,w0),e=dot(rd,w0);const den=a*c-b*b;if(Math.abs(den)<1e-9)return 0;return (b*e-c*dd)/den;}
 function planePoint(px,py,o,n){const {o:ro,d:rd}=rayAt(px,py);const dn=dot(rd,n);if(Math.abs(dn)<1e-9)return null;const t=dot(sub(o,ro),n)/dn;return [ro[0]+rd[0]*t,ro[1]+rd[1]*t,ro[2]+rd[2]*t];}
 function angleAround(px,py,o,axis,ref){const hit=planePoint(px,py,o,axis);if(!hit)return null;const v=sub(hit,o);const r=norm(sub(ref,mul(axis,dot(ref,axis))));const perp=norm(cross(axis,r));return Math.atan2(dot(v,perp),dot(v,r));}
-function drawGizmo(g){gz.handles=[];const f=gzTarget();if(!f||tool)return;const o=f.pos,L=gzScale(f);if(!L)return;const M=rotMat(f.rot3);const wd=v=>mv(M,v);
+function setGzMode(m){gz.mode=m;setSeg('gzMode','g',m);draw();}
+// circle outline in 3-D (centre o, radius r, basis u,v) → screen polyline
+function ring3(o,u,v,r,n=48){const out=[];for(let i=0;i<=n;i++){const a=i/n*Math.PI*2;const p=project(add(o,add(mul(u,Math.cos(a)*r),mul(v,Math.sin(a)*r))));if(!p)return null;out.push(p);}return out;}
+function drawGizmo(g){gz.handles=[];const f=gzTarget();if(!f||tool)return;const o=gzPivot(f),L=gzScale(o);if(!L)return;const M=rotMat(f.rot3);const wd=v=>mv(M,v);
   const TIP=L*0.95,half=L*0.08;const items=[];const P=v=>project(add(o,v));const push=(z,fn)=>items.push({z,fn});
   const hi=h=>(gz.hover&&gz.hover.type===h.type&&gz.hover.axis===h.axis&&!gz.drag)||(gz.drag&&gz.drag.h.type===h.type&&gz.drag.h.axis===h.axis);
-  const lockOnly=gz.modal&&gz.modal.axis;
+  const mode=gz.modal?gz.modal.mode:gz.mode;const lockOnly=gz.modal&&gz.modal.axis;
+  const viewAxis=norm(sub(cam.eye,o));
   for(const ax of GZ_AXES){const d=wd(ax.dir),u=wd(ax.u),v=wd(ax.v);const col=GZC[ax.name];
-    if(gz.modal&&(!lockOnly||gz.modal.axis!==ax.name))continue;
-    if(lockOnly){const a=P(mul(d,-L*4)),b=P(mul(d,L*4));if(a&&b){g.strokeStyle=col;g.lineWidth=1;g.globalAlpha=.8;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.globalAlpha=1;}continue;}
-    // translate cone
-    {const tip=P(mul(d,TIP)),baseC=mul(d,TIP-L*0.18),base=P(baseC);if(tip&&base){const h={type:'translate',axis:ax.name,dir:d,color:col,sx:(tip[0]+base[0])/2,sy:(tip[1]+base[1])/2,r:9};gz.handles.push(h);
-      const bu=P(add(baseC,mul(u,L*0.06))),bv=P(add(baseC,mul(u,-L*0.06))),bw=P(add(baseC,mul(v,L*0.06))),bx=P(add(baseC,mul(v,-L*0.06)));
-      push(tip[2],()=>{g.fillStyle=hi(h)?'#fff':col;g.strokeStyle=g.fillStyle;g.lineWidth=1;const bs=[bu,bw,bv,bx].filter(Boolean);g.beginPath();g.moveTo(tip[0],tip[1]);bs.forEach(p=>g.lineTo(p[0],p[1]));g.closePath();g.fill();g.beginPath();bs.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();});}}
-    // scale cylinder
-    {const c=mul(d,TIP-L*0.28);const a=P(add(c,mul(d,L*0.07))),b=P(add(c,mul(d,-L*0.07)));const mid=P(c);if(a&&b&&mid){const h={type:'scale',axis:ax.name,dir:d,color:col,sx:mid[0],sy:mid[1],r:8};gz.handles.push(h);
-      push(mid[2]+0.01,()=>{g.strokeStyle=hi(h)?'#fff':col;g.lineWidth=hi(h)?9:7;g.lineCap='butt';g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.lineCap='round';});}}
-    // plane quad
-    {const corner=mul(add(u,v),TIP-half);const q=[add(corner,add(mul(u,-half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,half))),add(corner,add(mul(u,-half),mul(v,half)))].map(P);
+    if(lockOnly){if(gz.modal.axis!==ax.name)continue;const a=P(mul(d,-L*4)),b=P(mul(d,L*4));if(a&&b){g.strokeStyle=col;g.lineWidth=1;g.globalAlpha=.8;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.globalAlpha=1;}continue;}
+    if(gz.modal)continue;
+    // faint axis stem (all modes) so the handle reads as attached to the pivot
+    {const a=P(mul(d,L*0.18)),b=P(mul(d,mode==='rotate'?L*0.55:TIP-L*0.2));if(a&&b)push(Math.max(a[2],b[2])+0.02,()=>{g.strokeStyle=col;g.globalAlpha=.55;g.lineWidth=1.4;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.globalAlpha=1;});}
+    if(mode==='translate'){
+      // cone: tip at TIP, base at TIP-0.18L, base radius 0.06L — drawn as tip + projected base ellipse (billboard-ish)
+      const tipW=mul(d,TIP),baseC=mul(d,TIP-L*0.18);const tip=P(tipW),base=P(baseC);
+      if(tip&&base){const rim=ring3(add(o,baseC),u,v,L*0.06,16);const h={type:'translate',axis:ax.name,dir:d,color:col,sx:(tip[0]+base[0])/2,sy:(tip[1]+base[1])/2,r:10};gz.handles.push(h);
+        push(base[2],()=>{const c=hi(h)?'#ffffff':col;g.fillStyle=c;g.strokeStyle=c;g.lineJoin='round';
+          if(rim){g.beginPath();rim.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();
+            // silhouette: tip to the two rim points farthest apart in screen space perpendicular to axis direction
+            const ax2=[base[0]-tip[0],base[1]-tip[1]];const l=Math.hypot(ax2[0],ax2[1])||1;const nx=-ax2[1]/l,ny=ax2[0]/l;let lo=rim[0],hiP=rim[0],lov=1e9,hiv=-1e9;rim.forEach(p=>{const k=(p[0]-tip[0])*nx+(p[1]-tip[1])*ny;if(k<lov){lov=k;lo=p;}if(k>hiv){hiv=k;hiP=p;}});
+            g.beginPath();g.moveTo(tip[0],tip[1]);g.lineTo(lo[0],lo[1]);g.lineTo(hiP[0],hiP[1]);g.closePath();g.fill();g.lineWidth=1;g.stroke();}
+          else{g.beginPath();g.arc(tip[0],tip[1],5,0,7);g.fill();}});}
+      // plane quad (translate mode only, as in the reference)
+      const corner=mul(add(u,v),TIP-half);const q=[add(corner,add(mul(u,-half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,half))),add(corner,add(mul(u,-half),mul(v,half)))].map(P);
       if(q.every(Boolean)){const cx=(q[0][0]+q[2][0])/2,cy=(q[0][1]+q[2][1])/2;const h={type:'plane',axis:ax.name,normal:d,u,v,color:ax.plane,poly:q,sx:cx,sy:cy,r:0};gz.handles.push(h);
         push((q[0][2]+q[2][2])/2,()=>{g.fillStyle=ax.plane;g.globalAlpha=hi(h)?.6:.28;g.beginPath();q.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();g.globalAlpha=1;
           g.strokeStyle=ax.plane;g.lineWidth=1.2;g.beginPath();g.moveTo(q[1][0],q[1][1]);g.lineTo(q[2][0],q[2][1]);g.lineTo(q[3][0],q[3][1]);g.stroke();});}}
-    // rotate arc bar
-    {const R=TIP*0.62,band=L*0.038,sweep=31*Math.PI/180,c0=Math.PI/4-sweep/2,n=12;const inner=[],outer=[];for(let i=0;i<=n;i++){const a=c0+sweep*i/n,ca=Math.cos(a),sa=Math.sin(a);const dir=add(mul(u,ca),mul(v,sa));inner.push(P(mul(dir,R-band)));outer.push(P(mul(dir,R+band)));}
-      if(inner.every(Boolean)&&outer.every(Boolean)){const mid=inner[n>>1];const h={type:'rotate',axis:ax.name,dir:d,ref:u,color:col,poly:[...inner,...outer.slice().reverse()],sx:mid[0],sy:mid[1],r:0};gz.handles.push(h);
-        push(mid[2],()=>{g.fillStyle=hi(h)?'#fff':col;g.beginPath();h.poly.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();});}}
+    else if(mode==='scale'){
+      // cylinder: length 0.14L radius 0.06L at TIP-0.07L (cube-ish cap like Blender)
+      const c=mul(d,TIP-L*0.07);const a=P(add(c,mul(d,L*0.07))),b=P(add(c,mul(d,-L*0.07)));const mid=P(c);
+      if(a&&b&&mid){const capA=ring3(add(o,add(c,mul(d,L*0.07))),u,v,L*0.06,16),capB=ring3(add(o,add(c,mul(d,-L*0.07))),u,v,L*0.06,16);const h={type:'scale',axis:ax.name,dir:d,color:col,sx:mid[0],sy:mid[1],r:10};gz.handles.push(h);
+        push(mid[2],()=>{const cc=hi(h)?'#ffffff':col;g.fillStyle=cc;g.strokeStyle=cc;if(capA&&capB){g.beginPath();capA.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();g.beginPath();capB.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();
+            g.lineCap='butt';g.lineWidth=Math.max(6,L*0.12*pxPerUnit(o));g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.lineCap='round';}});}}
+    else if(mode==='rotate'){
+      // full ring per axis (Blender rotate gizmo); front half opaque, back half faded
+      const R=TIP*0.78;const ring=ring3(o,u,v,R,72);if(!ring)continue;
+      const h={type:'rotate',axis:ax.name,dir:d,ref:u,color:col,ring,R,sx:0,sy:0,r:0};gz.handles.push(h);
+      push(ring.reduce((m,p)=>Math.min(m,p[2]),1e9),()=>{const cc=hi(h)?'#ffffff':col;g.lineWidth=hi(h)?3.2:2.2;g.lineCap='round';
+        for(let i=0;i<ring.length-1;i++){const a=i/72*Math.PI*2;const n3=add(mul(u,Math.cos(a)),mul(v,Math.sin(a)));const front=dot(n3,viewAxis)>=-0.02;g.strokeStyle=cc;g.globalAlpha=front?1:.18;g.beginPath();g.moveTo(ring[i][0],ring[i][1]);g.lineTo(ring[i+1][0],ring[i+1][1]);g.stroke();}g.globalAlpha=1;});}
   }
   items.sort((a,b)=>b.z-a.z).forEach(it=>it.fn());
-  const c=project(o);if(c){g.strokeStyle=GZC.ring;g.lineWidth=1.3;g.beginPath();g.arc(c[0],c[1],90*0.16,0,7);g.stroke();}
+  const c=project(o);if(c){g.strokeStyle=GZC.ring;g.lineWidth=1.3;g.beginPath();g.arc(c[0],c[1],mode==='rotate'?TIP*0.78*pxPerUnit(o)+12:92*0.16,0,7);g.stroke();
+    if(mode==='rotate'){const h={type:'rotate',axis:'view',dir:viewAxis,ref:cam.right,color:GZC.ring,ringR:TIP*0.78*pxPerUnit(o)+12,cx:c[0],cy:c[1],sx:0,sy:0,r:0};gz.handles.push(h);}}
   $('#cx').textContent=fmt(o[0],1);$('#cy').textContent=fmt(o[1],1);$('#cz').textContent=fmt(o[2],1);}
 function ptInPoly(x,y,poly){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a[1]>y)!==(b[1]>y))&&(x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]))c=!c;}return c;}
-function gzHit(px,py){let best=null;for(const h of gz.handles){const ok=h.poly?(ptInPoly(px,py,h.poly)||Math.hypot(px-h.sx,py-h.sy)<7):Math.hypot(px-h.sx,py-h.sy)<=Math.max(h.r,9);if(ok)best=h;}return best;}
-function gzBegin(h,px,py){const f=gzTarget();if(!f)return false;snapshot();const o=[...f.pos];const d={h,f,o,start:{pos:[...f.pos],rot3:[...(f.rot3||[0,0,0])],scl:[...(f.scl||[1,1,1])]}};
+function distToPolyline(x,y,pts){let m=1e9;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];const dx=b[0]-a[0],dy=b[1]-a[1];const l2=dx*dx+dy*dy||1;let t=((x-a[0])*dx+(y-a[1])*dy)/l2;t=Math.max(0,Math.min(1,t));m=Math.min(m,Math.hypot(x-a[0]-dx*t,y-a[1]-dy*t));}return m;}
+function gzHit(px,py){let best=null,bd=1e9;for(const h of gz.handles){let ok=false,dd=0;
+    if(h.ring){dd=distToPolyline(px,py,h.ring);ok=dd<7;}
+    else if(h.ringR){dd=Math.abs(Math.hypot(px-h.cx,py-h.cy)-h.ringR);ok=dd<7;}
+    else if(h.poly){ok=ptInPoly(px,py,h.poly);dd=Math.hypot(px-h.sx,py-h.sy);}
+    else{dd=Math.hypot(px-h.sx,py-h.sy);ok=dd<=Math.max(h.r,9);}
+    if(ok&&dd<bd){bd=dd;best=h;}}return best;}
+function gzBegin(h,px,py){const f=gzTarget();if(!f)return false;snapshot();const o=gzPivot(f);const d={h,f,o,start:{pos:[...f.pos],rot3:[...(f.rot3||[0,0,0])],scl:[...(f.scl||[1,1,1])]},value:0};
   if(h.type==='translate'||h.type==='scale')d.p0=axisParam(px,py,o,h.dir);else if(h.type==='plane')d.hit0=planePoint(px,py,o,h.normal);else if(h.type==='rotate')d.a0=angleAround(px,py,o,h.dir,h.ref);
   gz.drag=d;return true;}
-function gzUpdate(px,py,snapOn){const d=gz.drag;if(!d)return;const h=d.h,f=d.f;const st=h.type==='rotate'?5*Math.PI/180:h.type==='scale'?0.1:5;const S=k=>Math.round(k/st)*st;
-  if(h.type==='translate'){let k=axisParam(px,py,d.o,h.dir)-d.p0;if(snapOn)k=S(k);f.pos=add(d.start.pos,mul(h.dir,k));gzHud(`${h.axis.toUpperCase()} move`,`${fmt(k,2)} mm`,h.axis);}
-  else if(h.type==='scale'){let k=1+(axisParam(px,py,d.o,h.dir)-d.p0)/gzScale(f);if(snapOn)k=Math.max(.1,S(k));k=Math.max(.05,k);const i={x:0,y:1,z:2}[h.axis];f.scl=[...d.start.scl];f.scl[i]=d.start.scl[i]*k;if(f.uniform)f.scl=[f.scl[i],f.scl[i],f.scl[i]];gzHud(`${h.axis.toUpperCase()} scale`,`${fmt(k,3)}×`,h.axis);}
-  else if(h.type==='plane'){const hit=planePoint(px,py,d.o,h.normal);if(hit&&d.hit0){let m=sub(hit,d.hit0);if(snapOn){m=add(mul(h.u,S(dot(m,h.u))),mul(h.v,S(dot(m,h.v))));}f.pos=add(d.start.pos,m);gzHud(`${h.axis.toUpperCase()}-plane move`,`${fmt(Math.hypot(...m),2)} mm`,h.axis);}}
-  else if(h.type==='rotate'){const a=angleAround(px,py,d.o,h.dir,h.ref);if(a!==null&&d.a0!==null){let da=a-d.a0;if(snapOn)da=S(da);const R=matMul(axisAngleMat(h.dir,da),rotMat(d.start.rot3));f.rot3=eulerFromMat(R);f.rot=f.rot3[2];gzHud(`${h.axis.toUpperCase()} rotate`,`${fmt(da*180/Math.PI,1)}°`,h.axis);}}
+// apply a transform about pivot o (so scale/rotate happen around the body centre, like Blender's median pivot)
+function applyAbout(f,st,o,R,sc){ // R: 3x3 delta rotation or null; sc: [sx,sy,sz] multiplier or null
+  const M0=rotMat(st.rot3);let M=M0,S=[...st.scl];if(sc){S=[st.scl[0]*sc[0],st.scl[1]*sc[1],st.scl[2]*sc[2]];}if(R)M=matMul(R,M0);
+  f.scl=S;f.rot3=eulerFromMat(M);f.rot=f.rot3[2];
+  // keep pivot fixed: pivot_local = M0⁻¹(o-pos0)/scl0 → new pos = o - M·(scl·pivot_local)
+  const rel=sub(o,st.pos);const Mt=[[M0[0][0],M0[1][0],M0[2][0]],[M0[0][1],M0[1][1],M0[2][1]],[M0[0][2],M0[1][2],M0[2][2]]];const pl=mv(Mt,rel);const loc=[pl[0]/(st.scl[0]||1),pl[1]/(st.scl[1]||1),pl[2]/(st.scl[2]||1)];
+  const w=mv(M,[loc[0]*S[0],loc[1]*S[1],loc[2]*S[2]]);f.pos=sub(o,w);}
+function gzUpdate(px,py,snapOn){const d=gz.drag;if(!d)return;const h=d.h,f=d.f;const st=h.type==='rotate'?5:h.type==='scale'?0.1:5;const S=k=>Math.round(k/st)*st;
+  if(h.type==='translate'){let k=axisParam(px,py,d.o,h.dir)-d.p0;if(snapOn)k=S(k);d.value=k;f.pos=add(d.start.pos,mul(h.dir,k));gzHud(`${h.axis.toUpperCase()} move`,k,'mm',h.axis);}
+  else if(h.type==='scale'){let k=1+(axisParam(px,py,d.o,h.dir)-d.p0)/gzScale(d.o);if(snapOn)k=Math.max(.1,S(k));k=Math.max(.05,k);d.value=k;const i={x:0,y:1,z:2}[h.axis];const sc=[1,1,1];sc[i]=k;if(f.uniform)sc.fill(k);applyAbout(f,d.start,d.o,null,sc);gzHud(`${h.axis.toUpperCase()} scale`,k,'×',h.axis);}
+  else if(h.type==='plane'){const hit=planePoint(px,py,d.o,h.normal);if(hit&&d.hit0){let m=sub(hit,d.hit0);if(snapOn){m=add(mul(h.u,S(dot(m,h.u))),mul(h.v,S(dot(m,h.v))));}d.value=Math.hypot(...m);d.vec=m;f.pos=add(d.start.pos,m);gzHud(`${h.axis.toUpperCase()}-plane move`,d.value,'mm',h.axis);}}
+  else if(h.type==='rotate'){const a=angleAround(px,py,d.o,h.dir,h.ref);if(a!==null&&d.a0!==null){let da=(a-d.a0)*180/Math.PI;if(snapOn)da=S(da);d.value=da;applyAbout(f,d.start,d.o,axisAngleMat(h.dir,da*Math.PI/180),null);gzHud(`${h.axis==='view'?'View':h.axis.toUpperCase()} rotate`,da,'°',h.axis==='view'?null:h.axis);}}
   draw();}
-function gzEnd(){if(!gz.drag)return;gz.drag=null;$('#gzHud').classList.remove('show');renderOutliner();renderInspector();draw();}
-function gzHud(a,b,axis,extra){const el=$('#gzHud');el.innerHTML=`${axis?`<span class="ax" style="background:${GZC[axis]}"></span>`:''}<span>${a}</span><b>${b}</b>${extra||''}`;el.classList.add('show');}
+// re-apply a drag with an exact typed value (from the editable readout)
+function gzSetValue(v){const d=gz.drag;if(!d||!isFinite(v))return;const h=d.h,f=d.f;d.value=v;
+  if(h.type==='translate')f.pos=add(d.start.pos,mul(h.dir,v));
+  else if(h.type==='plane'){const dir=d.vec&&Math.hypot(...d.vec)>1e-9?norm(d.vec):h.u;f.pos=add(d.start.pos,mul(dir,v));}
+  else if(h.type==='scale'){const k=Math.max(.05,v);const i={x:0,y:1,z:2}[h.axis];const sc=[1,1,1];sc[i]=k;if(f.uniform)sc.fill(k);applyAbout(f,d.start,d.o,null,sc);}
+  else if(h.type==='rotate')applyAbout(f,d.start,d.o,axisAngleMat(h.dir,v*Math.PI/180),null);
+  draw();}
+function gzEnd(commit=true){if(!gz.drag)return;if(!commit){const d=gz.drag;d.f.pos=d.start.pos;d.f.rot3=d.start.rot3;d.f.rot=d.start.rot3[2];d.f.scl=d.start.scl;doc.undo.pop();}gz.drag=null;gz.edit=false;hideHud();renderOutliner();renderInspector();draw();}
+/* readout: label · editable value · unit. Click the value (or press Tab / =) to type an exact number. Enter commits, Esc cancels. */
+function gzHud(label,val,unit,axis,extra){const el=$('#gzHud');const inp=el.querySelector('input');
+  if(gz.edit&&inp){el.querySelector('.lab').textContent=label;return;} // keep the user's typing
+  el.innerHTML=`${axis?`<span class="ax" style="background:${GZC[axis]}"></span>`:''}<span class="lab">${label}</span><input class="val" value="${fmt(val,unit==='×'?3:unit==='°'?1:2)}" data-unit="${unit}" title="click to type an exact value"/><span class="unit">${unit}</span>${extra||''}`;
+  const i=el.querySelector('input');i.addEventListener('focus',()=>{gz.edit=true;i.select();});i.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){const v=parseFloat(i.value);if(gz.drag){gzSetValue(v);gzEnd(true);}else if(gz.modal){gz.modal.num=String(v);modalApply(lastMouse[0],lastMouse[1],false);modalConfirm();}}else if(e.key==='Escape'){gz.drag?gzEnd(false):modalCancel();}});
+  i.addEventListener('input',()=>{const v=parseFloat(i.value);if(!isFinite(v))return;if(gz.drag)gzSetValue(v);else if(gz.modal){gz.modal.num=i.value;modalApply(lastMouse[0],lastMouse[1],false);}});
+  el.classList.add('show');}
+function hideHud(){const el=$('#gzHud');el.classList.remove('show');el.innerHTML='';gz.edit=false;}
+function hudFocus(){const i=$('#gzHud input');if(i){i.focus();i.select();}}
 /* Blender-style modal: G/R/S → mouse moves the object; X/Y/Z lock (again = clear); type a number; Ctrl snap; LMB/⏎ confirm; RMB/Esc cancel */
 let lastMouse=[0,0];
-function modalStart(mode){const f=gzTarget();if(!f||tool)return;snapshot();cam=camBasis();const c=project(f.pos);if(!c)return;gz.modal={mode,f,axis:null,num:'',start:{pos:[...f.pos],rot3:[...(f.rot3||[0,0,0])],scl:[...(f.scl||[1,1,1])]},cx:c[0],cy:c[1],mx:lastMouse[0],my:lastMouse[1]};modalApply(lastMouse[0],lastMouse[1],false);}
-function modalApply(px,py,snapOn){const m=gz.modal;if(!m)return;const f=m.f,o=m.start.pos;const M=rotMat(m.start.rot3);const axisDir=m.axis?[[1,0,0],[0,1,0],[0,0,1]][{x:0,y:1,z:2}[m.axis]]:null;const num=m.num!==''&&m.num!=='-'&&m.num!=='.'?parseFloat(m.num):null;
-  const S=(k,st)=>Math.round(k/st)*st;const lab=m.axis?m.axis.toUpperCase():'';const typed=m.num!==''?` <span class="k">typed ${m.num}</span>`:'';
-  if(m.mode==='g'){let mvv;if(axisDir){let k=num!==null?num:axisParam(px,py,o,axisDir)-axisParam(m.mx,m.my,o,axisDir);if(snapOn)k=S(k,5);mvv=mul(axisDir,k);gzHud(`Move ${lab}`,`${fmt(k,2)} mm`,m.axis,modalKeys()+typed);}
-    else{const n=cam.fwd;const a=planePoint(px,py,o,n),b=planePoint(m.mx,m.my,o,n);mvv=a&&b?sub(a,b):[0,0,0];if(snapOn)mvv=mvv.map(x=>S(x,5));if(num!==null&&Math.hypot(...mvv)>1e-9)mvv=mul(norm(mvv),num);gzHud('Move',`${fmt(mvv[0],1)}, ${fmt(mvv[1],1)}, ${fmt(mvv[2],1)}`,null,modalKeys()+typed);}
-    f.pos=add(o,mvv);}
-  else if(m.mode==='s'){const d0=Math.hypot(m.mx-m.cx,m.my-m.cy)||1,d1=Math.hypot(px-m.cx,py-m.cy);let k=num!==null?num:d1/d0;if(snapOn)k=Math.max(.1,S(k,.1));k=Math.max(.05,k);
-    if(axisDir){const i={x:0,y:1,z:2}[m.axis];f.scl=[...m.start.scl];f.scl[i]=m.start.scl[i]*k;}else f.scl=m.start.scl.map(x=>x*k);gzHud(`Scale ${lab}`,`${fmt(k,3)}×`,m.axis,modalKeys()+typed);}
-  else if(m.mode==='r'){const a0=Math.atan2(m.my-m.cy,m.mx-m.cx),a1=Math.atan2(py-m.cy,px-m.cx);let da=num!==null?-num*Math.PI/180:a1-a0;if(snapOn)da=S(da,5*Math.PI/180);
-    const viewAxis=mul(cam.fwd,-1);let axis=axisDir||viewAxis;const sgn=axisDir?(dot(axisDir,viewAxis)<0?-1:1):1;const R=matMul(axisAngleMat(axis,-da*sgn),M);f.rot3=eulerFromMat(R);f.rot=f.rot3[2];gzHud(`Rotate ${lab||'view'}`,`${fmt(-da*180/Math.PI,1)}°`,m.axis,modalKeys()+typed);}
+function modalStart(mode){const f=gzTarget();if(!f||tool)return;snapshot();cam=camBasis();const o=gzPivot(f);const c=project(o);if(!c)return;gz.mode={g:'translate',r:'rotate',s:'scale'}[mode];setSeg('gzMode','g',gz.mode);
+  gz.modal={mode:gz.mode,key:mode,f,o,axis:null,num:'',start:{pos:[...f.pos],rot3:[...(f.rot3||[0,0,0])],scl:[...(f.scl||[1,1,1])]},cx:c[0],cy:c[1],mx:lastMouse[0],my:lastMouse[1]};modalApply(lastMouse[0],lastMouse[1],false);}
+function modalApply(px,py,snapOn){const m=gz.modal;if(!m)return;const f=m.f,o=m.o,st=m.start;const axisDir=m.axis?[[1,0,0],[0,1,0],[0,0,1]][{x:0,y:1,z:2}[m.axis]]:null;const num=m.num!==''&&isFinite(parseFloat(m.num))?parseFloat(m.num):null;
+  const S=(k,s)=>Math.round(k/s)*s;const lab=m.axis?m.axis.toUpperCase():'';
+  if(m.mode==='translate'){let mvv;let val;if(axisDir){let k=num!==null?num:axisParam(px,py,o,axisDir)-axisParam(m.mx,m.my,o,axisDir);if(snapOn)k=S(k,5);mvv=mul(axisDir,k);val=k;}
+    else{const n=cam.fwd;const a=planePoint(px,py,o,n),b=planePoint(m.mx,m.my,o,n);mvv=a&&b?sub(a,b):[0,0,0];if(snapOn)mvv=mvv.map(x=>S(x,5));if(num!==null&&Math.hypot(...mvv)>1e-9)mvv=mul(norm(mvv),num);val=Math.hypot(...mvv);}
+    f.pos=add(st.pos,mvv);gzHud(`Move ${lab}`,val,'mm',m.axis,modalKeys());}
+  else if(m.mode==='scale'){const d0=Math.hypot(m.mx-m.cx,m.my-m.cy)||1,d1=Math.hypot(px-m.cx,py-m.cy);let k=num!==null?num:d1/d0;if(snapOn)k=Math.max(.1,S(k,.1));k=Math.max(.05,k);
+    const sc=axisDir?[1,1,1]:[k,k,k];if(axisDir)sc[{x:0,y:1,z:2}[m.axis]]=k;applyAbout(f,st,o,null,sc);gzHud(`Scale ${lab}`,k,'×',m.axis,modalKeys());}
+  else if(m.mode==='rotate'){const a0=Math.atan2(m.my-m.cy,m.mx-m.cx),a1=Math.atan2(py-m.cy,px-m.cx);const viewAxis=norm(sub(cam.eye,o));let da=num!==null?num:-(a1-a0)*180/Math.PI;if(snapOn)da=S(da,5);
+    let axis=axisDir||viewAxis;if(axisDir&&dot(axisDir,viewAxis)<0&&num===null)da=-da;applyAbout(f,st,o,axisAngleMat(axis,da*Math.PI/180),null);gzHud(`Rotate ${lab||'view'}`,da,'°',m.axis,modalKeys());}
   draw();}
-function modalKeys(){return `<span class="k">X Y Z</span><span class="k">Ctrl snap</span><span class="k">⏎ confirm</span><span class="k">Esc</span>`;}
-function modalConfirm(){if(!gz.modal)return;gz.modal=null;$('#gzHud').classList.remove('show');renderOutliner();renderInspector();draw();}
-function modalCancel(){const m=gz.modal;if(!m)return;m.f.pos=m.start.pos;m.f.rot3=m.start.rot3;m.f.rot=m.start.rot3[2];m.f.scl=m.start.scl;doc.undo.pop();gz.modal=null;$('#gzHud').classList.remove('show');renderInspector();draw();}
+function modalKeys(){return `<span class="k">X Y Z</span><span class="k">Ctrl snap</span><span class="k">⏎</span><span class="k">Esc</span>`;}
+function modalConfirm(){if(!gz.modal)return;gz.modal=null;hideHud();renderOutliner();renderInspector();draw();}
+function modalCancel(){const m=gz.modal;if(!m)return;m.f.pos=m.start.pos;m.f.rot3=m.start.rot3;m.f.rot=m.start.rot3[2];m.f.scl=m.start.scl;doc.undo.pop();gz.modal=null;hideHud();renderInspector();draw();}
+/* live dimensions while drawing a 2-D shape: radius / diameter / width×height / length / angle, drawn as dimension lines in the plane */
+function drawLiveDims(g,shape,W3,P){if(!shape)return;const p=shape.params;const dim=(a,b,txt,off)=>{const A=project(W3(a)),B=project(W3(b));if(!A||!B)return;
+    g.strokeStyle='rgba(255,255,255,.75)';g.lineWidth=1;g.setLineDash([]);g.beginPath();g.moveTo(A[0],A[1]);g.lineTo(B[0],B[1]);g.stroke();
+    const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;[[A,1],[B,-1]].forEach(([q,s])=>{g.beginPath();g.moveTo(q[0],q[1]);g.lineTo(q[0]+s*ux*7-uy*3,q[1]+s*uy*7+ux*3);g.lineTo(q[0]+s*ux*7+uy*3,q[1]+s*uy*7-ux*3);g.closePath();g.fillStyle='rgba(255,255,255,.85)';g.fill();});
+    g.font='11px JetBrains Mono, monospace';g.textAlign='center';g.textBaseline='middle';const mx=(A[0]+B[0])/2+(off?off[0]:0),my=(A[1]+B[1])/2+(off?off[1]:0);const tw=g.measureText(txt).width+12;g.fillStyle='rgba(0,0,0,.72)';g.beginPath();g.roundRect(mx-tw/2,my-9,tw,18,9);g.fill();g.fillStyle='#fff';g.fillText(txt,mx,my);};
+  if(shape.ctype==='circle'){const c=[p.cx,p.cy];dim(c,[p.cx+p.r,p.cy],`R ${fmt(p.r,2)}`,[0,-14]);dim([p.cx-p.r*0.7071,p.cy-p.r*0.7071],[p.cx+p.r*0.7071,p.cy+p.r*0.7071],`⌀ ${fmt(p.r*2,2)}`,[0,14]);}
+  else if(shape.ctype==='arc'){const c=[p.cx,p.cy];const a0=p.a0*Math.PI/180,a1=p.a1*Math.PI/180;dim(c,[p.cx+Math.cos(a0)*p.r,p.cy+Math.sin(a0)*p.r],`R ${fmt(p.r,2)}`);const mid=(a0+a1)/2;const m=[p.cx+Math.cos(mid)*p.r*1.15,p.cy+Math.sin(mid)*p.r*1.15];const s=project(W3(m));if(s){g.font='11px JetBrains Mono, monospace';g.textAlign='center';const t=`${fmt(Math.abs(p.a1-p.a0),1)}°`;const tw=g.measureText(t).width+12;g.fillStyle='rgba(0,0,0,.72)';g.beginPath();g.roundRect(s[0]-tw/2,s[1]-9,tw,18,9);g.fill();g.fillStyle='#fff';g.fillText(t,s[0],s[1]);}}
+  else if(shape.ctype==='ellipse'){const t=p.tilt*Math.PI/180,c=[p.cx,p.cy];dim(c,[p.cx+Math.cos(t)*p.rx,p.cy+Math.sin(t)*p.rx],`a ${fmt(p.rx,2)}`);dim(c,[p.cx-Math.sin(t)*p.ry,p.cy+Math.cos(t)*p.ry],`b ${fmt(p.ry,2)}`);}
+  else if(shape.ctype==='line'){dim([p.x1,p.y1],[p.x2,p.y2],`${fmt(Math.hypot(p.x2-p.x1,p.y2-p.y1),2)} mm`,[0,-14]);}
+  else if(shape.ctype==='poly'){const pts=p.pts||[];if(pts.length<2)return;const xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]);const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+    if(pts.length===4&&tool&&/rect/.test(tool.op.id)){dim([x0,y0-4],[x1,y0-4],`${fmt(x1-x0,2)}`);dim([x1+4,y0],[x1+4,y1],`${fmt(y1-y0,2)}`);}
+    else{const a=pts[pts.length-2],b=pts[pts.length-1];dim(a,b,`${fmt(Math.hypot(b[0]-a[0],b[1]-a[1]),2)} mm`,[0,-14]);if(tool&&(tool.op.id==='polygon'||tool.op.id==='slot')){dim([x0,y0-4],[x1,y0-4],`${fmt(x1-x0,2)}`);}}}}
 
 /* ── viewport interaction ─────────────────────────────────── */
 let drag=null,tool=null,hover=null;
 cv.addEventListener('pointerdown',e=>{const r0=cv.getBoundingClientRect();const px0=e.clientX-r0.left,py0=e.clientY-r0.top;
+  if(gz.drag&&gz.edit){if(e.button===0)gzEnd(true);else gzEnd(false);return;}
   if(gz.modal){if(e.button===0)modalConfirm();else modalCancel();return;}
   if(e.button===0&&!tool){const h=gzHit(px0,py0);if(h&&gzBegin(h,px0,py0)){cv.setPointerCapture(e.pointerId);return;}}
   cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,btn:e.button,shift:e.shiftKey,moved:false};});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();lastMouse=[e.clientX-r.left,e.clientY-r.top];
   if(gz.modal){modalApply(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
-  if(gz.drag){gzUpdate(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
+  if(gz.drag){if(!gz.edit)gzUpdate(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
   if(!drag){const h=tool?null:gzHit(lastMouse[0],lastMouse[1]);if(h!==gz.hover){gz.hover=h;cv.style.cursor=h?'pointer':'';requestDraw();}if(tool){hover=planeHit(e.clientX-r.left,e.clientY-r.top);requestDraw();}return;}
   const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(e.clientX-drag.sx)+Math.abs(e.clientY-drag.sy)>3)drag.moved=true;
   if(drag.btn===1||drag.shift||drag.btn===2){const s=view.dist/H*1.2;view.target=view.target.map((t,i)=>t-cam.right[i]*dx*s+cam.up[i]*dy*s);}
   else{view.az-=dx*.4;view.el=Math.max(-89,Math.min(89,view.el+dy*.4));}drag.x=e.clientX;drag.y=e.clientY;draw();});
-cv.addEventListener('pointerup',e=>{if(gz.drag){gzEnd();return;}const d=drag;drag=null;if(!d||d.moved)return;const r=cv.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;
+cv.addEventListener('pointerup',e=>{if(gz.drag){if(gz.edit)return;gzEnd(true);return;}const d=drag;drag=null;if(!d||d.moved)return;const r=cv.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;
   if(d.btn===2){if(tool){tool.op.multi&&tool.pts.length>=2?finishTool():endTool();}else openCatAt(e.clientX,e.clientY);return;}
   if(d.btn!==0)return;if(!$('#cat').classList.contains('pinned'))closeCat();if(tool)toolClick(px,py);else pick(px,py,e.shiftKey);});
 cv.addEventListener('wheel',e=>{e.preventDefault();view.dist=Math.max(20,Math.min(2000,view.dist*(1+Math.sign(e.deltaY)*.08)));draw();},{passive:false});
@@ -1051,7 +1125,7 @@ function commitShape(op,shape,v){snapshot();const pl=activePlane();let sk=byId(a
 function drawToolPreview(g){if(!tool)return;const pl=activePlane();if(!pl)return;const B=planeBasis(pl);const W3=uv=>[B.o[0]+B.u[0]*uv[0]+B.v[0]*uv[1],B.o[1]+B.u[1]*uv[0]+B.v[1]*uv[1],B.o[2]+B.u[2]*uv[0]+B.v[2]*uv[1]];
   const P=hover&&!(tool.pts.length&&tool.pts[tool.pts.length-1][0]===hover[0]&&tool.pts[tool.pts.length-1][1]===hover[1])?[...tool.pts,hover]:tool.pts.slice();
   const shape=shapeFrom(tool.op,P,tool.vals,false);
-  if(shape){const L=curveLines({ctype:shape.ctype,params:shape.params}).lines;g.strokeStyle='rgba(79,216,224,.95)';g.lineWidth=1.4;g.setLineDash([5,4]);g.beginPath();L.forEach(l=>{const a=project(W3(l[0])),b=project(W3(l[1]));if(!a||!b)return;g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);});g.stroke();g.setLineDash([]);}
+  if(shape){const L=curveLines({ctype:shape.ctype,params:shape.params}).lines;g.strokeStyle='rgba(79,216,224,.95)';g.lineWidth=1.4;g.setLineDash([5,4]);g.beginPath();L.forEach(l=>{const a=project(W3(l[0])),b=project(W3(l[1]));if(!a||!b)return;g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);});g.stroke();g.setLineDash([]);drawLiveDims(g,shape,W3);}
   tool.pts.forEach(uv=>{const s=project(W3(uv));if(!s)return;g.fillStyle='#4fd8e0';g.beginPath();g.arc(s[0],s[1],3.5,0,7);g.fill();});
   if(hover){const s=project(W3(hover));if(s){g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=1;g.beginPath();g.moveTo(s[0]-8,s[1]);g.lineTo(s[0]+8,s[1]);g.moveTo(s[0],s[1]-8);g.lineTo(s[0],s[1]+8);g.stroke();
     g.font='10px JetBrains Mono, monospace';g.fillStyle='rgba(255,255,255,.7)';g.textAlign='left';g.fillText(`${hover[0]}, ${hover[1]}`,s[0]+10,s[1]-8);

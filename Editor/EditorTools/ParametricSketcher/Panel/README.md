@@ -13,10 +13,18 @@ Run: `python3 -m http.server 8080` in this folder → http://localhost:8080/
 | Viewport | software raster (Z-up orbit camera, ortho/persp, canonical views), wire/flat/plastic/matcap, lattice, dimension lines, GizmoPRO stub, axis triad, prompt bar for modal tools (L/C/R/B/Y), pick, body/face/edge/vertex mode | replace `draw()` with the PNG/stream from `SoftwareRaster`; forward pointer/keys as `InputEvent` |
 | Inspector | hero card (volume/area/length + B-rep stats), presence grid (Visible/Locked/Construction/Dims), transform XYZ steppers + rotation, live parameter sliders that rebuild derived figures, recipe chain, sketch curves + constraint summary, dimensions list (+ add/remove), duplicate/isolate/delete, command line (`box`, `cylinder`, `extrude`, `dim on|off`, `hide`, `show`, `select`, `view`) | `runCmd()` ← send verb to `ConsoleHost`; sliders ← `FigureRecipe` param edit |
 
-## Transform gizmo (port of Slate `References/Gizmo.html`)
-Select a body and the gizmo appears at its origin, oriented with its rotation, at a constant ~90 px on screen. Per axis (X red, Y green, Z blue): **cone** = move along axis · **short cylinder** just behind the cone = scale along axis · **corner quad** (cyan/magenta/yellow) = move in that plane · **arc bar** = rotate about the axis. Hover highlights, drag applies live to the inspector's Transform rows, a top-centre readout shows `X move 12.50 mm` / `Y scale 1.100×` / `Z rotate 15.0°`. Hold **Ctrl** to snap (5 mm / 0.1× / 5°). Every drag is one undo step.
+## Transform gizmo (port of Slate `References/Gizmo.html`, Blender behaviour)
+Select a body and the gizmo appears at its **centre** (bounding-box middle, like Blender's median pivot), oriented with the body, ~92 px on screen at any zoom. It has three modes, chosen with the **Move / Rotate / Scale** segment in the toolbar or **G / R / S** — only the handles of the current mode are shown:
+- **Move** — cone per axis (X red, Y green, Z blue) + corner quad per plane (cyan / magenta / yellow).
+- **Rotate** — full ring per axis (back half faded) + white outer ring for rotation about the view axis.
+- **Scale** — capped cylinder per axis. Rotation and scale act about the pivot, so the body stays centred.
 
-Blender-style modal: press **G / R / S** with a body selected, move the mouse; **X / Y / Z** lock an axis (press again to clear, an axis line is drawn); type a number for an exact value; **Ctrl** snaps; **LMB / Enter** confirm; **RMB / Esc** cancel. `R` with no body selected still starts the rectangle tool.
+Hover highlights white; drag applies live. The readout at the top (`X move  12.50 mm`, `Y scale 1.100 ×`, `Z rotate 15.0 °`) has an **editable value**: click it or press **Tab / Enter / =** during a drag or modal, type an exact number, **Enter** commits, **Esc** cancels. Hold **Ctrl** to snap (5 mm / 0.1× / 5°). Every operation is one undo step.
+
+Modal (Blender): **G / R / S** with a body selected, move the mouse; **X / Y / Z** lock an axis (again = clear; an axis line is drawn); type digits for an exact amount; **LMB / Enter** confirm; **RMB / Esc** cancel. `R` with no body selected still starts the rectangle tool.
+
+## Live dimensions while drawing
+Every 2-D tool shows its dimensions as dimension lines while you draw: circle `R` and `⌀`, arc `R` + sweep angle, ellipse `a` / `b`, line length, rectangle width × height, polyline last-segment length, polygon / slot overall width.
 
 ## Construction catalogue (Tab / right-click / **Construct** button)
 Popup by default (closes after you pick), **pin** it to keep it open as a panel. Rail on the left (Reference · Sketch Draw live; the rest greyed until we port them), tile grid, click → options slide, double-click / **Start drawing** → tool. Tiles are **gated** by document state: sketch tools are disabled with a "set a workplane" fix-chip until a workplane exists; header chips show the active plane and the sketch curves will go into.
