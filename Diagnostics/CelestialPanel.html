@@ -942,7 +942,7 @@ vec3 applyMedia(vec3 col,vec3 dir,float d,vec3 skyAmb,vec3 hzGlow,vec3 trans){ /
   if(af){ float od=uAFDensity*max(0.,d-uAFStart)*expHeightK(max(1.,uAFHeight),y0,y1); if(od>1e-6){ vec3 beta=mix(vec3(5.8e-6,13.5e-6,33.1e-6)/13.5e-6,vec3(1.),uAFMie); Ta=exp(-beta*od);
       float g=uAFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5)); La=((skyAmb*.9+hzGlow*.25)*uAFSky+sunL*hg*4.*3.14159*max(uSunDir.y+.08,0.)*mix(1.,.35,uAFMie))*uAFTint; } }
   // combined: the surface is seen through both; each medium's in-scatter is attenuated by the other's transmittance proportionally
-  vec3 T=Ta*Tf; vec3 Lin=La*(1.-Ta)*mix(vec3(1.),Tf,.5)+Lf*(1.-Tf)*mix(vec3(1.),Ta,.5);
+  vec3 T=Ta*Tf; vec3 Lin=La*(1.-Ta)*mix(1.,Tf,.5)+Lf*(1.-Tf)*mix(vec3(1.),Ta,.5);
   return col*T+Lin; }
 // ===== Local volumetric fog: a finite box / ellipsoid of participating medium, ray-marched with Beer–Lambert transmittance,
 //       heterogeneous density from 3-octave value noise advected by wind, HG in-scatter from the sun + the point/spot lights,
