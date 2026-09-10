@@ -769,6 +769,7 @@ precision highp float;
 #define PI 3.14159265
 #define MAXM 4
 uniform vec2 uRes; uniform float uTime; uniform float uProbe; uniform vec3 uSkyAmb; uniform float uStarCeil;
+uniform float uLutPass,uAtmoLUT; uniform sampler2D uTLut,uSkyLut; uniform vec2 uTLutRes,uSkyLutRes;
 uniform vec3 uCamFwd,uCamRight,uCamUp,uCamPos; uniform float uTanHalf,uCamHeight;
 uniform float uPlaneOn,uPlaneSize,uPlaneCell,uPlaneY,uPlaneGrid; uniform vec3 uPlaneA,uPlaneB;
 uniform vec3 uSunDir,uSunColor; uniform float uSunIntensity,uSunAng,uSunSoft,uSunVisible,uSunDiscBoost;
@@ -862,6 +863,43 @@ void atmosphere(vec3 ro,vec3 rd,out vec3 sky,out vec3 trans,out float ground){
   sky=(sumR*betaR*pR+sumM*betaM*pM)*uSunIntensity*uSunColor;
 }
 
+// ===== Atmosphere LUTs (Hillaire 2020 style, single scattering, identical medium model to atmosphere()) =====
+// Transmittance LUT: T(r,mu) to the top of the atmosphere for rays that do not hit the ground. Parameterised by (x_mu, x_r) so the
+// horizon is sampled exactly; 256x64 float. Sky-view LUT: radiance seen from the CURRENT camera altitude in every direction, lat-long
+// with a horizon-centred sqrt elevation map (fine near the horizon), 192x108 float, rebuilt per frame with 48 view samples.
+vec2 tlutUV(float r,float mu){ float Rg=uPlanetR, Rt=uPlanetR+uAtmoH; float H=sqrt(max(0.,Rt*Rt-Rg*Rg)); float rho=sqrt(max(0.,r*r-Rg*Rg));
+  float disc=r*r*(mu*mu-1.)+Rt*Rt; float d=max(0.,-r*mu+sqrt(max(0.,disc))); float dmin=Rt-r, dmax=rho+H; float xmu=(d-dmin)/max(1e-3,dmax-dmin); float xr=rho/max(1e-3,H);
+  return vec2(clamp(xmu,0.,1.),clamp(xr,0.,1.)); }
+void tlutRM(vec2 uv,out float r,out float mu){ float Rg=uPlanetR, Rt=uPlanetR+uAtmoH; float H=sqrt(max(0.,Rt*Rt-Rg*Rg)); float rho=H*uv.y; r=sqrt(rho*rho+Rg*Rg);
+  float dmin=Rt-r, dmax=rho+H; float d=dmin+uv.x*(dmax-dmin); mu=(d<=1e-3)?1.:clamp((H*H-rho*rho-d*d)/(2.*r*d),-1.,1.); }
+vec3 Tlut(float r,float mu){ vec2 uv=tlutUV(r,mu); uv=(uv*(uTLutRes-1.)+.5)/uTLutRes; return texture2D(uTLut,uv).rgb; }
+vec3 buildT(vec2 uv){ float r,mu; tlutRM(uv,r,mu); float Rt=uPlanetR+uAtmoH; vec3 ro=vec3(0.,r,0.), rd=vec3(sqrt(max(0.,1.-mu*mu)),mu,0.);
+  vec2 ta=rsi(ro,rd,Rt); float len=max(0.,ta.y); const int N=48; float odR=0.,odM=0.;
+  for(int i=0;i<N;i++){ float s0=float(i)/float(N), s1=float(i+1)/float(N); float tm=len*.5*(s0+s1); float seg=len*(s1-s0); float hgt=length(ro+rd*tm)-uPlanetR; odR+=exp(-hgt/uHr)*seg; odM+=exp(-hgt/uHm)*seg; }
+  vec3 betaR=vec3(5.8e-6,13.5e-6,33.1e-6)*uRayleigh; vec3 betaM=vec3(21e-6)*uMie; vec3 betaO=vec3(0.65e-6,1.881e-6,0.085e-6)*uOzone;
+  return exp(-(betaR*odR+betaM*1.1*odM+betaO*odR)); }
+// sky-view parameterisation: u = azimuth from the sun (0..pi, symmetric), v = horizon-centred elevation
+float skyHz(float r){ return -acos(clamp(uPlanetR/r,0.,1.)); }
+vec2 skyUV(vec3 rd,float r){ float el=asin(clamp(rd.y,-1.,1.)); float hz=skyHz(r); float v=(el>=hz)?.5+.5*sqrt(clamp((el-hz)/max(1e-4,PI*.5-hz),0.,1.)):.5-.5*sqrt(clamp((hz-el)/max(1e-4,hz+PI*.5),0.,1.));
+  vec2 sxz=normalize(uSunDir.xz+vec2(1e-5,0.)); vec2 dxz=normalize(rd.xz+vec2(1e-5,0.)); float u=acos(clamp(dot(sxz,dxz),-1.,1.))/PI; return vec2(u,v); }
+vec3 skyDir(vec2 uv,float r){ float hz=skyHz(r); float s=uv.y*2.-1.; float el=(s>=0.)?hz+s*s*(PI*.5-hz):hz-s*s*(hz+PI*.5); float az=uv.x*PI;
+  vec2 sxz=normalize(uSunDir.xz+vec2(1e-5,0.)); vec2 perp=vec2(-sxz.y,sxz.x); vec2 dxz=sxz*cos(az)+perp*sin(az); float c=cos(el); return vec3(dxz.x*c,sin(el),dxz.y*c); }
+vec3 buildSky(vec2 uv){ float r=uPlanetR+uCamHeight; vec3 ro=vec3(0.,r,0.); vec3 rd=skyDir(uv,r); float Rt=uPlanetR+uAtmoH;
+  vec2 ta=rsi(ro,rd,Rt); if(ta.y<0.) return vec3(0.); float t0=max(ta.x,0.), t1=ta.y; vec2 tg=rsi(ro,rd,uPlanetR); if(tg.x>0.) t1=tg.x; float len=t1-t0;
+  vec3 betaR=vec3(5.8e-6,13.5e-6,33.1e-6)*uRayleigh; vec3 betaM=vec3(21e-6)*uMie; vec3 betaO=vec3(0.65e-6,1.881e-6,0.085e-6)*uOzone;
+  float mu=dot(rd,uSunDir); float g=uMieG; float pR=3./(16.*PI)*(1.+mu*mu); float pM=3./(8.*PI)*((1.-g*g)*(1.+mu*mu))/((2.+g*g)*pow(1.+g*g-2.*g*mu,1.5));
+  const int N=48; vec3 sumR=vec3(0.),sumM=vec3(0.); float odR=0.,odM=0.;
+  for(int i=0;i<N;i++){ float s0=float(i)/float(N), s1=float(i+1)/float(N); s0*=s0; s1*=s1; float ta_=t0+len*s0, tb=t0+len*s1; float seg=tb-ta_; float tm=.5*(ta_+tb);
+    vec3 p=ro+rd*tm; float rp=length(p); float hgt=rp-uPlanetR; float hr=exp(-hgt/uHr)*seg, hm=exp(-hgt/uHm)*seg; odR+=hr; odM+=hm;
+    float mus=dot(p,uSunDir)/rp; float sunOk=(rsi(p,uSunDir,uPlanetR).x>0.)?0.:1.;                       // sun below the local horizon -> shadowed
+    vec3 Tview=exp(-(betaR*odR+betaM*1.1*odM+betaO*odR)); vec3 Tsun=Tlut(rp,mus)*sunOk; vec3 att=Tview*Tsun; sumR+=att*hr; sumM+=att*hm; }
+  return (sumR*betaR*pR+sumM*betaM*pM)*uSunIntensity*uSunColor; }
+void atmosphereLUT(vec3 ro,vec3 rd,out vec3 sky,out vec3 trans,out float ground){
+  sky=vec3(0.); trans=vec3(1.); ground=0.; float Rt=uPlanetR+uAtmoH; vec2 ta=rsi(ro,rd,Rt); if(ta.y<0.) return;
+  vec2 tg=rsi(ro,rd,uPlanetR); float r=length(ro); float mu=dot(ro,rd)/r;
+  if(tg.x>0.){ ground=1.; vec3 pg=ro+rd*tg.x; float rg=length(pg); float mug=dot(pg,-rd)/rg; trans=Tlut(rg,mug)/max(Tlut(r,-mu),vec3(1e-4)); trans=clamp(trans,0.,1.); }   // T(cam->ground) = T(ground,up)/T(cam,up)
+  else trans=Tlut(r,mu);
+  vec2 uv=skyUV(rd,r); uv=(uv*(uSkyLutRes-1.)+.5)/uSkyLutRes; sky=texture2D(uSkyLut,uv).rgb; }
 /* ---- moons: UV-sphere textured ---- */
 vec3 moonTex(int i,vec2 uv){ if(i==0) return texture2D(uMoonTex0,uv).rgb; if(i==1) return texture2D(uMoonTex1,uv).rgb; if(i==2) return texture2D(uMoonTex2,uv).rgb; return texture2D(uMoonTex3,uv).rgb; }
 vec3 moons(vec3 d,vec3 trans){
@@ -1118,6 +1156,7 @@ vec3 filmic(vec3 c){ return uc2(c*2.)/uc2(vec3(11.2)); }
 vec3 agxish(vec3 c){ c=max(c,0.); vec3 x=log2(c+1e-5); x=clamp((x+12.47)/16.5,0.,1.); return x*x*(3.-2.*x); }
 
 void main(){
+  if(uLutPass>.5){ vec2 uv=(gl_FragCoord.xy-.5)/(uRes-1.); gl_FragColor=vec4((uLutPass<1.5)?buildT(uv):buildSky(uv),1.); return; }
   if(uProbe>.5){ // ---- probe pass: 3 hemisphere sky samples (zenith, sun-side horizon, anti-sun horizon) packed into a 4x1 target
     vec3 ro=vec3(0.,uPlanetR+uCamHeight,0.); int px=int(gl_FragCoord.x); vec3 hd=normalize(vec3(uSunDir.x,0.,uSunDir.z)+vec3(1e-4,0.,0.));
     vec3 d=(px==0)?vec3(0.,1.,0.):(px==1)?normalize(hd+vec3(0.,.08,0.)):normalize(-hd+vec3(0.,.08,0.));
@@ -1126,7 +1165,7 @@ void main(){
   vec2 uv=(gl_FragCoord.xy*2.-uRes)/uRes.y;
   vec3 dir=normalize(uCamFwd+uCamRight*uv.x*uTanHalf+uCamUp*uv.y*uTanHalf);
   vec3 ro=vec3(0.,uPlanetR+uCamHeight,0.);
-  vec3 sky,trans; float ground; atmosphere(ro,dir,sky,trans,ground);
+  vec3 sky,trans; float ground; if(uAtmoLUT>.5) atmosphereLUT(ro,dir,sky,trans,ground); else atmosphere(ro,dir,sky,trans,ground);
   sky*=uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible; if(uAtmoVisible<.5) trans=vec3(1.);
   float elevDeg=degrees(asin(clamp(uSunDir.y,-1.,1.))); float sunUp=smoothstep(-6.,4.,elevDeg);
   vec3 skyAmb=uSkyAmb;   // hemispherical sky irradiance from the per-frame probe pass (identical atmosphere code, computed once instead of 3x per pixel)
@@ -2608,7 +2647,7 @@ const ENTITIES={
     sections:[{title:'Lens',icon:'aperture',props:[LENS('cam_fov','Field of view',{hint:'lens diagram below'}),HORIZON('cam_yaw','cam_pitch','cam_roll','Artificial horizon',{hint:'drag — vertical pitch · horizontal yaw · ring = roll'}),GAUGE('cam_roll','Roll',-45,45,0.5,0,'°')]},
       {title:'Transform',icon:'grid',props:[PAD('cam_x','cam_z','Position',{xmin:-600,xmax:600,ymin:-600,ymax:600,xl:'X',yl:'Z',plane:true,hint:'Top-down · drag to move the camera'}),TRK('cam_height','Altitude',0.5,3000000,0.5,2,'m',{log:true,hint:'Log scale · 0.5 m → 3 000 km (orbit)'})]},
       {title:'Navigation',icon:'orbit',props:[GAUGE('cam_speed','Fly Speed',0.5,200,0.5,8,'m/s',{log:true,hint:'Scroll while flying to change'}),GAUGE('cam_sens','Look Sensitivity',0.2,3,0.05,1,'×')]},
-      {title:'Quality',icon:'sliders',props:[DROP('rq_tier','Render quality',['Auto','Low','Economic','Standard','Ultra','Cinematic','Reference'],'Auto',{hint:'Low · Economic · Standard · Ultra · Cinematic · Reference (realistic without compromise). Auto holds the target fps.'}),TRK('rq_target','Auto target',24,120,1,45,'fps',{when:S=>S.rq_tier==='Auto'}),GAUGE('rq_scale','Render scale trim',0.5,1.5,0.05,1,'×',{hint:'Multiplies the tier internal resolution'})]}]},
+      {title:'Quality',icon:'sliders',props:[DROP('rq_tier','Render quality',['Auto','Low','Economic','Standard','Ultra','Cinematic','Reference'],'Auto',{hint:'Low · Economic · Standard · Ultra · Cinematic · Reference (realistic without compromise). Auto holds the target fps.'}),TRK('rq_target','Auto target',24,120,1,45,'fps',{when:S=>S.rq_tier==='Auto'}),GAUGE('rq_scale','Render scale trim',0.5,1.5,0.05,1,'×',{hint:'Multiplies the tier internal resolution'}),TOG('rq_lut','Atmosphere LUTs',true,'Precomputed transmittance + sky-view tables (48×48 samples) instead of a 20×8 march per pixel · Reference tier always brute-forces')]}]},
   post:{name:'Post Process',kind:'Component · Camera',color:'#ff8a65',icon:'fx',warm:true,preview:'post',hero:{label:'Exposure',unit:'EV',dec:2,fn:()=>S.pp_ev,signed:true},
     sections:[{title:'Exposure & Tonemap',icon:'sliders',props:[HIST('pp_ev','Exposure',-6,6,0.05,0.4,'EV'),SEG('pp_tonemap','Tonemapper',['None','ACES','Reinhard','Filmic','AgX'],'ACES'),METER('pp_bloom','Bloom',0,3,0.01,1,'×'),METER('pp_vignette','Vignette',0,1,0.01,0.28,''),METER('pp_grain','Film Grain',0,1,0.01,0.1,'')]},
       {title:'Lens Flare',icon:'flare',warm:true,props:[TOG('pp_flare','Enabled',true),SEG('pp_flareType','Type',['Cinematic','Anamorphic','Starburst','Halo'],'Cinematic'),METER('pp_flareInt','Intensity',0,3,0.01,1,'×'),STEP('pp_ghosts','Ghosts',0,8,5),PAD('pp_halo','pp_streak','Halo × Streak',{xmin:0.1,xmax:1.2,ymin:0,ymax:2,xl:'Halo radius',yl:'Streak'}),METER('pp_chroma','Chromatic',0,1,0.01,0.65,'')]}]},
@@ -3561,6 +3600,23 @@ const PROBE=(()=>{ const ext=gl.getExtension('OES_texture_float'); const tex=gl.
   let type=ext?gl.FLOAT:gl.UNSIGNED_BYTE; gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,4,1,0,gl.RGBA,type,null); const fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
   let ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; if(!ok&&type===gl.FLOAT){ type=gl.UNSIGNED_BYTE; gl.bindTexture(gl.TEXTURE_2D,tex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,4,1,0,gl.RGBA,type,null); ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; }
   gl.bindFramebuffer(gl.FRAMEBUFFER,null); const buf=type===gl.FLOAT?new Float32Array(16):new Uint8Array(16); return {fb,tex,type,ok:ok&&!!ext,buf,amb:[0,0,0]}; })();
+// ---- atmosphere LUTs: float render targets (half-float+linear preferred), rebuilt only when their inputs change
+const LUT=(()=>{ const mk=(w,h)=>{ const hf=gl.getExtension('OES_texture_half_float'); const hfl=gl.getExtension('OES_texture_half_float_linear'); const fl=gl.getExtension('OES_texture_float'); const fll=gl.getExtension('OES_texture_float_linear');
+    const tries=[]; if(hf&&hfl) tries.push(hf.HALF_FLOAT_OES); if(fl&&fll) tries.push(gl.FLOAT); if(hf) tries.push(hf.HALF_FLOAT_OES);
+    for(const type of tries){ const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex); const lin=(type===gl.FLOAT?!!fll:!!hfl); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,lin?gl.LINEAR:gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,lin?gl.LINEAR:gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,type,null); const fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0); const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      if(ok) return {fb,tex,w,h,lin}; gl.deleteFramebuffer(fb); gl.deleteTexture(tex); }
+    return null; };
+  const T=mk(256,64), SKY=mk(192,108); const ok=!!(T&&SKY&&T.lin&&SKY.lin); if(ok){ gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,T.tex); gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,SKY.tex); gl.activeTexture(gl.TEXTURE0); }
+  return {T,SKY,ok,key:''}; })();
+function lutUsable(){ return LUT.ok&&S.rq_lut!==false&&tierName()!=='Reference'&&S.cam_height<S.atm_height*1000*.95; }
+function runLUTs(){ if(!lutUsable()){ f1('uAtmoLUT',0); return; }
+  const key=[S.atm_rayleigh,S.atm_mie,S.atm_ozone,S.atm_planetR,S.atm_height,S.atm_hr,S.atm_hm].join('|');
+  const draw=(t,pass)=>{ gl.bindFramebuffer(gl.FRAMEBUFFER,t.fb); gl.viewport(0,0,t.w,t.h); f1('uLutPass',pass); f2('uRes',t.w,t.h); gl.drawArrays(gl.TRIANGLES,0,3); };
+  gl.uniform1i(u('uTLut'),2); gl.uniform1i(u('uSkyLut'),3); f2('uTLutRes',LUT.T.w,LUT.T.h); f2('uSkyLutRes',LUT.SKY.w,LUT.SKY.h);
+  if(key!==LUT.key){ draw(LUT.T,1); LUT.key=key; }          // transmittance: only when the medium changes
+  draw(LUT.SKY,2);                                          // sky-view: every frame (sun / camera altitude), ~1M samples vs ~300M per-pixel
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,canvas.width,canvas.height); f1('uLutPass',0); f2('uRes',canvas.width,canvas.height); f1('uAtmoLUT',1); }
 function runProbe(){ if(!PROBE.ok) return null; gl.bindFramebuffer(gl.FRAMEBUFFER,PROBE.fb); gl.viewport(0,0,4,1); f1('uProbe',1); f2('uRes',4,1); gl.drawArrays(gl.TRIANGLES,0,3); gl.readPixels(0,0,4,1,gl.RGBA,PROBE.type,PROBE.buf); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,canvas.width,canvas.height); f1('uProbe',0); f2('uRes',canvas.width,canvas.height);
   const b=PROBE.buf; const amb=[0,1,2].map(c=>b[c]*.4+b[4+c]*.35+b[8+c]*.25); PROBE.amb=amb; return amb; }
 function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
@@ -3590,11 +3646,11 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   gl.uniform3fv(u('uMoonDir'),md); gl.uniform3fv(u('uMoonTint'),t1); gl.uniform4fv(u('uMoonP'),mp); gl.uniform4fv(u('uMoonSurf'),ms);
   const pp=S.vis_post; f1('uEV',pp?S.pp_ev:0); f1('uTonemap',pp?TM[S.pp_tonemap]:1); f1('uBloom',pp&&pf.bloom!==false?S.pp_bloom:0); f1('uVignette',pp?S.pp_vignette:0); f1('uGrain',pp&&pf.grain!==false?S.pp_grain:0);
   f1('uFlareOn',pp&&S.pp_flare?1:0); f1('uFlareInt',S.pp_flareInt); f1('uGhosts',S.pp_ghosts); f1('uHalo',S.pp_halo); f1('uStreak',S.pp_streak); f1('uChroma',S.pp_chroma); f1('uFlareType',FT[S.pp_flareType]); f2('uSunUV',sunUV[0],sunUV[1]); f1('uSunInFront',inFront);
-  { const amb=runProbe(); if(amb) f3('uSkyAmb',amb); else { const z=zenithLum()*1e-3; f3('uSkyAmb',[z*.8,z*.9,z]); } const ceil=8.*2.6e-3*(S.st_bright||1)*3.2*1.6; f1('uStarCeil',ceil); }   // ceiling = brightest modelled star (bright≈8, core gain) in the star pass units
+  runLUTs(); { const amb=runProbe(); if(amb) f3('uSkyAmb',amb); else { const z=zenithLum()*1e-3; f3('uSkyAmb',[z*.8,z*.9,z]); } const ceil=8.*2.6e-3*(S.st_bright||1)*3.2*1.6; f1('uStarCeil',ceil); }   // ceiling = brightest modelled star (bright≈8, core gain) in the star pass units
   gl.drawArrays(gl.TRIANGLES,0,3);
   // live sky strip (read a centre column while the framebuffer is fresh)
   if(selected==='sky'&&fpsN%3===0){ const cv=document.getElementById('pvSkyLive'); if(cv){ const ctx=cv.getContext('2d'); const W=cv.width; const X=canvas.width>>1; for(let i=0;i<64;i++){ const y=Math.floor(canvas.height-1-i/63*(canvas.height-1)); gl.readPixels(X,y,1,1,gl.RGBA,gl.UNSIGNED_BYTE,colBuf.subarray(i*4,i*4+4)); ctx.fillStyle=`rgb(${colBuf[i*4]},${colBuf[i*4+1]},${colBuf[i*4+2]})`; ctx.fillRect(i/64*W,0,W/64+1,cv.height); } } }
-  fpsAcc+=dt; fpsN++; if(fpsAcc>.5){ const fps=fpsN/fpsAcc; document.getElementById('fps').textContent=Math.round(fps); autoStep(fps,fpsAcc); fpsAcc=0; fpsN=0; const el=document.getElementById('hudPx'); if(el) el.textContent=`${canvas.width}×${canvas.height}`; } requestAnimationFrame(frame); }
+  fpsAcc+=dt; fpsN++; if(fpsAcc>.5){ const fps=fpsN/fpsAcc; document.getElementById('fps').textContent=Math.round(fps); autoStep(fps,fpsAcc); fpsAcc=0; fpsN=0; const el=document.getElementById('hudPx'); if(el) el.textContent=`${canvas.width}×${canvas.height}${lutUsable()?' · LUT':''}`; } requestAnimationFrame(frame); }
 renderTree(); renderInspector(); drawDay(); requestAnimationFrame(frame);
 addEventListener('keydown',e=>{ if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='f'){ e.preventDefault(); document.getElementById('search').focus(); } if(e.key===' '&&document.activeElement.tagName!=='INPUT'){ e.preventDefault(); S.sun_play=!S.sun_play; if(selected==='sun') refreshCtl('sun_play'); } });
 </script>
