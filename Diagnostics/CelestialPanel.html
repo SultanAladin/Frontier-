@@ -3607,14 +3607,15 @@ const LUT=(()=>{ const mk=(w,h)=>{ const hf=gl.getExtension('OES_texture_half_fl
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,type,null); const fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0); const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER,null);
       if(ok) return {fb,tex,w,h,lin}; gl.deleteFramebuffer(fb); gl.deleteTexture(tex); }
     return null; };
-  const T=mk(256,64), SKY=mk(192,108); const ok=!!(T&&SKY&&T.lin&&SKY.lin); if(ok){ gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,T.tex); gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,SKY.tex); gl.activeTexture(gl.TEXTURE0); }
+  const T=mk(256,64), SKY=mk(192,108); const ok=!!(T&&SKY&&T.lin&&SKY.lin); 
   return {T,SKY,ok,key:''}; })();
 function lutUsable(){ return LUT.ok&&S.rq_lut!==false&&tierName()!=='Reference'&&S.cam_height<S.atm_height*1000*.95; }
 function runLUTs(){ if(!lutUsable()){ f1('uAtmoLUT',0); return; }
   const key=[S.atm_rayleigh,S.atm_mie,S.atm_ozone,S.atm_planetR,S.atm_height,S.atm_hr,S.atm_hm].join('|');
   const draw=(t,pass)=>{ gl.bindFramebuffer(gl.FRAMEBUFFER,t.fb); gl.viewport(0,0,t.w,t.h); f1('uLutPass',pass); f2('uRes',t.w,t.h); gl.drawArrays(gl.TRIANGLES,0,3); };
-  gl.uniform1i(u('uTLut'),2); gl.uniform1i(u('uSkyLut'),3); f2('uTLutRes',LUT.T.w,LUT.T.h); f2('uSkyLutRes',LUT.SKY.w,LUT.SKY.h);
-  if(key!==LUT.key){ draw(LUT.T,1); LUT.key=key; }          // transmittance: only when the medium changes
+  gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D,LUT.T.tex); gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D,LUT.SKY.tex); gl.activeTexture(gl.TEXTURE0);   // units 0-3 are the moons, 6/7 are ours
+  gl.uniform1i(u('uTLut'),6); gl.uniform1i(u('uSkyLut'),7); f2('uTLutRes',LUT.T.w,LUT.T.h); f2('uSkyLutRes',LUT.SKY.w,LUT.SKY.h);
+  if(key!==LUT.key){ gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D,null); draw(LUT.T,1); gl.bindTexture(gl.TEXTURE_2D,LUT.T.tex); gl.activeTexture(gl.TEXTURE0); LUT.key=key; }          // transmittance: only when the medium changes
   draw(LUT.SKY,2);                                          // sky-view: every frame (sun / camera altitude), ~1M samples vs ~300M per-pixel
   gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,canvas.width,canvas.height); f1('uLutPass',0); f2('uRes',canvas.width,canvas.height); f1('uAtmoLUT',1); }
 function runProbe(){ if(!PROBE.ok) return null; gl.bindFramebuffer(gl.FRAMEBUFFER,PROBE.fb); gl.viewport(0,0,4,1); f1('uProbe',1); f2('uRes',4,1); gl.drawArrays(gl.TRIANGLES,0,3); gl.readPixels(0,0,4,1,gl.RGBA,PROBE.type,PROBE.buf); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,canvas.width,canvas.height); f1('uProbe',0); f2('uRes',canvas.width,canvas.height);
@@ -3650,7 +3651,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   gl.drawArrays(gl.TRIANGLES,0,3);
   // live sky strip (read a centre column while the framebuffer is fresh)
   if(selected==='sky'&&fpsN%3===0){ const cv=document.getElementById('pvSkyLive'); if(cv){ const ctx=cv.getContext('2d'); const W=cv.width; const X=canvas.width>>1; for(let i=0;i<64;i++){ const y=Math.floor(canvas.height-1-i/63*(canvas.height-1)); gl.readPixels(X,y,1,1,gl.RGBA,gl.UNSIGNED_BYTE,colBuf.subarray(i*4,i*4+4)); ctx.fillStyle=`rgb(${colBuf[i*4]},${colBuf[i*4+1]},${colBuf[i*4+2]})`; ctx.fillRect(i/64*W,0,W/64+1,cv.height); } } }
-  fpsAcc+=dt; fpsN++; if(fpsAcc>.5){ const fps=fpsN/fpsAcc; document.getElementById('fps').textContent=Math.round(fps); autoStep(fps,fpsAcc); fpsAcc=0; fpsN=0; const el=document.getElementById('hudPx'); if(el) el.textContent=`${canvas.width}×${canvas.height}${lutUsable()?' · LUT':''}`; } requestAnimationFrame(frame); }
+  fpsAcc+=dt; fpsN++; if(fpsAcc>.5){ const fps=fpsN/fpsAcc; document.getElementById('fps').textContent=Math.round(fps); autoStep(fps,fpsAcc); fpsAcc=0; fpsN=0; const el=document.getElementById('hudPx'); if(el) el.textContent=`${canvas.width}×${canvas.height}${lutUsable()?' · LUT':''} · ${(1000/Math.max(1,fps)).toFixed(1)} ms`; } requestAnimationFrame(frame); }
 renderTree(); renderInspector(); drawDay(); requestAnimationFrame(frame);
 addEventListener('keydown',e=>{ if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='f'){ e.preventDefault(); document.getElementById('search').focus(); } if(e.key===' '&&document.activeElement.tagName!=='INPUT'){ e.preventDefault(); S.sun_play=!S.sun_play; if(selected==='sun') refreshCtl('sun_play'); } });
 </script>
