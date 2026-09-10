@@ -58,18 +58,20 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .tile .s{font-size:10px;color:var(--t3);grid-column:1}
 .tile b{grid-row:1/3;grid-column:2;font-size:24px;font-weight:200;line-height:1;font-variant-numeric:tabular-nums}
 
+.srow{display:flex;gap:6px;margin:0 12px 6px;align-items:center}
+.srow .search{margin:0;flex:1;min-width:0}
 .search{margin:0 12px 6px;height:34px;border-radius:999px;background:var(--g2);border:1px solid var(--stroke);display:flex;align-items:center;padding:0 14px;gap:10px;color:var(--t3)}
 .search input{flex:1;color:var(--text);font-size:13px}
 .search input::placeholder{color:var(--t3)}
-.filters{margin:0 12px 6px;position:relative;z-index:30}
-.dd-btn{height:34px;border-radius:999px;background:var(--g2);border:1px solid var(--stroke);display:flex;align-items:center;padding:0 6px 0 14px;gap:8px;cursor:pointer;color:var(--t2);font-size:12px;transition:border-color .18s,background .18s}
+.filters{position:relative;z-index:30;flex-shrink:0}
+.dd-btn{height:34px;border-radius:999px;background:var(--g2);border:1px solid var(--stroke);display:flex;align-items:center;padding:0 6px 0 12px;gap:6px;cursor:pointer;color:var(--t2);font-size:12px;transition:border-color .18s,background .18s}
 .dd-btn:hover,.filters.open .dd-btn{border-color:var(--stroke2);color:var(--text)}
 .dd-btn .cur{flex:1;min-width:0;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dd-btn .cur .kd{width:7px;height:7px;border-radius:50%;background:var(--acc);flex-shrink:0}
 .dd-btn .cnt{font-family:var(--mono);font-size:10px;color:var(--t3)}
 .dd-btn .caret{width:26px;height:26px;border-radius:50%;background:var(--g2);display:flex;align-items:center;justify-content:center;color:var(--t3);transition:transform .2s var(--ease),background .2s}
 .filters.open .dd-btn .caret{transform:rotate(180deg);background:var(--g3);color:var(--text)}
-.dd-menu{position:absolute;top:calc(100% + 6px);left:0;right:0;background:rgba(10,11,13,.96);backdrop-filter:blur(24px);border:1px solid var(--stroke2);border-radius:18px;padding:6px;display:none;flex-direction:column;gap:2px;box-shadow:0 24px 60px rgba(0,0,0,.75)}
+.dd-menu{position:absolute;top:calc(100% + 6px);right:0;width:210px;background:rgba(10,11,13,.96);backdrop-filter:blur(24px);border:1px solid var(--stroke2);border-radius:18px;padding:6px;display:none;flex-direction:column;gap:2px;box-shadow:0 24px 60px rgba(0,0,0,.75)}
 .filters.open .dd-menu{display:flex;animation:ddIn .16s var(--ease)}
 @keyframes ddIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .opt{display:flex;align-items:center;gap:9px;height:32px;padding:0 8px 0 10px;border-radius:999px;cursor:pointer;color:var(--t2);font-size:12px;transition:background .12s,color .12s}
@@ -87,6 +89,17 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .opt.sep{height:1px;padding:0;margin:4px 8px;background:var(--stroke);pointer-events:none;border-radius:0}
 .opt.act{justify-content:center;color:var(--t3);font-size:11px;height:28px}
 .opt.act:hover{color:var(--text)}
+.opt.used{opacity:.4;pointer-events:none}
+.fpills{display:flex;flex-wrap:wrap;gap:5px;margin:0 12px 6px;min-height:0}
+.fpills:empty{display:none}
+.fpill{display:flex;align-items:center;gap:6px;height:26px;padding:0 4px 0 10px;border-radius:999px;background:color-mix(in srgb,var(--acc) 14%,transparent);border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);font-size:11px;color:var(--text);animation:ddIn .16s var(--ease)}
+.fpill .kd{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 6px var(--acc)}
+.fpill .n{font-family:var(--mono);font-size:10px;color:var(--t2)}
+.fpill .x{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--t2);transition:background .15s,color .15s}
+.fpill .x:hover{background:rgba(255,255,255,.15);color:#fff}
+.fpill .x svg.i{width:10px;height:10px;stroke-width:2.2}
+.fpill.clear{background:transparent;border-color:var(--stroke);color:var(--t3);padding:0 10px;cursor:pointer}
+.fpill.clear:hover{color:var(--text);border-color:var(--stroke2)}
 
 /* tree */
 .tree{flex:1;overflow:auto;padding:2px 10px 10px} .tree::-webkit-scrollbar{width:0}
@@ -250,11 +263,14 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
     <div class="tile ok"><div class="l"><span class="tico"></span>Figures</div><div class="s" id="tFigS">visible</div><b id="tFig">0</b></div>
     <div class="tile" id="tSelT"><div class="l"><span class="tico"></span>Selected</div><div class="s" id="tSelS">none</div><b id="tSel">0</b></div>
   </div>
-  <div class="search">
-    <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>
-    <input id="q" placeholder="Search figures…">
+  <div class="srow">
+    <div class="search">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>
+      <input id="q" placeholder="Search figures…">
+    </div>
+    <div class="filters" id="filters"><div class="dd-btn" id="ddBtn"></div><div class="dd-menu" id="ddMenu"></div></div>
   </div>
-  <div class="filters" id="filters"><div class="dd-btn" id="ddBtn"></div><div class="dd-menu" id="ddMenu"></div></div>
+  <div class="fpills" id="fpills"></div>
   <div class="tree" id="tree"></div>
   <div class="outliner-foot" id="ofoot"></div>
 </aside>
@@ -471,15 +487,20 @@ function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;
 const filt=new Set(Object.keys(KINDS));const closed=new Set();
 function icon(kind,size=15){return `<svg class="i" style="width:${size}px;height:${size}px" viewBox="0 0 24 24"><path d="${KINDS[kind].ico}"/></svg>`;}
 const FILTER_KINDS=['sketch','body','surface','plane','dim'];
-function syncCurve(){filt.has('sketch')?filt.add('curve'):filt.delete('curve');}
-function renderFilters(){const on=FILTER_KINDS.filter(k=>filt.has(k));const all=on.length===FILTER_KINDS.length;const total=doc.figures.filter(f=>f.kind!=='curve').length;
-  const shown=doc.figures.filter(f=>f.kind!=='curve'&&filt.has(f.kind)).length;
-  let cur;if(all)cur=`${ic('filter',12)}<span>All kinds</span>`;else if(on.length===0)cur=`${ic('filter',12)}<span>Nothing</span>`;else if(on.length===1)cur=`<span class="kd" style="--acc:${KINDS[on[0]].acc}"></span><span>${KINDS[on[0]].label} only</span>`;else cur=`${on.map(k=>`<span class="kd" style="--acc:${KINDS[k].acc}"></span>`).join('')}<span>${on.length} kinds</span>`;
-  $('#ddBtn').innerHTML=`<span class="cur">${cur}</span><span class="cnt">${shown}/${total}</span><span class="caret"><svg class="i" style="width:12px;height:12px" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>`;
-  $('#ddMenu').innerHTML=FILTER_KINDS.map(k=>{const n=doc.figures.filter(f=>f.kind===k).length;return `<div class="opt ${filt.has(k)?'on':''}" data-k="${k}" style="--acc:${KINDS[k].acc}"><span class="kd"></span><span class="lab">${KINDS[k].label}</span><span class="n">${n}</span><button class="solo" title="solo">${ic('all',11)}</button><span class="tick">${ic('check',11)}</span></div>`}).join('')
-    +`<div class="opt sep"></div><div class="opt act" data-a="all">Show all</div><div class="opt act" data-a="none">Hide all</div><div class="opt act" data-a="invert">Invert</div>`;
-  $$('#ddMenu .opt[data-k]').forEach(o=>{const k=o.dataset.k;o.onclick=e=>{if(e.target.closest('.solo')){filt.clear();filt.add(k);}else{filt.has(k)?filt.delete(k):filt.add(k);}syncCurve();renderOutliner();draw();};});
-  $$('#ddMenu .opt[data-a]').forEach(o=>o.onclick=()=>{const a=o.dataset.a;if(a==='all')FILTER_KINDS.forEach(k=>filt.add(k));else if(a==='none')filt.clear();else FILTER_KINDS.forEach(k=>filt.has(k)?filt.delete(k):filt.add(k));syncCurve();renderOutliner();draw();});}
+const active=new Set(); // chosen filter pills; empty = everything visible
+function applyFilters(){filt.clear();(active.size?[...active]:FILTER_KINDS).forEach(k=>filt.add(k));if(filt.has('sketch'))filt.add('curve');}
+function renderFilters(){applyFilters();const total=doc.figures.filter(f=>f.kind!=='curve').length;const shown=doc.figures.filter(f=>f.kind!=='curve'&&filt.has(f.kind)).length;
+  $('#ddBtn').innerHTML=`${ic('filter',13)}<span class="cur"><span>Filter</span></span>${active.size?`<span class="cnt">${active.size}</span>`:''}<span class="caret"><svg class="i" style="width:12px;height:12px" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>`;
+  const avail=FILTER_KINDS.filter(k=>!active.has(k));
+  $('#ddMenu').innerHTML=(avail.length?avail.map(k=>{const n=doc.figures.filter(f=>f.kind===k).length;return `<div class="opt" data-k="${k}" style="--acc:${KINDS[k].acc}"><span class="kd" style="opacity:1"></span><span class="lab">${KINDS[k].label}</span><span class="n">${n}</span></div>`}).join(''):`<div class="opt act" style="pointer-events:none">all kinds filtered</div>`)
+    +(active.size?`<div class="opt sep"></div><div class="opt act" data-a="clear">Clear filters</div>`:'');
+  $$('#ddMenu .opt[data-k]').forEach(o=>o.onclick=()=>{active.add(o.dataset.k);if(!FILTER_KINDS.some(k=>!active.has(k)))$('#filters').classList.remove('open');renderOutliner();draw();});
+  $$('#ddMenu .opt[data-a]').forEach(o=>o.onclick=()=>{active.clear();$('#filters').classList.remove('open');renderOutliner();draw();});
+  $('#fpills').innerHTML=[...active].map(k=>{const n=doc.figures.filter(f=>f.kind===k).length;return `<span class="fpill" data-k="${k}" style="--acc:${KINDS[k].acc}"><span class="kd"></span>${KINDS[k].label}<span class="n">${n}</span><button class="x" title="remove filter">${ic('err',10).replace('<circle cx="12" cy="12" r="9"/>','')}</button></span>`}).join('')
+    +(active.size>1?`<button class="fpill clear">clear all</button>`:'');
+  $$('#fpills .fpill[data-k] .x').forEach(b=>b.onclick=()=>{active.delete(b.parentElement.dataset.k);renderOutliner();draw();});
+  const cl=$('#fpills .clear');if(cl)cl.onclick=()=>{active.clear();renderOutliner();draw();};
+  $('#ddBtn').title=`${shown}/${total} figures shown`;}
 $('#ddBtn').onclick=e=>{e.stopPropagation();$('#filters').classList.toggle('open');};
 $('#ddMenu').onclick=e=>e.stopPropagation();
 addEventListener('pointerdown',e=>{if(!e.target.closest('#filters'))$('#filters').classList.remove('open');});
