@@ -73,16 +73,16 @@ vector, with a known analytic gradient. No automatic differentiation.
 
 ## File layout
 
-- `ParametricSketcher/Kernel/ConstraintSolver.h` — the solver API.
-- `ParametricSketcher/Kernel/ConstraintSolver.cpp` — Newton + dof.
-- `ParametricSketcher/Console/ConstraintGrammar.cpp` (or in
+- `Editor/EditorTools/ParametricSketcher/Kernel/ConstraintSolver.h` — the solver API.
+- `Editor/EditorTools/ParametricSketcher/Kernel/ConstraintSolver.cpp` — Newton + dof.
+- `Editor/EditorTools/ParametricSketcher/Console/ConstraintGrammar.cpp` (or in
   ConsoleHost.cpp) — verb dispatch for `constraint ...`.
-- `ParametricSketcher/Verification/ConstraintVerification.cpp` —
+- `Editor/EditorTools/ParametricSketcher/Verification/ConstraintVerification.cpp` —
   the verification binary.
-- `ParametricSketcher/Scripts/Phase18_Constraints.scr` — demo script
+- `Editor/EditorTools/ParametricSketcher/Scripts/Phase18_Constraints.scr` — demo script
   with the 3 demos.
-- `ParametricSketcher/CMakeLists.txt` — register the new verification.
-- `ParametricSketcher/Verification/SuiteVerification.cpp` — register
+- `Editor/EditorTools/ParametricSketcher/CMakeLists.txt` — register the new verification.
+- `Editor/EditorTools/ParametricSketcher/Verification/SuiteVerification.cpp` — register
   the new script.
 
 ## Verb surface
@@ -155,16 +155,16 @@ For the demos to demonstrate, we'll add a `constraint solve` + `dim edit`
 
 ## File list (what we touch)
 
-- `ParametricSketcher/Kernel/ConstraintSolver.h` — NEW
-- `ParametricSketcher/Kernel/ConstraintSolver.cpp` — NEW
-- `ParametricSketcher/Console/ConsoleHost.cpp` — add `constraint` verb
+- `Editor/EditorTools/ParametricSketcher/Kernel/ConstraintSolver.h` — NEW
+- `Editor/EditorTools/ParametricSketcher/Kernel/ConstraintSolver.cpp` — NEW
+- `Editor/EditorTools/ParametricSketcher/Console/ConsoleHost.cpp` — add `constraint` verb
   + integrate dim-edit re-solve path
-- `ParametricSketcher/Verification/ConstraintVerification.cpp` — NEW
-- `ParametricSketcher/CMakeLists.txt` — register
-- `ParametricSketcher/Scripts/Phase18_Constraints.scr` — NEW
-- `ParametricSketcher/Verification/SuiteVerification.cpp` — register script
-- `ParametricSketcher/README.md` — add Phase 18 row
-- `ParametricSketcher/Proofs/Phase18_*.png` — 3 demo PNGs
+- `Editor/EditorTools/ParametricSketcher/Verification/ConstraintVerification.cpp` — NEW
+- `Editor/EditorTools/ParametricSketcher/CMakeLists.txt` — register
+- `Editor/EditorTools/ParametricSketcher/Scripts/Phase18_Constraints.scr` — NEW
+- `Editor/EditorTools/ParametricSketcher/Verification/SuiteVerification.cpp` — register script
+- `Editor/EditorTools/ParametricSketcher/README.md` — add Phase 18 row
+- `Editor/EditorTools/ParametricSketcher/Proofs/Phase18_*.png` — 3 demo PNGs
 
 ## Acceptance criteria
 

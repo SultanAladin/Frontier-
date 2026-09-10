@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Build SolidArc + all verification binaries using g++ directly. Used when
-# the sandbox doesn't have cmake/ninja. Mirrors ParametricSketcher/CMakeLists.txt
+# the sandbox doesn't have cmake/ninja. Mirrors Editor/EditorTools/ParametricSketcher/CMakeLists.txt
 # (13 verification executables + the main SolidArc console + the new Phase 17 one).
 set -euo pipefail
-cd "$(dirname "$0")/../ParametricSketcher"
+cd "$(dirname "$0")/../Editor/EditorTools/ParametricSketcher"
 
 SRC_ROOT="."
 INC="-I. -IPresentation -DSOLIDARC_PROOF_FOLDER=\"$PWD/Proofs\" -DFRONTIER_DEVELOPMENT"
@@ -50,7 +50,7 @@ done
 echo "── building SolidArc"
 g++ $FLAGS $INC "${OBJS[@]}" Console/SolidArcConsole.cpp -lpthread -o /tmp/solidarc-build/SolidArc
 
-# Mirror to ParametricSketcher/build/SolidArc so SuiteVerification (which resolves that path) sees the new binary.
+# Mirror to Editor/EditorTools/ParametricSketcher/build/SolidArc so SuiteVerification (which resolves that path) sees the new binary.
 mkdir -p build
 cp -f /tmp/solidarc-build/SolidArc build/SolidArc
 

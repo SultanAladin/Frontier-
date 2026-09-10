@@ -127,13 +127,13 @@ Sub-entity dims use Slot = -1 (read-only), so they don't need a slot.
 
 ## File list (what we touch)
 
-- `ParametricSketcher/Console/ConsoleHost.h` — add 2 fields to
+- `Editor/EditorTools/ParametricSketcher/Console/ConsoleHost.h` — add 2 fields to
   DimensionEntry (`AnchorFace`, `AnchorEdge`, `Leader`).
-- `ParametricSketcher/Console/ConsoleHost.cpp` — extend `dim` verb with
+- `Editor/EditorTools/ParametricSketcher/Console/ConsoleHost.cpp` — extend `dim` verb with
   the new subcommands and the leader render path in `DrawDimensions`.
-- `ParametricSketcher/Verification/SubEntityDimensionVerification.cpp` — new.
-- `ParametricSketcher/CMakeLists.txt` — register the new verification.
-- `ParametricSketcher/Scripts/Phase17_SubEntityDims.scr` — new.
-- `ParametricSketcher/Verification/SuiteVerification.cpp` — add the new
+- `Editor/EditorTools/ParametricSketcher/Verification/SubEntityDimensionVerification.cpp` — new.
+- `Editor/EditorTools/ParametricSketcher/CMakeLists.txt` — register the new verification.
+- `Editor/EditorTools/ParametricSketcher/Scripts/Phase17_SubEntityDims.scr` — new.
+- `Editor/EditorTools/ParametricSketcher/Verification/SuiteVerification.cpp` — add the new
   script to the smoke-test list.
-- `ParametricSketcher/README.md` — add Phase 17 row.
+- `Editor/EditorTools/ParametricSketcher/README.md` — add Phase 17 row.

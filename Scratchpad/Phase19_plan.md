@@ -49,21 +49,21 @@ A new figure classification: `FigureClassification::Empty`. The Curve and Body a
 
 ### Files to create
 
-- `ParametricSketcher/Kernel/MirrorSolver.h` — pure math: plane/axis reflection, multi-axis composition, radial rotation. Returns Vec3.
-- `ParametricSketcher/Kernel/MirrorSolver.cpp` — implementations.
-- `ParametricSketcher/Verification/MirrorVerification.cpp` — 30+ checks: each reflection formula on a known point set, multi-axis composition is a 180° rotation, radial covers the full circle, Blueprint round-trip preserves length/area, Empty create + list + delete round-trip, mirror copies a line / circle / rectangle, radial copies a body, in-place reflection works, across a custom named plane works, across an axis line works.
-- `ParametricSketcher/Scripts/Phase19_Mirror.scr` — demo tiles: mirror a line across XY, mirror a box across a custom plane, multi-axis mirror of a polyline, radial pattern of a circle, in-place reflection of a polyline, mirror an empty, radial pattern of an empty.
+- `Editor/EditorTools/ParametricSketcher/Kernel/MirrorSolver.h` — pure math: plane/axis reflection, multi-axis composition, radial rotation. Returns Vec3.
+- `Editor/EditorTools/ParametricSketcher/Kernel/MirrorSolver.cpp` — implementations.
+- `Editor/EditorTools/ParametricSketcher/Verification/MirrorVerification.cpp` — 30+ checks: each reflection formula on a known point set, multi-axis composition is a 180° rotation, radial covers the full circle, Blueprint round-trip preserves length/area, Empty create + list + delete round-trip, mirror copies a line / circle / rectangle, radial copies a body, in-place reflection works, across a custom named plane works, across an axis line works.
+- `Editor/EditorTools/ParametricSketcher/Scripts/Phase19_Mirror.scr` — demo tiles: mirror a line across XY, mirror a box across a custom plane, multi-axis mirror of a polyline, radial pattern of a circle, in-place reflection of a polyline, mirror an empty, radial pattern of an empty.
 
 ### Files to modify
 
-- `ParametricSketcher/Console/ConsoleHost.cpp` — add `mirror`, `radial`, `empty`, `list empty`, `delete empty` verbs.
-- `ParametricSketcher/Console/ConsoleHost.h` — add helpers: `ReflectBlueprint(figure, plane)`, `ReflectFigureAcrossPlane(...)`, `RotateFigureAroundAxis(...)`.
-- `ParametricSketcher/Document/SceneDocument.h` — extend `ParametricForm` enum with `Empty`; extend `FigureClassification` with `Empty`.
-- `ParametricSketcher/Kernel/CurveSpecification.h` / `.cpp` — `NurbsCurve::Empty(Pos)` (no-op curve used as a placeholder; the actual visible geometry is drawn by the renderer as 3 short lines).
-- `ParametricSketcher/Presentation/ScenePresentation.cpp` — draw an Empty as a small axis cross at its position.
-- `ParametricSketcher/CMakeLists.txt` — register `MirrorVerification`.
-- `ParametricSketcher/Verification/SuiteVerification.cpp` — register `Phase19_Mirror.scr` (+2 checks).
-- `ParametricSketcher/README.md` — Phase 19 row + new totals (850 → ~885).
+- `Editor/EditorTools/ParametricSketcher/Console/ConsoleHost.cpp` — add `mirror`, `radial`, `empty`, `list empty`, `delete empty` verbs.
+- `Editor/EditorTools/ParametricSketcher/Console/ConsoleHost.h` — add helpers: `ReflectBlueprint(figure, plane)`, `ReflectFigureAcrossPlane(...)`, `RotateFigureAroundAxis(...)`.
+- `Editor/EditorTools/ParametricSketcher/Document/SceneDocument.h` — extend `ParametricForm` enum with `Empty`; extend `FigureClassification` with `Empty`.
+- `Editor/EditorTools/ParametricSketcher/Kernel/CurveSpecification.h` / `.cpp` — `NurbsCurve::Empty(Pos)` (no-op curve used as a placeholder; the actual visible geometry is drawn by the renderer as 3 short lines).
+- `Editor/EditorTools/ParametricSketcher/Presentation/ScenePresentation.cpp` — draw an Empty as a small axis cross at its position.
+- `Editor/EditorTools/ParametricSketcher/CMakeLists.txt` — register `MirrorVerification`.
+- `Editor/EditorTools/ParametricSketcher/Verification/SuiteVerification.cpp` — register `Phase19_Mirror.scr` (+2 checks).
+- `Editor/EditorTools/ParametricSketcher/README.md` — Phase 19 row + new totals (850 → ~885).
 - `Scratchpad/BuildSolidArc.sh` — add `Kernel/MirrorSolver.cpp` to the source list.
 
 ### Verification plan
