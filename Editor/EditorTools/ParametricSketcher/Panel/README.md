@@ -13,4 +13,11 @@ Run: `python3 -m http.server 8080` in this folder → http://localhost:8080/
 | Viewport | software raster (Z-up orbit camera, ortho/persp, canonical views), wire/flat/plastic/matcap, lattice, dimension lines, GizmoPRO stub, axis triad, prompt bar for modal tools (L/C/R/B/Y), pick, body/face/edge/vertex mode | replace `draw()` with the PNG/stream from `SoftwareRaster`; forward pointer/keys as `InputEvent` |
 | Inspector | hero card (volume/area/length + B-rep stats), presence grid (Visible/Locked/Construction/Dims), transform XYZ steppers + rotation, live parameter sliders that rebuild derived figures, recipe chain, sketch curves + constraint summary, dimensions list (+ add/remove), duplicate/isolate/delete, command line (`box`, `cylinder`, `extrude`, `dim on|off`, `hide`, `show`, `select`, `view`) | `runCmd()` ← send verb to `ConsoleHost`; sliders ← `FigureRecipe` param edit |
 
-Keyboard: `1–4` select mode · `5` ortho · numpad `1/3/7` front/right/top · `L C R B Y` tools · `G R S` (reserved) · `H` hide · `Alt+H` unhide all · `F` frame · `D` dims · `⌫` delete · `Ctrl+Z / Ctrl+Shift+Z` undo/redo · `Esc` cancel/deselect.
+## Construction catalogue (Tab / right-click / **Construct** button)
+Popup by default (closes after you pick), **pin** it to keep it open as a panel. Rail on the left (Reference · Sketch Draw live; the rest greyed until we port them), tile grid, click → options slide, double-click / **Start drawing** → tool. Tiles are **gated** by document state: sketch tools are disabled with a "set a workplane" fix-chip until a workplane exists; header chips show the active plane and the sketch curves will go into.
+
+Tools: Workplane (XY/XZ/YZ + offset + rotation, no picks) · Datum Point · Line · Polyline · Rectangle · Centre Rect · Slot · Circle (centre/diameter) · Arc (centre-start-end, CCW/CW) · Ellipse · Polygon (inscribed/circumscribed) · Point. Every curve is registered under a Sketch on the active plane in the Outliner; the live preview draws in plane-space with a snapping cursor readout.
+
+The document starts **empty**; `?demo` in the URL loads the sample scene.
+
+Keyboard: `1–4` select mode · `5` ortho · numpad `1/3/7` front/right/top · `L ⇧L R C A E P` sketch tools · `⇧W` workplane · `Tab` catalogue · `Enter` finish polyline · `G R S` (reserved) · `H` hide · `Alt+H` unhide all · `F` frame · `D` dims · `⌫` delete · `Ctrl+Z / Ctrl+Shift+Z` undo/redo · `Esc` cancel/deselect.
