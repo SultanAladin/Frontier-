@@ -47,7 +47,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 #vgrip::before{content:"";width:34px;height:4px;border-radius:2px;background:rgba(255,255,255,.5)}
 #layoutBtn{position:absolute;right:10px;top:10px;z-index:4;width:30px;height:30px;background:rgba(0,0,0,.35);border:1px solid var(--stroke)}
 /* ── construction catalogue ─────────────────────────────── */
-#cat{position:fixed;z-index:60;width:520px;border-radius:20px;display:none;flex-direction:column;overflow:hidden;color:var(--text)}
+#cat{position:fixed;z-index:10000;width:520px;border-radius:20px;display:none;flex-direction:column;overflow:hidden;color:var(--text)}
 #cat.show{display:flex;animation:ddIn .16s var(--ease)}
 .cat-head{display:flex;align-items:center;gap:8px;height:46px;padding:0 8px 0 16px;border-bottom:1px solid var(--stroke);cursor:grab;flex-shrink:0}
 .cat-head .ttl{font-size:14px;display:flex;align-items:center;gap:8px}
@@ -1083,7 +1083,7 @@ function showOptions(op){catState.op=op;catState.vals=defaults(op);const cat=$('
 function renderOptFoot(){const op=catState.op;if(!op)return;const n=op.prompts?op.prompts.length:0;const done=tool&&tool.op===op?tool.pts.length:0;
   $('#optFoot').innerHTML=`<span class="steps">${n?Array.from({length:n},(_,i)=>`<i class="${i<done?'on':''}"></i>`).join('')+` ${tool&&tool.op===op?'drawing…':n+' picks'}`:''}</span>${tool&&tool.op===op?`<button class="abtn" id="optCancel">Cancel</button>${op.multi?'<button class="abtn primary" id="optFinish">Finish</button>':''}`:`<button class="abtn primary" id="optStart">${op.clicks===0?'Create':'Start drawing'}</button>`}`;
   const st=$('#optStart');if(st)st.onclick=()=>startOp(op.id);const cn=$('#optCancel');if(cn)cn.onclick=endTool;const fn=$('#optFinish');if(fn)fn.onclick=finishTool;}
-function openCatAt(x,y){const cat=$('#cat');cat.style.zIndex=zTop+10;cat.classList.add('show');cat.classList.remove('opts');if(!cat.classList.contains('pinned')){const w=520,h=Math.min(420,innerHeight*.7);cat.style.left=Math.min(Math.max(8,x-40),innerWidth-w-8)+'px';cat.style.top=Math.min(Math.max(8,y-20),innerHeight-h-8)+'px';}renderCat();}
+function openCatAt(x,y){const cat=$('#cat');cat.classList.add('show');cat.classList.remove('opts');if(!cat.classList.contains('pinned')){const w=520,h=Math.min(420,innerHeight*.7);cat.style.left=Math.min(Math.max(8,x-40),innerWidth-w-8)+'px';cat.style.top=Math.min(Math.max(8,y-20),innerHeight-h-8)+'px';}renderCat();}
 function openCat(rail,opId){if(rail)catState.rail=rail;const r=$('#viewport').getBoundingClientRect();openCatAt(r.left+r.width/2-260,r.top+70);if(opId)showOptions(opById(opId));}
 function toggleCat(){$('#cat').classList.contains('show')?closeCat():openCat();}
 function closeCat(){const cat=$('#cat');cat.classList.remove('show','opts');}
@@ -1149,7 +1149,7 @@ function runCmd(s){const [v,...a]=s.split(/\s+/);const N=a.map(Number);snapshot(
 
 /* ── draggable / resizable panels ──────────────────────────── */
 const LAYOUT_KEY='solidarc.layout.v1';let zTop=30;
-function raise_(p){p.style.zIndex=++zTop;$('#cat').style.zIndex=zTop+10;} // catalogue always floats above whichever panel was touched last
+function raise_(p){if(zTop>=900){/* renormalise so panels never reach the catalogue's z-index */const ps=[...$$('.panel')].sort((a,b)=>(+a.style.zIndex||0)-(+b.style.zIndex||0));zTop=30;ps.forEach(q=>q.style.zIndex=++zTop);}p.style.zIndex=++zTop;}
 function panelRect(p){const r=p.getBoundingClientRect();return {l:r.left,t:r.top,w:r.width,h:r.height};}
 function freeze(p){const r=panelRect(p);Object.assign(p.style,{left:r.l+'px',top:r.t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');}
 function saveLayout(){const o={};$$('.panel').forEach(p=>{if(p.classList.contains('free'))o[p.id]=panelRect(p);});localStorage.setItem(LAYOUT_KEY,JSON.stringify(o));}
