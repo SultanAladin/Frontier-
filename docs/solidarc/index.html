@@ -1083,7 +1083,7 @@ function showOptions(op){catState.op=op;catState.vals=defaults(op);const cat=$('
 function renderOptFoot(){const op=catState.op;if(!op)return;const n=op.prompts?op.prompts.length:0;const done=tool&&tool.op===op?tool.pts.length:0;
   $('#optFoot').innerHTML=`<span class="steps">${n?Array.from({length:n},(_,i)=>`<i class="${i<done?'on':''}"></i>`).join('')+` ${tool&&tool.op===op?'drawing…':n+' picks'}`:''}</span>${tool&&tool.op===op?`<button class="abtn" id="optCancel">Cancel</button>${op.multi?'<button class="abtn primary" id="optFinish">Finish</button>':''}`:`<button class="abtn primary" id="optStart">${op.clicks===0?'Create':'Start drawing'}</button>`}`;
   const st=$('#optStart');if(st)st.onclick=()=>startOp(op.id);const cn=$('#optCancel');if(cn)cn.onclick=endTool;const fn=$('#optFinish');if(fn)fn.onclick=finishTool;}
-function openCatAt(x,y){const cat=$('#cat');cat.classList.add('show');cat.classList.remove('opts');if(!cat.classList.contains('pinned')){const w=520,h=Math.min(420,innerHeight*.7);cat.style.left=Math.min(Math.max(8,x-40),innerWidth-w-8)+'px';cat.style.top=Math.min(Math.max(8,y-20),innerHeight-h-8)+'px';}renderCat();}
+function openCatAt(x,y){const cat=$('#cat');cat.style.zIndex=zTop+10;cat.classList.add('show');cat.classList.remove('opts');if(!cat.classList.contains('pinned')){const w=520,h=Math.min(420,innerHeight*.7);cat.style.left=Math.min(Math.max(8,x-40),innerWidth-w-8)+'px';cat.style.top=Math.min(Math.max(8,y-20),innerHeight-h-8)+'px';}renderCat();}
 function openCat(rail,opId){if(rail)catState.rail=rail;const r=$('#viewport').getBoundingClientRect();openCatAt(r.left+r.width/2-260,r.top+70);if(opId)showOptions(opById(opId));}
 function toggleCat(){$('#cat').classList.contains('show')?closeCat():openCat();}
 function closeCat(){const cat=$('#cat');cat.classList.remove('show','opts');}
@@ -1096,7 +1096,7 @@ function createWorkplane(v){snapshot();const f=mk('plane',nextName('Workplane'),
 function startOp(id){const op=opById(id);if(!op)return;if(op.needs&&!activePlane()){createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});}
   if(!catState.op||catState.op!==op){catState.op=op;catState.vals=defaults(op);}
   if(op.clicks===0){createWorkplane(catState.vals);if(!$('#cat').classList.contains('pinned'))closeCat();return;}
-  tool={op,pts:[],vals:catState.vals};hover=null;$('#prompt').classList.add('show');$('#promptTool').textContent=op.label.toLowerCase();$('#promptTxt').textContent=op.prompts[0];
+  tool={op,pts:[],vals:{...catState.vals}};hover=null;$('#prompt').classList.add('show');$('#promptTool').textContent=op.label.toLowerCase();$('#promptTxt').textContent=op.prompts[0];
   if(!$('#cat').classList.contains('pinned'))closeCat();else renderOptFoot();draw();}
 function endTool(){tool=null;hover=null;$('#prompt').classList.remove('show');renderOptFoot();draw();}
 function toolClick(px,py){const uv=planeHit(px,py);if(!uv||!tool)return;const last=tool.pts[tool.pts.length-1];
@@ -1149,16 +1149,17 @@ function runCmd(s){const [v,...a]=s.split(/\s+/);const N=a.map(Number);snapshot(
 
 /* ── draggable / resizable panels ──────────────────────────── */
 const LAYOUT_KEY='solidarc.layout.v1';let zTop=30;
+function raise_(p){p.style.zIndex=++zTop;$('#cat').style.zIndex=zTop+10;} // catalogue always floats above whichever panel was touched last
 function panelRect(p){const r=p.getBoundingClientRect();return {l:r.left,t:r.top,w:r.width,h:r.height};}
 function freeze(p){const r=panelRect(p);Object.assign(p.style,{left:r.l+'px',top:r.t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');}
 function saveLayout(){const o={};$$('.panel').forEach(p=>{if(p.classList.contains('free'))o[p.id]=panelRect(p);});localStorage.setItem(LAYOUT_KEY,JSON.stringify(o));}
 function loadLayout(){try{const o=JSON.parse(localStorage.getItem(LAYOUT_KEY)||'{}');Object.entries(o).forEach(([id,r])=>{const p=document.getElementById(id);if(!p)return;const l=Math.min(Math.max(0,r.l),innerWidth-80),t=Math.min(Math.max(0,r.t),innerHeight-60);Object.assign(p.style,{left:l+'px',top:t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');});}catch(e){}}
 function resetLayout(){localStorage.removeItem(LAYOUT_KEY);$$('.panel').forEach(p=>{p.removeAttribute('style');p.classList.remove('free');});resize();}
-function makeDraggable(p,handle){handle.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('button,input,[contenteditable],.rsz'))return;e.preventDefault();freeze(p);p.style.zIndex=++zTop;const r=panelRect(p),ox=e.clientX-r.l,oy=e.clientY-r.t;p.classList.add('dragging');handle.setPointerCapture(e.pointerId);
+function makeDraggable(p,handle){handle.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('button,input,[contenteditable],.rsz'))return;e.preventDefault();freeze(p);raise_(p);const r=panelRect(p),ox=e.clientX-r.l,oy=e.clientY-r.t;p.classList.add('dragging');handle.setPointerCapture(e.pointerId);
   const mv=ev=>{const l=Math.min(Math.max(-r.w+80,ev.clientX-ox),innerWidth-80),t=Math.min(Math.max(0,ev.clientY-oy),innerHeight-40);p.style.left=l+'px';p.style.top=t+'px';};
   const up=()=>{handle.removeEventListener('pointermove',mv);handle.removeEventListener('pointerup',up);p.classList.remove('dragging');saveLayout();};
   handle.addEventListener('pointermove',mv);handle.addEventListener('pointerup',up);});
-  p.addEventListener('pointerdown',()=>{p.style.zIndex=++zTop;},true);
+  p.addEventListener('pointerdown',()=>{raise_(p);},true);
   const rs=document.createElement('div');rs.className='rsz';p.appendChild(rs);
   rs.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();freeze(p);const r=panelRect(p),sx=e.clientX,sy=e.clientY;rs.setPointerCapture(e.pointerId);
     const mv=ev=>{p.style.width=Math.max(parseInt(getComputedStyle(p).minWidth)||200,r.w+ev.clientX-sx)+'px';p.style.height=Math.max(200,r.h+ev.clientY-sy)+'px';};
