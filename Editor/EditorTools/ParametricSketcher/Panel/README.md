@@ -28,6 +28,13 @@ Clicking a drawn shape selects **that curve**, not its sketch (the sketch is sti
 
 Curves can also be lifted off their plane: the Z cone / `G Z` moves along the plane normal (stored as the curve's third coordinate).
 
+### Constraints, dimensions, variables (the "parametric" part)
+Every sketch carries `cons_`, solved by a damped Gauss-Newton solver over all curve control points + radii (numeric Jacobian, Cholesky). Open **Tab → Constrain**: Coincident, Horizontal, Vertical, Parallel, Perpendicular, Equal, Tangent, Concentric, Midpoint, Point-on-line, Fix — select vertices/edges (modes 3–4, shift-click) then click the tile. Constraint glyphs appear beside the geometry; the sketch/curve inspector lists them with the DOF count; `×` or `⌫` removes.
+
+**Dimension tool** (`⇧D` or the Dimension tile): click a line → drag → release where you want the label. Click a circle/arc for ⌀/R, two lines for an angle, two points for a distance — while dragging between two points the tool infers **aligned / horizontal / vertical** from where you drag (Fusion style). Drag an existing label to re-place it; double-click it (or click the constraint in the inspector) to edit.
+
+**Editing = variables.** The label editor takes a number or an expression: `W/2 + 3`, `sqrt(2)*R`, `min(A,B)`. Give the dimension a *name* and it becomes a variable other dimensions can use (drawn in blue). **Constrain → Variables** manages free variables. Changing any variable re-solves every sketch. Dragging a constrained vertex pins it and lets the solver move the rest live.
+
 ### Select modes · topology layer (B-rep-ready)
 **Body / Face / Edge / Vertex** (`1–4`) — **Shift-click** a mode button (or `⇧1–4`) to combine modes, e.g. Vertex + Edge. Every figure exposes `topo(f)` → `{verts, edges, faces}` with stable indices: curves give their control points (poly vertices, line ends, circle centre + radius handle, ellipse centre + two axis handles) and a face when the loop is closed *and planar*; bodies derive unique vertices / edges / coplanar faces from the mesh. The B-rep kernel will later replace `topo()` and `moveCurveVertex()` only — selection, gizmo, inspector and overlay are written against that interface.
 

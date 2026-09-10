@@ -9,7 +9,7 @@ function mkEl(id){return {id,style:{setProperty(){}},classList:{add(){},remove()
 global.document={querySelector:s=>els[s]||(els[s]=mkEl(s)),querySelectorAll:()=>[],createElement:()=>mkEl(),getElementById:()=>null};
 global.ResizeObserver=class{observe(){}};global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};global.innerWidth=1600;global.innerHeight=900;
 global.addEventListener=()=>{};global.location={search:process.argv.includes('--demo')?'?demo':''};global.URLSearchParams=class{constructor(q){this.q=q}has(k){return this.q.includes(k)}};global.devicePixelRatio=1;global.performance={now:()=>0};global.requestAnimationFrame=()=>{};
-const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health};')(mod);const M=mod.exports;
+const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health,addConstraint,removeConstraint,solveSketch,evalExpr,setVar,refreshDims,dimStart,dimPickAt,dimPlaceUpdate,dimCommit,getDimTool:()=>dimTool,dimGeom,residuals,dofMap,applyConstraint};')(mod);const M=mod.exports;
 let n=0;const ok=(c,m)=>{n++;if(!c){console.error('FAIL',m);process.exit(1);}};
 ok(M.doc.figures.length===0,'starts empty');
 M.doc.figures.forEach(f=>{M.build(f);const ms=M.measure(f);ok(isFinite(ms.v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
@@ -93,5 +93,30 @@ rc.params.vz=[15,15,15,15];M.topo(rc);ok(M.planarLoop(rc)&&M.loopScreen(rc)!==nu
 rc.params.pts=[[0,0],[40,0],[40,30],[0,30]];rc.params.vz=[15,0,0,15];M.topo(rc);ok(M.planarLoop(rc),'two adjacent vertices lifted (tilted plane) → still planar');
 rc.params.vz=[15,0,15,0];ok(!M.planarLoop(rc),'diagonal lift → non-planar');
 M.setModes(['body']);M.sub_.sel.clear();
+// 10. constraints + solver + dimensions + variables
+M.doc.figures.filter(f=>f.kind==='curve').forEach(f=>f.visible=false);M.active_.sketch=null;
+M.startOp('line');M.toolClick(300,300);M.toolClick(400,280);const ln=M.doc.figures.filter(f=>f.kind==='curve').pop();const skc=M.byId(ln.parent);
+M.addConstraint(skc,'horizontal',[{fig:ln.id,kind:'edge',idx:0}]);ok(Math.abs(ln.params.y1-ln.params.y2)<1e-5,'horizontal constraint solved: '+ln.params.y1.toFixed(3)+' vs '+ln.params.y2.toFixed(3));
+const dd=M.addConstraint(skc,'dist',[{fig:ln.id,kind:'edge',idx:0}],{value:50,expr:'50'});ok(Math.abs(Math.hypot(ln.params.x2-ln.params.x1,ln.params.y2-ln.params.y1)-50)<1e-4,'length dimension drives the line to 50');
+ok(Math.abs(ln.params.y1-ln.params.y2)<1e-5,'horizontal still holds after dimension');
+M.startOp('circle');M.toolClick(500,420);M.toolClick(520,420);const ci=M.doc.figures.filter(f=>f.kind==='curve').pop();
+M.addConstraint(skc,'coincident',[{fig:ci.id,kind:'vertex',idx:0},{fig:ln.id,kind:'vertex',idx:1}]);ok(Math.abs(ci.params.cx-ln.params.x2)<1e-4&&Math.abs(ci.params.cy-ln.params.y2)<1e-4,'coincident: circle centre snapped to line end');
+M.addConstraint(skc,'diam',[{fig:ci.id,kind:'edge',idx:0}],{value:20,expr:'20'});ok(Math.abs(ci.params.r-10)<1e-4,'diameter dimension → r = 10');
+// variables + expressions
+ok(M.setVar('W','40'),'variable W = 40');ok(Math.abs(M.evalExpr('W/2 + 3')-23)<1e-9,'expression W/2+3 = 23');ok(!isFinite(M.evalExpr('alert(1)')),'unsafe expression rejected');
+dd.expr='W*2';M.refreshDims();ok(Math.abs(dd.value-80)<1e-9&&Math.abs(Math.hypot(ln.params.x2-ln.params.x1,ln.params.y2-ln.params.y1)-80)<1e-3,'dimension bound to W*2 → line is 80');
+M.setVar('W','25');ok(Math.abs(Math.hypot(ln.params.x2-ln.params.x1,ln.params.y2-ln.params.y1)-50)<1e-3,'changing W re-solves: line is 50');
+ok(Math.abs(ci.params.cx-ln.params.x2)<1e-3,'circle followed the line end through re-solve');
+// live drag with constraints: move the line start; length + horizontal + coincidence maintained
+M.sub_.sel.clear();M.selectSub({fig:ln.id,kind:'vertex',idx:0},false);const st10=M.subBegin();M.subApply(st10,[7,4,0]);M.subEnd();
+ok(Math.abs(Math.hypot(ln.params.x2-ln.params.x1,ln.params.y2-ln.params.y1)-50)<1e-3&&Math.abs(ln.params.y1-ln.params.y2)<1e-3,'after dragging an endpoint: length 50 + horizontal kept');
+// dimension tool flow: click line → drag → release places
+M.sub_.sel.clear();M.setModes(['body']);M.dimStart();const mid10=M.project(M.xform(ln,[(ln.params.x1+ln.params.x2)/2,(ln.params.y1+ln.params.y2)/2,0]));ok(M.dimPickAt(mid10[0],mid10[1]),'dimension tool picks the line');ok(M.getDimTool().stage==='place'&&M.getDimTool().type==='dist','→ placing a length dim');
+M.dimPlaceUpdate(mid10[0],mid10[1]-40);const pl0=M.getDimTool().place;ok(pl0&&Math.abs(pl0.off)>1,'drag sets the offset: '+JSON.stringify(pl0));const nC=skc.cons_.length;M.dimCommit();ok(skc.cons_.length===nC+1&&M.getDimTool()===null,'release commits the dimension and ends the tool');
+const G10=M.dimGeom(skc,skc.cons_[skc.cons_.length-1]);ok(G10&&G10.txt.includes('50'),'dimension label reads 50: '+(G10&&G10.txt));
+// point-to-point with H/V inference
+M.dimStart();const q1=M.project(M.xform(ln,[ln.params.x1,ln.params.y1,0]));M.dimPickAt(q1[0],q1[1]);const q2=M.project(M.xform(ci,[ci.params.cx,ci.params.cy,0]));M.dimPickAt(q2[0]+0,q2[1]);ok(M.getDimTool().refs.length===2,'two points picked');M.dimPlaceUpdate(q1[0],q1[1]-60);M.dimCommit();
+// remove a constraint
+M.removeConstraint(skc,skc.cons_[0].id);ok(!skc.cons_.some(c=>c.type==='horizontal'),'constraint removed');
 M.renderOutliner();M.renderInspector();M.draw();
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);

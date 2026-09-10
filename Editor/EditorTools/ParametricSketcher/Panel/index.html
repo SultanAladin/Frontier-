@@ -215,6 +215,18 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .pill .ax{width:8px;height:8px;border-radius:50%}
 #gzHud{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:3;display:none;align-items:center;gap:10px;height:32px;padding:0 14px;border-radius:999px;font-size:12px;font-family:var(--mono);color:var(--text);white-space:nowrap}
 #gzHud.show{display:flex}
+#dimEd{position:absolute;z-index:5;display:none;flex-direction:column;gap:6px;padding:8px 10px;border-radius:10px;transform:translateX(-50%);min-width:240px}
+#dimEd.show{display:flex}
+#dimEd .row{display:flex;align-items:center;gap:6px}
+#dimEd .row.hint{font-size:10.5px;color:var(--t3);font-family:var(--mono)}
+#dimEd input{height:24px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-radius:6px;color:var(--text);font:600 12px var(--mono);padding:0 7px;outline:none}
+#dimEd input:focus{border-color:var(--yellow)}
+#dimEd #dimName{width:70px;font-weight:400}
+#dimEd #dimExpr{flex:1;min-width:110px}
+#dimEd .eq,#dimEd .unit{color:var(--t3);font-family:var(--mono)}
+#dimEd .sp{flex:1}
+.vars input{height:24px;background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-radius:6px;color:var(--text);font:12px var(--mono);padding:0 7px;outline:none}
+.vars .eq{color:var(--t3)}
 #gzHud .ax{width:8px;height:8px;border-radius:50%}
 #gzHud .k{font-size:9.5px}
 #gzHud .lab{color:var(--t2)}
@@ -371,6 +383,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
     </div>
   </div>
   <div id="gzHud" class="glass"></div>
+  <div id="dimEd" class="glass"></div>
   <div id="prompt" class="glass"><span class="s" id="promptTool">line</span><span id="promptTxt">Click first point</span><span class="k">Esc cancel</span></div>
   <div id="axisHud">
     <div class="pill"><span class="ax" style="background:#ff6b6b"></span>X <span id="cx">0.0</span><span class="ax" style="background:#6fe38a"></span>Y <span id="cy">0.0</span><span class="ax" style="background:#5db3ff"></span>Z <span id="cz">0.0</span></div>
@@ -495,10 +508,10 @@ function health(f){ // → {lvl:'ok'|'warn'|'err', msg}
   if(f.kind==='sketch'){if(!f.children.length)return {lvl:'warn',msg:'empty sketch'};const {outer}=sketchProfile(f);return outer.length<3?{lvl:'warn',msg:'open profile'}:{lvl:'ok',msg:'closed region'};}
   if(f.kind==='plane'&&f.id===active_.plane)return {lvl:'ok',msg:'active workplane'};
   return {lvl:'ok',msg:''};}
-function snapshot(){doc.undo.push(JSON.stringify({f:doc.figures,u:uid}));if(doc.undo.length>64)doc.undo.shift();doc.redo=[];}
-function restore(js){const o=JSON.parse(js);doc.figures=o.f;uid=o.u;doc.sel=new Set([...doc.sel].filter(id=>byId(id)));}
-function undo(){if(!doc.undo.length)return;doc.redo.push(JSON.stringify({f:doc.figures,u:uid}));restore(doc.undo.pop());rebuildAll();}
-function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.figures,u:uid}));restore(doc.redo.pop());rebuildAll();}
+function snapshot(){doc.undo.push(JSON.stringify({f:doc.figures,u:uid,v:doc.vars}));if(doc.undo.length>64)doc.undo.shift();doc.redo=[];}
+function restore(js){const o=JSON.parse(js);doc.figures=o.f;uid=o.u;doc.vars=o.v||{};doc.sel=new Set([...doc.sel].filter(id=>byId(id)));}
+function undo(){if(!doc.undo.length)return;doc.redo.push(JSON.stringify({f:doc.figures,u:uid,v:doc.vars}));restore(doc.undo.pop());rebuildAll();}
+function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.figures,u:uid,v:doc.vars}));restore(doc.redo.pop());rebuildAll();}
 
 /* ── geometry builders (mesh = {tris:[[p,p,p]...], lines:[[p,p]...]}) ── */
 const V=(x,y,z)=>[x,y,z];
@@ -655,6 +668,8 @@ const PARAMS={ // key → [label, min, max, step, unit]
   x1:['X₁',-100,100,.5,'mm'],y1:['Y₁',-100,100,.5,'mm'],x2:['X₂',-100,100,.5,'mm'],y2:['Y₂',-100,100,.5,'mm'],cx:['Centre X',-100,100,.5,'mm'],cy:['Centre Y',-100,100,.5,'mm'],a0:['Start angle',-360,360,1,'°'],a1:['End angle',-360,360,1,'°'],
 };
 const secClosed=new Set();
+function consList(f){const cs=consOfFig(f);const sk=f.kind==='sketch'?f:byId(f.parent);const st=sk&&sk.solve_;const dof=sk?Math.max(0,dofMap(sk).length-cs.reduce((a,c)=>a+residuals(c).length,0)):0;
+  return `<div class="ctl" style="margin-top:8px"><div class="ctl-top"><span class="lab">Constraint graph</span><span class="val">${cs.length} <small>${st?(st.ok?'solved':'unsolved'):'—'}</small></span></div><div class="list">${cs.map(c=>`<div class="li" data-cons="${c.id}" style="--acc:var(--yellow)"><span class="dot" style="background:${isDimType(c.type)?'#e5d33a':'#a7e8ff'}"></span><span class="t">${isDimType(c.type)?(c.name?c.name+' = ':'')+(c.expr||fmt(c.value,2))+(c.type==='angle'?'°':' mm'):CONS_TYPES[c.type]?CONS_TYPES[c.type].label:c.type}</span><span class="m">${c.refs.map(r=>byId(r.fig)?byId(r.fig).name:'?').filter((v,i,a)=>a.indexOf(v)===i).join(' · ')}</span><button class="abtn danger" data-cdel="${c.id}" style="height:20px;padding:0 6px">×</button></div>`).join('')||'<div class="li"><span class="dot"></span><span class="t">none · use the Constrain rail (Tab)</span></div>'}<div class="li"><span class="dot"></span><span class="t">Degrees of freedom</span><span class="m">${dof}</span></div></div></div>`;}
 function renderSubInspector(){const insp=$('#insp');const hits=[...sub_.sel.values()];$('#inspBadge').textContent=subLabel();const one=hits.length===1&&hits[0].kind==='vertex'?hits[0]:null;const wp=one?subWorld(byId(one.fig),'vertex',one.idx):subPivot();
   insp.innerHTML=`<div class="hero" style="--acc:var(--yellow)"><div class="c-top"><span class="ico">${icon('sketch',18)}</span><span class="t"><span class="n">${hits.length===1?hits[0].kind:'Sub-elements'}</span><span class="m">${subLabel()}</span></span></div>
     <div class="list">${hits.map(h=>`<div class="li" data-sub="${subKey(h.fig,h.kind,h.idx)}"><span class="dot" style="background:var(--yellow)"></span><span class="t">${byId(h.fig).name} · ${h.kind} ${h.idx}</span><span class="m">${h.kind==='vertex'?subWorld(byId(h.fig),'vertex',h.idx).map(v=>fmt(v,1)).join(', '):''}</span></div>`).join('')}</div></div>
@@ -665,7 +680,7 @@ function renderSubInspector(){const insp=$('#insp');const hits=[...sub_.sel.valu
   const fl=$('#subFlat');if(fl)fl.onclick=()=>{snapshot();sub_.sel.forEach(h=>{const f=byId(h.fig);if(f&&f.kind==='curve'&&f.params.vz){delete f.params.vz;invalidate(f.id);invalidate(f.parent);}});topoCache.clear();renderInspector();draw();};
   const dl=$('#subDel');if(dl)dl.onclick=delSub;
   $$('[data-sub]').forEach(l=>l.onclick=()=>{const [fig,kind,idx]=l.dataset.sub.split(':');selectSub({fig:+fig,kind,idx:+idx},false);});}
-function renderInspector(){const ids=[...doc.sel];const insp=$('#insp');if(!ids.length&&sub_.sel.size)return renderSubInspector();
+function renderInspector(){let ids=[...doc.sel];const insp=$('#insp');if(!ids.length&&sub_.sel.size)return renderSubInspector();if(ids.length&&typeof ids[0]==='string'){const sk=doc.figures.find(s=>s.kind==='sketch'&&s.cons_&&s.cons_.some(c=>c.id===ids[0]));if(sk){ids=[sk.id];}else{doc.sel.clear();ids=[];}}
   if(!ids.length){$('#inspBadge').textContent='nothing selected';insp.innerHTML=`<div class="hero"><div class="c-top"><span class="ico" style="--acc:#fff">${icon('body',18)}</span><span class="t"><span class="n">Document</span><span class="m">SolidArc · Phase 20</span></span></div>
     <div class="big"><span class="v">${doc.figures.filter(f=>f.kind==='body').length}</span><span class="u">bodies</span><span class="lab">${doc.figures.filter(f=>f.kind==='surface').length} surfaces<br>${doc.figures.filter(f=>f.kind==='curve').length} curves</span></div>
     <div class="side"><div><span class="k">Kernel</span><span class="v2">NURBS · B-rep</span></div><div><span class="k">Tolerance</span><span class="v2">1e-6 mm</span></div><div><span class="k">Undo depth</span><span class="v2">${doc.undo.length}</span></div></div></div>
@@ -703,6 +718,7 @@ function renderInspector(){const ids=[...doc.sel];const insp=$('#insp');if(!ids.
     html+=sec('cv','Curve display','loop · fill · resolution',`<div class="ctl"><div class="rowctl"><span class="lab">Closed loop</span><span class="sw ${isClosed?'on':''} ${canClose?'':'dis'}" id="swClosed"></span></div></div>
       <div class="ctl"><div class="rowctl"><span class="lab">Fill when closed</span><span class="sw ${f.fill!==false?'on':''}" id="swFill"></span></div></div>
       ${f.ctype!=='poly'?`<div class="ctl"><div class="ctl-top"><span class="lab">Segments</span><span class="val" id="segVal">${f.segs||'auto'}</span></div><input type="range" id="segRng" min="8" max="256" step="4" value="${f.segs||64}" style="width:100%"></div>`:''}`);}
+  if(f.kind==='curve'&&consOfFig(f).length)html+=sec('cg','Constraints',consOfFig(f).length+' on this curve',consList(f));
   // parameters
   const keys=Object.keys(f.params).filter(k=>PARAMS[k]);
   if(keys.length)html+=sec('pa','Parameters','live edit · rebuilds',keys.map(k=>{const [lab,mn,mx,st,u]=PARAMS[k];return `<div class="ctl ${keys.length>3&&['x1','y1','x2','y2','cx','cy','a0','a1'].includes(k)?'half':''}"><div class="ctl-top"><span class="lab">${lab}</span><span class="val" data-k="${k}">${fmt(f.params[k],st<1?1:0)}<small>${u}</small></span></div>${trk('p:'+k,f.params[k],mn,mx)}</div>`}).join(''));
@@ -711,7 +727,7 @@ function renderInspector(){const ids=[...doc.sel];const insp=$('#insp');if(!ids.
     <div class="ctl" style="margin-top:8px"><div class="rowctl"><span class="lab">Follow sources</span><span class="sw on"></span></div></div>`);}
   // sketch children
   if(f.children)html+=sec('ch','Curves',f.children.length+' entries',`<div class="list">${f.children.map(byId).map(c=>`<div class="li" data-go="${c.id}"><span class="dot" style="background:${acc}"></span><span class="t">${c.name}</span><span class="m">${metaOf(c)}</span></div>`).join('')}</div>
-    <div class="ctl" style="margin-top:8px"><div class="ctl-top"><span class="lab">Constraint graph</span><span class="val">9 <small>types</small></span></div><div class="list"><div class="li"><span class="dot"></span><span class="t">coincident × 4 · tangent × 4 · concentric × 1</span><span class="m">solved</span></div><div class="li"><span class="dot"></span><span class="t">Degrees of freedom</span><span class="m">0</span></div></div></div>`);
+    ${consList(f)}`);
   // dims attached
   const dims=doc.figures.filter(d=>d.kind==='dim'&&d.target===f.id);
   if(f.kind!=='dim')html+=sec('dm','Dimensions',dims.length+' driving',`<div class="list">${dims.map(d=>`<div class="li" data-go="${d.id}"><span class="dot" style="background:#e5d33a"></span><span class="t">${d.key}</span><span class="m">${fmt(f.params[d.key],1)} mm</span><button class="ib" data-del="${d.id}"><svg class="i" style="width:13px;height:13px" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>`).join('')||'<div class="li"><span class="dot" style="background:var(--t3)"></span><span class="t">No dimensions</span></div>'}</div>
@@ -737,6 +753,8 @@ function renderInspector(){const ids=[...doc.sel];const insp=$('#insp');if(!ids.
   const lk=$('#lkScl');if(lk)lk.onclick=()=>{f.uniform=!f.uniform;lk.classList.toggle('on',f.uniform);if(f.uniform){const v=f.scl[0];f.scl=[v,v,v];$$('.stp[data-k=scl] .n').forEach(n=>n.textContent=fmt(v,2));invalidateXf(f);draw();}};
   $$('[data-xr]').forEach(b=>b.onclick=()=>{snapshot();const k=b.dataset.xr;f[k]=k==='scl'?[1,1,1]:[0,0,0];if(k==='rot3')f.rot=0;invalidateXf(f);renderInspector();draw();});
   $$('.trk-bar').forEach(t=>bindTrk(t,f));
+  $$('[data-cons]').forEach(l=>l.onclick=e=>{if(e.target.closest('[data-cdel]'))return;const sk=f.kind==='sketch'?f:byId(f.parent);const c=sk.cons_.find(x=>x.id===l.dataset.cons);doc.sel=new Set([c.id]);draw();if(isDimType(c.type))editDim(c);});
+  $$('[data-cdel]').forEach(b=>b.onclick=e=>{e.stopPropagation();const sk=f.kind==='sketch'?f:byId(f.parent);removeConstraint(sk,b.dataset.cdel);});
   $$('[data-go]').forEach(l=>l.onclick=e=>{if(e.target.closest('[data-del]'))return;select(+l.dataset.go,false);});
   $$('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();snapshot();doc.figures=doc.figures.filter(d=>d.id!==+b.dataset.del);rebuildAll();});
   $$('[data-adddim]').forEach(b=>b.onclick=()=>{snapshot();const k=b.dataset.adddim;doc.figures.push(mk('dim',`Dim · ${f.name} ${PARAMS[k][0].toLowerCase()}`,{},{target:f.id,key:k}));renderOutliner();renderInspector();draw();log(`dim ${f.name} ${k}`);});
@@ -818,7 +836,7 @@ function draw(){if(!W)return;cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,D
       g.fillStyle=col;g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.lineTo(it.s[2][0],it.s[2][1]);g.closePath();g.fill();g.strokeStyle=col;g.lineWidth=.6;g.stroke();}
     else{g.lineWidth=it.sel?1.6:1;if(it.cons){g.setLineDash([4,4]);g.strokeStyle=it.sel?'#d6bfff':(it.f.id===active_.plane?'rgba(200,170,255,.8)':'rgba(180,140,255,.4)');}else{g.setLineDash([]);g.strokeStyle=it.sel?(it.f.kind==='curve'?'#7ff0f5':'#ffd28a'):(it.f.kind==='curve'?it.acc:view.shade==='wire'?'rgba(255,255,255,.55)':'rgba(0,0,0,.55)');}
       g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.stroke();g.setLineDash([]);}});
-  if(doc.dims)drawDims(g);
+  if(doc.dims)drawDims(g);drawSketchDims(g);
   drawSubOverlay(g);drawToolPreview(g);drawGizmo(g);drawTriad();
   $('#camPill').textContent=`${view.ortho?'ortho':'persp'} · az ${fmt(((view.az%360)+360)%360,0)}° · el ${fmt(view.el,0)}° · d ${fmt(view.dist,0)}`;
 }
@@ -860,7 +878,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
     if(['x','y','z'].includes(k)){m.axis=m.axis===k?null:k;modalApply(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
     if(/^[0-9.\-]$/.test(e.key)){m.num+=e.key;modalApply(lastMouse[0],lastMouse[1],false);return;}if(e.key==='Backspace'){m.num=m.num.slice(0,-1);modalApply(lastMouse[0],lastMouse[1],false);return;}
     if(k==='g'||k==='r'||k==='s'){m.f.pos=m.start.pos;m.f.rot3=[...m.start.rot3];m.f.scl=m.start.scl;m.key=k;m.mode={g:'translate',r:'rotate',s:'scale'}[k];gz.mode=m.mode;setSeg('gzMode','g',m.mode);m.axis=null;m.num='';m.mx=lastMouse[0];m.my=lastMouse[1];modalApply(lastMouse[0],lastMouse[1],false);return;}return;}
-  if(e.key==='Escape'){if(tool){endTool();return;}if($('#cat').classList.contains('show')&&!$('#cat').classList.contains('pinned')){closeCat();return;}doc.sel.clear();sub_.sel.clear();renderOutliner();renderInspector();draw();}
+  if(e.key==='Escape'){if(dimTool){dimEnd();return;}if($('#dimEd').classList.contains('show')){closeDimEd();return;}if(tool){endTool();return;}if($('#cat').classList.contains('show')&&!$('#cat').classList.contains('pinned')){closeCat();return;}doc.sel.clear();sub_.sel.clear();renderOutliner();renderInspector();draw();}
   else if(k==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();e.shiftKey?redo():undo();}
   else if(k==='1'&&!e.shiftKey&&e.code.startsWith('Numpad'))setView('front');else if(k==='3'&&e.code.startsWith('Numpad'))setView('right');else if(k==='7'&&e.code.startsWith('Numpad'))setView('top');else if(k==='5')setView('ortho');
   else if(['1','2','3','4'].includes(k)&&!e.code.startsWith('Numpad')){toggleMode(['body','face','edge','vertex'][+k-1],e.shiftKey);}
@@ -871,8 +889,9 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
   else if(k==='g'&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('g');else if(k==='s'&&gzTarget()&&!tool)modalStart('s');
   else if(k==='h'){if(doc.sel.size){snapshot();doc.sel.forEach(id=>{const f=byId(id);if(f)f.visible=false;});doc.sel.clear();rebuildAll();}}
   else if(e.altKey&&k==='h'){snapshot();doc.figures.forEach(f=>f.visible=true);rebuildAll();}
-  else if(e.key==='Delete'||e.key==='Backspace'){if(sub_.sel.size)delSub();else if(doc.sel.size)delSel();}
+  else if(e.key==='Delete'||e.key==='Backspace'){const selC=[...doc.sel].filter(id=>typeof id==='string');if(selC.length){selC.forEach(id=>{const sk=doc.figures.find(s=>s.kind==='sketch'&&s.cons_&&s.cons_.some(c=>c.id===id));if(sk)removeConstraint(sk,id);});doc.sel.clear();return;}if(sub_.sel.size)delSub();else if(doc.sel.size)delSel();}
   else if(k==='f'){const f=byId([...doc.sel][0]);if(f&&f.pos){view.target=[...f.pos];draw();}}
+  else if(k==='d'&&e.shiftKey){if(sub_.sel.size){applyConstraint('dist');}else dimStart();}
   else if(k==='d'){doc.dims=!doc.dims;draw();}});
 
 
@@ -1135,8 +1154,10 @@ function moveCurveVertex(f,i,w0,delta){const B=basisOf(f);const sk=byId(f.parent
 function subBegin(){const vs=subVertices();if(!vs.length)return null;snapshot();const start=vs.map(v=>{const f=byId(v.fig);const t=topo(f);const vert=t.verts[v.idx];return {fig:v.fig,idx:v.idx,local:[...vert.p],z:vert.z||0,world:subWorld(f,'vertex',v.idx)};});
   return {start,pivot:subPivot()};}
 function subApply(st,delta){const bodies=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(!f)return;if(f.kind==='curve')moveCurveVertex(f,w.idx,w,delta);else bodies.add(f.id);});
+  // live solve: keep dragged vertices where the user put them (pin), let constraints move everything else
+  const sks=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(f&&f.kind==='curve')sks.add(f.parent);});sks.forEach(id=>{const sk=byId(id);if(!sk||!sk.cons_||!sk.cons_.length)return;const pins=st.start.filter(w=>byId(w.fig)&&byId(w.fig).parent===id).map(w=>{const P=polyPtsOf(byId(w.fig));return {id:'pin',type:'fixed',refs:[{fig:w.fig,kind:'vertex',idx:w.idx}],at:[P[w.idx][0],P[w.idx][1]]};});const keep=sk.cons_;sk.cons_=keep.concat(pins);solveSketch(sk);sk.cons_=keep;});
   bodies.forEach(id=>{const f=byId(id);const w=st.start.find(x=>x.fig===id);if(!f._bodyStart)f._bodyStart=[...f.pos];f.pos=add(f._bodyStart,delta);});draw();}
-function subEnd(){doc.figures.forEach(f=>{delete f._bodyStart;});topoCache.clear();renderOutliner();renderInspector();draw();}
+function subEnd(){doc.figures.forEach(f=>{delete f._bodyStart;});solveAll();topoCache.clear();renderOutliner();renderInspector();draw();}
 // draw overlay: vertices as dots, selected edges/faces highlighted
 function drawSubOverlay(g){const modes=subModes();const anySub=modes.has('vertex')||modes.has('edge')||modes.has('face');if(!anySub&&!sub_.sel.size)return;
   doc.figures.forEach(f=>{if(!f.visible||f.kind==='dim'||f.kind==='sketch'||f.kind==='plane'||!filt.has(f.kind))return;if(f.cons&&!view.cons)return;const t=topo(f);const isSel=k=>sub_.sel.has(subKey(f.id,k.kind,k.idx));const hov=sub_.hover;
@@ -1152,12 +1173,17 @@ function drawSubOverlay(g){const modes=subModes();const anySub=modes.has('vertex
 
 /* ── viewport interaction ─────────────────────────────────── */
 let drag=null,tool=null,hover=null;
-cv.addEventListener('pointerdown',e=>{const r0=cv.getBoundingClientRect();const px0=e.clientX-r0.left,py0=e.clientY-r0.top;
+cv.addEventListener('pointerdown',e=>{const r0=cv.getBoundingClientRect();const px0=e.clientX-r0.left,py0=e.clientY-r0.top;closeDimEd();
+  if(dimTool){if(e.button!==0){dimEnd();return;}cv.setPointerCapture(e.pointerId);if(dimTool.stage==='pick'){dimPickAt(px0,py0);}else if(dimTool.stage==='pick2'){if(!dimPickAt(px0,py0)){/* drag from a single point: nothing */}}else if(dimTool.stage==='place'){/* second press while placing = commit at current place */dimCommit();}dimTool&&(dimTool.pressed=true);return;}
+  if(e.button===0&&!tool){const lbl=dimLabelAt(px0,py0);if(lbl){if(e.detail===2){editDim(lbl.c);return;}cv.setPointerCapture(e.pointerId);dimDragBegin(lbl);return;}}
   if(gz.drag&&gz.edit){if(e.button===0)gzEnd(true);else gzEnd(false);return;}
   if(gz.modal){if(e.button===0)modalConfirm();else modalCancel();return;}
   if(e.button===0&&!tool){const h=gzHit(px0,py0);if(h&&gzBegin(h,px0,py0)){cv.setPointerCapture(e.pointerId);return;}}
   cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,btn:e.button,shift:e.shiftKey,moved:false};});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();lastMouse=[e.clientX-r.left,e.clientY-r.top];
+  if(dimDrag){dimDragUpdate(lastMouse[0],lastMouse[1]);return;}
+  if(dimTool){if(dimTool.stage==='place'||(dimTool.stage==='pick2'&&dimTool.pressed)){if(dimTool.stage==='pick2'&&dimTool.pressed){/* dragging straight from a point → becomes place with one ref? only valid for line/circle */}else dimPlaceUpdate(lastMouse[0],lastMouse[1]);}
+    const hv=pickSub(lastMouse[0],lastMouse[1],new Set(['vertex','edge']));const same=(hv&&sub_.hover&&hv.fig===sub_.hover.fig&&hv.kind===sub_.hover.kind&&hv.idx===sub_.hover.idx)||(!hv&&!sub_.hover);if(!same){sub_.hover=hv;requestDraw();}return;}
   if(gz.modal){modalApply(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
   if(gz.drag){if(!gz.edit)gzUpdate(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
   if(!drag){const h=tool?null:gzHit(lastMouse[0],lastMouse[1]);if(h!==gz.hover){gz.hover=h;cv.style.cursor=h?'pointer':'';requestDraw();}
@@ -1165,7 +1191,9 @@ cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();lastMou
   const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(e.clientX-drag.sx)+Math.abs(e.clientY-drag.sy)>3)drag.moved=true;
   if(drag.btn===1||drag.shift||drag.btn===2){const s=view.dist/H*1.2;view.target=view.target.map((t,i)=>t-cam.right[i]*dx*s+cam.up[i]*dy*s);}
   else{view.az-=dx*.4;view.el=Math.max(-89,Math.min(89,view.el+dy*.4));}drag.x=e.clientX;drag.y=e.clientY;draw();});
-cv.addEventListener('pointerup',e=>{if(gz.drag){if(gz.edit)return;gzEnd(true);return;}const d=drag;drag=null;if(!d||d.moved)return;const r=cv.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;
+cv.addEventListener('pointerup',e=>{if(dimDrag){dimDragEnd();return;}
+  if(dimTool){dimTool.pressed=false;if(dimTool.stage==='place'&&dimTool.place)dimCommit();return;}
+  if(gz.drag){if(gz.edit)return;gzEnd(true);return;}const d=drag;drag=null;if(!d||d.moved)return;const r=cv.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;
   if(d.btn===2){if(tool){tool.op.multi&&tool.pts.length>=2?finishTool():endTool();}else openCatAt(e.clientX,e.clientY);return;}
   if(d.btn!==0)return;if(!$('#cat').classList.contains('pinned'))closeCat();if(tool){toolClick(px,py);return;}
   const subK=new Set(view.modes.filter(m=>m!=='body'));if(subK.size){const hit=pickSub(px,py,subK);if(hit){selectSub(hit,e.shiftKey);return;}if(!view.modes.includes('body')){if(!e.shiftKey){sub_.sel.clear();doc.sel.clear();renderOutliner();renderInspector();draw();}return;}}
@@ -1219,10 +1247,173 @@ const CAT=[
     {id:'polygon',label:'Polygon',glyph:'SketchPolygon',accel:'P',needs:true,prompts:['Click centre','Click radius','Scroll to change sides · click / Enter to confirm'],confirmStep:true,params:[{k:'sides',kind:'slider',label:'Sides',min:3,max:20,step:1,value:6,unit:''},{k:'mode',kind:'seg',label:'Radius is',options:['Inscribed','Circumscribed'],value:0}]},
     {id:'spoint',label:'Point',glyph:'SketchPoint',needs:true,prompts:['Click position'],params:[{k:'cons',kind:'toggle',label:'Construction geometry',value:false}]},
   ]},
+  {key:'constrain',label:'Constrain',glyph:'Constrain',cons:true},
   {key:'modify',label:'Sketch Modify',glyph:'Soon',soon:true},{key:'primitive',label:'Solid Primitive',glyph:'Soon',soon:true},{key:'sweep',label:'Profile Sweep',glyph:'Soon',soon:true},{key:'boolean',label:'Boolean',glyph:'Soon',soon:true},
 ];
 const catState={rail:'sketch',op:null,vals:{}};
 const opById=id=>{for(const c of CAT)for(const o of (c.ops||[]))if(o.id===id)return o;return null;};
+/* ── Constraints + numeric solver (per sketch) ───────────────────────────────
+   DOF vector = every editable (u,v) of every curve in the sketch (from polyPtsOf) + circle/arc radii.
+   Constraint = residual function(s) over DOFs. Solver: damped Gauss-Newton with numeric Jacobian.
+   Constraints live in sketch.cons_ = [{id,type,refs:[{fig,kind,idx}],value?,expr?,name?}].
+   Dimensions are constraints with type 'dist'|'radius'|'diam'|'angle'|'hdist'|'vdist' + placement {ou,ov} (offset of the label in plane space).
+   Variables: doc.vars = {name:{expr:'20*2',value:40}} — dimension expr may reference them, e.g. "W/2 + 3". */
+const CONS_TYPES={coincident:{label:'Coincident',glyph:'Coincident',pick:['vertex','vertex'],hint:'two points'},horizontal:{label:'Horizontal',glyph:'Horizontal',pick:['edge'],hint:'a line'},vertical:{label:'Vertical',glyph:'Vertical',pick:['edge'],hint:'a line'},
+  parallel:{label:'Parallel',glyph:'Parallel',pick:['edge','edge'],hint:'two lines'},perpendicular:{label:'Perpendicular',glyph:'Perpendicular',pick:['edge','edge'],hint:'two lines'},equal:{label:'Equal',glyph:'Equal',pick:['edge','edge'],hint:'two lines / circles'},
+  tangent:{label:'Tangent',glyph:'Tangent',pick:['edge','edge'],hint:'line + circle'},concentric:{label:'Concentric',glyph:'Concentric',pick:['edge','edge'],hint:'two circles / arcs'},midpoint:{label:'Midpoint',glyph:'Midpoint',pick:['vertex','edge'],hint:'point on line middle'},fixed:{label:'Fix',glyph:'Fixed',pick:['vertex'],hint:'lock a point'},
+  ptOnLine:{label:'Point on line',glyph:'PtOnLine',pick:['vertex','edge'],hint:'point + line'},
+  dist:{label:'Dimension',glyph:'Dim',pick:['*'],hint:'click a line / circle / two points, then drag to place',dim:true}};
+const isDimType=t=>['dist','hdist','vdist','radius','diam','angle'].includes(t);
+doc.vars=doc.vars||{};
+let consSeq=1;const cid=()=>'c'+(consSeq++);
+function sketchOfHit(h){const f=byId(h.fig);return f&&f.kind==='curve'?byId(f.parent):null;}
+// ---- DOF mapping ---------------------------------------------------------------------------
+function dofMap(sk){const map=[];sk.children.map(byId).filter(Boolean).forEach(f=>{const p=f.params;switch(f.ctype){
+    case 'poly':p.pts.forEach((q,i)=>{map.push({f,get:()=>p.pts[i][0],set:v=>p.pts[i][0]=v});map.push({f,get:()=>p.pts[i][1],set:v=>p.pts[i][1]=v});});break;
+    case 'line':['x1','y1','x2','y2'].forEach(k=>map.push({f,get:()=>p[k],set:v=>p[k]=v}));break;
+    case 'circle':case 'arc':['cx','cy','r'].forEach(k=>map.push({f,get:()=>p[k],set:v=>p[k]=Math.max(k==='r'?.1:-1e9,v)}));break;
+    case 'point':['cx','cy'].forEach(k=>map.push({f,get:()=>p[k],set:v=>p[k]=v}));break;
+    case 'ellipse':['cx','cy'].forEach(k=>map.push({f,get:()=>p[k],set:v=>p[k]=v}));break;}});return map;}
+// geometry accessors in plane space (u,v)
+function vtx(h){const f=byId(h.fig);if(!f)return null;const P=polyPtsOf(f);const q=P[h.idx];return q?[q[0],q[1]]:null;}
+function edgeInfo(h){const f=byId(h.fig);if(!f)return null;const t=topo(f);const e=t.edges[h.idx];if(!e)return null;
+  if(e.curve)return {kind:'circle',c:[f.params.cx,f.params.cy],r:f.params.r,f};
+  const P=polyPtsOf(f);return {kind:'line',a:[P[e.a][0],P[e.a][1]],b:[P[e.b][0],P[e.b][1]],f,ia:e.a,ib:e.b};}
+const L2=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]);
+// ---- residuals --------------------------------------------------------------------------------
+function residuals(c){const r=[];const R=c.refs;const V=i=>vtx(R[i]),E=i=>edgeInfo(R[i]);
+  switch(c.type){
+    case 'coincident':{const a=V(0),b=V(1);if(a&&b)r.push(a[0]-b[0],a[1]-b[1]);break;}
+    case 'fixed':{const a=V(0);if(a){c.at=c.at||[a[0],a[1]];r.push(a[0]-c.at[0],a[1]-c.at[1]);}break;}
+    case 'horizontal':{const e=E(0);if(e&&e.kind==='line')r.push(e.b[1]-e.a[1]);else{const a=V(0),b=V(1);if(a&&b)r.push(a[1]-b[1]);}break;}
+    case 'vertical':{const e=E(0);if(e&&e.kind==='line')r.push(e.b[0]-e.a[0]);else{const a=V(0),b=V(1);if(a&&b)r.push(a[0]-b[0]);}break;}
+    case 'parallel':{const e=E(0),g=E(1);if(e&&g&&e.kind==='line'&&g.kind==='line'){const d1=[e.b[0]-e.a[0],e.b[1]-e.a[1]],d2=[g.b[0]-g.a[0],g.b[1]-g.a[1]];r.push((d1[0]*d2[1]-d1[1]*d2[0])/((L2(e.a,e.b)*L2(g.a,g.b))||1)*10);}break;}
+    case 'perpendicular':{const e=E(0),g=E(1);if(e&&g&&e.kind==='line'&&g.kind==='line'){const d1=[e.b[0]-e.a[0],e.b[1]-e.a[1]],d2=[g.b[0]-g.a[0],g.b[1]-g.a[1]];r.push((d1[0]*d2[0]+d1[1]*d2[1])/((L2(e.a,e.b)*L2(g.a,g.b))||1)*10);}break;}
+    case 'equal':{const e=E(0),g=E(1);if(!e||!g)break;const len=x=>x.kind==='line'?L2(x.a,x.b):x.r;r.push(len(e)-len(g));break;}
+    case 'tangent':{const e=E(0),g=E(1);if(!e||!g)break;const ln=e.kind==='line'?e:g,ci=e.kind==='circle'?e:g;if(ln.kind!=='line'||ci.kind!=='circle'){if(e.kind==='circle'&&g.kind==='circle')r.push(L2(e.c,g.c)-(e.r+g.r));break;}
+      const d=[ln.b[0]-ln.a[0],ln.b[1]-ln.a[1]];const l=Math.hypot(d[0],d[1])||1;const dist=Math.abs((d[0]*(ci.c[1]-ln.a[1])-d[1]*(ci.c[0]-ln.a[0]))/l);r.push(dist-ci.r);break;}
+    case 'concentric':{const e=E(0),g=E(1);if(e&&g&&e.kind==='circle'&&g.kind==='circle')r.push(e.c[0]-g.c[0],e.c[1]-g.c[1]);break;}
+    case 'midpoint':{const a=V(0),e=E(1);if(a&&e&&e.kind==='line')r.push(a[0]-(e.a[0]+e.b[0])/2,a[1]-(e.a[1]+e.b[1])/2);break;}
+    case 'ptOnLine':{const a=V(0),e=E(1);if(a&&e){if(e.kind==='line'){const d=[e.b[0]-e.a[0],e.b[1]-e.a[1]];const l=Math.hypot(d[0],d[1])||1;r.push((d[0]*(a[1]-e.a[1])-d[1]*(a[0]-e.a[0]))/l);}else r.push(L2(a,e.c)-e.r);}break;}
+    // dimensions
+    case 'dist':{const [a,b]=dimEnds(c);if(a&&b)r.push(L2(a,b)-c.value);break;}
+    case 'hdist':{const [a,b]=dimEnds(c);if(a&&b)r.push(Math.abs(b[0]-a[0])-c.value);break;}
+    case 'vdist':{const [a,b]=dimEnds(c);if(a&&b)r.push(Math.abs(b[1]-a[1])-c.value);break;}
+    case 'radius':{const e=E(0);if(e&&e.kind==='circle')r.push(e.r-c.value);break;}
+    case 'diam':{const e=E(0);if(e&&e.kind==='circle')r.push(e.r*2-c.value);break;}
+    case 'angle':{const e=E(0),g=E(1);if(e&&g&&e.kind==='line'&&g.kind==='line'){const a1=Math.atan2(e.b[1]-e.a[1],e.b[0]-e.a[0]),a2=Math.atan2(g.b[1]-g.a[1],g.b[0]-g.a[0]);let d=(a2-a1)*180/Math.PI;while(d>180)d-=360;while(d<=-180)d+=360;r.push((Math.abs(d)-c.value)*0.5);}break;}
+  }return r;}
+function dimEnds(c){const R=c.refs;if(R.length===1){const e=edgeInfo(R[0]);return e&&e.kind==='line'?[e.a,e.b]:[null,null];}return [vtx(R[0]),vtx(R[1])];}
+// ---- solver -----------------------------------------------------------------------------------
+function solveSketch(sk,opts={}){if(!sk||!sk.cons_||!sk.cons_.length)return {ok:true,iters:0,err:0};const map=dofMap(sk);const n=map.length;const cons=sk.cons_.filter(c=>!c.suppressed);
+  const lockIdx=new Set();(opts.lock||[]).forEach(l=>{map.forEach((m,i)=>{if(m.f.id===l.fig)lockIdx.add(i);});});
+  const x=map.map(m=>m.get());const setAll=v=>map.forEach((m,i)=>m.set(v[i]));
+  const F=()=>{const out=[];cons.forEach(c=>residuals(c).forEach(v=>out.push(v)));return out;};
+  let err=0,it=0;for(it=0;it<40;it++){setAll(x);const f0=F();const m=f0.length;err=Math.sqrt(f0.reduce((a,v)=>a+v*v,0));if(err<1e-7||!m)break;
+    // numeric Jacobian m×n
+    const J=[];const h=1e-5;for(let j=0;j<n;j++){if(lockIdx.has(j)){J.push(new Array(m).fill(0));continue;}x[j]+=h;setAll(x);const f1=F();x[j]-=h;J.push(f1.map((v,i)=>(v-f0[i])/h));}
+    // solve (JᵀJ + λI) dx = -Jᵀf   (n×n)
+    const A=Array.from({length:n},()=>new Array(n).fill(0)),g=new Array(n).fill(0);const lam=1e-4+err*1e-3;
+    for(let a=0;a<n;a++){for(let b=a;b<n;b++){let s=0;for(let i=0;i<m;i++)s+=J[a][i]*J[b][i];A[a][b]=s;A[b][a]=s;}A[a][a]+=lam;let s=0;for(let i=0;i<m;i++)s+=J[a][i]*f0[i];g[a]=-s;}
+    const dx=cholSolve(A,g);if(!dx)break;let step=1;for(let j=0;j<n;j++)x[j]+=dx[j]*step;}
+  setAll(x);sk.children.forEach(id=>{invalidate(id);topoCache.delete(id);});invalidate(sk.id);sk.solve_={ok:err<1e-4,err,iters:it,dof:Math.max(0,n-cons.reduce((a,c)=>a+residuals(c).length,0))};return sk.solve_;}
+function cholSolve(A,b){const n=b.length;const L=Array.from({length:n},()=>new Array(n).fill(0));for(let i=0;i<n;i++){for(let j=0;j<=i;j++){let s=A[i][j];for(let k=0;k<j;k++)s-=L[i][k]*L[j][k];if(i===j){if(s<=1e-14)s=1e-14;L[i][i]=Math.sqrt(s);}else L[i][j]=s/L[j][j];}}
+  const y=new Array(n);for(let i=0;i<n;i++){let s=b[i];for(let k=0;k<i;k++)s-=L[i][k]*y[k];y[i]=s/L[i][i];}const x=new Array(n);for(let i=n-1;i>=0;i--){let s=y[i];for(let k=i+1;k<n;k++)s-=L[k][i]*x[k];x[i]=s/L[i][i];}return x;}
+function solveAll(lock){doc.figures.filter(f=>f.kind==='sketch'&&f.cons_&&f.cons_.length).forEach(sk=>solveSketch(sk,{lock}));}
+// ---- expressions / variables -----------------------------------------------------------------
+function evalExpr(expr,depth=0){if(typeof expr==='number')return expr;const s=String(expr).trim();if(!s)return NaN;if(depth>8)return NaN;
+  const safe=s.replace(/[A-Za-z_][A-Za-z0-9_]*/g,name=>{if(Math[name]!==undefined&&typeof Math[name]==='function')return 'Math.'+name;if(name==='PI'||name==='pi')return 'Math.PI';const v=doc.vars[name];if(v){const val=evalExpr(v.expr,depth+1);return isFinite(val)?'('+val+')':'NaN';}return 'NaN';});
+  if(/[^0-9+\-*/().,\sMathPIEabcdefghijklmnopqrstuvwxyz]/.test(safe))return NaN;try{const v=Function('"use strict";return ('+safe+')')();return typeof v==='number'?v:NaN;}catch(e){return NaN;}}
+function setVar(name,expr){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))return false;doc.vars[name]={expr:String(expr)};refreshDims();return true;}
+function refreshDims(){doc.figures.filter(f=>f.kind==='sketch'&&f.cons_).forEach(sk=>{sk.cons_.forEach(c=>{if(isDimType(c.type)&&c.expr!==undefined){const v=evalExpr(c.expr);if(isFinite(v))c.value=v;}});solveSketch(sk);});renderOutliner();renderInspector();draw();}
+// ---- creation -------------------------------------------------------------------------------------
+function currentDimValue(c){switch(c.type){case 'dist':{const [a,b]=dimEnds(c);return a&&b?L2(a,b):0;}case 'hdist':{const [a,b]=dimEnds(c);return a&&b?Math.abs(b[0]-a[0]):0;}case 'vdist':{const [a,b]=dimEnds(c);return a&&b?Math.abs(b[1]-a[1]):0;}case 'radius':{const e=edgeInfo(c.refs[0]);return e?e.r:0;}case 'diam':{const e=edgeInfo(c.refs[0]);return e?e.r*2:0;}case 'angle':{const e=edgeInfo(c.refs[0]),g=edgeInfo(c.refs[1]);if(!e||!g)return 0;const a1=Math.atan2(e.b[1]-e.a[1],e.b[0]-e.a[0]),a2=Math.atan2(g.b[1]-g.a[1],g.b[0]-g.a[0]);let d=(a2-a1)*180/Math.PI;while(d>180)d-=360;while(d<=-180)d+=360;return Math.abs(d);}}return 0;}
+function addConstraint(sk,type,refs,extra={}){sk.cons_=sk.cons_||[];const c={id:cid(),type,refs:refs.map(h=>({fig:h.fig,kind:h.kind,idx:h.idx})),...extra};if(isDimType(type)&&c.value===undefined){c.value=currentDimValue(c);c.expr=String(+c.value.toFixed(3));}
+  sk.cons_.push(c);snapshot();const res=solveSketch(sk);if(!res.ok){log(`${type}: solver did not converge (err ${res.err.toExponential(1)})`);}else log(`${CONS_TYPES[type]?CONS_TYPES[type].label:type} added`);renderOutliner();renderInspector();draw();return c;}
+function removeConstraint(sk,id){snapshot();sk.cons_=(sk.cons_||[]).filter(c=>c.id!==id);solveSketch(sk);renderOutliner();renderInspector();draw();}
+function consOfFig(f){const sk=f.kind==='sketch'?f:byId(f.parent);if(!sk||!sk.cons_)return [];return f.kind==='sketch'?sk.cons_:sk.cons_.filter(c=>c.refs.some(r=>r.fig===f.id));}
+// ---- dimension tool state -------------------------------------------------------------------------
+// flow: press Dimension (tile or key ⇧D) → click entity (line / circle / point) → optionally a second point → drag → release places the label.
+let dimTool=null; // {refs:[], stage:'pick'|'place', type, sk, preview}
+function dimStart(){dimTool={refs:[],stage:'pick'};$('#prompt').classList.add('show');$('#promptTool').textContent='dimension';$('#promptTxt').textContent='Click a line, circle/arc, or a point (then a second point) · drag to place';cv.style.cursor='crosshair';draw();}
+function dimEnd(){dimTool=null;$('#prompt').classList.remove('show');cv.style.cursor='';draw();}
+function dimPickAt(px,py){const hit=pickSub(px,py,new Set(['vertex','edge']));if(!hit)return false;const f=byId(hit.fig);if(f.kind!=='curve')return false;const sk=byId(f.parent);
+  if(dimTool.refs.length&&sketchOfHit(dimTool.refs[0])!==sk){log('dimension: both references must be in the same sketch');return false;}
+  if(hit.kind==='edge'){const e=edgeInfo(hit);if(!dimTool.refs.length){dimTool.refs=[hit];if(e.kind==='circle'){dimTool.type=f.ctype==='arc'?'radius':'diam';}else{dimTool.type='dist';}dimTool.sk=sk;dimTool.stage='place';return true;}
+    // second edge: line+line → angle
+    const e0=edgeInfo(dimTool.refs[0]);if(e0.kind==='line'&&e.kind==='line'){dimTool.refs.push(hit);dimTool.type='angle';dimTool.stage='place';return true;}return false;}
+  // vertex
+  if(!dimTool.refs.length){dimTool.refs=[hit];dimTool.sk=sk;dimTool.type='dist';dimTool.stage='pick2';$('#promptTxt').textContent='Click the second point · or drag now to place';return true;}
+  if(dimTool.refs.length===1&&dimTool.refs[0].kind==='vertex'){dimTool.refs.push(hit);dimTool.stage='place';return true;}return false;}
+// while placing: mouse position in plane space decides offset + (for point-point) whether it is aligned / horizontal / vertical
+function dimPlaceUpdate(px,py){if(!dimTool||!(dimTool.stage==='place'||dimTool.stage==='pick2'))return;const sk=dimTool.sk;const pl=byId(sk.planeId);if(!pl)return;const B=planeBasis(pl);const {o,d}=rayAt(px,py);const dn=dot(d,B.n);if(Math.abs(dn)<1e-6)return;const t=dot(sub(B.o,o),B.n)/dn;const P=[o[0]+d[0]*t,o[1]+d[1]*t,o[2]+d[2]*t];const rel=sub(P,B.o);const uv=[dot(rel,B.u),dot(rel,B.v)];
+  dimTool.cursor=uv;const c={type:dimTool.type,refs:dimTool.refs};
+  if(dimTool.type==='dist'&&dimTool.refs.length===2){const [a,b]=dimEnds(c);if(a&&b){const dx=Math.abs(b[0]-a[0]),dy=Math.abs(b[1]-a[1]);const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];const off=[uv[0]-mid[0],uv[1]-mid[1]];
+      // Fusion-style: cursor far outside the diagonal band → horizontal / vertical measure
+      const ad=Math.abs(off[0]),bd=Math.abs(off[1]);if(dx>1e-6&&dy>1e-6){if(bd>ad*1.8&&bd>dx*.2)dimTool.type='hdist';else if(ad>bd*1.8&&ad>dy*.2)dimTool.type='vdist';else dimTool.type='dist';}}}
+  dimTool.place=dimOffsetFor({type:dimTool.type,refs:dimTool.refs},uv);draw();}
+function dimOffsetFor(c,uv){const [a,b]=dimEnds(c);if(c.type==='radius'||c.type==='diam'){const e=edgeInfo(c.refs[0]);if(!e)return {ou:0,ov:0};return {ou:uv[0]-e.c[0],ov:uv[1]-e.c[1]};}
+  if(c.type==='angle'){const e=edgeInfo(c.refs[0]),g=edgeInfo(c.refs[1]);const x=lineIsect(e,g)||e.a;return {ou:uv[0]-x[0],ov:uv[1]-x[1]};}
+  if(!a||!b)return {ou:0,ov:0};const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(c.type==='hdist')return {ou:0,ov:uv[1]-mid[1]};if(c.type==='vdist')return {ou:uv[0]-mid[0],ov:0};
+  const d=[b[0]-a[0],b[1]-a[1]];const l=Math.hypot(d[0],d[1])||1;const n=[-d[1]/l,d[0]/l];return {ou:0,ov:0,off:(uv[0]-mid[0])*n[0]+(uv[1]-mid[1])*n[1]};}
+function lineIsect(e,g){const p1=e.a,p2=e.b,p3=g.a,p4=g.b;const d=(p1[0]-p2[0])*(p3[1]-p4[1])-(p1[1]-p2[1])*(p3[0]-p4[0]);if(Math.abs(d)<1e-9)return null;const t=((p1[0]-p3[0])*(p3[1]-p4[1])-(p1[1]-p3[1])*(p3[0]-p4[0]))/d;return [p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1])];}
+function dimCommit(){if(!dimTool||!dimTool.sk||!dimTool.refs.length)return;const c=addConstraint(dimTool.sk,dimTool.type,dimTool.refs,{place:dimTool.place||{ou:0,ov:8,off:8}});dimEnd();editDim(c);}
+// ---- drawing dimensions (in plane space → world → screen) -------------------------------------------------------
+function dimGeom(sk,c){const pl=byId(sk.planeId);if(!pl)return null;const B=planeBasis(pl);const W=uv=>[B.o[0]+B.u[0]*uv[0]+B.v[0]*uv[1],B.o[1]+B.u[1]*uv[0]+B.v[1]*uv[1],B.o[2]+B.u[2]*uv[0]+B.v[2]*uv[1]];const pc=c.place||{ou:0,ov:8,off:8};
+  if(c.type==='radius'||c.type==='diam'){const e=edgeInfo(c.refs[0]);if(!e)return null;const ang=Math.atan2(pc.ov,pc.ou)||0;const far=Math.hypot(pc.ou,pc.ov)||e.r*1.4;const A=c.type==='diam'?[e.c[0]-Math.cos(ang)*e.r,e.c[1]-Math.sin(ang)*e.r]:e.c;const Bp=[e.c[0]+Math.cos(ang)*e.r,e.c[1]+Math.sin(ang)*e.r];const lab=[e.c[0]+Math.cos(ang)*far,e.c[1]+Math.sin(ang)*far];return {A:W(A),B:W(Bp),lab:W(lab),ext:[[W(Bp),W(lab)]],txt:(c.type==='diam'?'⌀ ':'R ')+fmt(c.value,2)};}
+  if(c.type==='angle'){const e=edgeInfo(c.refs[0]),g=edgeInfo(c.refs[1]);if(!e||!g)return null;const x=lineIsect(e,g)||e.a;const R=Math.hypot(pc.ou,pc.ov)||10;const a1=Math.atan2(e.b[1]-e.a[1],e.b[0]-e.a[0]),a2=Math.atan2(g.b[1]-g.a[1],g.b[0]-g.a[0]);const arc=[];let d=a2-a1;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;for(let i=0;i<=16;i++){const t=a1+d*i/16;arc.push(W([x[0]+Math.cos(t)*R,x[1]+Math.sin(t)*R]));}const tm=a1+d/2;return {arc,lab:W([x[0]+Math.cos(tm)*R*1.25,x[1]+Math.sin(tm)*R*1.25]),txt:fmt(c.value,1)+'°',ext:[[W(x),W([x[0]+Math.cos(a1)*R,x[1]+Math.sin(a1)*R])],[W(x),W([x[0]+Math.cos(a2)*R,x[1]+Math.sin(a2)*R])]]};}
+  const [a,b]=dimEnds(c);if(!a||!b)return null;
+  if(c.type==='hdist'){const y=(a[1]+b[1])/2+pc.ov;return {A:W([a[0],y]),B:W([b[0],y]),lab:W([(a[0]+b[0])/2,y]),ext:[[W(a),W([a[0],y])],[W(b),W([b[0],y])]],txt:fmt(c.value,2)};}
+  if(c.type==='vdist'){const x=(a[0]+b[0])/2+pc.ou;return {A:W([x,a[1]]),B:W([x,b[1]]),lab:W([x,(a[1]+b[1])/2]),ext:[[W(a),W([x,a[1]])],[W(b),W([x,b[1]])]],txt:fmt(c.value,2)};}
+  const d=[b[0]-a[0],b[1]-a[1]];const l=Math.hypot(d[0],d[1])||1;const n=[-d[1]/l,d[0]/l];const off=pc.off!==undefined?pc.off:8;const A=[a[0]+n[0]*off,a[1]+n[1]*off],Bq=[b[0]+n[0]*off,b[1]+n[1]*off];return {A:W(A),B:W(Bq),lab:W([(A[0]+Bq[0])/2,(A[1]+Bq[1])/2]),ext:[[W(a),W(A)],[W(b),W(Bq)]],txt:fmt(c.value,2)};}
+const dimLabels=[]; // screen rects for hit-testing (double-click to edit, drag to move)
+function drawSketchDims(g){dimLabels.length=0;g.font='11px JetBrains Mono, monospace';g.textAlign='center';g.textBaseline='middle';
+  const drawOne=(sk,c,preview)=>{const G=dimGeom(sk,c);if(!G)return;const sel=doc.sel.has(c.id);const col=preview?'rgba(255,255,255,.6)':c.expr&&/[A-Za-z]/.test(c.expr)?'#a7e8ff':sel?'#fff':'rgba(229,211,58,.9)';g.strokeStyle=col;g.lineWidth=1;g.setLineDash([]);
+    (G.ext||[]).forEach(([p,q])=>{const a=project(p),b=project(q);if(a&&b){g.globalAlpha=.5;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.globalAlpha=1;}});
+    if(G.arc){const s=G.arc.map(project);if(s.every(Boolean)){g.beginPath();s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.stroke();}}
+    else{const a=project(G.A),b=project(G.B);if(!a||!b)return;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;const arrows=c.type==='radius'?[[b,-1]]:[[a,1],[b,-1]];arrows.forEach(([q,s])=>{g.beginPath();g.moveTo(q[0],q[1]);g.lineTo(q[0]+s*ux*7-uy*3,q[1]+s*uy*7+ux*3);g.lineTo(q[0]+s*ux*7+uy*3,q[1]+s*uy*7-ux*3);g.closePath();g.fillStyle=col;g.fill();});}
+    const lb=project(G.lab);if(!lb)return;const txt=(c.name?c.name+' = ':'')+G.txt;const tw=g.measureText(txt).width+14;g.fillStyle=sel?'rgba(255,255,255,.16)':'rgba(0,0,0,.72)';g.beginPath();g.roundRect(lb[0]-tw/2,lb[1]-10,tw,20,6);g.fill();if(sel){g.strokeStyle='#fff';g.stroke();}g.fillStyle=col;g.fillText(txt,lb[0],lb[1]);
+    if(!preview)dimLabels.push({x:lb[0]-tw/2,y:lb[1]-10,w:tw,h:20,sk,c});};
+  doc.figures.forEach(sk=>{if(sk.kind!=='sketch'||!sk.visible||!sk.cons_)return;sk.cons_.forEach(c=>{if(isDimType(c.type))drawOne(sk,c,false);});});
+  if(dimTool&&dimTool.sk&&(dimTool.stage==='place'||dimTool.stage==='pick2')&&dimTool.place){const c={type:dimTool.type,refs:dimTool.refs,place:dimTool.place};if(dimTool.type==='dist'&&dimTool.refs.length===1&&dimTool.refs[0].kind==='vertex')return;c.value=currentDimValue(c);drawOne(dimTool.sk,c,true);}
+  // constraint glyphs next to curves
+  doc.figures.forEach(sk=>{if(sk.kind!=='sketch'||!sk.visible||!sk.cons_)return;sk.cons_.forEach(c=>{if(isDimType(c.type))return;const h=c.refs[0];const f=byId(h.fig);if(!f)return;const w=subWorld(f,h.kind,h.idx);const s=project(w);if(!s)return;const sym={coincident:'●',horizontal:'—',vertical:'|',parallel:'∥',perpendicular:'⊥',equal:'=',tangent:'⌒',concentric:'◎',midpoint:'⊹',fixed:'⚓',ptOnLine:'⊸'}[c.type]||'?';
+      g.font='10px JetBrains Mono, monospace';g.fillStyle=doc.sel.has(c.id)?'#fff':'rgba(229,211,58,.85)';g.beginPath();g.arc(s[0]+9,s[1]-9,7,0,7);g.fillStyle='rgba(0,0,0,.6)';g.fill();g.fillStyle=doc.sel.has(c.id)?'#fff':'rgba(229,211,58,.9)';g.fillText(sym,s[0]+9,s[1]-8.5);dimLabels.push({x:s[0]+2,y:s[1]-16,w:14,h:14,sk,c});});});
+  g.font='11px JetBrains Mono, monospace';}
+function dimLabelAt(px,py){for(let i=dimLabels.length-1;i>=0;i--){const l=dimLabels[i];if(px>=l.x&&px<=l.x+l.w&&py>=l.y&&py<=l.y+l.h)return l;}return null;}
+// ---- editing: inline popover over the label -------------------------------------------------------------
+function editDim(c){const sk=doc.figures.find(s=>s.kind==='sketch'&&s.cons_&&s.cons_.includes(c));if(!sk||!isDimType(c.type))return;const G=dimGeom(sk,c);const lb=G?project(G.lab):null;const r=cv.getBoundingClientRect();const el=$('#dimEd');el.style.left=(lb?lb[0]:W/2)+'px';el.style.top=((lb?lb[1]:H/2)+16)+'px';el.classList.add('show');
+  el.innerHTML=`<div class="row"><input id="dimName" placeholder="name" value="${c.name||''}" title="optional variable name (other dimensions can reference it)"><span class="eq">=</span><input id="dimExpr" value="${c.expr!==undefined?c.expr:fmt(c.value,3)}" title="number or expression · e.g. W/2 + 3"><span class="unit">${c.type==='angle'?'°':'mm'}</span></div><div class="row hint"><span id="dimPrev">${fmt(c.value,3)}</span><span class="sp"></span><span class="k">⏎ apply</span><span class="k">Esc</span><button class="abtn danger" id="dimDel">delete</button></div>`;
+  const ex=$('#dimExpr'),nm=$('#dimName');ex.focus();ex.select();
+  const prev=()=>{const v=evalExpr(ex.value);$('#dimPrev').textContent=isFinite(v)?fmt(v,3):'invalid';$('#dimPrev').style.color=isFinite(v)?'':'var(--red)';};ex.oninput=prev;
+  const apply=()=>{const v=evalExpr(ex.value);if(!isFinite(v)){prev();return;}snapshot();c.expr=ex.value.trim();c.value=v;const n=nm.value.trim();if(n&&/^[A-Za-z_][A-Za-z0-9_]*$/.test(n)){c.name=n;doc.vars[n]={expr:String(v),dim:c.id};}else if(!n&&c.name){delete doc.vars[c.name];delete c.name;}
+    solveSketch(sk);refreshDims();closeDimEd();};
+  [ex,nm].forEach(i=>i.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')apply();else if(e.key==='Escape')closeDimEd();});$('#dimDel').onclick=()=>{closeDimEd();removeConstraint(sk,c.id);};}
+function closeDimEd(){$('#dimEd').classList.remove('show');}
+// ---- drag existing labels to re-place ---------------------------------------------------------------------------
+let dimDrag=null;
+function dimDragBegin(lbl){dimDrag={lbl,moved:false};snapshot();}
+function dimDragUpdate(px,py){if(!dimDrag)return;const {sk,c}=dimDrag.lbl;if(!isDimType(c.type))return;const pl=byId(sk.planeId);const B=planeBasis(pl);const {o,d}=rayAt(px,py);const dn=dot(d,B.n);if(Math.abs(dn)<1e-6)return;const t=dot(sub(B.o,o),B.n)/dn;const P=[o[0]+d[0]*t,o[1]+d[1]*t,o[2]+d[2]*t];const rel=sub(P,B.o);const uv=[dot(rel,B.u),dot(rel,B.v)];c.place=dimOffsetFor(c,uv);dimDrag.moved=true;draw();}
+function dimDragEnd(){const d=dimDrag;dimDrag=null;if(d&&!d.moved){doc.undo.pop();doc.sel=new Set([d.lbl.c.id]);renderInspector();draw();}}
+// ---- glyphs for the Constrain rail ---------------------------------------------------------------------------------
+Object.assign(GLYPH,{Coincident:'M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M4 20 12 12M20 4l-8 8',Horizontal:'M4 12h16M4 8h.01M4 16h.01M20 8h.01M20 16h.01',Vertical:'M12 4v16M8 4h.01M16 4h.01M8 20h.01M16 20h.01',Parallel:'M6 20 12 4M14 20 20 4',Perpendicular:'M4 20h16M12 20V4M12 14h6v6',Equal:'M5 9h14M5 15h14',Tangent:'M4 18h16M12 18m-6 0a6 6 0 1 1 12 0',Concentric:'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0',Midpoint:'M4 12h16M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0',Fixed:'M12 4v16M6 20h12M12 4l-4 4h8z',PtOnLine:'M4 18 20 6M14 10m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0',Dim:'M4 18V6M20 18V6M4 12h16M8 9l-4 3 4 3M16 9l4 3-4 3',Constrain:'M12 3v18M3 12h18M7 7l10 10M17 7 7 17',Vars:'M5 19 12 5l7 14M8 14h8'});
+// apply a constraint using the current sub-selection (or start a two-pick flow)
+function showVars(){const cat=$('#cat');cat.classList.add('opts');$('#optHead').innerHTML=`<button class="back" id="optBack"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><span class="h-ic">${gl('Vars',20)}</span><span class="h-txt"><b>Variables</b><small>named values · expressions · used by dimensions</small></span>`;$('#optBack').onclick=()=>cat.classList.remove('opts');
+  const rows=Object.entries(doc.vars).map(([n,v])=>`<div class="ctl"><div class="rowctl" style="gap:8px"><input class="vname" value="${n}" style="width:90px" ${v.dim?'readonly title="driven by a dimension label"':''}><span class="eq">=</span><input class="vexpr" data-n="${n}" value="${v.expr}" style="flex:1"><span class="val">${fmt(evalExpr(v.expr),3)}</span><button class="abtn danger vdel" data-n="${n}">×</button></div></div>`).join('');
+  $('#optBody').innerHTML=`<div class="vars">${rows||'<div class="empty">No variables yet.</div>'}<div class="ctl"><div class="rowctl" style="gap:8px"><input id="vNew" placeholder="name" style="width:90px"><span class="eq">=</span><input id="vNewE" placeholder="expression · e.g. 40 or W/2" style="flex:1"><button class="abtn" id="vAdd">add</button></div></div></div>`;$('#optFoot').innerHTML='<span>Reference variables in any dimension: <kbd>W/2 + 3</kbd> · functions: sin cos sqrt min max</span>';
+  $('#vAdd').onclick=()=>{const n=$('#vNew').value.trim(),e=$('#vNewE').value.trim();if(!n||!e)return;if(!isFinite(evalExpr(e))){log('invalid expression');return;}snapshot();setVar(n,e);showVars();};
+  $$('#optBody .vexpr').forEach(i=>i.onkeydown=e=>{e.stopPropagation();if(e.key!=='Enter')return;const n=i.dataset.n;if(!isFinite(evalExpr(i.value)))return;snapshot();doc.vars[n].expr=i.value.trim();refreshDims();showVars();});
+  $$('#optBody .vdel').forEach(b=>b.onclick=()=>{snapshot();delete doc.vars[b.dataset.n];refreshDims();showVars();});
+  $$('#optBody input').forEach(i=>i.addEventListener('keydown',e=>e.stopPropagation()));}
+function applyConstraint(type){const T=CONS_TYPES[type];if(!T)return;const hits=[...sub_.sel.values()];const need=T.pick;
+  if(type==='dist'){dimStart();return;}
+  if(hits.length<need.length){log(`${T.label}: select ${T.hint} first (Vertex/Edge mode, shift-click)`);$('#promptTxt').textContent=`${T.label}: select ${T.hint} in Vertex / Edge mode, then click the tile again`;$('#prompt').classList.add('show');$('#promptTool').textContent='constrain';setTimeout(()=>$('#prompt').classList.remove('show'),2500);return;}
+  const sk=sketchOfHit(hits[0]);if(!sk||hits.some(h=>sketchOfHit(h)!==sk)){log('constraints must stay within one sketch');return;}
+  // order refs to match the pick pattern (vertex first for midpoint/ptOnLine)
+  let refs=hits.slice(0,need.length);if(need[0]==='vertex'&&refs[0].kind!=='vertex'){const i=refs.findIndex(h=>h.kind==='vertex');if(i>0)refs.unshift(refs.splice(i,1)[0]);}
+  const okKinds=refs.every((h,i)=>need[i]==='*'||need[i]===h.kind||(need[i]==='edge'&&h.kind==='edge'));if(!okKinds){log(`${T.label} needs ${T.hint}`);return;}
+  addConstraint(sk,type,refs);sub_.sel.clear();draw();}
+
 function defaults(op){const v={};op.params.forEach(p=>v[p.k]=p.kind==='seg'?p.options[p.value]:p.value);return v;}
 function renderCat(){const cat=$('#cat');if(!cat.classList.contains('show'))return;const pl=activePlane();const sk=byId(active_.sketch);const selN=doc.sel.size;
   $('#catHead').innerHTML=`<span class="ttl"><span class="dot"></span>Construct</span>
@@ -1235,6 +1426,10 @@ function renderCat(){const cat=$('#cat');if(!cat.classList.contains('show'))retu
   $('#catRail').innerHTML=CAT.map(c=>`<div class="rail-item ${c.key===catState.rail?'on':''} ${c.soon?'soon':''}" data-r="${c.key}">${gl(c.glyph,15)}${c.label}${c.ops?`<span class="n">${c.ops.length}</span>`:''}</div>`).join('');
   $$('#catRail .rail-item').forEach(r=>r.onclick=()=>{catState.rail=r.dataset.r;renderCat();});
   const c=CAT.find(x=>x.key===catState.rail);
+  if(c.cons){const hits=[...sub_.sel.values()];const nV=hits.filter(h=>h.kind==='vertex').length,nE=hits.filter(h=>h.kind==='edge').length;
+    $('#catGrid').innerHTML=Object.entries(CONS_TYPES).map(([k,T])=>{const ready=k==='dist'||hits.length>=T.pick.length;return `<div class="tile ${ready?'':'gated'}" data-c="${k}" title="${T.hint}">${k==='dist'?'<span class="t-key">⇧D</span>':''}${gl(T.glyph)}<span class="t-lbl">${T.label}</span>${ready?'':`<span class="fix">${ic('cons',10)}${T.hint}</span>`}</div>`;}).join('')+`<div class="tile" data-c="vars" title="variables">${gl('Vars')}<span class="t-lbl">Variables</span></div>`;
+    $('#catFoot').innerHTML=`<span>${hits.length?`${nV} vertex · ${nE} edge selected`:'select vertices / edges (modes 3–4, shift-click) then pick a constraint'}</span><span class="sp"></span><kbd>⇧D</kbd> dimension`;
+    $$('#catGrid .tile').forEach(t=>t.onclick=()=>{if(t.dataset.c==='vars'){showVars();return;}applyConstraint(t.dataset.c);if(!cat.classList.contains('pinned')&&t.dataset.c==='dist')closeCat();});return;}
   $('#catGrid').innerHTML=(c.ops||[]).map(o=>{const gated=o.needs&&!pl;return `<div class="tile ${gated?'gated':''}" data-op="${o.id}" title="${gated?'needs a workplane':o.prompts?o.prompts.join(' → '):o.label}">${o.accel?`<span class="t-key">${o.accel}</span>`:''}${gl(o.glyph)}<span class="t-lbl">${o.label}</span>${gated?`<span class="fix">${ic('cons',10)}set a workplane</span>`:''}</div>`}).join('');
   $$('#catGrid .tile').forEach(t=>{const op=opById(t.dataset.op);t.onclick=e=>{if(t.classList.contains('gated')){createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});return;}showOptions(op);};t.ondblclick=()=>{if(!t.classList.contains('gated'))startOp(op.id);};});
   $('#catFoot').innerHTML=`<span><kbd>click</kbd> options</span><span><kbd>dbl-click</kbd> start</span><span><kbd>Esc</kbd> back</span><span style="margin-left:auto">${pl?`snap ${view.snap} mm`:'sketch tools wake when a workplane is set'}</span>`;}
