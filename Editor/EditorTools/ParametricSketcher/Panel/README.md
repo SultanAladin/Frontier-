@@ -33,6 +33,10 @@ Every sketch carries `cons_`, solved by a damped Gauss-Newton solver over all cu
 
 **Dimension tool** (`⇧D` or the Dimension tile): click a line → drag → release where you want the label. Click a circle/arc for ⌀/R, two lines for an angle, two points for a distance — while dragging between two points the tool infers **aligned / horizontal / vertical** from where you drag (Fusion style). Drag an existing label to re-place it; double-click it (or click the constraint in the inspector) to edit.
 
+**Per-object dimensions.** Each curve/sketch inspector lists every dimension on it with an inline **name** field (type a name, ⏎) — an object can carry as many dimension lines as you like; `+ dimension` starts the tool on that object. Named dimensions are variables.
+
+**Slots are one entity.** Both Slot and Polyline Slot keep their centre *spine* + radius; the outline is regenerated from them. Picking anywhere on the outline selects the whole slot (one edge), vertices are the slot centres, a length dimension on a slot drives the centre distance, and the inspector exposes the slot radius.
+
 **Editing = variables.** The label editor takes a number or an expression: `W/2 + 3`, `sqrt(2)*R`, `min(A,B)`. Give the dimension a *name* and it becomes a variable other dimensions can use (drawn in blue). **Constrain → Variables** manages free variables. Changing any variable re-solves every sketch. Dragging a constrained vertex pins it and lets the solver move the rest live.
 
 ### Select modes · topology layer (B-rep-ready)
