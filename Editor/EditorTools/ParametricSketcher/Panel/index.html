@@ -385,7 +385,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
   </div>
   <div id="gzHud" class="glass"></div>
   <div id="dimEd" class="glass"></div>
-  <div id="prompt" class="glass"><span class="s" id="promptTool">line</span><span id="promptTxt">Click first point</span><span class="k">Esc cancel</span></div>
+  <div id="prompt" class="glass"><span class="s" id="promptTool">line</span><span id="promptTxt">Click first point</span><span class="k">Q / Esc select</span></div>
   <div id="axisHud">
     <div class="pill"><span class="ax" style="background:#ff6b6b"></span>X <span id="cx">0.0</span><span class="ax" style="background:#6fe38a"></span>Y <span id="cy">0.0</span><span class="ax" style="background:#5db3ff"></span>Z <span id="cz">0.0</span></div>
     <div class="pill" id="camPill">orbit · az 45° · el 30°</div>
@@ -535,21 +535,24 @@ function sketchProfile(s){ // closed loops: largest = outer, rest = holes; else 
   const kids=s.children.map(byId).filter(Boolean);
   const hasSeq=kids.some(c=>c.ctype==='line'||c.ctype==='arc');
   const loops=kids.filter(c=>!c.cons).map(c=>({c,pts:loopOf(c)})).filter(l=>l.pts).map(l=>({...l,area:polyArea(l.pts)})).sort((a,b)=>b.area-a.area);
-  if(loops.length&&!hasSeq){return {outer:loops[0].pts,holes:loops.slice(1).map(l=>l.pts)};}
+  if(loops.length&&!hasSeq){const R=sketchRegions(s).filter(r=>r.on);if(!R.length)return {outer:[],holes:[],regions:[]};const regions=[];R.forEach(r=>r.faces.forEach(F=>regions.push({outer:F.outer,holes:F.holes})));const big=regions.reduce((a,b)=>Math.abs(polyArea(b.outer))>Math.abs(polyArea(a.outer))?b:a);return {outer:big.outer,holes:big.holes,regions};}
   const outer=[],holes=[];
   s.children.map(byId).forEach(c=>{if(!c||!c.visible&&false)return;const p=c.params;
     if(c.ctype==='line'){outer.push([p.x1,p.y1]);}
     else if(c.ctype==='arc'){const n=Math.max(8,Math.round(segsFor(c,48)*Math.abs(p.a1-p.a0)/360));for(let i=0;i<=n;i++){const a=(p.a0+(p.a1-p.a0)*i/n)*Math.PI/180;outer.push([p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]);}}
     else if(c.ctype==='circle'){const n=segsFor(c,48);holes.push(Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return [p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]}));}
   });return {outer,holes};}
-function extrudeMesh(s,h,draft){const {outer,holes}=sketchProfile(s);const tris=[],lines=[];const k=Math.tan(draft*Math.PI/180)*h;
+function earClip(P){const n=P.length;if(n<3)return [];if(polyArea(P)<0)P=P.slice().reverse();const idx=P.map((_,i)=>i);const tris=[];const cr=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);const inT=(p,a,b,c)=>cr(a,b,p)>=-1e-9&&cr(b,c,p)>=-1e-9&&cr(c,a,p)>=-1e-9;let guard=0;
+  while(idx.length>3&&guard++<10000){let cut=false;for(let i=0;i<idx.length;i++){const a=P[idx[(i-1+idx.length)%idx.length]],b=P[idx[i]],c=P[idx[(i+1)%idx.length]];if(cr(a,b,c)<=1e-9)continue;let ok=true;for(const j of idx){const q=P[j];if(q===a||q===b||q===c)continue;if(inT(q,a,b,c)){ok=false;break;}}if(!ok)continue;tris.push([a,b,c]);idx.splice(i,1);cut=true;break;}if(!cut)break;}
+  if(idx.length===3)tris.push([P[idx[0]],P[idx[1]],P[idx[2]]]);return tris;}
+function extrudeMesh(s,h,draft){const prof=sketchProfile(s);const tris=[],lines=[];const k=Math.tan(draft*Math.PI/180)*h;const regions=prof.regions&&prof.regions.length?prof.regions:[{outer:prof.outer,holes:prof.holes}];let capHole=[];regions.forEach(({outer,holes})=>{if(outer.length<3)return;capHole=capHole.concat(holes);
   const wall=(loop,inv)=>{const n=loop.length;for(let i=0;i<n;i++){const j=(i+1)%n;const a=loop[i],b=loop[j];const sc=p=>{const l=Math.hypot(p[0],p[1])||1;return [p[0]-p[0]/l*k,p[1]-p[1]/l*k]};const a2=sc(a),b2=sc(b);
     const p0=V(a[0],a[1],0),p1=V(b[0],b[1],0),p2=V(b2[0],b2[1],h),p3=V(a2[0],a2[1],h);
     if(inv)tris.push([p1,p0,p3],[p1,p3,p2]);else tris.push([p0,p1,p2],[p0,p2,p3]);lines.push([p0,p1],[p3,p2]);}};
   wall(outer,false);holes.forEach(hl=>wall(hl,true));
   // caps: fan (adequate for the stadium-with-hole demo; the C++ ProfileSolver does the real arrangement)
-  const cap=(z,flip)=>{const cx=0,cy=0;const n=outer.length;for(let i=0;i<n;i++){const j=(i+1)%n;const a=outer[i],b=outer[j];const t=[V(a[0],a[1],z),V(b[0],b[1],z),V(cx,cy,z)];tris.push(flip?[t[1],t[0],t[2]]:t);}};
-  cap(0,true);cap(h,false);return {tris,lines,capHole:holes};}
+  const capTris=earClip(outer);const cap=(z,flip)=>{capTris.forEach(([a,b,c])=>{const t=[V(a[0],a[1],z),V(b[0],b[1],z),V(c[0],c[1],z)];tris.push(flip?[t[1],t[0],t[2]]:t);});};
+  cap(0,true);cap(h,false);});return {tris,lines,capHole};}
 function ellipsePts(p,n=48){const a=(p.tilt||0)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);return Array.from({length:n},(_,i)=>{const t=i/n*Math.PI*2,x=Math.cos(t)*p.rx,y=Math.sin(t)*p.ry;return [p.cx+x*ca-y*sa,p.cy+x*sa+y*ca]});}
 function curveLines(c){const p=c.params,L=[];
   if(c.ctype==='line')L.push([V(p.x1,p.y1,0),V(p.x2,p.y2,0)]);
@@ -593,7 +596,7 @@ function measure(f){const p=f.params;
   if(f.kind==='curve'){if(f.ctype==='line')return {v:Math.hypot(p.x2-p.x1,p.y2-p.y1),u:'mm',lab:'length',rows:[['degree',1],['knots',2],['closed','no']]};
     if(f.ctype==='circle')return {v:2*Math.PI*p.r,u:'mm',lab:'circumference',rows:[['degree',2],['rational','yes'],['closed','yes']]};
     return {v:Math.abs(p.a1-p.a0)*Math.PI/180*p.r,u:'mm',lab:'arc length',rows:[['degree',2],['sweep',Math.abs(p.a1-p.a0)+'°'],['closed','no']]};}
-  if(f.kind==='sketch'){const {outer,holes}=sketchProfile(f);const pl=byId(f.planeId);return {v:polyArea(outer)-holes.reduce((a,h)=>a+polyArea(h),0),u:'mm²',lab:'enclosed area',rows:[['plane',pl?pl.name:f.plane||'—'],['curves',f.children.length],['regions',outer.length?1+holes.length:0]]};}
+  if(f.kind==='sketch'){const pr=sketchProfile(f);const regs=pr.regions||(pr.outer.length?[{outer:pr.outer,holes:pr.holes}]:[]);const pl=byId(f.planeId);return {v:regs.reduce((a,r)=>a+Math.abs(polyArea(r.outer))-r.holes.reduce((b,h)=>b+Math.abs(polyArea(h)),0),0),u:'mm²',lab:'filled area',rows:[['plane',pl?pl.name:f.plane||'—'],['curves',f.children.length],['filled regions',regs.length]]};}
   if(f.kind==='plane'){const B=planeBasis(f);return {v:doc.figures.filter(x=>x.kind==='sketch'&&x.planeId===f.id).length,u:'',lab:'sketches',rows:[['base',f.axis+(p.offset?' +'+p.offset:'')],['origin',B.o.map(v=>fmt(v,0)).join(' ')],['normal',B.n.map(v=>fmt(v,2)).join(' ')],['extent',p.size+' mm']]};}
   if(f.kind==='dim'){const t=byId(f.target);return {v:t?t.params[f.key]:0,u:'mm',lab:f.key,rows:[['target',t?t.name:'—'],['style','linear'],['driving','yes']]};}
   return {v:0,u:'',lab:'',rows:[]};}
@@ -841,8 +844,8 @@ function draw(){if(!W)return;cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,D
     else if(view.shade!=='wire')m.tris.forEach(t=>{const w=t.map(p=>xform(f,p));const n=norm(cross(sub(w[1],w[0]),sub(w[2],w[0])));const vd=norm(sub(cam.eye,w[0]));const facing=dot(n,vd);if(facing<0&&!m.twoSided)return;
       const nn=facing<0?n.map(x=>-x):n;const s=w.map(project);if(s.some(x=>!x))return;items.push({z:(s[0][2]+s[1][2]+s[2][2])/3,type:'t',s,n:nn,vd,f,sel,acc});});
     m.lines.forEach(l=>{const s=l.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;items.push({z:Math.min(s[0][2],s[1][2])-0.05,type:'l',s,f,sel,acc,cons:f.cons||m.cons});});
-    if(f.kind==='curve'&&f.fill!==false&&!f.cons){const s=loopScreen(f);if(s)items.push({z:s.reduce((a,q)=>a+q[2],0)/s.length+0.02,type:'f',s,sel,acc});}});
-  items.sort((a,b)=>b.z-a.z);
+    });
+  items.sort((a,b)=>b.z-a.z);drawRegions(g);
   items.forEach(it=>{if(it.type==='f'){g.fillStyle=it.sel?'rgba(127,240,245,.22)':'rgba(79,216,224,.12)';g.beginPath();it.s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();}
     else if(it.type==='p'){g.fillStyle=it.act?'rgba(180,140,255,.10)':'rgba(180,140,255,.035)';g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.lineTo(it.s[2][0],it.s[2][1]);g.closePath();g.fill();}
     else if(it.type==='t'){const {n,vd}=it;let col;const lam=Math.max(0,dot(n,light)),amb=.18;
@@ -852,7 +855,7 @@ function draw(){if(!W)return;cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,D
       g.fillStyle=col;g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.lineTo(it.s[2][0],it.s[2][1]);g.closePath();g.fill();g.strokeStyle=col;g.lineWidth=.6;g.stroke();}
     else{g.lineWidth=it.sel?1.6:1;if(it.cons){g.setLineDash([4,4]);g.strokeStyle=it.sel?'#d6bfff':(it.f.id===active_.plane?'rgba(200,170,255,.8)':'rgba(180,140,255,.4)');}else{g.setLineDash([]);g.strokeStyle=it.sel?(it.f.kind==='curve'?'#7ff0f5':'#ffd28a'):(it.f.kind==='curve'?it.acc:view.shade==='wire'?'rgba(255,255,255,.55)':'rgba(0,0,0,.55)');}
       g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.stroke();g.setLineDash([]);}});
-  if(doc.dims)drawDims(g);drawSketchDims(g);drawModPreview(g);
+  if(doc.dims)drawDims(g);drawSketchDims(g);drawModPreview(g);drawOffPreview(g);
   drawSubOverlay(g);drawToolPreview(g);drawGizmo(g);drawTriad();
   $('#camPill').textContent=`${view.ortho?'ortho':'persp'} · az ${fmt(((view.az%360)+360)%360,0)}° · el ${fmt(view.el,0)}° · d ${fmt(view.dist,0)}`;
 }
@@ -888,7 +891,7 @@ function setView(v){if(v==='ortho'){view.ortho=!view.ortho;$('#orthoBtn').classL
   else{const m={top:[90,89.9],front:[-90,0],right:[0,0],iso:[45,30]}[v];view.az=m[0];view.el=m[1];$$('#views button:not(#orthoBtn)').forEach(b=>b.classList.toggle('on',b.dataset.v===v));}
   $('#vname').textContent=(view.ortho?'Orthographic':'Perspective')+' · '+($('#views button.on:not(#orthoBtn)')?.textContent.replace(/\d/g,'').trim()||'free');draw();}
 $$('#views button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
-addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))return;const k=e.key.toLowerCase();if(modTool&&!gz.modal&&modKey(e))return;
+addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))return;const k=e.key.toLowerCase();if(k==='q'&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();selectTool();return;}if(modTool&&!gz.modal&&modKey(e))return;if(offTool&&offKey(e))return;if(fillTool&&e.key==='Escape'){fillEnd();return;}
   if(gz.drag){if(e.key==='Tab'||e.key==='Enter'||e.key==='='){e.preventDefault();gz.edit=true;hudFocus();}else if(e.key==='Escape')gzEnd(false);return;}
   if(gz.modal){const m=gz.modal;if(e.key==='Escape'){modalCancel();return;}if(e.key==='Enter'){modalConfirm();return;}if(e.key==='Tab'||e.key==='='){e.preventDefault();hudFocus();return;}
     if(['x','y','z'].includes(k)){m.axis=m.axis===k?null:k;modalApply(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
@@ -900,6 +903,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
   else if(['1','2','3','4'].includes(k)&&!e.code.startsWith('Numpad')){toggleMode(['body','face','edge','vertex'][+k-1],e.shiftKey);}
   else if(e.key==='Tab'){e.preventDefault();toggleCat();}
   else if(e.key==='Enter'&&tool){finishTool();}
+  else if(k==='o'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)offStart();else if(k==='f'&&e.shiftKey)fillStart();
   else if(k==='t'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)modStart('trim');else if(k==='k'&&!e.ctrlKey&&!e.metaKey)modStart('cut');else if(k==='b'&&!e.ctrlKey&&!e.metaKey)modStart(e.shiftKey?'chamfer':'fillet');
   else if(k==='l'&&e.shiftKey)startOp('polyline');else if(k==='l')startOp('line');else if(k==='c')startOp('circle');else if(k==='r'&&gzTarget()&&!e.shiftKey)modalStart('r');else if(k==='r')startOp('rect');else if(k==='a')startOp('arc');else if(k==='p')startOp('polygon');else if(k==='e')startOp('ellipse');
   else if(k==='w'&&e.shiftKey)openCat('reference','workplane');
@@ -1194,7 +1198,7 @@ function drawSubOverlay(g){const modes=subModes();const anySub=modes.has('vertex
 
 /* ── viewport interaction ─────────────────────────────────── */
 let drag=null,tool=null,hover=null;
-cv.addEventListener('pointerdown',e=>{const r0=cv.getBoundingClientRect();const px0=e.clientX-r0.left,py0=e.clientY-r0.top;closeDimEd();if(modTool){modDown(e,px0,py0);return;}
+cv.addEventListener('pointerdown',e=>{const r0=cv.getBoundingClientRect();const px0=e.clientX-r0.left,py0=e.clientY-r0.top;closeDimEd();if(modTool){modDown(e,px0,py0);return;}if(offTool){offDown(e,px0,py0);return;}if(fillTool){if(e.button!==0){fillEnd();return;}const h=fillPick(px0,py0);if(h)toggleRegion(h.sk,h.r);return;}
   if(dimTool){if(e.button!==0){dimEnd();return;}cv.setPointerCapture(e.pointerId);if(dimTool.stage==='pick'){dimPickAt(px0,py0);}else if(dimTool.stage==='pick2'){if(!dimPickAt(px0,py0)){/* drag from a single point: nothing */}}else if(dimTool.stage==='place'){/* second press while placing = commit at current place */dimCommit();}dimTool&&(dimTool.pressed=true);return;}
   if(e.button===0&&!tool){const lbl=dimLabelAt(px0,py0);if(lbl){if(e.detail===2){editDim(lbl.c);return;}cv.setPointerCapture(e.pointerId);dimDragBegin(lbl);return;}}
   if(gz.drag&&gz.edit){if(e.button===0)gzEnd(true);else gzEnd(false);return;}
@@ -1202,7 +1206,7 @@ cv.addEventListener('pointerdown',e=>{const r0=cv.getBoundingClientRect();const 
   if(e.button===0&&!tool){const h=gzHit(px0,py0);if(h&&gzBegin(h,px0,py0)){cv.setPointerCapture(e.pointerId);return;}}
   cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,btn:e.button,shift:e.shiftKey,moved:false};});
 cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();lastMouse=[e.clientX-r.left,e.clientY-r.top];
-  if(dimDrag){dimDragUpdate(lastMouse[0],lastMouse[1]);return;}if(modTool){modMove(lastMouse[0],lastMouse[1]);return;}
+  if(dimDrag){dimDragUpdate(lastMouse[0],lastMouse[1]);return;}if(modTool){modMove(lastMouse[0],lastMouse[1]);return;}if(offTool){offMove(lastMouse[0],lastMouse[1]);return;}if(fillTool){const h=fillPick(lastMouse[0],lastMouse[1]);const same=(!h&&!fillTool.hover)||(h&&fillTool.hover&&h.sk===fillTool.hover.sk&&h.r.key===fillTool.hover.r.key);if(!same){fillTool.hover=h;requestDraw();}return;}
   if(dimTool){if(dimTool.stage==='place'||(dimTool.stage==='pick2'&&dimTool.pressed)){if(dimTool.stage==='pick2'&&dimTool.pressed){/* dragging straight from a point → becomes place with one ref? only valid for line/circle */}else dimPlaceUpdate(lastMouse[0],lastMouse[1]);}
     const hv=pickSub(lastMouse[0],lastMouse[1],new Set(['vertex','edge']));const same=(hv&&sub_.hover&&hv.fig===sub_.hover.fig&&hv.kind===sub_.hover.kind&&hv.idx===sub_.hover.idx)||(!hv&&!sub_.hover);if(!same){sub_.hover=hv;requestDraw();}return;}
   if(gz.modal){modalApply(lastMouse[0],lastMouse[1],e.ctrlKey);return;}
@@ -1212,7 +1216,7 @@ cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();lastMou
   const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(e.clientX-drag.sx)+Math.abs(e.clientY-drag.sy)>3)drag.moved=true;
   if(drag.btn===1||drag.shift||drag.btn===2){const s=view.dist/H*1.2;view.target=view.target.map((t,i)=>t-cam.right[i]*dx*s+cam.up[i]*dy*s);}
   else{view.az-=dx*.4;view.el=Math.max(-89,Math.min(89,view.el+dy*.4));}drag.x=e.clientX;drag.y=e.clientY;draw();});
-cv.addEventListener('pointerup',e=>{if(dimDrag){dimDragEnd();return;}if(modTool){modUp();return;}
+cv.addEventListener('pointerup',e=>{if(dimDrag){dimDragEnd();return;}if(modTool){modUp();return;}if(offTool){offUp();return;}
   if(dimTool){dimTool.pressed=false;if(dimTool.stage==='place'&&dimTool.place)dimCommit();return;}
   if(gz.drag){if(gz.edit)return;gzEnd(true);return;}const d=drag;drag=null;if(!d||d.moved)return;const r=cv.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;
   if(d.btn===2){if(tool){tool.op.multi&&tool.pts.length>=2?finishTool():endTool();}else openCatAt(e.clientX,e.clientY);return;}
@@ -1270,6 +1274,9 @@ const CAT=[
   ]},
   {key:'constrain',label:'Constrain',glyph:'Constrain',cons:true},
   {key:'modify',label:'Sketch Modify',glyph:'Fillet',ops:[
+    {id:'select',label:'Select',glyph:'Select',accel:'Q',run:selectTool,prompts:['Leaves the current tool'],params:[]},
+    {id:'offset',label:'Offset / Inset',glyph:'Offset',accel:'O',run:offStart,prompts:['Click a curve','Drag inward / outward · ⏎'],params:[]},
+    {id:'fill',label:'Fill',glyph:'Fill',accel:'⇧F',run:fillStart,prompts:['Click a region to fill / unfill'],params:[]},
     {id:'trim',label:'Trim',glyph:'Trim',accel:'T',mod:'trim',prompts:['Hover a segment between intersections','Click / drag across to remove'],params:[]},
     {id:'cut',label:'Cut',glyph:'Cut',accel:'K',mod:'cut',prompts:['Hover a curve','Click to split · snaps to intersections'],params:[]},
     {id:'fillet',label:'Fillet',glyph:'Fillet',accel:'B',mod:'fillet',prompts:['Click a corner','Drag to set the radius · ⏎'],params:[{k:'r',kind:'slider',label:'Radius',min:.5,max:50,step:.5,value:4,unit:'mm'}]},
@@ -1487,7 +1494,7 @@ makeDraggable($('#cat'),$('#catHead'));
 
 /* ── tool engine ───────────────────────────────────────────── */
 function createWorkplane(v){snapshot();const f=mk('plane',nextName('Workplane'),{size:v.size,offset:v.offset,tilt:v.tilt},{axis:v.base,cons:true,visible:v.show!==false});doc.figures.push(f);active_.plane=f.id;active_.sketch=null;doc.sel=new Set([f.id]);log(`plane --base=${v.base} --offset=${v.offset} --tilt=${v.tilt}  → ${f.name}`);renderOutliner();renderInspector();renderCat();draw();return f;}
-function startOp(id){const op=opById(id);if(!op)return;if(op.mod){if(!catState.op||catState.op!==op){catState.op=op;catState.vals=defaults(op);}modStart(op.mod,catState.vals);if(!$('#cat').classList.contains('pinned'))closeCat();return;}if(op.needs&&!activePlane()){createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});}
+function startOp(id){const op=opById(id);if(!op)return;if(op.run){op.run();if(!$('#cat').classList.contains('pinned'))closeCat();return;}if(op.mod){if(!catState.op||catState.op!==op){catState.op=op;catState.vals=defaults(op);}modStart(op.mod,catState.vals);if(!$('#cat').classList.contains('pinned'))closeCat();return;}if(op.needs&&!activePlane()){createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});}
   if(!catState.op||catState.op!==op){catState.op=op;catState.vals=defaults(op);}
   if(op.clicks===0){createWorkplane(catState.vals);if(!$('#cat').classList.contains('pinned'))closeCat();return;}
   tool={op,pts:[],vals:{...catState.vals}};hover=null;$('#prompt').classList.add('show');$('#promptTool').textContent=op.label.toLowerCase();$('#promptTxt').textContent=op.prompts[0];
@@ -1626,6 +1633,79 @@ function drawModPreview(g){const m=modTool;if(!m)return;g.save();g.setLineDash([
       const txt=(m.kind==='fillet'?'R ':'C ')+(m.num!==''?m.num:fmt(G.r,2))+' mm'+(val>G.max+1e-9?'  (max '+fmt(G.max,2)+')':'');g.font='11px JetBrains Mono, monospace';g.textAlign='left';g.textBaseline='middle';const tw=g.measureText(txt).width+14;const x=lastMouse[0]+14,y=lastMouse[1]+16;g.fillStyle='rgba(0,0,0,.75)';g.beginPath();g.roundRect(x,y-10,tw,20,6);g.fill();g.fillStyle='#fff';g.fillText(txt,x+7,y);}}}
   g.restore();}
 Object.assign(GLYPH,{Trim:'M4 20 20 4M4 4l16 16M14 4l6 6M9 9l6 6M4 14l6 6',Cut:'M6 6a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5M6 13a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5M8.5 9.5 20 4M8.5 14.5 20 20M13 12h2',Fillet:'M4 20V10a6 6 0 0 1 6-6h10',Chamfer:'M4 20V11l7-7h9'});
+
+// ══ Regions (Fill tool) — planar arrangement of all closed loops of a sketch, even-odd by default ═══════════════
+function loopPlane(f){const C=curvePlane(f);if(!C||!C.closed)return null;return C.pts;}
+function sketchRegions(sk){const kids=sketchCurves(sk).filter(f=>!f.cons&&f.fill!==false);const loops=kids.map(f=>({f,pts:loopPlane(f)})).filter(l=>l.pts&&l.pts.length>2);if(!loops.length)return [];
+  const ck=loops.map(l=>l.f.id).join(',')+'|'+loops.map(l=>l.pts.length+':'+l.pts[0][0].toFixed(3)+':'+l.pts[0][1].toFixed(3)+':'+l.pts[1][0].toFixed(3)).join('/')+'|'+JSON.stringify(sk.regions_||{})+'|'+(doc.curveRes||1);
+  if(sk._regCache&&sk._regCache.k===ck)return sk._regCache.v;
+  // planar arrangement: split every loop edge at intersections, snap vertices, trace faces of the graph
+  const EPS=1e-6;const vkey=q=>Math.round(q[0]/1e-4)+','+Math.round(q[1]/1e-4);const V=[],vmap=new Map();const vid=q=>{const k=vkey(q);if(vmap.has(k))return vmap.get(k);vmap.set(k,V.length);V.push([q[0],q[1]]);return V.length-1;};
+  const segs=[];loops.forEach((L,li)=>{const n=L.pts.length;for(let i=0;i<n;i++)segs.push({a:L.pts[i],b:L.pts[(i+1)%n],li,ts:[]});});
+  for(let i=0;i<segs.length;i++)for(let j=i+1;j<segs.length;j++){const s1=segs[i],s2=segs[j];if(Math.max(s1.a[0],s1.b[0])<Math.min(s2.a[0],s2.b[0])-EPS||Math.max(s2.a[0],s2.b[0])<Math.min(s1.a[0],s1.b[0])-EPS||Math.max(s1.a[1],s1.b[1])<Math.min(s2.a[1],s2.b[1])-EPS||Math.max(s2.a[1],s2.b[1])<Math.min(s1.a[1],s1.b[1])-EPS)continue;const x=segX(s1.a,s1.b,s2.a,s2.b);if(x){s1.ts.push(x.t);s2.ts.push(x.u);}}
+  const adj=new Map();const E=[];const addE=(u,v)=>{if(u===v)return;const k=u<v?u+'-'+v:v+'-'+u;if(adj.has(k))return;adj.set(k,1);E.push([u,v]);};
+  segs.forEach(sg=>{const ts=[0,...sg.ts.filter(t=>t>EPS&&t<1-EPS).sort((p,q)=>p-q),1];let prev=vid(sg.a);for(let i=1;i<ts.length;i++){const q=ts[i]===1?sg.b:[sg.a[0]+(sg.b[0]-sg.a[0])*ts[i],sg.a[1]+(sg.b[1]-sg.a[1])*ts[i]];const v=vid(q);addE(prev,v);prev=v;}});
+  const out=V.map(()=>[]);E.forEach(([u,v])=>{out[u].push(v);out[v].push(u);});const ang=(u,v)=>Math.atan2(V[v][1]-V[u][1],V[v][0]-V[u][0]);out.forEach((lst,u)=>lst.sort((p,q)=>ang(u,p)-ang(u,q)));
+  const used=new Set();const faces=[];
+  E.forEach(([u,v])=>{[[u,v],[v,u]].forEach(([s0,s1])=>{if(used.has(s0+'>'+s1))return;const cyc=[];let a=s0,b=s1,guard=0;while(guard++<20000){used.add(a+'>'+b);cyc.push(a);const lst=out[b];const back=ang(b,a);let best=null,bd=1e9;lst.forEach(w=>{if(w===a&&lst.length>1)return;let d=ang(b,w)-back;while(d<=1e-12)d+=Math.PI*2;if(d<bd){bd=d;best=w;}});if(best===null)break;a=b;b=best;if(a===s0&&b===s1)break;}
+    if(cyc.length<3)return;const P=cyc.map(i=>V[i]);const ar=polyArea(P);if(ar<=1e-6)return;const fk=cyc.slice().sort((p,q)=>p-q).join(',');if(faces.some(f=>f.fk===fk))return;faces.push({pts:P,area:ar,fk});});});
+  const inside=(p,L)=>ptInPoly(p[0],p[1],L.pts);const sample=P=>{const n=P.length;let bi=0,bl=-1;for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n];const l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l>bl){bl=l;bi=i;}}const a=P[bi],b=P[(bi+1)%n];const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];const d=[b[0]-a[0],b[1]-a[1]];const l=Math.hypot(d[0],d[1])||1;const nn=[-d[1]/l,d[0]/l];for(const e of [.01,.05,.2,1]){for(const sg of [1,-1]){const q=[m[0]+nn[0]*e*sg,m[1]+nn[1]*e*sg];if(ptInPoly(q[0],q[1],P))return q;}}return m;};
+  const regs=[];faces.forEach(F=>{const c=sample(F.pts);const set=loops.filter(o=>inside(c,o)).map(o=>o.f.id).sort();if(!set.length)return;const key=set.join('+');const depth=set.length;const ov=(sk.regions_||{})[key];
+    const ex=regs.find(r=>r.key===key);if(ex){ex.parts.push(F.pts);return;}regs.push({key,parts:[F.pts],outer:{pts:F.pts,f:byId(set[0])},holes:[],depth,on:ov!==undefined?ov:depth%2===1,sample:c,area:F.area});});
+  // nesting: a face lying inside another face (without crossing it) is a hole of that face
+  const allP=[];regs.forEach(r=>r.parts.forEach(P=>allP.push({P,r,s:sample(P),a:polyArea(P)})));allP.sort((p,q)=>q.a-p.a);
+  allP.forEach(x=>{x.holes=[];x.parent=null;for(const y of allP){if(y===x||y.a<=x.a)continue;if(ptInPoly(x.s[0],x.s[1],y.P)&&(!x.parent||y.a<x.parent.a))x.parent=y;}});allP.forEach(x=>{if(x.parent)x.parent.holes.push(x.P);});
+  regs.forEach(r=>{r.parts.sort((p,q)=>polyArea(q)-polyArea(p));r.faces=r.parts.map(P=>{const x=allP.find(y=>y.P===P);return {outer:P,holes:x?x.holes:[]};});r.outer={pts:r.parts[0],f:r.outer.f};r.holes=(r.faces[0].holes||[]).map(h=>({pts:h,f:(loops.find(l=>{const q=sample(h);return inside(q,l)&&!inside(q,{pts:r.parts[0]})===false&&l.f.id!==r.outer.f.id;})||{}).f}));r.area=r.faces.reduce((a,f)=>a+polyArea(f.outer)-f.holes.reduce((b,h)=>b+polyArea(h),0),0);});
+  sk._regCache={k:ck,v:regs};return regs;}
+function regionAt(sk,uv){const R=sketchRegions(sk);return R.find(r=>r.faces.some(F=>ptInPoly(uv[0],uv[1],F.outer)&&!F.holes.some(h=>ptInPoly(uv[0],uv[1],h))))||null;}
+function toggleRegion(sk,r){snapshot();sk.regions_=sk.regions_||{};sk.regions_[r.key]=!r.on;invalidate(sk.id);renderOutliner();renderInspector();draw();log(`fill: ${r.on?'cleared':'filled'} region ${r.key}`);}
+function regionScreen(sk,pts){const S=pts.map(q=>project(xform(sk,[q[0],q[1],0])));return S.some(x=>!x)?null:S;}
+function regionPath(g,sk,r){g.beginPath();let any=false;r.faces.forEach(F=>{[F.outer,...F.holes].forEach(P=>{const o=regionScreen(sk,P);if(!o)return;any=true;o.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();});});return any;}
+let fillTool=null; // {hover:{sk,r}}
+function fillStart(){if(tool)endTool();if(dimTool)dimEnd();if(modTool)modEnd();fillTool={hover:null};$('#prompt').classList.add('show');$('#promptTool').textContent='fill';$('#promptTxt').textContent='Click a region to fill / unfill it · overlapping loops form separate regions · Esc to finish';cv.style.cursor='crosshair';draw();}
+function fillEnd(){fillTool=null;$('#prompt').classList.remove('show');cv.style.cursor='';draw();}
+function fillPick(px,py){let best=null;doc.figures.forEach(sk=>{if(sk.kind!=='sketch'||sk.visible===false)return;const pl=byId(sk.planeId);if(!pl)return;const uv=modPlaneUV(px,py,sk);if(!uv)return;const r=regionAt(sk,uv);if(r&&(!best||r.depth>best.r.depth))best={sk,r};});return best;}
+function drawRegions(g){doc.figures.forEach(sk=>{if(sk.kind!=='sketch'||sk.visible===false||!filt.has('curve'))return;const R=sketchRegions(sk);if(!R.length)return;const sel=doc.sel.has(sk.id)||sk.children.some(id=>doc.sel.has(id));
+  R.forEach(r=>{const hv=fillTool&&fillTool.hover&&fillTool.hover.sk===sk&&fillTool.hover.r.key===r.key;if(!r.on&&!hv)return;if(!regionPath(g,sk,r))return;g.fillStyle=hv?(r.on?'rgba(255,120,120,.28)':'rgba(127,240,245,.34)'):sel?'rgba(127,240,245,.22)':'rgba(79,216,224,.12)';g.fill('evenodd');});});}
+
+// ══ Offset / Inset — hover a curve, drag or type the distance; side follows the cursor ═════════════════════════
+let offTool=null; // {hover, drag:{h,dist,side,moved}, num}
+function offStart(){if(tool)endTool();if(dimTool)dimEnd();if(modTool)modEnd();if(fillTool)fillEnd();offTool={hover:null,drag:null,num:''};$('#prompt').classList.add('show');$('#promptTool').textContent='offset';$('#promptTxt').textContent='Click a curve · drag inward / outward to set the distance · type a value · ⏎ / click to apply · Esc to finish';cv.style.cursor='crosshair';draw();}
+function offEnd(){offTool=null;$('#prompt').classList.remove('show');cv.style.cursor='';draw();}
+function offsetLoop(pts,closed,d){ // parallel offset with mitre joints (bevel when the mitre gets long); d>0 = left of travel
+  const n=pts.length;const out=[];const seg=i=>{const a=pts[i],b=pts[(i+1)%n];const dx=b[0]-a[0],dy=b[1]-a[1];const l=Math.hypot(dx,dy)||1;return {a,b,nx:-dy/l,ny:dx/l};};
+  const N=closed?n:n-1;const segs=[];for(let i=0;i<N;i++)segs.push(seg(i));
+  const pushJoin=(s1,s2,P)=>{const a1=[s1.a[0]+s1.nx*d,s1.a[1]+s1.ny*d],b1=[s1.b[0]+s1.nx*d,s1.b[1]+s1.ny*d],a2=[s2.a[0]+s2.nx*d,s2.a[1]+s2.ny*d],b2=[s2.b[0]+s2.nx*d,s2.b[1]+s2.ny*d];
+    const x=lineIsect({a:a1,b:b1},{a:a2,b:b2});const ml=x?Math.hypot(x[0]-P[0],x[1]-P[1]):Infinity;if(x&&ml<=Math.abs(d)*3)out.push(x);else{out.push(b1,a2);}};
+  if(!closed){out.push([segs[0].a[0]+segs[0].nx*d,segs[0].a[1]+segs[0].ny*d]);for(let i=0;i<N-1;i++)pushJoin(segs[i],segs[i+1],pts[i+1]);const L=segs[N-1];out.push([L.b[0]+L.nx*d,L.b[1]+L.ny*d]);}
+  else{for(let i=0;i<N;i++)pushJoin(segs[i],segs[(i+1)%N],pts[(i+1)%n]);}
+  return out.filter((q,i)=>i===0||Math.hypot(q[0]-out[i-1][0],q[1]-out[i-1][1])>1e-6);}
+function offGeom(h,dist,uv){const C=h.C;const f=h.f;const closed=C.closed;
+  // signed distance: which side of the curve is the cursor on (in plane space)?
+  let side=1;if(uv){const t=h.t;const a=ptAt(C,Math.floor(t)),b=ptAt(C,Math.floor(t)+1);const cr=(b[0]-a[0])*(uv[1]-a[1])-(b[1]-a[1])*(uv[0]-a[0]);side=cr>=0?1:-1;}
+  if(closed){const inward=uv?ptInPoly(uv[0],uv[1],C.pts):false;const ar=polyArea(C.pts);const sg=(ar>0?1:-1)*(inward?1:-1)*-1;return {pts:offsetLoop(C.pts,true,dist*sg),closed:true,inward,side:sg};}
+  return {pts:offsetLoop(C.pts,false,dist*side),closed:false,side};}
+function offApply(){const o=offTool,dr=o&&o.drag;if(!dr)return;const dist=o.num!==''?parseFloat(o.num):dr.dist;if(!(dist>1e-6)){log('offset: distance must be > 0');return;}const G=offGeom(dr.h,dist,dr.uv);if(!G||G.pts.length<2){log('offset: degenerate result');return;}
+  snapshot();const sk=dr.h.sk,src=dr.h.f;let f;
+  if(src.ctype==='circle'&&!src.pos?.[0]&&!src.pos?.[1]&&(!src.scl||src.scl[0]===src.scl[1])){const r=src.params.r*(src.scl?src.scl[0]:1)+(G.inward?-dist:dist);if(r<=0.1){log('offset: circle would vanish');return;}f=mk('curve',nextName('Circle'),{cx:src.params.cx,cy:src.params.cy,r},{ctype:'circle',parent:sk.id,cons:src.cons});f.pos=[0,0,(src.pos||[0,0,0])[2]||0];doc.figures.push(f);sk.children.push(f.id);}
+  else f=spawnPoly(src,sk,G.pts,G.closed);
+  o.drag=null;o.num='';o.hover=null;invalidate(sk.id);topoCache.clear();doc.sel=new Set([f.id]);renderOutliner();renderInspector();draw();log(`offset ${fmt(dist,2)} mm ${G.closed?(G.inward?'inset':'outset'):''} → ${f.name}`);$('#promptTxt').textContent='Click a curve · drag inward / outward to set the distance · type a value · ⏎ / click to apply · Esc to finish';}
+function offDown(e,px,py){const o=offTool;if(e.button!==0){if(o.drag){o.drag=null;o.num='';draw();}else offEnd();return;}cv.setPointerCapture(e.pointerId);if(o.drag){offApply();return;}
+  const h=modPick(px,py);if(!h){log('offset: click a curve');return;}o.drag={h,dist:0,uv:null,sx:px,sy:py,moved:false};$('#promptTxt').textContent='Drag to set the distance (side follows the cursor) · type a value · ⏎ / click to apply';draw();}
+function offMove(px,py){const o=offTool;if(o.drag){const uv=modPlaneUV(px,py,o.drag.h.sk);if(uv){o.drag.uv=uv;const C=o.drag.h.C;let best=1e9;for(let i=0;i<C.nSeg;i++){const a=ptAt(C,i),b=ptAt(C,i+1);const dx=b[0]-a[0],dy=b[1]-a[1];const t=Math.max(0,Math.min(1,((uv[0]-a[0])*dx+(uv[1]-a[1])*dy)/((dx*dx+dy*dy)||1)));const d=Math.hypot(uv[0]-a[0]-dx*t,uv[1]-a[1]-dy*t);if(d<best)best=d;}o.drag.dist=best;}if(Math.abs(px-o.drag.sx)+Math.abs(py-o.drag.sy)>3)o.drag.moved=true;requestDraw();return;}
+  o.hover=modPick(px,py);requestDraw();}
+function offUp(){const o=offTool;if(o&&o.drag&&o.drag.moved)offApply();}
+function offKey(e){const o=offTool;if(e.key==='Escape'){if(o.drag){o.drag=null;o.num='';draw();}else offEnd();return true;}if(o.drag){if(/^[0-9.]$/.test(e.key)){o.num+=e.key;draw();return true;}if(e.key==='Backspace'){o.num=o.num.slice(0,-1);draw();return true;}if(e.key==='Enter'){offApply();return true;}}return false;}
+function drawOffPreview(g){const o=offTool;if(!o)return;g.save();g.setLineDash([]);const W3=(sk,q)=>project(xform(sk,[q[0],q[1],0]));
+  const h=o.drag?o.drag.h:o.hover;if(h){const S=(h.C.closed?[...h.C.pts,h.C.pts[0]]:h.C.pts).map(q=>W3(h.sk,q));g.strokeStyle=o.drag?'rgba(255,255,255,.35)':'#ffc878';g.lineWidth=2.5;g.beginPath();S.forEach((q,i)=>{if(!q)return;i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);});g.stroke();}
+  if(o.drag){const dist=o.num!==''?(parseFloat(o.num)||0):o.drag.dist;const G=dist>1e-6?offGeom(o.drag.h,dist,o.drag.uv):null;if(G){const S=(G.closed?[...G.pts,G.pts[0]]:G.pts).map(q=>W3(o.drag.h.sk,q));g.strokeStyle='#fff';g.lineWidth=2;g.setLineDash([6,4]);g.beginPath();S.forEach((q,i)=>{if(!q)return;i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);});g.stroke();g.setLineDash([]);}
+    const txt=(G&&G.closed?(G.inward?'inset ':'outset '):'offset ')+(o.num!==''?o.num:fmt(dist,2))+' mm';g.font='11px JetBrains Mono, monospace';g.textAlign='left';g.textBaseline='middle';const tw=g.measureText(txt).width+14;const x=lastMouse[0]+14,y=lastMouse[1]+16;g.fillStyle='rgba(0,0,0,.75)';g.beginPath();g.roundRect(x,y-10,tw,20,6);g.fill();g.fillStyle='#fff';g.fillText(txt,x+7,y);}
+  g.restore();}
+// ══ Select tool (Q): leave whatever tool is active, back to plain selection ═════════════════════════════════════
+function selectTool(){let was=null;if(tool){was=tool.op.label;endTool();}if(dimTool){was='dimension';dimEnd();}if(modTool){was=modTool.kind;modEnd();}if(fillTool){was='fill';fillEnd();}if(offTool){was='offset';offEnd();}if(gz.modal)modalCancel();if(gz.drag)gzEnd(false);closeDimEd();if($('#cat').classList.contains('show')&&!$('#cat').classList.contains('pinned'))closeCat();
+  cv.style.cursor='';$('#prompt').classList.remove('show');renderOptFoot();draw();if(was)log('select · left '+was);}
+function anyTool(){return !!(tool||dimTool||modTool||fillTool||offTool);}
+Object.assign(GLYPH,{Select:'M5 3l14 9-6 1.5L16 20l-2 1-3-6.5L6 19z',Offset:'M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0',Fill:'M4 20V4h16v16zM8 8h8v8H8z',FillOn:'M4 20V4h16v16zM8 8l8 8M16 8l-8 8'});
 function drawToolPreview(g){if(!tool)return;const pl=activePlane();if(!pl)return;const B=planeBasis(pl);const W3=uv=>[B.o[0]+B.u[0]*uv[0]+B.v[0]*uv[1],B.o[1]+B.u[1]*uv[0]+B.v[1]*uv[1],B.o[2]+B.u[2]*uv[0]+B.v[2]*uv[1]];
   const P=hover&&!(tool.op.confirmStep&&tool.pts.length>=2)&&!(tool.pts.length&&tool.pts[tool.pts.length-1][0]===hover[0]&&tool.pts[tool.pts.length-1][1]===hover[1])?[...tool.pts,hover]:tool.pts.slice();
   const shape=shapeFrom(tool.op,P,tool.vals,false);

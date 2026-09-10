@@ -39,6 +39,11 @@ Every sketch carries `cons_`, solved by a damped Gauss-Newton solver over all cu
 
 **Editing = variables.** The label editor takes a number or an expression: `W/2 + 3`, `sqrt(2)*R`, `min(A,B)`. Give the dimension a *name* and it becomes a variable other dimensions can use (drawn in blue). **Constrain → Variables** manages free variables. Changing any variable re-solves every sketch. Dragging a constrained vertex pins it and lets the solver move the rest live.
 
+### Select (Q) · Offset/Inset (O) · Fill (⇧F)
+- **Select — Q** leaves whatever tool is active (draw, dimension, trim/cut/fillet, offset, fill, gizmo modal) and returns to plain selection. Also a tile in *Sketch Modify*.
+- **Offset / Inset — O** hover a curve, click, then drag: the side follows the cursor (inside a closed loop = inset, outside = outset; open curves offset toward the cursor). Type a number for an exact distance, ⏎ / click applies. Circles stay true circles; everything else becomes a mitred polyline. Result is a new curve, ready for a second Fill/extrude.
+- **Fill — ⇧F** the sketch is a *planar arrangement*: every closed loop is split at its intersections and the resulting faces are regions (concentric circles → ring + disc; overlapping circles → A, B, lens). Default is even-odd (ring filled, inner disc empty → extrude gives a **pipe**). Hover highlights a region, click toggles it. Fills are stored per sketch (`regions_`); the profile / extrude / area follow the filled regions, so booleans-by-fill work in 2D before any solid boolean exists.
+
 ### Sketch Modify — Trim · Cut · Fillet · Chamfer
 Tab → *Sketch Modify*, or hotkeys **T** trim, **K** cut, **B** fillet, **⇧B** chamfer. Plasticity-style: no pre-selection, the tool stays live until Esc / right-click.
 - **Trim** — hover a curve and the span between its neighbouring intersections lights red; click (or press-and-drag across several) to remove it. End spans shorten the curve, middle spans split it in two, closed loops open, a curve with no intersections is deleted.
