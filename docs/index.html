@@ -1013,11 +1013,8 @@ vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5||uC
   float cosS=dot(rd,uSunDir); float ph=mix(clHG(cosS,uCLG1),clHG(cosS,-uCLG2),uCLMix)*4.*3.14159; // dual lobe
   float sunUp=clamp(uSunDir.y*4.+.15,0.,1.); vec3 sunL=trans*uSunColor*uSunIntensity*.02*sunUp; vec3 amb=sky*uCLAmb;
   vec3 acc=vec3(0.); float T=1.; float sigA=uCLAbsorb;
-  float dtBig=dt*2.5; bool inCloud=false;
-  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015||t>t1) break; vec3 p=ro+rd*t;
-    if(!inCloud){ float probe=clDensity(p,1.); if(probe<=1e-3){ t+=dtBig; continue; } inCloud=true; t=max(t0,t-dtBig*.5); p=ro+rd*t; }   // stride through clear air, step back on entry
-    float rho=clDensity(p,lodFar); if(rho<=1e-3){ inCloud=false; t+=dt; continue; }
-    { float od=mix(clLight(p),rho*uCLThick*.3,lodFar); float hn=clamp((clAlt(p)-uCLBase)/max(1.,uCLThick),0.,1.);
+  for(int i=0;i<64;i++){ if(float(i)>=N||T<.015) break; vec3 p=ro+rd*t; float rho=clDensity(p,lodFar);
+    if(rho>1e-3){ float od=mix(clLight(p),rho*uCLThick*.3,lodFar); float hn=clamp((clAlt(p)-uCLBase)/max(1.,uCLThick),0.,1.);
       // multi-scatter approximation: sum of 3 octaves with attenuated extinction / boosted contribution
       float ms=0.; float a=1.,b=1.; for(int o=0;o<3;o++){ ms+=b*exp(-od*a*(1.+sigA)); a*=.5; b*=.55; }
       float powder=1.-uCLPowder*exp(-rho*dt*2.*(1.+sigA))*(1.-.5*clamp(cosS,0.,1.));
@@ -1095,7 +1092,7 @@ vec3 rainbow(vec3 dir,float rainVis,float skyL){ if(uRBOn<.5) return vec3(0.);
   col/=sum*.42;
   // Alexander's band: sky slightly darker between the bows, brighter inside the primary (light scattered forward from all drops)
   float inner=1.-smoothstep(bowAngle(560.,1.)-.02,bowAngle(560.,1.),ang); float alex=smoothstep(bowAngle(400.,1.),bowAngle(400.,1.)+.02,ang)*(1.-smoothstep(bowAngle(700.,2.)-.02,bowAngle(700.,2.),ang));
-  vec3 skyGlow=vec3(.06)*inner*uRBInt; col=col*uRBInt+skyGlow; col*=(1.-alex*.25);
+  vec3 skyGlow=vec3(.012)*inner*uRBInt; col=col*uRBInt+skyGlow; col*=(1.-alex*.18);
   // supernumeraries just inside the primary (interference), faint
   float sn=uRBSuper*exp(-pow((bowAngle(560.,1.)-ang)/.02,2.))*(.5+.5*cos((bowAngle(560.,1.)-ang)*900.))*(ang<bowAngle(560.,1.)?1.:0.); col+=vec3(.5,.6,1.)*sn*.25*uRBInt;
   // only where there is sunlit rain in front, low on the sky; fade toward the zenith like a real bow
