@@ -783,7 +783,7 @@ uniform float uVFOn,uVFDensity,uVFNoise,uVFScale,uVFSpeed,uVFG,uVFSoft,uVFAbsorb
 uniform vec3 uPLPos,uPLCol,uSLPos,uSLDir,uSLCol; uniform float uPLOn,uPLInt,uPLReach,uPLDecay,uSLOn,uSLInt,uSLCos,uSLSoft;
 uniform float uCloudOn,uCloudCov,uCloudDen,uCloudAlt,uCloudScale,uCloudDetail,uCloudSpeed; uniform vec3 uCloudTint,uCloudShade;
 uniform float uCLOn,uCLBase,uCLThick,uCLCov,uCLDen,uCLScale,uCLDetail,uCLAnvil,uCLWind,uCLWindDir,uCLG1,uCLG2,uCLMix,uCLAbsorb,uCLAmb,uCLPowder,uCLSteps,uCLType; uniform vec3 uCLAlbedo;
-uniform float uLCOn,uLCCov,uLCDen,uLCScale,uLCDetail,uLCSoft,uLCShape,uLCSteps,uLCWind,uLCType; uniform vec3 uLCPos,uLCSize;   // local cloud volume
+uniform float uRBOn,uRBInt,uRBWidth,uRBSecondary,uRBRain,uRBSuper; uniform float uLCOn,uLCCov,uLCDen,uLCScale,uLCDetail,uLCSoft,uLCShape,uLCSteps,uLCWind,uLCType; uniform vec3 uLCPos,uLCSize;   // local cloud volume
 uniform float uTerrOn,uTerrSize,uTerrHeight,uTerrFreq,uTerrSeed,uTerrRough,uTerrWire; uniform vec3 uTerrLow,uTerrHigh,uTerrPos;
 uniform float uStarQuality,uStarLayers,uStarAA; uniform vec4 uPresence; /* x=shadows y=GI z=collide */
 uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
@@ -1080,6 +1080,27 @@ vec4 cloudLayer(vec3 dir,vec3 sky,vec3 trans){ // rgb premultiplied, a coverage 
   float sunUp=clamp(uSunDir.y*3.+.2,0.,1.); vec3 lit=mix(uCloudShade,uCloudTint,body*.55+.2)*(trans*uSunColor*sunUp*.9+sky*.9)*uSkyBright*.6;
   float silver=pow(max(dot(dir,uSunDir),0.),24.)*.5; lit+=silver*trans*uSunColor*uSunIntensity*.02*(1.-body);
   return vec4(lit*a,a); }
+// ===== Rainbow: primary bow at ~42° (red outside 42.3°, violet inside 40.6°), secondary at ~51° reversed, Alexander's dark band between.
+//       Spectral ordering via wavelength -> deviation angle (Descartes minimum deviation, n(λ) from Cauchy water dispersion).
+vec3 wl2rgb(float w){ // 380..700 nm -> linear-ish RGB
+  vec3 c=vec3(0.); if(w<440.){ c=vec3(-(w-440.)/60.,0.,1.); } else if(w<490.){ c=vec3(0.,(w-440.)/50.,1.); } else if(w<510.){ c=vec3(0.,1.,-(w-510.)/20.); } else if(w<580.){ c=vec3((w-510.)/70.,1.,0.); } else if(w<645.){ c=vec3(1.,-(w-645.)/65.,0.); } else c=vec3(1.,0.,0.);
+  float f=(w<420.)?.3+.7*(w-380.)/40.:(w>680.)?.3+.7*(700.-w)/20.:1.; return c*f; }
+float bowAngle(float w,float order){ float n=1.3245+3000./(w*w); // Cauchy: n≈1.331 @700nm, 1.343 @400nm
+  float k=order; float cosI=sqrt((n*n-1.)/(k*k+2.*k)); float i=acos(cosI); float r=asin(sin(i)/n); float dev=2.*i-2.*(k+1.)*r+k*3.14159265; // total deviation
+  return (order<1.5)?(3.14159265-dev):(dev-3.14159265); }                                                                                   // angle from the antisolar point
+vec3 rainbow(vec3 dir,float rainVis){ if(uRBOn<.5) return vec3(0.);
+  float sunUp=smoothstep(-2.,3.,degrees(asin(uSunDir.y))); if(sunUp<=0.) return vec3(0.);
+  vec3 anti=-uSunDir; float ang=acos(clamp(dot(dir,anti),-1.,1.)); if(ang>1.0||ang<.6) return vec3(0.);    // 34°..57° window
+  float w=uRBWidth; vec3 col=vec3(0.); float sum=0.;
+  for(int i=0;i<14;i++){ float wl=380.+float(i)/13.*320.; vec3 c=wl2rgb(wl); float a1=bowAngle(wl,1.); float d1=(ang-a1)/(.0035*w); col+=c*exp(-d1*d1)*1.0; float a2=bowAngle(wl,2.); float d2=(ang-a2)/(.006*w); col+=c*exp(-d2*d2)*.42*uRBSecondary; sum+=1.; }
+  col/=sum*.42;
+  // Alexander's band: sky slightly darker between the bows, brighter inside the primary (light scattered forward from all drops)
+  float inner=1.-smoothstep(bowAngle(560.,1.)-.02,bowAngle(560.,1.),ang); float alex=smoothstep(bowAngle(400.,1.),bowAngle(400.,1.)+.02,ang)*(1.-smoothstep(bowAngle(700.,2.)-.02,bowAngle(700.,2.),ang));
+  vec3 skyGlow=vec3(.06)*inner*uRBInt; col=col*uRBInt+skyGlow; col*=(1.-alex*.25);
+  // supernumeraries just inside the primary (interference), faint
+  float sn=uRBSuper*exp(-pow((bowAngle(560.,1.)-ang)/.02,2.))*(.5+.5*cos((bowAngle(560.,1.)-ang)*900.))*(ang<bowAngle(560.,1.)?1.:0.); col+=vec3(.5,.6,1.)*sn*.25*uRBInt;
+  // only where there is sunlit rain in front, low on the sky; fade toward the zenith like a real bow
+  float belowH=smoothstep(.75,.25,dir.y); return col*sunUp*rainVis*belowH*uSunIntensity*.02*(vec3(1.)*uSunColor).r; }
 vec3 lensFlare(vec2 uv,vec2 s,float vis){
   vec3 f=vec3(0.); vec2 m=uv-s; float type=uFlareType;
   float wGhost=(type==0.||type==2.)?1.:0.; float wHalo=(type==0.||type==3.)?1.:(type==2.?.5:0.);
@@ -1215,6 +1236,7 @@ void main(){
     float bl=exp(-ang*ang/(rr*rr*.25))*.9+exp(-ang/rr*.6)*.05; float occl=(planeHit>.5&&planeT<dl)?0.:1.; col+=uPLOn*occl*uPLCol*bl*uPLInt*.02;
     vec3 v2=uSLPos-uCamPos; float dl2=length(v2); float c2=dot(normalize(v2),dir); float ang2=acos(clamp(c2,-1.,1.)); float rr2=.02/max(1.,dl2*.05)*(1.+uSLInt*.005);
     float bl2=exp(-ang2*ang2/(rr2*rr2*.25))*.9+exp(-ang2/rr2*.6)*.05; float occl2=(planeHit>.5&&planeT<dl2)?0.:1.; col+=uSLOn*occl2*uSLCol*bl2*uSLInt*.008; }
+  { float rv=uRBRain; col+=rainbow(dir,rv)*trans; }
   if(uFlareOn>.5 && uSunVisible>.5){
     float inFrame=1.-smoothstep(1.25,2.2,length(uSunUV*vec2(uRes.y/uRes.x,1.)));
     float vis=uSunInFront*sunUp*inFrame*step(0.,elevDeg+.5); col+=lensFlare(uv,uSunUV,vis)*uSunIntensity*.09*uSunColor; }
@@ -2571,6 +2593,7 @@ const ENTITIES={
   precip:{name:'Precipitation',kind:'Component · Clouds',color:'#7dd3fc',icon:'rain',warm:true,preview:'none',hero:{kind:'precip'},
     sections:[{title:'Type',icon:'rain',props:[DROP('pr_type','Precipitation',['Rain','Drizzle','Hail','Snow','Sleet'],'Rain',{hint:'Sets particle physics · drag, terminal velocity, bounce, melt'}),TRK('pr_rate','Intensity',0,100,0.5,12,'mm/h',{log:false,hint:'Rain: 2 light · 10 moderate · 50 heavy · 100 violent'}),TRK('pr_density','Density',0.1,6,0.1,1.5,'×',{hint:'Multiplies drops per m² · combine with a bigger budget for a downpour'}),TRK('pr_size','Particle size',0.3,3,0.05,1,'×'),GAUGE('pr_wind','Wind drift',0,1,0.01,0.35,''),TOG('pr_fromClouds','Spawn from clouds',true,'Emit only where the Clouds layer has cover, from its base (capped 400 m above camera) · off = uniform sheet 60 m above camera')]},
       {title:'Collision',icon:'collide',props:[TOG('pr_collide','Ground collision',true,'Particles stop on the ground plane / terrain'),GAUGE('pr_bounce','Restitution',0,1,0.01,0.35,''),TRK('pr_life','Rest time',0.1,10,0.1,1.6,'s',{hint:'How long a landed particle stays before it disappears'}),TOG('pr_splash','Splashes / ripples',true),GAUGE('pr_accum','Accumulation',0,1,0.01,0.4,'')]},
+      {title:'Rainbow',icon:'rainbow',props:[TOG('rb_on','Rainbow',true,'Descartes primary + secondary bows at the antisolar point'),SEG('rb_mode','Source',['From rain','Always'],'From rain'),GAUGE('rb_int','Intensity',0,3,0.01,1,'×'),GAUGE('rb_width','Band width',0.5,2.5,0.01,1,'×'),GAUGE('rb_sec','Secondary bow',0,1,0.01,0.6,''),GAUGE('rb_super','Supernumeraries',0,1,0.01,0.35,'')]},
       {title:'Look',icon:'palette',props:[GAUGE('pr_streak','Motion streak',0,1,0.01,0.7,''),GAUGE('pr_opacity','Opacity',0.1,1,0.01,0.85,''),COL('pr_tint','Tint','#dbeafe'),SEG('pr_quality','Budget',['Low','Medium','High'],'High')]}]},
   vclouds:{name:'Clouds',kind:'Volumetric Clouds',color:'#f1f5f9',icon:'vclouds',preview:'none',hero:{kind:'vclouds'},
     sections:[{title:'Formation',icon:'cloud',props:[DROP('cl_type','Cloud type',['Stratus','Stratocumulus','Cumulus','Cumulonimbus','Altostratus','Cirrus'],'Cumulus',{hint:'Sets the vertical profile · applies typical base / thickness / density'}),GAUGE('cl_cov','Coverage',0,1,0.01,0.45,''),TRK('cl_den','Density',0,3,0.01,1,'×'),TRK('cl_scale','Cell size',0.3,6,0.05,1.4,'km',{log:true}),GAUGE('cl_detail','Erosion detail',0,1,0.01,0.6,''),GAUGE('cl_anvil','Anvil / shear',0,1,0.01,0.3,'')]},
@@ -2611,6 +2634,7 @@ const I=(n,s=16)=>{ const m={
   cloud:`<path d="M7 18.5h10.5a3.75 3.75 0 0 0 .6-7.45A5.5 5.5 0 0 0 7.6 9.3 4.6 4.6 0 0 0 7 18.5z"/><path d="M13.5 6.2a3.2 3.2 0 0 1 5.3 1.9" opacity=".55"/>`,
   vclouds:`<path d="M4.5 17.5h11a3.4 3.4 0 0 0 .5-6.77A5 5 0 0 0 6.3 9.6a4 4 0 0 0-1.8 7.9z"/><path d="M17.2 10.6a3 3 0 0 1 3.3 4.7" opacity=".6"/><path d="M2.5 21h19" opacity=".35"/><path d="M15 17.5h4.5a2.4 2.4 0 0 0 .4-4.76" opacity=".6"/>`,
   lcloud:`<path d="M8 16.5h8.5a3.2 3.2 0 0 0 .5-6.37A4.6 4.6 0 0 0 8.2 8.9 3.9 3.9 0 0 0 8 16.5z"/><rect x="3" y="3" width="18" height="18" rx="3" stroke-dasharray="2.5 3" opacity=".45"/>`,
+  rainbow:`<path d="M3 18a9 9 0 0 1 18 0"/><path d="M6.5 18a5.5 5.5 0 0 1 11 0" opacity=".6"/><path d="M10 18a2 2 0 0 1 4 0" opacity=".4"/>`,
   rain:`<path d="M7 13.5h9.5a3.3 3.3 0 0 0 .5-6.56A4.8 4.8 0 0 0 7.8 6.3 3.6 3.6 0 0 0 7 13.5z"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/>`,
   afog:`<path d="M3 17h18"/><path d="M3 13c3-2 6-2 9 0s6 2 9 0"/><path d="M6 8c2-1.5 4-1.5 6 0s4 1.5 6 0" opacity=".55"/><circle cx="18" cy="5" r="2"/>`,
   vfog:`<path d="M4 8 12 4l8 4-8 4z"/><path d="M4 8v8l8 4 8-4V8"/><path d="M12 12v8"/><path d="M7.5 15.5c1.5-1 3-1 4.5 0s3 1 4.5 0" opacity=".6"/>`,
@@ -3139,7 +3163,7 @@ const prevStat={}; const dlt=(k,v)=>{ const d=prevStat[k]==null?0:v-prevStat[k];
 function stateHero(kind){ const [pn,pc]=phaseName(sunElevDeg());
   if(kind==='precip'){ const P=PR_TYPES[S.pr_type]; const n=PR.alive|0; const vt=P.vt; const vis=S.pr_type==='Snow'?Math.max(.2,1.2/Math.max(.05,S.pr_rate/10)):Math.max(.3,20/Math.max(.1,S.pr_rate));
     return `<div class="sun-top"><div class="tile ${S.pr_rate>0?'ok':'warn'}"><span class="tico">${I(S.pr_rate>0?'check':'warn',14)}</span><span class="tl">${S.pr_rate===0?'No precipitation':S.pr_rate<2.5?'Light':S.pr_rate<10?'Moderate':S.pr_rate<50?'Heavy':'Violent'} ${S.pr_type.toLowerCase()}</span><b>${S.pr_rate}<i>mm/h</i></b></div><div class="tile"><span class="tico dot"></span><span class="tl">Terminal velocity</span><b>${vt.toFixed(1)}<i>m/s</i></b></div></div>
-      <div class="sun-card"><div class="sc-head"><span>Particles</span><span class="tr">${I('rain',16)}</span></div><div class="sc-meta" style="margin-top:6px"><span>Alive <b>${n}</b></span><span>Landed <b>${PR.landed|0}</b></span><span>Budget <b>${PR_BUDGET[S.pr_quality]}</b></span><span>Cloud overhead <b>${(c=>c<.04?'none — move under a cloud':Math.round(c*100)+'%')(cloudCoverAt(S.cam_x,S.cam_z,performance.now()/1000))}</b></span></div><div class="sc-meta"><span>Diameter <b>${(P.d*S.pr_size).toFixed(1)} mm</b></span><span>Restitution <b>${(S.pr_bounce*P.bounce).toFixed(2)}</b></span><span>Visibility <b>${vis.toFixed(1)} km</b></span></div></div>`; }
+      <div class="sun-card"><div class="sc-head"><span>Particles</span><span class="tr">${I('rain',16)}</span></div><div class="sc-meta" style="margin-top:6px"><span>Alive <b>${n}</b></span><span>Landed <b>${PR.landed|0}</b></span><span>Budget <b>${PR_BUDGET[S.pr_quality]}</b></span><span>Cloud overhead <b>${(c=>c<.04?'none — move under a cloud':Math.round(c*100)+'%')(cloudCoverAt(S.cam_x,S.cam_z,performance.now()/1000))}</b></span></div><div class="sc-meta"><span>Rainbow <b>${S.rb_on?(S.rb_mode==='Always'||['Rain','Drizzle','Sleet'].includes(S.pr_type)&&S.pr_rate>0?(sunElevDeg()>0?'visible · look away from the sun':'needs sun'):'needs rain'):'off'}</b></span><span>Diameter <b>${(P.d*S.pr_size).toFixed(1)} mm</b></span><span>Restitution <b>${(S.pr_bounce*P.bounce).toFixed(2)}</b></span><span>Visibility <b>${vis.toFixed(1)} km</b></span></div></div>`; }
   if(kind==='lcloud'){ const vol=(S.lc_shape==='Ellipsoid'?4/3*Math.PI:8)*S.lc_sx*S.lc_sy*S.lc_sz; const d=Math.hypot(S.lc_x-S.cam_x,S.lc_y-S.cam_height,S.lc_z-S.cam_z); const tau=S.lc_den*S.lc_sy*2*.06*.5;
     return `<div class="sun-top"><div class="tile ok"><span class="tico">${I('check',14)}</span><span class="tl">${S.lc_type} · ${S.lc_shape}</span><b>${(S.lc_sx*2).toFixed(0)}<i>× ${(S.lc_sz*2).toFixed(0)} m</i></b></div><div class="tile"><span class="tico dot"></span><span class="tl">Base → top</span><b>${(S.lc_y-S.lc_sy).toFixed(0)}<i>→ ${(S.lc_y+S.lc_sy).toFixed(0)} m</i></b></div></div>
       <div class="sun-card"><div class="sc-head"><span>Volume</span><span class="tr">${I('grid',16)}</span></div><div class="sc-meta" style="margin-top:6px"><span>Centre <b>${S.lc_x.toFixed(0)}, ${S.lc_y.toFixed(0)}, ${S.lc_z.toFixed(0)}</b></span><span>Volume <b>${vol>=1e6?(vol/1e6).toFixed(2)+' M':vol>=1e3?(vol/1e3).toFixed(0)+' k':vol.toFixed(0)} m³</b></span></div><div class="sc-meta"><span>Distance <b>${d.toFixed(0)} m</b></span><span>Optical depth (vertical) <b>τ ${tau.toFixed(1)}</b></span><span>Steps <b>${{Draft:20,Balanced:36,High:64}[S.lc_steps]}</b></span></div></div>`; }
@@ -3520,6 +3544,7 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   CAM={fwd,right,up,tanH,pos:[S.cam_x,S.cam_height,S.cam_z]}; prStep(dt); gizmoDraw(); clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
   f1('uCLOn',S.vis_vclouds!==false?1:0); f1('uCLBase',S.cl_base); f1('uCLThick',S.cl_thick); f1('uCLCov',S.cl_cov); f1('uCLDen',S.cl_den); f1('uCLScale',S.cl_scale); f1('uCLDetail',S.cl_detail); f1('uCLAnvil',S.cl_anvil); f1('uCLWind',S.cl_wind); f1('uCLWindDir',S.cl_winddir*D2R); f1('uCLG1',S.cl_g1); f1('uCLG2',S.cl_g2); f1('uCLMix',S.cl_mix); f1('uCLAbsorb',S.cl_absorb); f1('uCLAmb',S.cl_amb); f1('uCLPowder',S.cl_powder); f1('uCLSteps',{Draft:20,Balanced:36,High:64}[S.cl_steps]||36); f1('uCLType',['Stratus','Stratocumulus','Cumulus','Cumulonimbus','Altostratus','Cirrus'].indexOf(S.cl_type)); f3('uCLAlbedo',hex2rgb(S.cl_albedo));
+  { const rainOn=S.vis_precip!==false&&S.vis_vclouds!==false&&S.pr_rate>0&&(S.pr_type==='Rain'||S.pr_type==='Drizzle'||S.pr_type==='Sleet'); const rv=S.rb_mode==='Always'?1:(rainOn?Math.min(1,.35+S.pr_rate/25):0); f1('uRBOn',S.rb_on&&S.vis_precip!==false?1:0); f1('uRBInt',S.rb_int); f1('uRBWidth',S.rb_width); f1('uRBSecondary',S.rb_sec); f1('uRBRain',rv); f1('uRBSuper',S.rb_super); }
   f1('uLCOn',S.vis_lcloud!==false?1:0); f1('uLCCov',S.lc_cov); f1('uLCDen',S.lc_den); f1('uLCScale',S.lc_scale); f1('uLCDetail',S.lc_detail); f1('uLCSoft',S.lc_soft); f1('uLCShape',S.lc_shape==='Ellipsoid'?1:0); f1('uLCSteps',{Draft:20,Balanced:36,High:64}[S.lc_steps]||36); f1('uLCWind',S.lc_wind); f1('uLCType',['Stratiform','Cumuliform','Wispy'].indexOf(S.lc_type)); f3('uLCPos',[S.lc_x,S.lc_y,S.lc_z]); f3('uLCSize',[S.lc_sx,S.lc_sy,S.lc_sz]);
   f1('uAFOn',S.vis_afog!==false?1:0); f1('uAFDensity',S.af_density*1e-5); f1('uAFHeight',S.af_height); f1('uAFStart',S.af_start); f1('uAFMie',S.af_mie); f1('uAFG',S.af_g); f1('uAFSky',S.af_sky); f3('uAFTint',hex2rgb(S.af_tint));
   f1('uVFOn',S.vis_vfog!==false?1:0); f1('uVFDensity',S.vf_density); f1('uVFNoise',S.vf_noise); f1('uVFScale',S.vf_scale); f1('uVFSpeed',S.vf_speed); f1('uVFG',S.vf_g); f1('uVFSoft',S.vf_soft); f1('uVFAbsorb',S.vf_absorb); f1('uVFShape',{Box:0,Ellipsoid:1,Sphere:2,Dome:3}[S.vf_shape]||0); f1('uVFFall',S.vf_fall?1:0); f1('uVFSteps',{Draft:16,Balanced:28,High:48}[S.vf_steps]||28); f1('uVFSelf',S.vf_self?1:0); f3('uVFPos',[S.vf_x,S.vf_y,S.vf_z]); f3('uVFSize',[S.vf_sx,S.vf_sy,S.vf_sz]); f3('uVFAlbedo',hex2rgb(S.vf_albedo));
