@@ -23,6 +23,12 @@ Hover highlights white; drag applies live. The readout at the top (`X move  12.5
 
 Modal (Blender): **G / R / S** with a body selected, move the mouse; **X / Y / Z** lock an axis (again = clear; an axis line is drawn); type digits for an exact amount; **LMB / Enter** confirm; **RMB / Esc** cancel. `R` with no body selected still starts the rectangle tool.
 
+### Curves have their own transform
+Clicking a drawn shape selects **that curve**, not its sketch (the sketch is still selectable from the Outliner and moves everything). A curve's gizmo is in-plane: Move = two cones + plane quad, Rotate = ring about the plane normal (+ view ring), Scale = two cylinders. Curve position/rotation/scale are stored in plane (u,v) space and composed with the sketch transform.
+
+### Closed loops, fill, resolution
+Closed curves (circle, ellipse, closed polyline/rectangle/polygon/slot, arc with *Closed loop* on) get a semi-transparent fill and are clickable inside. Inspector → **Curve display**: *Closed loop* (polyline / arc), *Fill when closed*, *Segments* (per-curve). Document → Presentation → **Curve resolution** multiplies every circle/arc/ellipse tessellation (0.25×–4×); arcs scale their count by sweep so wide arcs stay smooth.
+
 ## Live dimensions while drawing
 Every 2-D tool shows its dimensions as dimension lines while you draw: circle `R` and `⌀`, arc `R` + sweep angle, ellipse `a` / `b`, line length, rectangle width × height, polyline last-segment length, polygon / slot overall width.
 

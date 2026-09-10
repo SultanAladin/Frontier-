@@ -280,6 +280,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .stp .n{flex:1;font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
 .stp .b{width:20px;height:28px;border-radius:7px;color:var(--t3);display:flex;align-items:center;justify-content:center;font-size:12px}
 .stp .b:hover{background:var(--g3);color:var(--text)}
+.sw.dis{opacity:.35;pointer-events:none}
 .sw{width:42px;height:24px;border-radius:999px;background:rgba(255,255,255,.1);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s var(--spring)}
 .sw.on{background:var(--green)} .sw.on::after{left:21px}
@@ -451,7 +452,8 @@ const fmt=(n,d=1)=>Number(n).toFixed(d);
 let uid=1; const nid=()=>uid++;
 
 /* ── document ─────────────────────────────────────────────── */
-const doc={figures:[],sel:new Set(),undo:[],redo:[],dims:true};
+const doc={figures:[],sel:new Set(),undo:[],redo:[],dims:true,curveRes:1};
+const segsFor=(c,base)=>Math.max(8,Math.round((c.segs||base)*(doc.curveRes||1)));
 function mk(kind,name,params,extra={}){return {id:nid(),kind,name,params,visible:true,cons:false,locked:false,pos:[0,0,0],rot:0,rot3:[0,0,0],scl:[1,1,1],recipe:null,...extra};}
 const active_={plane:null,sketch:null};
 function seed(){
@@ -507,8 +509,9 @@ function cylMesh(r,h,n,r1=r,twist=0,caps=true){const tris=[],lines=[];const ring
   return {tris,lines};}
 function planeMesh(w,h,sub){const tris=[],lines=[];const x=w/2,y=h/2;tris.push([V(-x,-y,0),V(x,-y,0),V(x,y,0)],[V(-x,-y,0),V(x,y,0),V(-x,y,0)]);
   for(let i=0;i<=sub;i++){const u=-x+w*i/sub,v=-y+h*i/sub;lines.push([V(u,-y,0),V(u,y,0)],[V(-x,v,0),V(x,v,0)]);}return {tris,lines,twoSided:true};}
-function loopOf(c){const p=c.params;if(c.ctype==='circle'){const n=32;return Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return [p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]});}
-  if(c.ctype==='ellipse')return ellipsePts(p,40);if(c.ctype==='poly'&&p.closed&&p.pts.length>2)return p.pts.slice();return null;}
+function loopOf(c){const p=c.params;if(c.ctype==='circle'){const n=segsFor(c,48);return Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return [p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]});}
+  if(c.ctype==='ellipse')return ellipsePts(p,segsFor(c,64));if(c.ctype==='poly'&&p.closed&&p.pts.length>2)return p.pts.slice();
+  if(c.ctype==='arc'&&c.params.closed){const n=segsFor(c,48);const a0=p.a0*Math.PI/180,a1=p.a1*Math.PI/180;const pts=[];for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;pts.push([p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]);}return pts;}return null;}
 function sketchProfile(s){ // closed loops: largest = outer, rest = holes; else legacy sequential lines+arcs
   const kids=s.children.map(byId).filter(Boolean);
   const hasSeq=kids.some(c=>c.ctype==='line'||c.ctype==='arc');
@@ -517,8 +520,8 @@ function sketchProfile(s){ // closed loops: largest = outer, rest = holes; else 
   const outer=[],holes=[];
   s.children.map(byId).forEach(c=>{if(!c||!c.visible&&false)return;const p=c.params;
     if(c.ctype==='line'){outer.push([p.x1,p.y1]);}
-    else if(c.ctype==='arc'){const n=12;for(let i=0;i<=n;i++){const a=(p.a0+(p.a1-p.a0)*i/n)*Math.PI/180;outer.push([p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]);}}
-    else if(c.ctype==='circle'){const n=24;holes.push(Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return [p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]}));}
+    else if(c.ctype==='arc'){const n=Math.max(8,Math.round(segsFor(c,48)*Math.abs(p.a1-p.a0)/360));for(let i=0;i<=n;i++){const a=(p.a0+(p.a1-p.a0)*i/n)*Math.PI/180;outer.push([p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]);}}
+    else if(c.ctype==='circle'){const n=segsFor(c,48);holes.push(Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return [p.cx+Math.cos(a)*p.r,p.cy+Math.sin(a)*p.r]}));}
   });return {outer,holes};}
 function extrudeMesh(s,h,draft){const {outer,holes}=sketchProfile(s);const tris=[],lines=[];const k=Math.tan(draft*Math.PI/180)*h;
   const wall=(loop,inv)=>{const n=loop.length;for(let i=0;i<n;i++){const j=(i+1)%n;const a=loop[i],b=loop[j];const sc=p=>{const l=Math.hypot(p[0],p[1])||1;return [p[0]-p[0]/l*k,p[1]-p[1]/l*k]};const a2=sc(a),b2=sc(b);
@@ -532,10 +535,11 @@ function ellipsePts(p,n=48){const a=(p.tilt||0)*Math.PI/180,ca=Math.cos(a),sa=Ma
 function curveLines(c){const p=c.params,L=[];
   if(c.ctype==='line')L.push([V(p.x1,p.y1,0),V(p.x2,p.y2,0)]);
   else if(c.ctype==='poly'){const pts=p.pts||[];for(let i=0;i<pts.length-1;i++)L.push([V(pts[i][0],pts[i][1],0),V(pts[i+1][0],pts[i+1][1],0)]);if(p.closed&&pts.length>2)L.push([V(pts[pts.length-1][0],pts[pts.length-1][1],0),V(pts[0][0],pts[0][1],0)]);}
-  else if(c.ctype==='ellipse'){const e=ellipsePts(p);for(let i=0;i<e.length;i++){const j=(i+1)%e.length;L.push([V(e[i][0],e[i][1],0),V(e[j][0],e[j][1],0)]);}}
+  else if(c.ctype==='ellipse'){const e=ellipsePts(p,segsFor(c,64));for(let i=0;i<e.length;i++){const j=(i+1)%e.length;L.push([V(e[i][0],e[i][1],0),V(e[j][0],e[j][1],0)]);}}
   else if(c.ctype==='point'){const k=2;L.push([V(p.cx-k,p.cy,0),V(p.cx+k,p.cy,0)],[V(p.cx,p.cy-k,0),V(p.cx,p.cy+k,0)]);}
-  else{const n=c.ctype==='circle'?48:16,a0=c.ctype==='circle'?0:p.a0*Math.PI/180,a1=c.ctype==='circle'?Math.PI*2:p.a1*Math.PI/180;
-    for(let i=0;i<n;i++){const t0=a0+(a1-a0)*i/n,t1=a0+(a1-a0)*(i+1)/n;L.push([V(p.cx+Math.cos(t0)*p.r,p.cy+Math.sin(t0)*p.r,0),V(p.cx+Math.cos(t1)*p.r,p.cy+Math.sin(t1)*p.r,0)]);}}
+  else{const a0=c.ctype==='circle'?0:p.a0*Math.PI/180,a1=c.ctype==='circle'?Math.PI*2:p.a1*Math.PI/180;const n=c.ctype==='circle'?segsFor(c,64):Math.max(8,Math.round(segsFor(c,64)*Math.abs(a1-a0)/(Math.PI*2)));
+    for(let i=0;i<n;i++){const t0=a0+(a1-a0)*i/n,t1=a0+(a1-a0)*(i+1)/n;L.push([V(p.cx+Math.cos(t0)*p.r,p.cy+Math.sin(t0)*p.r,0),V(p.cx+Math.cos(t1)*p.r,p.cy+Math.sin(t1)*p.r,0)]);}
+    if(c.ctype==='arc'&&p.closed){L.push([V(p.cx+Math.cos(a1)*p.r,p.cy+Math.sin(a1)*p.r,0),V(p.cx+Math.cos(a0)*p.r,p.cy+Math.sin(a0)*p.r,0)]);}}
   return {tris:[],lines:L};}
 function build(f){const p=f.params;
   if(f.kind==='body'){if(f.op==='box')return boxMesh(p.w,p.d,p.h);if(f.op==='cylinder')return cylMesh(p.r,p.h,p.segs|0);
@@ -654,8 +658,10 @@ function renderInspector(){const ids=[...doc.sel];const insp=$('#insp');
       <div class="ctl"><div class="rowctl"><span class="lab">Dimension lines</span><span class="sw ${doc.dims?'on':''}" id="swDims"></span></div></div>
       <div class="ctl"><div class="rowctl"><span class="lab">Lattice</span><span class="sw ${view.lattice?'on':''}" id="swLat"></span></div></div>
       <div class="ctl"><div class="rowctl"><span class="lab">Construction geometry</span><span class="sw ${view.cons?'on':''}" id="swCons"></span></div></div>
+      <div class="ctl"><div class="ctl-top"><span class="lab">Curve resolution</span><span class="val" id="resVal">${doc.curveRes}<small>×</small></span></div><input type="range" id="resRng" min="0.25" max="4" step="0.25" value="${doc.curveRes}" style="width:100%"></div>
     </div></div>
     <div class="empty"><b>${doc.figures.length?'Select a figure':'Empty document'}</b>${doc.figures.length?'Click in the viewport or the outliner.<br>Shift-click adds to the selection.':'Press <b>Tab</b> or right-click the viewport to open the construction catalogue.<br>Start with a <b>Workplane</b>, then sketch on it.'}</div>`;
+    $('#resRng').oninput=e=>{doc.curveRes=+e.target.value;$('#resVal').innerHTML=doc.curveRes+'<small>×</small>';meshCache.clear();draw();};
     $('#swDims').onclick=()=>{doc.dims=!doc.dims;renderInspector();draw();};$('#swLat').onclick=()=>{view.lattice=!view.lattice;renderInspector();draw();};$('#swCons').onclick=()=>{view.cons=!view.cons;renderInspector();draw();};return;}
   if(ids.length>1){$('#inspBadge').textContent=ids.length+' selected';insp.innerHTML=`<div class="hero"><div class="c-top"><span class="ico" style="--acc:#fff">${icon('body',18)}</span><span class="t"><span class="n">Multiple figures</span><span class="m">${ids.length} selected</span></span></div>
     <div class="list">${ids.map(id=>byId(id)).map(f=>`<div class="li" style="--acc:${KINDS[f.kind].acc}"><span class="dot" style="background:${KINDS[f.kind].acc}"></span><span class="t">${f.name}</span><span class="m">${f.kind}</span></div>`).join('')}</div></div>
@@ -678,6 +684,10 @@ function renderInspector(){const ids=[...doc.sel];const insp=$('#insp');
       ${xyzRow('rot3',f.rot3,'rotate','Rotation',0,'°',0.5)}
       ${xyzRow('scl',f.scl,'scale','Scale',2,'',0.01)}
       <div class="xf-foot"><button class="abtn" data-xr="pos">${ic('reset',11)} pos</button><button class="abtn" data-xr="rot3">${ic('reset',11)} rot</button><button class="abtn" data-xr="scl">${ic('reset',11)} scale</button></div></div>`);}
+  if(f.kind==='curve'&&f.ctype!=='point'&&f.ctype!=='line'){const canClose=f.ctype==='poly'||f.ctype==='arc';const isClosed=f.ctype==='circle'||f.ctype==='ellipse'||!!f.params.closed;
+    html+=sec('cv','Curve display','loop · fill · resolution',`<div class="ctl"><div class="rowctl"><span class="lab">Closed loop</span><span class="sw ${isClosed?'on':''} ${canClose?'':'dis'}" id="swClosed"></span></div></div>
+      <div class="ctl"><div class="rowctl"><span class="lab">Fill when closed</span><span class="sw ${f.fill!==false?'on':''}" id="swFill"></span></div></div>
+      ${f.ctype!=='poly'?`<div class="ctl"><div class="ctl-top"><span class="lab">Segments</span><span class="val" id="segVal">${f.segs||'auto'}</span></div><input type="range" id="segRng" min="8" max="256" step="4" value="${f.segs||64}" style="width:100%"></div>`:''}`);}
   // parameters
   const keys=Object.keys(f.params).filter(k=>PARAMS[k]);
   if(keys.length)html+=sec('pa','Parameters','live edit · rebuilds',keys.map(k=>{const [lab,mn,mx,st,u]=PARAMS[k];return `<div class="ctl ${keys.length>3&&['x1','y1','x2','y2','cx','cy','a0','a1'].includes(k)?'half':''}"><div class="ctl-top"><span class="lab">${lab}</span><span class="val" data-k="${k}">${fmt(f.params[k],st<1?1:0)}<small>${u}</small></span></div>${trk('p:'+k,f.params[k],mn,mx)}</div>`}).join(''));
@@ -697,6 +707,9 @@ function renderInspector(){const ids=[...doc.sel];const insp=$('#insp');
   // wire
   $('#nameEd').onblur=()=>{const n=$('#nameEd').textContent.trim();if(n&&n!==f.name){snapshot();f.name=n;renderOutliner();}};
   $('#nameEd').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#nameEd').blur();}};
+  const swC=$('#swClosed');if(swC)swC.onclick=()=>{if(swC.classList.contains('dis'))return;snapshot();f.params.closed=!f.params.closed;invalidate(f.id);if(f.parent)invalidate(f.parent);renderInspector();draw();};
+  const swF=$('#swFill');if(swF)swF.onclick=()=>{snapshot();f.fill=f.fill===false;renderInspector();draw();};
+  const sg=$('#segRng');if(sg)sg.oninput=e=>{f.segs=+e.target.value;$('#segVal').textContent=f.segs;invalidate(f.id);if(f.parent)invalidate(f.parent);draw();};
   $$('.pcell').forEach(c=>c.onclick=()=>{snapshot();const p=c.dataset.p;if(p==='showDims')f.showDims=f.showDims===false;else f[p]=!f[p];renderOutliner();renderInspector();draw();});
   $$('.sec-head').forEach(h=>h.onclick=()=>{const s=h.parentElement.dataset.s;secClosed.has(s)?secClosed.delete(s):secClosed.add(s);h.parentElement.classList.toggle('closed');});
   $$('.stp').forEach(s=>{const i=+s.dataset.i,k=s.dataset.k,st=+s.dataset.step,dec=+s.dataset.dec;const arr=()=>f[k];const show=()=>{s.querySelector('.n').textContent=fmt(arr()[i],dec);};
@@ -755,6 +768,8 @@ function planeBasis(pl){return basisFor(pl.axis,pl.params.offset||0,pl.params.ti
 function basisOf(f){if(!f||f.kind==='plane')return null;if(f.kind==='curve'&&f.parent)f=byId(f.parent);if(f&&f.kind==='body'&&f.src)f=byId(f.src)||f;if(!f)return null;
   if(f.kind==='sketch'){const pl=byId(f.planeId);return pl?planeBasis(pl):null;}return null;}
 function xform(f,p){const src=(f.kind==='curve'&&f.parent)?byId(f.parent):f;const o=src.pos||[0,0,0],r=src.rot3||[0,0,src.rot||0],sc=src.scl||[1,1,1];
+  if(f.kind==='curve'&&f.parent){ // curve-local transform in plane (u,v) space: scale, rotate about plane normal, translate
+    const cs=f.scl||[1,1,1],cr=(f.rot3?f.rot3[2]:f.rot||0)*Math.PI/180,cp=f.pos||[0,0,0];let u=p[0]*cs[0],v=p[1]*cs[1];if(cr){const c=Math.cos(cr),sn=Math.sin(cr);const t=u;u=t*c-v*sn;v=t*sn+v*c;}p=[u+cp[0],v+cp[1],p[2]];}
   let x=p[0]*sc[0],y=p[1]*sc[1],z=p[2]*sc[2];const B=basisOf(f);
   const rx=r[0]*Math.PI/180,ry=r[1]*Math.PI/180,rz=r[2]*Math.PI/180;let c,s,t;
   if(rx){c=Math.cos(rx);s=Math.sin(rx);t=y;y=t*c-z*s;z=t*s+z*c;}
@@ -772,9 +787,11 @@ function draw(){if(!W)return;cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,D
     if(m.planeFill){const act=f.id===active_.plane;m.tris.forEach(t=>{const s=t.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;items.push({z:(s[0][2]+s[1][2]+s[2][2])/3+0.5,type:'p',s,act,sel});});}
     else if(view.shade!=='wire')m.tris.forEach(t=>{const w=t.map(p=>xform(f,p));const n=norm(cross(sub(w[1],w[0]),sub(w[2],w[0])));const vd=norm(sub(cam.eye,w[0]));const facing=dot(n,vd);if(facing<0&&!m.twoSided)return;
       const nn=facing<0?n.map(x=>-x):n;const s=w.map(project);if(s.some(x=>!x))return;items.push({z:(s[0][2]+s[1][2]+s[2][2])/3,type:'t',s,n:nn,vd,f,sel,acc});});
-    m.lines.forEach(l=>{const s=l.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;items.push({z:Math.min(s[0][2],s[1][2])-0.05,type:'l',s,f,sel,acc,cons:f.cons||m.cons});});});
+    m.lines.forEach(l=>{const s=l.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;items.push({z:Math.min(s[0][2],s[1][2])-0.05,type:'l',s,f,sel,acc,cons:f.cons||m.cons});});
+    if(f.kind==='curve'&&f.fill!==false&&!f.cons){const lp=loopOf(f);if(lp){const s=lp.map(q=>project(xform(f,[q[0],q[1],0])));if(!s.some(x=>!x))items.push({z:s.reduce((a,q)=>a+q[2],0)/s.length+0.02,type:'f',s,sel,acc});}}});
   items.sort((a,b)=>b.z-a.z);
-  items.forEach(it=>{if(it.type==='p'){g.fillStyle=it.act?'rgba(180,140,255,.10)':'rgba(180,140,255,.035)';g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.lineTo(it.s[2][0],it.s[2][1]);g.closePath();g.fill();}
+  items.forEach(it=>{if(it.type==='f'){g.fillStyle=it.sel?'rgba(127,240,245,.22)':'rgba(79,216,224,.12)';g.beginPath();it.s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();}
+    else if(it.type==='p'){g.fillStyle=it.act?'rgba(180,140,255,.10)':'rgba(180,140,255,.035)';g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.lineTo(it.s[2][0],it.s[2][1]);g.closePath();g.fill();}
     else if(it.type==='t'){const {n,vd}=it;let col;const lam=Math.max(0,dot(n,light)),amb=.18;
       if(view.shade==='flat'){const v=Math.round(40+150*(amb+lam*.8));col=`rgb(${v},${v},${v})`;}
       else if(view.shade==='plastic'){const h=norm([light[0]+vd[0],light[1]+vd[1],light[2]+vd[2]]);const sp=Math.pow(Math.max(0,dot(n,h)),48);const base=it.sel?[255,200,120]:[150,158,170];const k=amb+lam*.75;col=`rgb(${Math.min(255,base[0]*k+sp*200)|0},${Math.min(255,base[1]*k+sp*200)|0},${Math.min(255,base[2]*k+sp*200)|0})`;}
@@ -813,8 +830,9 @@ function drawTriad(){const g=tctx;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,
 function pick(px,py,add){cam=camBasis();let best=null;
   doc.figures.forEach(f=>{if(!f.visible||f.kind==='dim'||f.kind==='sketch'||!filt.has(f.kind))return;if(f.cons&&!view.cons)return;const m=meshOf(f);
     m.tris.forEach(t=>{const s=t.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;if(inTri(px,py,s)){const z=(s[0][2]+s[1][2]+s[2][2])/3;if(!best||z<best.z)best={z,f};}});
-    m.lines.forEach(l=>{const s=l.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;const d=segDist(px,py,s[0],s[1]);if(d<6){const z=Math.min(s[0][2],s[1][2])-1;if(!best||z<best.z)best={z,f};}});});
-  if(best){const f=best.f;const target=(view.mode==='body'&&f.kind==='curve'&&f.parent)?f.parent:f.id;select(target,add);}else if(!add){doc.sel.clear();renderOutliner();renderInspector();draw();}}
+    m.lines.forEach(l=>{const s=l.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;const d=segDist(px,py,s[0],s[1]);if(d<6){const z=Math.min(s[0][2],s[1][2])-1;if(!best||z<best.z)best={z,f};}});
+    if(f.kind==='curve'&&f.fill!==false){const lp=loopOf(f);if(lp){const s=lp.map(q=>project(xform(f,[q[0],q[1],0])));if(!s.some(x=>!x)&&ptInPoly(px,py,s)){const z=s.reduce((a,q)=>a+q[2],0)/s.length;if(!best||z<best.z)best={z,f};}}}});
+  if(best){const f=best.f;select(f.id,add);}else if(!add){doc.sel.clear();renderOutliner();renderInspector();draw();}}
 function inTri(x,y,s){const [a,b,c]=s;const d1=(x-b[0])*(a[1]-b[1])-(a[0]-b[0])*(y-b[1]),d2=(x-c[0])*(b[1]-c[1])-(b[0]-c[0])*(y-c[1]),d3=(x-a[0])*(c[1]-a[1])-(c[0]-a[0])*(y-a[1]);return !((d1<0||d2<0||d3<0)&&(d1>0||d2>0||d3>0));}
 function segDist(x,y,a,b){const dx=b[0]-a[0],dy=b[1]-a[1];const t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/((dx*dx+dy*dy)||1)));return Math.hypot(x-(a[0]+dx*t),y-(a[1]+dy*t));}
 
@@ -853,7 +871,7 @@ const GZC={x:'#e01414',y:'#12d40a',z:'#1560e0',magenta:'#c81ec8',cyan:'#1fc7c7',
 const GZ_AXES=[{name:'x',dir:[1,0,0],u:[0,1,0],v:[0,0,1],plane:GZC.cyan},{name:'y',dir:[0,1,0],u:[1,0,0],v:[0,0,1],plane:GZC.magenta},{name:'z',dir:[0,0,1],u:[1,0,0],v:[0,1,0],plane:GZC.yellow}];
 const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],mul=(a,k)=>[a[0]*k,a[1]*k,a[2]*k];
 let gz={hover:null,drag:null,modal:null,handles:[],mode:'translate',edit:false};
-const gzTarget=()=>{const f=byId([...doc.sel][0]);return f&&f.pos&&f.visible&&f.kind!=='dim'&&f.kind!=='curve'&&f.kind!=='plane'?f:null;};
+const gzTarget=()=>{const f=byId([...doc.sel][0]);return f&&f.pos&&f.visible&&f.kind!=='dim'&&f.kind!=='plane'?f:null;};
 function rotMat(r3){const [ax,ay,az]=(r3||[0,0,0]).map(d=>d*Math.PI/180);const cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
   return [[cz*cy, cz*sy*sx-sz*cx, cz*sy*cx+sz*sx],[sz*cy, sz*sy*sx+cz*cx, sz*sy*cx-cz*sx],[-sy, cy*sx, cy*cx]];} // Rz·Ry·Rx, same order as xform()
 const mv=(M,v)=>[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]];
@@ -871,17 +889,22 @@ function angleAround(px,py,o,axis,ref){const hit=planePoint(px,py,o,axis);if(!hi
 function setGzMode(m){gz.mode=m;setSeg('gzMode','g',m);draw();}
 // circle outline in 3-D (centre o, radius r, basis u,v) → screen polyline
 function ring3(o,u,v,r,n=48){const out=[];for(let i=0;i<=n;i++){const a=i/n*Math.PI*2;const p=project(add(o,add(mul(u,Math.cos(a)*r),mul(v,Math.sin(a)*r))));if(!p)return null;out.push(p);}return out;}
-function drawGizmo(g){gz.handles=[];const f=gzTarget();if(!f||tool)return;const o=gzPivot(f),L=gzScale(o);if(!L)return;const M=rotMat(f.rot3);const wd=v=>mv(M,v);
+function frameOf(f){ // 3x3 whose columns are the object's local axes in world space (curves: plane basis rotated by their in-plane angle)
+  if(f.kind==='curve'){const B=basisOf(f);if(!B)return rotMat(f.rot3);const a=(f.rot3?f.rot3[2]:0)*Math.PI/180,c=Math.cos(a),sn=Math.sin(a);const u=add(mul(B.u,c),mul(B.v,sn)),v=add(mul(B.u,-sn),mul(B.v,c));return [[u[0],v[0],B.n[0]],[u[1],v[1],B.n[1]],[u[2],v[2],B.n[2]]];}
+  return rotMat(f.rot3);}
+function drawGizmo(g){gz.handles=[];const f=gzTarget();if(!f||tool)return;const o=gzPivot(f),L=gzScale(o);if(!L)return;const M=frameOf(f);const wd=v=>mv(M,v);
+  if(f.kind==='curve'){ // curves live in their plane: rotate only about the normal, no z handles
+    const keep=gz.mode==='rotate'?['z']:['x','y'];GZ_AXES.forEach(a=>a.skip=!keep.includes(a.name));}else GZ_AXES.forEach(a=>a.skip=false);
   const TIP=L*0.95,half=L*0.08;const items=[];const P=v=>project(add(o,v));const push=(z,fn)=>items.push({z,fn});
   const hi=h=>(gz.hover&&gz.hover.type===h.type&&gz.hover.axis===h.axis&&!gz.drag)||(gz.drag&&gz.drag.h.type===h.type&&gz.drag.h.axis===h.axis);
   const mode=gz.modal?gz.modal.mode:gz.mode;const lockOnly=gz.modal&&gz.modal.axis;
   const viewAxis=norm(sub(cam.eye,o));
-  for(const ax of GZ_AXES){const d=wd(ax.dir),u=wd(ax.u),v=wd(ax.v);const col=GZC[ax.name];
+  for(const ax of GZ_AXES){if(ax.skip)continue;const d=wd(ax.dir),u=wd(ax.u),v=wd(ax.v);const col=GZC[ax.name];
     if(lockOnly){if(gz.modal.axis!==ax.name)continue;const a=P(mul(d,-L*4)),b=P(mul(d,L*4));if(a&&b){g.strokeStyle=col;g.lineWidth=1;g.globalAlpha=.8;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.globalAlpha=1;}continue;}
     if(gz.modal)continue;
     // faint axis stem (all modes) so the handle reads as attached to the pivot
     {const a=P(mul(d,L*0.18)),b=P(mul(d,mode==='rotate'?L*0.55:TIP-L*0.2));if(a&&b)push(Math.max(a[2],b[2])+0.02,()=>{g.strokeStyle=col;g.globalAlpha=.55;g.lineWidth=1.4;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.globalAlpha=1;});}
-    if(mode==='translate'){
+    if(mode==='translate'&&!(f.kind==='curve'&&ax.name==='z')){
       // cone: tip at TIP, base at TIP-0.18L, base radius 0.06L — drawn as tip + projected base ellipse (billboard-ish)
       const tipW=mul(d,TIP),baseC=mul(d,TIP-L*0.18);const tip=P(tipW),base=P(baseC);
       if(tip&&base){const rim=ring3(add(o,baseC),u,v,L*0.06,16);const h={type:'translate',axis:ax.name,dir:d,color:col,sx:(tip[0]+base[0])/2,sy:(tip[1]+base[1])/2,r:10};gz.handles.push(h);
@@ -892,7 +915,7 @@ function drawGizmo(g){gz.handles=[];const f=gzTarget();if(!f||tool)return;const 
             g.beginPath();g.moveTo(tip[0],tip[1]);g.lineTo(lo[0],lo[1]);g.lineTo(hiP[0],hiP[1]);g.closePath();g.fill();g.lineWidth=1;g.stroke();}
           else{g.beginPath();g.arc(tip[0],tip[1],5,0,7);g.fill();}});}
       // plane quad (translate mode only, as in the reference)
-      const corner=mul(add(u,v),TIP-half);const q=[add(corner,add(mul(u,-half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,half))),add(corner,add(mul(u,-half),mul(v,half)))].map(P);
+      if(f.kind==='curve')continue;const corner=mul(add(u,v),TIP-half);const q=[add(corner,add(mul(u,-half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,half))),add(corner,add(mul(u,-half),mul(v,half)))].map(P);
       if(q.every(Boolean)){const cx=(q[0][0]+q[2][0])/2,cy=(q[0][1]+q[2][1])/2;const h={type:'plane',axis:ax.name,normal:d,u,v,color:ax.plane,poly:q,sx:cx,sy:cy,r:0};gz.handles.push(h);
         push((q[0][2]+q[2][2])/2,()=>{g.fillStyle=ax.plane;g.globalAlpha=hi(h)?.6:.28;g.beginPath();q.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();g.globalAlpha=1;
           g.strokeStyle=ax.plane;g.lineWidth=1.2;g.beginPath();g.moveTo(q[1][0],q[1][1]);g.lineTo(q[2][0],q[2][1]);g.lineTo(q[3][0],q[3][1]);g.stroke();});}}
@@ -909,6 +932,8 @@ function drawGizmo(g){gz.handles=[];const f=gzTarget();if(!f||tool)return;const 
       push(ring.reduce((m,p)=>Math.min(m,p[2]),1e9),()=>{const cc=hi(h)?'#ffffff':col;g.lineWidth=hi(h)?3.2:2.2;g.lineCap='round';
         for(let i=0;i<ring.length-1;i++){const a=i/72*Math.PI*2;const n3=add(mul(u,Math.cos(a)),mul(v,Math.sin(a)));const front=dot(n3,viewAxis)>=-0.02;g.strokeStyle=cc;g.globalAlpha=front?1:.18;g.beginPath();g.moveTo(ring[i][0],ring[i][1]);g.lineTo(ring[i+1][0],ring[i+1][1]);g.stroke();}g.globalAlpha=1;});}
   }
+  if(f.kind==='curve'&&mode==='translate'&&!gz.modal){const u=wd([1,0,0]),v=wd([0,1,0]),d=wd([0,0,1]);const corner=mul(add(u,v),TIP-half);const q=[add(corner,add(mul(u,-half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,-half))),add(corner,add(mul(u,half),mul(v,half))),add(corner,add(mul(u,-half),mul(v,half)))].map(P);
+    if(q.every(Boolean)){const h={type:'plane',axis:'z',normal:d,u,v,color:GZC.yellow,poly:q,sx:(q[0][0]+q[2][0])/2,sy:(q[0][1]+q[2][1])/2,r:0};gz.handles.push(h);push((q[0][2]+q[2][2])/2,()=>{g.fillStyle=GZC.yellow;g.globalAlpha=hi(h)?.6:.28;g.beginPath();q.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();g.globalAlpha=1;});}}
   items.sort((a,b)=>b.z-a.z).forEach(it=>it.fn());
   const c=project(o);if(c){g.strokeStyle=GZC.ring;g.lineWidth=1.3;g.beginPath();g.arc(c[0],c[1],mode==='rotate'?TIP*0.78*pxPerUnit(o)+12:92*0.16,0,7);g.stroke();
     if(mode==='rotate'){const h={type:'rotate',axis:'view',dir:viewAxis,ref:cam.right,color:GZC.ring,ringR:TIP*0.78*pxPerUnit(o)+12,cx:c[0],cy:c[1],sx:0,sy:0,r:0};gz.handles.push(h);}}
@@ -926,21 +951,29 @@ function gzBegin(h,px,py){const f=gzTarget();if(!f)return false;snapshot();const
   gz.drag=d;return true;}
 // apply a transform about pivot o (so scale/rotate happen around the body centre, like Blender's median pivot)
 function applyAbout(f,st,o,R,sc){ // R: 3x3 delta rotation or null; sc: [sx,sy,sz] multiplier or null
+  if(f.kind==='curve'){const B=basisOf(f);if(!B)return;let da=0;if(R){const u2=mv(R,B.u);da=Math.atan2(dot(u2,B.v),dot(u2,B.u));}
+    const S=[st.scl[0]*(sc?sc[0]:1),st.scl[1]*(sc?sc[1]:1),1];const a0=(st.rot3[2])*Math.PI/180,a1=a0+da;f.scl=S;f.rot3=[0,0,a1*180/Math.PI];f.rot=f.rot3[2];
+    // keep pivot fixed in plane space
+    const sk=byId(f.parent);const ss=sk&&sk.scl||[1,1,1];const rel=sub(o,B.o);const pu=dot(rel,B.u)/(ss[0]||1),pv=dot(rel,B.v)/(ss[1]||1);const c0=Math.cos(a0),s0=Math.sin(a0);const lu=pu-st.pos[0],lv=pv-st.pos[1];const xu=(lu*c0+lv*s0)/(st.scl[0]||1),xv=(-lu*s0+lv*c0)/(st.scl[1]||1);
+    const c1=Math.cos(a1),s1=Math.sin(a1);const wu=xu*S[0]*c1-xv*S[1]*s1,wv=xu*S[0]*s1+xv*S[1]*c1;f.pos=[pu-wu,pv-wv,st.pos[2]];return;}
   const M0=rotMat(st.rot3);let M=M0,S=[...st.scl];if(sc){S=[st.scl[0]*sc[0],st.scl[1]*sc[1],st.scl[2]*sc[2]];}if(R)M=matMul(R,M0);
   f.scl=S;f.rot3=eulerFromMat(M);f.rot=f.rot3[2];
   // keep pivot fixed: pivot_local = M0⁻¹(o-pos0)/scl0 → new pos = o - M·(scl·pivot_local)
   const rel=sub(o,st.pos);const Mt=[[M0[0][0],M0[1][0],M0[2][0]],[M0[0][1],M0[1][1],M0[2][1]],[M0[0][2],M0[1][2],M0[2][2]]];const pl=mv(Mt,rel);const loc=[pl[0]/(st.scl[0]||1),pl[1]/(st.scl[1]||1),pl[2]/(st.scl[2]||1)];
   const w=mv(M,[loc[0]*S[0],loc[1]*S[1],loc[2]*S[2]]);f.pos=sub(o,w);}
+function moveBy(f,st,w){ // translate by world vector w; curves store (u,v) in plane space
+  if(f.kind==='curve'){const B=basisOf(f);const sk=byId(f.parent);const ss=sk&&sk.scl||[1,1,1];if(B){f.pos=[st.pos[0]+dot(w,B.u)/(ss[0]||1),st.pos[1]+dot(w,B.v)/(ss[1]||1),st.pos[2]];return;}}
+  f.pos=add(st.pos,w);}
 function gzUpdate(px,py,snapOn){const d=gz.drag;if(!d)return;const h=d.h,f=d.f;const st=h.type==='rotate'?5:h.type==='scale'?0.1:5;const S=k=>Math.round(k/st)*st;
-  if(h.type==='translate'){let k=axisParam(px,py,d.o,h.dir)-d.p0;if(snapOn)k=S(k);d.value=k;f.pos=add(d.start.pos,mul(h.dir,k));gzHud(`${h.axis.toUpperCase()} move`,k,'mm',h.axis);}
+  if(h.type==='translate'){let k=axisParam(px,py,d.o,h.dir)-d.p0;if(snapOn)k=S(k);d.value=k;moveBy(f,d.start,mul(h.dir,k));gzHud(`${h.axis.toUpperCase()} move`,k,'mm',h.axis);}
   else if(h.type==='scale'){let k=1+(axisParam(px,py,d.o,h.dir)-d.p0)/gzScale(d.o);if(snapOn)k=Math.max(.1,S(k));k=Math.max(.05,k);d.value=k;const i={x:0,y:1,z:2}[h.axis];const sc=[1,1,1];sc[i]=k;if(f.uniform)sc.fill(k);applyAbout(f,d.start,d.o,null,sc);gzHud(`${h.axis.toUpperCase()} scale`,k,'×',h.axis);}
-  else if(h.type==='plane'){const hit=planePoint(px,py,d.o,h.normal);if(hit&&d.hit0){let m=sub(hit,d.hit0);if(snapOn){m=add(mul(h.u,S(dot(m,h.u))),mul(h.v,S(dot(m,h.v))));}d.value=Math.hypot(...m);d.vec=m;f.pos=add(d.start.pos,m);gzHud(`${h.axis.toUpperCase()}-plane move`,d.value,'mm',h.axis);}}
+  else if(h.type==='plane'){const hit=planePoint(px,py,d.o,h.normal);if(hit&&d.hit0){let m=sub(hit,d.hit0);if(snapOn){m=add(mul(h.u,S(dot(m,h.u))),mul(h.v,S(dot(m,h.v))));}d.value=Math.hypot(...m);d.vec=m;moveBy(f,d.start,m);gzHud(`${h.axis.toUpperCase()}-plane move`,d.value,'mm',h.axis);}}
   else if(h.type==='rotate'){const a=angleAround(px,py,d.o,h.dir,h.ref);if(a!==null&&d.a0!==null){let da=(a-d.a0)*180/Math.PI;if(snapOn)da=S(da);d.value=da;applyAbout(f,d.start,d.o,axisAngleMat(h.dir,da*Math.PI/180),null);gzHud(`${h.axis==='view'?'View':h.axis.toUpperCase()} rotate`,da,'°',h.axis==='view'?null:h.axis);}}
   draw();}
 // re-apply a drag with an exact typed value (from the editable readout)
 function gzSetValue(v){const d=gz.drag;if(!d||!isFinite(v))return;const h=d.h,f=d.f;d.value=v;
-  if(h.type==='translate')f.pos=add(d.start.pos,mul(h.dir,v));
-  else if(h.type==='plane'){const dir=d.vec&&Math.hypot(...d.vec)>1e-9?norm(d.vec):h.u;f.pos=add(d.start.pos,mul(dir,v));}
+  if(h.type==='translate')moveBy(f,d.start,mul(h.dir,v));
+  else if(h.type==='plane'){const dir=d.vec&&Math.hypot(...d.vec)>1e-9?norm(d.vec):h.u;moveBy(f,d.start,mul(dir,v));}
   else if(h.type==='scale'){const k=Math.max(.05,v);const i={x:0,y:1,z:2}[h.axis];const sc=[1,1,1];sc[i]=k;if(f.uniform)sc.fill(k);applyAbout(f,d.start,d.o,null,sc);}
   else if(h.type==='rotate')applyAbout(f,d.start,d.o,axisAngleMat(h.dir,v*Math.PI/180),null);
   draw();}
@@ -958,11 +991,11 @@ function hudFocus(){const i=$('#gzHud input');if(i){i.focus();i.select();}}
 let lastMouse=[0,0];
 function modalStart(mode){const f=gzTarget();if(!f||tool)return;snapshot();cam=camBasis();const o=gzPivot(f);const c=project(o);if(!c)return;gz.mode={g:'translate',r:'rotate',s:'scale'}[mode];setSeg('gzMode','g',gz.mode);
   gz.modal={mode:gz.mode,key:mode,f,o,axis:null,num:'',start:{pos:[...f.pos],rot3:[...(f.rot3||[0,0,0])],scl:[...(f.scl||[1,1,1])]},cx:c[0],cy:c[1],mx:lastMouse[0],my:lastMouse[1]};modalApply(lastMouse[0],lastMouse[1],false);}
-function modalApply(px,py,snapOn){const m=gz.modal;if(!m)return;const f=m.f,o=m.o,st=m.start;const axisDir=m.axis?[[1,0,0],[0,1,0],[0,0,1]][{x:0,y:1,z:2}[m.axis]]:null;const num=m.num!==''&&isFinite(parseFloat(m.num))?parseFloat(m.num):null;
+function modalApply(px,py,snapOn){const m=gz.modal;if(!m)return;const f=m.f,o=m.o,st=m.start;const axisDir=m.axis?mv(frameOf(f),[[1,0,0],[0,1,0],[0,0,1]][{x:0,y:1,z:2}[m.axis]]):null;const num=m.num!==''&&isFinite(parseFloat(m.num))?parseFloat(m.num):null;
   const S=(k,s)=>Math.round(k/s)*s;const lab=m.axis?m.axis.toUpperCase():'';
   if(m.mode==='translate'){let mvv;let val;if(axisDir){let k=num!==null?num:axisParam(px,py,o,axisDir)-axisParam(m.mx,m.my,o,axisDir);if(snapOn)k=S(k,5);mvv=mul(axisDir,k);val=k;}
     else{const n=cam.fwd;const a=planePoint(px,py,o,n),b=planePoint(m.mx,m.my,o,n);mvv=a&&b?sub(a,b):[0,0,0];if(snapOn)mvv=mvv.map(x=>S(x,5));if(num!==null&&Math.hypot(...mvv)>1e-9)mvv=mul(norm(mvv),num);val=Math.hypot(...mvv);}
-    f.pos=add(st.pos,mvv);gzHud(`Move ${lab}`,val,'mm',m.axis,modalKeys());}
+    moveBy(f,st,mvv);gzHud(`Move ${lab}`,val,'mm',m.axis,modalKeys());}
   else if(m.mode==='scale'){const d0=Math.hypot(m.mx-m.cx,m.my-m.cy)||1,d1=Math.hypot(px-m.cx,py-m.cy);let k=num!==null?num:d1/d0;if(snapOn)k=Math.max(.1,S(k,.1));k=Math.max(.05,k);
     const sc=axisDir?[1,1,1]:[k,k,k];if(axisDir)sc[{x:0,y:1,z:2}[m.axis]]=k;applyAbout(f,st,o,null,sc);gzHud(`Scale ${lab}`,k,'×',m.axis,modalKeys());}
   else if(m.mode==='rotate'){const a0=Math.atan2(m.my-m.cy,m.mx-m.cx),a1=Math.atan2(py-m.cy,px-m.cx);const viewAxis=norm(sub(cam.eye,o));let da=num!==null?num:-(a1-a0)*180/Math.PI;if(snapOn)da=S(da,5);
@@ -1007,8 +1040,9 @@ let rafQ=false;function requestDraw(){if(rafQ)return;rafQ=true;requestAnimationF
 function pick(px,py,add){cam=camBasis();let best=null;
   doc.figures.forEach(f=>{if(!f.visible||f.kind==='dim'||f.kind==='sketch'||!filt.has(f.kind))return;if(f.cons&&!view.cons)return;const m=meshOf(f);
     if(!m.planeFill)m.tris.forEach(t=>{const s=t.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;if(inTri(px,py,s)){const z=(s[0][2]+s[1][2]+s[2][2])/3;if(!best||z<best.z)best={z,f};}});
-    m.lines.forEach(l=>{const s=l.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;const d=segDist(px,py,s[0],s[1]);if(d<6){const z=Math.min(s[0][2],s[1][2])-1;if(!best||z<best.z)best={z,f};}});});
-  if(best){const f=best.f;const target=(view.mode==='body'&&f.kind==='curve'&&f.parent)?f.parent:f.id;select(target,add);}else if(!add){doc.sel.clear();renderOutliner();renderInspector();renderCat();draw();}}
+    m.lines.forEach(l=>{const s=l.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;const d=segDist(px,py,s[0],s[1]);if(d<6){const z=Math.min(s[0][2],s[1][2])-1;if(!best||z<best.z)best={z,f};}});
+    if(f.kind==='curve'&&f.fill!==false){const lp=loopOf(f);if(lp){const s=lp.map(q=>project(xform(f,[q[0],q[1],0])));if(!s.some(x=>!x)&&ptInPoly(px,py,s)){const z=s.reduce((a,q)=>a+q[2],0)/s.length;if(!best||z<best.z)best={z,f};}}}});
+  if(best){const f=best.f;select(f.id,add);}else if(!add){doc.sel.clear();renderOutliner();renderInspector();renderCat();draw();}}
 function inTri(x,y,s){const [a,b,c]=s;const d1=(x-b[0])*(a[1]-b[1])-(a[0]-b[0])*(y-b[1]),d2=(x-c[0])*(b[1]-c[1])-(b[0]-c[0])*(y-c[1]),d3=(x-a[0])*(c[1]-a[1])-(c[0]-a[0])*(y-a[1]);return !((d1<0||d2<0||d3<0)&&(d1>0||d2>0||d3>0));}
 function segDist(x,y,a,b){const dx=b[0]-a[0],dy=b[1]-a[1];const t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/((dx*dx+dy*dy)||1)));return Math.hypot(x-(a[0]+dx*t),y-(a[1]+dy*t));}
 function rayAt(px,py){cam=camBasis();const k=(H/2)/Math.tan(FOV/2*Math.PI/180);const nx=(px-W/2)/k,ny=-(py-H/2)/k;
