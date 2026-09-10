@@ -39,6 +39,15 @@ Every sketch carries `cons_`, solved by a damped Gauss-Newton solver over all cu
 
 **Editing = variables.** The label editor takes a number or an expression: `W/2 + 3`, `sqrt(2)*R`, `min(A,B)`. Give the dimension a *name* and it becomes a variable other dimensions can use (drawn in blue). **Constrain → Variables** manages free variables. Changing any variable re-solves every sketch. Dragging a constrained vertex pins it and lets the solver move the rest live.
 
+### Mirror · Linear / Circular pattern
+Select curves, then **M** mirror / **⇧M** linear / **⌥M** circular (or the tiles in *Sketch Modify*, or the *Mirror · Pattern* section of a curve's inspector). Mirror: click two axis points (⌃ snaps), click an existing line to use it as the axis, or ⏎ for the sketch V axis; the inspector also has a *Mirror across* dropdown (any line in the sketch, or the sketch U/V axes). Linear: click direction start/end, count + "Spacing / Total" in the options. Circular: click the centre, count + total angle. Everything previews dashed while you pick; copies carry a recipe (`Circle01 → mirror`).
+
+### Snapping while drawing
+Hold **⌃ (Ctrl/⌘)** to snap the cursor to endpoints, vertices, midpoints, centres, quadrants and intersections (glyph + label at the snap). Hold **⌥ (Alt)** to slide along the nearest curve — with a perpendicular-foot snap from the previous point. Without modifiers the 5 mm lattice snap applies as before.
+
+### History · Save / Open
+Every undo step is labelled. **⌃H** (or *history* in the outliner) opens the History page: click any step to jump back or forward; footer has *save .json* (⌃S), *open .json* (⌃O), *copy*, *new document*. The document autosaves to localStorage and is restored on reload (not when `?demo`).
+
 ### Select (Q) · Offset/Inset (O) · Fill (⇧F)
 - **Select — Q** leaves whatever tool is active (draw, dimension, trim/cut/fillet, offset, fill, gizmo modal) and returns to plain selection. Also a tile in *Sketch Modify*.
 - **Offset / Inset — O** hover a curve, click, then drag: the side follows the cursor (inside a closed loop = inset, outside = outset; open curves offset toward the cursor). Type a number for an exact distance, ⏎ / click applies. Circles stay true circles; everything else becomes a mitred polyline. Result is a new curve, ready for a second Fill/extrude.
