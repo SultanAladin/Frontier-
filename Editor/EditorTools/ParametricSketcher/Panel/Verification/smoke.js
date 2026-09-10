@@ -9,7 +9,7 @@ function mkEl(id){return {id,style:{setProperty(){}},classList:{add(){},remove()
 global.document={querySelector:s=>els[s]||(els[s]=mkEl(s)),querySelectorAll:()=>[],createElement:()=>mkEl(),getElementById:()=>null};
 global.ResizeObserver=class{observe(){}};global.localStorage={getItem:()=>null,setItem(){},removeItem(){}};global.innerWidth=1600;global.innerHeight=900;
 global.addEventListener=()=>{};global.location={search:process.argv.includes('--demo')?'?demo':''};global.URLSearchParams=class{constructor(q){this.q=q}has(k){return this.q.includes(k)}};global.devicePixelRatio=1;global.performance={now:()=>0};global.requestAnimationFrame=()=>{};
-const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool};')(mod);const M=mod.exports;
+const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health};')(mod);const M=mod.exports;
 let n=0;const ok=(c,m)=>{n++;if(!c){console.error('FAIL',m);process.exit(1);}};
 ok(M.doc.figures.length===0,'starts empty');
 M.doc.figures.forEach(f=>{M.build(f);const ms=M.measure(f);ok(isFinite(ms.v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
@@ -76,5 +76,22 @@ const wc=M.xform(cA,[cA.params.cx,cA.params.cy,0]);ok(Math.abs(wc[0]-(cA.params.
 const n1=M.curveLines(cA).lines.length;M.doc.curveRes=2;const n2=M.curveLines(cA).lines.length;M.doc.curveRes=1;ok(n2===2*n1,'curve resolution multiplier doubles segments');
 cA.segs=128;ok(M.curveLines(cA).lines.length===128,'per-curve segments override');delete cA.segs;
 M.startOp('arc');M.toolClick(600,500);M.toolClick(640,500);M.toolClick(600,540);const arc=M.doc.figures.filter(f=>f.ctype==='arc').pop();ok(M.loopOf(arc)===null,'open arc has no loop');arc.params.closed=true;ok(M.loopOf(arc)&&M.loopOf(arc).length>8,'closed arc becomes a fillable loop');
+// 9. topology: box has 8 verts / 12 edges / 6 faces; polyline slot outline sane; vertex/edge/face multi-select + move; non-planar loop loses its face
+const box=M.doc.figures.find(f=>f.op==='box');box.visible=true;const tb=M.topo(box);ok(tb.verts.length===8&&tb.edges.length===12&&tb.faces.length===6,'box topo 8/12/6, got '+[tb.verts.length,tb.edges.length,tb.faces.length]);
+const sl=M.offsetPolyline([[0,0],[40,0],[40,40]],5);ok(sl.length>20&&sl.every(q=>isFinite(q[0])&&isFinite(q[1])),'slot outline finite');const far=Math.max(...sl.map(q=>Math.hypot(q[0]-40,q[1]-0)));ok(far<Math.hypot(40,40)+5.01,'slot outline stays within radius of spine');
+const inside=[[20,0],[40,20]].every(c=>M.sub_&&(()=>{let cnt=false;for(let i=0,j=sl.length-1;i<sl.length;j=i++){const a=sl[i],b=sl[j];if(((a[1]>c[1])!==(b[1]>c[1]))&&(c[0]<(b[0]-a[0])*(c[1]-a[1])/(b[1]-a[1])+a[0]))cnt=!cnt;}return cnt;})());ok(inside,'spine midpoints are inside the slot outline');
+M.setView('top');M.resize();M.doc.figures.filter(f=>f.kind==='body').forEach(f=>f.visible=false);M.startOp('rect');M.toolClick(400,300);M.toolClick(520,380);const rc=M.doc.figures.filter(f=>f.kind==='curve').pop();const tr=M.topo(rc);ok(tr.verts.length===4&&tr.edges.length===4&&tr.faces.length===1,'rect topo 4/4/1');
+M.setModes(['vertex','edge']);ok(M.view.modes.length===2,'combined select modes');
+const v0=M.project(M.xform(rc,[rc.params.pts[0][0],rc.params.pts[0][1],0]));const hit=M.pickSub(v0[0],v0[1],new Set(['vertex','edge']));ok(hit&&hit.kind==='vertex'&&hit.fig===rc.id,'pickSub prefers the vertex under the cursor');
+M.selectSub(hit,false);const e1=M.topo(rc).edges[1];const em=M.project(M.xform(rc,[(rc.params.pts[e1.a][0]+rc.params.pts[e1.b][0])/2,(rc.params.pts[e1.a][1]+rc.params.pts[e1.b][1])/2,0]));const hit2=M.pickSub(em[0],em[1],new Set(['edge']));ok(hit2&&hit2.kind==='edge','edge pick');M.selectSub(hit2,true);ok(M.sub_.sel.size===2&&M.subVertices().length===3,'vertex + edge multi-select → 3 unique vertices');
+const before=rc.params.pts.map(q=>[...q]);const st=M.subBegin();M.subApply(st,[10,0,0]);M.subEnd();ok(Math.abs(rc.params.pts[0][0]-before[0][0]-10)<1e-6&&Math.abs(rc.params.pts[e1.a][0]-before[e1.a][0]-10)<1e-6,'moved selected vertices by +10 u');
+ok(M.loopScreen(rc)!==null,'rect still planar → face kept');
+M.sub_.sel.clear();M.selectSub({fig:rc.id,kind:'vertex',idx:0},false);const st2=M.subBegin();M.subApply(st2,[0,0,15]);M.subEnd();ok(rc.params.vz&&Math.abs(rc.params.vz[0]-15)<1e-6,'vertex lifted on Z');ok(M.loopScreen(rc)===null&&M.health(rc).lvl==='warn','non-planar loop → fill overlay removed + warning');
+M.selectSub({fig:rc.id,kind:'edge',idx:2},false);const st3=M.subBegin();M.subApply(st3,[0,0,15]);M.subEnd();
+M.selectSub({fig:rc.id,kind:'vertex',idx:0},false);M.selectSub({fig:rc.id,kind:'vertex',idx:1},true);M.selectSub({fig:rc.id,kind:'vertex',idx:2},true);M.selectSub({fig:rc.id,kind:'vertex',idx:3},true);
+rc.params.vz=[15,15,15,15];M.topo(rc);ok(M.planarLoop(rc)&&M.loopScreen(rc)!==null,'all four vertices lifted equally → planar again → face back');
+rc.params.pts=[[0,0],[40,0],[40,30],[0,30]];rc.params.vz=[15,0,0,15];M.topo(rc);ok(M.planarLoop(rc),'two adjacent vertices lifted (tilted plane) → still planar');
+rc.params.vz=[15,0,15,0];ok(!M.planarLoop(rc),'diagonal lift → non-planar');
+M.setModes(['body']);M.sub_.sel.clear();
 M.renderOutliner();M.renderInspector();M.draw();
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);

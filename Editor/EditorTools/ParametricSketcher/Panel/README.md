@@ -28,8 +28,15 @@ Clicking a drawn shape selects **that curve**, not its sketch (the sketch is sti
 
 Curves can also be lifted off their plane: the Z cone / `G Z` moves along the plane normal (stored as the curve's third coordinate).
 
+### Select modes · topology layer (B-rep-ready)
+**Body / Face / Edge / Vertex** (`1–4`) — **Shift-click** a mode button (or `⇧1–4`) to combine modes, e.g. Vertex + Edge. Every figure exposes `topo(f)` → `{verts, edges, faces}` with stable indices: curves give their control points (poly vertices, line ends, circle centre + radius handle, ellipse centre + two axis handles) and a face when the loop is closed *and planar*; bodies derive unique vertices / edges / coplanar faces from the mesh. The B-rep kernel will later replace `topo()` and `moveCurveVertex()` only — selection, gizmo, inspector and overlay are written against that interface.
+
+Sub-selection: click / shift-click any mix of vertices, edges and faces (even across figures). A translate gizmo appears at the selection centre; drag it, or press **G** (with X/Y/Z lock, typed numbers, Ctrl snap). All selected elements move together; an edge moves its two vertices, a face all of its vertices. Inspector shows the selection list, an editable world position (single vertex) or centre (multi), **flatten to plane**, and **delete vertices** (`⌫`).
+
+Polyline vertices can be lifted off the sketch plane (`vz` per vertex; a dashed drop line shows the offset). The closed-loop fill is only drawn while the loop stays **planar** — lifting one corner removes the fill and flags `loop not planar · no face`; lifting a whole edge (two adjacent vertices) tilts the plane and the fill stays.
+
 ### Polygon & slots
-**Polygon**: click centre → click radius → **scroll** to change the side count (3–20, shown in the prompt) → click / Enter to confirm. While drawing, construction spokes, the central angle arc, side length, radius and interior angle are shown. **Polyline** shows the segment length and the turn angle at each joint (first segment: angle from the plane's U axis). **Polyline Slot** (new tile): click a chain of centres, Enter / right-click to finish — the outline is a round-capped, round-joined offset of the chain with the slot radius from the options.
+**Polygon**: click centre → click radius → **scroll** to change the side count (3–20, shown in the prompt) → click / Enter to confirm. While drawing, construction spokes, the central angle arc, side length, radius and interior angle are shown. **Polyline** shows the segment length and the turn angle at each joint (first segment: angle from the plane's U axis). **Polyline Slot**: click a chain of centres, Enter / right-click to finish — the outline is a proper offset of the chain: round caps at both ends, round arcs on the outer side of each joint and mitre intersections on the inner side, so it reads as circles joined by straight slots with no self-overlap.
 
 ### Closed loops, fill, resolution
 Closed curves (circle, ellipse, closed polyline/rectangle/polygon/slot, arc with *Closed loop* on) get a semi-transparent fill and are clickable inside. Inspector → **Curve display**: *Closed loop* (polyline / arc), *Fill when closed*, *Segments* (per-curve). Document → Presentation → **Curve resolution** multiplies every circle/arc/ellipse tessellation (0.25×–4×); arcs scale their count by sweep so wide arcs stay smooth.
