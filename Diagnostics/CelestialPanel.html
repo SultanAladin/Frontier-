@@ -1236,7 +1236,7 @@ void main(){
     float bl=exp(-ang*ang/(rr*rr*.25))*.9+exp(-ang/rr*.6)*.05; float occl=(planeHit>.5&&planeT<dl)?0.:1.; col+=uPLOn*occl*uPLCol*bl*uPLInt*.02;
     vec3 v2=uSLPos-uCamPos; float dl2=length(v2); float c2=dot(normalize(v2),dir); float ang2=acos(clamp(c2,-1.,1.)); float rr2=.02/max(1.,dl2*.05)*(1.+uSLInt*.005);
     float bl2=exp(-ang2*ang2/(rr2*rr2*.25))*.9+exp(-ang2/rr2*.6)*.05; float occl2=(planeHit>.5&&planeT<dl2)?0.:1.; col+=uSLOn*occl2*uSLCol*bl2*uSLInt*.008; }
-  { float rv=uRBRain; float hzL=dot(skyAmb,vec3(.2126,.7152,.0722)); col+=rainbow(dir,rv,hzL)*uSunColor*trans; }
+  { float rv=uRBRain; float hzL=dot(skyAmb,vec3(.2126,.7152,.0722)); float skyMask=(planeHit>.5)?smoothstep(1500.,6000.,planeT)*.35:(ground>.5?0.:1.); skyMask*=smoothstep(-.005,.02,dir.y); col+=rainbow(dir,rv,hzL)*uSunColor*trans*skyMask; }   // the bow lives in the rain column against the sky; the ground occludes it
   if(uFlareOn>.5 && uSunVisible>.5){
     float inFrame=1.-smoothstep(1.25,2.2,length(uSunUV*vec2(uRes.y/uRes.x,1.)));
     float vis=uSunInFront*sunUp*inFrame*step(0.,elevDeg+.5); col+=lensFlare(uv,uSunUV,vis)*uSunIntensity*.09*uSunColor; }
