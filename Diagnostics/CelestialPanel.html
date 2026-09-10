@@ -750,7 +750,7 @@ input{font:inherit;color:inherit}
   <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search  Ctrl+Shift+F"></div>
   <div class="filters" id="filters"></div>
   <div class="tree" id="tree"></div>
-  <div class="outliner-foot"><div class="foot-item"><span>Realtime</span><b id="fps">60</b><em>fps</em></div><div class="foot-item"><span>Sun</span><b id="hudSun">0.0°</b></div><div class="foot-item"><span>Moons</span><b id="hudMoon">1</b><em>/ 4</em></div><div class="foot-item"><span>Cam</span><b id="hudCam">0, 2, 0</b></div></div>
+  <div class="outliner-foot"><div class="foot-item"><span>Realtime</span><b id="fps">60</b><em>fps</em></div><div class="foot-item"><span>Quality</span><b id="hudTier" style="font-size:11px">Standard</b><em id="hudPx" style="display:block;font-size:9px"></em></div><div class="foot-item"><span>Sun</span><b id="hudSun">0.0°</b></div><div class="foot-item"><span>Moons</span><b id="hudMoon">1</b><em>/ 4</em></div><div class="foot-item"><span>Cam</span><b id="hudCam">0, 2, 0</b></div></div>
 </aside>
 
 <aside id="inspector" class="glass">
@@ -768,7 +768,7 @@ input{font:inherit;color:inherit}
 precision highp float;
 #define PI 3.14159265
 #define MAXM 4
-uniform vec2 uRes; uniform float uTime;
+uniform vec2 uRes; uniform float uTime; uniform float uProbe; uniform vec3 uSkyAmb; uniform float uStarCeil;
 uniform vec3 uCamFwd,uCamRight,uCamUp,uCamPos; uniform float uTanHalf,uCamHeight;
 uniform float uPlaneOn,uPlaneSize,uPlaneCell,uPlaneY,uPlaneGrid; uniform vec3 uPlaneA,uPlaneB;
 uniform vec3 uSunDir,uSunColor; uniform float uSunIntensity,uSunAng,uSunSoft,uSunVisible,uSunDiscBoost;
@@ -783,7 +783,7 @@ uniform float uVFOn,uVFDensity,uVFNoise,uVFScale,uVFSpeed,uVFG,uVFSoft,uVFAbsorb
 uniform vec3 uPLPos,uPLCol,uSLPos,uSLDir,uSLCol; uniform float uPLOn,uPLInt,uPLReach,uPLDecay,uSLOn,uSLInt,uSLCos,uSLSoft;
 uniform float uCloudOn,uCloudCov,uCloudDen,uCloudAlt,uCloudScale,uCloudDetail,uCloudSpeed; uniform vec3 uCloudTint,uCloudShade;
 uniform float uCLOn,uCLBase,uCLThick,uCLCov,uCLDen,uCLScale,uCLDetail,uCLAnvil,uCLWind,uCLWindDir,uCLG1,uCLG2,uCLMix,uCLAbsorb,uCLAmb,uCLPowder,uCLSteps,uCLType; uniform vec3 uCLAlbedo;
-uniform float uRBOn,uRBInt,uRBWidth,uRBSecondary,uRBRain,uRBSuper; uniform float uLCOn,uLCCov,uLCDen,uLCScale,uLCDetail,uLCSoft,uLCShape,uLCSteps,uLCWind,uLCType; uniform vec3 uLCPos,uLCSize;   // local cloud volume
+uniform float uCLTaps; uniform float uRBOn,uRBInt,uRBWidth,uRBSecondary,uRBRain,uRBSuper; uniform float uLCOn,uLCCov,uLCDen,uLCScale,uLCDetail,uLCSoft,uLCShape,uLCSteps,uLCWind,uLCType; uniform vec3 uLCPos,uLCSize;   // local cloud volume
 uniform float uTerrOn,uTerrSize,uTerrHeight,uTerrFreq,uTerrSeed,uTerrRough,uTerrWire; uniform vec3 uTerrLow,uTerrHigh,uTerrPos;
 uniform float uStarQuality,uStarLayers,uStarAA; uniform vec4 uPresence; /* x=shadows y=GI z=collide */
 uniform float uStarsOn,uStarDensity,uStarBright,uStarSize,uStarGlow,uStarTwinkle,uStarColor,uStarLimit,uMilky,uStarRot,uMilkyTilt;
@@ -998,8 +998,8 @@ float clDensity(vec3 p,float lod){
   float det=vnoise(q*sc*9.+vec3(uTime*.02))*.6+vnoise(q*sc*19.+vec3(5.))*.4; float erode=mix(det,1.-det,clamp(hn*3.,0.,1.))*uCLDetail*.45;
   return clamp(base-erode*(1.-base),0.,1.)*uCLDen; }
 float clHG(float c,float g){ return (1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*c,1.5)); }
-float clLight(vec3 p){ // optical depth toward the sun, 5 taps with growing spacing
-  float od=0.; float st=uCLThick*.12; for(int i=1;i<=5;i++){ float d=st*float(i)*float(i)*.35; od+=clDensity(p+uSunDir*d,float(i)>3.?1.:0.)*d*.8; } return od; }
+float clLight(vec3 p){ // optical depth toward the sun: growing-spaced taps; count from the quality tier, far taps coarse
+  float od=0.; float st=uCLThick*.12; for(int i=1;i<=5;i++){ if(float(i)>uCLTaps) break; float d=st*float(i)*float(i)*.35; od+=clDensity(p+uSunDir*d,float(i)>2.?1.:0.)*d*.8; } return od; }
 vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5||uCLCov<=.001||uCLDen<=.001) return vec4(0.);
   vec3 po=ro+vec3(0.,uPlanetR,0.); float R0=uPlanetR+uCLBase, R1=R0+uCLThick; float h=length(po)-uPlanetR;
   vec2 i0=rsi(po,rd,R0), i1=rsi(po,rd,R1); vec2 ig=rsi(po,rd,uPlanetR); float t0,t1;
@@ -1118,14 +1118,18 @@ vec3 filmic(vec3 c){ return uc2(c*2.)/uc2(vec3(11.2)); }
 vec3 agxish(vec3 c){ c=max(c,0.); vec3 x=log2(c+1e-5); x=clamp((x+12.47)/16.5,0.,1.); return x*x*(3.-2.*x); }
 
 void main(){
+  if(uProbe>.5){ // ---- probe pass: 3 hemisphere sky samples (zenith, sun-side horizon, anti-sun horizon) packed into a 4x1 target
+    vec3 ro=vec3(0.,uPlanetR+uCamHeight,0.); int px=int(gl_FragCoord.x); vec3 hd=normalize(vec3(uSunDir.x,0.,uSunDir.z)+vec3(1e-4,0.,0.));
+    vec3 d=(px==0)?vec3(0.,1.,0.):(px==1)?normalize(hd+vec3(0.,.08,0.)):normalize(-hd+vec3(0.,.08,0.));
+    vec3 s,t; float g; atmosphere(ro,d,s,t,g); s*=uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible;
+    gl_FragColor=vec4(s,1.); return; }                        // linear HDR (float target); values are small (<~1e2)
   vec2 uv=(gl_FragCoord.xy*2.-uRes)/uRes.y;
   vec3 dir=normalize(uCamFwd+uCamRight*uv.x*uTanHalf+uCamUp*uv.y*uTanHalf);
   vec3 ro=vec3(0.,uPlanetR+uCamHeight,0.);
   vec3 sky,trans; float ground; atmosphere(ro,dir,sky,trans,ground);
   sky*=uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible; if(uAtmoVisible<.5) trans=vec3(1.);
   float elevDeg=degrees(asin(clamp(uSunDir.y,-1.,1.))); float sunUp=smoothstep(-6.,4.,elevDeg);
-  vec3 skyAmb; { vec3 sz,tz; float gz; atmosphere(ro,vec3(0.,1.,0.),sz,tz,gz); vec3 sh,th; float gh; vec3 hd=normalize(vec3(uSunDir.x,0.,uSunDir.z)+vec3(1e-4,0.,0.)); atmosphere(ro,normalize(hd+vec3(0.,.08,0.)),sh,th,gh); vec3 sb,tb; float gb; atmosphere(ro,normalize(-hd+vec3(0.,.08,0.)),sb,tb,gb);
-    skyAmb=(sz*.4+sh*.35+sb*.25)*uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible; }   // hemispherical sky irradiance the medium receives — the same whether you look up, down or from inside
+  vec3 skyAmb=uSkyAmb;   // hemispherical sky irradiance from the per-frame probe pass (identical atmosphere code, computed once instead of 3x per pixel)
   float skyLum=dot(sky,vec3(.2126,.7152,.0722)); float nightFade=clamp(1.-skyLum*14.,0.,1.);
   vec2 hxz=normalize(dir.xz+1e-5); vec2 sxz=normalize(uSunDir.xz+1e-5); float facing=.5+.5*dot(hxz,sxz);
   float hdrScale=uSunIntensity/22.*uSkyBright*uSkyVisible;
@@ -1196,10 +1200,11 @@ void main(){
   }else{
     col=sky+glow;
     float ext=smoothstep(hzDip-.01,hzDip+.12*groundObs+.002,dir.y); // horizon extinction, follows the true (dipped) horizon
-    if(uStarsOn>.5){
+    if(uStarsOn>.5 && uStarCeil > max(skyLum,1e-7)*uStarLimit*.6){   // atmosphere-gated: skip the whole star pass when even the brightest star cannot beat this pixel's sky (thin/absent atmosphere or altitude => stars in daylight)
       float am=airMassOf(degrees(asin(clamp(dir.y,-1.,1.))));
       float pixAng=2.*uTanHalf/uRes.y; vec3 st;
-      if(uStarAA>1.5){ // 2x2 supersample (rotated grid) => sub-pixel stars resolve cleanly without blur
+      float aaNeed=step(max(skyLum,1e-7)*uStarLimit*8.,uStarCeil);   // supersample only when the sky is dark enough for faint stars to matter
+      if(uStarAA>1.5&&aaNeed>.5){ // 2x2 supersample (rotated grid) => sub-pixel stars resolve cleanly without blur
         vec3 s0=vec3(0.); for(int q=0;q<4;q++){ vec2 o=(q==0)?vec2(-.375,-.125):(q==1)?vec2(.125,-.375):(q==2)?vec2(.375,.125):vec2(-.125,.375);
           vec3 d2=normalize(dir+(uCamRight*o.x+uCamUp*o.y)*pixAng); s0+=starField(d2,pixAng*.7,am); } st=s0*.25*trans; }
       else st=starField(dir,pixAng,am)*trans;                 // atmospheric extinction: stars redden and dim near the horizon
@@ -2602,7 +2607,8 @@ const ENTITIES={
   camera:{name:'Camera',kind:'Perspective Camera',color:'#34c759',icon:'camera',preview:'camera',hero:{label:'Field of View',unit:'°',dec:1,fn:()=>S.cam_fov},
     sections:[{title:'Lens',icon:'aperture',props:[LENS('cam_fov','Field of view',{hint:'lens diagram below'}),HORIZON('cam_yaw','cam_pitch','cam_roll','Artificial horizon',{hint:'drag — vertical pitch · horizontal yaw · ring = roll'}),GAUGE('cam_roll','Roll',-45,45,0.5,0,'°')]},
       {title:'Transform',icon:'grid',props:[PAD('cam_x','cam_z','Position',{xmin:-600,xmax:600,ymin:-600,ymax:600,xl:'X',yl:'Z',plane:true,hint:'Top-down · drag to move the camera'}),TRK('cam_height','Altitude',0.5,3000000,0.5,2,'m',{log:true,hint:'Log scale · 0.5 m → 3 000 km (orbit)'})]},
-      {title:'Navigation',icon:'orbit',props:[GAUGE('cam_speed','Fly Speed',0.5,200,0.5,8,'m/s',{log:true,hint:'Scroll while flying to change'}),GAUGE('cam_sens','Look Sensitivity',0.2,3,0.05,1,'×')]}]},
+      {title:'Navigation',icon:'orbit',props:[GAUGE('cam_speed','Fly Speed',0.5,200,0.5,8,'m/s',{log:true,hint:'Scroll while flying to change'}),GAUGE('cam_sens','Look Sensitivity',0.2,3,0.05,1,'×')]},
+      {title:'Quality',icon:'sliders',props:[DROP('rq_tier','Render quality',['Auto','Low','Economic','Standard','Ultra','Cinematic','Reference'],'Auto',{hint:'Low · Economic · Standard · Ultra · Cinematic · Reference (realistic without compromise). Auto holds the target fps.'}),TRK('rq_target','Auto target',24,120,1,45,'fps',{when:S=>S.rq_tier==='Auto'}),GAUGE('rq_scale','Render scale trim',0.5,1.5,0.05,1,'×',{hint:'Multiplies the tier internal resolution'})]}]},
   post:{name:'Post Process',kind:'Component · Camera',color:'#ff8a65',icon:'fx',warm:true,preview:'post',hero:{label:'Exposure',unit:'EV',dec:2,fn:()=>S.pp_ev,signed:true},
     sections:[{title:'Exposure & Tonemap',icon:'sliders',props:[HIST('pp_ev','Exposure',-6,6,0.05,0.4,'EV'),SEG('pp_tonemap','Tonemapper',['None','ACES','Reinhard','Filmic','AgX'],'ACES'),METER('pp_bloom','Bloom',0,3,0.01,1,'×'),METER('pp_vignette','Vignette',0,1,0.01,0.28,''),METER('pp_grain','Film Grain',0,1,0.01,0.1,'')]},
       {title:'Lens Flare',icon:'flare',warm:true,props:[TOG('pp_flare','Enabled',true),SEG('pp_flareType','Type',['Cinematic','Anamorphic','Starburst','Halo'],'Cinematic'),METER('pp_flareInt','Intensity',0,3,0.01,1,'×'),STEP('pp_ghosts','Ghosts',0,8,5),PAD('pp_halo','pp_streak','Halo × Streak',{xmin:0.1,xmax:1.2,ymin:0,ymax:2,xl:'Halo radius',yl:'Streak'}),METER('pp_chroma','Chromatic',0,1,0.01,0.65,'')]}]},
@@ -2771,7 +2777,7 @@ function miniOf(id){ // tiny inline visual per row
 function renderFilters(){ document.getElementById('filters').innerHTML=FILTERS.map(f=>`<button class="${activeF.has(f.id)?'on':''}" data-f="${f.id}" style="--c:${f.c}"><i></i>${f.l}</button>`).join(''); }
 document.getElementById('filters').addEventListener('click',e=>{ const b=e.target.closest('[data-f]'); if(!b) return; activeF.has(b.dataset.f)?activeF.delete(b.dataset.f):activeF.add(b.dataset.f); renderTree(); });
 function refreshMeta(){ treeEl.querySelectorAll('[data-meta]').forEach(el=>el.textContent=metaShort(el.dataset.meta)); treeEl.querySelectorAll('[data-stat]').forEach(el=>{ const [sc,st]=statusOf(el.dataset.stat); if(!el.classList.contains(sc)){ el.className='nstat '+sc; el.innerHTML=I(sc==='ok'?'check':sc==='info'?'dot':'warn',11); } el.title=st; });
-  renderSceneStat(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; document.getElementById('hudCam').textContent=`${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; }
+  renderSceneStat(); document.getElementById('clock').innerHTML=fmtT(S.sun_time)+`<small>LST</small>`; document.getElementById('hudCam').textContent=`${S.cam_x.toFixed(0)}, ${S.cam_height.toFixed(1)}, ${S.cam_z.toFixed(0)}`; const ht=document.getElementById('hudTier'); if(ht) ht.textContent=tierName(); }
 treeEl.addEventListener('click',e=>{
   const eye=e.target.closest('[data-eye]'); if(eye){ e.stopPropagation(); const id=eye.dataset.eye; if(id.startsWith('moon#')) S.moons[+id.slice(5)].visible^=true; else S['vis_'+id]=!visOf(id); renderTree(); if(selected===id) renderInspector(); return; }
   const ch=e.target.closest('[data-chev]'); if(ch){ e.stopPropagation(); const id=ch.dataset.chev; openF[id]=openF[id]===false; renderTree(); return; }
@@ -3142,7 +3148,23 @@ insp.addEventListener('click',e=>{
   const head=e.target.closest('.sec-head'); if(head&&head.parentElement.dataset.sec!==undefined){ head.parentElement.classList.toggle('closed'); } });
 const STAR_LOOKS={Natural:{st_glow:.8,st_twinkle:.5,st_size:1,st_color:1,st_bright:1,st_milky:1},Crisp:{st_glow:.25,st_twinkle:.2,st_size:.7,st_color:.8,st_bright:1.2,st_milky:.6},Cinematic:{st_glow:1.6,st_twinkle:.75,st_size:1.3,st_color:1,st_bright:1.3,st_milky:1.4},Hubble:{st_glow:2,st_twinkle:0,st_size:1.1,st_color:1,st_bright:1.6,st_milky:1.8},Anime:{st_glow:1.2,st_twinkle:1,st_size:1.8,st_color:.3,st_bright:2,st_milky:.5}};
 const STAR_Q={Draft:{layers:2,aa:1},Balanced:{layers:3,aa:1},High:{layers:3,aa:2},Ultra:{layers:4,aa:2}};
-function onChanged(k){ if(k==='cl_type'){ const P={Stratus:{base:400,thick:350,den:1.2,cov:.85,scale:2.5,detail:.25,anvil:0},Stratocumulus:{base:900,thick:600,den:1,cov:.6,scale:1.2,detail:.5,anvil:.1},Cumulus:{base:1500,thick:900,den:1,cov:.45,scale:1.4,detail:.6,anvil:.3},Cumulonimbus:{base:1200,thick:7000,den:1.6,cov:.5,scale:3,detail:.55,anvil:.8},Altostratus:{base:4000,thick:1200,den:.6,cov:.8,scale:3,detail:.3,anvil:.1},Cirrus:{base:8500,thick:900,den:.35,cov:.5,scale:4,detail:.4,anvil:.6}}[S.cl_type]; if(P){ S.cl_base=P.base; S.cl_thick=P.thick; S.cl_den=P.den; S.cl_cov=P.cov; S.cl_scale=P.scale; S.cl_detail=P.detail; S.cl_anvil=P.anvil; renderInspector(); } } if(k==='vf_shape'){ if(S.vf_shape==='Sphere'||S.vf_shape==='Dome') S.vf_sz=S.vf_sx; renderInspector(); } if(k==='vf_sx'&&(S.vf_shape==='Sphere'||S.vf_shape==='Dome')) S.vf_sz=S.vf_sx; if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ Object.assign(S,L); renderInspector(); } } if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
+// ---- Render quality tiers (Camera › Quality). Each tier is a full set of budgets; 'Auto' walks the ladder to hold a target fps.
+const QUALITY_TIERS=['Low','Economic','Standard','Ultra','Cinematic','Reference'];
+const QUALITY={
+  Low:      {scale:.6, cloudSteps:16,lightTaps:3,cloudRes:.25,starAA:1,starLayers:2,localSteps:12,precip:'Low',   covMargin:.10,atmoN:8, atmoNL:3},
+  Economic: {scale:.75,cloudSteps:20,lightTaps:3,cloudRes:.5, starAA:1,starLayers:3,localSteps:16,precip:'Low',   covMargin:.06,atmoN:12,atmoNL:4},
+  Standard: {scale:1,  cloudSteps:28,lightTaps:4,cloudRes:.5, starAA:1,starLayers:3,localSteps:28,precip:'Medium',covMargin:.03,atmoN:16,atmoNL:6},
+  Ultra:    {scale:1.5,cloudSteps:36,lightTaps:5,cloudRes:.5, starAA:2,starLayers:3,localSteps:36,precip:'High',  covMargin:.0, atmoN:20,atmoNL:8},
+  Cinematic:{scale:2,  cloudSteps:48,lightTaps:5,cloudRes:1,  starAA:2,starLayers:4,localSteps:48,precip:'High',  covMargin:.0, atmoN:24,atmoNL:8},
+  Reference:{scale:3,  cloudSteps:64,lightTaps:5,cloudRes:1,  starAA:2,starLayers:4,localSteps:64,precip:'High',  covMargin:.0, atmoN:32,atmoNL:12}};
+let autoTier='Standard', autoT=0;
+function tierName(){ return S.rq_tier==='Auto'?autoTier:(S.rq_tier||'Standard'); }
+function Q(){ return QUALITY[tierName()]||QUALITY.Standard; }
+function renderScale(){ const q=Q(); const dpr=devicePixelRatio||1; const s=Math.min(q.scale,dpr)*(S.rq_scale||1); return Math.max(.3,Math.min(3,s)); }
+function autoStep(fps,dt){ if(S.rq_tier!=='Auto') return; autoT+=dt; if(autoT<1.5) return; autoT=0; const i=QUALITY_TIERS.indexOf(autoTier); const target=S.rq_target||45;
+  if(fps<target*.85&&i>0){ autoTier=QUALITY_TIERS[i-1]; onTierChanged(); } else if(fps>target*1.35&&i<QUALITY_TIERS.length-1){ autoTier=QUALITY_TIERS[i+1]; onTierChanged(); } }
+function onTierChanged(){ resize(true); if(selected==='camera') refreshHero(); const el=document.getElementById('hudTier'); if(el) el.textContent=tierName(); }
+function onChanged(k){ if(k==='rq_tier'||k==='rq_scale'){ onTierChanged(); if(k==='rq_tier') renderInspector(); } if(k==='cl_type'){ const P={Stratus:{base:400,thick:350,den:1.2,cov:.85,scale:2.5,detail:.25,anvil:0},Stratocumulus:{base:900,thick:600,den:1,cov:.6,scale:1.2,detail:.5,anvil:.1},Cumulus:{base:1500,thick:900,den:1,cov:.45,scale:1.4,detail:.6,anvil:.3},Cumulonimbus:{base:1200,thick:7000,den:1.6,cov:.5,scale:3,detail:.55,anvil:.8},Altostratus:{base:4000,thick:1200,den:.6,cov:.8,scale:3,detail:.3,anvil:.1},Cirrus:{base:8500,thick:900,den:.35,cov:.5,scale:4,detail:.4,anvil:.6}}[S.cl_type]; if(P){ S.cl_base=P.base; S.cl_thick=P.thick; S.cl_den=P.den; S.cl_cov=P.cov; S.cl_scale=P.scale; S.cl_detail=P.detail; S.cl_anvil=P.anvil; renderInspector(); } } if(k==='vf_shape'){ if(S.vf_shape==='Sphere'||S.vf_shape==='Dome') S.vf_sz=S.vf_sx; renderInspector(); } if(k==='vf_sx'&&(S.vf_shape==='Sphere'||S.vf_shape==='Dome')) S.vf_sz=S.vf_sx; if(k==='st_look'){ const L=STAR_LOOKS[S.st_look]; if(L){ Object.assign(S,L); renderInspector(); } } if(k==='sun_time') drawDay(); updatePreview(); refreshMeta(); }
 
 /* ============================================================ INSPECTOR ============================================================ */
 // reference-style stat card: colour bar + label, big light number + unit, trend arrow, delta pill, dotted day-series with threshold line
@@ -3382,7 +3404,7 @@ const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(g
 const U={}; const u=n=>U[n]!==undefined?U[n]:(U[n]=gl.getUniformLocation(prog,n)); const f1=(n,v)=>gl.uniform1f(u(n),v), f2=(n,a,b)=>gl.uniform2f(u(n),a,b), f3=(n,v)=>gl.uniform3f(u(n),v[0],v[1],v[2]);
 function flyEnabled(){ const c=S.presence&&S.presence.camera; return !c||c.fly!==false; }
 function clampCam(){ const pr=S.presence&&S.presence.plane; if(pr&&pr.collide&&S.vis_plane){ const minH=S.pl_y+.4; if(S.cam_height<minH) S.cam_height=minH; } }
-function resize(){ const dpr=Math.min(devicePixelRatio||1,3); const w=Math.floor(innerWidth*dpr),h=Math.floor(innerHeight*dpr); if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',resize);
+function resize(force){ const s=renderScale(); const w=Math.max(64,Math.floor(innerWidth*s)),h=Math.max(64,Math.floor(innerHeight*s)); if(force||canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; gl.viewport(0,0,w,h); } } addEventListener('resize',()=>resize());
 /* Unreal-style viewport navigation: RMB (or LMB) look + WASD/QE fly, scroll while holding = speed, scroll idle = FOV */
 const keys=new Set(); let cdrag=null; let speedFlash=0;
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
@@ -3407,7 +3429,7 @@ function prGroundY(x,z){ return (S.vis_plane!==false)?S.pl_y:-1e9; }
 function prStep(dt){ const cv=document.getElementById('precip'); const on=S.vis_precip!==false&&S.vis_vclouds!==false&&S.pr_rate>0&&CAM; const g=PR.ctx; const dpr=Math.min(devicePixelRatio||1,2);
   if(cv.width!==Math.floor(innerWidth*dpr)||cv.height!==Math.floor(innerHeight*dpr)){ cv.width=Math.floor(innerWidth*dpr); cv.height=Math.floor(innerHeight*dpr); }
   g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,innerWidth,innerHeight); if(!on){ PR.pool.length=0; PR.alive=0; PR.landed=0; return; }
-  const T=PR_TYPES[S.pr_type]; const budget=PR_BUDGET[S.pr_quality]; const cam=CAM.pos; const R=45; // spawn radius around camera (m)
+  const T=PR_TYPES[S.pr_type]; const budget=Math.min(PR_BUDGET[S.pr_quality],PR_BUDGET[Q().precip]); const cam=CAM.pos; const R=45; // spawn radius around camera (m)
   const ceiling=S.pr_fromClouds?S.cl_base+S.cl_thick*.5:Math.min(S.cl_base,3000); const altFade=1-Math.min(1,Math.max(0,(cam[1]-(ceiling-150))/150));   // rain lives under the cloud; nothing above it
   if(altFade<=0){ PR.pool.length=0; PR.alive=0; PR.landed=0; return; }
   const area=Math.PI*R*R; const perM2=S.pr_type==='Snow'?S.pr_rate*.9:S.pr_type==='Drizzle'?S.pr_rate*2.2:S.pr_rate*.55;   // drops per m² per second (rain ≈ 0.5·mm/h for 2 mm drops)
@@ -3534,17 +3556,24 @@ function getTex(name){ if(glTex[name]) return glTex[name]; const t=gl.createText
 MOON_ATLAS.forEach(a=>getTex(a.tex));
 const TM={None:0,ACES:1,Reinhard:2,Filmic:3,AgX:4}, FT={Cinematic:0,Anamorphic:1,Starburst:2,Halo:3};
 let last=performance.now(),fpsAcc=0,fpsN=0,t0=last; const colBuf=new Uint8Array(4*64);
+// ---- sky-ambient probe: 4x1 float render target, read back once per frame (falls back to RGBA8 with a fixed scale if float is unavailable)
+const PROBE=(()=>{ const ext=gl.getExtension('OES_texture_float'); const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  let type=ext?gl.FLOAT:gl.UNSIGNED_BYTE; gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,4,1,0,gl.RGBA,type,null); const fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  let ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; if(!ok&&type===gl.FLOAT){ type=gl.UNSIGNED_BYTE; gl.bindTexture(gl.TEXTURE_2D,tex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,4,1,0,gl.RGBA,type,null); ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); const buf=type===gl.FLOAT?new Float32Array(16):new Uint8Array(16); return {fb,tex,type,ok:ok&&!!ext,buf,amb:[0,0,0]}; })();
+function runProbe(){ if(!PROBE.ok) return null; gl.bindFramebuffer(gl.FRAMEBUFFER,PROBE.fb); gl.viewport(0,0,4,1); f1('uProbe',1); f2('uRes',4,1); gl.drawArrays(gl.TRIANGLES,0,3); gl.readPixels(0,0,4,1,gl.RGBA,PROBE.type,PROBE.buf); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,canvas.width,canvas.height); f1('uProbe',0); f2('uRes',canvas.width,canvas.height);
+  const b=PROBE.buf; const amb=[0,1,2].map(c=>b[c]*.4+b[4+c]*.35+b[8+c]*.25); PROBE.amb=amb; return amb; }
 function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   S.play=!!S.sun_play; S.speed={'×1':.02,'×8':.15,'×30':.6,'×100':2}[S.sun_speed]||.15; if(S.play){ S.sun_time=(S.sun_time+dt*S.speed)%24; if(selected==='sun'&&fpsN%4===0) refreshCtl('sun_time'); if(selected==='sky'&&fpsN%20===0) drawSkyDay(); }
   flyStep(dt); resize(); updateClock(); const time=(now-t0)/1000; updateNavHud(dt);
   const yaw=S.cam_yaw*D2R,pitch=S.cam_pitch*D2R; const fwd=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]; const right=[Math.cos(yaw),0,Math.sin(yaw)]; let up=[-Math.sin(pitch)*Math.sin(yaw),Math.cos(pitch),Math.sin(pitch)*Math.cos(yaw)]; { const r=(S.cam_roll||0)*D2R, cr=Math.cos(r), sr=Math.sin(r); const R0=right.slice(), U0=up.slice(); for(let i=0;i<3;i++){ right[i]=R0[i]*cr+U0[i]*sr; up[i]=U0[i]*cr-R0[i]*sr; } } const tanH=Math.tan(S.cam_fov*D2R/2);
   CAM={fwd,right,up,tanH,pos:[S.cam_x,S.cam_height,S.cam_z]}; prStep(dt); gizmoDraw(); clampCam(); const pf=S.presence&&S.presence.post||{}; const sf=S.presence&&S.presence.sun||{}; const stf=S.presence&&S.presence.stars||{}; const sv=sunDir().v; const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; const cx=dot(sv,right),cy=dot(sv,up),cz=dot(sv,fwd); const inFront=cz>.02?1:0; const sunUV=inFront?[cx/cz/tanH,cy/cz/tanH]:[99,99];
   f2('uRes',canvas.width,canvas.height); f1('uTime',time); f3('uCamFwd',fwd); f3('uCamRight',right); f3('uCamUp',up); f1('uTanHalf',tanH); f1('uCamHeight',S.cam_height); f3('uCamPos',[S.cam_x,S.cam_height,S.cam_z]);
-  f1('uCLOn',S.vis_vclouds!==false?1:0); f1('uCLBase',S.cl_base); f1('uCLThick',S.cl_thick); f1('uCLCov',S.cl_cov); f1('uCLDen',S.cl_den); f1('uCLScale',S.cl_scale); f1('uCLDetail',S.cl_detail); f1('uCLAnvil',S.cl_anvil); f1('uCLWind',S.cl_wind); f1('uCLWindDir',S.cl_winddir*D2R); f1('uCLG1',S.cl_g1); f1('uCLG2',S.cl_g2); f1('uCLMix',S.cl_mix); f1('uCLAbsorb',S.cl_absorb); f1('uCLAmb',S.cl_amb); f1('uCLPowder',S.cl_powder); f1('uCLSteps',{Draft:20,Balanced:36,High:64}[S.cl_steps]||36); f1('uCLType',['Stratus','Stratocumulus','Cumulus','Cumulonimbus','Altostratus','Cirrus'].indexOf(S.cl_type)); f3('uCLAlbedo',hex2rgb(S.cl_albedo));
+  f1('uCLOn',S.vis_vclouds!==false?1:0); f1('uCLBase',S.cl_base); f1('uCLThick',S.cl_thick); f1('uCLCov',S.cl_cov); f1('uCLDen',S.cl_den); f1('uCLScale',S.cl_scale); f1('uCLDetail',S.cl_detail); f1('uCLAnvil',S.cl_anvil); f1('uCLWind',S.cl_wind); f1('uCLWindDir',S.cl_winddir*D2R); f1('uCLG1',S.cl_g1); f1('uCLG2',S.cl_g2); f1('uCLMix',S.cl_mix); f1('uCLAbsorb',S.cl_absorb); f1('uCLAmb',S.cl_amb); f1('uCLPowder',S.cl_powder); f1('uCLSteps',Math.min({Draft:20,Balanced:36,High:64}[S.cl_steps]||36,Q().cloudSteps)); f1('uCLTaps',Q().lightTaps); f1('uCLType',['Stratus','Stratocumulus','Cumulus','Cumulonimbus','Altostratus','Cirrus'].indexOf(S.cl_type)); f3('uCLAlbedo',hex2rgb(S.cl_albedo));
   { const rainOn=S.vis_precip!==false&&S.vis_vclouds!==false&&S.pr_rate>0&&(S.pr_type==='Rain'||S.pr_type==='Drizzle'||S.pr_type==='Sleet'); const rvAlt=1-Math.min(1,Math.max(0,(S.cam_height-S.cl_base)/Math.max(200,S.cl_thick))); const rv=(S.rb_mode==='Always'?1:(rainOn?Math.min(1,.6+S.pr_rate/25):0))*rvAlt; f1('uRBOn',S.rb_on&&S.vis_precip!==false?1:0); f1('uRBInt',S.rb_int); f1('uRBWidth',S.rb_width); f1('uRBSecondary',S.rb_sec); f1('uRBRain',rv); f1('uRBSuper',S.rb_super); }
-  f1('uLCOn',S.vis_lcloud!==false?1:0); f1('uLCCov',S.lc_cov); f1('uLCDen',S.lc_den); f1('uLCScale',S.lc_scale); f1('uLCDetail',S.lc_detail); f1('uLCSoft',S.lc_soft); f1('uLCShape',S.lc_shape==='Ellipsoid'?1:0); f1('uLCSteps',{Draft:20,Balanced:36,High:64}[S.lc_steps]||36); f1('uLCWind',S.lc_wind); f1('uLCType',['Stratiform','Cumuliform','Wispy'].indexOf(S.lc_type)); f3('uLCPos',[S.lc_x,S.lc_y,S.lc_z]); f3('uLCSize',[S.lc_sx,S.lc_sy,S.lc_sz]);
+  f1('uLCOn',S.vis_lcloud!==false?1:0); f1('uLCCov',S.lc_cov); f1('uLCDen',S.lc_den); f1('uLCScale',S.lc_scale); f1('uLCDetail',S.lc_detail); f1('uLCSoft',S.lc_soft); f1('uLCShape',S.lc_shape==='Ellipsoid'?1:0); f1('uLCSteps',Math.min({Draft:20,Balanced:36,High:64}[S.lc_steps]||36,Q().localSteps)); f1('uLCWind',S.lc_wind); f1('uLCType',['Stratiform','Cumuliform','Wispy'].indexOf(S.lc_type)); f3('uLCPos',[S.lc_x,S.lc_y,S.lc_z]); f3('uLCSize',[S.lc_sx,S.lc_sy,S.lc_sz]);
   f1('uAFOn',S.vis_afog!==false?1:0); f1('uAFDensity',S.af_density*1e-5); f1('uAFHeight',S.af_height); f1('uAFStart',S.af_start); f1('uAFMie',S.af_mie); f1('uAFG',S.af_g); f1('uAFSky',S.af_sky); f3('uAFTint',hex2rgb(S.af_tint));
-  f1('uVFOn',S.vis_vfog!==false?1:0); f1('uVFDensity',S.vf_density); f1('uVFNoise',S.vf_noise); f1('uVFScale',S.vf_scale); f1('uVFSpeed',S.vf_speed); f1('uVFG',S.vf_g); f1('uVFSoft',S.vf_soft); f1('uVFAbsorb',S.vf_absorb); f1('uVFShape',{Box:0,Ellipsoid:1,Sphere:2,Dome:3}[S.vf_shape]||0); f1('uVFFall',S.vf_fall?1:0); f1('uVFSteps',{Draft:16,Balanced:28,High:48}[S.vf_steps]||28); f1('uVFSelf',S.vf_self?1:0); f3('uVFPos',[S.vf_x,S.vf_y,S.vf_z]); f3('uVFSize',[S.vf_sx,S.vf_sy,S.vf_sz]); f3('uVFAlbedo',hex2rgb(S.vf_albedo));
+  f1('uVFOn',S.vis_vfog!==false?1:0); f1('uVFDensity',S.vf_density); f1('uVFNoise',S.vf_noise); f1('uVFScale',S.vf_scale); f1('uVFSpeed',S.vf_speed); f1('uVFG',S.vf_g); f1('uVFSoft',S.vf_soft); f1('uVFAbsorb',S.vf_absorb); f1('uVFShape',{Box:0,Ellipsoid:1,Sphere:2,Dome:3}[S.vf_shape]||0); f1('uVFFall',S.vf_fall?1:0); f1('uVFSteps',Math.min({Draft:16,Balanced:28,High:48}[S.vf_steps]||28,Q().localSteps)); f1('uVFSelf',S.vf_self?1:0); f3('uVFPos',[S.vf_x,S.vf_y,S.vf_z]); f3('uVFSize',[S.vf_sx,S.vf_sy,S.vf_sz]); f3('uVFAlbedo',hex2rgb(S.vf_albedo));
   { const F=S.fogP,C=S.cloudP,T=S.terrP; f1('uFogOn',0); f1('uFogDensity',F.density); f1('uFogHeight',F.height); f1('uFogScatter',F.sunScatter); f3('uFogColor',hex2rgb(F.color));
     f1('uCloudOn',0); f1('uCloudCov',C.coverage); f1('uCloudDen',C.density); f1('uCloudAlt',C.altitude); f1('uCloudScale',C.scale); f1('uCloudDetail',C.detail); f1('uCloudSpeed',C.speed); f3('uCloudTint',hex2rgb(C.tint)); f3('uCloudShade',hex2rgb(C.shade));
     f1('uTerrOn',0); f1('uTerrSize',T.size); f1('uTerrHeight',T.height); f1('uTerrFreq',T.frequency); f1('uTerrSeed',T.seed); f1('uTerrRough',T.roughness); f1('uTerrWire',T.wireframe?1:0); f3('uTerrLow',hex2rgb(T.lowColor)); f3('uTerrHigh',hex2rgb(T.highColor)); f3('uTerrPos',[T.pos[0],S.pl_y+T.pos[1],T.pos[2]]); }
@@ -3554,17 +3583,18 @@ function frame(now){ const dt=Math.min(.1,(now-last)/1000); last=now;
   f3('uSunDir',sv); f3('uSunColor',kelvinRGB(S.sun_temp)); f1('uSunIntensity',S.sun_intensity); f1('uSunAng',S.sun_ang*D2R/2); f1('uSunSoft',S.sun_soft); f1('uSunVisible',S.vis_sun?1:0); f1('uSunDiscBoost',S.sun_disc);
   f1('uRayleigh',S.atm_rayleigh); f1('uMie',S.atm_mie); f1('uMieG',S.atm_mieG); f1('uOzone',S.atm_ozone); f1('uPlanetR',S.atm_planetR*1000); f1('uAtmoH',S.atm_height*1000); f1('uHr',S.atm_hr); f1('uHm',S.atm_hm); f1('uAtmoVisible',S.vis_atmosphere?1:0);
   f3('uSkyTint',hex2rgb(S.sky_tint).map(v=>1-(1-v)*.35)); f3('uGroundColor',hex2rgb(S.sky_ground)); f1('uSkyBright',S.sky_bright); f1('uGroundBright',S.sky_groundBright); f1('uSkyVisible',S.vis_sky?1:0); f1('uHLInt',S.hl_int); f1('uDawnInt',S.dawn_int); f1('uHLAuto',S.hl_auto?1:0);
-  { const pp_=S.presence.plane||{}; gl.uniform4f(u('uPresence'),pp_.shadows?1:0,pp_.gi?1:0,pp_.collide?1:0,0); } { const Q=STAR_Q[S.st_quality]||STAR_Q.High; f1('uStarLayers',Q.layers); f1('uStarAA',Q.aa); } f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',stf.twinkle===false?0:S.st_twinkle); f1('uStarColor',stf.color===false?0:S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',stf.milky===false?0:S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
+  { const pp_=S.presence.plane||{}; gl.uniform4f(u('uPresence'),pp_.shadows?1:0,pp_.gi?1:0,pp_.collide?1:0,0); } { const sq=STAR_Q[S.st_quality]||STAR_Q.High; const q=Q(); f1('uStarLayers',Math.min(sq.layers,q.starLayers)); f1('uStarAA',Math.min(sq.aa,q.starAA)); } f1('uStarsOn',S.vis_stars?1:0); f1('uStarDensity',S.st_density); f1('uStarBright',S.st_bright); f1('uStarSize',S.st_size); f1('uStarGlow',S.st_glow); f1('uStarTwinkle',stf.twinkle===false?0:S.st_twinkle); f1('uStarColor',stf.color===false?0:S.st_color); f1('uStarLimit',S.st_limit); f1('uMilky',stf.milky===false?0:S.st_milky); f1('uStarRot',S.st_rot*D2R); f1('uMilkyTilt',S.st_tilt*D2R);
   const vm=S.vis_moons?S.moons.filter(m=>m.visible):[]; gl.uniform1i(u('uMoonCount'),vm.length); const md=[],t1=[],mp=[],ms=[];
   for(let i=0;i<4;i++){ const m=vm[i]; gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,m?getTex(m.tex):whiteTex); gl.uniform1i(u('uMoonTex'+i),i);
     if(m){ md.push(...moonDir(m)); t1.push(...hex2rgb(m.tint)); mp.push(m.size*D2R/2,m.bright,m.phase,m.glow); ms.push(m.spin*D2R,m.tilt*D2R,m.haze,m.gamma); } else { md.push(0,1,0); t1.push(0,0,0); mp.push(.01,0,0,0); ms.push(0,0,0,1); } }
   gl.uniform3fv(u('uMoonDir'),md); gl.uniform3fv(u('uMoonTint'),t1); gl.uniform4fv(u('uMoonP'),mp); gl.uniform4fv(u('uMoonSurf'),ms);
   const pp=S.vis_post; f1('uEV',pp?S.pp_ev:0); f1('uTonemap',pp?TM[S.pp_tonemap]:1); f1('uBloom',pp&&pf.bloom!==false?S.pp_bloom:0); f1('uVignette',pp?S.pp_vignette:0); f1('uGrain',pp&&pf.grain!==false?S.pp_grain:0);
   f1('uFlareOn',pp&&S.pp_flare?1:0); f1('uFlareInt',S.pp_flareInt); f1('uGhosts',S.pp_ghosts); f1('uHalo',S.pp_halo); f1('uStreak',S.pp_streak); f1('uChroma',S.pp_chroma); f1('uFlareType',FT[S.pp_flareType]); f2('uSunUV',sunUV[0],sunUV[1]); f1('uSunInFront',inFront);
+  { const amb=runProbe(); if(amb) f3('uSkyAmb',amb); else { const z=zenithLum()*1e-3; f3('uSkyAmb',[z*.8,z*.9,z]); } const ceil=8.*2.6e-3*(S.st_bright||1)*3.2*1.6; f1('uStarCeil',ceil); }   // ceiling = brightest modelled star (bright≈8, core gain) in the star pass units
   gl.drawArrays(gl.TRIANGLES,0,3);
   // live sky strip (read a centre column while the framebuffer is fresh)
   if(selected==='sky'&&fpsN%3===0){ const cv=document.getElementById('pvSkyLive'); if(cv){ const ctx=cv.getContext('2d'); const W=cv.width; const X=canvas.width>>1; for(let i=0;i<64;i++){ const y=Math.floor(canvas.height-1-i/63*(canvas.height-1)); gl.readPixels(X,y,1,1,gl.RGBA,gl.UNSIGNED_BYTE,colBuf.subarray(i*4,i*4+4)); ctx.fillStyle=`rgb(${colBuf[i*4]},${colBuf[i*4+1]},${colBuf[i*4+2]})`; ctx.fillRect(i/64*W,0,W/64+1,cv.height); } } }
-  fpsAcc+=dt; fpsN++; if(fpsAcc>.5){ document.getElementById('fps').textContent=Math.round(fpsN/fpsAcc); fpsAcc=0; fpsN=0; } requestAnimationFrame(frame); }
+  fpsAcc+=dt; fpsN++; if(fpsAcc>.5){ const fps=fpsN/fpsAcc; document.getElementById('fps').textContent=Math.round(fps); autoStep(fps,fpsAcc); fpsAcc=0; fpsN=0; const el=document.getElementById('hudPx'); if(el) el.textContent=`${canvas.width}×${canvas.height}`; } requestAnimationFrame(frame); }
 renderTree(); renderInspector(); drawDay(); requestAnimationFrame(frame);
 addEventListener('keydown',e=>{ if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='f'){ e.preventDefault(); document.getElementById('search').focus(); } if(e.key===' '&&document.activeElement.tagName!=='INPUT'){ e.preventDefault(); S.sun_play=!S.sun_play; if(selected==='sun') refreshCtl('sun_play'); } });
 </script>
