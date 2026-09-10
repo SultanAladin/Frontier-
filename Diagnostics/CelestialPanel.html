@@ -866,13 +866,15 @@ void atmosphere(vec3 ro,vec3 rd,out vec3 sky,out vec3 trans,out float ground){
 
 // ===== Wind Field: ONE function every medium reads. base(speed,bearing) * altitude shear (Ekman-ish: faster + veering with height)
 //       * gust (slow time modulation, phase from CPU so particles agree) + turbulence (curl of low-freq noise => divergence-free swirl).
+vec3 gSwirl=vec3(0.);   // per-pixel turbulence displacement, filled once in main()
 vec2 windBase(float y){ float km=max(0.,y)/1000.; float sp=uWSpeed*(1.+uWShear*km); float b=uWDir+uWVeer*km*PI/180.; return vec2(sin(b),cos(b))*sp; }
 float windGust(){ return 1.+uWGust*(.55*sin(uWGustPhase)+.3*sin(uWGustPhase*2.31+1.7)+.15*sin(uWGustPhase*4.7+.4)); }
 vec3 windTurb(vec3 p,float t){ if(uWTurb<=0.) return vec3(0.); vec3 q=p*.02+vec3(t*.05,0.,t*.03); float e=.5;
   float n1=vnoise(q+vec3(0.,e,0.))-vnoise(q-vec3(0.,e,0.)), n2=vnoise(q+vec3(0.,0.,e))-vnoise(q-vec3(0.,0.,e)), n3=vnoise(q+vec3(e,0.,0.))-vnoise(q-vec3(e,0.,0.));
   return vec3(n1-n2,n2-n3,n3-n1)*uWTurb*uWSpeed*.9; }
 vec3 windAt(vec3 p,float t){ vec2 b=windBase(p.y)*windGust(); return vec3(b.x,0.,b.y)+windTurb(p,t); }
-vec3 windDisp(vec3 p,float t){ vec2 b=windBase(p.y); float f=length(b)/max(1e-3,uWSpeed); return vec3(uWInt.x*f,0.,uWInt.y*f)+windTurb(p,t)*8.; }
+vec3 windDisp(vec3 p,float t){ vec2 b=windBase(p.y); float f=length(b)/max(1e-3,uWSpeed); return vec3(uWInt.x*f,0.,uWInt.y*f); }   // cheap: 2 trig + 1 mul, safe inside marches
+vec3 windSwirl(vec3 p,float t){ return windTurb(p,t)*8.; }                                                                          // 6 noise evals — call ONCE per pixel, never per step
 /* ---- moons: UV-sphere textured ---- */
 vec3 moonTex(int i,vec2 uv){ if(i==0) return texture2D(uMoonTex0,uv).rgb; if(i==1) return texture2D(uMoonTex1,uv).rgb; if(i==2) return texture2D(uMoonTex2,uv).rgb; return texture2D(uMoonTex3,uv).rgb; }
 vec3 moons(vec3 d,vec3 trans){
@@ -973,7 +975,7 @@ float vfShapeMask(vec3 q){ // q in [-1,1] normalised space; m = signed inside-di
   if(uVFFall>.5) return pow(smoothstep(0.,1.,clamp(m,0.,1.)),mix(.35,3.,uVFSoft));                 // density falloff: soft toward the shell over the whole radius
   return smoothstep(0.,max(.02,uVFSoft*.5),m); }                                                    // hard-ish shell with a thin soft rim
 float vfDensity(vec3 p){ vec3 q=(p-vfCenter())/vfHalf(); float mask=vfShapeMask(q); if(mask<=0.) return 0.;
-  vec3 w=(uWLinkVF>.5)?windDisp(p,uTime)*.35/max(.5,uVFScale):vec3(uTime*uVFSpeed*.35,uTime*uVFSpeed*.05,uTime*uVFSpeed*.2); vec3 s=p/max(.5,uVFScale)+w;
+  vec3 w=(uWLinkVF>.5)?(windDisp(p,uTime)+gSwirl)*.35/max(.5,uVFScale):vec3(uTime*uVFSpeed*.35,uTime*uVFSpeed*.05,uTime*uVFSpeed*.2); vec3 s=p/max(.5,uVFScale)+w;
   float n=vnoise(s)*.55+vnoise(s*2.3+1.7)*.3+vnoise(s*5.1+4.2)*.15;
   float het=mix(1.,smoothstep(.28,.85,n)*1.6,uVFNoise);
   float grav=1.-.35*clamp(q.y*.5+.5,0.,1.);                                      // denser at the bottom like a real cold pool
@@ -1039,7 +1041,7 @@ vec4 cloudMarch(vec3 ro,vec3 rd,vec3 sky,vec3 trans,float tmax){ if(uCLOn<.5||uC
 float lcMask(vec3 q){ float m; if(uLCShape<.5){ vec3 a=1.-abs(q); m=min(min(a.x,a.y),a.z); } else { m=1.-length(q); } return smoothstep(0.,max(.05,uLCSoft),m); }
 float lcDensity(vec3 p,float lod){ vec3 q=(p-uLCPos)/uLCSize; float mask=lcMask(q); if(mask<=0.) return 0.;
   float hn=clamp(q.y*.5+.5,0.,1.); float prof=(uLCType<.5)?smoothstep(0.,.1,hn)*(1.-smoothstep(.75,1.,hn)):(uLCType<1.5)?smoothstep(0.,.08,hn)*(1.-smoothstep(.4,1.,hn))*1.15:smoothstep(0.,.3,hn)*(1.-smoothstep(.6,1.,hn))*.6; // 0 stratiform 1 cumuliform 2 wispy
-  vec3 s=(p+((uWLinkLC>.5)?windDisp(p,uTime)*.6:vec3(uTime*uLCWind*.6,0.,uTime*uLCWind*.2)))/max(1.,uLCScale);
+  vec3 s=(p+((uWLinkLC>.5)?windDisp(p,uTime)*.6+gSwirl*.6:vec3(uTime*uLCWind*.6,0.,uTime*uLCWind*.2)))/max(1.,uLCScale);
   float shape=vnoise(s)*.5+vnoise(s*2.02+vec3(3.1,1.7,9.2))*.25+vnoise(s*4.1+vec3(7.7,2.2,1.1))*.125+vnoise(s*8.3+vec3(1.3,8.8,4.4))*.0625; shape/=.9375;
   float cov=uLCCov; float base=clamp((shape-(1.-cov))/max(1e-3,cov),0.,1.)*prof*mask;
   if(base<=0.||lod>.5) return base*uLCDen;
@@ -1140,6 +1142,7 @@ void main(){
   vec3 sky,trans; float ground; atmosphere(ro,dir,sky,trans,ground);
   sky*=uSkyTint*uSkyBright*uSkyVisible*uAtmoVisible; if(uAtmoVisible<.5) trans=vec3(1.);
   float elevDeg=degrees(asin(clamp(uSunDir.y,-1.,1.))); float sunUp=smoothstep(-6.,4.,elevDeg);
+  if(uWTurb>0.&&(uWLinkVF>.5||uWLinkLC>.5)) gSwirl=windSwirl(uCamPos+dir*30.,uTime);   // one evaluation per pixel (6 noise), only when turbulence is on
   vec3 skyAmb=uSkyAmb;   // hemispherical sky irradiance from the per-frame probe pass (identical atmosphere code, computed once instead of 3x per pixel)
   float skyLum=dot(sky,vec3(.2126,.7152,.0722)); float nightFade=clamp(1.-skyLum*14.,0.,1.);
   vec2 hxz=normalize(dir.xz+1e-5); vec2 sxz=normalize(uSunDir.xz+1e-5); float facing=.5+.5*dot(hxz,sxz);
