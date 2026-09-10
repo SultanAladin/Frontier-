@@ -926,22 +926,24 @@ float airMassOf(float e){ float z=90.-e; if(z>=96.) return 40.; return min(40.,1
 /* ---- lens flare ---- */
 vec3 hue(float h){ return clamp(abs(mod(h*6.+vec3(0,4,2),6.)-3.)-1.,0.,1.); }
 // ---- ported entities: height fog (exp² of distance, exp height falloff), cloud layer (value-noise slab), height field ----
-float fogT(float d,float y0,float y1){ // transmission along a segment from height y0 to y1 over distance d
-  float hh=max(1.,uFogHeight); float ya=max(0.,min(y0,y1)), yb=max(0.,max(y0,y1)); float k=(yb-ya)<1e-3?exp(-ya/hh):hh*(exp(-ya/hh)-exp(-yb/hh))/(yb-ya);
-  float od=uFogDensity*d*k; return exp(-od*od); }
-// ===== Atmospheric fog: aerial perspective. Exponential height density integrated analytically along the ray (Wenzel 2006 / Quilez),
-//       wavelength-dependent extinction (Rayleigh beta_R + grey Mie beta_M) so distant objects shift blue, in-scatter = sky ambient + HG sun lobe.
-float afOD(float d,float y0,float y1){ float hh=max(1.,uAFHeight); float ya=max(0.,min(y0,y1)),yb=max(0.,max(y0,y1)); float k=(yb-ya)<1e-3?exp(-ya/hh):hh*(exp(-ya/hh)-exp(-yb/hh))/(yb-ya); return uAFDensity*max(0.,d-uAFStart)*k; }
-vec3 applyAFog(vec3 col,vec3 dir,float d,vec3 sky,vec3 hzGlow,vec3 trans){ if(uAFOn<.5) return col;
-  float od=afOD(d,uCamHeight,uCamHeight+dir.y*d); if(od<1e-6) return col;
-  vec3 betaR=vec3(5.8e-6,13.5e-6,33.1e-6)/13.5e-6;                                   // normalised Rayleigh spectrum (blue extinguishes 2.5x more than red)
-  vec3 beta=mix(betaR,vec3(1.),uAFMie);                                              // Mie share makes it greyer (haze/humidity)
-  vec3 T=exp(-beta*od);
-  float cosS=clamp(dot(dir,uSunDir),-1.,1.); float g=uAFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
-  vec3 amb=(sky*.9+hzGlow*.25)*uAFSky;                                              // light the medium receives from the sky dome
-  vec3 sun=trans*uSunColor*uSunIntensity*.02*hg*4.*3.14159*max(uSunDir.y+.08,0.)*mix(1.,.35,uAFMie); // single-scatter sun lobe (Mie forward peak)
-  vec3 Lin=(amb+sun)*uAFTint;
-  return col*T+Lin*(1.-T); }
+// ===== Analytic media (Height Fog + Atmospheric Fog) share ONE kernel: the exact integral of exp(-y/H) along a straight segment
+//       (Wenzel / Quilez). Each medium evaluates it with its own H and turns the result into its own optical depth; the two are then
+//       composited in a single pass (front-to-back: both start at the camera, so their in-scatter is blended by the *combined* transmittance).
+float expHeightK(float hh,float y0,float y1){ float ya=max(0.,min(y0,y1)), yb=max(0.,max(y0,y1)); return (yb-ya)<1e-3?exp(-ya/hh):hh*(exp(-ya/hh)-exp(-yb/hh))/(yb-ya); }
+float fogT(float d,float y0,float y1){ float od=uFogDensity*d*expHeightK(max(1.,uFogHeight),y0,y1); return exp(-od*od); }
+vec3 applyMedia(vec3 col,vec3 dir,float d,vec3 skyAmb,vec3 hzGlow,vec3 trans){ // both analytic fogs in one shot
+  bool hf=uFogOn>.5&&uCamHeight<3000., af=uAFOn>.5&&uCamHeight<6000.; if(!hf&&!af) return col;
+  float y0=uCamHeight, y1=uCamHeight+dir.y*d; float cosS=clamp(dot(dir,uSunDir),-1.,1.); vec3 sunL=trans*uSunColor*uSunIntensity*.02;
+  // height fog (exp² of distance, thick near the ground)
+  float Tf=1.; vec3 Lf=vec3(0.);
+  if(hf){ Tf=fogT(d,y0,y1); float g=.55; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5)); Lf=uFogColor*(skyAmb*.9+hzGlow*.35)+uFogScatter*hg*sunL*max(uSunDir.y+.1,0.); }
+  // atmospheric fog (spectral, Rayleigh/Mie)
+  vec3 Ta=vec3(1.); vec3 La=vec3(0.);
+  if(af){ float od=uAFDensity*max(0.,d-uAFStart)*expHeightK(max(1.,uAFHeight),y0,y1); if(od>1e-6){ vec3 beta=mix(vec3(5.8e-6,13.5e-6,33.1e-6)/13.5e-6,vec3(1.),uAFMie); Ta=exp(-beta*od);
+      float g=uAFG; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5)); La=((skyAmb*.9+hzGlow*.25)*uAFSky+sunL*hg*4.*3.14159*max(uSunDir.y+.08,0.)*mix(1.,.35,uAFMie))*uAFTint; } }
+  // combined: the surface is seen through both; each medium's in-scatter is attenuated by the other's transmittance proportionally
+  vec3 T=Ta*Tf; vec3 Lin=La*(1.-Ta)*mix(vec3(1.),Tf,.5)+Lf*(1.-Tf)*mix(vec3(1.),Ta,.5);
+  return col*T+Lin; }
 // ===== Local volumetric fog: a finite box / ellipsoid of participating medium, ray-marched with Beer–Lambert transmittance,
 //       heterogeneous density from 3-octave value noise advected by wind, HG in-scatter from the sun + the point/spot lights,
 //       self-shadowing by a short secondary march toward the sun, and separable absorption (albedo) for realistic darkening.
@@ -966,11 +968,6 @@ float vfDensity(vec3 p){ vec3 q=(p-vfCenter())/vfHalf(); float mask=vfShapeMask(
   float grav=1.-.35*clamp(q.y*.5+.5,0.,1.);                                      // denser at the bottom like a real cold pool
   return uVFDensity*mask*het*grav; }
 vec2 vfBox(vec3 ro,vec3 rd){ vec3 c=vfCenter(), sz=vfHalf(); vec3 m=1./(rd+1e-6*sign(rd)+1e-9); vec3 n=m*(ro-c); vec3 k=abs(m)*sz; vec3 t1=-n-k,t2=-n+k; float tn=max(max(t1.x,t1.y),t1.z),tf=min(min(t2.x,t2.y),t2.z); return (tn>tf||tf<0.)?vec2(-1.):vec2(max(tn,0.),tf); }
-vec3 applyFog(vec3 col,vec3 dir,float d,vec3 sky,vec3 hzGlow,vec3 trans){ if(uFogOn<.5) return col;
-  float y0=uCamHeight, y1=uCamHeight+dir.y*d; float T=fogT(d,y0,y1);
-  float cosS=clamp(dot(dir,uSunDir),-1.,1.); float g=.55; float hg=(1.-g*g)/(4.*3.14159*pow(1.+g*g-2.*g*cosS,1.5));
-  vec3 inscat=uFogColor*(sky*.9+hzGlow*.5)+uFogScatter*hg*trans*uSunColor*uSunIntensity*.02*max(uSunDir.y+.1,0.);
-  return mix(inscat,col,T); }
 float tfield(vec2 q){ float f=uTerrFreq, s=uTerrSeed; return clamp(.5+.23*sin((q.x*5.3+s*.013)*f)+.16*sin((q.y*7.1-s*.019)*f)+.09*sin((q.x+q.y)*15.7*f),0.,1.); }
 float terrH(vec2 xz){ vec2 q=(xz-uTerrPos.xz)/uTerrSize+.5; return uTerrPos.y+tfield(q)*uTerrHeight; }
 bool terrHit(vec3 ro,vec3 rd,out float tHit,out vec3 n){ tHit=-1.; if(uTerrOn<.5) return false; float half_=uTerrSize*.5; float t=0., dt=max(.5,uTerrSize/160.); float prevD=0.; bool hit=false;
@@ -1181,7 +1178,7 @@ void main(){
       float fog=1.-exp(-t*7e-5); fog=pow(clamp(fog,0.,1.),1.6); planeCol=mix(planeCol,sky*.8+hzGlow*.6,fog);
     }
   }
-  if(planeHit>.999){ col=applyFog(planeCol,dir,planeT,sky,hzGlow,trans); col=applyAFog(col,dir,planeT,skyAmb,hzGlow,trans); { vec4 lv=marchLocal(uCamPos,dir,planeT,skyAmb,hzGlow,trans); col=col*lv.a+lv.rgb; } }
+  if(planeHit>.999){ col=applyMedia(planeCol,dir,planeT,skyAmb,hzGlow,trans); { vec4 lv=marchLocal(uCamPos,dir,planeT,skyAmb,hzGlow,trans); col=col*lv.a+lv.rgb; } }
   else if(ground>.5){
     float ndl=max(uSunDir.y,0.); vec3 sunL=trans*uSunColor*uSunIntensity*.09*ndl; vec3 amb=sky*.35+vec3(.002,.003,.006)*uSkyBright;
     { // the real surface: the same checker ground, wrapped on the planet sphere (no fake earth texture)
@@ -1229,8 +1226,7 @@ void main(){
       col+=disc*limb*sunCol*uSunIntensity*uSunDiscBoost*mix(.35,1.,smoothstep(-1.,8.,elevDeg));
       float sg=exp(-ang*40.)*.35+exp(-ang*9.)*.03+exp(-ang*2.5)*.004; col+=sg*uBloom*sunCol*uSunIntensity*.6;
     }
-    if(uFogOn>.5&&uCamHeight<3000.){ float dS=(dir.y>.002)?min(20000.,(uFogHeight*4.)/dir.y):20000.; col=applyFog(col,dir,dS,sky,hzGlow,trans); }
-    if(uAFOn>.5&&uCamHeight<6000.){ float dA=(dir.y>.002)?min(60000.,(uAFHeight*5.)/dir.y):60000.; col=applyAFog(col,dir,dA,skyAmb,hzGlow,trans); }
+    { float hRef=max(uFogHeight*4.,uAFHeight*5.); float dS=(dir.y>.002)?min(60000.,hRef/dir.y):60000.; col=applyMedia(col,dir,dS,skyAmb,hzGlow,trans); }   // sky rays: one shared path length through both media
 
   }
   { // light source glyphs: a small emissive glow where the point / spot lights sit
