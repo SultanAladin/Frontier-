@@ -794,7 +794,7 @@ function renderInspector(){let ids=[...doc.sel];const insp=$('#insp');if(!ids.le
   const cad=$('#cAddDim');if(cad)cad.onclick=()=>{if(f.kind==='curve')select(f.id,false);dimStart();};
   const sr=$('#slotR');if(sr)sr.oninput=e=>{f.params.r=+e.target.value;regenSlot(f);invalidate(f.id);invalidate(f.parent);invalidateTopo(f.id);$('#slotRV').textContent=fmt(f.params.r,1)+' mm';draw();};if(sr)sr.onchange=()=>{snapshot();solveAll();renderInspector();};
   $$('[data-go]').forEach(l=>l.onclick=e=>{if(e.target.closest('[data-del]'))return;select(+l.dataset.go,false);});
-  $$('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();snapshot();doc.figures=doc.figures.filter(d=>d.id!==+b.dataset.del);rebuildAll();});
+  $$('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();snapshot('delete');deleteFigures([+b.dataset.del]);});
   const ub=$('#unlinkBtn');if(ub)ub.onclick=()=>unlink(f);
   const mg=$('#mirGo');if(mg)mg.onclick=()=>{const v=$('#mirSel').value;if(!v)return;if(v==='V'||v==='U'){const sk=byId(f.parent);snapshot('mirror across sketch axis');const fn=mirrorFn(v==='V'?[0,0]:[0,0],v==='V'?[0,1]:[1,0]);const spec=xfPoints(f,fn);if(!spec)return;const g=spawnFrom(f,sk,spec);g.recipe=[f.name,'mirror · '+v];g.link={src:f.id,kind:'mirror',a:[0,0],b:v==='V'?[0,1]:[1,0]};invalidate(sk.id);topoCache.clear();doc.sel=new Set([g.id]);renderOutliner();renderInspector();draw();return;}mirrorAcross(f,+v);};
   $$('[data-pat]').forEach(b=>b.onclick=()=>startOp(b.dataset.pat));
@@ -816,9 +816,31 @@ function bindTrk(t,f){const key=t.dataset.key,mn=+t.dataset.mn,mx=+t.dataset.mx;
     t.onpointermove=ev=>setFrom(ev.clientX);t.onpointerup=()=>{t.classList.remove('drag');t.onpointermove=null;started=false;const m=measure(f);renderOutliner();drawHeroViz(f);const hv=$('#insp .hero .big .v');if(hv)hv.textContent=m.v>=10000?fmt(m.v/1000,1):fmt(m.v,m.v<10?2:1);};};}
 function dragX(el,cb){el.onpointerdown=e=>{if(e.target.tagName==='INPUT')return;el.setPointerCapture(e.pointerId);let lx=e.clientX,first=true;el.onpointermove=ev=>{dragX.shift=ev.shiftKey;const dx=ev.clientX-lx;if(first||dx){cb(dx,first);first=false;}lx=ev.clientX;};el.onpointerup=()=>{el.onpointermove=null;renderOutliner();};};}
 function invalidateXf(f){if(f&&f.kind==='plane')topoCache.clear();/* transforms are applied at draw time; derived children follow via xform() */}
-function delSub(){const byFig=new Map();sub_.sel.forEach(h=>{if(h.kind!=='vertex')return;const f=byId(h.fig);if(!f||f.kind!=='curve'||f.ctype!=='poly')return;if(!byFig.has(f.id))byFig.set(f.id,new Set());byFig.get(f.id).add(h.idx);});if(!byFig.size)return;snapshot();
-  byFig.forEach((idx,id)=>{const f=byId(id);if(f.params.spine){if(f.params.spine.length-idx.size<2)return;f.params.spine=f.params.spine.filter((_,i)=>!idx.has(i));regenSlot(f);invalidate(id);invalidate(f.parent);invalidateTopo(id);return;}if(f.params.pts.length-idx.size<2)return;f.params.pts=f.params.pts.filter((_,i)=>!idx.has(i));if(f.params.vz)f.params.vz=f.params.vz.filter((_,i)=>!idx.has(i));if(f.params.bulge)f.params.bulge=f.params.bulge.filter((_,i)=>!idx.has(i));invalidate(id);invalidate(f.parent);invalidateTopo(id);});sub_.sel.clear();renderOutliner();renderInspector();draw();log('delete vertices');}
-function delSel(){snapshot('delete');const ids=new Set(doc.sel);doc.figures=doc.figures.filter(f=>!ids.has(f.id)&&!ids.has(f.parent)&&!(f.kind==='dim'&&ids.has(f.target)));doc.sel.clear();rebuildAll();log('delete '+[...ids].join(','));}
+function delSub(){const byFig=new Map();const whole=new Set();sub_.sel.forEach(h=>{const f=byId(h.fig);if(!f)return;if(f.kind!=='curve'){whole.add(f.id);return;} // body/surface sub-element → delete the body
+    if(h.kind==='face'||h.kind==='edge'){const t=topo(f);const e=h.kind==='edge'?t.edges[h.idx]:null;if(h.kind==='face'||!e||e.curve||f.ctype==='line'||t.edges.length===1){whole.add(f.id);return;}
+      // edge of a polyline: split the polyline there (open: remove the segment; closed: open the loop)
+      byFig.set(f.id,byFig.get(f.id)||new Set());byFig.get(f.id).add('e'+h.idx);return;}
+    if(f.ctype!=='poly'||f.ctype==='point'){whole.add(f.id);return;}if(!byFig.has(f.id))byFig.set(f.id,new Set());byFig.get(f.id).add(h.idx);});
+  if(!byFig.size&&!whole.size)return;snapshot('delete');
+  // edge deletions on polylines
+  byFig.forEach((idx,id)=>{const es=[...idx].filter(x=>typeof x==='string').map(x=>+x.slice(1));if(!es.length)return;es.forEach(x=>idx.delete('e'+x));const f=byId(id);const p=f.params;const n=p.pts.length;const closed=!!p.closed&&n>2;const bl=p.bulge||[];
+    if(closed){const i=es[0];const pts=[],bulge=[];for(let k=1;k<=n;k++){const j=(i+k)%n;pts.push(p.pts[j]);bulge.push(bl[j]||0);}bulge[n-1]=0;bakePoly(f,pts,false,bulge);if(es.length>1)whole.add(f.id);}
+    else{const rm=new Set(es);const pieces=[];let cur=[p.pts[0]],cb=[];for(let i=0;i<n-1;i++){if(rm.has(i)){if(cur.length>=2)pieces.push([cur,cb]);cur=[p.pts[i+1]];cb=[];}else{cur.push(p.pts[i+1]);cb.push(bl[i]||0);}}if(cur.length>=2)pieces.push([cur,cb]);
+      if(!pieces.length){whole.add(f.id);return;}const sk=byId(f.parent);bakePoly(f,pieces[0][0],false,[...pieces[0][1],0]);pieces.slice(1).forEach(([pp,pb])=>spawnPoly(f,sk,pp,false)&&0);}
+    invalidate(id);invalidate(f.parent);invalidateTopo(id);});
+  if(whole.size)deleteFigures(whole);
+  byFig.forEach((idx,id)=>{const f=byId(id);if(!f||!idx.size)return;if(f.params.spine){if(f.params.spine.length-idx.size<2){deleteFigures([id]);return;}f.params.spine=f.params.spine.filter((_,i)=>!idx.has(i));regenSlot(f);invalidate(id);invalidate(f.parent);invalidateTopo(id);return;}if(f.params.pts.length-idx.size<2){deleteFigures([id]);return;}f.params.pts=f.params.pts.filter((_,i)=>!idx.has(i));if(f.params.vz)f.params.vz=f.params.vz.filter((_,i)=>!idx.has(i));if(f.params.bulge)f.params.bulge=f.params.bulge.filter((_,i)=>!idx.has(i));invalidate(id);invalidate(f.parent);invalidateTopo(id);});sub_.sel.clear();renderOutliner();renderInspector();draw();log('delete vertices');}
+function deleteFigures(ids){ids=new Set([...ids].filter(id=>typeof id==='number'&&byId(id)));if(!ids.size)return 0;
+  // cascade: children of sketches, dims targeting deleted figures, sketches whose plane is deleted, bodies built from a deleted sketch
+  let grow=true;while(grow){grow=false;doc.figures.forEach(f=>{if(ids.has(f.id))return;if((f.parent&&ids.has(f.parent))||(f.kind==='dim'&&ids.has(f.target))||(f.kind==='sketch'&&ids.has(f.planeId))||(f.src&&ids.has(f.src))){ids.add(f.id);grow=true;}});}
+  const names=[...ids].map(id=>byId(id).name);doc.figures=doc.figures.filter(f=>!ids.has(f.id));
+  doc.figures.forEach(f=>{if(f.kind==='sketch'){f.children=(f.children||[]).filter(id=>!ids.has(id));if(f.cons_){const n=f.cons_.length;f.cons_=f.cons_.filter(c=>!c.refs.some(r=>ids.has(r.fig)));f.cons_.forEach(c=>{if(c.name&&!f.cons_.includes(c))delete doc.vars[c.name];});if(f.cons_.length!==n)solveSketch(f);}if(f.regions_)Object.keys(f.regions_).forEach(k=>{if(k.split('+').some(x=>ids.has(+x)))delete f.regions_[k];});}
+    if(f.kind==='curve'&&f.link&&ids.has(f.link.src)){delete f.link;}if(f.kind==='curve'&&f.link&&f.link.axis&&ids.has(f.link.axis)){delete f.link;}});
+  Object.entries(doc.vars).forEach(([k,v])=>{if(v.dim&&!doc.figures.some(f=>f.kind==='sketch'&&f.cons_&&f.cons_.some(c=>c.id===v.dim)))delete doc.vars[k];});
+  if(ids.has(active_.plane))active_.plane=doc.figures.find(f=>f.kind==='plane')?.id||null;if(ids.has(active_.sketch))active_.sketch=null;
+  doc.sel=new Set([...doc.sel].filter(id=>!ids.has(id)));sub_.sel.forEach((h,k)=>{if(ids.has(h.fig))sub_.sel.delete(k);});
+  topoCache.clear();rebuildAll();renderCat();log('delete '+names.join(', '));return ids.size;}
+function delSel(){if(!doc.sel.size)return;snapshot('delete');deleteFigures(doc.sel);}
 const logs=[];function log(s){logs.push(s);if(logs.length>6)logs.shift();const l=$('#log');if(l){l.innerHTML=logs.map(x=>`<div><span class="p">›</span> ${x}</div>`).join('');l.scrollTop=1e5;}}
 function drawHeroViz(f){const c=$('#heroViz');if(!c)return;const g=c.getContext('2d');g.clearRect(0,0,240,160);const m=meshOf(f);const pts=[];m.lines.forEach(l=>pts.push(...l));m.tris.forEach(t=>pts.push(...t));if(!pts.length)return;
   // tiny iso projection of the figure in its local frame
@@ -937,7 +959,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
   else if(k==='g'&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('g');else if(k==='s'&&gzTarget()&&!tool)modalStart('s');
   else if(k==='h'){if(doc.sel.size){snapshot();doc.sel.forEach(id=>{const f=byId(id);if(f)f.visible=false;});doc.sel.clear();rebuildAll();}}
   else if(e.altKey&&k==='h'){snapshot();doc.figures.forEach(f=>f.visible=true);rebuildAll();}
-  else if(e.key==='Delete'||e.key==='Backspace'){const selC=[...doc.sel].filter(id=>typeof id==='string');if(selC.length){selC.forEach(id=>{const sk=doc.figures.find(s=>s.kind==='sketch'&&s.cons_&&s.cons_.some(c=>c.id===id));if(sk)removeConstraint(sk,id);});doc.sel.clear();return;}if(sub_.sel.size)delSub();else if(doc.sel.size)delSel();}
+  else if(e.key==='Delete'||(e.key==='Backspace'&&!anyTool()&&!gz.modal)){if(anyTool())selectTool();const selC=[...doc.sel].filter(id=>typeof id==='string');if(selC.length){selC.forEach(id=>{const sk=doc.figures.find(s=>s.kind==='sketch'&&s.cons_&&s.cons_.some(c=>c.id===id));if(sk)removeConstraint(sk,id);});doc.sel.clear();return;}if(sub_.sel.size)delSub();else if(doc.sel.size)delSel();}
   else if(k==='f'){const f=byId([...doc.sel][0]);if(f&&f.pos){view.target=[...f.pos];draw();}}
   else if(k==='d'&&e.shiftKey){if(sub_.sel.size){applyConstraint('dist');}else dimStart();}
   else if(k==='d'){doc.dims=!doc.dims;draw();}});

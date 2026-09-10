@@ -48,6 +48,9 @@ Hold **⌃ (Ctrl/⌘)** to snap the cursor to endpoints, vertices, midpoints, ce
 ### History · Save / Open
 Every undo step is labelled. **⌃H** (or *history* in the outliner) opens the History page: click any step to jump back or forward; footer has *save .json* (⌃S), *open .json* (⌃O), *copy*, *new document*. The document autosaves to localStorage and is restored on reload (not when `?demo`).
 
+### Delete
+**Delete / ⌫** (or the × in the outliner / inspector) really removes things, with cascade: a sketch takes its curves, constraints and dimension variables; a workplane takes the sketches on it; a body built from a deleted sketch goes too; links to deleted sources/axes are dropped; fill regions and the active plane/sketch are fixed up. In sub-element modes: vertices are removed (curve deleted when fewer than 2 remain), a polyline edge opens a closed loop or splits an open one, a circle/slot edge or any face deletes the curve, a body sub-element deletes the body. Pressing Delete while a tool is active first returns to Select. Fully undoable.
+
 ### Select (Q) · Offset/Inset (O) · Fill (⇧F)
 - **Select — Q** leaves whatever tool is active (draw, dimension, trim/cut/fillet, offset, fill, gizmo modal) and returns to plain selection. Also a tile in *Sketch Modify*.
 - **Offset / Inset — O** hover a curve, click, then drag: the side follows the cursor (inside a closed loop = inset, outside = outset; open curves offset toward the cursor). Type a number for an exact distance, ⏎ / click applies. Circles stay true circles; everything else becomes a mitred polyline. Result is a new curve, ready for a second Fill/extrude.
