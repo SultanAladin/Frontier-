@@ -543,7 +543,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const BUILD='20260911-2243-def3756';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-2250-2008b7e';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,planeAlpha:doc.planeAlpha,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;doc.figures.forEach(f=>{if(isSlot(f)&&!hasBulge(f))regenSlot(f);}); /* slots saved as polygons → analytic outline */uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;if(o.planeAlpha!=null)doc.planeAlpha=o.planeAlpha;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -667,9 +667,9 @@ function ringOf(subs,d){ // offset every sub-segment by d[m] along its left norm
     if(p.arc&&q.arc&&Math.hypot(p.arc.c[0]-q.arc.c[0],p.arc.c[1]-q.arc.c[1])<1e-6){ /* joint inside one arc: exact radial offset (an offset ≥ r collapses to the centre) */ const c=q.arc.c;const ux=q.a[0]-c[0],uy=q.a[1]-c[1];const l=Math.hypot(ux,uy)||1;const dd=(d1+d2)/2;const sgn=(ux*q.nl[0]+uy*q.nl[1])<0?1:-1; /* nl points inward for a convex arc */ const rr=sgn>0?Math.max(0,l-dd):l+dd;out.push([c[0]+ux/l*rr,c[1]+uy/l*rr]);continue;}
     const a1=[p.a[0]+p.nl[0]*d1,p.a[1]+p.nl[1]*d1],b1=[p.b[0]+p.nl[0]*d1,p.b[1]+p.nl[1]*d1],a2=[q.a[0]+q.nl[0]*d2,q.a[1]+q.nl[1]*d2],b2=[q.b[0]+q.nl[0]*d2,q.b[1]+q.nl[1]*d2];
     const r1=[b1[0]-a1[0],b1[1]-a1[1]],r2=[b2[0]-a2[0],b2[1]-a2[1]];const l1=Math.hypot(...r1)||1,l2=Math.hypot(...r2)||1;const cosT=(r1[0]*r2[0]+r1[1]*r2[1])/(l1*l2);const den=r1[0]*r2[1]-r1[1]*r2[0];
-    const nearPar=Math.abs(den)<1e-9*l1*l2||cosT>Math.cos(3*Math.PI/180); // < 3° turn: treat as tangent joint
+    let tol=3*Math.PI/180;if(p.arc)tol+=Math.abs(l1/(2*p.arc.r));if(q.arc)tol+=Math.abs(l2/(2*q.arc.r)); /* arc chords turn by half their sweep at each end */ const nearPar=Math.abs(den)<1e-9*l1*l2||cosT>Math.cos(tol); // tangent joint (within the chords' own half-turns)
     if(nearPar){ // tangent joint: the two offset lines meet (or nearly meet) → average the two offset points; if the distances differ, the joint sits on the bisector
-      const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=(d1+d2)/2;out.push([q.a[0]+nx/l*dd,q.a[1]+ny/l*dd]);continue;}
+      if(!p.arc&&q.arc){out.push([p.b[0]+p.nl[0]*d1,p.b[1]+p.nl[1]*d1]);continue;}if(p.arc&&!q.arc){out.push([q.a[0]+q.nl[0]*d2,q.a[1]+q.nl[1]*d2]);continue;} /* a planar wall keeps its own offset line; the arc side absorbs the difference */ const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=(d1+d2)/2;out.push([q.a[0]+nx/l*dd,q.a[1]+ny/l*dd]);continue;}
     const t=((a2[0]-a1[0])*r2[1]-(a2[1]-a1[1])*r2[0])/den;let X=[a1[0]+r1[0]*t,a1[1]+r1[1]*t];
     // miter limit: never let a joint fly further than 4× the larger offset from the source corner
     const lim=(Math.abs(d1-d2)>1e-6*Math.max(1,Math.abs(d1)+Math.abs(d2))?1.5:4)*Math.max(Math.abs(d1),Math.abs(d2))+1e-6; /* unequal offsets (a bevel terminating against a neighbour): keep the joint close to the corner */const dx=X[0]-q.a[0],dy=X[1]-q.a[1];const L=Math.hypot(dx,dy);if(L>lim){const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=Math.max(d1,d2)/Math.max(.2,Math.sqrt((1+cosT)/2));X=[q.a[0]+nx/l*dd,q.a[1]+ny/l*dd];}
@@ -712,9 +712,10 @@ function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
     for(let b=0;b<R.length-1;b++){const A=R[b],Bb=R[b+1];const bandKind=Bb.band==='wall'&&A.band==='wall'?'wall':(Bb.band==='ftop'||Bb.band==='ctop')?Bb.band:(A.band==='fbot'||A.band==='cbot')?A.band:'wall';
       const isFillet=bandKind==='ftop'||bandKind==='fbot',isCham=bandKind==='ctop'||bandKind==='cbot';const spec=bandKind.endsWith('top')?TB:bandKind.endsWith('bot')?BB:null;
       for(let m=0;m<n;m++){const sb=subs[m];const m1=(m+1)%n;const P0=V(A.pts[m],A.z),P1=V(A.pts[m1],A.z),P2=V(Bb.pts[m1],Bb.z),P3=V(Bb.pts[m],Bb.z);
-        const moved=spec&&inSet(spec,sb);const fkey=moved?(pre+bandKind+':'+sb.eid):(pre+'side:'+sb.eid);const F=face(fkey,moved?(isCham?'plane':(sb.arc?'torus':'cylinder')):(sb.arc?(draftK?'cone':'cylinder'):'plane'));
+        const moved=spec&&inSet(spec,sb);const fkey=moved?(pre+bandKind+':'+sb.eid):(pre+'side:'+sb.eid);const F=face(fkey,moved?(isCham?(sb.arc?'cone':'plane'):(sb.arc?'torus':'cylinder')):(sb.arc?(draftK?'cone':'cylinder'):'plane'));
         const smooth=sb.smooth||(moved&&isFillet);
-        let nA0,nA1,nB0,nB1;if(smooth){const oa=out2(sb,A.pts[m]),ob=out2(sb,A.pts[m1]);const tA=moved&&isFillet?A.tilt:wallTilt,tBt=moved&&isFillet?Bb.tilt:wallTilt;const ta=tA||{c:1,s:0},tb=tBt||{c:1,s:0};
+        const chamTilt=(moved&&isCham&&sb.arc)?(()=>{const dz=Bb.z-A.z,dd=(Bb.d[m]||0)-(A.d[m]||0);const L=Math.hypot(dz,dd)||1;return {c:dz/L,s:dd/L};})():null;
+        let nA0,nA1,nB0,nB1;if(smooth){const oa=out2(sb,A.pts[m]),ob=out2(sb,A.pts[m1]);const tA=chamTilt||(moved&&isFillet?A.tilt:wallTilt),tBt=chamTilt||(moved&&isFillet?Bb.tilt:wallTilt);const ta=tA||{c:1,s:0},tb=tBt||{c:1,s:0};
           // chamfer / flat rings have no tilt: fall back to the facet normal
           nA0=nrm(oa,ta);nA1=nrm(ob,ta);nB0=nrm(out2(sb,Bb.pts[m]),tb);nB1=nrm(out2(sb,Bb.pts[m1]),tb);}
         const fn=norm(cross(sub(P1,P0),sub(P3,P0)));if(!smooth||!nA0||!nB0||isNaN(fn[0])){nA0=nA1=nB0=nB1=fn;}
@@ -783,7 +784,7 @@ function opPush(S,key,h,tag){const F=S.faces.get(key);if(!F||!(Math.abs(h)>1e-9)
   F.tris=F.tris.map(t=>t.map(off));F.ptris=F.ptris.map(t=>Object.assign(t.map(off),{fkey:F.key}));F.quads=F.quads.map(q=>({...q,p:q.p.map(off)}));
   loops.forEach((L,li)=>{const runs=loopRuns(L,adj);runs.forEach((R,ri)=>{const nbF=S.faces.get(R.nb);const curvedRun=R.segs.length>2&&R.segs.every(([a2,b2],i)=>{if(i===0)return true;const [p2,q2]=R.segs[i-1];return !sharpTurn(p2,q2,b2);})&&R.segs.some(([a2,b2],i)=>i>0&&dot(norm(sub(b2,a2)),norm(sub(R.segs[i-1][1],R.segs[i-1][0])))<1-1e-6);const smooth=!!(nbF&&nbF.kind!=='plane')||curvedRun;
       // neighbour face already parallel to the push direction (a wall) → extend it instead of adding a new face
-      const nbN=nbF?faceNormalOf(nbF.tris):null;const extend=!!(nbF&&nbN&&Math.abs(dot(nbN,n))<1e-4&&(nbF.kind==='plane'||nbF.kind==='cylinder'||nbF.kind==='cone'));
+      const nbN=nbF?faceNormalOf(nbF.tris):null;const sg0=h<0?-1:1;const sameSide=!!(nbF&&nbN)&&R.segs.every(([a2,b2])=>{const wn=mul(norm(cross(sub(b2,a2),n)),sg0);return dot(wn,nbN)>-0.2;})&&R.segs.some(([a2,b2])=>{const wn=mul(norm(cross(sub(b2,a2),n)),sg0);return dot(wn,nbN)>0.99;});const extend=!!(nbF&&nbN&&Math.abs(dot(nbN,n))<1e-4&&(nbF.kind==='plane'||nbF.kind==='cylinder'||nbF.kind==='cone'))&&sameSide;
       const fk=extend?nbF.key:`${tag}:${li}.${ri}|${key}`;const W=extend?nbF:{key:fk,kind:smooth?'cylinder':'plane',tris:[],ptris:[],quads:[]};if(!extend)S.faces.set(fk,W);
       if(extend){const mk2=new Set(R.segs.map(([a2,b2])=>[PK(a2),PK(b2)].sort().join('|')));S.edges=S.edges.filter(e=>{const P=e.pts.filter(Boolean);if(P.length<2)return true;let all=true;for(let i=0;i<P.length-1;i++){if(!mk2.has([PK(P[i]),PK(P[i+1])].sort().join('|'))){all=false;break;}}return !all;});}
       const sg=h<0?-1:1;const segN=R.segs.map(([a,b])=>mul(norm(cross(sub(b,a),n)),sg));const m=R.segs.length;const vn=i=>{ // vertex normal at start of seg i (within run)

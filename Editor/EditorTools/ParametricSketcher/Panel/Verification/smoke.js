@@ -437,4 +437,19 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
+// 28. normal audit: outward winding (positive signed volume), unit analytic normals that agree with the facet, planar faces constant, wall cylinders horizontal
+{ if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
+  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],len=a=>Math.hypot(...a),norm=a=>{const l=len(a)||1;return [a[0]/l,a[1]/l,a[2]/l];};
+  const audit=(name,b)=>{M.invalidate(b.id);M.topoCache.clear();const m=M.meshOf(b);const tris=M.allTris(m);let vol=0;tris.forEach(([a,b2,c])=>{vol+=dot(a,cross(b2,c))/6;});
+    let nonUnit=0,flipped=0,maxDev=0;const byFace=new Map();(m.quads||[]).forEach(q=>{const [P0,P1,P2,P3]=q.p;const cr=cross(sub(P1,P0),sub(P3,P0));if(len(cr)<1e-12)return;const fn=norm(cr);q.n.forEach(n=>{if(Math.abs(len(n)-1)>1e-6)nonUnit++;const d=dot(norm(n),fn);if(d<0)flipped++;maxDev=Math.max(maxDev,Math.acos(Math.max(-1,Math.min(1,d)))*180/Math.PI);});if(!byFace.has(q.fkey))byFace.set(q.fkey,[]);byFace.get(q.fkey).push(q);});
+    const kinds=[];m.brep.faces.forEach(F=>{const qs=byFace.get(F.key)||[];if(!qs.length)return;if(F.kind==='plane'){const n0=norm(qs[0].n[0]);let dev=0;qs.forEach(q=>q.n.forEach(n=>{dev=Math.max(dev,Math.acos(Math.max(-1,Math.min(1,dot(norm(n),n0))))*180/Math.PI);}));if(dev>0.5)kinds.push(F.key+' plane dev '+dev.toFixed(1));}if(F.kind==='cylinder'&&/^side/.test(F.key)){let z=0;qs.forEach(q=>q.n.forEach(n=>{z=Math.max(z,Math.abs(n[2]));}));if(z>1e-3)kinds.push(F.key+' cyl z '+z.toFixed(3));}});
+    ok(vol>0,name+': outward winding');ok(nonUnit===0,name+': unit normals');ok(flipped===0,name+': no analytic normal opposes its facet');ok(maxDev<12,name+': analytic vs facet normal < 12° ('+maxDev.toFixed(1)+')');ok(!kinds.length,name+': face-kind normals consistent '+kinds.join('; '));};
+  M.startOp('rect');M.toolClick(380,300);M.toolClick(520,380);const R=M.doc.figures.filter(f=>f.kind==='curve').pop();M.selectTool();M.doc.sel=new Set([R.id]);M.startOp('extrude');M.solidKey({key:'3'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b=M.doc.figures.filter(f=>f.kind==='body').pop();
+  audit('box',b);b.edits=[{type:'fillet',key:'top:all',r:6},{type:'fillet',key:'bot:all',r:4},{type:'fillet',key:'side:0:1',r:8},{type:'chamfer',key:'side:0:3',r:5}];audit('box fillets+chamfer',b);b.edits=[];b.faceOps=[{op:'push',face:'cap:top',h:-10}];audit('box pocket',b);
+  const pk=M.topo(b).faces.filter(f=>/^side:\d$/.test(f.key));ok(pk.length===4&&pk.every(f=>f.kind==='plane'),'pocket walls are new faces, outer walls untouched');b.faceOps=[];b.params.draft=8;audit('box draft',b);b.params.draft=0;
+  M.startOp('pslot');[[380,300],[380,420],[520,420],[520,300]].forEach(([x,y])=>M.toolClick(x,y));M.finishTool();const S=M.doc.figures.filter(f=>f.kind==='curve').pop();M.selectTool();M.doc.sel=new Set([S.id]);M.startOp('extrude');M.solidKey({key:'2'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const s=M.doc.figures.filter(f=>f.kind==='body').pop();
+  audit('U slot',s);s.edits=[{type:'fillet',key:'top:all',r:3}];audit('U slot top fillet',s);s.edits=[{type:'fillet',key:'side:0:7',r:4},{type:'fillet',key:'side:0:8',r:4},{type:'chamfer',key:'top:1',r:3}];audit('U slot corners+chamfer',s);ok(M.topo(s).faces.some(f=>f.key==='ctop:fs8'&&f.kind==='cone'),'chamfer across a corner arc is a cone');
+  M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);
