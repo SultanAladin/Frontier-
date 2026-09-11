@@ -543,7 +543,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const BUILD='20260911-2113-fa20d86';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-2123-01c6949';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,planeAlpha:doc.planeAlpha,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;if(o.planeAlpha!=null)doc.planeAlpha=o.planeAlpha;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -682,8 +682,8 @@ function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
   const tris=[],quads=[],lines=[];const faces=new Map(),edges=new Map(),verts=[];const face=(key,kind)=>{if(!faces.has(key))faces.set(key,{key,kind,tris:[]});return faces.get(key);};const edge=(key,pts,tangent)=>{if(!edges.has(key))edges.set(key,{key,pts:[],tangent:!!tangent,chunks:[]});const e=edges.get(key);e.chunks.push(pts);return e;};
   const V=(q,z)=>[q[0],q[1],z];
   loops0.forEach((L0,li)=>{const pre=li?('h'+li+'.'):'';const L=loopApplySideEdits(L0,sideE.filter(e=>preOf(e.key)===pre&&e.key.split(':')[1]===String(li)));const subs=loopSubs(L);const n=subs.length;if(n<2)return;const TB=bandSpec(topE,pre),BB=bandSpec(botE,pre);
-    // rolling-ball rule: a cap-edge fillet propagates along the tangent-continuous chain (through profile-corner fillet arcs and smooth segments)
-    subs.forEach((sb,i)=>{sb.m=i;});const chain=(spec)=>{if(!spec)return null;const S=new Set();subs.forEach((sb,i)=>{if(spec.eids.has('all')||spec.eids.has(String(sb.eid)))S.add(i);});const tangentJoint=(i,j)=>{const a=subs[i],b=subs[j];const da=[a.b[0]-a.a[0],a.b[1]-a.a[1]],db=[b.b[0]-b.a[0],b.b[1]-b.a[1]];const la=Math.hypot(...da)||1,lb=Math.hypot(...db)||1;return (da[0]*db[0]+da[1]*db[1])/(la*lb)>Math.cos(12*Math.PI/180);};const enter=(from,to)=>tangentJoint(Math.min(from,to)===from?from:to,Math.min(from,to)===from?to:from)&&(subs[to].arc||subs[to].smooth||subs[from].arc||subs[from].smooth);let grown=true;while(grown&&S.size<n){grown=false;for(let i=0;i<n;i++){if(!S.has(i))continue;const j=(i+1)%n,k=(i-1+n)%n;if(!S.has(j)&&enter(i,j)){S.add(j);grown=true;}if(!S.has(k)&&enter(i,k)){S.add(k);grown=true;}}}return S;};
+    // Blender-style: only the picked edge(s) are bevelled; a neighbouring fillet arc / smooth run is not rolled into — the band terminates against it with a mitre / triangular blend built by ringOf
+    subs.forEach((sb,i)=>{sb.m=i;});const chain=(spec)=>{if(!spec)return null;const S=new Set();subs.forEach((sb,i)=>{if(spec.eids.has('all')||spec.eids.has(String(sb.eid)))S.add(i);});return S;};
     if(TB)TB._chain=chain(TB);if(BB)BB._chain=chain(BB);
     const inSet=(spec,sb)=>!!(spec&&spec._chain&&spec._chain.has(sb.m));
     // rings: [{z, d:[per sub], tilt:{c,s} normal tilt (c·out + s·ẑ), band:'wall'|'ftop'|'fbot'|'ctop'|'cbot', key}]
