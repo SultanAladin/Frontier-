@@ -373,9 +373,9 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
       <button data-s="plastic" class="on">Plastic</button>
       <button data-s="matcap">Matcap</button>
     </div>
-    <div class="seg" id="gzMode" title="gizmo mode · G / R / S">
+    <div class="seg" id="gzMode" title="gizmo mode · G / ⇧R / S  (R draws a rectangle)">
       <button data-g="translate" class="on">Move <kbd>G</kbd></button>
-      <button data-g="rotate">Rotate <kbd>R</kbd></button>
+      <button data-g="rotate">Rotate <kbd>⇧R</kbd></button>
       <button data-g="scale">Scale <kbd>S</kbd></button>
     </div>
     <div class="spacer"></div>
@@ -954,7 +954,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
   else if(k==='m'&&!e.ctrlKey&&!e.metaKey){startOp(e.altKey?'circular':e.shiftKey?'linear':'mirror');}
   else if(k==='o'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)offStart();else if(k==='f'&&e.shiftKey)fillStart();
   else if(k==='t'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)modStart('trim');else if(k==='k'&&!e.ctrlKey&&!e.metaKey)modStart('cut');else if(k==='b'&&!e.ctrlKey&&!e.metaKey)modStart(e.shiftKey?'chamfer':'fillet');
-  else if(k==='l'&&e.shiftKey)startOp('polyline');else if(k==='l')startOp('line');else if(k==='c')startOp('circle');else if(k==='r'&&gzTarget()&&!e.shiftKey)modalStart('r');else if(k==='r')startOp('rect');else if(k==='a')startOp('arc');else if(k==='p')startOp('polygon');else if(k==='e')startOp('ellipse');
+  else if(k==='l'&&e.shiftKey)startOp('polyline');else if(k==='l')startOp('line');else if(k==='c')startOp('circle');else if(k==='r'&&e.shiftKey&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('r');else if(k==='r'&&!e.ctrlKey&&!e.metaKey)startOp('rect');else if(k==='a')startOp('arc');else if(k==='p')startOp('polygon');else if(k==='e')startOp('ellipse');
   else if(k==='w'&&e.shiftKey)openCat('reference','workplane');
   else if(k==='g'&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('g');else if(k==='s'&&gzTarget()&&!tool)modalStart('s');
   else if(k==='h'){if(doc.sel.size){snapshot();doc.sel.forEach(id=>{const f=byId(id);if(f)f.visible=false;});doc.sel.clear();rebuildAll();}}

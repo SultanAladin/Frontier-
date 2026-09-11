@@ -21,7 +21,7 @@ Select a body and the gizmo appears at its **centre** (bounding-box middle, like
 
 Hover highlights white; drag applies live. The readout at the top (`X move  12.50 mm`, `Y scale 1.100 ×`, `Z rotate 15.0 °`) has an **editable value**: click it or press **Tab / Enter / =** during a drag or modal, type an exact number, **Enter** commits, **Esc** cancels. Hold **Ctrl** to snap (5 mm / 0.1× / 5°). Every operation is one undo step.
 
-Modal (Blender): **G / R / S** with a body selected, move the mouse; **X / Y / Z** lock an axis (again = clear; an axis line is drawn); type digits for an exact amount; **LMB / Enter** confirm; **RMB / Esc** cancel. `R` with no body selected still starts the rectangle tool.
+Modal (Blender): **G / ⇧R / S** with a body selected (plain **R** always draws a rectangle, even with something selected), move the mouse; **X / Y / Z** lock an axis (again = clear; an axis line is drawn); type digits for an exact amount; **LMB / Enter** confirm; **RMB / Esc** cancel. `R` with no body selected still starts the rectangle tool.
 
 ### Curves have their own transform
 Clicking a drawn shape selects **that curve**, not its sketch (the sketch is still selectable from the Outliner and moves everything). A curve's gizmo is in-plane: Move = two cones + plane quad, Rotate = ring about the plane normal (+ view ring), Scale = two cylinders. Curve position/rotation/scale are stored in plane (u,v) space and composed with the sketch transform.
@@ -67,7 +67,7 @@ Tab → *Sketch Modify*, or hotkeys **T** trim, **K** cut, **B** fillet, **⇧B*
 Fillets are stored as **true arcs**: polylines carry `params.bulge[i]` (DXF-style tan θ/4 per segment). Topology exposes the fillet as a single arc edge (pick it, dimension its radius), drawing/fill/extrude sample it at the current resolution, mirror/pattern flip the bulge correctly. Trim/cut/chamfer still bake to straight polylines; constraints that referenced modified curves are dropped (logged).
 
 ### Workplanes follow their transform
-A workplane's Position / Rotation / Scale (inspector or G/R/S gizmo) now transform the plane *and everything on it* — sketches, curves, dimensions, picking, the drawing tool. `planeBasis()` composes the plane's own transform over its base axis / offset / in-plane rotation. The plane inspector is a workplane editor: base axis (XY/XZ/YZ), offset, in-plane rotation, extent, the sketches on it, and "make active"; no radius or generic dimension controls.
+A workplane's Position / Rotation / Scale (inspector or G/⇧R/S gizmo) now transform the plane *and everything on it* — sketches, curves, dimensions, picking, the drawing tool. `planeBasis()` composes the plane's own transform over its base axis / offset / in-plane rotation. The plane inspector is a workplane editor: base axis (XY/XZ/YZ), offset, in-plane rotation, extent, the sketches on it, and "make active"; no radius or generic dimension controls.
 
 ### Select modes · topology layer (B-rep-ready)
 **Body / Face / Edge / Vertex** (`1–4`) — **Shift-click** a mode button (or `⇧1–4`) to combine modes, e.g. Vertex + Edge. Every figure exposes `topo(f)` → `{verts, edges, faces}` with stable indices: curves give their control points (poly vertices, line ends, circle centre + radius handle, ellipse centre + two axis handles) and a face when the loop is closed *and planar*; bodies derive unique vertices / edges / coplanar faces from the mesh. The B-rep kernel will later replace `topo()` and `moveCurveVertex()` only — selection, gizmo, inspector and overlay are written against that interface.
