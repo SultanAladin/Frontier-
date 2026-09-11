@@ -48,6 +48,12 @@ Hold **⌃ (Ctrl/⌘)** to snap the cursor to endpoints, vertices, midpoints, ce
 ### History · Save / Open
 Every undo step is labelled. **⌃H** (or *history* in the outliner) opens the History page: click any step to jump back or forward; footer has *save .json* (⌃S), *open .json* (⌃O), *copy*, *new document*. The document autosaves to localStorage and is restored on reload (not when `?demo`).
 
+### Analytic B-rep solids · edge fillet / chamfer on bodies
+- Extrusions are now built by `solidBuild()` as a **boundary representation**: every control segment of the profile becomes ONE face — a line sweeps to a plane, an arc / circle sweeps to a cylinder (cone under draft); caps are planes. A cylinder is therefore 3 faces, 2 circular edges and no vertices; the side is shaded with per-vertex analytic normals (gradient-filled quads) so it reads as one smooth curved surface, with a silhouette line computed per frame instead of facet lines.
+- Faces / edges / vertices come from the B-rep (`mesh.brep`), keyed stably (`side:2`, `cap:top`, `h1.top:0` …) so face picking selects the whole curved side and edits survive rebuilds. Tangent edges (fillet boundaries) draw faint; sharp edges draw dark.
+- **Fillet (B) / Chamfer (⇧B) work on solids**: hover a body edge or face (highlight follows), click, drag for the radius / distance (`Ctrl` = 0.5 mm steps) or type it, ⏎ / click to apply; or pre-select edges/faces in Edge/Face mode and press B. Cap face → all its edges; side face → its top, bottom and vertical edges; single edge → just that edge. Cap-edge fillets are exact tori / cylinders swept from inward-offset rings; vertical-edge fillets insert an arc into the profile. Edits are listed in the Inspector (“Edge edits”, × removes), are undoable and are stored in the document (`body.edits`).
+- Measure reports faces / edges / tangent edges and the exact tessellated volume.
+
 ### Compatibility
 SolidArc's viewport is a **Canvas 2D software rasteriser** — it needs no WebGL, so GPU model (GTX vs RTX) doesn't matter; what does is the browser version. The page now polyfills `roundRect`, `requestAnimationFrame`, `ResizeObserver`, pointer capture and pointer events, falls back to a solid panel background when `backdrop-filter`/`color-mix` are unsupported, wraps each frame so one bad draw can't blank the view, and shows any runtime error as a red banner in the viewport (with file:line). The console log prints the build, the detected GPU/WebGL level and the browser at start — if the viewport is empty, that banner/log line is what to send.
 
