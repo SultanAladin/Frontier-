@@ -452,4 +452,14 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
+// 29. concave (reflex) vertical-corner fillet / chamfer: adds material by the exact analytic amount, no seam lines or sharp vertices at the tangent joints
+{ if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
+  M.startOp('rect');M.toolClick(380,300);M.toolClick(520,380);const R=M.doc.figures.filter(f=>f.kind==='curve').pop();R.params.pts=[[-20,-15],[20,-15],[20,0],[0,0],[0,15],[-20,15]];R.params.bulge=[];M.invalidate(R.id);M.selectTool();M.doc.sel=new Set([R.id]);M.startOp('extrude');M.solidKey({key:'2'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b=M.doc.figures.filter(f=>f.kind==='body').pop();
+  const v0=M.meshVolume(M.meshOf(b));const ck=M.topo(b).edges.find(e=>/^side/.test(e.key)&&Math.abs(e.pts[0][0])<1e-6&&Math.abs(e.pts[0][1])<1e-6).key;
+  b.edits=[{type:'fillet',key:ck,r:5}];M.invalidate(b.id);M.topoCache.clear();const vf=M.meshVolume(M.meshOf(b));ok(Math.abs((vf-v0)-(25-Math.PI*25/4)*20)<3,'concave fillet adds r²(1−π/4)·h ('+(vf-v0).toFixed(1)+')');
+  const T=M.topo(b);ok(T.edges.filter(e=>/^side:0:\d+[ab]~$/.test(e.key)).every(e=>e.tangent),'arc/wall joints of the concave fillet are tangent');ok(!T.verts.some(v=>Math.abs(v.p[2]-20)<1e-6&&Math.hypot(v.p[0]-5,v.p[1])<1e-3),'no sharp vertex at the fillet tangent joint');ok(T.faces.find(f=>f.key==='side:fs3'||/^side:fs/.test(f.key)).kind==='cylinder','concave fillet is a cylinder face');
+  b.edits=[{type:'chamfer',key:ck,r:5}];M.invalidate(b.id);M.topoCache.clear();const vc=M.meshVolume(M.meshOf(b));ok(Math.abs((vc-v0)-12.5*20)<1e-6,'concave chamfer adds d²/2·h');
+  M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);
