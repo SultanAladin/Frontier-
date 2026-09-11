@@ -1268,14 +1268,16 @@ function drawSubOverlay(g){const modes=subModes();const anySub=modes.has('vertex
 
 /* ── viewport interaction ─────────────────────────────────── */
 let drag=null,tool=null,hover=null;
-cv.addEventListener('pointerdown',e=>{const r0=cv.getBoundingClientRect();const px0=e.clientX-r0.left,py0=e.clientY-r0.top;closeDimEd();if(modTool){modDown(e,px0,py0);return;}if(offTool){offDown(e,px0,py0);return;}if(patTool){patDown(e,px0,py0);return;}if(fillTool){if(e.button!==0){fillEnd();return;}const h=fillPick(px0,py0);if(h)toggleRegion(h.sk,h.r);return;}
+cv.addEventListener('pointerdown',e=>{syncMods(e);const r0=cv.getBoundingClientRect();const px0=e.clientX-r0.left,py0=e.clientY-r0.top;closeDimEd();if(modTool){modDown(e,px0,py0);return;}if(offTool){offDown(e,px0,py0);return;}if(patTool){patDown(e,px0,py0);return;}if(fillTool){if(e.button!==0){fillEnd();return;}const h=fillPick(px0,py0);if(h)toggleRegion(h.sk,h.r);return;}
   if(dimTool){if(e.button!==0){dimEnd();return;}cv.setPointerCapture(e.pointerId);if(dimTool.stage==='pick'){dimPickAt(px0,py0);}else if(dimTool.stage==='pick2'){if(!dimPickAt(px0,py0)){/* drag from a single point: nothing */}}else if(dimTool.stage==='place'){/* second press while placing = commit at current place */dimCommit();}dimTool&&(dimTool.pressed=true);return;}
   if(e.button===0&&!tool){const lbl=dimLabelAt(px0,py0);if(lbl){if(e.detail===2){editDim(lbl.c);return;}cv.setPointerCapture(e.pointerId);dimDragBegin(lbl);return;}}
   if(gz.drag&&gz.edit){if(e.button===0)gzEnd(true);else gzEnd(false);return;}
   if(gz.modal){if(e.button===0)modalConfirm();else modalCancel();return;}
   if(e.button===0&&!tool){const h=gzHit(px0,py0);if(h&&gzBegin(h,px0,py0)){cv.setPointerCapture(e.pointerId);return;}}
   cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,btn:e.button,shift:e.shiftKey,moved:false};});
-cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();lastMouse=[e.clientX-r.left,e.clientY-r.top];
+function syncMods(e){const c=!!(e.ctrlKey||e.metaKey),a=!!e.altKey;if(c!==modKeys.ctrl||a!==modKeys.alt){modKeys.ctrl=c;modKeys.alt=a;if(tool)hover=planeHit(lastMouse[0],lastMouse[1]);}}
+addEventListener('blur',()=>{modKeys.ctrl=false;modKeys.alt=false;if(tool){hover=planeHit(lastMouse[0],lastMouse[1]);requestDraw();}});
+cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();lastMouse=[e.clientX-r.left,e.clientY-r.top];syncMods(e);
   if(dimDrag){dimDragUpdate(lastMouse[0],lastMouse[1]);return;}if(modTool){modMove(lastMouse[0],lastMouse[1]);return;}if(offTool){offMove(lastMouse[0],lastMouse[1]);return;}if(patTool){patMove(lastMouse[0],lastMouse[1]);return;}if(fillTool){const h=fillPick(lastMouse[0],lastMouse[1]);const same=(!h&&!fillTool.hover)||(h&&fillTool.hover&&h.sk===fillTool.hover.sk&&h.r.key===fillTool.hover.r.key);if(!same){fillTool.hover=h;requestDraw();}return;}
   if(dimTool){if(dimTool.stage==='place'||(dimTool.stage==='pick2'&&dimTool.pressed)){if(dimTool.stage==='pick2'&&dimTool.pressed){/* dragging straight from a point → becomes place with one ref? only valid for line/circle */}else dimPlaceUpdate(lastMouse[0],lastMouse[1]);}
     const hv=pickSub(lastMouse[0],lastMouse[1],new Set(['vertex','edge']));const same=(hv&&sub_.hover&&hv.fig===sub_.hover.fig&&hv.kind===sub_.hover.kind&&hv.idx===sub_.hover.idx)||(!hv&&!sub_.hover);if(!same){sub_.hover=hv;requestDraw();}return;}
@@ -1888,7 +1890,7 @@ function drawToolPreview(g){if(!tool)return;const pl=activePlane();if(!pl)return
   if(shape){const L=curveLines({ctype:shape.ctype,params:shape.params}).lines;g.strokeStyle='rgba(79,216,224,.95)';g.lineWidth=1.4;g.setLineDash([5,4]);g.beginPath();L.forEach(l=>{const a=project(W3(l[0])),b=project(W3(l[1]));if(!a||!b)return;g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);});g.stroke();g.setLineDash([]);drawLiveDims(g,shape,W3);}
   tool.pts.forEach(uv=>{const s=project(W3(uv));if(!s)return;g.fillStyle='#4fd8e0';g.beginPath();g.arc(s[0],s[1],3.5,0,7);g.fill();});
   if(hover){const s=project(W3(hover));if(s){g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=1;g.beginPath();g.moveTo(s[0]-8,s[1]);g.lineTo(s[0]+8,s[1]);g.moveTo(s[0],s[1]-8);g.lineTo(s[0],s[1]+8);g.stroke();
-    g.font='10px JetBrains Mono, monospace';g.fillStyle='rgba(255,255,255,.7)';g.textAlign='left';g.fillText(`${hover[0]}, ${hover[1]}`,s[0]+10,s[1]-8);
+    g.font='10px JetBrains Mono, monospace';g.fillStyle='rgba(255,255,255,.7)';g.textAlign='left';g.fillText((modKeys.ctrl||modKeys.alt)?`${fmt(hover[0],2)}, ${fmt(hover[1],2)}  ·  ${snapHit?snapHit.kind:(modKeys.ctrl?'⌃ point snap':'⌥ along curve')}`:`${hover[0]}, ${hover[1]}`,s[0]+10,s[1]-8);
     if(tool.pts.length){const a=tool.pts[tool.pts.length-1];const dd=Math.hypot(hover[0]-a[0],hover[1]-a[1]);g.fillText(`${fmt(dd,1)} mm`,s[0]+10,s[1]+14);}}}}
 
 /* ── command line (mirrors the .arc console verbs) ─────────── */
