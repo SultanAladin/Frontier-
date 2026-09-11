@@ -48,6 +48,12 @@ Hold **⌃ (Ctrl/⌘)** to snap the cursor to endpoints, vertices, midpoints, ce
 ### History · Save / Open
 Every undo step is labelled. **⌃H** (or *history* in the outliner) opens the History page: click any step to jump back or forward; footer has *save .json* (⌃S), *open .json* (⌃O), *copy*, *new document*. The document autosaves to localStorage and is restored on reload (not when `?demo`).
 
+### Focus (F) · Extrude (⇧E) · Loft (⇧O) · Matcap
+- **F** frames the selection (bodies, curves, sketches, sub-elements) with a short camera glide; with nothing selected it frames everything.
+- **Extrude**: with a closed curve selected, ⇧E starts immediately and the mouse sets the height along the sketch normal (⌃ = 5 mm steps, ⌥ = symmetric, type a number, ⏎ / click applies, negative = other side). Otherwise click a closed profile — a curve, or a *filled region* of a sketch (holes come along). Bodies keep a link to their profile: edit the sketch and the solid rebuilds; height/draft live in the inspector.
+- **Loft**: click two or more closed profiles (any sketches / workplanes — e.g. a circle on `Workplane01` and one on an offset plane), ⏎. Loops are resampled by arc length and aligned by angle; cap ends toggle and ruling count in the tool options. Editing a section rebuilds the loft.
+- **Matcap** is now the default shading: a studio-style capture for machined parts — top-left key light, cool rim, soft under-fill, a tight clear-coat highlight and cavity darkening where the normal turns away; selection is a warm brass tint. Plastic / Flat / Wire remain.
+
 ### New document · continue previous
 On launch, if an autosaved drawing exists, a start card asks **continue previous** / **new document** (or open a `.json`, or jump to history). **⌃N**, the **new** button in the outliner doc-bar and *new document* in the history page start a blank scene; the replaced drawing is kept as a backup and can be brought back with *restore previous* (history page). Autosave carries a timestamp. `?demo` skips the card.
 
