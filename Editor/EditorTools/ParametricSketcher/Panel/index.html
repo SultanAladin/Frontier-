@@ -639,7 +639,7 @@ function loftMesh(sections,n,capped){ // sections: [{pts (plane space), sk}] →
 function profileSegs(f){ // → [{pts:[[u,v]..] (loop ctrl points), bulge:[], eids:[], smooth:[]}] loops with material on the LEFT
   const loops=[];const add=(pts,bulge,eids,smooth,hole)=>{if(pts.length<3&&!(pts.length===2&&bulge.some(b=>b)))return;let P=pts.slice(),B=bulge.slice(),E=eids.slice(),S=smooth.slice();
     const area=signedArea(P.length>2?P:polyExpandPts(P,B));const wantCCW=!hole;if((area>0)!==wantCCW){const n=P.length;const P2=[],B2=[],E2=[],S2=[];for(let i=0;i<n;i++){const j=(n-1-i);P2.push(P[j]);}for(let i=0;i<n;i++){const j=(n-1-i+n-1)%n;B2.push(-(B[j]||0));E2.push(E[j]);S2.push(S[j]);}P=P2;B=B2;E=E2;S=S2;}
-    loops.push({pts:P,bulge:B,eids:E,smooth:S,hole:!!hole});};
+    loops.push({pts:P,bulge:B,eids:E,smooth:S,hole:!!hole,orig:P.map((_,i)=>i)});};
   if(f.kind==='curve'){const cs=f.scl||[1,1,1],cr=(f.rot3?f.rot3[2]:f.rot||0)*Math.PI/180,cp=f.pos||[0,0,0];const c=Math.cos(cr),sn=Math.sin(cr);const X=q=>{let u=q[0]*cs[0],v=q[1]*cs[1];if(cr){const t=u;u=t*c-v*sn;v=t*sn+v*c;}return [u+cp[0],v+cp[1]];};const p=f.params;
     if(f.ctype==='circle'){const C=X([p.cx,p.cy]);const r=p.r*cs[0];add([[C[0]+r,C[1]],[C[0]-r,C[1]]],[1,1],[0,0],[true,true],false);return loops;}
     if(f.ctype==='poly'&&!isSlot(f)){const CP=ctrlPlane(f);if(!CP.closed)return null;const n=CP.pts.length;add(CP.pts,CP.pts.map((_,i)=>CP.bulge[i]||0),CP.pts.map((_,i)=>i),CP.pts.map((_,i)=>!!CP.bulge[i]),false);return loops;}
@@ -650,16 +650,17 @@ function profileSegs(f){ // → [{pts:[[u,v]..] (loop ctrl points), bulge:[], ei
     pf.regions.forEach(R=>{const ch=chain(R.outer);add(R.outer,R.outer.map(()=>0),ch.eids,ch.smooth,false);R.holes.forEach(H=>{const c2=chain(H);add(H,H.map(()=>0),c2.eids,c2.smooth,true);});});return loops;}
   return null;}
 function polyExpandPts(P,B){const out=[];const n=P.length;for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n];if(B[i]){const A=arcPoints(a,b,B[i]);A.slice(0,-1).forEach(q=>out.push(q));}else out.push(a);}return out;}
+const norm2=v=>{const l=Math.hypot(v[0],v[1])||1;return [v[0]/l,v[1]/l];};
 function loopApplySideEdits(L,edits){ // vertical-edge fillets/chamfers: insert arcs / cuts into the control loop at sharp corners
-  if(!edits.length)return L;let P=L.pts.slice(),B=L.bulge.slice(),E=L.eids.slice(),S=L.smooth.slice();
-  const corners=edits.map(e=>+e.key.split(':')[2]).filter(k=>k>=0&&k<P.length).sort((a,b)=>b-a);
-  corners.forEach(k=>{const ed=edits.find(e=>+e.key.split(':')[2]===k);const n=P.length;if(B[(k-1+n)%n]||B[k]||S[(k-1+n)%n]||S[k])return;const a=P[(k-1+n)%n],b=P[k],c=P[(k+1)%n];const lim=Math.min(Math.hypot(b[0]-a[0],b[1]-a[1]),Math.hypot(c[0]-b[0],c[1]-b[1]))*.499;const G=cornerGeom({pts:P,i:k},Math.min(ed.r,ed.type==='fillet'?lim*4:lim),ed.type);if(!G)return;if(ed.type==='fillet'){const d=Math.hypot(G.ctrl[0][0]-b[0],G.ctrl[0][1]-b[1]);if(d>lim*1.002)return;}
-    if(ed.type==='fillet'){P.splice(k,1,G.ctrl[0],G.ctrl[1]);B.splice(k,1,G.bulge,0);E.splice(k,1,'fs'+k,E[k]);S.splice(k,1,true,S[k]);}else{P.splice(k,1,G.pts[0],G.pts[1]);B.splice(k,1,0,0);E.splice(k,1,'cs'+k,E[k]);S.splice(k,1,false,S[k]);}});
-  return {pts:P,bulge:B,eids:E,smooth:S,hole:L.hole};}
+  if(!edits.length)return L;let P=L.pts.slice(),B=L.bulge.slice(),E=L.eids.slice(),S=L.smooth.slice(),O=(L.orig||P.map((_,i)=>i)).slice();
+  const corners=edits.map(e=>+e.key.split(':')[2]).filter(k=>k>=0&&k<P.length&&Number.isInteger(k)).sort((a,b)=>b-a);
+  corners.forEach(k0=>{const ed=edits.find(e=>+e.key.split(':')[2]===k0);const k=O.indexOf(k0);if(k<0)return;const n=P.length;if(B[(k-1+n)%n]||B[k]||S[(k-1+n)%n]||S[k])return;const a=P[(k-1+n)%n],b=P[k],c=P[(k+1)%n];const lim=Math.min(Math.hypot(b[0]-a[0],b[1]-a[1]),Math.hypot(c[0]-b[0],c[1]-b[1]))*.499;let r=ed.r;if(ed.type==='fillet'){const d1=norm2([a[0]-b[0],a[1]-b[1]]),d2=norm2([c[0]-b[0],c[1]-b[1]]);const th=Math.acos(Math.max(-1,Math.min(1,d1[0]*d2[0]+d1[1]*d2[1])));const tn=Math.tan(th/2);if(tn>1e-6)r=Math.min(r,lim*tn);}else r=Math.min(r,lim);const G=cornerGeom({pts:P,i:k},r,ed.type);if(!G)return;
+    if(ed.type==='fillet'){P.splice(k,1,G.ctrl[0],G.ctrl[1]);B.splice(k,1,G.bulge,0);E.splice(k,1,'fs'+k0,E[k]);S.splice(k,1,true,S[k]);}else{P.splice(k,1,G.pts[0],G.pts[1]);B.splice(k,1,0,0);E.splice(k,1,'cs'+k0,E[k]);S.splice(k,1,false,S[k]);}O.splice(k,1,k0+'a',k0+'b');});
+  return {pts:P,bulge:B,eids:E,smooth:S,hole:L.hole,orig:O};}
 function loopSubs(L){ // expand arcs → sub-segments {a,b,eid,smooth,arc:{c,r}|null,nl:[left normal]}
   const subs=[];const n=L.pts.length;for(let i=0;i<n;i++){const a=L.pts[i],b=L.pts[(i+1)%n];const bl=L.bulge[i]||0;const eid=L.eids[i];
-    if(bl){const A=bulgeArc(a,b,bl);const pts=arcPoints(a,b,bl);for(let k=0;k<pts.length-1;k++)subs.push({a:pts[k],b:pts[k+1],eid,smooth:true,arc:A,cornerIdx:k===0?i:null});}
-    else subs.push({a,b,eid,smooth:!!L.smooth[i],arc:null,cornerIdx:i});}
+    const oi=L.orig?L.orig[i]:i;if(bl){const A=bulgeArc(a,b,bl);const pts=arcPoints(a,b,bl);for(let k=0;k<pts.length-1;k++)subs.push({a:pts[k],b:pts[k+1],eid,smooth:true,arc:A,cornerIdx:k===0?oi:null});}
+    else subs.push({a,b,eid,smooth:!!L.smooth[i],arc:null,cornerIdx:oi});}
   subs.forEach(sb=>{const dx=sb.b[0]-sb.a[0],dy=sb.b[1]-sb.a[1];const l=Math.hypot(dx,dy)||1;sb.nl=[-dy/l,dx/l];sb.len=l;});return subs;}
 function ringOf(subs,d){ // offset every sub-segment by d[m] along its left normal, joints = line intersections
   const n=subs.length;const out=[];for(let m=0;m<n;m++){const p=subs[(m-1+n)%n],q=subs[m];const d1=d[(m-1+n)%n]||0,d2=d[m]||0;
@@ -1406,7 +1407,7 @@ function planarLoop(f){if(isSlot(f))return true;const vz=f.params.vz;if(!vz||!vz
   return P.every(p=>Math.abs(dot(sub(p,P[0]),n))<1e-3);}
 function curveVertWorld(f,i){const t=topo(f);const v=t.verts[i];return xform(f,[v.p[0],v.p[1],v.p[2]+(v.z||0)]);}
 function subWorld(f,kind,idx){const t=topo(f);if(kind==='vertex'){return f.kind==='curve'?curveVertWorld(f,idx):xform(f,t.verts[idx].p);}
-  if(kind==='edge'){const e=t.edges[idx];const a=subWorld(f,'vertex',e.a),b=subWorld(f,'vertex',e.b);return mul(add(a,b),.5);}
+  if(kind==='edge'){const e=t.edges[idx];if(!e)return null;if(e.pts){const P=e.pts.filter(Boolean);if(!P.length)return null;const c=P.reduce((a,p)=>add(a,p),[0,0,0]).map(v=>v/P.length);return xform(f,c);}const a=subWorld(f,'vertex',e.a),b=subWorld(f,'vertex',e.b);return mul(add(a,b),.5);}
   if(kind==='face'){const fc=t.faces[idx];if(fc.loop){const c=fc.loop.reduce((a,q)=>[a[0]+q[0],a[1]+q[1]],[0,0]).map(v=>v/fc.loop.length);return xform(f,[c[0],c[1],0]);}const pts=[];fc.tris.forEach(tr=>tr.forEach(p=>pts.push(p)));const c=pts.reduce((a,p)=>add(a,p),[0,0,0]).map(v=>v/pts.length);return xform(f,c);}}
 // picking sub-elements (screen space). modes: Set of 'vertex'|'edge'|'face'
 function pickSub(px,py,modes){cam=camBasis();let best=null;
@@ -1423,9 +1424,9 @@ function selectSub(hit,add){if(!add)sub_.sel.clear();const k=subKey(hit.fig,hit.
 function clearSub(){sub_.sel.clear();}
 // vertices affected by the current sub selection (for move) → [{fig,idx}]
 function subVertices(){const out=new Map();sub_.sel.forEach(h=>{const f=byId(h.fig);if(!f)return;const t=topo(f);const push=i=>out.set(h.fig+':'+i,{fig:h.fig,idx:i});
-    if(h.kind==='vertex')push(h.idx);else if(h.kind==='edge'){const e=t.edges[h.idx];push(e.a);push(e.b);}else if(h.kind==='face'){const fc=t.faces[h.idx];if(fc.loop&&f.kind==='curve')t.verts.forEach((_,i)=>push(i));else{const key=p=>p.map(v=>v.toFixed(4)).join(',');const ks=new Set();fc.tris.forEach(tr=>tr.forEach(p=>ks.add(key(p))));t.verts.forEach((v,i)=>{if(ks.has(key(v.p)))push(i);});}}});
+    if(h.kind==='vertex')push(h.idx);else if(h.kind==='edge'){const e=t.edges[h.idx];if(!e)return;if(e.pts){const key=p=>p.map(v=>v.toFixed(4)).join(',');const ks=new Set(e.pts.filter(Boolean).map(key));t.verts.forEach((v,i)=>{if(ks.has(key(v.p)))push(i);});}else{push(e.a);push(e.b);}}else if(h.kind==='face'){const fc=t.faces[h.idx];if(fc.loop&&f.kind==='curve')t.verts.forEach((_,i)=>push(i));else{const key=p=>p.map(v=>v.toFixed(4)).join(',');const ks=new Set();fc.tris.forEach(tr=>tr.forEach(p=>ks.add(key(p))));t.verts.forEach((v,i)=>{if(ks.has(key(v.p)))push(i);});}}});
   return [...out.values()];}
-function subPivot(){const vs=subVertices();if(!vs.length)return null;const c=vs.reduce((a,v)=>add(a,subWorld(byId(v.fig),'vertex',v.idx)),[0,0,0]);return mul(c,1/vs.length);}
+function subPivot(){const vs=subVertices();if(!vs.length){const hs=[...sub_.sel.values()].map(h=>{const f=byId(h.fig);return f&&subWorld(f,h.kind,h.idx);}).filter(Boolean);if(!hs.length)return null;return mul(hs.reduce((a,p)=>add(a,p),[0,0,0]),1/hs.length);}const c=vs.reduce((a,v)=>add(a,subWorld(byId(v.fig),'vertex',v.idx)),[0,0,0]);return mul(c,1/vs.length);}
 // apply a world-space delta to a curve vertex: convert into plane (u,v) + normal offset
 function moveCurveVertex(f,i,w0,delta){if(f.link){delete f.link;log(f.name+' unlinked (edited directly)');}const B=basisOf(f);const sk=byId(f.parent);const ss=sk&&sk.scl||[1,1,1];const cs=f.scl||[1,1,1];const cr=(f.rot3?f.rot3[2]:0)*Math.PI/180;
   let du=dot(delta,B.u)/(ss[0]||1),dv=dot(delta,B.v)/(ss[1]||1),dn=dot(delta,B.n)/(ss[2]||1);
@@ -1852,7 +1853,7 @@ function modStart(kind,vals){if(tool)endTool();if(dimTool)dimEnd();if(solidTool)
 function solidHitsFromSel(){const out=[];sub_.sel.forEach(h=>{const f=byId(h.fig);if(!f||f.kind!=='body'||!meshOf(f).brep)return;if(h.kind==='edge'||h.kind==='face')out.push({f,kind:h.kind,idx:h.idx});});return out;}
 function solidEditKeys(hits){ // selected faces/edges → stable edge keys to fillet
   const keys=new Map();hits.forEach(h=>{const t=topo(h.f);const add=k=>{if(!keys.has(h.f.id))keys.set(h.f.id,new Set());keys.get(h.f.id).add(k);};
-    if(h.kind==='edge'){const e=t.edges[h.idx];if(!e||!e.key||e.tangent)return;const k=e.key.replace(/^h\d+\./,'');if(/^(top|bot|side):/.test(k))add(e.key);}
+    if(h.kind==='edge'){const e=t.edges[h.idx];if(!e||!e.key||e.tangent)return;const k=e.key.replace(/^h\d+\./,'');if(/^(top|bot):/.test(k)||/^side:\d+:\d+$/.test(k))add(e.key);}
     else{const F=t.faces[h.idx];if(!F)return;const k=F.key;if(k==='cap:top'||k==='cap:bot'){add((k==='cap:top'?'top':'bot')+':all');}
       else if(/side:/.test(k)){const pre=/^h\d+\./.exec(k);const eid=k.split(':')[1];add((pre?pre[0]:'')+'top:'+eid);add((pre?pre[0]:'')+'bot:'+eid);t.edges.forEach(e=>{if(e.key&&/side:/.test(e.key)&&!e.tangent){const p0=e.pts[0];const onFace=F.tris.some(tr=>tr.some(q=>Math.hypot(q[0]-p0[0],q[1]-p0[1],q[2]-p0[2])<1e-6));if(onFace)add(e.key);}});}}});return keys;}
 function solidEditApply(hits,type,r){const keys=solidEditKeys(hits);let n=0;keys.forEach((set,fid)=>{const f=byId(fid);if(!f)return;f.edits=(f.edits||[]).filter(e=>!set.has(e.key));set.forEach(k=>{f.edits.push({type,key:k,r});n++;});invalidate(f.id);});return n;}
@@ -1937,7 +1938,7 @@ function modDown(e,px,py){const m=modTool;if(e.button!==0){if(m.drag){m.drag=nul
   if(m.kind==='trim'){m.pressed=true;const h=modPick(px,py);if(h)trimApply(h);m.hover=null;return;}
   if(m.kind==='cut'){const h=modPick(px,py);if(h)cutApply(h);m.hover=null;return;}
   if(m.drag){cornerApply();return;}
-  const cn=cornerPick(px,py);if(!cn){const sh=pickSub(px,py,new Set(['edge','face']));const f=sh&&byId(sh.fig);if(f&&f.kind==='body'&&meshOf(f).brep){const hits=solidHitsFromSel().filter(x=>x.f===f);if(!hits.some(x=>x.kind===sh.kind&&x.idx===sh.idx))hits.push({f,kind:sh.kind,idx:sh.idx});m.drag={solid:hits,value:m.value||2,sx:px,sy:py,moved:false,anchor:solidHitAnchor({f,kind:sh.kind,idx:sh.idx})};$('#promptTxt').textContent=`Drag to set the ${m.kind==='fillet'?'radius':'distance'} · type a value · ⏎ / click to apply`;draw();return;}log(m.kind+': click a sketch corner, or a solid edge / face');return;}
+  const cn=cornerPick(px,py);if(!cn){const sh=pickSub(px,py,new Set(['edge','face']));const f=sh&&byId(sh.fig);if(f&&f.kind==='body'&&meshOf(f).brep){const hits=solidHitsFromSel().filter(x=>x.f===f);if(!hits.some(x=>x.kind===sh.kind&&x.idx===sh.idx))hits.push({f,kind:sh.kind,idx:sh.idx});m.drag={solid:hits,value:m.value||2,sx:px,sy:py,moved:false,anchor:solidHitAnchor({f,kind:sh.kind,idx:sh.idx})};$('#promptTxt').textContent=`Drag to set the ${m.kind==='fillet'?'radius':'distance'} · type a value · ⏎ / click to apply`;draw();return;}if(f&&f.kind==='body')log(m.kind+': only extruded solids support edge edits for now (this body is '+(f.op||'a mesh')+')');else log(m.kind+': click a sketch corner, or a solid edge / face');return;}
   m.drag={corner:cn,value:m.value||0,sx:px,sy:py,moved:false};$('#promptTxt').textContent=`Drag to set the ${m.kind==='fillet'?'radius':'distance'} · type a value · ⏎ / click to apply · Tab → ${m.kind==='fillet'?'chamfer':'fillet'}`;draw();}
 function modMove(px,py){const m=modTool;if(m.drag&&m.drag.solid){const d=m.drag;if(d.auto){d.sx=px;d.sy=py;d.auto=false;d.anchor=solidHitAnchor(d.solid[0]);}const k=pxPerUnit(d.anchor||[0,0,0])||1;let v=Math.hypot(px-d.sx,py-d.sy)/k+(d.base||0);if(modKeys.ctrl)v=Math.round(v*2)/2;d.value=Math.max(0.01,v);if(Math.abs(px-d.sx)+Math.abs(py-d.sy)>3)d.moved=true;requestDraw();return;}
   if(m.drag){const uv=modPlaneUV(px,py,m.drag.corner.sk);if(uv){const Q=m.drag.corner.pts[m.drag.corner.i];m.drag.value=Math.hypot(uv[0]-Q[0],uv[1]-Q[1]);}if(Math.abs(px-m.drag.sx)+Math.abs(py-m.drag.sy)>3)m.drag.moved=true;requestDraw();return;}
