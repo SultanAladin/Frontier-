@@ -543,7 +543,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const BUILD='20260911-2123-01c6949';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-2139-698c82f';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,planeAlpha:doc.planeAlpha,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;if(o.planeAlpha!=null)doc.planeAlpha=o.planeAlpha;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -663,7 +663,8 @@ function loopSubs(L){ // expand arcs → sub-segments {a,b,eid,smooth,arc:{c,r}|
     else subs.push({a,b,eid,smooth:!!L.smooth[i],arc:null,cornerIdx:oi});}
   subs.forEach(sb=>{const dx=sb.b[0]-sb.a[0],dy=sb.b[1]-sb.a[1];const l=Math.hypot(dx,dy)||1;sb.nl=[-dy/l,dx/l];sb.len=l;});return subs;}
 function ringOf(subs,d){ // offset every sub-segment by d[m] along its left normal; joints = line intersection, miter-limited and stable for smooth (arc) joints
-  const n=subs.length;const out=[];for(let m=0;m<n;m++){const p=subs[(m-1+n)%n],q=subs[m];const d1=d[(m-1+n)%n]||0,d2=d[m]||0;
+  const n=subs.length;const out=[];const dm=(m)=>{const sb=subs[m];let v=d[m]||0;if(sb.arc&&sb.arc.r!==undefined&&v>0)v=Math.min(v,sb.arc.r);return v;};for(let m=0;m<n;m++){const p=subs[(m-1+n)%n],q=subs[m];const d1=dm((m-1+n)%n),d2=dm(m);
+    if(p.arc&&q.arc&&Math.hypot(p.arc.c[0]-q.arc.c[0],p.arc.c[1]-q.arc.c[1])<1e-6){ /* joint inside one arc: exact radial offset (an offset ≥ r collapses to the centre) */ const c=q.arc.c;const ux=q.a[0]-c[0],uy=q.a[1]-c[1];const l=Math.hypot(ux,uy)||1;const dd=(d1+d2)/2;const sgn=(ux*q.nl[0]+uy*q.nl[1])<0?1:-1; /* nl points inward for a convex arc */ const rr=sgn>0?Math.max(0,l-dd):l+dd;out.push([c[0]+ux/l*rr,c[1]+uy/l*rr]);continue;}
     const a1=[p.a[0]+p.nl[0]*d1,p.a[1]+p.nl[1]*d1],b1=[p.b[0]+p.nl[0]*d1,p.b[1]+p.nl[1]*d1],a2=[q.a[0]+q.nl[0]*d2,q.a[1]+q.nl[1]*d2],b2=[q.b[0]+q.nl[0]*d2,q.b[1]+q.nl[1]*d2];
     const r1=[b1[0]-a1[0],b1[1]-a1[1]],r2=[b2[0]-a2[0],b2[1]-a2[1]];const l1=Math.hypot(...r1)||1,l2=Math.hypot(...r2)||1;const cosT=(r1[0]*r2[0]+r1[1]*r2[1])/(l1*l2);const den=r1[0]*r2[1]-r1[1]*r2[0];
     const nearPar=Math.abs(den)<1e-9*l1*l2||cosT>Math.cos(3*Math.PI/180); // < 3° turn: treat as tangent joint
@@ -671,7 +672,7 @@ function ringOf(subs,d){ // offset every sub-segment by d[m] along its left norm
       const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=(d1+d2)/2;out.push([q.a[0]+nx/l*dd,q.a[1]+ny/l*dd]);continue;}
     const t=((a2[0]-a1[0])*r2[1]-(a2[1]-a1[1])*r2[0])/den;let X=[a1[0]+r1[0]*t,a1[1]+r1[1]*t];
     // miter limit: never let a joint fly further than 4× the larger offset from the source corner
-    const lim=4*Math.max(Math.abs(d1),Math.abs(d2))+1e-6;const dx=X[0]-q.a[0],dy=X[1]-q.a[1];const L=Math.hypot(dx,dy);if(L>lim){const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=Math.max(d1,d2)/Math.max(.2,Math.sqrt((1+cosT)/2));X=[q.a[0]+nx/l*dd,q.a[1]+ny/l*dd];}
+    const lim=(Math.abs(d1-d2)>1e-6*Math.max(1,Math.abs(d1)+Math.abs(d2))?1.5:4)*Math.max(Math.abs(d1),Math.abs(d2))+1e-6; /* unequal offsets (a bevel terminating against a neighbour): keep the joint close to the corner */const dx=X[0]-q.a[0],dy=X[1]-q.a[1];const L=Math.hypot(dx,dy);if(L>lim){const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=Math.max(d1,d2)/Math.max(.2,Math.sqrt((1+cosT)/2));X=[q.a[0]+nx/l*dd,q.a[1]+ny/l*dd];}
     out.push(X);}
   return out;}
 function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
@@ -682,19 +683,26 @@ function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
   const tris=[],quads=[],lines=[];const faces=new Map(),edges=new Map(),verts=[];const face=(key,kind)=>{if(!faces.has(key))faces.set(key,{key,kind,tris:[]});return faces.get(key);};const edge=(key,pts,tangent)=>{if(!edges.has(key))edges.set(key,{key,pts:[],tangent:!!tangent,chunks:[]});const e=edges.get(key);e.chunks.push(pts);return e;};
   const V=(q,z)=>[q[0],q[1],z];
   loops0.forEach((L0,li)=>{const pre=li?('h'+li+'.'):'';const L=loopApplySideEdits(L0,sideE.filter(e=>preOf(e.key)===pre&&e.key.split(':')[1]===String(li)));const subs=loopSubs(L);const n=subs.length;if(n<2)return;const TB=bandSpec(topE,pre),BB=bandSpec(botE,pre);
-    // Blender-style: only the picked edge(s) are bevelled; a neighbouring fillet arc / smooth run is not rolled into — the band terminates against it with a mitre / triangular blend built by ringOf
-    subs.forEach((sb,i)=>{sb.m=i;});const chain=(spec)=>{if(!spec)return null;const S=new Set();subs.forEach((sb,i)=>{if(spec.eids.has('all')||spec.eids.has(String(sb.eid)))S.add(i);});return S;};
+    // Blender-style: only the picked edge(s) are bevelled. A neighbouring tangent run (profile-corner fillet arc / smooth curve) is not rolled into:
+    // the band terminates across it with a triangular blend — the offset ramps from full radius at the bevelled side down to zero at the far end of the run.
+    subs.forEach((sb,i)=>{sb.m=i;});const chain=(spec)=>{if(!spec)return null;const W=new Float64Array(n);subs.forEach((sb,i)=>{if(spec.eids.has('all')||spec.eids.has(String(sb.eid)))W[i]=1;});
+      const tang=i=>!!(subs[i].arc||subs[i].smooth);const done=new Uint8Array(n);
+      for(let i=0;i<n;i++){if(done[i]||!tang(i)||W[i])continue;let s0=i;while(tang((s0-1+n)%n)&&!W[(s0-1+n)%n]&&(s0-1+n)%n!==i)s0=(s0-1+n)%n;const run=[];let k=s0;do{run.push(k);done[k]=1;k=(k+1)%n;}while(tang(k)&&!W[k]&&k!==s0&&run.length<n);
+        const before=W[(s0-1+n)%n]>0,after=W[k]>0;if(!before&&!after)continue;if(run.length>=n)continue;
+        const len=run.map(j=>Math.hypot(subs[j].b[0]-subs[j].a[0],subs[j].b[1]-subs[j].a[1]));const tot=len.reduce((p,q)=>p+q,0)||1;let acc=0;
+        run.forEach((j,q)=>{const t0=acc/tot;acc+=len[q];const t1=acc/tot;const tm=(t0+t1)/2;W[j]=before&&after?1:before?1-tm:tm;const ar=subs[j].arc;if(ar&&spec.r>ar.r)W[j]*=ar.r/spec.r*0.98; /* the blend can never offset an arc past its own centre */});}
+      return W;};
     if(TB)TB._chain=chain(TB);if(BB)BB._chain=chain(BB);
-    const inSet=(spec,sb)=>!!(spec&&spec._chain&&spec._chain.has(sb.m));
+    const inSet=(spec,sb)=>!!(spec&&spec._chain&&spec._chain[sb.m]>0);const wOf=(spec,sb)=>spec&&spec._chain?spec._chain[sb.m]:0;
     // rings: [{z, d:[per sub], tilt:{c,s} normal tilt (c·out + s·ẑ), band:'wall'|'ftop'|'fbot'|'ctop'|'cbot', key}]
     const rings=[];const base=z=>draftK*(z-zb);
     const wallTilt={c:1/Math.hypot(1,draftK),s:draftK/Math.hypot(1,draftK)};
     let z0=zb,z1=zt;
     const botRings=[],topRings=[];
-    if(BB){const r=BB.r;z0=zb+r;if(BB.type==='chamfer'){botRings.push({z:zb,d:subs.map(sb=>base(zb)+(inSet(BB,sb)?r:0)),tilt:null,band:'cbot'});}
-      else{const N=12;for(let j=0;j<=N;j++){const ph=Math.PI/2*(1-j/N);const z=zb+r-r*Math.sin(ph);botRings.push({z,d:subs.map(sb=>base(z)+(inSet(BB,sb)?r*(1-Math.cos(ph)):0)),tilt:{c:Math.cos(ph),s:-Math.sin(ph)},band:'fbot'});}botRings.pop();}}
-    if(TB){const r=TB.r;z1=zt-r;if(TB.type==='chamfer'){topRings.push({z:zt,d:subs.map(sb=>base(zt)+(inSet(TB,sb)?r:0)),tilt:null,band:'ctop'});}
-      else{const N=12;for(let j=1;j<=N;j++){const ph=Math.PI/2*j/N;const z=zt-r+r*Math.sin(ph);topRings.push({z,d:subs.map(sb=>base(z)+(inSet(TB,sb)?r*(1-Math.cos(ph)):0)),tilt:{c:Math.cos(ph),s:Math.sin(ph)},band:'ftop'});}}}
+    if(BB){const r=BB.r;z0=zb+r;if(BB.type==='chamfer'){botRings.push({z:zb,d:subs.map(sb=>base(zb)+r*wOf(BB,sb)),tilt:null,band:'cbot'});}
+      else{const N=12;for(let j=0;j<=N;j++){const ph=Math.PI/2*(1-j/N);const z=zb+r-r*Math.sin(ph);botRings.push({z,d:subs.map(sb=>base(z)+r*(1-Math.cos(ph))*wOf(BB,sb)),tilt:{c:Math.cos(ph),s:-Math.sin(ph)},band:'fbot'});}botRings.pop();}}
+    if(TB){const r=TB.r;z1=zt-r;if(TB.type==='chamfer'){topRings.push({z:zt,d:subs.map(sb=>base(zt)+r*wOf(TB,sb)),tilt:null,band:'ctop'});}
+      else{const N=12;for(let j=1;j<=N;j++){const ph=Math.PI/2*j/N;const z=zt-r+r*Math.sin(ph);topRings.push({z,d:subs.map(sb=>base(z)+r*(1-Math.cos(ph))*wOf(TB,sb)),tilt:{c:Math.cos(ph),s:Math.sin(ph)},band:'ftop'});}}}
     rings.push(...botRings,{z:z0,d:subs.map(()=>base(z0)),tilt:wallTilt,band:'wall'},{z:z1,d:subs.map(()=>base(z1)),tilt:wallTilt,band:'wall'},...topRings);
     const R=rings.map(rg=>({...rg,pts:ringOf(subs,rg.d)}));
     // per-vertex outward direction (2D) at each sub start / end
