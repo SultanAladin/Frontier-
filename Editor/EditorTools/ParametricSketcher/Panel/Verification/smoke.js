@@ -462,4 +462,13 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
+// 30. B on a body edge must fillet the BODY edge, never the profile sketch corner sitting under the body's base
+{ if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
+  M.startOp('rect');M.toolClick(380,300);M.toolClick(520,380);const R=M.doc.figures.filter(f=>f.kind==='curve').pop();R.params.pts=[[-30,-5],[-20,20],[5,25],[15,10],[45,-10],[40,-30],[15,-20]];R.params.bulge=[];M.invalidate(R.id);M.selectTool();M.doc.sel=new Set([R.id]);M.startOp('extrude');M.solidKey({key:'2'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b=M.doc.figures.filter(f=>f.kind==='body').pop();const hidden=M.doc.figures.filter(f=>f.kind==='body'&&f!==b&&f.visible);hidden.forEach(f=>f.visible=false);
+  M.doc.sel.clear();M.view.az=28;M.view.el=38;M.draw();const v0=M.meshVolume(M.meshOf(b));
+  for(const z of [1.5,10]){b.edits=[];M.invalidate(b.id);M.topoCache.clear();const s=M.project(M.xform(b,[15,10,z]));ok(!!M.cornerPick(s[0],s[1])||z>5,'sketch corner is under the cursor at the base');M.modStart('fillet');M.modDown({button:0,pointerId:1},s[0],s[1]);const d=M.getMod().drag;ok(d&&d.solid&&!d.corner,'click at z='+z+' starts a SOLID fillet, not a sketch-corner fillet');M.modKey({key:'8'});M.modKey({key:'Enter'});
+    ok((b.edits||[]).length===1&&!(R.params.bulge||[]).some(x=>x),'body got the edit, sketch untouched (z='+z+')');if(z>5)ok(b.edits[0].key==='side:0:3','mid-edge click fillets the reflex vertical edge side:0:3');M.topoCache.clear();ok(M.meshVolume(M.meshOf(b))!==v0,'body changed');}
+  hidden.forEach(f=>f.visible=true);M.modEnd&&M.modEnd();M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);
