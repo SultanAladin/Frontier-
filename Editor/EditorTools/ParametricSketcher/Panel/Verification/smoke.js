@@ -5,7 +5,7 @@ const js=html.match(/<script>([\s\S]*)<\/script>/)[1];
 const els={};
 function mkEl(id){return {id,style:{setProperty(){}},classList:{add(){},remove(){},toggle(){},contains(){return false}},dataset:{},innerHTML:'',textContent:'',value:'',
   getBoundingClientRect(){return{left:0,top:0,width:900,height:700}},querySelector(){return mkEl()},querySelectorAll(){return[]},addEventListener(t,fn){(this.L=this.L||{})[t]=fn},setPointerCapture(){},appendChild(){},removeAttribute(){},replaceWith(){},focus(){},select(){},
-  getContext(){return new Proxy({},{get:(t,k)=>k==='measureText'?()=>({width:10}):(k==='createRadialGradient'||k==='createLinearGradient')?()=>({addColorStop(){}}):()=>{}})},width:0,height:0,parentElement:null};}
+  getContext(){if(global.__CTX)return global.__CTX;return new Proxy({},{get:(t,k)=>k==='measureText'?()=>({width:10}):(k==='createRadialGradient'||k==='createLinearGradient')?()=>({addColorStop(){}}):()=>{}})},width:0,height:0,parentElement:null};}
 global.document={querySelector:s=>els[s]||(els[s]=mkEl(s)),querySelectorAll:()=>[],createElement:()=>mkEl(),getElementById:()=>null};
 global.ResizeObserver=class{observe(){}};global.localStorage={_:{},getItem(k){return this._[k]||null},setItem(k,v){this._[k]=v},removeItem(k){delete this._[k]}};global.Blob=class{};global.URL={createObjectURL:()=>'',revokeObjectURL(){}};global.navigator={};global.innerWidth=1600;global.innerHeight=900;
 global.KEYS=[];global.addEventListener=(t,fn)=>{if(t==='keydown')KEYS.push(fn)};global.location={search:process.argv.includes('--demo')?'?demo':''};global.URLSearchParams=class{constructor(q){this.q=q}has(k){return this.q.includes(k)}};global.devicePixelRatio=1;global.performance={now:()=>0};global.requestAnimationFrame=()=>{};

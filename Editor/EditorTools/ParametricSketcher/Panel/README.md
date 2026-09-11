@@ -103,7 +103,8 @@ Closed curves (circle, ellipse, closed polyline/rectangle/polygon/slot, arc with
 ### Smooth shading & studio matcap
 - Curved faces (cylinders, cones, fillets, tori) are shaded per **interpolated normal**: every smooth quad is subdivided in screen space (adaptively, up to 6×6) and each cell is lit with its Phong-interpolated normal, so fillets and cylinders read as continuous surfaces instead of Blender-style flat polygons. Planar faces stay flat.
 - The matcap is now a true view-space matcap: an analytic “studio clay” sphere (soft upper-left key, right fill, bottom bounce, fresnel rim, tight highlight, cavity darkening) sampled by the view-space normal only — so it looks the same from every camera angle, like a matcap texture.
-- Fillet bands are sampled at 12 steps per quarter turn.
+- Fillet bands are sampled at 12 steps per quarter turn. Subdivision is driven by normal angle (one cell per ≤2.5°), so a 90° fillet always gets ≥36 shading steps regardless of the underlying quad count.
+- `node Verification/render.js [fillet|cyl] [matcap|plastic|flat]` renders the viewport offline to `Verification/view.png` (software raster of the panel's canvas calls) — used to eyeball shading without a browser.
 
 ### Face features on solids — push / pocket (E), inset (I), gizmo face move
 - **E on a planar face** of a solid (hover-click in the Extrude tool, or pre-select faces in Face mode and press E) pushes that face along its own normal: drag or type the distance; negative = pocket. Pushing a whole cap simply extends the adjacent walls (no extra faces); pushing an inset region grows a boss / cuts a pocket with new wall faces (smooth cylindrical walls on round regions).
