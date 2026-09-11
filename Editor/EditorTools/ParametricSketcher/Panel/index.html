@@ -411,7 +411,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
     <div class="nav glass" id="toolbar">
       <div class="keys"><span class="k">Tab</span><span class="k">catalogue</span></div>
       <div class="keys"><span class="k">L</span><span class="k">⇧L</span><span class="k">R</span><span class="k">C</span><span class="k">A</span><span class="k">E</span><span class="k">P</span></div>
-      <div class="keys"><span class="k">G</span><span class="k">⇧R</span><span class="k">S</span><span class="k">move · rotate · scale</span></div><div class="keys"><span class="k">F</span><span class="k">focus</span><span class="k">⇧E</span><span class="k">extrude</span><span class="k">⇧O</span><span class="k">loft</span></div>
+      <div class="keys"><span class="k">G</span><span class="k">⇧R</span><span class="k">S</span><span class="k">move · rotate · scale</span></div><div class="keys"><span class="k">F</span><span class="k">focus</span><span class="k">E</span><span class="k">extrude</span><span class="k">⇧O</span><span class="k">loft</span></div>
       <div class="keys"><span class="k">⇧W plane</span><span class="k">H hide</span><span class="k">⌫ del</span></div>
     </div>
   </div>
@@ -1158,10 +1158,10 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
   else if(['1','2','3','4'].includes(k)&&!e.code.startsWith('Numpad')){toggleMode(['body','face','edge','vertex'][+k-1],e.shiftKey);}
   else if(e.key==='Tab'){e.preventDefault();toggleCat();}
   else if(e.key==='Enter'&&tool){finishTool();}
-  else if(k==='m'&&!e.ctrlKey&&!e.metaKey){startOp(e.altKey?'circular':e.shiftKey?'linear':'mirror');}else if(k==='e'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey){startOp('extrude');}else if(k==='o'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey){startOp('loft');}
+  else if(k==='m'&&!e.ctrlKey&&!e.metaKey){startOp(e.altKey?'circular':e.shiftKey?'linear':'mirror');}else if(k==='e'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){startOp('extrude');}else if(k==='o'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey){startOp('loft');}
   else if(k==='o'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey)offStart();else if(k==='f'&&e.shiftKey)fillStart();else if(k==='f'&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();focusSelection();}
   else if(k==='t'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)modStart('trim');else if(k==='k'&&!e.ctrlKey&&!e.metaKey)modStart('cut');else if(k==='b'&&!e.ctrlKey&&!e.metaKey)modStart(e.shiftKey?'chamfer':'fillet');
-  else if(k==='l'&&e.shiftKey)startOp('polyline');else if(k==='l')startOp('line');else if(k==='c')startOp('circle');else if(k==='r'&&e.shiftKey&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('r');else if(k==='r'&&!e.ctrlKey&&!e.metaKey)startOp('rect');else if(k==='a')startOp('arc');else if(k==='p')startOp('polygon');else if(k==='e'&&!e.shiftKey)startOp('ellipse');
+  else if(k==='l'&&e.shiftKey)startOp('polyline');else if(k==='l')startOp('line');else if(k==='c')startOp('circle');else if(k==='r'&&e.shiftKey&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('r');else if(k==='r'&&!e.ctrlKey&&!e.metaKey)startOp('rect');else if(k==='a')startOp('arc');else if(k==='p')startOp('polygon');else if(k==='e'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey)startOp('ellipse');
   else if(k==='w'&&e.shiftKey)openCat('reference','workplane');
   else if(k==='g'&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('g');else if(k==='s'&&gzTarget()&&!tool)modalStart('s');
   else if(k==='h'){if(doc.sel.size){snapshot();doc.sel.forEach(id=>{const f=byId(id);if(f)f.visible=false;});doc.sel.clear();rebuildAll();}}
@@ -1557,7 +1557,7 @@ const CAT=[
     {id:'pslot',label:'Polyline Slot',glyph:'SketchPolySlot',needs:true,prompts:['Click first centre','Click next centre · Enter / right-click to finish'],multi:true,params:[{k:'r',kind:'slider',label:'Slot radius',min:1,max:100,step:.5,value:8,unit:'mm'},{k:'cons',kind:'toggle',label:'Construction geometry',value:false}]},
     {id:'circle',label:'Circle',glyph:'SketchCircle',accel:'C',needs:true,prompts:['Click centre','Click radius'],params:[{k:'mode',kind:'seg',label:'Defined by',options:['Centre','Diameter'],value:0},{k:'cons',kind:'toggle',label:'Construction geometry',value:false}]},
     {id:'arc',label:'Arc',glyph:'SketchArc',accel:'A',needs:true,prompts:['Click centre','Click start point','Click end point'],params:[{k:'dir',kind:'seg',label:'Direction',options:['CCW','CW'],value:0}]},
-    {id:'ellipse',label:'Ellipse',glyph:'SketchEllipse',accel:'E',needs:true,prompts:['Click centre','Click major-axis end','Click minor radius'],params:[]},
+    {id:'ellipse',label:'Ellipse',glyph:'SketchEllipse',accel:'⇧E',needs:true,prompts:['Click centre','Click major-axis end','Click minor radius'],params:[]},
     {id:'polygon',label:'Polygon',glyph:'SketchPolygon',accel:'P',needs:true,prompts:['Click centre','Click radius','Scroll to change sides · click / Enter to confirm'],confirmStep:true,params:[{k:'sides',kind:'slider',label:'Sides',min:3,max:20,step:1,value:6,unit:''},{k:'mode',kind:'seg',label:'Radius is',options:['Inscribed','Circumscribed'],value:0}]},
     {id:'spoint',label:'Point',glyph:'SketchPoint',needs:true,prompts:['Click position'],params:[{k:'cons',kind:'toggle',label:'Construction geometry',value:false}]},
   ]},
@@ -1573,7 +1573,7 @@ const CAT=[
     {id:'cut',label:'Cut',glyph:'Cut',accel:'K',mod:'cut',prompts:['Hover a curve','Click to split · snaps to intersections'],params:[]},
     {id:'fillet',label:'Fillet',glyph:'Fillet',accel:'B',mod:'fillet',prompts:['Click a corner','Drag to set the radius · ⏎'],params:[{k:'r',kind:'slider',label:'Radius',min:.5,max:50,step:.5,value:4,unit:'mm'}]},
     {id:'chamfer',label:'Chamfer',glyph:'Chamfer',accel:'⇧B',mod:'chamfer',prompts:['Click a corner','Drag to set the distance · ⏎'],params:[{k:'d',kind:'slider',label:'Distance',min:.5,max:50,step:.5,value:3,unit:'mm'}]},
-  ]},{key:'solid',label:'Solid',glyph:'Extrude',ops:[{id:'extrude',label:'Extrude',glyph:'Extrude',accel:'⇧E',solid:'extrude',prompts:['Click a closed profile (or a filled region) · drag / type the height · ⏎ apply'],params:[{k:'draft',kind:'slider',label:'Draft angle',min:-20,max:20,step:.5,value:0,unit:'°'},{k:'sym',kind:'toggle',label:'Symmetric (both sides)',value:false}]},
+  ]},{key:'solid',label:'Solid',glyph:'Extrude',ops:[{id:'extrude',label:'Extrude',glyph:'Extrude',accel:'E',solid:'extrude',prompts:['Click a closed profile (or a filled region) · drag / type the height · ⏎ apply'],params:[{k:'draft',kind:'slider',label:'Draft angle',min:-20,max:20,step:.5,value:0,unit:'°'},{k:'sym',kind:'toggle',label:'Symmetric (both sides)',value:false}]},
     {id:'loft',label:'Loft',glyph:'Loft',accel:'⇧O',solid:'loft',prompts:['Click the first closed profile','Click the next profile (different sketch / plane or offset) · ⏎ to finish'],params:[{k:'closed',kind:'toggle',label:'Cap ends',value:true},{k:'segs',kind:'slider',label:'Ruling samples',min:8,max:96,step:1,value:32,unit:''}]}]},{key:'boolean',label:'Boolean',glyph:'Soon',soon:true},
 ];
 const catState={rail:'sketch',op:null,vals:{}};
@@ -1809,7 +1809,8 @@ function toolClick(px,py){const uv=planeHit(px,py);if(!uv||!tool)return;const la
   tool.pts.push(uv);const n=tool.pts.length,P=tool.op.prompts;$('#promptTxt').textContent=P[Math.min(n,P.length-1)];renderOptFoot();
   if(tool.op.confirmStep){if(n>=2){$('#promptTxt').textContent=P[2]+`  ·  ${tool.vals.sides} sides`;}draw();return;}
   if(!tool.op.multi&&n>=P.length)finishTool();else draw();}
-function finishTool(){if(!tool)return;const need=tool.op.multi?2:Math.min(2,(tool.op.prompts||[]).length);if(tool.pts.length<need){log(tool.op.label+': needs '+need+' clicks · cancelled');endTool();return;}const shape=shapeFrom(tool.op,tool.pts,tool.vals,true);if(shape)commitShape(tool.op,shape,tool.vals);endTool();}
+function finishTool(){if(!tool)return;const need=tool.op.multi?2:Math.min(2,(tool.op.prompts||[]).length);if(tool.pts.length<need){log(tool.op.label+': needs '+need+' clicks · cancelled');endTool();return;}const shape=shapeFrom(tool.op,tool.pts,tool.vals,true);if(shape)commitShape(tool.op,shape,tool.vals);const op=tool.op;endTool();
+  /* sticky tools: stay armed for the next shape until Esc / Q / another tool */ if(shape&&op){startOp(op.id);$('#promptTxt').textContent=op.prompts[0]+'  ·  tool stays active — Esc / Q to stop';}}
 function offsetPolyline(P,r){ // round-capped outline of an open polyline: outer joints get arcs, inner joints get the miter intersection
   const n=P.length;if(n<2)return [];const dirs=[];for(let i=0;i<n-1;i++){const d=[P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]];const l=Math.hypot(d[0],d[1])||1;dirs.push([d[0]/l,d[1]/l]);}
   const nrm=d=>[-d[1],d[0]];const at=v=>Math.atan2(v[1],v[0]);

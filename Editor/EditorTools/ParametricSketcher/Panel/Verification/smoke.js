@@ -15,12 +15,15 @@ ok(M.doc.figures.length===0,'starts empty');
 M.doc.figures.forEach(f=>{M.build(f);const ms=M.measure(f);ok(isFinite(ms.v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
 M.resize();
 // 1. workplane via catalogue
+if(M.anyTool&&M.anyTool())M.selectTool();
 const pl=M.createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});ok(pl.kind==='plane'&&M.active_.plane===pl.id,'workplane active');
 // 2. draw: rect (2 clicks) on the plane → new sketch + curve registered
+if(M.anyTool&&M.anyTool())M.selectTool();
 M.setView('top');M.resize();M.startOp('rect');M.toolClick(400,300);M.toolClick(520,380);
 let sk=M.doc.figures.find(f=>f.kind==='sketch');ok(sk&&sk.planeId===pl.id,'sketch created on plane');ok(sk.children.length===1,'rect registered');
 const r=M.byId(sk.children[0]);ok(r.ctype==='poly'&&r.params.closed&&r.params.pts.length===4,'rect is closed 4-gon');
 // 3. circle + polygon + polyline(3 pts + finish) + line + arc + ellipse + slot + point
+if(M.anyTool&&M.anyTool())M.selectTool();
 M.startOp('circle');M.toolClick(450,350);M.toolClick(480,350);
 M.startOp('polygon');M.toolClick(300,300);M.toolClick(330,300);M.toolClick(335,305);
 M.startOp('polyline');M.toolClick(200,200);M.toolClick(260,200);M.toolClick(260,260);M.finishTool();
@@ -34,15 +37,18 @@ sk=M.byId(sk.id);ok(sk.children.length===10,'10 curves in sketch, got '+sk.child
 sk.children.map(M.byId).forEach(c=>{M.build(c);ok(isFinite(M.measure(c).v),'measure '+c.name);});
 const prof=M.sketchProfile(sk);ok(prof.outer.length>=4,'profile has outer loop');
 // 4. XZ workplane with tilt; a circle drawn there maps off the ground
+if(M.anyTool&&M.anyTool())M.selectTool();
 const p2=M.createWorkplane({base:'XZ',offset:20,tilt:15,size:100,show:true});M.setView('front');M.resize();M.startOp('circle');M.toolClick(450,350);M.toolClick(480,350);
 const sk2=M.doc.figures.filter(f=>f.kind==='sketch').pop();ok(sk2.planeId===p2.id&&sk2.id!==sk.id,'second sketch on XZ plane');
 const c2=M.byId(sk2.children[0]);const w=M.xform(c2,[c2.params.cx,c2.params.cy,0]);ok(Math.abs(w[1]+20)<1e-6,'XZ plane offset puts curve at y=-20, got '+w[1]);
 // 5. commands still work; extrude of drawn sketch
+if(M.anyTool&&M.anyTool())M.selectTool();
 M.runCmd('box 40 30 20');M.runCmd('extrude '+sk.name+' 12');const ex=M.doc.figures.find(f=>f.op==='extrude');ok(ex&&M.build(ex).tris.length>0,'extrude of drawn sketch builds');
 M.runCmd('plane YZ --offset=10');ok(M.doc.figures.filter(f=>f.kind==='plane').length===3,'plane verb');
 M.doc.figures.forEach(f=>{M.build(f);ok(isFinite(M.measure(f).v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
 const f=ex;f.rot3=[0,90,0];f.scl=[2,1,1];const pp=M.xform(f,[1,0,0]);ok(Math.abs(pp[2]-f.pos[2]+2)<1e-6,'xform rotY90 scaleX2 → -z');
 // 6. gizmo: mode-specific handles; translate-X moves x only; rotate about pivot keeps centre; scale about pivot; typed value; modal G Z 12.5; cancel restores
+if(M.anyTool&&M.anyTool())M.selectTool();
 const bx=M.doc.figures.find(f=>f.op==='box');M.doc.sel.clear();M.doc.sel.add(bx.id);M.setView('iso');M.resize();M.draw();
 ok(M.gzTarget()===bx,'gizmo target is selected box');ok(M.gz.handles.length===6,'translate mode: 3 cones + 3 planes, got '+M.gz.handles.length);
 const piv=M.gzPivot(bx);ok(Math.abs(piv[2]-bx.pos[2]-bx.params.h/2)<1e-6,'pivot at box centre (z = h/2)');
@@ -61,10 +67,12 @@ M.setGzMode('translate');const pg=[...bx.pos];M.modalStart('g');M.gz.modal.axis=
 const pr=[...bx.rot3];M.modalStart('r');ok(M.gz.mode==='rotate','R switches gizmo to rotate mode');M.gz.modal.axis='x';M.modalApply(300,300,false);ok(bx.rot3.some((v,i)=>Math.abs(v-pr[i])>1e-6),'modal R changes rotation');M.modalCancel();ok(bx.rot3.every((v,i)=>Math.abs(v-pr[i])<1e-9),'modal cancel restores rotation');
 M.doc.sel.clear();M.draw();ok(M.gz.handles.length===0,'no handles without selection');
 // 7. live dimensions while drawing don't throw for every shape
+if(M.anyTool&&M.anyTool())M.selectTool();
 M.setView('top');M.resize();['circle','rect','line','arc','ellipse','polygon','slot','polyline','pslot'].forEach(id=>{M.startOp(id);M.toolClick(400,300);M.toolClick(460,300);M.toolClick(470,360);M.draw();ok(true,'live dims '+id);M.finishTool();});
 // polygon sides via wheel-like adjust before confirm
 M.startOp('polygon');M.toolClick(400,300);M.toolClick(440,300);M.getTool().vals.sides=9;M.toolClick(445,305);const pg9=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(pg9.params.pts.length===9,'polygon confirm step keeps adjusted side count (9)');
 // 8. curves move individually (not the whole sketch); pick selects the curve; fill loops; resolution multiplier
+if(M.anyTool&&M.anyTool())M.selectTool();
 M.setView('top');M.resize();M.doc.figures.filter(f=>f.kind==='curve'||f.kind==='body').forEach(f=>f.visible=false);M.active_.plane=M.doc.figures.find(f=>f.kind==='plane'&&f.axis==='XY').id;M.active_.sketch=null;M.startOp('circle');M.toolClick(300,300);M.toolClick(340,300);M.startOp('circle');M.toolClick(520,430);M.toolClick(540,430);
 const cs=M.doc.figures.filter(f=>f.kind==='curve'&&f.ctype==='circle'&&f.visible);ok(cs.length===2,'two fresh circles, got '+cs.length);const [cA,cB]=cs;
 M.doc.sel.clear();M.pick(300,300,false);ok(M.doc.sel.has(cA.id)&&M.doc.sel.size===1,'clicking inside a filled circle selects that curve, not the sketch');
@@ -77,6 +85,7 @@ const n1=M.curveLines(cA).lines.length;M.doc.curveRes=2;const n2=M.curveLines(cA
 cA.segs=128;ok(M.curveLines(cA).lines.length===128,'per-curve segments override');delete cA.segs;
 M.startOp('arc');M.toolClick(600,500);M.toolClick(640,500);M.toolClick(600,540);const arc=M.doc.figures.filter(f=>f.ctype==='arc').pop();ok(M.loopOf(arc)===null,'open arc has no loop');arc.params.closed=true;ok(M.loopOf(arc)&&M.loopOf(arc).length>8,'closed arc becomes a fillable loop');
 // 9. topology: box has 8 verts / 12 edges / 6 faces; polyline slot outline sane; vertex/edge/face multi-select + move; non-planar loop loses its face
+if(M.anyTool&&M.anyTool())M.selectTool();
 const box=M.doc.figures.find(f=>f.op==='box');box.visible=true;const tb=M.topo(box);ok(tb.verts.length===8&&tb.edges.length===12&&tb.faces.length===6,'box topo 8/12/6, got '+[tb.verts.length,tb.edges.length,tb.faces.length]);
 const sl=M.offsetPolyline([[0,0],[40,0],[40,40]],5);ok(sl.length>20&&sl.every(q=>isFinite(q[0])&&isFinite(q[1])),'slot outline finite');const far=Math.max(...sl.map(q=>Math.hypot(q[0]-40,q[1]-0)));ok(far<Math.hypot(40,40)+5.01,'slot outline stays within radius of spine');
 const inside=[[20,0],[40,20]].every(c=>M.sub_&&(()=>{let cnt=false;for(let i=0,j=sl.length-1;i<sl.length;j=i++){const a=sl[i],b=sl[j];if(((a[1]>c[1])!==(b[1]>c[1]))&&(c[0]<(b[0]-a[0])*(c[1]-a[1])/(b[1]-a[1])+a[0]))cnt=!cnt;}return cnt;})());ok(inside,'spine midpoints are inside the slot outline');
@@ -94,6 +103,7 @@ rc.params.pts=[[0,0],[40,0],[40,30],[0,30]];rc.params.vz=[15,0,0,15];M.topo(rc);
 rc.params.vz=[15,0,15,0];ok(!M.planarLoop(rc),'diagonal lift → non-planar');
 M.setModes(['body']);M.sub_.sel.clear();
 // 10. constraints + solver + dimensions + variables
+if(M.anyTool&&M.anyTool())M.selectTool();
 M.doc.figures.filter(f=>f.kind==='curve').forEach(f=>f.visible=false);M.active_.sketch=null;
 M.startOp('line');M.toolClick(300,300);M.toolClick(400,280);const ln=M.doc.figures.filter(f=>f.kind==='curve').pop();const skc=M.byId(ln.parent);
 M.addConstraint(skc,'horizontal',[{fig:ln.id,kind:'edge',idx:0}]);ok(Math.abs(ln.params.y1-ln.params.y2)<1e-5,'horizontal constraint solved: '+ln.params.y1.toFixed(3)+' vs '+ln.params.y2.toFixed(3));
@@ -119,6 +129,7 @@ M.dimStart();const q1=M.project(M.xform(ln,[ln.params.x1,ln.params.y1,0]));M.dim
 // remove a constraint
 M.removeConstraint(skc,skc.cons_[0].id);ok(!skc.cons_.some(c=>c.type==='horizontal'),'constraint removed');
 // 11. slots are single entities; inline dimension rename
+if(M.anyTool&&M.anyTool())M.selectTool();
 M.startOp('slot');M.toolClick(200,600);M.toolClick(300,600);const sl2=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(M.isSlot(sl2)&&sl2.params.spine.length===2,'2-point slot carries a spine');
 const ts=M.topo(sl2);ok(ts.verts.length===2&&ts.edges.length===1&&ts.edges[0].curve,'slot topology: 2 centre vertices, ONE outline edge');ok(ts.faces.length===1,'slot fills as a single face');
 const outMid=sl2.params.pts[Math.floor(sl2.params.pts.length/2)];const so=M.project(M.xform(sl2,[outMid[0],outMid[1],0]));const hitS=M.pickSub(so[0],so[1],new Set(['edge']));ok(hitS&&hitS.fig===sl2.id&&hitS.idx===0,'clicking anywhere on the slot outline picks edge 0 (whole slot)');
@@ -129,6 +140,7 @@ const dS=skS.cons_.find(c=>c.type==='dist'&&c.refs[0].fig===sl2.id);ok(M.setDimN
 ok(!M.setDimName(skS,dS,'2bad'),'invalid name rejected');ok(M.setDimName(skS,dS,''),'clearing the name works');ok(!M.doc.vars.SLOT_L,'variable removed on clear');
 M.doc.sel=new Set([sl2.id]);M.sub_.sel.clear();M.renderInspector();const ih=document.querySelector('#insp').innerHTML||'';ok(ih.includes('data-cname')&&ih.includes('id="slotR"'),'inspector shows per-dimension name inputs + slot radius');
 // 12. workplane transform drives everything on it; plane inspector is a workplane editor
+if(M.anyTool&&M.anyTool())M.selectTool();
 const wp2=M.createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});M.startOp('circle');M.toolClick(450,350);M.toolClick(480,350);const cW=M.doc.figures.filter(f=>f.kind==='curve').pop();const skW=M.byId(cW.parent);ok(skW.planeId===wp2.id,'circle drawn on the new workplane');
 const w0=M.xform(cW,[cW.params.cx,cW.params.cy,0]);wp2.pos=[10,20,30];M.invalidateXf(wp2);const w1=M.xform(cW,[cW.params.cx,cW.params.cy,0]);ok(Math.abs(w1[0]-w0[0]-10)<1e-6&&Math.abs(w1[1]-w0[1]-20)<1e-6&&Math.abs(w1[2]-w0[2]-30)<1e-6,'moving the plane moves the sketch geometry with it');
 wp2.rot3=[90,0,0];M.invalidateXf(wp2);const B2=M.planeBasis(wp2);ok(Math.abs(Math.abs(B2.n[1])-1)<1e-6&&Math.abs(B2.n[2])<1e-6,'rotating the plane 90° about X turns its normal to ±Y: '+B2.n.map(v=>v.toFixed(2)));
@@ -266,7 +278,9 @@ const keyd=(k,extra)=>KEYS.forEach(fn=>fn({key:k,code:'Key'+k.toUpperCase(),shif
 M.startOp('rect');M.toolClick(200,200);M.toolClick(300,300);const r1=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(M.doc.sel.has(r1.id),'drawn rectangle stays selected');
 keyd('r');ok(M.getTool()&&M.getTool().op.id==='rect'&&!M.gz.modal,'R with the rectangle selected starts the Rectangle tool (not rotate)');
 M.toolClick(400,200);M.toolClick(500,300);const r2=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(r2!==r1&&r2.ctype==='poly'&&r2.params.pts.length===4,'second rectangle drawn');
-keyd('r',{shiftKey:true});ok(M.gz.modal&&M.gz.modal.mode==='rotate','⇧R rotates the selection');M.modalCancel();}
+ok(M.getTool()&&M.getTool().op.id==='rect','rectangle tool stays armed after drawing (sticky)');M.toolClick(100,100);M.toolClick(150,140);ok(M.doc.figures.filter(f=>f.kind==='curve').length>=3&&M.getTool()&&M.getTool().op.id==='rect','third rectangle drawn without re-picking the tool');M.selectTool();ok(!M.getTool(),'Q / select ends the sticky tool');M.doc.sel=new Set([r2.id]);
+keyd('r',{shiftKey:true});ok(M.gz.modal&&M.gz.modal.mode==='rotate','⇧R rotates the selection');M.modalCancel();
+M.doc.sel=new Set([r2.id]);keyd('e');ok(M.getSolid()&&M.getSolid().kind==='extrude','E starts Extrude');M.selectTool();keyd('e',{shiftKey:true});ok(M.getTool()&&M.getTool().op.id==='ellipse','⇧E starts Ellipse');M.selectTool();}
 {// 19. new document / continue previous
 M.setView('top');M.resize();M.createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});M.startOp('circle');M.toolClick(300,300);M.toolClick(330,300);
 localStorage.setItem('solidarc.doc.v1',M.docJSON());const info=M.autosaveInfo();ok(info&&info.curves>0&&info.saved,'autosave info reports the previous drawing');
@@ -307,6 +321,7 @@ M.draw();const cUp=M.matcapColor([0,0,1],[0,0,1],false),cSide=M.matcapColor([1,0
 M.doc.figures.forEach(f=>{if(f.kind==='curve'||f.kind==='body')f.visible=true;});}
 M.renderOutliner();M.renderInspector();M.draw();
 // 22. B-rep solids: analytic faces, silhouettes, edge fillet/chamfer
+if(M.anyTool&&M.anyTool())M.selectTool();
 { M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize&&M.resize();M.startOp('circle');M.toolClick(500,320);M.toolClick(560,320);const cc=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(cc&&cc.ctype==='circle','circle for cylinder');
   M.doc.sel=new Set([cc.id]);M.startOp('extrude');M.solidKey({key:'3'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const cyl=M.doc.figures.filter(f=>f.kind==='body').pop();ok(cyl&&cyl.op==='extrude','cylinder extruded');
   const mc=M.meshOf(cyl);ok(mc.brep&&mc.brep.faces.length===3,'cylinder B-rep = 3 faces (one cylindrical side + 2 caps), got '+(mc.brep&&mc.brep.faces.length));

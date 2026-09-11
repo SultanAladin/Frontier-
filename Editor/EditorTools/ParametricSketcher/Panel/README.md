@@ -57,9 +57,9 @@ Every undo step is labelled. **⌃H** (or *history* in the outliner) opens the H
 ### Compatibility
 SolidArc's viewport is a **Canvas 2D software rasteriser** — it needs no WebGL, so GPU model (GTX vs RTX) doesn't matter; what does is the browser version. The page now polyfills `roundRect`, `requestAnimationFrame`, `ResizeObserver`, pointer capture and pointer events, falls back to a solid panel background when `backdrop-filter`/`color-mix` are unsupported, wraps each frame so one bad draw can't blank the view, and shows any runtime error as a red banner in the viewport (with file:line). The console log prints the build, the detected GPU/WebGL level and the browser at start — if the viewport is empty, that banner/log line is what to send.
 
-### Focus (F) · Extrude (⇧E) · Loft (⇧O) · Matcap
+### Focus (F) · Extrude (E) · Loft (⇧O) · Matcap
 - **F** frames the selection (bodies, curves, sketches, sub-elements) with a short camera glide; with nothing selected it frames everything.
-- **Extrude**: with a closed curve selected, ⇧E starts immediately and the mouse sets the height along the sketch normal (⌃ = 5 mm steps, ⌥ = symmetric, type a number, ⏎ / click applies, negative = other side). Otherwise click a closed profile — a curve, or a *filled region* of a sketch (holes come along). Bodies keep a link to their profile: edit the sketch and the solid rebuilds; height/draft live in the inspector.
+- **Extrude**: with a closed curve selected, E starts immediately and the mouse sets the height along the sketch normal (⌃ = 5 mm steps, ⌥ = symmetric, type a number, ⏎ / click applies, negative = other side). Otherwise click a closed profile — a curve, or a *filled region* of a sketch (holes come along). Bodies keep a link to their profile: edit the sketch and the solid rebuilds; height/draft live in the inspector.
 - **Loft**: click two or more closed profiles (any sketches / workplanes — e.g. a circle on `Workplane01` and one on an offset plane), ⏎. Loops are resampled by arc length and aligned by angle; cap ends toggle and ruling count in the tool options. Editing a section rebuilds the loft.
 - **Matcap** is now the default shading: a studio-style capture for machined parts — top-left key light, cool rim, soft under-fill, a tight clear-coat highlight and cavity darkening where the normal turns away; selection is a warm brass tint. Plastic / Flat / Wire remain.
 
@@ -99,6 +99,10 @@ Polyline vertices can be lifted off the sketch plane (`vz` per vertex; a dashed 
 
 ### Closed loops, fill, resolution
 Closed curves (circle, ellipse, closed polyline/rectangle/polygon/slot, arc with *Closed loop* on) get a semi-transparent fill and are clickable inside. Inspector → **Curve display**: *Closed loop* (polyline / arc), *Fill when closed*, *Segments* (per-curve). Document → Presentation → **Curve resolution** multiplies every circle/arc/ellipse tessellation (0.25×–4×); arcs scale their count by sweep so wide arcs stay smooth.
+
+### Sticky drawing tools · E = Extrude
+- A drawing tool picked from the catalogue or by hotkey **stays armed** after each shape: draw a circle, then another, and another — until Esc, Q (select) or another tool. The prompt says “tool stays active — Esc / Q to stop”.
+- **E** now starts Extrude (Ellipse moved to **⇧E**).
 
 ## Live dimensions while drawing
 Every 2-D tool shows its dimensions as dimension lines while you draw: circle `R` and `⌀`, arc `R` + sweep angle, ellipse `a` / `b`, line length, rectangle width × height, polyline last-segment length, polygon / slot overall width.
