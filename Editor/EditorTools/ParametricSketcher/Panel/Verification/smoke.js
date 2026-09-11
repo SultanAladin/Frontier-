@@ -11,7 +11,7 @@ global.ResizeObserver=class{observe(){}};global.localStorage={_:{},getItem(k){re
 global.KEYS=[];global.addEventListener=(t,fn)=>{if(t==='keydown')KEYS.push(fn)};global.location={search:process.argv.includes('--demo')?'?demo':''};global.URLSearchParams=class{constructor(q){this.q=q}has(k){return this.q.includes(k)}};global.devicePixelRatio=1;global.performance={now:()=>0};global.requestAnimationFrame=()=>{};
 const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,polyArea,invalidate,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health,addConstraint,removeConstraint,solveSketch,evalExpr,setVar,refreshDims,dimStart,dimPickAt,dimPlaceUpdate,dimCommit,getDimTool:()=>dimTool,dimGeom,residuals,dofMap,applyConstraint,isSlot,regenSlot,setDimName,topo,planeBasis,invalidateXf,gzTarget,modStart,modEnd,modPick,trimApply,cutApply,cornerPick,cornerGeom,cornerApply,curveCuts,curvePlane,getMod:()=>modTool,subWorld,subPivot,norm,cross,sub,dot,add,mul,getCam:()=>cam,applyFaceOps,bodyMeshWith,faceHitsFromSel,faceOpApply,faceInfoWorld,subBegin,subApply,subEnd,solidFacePick,faceLoops,deleteFigures,delSel,undo,redo,focusSelection,boundsOf,solidStart,solidDown,solidMove,solidUp,solidKey,solidApply,solidEnd,getSolid:()=>solidTool,profileOf,profileMesh,loftMesh,matcapColor,meshOf,measure,modKeys,newDoc,restorePrevious,autosaveInfo,showStart,migrateLinks,spawnPoly,removeCurve,sketchProfile,edgeInfo,bulgeArc,loopOf,syncLinks,unlink,modDown,modMove,modUp,modKey,sketchRegions,regionAt,toggleRegion,fillStart,fillEnd,fillPick,offStart,offEnd,offGeom,offApply,offDown,offKey,getOff:()=>offTool,getFill:()=>fillTool,selectTool,anyTool,extrudeMesh,sketchProfile,modStart,patStart,patEnd,patApply,patDown,patKey,getPat:()=>patTool,mirrorAcross,mirrorFn,xfPoints,snapCandidates,snapPoint,modKeys,getSnap:()=>snapHit,docJSON,loadDocJSON,undoTo,redoTo,showHistory,setLastMouse:(x,y)=>{lastMouse=[x,y];},solidBuild,solidEditApply,solidHitsFromSel,solidEditKeys,topoCache,pxPerUnit,endTool,allTris,meshVolume,getMod:()=>modTool,subWorld,subPivot,applyFaceOps,bodyMeshWith,faceHitsFromSel,faceOpApply,faceInfoWorld,subBegin,subApply,subEnd,solidFacePick,faceLoops,planeHit};')(mod);const M=mod.exports;global.M=M;if(process.env.SMOKE_BOOT_ONLY)return;
 let n=0;const ok=(c,m)=>{n++;if(!c){console.error('FAIL',m);process.exit(1);}};
-ok(M.doc.figures.length===0,'starts empty');
+ok(M.doc.figures.length===1&&M.doc.figures[0].kind==='plane'&&M.doc.figures[0].params.size===200&&M.active_.plane===M.doc.figures[0].id,'new document starts with one 200 mm workplane on the lattice, active');M.doc.figures=[];M.active_.plane=null;
 M.doc.figures.forEach(f=>{M.build(f);const ms=M.measure(f);ok(isFinite(ms.v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
 M.resize();
 // 1. workplane via catalogue
@@ -284,10 +284,10 @@ M.doc.sel=new Set([r2.id]);keyd('e');ok(M.getSolid()&&M.getSolid().kind==='extru
 {// 19. new document / continue previous
 M.setView('top');M.resize();M.createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});M.startOp('circle');M.toolClick(300,300);M.toolClick(330,300);
 localStorage.setItem('solidarc.doc.v1',M.docJSON());const info=M.autosaveInfo();ok(info&&info.curves>0&&info.saved,'autosave info reports the previous drawing');
-const nBefore=M.doc.figures.length;M.newDoc();ok(M.doc.figures.length===0&&!M.active_.plane&&!M.doc.sel.size,'new document empties the scene');ok(localStorage.getItem('solidarc.doc.v1')===null&&localStorage.getItem('solidarc.doc.prev'),'autosave cleared, previous kept as backup');
+const nBefore=M.doc.figures.length;M.newDoc();ok(M.doc.figures.length===1&&M.doc.figures[0].kind==='plane'&&M.active_.plane&&!M.doc.sel.size,'new document = just the default workplane, ready to draw');ok(localStorage.getItem('solidarc.doc.v1')===null&&localStorage.getItem('solidarc.doc.prev'),'autosave cleared, previous kept as backup');
 M.undo();ok(M.doc.figures.length===nBefore,'new document is undoable');M.newDoc();
 ok(M.restorePrevious()&&M.doc.figures.length===nBefore,'restore previous brings the old drawing back');
-localStorage.setItem('solidarc.doc.v1',M.docJSON());ok(M.showStart()===true,'start screen offered when an autosave exists');localStorage.removeItem('solidarc.doc.v1');M.doc.figures=[];ok(M.showStart()===false&&M.doc.figures.length===0,'no autosave → straight into a fresh document');}
+localStorage.setItem('solidarc.doc.v1',M.docJSON());ok(M.showStart()===true,'start screen offered when an autosave exists');localStorage.removeItem('solidarc.doc.v1');M.doc.figures=[];ok(M.showStart()===false&&M.doc.figures.length===1&&M.doc.figures[0].kind==='plane','no autosave → straight into a fresh document (default workplane)');}
 {// 20. a stuck Ctrl (keyup lost to the address bar) must not keep snapping clicks onto the previous rectangle
 M.setView('top');M.resize();M.createWorkplane({base:'XY',offset:0,tilt:0,size:120,show:true});
 M.startOp('rect');M.toolClick(300,300);M.toolClick(400,400);const rA=M.doc.figures.filter(f=>f.kind==='curve').pop();
@@ -371,6 +371,21 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   // fillet on the profile + face features coexist; measure lists them
   cy.edits=[{type:'fillet',key:'bot:all',r:2}];M.invalidate(cy.id);M.topoCache.clear();m=M.meshOf(cy);ok(openEdges(m)===0&&M.measure(cy).rows.some(r=>r[0]==='face features'),'edge fillet + face features rebuild together');
   M.doc.sel=new Set([cy.id]);M.renderInspector();ok(true,'inspector lists face features');M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
+// 24. vertex bevel / chamfer on solids, default workplane, plane opacity, green selection
+{ if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
+  const K=p=>p.map(v=>v.toFixed(3)).join(',');const openEdges=(m)=>{const c=new Map();M.allTris(m).forEach(t=>{const A=(a,b)=>{const k=[K(a),K(b)].sort().join('|');c.set(k,(c.get(k)||0)+1);};A(t[0],t[1]);A(t[1],t[2]);A(t[2],t[0]);});return [...c.values()].filter(v=>v!==2).length;};
+  M.startOp('rect');M.toolClick(380,300);M.toolClick(520,380);const R=M.doc.figures.filter(f=>f.kind==='curve').pop();M.selectTool();M.doc.sel=new Set([R.id]);M.startOp('extrude');M.solidKey({key:'3'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b=M.doc.figures.filter(f=>f.kind==='body').pop();const v0=M.meshVolume(M.meshOf(b));
+  const vi=M.topo(b).verts.findIndex(v=>v.p[2]>1);M.sub_.sel.clear();M.sub_.sel.set('k',{fig:b.id,kind:'vertex',idx:vi});M.modStart('chamfer');ok(M.getMod()&&M.getMod().drag&&M.getMod().drag.solid&&M.getMod().drag.solid[0].kind==='vertex','⇧B with a body vertex selected starts a vertex chamfer');M.getMod().num='6';M.cornerApply();
+  let m=M.meshOf(b);ok(b.faceOps.length===1&&b.faceOps[0].op==='vbevel'&&b.faceOps[0].type==='chamfer','vertex chamfer stored as a feature');ok(openEdges(m)===0&&m.brep.faces.length===7&&m.brep.verts.length===10&&Math.abs(v0-M.meshVolume(m)-6*6*6/6)<1e-6,'chamfer cuts a corner tetrahedron (7 faces, 10 verts, volume −d³/6), watertight');
+  b.faceOps=[];M.invalidate(b.id);M.topoCache.clear();M.sub_.sel.clear();M.sub_.sel.set('k',{fig:b.id,kind:'vertex',idx:M.topo(b).verts.findIndex(v=>v.p[2]>1)});M.modStart('fillet');M.getMod().num='6';M.cornerApply();m=M.meshOf(b);
+  ok(b.faceOps[0].type==='fillet'&&openEdges(m)===0&&m.brep.faces.some(f=>f.kind==='sphere')&&M.meshVolume(m)<v0&&M.meshVolume(m)>v0-6*6*6/6,'vertex fillet adds a smooth spherical patch, watertight, removes less than a chamfer');
+  ok(m.quads.filter(q=>q.fkey.startsWith('vfillet')).every(q=>q.smooth),'spherical patch shades smooth');
+  // plane opacity persists in the document
+  M.doc.planeAlpha=0.25;const js=M.docJSON();ok(JSON.parse(js).planeAlpha===0.25,'plane opacity saved in the document');
+  // green selection: matcap on a selected normal must be greenish
+  const c=M.matcapColor([0,0,1],[0,0,1],true).match(/\d+/g).map(Number);ok(c[1]>c[0]&&c[1]>c[2],'selected matcap tint is green');M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);

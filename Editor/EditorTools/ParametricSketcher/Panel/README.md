@@ -100,6 +100,12 @@ Polyline vertices can be lifted off the sketch plane (`vz` per vertex; a dashed 
 ### Closed loops, fill, resolution
 Closed curves (circle, ellipse, closed polyline/rectangle/polygon/slot, arc with *Closed loop* on) get a semi-transparent fill and are clickable inside. Inspector → **Curve display**: *Closed loop* (polyline / arc), *Fill when closed*, *Segments* (per-curve). Document → Presentation → **Curve resolution** multiplies every circle/arc/ellipse tessellation (0.25×–4×); arcs scale their count by sweep so wide arcs stay smooth.
 
+### Green selection · default workplane · plane opacity · vertex bevel
+- Selection highlights are now **green** (mint edges/faces, green-tinted matcap) instead of amber.
+- A **new document starts with Workplane01 (200 mm, the size of the lattice) on the lattice and active**, so you can draw immediately. Workplanes default to 200 mm.
+- Planes render at **10 % opacity** by default; the Inspector → Presentation has a **Plane opacity** slider (0–60 %), saved with the document.
+- **Vertex bevel / chamfer** (Blender-style): in Vertex mode select a body corner (or hover it inside the Fillet/Chamfer tool), press **B** for a spherical corner or **⇧B** for a flat cut, drag / type the distance. Stored as a `vbevel` feature on the body (Inspector → Face features, removable, undoable); watertight.
+
 ### Smooth shading & studio matcap
 - Curved faces (cylinders, cones, fillets, tori) are shaded per **interpolated normal**: every smooth quad is subdivided in screen space (adaptively, up to 6×6) and each cell is lit with its Phong-interpolated normal, so fillets and cylinders read as continuous surfaces instead of Blender-style flat polygons. Planar faces stay flat.
 - The matcap is now a true view-space matcap: an analytic “studio clay” sphere (soft upper-left key, right fill, bottom bounce, fresnel rim, tight highlight, cavity darkening) sampled by the view-space normal only — so it looks the same from every camera angle, like a matcap texture.
