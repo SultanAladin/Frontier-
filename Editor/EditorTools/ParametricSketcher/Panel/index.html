@@ -545,7 +545,7 @@ function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc
 // ── document save / load (JSON) ──
 const BUILD='__BUILD__';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,planeAlpha:doc.planeAlpha,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
-function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;if(o.planeAlpha!=null)doc.planeAlpha=o.planeAlpha;
+function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;doc.figures.forEach(f=>{if(isSlot(f)&&!hasBulge(f))regenSlot(f);}); /* slots saved as polygons → analytic outline */uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;if(o.planeAlpha!=null)doc.planeAlpha=o.planeAlpha;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
 function saveDoc(name){const js=docJSON();try{const b=new Blob([js],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'solidarc-document')+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}catch(e){}log('saved '+(name||'solidarc-document')+'.json');return js;}
 function openDoc(){const i=document.createElement('input');i.type='file';i.accept='.json,application/json';i.onchange=()=>{const f=i.files&&i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{loadDocJSON(r.result);}catch(e){log('open failed: '+e.message);}};r.readAsText(f);};i.click();}
@@ -642,7 +642,7 @@ function profileSegs(f){ // → [{pts:[[u,v]..] (loop ctrl points), bulge:[], ei
     loops.push({pts:P,bulge:B,eids:E,smooth:S,hole:!!hole,orig:P.map((_,i)=>i)});};
   if(f.kind==='curve'){const cs=f.scl||[1,1,1],cr=(f.rot3?f.rot3[2]:f.rot||0)*Math.PI/180,cp=f.pos||[0,0,0];const c=Math.cos(cr),sn=Math.sin(cr);const X=q=>{let u=q[0]*cs[0],v=q[1]*cs[1];if(cr){const t=u;u=t*c-v*sn;v=t*sn+v*c;}return [u+cp[0],v+cp[1]];};const p=f.params;
     if(f.ctype==='circle'){const C=X([p.cx,p.cy]);const r=p.r*cs[0];add([[C[0]+r,C[1]],[C[0]-r,C[1]]],[1,1],[0,0],[true,true],false);return loops;}
-    if(f.ctype==='poly'&&!isSlot(f)){const CP=ctrlPlane(f);if(!CP.closed)return null;const n=CP.pts.length;add(CP.pts,CP.pts.map((_,i)=>CP.bulge[i]||0),CP.pts.map((_,i)=>i),CP.pts.map((_,i)=>!!CP.bulge[i]),false);return loops;}
+    if(f.ctype==='poly'&&(!isSlot(f)||hasBulge(f))){const CP=ctrlPlane(f);if(!CP.closed)return null;const n=CP.pts.length;add(CP.pts,CP.pts.map((_,i)=>CP.bulge[i]||0),CP.pts.map((_,i)=>i),CP.pts.map((_,i)=>!!CP.bulge[i]),false);return loops;}
     const C=curvePlane(f);if(!C||!C.closed)return null;add(C.pts,C.pts.map(()=>0),C.pts.map(()=>0),C.pts.map(()=>true),false);return loops;}
   if(f.kind==='sketch'){const pf=profileOf(f);if(!pf)return null;const chain=(P)=>{const n=P.length;const eids=[],smooth=[];let e=0;for(let i=0;i<n;i++){const a=P[(i-1+n)%n],b=P[i],c2=P[(i+1)%n];const d1=[b[0]-a[0],b[1]-a[1]],d2=[c2[0]-b[0],c2[1]-b[1]];const ang=Math.abs(Math.atan2(d1[0]*d2[1]-d1[1]*d2[0],d1[0]*d2[0]+d1[1]*d2[1]));const sm=ang<12*Math.PI/180;if(!sm&&i>0)e++;eids.push(e);smooth.push(sm);}
       // segments that belong to a smooth chain are 'smooth' when BOTH their ends are tangent-continuous
@@ -720,7 +720,8 @@ function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
         const fn=norm(cross(sub(P1,P0),sub(P3,P0)));if(!smooth||!nA0||!nB0||isNaN(fn[0])){nA0=nA1=nB0=nB1=fn;}
         if(!(Math.hypot(...sub(P1,P0))<1e-9&&Math.hypot(...sub(P2,P3))<1e-9)){quads.push({p:[P0,P1,P2,P3],n:[nA0,nA1,nB1,nB0],fkey,smooth,band:b,m,loop:li,nsub:n});F.tris.push([P0,P1,P2],[P0,P2,P3]);}
         // edges: sharp corner between two different faces along the sweep direction
-        const prev=subs[(m-1+n)%n];const sharpCorner=!(sb.eid===prev.eid&&(sb.smooth||prev.smooth||sb.arc||prev.arc))&&!(sb.arc&&prev.arc&&sb.eid===prev.eid);
+        const prev=subs[(m-1+n)%n];const tangentJoint=(()=>{const da=[prev.b[0]-prev.a[0],prev.b[1]-prev.a[1]],db=[sb.b[0]-sb.a[0],sb.b[1]-sb.a[1]];const la=Math.hypot(...da)||1,lb=Math.hypot(...db)||1;const c=(da[0]*db[0]+da[1]*db[1])/(la*lb);if(!(prev.arc||sb.arc))return false; /* arc–line / arc–arc joint: tangent when the chord directions agree within the chords' own half-turns */ const lim=(()=>{let t=0;if(prev.arc)t+=Math.abs(la/(2*prev.arc.r));if(sb.arc)t+=Math.abs(lb/(2*sb.arc.r));return Math.cos(t+2*Math.PI/180);})();return c>lim;})();const sharpCorner=!(sb.eid===prev.eid&&(sb.smooth||prev.smooth||sb.arc||prev.arc))&&!(sb.arc&&prev.arc&&sb.eid===prev.eid)&&!tangentJoint;
+        if(tangentJoint&&!(sb.eid===prev.eid))edge(pre+'side:'+li+':'+(sb.cornerIdx!=null?sb.cornerIdx:m)+'~',[P0,P3],true);
         if(sharpCorner)edge(pre+'side:'+li+':'+(sb.cornerIdx!=null?sb.cornerIdx:m),[P0,P3],false);}
       // ring boundary edges between bands (cap edges are added below)
       if(b>0){const Ap=R[b-1];const prevKind=(Ap.band==='fbot'||Ap.band==='cbot')?Ap.band:'wall';const thisKind=bandKind;if(prevKind!==thisKind||(A.band==='wall'&&Bb.band!=='wall')){}}}
@@ -1505,7 +1506,7 @@ function polyExpand(f){const p=f.params;const pts=p.pts||[],n=pts.length;const c
   return {pts:out,seg,closed};}
 // slots (2-point and polyline) are one entity: params.spine = centres, params.r = radius, params.pts = generated outline
 const isSlot=f=>f&&f.kind==='curve'&&f.ctype==='poly'&&Array.isArray(f.params.spine);
-function regenSlot(f){if(!isSlot(f))return;f.params.r=Math.max(.5,+f.params.r||1);f.params.pts=offsetPolyline(f.params.spine,f.params.r);delete f.params.vz;}
+function regenSlot(f){if(!isSlot(f))return;f.params.r=Math.max(.5,+f.params.r||1);const O=slotOutline(f.params.spine,f.params.r);f.params.pts=O.pts;f.params.bulge=O.bulge;delete f.params.vz;}
 function topo(f){if(topoCache.has(f.id))return topoCache.get(f.id);let t;
   if(f.kind==='curve'){const pts=polyPtsOf(f);const closed=f.ctype==='circle'||f.ctype==='ellipse'||!!f.params.closed;
     const verts=pts.map((p,i)=>({id:i,p,z:(f.params.vz||[])[i]||0}));const edges=[];
@@ -1950,6 +1951,22 @@ function toolClick(px,py){const uv=planeHit(px,py);if(!uv||!tool)return;const la
   if(!tool.op.multi&&n>=P.length)finishTool();else draw();}
 function finishTool(){if(!tool)return;const need=tool.op.multi?2:Math.min(2,(tool.op.prompts||[]).length);if(tool.pts.length<need){log(tool.op.label+': needs '+need+' clicks · cancelled');endTool();return;}const shape=shapeFrom(tool.op,tool.pts,tool.vals,true);if(shape)commitShape(tool.op,shape,tool.vals);const op=tool.op;endTool();
   /* sticky tools: stay armed for the next shape until Esc / Q / another tool */ if(shape&&op){startOp(op.id);$('#promptTxt').textContent=op.prompts[0]+'  ·  tool stays active — Esc / Q to stop';}}
+function slotOutline(P,r){ // analytic round-capped outline of an open polyline → {pts,bulge}: straight flanks + tangent arcs (outer joints, end caps); inner joints = miter point
+  const n=P.length;if(n<2)return {pts:[],bulge:[]};const dirs=[];for(let i=0;i<n-1;i++){const d=[P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]];const l=Math.hypot(d[0],d[1])||1;dirs.push([d[0]/l,d[1]/l]);}
+  const nrm=d=>[-d[1],d[0]];const isect=(p1,p2,p3,p4)=>{const d=(p1[0]-p2[0])*(p3[1]-p4[1])-(p1[1]-p2[1])*(p3[0]-p4[0]);if(Math.abs(d)<1e-9)return null;const t=((p1[0]-p3[0])*(p3[1]-p4[1])-(p1[1]-p3[1])*(p3[0]-p4[0]))/d;return [p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1])];};
+  const pts=[],bulge=[];const push=(q,b)=>{pts.push(q);bulge.push(b||0);};
+  const side=sg=>{for(let i=0;i<n-1;i++){const d=dirs[i],nl=nrm(d).map(v=>v*sg*r);const a=[P[i][0]+nl[0],P[i][1]+nl[1]],b=[P[i+1][0]+nl[0],P[i+1][1]+nl[1]];if(i===0)push(a,0);
+      if(i<n-2){const d2=dirs[i+1];const turn=d[0]*d2[1]-d[1]*d2[0];const nl2=nrm(d2).map(v=>v*sg*r);const a2=[P[i+1][0]+nl2[0],P[i+1][1]+nl2[1]],b2=[P[i+2][0]+nl2[0],P[i+2][1]+nl2[1]];
+        if(turn*sg<0){ /* outer joint: tangent arc about the spine vertex */ const ang=Math.atan2(nl[0]*nl2[1]-nl[1]*nl2[0],nl[0]*nl2[0]+nl[1]*nl2[1]);push(b,-Math.abs(Math.tan(ang/4))); /* convex, same turn sense as the end caps */push(a2,0);}
+        else{const x=isect(a,b,a2,b2);push(x||b,0);}}
+      else push(b,0);}};
+  side(1);bulge[bulge.length-1]=-1; /* far end cap: semicircle, CCW about P[n-1] */
+  const nR=[];const savePts=pts.length;side(-1);const R=pts.splice(savePts),RB=bulge.splice(savePts);
+  // the −side was built forward; the outline runs it backwards, so reverse points and negate / shift bulges
+  for(let i=R.length-1;i>=0;i--){push(R[i],0);}
+  for(let i=0;i<R.length-1;i++){const bsrc=RB[R.length-2-i];bulge[savePts+i]=(bsrc||0);}
+  bulge[bulge.length-1]=-1; /* near end cap back to the start point */
+  return {pts,bulge};}
 function offsetPolyline(P,r){ // round-capped outline of an open polyline: outer joints get arcs, inner joints get the miter intersection
   const n=P.length;if(n<2)return [];const dirs=[];for(let i=0;i<n-1;i++){const d=[P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]];const l=Math.hypot(d[0],d[1])||1;dirs.push([d[0]/l,d[1]/l]);}
   const nrm=d=>[-d[1],d[0]];const at=v=>Math.atan2(v[1],v[0]);
@@ -1969,11 +1986,11 @@ function shapeFrom(op,P,v,final){const n=P.length;const d=(a,b)=>Math.hypot(b[0]
     case 'polyline':if(n<2)return null;return {ctype:'poly',params:{pts:P.slice(),closed:!!v.close&&n>2}};
     case 'rect':{if(n<2)return null;const [a,b]=P;return {ctype:'poly',params:{pts:[[a[0],a[1]],[b[0],a[1]],[b[0],b[1]],[a[0],b[1]]],closed:true}};}
     case 'crect':{if(n<2)return null;const [c,k]=P,w=Math.abs(k[0]-c[0]),h=Math.abs(k[1]-c[1]);return {ctype:'poly',params:{pts:[[c[0]-w,c[1]-h],[c[0]+w,c[1]-h],[c[0]+w,c[1]+h],[c[0]-w,c[1]+h]],closed:true}};}
-    case 'slot':{if(n<2)return null;const r=+v.r;return {ctype:'poly',params:{pts:offsetPolyline(P,r),closed:true,spine:P.slice(),r}};}
+    case 'slot':{if(n<2)return null;const r=+v.r;const O=slotOutline(P,r);return {ctype:'poly',params:{pts:O.pts,bulge:O.bulge,closed:true,spine:P.slice(),r}};}
     case 'circle':{if(n<2)return null;if(v.mode==='Diameter'){const c=[(P[0][0]+P[1][0])/2,(P[0][1]+P[1][1])/2];return {ctype:'circle',params:{cx:c[0],cy:c[1],r:Math.max(.5,d(P[0],P[1])/2)}};}return {ctype:'circle',params:{cx:P[0][0],cy:P[0][1],r:Math.max(.5,d(P[0],P[1]))}};}
     case 'arc':{if(n<2)return null;const c=P[0],r=Math.max(.5,d(c,P[1]));let a0=ang(c,P[1])*180/Math.PI,a1=n>2?ang(c,P[2])*180/Math.PI:a0+90;if(v.dir==='CW'){while(a1>=a0)a1-=360;}else{while(a1<=a0)a1+=360;}return {ctype:'arc',params:{cx:c[0],cy:c[1],r,a0,a1}};}
     case 'ellipse':{if(n<2)return null;const c=P[0],rx=Math.max(.5,d(c,P[1])),t=ang(c,P[1]);let ry=rx*.6;if(n>2){const dx=P[2][0]-c[0],dy=P[2][1]-c[1];ry=Math.max(.5,Math.abs(-Math.sin(t)*dx+Math.cos(t)*dy));}return {ctype:'ellipse',params:{cx:c[0],cy:c[1],rx,ry,tilt:t*180/Math.PI}};}
-    case 'pslot':{if(n<2)return null;const r=+v.r;return {ctype:'poly',params:{pts:offsetPolyline(P,r),closed:true,spine:P.slice(),r}};}
+    case 'pslot':{if(n<2)return null;const r=+v.r;const O=slotOutline(P,r);return {ctype:'poly',params:{pts:O.pts,bulge:O.bulge,closed:true,spine:P.slice(),r}};}
     case 'polygon':{if(n<2)return null;const c=P[0],k=Math.max(3,+v.sides|0);let r=Math.max(.5,d(c,P[1]));if(v.mode==='Circumscribed')r/=Math.cos(Math.PI/k);const t0=ang(c,P[1]);return {ctype:'poly',params:{pts:Array.from({length:k},(_,i)=>{const q=t0+i/k*Math.PI*2;return [c[0]+Math.cos(q)*r,c[1]+Math.sin(q)*r]}),closed:true}};}
     case 'point':case 'spoint':if(n<1)return null;return {ctype:'point',params:{cx:P[0][0],cy:P[0][1]}};}
   return null;}

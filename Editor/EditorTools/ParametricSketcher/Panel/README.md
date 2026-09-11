@@ -137,3 +137,9 @@ The document starts **empty**; `?demo` in the URL loads the sample scene.
 
 Keyboard: `1–4` select mode · `5` ortho · numpad `1/3/7` front/right/top · `L ⇧L R C A E P` sketch tools · `⇧W` workplane · `Tab` catalogue · `Enter` finish polyline · `G R S` move/rotate/scale (Blender modal) · `H` hide · `Alt+H` unhide all · `F` frame · `D` dims · `⌫` delete · `Ctrl+Z / Ctrl+Shift+Z` undo/redo · `Esc` cancel/deselect.
 - **Push commits what the preview shows.** Pushing a face (E / gizmo) first tries the parametric route (height / base / profile-edge edit); the result is compared with the previewed push feature and, if they differ (e.g. the cap has filleted edges, so a taller extrude would swallow the fillet), the previewed push feature is kept instead.
+
+## Analytic slots · tangent wall joints
+
+- **Slot / Polyline slot are analytic**: the outline is straight flanks plus true tangent arcs (semicircle end caps, arcs at outer joints, mitre at inner joints) stored as bulges — no more 48-point polygons. Extruding one gives proper `cylinder` faces for the caps and corners, exactly like a solid modeller; old documents with polygon slots are upgraded on load. The 2D area matches the exact Minkowski (spine ⊕ disc) area within tessellation error.
+- **Tangent wall joints are not edges.** Where a flat wall meets a cylinder wall tangentially the B-rep now records a tangent (non-selectable, non-filletable) joint instead of a sharp edge, so fillet/chamfer only offers real edges: the two sharp inner corners of a U-slot and the cap edges.
+- Cap-edge fillets/chamfers that run into a cylinder cap terminate cleanly (triangular blend rule), and pushing the slot's top commits exactly what the preview showed.

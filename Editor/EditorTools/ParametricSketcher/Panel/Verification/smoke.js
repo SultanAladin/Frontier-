@@ -31,7 +31,7 @@ M.startOp('line');M.toolClick(100,100);M.toolClick(150,120);
 M.startOp('arc');M.toolClick(600,500);M.toolClick(640,500);M.toolClick(600,540);
 M.startOp('ellipse');M.toolClick(700,300);M.toolClick(760,300);M.toolClick(700,330);
 M.startOp('slot');M.toolClick(100,500);M.toolClick(200,500);
-M.startOp('pslot');M.toolClick(300,450);M.toolClick(380,410);M.toolClick(460,450);M.finishTool();const ps=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(ps.ctype==='poly'&&ps.params.pts.length>30&&ps.params.spine.length===3,'polyline slot outline built from 3 centres');
+M.startOp('pslot');M.toolClick(300,450);M.toolClick(380,410);M.toolClick(460,450);M.finishTool();const ps=M.doc.figures.filter(f=>f.kind==='curve').pop();ok(ps.ctype==='poly'&&ps.params.pts.length===7&&ps.params.spine.length===3&&ps.params.bulge.filter(b=>Math.abs(b)===1).length===2,'polyline slot outline built from 3 centres (analytic: 2 semicircle caps + tangent corner arc)');
 M.startOp('spoint');M.toolClick(50,50);
 sk=M.byId(sk.id);ok(sk.children.length===10,'10 curves in sketch, got '+sk.children.length);
 sk.children.map(M.byId).forEach(c=>{M.build(c);ok(isFinite(M.measure(c).v),'measure '+c.name);});
@@ -415,6 +415,25 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   ok(Math.abs(got-want)<want*0.002,'push of a filleted cap commits what the preview showed ('+got.toFixed(1)+' vs '+want.toFixed(1)+')');ok(+b.params.height===30,'extrude height untouched when the parametric edit would not match');ok(M.topo(b).faces.some(f=>/^ftop:/.test(f.key)),'top fillet survives the push');
   // plain box (no fillets): the push still becomes a height edit, no feature added
   b.edits=[];b.faceOps=[];M.invalidate(b.id);M.topoCache.clear();const t2=M.topo(b).faces.findIndex(f=>f.key==='cap:top');M.faceOpApply([M.faceInfoWorld(b,t2)],'push',10);ok(+b.params.height===40&&!(b.faceOps||[]).length,'plain cap push edits the height');
+  M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
+// 27. polyline slot → analytic B-rep: straight walls + true cylinder end caps / corner arcs; extrude, push, fillet all watertight
+{ if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
+  const K=p=>p.map(v=>v.toFixed(3)).join(',');const openEdges=(m)=>{const c=new Map();M.allTris(m).forEach(t=>{const A=(a,b)=>{const k=[K(a),K(b)].sort().join('|');c.set(k,(c.get(k)||0)+1);};A(t[0],t[1]);A(t[1],t[2]);A(t[2],t[0]);});return [...c.values()].filter(v=>v!==2).length;};
+  M.startOp('pslot');[[380,300],[380,420],[520,420],[520,300]].forEach(([x,y])=>M.toolClick(x,y));M.finishTool();const R=M.doc.figures.filter(f=>f.kind==='curve').pop();
+  ok(R.params.pts.length===10&&R.params.bulge.filter(b=>b).length===4,'U slot outline = 10 control points with 4 arcs');
+  M.selectTool();M.doc.sel=new Set([R.id]);M.startOp('extrude');M.solidKey({key:'1'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b=M.doc.figures.filter(f=>f.kind==='body').pop();
+  const t=M.topo(b);ok(t.faces.filter(f=>f.kind==='cylinder').length===4&&t.faces.filter(f=>f.kind==='plane').length===8,'U slot body: 4 cylinder walls + 6 planar walls + 2 caps');
+  const A=M.meshVolume(M.meshOf(b))/10;const sp=R.params.spine,rr=R.params.r;let Ls=0;for(let i=0;i<sp.length-1;i++)Ls+=Math.hypot(sp[i+1][0]-sp[i][0],sp[i+1][1]-sp[i][1]);const exact=2*rr*Ls+Math.PI*rr*rr-2*(rr*rr-Math.PI*rr*rr/4);ok(Math.abs(A-exact)<exact*0.01,'slot area matches the exact Minkowski area ('+A.toFixed(1)+' vs '+exact.toFixed(1)+')');
+  // straight 2-point slot: exact capsule
+  M.startOp('pslot');[[380,300],[380,420]].forEach(([x,y])=>M.toolClick(x,y));M.finishTool();const R2=M.doc.figures.filter(f=>f.kind==='curve').pop();M.selectTool();M.doc.sel=new Set([R2.id]);M.startOp('extrude');M.solidKey({key:'1'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b2=M.doc.figures.filter(f=>f.kind==='body').pop();const A2=M.meshVolume(M.meshOf(b2))/10;const r2=R2.params.r,L2=Math.hypot(R2.params.spine[1][0]-R2.params.spine[0][0],R2.params.spine[1][1]-R2.params.spine[0][1]);ok(Math.abs(A2-(2*r2*L2+Math.PI*r2*r2))<(2*r2*L2)*0.01,'capsule slot area ('+A2.toFixed(1)+')');
+  // push the top face → same as the preview; fillet every top edge → watertight
+  const ti=M.topo(b).faces.findIndex(f=>f.key==='cap:top');const want=M.meshVolume(M.bodyMeshWith(b,[{op:'push',face:'cap:top',h:20}]));M.faceOpApply([M.faceInfoWorld(b,ti)],'push',20);M.invalidate(b.id);M.topoCache.clear();ok(Math.abs(M.meshVolume(M.meshOf(b))-want)<want*0.002,'push of the slot top commits what the preview shows');
+  b.faceOps=[];b.params.height=10;b.edits=[{type:'fillet',key:'top:all',r:3}];M.invalidate(b.id);M.topoCache.clear();const mf=M.meshOf(b);ok(openEdges(mf)===0,'U slot with all top edges filleted is watertight');ok(M.meshVolume(mf)<A*10&&M.meshVolume(mf)>A*10*0.9,'fillet removed a sensible amount');
+  b.edits=[{type:'fillet',key:'top:3',r:3}];M.invalidate(b.id);M.topoCache.clear();ok(openEdges(M.meshOf(b))===0,'single slot-cap edge fillet is watertight');ok(M.topo(b).edges.filter(e=>/^side:0:\d+~$/.test(e.key)&&e.tangent).length===8&&M.topo(b).edges.filter(e=>/^side:0:\d+$/.test(e.key)).length===2,'slot walls: 8 tangent wall joints + 2 sharp inner corners');b.edits=[{type:'fillet',key:'side:0:7',r:4},{type:'fillet',key:'side:0:8',r:4},{type:'chamfer',key:'top:1',r:3}];M.invalidate(b.id);M.topoCache.clear();ok(openEdges(M.meshOf(b))===0,'inner-corner fillets + chamfer against a cylinder cap watertight');
+  // legacy document with a polygon slot is upgraded on load
+  const js=M.docJSON();const o=JSON.parse(js);const S=o.figures.find(f=>f.id===R.id);delete S.params.bulge;S.params.pts=[[0,0],[10,0],[10,5],[0,5]];M.loadDocJSON(o);const R3=M.doc.figures.find(f=>f.id===R.id);ok(R3&&Array.isArray(R3.params.bulge)&&R3.params.bulge.filter(b=>b).length===4,'legacy polygon slot regenerated as analytic outline on load');
   M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
