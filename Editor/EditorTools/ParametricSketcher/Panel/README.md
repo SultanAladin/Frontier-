@@ -100,6 +100,13 @@ Polyline vertices can be lifted off the sketch plane (`vz` per vertex; a dashed 
 ### Closed loops, fill, resolution
 Closed curves (circle, ellipse, closed polyline/rectangle/polygon/slot, arc with *Closed loop* on) get a semi-transparent fill and are clickable inside. Inspector → **Curve display**: *Closed loop* (polyline / arc), *Fill when closed*, *Segments* (per-curve). Document → Presentation → **Curve resolution** multiplies every circle/arc/ellipse tessellation (0.25×–4×); arcs scale their count by sweep so wide arcs stay smooth.
 
+### Face features on solids — push / pocket (E), inset (I), gizmo face move
+- **E on a planar face** of a solid (hover-click in the Extrude tool, or pre-select faces in Face mode and press E) pushes that face along its own normal: drag or type the distance; negative = pocket. Pushing a whole cap simply extends the adjacent walls (no extra faces); pushing an inset region grows a boss / cuts a pocket with new wall faces (smooth cylindrical walls on round regions).
+- **I = Inset face**: click a planar face, drag / type the distance → a ring face plus the shrunken inner face, which keeps its key so you can immediately E it again. Chains like inset → push → inset → pocket are stable.
+- **Moving a face with the gizmo (G / drag arrows)** with a body face selected now pushes the face along its normal instead of dragging the whole body.
+- Features are stored on the body as `faceOps` and replayed on top of the profile extrude + edge fillets on every rebuild (editing the sketch keeps them); the Inspector lists them under “Face features” with × to remove; Measure counts them. All results are watertight (checked in the smoke suite).
+- Not yet: curved-face push, multi-body booleans, push along arbitrary vectors.
+
 ### Sticky drawing tools · E = Extrude
 - A drawing tool picked from the catalogue or by hotkey **stays armed** after each shape: draw a circle, then another, and another — until Esc, Q (select) or another tool. The prompt says “tool stays active — Esc / Q to stop”.
 - **E** now starts Extrude (Ellipse moved to **⇧E**).

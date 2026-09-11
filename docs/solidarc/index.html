@@ -543,7 +543,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const BUILD='20260911-1852-31dcb60';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-1922-30f04ae';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -732,6 +732,63 @@ function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
   E.forEach(e=>{let prev=null;e.pts.forEach(q=>{if(q&&prev){const l=[prev,q];l.tangent=e.tangent;lines.push(l);}prev=q;});});
   const uniqV=[];const seen=new Set();verts.forEach(v=>{const k=v.p.map(x=>x.toFixed(4)).join(',');if(seen.has(k))return;seen.add(k);uniqV.push({id:uniqV.length,p:v.p});});
   return {tris,quads,lines,brep:{faces:[...faces.values()].map((F,i)=>({id:i,key:F.key,kind:F.kind,tris:F.tris})),edges:E.map((e,i)=>({id:i,key:e.key,tangent:e.tangent,pts:e.pts})),verts:uniqV}};}
+
+/* ══ Face features on B-rep bodies: push (extrude a face along its own normal, ± = boss / pocket) and inset ═══════════
+   body.faceOps = [{op:'push'|'inset', face:<face key>, h|d}] are replayed on the B-rep after fillets. Every op keeps the
+   moved / inset face under its original key, so a chain like  inset cap:top → push cap:top → inset cap:top  is stable.  */
+const PK=p=>p[0].toFixed(4)+','+p[1].toFixed(4)+','+p[2].toFixed(4);
+function faceNormalOf(tris){let n=[0,0,0];tris.forEach(t=>{n=add(n,cross(sub(t[1],t[0]),sub(t[2],t[0])));});const l=Math.hypot(...n);return l>1e-12?mul(n,1/l):[0,0,1];}
+function faceCentroidOf(tris){let c=[0,0,0],a=0;tris.forEach(t=>{const w=Math.hypot(...cross(sub(t[1],t[0]),sub(t[2],t[0])));c=add(c,mul(add(add(t[0],t[1]),t[2]),w/3));a+=w;});return a>1e-12?mul(c,1/a):(tris[0]?tris[0][0]:[0,0,0]);}
+function faceLoops(F){ // directed boundary loops (CCW seen from outside) of a face from its triangles
+  const dir=new Map();F.tris.forEach(t=>{for(let i=0;i<3;i++){const a=t[i],b=t[(i+1)%3];dir.set(PK(a)+'>'+PK(b),[a,b]);}});
+  const bnd=new Map();dir.forEach(([a,b])=>{if(!dir.has(PK(b)+'>'+PK(a)))bnd.set(PK(a),[a,b]);});
+  const loops=[];const used=new Set();bnd.forEach((e,k)=>{if(used.has(k))return;const L=[];let cur=k,g=0;while(!used.has(cur)&&bnd.has(cur)&&g++<200000){used.add(cur);const [a,b]=bnd.get(cur);L.push(a);cur=PK(b);}if(L.length>=3)loops.push(L);});return loops;}
+function brepState(m){ // mesh → editable face/edge/vertex state
+  const faces=new Map();(m.brep.faces).forEach(F=>faces.set(F.key,{key:F.key,kind:F.kind,tris:F.tris.slice(),ptris:[],quads:[]}));
+  (m.tris||[]).forEach(t=>{const F=faces.get(t.fkey);if(F)F.ptris.push(t);});(m.quads||[]).forEach(q=>{const F=faces.get(q.fkey);if(F)F.quads.push(q);});
+  return {faces,edges:m.brep.edges.map(e=>({key:e.key,tangent:e.tangent,pts:e.pts.slice()})),verts:m.brep.verts.map(v=>({p:v.p}))};}
+function brepMesh(S){const tris=[],quads=[],lines=[];const faces=[];S.faces.forEach(F=>{F.ptris.forEach(t=>{tris.push(Object.assign(t.slice(),{fkey:F.key}));});F.quads.forEach(q=>quads.push(q));faces.push({id:faces.length,key:F.key,kind:F.kind,tris:F.tris});});
+  S.edges.forEach(e=>{let prev=null;e.pts.forEach(q=>{if(q&&prev){const l=[prev,q];l.tangent=e.tangent;lines.push(l);}prev=q;});});
+  const seen=new Set(),verts=[];S.verts.forEach(v=>{const k=PK(v.p);if(seen.has(k))return;seen.add(k);verts.push({id:verts.length,p:v.p});});
+  return {tris,quads,lines,brep:{faces,edges:S.edges.map((e,i)=>({id:i,key:e.key,tangent:e.tangent,pts:e.pts})),verts}};}
+function brepAdjacency(S){const adj=new Map();S.faces.forEach(F=>F.tris.forEach(t=>{for(let i=0;i<3;i++)adj.set(PK(t[i])+'>'+PK(t[(i+1)%3]),F.key);}));return adj;}
+function loopRuns(L,adj){ // split a directed loop into runs of segments sharing the same neighbour face → [{nb,segs:[[a,b]..],closed}]
+  const n=L.length;const nbOf=i=>adj.get(PK(L[(i+1)%n])+'>'+PK(L[i]))||'?';let start=0;for(let i=0;i<n;i++){if(nbOf(i)!==nbOf((i-1+n)%n)){start=i;break;}}
+  const runs=[];for(let k=0;k<n;k++){const i=(start+k)%n;const nb=nbOf(i);const seg=[L[i],L[(i+1)%n]];if(runs.length&&runs[runs.length-1].nb===nb)runs[runs.length-1].segs.push(seg);else runs.push({nb,segs:[seg]});}
+  if(runs.length===1)runs[0].closed=true;return runs;}
+function sharpTurn(a,b,c){const d1=norm(sub(b,a)),d2=norm(sub(c,b));return dot(d1,d2)<Math.cos(12*Math.PI/180);}
+function opPush(S,key,h,tag){const F=S.faces.get(key);if(!F||!(Math.abs(h)>1e-9))return false;if(F.kind!=='plane')return false;const n=faceNormalOf(F.tris);const loops=faceLoops(F);if(!loops.length)return false;const adj=brepAdjacency(S);
+  const bset=new Set();loops.forEach(L=>L.forEach(p=>bset.add(PK(p))));const off=p=>add(p,mul(n,h));
+  // cap edges move with the cap; the crease they leave behind stays as an edge between neighbour and wall
+  const moved=[];S.edges.forEach(e=>{const P=e.pts.filter(Boolean);if(P.length&&P.every(q=>bset.has(PK(q))))moved.push({key:e.key+'^'+tag,tangent:e.tangent,pts:e.pts.map(q=>q&&off(q))});});S.edges.push(...moved);
+  const oldV=[];S.verts.forEach(v=>{if(bset.has(PK(v.p))){S.verts.push({p:off(v.p)});oldV.push(v);}});
+  F.tris=F.tris.map(t=>t.map(off));F.ptris=F.ptris.map(t=>Object.assign(t.map(off),{fkey:F.key}));F.quads=F.quads.map(q=>({...q,p:q.p.map(off)}));
+  loops.forEach((L,li)=>{const runs=loopRuns(L,adj);runs.forEach((R,ri)=>{const nbF=S.faces.get(R.nb);const curvedRun=R.segs.length>2&&R.segs.every(([a2,b2],i)=>{if(i===0)return true;const [p2,q2]=R.segs[i-1];return !sharpTurn(p2,q2,b2);})&&R.segs.some(([a2,b2],i)=>i>0&&dot(norm(sub(b2,a2)),norm(sub(R.segs[i-1][1],R.segs[i-1][0])))<1-1e-6);const smooth=!!(nbF&&nbF.kind!=='plane')||curvedRun;
+      // neighbour face already parallel to the push direction (a wall) → extend it instead of adding a new face
+      const nbN=nbF?faceNormalOf(nbF.tris):null;const extend=!!(nbF&&nbN&&Math.abs(dot(nbN,n))<1e-4&&(nbF.kind==='plane'||nbF.kind==='cylinder'||nbF.kind==='cone'));
+      const fk=extend?nbF.key:`${tag}:${li}.${ri}|${key}`;const W=extend?nbF:{key:fk,kind:smooth?'cylinder':'plane',tris:[],ptris:[],quads:[]};if(!extend)S.faces.set(fk,W);
+      if(extend){const mk2=new Set(R.segs.map(([a2,b2])=>[PK(a2),PK(b2)].sort().join('|')));S.edges=S.edges.filter(e=>{const P=e.pts.filter(Boolean);if(P.length<2)return true;let all=true;for(let i=0;i<P.length-1;i++){if(!mk2.has([PK(P[i]),PK(P[i+1])].sort().join('|'))){all=false;break;}}return !all;});}
+      const segN=R.segs.map(([a,b])=>norm(cross(sub(b,a),n)));const m=R.segs.length;const vn=i=>{ // vertex normal at start of seg i (within run)
+        const prev=R.closed?segN[(i-1+m)%m]:(i>0?segN[i-1]:null);const cur=segN[i%m];return prev?norm(add(prev,cur)):cur;};
+      R.segs.forEach(([a,b],i)=>{const P=[a,b,off(b),off(a)];const fn=segN[i];const nA=smooth?vn(i):fn,nB=smooth?(R.closed||i<m-1?vn(i+1):fn):fn;W.quads.push({p:P,n:[nA,nB,nB,nA],fkey:fk,smooth,band:0,m:i,loop:fk,nsub:R.closed?m:m+1});W.tris.push([P[0],P[1],P[2]],[P[0],P[2],P[3]]);});
+      if(!R.closed){const a=R.segs[0][0];const oa=off(a);let merged=false;if(extend){S.edges.forEach(e=>{if(merged||e.tangent)return;const P=e.pts.filter(Boolean);if(P.length!==2)return;const d=norm(sub(P[1],P[0]));if(Math.abs(Math.abs(dot(d,n))-1)>1e-6)return;if(PK(P[0])===PK(a)){e.pts=[P[1],oa];merged=true;}else if(PK(P[1])===PK(a)){e.pts=[P[0],oa];merged=true;}});}
+        if(!merged)S.edges.push({key:`${fk}|v`,tangent:false,pts:[a,oa]});S.verts.push({p:a},{p:oa});}});});
+  const onEdge=new Set();S.edges.forEach(e=>e.pts.forEach(q=>{if(q)onEdge.add(PK(q));}));S.verts=S.verts.filter(v=>onEdge.has(PK(v.p)));
+  return true;}
+function opInset(S,key,d,tag){const F=S.faces.get(key);if(!F||!(d>1e-9)||F.kind!=='plane')return false;const n=faceNormalOf(F.tris);const loops=faceLoops(F);if(!loops.length)return false;
+  let u=cross(n,Math.abs(n[2])<.9?[0,0,1]:[1,0,0]);u=norm(u);const v=cross(n,u);const d0=dot(n,loops[0][0]);const to2=p=>[dot(p,u),dot(p,v)],to3=q=>add(add(mul(u,q[0]),mul(v,q[1])),mul(n,d0));
+  const inner=loops.map(L=>{const P=L.map(to2);const nn=P.length;const subs=[];for(let i=0;i<nn;i++){const a=P[i],b=P[(i+1)%nn];const dx=b[0]-a[0],dy=b[1]-a[1];const l=Math.hypot(dx,dy)||1;subs.push({a,b,nl:[-dy/l,dx/l]});}return ringOf(subs,subs.map(()=>d)).map(to3);});
+  const ring={key:'inset|'+key+'|'+tag,kind:'plane',tris:[],ptris:[],quads:[]};S.faces.set(ring.key,ring);
+  loops.forEach((L,li)=>{const I=inner[li];const nn=L.length;for(let i=0;i<nn;i++){const P=[L[i],L[(i+1)%nn],I[(i+1)%nn],I[i]];ring.quads.push({p:P,n:[n,n,n,n],fkey:ring.key,smooth:false,band:0,m:i,loop:ring.key+li,nsub:nn});ring.tris.push([P[0],P[1],P[2]],[P[0],P[2],P[3]]);}
+    S.edges.push({key:`inset|${key}|${tag}:${li}`,tangent:false,pts:I.concat([I[0]])});for(let i=0;i<nn;i++){if(sharpTurn(I[(i-1+nn)%nn],I[i],I[(i+1)%nn]))S.verts.push({p:I[i]});}});
+  const area2=L=>{const P=L.map(to2);return signedArea(P);};let oi=0;inner.forEach((L,i)=>{if(Math.abs(area2(L))>Math.abs(area2(inner[oi])))oi=i;});
+  const O2=inner[oi].map(to2),H2=inner.filter((_,i)=>i!==oi).map(L=>L.map(to2));const T=earClipHoles(O2,H2).map(t=>t.map(to3));
+  F.tris=T.slice();F.ptris=T.map(t=>Object.assign(t,{fkey:F.key}));F.quads=[];return true;}
+function applyFaceOps(m,ops){if(!m||!m.brep||!ops||!ops.length)return m;const S=brepState(m);let k=0;ops.forEach((o,i)=>{const tag='f'+i;if(o.op==='push')opPush(S,o.face,+o.h||0,tag);else if(o.op==='inset')opInset(S,o.face,+o.d||0,tag);k++;});return brepMesh(S);}
+function bodyMeshWith(f,extra){return applyFaceOps(solidBuild(f),(f.faceOps||[]).concat(extra||[]));}
+function faceInfoWorld(f,idx){const t=topo(f);const F=t.faces[idx];if(!F||!F.tris.length)return null;const Fm=frameOf(f);const n=norm(mv(Fm,faceNormalOf(F.tris)));const o=xform(f,faceCentroidOf(F.tris));return {f,key:F.key,kind:F.kind,n,o,idx};}
+function faceHitsFromSel(){const out=[];sub_.sel.forEach(h=>{const f=byId(h.fig);if(!f||f.kind!=='body'||h.kind!=='face'||!meshOf(f).brep)return;const i=faceInfoWorld(f,h.idx);if(i&&i.kind==='plane')out.push(i);});return out;}
+function faceOpApply(hits,op,val){let n=0;const by=new Map();hits.forEach(h=>{if(!by.has(h.f.id))by.set(h.f.id,[]);by.get(h.f.id).push(h);});by.forEach((hs,fid)=>{const f=byId(fid);if(!f)return;f.faceOps=(f.faceOps||[]);hs.forEach(h=>{f.faceOps.push(op==='push'?{op,face:h.key,h:val}:{op,face:h.key,d:val});n++;});invalidate(f.id);});return n;}
 function allTris(m){if(!m)return [];const t=(m.tris||[]).slice();(m.quads||[]).forEach(q=>{t.push([q.p[0],q.p[1],q.p[2]],[q.p[0],q.p[2],q.p[3]]);});return t;}
 function meshVolume(m){let v=0;allTris(m).forEach(([a,b,c])=>{v+=dot(a,cross(b,c))/6;});return Math.abs(v);}
 function ellipsePts(p,n=48){const a=(p.tilt||0)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);return Array.from({length:n},(_,i)=>{const t=i/n*Math.PI*2,x=Math.cos(t)*p.rx,y=Math.sin(t)*p.ry;return [p.cx+x*ca-y*sa,p.cy+x*sa+y*ca]});}
@@ -747,7 +804,7 @@ function curveLines(c){const p=c.params,L=[];
   return {tris:[],lines:L};}
 function build(f){const p=f.params;
   if(f.kind==='body'){if(f.op==='box')return boxMesh(p.w,p.d,p.h);if(f.op==='cylinder')return cylMesh(p.r,p.h,p.segs|0);
-    if(f.op==='extrude'){const s=byId(f.src);if(!s)return {tris:[],lines:[]};if(f.profile){return solidBuild(f);}return extrudeMesh(s,p.height,p.draft);}
+    if(f.op==='extrude'){const s=byId(f.src);if(!s)return {tris:[],lines:[]};if(f.profile){return applyFaceOps(solidBuild(f),f.faceOps);}return extrudeMesh(s,p.height,p.draft);}
     if(f.op==='loft'){const secs=(f.sections||[]).map(id=>{const c=byId(id);const pf=profileOf(c);return pf&&pf.regions.length?{pts:pf.regions[0].outer,sk:pf.sk}:null;}).filter(Boolean);return {...loftMesh(secs,Math.max(8,p.segs|0),f.params.closed!==false),worldSpace:true};}
     if(f.op==='subtract'){const a=byId(f.a),b=byId(f.b);const m=boxMesh(a.params.w,a.params.d,a.params.h);
       if(b){const hole=cylMesh(b.params.r,a.params.h+0.02,b.params.segs|0,b.params.r,0,false);hole.tris=hole.tris.map(t=>[t[1],t[0],t[2]]);hole.tris.forEach(t=>t.forEach(v=>v[2]-=0.01));m.tris.push(...hole.tris);m.lines.push(...hole.lines.filter((_,i)=>i%3!==2));}
@@ -770,7 +827,7 @@ function measure(f){const p=f.params;
   if(f.kind==='body'){if(f.op==='box')return {v:p.w*p.d*p.h,u:'mm³',lab:'volume',rows:[['faces',6],['edges',12],['vertices',8]]};
     if(f.op==='cylinder')return {v:Math.PI*p.r*p.r*p.h,u:'mm³',lab:'volume',rows:[['faces',3],['edges',2],['segments',p.segs|0]]};
     if(f.op==='loft'){const m=meshOf(f);let a=0;m.tris.forEach(t=>{a+=Math.hypot(...cross(sub(t[1],t[0]),sub(t[2],t[0])))/2;});return {v:a,u:'mm²',lab:'surface area',rows:[['sections',(f.sections||[]).length],['triangles',m.tris.length]]};}
-    if(f.op==='extrude'&&f.profile){const m=meshOf(f);const br=m.brep||{faces:[],edges:[]};return {v:meshVolume(m),u:'mm³',lab:'volume',rows:[['faces',br.faces.length],['edges',br.edges.filter(e=>!e.tangent).length+(br.edges.some(e=>e.tangent)?' + '+br.edges.filter(e=>e.tangent).length+' tangent':'')],['height',fmt(p.height,1)+' mm'],...(f.edits&&f.edits.length?[['edge edits',f.edits.length]]:[])]};}
+    if(f.op==='extrude'&&f.profile){const m=meshOf(f);const br=m.brep||{faces:[],edges:[]};return {v:meshVolume(m),u:'mm³',lab:'volume',rows:[['faces',br.faces.length],['edges',br.edges.filter(e=>!e.tangent).length+(br.edges.some(e=>e.tangent)?' + '+br.edges.filter(e=>e.tangent).length+' tangent':'')],['height',fmt(p.height,1)+' mm'],...(f.edits&&f.edits.length?[['edge edits',f.edits.length]]:[]),...(f.faceOps&&f.faceOps.length?[['face features',f.faceOps.length]]:[])]};}
     if(f.op==='extrude'){const s=byId(f.src);const {outer,holes}=sketchProfile(s);const area=polyArea(outer)-holes.reduce((a,h)=>a+polyArea(h),0);return {v:area*p.height,u:'mm³',lab:'volume',rows:[['profile',fmt(area,0)+' mm²'],['faces',outer.length+holes.length+2],['loops',1+holes.length]]};}
     if(f.op==='subtract'){const a=byId(f.a),b=byId(f.b);const v=a.params.w*a.params.d*a.params.h-(b?Math.PI*b.params.r**2*a.params.h:0);return {v,u:'mm³',lab:'volume',rows:[['tool',b?b.name:'—'],['faces',7],['SSI curves',2]]};}}
   if(f.kind==='surface'){if(f.op==='plane')return {v:p.w*p.h,u:'mm²',lab:'area',rows:[['degree','1 × 1'],['spans',(p.subdiv|0)+' × '+(p.subdiv|0)],['G','G∞']]};
@@ -919,6 +976,7 @@ function renderInspector(){let ids=[...doc.sel];const insp=$('#insp');if(!ids.le
       <div class="xf-foot"><button class="abtn ${f.id===active_.plane?'on':''}" id="pAct">${f.id===active_.plane?'active workplane':'make active'}</button></div>`);}
   const keys=f.kind==='plane'?[]:Object.keys(f.params).filter(k=>PARAMS[k]);
   if(f.kind==='body'&&f.edits&&f.edits.length)html+=sec('ed','Edge edits',f.edits.length+' on solid',`<div class="list">${f.edits.map((e,i)=>`<div class="li"><span class="dot" style="background:#ffc878"></span><span class="t">${e.type} ${fmt(e.r,2)} mm</span><span class="m">${e.key}</span><button class="x" data-edel="${i}" title="remove">×</button></div>`).join('')}</div>`);
+  if(f.kind==='body'&&f.faceOps&&f.faceOps.length)html+=sec('fo','Face features',f.faceOps.length+' on solid',`<div class="list">${f.faceOps.map((o,i)=>`<div class="li"><span class="dot" style="background:#7ff0f5"></span><span class="t">${o.op==='push'?(o.h<0?'pocket':'push')+' '+fmt(Math.abs(o.h),2):'inset '+fmt(o.d,2)} mm</span><span class="m">${o.face}</span><button class="x" data-fodel="${i}" title="remove">×</button></div>`).join('')}</div>`);
   if(keys.length)html+=sec('pa','Parameters','live edit · rebuilds',keys.map(k=>{const [lab,mn,mx,st,u]=PARAMS[k];return `<div class="ctl ${keys.length>3&&['x1','y1','x2','y2','cx','cy','a0','a1'].includes(k)?'half':''}"><div class="ctl-top"><span class="lab">${lab}</span><span class="val" data-k="${k}">${fmt(f.params[k],st<1?1:0)}<small>${u}</small></span></div>${trk('p:'+k,f.params[k],mn,mx)}</div>`}).join(''));
   // recipe
   if(f.recipe||f.src||f.parent){const chain=f.recipe||(f.parent?[byId(f.parent).name,f.ctype]:[]);html+=sec('re','Recipe','associative',`<div class="recipe">${chain.map((n,i)=>`<span class="rnode ${i===chain.length-1?'cur':''}" style="--acc:${acc}" data-n="${n}"><span class="d"></span>${n}</span>${i<chain.length-1?'<span class="rarrow">→</span>':''}`).join('')}</div>
@@ -954,7 +1012,7 @@ function renderInspector(){let ids=[...doc.sel];const insp=$('#insp');if(!ids.le
       inp.onkeydown=ev=>{if(ev.key==='Enter')done(true);if(ev.key==='Escape')done(false);};inp.onblur=()=>done(true);};});
   const lk=$('#lkScl');if(lk)lk.onclick=()=>{f.uniform=!f.uniform;lk.classList.toggle('on',f.uniform);if(f.uniform){const v=f.scl[0];f.scl=[v,v,v];$$('.stp[data-k=scl] .n').forEach(n=>n.textContent=fmt(v,2));invalidateXf(f);draw();}};
   $$('[data-xr]').forEach(b=>b.onclick=()=>{snapshot();const k=b.dataset.xr;f[k]=k==='scl'?[1,1,1]:[0,0,0];if(k==='rot3')f.rot=0;invalidateXf(f);renderInspector();draw();});
-  $$('.trk-bar').forEach(t=>bindTrk(t,f));$$('[data-edel]').forEach(b=>b.onclick=e=>{e.stopPropagation();snapshot('remove edge edit');f.edits.splice(+b.dataset.edel,1);invalidate(f.id);topoCache.clear();renderInspector();draw();});
+  $$('.trk-bar').forEach(t=>bindTrk(t,f));$$('[data-fodel]').forEach(b=>b.onclick=e=>{e.stopPropagation();snapshot('remove face feature');f.faceOps.splice(+b.dataset.fodel,1);invalidate(f.id);topoCache.clear();renderInspector();draw();});$$('[data-edel]').forEach(b=>b.onclick=e=>{e.stopPropagation();snapshot('remove edge edit');f.edits.splice(+b.dataset.edel,1);invalidate(f.id);topoCache.clear();renderInspector();draw();});
   $$('[data-cons]').forEach(l=>l.onclick=e=>{if(e.target.closest('[data-cdel]'))return;const sk=f.kind==='sketch'?f:byId(f.parent);const c=sk.cons_.find(x=>x.id===l.dataset.cons);doc.sel=new Set([c.id]);draw();if(isDimType(c.type))editDim(c);});
   $$('[data-cdel]').forEach(b=>b.onclick=e=>{e.stopPropagation();const sk=f.kind==='sketch'?f:byId(f.parent);removeConstraint(sk,b.dataset.cdel);});
   $$('[data-cname]').forEach(i=>{i.onclick=e=>e.stopPropagation();i.onpointerdown=e=>e.stopPropagation();i.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')i.blur();if(e.key==='Escape'){i.value=(f.kind==='sketch'?f:byId(f.parent)).cons_.find(x=>x.id===i.dataset.cname).name||'';i.blur();}};
@@ -1158,7 +1216,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
   else if(['1','2','3','4'].includes(k)&&!e.code.startsWith('Numpad')){toggleMode(['body','face','edge','vertex'][+k-1],e.shiftKey);}
   else if(e.key==='Tab'){e.preventDefault();toggleCat();}
   else if(e.key==='Enter'&&tool){finishTool();}
-  else if(k==='m'&&!e.ctrlKey&&!e.metaKey){startOp(e.altKey?'circular':e.shiftKey?'linear':'mirror');}else if(k==='e'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){startOp('extrude');}else if(k==='o'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey){startOp('loft');}
+  else if(k==='m'&&!e.ctrlKey&&!e.metaKey){startOp(e.altKey?'circular':e.shiftKey?'linear':'mirror');}else if(k==='e'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){startOp('extrude');}else if(k==='o'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey){startOp('loft');}else if(k==='i'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){startOp('inset');}
   else if(k==='o'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey)offStart();else if(k==='f'&&e.shiftKey)fillStart();else if(k==='f'&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();focusSelection();}
   else if(k==='t'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)modStart('trim');else if(k==='k'&&!e.ctrlKey&&!e.metaKey)modStart('cut');else if(k==='b'&&!e.ctrlKey&&!e.metaKey)modStart(e.shiftKey?'chamfer':'fillet');
   else if(k==='l'&&e.shiftKey)startOp('polyline');else if(k==='l')startOp('line');else if(k==='c')startOp('circle');else if(k==='r'&&e.shiftKey&&(gzTarget()||sub_.sel.size)&&!tool)modalStart('r');else if(k==='r'&&!e.ctrlKey&&!e.metaKey)startOp('rect');else if(k==='a')startOp('arc');else if(k==='p')startOp('polygon');else if(k==='e'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey)startOp('ellipse');
@@ -1440,17 +1498,17 @@ function moveCurveVertex(f,i,w0,delta){if(f.link){delete f.link;log(f.name+' unl
     case 'point':p.cx=q[0]+du;p.cy=q[1]+dv;break;}
   invalidate(f.id);if(f.parent)invalidate(f.parent);invalidateTopo(f.id);}
 // bodies: vertex edits are parametric-only for now (box/cylinder keep their recipe) — we translate the whole body when a face is picked, and warn otherwise
-function subBegin(){const vs=subVertices();if(!vs.length)return null;snapshot();const start=vs.map(v=>{const f=byId(v.fig);const t=topo(f);const vert=t.verts[v.idx];return {fig:v.fig,idx:v.idx,local:[...vert.p],z:vert.z||0,world:subWorld(f,'vertex',v.idx)};});
-  return {start,pivot:subPivot()};}
-function subApply(st,delta){const bodies=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(!f)return;if(f.kind==='curve')moveCurveVertex(f,w.idx,w,delta);else bodies.add(f.id);});
+function subBegin(){const faces=faceHitsFromSel();const faceFigs=new Set(faces.map(h=>h.f.id));const vs=subVertices().filter(v=>!faceFigs.has(v.fig));if(!vs.length&&!faces.length)return null;snapshot();const start=vs.map(v=>{const f=byId(v.fig);const t=topo(f);const vert=t.verts[v.idx];return {fig:v.fig,idx:v.idx,local:[...vert.p],z:vert.z||0,world:subWorld(f,'vertex',v.idx)};});
+  return {start,faces,pivot:subPivot()};}
+function subApply(st,delta){if(st.faces&&st.faces.length){st.faces.forEach(h=>{const f=h.f;const hh=dot(delta,h.n);f.faceOps=(f.faceOps||[]).filter(o=>!(o._live===h.key));if(Math.abs(hh)>1e-6)f.faceOps.push({op:'push',face:h.key,h:hh,_live:h.key});invalidate(f.id);});}const bodies=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(!f)return;if(f.kind==='curve')moveCurveVertex(f,w.idx,w,delta);else bodies.add(f.id);});
   // live solve: keep dragged vertices where the user put them (pin), let constraints move everything else
   const sks=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(f&&f.kind==='curve')sks.add(f.parent);});sks.forEach(id=>{const sk=byId(id);if(!sk||!sk.cons_||!sk.cons_.length)return;const pins=st.start.filter(w=>byId(w.fig)&&byId(w.fig).parent===id).map(w=>{const P=polyPtsOf(byId(w.fig));return {id:'pin',type:'fixed',refs:[{fig:w.fig,kind:'vertex',idx:w.idx}],at:[P[w.idx][0],P[w.idx][1]]};});const keep=sk.cons_;sk.cons_=keep.concat(pins);solveSketch(sk);sk.cons_=keep;});
   bodies.forEach(id=>{const f=byId(id);const w=st.start.find(x=>x.fig===id);if(!f._bodyStart)f._bodyStart=[...f.pos];f.pos=add(f._bodyStart,delta);});draw();}
-function subEnd(){doc.figures.forEach(f=>{delete f._bodyStart;});solveAll();topoCache.clear();renderOutliner();renderInspector();draw();}
+function subEnd(){doc.figures.forEach(f=>{delete f._bodyStart;if(f.faceOps){f.faceOps=f.faceOps.filter(o=>!(o.op==='push'&&Math.abs(o.h)<1e-6));f.faceOps.forEach(o=>{delete o._live;});}});solveAll();topoCache.clear();renderOutliner();renderInspector();draw();}
 // draw overlay: vertices as dots, selected edges/faces highlighted
-function drawSubOverlay(g){const modes=subModes();const anySub=modes.has('vertex')||modes.has('edge')||modes.has('face');if(!anySub&&!sub_.sel.size&&!(modTool&&sub_.hover))return;
+function drawSubOverlay(g){const modes=subModes();const anySub=modes.has('vertex')||modes.has('edge')||modes.has('face');if(!anySub&&!sub_.sel.size&&!((modTool||solidTool)&&sub_.hover))return;
   doc.figures.forEach(f=>{if(!f.visible||f.kind==='dim'||f.kind==='sketch'||f.kind==='plane'||!filt.has(f.kind))return;if(f.cons&&!view.cons)return;const t=topo(f);const isSel=k=>sub_.sel.has(subKey(f.id,k.kind,k.idx));const hov=sub_.hover;
-    if(modes.has('face')||sub_.sel.size||modTool)t.faces.forEach((fc,i)=>{const on=isSel({kind:'face',idx:i}),hv=hov&&hov.fig===f.id&&hov.kind==='face'&&hov.idx===i;if(!on&&!hv)return;g.fillStyle=on?'rgba(255,200,120,.35)':'rgba(255,255,255,.14)';
+    if(modes.has('face')||sub_.sel.size||modTool||solidTool)t.faces.forEach((fc,i)=>{const on=isSel({kind:'face',idx:i}),hv=hov&&hov.fig===f.id&&hov.kind==='face'&&hov.idx===i;if(!on&&!hv)return;g.fillStyle=on?'rgba(255,200,120,.35)':'rgba(255,255,255,.14)';
       if(fc.loop){const s=loopScreen(f);if(!s)return;g.beginPath();s.forEach((q,j)=>j?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.fill();}
       else fc.tris.forEach(tr=>{const s=tr.map(p=>project(xform(f,p)));if(s.some(x=>!x))return;g.beginPath();g.moveTo(s[0][0],s[0][1]);g.lineTo(s[1][0],s[1][1]);g.lineTo(s[2][0],s[2][1]);g.closePath();g.fill();});});
     if(modes.has('edge')||sub_.sel.size||modTool)t.edges.forEach((e,i)=>{const on=isSel({kind:'edge',idx:i}),hv=hov&&hov.fig===f.id&&hov.kind==='edge'&&hov.idx===i;if(!on&&!hv)return;g.strokeStyle=on?'#ffc878':'#fff';g.lineWidth=on?3:2;g.beginPath();
@@ -1574,7 +1632,7 @@ const CAT=[
     {id:'fillet',label:'Fillet',glyph:'Fillet',accel:'B',mod:'fillet',prompts:['Click a corner','Drag to set the radius · ⏎'],params:[{k:'r',kind:'slider',label:'Radius',min:.5,max:50,step:.5,value:4,unit:'mm'}]},
     {id:'chamfer',label:'Chamfer',glyph:'Chamfer',accel:'⇧B',mod:'chamfer',prompts:['Click a corner','Drag to set the distance · ⏎'],params:[{k:'d',kind:'slider',label:'Distance',min:.5,max:50,step:.5,value:3,unit:'mm'}]},
   ]},{key:'solid',label:'Solid',glyph:'Extrude',ops:[{id:'extrude',label:'Extrude',glyph:'Extrude',accel:'E',solid:'extrude',prompts:['Click a closed profile (or a filled region) · drag / type the height · ⏎ apply'],params:[{k:'draft',kind:'slider',label:'Draft angle',min:-20,max:20,step:.5,value:0,unit:'°'},{k:'sym',kind:'toggle',label:'Symmetric (both sides)',value:false}]},
-    {id:'loft',label:'Loft',glyph:'Loft',accel:'⇧O',solid:'loft',prompts:['Click the first closed profile','Click the next profile (different sketch / plane or offset) · ⏎ to finish'],params:[{k:'closed',kind:'toggle',label:'Cap ends',value:true},{k:'segs',kind:'slider',label:'Ruling samples',min:8,max:96,step:1,value:32,unit:''}]}]},{key:'boolean',label:'Boolean',glyph:'Soon',soon:true},
+    {id:'inset',label:'Inset face',glyph:'Offset',accel:'I',solid:'inset',prompts:['Click a planar face of a solid · drag / type the inset distance · ⏎ apply'],params:[]},{id:'loft',label:'Loft',glyph:'Loft',accel:'⇧O',solid:'loft',prompts:['Click the first closed profile','Click the next profile (different sketch / plane or offset) · ⏎ to finish'],params:[{k:'closed',kind:'toggle',label:'Cap ends',value:true},{k:'segs',kind:'slider',label:'Ruling samples',min:8,max:96,step:1,value:32,unit:''}]}]},{key:'boolean',label:'Boolean',glyph:'Soon',soon:true},
 ];
 const catState={rail:'sketch',op:null,vals:{}};
 const opById=id=>{for(const c of CAT)for(const o of (c.ops||[]))if(o.id===id)return o;return null;};
@@ -2043,27 +2101,33 @@ let solidTool=null; // {kind:'extrude'|'loft', vals, hover, prof:{f,pf}, drag:{h
 function solidStart(kind,vals){if(tool)endTool();if(dimTool)dimEnd();if(modTool)modEnd();if(fillTool)fillEnd();if(offTool)offEnd();if(patTool)patEnd();
   solidTool={kind,vals:{...(vals||{})},hover:null,prof:null,drag:null,num:'',secs:[]};
   // extrude: a selected closed curve / sketch is taken as the profile straight away
-  if(kind==='extrude'){const sel=[...doc.sel].map(byId).find(f=>f&&profileOf(f));if(sel){solidTool.prof={f:sel,pf:profileOf(sel)};solidTool.drag={h:sel===sel?20:20,sx:lastMouse[0],sy:lastMouse[1],moved:false,auto:true};}}
+  if(kind==='extrude'||kind==='inset'){const fh=faceHitsFromSel();if(fh.length){solidTool.face={hits:fh};solidTool.drag={h:kind==='inset'?2:10,sx:lastMouse[0],sy:lastMouse[1],moved:false,auto:true};}}
+  if(kind==='extrude'&&!solidTool.face){const sel=[...doc.sel].map(byId).find(f=>f&&profileOf(f));if(sel){solidTool.prof={f:sel,pf:profileOf(sel)};solidTool.drag={h:20,sx:lastMouse[0],sy:lastMouse[1],moved:false,auto:true};}}
   if(kind==='loft'){[...doc.sel].map(byId).filter(f=>f&&f.kind==='curve'&&profileOf(f)).forEach(f=>solidTool.secs.push(f.id));}
   $('#prompt').classList.add('show');$('#promptTool').textContent=kind;solidPrompt();cv.style.cursor='crosshair';draw();}
-function solidPrompt(){const t=solidTool;if(!t)return;$('#promptTxt').textContent=t.kind==='extrude'?(t.prof?`${t.prof.f.name} · move the mouse to set the height (${fmt(t.drag?t.drag.h:0,1)} mm) · type a value · ⏎ / click to apply · ⌥ symmetric · Esc`:'Click a closed profile (curve or filled region)'):(t.secs.length?`${t.secs.length} profile${t.secs.length>1?'s':''} · click the next one · ⏎ to loft`:'Click the first closed profile');}
+function solidPrompt(){const t=solidTool;if(!t)return;if(t.face){const k=t.face.hits.length;$('#promptTxt').textContent=`${k} face${k>1?'s':''} · ${t.kind==='inset'?'drag / type the inset distance':'drag / type the distance along the face normal (− = pocket)'} (${fmt(t.drag?t.drag.h:0,1)} mm) · ⏎ / click to apply · Esc`;return;}if(t.kind==='inset'){$('#promptTxt').textContent='Click a planar face of a solid to inset';return;}$('#promptTxt').textContent=t.kind==='extrude'?(t.prof?`${t.prof.f.name} · move the mouse to set the height (${fmt(t.drag?t.drag.h:0,1)} mm) · type a value · ⏎ / click to apply · ⌥ symmetric · Esc`:'Click a closed profile (curve / filled region) or a planar face of a solid'):(t.secs.length?`${t.secs.length} profile${t.secs.length>1?'s':''} · click the next one · ⏎ to loft`:'Click the first closed profile');}
 function solidEnd(){solidTool=null;$('#prompt').classList.remove('show');cv.style.cursor='';draw();}
 function solidPick(px,py){ // closed curve under the cursor (edge or fill), or a filled region of a sketch
   const subK=new Set(['edge','face']);const h=pickSub(px,py,subK);if(h){const f=byId(h.fig);if(f&&f.kind==='curve'&&f.visible&&!f.cons&&byId(f.parent)&&byId(f.parent).visible!==false&&profileOf(f))return f;}
   let best=null;doc.figures.forEach(f=>{if(f.kind!=='curve'||!f.visible||f.cons)return;const sk=byId(f.parent);if(!sk||sk.visible===false)return;if(!profileOf(f))return;const s=loopScreen(f);if(s&&ptInPoly(px,py,s)){const z=Math.abs(polyArea(s));if(!best||z<best.z)best={z,f};}});if(best)return best.f;
   const r=fillPick(px,py);if(r&&r.r.on)return r.sk;return null;}
-function solidPlaneHeight(px,py){const t=solidTool;const sk=t.prof.pf.sk;const B=basisOf(sk)||planeBasis(byId(sk.planeId));if(!B)return 0;const c=t.prof.pf.regions[0].outer;const cx=c.reduce((a,q)=>a+q[0],0)/c.length,cy=c.reduce((a,q)=>a+q[1],0)/c.length;const o=xform(sk,[cx,cy,0]);const n=norm(sub(xform(sk,[cx,cy,1]),o));return axisParam(px,py,o,n);}
-function solidDown(e,px,py){const t=solidTool;if(e.button!==0){if(t.drag&&!t.drag.auto){t.drag=null;t.prof=null;t.num='';solidPrompt();draw();}else solidEnd();return;}cv.setPointerCapture(e.pointerId);
-  if(t.kind==='extrude'){if(t.drag){solidApply();return;}const f=solidPick(px,py);if(!f){log('extrude: click a closed profile');return;}t.prof={f,pf:profileOf(f)};t.drag={h:0,h0:solidPlaneHeight(px,py),sx:px,sy:py,moved:false};solidPrompt();draw();return;}
+function solidPlaneHeight(px,py){const t=solidTool;if(t.face){const h0=t.face.hits[0];if(t.kind==='inset'){const k=pxPerUnit(h0.o)||1;return Math.hypot(px-(t.drag?t.drag.sx:px),py-(t.drag?t.drag.sy:py))/k;}return axisParam(px,py,h0.o,h0.n);}const sk=t.prof.pf.sk;const B=basisOf(sk)||planeBasis(byId(sk.planeId));if(!B)return 0;const c=t.prof.pf.regions[0].outer;const cx=c.reduce((a,q)=>a+q[0],0)/c.length,cy=c.reduce((a,q)=>a+q[1],0)/c.length;const o=xform(sk,[cx,cy,0]);const n=norm(sub(xform(sk,[cx,cy,1]),o));return axisParam(px,py,o,n);}
+function solidFacePick(px,py){const h=pickSub(px,py,new Set(['face']));const f=h&&byId(h.fig);if(!f||f.kind!=='body'||!meshOf(f).brep)return null;const i=faceInfoWorld(f,h.idx);if(!i)return null;if(i.kind!=='plane'){log('only planar faces can be pushed / inset for now');return null;}return i;}
+function solidDown(e,px,py){const t=solidTool;if(e.button!==0){if(t.drag&&!t.drag.auto){t.drag=null;t.prof=null;t.face=null;t.num='';solidPrompt();draw();}else solidEnd();return;}cv.setPointerCapture(e.pointerId);
+  if(t.kind==='extrude'||t.kind==='inset'){if(t.drag){solidApply();return;}const fi=solidFacePick(px,py);if(fi){const hits=faceHitsFromSel().filter(x=>x.f===fi.f);if(!hits.some(x=>x.key===fi.key))hits.push(fi);t.face={hits};t.drag={h:0,h0:0,sx:px,sy:py,moved:false};t.drag.h0=t.kind==='inset'?0:solidPlaneHeight(px,py);solidPrompt();draw();return;}if(t.kind==='inset'){log('inset: click a planar face of a solid');return;}}
+  if(t.kind==='extrude'){const f=solidPick(px,py);if(!f){log('extrude: click a closed profile');return;}t.prof={f,pf:profileOf(f)};t.drag={h:0,h0:solidPlaneHeight(px,py),sx:px,sy:py,moved:false};solidPrompt();draw();return;}
   const f=solidPick(px,py);if(!f||f.kind!=='curve'){log('loft: click a closed curve');return;}if(t.secs.includes(f.id)){t.secs=t.secs.filter(x=>x!==f.id);}else t.secs.push(f.id);solidPrompt();draw();}
-function solidMove(px,py){const t=solidTool;if(t.kind==='extrude'&&t.drag&&t.prof){if(t.drag.auto){t.drag.h0=solidPlaneHeight(px,py)-t.drag.h;t.drag.auto=false;}let h=solidPlaneHeight(px,py)-t.drag.h0;if(modKeys.ctrl)h=Math.round(h/5)*5;if(Math.abs(h)<0.01)h=0.01;t.drag.h=h;if(Math.abs(px-t.drag.sx)+Math.abs(py-t.drag.sy)>3)t.drag.moved=true;solidPrompt();requestDraw();return;}
-  const f=solidPick(px,py);if((f&&f.id)!==(t.hover&&t.hover.id)){t.hover=f;requestDraw();}}
-function solidUp(){const t=solidTool;if(t&&t.kind==='extrude'&&t.drag&&t.drag.moved&&!t.drag.auto)solidApply();}
-function solidKey(e){const t=solidTool;if(e.key==='Escape'){if(t.kind==='extrude'&&t.drag&&!t.drag.auto){t.drag=null;t.prof=null;t.num='';solidPrompt();draw();}else solidEnd();return true;}
-  if(t.kind==='extrude'&&t.drag){if(/^[0-9.\-]$/.test(e.key)){t.num+=e.key;draw();return true;}if(e.key==='Backspace'){t.num=t.num.slice(0,-1);draw();return true;}if(e.key==='Enter'){solidApply();return true;}}
+function solidMove(px,py){const t=solidTool;if(t.face&&t.drag){const d=t.drag;if(d.auto){d.sx=px;d.sy=py;d.h0=t.kind==='inset'?-d.h:solidPlaneHeight(px,py)-d.h;d.auto=false;}let h=solidPlaneHeight(px,py)-d.h0;if(modKeys.ctrl)h=Math.round(h*2)/2;if(t.kind==='inset')h=Math.max(0.01,h);else if(Math.abs(h)<0.01)h=0.01;d.h=h;if(Math.abs(px-d.sx)+Math.abs(py-d.sy)>3)d.moved=true;solidPrompt();requestDraw();return;}
+  if(t.kind==='inset'){const h=pickSub(px,py,new Set(['face']));const f=h&&byId(h.fig);sub_.hover=(f&&f.kind==='body'&&meshOf(f).brep)?h:null;requestDraw();return;}
+  if(t.kind==='extrude'&&t.drag&&t.prof){if(t.drag.auto){t.drag.h0=solidPlaneHeight(px,py)-t.drag.h;t.drag.auto=false;}let h=solidPlaneHeight(px,py)-t.drag.h0;if(modKeys.ctrl)h=Math.round(h/5)*5;if(Math.abs(h)<0.01)h=0.01;t.drag.h=h;if(Math.abs(px-t.drag.sx)+Math.abs(py-t.drag.sy)>3)t.drag.moved=true;solidPrompt();requestDraw();return;}
+  const f=solidPick(px,py);if(t.kind==='extrude'&&!f){const h=pickSub(px,py,new Set(['face']));const bf=h&&byId(h.fig);sub_.hover=(bf&&bf.kind==='body'&&meshOf(bf).brep)?h:null;}else sub_.hover=null;if((f&&f.id)!==(t.hover&&t.hover.id)){t.hover=f;requestDraw();}else requestDraw();}
+function solidUp(){const t=solidTool;if(t&&(t.kind==='extrude'||t.kind==='inset')&&t.drag&&t.drag.moved&&!t.drag.auto)solidApply();}
+function solidKey(e){const t=solidTool;if(e.key==='Escape'){if((t.kind==='extrude'||t.kind==='inset')&&t.drag&&!t.drag.auto){t.drag=null;t.prof=null;t.face=null;t.num='';solidPrompt();draw();}else solidEnd();return true;}
+  if((t.kind==='extrude'||t.kind==='inset')&&t.drag){if(/^[0-9.\-]$/.test(e.key)){t.num+=e.key;draw();return true;}if(e.key==='Backspace'){t.num=t.num.slice(0,-1);draw();return true;}if(e.key==='Enter'){solidApply();return true;}}
   if(t.kind==='loft'&&e.key==='Enter'){solidApply();return true;}return false;}
 function solidHeight(){const t=solidTool;const v=parseFloat(t.num);return isFinite(v)&&t.num!==''?v:(t.drag?t.drag.h:0);}
 function solidApply(){const t=solidTool;if(!t)return;
+  if(t.face){const h=solidHeight();if(!h||(t.kind==='inset'&&h<=0)){log(t.kind+': value is 0');return;}snapshot((t.kind==='inset'?'inset':'push')+' face');const n=faceOpApply(t.face.hits,t.kind==='inset'?'inset':'push',h);const nm=t.face.hits[0].f.name;sub_.sel.clear();sub_.hover=null;topoCache.clear();log(`${t.kind==='inset'?'inset':'push'} ${n} face${n>1?'s':''} on ${nm} · ${fmt(h,1)} mm`);t.face=null;t.drag=null;t.num='';solidEnd();rebuildAll();return;}
   if(t.kind==='extrude'){if(!t.prof)return;const h=solidHeight();if(!h){log('extrude: height is 0');return;}const sym=!!t.vals.sym||modKeys.alt;const f0=t.prof.f;const sk=t.prof.pf.sk;snapshot('extrude '+f0.name);
     const b=mk('body',nextName('Extrude'),{height:h,draft:+t.vals.draft||0,sym},{op:'extrude',src:sk.id,profile:f0.id,recipe:[f0.name,'extrude '+fmt(h,1)],pos:[0,0,0]});doc.figures.push(b);invalidate(b.id);doc.sel=new Set([b.id]);sub_.sel.clear();
     log(`extrude ${f0.name} ${fmt(h,1)} mm → ${b.name}`);t.prof=null;t.drag=null;t.num='';solidEnd();rebuildAll();renderCat();return;}
@@ -2073,6 +2137,9 @@ function drawSolidPreview(g){const t=solidTool;if(!t)return;g.save();
   const outline=(f,col,w)=>{const s=loopScreen(f);if(!s)return;g.strokeStyle=col;g.lineWidth=w;g.setLineDash([]);g.beginPath();s.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();g.stroke();g.fillStyle=col.replace(/[\d.]+\)$/,'.10)');g.fill();};
   if(t.hover&&t.hover.kind==='curve'&&!(t.prof&&t.prof.f===t.hover))outline(t.hover,'rgba(255,210,74,.9)',2);
   t.secs.forEach((id,i)=>{const f=byId(id);if(!f)return;outline(f,'rgba(127,240,245,.95)',2.2);const s=loopScreen(f);if(s){g.fillStyle='#7ff0f5';g.font='10px JetBrains Mono, monospace';g.fillText(String(i+1),s[0][0]+6,s[0][1]-6);}});
+  if(t.face&&t.drag){const h=solidHeight();const f=t.face.hits[0].f;const extra=t.face.hits.filter(x=>x.f===f).map(x=>t.kind==='inset'?{op:'inset',face:x.key,d:Math.max(0.01,h)}:{op:'push',face:x.key,h});let pm=null;try{pm=bodyMeshWith(f,extra);}catch(err){}
+    if(pm){g.strokeStyle='rgba(127,240,245,.9)';g.lineWidth=1.3;g.setLineDash([5,4]);g.beginPath();pm.lines.forEach(l=>{const a=project(xform(f,l[0])),b=project(xform(f,l[1]));if(a&&b){g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);}});g.stroke();g.setLineDash([]);}
+    const txt=(t.num!==''?t.num:fmt(h,1))+' mm';g.font='11px JetBrains Mono, monospace';g.textAlign='left';g.textBaseline='middle';const tw=g.measureText(txt).width+14;const x=lastMouse[0]+16,y=lastMouse[1]-16;g.fillStyle='rgba(10,12,16,.85)';g.beginPath();g.roundRect?g.roundRect(x,y-10,tw,20,6):g.rect(x,y-10,tw,20);g.fill();g.fillStyle='#7ff0f5';g.fillText(txt,x+7,y);}
   if(t.kind==='extrude'&&t.prof&&t.drag){const h=solidHeight();const m=profileMesh(t.prof.pf.regions,h,+t.vals.draft||0,!!t.vals.sym||modKeys.alt);const sk=t.prof.pf.sk;g.strokeStyle='rgba(127,240,245,.9)';g.lineWidth=1.3;g.setLineDash([5,4]);g.beginPath();m.lines.forEach(l=>{const a=project(xform(sk,l[0])),b=project(xform(sk,l[1]));if(a&&b){g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);}});g.stroke();g.setLineDash([]);
     g.fillStyle='rgba(79,216,224,.10)';m.tris.forEach(tr=>{const s=tr.map(q=>project(xform(sk,q)));if(s.some(x=>!x))return;g.beginPath();g.moveTo(s[0][0],s[0][1]);g.lineTo(s[1][0],s[1][1]);g.lineTo(s[2][0],s[2][1]);g.closePath();g.fill();});
     const txt=(t.num!==''?t.num:fmt(h,1))+' mm'+(modKeys.alt||t.vals.sym?'  ⌥ symmetric':'');g.font='11px JetBrains Mono, monospace';g.textAlign='left';g.textBaseline='middle';const tw=g.measureText(txt).width+14;const x=lastMouse[0]+16,y=lastMouse[1]-16;g.fillStyle='rgba(10,12,16,.85)';g.beginPath();g.roundRect?g.roundRect(x,y-10,tw,20,6):g.rect(x,y-10,tw,20);g.fill();g.fillStyle='#7ff0f5';g.fillText(txt,x+7,y);}
