@@ -48,6 +48,9 @@ Hold **⌃ (Ctrl/⌘)** to snap the cursor to endpoints, vertices, midpoints, ce
 ### History · Save / Open
 Every undo step is labelled. **⌃H** (or *history* in the outliner) opens the History page: click any step to jump back or forward; footer has *save .json* (⌃S), *open .json* (⌃O), *copy*, *new document*. The document autosaves to localStorage and is restored on reload (not when `?demo`).
 
+### New document · continue previous
+On launch, if an autosaved drawing exists, a start card asks **continue previous** / **new document** (or open a `.json`, or jump to history). **⌃N**, the **new** button in the outliner doc-bar and *new document* in the history page start a blank scene; the replaced drawing is kept as a backup and can be brought back with *restore previous* (history page). Autosave carries a timestamp. `?demo` skips the card.
+
 ### Fill rule
 A region is a hole only when its loop lies **fully inside** another loop. Overlapping or crossing loops (e.g. a shape and its mirror sliding across the axis) are simply filled — no even-odd flicker while things move. The Fill tool still toggles any region by hand.
 

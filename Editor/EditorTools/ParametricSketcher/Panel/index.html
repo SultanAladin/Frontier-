@@ -218,6 +218,9 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .pill .ax{width:8px;height:8px;border-radius:50%}
 #gzHud{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:3;display:none;align-items:center;gap:10px;height:32px;padding:0 14px;border-radius:999px;font-size:12px;font-family:var(--mono);color:var(--text);white-space:nowrap}
 #gzHud.show{display:flex}
+#start{position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;border-radius:inherit;background:rgba(8,9,11,.55);backdrop-filter:blur(6px)}#start.show{display:flex}
+#start .card{width:340px;padding:18px 18px 14px;border-radius:16px;background:var(--glass);border:1px solid var(--stroke);box-shadow:0 20px 60px rgba(0,0,0,.5)}#start h3{margin:0 0 4px;font-size:15px;font-weight:600}#start .m{font-size:11.5px;color:var(--t3);margin-bottom:14px;line-height:1.5}
+#start .row{display:flex;gap:8px}#start .abtn{height:36px}#start .abtn.pri{background:rgba(52,199,89,.16);border-color:rgba(52,199,89,.35);color:#9ef0b0}#start .abtn.pri:hover{background:rgba(52,199,89,.26)}#start .lnk{margin-top:10px;font-size:11px;color:var(--t3);text-align:center}#start .lnk b{color:var(--t2);cursor:pointer}#start .lnk b:hover{color:var(--text)}
 #dimEd{position:absolute;z-index:5;display:none;flex-direction:column;gap:6px;padding:8px 10px;border-radius:10px;transform:translateX(-50%);min-width:240px}
 #dimEd.show{display:flex}
 #dimEd .row{display:flex;align-items:center;gap:6px}
@@ -348,14 +351,14 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
     </div>
     <div class="filters" id="filters"><div class="dd-btn" id="ddBtn"></div><div class="dd-menu" id="ddMenu"></div></div>
   </div>
-  <div class="docbar"><button class="abtn" id="dHist" title="⌃H · undo history">history</button><button class="abtn" id="dSave" title="⌃S · download .json">save</button><button class="abtn" id="dOpen" title="⌃O · open .json">open</button><span class="sp"></span><span class="m" id="dAuto">autosave</span></div>
+  <div class="docbar"><button class="abtn" id="dHist" title="⌃H · undo history">history</button><button class="abtn" id="dSave" title="⌃S · download .json">save</button><button class="abtn" id="dOpen" title="⌃O · open .json">open</button><button class="abtn" id="dNew" title="⌃N · new document (previous kept as backup)">new</button><span class="sp"></span><span class="m" id="dAuto">autosave</span></div>
   <div class="fpills" id="fpills"></div>
   <div class="tree" id="tree"></div>
   <div class="outliner-foot" id="ofoot"></div>
 </aside>
 
 <!-- ═══════════════ VIEWPORT ═══════════════ -->
-<section id="viewport" class="glass panel">
+<section id="viewport" class="glass panel"><div id="start"><div class="card"><h3>Welcome back</h3><div class="m" id="startInfo"></div><div class="row"><button class="abtn pri" id="startCont">continue previous</button><button class="abtn" id="startNew">new document</button></div><div class="lnk">or <b id="startOpen">open a .json</b> · the previous drawing stays recoverable under <b id="startHist">history</b></div></div></div>
   <canvas id="gl"></canvas>
   <div id="vgrip" title="drag viewport"></div>
   <div id="vtop">
@@ -522,7 +525,7 @@ function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
 const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
-function docJSON(){return JSON.stringify({app:'SolidArc',v:1,figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
+function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
 function saveDoc(name){const js=docJSON();try{const b=new Blob([js],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'solidarc-document')+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}catch(e){}log('saved '+(name||'solidarc-document')+'.json');return js;}
@@ -530,6 +533,17 @@ function openDoc(){const i=document.createElement('input');i.type='file';i.accep
 function scheduleAutosave(){clearTimeout(autosaveT);autosaveT=setTimeout(()=>{try{localStorage.setItem(DOC_KEY,docJSON());}catch(e){}},600);}
 function restoreAutosave(){try{const js=localStorage.getItem(DOC_KEY);if(!js)return false;const o=JSON.parse(js);if(!o.figures||!o.figures.length)return false;doc.figures=o.figures;uid=o.uid||1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;active_.plane=o.active&&o.active.plane;active_.sketch=o.active&&o.active.sketch;if(o.view)Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});return true;}catch(e){return false;}}
 function clearAutosave(){try{localStorage.removeItem(DOC_KEY);}catch(e){}}
+const BAK_KEY='solidarc.doc.prev';
+function autosaveInfo(){try{const js=localStorage.getItem(DOC_KEY);if(!js)return null;const o=JSON.parse(js);if(!o.figures||!o.figures.length)return null;const n=k=>o.figures.filter(f=>f.kind===k).length;return {figures:o.figures.length,curves:n('curve'),bodies:n('body'),sketches:n('sketch'),planes:n('plane'),saved:o.saved||null,size:js.length};}catch(e){return null;}}
+function newDoc(opts){opts=opts||{};if(!opts.silent&&doc.figures.length){snapshot('new document');}
+  try{const js=localStorage.getItem(DOC_KEY);if(js)localStorage.setItem(BAK_KEY,js);}catch(e){}
+  doc.figures=[];doc.vars={};doc.dims=true;uid=1;active_.plane=null;active_.sketch=null;doc.sel=new Set();sub_.sel.clear();if(opts.silent){doc.undo=[];doc.undoL=[];doc.redo=[];doc.redoL=[];}
+  clearAutosave();syncLinks._mig=false;topoCache.clear();setView('iso');rebuildAll();renderCat();log('new document'+(opts.silent?'':' · previous kept as backup (history → restore previous)'));}
+function restorePrevious(){try{const js=localStorage.getItem(BAK_KEY);if(!js){log('no previous document to restore');return false;}loadDocJSON(js);log('restored previous document');return true;}catch(e){log('restore failed: '+e.message);return false;}}
+function showStart(){const info=autosaveInfo();if(!info){newDoc({silent:true});return false;}const el=$('#start');if(!el)return false;
+  $('#startInfo').innerHTML=`Your last drawing was autosaved in this browser: <b>${info.curves}</b> curve${info.curves===1?'':'s'}${info.bodies?`, <b>${info.bodies}</b> bod${info.bodies===1?'y':'ies'}`:''}${info.sketches?`, ${info.sketches} sketch${info.sketches===1?'':'es'}`:''}${info.planes?`, ${info.planes} plane${info.planes===1?'':'s'}`:''}${info.saved?` · ${new Date(info.saved).toLocaleString()}`:''}.`;
+  el.classList.add('show');$('#startCont').onclick=()=>{el.classList.remove('show');if(restoreAutosave()){log('restored autosaved document');rebuildAll();renderCat();}};
+  $('#startNew').onclick=()=>{el.classList.remove('show');newDoc({silent:true});};$('#startOpen').onclick=()=>{el.classList.remove('show');newDoc({silent:true});openDoc();};$('#startHist').onclick=()=>{el.classList.remove('show');if(restoreAutosave()){rebuildAll();renderCat();}showHistory();};return true;}
 
 /* ── geometry builders (mesh = {tris:[[p,p,p]...], lines:[[p,p]...]}) ── */
 const V=(x,y,z)=>[x,y,z];
@@ -946,7 +960,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,[contenteditable]'))re
     if(k==='g'||k==='r'||k==='s'){m.f.pos=m.start.pos;m.f.rot3=[...m.start.rot3];m.f.scl=m.start.scl;m.key=k;m.mode={g:'translate',r:'rotate',s:'scale'}[k];gz.mode=m.mode;setSeg('gzMode','g',m.mode);m.axis=null;m.num='';m.mx=lastMouse[0];m.my=lastMouse[1];modalApply(lastMouse[0],lastMouse[1],false);return;}return;}
   if(e.key==='Escape'){if(dimTool){dimEnd();return;}if($('#dimEd').classList.contains('show')){closeDimEd();return;}if(tool){endTool();return;}if($('#cat').classList.contains('show')&&!$('#cat').classList.contains('pinned')){closeCat();return;}doc.sel.clear();sub_.sel.clear();renderOutliner();renderInspector();draw();}
   else if(k==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();e.shiftKey?redo():undo();}
-  else if(k==='h'&&(e.ctrlKey||e.metaKey)){e.preventDefault();showHistory();}else if(k==='s'&&(e.ctrlKey||e.metaKey)){e.preventDefault();saveDoc();}else if(k==='o'&&(e.ctrlKey||e.metaKey)){e.preventDefault();openDoc();}
+  else if(k==='h'&&(e.ctrlKey||e.metaKey)){e.preventDefault();showHistory();}else if(k==='s'&&(e.ctrlKey||e.metaKey)){e.preventDefault();saveDoc();}else if(k==='o'&&(e.ctrlKey||e.metaKey)){e.preventDefault();openDoc();}else if(k==='n'&&(e.ctrlKey||e.metaKey)&&!e.shiftKey){e.preventDefault();newDoc();}
   else if(k==='1'&&!e.shiftKey&&e.code.startsWith('Numpad'))setView('front');else if(k==='3'&&e.code.startsWith('Numpad'))setView('right');else if(k==='7'&&e.code.startsWith('Numpad'))setView('top');else if(k==='5')setView('ortho');
   else if(['1','2','3','4'].includes(k)&&!e.code.startsWith('Numpad')){toggleMode(['body','face','edge','vertex'][+k-1],e.shiftKey);}
   else if(e.key==='Tab'){e.preventDefault();toggleCat();}
@@ -1522,9 +1536,9 @@ function showHistory(){const cat=$('#cat');cat.classList.add('show');cat.classLi
   RL.forEach((l,i)=>rows.push(`<div class="li hrow redo" data-r="${RL.length-1-i}" title="redo up to this step"><span class="dot" style="background:var(--t3)"></span><span class="t">${l}</span><span class="m">redo</span></div>`));
   $('#optBody').innerHTML=`<div class="list hist">${rows.join('')}</div>`;const cur=$('#optBody .hrow.cur');if(cur&&cur.scrollIntoView)cur.scrollIntoView({block:'center'});
   $$('#optBody [data-u]').forEach(r=>r.onclick=()=>{undoTo(+r.dataset.u);showHistory();});$$('#optBody [data-r]').forEach(r=>r.onclick=()=>{redoTo(+r.dataset.r);showHistory();});
-  $('#optFoot').innerHTML=`<button class="abtn" id="hSave">${gl('Save',12)} save .json</button><button class="abtn" id="hOpen">open .json</button><button class="abtn" id="hCopy">copy</button><span class="sp"></span><button class="abtn danger" id="hNew">new document</button>`;
+  $('#optFoot').innerHTML=`<button class="abtn" id="hSave">${gl('Save',12)} save .json</button><button class="abtn" id="hOpen">open .json</button><button class="abtn" id="hCopy">copy</button><span class="sp"></span><button class="abtn" id="hPrev" title="bring back the document that was replaced by the last 'new'">restore previous</button><button class="abtn danger" id="hNew">new document</button>`;
   $('#hSave').onclick=()=>saveDoc();$('#hOpen').onclick=openDoc;$('#hCopy').onclick=()=>{const js=docJSON();if(navigator.clipboard)navigator.clipboard.writeText(js);log('document JSON copied ('+(js.length/1024).toFixed(1)+' kB)');};
-  $('#hNew').onclick=()=>{snapshot('new document');doc.figures=[];doc.vars={};active_.plane=null;active_.sketch=null;doc.sel=new Set();sub_.sel.clear();clearAutosave();rebuildAll();renderCat();showHistory();};}
+  $('#hNew').onclick=()=>{newDoc();showHistory();};$('#hPrev').onclick=()=>{if(restorePrevious()){rebuildAll();renderCat();}showHistory();};}
 function showVars(){const cat=$('#cat');cat.classList.add('opts');$('#optHead').innerHTML=`<button class="back" id="optBack"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><span class="h-ic">${gl('Vars',20)}</span><span class="h-txt"><b>Variables</b><small>named values · expressions · used by dimensions</small></span>`;$('#optBack').onclick=()=>cat.classList.remove('opts');
   const rows=Object.entries(doc.vars).map(([n,v])=>`<div class="ctl"><div class="rowctl" style="gap:8px"><input class="vname" value="${n}" style="width:90px" ${v.dim?'readonly title="driven by a dimension label"':''}><span class="eq">=</span><input class="vexpr" data-n="${n}" value="${v.expr}" style="flex:1"><span class="val">${fmt(evalExpr(v.expr),3)}</span><button class="abtn danger vdel" data-n="${n}">×</button></div></div>`).join('');
   $('#optBody').innerHTML=`<div class="vars">${rows||'<div class="empty">No variables yet.</div>'}<div class="ctl"><div class="rowctl" style="gap:8px"><input id="vNew" placeholder="name" style="width:90px"><span class="eq">=</span><input id="vNewE" placeholder="expression · e.g. 40 or W/2" style="flex:1"><button class="abtn" id="vAdd">add</button></div></div></div>`;$('#optFoot').innerHTML='<span>Reference variables in any dimension: <kbd>W/2 + 3</kbd> · functions: sin cos sqrt min max</span>';
@@ -1898,8 +1912,8 @@ const LAYOUT_KEY='solidarc.layout.v1';let zTop=30;
 function raise_(p){if(p.id==='cat')return; /* catalogue lives on its own fixed top layer */if(zTop>=900){/* renormalise so panels never reach the catalogue's z-index */const ps=[...$$('.panel')].sort((a,b)=>(+a.style.zIndex||0)-(+b.style.zIndex||0));zTop=30;ps.forEach(q=>q.style.zIndex=++zTop);}p.style.zIndex=++zTop;}
 function panelRect(p){const r=p.getBoundingClientRect();return {l:r.left,t:r.top,w:r.width,h:r.height};}
 function freeze(p){const r=panelRect(p);Object.assign(p.style,{left:r.l+'px',top:r.t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');}
-if(!location.search.includes('demo')&&restoreAutosave()){log('restored autosaved document');}
-$('#dHist').onclick=showHistory;$('#dSave').onclick=()=>saveDoc();$('#dOpen').onclick=openDoc;
+if(!location.search.includes('demo')){showStart();}
+$('#dHist').onclick=showHistory;$('#dSave').onclick=()=>saveDoc();$('#dOpen').onclick=openDoc;$('#dNew').onclick=()=>newDoc();
 function saveLayout(){const o={};$$('.panel').forEach(p=>{if(p.classList.contains('free'))o[p.id]=panelRect(p);});localStorage.setItem(LAYOUT_KEY,JSON.stringify(o));}
 function loadLayout(){try{const o=JSON.parse(localStorage.getItem(LAYOUT_KEY)||'{}');Object.entries(o).forEach(([id,r])=>{const p=document.getElementById(id);if(!p)return;const l=Math.min(Math.max(0,r.l),innerWidth-80),t=Math.min(Math.max(0,r.t),innerHeight-60);Object.assign(p.style,{left:l+'px',top:t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');});}catch(e){}}
 function resetLayout(){localStorage.removeItem(LAYOUT_KEY);$$('.panel').forEach(p=>{p.removeAttribute('style');p.classList.remove('free');});resize();}
