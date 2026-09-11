@@ -543,7 +543,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const BUILD='20260911-1922-30f04ae';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-1929-11b909a';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -671,7 +671,7 @@ function ringOf(subs,d){ // offset every sub-segment by d[m] along its left norm
   return out;}
 function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
   const prof=byId(f.profile)||byId(f.src);const loops0=prof?profileSegs(prof):null;if(!loops0||!loops0.length)return {tris:[],lines:[],quads:[]};
-  const p=f.params;const h=+p.height||0;if(!h)return {tris:[],lines:[],quads:[]};const zb=p.sym?-Math.abs(h)/2:Math.min(0,h),zt=p.sym?Math.abs(h)/2:Math.max(0,h);const H=zt-zb;const draftK=Math.tan((+p.draft||0)*Math.PI/180);
+  const p=f.params;const h=+p.height||0;if(!h)return {tris:[],lines:[],quads:[]};const base=+p.base||0;const zb=(p.sym?-Math.abs(h)/2:Math.min(0,h))+base,zt=(p.sym?Math.abs(h)/2:Math.max(0,h))+base;const H=zt-zb;const draftK=Math.tan((+p.draft||0)*Math.PI/180);
   const edits=(f.edits||[]);const preOf=k=>{const m=/^h\d+\./.exec(k);return m?m[0]:'';};const bare=k=>k.replace(/^h\d+\./,'');const sideE=edits.filter(e=>bare(e.key).startsWith('side:'));const topE=edits.filter(e=>bare(e.key).startsWith('top:'));const botE=edits.filter(e=>bare(e.key).startsWith('bot:'));
   const bandSpec=(E,pre)=>{E=E.filter(e=>preOf(e.key)===pre||e.key.split(':')[1]==='all');if(!E.length)return null;const last=E[E.length-1];const eids=new Set(E.filter(e=>e.type===last.type).map(e=>e.key.split(':')[1]));return {type:last.type,r:Math.max(0.01,Math.min(last.r,H*.499)),eids};};
   const tris=[],quads=[],lines=[];const faces=new Map(),edges=new Map(),verts=[];const face=(key,kind)=>{if(!faces.has(key))faces.set(key,{key,kind,tris:[]});return faces.get(key);};const edge=(key,pts,tangent)=>{if(!edges.has(key))edges.set(key,{key,pts:[],tangent:!!tangent,chunks:[]});const e=edges.get(key);e.chunks.push(pts);return e;};
@@ -753,9 +753,10 @@ function brepMesh(S){const tris=[],quads=[],lines=[];const faces=[];S.faces.forE
   return {tris,quads,lines,brep:{faces,edges:S.edges.map((e,i)=>({id:i,key:e.key,tangent:e.tangent,pts:e.pts})),verts}};}
 function brepAdjacency(S){const adj=new Map();S.faces.forEach(F=>F.tris.forEach(t=>{for(let i=0;i<3;i++)adj.set(PK(t[i])+'>'+PK(t[(i+1)%3]),F.key);}));return adj;}
 function loopRuns(L,adj){ // split a directed loop into runs of segments sharing the same neighbour face → [{nb,segs:[[a,b]..],closed}]
-  const n=L.length;const nbOf=i=>adj.get(PK(L[(i+1)%n])+'>'+PK(L[i]))||'?';let start=0;for(let i=0;i<n;i++){if(nbOf(i)!==nbOf((i-1+n)%n)){start=i;break;}}
-  const runs=[];for(let k=0;k<n;k++){const i=(start+k)%n;const nb=nbOf(i);const seg=[L[i],L[(i+1)%n]];if(runs.length&&runs[runs.length-1].nb===nb)runs[runs.length-1].segs.push(seg);else runs.push({nb,segs:[seg]});}
-  if(runs.length===1)runs[0].closed=true;return runs;}
+  const n=L.length;const nbOf=i=>adj.get(PK(L[(i+1)%n])+'>'+PK(L[i]))||'?';const brk=i=>nbOf(i)!==nbOf((i-1+n)%n)||sharpTurn(L[(i-1+n)%n],L[i],L[(i+1)%n]);let start=-1;for(let i=0;i<n;i++){if(brk(i)){start=i;break;}}
+  const runs=[];if(start<0){runs.push({nb:nbOf(0),segs:[],closed:true});for(let i=0;i<n;i++)runs[0].segs.push([L[i],L[(i+1)%n]]);return runs;}
+  for(let k=0;k<n;k++){const i=(start+k)%n;const nb=nbOf(i);const seg=[L[i],L[(i+1)%n]];if(runs.length&&!brk(i))runs[runs.length-1].segs.push(seg);else runs.push({nb,segs:[seg]});}
+  return runs;}
 function sharpTurn(a,b,c){const d1=norm(sub(b,a)),d2=norm(sub(c,b));return dot(d1,d2)<Math.cos(12*Math.PI/180);}
 function opPush(S,key,h,tag){const F=S.faces.get(key);if(!F||!(Math.abs(h)>1e-9))return false;if(F.kind!=='plane')return false;const n=faceNormalOf(F.tris);const loops=faceLoops(F);if(!loops.length)return false;const adj=brepAdjacency(S);
   const bset=new Set();loops.forEach(L=>L.forEach(p=>bset.add(PK(p))));const off=p=>add(p,mul(n,h));
@@ -788,7 +789,9 @@ function applyFaceOps(m,ops){if(!m||!m.brep||!ops||!ops.length)return m;const S=
 function bodyMeshWith(f,extra){return applyFaceOps(solidBuild(f),(f.faceOps||[]).concat(extra||[]));}
 function faceInfoWorld(f,idx){const t=topo(f);const F=t.faces[idx];if(!F||!F.tris.length)return null;const Fm=frameOf(f);const n=norm(mv(Fm,faceNormalOf(F.tris)));const o=xform(f,faceCentroidOf(F.tris));return {f,key:F.key,kind:F.kind,n,o,idx};}
 function faceHitsFromSel(){const out=[];sub_.sel.forEach(h=>{const f=byId(h.fig);if(!f||f.kind!=='body'||h.kind!=='face'||!meshOf(f).brep)return;const i=faceInfoWorld(f,h.idx);if(i&&i.kind==='plane')out.push(i);});return out;}
-function faceOpApply(hits,op,val){let n=0;const by=new Map();hits.forEach(h=>{if(!by.has(h.f.id))by.set(h.f.id,[]);by.get(h.f.id).push(h);});by.forEach((hs,fid)=>{const f=byId(fid);if(!f)return;f.faceOps=(f.faceOps||[]);hs.forEach(h=>{f.faceOps.push(op==='push'?{op,face:h.key,h:val}:{op,face:h.key,d:val});n++;});invalidate(f.id);});return n;}
+function faceOpApply(hits,op,val){let n=0;
+  if(op==='push'){ // prefer editing the underlying parameters (height / base / profile edge) — a push feature only when the face is already derived
+    const rest=[];hits.forEach(h=>{const P=faceMovePlan(h);if(P.mode==='push'){rest.push(h);return;}Object.assign(h,{plan:P});subApply({start:[],faces:[h]},mul(h.n,val));n++;});doc.figures.forEach(f=>{if(f.faceOps)f.faceOps.forEach(o=>{delete o._live;});});solveAll&&solveAll();hits=rest;}const by=new Map();hits.forEach(h=>{if(!by.has(h.f.id))by.set(h.f.id,[]);by.get(h.f.id).push(h);});by.forEach((hs,fid)=>{const f=byId(fid);if(!f)return;f.faceOps=(f.faceOps||[]);hs.forEach(h=>{f.faceOps.push(op==='push'?{op,face:h.key,h:val}:{op,face:h.key,d:val});n++;});invalidate(f.id);});return n;}
 function allTris(m){if(!m)return [];const t=(m.tris||[]).slice();(m.quads||[]).forEach(q=>{t.push([q.p[0],q.p[1],q.p[2]],[q.p[0],q.p[2],q.p[3]]);});return t;}
 function meshVolume(m){let v=0;allTris(m).forEach(([a,b,c])=>{v+=dot(a,cross(b,c))/6;});return Math.abs(v);}
 function ellipsePts(p,n=48){const a=(p.tilt||0)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);return Array.from({length:n},(_,i)=>{const t=i/n*Math.PI*2,x=Math.cos(t)*p.rx,y=Math.sin(t)*p.ry;return [p.cx+x*ca-y*sa,p.cy+x*sa+y*ca]});}
@@ -908,7 +911,7 @@ $('#q').oninput=renderOutliner;
 /* ── inspector ────────────────────────────────────────────── */
 const PARAMS={ // key → [label, min, max, step, unit]
   w:['Width',1,200,.5,'mm'],d:['Depth',1,200,.5,'mm'],h:['Height',1,200,.5,'mm'],r:['Radius',.5,100,.25,'mm'],segs:['Segments',6,96,1,''],
-  height:['Height',-300,300,.5,'mm'],draft:['Draft angle',-20,20,.5,'°'],r0:['Radius · base',1,60,.25,'mm'],r1:['Radius · top',1,60,.25,'mm'],twist:['Twist',-180,180,1,'°'],
+  height:['Height',-300,300,.5,'mm'],base:['Base offset',-300,300,.5,'mm'],draft:['Draft angle',-20,20,.5,'°'],r0:['Radius · base',1,60,.25,'mm'],r1:['Radius · top',1,60,.25,'mm'],twist:['Twist',-180,180,1,'°'],
   subdiv:['Subdivisions',1,12,1,''],size:['Extent',20,600,10,'mm'],fillet:['Edge fillet',0,8,.1,'mm'],
   rx:['Radius · major',.5,200,.25,'mm'],ry:['Radius · minor',.5,200,.25,'mm'],tilt:['Rotation',-180,180,1,'°'],offset:['Offset',-300,300,1,'mm'],
   x1:['X₁',-100,100,.5,'mm'],y1:['Y₁',-100,100,.5,'mm'],x2:['X₂',-100,100,.5,'mm'],y2:['Y₂',-100,100,.5,'mm'],cx:['Centre X',-100,100,.5,'mm'],cy:['Centre Y',-100,100,.5,'mm'],a0:['Start angle',-360,360,1,'°'],a1:['End angle',-360,360,1,'°'],
@@ -1498,9 +1501,21 @@ function moveCurveVertex(f,i,w0,delta){if(f.link){delete f.link;log(f.name+' unl
     case 'point':p.cx=q[0]+du;p.cy=q[1]+dv;break;}
   invalidate(f.id);if(f.parent)invalidate(f.parent);invalidateTopo(f.id);}
 // bodies: vertex edits are parametric-only for now (box/cylinder keep their recipe) — we translate the whole body when a face is picked, and warn otherwise
-function subBegin(){const faces=faceHitsFromSel();const faceFigs=new Set(faces.map(h=>h.f.id));const vs=subVertices().filter(v=>!faceFigs.has(v.fig));if(!vs.length&&!faces.length)return null;snapshot();const start=vs.map(v=>{const f=byId(v.fig);const t=topo(f);const vert=t.verts[v.idx];return {fig:v.fig,idx:v.idx,local:[...vert.p],z:vert.z||0,world:subWorld(f,'vertex',v.idx)};});
+function faceMovePlan(h){ // how a gizmo move of this face is realised: edit the extrude height / base, move the profile edge, or (last resort) a push feature
+  const f=h.f;const ops=f.faceOps||[];const touched=ops.some(o=>o.face===h.key);if(f.op!=='extrude'||!f.profile||touched)return {mode:'push'};
+  if(h.key==='cap:top')return {mode:'height',h0:+f.params.height||0,sign:(+f.params.height||0)<0?-1:1};
+  if(h.key==='cap:bot')return {mode:'base',h0:+f.params.height||0,b0:+f.params.base||0,sign:(+f.params.height||0)<0?-1:1};
+  const m=/^side:(\d+)$/.exec(h.key);const prof=byId(f.profile);if(m&&prof&&prof.kind==='curve'&&prof.ctype==='poly'&&!isSlot(prof)&&!(prof.params.bulge||[]).some(b=>b)){const i=+m[1];const n=prof.params.pts.length;const t=topo(prof);const vi=[i,(i+1)%n].filter(k=>t.verts[k]);if(vi.length===2)return {mode:'edge',prof,verts:vi.map(k=>({idx:k,local:[...t.verts[k].p],z:t.verts[k].z||0}))};}
+  return {mode:'push'};}
+function subBegin(){const faces=faceHitsFromSel().map(h=>Object.assign(h,{plan:faceMovePlan(h)}));const faceFigs=new Set(faces.map(h=>h.f.id));const vs=subVertices().filter(v=>!faceFigs.has(v.fig));if(!vs.length&&!faces.length)return null;snapshot();const start=vs.map(v=>{const f=byId(v.fig);const t=topo(f);const vert=t.verts[v.idx];return {fig:v.fig,idx:v.idx,local:[...vert.p],z:vert.z||0,world:subWorld(f,'vertex',v.idx)};});
   return {start,faces,pivot:subPivot()};}
-function subApply(st,delta){if(st.faces&&st.faces.length){st.faces.forEach(h=>{const f=h.f;const hh=dot(delta,h.n);f.faceOps=(f.faceOps||[]).filter(o=>!(o._live===h.key));if(Math.abs(hh)>1e-6)f.faceOps.push({op:'push',face:h.key,h:hh,_live:h.key});invalidate(f.id);});}const bodies=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(!f)return;if(f.kind==='curve')moveCurveVertex(f,w.idx,w,delta);else bodies.add(f.id);});
+function subApply(st,delta){if(st.faces&&st.faces.length){st.faces.forEach(h=>{const f=h.f;const hh=dot(delta,h.n);const P=h.plan||{mode:'push'};
+      if(P.mode==='height'){const k=f.params.sym?2:1;f.params.height=P.sign*Math.max(0.01,Math.abs(P.h0)+P.sign*hh*k);invalidate(f.id);return;}
+      if(P.mode==='base'){ // bottom cap: its outward normal is −ẑ in body space, so a positive move lowers zb; top stays put
+        const dz=-hh;const zb0=(f.params.sym?-Math.abs(P.h0)/2:Math.min(0,P.h0))+P.b0,zt0=(f.params.sym?Math.abs(P.h0)/2:Math.max(0,P.h0))+P.b0;let zb=zb0+dz;if(zt0-zb<0.01)zb=zt0-0.01;const H=zt0-zb;
+        if(f.params.sym){f.params.height=H;f.params.base=(zb+zt0)/2;}else if(P.sign>0){f.params.height=H;f.params.base=zb;}else{f.params.height=-H;f.params.base=zt0;}invalidate(f.id);return;}
+      if(P.mode==='edge'){const dn=mul(h.n,hh);P.verts.forEach(w=>moveCurveVertex(P.prof,w.idx,w,dn));invalidate(P.prof.id);invalidate(f.id);return;}
+      f.faceOps=(f.faceOps||[]).filter(o=>!(o._live===h.key));if(Math.abs(hh)>1e-6)f.faceOps.push({op:'push',face:h.key,h:hh,_live:h.key});invalidate(f.id);});}const bodies=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(!f)return;if(f.kind==='curve')moveCurveVertex(f,w.idx,w,delta);else bodies.add(f.id);});
   // live solve: keep dragged vertices where the user put them (pin), let constraints move everything else
   const sks=new Set();st.start.forEach(w=>{const f=byId(w.fig);if(f&&f.kind==='curve')sks.add(f.parent);});sks.forEach(id=>{const sk=byId(id);if(!sk||!sk.cons_||!sk.cons_.length)return;const pins=st.start.filter(w=>byId(w.fig)&&byId(w.fig).parent===id).map(w=>{const P=polyPtsOf(byId(w.fig));return {id:'pin',type:'fixed',refs:[{fig:w.fig,kind:'vertex',idx:w.idx}],at:[P[w.idx][0],P[w.idx][1]]};});const keep=sk.cons_;sk.cons_=keep.concat(pins);solveSketch(sk);sk.cons_=keep;});
   bodies.forEach(id=>{const f=byId(id);const w=st.start.find(x=>x.fig===id);if(!f._bodyStart)f._bodyStart=[...f.pos];f.pos=add(f._bodyStart,delta);});draw();}
