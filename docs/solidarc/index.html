@@ -543,7 +543,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const BUILD='20260911-2034-d1b119b';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-2046-1649de1';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -684,9 +684,9 @@ function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
     let z0=zb,z1=zt;
     const botRings=[],topRings=[];
     if(BB){const r=BB.r;z0=zb+r;if(BB.type==='chamfer'){botRings.push({z:zb,d:subs.map(sb=>base(zb)+(inSet(BB,sb)?r:0)),tilt:null,band:'cbot'});}
-      else{const N=8;for(let j=0;j<=N;j++){const ph=Math.PI/2*(1-j/N);const z=zb+r-r*Math.sin(ph);botRings.push({z,d:subs.map(sb=>base(z)+(inSet(BB,sb)?r*(1-Math.cos(ph)):0)),tilt:{c:Math.cos(ph),s:-Math.sin(ph)},band:'fbot'});}botRings.pop();}}
+      else{const N=12;for(let j=0;j<=N;j++){const ph=Math.PI/2*(1-j/N);const z=zb+r-r*Math.sin(ph);botRings.push({z,d:subs.map(sb=>base(z)+(inSet(BB,sb)?r*(1-Math.cos(ph)):0)),tilt:{c:Math.cos(ph),s:-Math.sin(ph)},band:'fbot'});}botRings.pop();}}
     if(TB){const r=TB.r;z1=zt-r;if(TB.type==='chamfer'){topRings.push({z:zt,d:subs.map(sb=>base(zt)+(inSet(TB,sb)?r:0)),tilt:null,band:'ctop'});}
-      else{const N=8;for(let j=1;j<=N;j++){const ph=Math.PI/2*j/N;const z=zt-r+r*Math.sin(ph);topRings.push({z,d:subs.map(sb=>base(z)+(inSet(TB,sb)?r*(1-Math.cos(ph)):0)),tilt:{c:Math.cos(ph),s:Math.sin(ph)},band:'ftop'});}}}
+      else{const N=12;for(let j=1;j<=N;j++){const ph=Math.PI/2*j/N;const z=zt-r+r*Math.sin(ph);topRings.push({z,d:subs.map(sb=>base(z)+(inSet(TB,sb)?r*(1-Math.cos(ph)):0)),tilt:{c:Math.cos(ph),s:Math.sin(ph)},band:'ftop'});}}}
     rings.push(...botRings,{z:z0,d:subs.map(()=>base(z0)),tilt:wallTilt,band:'wall'},{z:z1,d:subs.map(()=>base(z1)),tilt:wallTilt,band:'wall'},...topRings);
     const R=rings.map(rg=>({...rg,pts:ringOf(subs,rg.d)}));
     // per-vertex outward direction (2D) at each sub start / end
@@ -1115,12 +1115,18 @@ function shadeColor(n,vd,sel){if(view.shade==='matcap')return matcapColor(n,vd,s
   if(view.shade==='flat'){const v=Math.round(40+150*(amb+lam*.8));return `rgb(${v},${v},${v})`;}
   const h=norm([light[0]+vd[0],light[1]+vd[1],light[2]+vd[2]]);const sp=Math.pow(Math.max(0,dot(n,h)),48);const base=sel?[255,200,120]:[150,158,170];const k=amb+lam*.75;return `rgb(${Math.min(255,base[0]*k+sp*200)|0},${Math.min(255,base[1]*k+sp*200)|0},${Math.min(255,base[2]*k+sp*200)|0})`;}
 const rgbOf=c=>{const m=/rgb\((\d+),(\d+),(\d+)\)/.exec(c);return m?[+m[1],+m[2],+m[3]]:[0,0,0];};const colDist=(a,b)=>{const x=rgbOf(a),y=rgbOf(b);return Math.abs(x[0]-y[0])+Math.abs(x[1]-y[1])+Math.abs(x[2]-y[2]);};const mixCol=(a,b)=>{const x=rgbOf(a),y=rgbOf(b);return `rgb(${(x[0]+y[0])>>1},${(x[1]+y[1])>>1},${(x[2]+y[2])>>1})`;};
-function matcapColor(n,vd,sel){const nx=dot(n,cam.right),ny=dot(n,cam.up),nz=Math.max(0,dot(n,vd));
-  const key=Math.max(0,nx*-.45+ny*.62+nz*.64);const fill=Math.max(0,nx*.5+ny*-.35+nz*.55)*.35;const rim=Math.pow(1-nz,2.2)*(ny*.5+.5)*.55;
-  const spec=Math.pow(Math.max(0,nx*-.32+ny*.48+nz*.82),90)*.85;const spec2=Math.pow(Math.max(0,nx*.6+ny*-.2+nz*.77),28)*.18;const cav=.10+.90*Math.pow(nz,.65);
-  const base=sel?[236,178,96]:[176,184,196];const tint=sel?[255,214,150]:[210,222,240];const shadow=sel?[70,44,26]:[34,38,46];
-  const amb=.22;let r=shadow[0]*(1-cav)+(base[0]*(amb+key*.72+fill))*cav,g_=shadow[1]*(1-cav)+(base[1]*(amb+key*.72+fill))*cav,b=shadow[2]*(1-cav)+(base[2]*(amb+key*.72+fill))*cav;
-  r+=tint[0]*(spec+spec2)+rim*120;g_+=tint[1]*(spec+spec2)+rim*140;b+=tint[2]*(spec+spec2)+rim*180;
+function matcapColor(n,vd,sel){ // sampled from an analytic 'studio clay' sphere: view-space normal (nx,ny) → colour, exactly like a matcap texture
+  const nx=dot(n,cam.right),ny=dot(n,cam.up);const nz=Math.sqrt(Math.max(0,1-nx*nx-ny*ny));
+  const L=(x,y,z)=>{const l=Math.hypot(x,y,z);return Math.max(0,(nx*x+ny*y+nz*z)/l);};
+  const key=Math.pow(L(-.35,.55,.75),1.15);                      // big soft light, upper-left
+  const fill=L(.7,-.15,.7)*.28;                                  // right fill
+  const bottom=L(.1,-.9,.4)*.12;                                 // faint bounce from below
+  const fres=Math.pow(1-nz,3)*.22;                               // fresnel lift at grazing angles
+  const spec=Math.pow(L(-.3,.5,.81),160)*.35+Math.pow(L(.6,-.1,.79),40)*.06; // tight highlight + soft secondary
+  const occ=.35+.65*Math.pow(nz,.45);                            // cavity: normals turning away go darker
+  let v=(.10+key*.62+fill+bottom)*occ+fres;
+  const base=sel?[255,196,120]:[201,206,214];const cool=sel?[120,70,40]:[52,58,70];
+  let r=cool[0]+(base[0]-cool[0])*v,g_=cool[1]+(base[1]-cool[1])*v,b=cool[2]+(base[2]-cool[2])*v;r+=spec*255;g_+=spec*255;b+=spec*255;
   return `rgb(${Math.min(255,r)|0},${Math.min(255,g_)|0},${Math.min(255,b)|0})`;}
 function draw(){if(!W)return;try{drawInner();}catch(e){const b=$('#errBar');if(b){b.textContent='⚠ render: '+(e&&e.message||e)+'\n'+String(e&&e.stack||'').split('\n').slice(1,3).join(' | ');b.style.display='block';}console.error(e);}}
 function drawInner(){if(!draw._sync){draw._sync=true;try{syncLinks();}finally{draw._sync=false;}}cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
@@ -1151,12 +1157,15 @@ function drawInner(){if(!draw._sync){draw._sync=true;try{syncLinks();}finally{dr
       else if(view.shade==='plastic'){const h=norm([light[0]+vd[0],light[1]+vd[1],light[2]+vd[2]]);const sp=Math.pow(Math.max(0,dot(n,h)),48);const base=it.sel?[255,200,120]:[150,158,170];const k=amb+lam*.75;col=`rgb(${Math.min(255,base[0]*k+sp*200)|0},${Math.min(255,base[1]*k+sp*200)|0},${Math.min(255,base[2]*k+sp*200)|0})`;}
       else{col=matcapColor(n,vd,it.sel);}
       g.fillStyle=col;g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.lineTo(it.s[2][0],it.s[2][1]);g.closePath();g.fill();g.strokeStyle=col;g.lineWidth=.6;g.stroke();}
-    else if(it.type==='q'){const C=it.n.map(nn=>shadeColor(nn,it.vd,it.sel));const s=it.s;let fill;
-      if(it.smooth&&(C[0]!==C[1]||C[3]!==C[2]||C[0]!==C[3])){const dAcross=colDist(C[0],C[1])+colDist(C[3],C[2]),dAlong=colDist(C[0],C[3])+colDist(C[1],C[2]);
-        if(dAcross>=dAlong){const a=[(s[0][0]+s[3][0])/2,(s[0][1]+s[3][1])/2],b=[(s[1][0]+s[2][0])/2,(s[1][1]+s[2][1])/2];if(Math.hypot(b[0]-a[0],b[1]-a[1])>1){fill=g.createLinearGradient(a[0],a[1],b[0],b[1]);fill.addColorStop(0,mixCol(C[0],C[3]));fill.addColorStop(1,mixCol(C[1],C[2]));}}
-        else{const a=[(s[0][0]+s[1][0])/2,(s[0][1]+s[1][1])/2],b=[(s[3][0]+s[2][0])/2,(s[3][1]+s[2][1])/2];if(Math.hypot(b[0]-a[0],b[1]-a[1])>1){fill=g.createLinearGradient(a[0],a[1],b[0],b[1]);fill.addColorStop(0,mixCol(C[0],C[1]));fill.addColorStop(1,mixCol(C[3],C[2]));}}}
-      if(!fill)fill=it.smooth?mixCol(mixCol(C[0],C[1]),mixCol(C[2],C[3])):shadeColor(it.fn,it.vd,it.sel);
-      g.fillStyle=fill;g.beginPath();g.moveTo(s[0][0],s[0][1]);g.lineTo(s[1][0],s[1][1]);g.lineTo(s[2][0],s[2][1]);g.lineTo(s[3][0],s[3][1]);g.closePath();g.fill();g.strokeStyle=fill;g.lineWidth=.7;g.stroke();}
+    else if(it.type==='q'){const s=it.s;
+      if(!it.smooth){const fill=shadeColor(it.fn,it.vd,it.sel);g.fillStyle=fill;g.strokeStyle=fill;g.lineWidth=.7;g.beginPath();g.moveTo(s[0][0],s[0][1]);g.lineTo(s[1][0],s[1][1]);g.lineTo(s[2][0],s[2][1]);g.lineTo(s[3][0],s[3][1]);g.closePath();g.fill();g.stroke();}
+      else{ // smooth face: subdivide in screen space and shade every cell with its interpolated (Phong) normal — no visible facets
+        const N=it.n;const ext=(a,b)=>Math.hypot(s[a][0]-s[b][0],s[a][1]-s[b][1]);const across=Math.max(ext(0,1),ext(3,2)),along=Math.max(ext(0,3),ext(1,2));const dn=(a,b)=>1-dot(N[a],N[b]);
+        const varU=Math.max(dn(0,1),dn(3,2)),varV=Math.max(dn(0,3),dn(1,2));const ku=Math.min(6,Math.max(1,Math.ceil(across/10*Math.min(1,varU*40+.05)))),kv=Math.min(6,Math.max(1,Math.ceil(along/10*Math.min(1,varV*40+.05))));
+        const lerp2=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];const lerpN=(a,b,t)=>norm([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]);
+        for(let i=0;i<ku;i++){const u0=i/ku,u1=(i+1)/ku,um=(u0+u1)/2;for(let j=0;j<kv;j++){const v0=j/kv,v1=(j+1)/kv,vm=(v0+v1)/2;
+          const P=(u,v)=>lerp2(lerp2(s[0],s[1],u),lerp2(s[3],s[2],u),v);const nn=lerpN(lerpN(N[0],N[1],um),lerpN(N[3],N[2],um),vm);const fill=shadeColor(nn,it.vd,it.sel);
+          const a=P(u0,v0),b=P(u1,v0),c=P(u1,v1),d=P(u0,v1);g.fillStyle=fill;g.strokeStyle=fill;g.lineWidth=.8;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.lineTo(c[0],c[1]);g.lineTo(d[0],d[1]);g.closePath();g.fill();g.stroke();}}}}
     else{g.lineWidth=it.sel?1.6:1;if(it.tan){g.setLineDash([]);g.strokeStyle=it.sel?'rgba(255,210,138,.45)':'rgba(255,255,255,.14)';g.lineWidth=.8;}else if(it.faint){g.setLineDash([]);g.strokeStyle='rgba(255,255,255,.22)';g.lineWidth=.6;}else if(it.sil){g.setLineDash([]);g.strokeStyle=it.sel?'#ffd28a':'rgba(0,0,0,.6)';g.lineWidth=it.sel?1.6:1;}else if(it.cons){g.setLineDash([4,4]);g.strokeStyle=it.sel?'#d6bfff':(it.f.id===active_.plane?'rgba(200,170,255,.8)':'rgba(180,140,255,.4)');}else{g.setLineDash([]);g.strokeStyle=it.sel?(it.f.kind==='curve'?'#7ff0f5':'#ffd28a'):(it.f.kind==='curve'?it.acc:view.shade==='wire'?'rgba(255,255,255,.55)':'rgba(0,0,0,.55)');}
       g.beginPath();g.moveTo(it.s[0][0],it.s[0][1]);g.lineTo(it.s[1][0],it.s[1][1]);g.stroke();g.setLineDash([]);}});
   if(doc.dims)drawDims(g);drawSketchDims(g);drawModPreview(g);drawOffPreview(g);drawPatPreview(g);drawSnap(g);

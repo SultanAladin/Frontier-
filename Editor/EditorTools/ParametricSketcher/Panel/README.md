@@ -100,6 +100,11 @@ Polyline vertices can be lifted off the sketch plane (`vz` per vertex; a dashed 
 ### Closed loops, fill, resolution
 Closed curves (circle, ellipse, closed polyline/rectangle/polygon/slot, arc with *Closed loop* on) get a semi-transparent fill and are clickable inside. Inspector → **Curve display**: *Closed loop* (polyline / arc), *Fill when closed*, *Segments* (per-curve). Document → Presentation → **Curve resolution** multiplies every circle/arc/ellipse tessellation (0.25×–4×); arcs scale their count by sweep so wide arcs stay smooth.
 
+### Smooth shading & studio matcap
+- Curved faces (cylinders, cones, fillets, tori) are shaded per **interpolated normal**: every smooth quad is subdivided in screen space (adaptively, up to 6×6) and each cell is lit with its Phong-interpolated normal, so fillets and cylinders read as continuous surfaces instead of Blender-style flat polygons. Planar faces stay flat.
+- The matcap is now a true view-space matcap: an analytic “studio clay” sphere (soft upper-left key, right fill, bottom bounce, fresnel rim, tight highlight, cavity darkening) sampled by the view-space normal only — so it looks the same from every camera angle, like a matcap texture.
+- Fillet bands are sampled at 12 steps per quarter turn.
+
 ### Face features on solids — push / pocket (E), inset (I), gizmo face move
 - **E on a planar face** of a solid (hover-click in the Extrude tool, or pre-select faces in Face mode and press E) pushes that face along its own normal: drag or type the distance; negative = pocket. Pushing a whole cap simply extends the adjacent walls (no extra faces); pushing an inset region grows a boss / cuts a pocket with new wall faces (smooth cylindrical walls on round regions).
 - **I = Inset face**: click a planar face, drag / type the distance → a ring face plus the shrunken inner face, which keeps its key so you can immediately E it again. Chains like inset → push → inset → pocket are stable.
