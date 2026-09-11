@@ -1140,8 +1140,9 @@ function xform(f,p){if(f.kind==='body'&&f.op==='loft'){const o=f.pos||[0,0,0];re
   return [o[0]+x,o[1]+y,o[2]+z];}
 /* Studio matcap for machined parts: view-space normal → (key light top-left, cool rim, soft fill from below, tight clear-coat highlight),
    plus a curvature-ish darkening where the normal turns away and a warm accent for the selection. */
-function shadeColor(n,vd,sel){if(view.shade==='matcap')return matcapColor(n,vd,sel);const lam=Math.max(0,dot(n,light)),amb=.18;
-  if(view.shade==='flat'){const v=Math.round(40+150*(amb+lam*.8));return `rgb(${v},${v},${v})`;}
+const LIGHT=norm([0.4,-0.6,0.7]);
+function shadeColor(n,vd,sel){if(view.shade==='matcap')return matcapColor(n,vd,sel);const light=LIGHT;const lam=Math.max(0,dot(n,light)),amb=.18;
+  if(view.shade==='flat'){const v=Math.round(40+150*(amb+lam*.8));return sel?`rgb(${(v*.7)|0},${Math.min(255,v*1.05)|0},${(v*.8)|0})`:`rgb(${v},${v},${v})`;}
   const h=norm([light[0]+vd[0],light[1]+vd[1],light[2]+vd[2]]);const sp=Math.pow(Math.max(0,dot(n,h)),48);const base=sel?[150,225,175]:[150,158,170];const k=amb+lam*.75;return `rgb(${Math.min(255,base[0]*k+sp*200)|0},${Math.min(255,base[1]*k+sp*200)|0},${Math.min(255,base[2]*k+sp*200)|0})`;}
 const rgbOf=c=>{const m=/rgb\((\d+),(\d+),(\d+)\)/.exec(c);return m?[+m[1],+m[2],+m[3]]:[0,0,0];};const colDist=(a,b)=>{const x=rgbOf(a),y=rgbOf(b);return Math.abs(x[0]-y[0])+Math.abs(x[1]-y[1])+Math.abs(x[2]-y[2]);};const mixCol=(a,b)=>{const x=rgbOf(a),y=rgbOf(b);return `rgb(${(x[0]+y[0])>>1},${(x[1]+y[1])>>1},${(x[2]+y[2])>>1})`;};
 function matcapColor(n,vd,sel){ // sampled from an analytic 'studio clay' sphere: view-space normal (nx,ny) → colour, exactly like a matcap texture
@@ -1157,7 +1158,7 @@ function matcapColor(n,vd,sel){ // sampled from an analytic 'studio clay' sphere
   const base=sel?[176,236,196]:[201,206,214];const cool=sel?[40,92,62]:[52,58,70];
   let r=cool[0]+(base[0]-cool[0])*v,g_=cool[1]+(base[1]-cool[1])*v,b=cool[2]+(base[2]-cool[2])*v;r+=spec*255;g_+=spec*255;b+=spec*255;
   return `rgb(${Math.min(255,r)|0},${Math.min(255,g_)|0},${Math.min(255,b)|0})`;}
-function draw(){if(!W)return;try{drawInner();}catch(e){const b=$('#errBar');if(b){b.textContent='⚠ render: '+(e&&e.message||e)+'\n'+String(e&&e.stack||'').split('\n').slice(1,3).join(' | ');b.style.display='block';}console.error(e);}}
+function draw(){if(!W)return;try{drawInner();}catch(e){if(view.shade!=='wire'&&!draw._retry){draw._retry=true;const was=view.shade;view.shade='wire';try{drawInner();}catch(e2){}view.shade=was;draw._retry=false;log('render fell back to wire for this frame: '+(e&&e.message||e));}const b=$('#errBar');if(b){b.textContent='⚠ render: '+(e&&e.message||e)+'\n'+String(e&&e.stack||'').split('\n').slice(1,3).join(' | ');b.style.display='block';}console.error(e);}}
 function drawInner(){if(!draw._sync){draw._sync=true;try{syncLinks();}finally{draw._sync=false;}}cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
   // background: near-black with subtle vignette (Phase 20 black background)
   const grd=g.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,H);grd.addColorStop(0,'#0b0c0e');grd.addColorStop(1,'#020203');g.fillStyle=grd;g.fillRect(0,0,W,H);

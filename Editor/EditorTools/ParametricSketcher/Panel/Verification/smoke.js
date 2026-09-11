@@ -373,6 +373,8 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   M.doc.sel=new Set([cy.id]);M.renderInspector();ok(true,'inspector lists face features');M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
+// 23b. every shade mode must draw a selected + unselected curved body without throwing (regression: 'light is not defined' in plastic/flat)
+{ const errs=[];const b=M.doc.figures.find(f=>f.kind==='body');if(b){M.doc.sel=new Set([b.id]);}['wire','flat','plastic','matcap'].forEach(sh=>{M.view.shade=sh;try{M.draw();}catch(e){errs.push(sh+': '+e.message);}});ok(!errs.length,'all shade modes draw: '+errs.join(' | '));M.view.shade='matcap';M.doc.sel.clear(); }
 // 24. vertex bevel / chamfer on solids, default workplane, plane opacity, green selection
 { if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
   const K=p=>p.map(v=>v.toFixed(3)).join(',');const openEdges=(m)=>{const c=new Map();M.allTris(m).forEach(t=>{const A=(a,b)=>{const k=[K(a),K(b)].sort().join('|');c.set(k,(c.get(k)||0)+1);};A(t[0],t[1]);A(t[1],t[2]);A(t[2],t[0]);});return [...c.values()].filter(v=>v!==2).length;};
