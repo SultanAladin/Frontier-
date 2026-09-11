@@ -390,4 +390,21 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   const c=M.matcapColor([0,0,1],[0,0,1],true).match(/\d+/g).map(Number);ok(c[1]>c[0]&&c[1]>c[2],'selected matcap tint is green');M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
+// 25. fillet of a single cap edge next to an existing vertical-edge fillet (user report: spike / flying geometry)
+{ if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
+  const K=p=>p.map(v=>v.toFixed(3)).join(',');const openEdges=(m)=>{const c=new Map();M.allTris(m).forEach(t=>{const A=(a,b)=>{const k=[K(a),K(b)].sort().join('|');c.set(k,(c.get(k)||0)+1);};A(t[0],t[1]);A(t[1],t[2]);A(t[2],t[0]);});return [...c.values()].filter(v=>v!==2).length;};
+  const bbox=m=>{const P=[];M.allTris(m).forEach(t=>t.forEach(q=>P.push(q)));return [0,1,2].map(i=>[Math.min(...P.map(q=>q[i])),Math.max(...P.map(q=>q[i]))]);};
+  M.startOp('rect');M.toolClick(380,300);M.toolClick(520,380);const R=M.doc.figures.filter(f=>f.kind==='curve').pop();M.selectTool();M.doc.sel=new Set([R.id]);M.startOp('extrude');M.solidKey({key:'3'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b=M.doc.figures.filter(f=>f.kind==='body').pop();const bb0=bbox(M.meshOf(b));const v0=M.meshVolume(M.meshOf(b));
+  const fil=(key,r)=>{M.topoCache.clear();const i=M.topo(b).edges.findIndex(e=>e.key===key);M.sub_.sel.clear();M.sub_.sel.set('k',{fig:b.id,kind:'edge',idx:i});return M.solidEditApply(M.solidHitsFromSel(),'fillet',r);};
+  ok(fil('top:1',12)===1,'fillet one top edge');ok(fil('side:0:1',8)===1,'then fillet the vertical edge next to it');M.topoCache.clear();let m=M.meshOf(b);const bb=bbox(m);
+  ok(openEdges(m)===0,'combined fillets watertight');ok(bb.every((r,i)=>r[0]>=bb0[i][0]-1e-6&&r[1]<=bb0[i][1]+1e-6),'no geometry flies outside the original box');ok(M.meshVolume(m)<v0&&M.meshVolume(m)>v0*0.8,'volume reduced by a sensible amount ('+(M.meshVolume(m)/v0).toFixed(3)+')');
+  // the wall that was NOT filleted on top must still be a single flat plane
+  const side2=m.brep.faces.find(f=>f.key==='side:2');ok(side2&&side2.kind==='plane','untouched wall keeps its plane');
+  // tangent edges are never accepted as fillet targets
+  M.topoCache.clear();const ti=M.topo(b).edges.findIndex(e=>e.tangent);M.sub_.sel.clear();M.sub_.sel.set('k',{fig:b.id,kind:'edge',idx:ti});ok(M.solidEditApply(M.solidHitsFromSel(),'fillet',5)===0,'tangent (fillet boundary) edges are ignored');
+  // every order / every edge from a state with one vertical fillet stays watertight and inside the box
+  b.edits=[{type:'fillet',key:'side:0:1',r:8}];M.invalidate(b.id);M.topoCache.clear();const keys=M.topo(b).edges.filter(e=>!e.tangent).map(e=>e.key);let bad=[];keys.forEach(k=>{b.edits=[{type:'fillet',key:'side:0:1',r:8}];M.invalidate(b.id);fil(k,6);M.topoCache.clear();const mm=M.meshOf(b);const B=bbox(mm);if(openEdges(mm)||!B.every((r,i)=>r[0]>=bb0[i][0]-1e-6&&r[1]<=bb0[i][1]+1e-6))bad.push(k);});ok(!bad.length,'fillet of any edge next to a vertical fillet is watertight & bounded: '+bad.join(','));
+  M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);

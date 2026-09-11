@@ -662,12 +662,17 @@ function loopSubs(L){ // expand arcs → sub-segments {a,b,eid,smooth,arc:{c,r}|
     const oi=L.orig?L.orig[i]:i;if(bl){const A=bulgeArc(a,b,bl);const pts=arcPoints(a,b,bl);for(let k=0;k<pts.length-1;k++)subs.push({a:pts[k],b:pts[k+1],eid,smooth:true,arc:A,cornerIdx:k===0?oi:null});}
     else subs.push({a,b,eid,smooth:!!L.smooth[i],arc:null,cornerIdx:oi});}
   subs.forEach(sb=>{const dx=sb.b[0]-sb.a[0],dy=sb.b[1]-sb.a[1];const l=Math.hypot(dx,dy)||1;sb.nl=[-dy/l,dx/l];sb.len=l;});return subs;}
-function ringOf(subs,d){ // offset every sub-segment by d[m] along its left normal, joints = line intersections
+function ringOf(subs,d){ // offset every sub-segment by d[m] along its left normal; joints = line intersection, miter-limited and stable for smooth (arc) joints
   const n=subs.length;const out=[];for(let m=0;m<n;m++){const p=subs[(m-1+n)%n],q=subs[m];const d1=d[(m-1+n)%n]||0,d2=d[m]||0;
     const a1=[p.a[0]+p.nl[0]*d1,p.a[1]+p.nl[1]*d1],b1=[p.b[0]+p.nl[0]*d1,p.b[1]+p.nl[1]*d1],a2=[q.a[0]+q.nl[0]*d2,q.a[1]+q.nl[1]*d2],b2=[q.b[0]+q.nl[0]*d2,q.b[1]+q.nl[1]*d2];
-    const r1=[b1[0]-a1[0],b1[1]-a1[1]],r2=[b2[0]-a2[0],b2[1]-a2[1]];const den=r1[0]*r2[1]-r1[1]*r2[0];
-    if(Math.abs(den)<1e-9*(Math.hypot(...r1)*Math.hypot(...r2)+1e-12)){const nx=(p.nl[0]+q.nl[0])/2,ny=(p.nl[1]+q.nl[1])/2;const dd=Math.max(d1,d2);out.push([q.a[0]+nx*dd,q.a[1]+ny*dd]);continue;}
-    const t=((a2[0]-a1[0])*r2[1]-(a2[1]-a1[1])*r2[0])/den;out.push([a1[0]+r1[0]*t,a1[1]+r1[1]*t]);}
+    const r1=[b1[0]-a1[0],b1[1]-a1[1]],r2=[b2[0]-a2[0],b2[1]-a2[1]];const l1=Math.hypot(...r1)||1,l2=Math.hypot(...r2)||1;const cosT=(r1[0]*r2[0]+r1[1]*r2[1])/(l1*l2);const den=r1[0]*r2[1]-r1[1]*r2[0];
+    const nearPar=Math.abs(den)<1e-9*l1*l2||cosT>Math.cos(3*Math.PI/180); // < 3° turn: treat as tangent joint
+    if(nearPar){ // tangent joint: the two offset lines meet (or nearly meet) → average the two offset points; if the distances differ, the joint sits on the bisector
+      const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=(d1+d2)/2;out.push([q.a[0]+nx/l*dd,q.a[1]+ny/l*dd]);continue;}
+    const t=((a2[0]-a1[0])*r2[1]-(a2[1]-a1[1])*r2[0])/den;let X=[a1[0]+r1[0]*t,a1[1]+r1[1]*t];
+    // miter limit: never let a joint fly further than 4× the larger offset from the source corner
+    const lim=4*Math.max(Math.abs(d1),Math.abs(d2))+1e-6;const dx=X[0]-q.a[0],dy=X[1]-q.a[1];const L=Math.hypot(dx,dy);if(L>lim){const nx=(p.nl[0]+q.nl[0]),ny=(p.nl[1]+q.nl[1]);const l=Math.hypot(nx,ny)||1;const dd=Math.max(d1,d2)/Math.max(.2,Math.sqrt((1+cosT)/2));X=[q.a[0]+nx/l*dd,q.a[1]+ny/l*dd];}
+    out.push(X);}
   return out;}
 function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
   const prof=byId(f.profile)||byId(f.src);const loops0=prof?profileSegs(prof):null;if(!loops0||!loops0.length)return {tris:[],lines:[],quads:[]};
@@ -677,7 +682,10 @@ function solidBuild(f){ // → mesh {tris,quads,lines,brep:{faces,edges,verts}}
   const tris=[],quads=[],lines=[];const faces=new Map(),edges=new Map(),verts=[];const face=(key,kind)=>{if(!faces.has(key))faces.set(key,{key,kind,tris:[]});return faces.get(key);};const edge=(key,pts,tangent)=>{if(!edges.has(key))edges.set(key,{key,pts:[],tangent:!!tangent,chunks:[]});const e=edges.get(key);e.chunks.push(pts);return e;};
   const V=(q,z)=>[q[0],q[1],z];
   loops0.forEach((L0,li)=>{const pre=li?('h'+li+'.'):'';const L=loopApplySideEdits(L0,sideE.filter(e=>preOf(e.key)===pre&&e.key.split(':')[1]===String(li)));const subs=loopSubs(L);const n=subs.length;if(n<2)return;const TB=bandSpec(topE,pre),BB=bandSpec(botE,pre);
-    const inSet=(spec,sb)=>spec&&(spec.eids.has('all')||spec.eids.has(String(sb.eid)));
+    // rolling-ball rule: a cap-edge fillet propagates along the tangent-continuous chain (through profile-corner fillet arcs and smooth segments)
+    subs.forEach((sb,i)=>{sb.m=i;});const chain=(spec)=>{if(!spec)return null;const S=new Set();subs.forEach((sb,i)=>{if(spec.eids.has('all')||spec.eids.has(String(sb.eid)))S.add(i);});const tangentJoint=(i,j)=>{const a=subs[i],b=subs[j];const da=[a.b[0]-a.a[0],a.b[1]-a.a[1]],db=[b.b[0]-b.a[0],b.b[1]-b.a[1]];const la=Math.hypot(...da)||1,lb=Math.hypot(...db)||1;return (da[0]*db[0]+da[1]*db[1])/(la*lb)>Math.cos(12*Math.PI/180);};const enter=(from,to)=>tangentJoint(Math.min(from,to)===from?from:to,Math.min(from,to)===from?to:from)&&(subs[to].arc||subs[to].smooth||subs[from].arc||subs[from].smooth);let grown=true;while(grown&&S.size<n){grown=false;for(let i=0;i<n;i++){if(!S.has(i))continue;const j=(i+1)%n,k=(i-1+n)%n;if(!S.has(j)&&enter(i,j)){S.add(j);grown=true;}if(!S.has(k)&&enter(i,k)){S.add(k);grown=true;}}}return S;};
+    if(TB)TB._chain=chain(TB);if(BB)BB._chain=chain(BB);
+    const inSet=(spec,sb)=>!!(spec&&spec._chain&&spec._chain.has(sb.m));
     // rings: [{z, d:[per sub], tilt:{c,s} normal tilt (c·out + s·ẑ), band:'wall'|'ftop'|'fbot'|'ctop'|'cbot', key}]
     const rings=[];const base=z=>draftK*(z-zb);
     const wallTilt={c:1/Math.hypot(1,draftK),s:draftK/Math.hypot(1,draftK)};
