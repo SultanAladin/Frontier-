@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SolidArc — Outliner · Viewport · Inspector</title>
+<title>SolidArc — Outliner · Viewport · Inspector</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -351,7 +351,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
     </div>
     <div class="filters" id="filters"><div class="dd-btn" id="ddBtn"></div><div class="dd-menu" id="ddMenu"></div></div>
   </div>
-  <div class="docbar"><button class="abtn" id="dHist" title="⌃H · undo history">history</button><button class="abtn" id="dSave" title="⌃S · download .json">save</button><button class="abtn" id="dOpen" title="⌃O · open .json">open</button><button class="abtn" id="dNew" title="⌃N · new document (previous kept as backup)">new</button><span class="sp"></span><span class="m" id="dAuto">autosave</span></div>
+  <div class="docbar"><button class="abtn" id="dHist" title="⌃H · undo history">history</button><button class="abtn" id="dSave" title="⌃S · download .json">save</button><button class="abtn" id="dOpen" title="⌃O · open .json">open</button><button class="abtn" id="dNew" title="⌃N · new document (previous kept as backup)">new</button><span class="sp"></span><span class="m" id="dAuto">autosave</span><span class="m" id="dBuild" title="build stamp — if this does not match the latest commit, hard-refresh (Ctrl+Shift+R)"></span></div>
   <div class="fpills" id="fpills"></div>
   <div class="tree" id="tree"></div>
   <div class="outliner-foot" id="ofoot"></div>
@@ -524,7 +524,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-0039-640fd11';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -1612,7 +1612,7 @@ function toolClick(px,py){const uv=planeHit(px,py);if(!uv||!tool)return;const la
   tool.pts.push(uv);const n=tool.pts.length,P=tool.op.prompts;$('#promptTxt').textContent=P[Math.min(n,P.length-1)];renderOptFoot();
   if(tool.op.confirmStep){if(n>=2){$('#promptTxt').textContent=P[2]+`  ·  ${tool.vals.sides} sides`;}draw();return;}
   if(!tool.op.multi&&n>=P.length)finishTool();else draw();}
-function finishTool(){if(!tool)return;const shape=shapeFrom(tool.op,tool.pts,tool.vals,true);if(shape)commitShape(tool.op,shape,tool.vals);endTool();}
+function finishTool(){if(!tool)return;const need=tool.op.multi?2:Math.min(2,(tool.op.prompts||[]).length);if(tool.pts.length<need){log(tool.op.label+': needs '+need+' clicks · cancelled');endTool();return;}const shape=shapeFrom(tool.op,tool.pts,tool.vals,true);if(shape)commitShape(tool.op,shape,tool.vals);endTool();}
 function offsetPolyline(P,r){ // round-capped outline of an open polyline: outer joints get arcs, inner joints get the miter intersection
   const n=P.length;if(n<2)return [];const dirs=[];for(let i=0;i<n-1;i++){const d=[P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]];const l=Math.hypot(d[0],d[1])||1;dirs.push([d[0]/l,d[1]/l]);}
   const nrm=d=>[-d[1],d[0]];const at=v=>Math.atan2(v[1],v[0]);
@@ -1913,7 +1913,7 @@ function raise_(p){if(p.id==='cat')return; /* catalogue lives on its own fixed t
 function panelRect(p){const r=p.getBoundingClientRect();return {l:r.left,t:r.top,w:r.width,h:r.height};}
 function freeze(p){const r=panelRect(p);Object.assign(p.style,{left:r.l+'px',top:r.t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');}
 if(!location.search.includes('demo')){showStart();}
-$('#dHist').onclick=showHistory;$('#dSave').onclick=()=>saveDoc();$('#dOpen').onclick=openDoc;$('#dNew').onclick=()=>newDoc();
+{const b=$('#dBuild');if(b)b.textContent='· build '+BUILD;log('SolidArc build '+BUILD);}$('#dHist').onclick=showHistory;$('#dSave').onclick=()=>saveDoc();$('#dOpen').onclick=openDoc;$('#dNew').onclick=()=>newDoc();
 function saveLayout(){const o={};$$('.panel').forEach(p=>{if(p.classList.contains('free'))o[p.id]=panelRect(p);});localStorage.setItem(LAYOUT_KEY,JSON.stringify(o));}
 function loadLayout(){try{const o=JSON.parse(localStorage.getItem(LAYOUT_KEY)||'{}');Object.entries(o).forEach(([id,r])=>{const p=document.getElementById(id);if(!p)return;const l=Math.min(Math.max(0,r.l),innerWidth-80),t=Math.min(Math.max(0,r.t),innerHeight-60);Object.assign(p.style,{left:l+'px',top:t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');});}catch(e){}}
 function resetLayout(){localStorage.removeItem(LAYOUT_KEY);$$('.panel').forEach(p=>{p.removeAttribute('style');p.classList.remove('free');});resize();}
