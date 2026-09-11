@@ -22,3 +22,4 @@ Editor/EditorTools/ParametricSketcher/build/
 # Sandbox-only g++ build script (kept for re-builds when cmake is unavailable, but not part of the project)
 Editor/EditorTools/ParametricSketcher/build_gpp.sh
 Verification/view.png
+Editor/EditorTools/ParametricSketcher/Panel/Verification/view.png
