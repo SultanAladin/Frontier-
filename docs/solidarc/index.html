@@ -543,7 +543,7 @@ function redo(){if(!doc.redo.length)return;doc.undo.push(JSON.stringify({f:doc.f
 function dropSnapshot(){doc.undo.pop();(doc.undoL||[]).pop();}
 function undoTo(n){while(doc.undo.length>n)undo();} function redoTo(n){while(doc.redo.length>n)redo();}
 // ── document save / load (JSON) ──
-const BUILD='20260911-2144-24a516b';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
+const BUILD='20260911-2213-c649548';const DOC_KEY='solidarc.doc.v1';let autosaveT=null;
 function docJSON(){return JSON.stringify({app:'SolidArc',v:1,saved:Date.now(),figures:doc.figures,uid,vars:doc.vars,dims:doc.dims,curveRes:doc.curveRes,planeAlpha:doc.planeAlpha,active:{plane:active_.plane,sketch:active_.sketch},view:{az:view.az,el:view.el,dist:view.dist,target:view.target,ortho:view.ortho}},null,1);}
 function loadDocJSON(js){const o=typeof js==='string'?JSON.parse(js):js;if(!o||!Array.isArray(o.figures))throw new Error('not a SolidArc document');snapshot('load document');doc.figures=o.figures;syncLinks._mig=false;uid=o.uid||Math.max(0,...o.figures.map(f=>+f.id||0))+1;doc.vars=o.vars||{};if(o.dims!==undefined)doc.dims=o.dims;if(o.curveRes)doc.curveRes=o.curveRes;if(o.planeAlpha!=null)doc.planeAlpha=o.planeAlpha;
   active_.plane=o.active&&byId(o.active.plane)?o.active.plane:null;active_.sketch=o.active&&byId(o.active.sketch)?o.active.sketch:null;if(o.view){Object.assign(view,{az:o.view.az,el:o.view.el,dist:o.view.dist,target:o.view.target,ortho:!!o.view.ortho});}doc.sel=new Set();sub_.sel.clear();rebuildAll();renderCat();log('document loaded · '+doc.figures.length+' figures');}
@@ -835,7 +835,14 @@ function faceInfoWorld(f,idx){const t=topo(f);const F=t.faces[idx];if(!F||!F.tri
 function faceHitsFromSel(){const out=[];sub_.sel.forEach(h=>{const f=byId(h.fig);if(!f||f.kind!=='body'||h.kind!=='face'||!meshOf(f).brep)return;const i=faceInfoWorld(f,h.idx);if(i&&i.kind==='plane')out.push(i);});return out;}
 function faceOpApply(hits,op,val){let n=0;
   if(op==='push'){ // prefer editing the underlying parameters (height / base / profile edge) — a push feature only when the face is already derived
-    const rest=[];hits.forEach(h=>{const P=faceMovePlan(h);if(P.mode==='push'){rest.push(h);return;}Object.assign(h,{plan:P});subApply({start:[],faces:[h]},mul(h.n,val));n++;});doc.figures.forEach(f=>{if(f.faceOps)f.faceOps.forEach(o=>{delete o._live;});});solveAll&&solveAll();hits=rest;}const by=new Map();hits.forEach(h=>{if(!by.has(h.f.id))by.set(h.f.id,[]);by.get(h.f.id).push(h);});by.forEach((hs,fid)=>{const f=byId(fid);if(!f)return;f.faceOps=(f.faceOps||[]);hs.forEach(h=>{f.faceOps.push(op==='push'?{op,face:h.key,h:val}:{op,face:h.key,d:val});n++;});invalidate(f.id);});return n;}
+    const rest=[];hits.forEach(h=>{const P=faceMovePlan(h);if(P.mode==='push'){rest.push(h);return;}
+      // what the user saw while dragging is the push preview → the parametric edit must reproduce it, otherwise keep the previewed feature
+      const f=h.f;let want=null;try{want=meshVolume(bodyMeshWith(f,[{op:'push',face:h.key,h:val}]));}catch(err){}
+      const keep={params:JSON.stringify(f.params),prof:P.prof?JSON.stringify(P.prof.params):null};
+      Object.assign(h,{plan:P});subApply({start:[],faces:[h]},mul(h.n,val));invalidate(f.id);topoCache.clear();
+      let got=null;try{got=meshVolume(meshOf(f));}catch(err){}
+      if(want!=null&&got!=null&&Math.abs(got-want)>Math.max(1e-6,Math.abs(want))*0.002){f.params=JSON.parse(keep.params);if(P.prof&&keep.prof){P.prof.params=JSON.parse(keep.prof);invalidate(P.prof.id);}invalidate(f.id);topoCache.clear();rest.push(h);return;}
+      n++;});doc.figures.forEach(f=>{if(f.faceOps)f.faceOps.forEach(o=>{delete o._live;});});solveAll&&solveAll();hits=rest;}const by=new Map();hits.forEach(h=>{if(!by.has(h.f.id))by.set(h.f.id,[]);by.get(h.f.id).push(h);});by.forEach((hs,fid)=>{const f=byId(fid);if(!f)return;f.faceOps=(f.faceOps||[]);hs.forEach(h=>{f.faceOps.push(op==='push'?{op,face:h.key,h:val}:{op,face:h.key,d:val});n++;});invalidate(f.id);});return n;}
 function allTris(m){if(!m)return [];const t=(m.tris||[]).slice();(m.quads||[]).forEach(q=>{t.push([q.p[0],q.p[1],q.p[2]]);if(!q.tri)t.push([q.p[0],q.p[2],q.p[3]]);});return t;}
 function meshVolume(m){let v=0;allTris(m).forEach(([a,b,c])=>{v+=dot(a,cross(b,c))/6;});return Math.abs(v);}
 function ellipsePts(p,n=48){const a=(p.tilt||0)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);return Array.from({length:n},(_,i)=>{const t=i/n*Math.PI*2,x=Math.cos(t)*p.rx,y=Math.sin(t)*p.ry;return [p.cx+x*ca-y*sa,p.cy+x*sa+y*ca]});}

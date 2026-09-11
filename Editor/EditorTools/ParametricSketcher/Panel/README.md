@@ -136,3 +136,4 @@ Tools: Workplane (XY/XZ/YZ + offset + rotation, no picks) · Datum Point · Line
 The document starts **empty**; `?demo` in the URL loads the sample scene.
 
 Keyboard: `1–4` select mode · `5` ortho · numpad `1/3/7` front/right/top · `L ⇧L R C A E P` sketch tools · `⇧W` workplane · `Tab` catalogue · `Enter` finish polyline · `G R S` move/rotate/scale (Blender modal) · `H` hide · `Alt+H` unhide all · `F` frame · `D` dims · `⌫` delete · `Ctrl+Z / Ctrl+Shift+Z` undo/redo · `Esc` cancel/deselect.
+- **Push commits what the preview shows.** Pushing a face (E / gizmo) first tries the parametric route (height / base / profile-edge edit); the result is compared with the previewed push feature and, if they differ (e.g. the cap has filleted edges, so a taller extrude would swallow the fillet), the previewed push feature is kept instead.

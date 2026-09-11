@@ -407,4 +407,15 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   M.sub_.sel.clear();M.doc.sel.clear(); }
 
 
+// 26. E on the top face of a body with filleted top edges: the committed result must equal the drag preview (a boss above the fillet), not a taller re-extrude that swallows the fillet
+{ if(M.anyTool&&M.anyTool())M.selectTool();M.view.target=[0,0,0];M.view.dist=260;M.setView('top');M.resize();
+  M.startOp('rect');M.toolClick(380,300);M.toolClick(520,380);const R=M.doc.figures.filter(f=>f.kind==='curve').pop();M.selectTool();M.doc.sel=new Set([R.id]);M.startOp('extrude');M.solidKey({key:'3'});M.solidKey({key:'0'});M.solidKey({key:'Enter'});const b=M.doc.figures.filter(f=>f.kind==='body').pop();
+  b.edits=[{type:'fillet',key:'top:all',r:5}];M.invalidate(b.id);M.topoCache.clear();const ti=M.topo(b).faces.findIndex(f=>f.key==='cap:top');const h=M.faceInfoWorld(b,ti);
+  const want=M.meshVolume(M.bodyMeshWith(b,[{op:'push',face:'cap:top',h:20}]));M.faceOpApply([h],'push',20);M.invalidate(b.id);M.topoCache.clear();const got=M.meshVolume(M.meshOf(b));
+  ok(Math.abs(got-want)<want*0.002,'push of a filleted cap commits what the preview showed ('+got.toFixed(1)+' vs '+want.toFixed(1)+')');ok(+b.params.height===30,'extrude height untouched when the parametric edit would not match');ok(M.topo(b).faces.some(f=>/^ftop:/.test(f.key)),'top fillet survives the push');
+  // plain box (no fillets): the push still becomes a height edit, no feature added
+  b.edits=[];b.faceOps=[];M.invalidate(b.id);M.topoCache.clear();const t2=M.topo(b).faces.findIndex(f=>f.key==='cap:top');M.faceOpApply([M.faceInfoWorld(b,t2)],'push',10);ok(+b.params.height===40&&!(b.faceOps||[]).length,'plain cap push edits the height');
+  M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);
