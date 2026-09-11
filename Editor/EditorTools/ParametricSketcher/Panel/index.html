@@ -24,7 +24,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 #bg{position:fixed;inset:0;background:
   radial-gradient(1200px 700px at 30% 110%,rgba(60,50,45,.35),transparent 60%),
   radial-gradient(900px 600px at 85% -10%,rgba(40,50,70,.35),transparent 60%),#050506}
-.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(1.3);-webkit-backdrop-filter:blur(28px) saturate(1.3);border:1px solid var(--stroke);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
+.glass{background:rgba(15,16,18,.94);backdrop-filter:blur(28px) saturate(1.3);-webkit-backdrop-filter:blur(28px) saturate(1.3);border:1px solid var(--stroke);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
 
 /* ── three independent panels ───────────────────────────── */
 #outliner{position:fixed;top:var(--gap);left:var(--gap);bottom:var(--gap);width:var(--ow);min-width:220px;min-height:240px;border-radius:var(--rad);z-index:15;display:flex;flex-direction:column;overflow:hidden}
@@ -218,6 +218,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .pill .ax{width:8px;height:8px;border-radius:50%}
 #gzHud{position:absolute;left:50%;top:48px;transform:translateX(-50%);z-index:3;display:none;align-items:center;gap:10px;height:32px;padding:0 14px;border-radius:999px;font-size:12px;font-family:var(--mono);color:var(--text);white-space:nowrap}
 #gzHud.show{display:flex}
+#errBar{display:none;position:absolute;left:12px;right:12px;bottom:60px;z-index:20;padding:8px 12px;border-radius:10px;background:rgba(255,59,48,.16);border:1px solid rgba(255,59,48,.4);color:#ffb3ad;font:11.5px JetBrains Mono,monospace;white-space:pre-wrap}
 #start{position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;border-radius:inherit;background:rgba(8,9,11,.55);backdrop-filter:blur(6px)}#start.show{display:flex}
 #start .card{width:340px;padding:18px 18px 14px;border-radius:16px;background:var(--glass);border:1px solid var(--stroke);box-shadow:0 20px 60px rgba(0,0,0,.5)}#start h3{margin:0 0 4px;font-size:15px;font-weight:600}#start .m{font-size:11.5px;color:var(--t3);margin-bottom:14px;line-height:1.5}
 #start .row{display:flex;gap:8px}#start .abtn{height:36px}#start .abtn.pri{background:rgba(52,199,89,.16);border-color:rgba(52,199,89,.35);color:#9ef0b0}#start .abtn.pri:hover{background:rgba(52,199,89,.26)}#start .lnk{margin-top:10px;font-size:11px;color:var(--t3);text-align:center}#start .lnk b{color:var(--t2);cursor:pointer}#start .lnk b:hover{color:var(--text)}
@@ -329,6 +330,8 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .console .p{color:var(--cyan)}
 #cmd{display:flex;align-items:center;gap:8px;height:34px;margin:0 12px 12px;border-radius:999px;background:var(--g2);border:1px solid var(--stroke);padding:0 14px;font-family:var(--mono);font-size:12px}
 #cmd .p{color:var(--cyan)} #cmd input{flex:1;color:var(--text);font-family:var(--mono)}
+@supports (backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px)){.glass{background:var(--glass)}}
+@supports not (color-mix(in srgb,red 10%,transparent)){.stchip{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14)}}
 </style>
 </head>
 <body>
@@ -358,7 +361,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 </aside>
 
 <!-- ═══════════════ VIEWPORT ═══════════════ -->
-<section id="viewport" class="glass panel"><div id="start"><div class="card"><h3>Welcome back</h3><div class="m" id="startInfo"></div><div class="row"><button class="abtn pri" id="startCont">continue previous</button><button class="abtn" id="startNew">new document</button></div><div class="lnk">or <b id="startOpen">open a .json</b> · the previous drawing stays recoverable under <b id="startHist">history</b></div></div></div>
+<section id="viewport" class="glass panel"><div id="errBar"></div><div id="start"><div class="card"><h3>Welcome back</h3><div class="m" id="startInfo"></div><div class="row"><button class="abtn pri" id="startCont">continue previous</button><button class="abtn" id="startNew">new document</button></div><div class="lnk">or <b id="startOpen">open a .json</b> · the previous drawing stays recoverable under <b id="startHist">history</b></div></div></div>
   <canvas id="gl"></canvas>
   <div id="vgrip" title="drag viewport"></div>
   <div id="vtop">
@@ -435,6 +438,22 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 </aside>
 
 <script>
+/* ── compatibility: polyfills for older browsers / GPUs (Canvas 2D is the only renderer; no GPU features are required) ── */
+(function(){try{
+  const P=(typeof CanvasRenderingContext2D!=='undefined')?CanvasRenderingContext2D.prototype:null;
+  if(P&&!P.roundRect){P.roundRect=function(x,y,w,h,r){r=Array.isArray(r)?r[0]:(r||0);r=Math.min(r,Math.abs(w)/2,Math.abs(h)/2);this.moveTo(x+r,y);this.lineTo(x+w-r,y);this.arcTo(x+w,y,x+w,y+r,r);this.lineTo(x+w,y+h-r);this.arcTo(x+w,y+h,x+w-r,y+h,r);this.lineTo(x+r,y+h);this.arcTo(x,y+h,x,y+h-r,r);this.lineTo(x,y+r);this.arcTo(x,y,x+r,y,r);this.closePath();return this;};}
+  if(P&&!P.reset)P.reset=function(){this.setTransform(1,0,0,1,0,0);this.clearRect(0,0,this.canvas.width,this.canvas.height);};
+  if(typeof window!=='undefined'){if(!window.requestAnimationFrame)window.requestAnimationFrame=cb=>setTimeout(()=>cb(performance.now()),16);if(!window.cancelAnimationFrame)window.cancelAnimationFrame=clearTimeout;
+    if(!window.ResizeObserver)window.ResizeObserver=class{constructor(cb){this.cb=cb;window.addEventListener('resize',()=>cb([]));}observe(){setTimeout(()=>this.cb([]),0);}disconnect(){}};
+    if(!Element.prototype.setPointerCapture)Element.prototype.setPointerCapture=function(){};if(!Element.prototype.releasePointerCapture)Element.prototype.releasePointerCapture=function(){};
+    if(!window.PointerEvent){['pointerdown','pointermove','pointerup'].forEach((t,i)=>{const m=['mousedown','mousemove','mouseup'][i];const add=Element.prototype.addEventListener;Element.prototype.addEventListener=function(type,fn,o){if(type===t){return add.call(this,m,e=>{e.pointerId=1;fn(e);},o);}return add.call(this,type,fn,o);};});}}
+  if(!Array.prototype.flatMap)Array.prototype.flatMap=function(f){return [].concat(...this.map(f));};if(!Array.prototype.flat)Array.prototype.flat=function(){return [].concat(...this);};
+  if(!Object.fromEntries)Object.fromEntries=a=>{const o={};for(const [k,v] of a)o[k]=v;return o;};
+}catch(e){}})();
+/* errors never die silently: a banner in the viewport + the log */
+if(typeof window!=='undefined')window.addEventListener('error',e=>{try{const b=document.getElementById('errBar');if(b){b.textContent='⚠ '+(e.message||e.error)+' — '+(e.filename||'').split('/').pop()+':'+e.lineno+'  (hard-refresh; if it persists send this line)';b.style.display='block';}console.error(e.error||e.message);}catch(_){}});
+if(typeof window!=='undefined')window.addEventListener('unhandledrejection',e=>{try{const b=document.getElementById('errBar');if(b){b.textContent='⚠ '+(e.reason&&e.reason.message||e.reason);b.style.display='block';}}catch(_){}});
+
 /* ═════════════════════════════════════════════════════════════════════
    SolidArc panel — document model, software raster, three panels.
    Geometry is generated in JS so the UI can be exercised before the
@@ -931,7 +950,8 @@ function matcapColor(n,vd,sel){const nx=dot(n,cam.right),ny=dot(n,cam.up),nz=Mat
   const amb=.22;let r=shadow[0]*(1-cav)+(base[0]*(amb+key*.72+fill))*cav,g_=shadow[1]*(1-cav)+(base[1]*(amb+key*.72+fill))*cav,b=shadow[2]*(1-cav)+(base[2]*(amb+key*.72+fill))*cav;
   r+=tint[0]*(spec+spec2)+rim*120;g_+=tint[1]*(spec+spec2)+rim*140;b+=tint[2]*(spec+spec2)+rim*180;
   return `rgb(${Math.min(255,r)|0},${Math.min(255,g_)|0},${Math.min(255,b)|0})`;}
-function draw(){if(!W)return;if(!draw._sync){draw._sync=true;try{syncLinks();}finally{draw._sync=false;}}cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
+function draw(){if(!W)return;try{drawInner();}catch(e){const b=$('#errBar');if(b){b.textContent='⚠ render: '+(e&&e.message||e)+'\n'+String(e&&e.stack||'').split('\n').slice(1,3).join(' | ');b.style.display='block';}console.error(e);}}
+function drawInner(){if(!draw._sync){draw._sync=true;try{syncLinks();}finally{draw._sync=false;}}cam=camBasis();const g=ctx;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
   // background: near-black with subtle vignette (Phase 20 black background)
   const grd=g.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,H);grd.addColorStop(0,'#0b0c0e');grd.addColorStop(1,'#020203');g.fillStyle=grd;g.fillRect(0,0,W,H);
   if(view.lattice)drawLattice(g);
@@ -2003,7 +2023,7 @@ function raise_(p){if(p.id==='cat')return; /* catalogue lives on its own fixed t
 function panelRect(p){const r=p.getBoundingClientRect();return {l:r.left,t:r.top,w:r.width,h:r.height};}
 function freeze(p){const r=panelRect(p);Object.assign(p.style,{left:r.l+'px',top:r.t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');}
 if(!location.search.includes('demo')){showStart();}
-{const b=$('#dBuild');if(b)b.textContent='· build '+BUILD;log('SolidArc build '+BUILD);}$('#dHist').onclick=showHistory;$('#dSave').onclick=()=>saveDoc();$('#dOpen').onclick=openDoc;$('#dNew').onclick=()=>newDoc();
+{const b=$('#dBuild');if(b)b.textContent='· build '+BUILD;log('SolidArc build '+BUILD);try{const gpu=(()=>{const c=document.createElement('canvas');const gl=c.getContext('webgl2')||c.getContext('webgl')||c.getContext('experimental-webgl');if(!gl)return 'no WebGL (fine — SolidArc renders on Canvas 2D)';const d=gl.getExtension('WEBGL_debug_renderer_info');return (d?gl.getParameter(d.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER))+' · '+(gl instanceof (window.WebGL2RenderingContext||function(){})?'webgl2':'webgl1');})();log('renderer: Canvas 2D software raster · GPU: '+gpu+' · '+navigator.userAgent.replace(/^.*?\) /,'').slice(0,60));}catch(e){}}$('#dHist').onclick=showHistory;$('#dSave').onclick=()=>saveDoc();$('#dOpen').onclick=openDoc;$('#dNew').onclick=()=>newDoc();
 function saveLayout(){const o={};$$('.panel').forEach(p=>{if(p.classList.contains('free'))o[p.id]=panelRect(p);});localStorage.setItem(LAYOUT_KEY,JSON.stringify(o));}
 function loadLayout(){try{const o=JSON.parse(localStorage.getItem(LAYOUT_KEY)||'{}');Object.entries(o).forEach(([id,r])=>{const p=document.getElementById(id);if(!p)return;const l=Math.min(Math.max(0,r.l),innerWidth-80),t=Math.min(Math.max(0,r.t),innerHeight-60);Object.assign(p.style,{left:l+'px',top:t+'px',width:r.w+'px',height:r.h+'px',right:'auto',bottom:'auto'});p.classList.add('free');});}catch(e){}}
 function resetLayout(){localStorage.removeItem(LAYOUT_KEY);$$('.panel').forEach(p=>{p.removeAttribute('style');p.classList.remove('free');});resize();}

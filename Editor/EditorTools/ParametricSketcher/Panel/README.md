@@ -48,6 +48,9 @@ Hold **⌃ (Ctrl/⌘)** to snap the cursor to endpoints, vertices, midpoints, ce
 ### History · Save / Open
 Every undo step is labelled. **⌃H** (or *history* in the outliner) opens the History page: click any step to jump back or forward; footer has *save .json* (⌃S), *open .json* (⌃O), *copy*, *new document*. The document autosaves to localStorage and is restored on reload (not when `?demo`).
 
+### Compatibility
+SolidArc's viewport is a **Canvas 2D software rasteriser** — it needs no WebGL, so GPU model (GTX vs RTX) doesn't matter; what does is the browser version. The page now polyfills `roundRect`, `requestAnimationFrame`, `ResizeObserver`, pointer capture and pointer events, falls back to a solid panel background when `backdrop-filter`/`color-mix` are unsupported, wraps each frame so one bad draw can't blank the view, and shows any runtime error as a red banner in the viewport (with file:line). The console log prints the build, the detected GPU/WebGL level and the browser at start — if the viewport is empty, that banner/log line is what to send.
+
 ### Focus (F) · Extrude (⇧E) · Loft (⇧O) · Matcap
 - **F** frames the selection (bodies, curves, sketches, sub-elements) with a short camera glide; with nothing selected it frames everything.
 - **Extrude**: with a closed curve selected, ⇧E starts immediately and the mouse sets the height along the sketch normal (⌃ = 5 mm steps, ⌥ = symmetric, type a number, ⏎ / click applies, negative = other side). Otherwise click a closed profile — a curve, or a *filled region* of a sketch (holes come along). Bodies keep a link to their profile: edit the sketch and the solid rebuilds; height/draft live in the inspector.
