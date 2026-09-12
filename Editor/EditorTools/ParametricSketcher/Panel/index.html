@@ -328,6 +328,12 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
 .abtn.danger:hover{background:rgba(255,59,48,.18);color:#ff8a80;border-color:rgba(255,59,48,.3)}
 .console{margin-top:6px;border-radius:12px;background:rgba(0,0,0,.4);border:1px solid var(--stroke);font-family:var(--mono);font-size:11px;padding:10px 12px;color:var(--t2);max-height:120px;overflow:auto;line-height:1.5}
 .console .p{color:var(--cyan)}
+#conlog{flex:0 0 auto;margin:0 12px 8px;max-height:132px;min-height:26px;overflow:auto;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid var(--stroke);font-family:var(--mono);font-size:11px;line-height:1.55;padding:8px 11px;color:var(--t2);scrollbar-width:thin}
+#conlog div{white-space:pre-wrap;word-break:break-word}
+#conlog .p{color:var(--cyan);opacity:.8}
+#conlog .bad{color:#ff8f8f}
+#conlog .good{color:#9fe8b4}
+#conlog .dim{color:var(--t3)}
 #cmd{display:flex;align-items:center;gap:8px;height:34px;margin:0 12px 12px;border-radius:999px;background:var(--g2);border:1px solid var(--stroke);padding:0 14px;font-family:var(--mono);font-size:12px}
 #cmd .p{color:var(--cyan)} #cmd input{flex:1;color:var(--text);font-family:var(--mono)}
 @supports (backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px)){.glass{background:var(--glass)}}
@@ -434,7 +440,8 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stro
     <span class="badge" id="inspBadge">nothing selected</span>
   </div>
   <div id="insp"></div>
-  <div id="cmd"><span class="p">arc ›</span><input id="cmdIn" placeholder="box 40 30 20 · extrude Sketch01 15 · dim on"></div>
+  <div id="conlog" title="console transcript — same grammar as the .arc scripts and the C++ ConsoleHost"></div>
+  <div id="cmd"><span class="p">arc ›</span><input id="cmdIn" placeholder="box (0,0,0) 40 30 20 · circle (0,0) 12 · help"></div>
 </aside>
 
 <script>
@@ -575,6 +582,21 @@ function cylMesh(r,h,n,r1=r,twist=0,caps=true){const tris=[],lines=[];const ring
   for(let i=0;i<n;i++){const j=(i+1)%n;tris.push([b[i],b[j],t[j]],[b[i],t[j],t[i]]);lines.push([b[i],b[j]],[t[i],t[j]]);if(i%(n/4|0)===0)lines.push([b[i],t[i]]);}
   if(caps){const c0=V(0,0,0),c1=V(0,0,h);for(let i=0;i<n;i++){const j=(i+1)%n;tris.push([b[j],b[i],c0],[t[i],t[j],c1]);}}
   return {tris,lines};}
+/* Sphere and torus: registered verbs in Scripts/*.arc (sphere ×27, torus ×11) that had no mesh at
+   all in the panel, so those script lines drew nothing. Centre at the local origin, Z-up. */
+function sphereMesh(r,nu=32,nv=16){const tris=[],lines=[];
+  const P=(i,j)=>{const a=i/nu*Math.PI*2,b=j/nv*Math.PI;return V(Math.sin(b)*Math.cos(a)*r,Math.sin(b)*Math.sin(a)*r,Math.cos(b)*r);};
+  for(let j=0;j<nv;j++)for(let i=0;i<nu;i++){const a=P(i,j),b=P(i+1,j),c=P(i+1,j+1),d=P(i,j+1);
+    if(j===0)tris.push([a,c,d]);else if(j===nv-1)tris.push([a,b,c]);else tris.push([a,b,c],[a,c,d]);}
+  for(let j=1;j<nv;j+=Math.max(1,(nv/4)|0)){const ring=[];for(let i=0;i<=nu;i++)ring.push(P(i,j));for(let i=0;i<nu;i++)lines.push([ring[i],ring[i+1]]);}
+  for(let i=0;i<nu;i+=Math.max(1,(nu/4)|0)){for(let j=0;j<nv;j++)lines.push([P(i,j),P(i,j+1)]);}
+  return {tris,lines,smooth:true};}
+function torusMesh(R,r,nu=40,nv=20){const tris=[],lines=[];
+  const P=(i,j)=>{const a=i/nu*Math.PI*2,b=j/nv*Math.PI*2;return V((R+r*Math.cos(b))*Math.cos(a),(R+r*Math.cos(b))*Math.sin(a),r*Math.sin(b));};
+  for(let i=0;i<nu;i++)for(let j=0;j<nv;j++)tris.push([P(i,j),P(i+1,j),P(i+1,j+1)],[P(i,j),P(i+1,j+1),P(i,j+1)]);
+  for(let j=0;j<nv;j+=Math.max(1,(nv/4)|0)){for(let i=0;i<nu;i++)lines.push([P(i,j),P(i+1,j)]);}
+  for(let i=0;i<nu;i+=Math.max(1,(nu/8)|0)){for(let j=0;j<nv;j++)lines.push([P(i,j),P(i,j+1)]);}
+  return {tris,lines,smooth:true};}
 function planeMesh(w,h,sub){const tris=[],lines=[];const x=w/2,y=h/2;tris.push([V(-x,-y,0),V(x,-y,0),V(x,y,0)],[V(-x,-y,0),V(x,y,0),V(-x,y,0)]);
   for(let i=0;i<=sub;i++){const u=-x+w*i/sub,v=-y+h*i/sub;lines.push([V(u,-y,0),V(u,y,0)],[V(-x,v,0),V(x,v,0)]);}return {tris,lines,twoSided:true};}
 function loopScreen(f){const lp=loopOf(f);if(!lp||!planarLoop(f))return null;const vz=f.params.vz||[];const s=lp.map((q,i)=>project(xform(f,[q[0],q[1],vz[i]||0])));return s.some(x=>!x)?null:s;}
@@ -861,6 +883,9 @@ function curveLines(c){const p=c.params,L=[];
   return {tris:[],lines:L};}
 function build(f){const p=f.params;
   if(f.kind==='body'){if(f.op==='box')return boxMesh(p.w,p.d,p.h);if(f.op==='cylinder')return cylMesh(p.r,p.h,p.segs|0);
+    if(f.op==='sphere')return sphereMesh(p.r,Math.max(8,p.segs|0),Math.max(4,(p.segs|0)/2));
+    if(f.op==='cone')return cylMesh(p.r,p.h,Math.max(3,p.segs|0),p.r1||0);
+    if(f.op==='torus')return torusMesh(p.R,p.r,Math.max(8,p.segs|0),Math.max(6,((p.segs|0)/2)|0));
     if(f.op==='extrude'){const s=byId(f.src);if(!s)return {tris:[],lines:[]};if(f.profile){return applyFaceOps(solidBuild(f),f.faceOps);}return extrudeMesh(s,p.height,p.draft);}
     if(f.op==='loft'){const secs=(f.sections||[]).map(id=>{const c=byId(id);const pf=profileOf(c);return pf&&pf.regions.length?{pts:pf.regions[0].outer,sk:pf.sk}:null;}).filter(Boolean);return {...loftMesh(secs,Math.max(8,p.segs|0),f.params.closed!==false),worldSpace:true};}
     if(f.op==='subtract'){const a=byId(f.a),b=byId(f.b);const m=boxMesh(a.params.w,a.params.d,a.params.h);
@@ -883,6 +908,9 @@ function rebuildAll(){meshCache.clear();topoCache.clear();renderOutliner();rende
 function measure(f){const p=f.params;
   if(f.kind==='body'){if(f.op==='box')return {v:p.w*p.d*p.h,u:'mm³',lab:'volume',rows:[['faces',6],['edges',12],['vertices',8]]};
     if(f.op==='cylinder')return {v:Math.PI*p.r*p.r*p.h,u:'mm³',lab:'volume',rows:[['faces',3],['edges',2],['segments',p.segs|0]]};
+    if(f.op==='sphere')return {v:4/3*Math.PI*p.r*p.r*p.r,u:'mm³',lab:'volume',rows:[['faces',1],['edges',0],['radius',fmt(p.r,2)+' mm']]};
+    if(f.op==='cone'){const r1=p.r1||0;return {v:Math.PI*p.h/3*(p.r*p.r+p.r*r1+r1*r1),u:'mm³',lab:'volume',rows:[['faces',r1>0?3:2],['edges',r1>0?2:1],['half-angle',fmt(Math.atan2(Math.abs(p.r-r1),p.h)*180/Math.PI,1)+'°']]};}
+    if(f.op==='torus')return {v:2*Math.PI*Math.PI*p.R*p.r*p.r,u:'mm³',lab:'volume',rows:[['faces',1],['edges',0],['major · minor',fmt(p.R,1)+' · '+fmt(p.r,1)+' mm']]};
     if(f.op==='loft'){const m=meshOf(f);let a=0;m.tris.forEach(t=>{a+=Math.hypot(...cross(sub(t[1],t[0]),sub(t[2],t[0])))/2;});return {v:a,u:'mm²',lab:'surface area',rows:[['sections',(f.sections||[]).length],['triangles',m.tris.length]]};}
     if(f.op==='extrude'&&f.profile){const m=meshOf(f);const br=m.brep||{faces:[],edges:[]};return {v:meshVolume(m),u:'mm³',lab:'volume',rows:[['faces',br.faces.length],['edges',br.edges.filter(e=>!e.tangent).length+(br.edges.some(e=>e.tangent)?' + '+br.edges.filter(e=>e.tangent).length+' tangent':'')],['height',fmt(p.height,1)+' mm'],...(f.edits&&f.edits.length?[['edge edits',f.edits.length]]:[]),...(f.faceOps&&f.faceOps.length?[['face features',f.faceOps.length]]:[])]};}
     if(f.op==='extrude'){const s=byId(f.src);const {outer,holes}=sketchProfile(s);const area=polyArea(outer)-holes.reduce((a,h)=>a+polyArea(h),0);return {v:area*p.height,u:'mm³',lab:'volume',rows:[['profile',fmt(area,0)+' mm²'],['faces',outer.length+holes.length+2],['loops',1+holes.length]]};}
@@ -1125,7 +1153,18 @@ function deleteFigures(ids){ids=new Set([...ids].filter(id=>typeof id==='number'
   doc.sel=new Set([...doc.sel].filter(id=>!ids.has(id)));sub_.sel.forEach((h,k)=>{if(ids.has(h.fig))sub_.sel.delete(k);});
   topoCache.clear();rebuildAll();renderCat();log('delete '+names.join(', '));return ids.size;}
 function delSel(){if(!doc.sel.size)return;snapshot('delete');deleteFigures(doc.sel);}
-const logs=[];function log(s){logs.push(s);if(logs.length>6)logs.shift();const l=$('#log');if(l){l.innerHTML=logs.map(x=>`<div><span class="p">›</span> ${x}</div>`).join('');l.scrollTop=1e5;}}
+/* The console transcript. `#conlog` is static markup so it exists no matter what is selected — the
+   old `#log` only existed inside a single-figure inspector, so every message typed with an empty
+   selection (i.e. every command-line message) used to be thrown away. `#log` is still mirrored. */
+const logs=[];const esc_=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function logLine(s,cls){logs.push({s:String(s),cls:cls||''});if(logs.length>200)logs.shift();
+  const row=e=>`<div class="${e.cls}"><span class="p">${e.cls==='echo'?'›':' '}</span> ${esc_(e.s)}</div>`;
+  const c=$('#conlog');if(c){c.innerHTML=logs.map(row).join('');c.scrollTop=1e5;}
+  const l=$('#log');if(l){l.innerHTML=logs.slice(-6).map(row).join('');l.scrollTop=1e5;}}
+function log(s){logLine(s,'');}
+function logEcho(s){logLine(s,'echo dim');}
+function logBad(s){logLine(s,'bad');}
+function logOk(s){logLine(s,'good');}
 function drawHeroViz(f){const c=$('#heroViz');if(!c)return;const g=c.getContext('2d');g.clearRect(0,0,240,160);const m=meshOf(f);const pts=[];m.lines.forEach(l=>pts.push(...l));m.tris.forEach(t=>pts.push(...t));if(!pts.length)return;
   // tiny iso projection of the figure in its local frame
   const P=p=>{const x=(p[0]-p[1])*0.86,y=(p[0]+p[1])*0.5-p[2];return [x,y]};const pp=pts.map(P);const xs=pp.map(p=>p[0]),ys=pp.map(p=>p[1]);const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);const s=Math.min(200/((mxx-mnx)||1),120/((mxy-mny)||1))*0.9;const ox=120-(mnx+mxx)/2*s,oy=80+(mny+mxy)/2*s;
@@ -2314,21 +2353,329 @@ function drawToolPreview(g){if(!tool)return;const pl=activePlane();if(!pl)return
     g.font='10px JetBrains Mono, monospace';g.fillStyle='rgba(255,255,255,.7)';g.textAlign='left';g.fillText((modKeys.ctrl||modKeys.alt)?`${fmt(hover[0],2)}, ${fmt(hover[1],2)}  ·  ${snapHit?snapHit.kind:(modKeys.ctrl?'⌃ point snap':'⌥ along curve')}`:`${hover[0]}, ${hover[1]}`,s[0]+10,s[1]-8);
     if(tool.pts.length){const a=tool.pts[tool.pts.length-1];const dd=Math.hypot(hover[0]-a[0],hover[1]-a[1]);g.fillText(`${fmt(dd,1)} mm`,s[0]+10,s[1]+14);}}}}
 
-/* ── command line (mirrors the .arc console verbs) ─────────── */
-$('#cmdIn').addEventListener('keydown',e=>{if(e.key!=='Enter')return;const s=e.target.value.trim();e.target.value='';if(!s)return;runCmd(s);});
-function runCmd(s){const [v,...a]=s.split(/\s+/);const N=a.map(Number);snapshot(s);log(s);
-  if(v==='box'&&a.length>=3){const f=mk('body','Box'+String(doc.figures.filter(x=>x.op==='box').length+1).padStart(2,'0'),{w:N[0],d:N[1],h:N[2]},{op:'box',pos:[N[3]||0,N[4]||0,N[5]||0]});doc.figures.push(f);doc.sel=new Set([f.id]);}
-  else if(v==='cylinder'&&a.length>=2){const f=mk('body','Cylinder'+String(doc.figures.filter(x=>x.op==='cylinder').length+1).padStart(2,'0'),{r:N[0],h:N[1],segs:32},{op:'cylinder',pos:[N[2]||0,N[3]||0,N[4]||0]});doc.figures.push(f);doc.sel=new Set([f.id]);}
-  else if(v==='extrude'&&a.length>=2){const sk=doc.figures.find(x=>x.name===a[0]&&x.kind==='sketch');if(sk){const f=mk('body','Extrude'+String(doc.figures.filter(x=>x.op==='extrude').length+1).padStart(2,'0'),{height:N[1],draft:0},{op:'extrude',src:sk.id,recipe:[sk.name,'extrude'],pos:[...sk.pos]});doc.figures.push(f);doc.sel=new Set([f.id]);}else log('no sketch '+a[0]);}
-  else if(v==='dim'){if(a[0]==='on')doc.dims=true;else if(a[0]==='off')doc.dims=false;else{const t=doc.figures.find(x=>x.name===a[0]);if(t&&a[1]in t.params)doc.figures.push(mk('dim',`Dim · ${t.name} ${a[1]}`,{},{target:t.id,key:a[1]}));}}
-  else if(v==='hide'||v==='show'){const t=doc.figures.find(x=>x.name===a[0]);if(t)t.visible=v==='show';}
-  else if(v==='delete'){const t=doc.figures.find(x=>x.name===a[0]);if(t){doc.sel=new Set([t.id]);delSel();return;}}
-  else if(v==='select'){const t=doc.figures.find(x=>x.name===a[0]);if(t)doc.sel=new Set([t.id]);}
-  else if(v==='view'){setView(a[0]);}
-  else if(v==='plane'){const o={base:'XY',offset:0,tilt:0,size:200,show:true};a.forEach(x=>{const m=x.match(/^--(\w+)=(.+)$/);if(m)o[m[1]]=isNaN(+m[2])?m[2]:+m[2];else if(/^(XY|XZ|YZ)$/i.test(x))o.base=x.toUpperCase();});createWorkplane(o);return;}
-  else if(v==='undo'){dropSnapshot();undo();return;}
-  else log('unknown verb: '+v+'  (plane · box · cylinder · extrude · dim · hide · show · delete · select · view)');
-  rebuildAll();}
+/* ══ command line — the .arc grammar, ported from Console/CommandCodec.cpp ══════════════════════════
+   The panel and the C++ ConsoleHost must accept exactly the same text, because Scripts/*.arc is the
+   shared regression corpus. Previously this was `s.split(/\s+/)` + `Number()`, which could not read a
+   vector or a flag: `box (0,0,0) 40 30 20` parsed as w=NaN and silently built a wrong solid, and
+   `circle (0,0) 12` did nothing at all. Both halves now tokenise identically and refuse identically. */
+
+/* ── tokeniser: a statement-for-statement port of CommandCodec::Decode ────────────────────────── */
+function arcNumber(tok){                                                    // ParseNumber: must consume the whole token
+  if(tok==null||tok==='')return null;
+  if(!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(tok))return null;
+  const n=Number(tok);return isFinite(n)?n:null;}
+function arcPoint(tok){                                                     // ParsePoint: (x,y[,z]) — z defaults 0
+  if(typeof tok!=='string'||tok.length<3||tok[0]!=='('||tok[tok.length-1]!==')')return null;
+  const parts=tok.slice(1,-1).split(',');if(parts.length<2||parts.length>3)return null;
+  const v=[0,0,0];for(let i=0;i<parts.length;i++){const n=arcNumber(parts[i].trim());if(n===null)return null;v[i]=n;}
+  return v;}
+function arcDecode(line){                                                   // → {cmds:[{verb,args,flags}]} | {error}
+  const cmds=[];let toks=[],cur='',quote=false,depth=0;
+  const flushTok=()=>{if(cur!==''){toks.push(cur);cur='';}};
+  const flushCmd=()=>{flushTok();if(!toks.length)return;
+    const c={verb:toks[0].toLowerCase(),args:[],flags:new Map()};
+    for(let i=1;i<toks.length;i++){const t=toks[i];
+      if(t.length>2&&t[0]==='-'&&t[1]==='-'){const eq=t.indexOf('=');
+        if(eq<0)c.flags.set(t.slice(2),'');else c.flags.set(t.slice(2,eq),t.slice(eq+1));}
+      else c.args.push(t);}
+    cmds.push(c);toks=[];};
+  for(let i=0;i<line.length;i++){const ch=line[i];
+    if(quote){if(ch==='"')quote=false;else cur+=ch;continue;}
+    if(ch==='"'){quote=true;continue;}
+    if(ch==='#'&&depth===0)break;                                           // comment to end of line
+    if(ch==='(')depth++;
+    if(ch===')'){if(--depth<0)return {error:"unbalanced ')'"};}
+    if(depth===0&&ch===';'){flushCmd();continue;}                           // several commands per line
+    if(depth===0&&/\s/.test(ch)){flushTok();continue;}
+    if(depth>0&&/\s/.test(ch))continue;                                     // allow "(1, 2, 3)"
+    cur+=ch;}
+  if(quote)return {error:'unterminated string'};
+  if(depth!==0)return {error:"unbalanced '('"};
+  flushCmd();return {cmds};}
+
+/* ── refusal channel (mirrors ConsoleHost::Refuse — fail fast, say why) ───────────────────────── */
+let arcRefused=false;
+function refuse(msg){arcRefused=true;logBad('✗ '+msg);return false;}
+const usageOf=v=>(CMDS[v]&&CMDS[v].usage)?'  — usage: '+CMDS[v].usage:'';
+function needArgs(c,n){return c.args.length>=n||refuse(`${c.verb}: expected ${n} argument(s), got ${c.args.length}${usageOf(c.verb)}`);}
+function argPoint(c,i){const p=arcPoint(c.args[i]);
+  return p!==null?p:(refuse(`${c.verb}: argument ${i+1} must be a point (x,y[,z])${usageOf(c.verb)}`),null);}
+function argNum(c,i){const n=arcNumber(c.args[i]);
+  return n!==null?n:(refuse(`${c.verb}: argument ${i+1} must be a number${usageOf(c.verb)}`),null);}
+function flagNum(c,name,dflt){if(!c.flags.has(name))return dflt;const n=arcNumber(c.flags.get(name));
+  return n!==null?n:(refuse(`${c.verb}: --${name} must be a number`),null);}
+
+/* ── name resolution ─────────────────────────────────────────────────────────────────────────── */
+function figByName(c,tok){const f=doc.figures.find(x=>x.name.toLowerCase()===String(tok).toLowerCase());
+  return f||(refuse(`${c.verb}: no figure named '${tok}'`),null);}
+function figsFrom(c,from){                                                  // names, or `selected`
+  const toks=c.args.slice(from);
+  if(!toks.length||toks[0]==='selected'){const s=[...doc.sel].map(byId).filter(Boolean);
+    return s.length?s:(refuse(`${c.verb}: nothing selected`),null);}
+  const out=[];for(const t of toks){const f=figByName(c,t);if(!f)return null;out.push(f);}
+  return out;}
+
+/* ── sketch plumbing: curve verbs land on the active workplane, exactly like the mouse tools ──── */
+function arcSketch(c){const pl=activePlane();
+  if(!pl)return refuse(`${c.verb}: no workplane — use \`workplane xy\` or \`plane\` first`),null;
+  let sk=byId(active_.sketch);
+  if(!sk||sk.planeId!==pl.id){sk=mk('sketch',nextName('Sketch'),{},{plane:pl.axis,planeId:pl.id,children:[]});
+    doc.figures.push(sk);active_.sketch=sk.id;}
+  return sk;}
+function arcCurve(c,stem,ctype,params){const sk=arcSketch(c);if(!sk)return null;
+  const name=c.flags.get('name')||nextName(stem);
+  const f=mk('curve',name,params,{ctype,parent:sk.id,cons:c.flags.has('construction')});
+  doc.figures.push(f);sk.children.push(f.id);invalidate(sk.id);doc.sel=new Set([f.id]);
+  logOk(`${name} · ${ctype} in ${sk.name}`);return f;}
+function arcBody(c,stem,op,params,pos){const name=c.flags.get('name')||nextName(stem);
+  const f=mk('body',name,params,{op,pos:pos||[0,0,0]});doc.figures.push(f);doc.sel=new Set([f.id]);
+  const m=measure(f);logOk(`${name} · ${op} · ${fmt(m.v,2)} ${m.u}`);return f;}
+
+/* ── the registry. `usage` strings are copied from ConsoleHost.cpp's Add(verb, help, …) so the two
+      help texts cannot drift apart. `query:true` = never touches the document, so never snapshots. */
+const CMDS={
+
+  /* ---- session ---------------------------------------------------------------------------- */
+  echo:{usage:'echo text',query:true,run:c=>{log(c.args.join(' '));return true;}},
+  help:{usage:'help [verb]',query:true,run:c=>{
+    if(c.args.length){const v=c.args[0].toLowerCase();const e=CMDS[v];
+      if(!e)return refuse(`help: unknown verb '${v}'`);
+      log(`${v} — ${e.usage}`);if(e.todo)log('   (not in the HTML prototype yet — C++ host only)');return true;}
+    const live=Object.keys(CMDS).filter(k=>!CMDS[k].todo).sort();
+    const todo=Object.keys(CMDS).filter(k=>CMDS[k].todo).sort();
+    log('available · '+live.join(' '));log('C++ host only · '+todo.join(' '));
+    log('grammar: verb arg… · points (x,y[,z]) · switches --flag[=value] · `;` separates · `#` comment');return true;}},
+  reset:{usage:'reset — clear the scene back to empty (and the workplane to XY)',run:()=>{
+    doc.figures=[];doc.sel=new Set();sub_.sel.clear();active_.plane=null;active_.sketch=null;
+    createWorkplane({base:'XY',offset:0,tilt:0,size:200,show:true});logOk('scene reset');return true;}},
+  list:{usage:'list — every figure with its measurements',query:true,run:()=>{
+    if(!doc.figures.length){log('(empty document)');return true;}
+    doc.figures.forEach(f=>{const m=measure(f);
+      log(`${f.name.padEnd(14)} ${f.kind.padEnd(8)} ${f.visible?' ':'·'} ${isFinite(m.v)?fmt(m.v,2)+' '+m.u:''}`);});
+    log(`${doc.figures.length} figures`);return true;}},
+  undo:{usage:'undo',run:()=>{undo();return true;}},
+  redo:{usage:'redo',run:()=>{redo();return true;}},
+
+  /* ---- selection / view ------------------------------------------------------------------- */
+  select:{usage:'select <figure...> | all | none | invert',query:true,run:c=>{
+    const a=(c.args[0]||'').toLowerCase();
+    if(a==='all'){doc.sel=new Set(doc.figures.map(f=>f.id));}
+    else if(a==='none'||!c.args.length){doc.sel=new Set();}
+    else if(a==='invert'){const s=new Set(doc.figures.filter(f=>!doc.sel.has(f.id)).map(f=>f.id));doc.sel=s;}
+    else{const fs=figsFrom(c,0);if(!fs)return false;doc.sel=new Set(fs.map(f=>f.id));}
+    sub_.sel.clear();log(`${doc.sel.size} selected`);renderOutliner();renderInspector();draw();return true;}},
+  view:{usage:'view front|back|right|left|top|bottom|iso|persp|ortho · view fit [selected]',query:true,run:c=>{
+    const a=(c.args[0]||'').toLowerCase();
+    if(a==='fit'){focusSelection();return true;}
+    if(a==='persp'){if(view.ortho)setView('ortho');return true;}
+    if(a==='ortho'){if(!view.ortho)setView('ortho');return true;}
+    const named={top:[90,89.9],bottom:[90,-89.9],front:[-90,0],back:[90,0],right:[0,0],left:[180,0],iso:[45,30]};
+    if(!(a in named))return refuse(`view: unknown view '${c.args[0]||''}'${usageOf('view')}`);
+    if(a==='top'||a==='front'||a==='right'||a==='iso')setView(a);
+    else{view.az=named[a][0];view.el=named[a][1];
+      $$('#views button:not(#orthoBtn)').forEach(b=>b.classList.remove('on'));
+      $('#vname').textContent=(view.ortho?'Orthographic':'Perspective')+' · '+a;draw();}
+    return true;}},
+  hide:{usage:'hide <figure...>',run:c=>{const fs=figsFrom(c,0);if(!fs)return false;
+    fs.forEach(f=>f.visible=false);log(`hid ${fs.length}`);return true;}},
+  show:{usage:'show <figure...>',run:c=>{const fs=figsFrom(c,0);if(!fs)return false;
+    fs.forEach(f=>f.visible=true);log(`showed ${fs.length}`);return true;}},
+  delete:{usage:'delete <figure...>',run:c=>{const fs=figsFrom(c,0);if(!fs)return false;
+    const n=deleteFigures(new Set(fs.map(f=>f.id)));log(`deleted ${n}`);return true;}},
+  move:{usage:'move <figure...> (dx,dy,dz)',run:c=>{if(!needArgs(c,2))return false;
+    const d=argPoint(c,c.args.length-1);if(!d)return false;
+    const fs=figsFrom({...c,args:c.args.slice(0,-1),verb:c.verb},0);if(!fs)return false;
+    fs.forEach(f=>{f.pos=[f.pos[0]+d[0],f.pos[1]+d[1],f.pos[2]+d[2]];invalidateXf(f);});
+    log(`moved ${fs.length} by (${d.join(',')})`);return true;}},
+  rename:{usage:'rename <figure> <newName>',run:c=>{if(!needArgs(c,2))return false;
+    const f=figByName(c,c.args[0]);if(!f)return false;
+    if(doc.figures.some(x=>x!==f&&x.name===c.args[1]))return refuse(`rename: '${c.args[1]}' already exists`);
+    log(`${f.name} → ${c.args[1]}`);f.name=c.args[1];return true;}},
+
+  /* ---- workplanes ------------------------------------------------------------------------- */
+  workplane:{usage:'workplane xy|xz|yz [--origin=(x,y,z)]',run:c=>{if(!needArgs(c,1))return false;
+    const b=c.args[0].toUpperCase();
+    if(!/^(XY|XZ|YZ)$/.test(b))return refuse(`workplane: expected xy, xz or yz${usageOf('workplane')}`);
+    const o=c.flags.has('origin')?arcPoint(c.flags.get('origin')):null;
+    if(c.flags.has('origin')&&!o)return refuse('workplane: --origin must be a point (x,y,z)');
+    const f=createWorkplane({base:b,offset:o?o[2]:0,tilt:0,size:200,show:true});
+    if(o){f.pos=[o[0],o[1],0];invalidateXf(f);}
+    return true;}},
+  plane:{usage:'plane (origin) lengthU lengthV [--name=N]  ·  plane xy|xz|yz [--offset=d]',run:c=>{
+    const o={base:'XY',offset:0,tilt:0,size:200,show:true};
+    if(c.args.length&&/^(XY|XZ|YZ)$/i.test(c.args[0]))o.base=c.args[0].toUpperCase();
+    else if(c.args.length){const p=argPoint(c,0);if(!p)return false;
+      const lu=argNum(c,1);if(lu===null)return false;o.size=lu;o.offset=p[2];}
+    const off=flagNum(c,'offset',o.offset);if(off===null)return false;o.offset=off;
+    const tilt=flagNum(c,'tilt',0);if(tilt===null)return false;o.tilt=tilt;
+    const sz=flagNum(c,'size',o.size);if(sz===null)return false;o.size=sz;
+    const f=createWorkplane(o);if(c.flags.get('name'))f.name=c.flags.get('name');
+    return true;}},
+
+  /* ---- sketch curves (points are workplane u,v) -------------------------------------------- */
+  line:{usage:'line (x,y[,z]) (x,y[,z]) [--name=N] [--construction]',run:c=>{if(!needArgs(c,2))return false;
+    const a=argPoint(c,0),b=argPoint(c,1);if(!a||!b)return false;
+    return !!arcCurve(c,'Line','line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1]});}},
+  rect:{usage:'rect (x,y) (x,y) [--center]',run:c=>{if(!needArgs(c,2))return false;
+    let a=argPoint(c,0),b=argPoint(c,1);if(!a||!b)return false;
+    if(c.flags.has('center')){const w=Math.abs(b[0]-a[0]),h=Math.abs(b[1]-a[1]);a=[a[0]-w,a[1]-h];b=[a[0]+2*w,a[1]+2*h];}
+    return !!arcCurve(c,'Rect','poly',{pts:[[a[0],a[1]],[b[0],a[1]],[b[0],b[1]],[a[0],b[1]]],closed:true});}},
+  circle:{usage:'circle (cx,cy[,cz]) radius',run:c=>{if(!needArgs(c,2))return false;
+    const p=argPoint(c,0);if(!p)return false;const r=argNum(c,1);if(r===null)return false;
+    if(r<=0)return refuse('circle: radius must be > 0');
+    return !!arcCurve(c,'Circle','circle',{cx:p[0],cy:p[1],r});}},
+  arc:{usage:'arc (cx,cy) radius startDeg sweepDeg',run:c=>{if(!needArgs(c,4))return false;
+    const p=argPoint(c,0);if(!p)return false;
+    const r=argNum(c,1),a0=argNum(c,2),sw=argNum(c,3);if(r===null||a0===null||sw===null)return false;
+    if(r<=0)return refuse('arc: radius must be > 0');
+    return !!arcCurve(c,'Arc','arc',{cx:p[0],cy:p[1],r,a0,a1:a0+sw});}},
+  ellipse:{usage:'ellipse (cx,cy) radiusMajor radiusMinor [--rotation=deg]',run:c=>{if(!needArgs(c,3))return false;
+    const p=argPoint(c,0);if(!p)return false;
+    const rx=argNum(c,1),ry=argNum(c,2);if(rx===null||ry===null)return false;
+    if(rx<=0||ry<=0)return refuse('ellipse: radii must be > 0');
+    const rot=flagNum(c,'rotation',0);if(rot===null)return false;
+    return !!arcCurve(c,'Ellipse','ellipse',{cx:p[0],cy:p[1],rx,ry,tilt:rot});}},
+  polygon:{usage:'polygon (cx,cy) radius sides [--rotation=deg] [--circumscribed]',run:c=>{if(!needArgs(c,3))return false;
+    const p=argPoint(c,0);if(!p)return false;
+    let r=argNum(c,1);const k=argNum(c,2);if(r===null||k===null)return false;
+    if(k<3||k!==Math.round(k))return refuse('polygon: sides must be a whole number ≥ 3');
+    if(r<=0)return refuse('polygon: radius must be > 0');
+    const rot=flagNum(c,'rotation',0);if(rot===null)return false;
+    if(c.flags.has('circumscribed'))r/=Math.cos(Math.PI/k);
+    const t0=rot*Math.PI/180;
+    return !!arcCurve(c,'Polygon','poly',{pts:Array.from({length:k},(_,i)=>{const q=t0+i/k*Math.PI*2;
+      return [p[0]+Math.cos(q)*r,p[1]+Math.sin(q)*r];}),closed:true});}},
+  slot:{usage:'slot (ax,ay) (bx,by) radius',run:c=>{if(!needArgs(c,3))return false;
+    const a=argPoint(c,0),b=argPoint(c,1);if(!a||!b)return false;
+    const r=argNum(c,2);if(r===null)return false;
+    if(r<=0)return refuse('slot: radius must be > 0');
+    const P=[[a[0],a[1]],[b[0],b[1]]];const O=slotOutline(P,r);
+    return !!arcCurve(c,'Slot','poly',{pts:O.pts,bulge:O.bulge,closed:true,spine:P,r});}},
+  polyline:{usage:'polyline (x,y) (x,y) [(x,y)…] [--close]',run:c=>{if(!needArgs(c,2))return false;
+    const P=[];for(let i=0;i<c.args.length;i++){const p=argPoint(c,i);if(!p)return false;P.push([p[0],p[1]]);}
+    return !!arcCurve(c,'Polyline','poly',{pts:P,closed:c.flags.has('close')&&P.length>2});}},
+  point:{usage:'point (x,y[,z])',run:c=>{if(!needArgs(c,1))return false;
+    const p=argPoint(c,0);if(!p)return false;
+    return !!arcCurve(c,'Point','point',{cx:p[0],cy:p[1]});}},
+
+  /* ---- solids (points are world x,y,z) ----------------------------------------------------- */
+  box:{usage:'box (cornerA) (cornerB)  ·  box (corner) dx dy dz — solid body',run:c=>{if(!needArgs(c,2))return false;
+    const a=argPoint(c,0);if(!a)return false;
+    let w,d,h,pos;
+    if(c.args.length>=4){const x=argNum(c,1),y=argNum(c,2),z=argNum(c,3);if(x===null||y===null||z===null)return false;
+      w=Math.abs(x);d=Math.abs(y);h=Math.abs(z);pos=[a[0]+x/2,a[1]+y/2,a[2]];}
+    else{const b=argPoint(c,1);if(!b)return false;
+      w=Math.abs(b[0]-a[0]);d=Math.abs(b[1]-a[1]);h=Math.abs(b[2]-a[2]);
+      pos=[(a[0]+b[0])/2,(a[1]+b[1])/2,Math.min(a[2],b[2])];}
+    if(w<=0||d<=0||h<=0)return refuse('box: needs a non-zero extent on every axis');
+    return !!arcBody(c,'Box','box',{w,d,h},pos);}},
+  cylinder:{usage:'cylinder (foot) radius height',run:c=>{if(!needArgs(c,3))return false;
+    const p=argPoint(c,0);if(!p)return false;
+    const r=argNum(c,1),h=argNum(c,2);if(r===null||h===null)return false;
+    if(r<=0||h<=0)return refuse('cylinder: radius and height must be > 0');
+    return !!arcBody(c,'Cylinder','cylinder',{r,h,segs:32},p);}},
+  sphere:{usage:'sphere (cx,cy,cz) radius',run:c=>{if(!needArgs(c,2))return false;
+    const p=argPoint(c,0);if(!p)return false;const r=argNum(c,1);if(r===null)return false;
+    if(r<=0)return refuse('sphere: radius must be > 0');
+    return !!arcBody(c,'Sphere','sphere',{r,segs:32},p);}},
+  cone:{usage:'cone (foot) radiusFoot radiusTop height',run:c=>{if(!needArgs(c,4))return false;
+    const p=argPoint(c,0);if(!p)return false;
+    const r0=argNum(c,1),r1=argNum(c,2),h=argNum(c,3);if(r0===null||r1===null||h===null)return false;
+    if(r0<=0||h<=0)return refuse('cone: foot radius and height must be > 0');
+    if(r1<0)return refuse('cone: top radius must be ≥ 0');
+    return !!arcBody(c,'Cone','cone',{r:r0,r1,h,segs:32},p);}},
+  torus:{usage:'torus (centre) radiusMajor radiusMinor',run:c=>{if(!needArgs(c,3))return false;
+    const p=argPoint(c,0);if(!p)return false;
+    const R=argNum(c,1),r=argNum(c,2);if(R===null||r===null)return false;
+    if(R<=0||r<=0)return refuse('torus: both radii must be > 0');
+    if(r>=R)return refuse('torus: minor radius must be smaller than the major radius');
+    return !!arcBody(c,'Torus','torus',{R,r,segs:40},p);}},
+  extrude:{usage:'extrude <curve|sketch> length',run:c=>{if(!needArgs(c,2))return false;
+    const f=figByName(c,c.args[0]);if(!f)return false;
+    const h=argNum(c,1);if(h===null)return false;
+    if(h===0)return refuse('extrude: length must be non-zero');
+    if(f.kind==='curve'){const sk=byId(f.parent);
+      if(!sk)return refuse(`extrude: '${f.name}' has no sketch`);
+      if(!loopOf(f))return refuse(`extrude: '${f.name}' is not a closed profile`);
+      const b=mk('body',c.flags.get('name')||nextName('Extrude'),{height:h,draft:0},
+        {op:'extrude',src:sk.id,profile:f.id,recipe:[f.name,'extrude '+fmt(h,1)],pos:[0,0,0]});
+      doc.figures.push(b);invalidate(b.id);doc.sel=new Set([b.id]);
+      logOk(`${b.name} · extrude ${f.name} ${fmt(h,1)} mm`);return true;}
+    if(f.kind==='sketch'){if(!f.children.length)return refuse(`extrude: '${f.name}' is empty`);
+      const b=mk('body',c.flags.get('name')||nextName('Extrude'),{height:h,draft:0},
+        {op:'extrude',src:f.id,recipe:[f.name,'extrude'],pos:[...f.pos]});
+      doc.figures.push(b);invalidate(b.id);doc.sel=new Set([b.id]);
+      logOk(`${b.name} · extrude ${f.name} ${fmt(h,1)} mm`);return true;}
+    return refuse(`extrude: '${f.name}' is neither a curve nor a sketch`);}},
+
+  /* ---- edits / queries ---------------------------------------------------------------------- */
+  fillet:{usage:'fillet <body> radius --edges=key[,key…]  ·  fillet <body> radius (all cap edges)',run:c=>{
+    if(!needArgs(c,2))return false;
+    const f=figByName(c,c.args[0]);if(!f)return false;
+    const r=argNum(c,1);if(r===null)return false;
+    if(r<=0)return refuse('fillet: radius must be > 0');
+    if(f.kind!=='body'||!f.profile)return refuse(`fillet: '${f.name}' is not an extruded solid (2D corner fillet is a UI tool)`);
+    const keys=c.flags.has('edges')?c.flags.get('edges').split(',').filter(Boolean):['top:all'];
+    f.edits=(f.edits||[]).concat(keys.map(k=>({type:'fillet',key:k,r})));
+    invalidate(f.id);topoCache.clear();logOk(`${f.name} · fillet ${fmt(r,2)} mm on ${keys.join(' ')}`);return true;}},
+  chamfer:{usage:'chamfer <body> setback --edges=key[,key…]',run:c=>{if(!needArgs(c,2))return false;
+    const f=figByName(c,c.args[0]);if(!f)return false;
+    const d=argNum(c,1);if(d===null)return false;
+    if(d<=0)return refuse('chamfer: setback must be > 0');
+    if(f.kind!=='body'||!f.profile)return refuse(`chamfer: '${f.name}' is not an extruded solid`);
+    const keys=c.flags.has('edges')?c.flags.get('edges').split(',').filter(Boolean):['top:all'];
+    f.edits=(f.edits||[]).concat(keys.map(k=>({type:'chamfer',key:k,r:d})));
+    invalidate(f.id);topoCache.clear();logOk(`${f.name} · chamfer ${fmt(d,2)} mm on ${keys.join(' ')}`);return true;}},
+  measure:{usage:'measure <figure...>',query:true,run:c=>{const fs=figsFrom(c,0);if(!fs)return false;
+    fs.forEach(f=>{const m=measure(f);
+      log(`${f.name} · ${m.lab} ${fmt(m.v,3)} ${m.u}${(m.rows||[]).map(r=>` · ${r[0]} ${r[1]}`).join('')}`);});
+    return true;}},
+  topology:{usage:'topology <body> — vertices, edges, faces',query:true,run:c=>{if(!needArgs(c,1))return false;
+    const f=figByName(c,c.args[0]);if(!f)return false;
+    const t=topo(f);if(!t)return refuse(`topology: '${f.name}' has no topology`);
+    log(`${f.name} · ${t.verts.length} vertices · ${t.edges.length} edges · ${t.faces.length} faces`);return true;}},
+  dim:{usage:'dim on|off  ·  dim <figure> <param>',run:c=>{
+    const a=(c.args[0]||'').toLowerCase();
+    if(a==='on'||a==='off'){doc.dims=a==='on';log('dimensions '+a);return true;}
+    if(!needArgs(c,2))return false;
+    const f=figByName(c,c.args[0]);if(!f)return false;
+    if(!(c.args[1] in f.params))
+      return refuse(`dim: '${f.name}' has no parameter '${c.args[1]}' (has: ${Object.keys(f.params).join(', ')||'none'})`);
+    doc.figures.push(mk('dim',`Dim · ${f.name} ${c.args[1]}`,{},{target:f.id,key:c.args[1]}));
+    logOk(`dim on ${f.name}.${c.args[1]}`);return true;}},
+};
+
+/* Verbs the C++ host has but the prototype does not implement yet. Registering them means the panel
+   answers "known verb, not ported" instead of "unknown verb" — that difference tells you whether the
+   HTML is behind the kernel or whether you simply mistyped. */
+'loft sweep pipe revolve boolean fairpatch fillpatch patch sew solidify array radial bridge join explode trim offset mirror constraint spline cpcurve render pick matcap tint gizmo recipe describe dependents intersections areas profile empty fill angle cut'
+  .split(' ').forEach(v=>{if(!CMDS[v])CMDS[v]={usage:'(C++ ConsoleHost only)',todo:true,query:true,
+    run:c=>refuse(`${c.verb}: not in the HTML prototype yet — C++ host only`)};});
+
+/* ── driver ──────────────────────────────────────────────────────────────────────────────────── */
+function runCmd(src){
+  const dec=arcDecode(src);
+  if(dec.error){logEcho(src);logBad('✗ '+dec.error);return false;}
+  if(!dec.cmds.length)return true;
+  let allOk=true;
+  for(const c of dec.cmds){
+    logEcho(dec.cmds.length>1?c.verb+' '+c.args.join(' '):src);
+    const entry=CMDS[c.verb];
+    if(!entry){logBad(`✗ unknown verb '${c.verb}' — type \`help\` for the list`);allOk=false;break;}
+    arcRefused=false;
+    const snap=!entry.query;
+    if(snap)snapshot(c.verb);
+    let ok=false;
+    try{ok=entry.run(c)!==false&&!arcRefused;}
+    catch(err){logBad('✗ '+c.verb+': '+(err&&err.message||err));ok=false;}
+    if(snap&&!ok)dropSnapshot();                        // a refused command leaves no undo entry
+    if(!ok){allOk=false;break;}                          // fail fast, like ConsoleHost::RunScript
+  }
+  rebuildAll();
+  return allOk;}
+
+$('#cmdIn').addEventListener('keydown',e=>{e.stopPropagation();
+  if(e.key!=='Enter')return;const s=e.target.value.trim();e.target.value='';if(!s)return;runCmd(s);});
 
 /* ── draggable / resizable panels ──────────────────────────── */
 const LAYOUT_KEY='solidarc.layout.v1';let zTop=30;

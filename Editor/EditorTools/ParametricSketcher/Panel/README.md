@@ -11,7 +11,60 @@ Run: `python3 -m http.server 8080` in this folder → http://localhost:8080/
 |---|---|---|
 | Outliner | groups by figure kind (Sketches → curves, Bodies, Surfaces, Construction, Dimensions), search, kind filter chips, visibility eye, multi-select (⇧), status tiles, undo counter | `doc.figures` ← `SceneDocument` listing |
 | Viewport | software raster (Z-up orbit camera, ortho/persp, canonical views), wire/flat/plastic/matcap, lattice, dimension lines, GizmoPRO stub, axis triad, prompt bar for modal tools (L/C/R/B/Y), pick, body/face/edge/vertex mode | replace `draw()` with the PNG/stream from `SoftwareRaster`; forward pointer/keys as `InputEvent` |
-| Inspector | hero card (volume/area/length + B-rep stats), presence grid (Visible/Locked/Construction/Dims), transform XYZ steppers + rotation, live parameter sliders that rebuild derived figures, recipe chain, sketch curves + constraint summary, dimensions list (+ add/remove), duplicate/isolate/delete, command line (`box`, `cylinder`, `extrude`, `dim on|off`, `hide`, `show`, `select`, `view`) | `runCmd()` ← send verb to `ConsoleHost`; sliders ← `FigureRecipe` param edit |
+| Inspector | hero card (volume/area/length + B-rep stats), presence grid (Visible/Locked/Construction/Dims), transform XYZ steppers + rotation, live parameter sliders that rebuild derived figures, recipe chain, sketch curves + constraint summary, dimensions list (+ add/remove), duplicate/isolate/delete, command line speaking the **real `.arc` grammar** (see below) | `runCmd()` ← send verb to `ConsoleHost`; sliders ← `FigureRecipe` param edit |
+
+
+## Command line — the `.arc` grammar (shared with the C++ ConsoleHost)
+
+The Inspector's `arc ›` input accepts exactly the text `Console/CommandCodec.cpp` accepts, because
+`Scripts/*.arc` is the regression corpus for both halves:
+
+```
+verb arg arg…        # comment to end of line
+(x,y)  (x,y,z)       vectors — whitespace inside is allowed: (0, 0, 5)
+--flag  --flag=value switches
+a ; b ; c            several commands on one line
+"quoted name"        quoted text
+```
+
+`arcDecode()` is a statement-for-statement port of `CommandCodec::Decode`; `arcNumber` / `arcPoint`
+mirror `ParseNumber` / `ParsePoint` (a number must consume its whole token, so `40mm` is refused
+rather than silently read as `40`).
+
+**Everything fails fast and says why**, like `ConsoleHost::Refuse` — and a refused command leaves no
+undo entry:
+
+```
+arc › box 40 30 20
+✗ box: argument 1 must be a point (x,y[,z]) — usage: box (cornerA) (cornerB) · box (corner) dx dy dz
+```
+
+Usage strings are copied from the C++ `Add(verb, help, …)` registrations so the two cannot drift.
+Output goes to a **persistent transcript pane above the input** — it is static markup, so it is
+visible whatever is selected. (Previously `log()` targeted an element that only existed inside a
+single-figure inspector, so every command-line message was silently discarded.)
+
+Implemented: `echo · help · reset · list · select · view · move · rename · hide · show · delete ·
+undo · redo · plane · workplane · line · rect · circle · arc · ellipse · polygon · slot · polyline ·
+point · box · cylinder · sphere · cone · torus · extrude · fillet · chamfer · dim · measure ·
+topology`.
+
+Verbs the C++ host has but the panel has not ported yet (`loft`, `sweep`, `boolean`, `revolve`,
+`mirror`, `array`, `render`, …) are registered as **known-but-unimplemented** and answer
+`not in the HTML prototype yet — C++ host only`. That is deliberately a *different* message from
+`unknown verb '…'`: it tells you whether the HTML is behind the kernel or whether you mistyped.
+
+`help` lists both sets. `help <verb>` prints that verb's usage.
+
+When the console host is bridged, `runCmd` collapses to a transport call — refusal rendering and the
+REPL-shaped transcript already work:
+
+```js
+function runCmd(s){ send(s); }     // → ConsoleHost::Execute(s)
+```
+
+See [`../docs/HTML_CONSOLE_AUDIT.md`](../docs/HTML_CONSOLE_AUDIT.md) for the full audit of what was
+broken and why.
 
 ## Transform gizmo (port of Slate `References/Gizmo.html`, Blender behaviour)
 Select a body and the gizmo appears at its **centre** (bounding-box middle, like Blender's median pivot), oriented with the body, ~92 px on screen at any zoom. It has three modes, chosen with the **Move / Rotate / Scale** segment in the toolbar or **G / R / S** — only the handles of the current mode are shown:

@@ -9,7 +9,7 @@ function mkEl(id){return {id,style:{setProperty(){}},classList:{add(){},remove()
 global.document={querySelector:s=>els[s]||(els[s]=mkEl(s)),querySelectorAll:()=>[],createElement:()=>mkEl(),getElementById:()=>null};
 global.ResizeObserver=class{observe(){}};global.localStorage={_:{},getItem(k){return this._[k]||null},setItem(k,v){this._[k]=v},removeItem(k){delete this._[k]}};global.Blob=class{};global.URL={createObjectURL:()=>'',revokeObjectURL(){}};global.navigator={};global.innerWidth=1600;global.innerHeight=900;
 global.KEYS=[];global.addEventListener=(t,fn)=>{if(t==='keydown')KEYS.push(fn)};global.location={search:process.argv.includes('--demo')?'?demo':''};global.URLSearchParams=class{constructor(q){this.q=q}has(k){return this.q.includes(k)}};global.devicePixelRatio=1;global.performance={now:()=>0};global.requestAnimationFrame=()=>{};
-const mod={};new Function('module',js+';\nmodule.exports={doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,polyArea,invalidate,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health,addConstraint,removeConstraint,solveSketch,evalExpr,setVar,refreshDims,dimStart,dimPickAt,dimPlaceUpdate,dimCommit,getDimTool:()=>dimTool,dimGeom,residuals,dofMap,applyConstraint,isSlot,regenSlot,setDimName,topo,planeBasis,invalidateXf,gzTarget,modStart,modEnd,modPick,trimApply,cutApply,cornerPick,cornerGeom,cornerApply,curveCuts,curvePlane,getMod:()=>modTool,subWorld,subPivot,norm,cross,sub,dot,add,mul,getCam:()=>cam,applyFaceOps,bodyMeshWith,faceHitsFromSel,faceOpApply,faceInfoWorld,subBegin,subApply,subEnd,solidFacePick,faceLoops,deleteFigures,delSel,undo,redo,focusSelection,boundsOf,solidStart,solidDown,solidMove,solidUp,solidKey,solidApply,solidEnd,getSolid:()=>solidTool,profileOf,profileMesh,loftMesh,matcapColor,meshOf,measure,modKeys,newDoc,restorePrevious,autosaveInfo,showStart,migrateLinks,spawnPoly,removeCurve,sketchProfile,edgeInfo,bulgeArc,loopOf,syncLinks,unlink,modDown,modMove,modUp,modKey,sketchRegions,regionAt,toggleRegion,fillStart,fillEnd,fillPick,offStart,offEnd,offGeom,offApply,offDown,offKey,getOff:()=>offTool,getFill:()=>fillTool,selectTool,anyTool,extrudeMesh,sketchProfile,modStart,patStart,patEnd,patApply,patDown,patKey,getPat:()=>patTool,mirrorAcross,mirrorFn,xfPoints,snapCandidates,snapPoint,modKeys,getSnap:()=>snapHit,docJSON,loadDocJSON,undoTo,redoTo,showHistory,setLastMouse:(x,y)=>{lastMouse=[x,y];},solidBuild,solidEditApply,solidHitsFromSel,solidEditKeys,topoCache,pxPerUnit,endTool,allTris,meshVolume,getMod:()=>modTool,subWorld,subPivot,applyFaceOps,bodyMeshWith,faceHitsFromSel,faceOpApply,faceInfoWorld,subBegin,subApply,subEnd,solidFacePick,faceLoops,planeHit};')(mod);const M=mod.exports;global.M=M;if(process.env.SMOKE_BOOT_ONLY)return;
+const mod={};new Function('module',js+';\nmodule.exports={arcDecode,arcNumber,arcPoint,CMDS,sphereMesh,torusMesh,doc,build,measure,runCmd,byId,draw,view,resize,pick,startOp,toolClick,finishTool,health,renderOutliner,renderInspector,xform,createWorkplane,active_,planeHit,setView,sketchProfile,gz,drawGizmo,gzHit,gzBegin,gzUpdate,gzEnd,modalStart,modalApply,modalConfirm,modalCancel,rotMat,eulerFromMat,project,gzTarget,setGzMode,gzPivot,gzSetValue,drawLiveDims,shapeFrom,loopOf,curveLines,getTool:()=>tool,polyArea,invalidate,topo,pickSub,selectSub,sub_,subBegin,subApply,subEnd,subVertices,planarLoop,loopScreen,setModes,offsetPolyline,delSub,health,addConstraint,removeConstraint,solveSketch,evalExpr,setVar,refreshDims,dimStart,dimPickAt,dimPlaceUpdate,dimCommit,getDimTool:()=>dimTool,dimGeom,residuals,dofMap,applyConstraint,isSlot,regenSlot,setDimName,topo,planeBasis,invalidateXf,gzTarget,modStart,modEnd,modPick,trimApply,cutApply,cornerPick,cornerGeom,cornerApply,curveCuts,curvePlane,getMod:()=>modTool,subWorld,subPivot,norm,cross,sub,dot,add,mul,getCam:()=>cam,applyFaceOps,bodyMeshWith,faceHitsFromSel,faceOpApply,faceInfoWorld,subBegin,subApply,subEnd,solidFacePick,faceLoops,deleteFigures,delSel,undo,redo,focusSelection,boundsOf,solidStart,solidDown,solidMove,solidUp,solidKey,solidApply,solidEnd,getSolid:()=>solidTool,profileOf,profileMesh,loftMesh,matcapColor,meshOf,measure,modKeys,newDoc,restorePrevious,autosaveInfo,showStart,migrateLinks,spawnPoly,removeCurve,sketchProfile,edgeInfo,bulgeArc,loopOf,syncLinks,unlink,modDown,modMove,modUp,modKey,sketchRegions,regionAt,toggleRegion,fillStart,fillEnd,fillPick,offStart,offEnd,offGeom,offApply,offDown,offKey,getOff:()=>offTool,getFill:()=>fillTool,selectTool,anyTool,extrudeMesh,sketchProfile,modStart,patStart,patEnd,patApply,patDown,patKey,getPat:()=>patTool,mirrorAcross,mirrorFn,xfPoints,snapCandidates,snapPoint,modKeys,getSnap:()=>snapHit,docJSON,loadDocJSON,undoTo,redoTo,showHistory,setLastMouse:(x,y)=>{lastMouse=[x,y];},solidBuild,solidEditApply,solidHitsFromSel,solidEditKeys,topoCache,pxPerUnit,endTool,allTris,meshVolume,getMod:()=>modTool,subWorld,subPivot,applyFaceOps,bodyMeshWith,faceHitsFromSel,faceOpApply,faceInfoWorld,subBegin,subApply,subEnd,solidFacePick,faceLoops,planeHit};')(mod);const M=mod.exports;global.M=M;if(process.env.SMOKE_BOOT_ONLY)return;
 let n=0;const ok=(c,m)=>{n++;if(!c){console.error('FAIL',m);process.exit(1);}};
 ok(M.doc.figures.length===1&&M.doc.figures[0].kind==='plane'&&M.doc.figures[0].params.size===200&&M.active_.plane===M.doc.figures[0].id,'new document starts with one 200 mm workplane on the lattice, active');M.doc.figures=[];M.active_.plane=null;
 M.doc.figures.forEach(f=>{M.build(f);const ms=M.measure(f);ok(isFinite(ms.v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
@@ -43,7 +43,7 @@ const sk2=M.doc.figures.filter(f=>f.kind==='sketch').pop();ok(sk2.planeId===p2.i
 const c2=M.byId(sk2.children[0]);const w=M.xform(c2,[c2.params.cx,c2.params.cy,0]);ok(Math.abs(w[1]+20)<1e-6,'XZ plane offset puts curve at y=-20, got '+w[1]);
 // 5. commands still work; extrude of drawn sketch
 if(M.anyTool&&M.anyTool())M.selectTool();
-M.runCmd('box 40 30 20');M.runCmd('extrude '+sk.name+' 12');const ex=M.doc.figures.find(f=>f.op==='extrude');ok(ex&&M.build(ex).tris.length>0,'extrude of drawn sketch builds');
+M.runCmd('box (0,0,0) 40 30 20');M.runCmd('extrude '+sk.name+' 12');const ex=M.doc.figures.find(f=>f.op==='extrude');ok(ex&&M.build(ex).tris.length>0,'extrude of drawn sketch builds');
 M.runCmd('plane YZ --offset=10');ok(M.doc.figures.filter(f=>f.kind==='plane').length===3,'plane verb');
 M.doc.figures.forEach(f=>{M.build(f);ok(isFinite(M.measure(f).v),'measure '+f.name);ok(['ok','warn','err'].includes(M.health(f).lvl),'health '+f.name);});
 const f=ex;f.rot3=[0,90,0];f.scl=[2,1,1];const pp=M.xform(f,[1,0,0]);ok(Math.abs(pp[2]-f.pos[2]+2)<1e-6,'xform rotY90 scaleX2 → -z');
@@ -469,6 +469,103 @@ if(M.anyTool&&M.anyTool())M.selectTool();
   for(const z of [1.5,10]){b.edits=[];M.invalidate(b.id);M.topoCache.clear();const s=M.project(M.xform(b,[15,10,z]));ok(!!M.cornerPick(s[0],s[1])||z>5,'sketch corner is under the cursor at the base');M.modStart('fillet');M.modDown({button:0,pointerId:1},s[0],s[1]);const d=M.getMod().drag;ok(d&&d.solid&&!d.corner,'click at z='+z+' starts a SOLID fillet, not a sketch-corner fillet');M.modKey({key:'8'});M.modKey({key:'Enter'});
     ok((b.edits||[]).length===1&&!(R.params.bulge||[]).some(x=>x),'body got the edit, sketch untouched (z='+z+')');if(z>5)ok(b.edits[0].key==='side:0:3','mid-edge click fillets the reflex vertical edge side:0:3');M.topoCache.clear();ok(M.meshVolume(M.meshOf(b))!==v0,'body changed');}
   hidden.forEach(f=>f.visible=true);M.modEnd&&M.modEnd();M.sub_.sel.clear();M.doc.sel.clear(); }
+
+
+
+// ══ §31 · .arc grammar parity — the panel and Console/CommandCodec.cpp must accept the same text ══
+// Regression guard for the original defect: the command line used split(/\s+/)+Number(), so
+// `box (0,0,0) 40 30 20` built a body with w=NaN and every other .arc line was a silent no-op.
+{ const D=M.arcDecode;
+  // -- tokeniser (port of CommandCodec::Decode) --
+  ok(D('circle (0,0) 12').cmds[0].verb==='circle','tokeniser: verb');
+  ok(D('circle (0,0) 12').cmds[0].args.length===2,'tokeniser: two args, vector not split on the comma');
+  ok(D('circle (0, 0, 5) 12').cmds[0].args[0]==='(0,0,5)','tokeniser: whitespace inside a vector is dropped');
+  ok(D('rect (0,0) (1,1) --center').cmds[0].flags.get('center')==='','tokeniser: valueless flag');
+  ok(D('plane XY --offset=10').cmds[0].flags.get('offset')==='10','tokeniser: --flag=value');
+  ok(D('echo a ; echo b').cmds.length===2,'tokeniser: `;` separates commands');
+  ok(D('circle (0,0) 2 # note').cmds[0].args.length===2,'tokeniser: `#` comment stripped');
+  ok(D('rename A "two words"').cmds[0].args[1]==='two words','tokeniser: quoted text');
+  ok(D('circle (0,0').error==="unbalanced '('",'tokeniser: unbalanced paren is an error');
+  ok(D('echo "x').error==='unterminated string','tokeniser: unterminated string is an error');
+  ok(M.arcNumber('40')===40&&M.arcNumber('-2.5')===-2.5&&M.arcNumber('3e-2')===0.03,'ParseNumber: accepts C++ forms');
+  ok(M.arcNumber('40mm')===null&&M.arcNumber('(0,0)')===null,'ParseNumber: must consume the whole token');
+  ok(M.arcPoint('(1,2)')[2]===0&&M.arcPoint('(1,2,3)')[2]===3,'ParsePoint: z defaults to 0');
+  ok(M.arcPoint('1,2')===null,'ParsePoint: needs parentheses');
+
+  // -- the lines that used to corrupt or no-op --
+  M.runCmd('reset');
+  ok(M.runCmd('box (0,0,0) 40 30 20'),'box with a corner point is accepted');
+  const bx=M.doc.figures.filter(f=>f.op==='box').pop();
+  ok(bx&&isFinite(bx.params.w)&&bx.params.w===40&&bx.params.d===30&&bx.params.h===20,
+     'box (0,0,0) 40 30 20 → finite w/d/h (was w:null — the original silent corruption)');
+  const lines=['sphere (0,0,5) 8','cone (0,0,0) 4 1 8','torus (0,0,2) 6 2','circle (0,0) 12',
+               'rect (-6,-2) (-2,2)','polygon (5,3) 1.5 6','line (-8,-8) (8,-8)','slot (2,-4) (6,-4) 0.8',
+               'ellipse (0,-7) 2.5 1.2 --rotation=20','polyline (0,0) (5,0) (5,5)','point (1,1)'];
+  lines.forEach(L=>{const before=M.doc.figures.length;
+    ok(M.runCmd(L)&&M.doc.figures.length>before,'.arc line now creates geometry: '+L);});
+
+  // -- new primitive bodies build and measure --
+  ['sphere','cone','torus'].forEach(op=>{const f=M.doc.figures.filter(x=>x.op===op).pop();
+    ok(f&&M.build(f).tris.length>0,op+' builds a mesh');
+    ok(f&&M.measure(f).v>0,op+' has a positive analytic volume');});
+  const sp=M.doc.figures.filter(x=>x.op==='sphere').pop();
+  ok(Math.abs(M.measure(sp).v-4/3*Math.PI*512)<1e-6,'sphere volume = 4/3πr³');
+  const to=M.doc.figures.filter(x=>x.op==='torus').pop();
+  ok(Math.abs(M.measure(to).v-2*Math.PI*Math.PI*6*4)<1e-6,'torus volume = 2π²Rr²');
+  ok(Math.abs(M.meshVolume(M.build(sp))-M.measure(sp).v)/M.measure(sp).v<0.02,'sphere tessellation matches the analytic volume');
+
+  // -- refusals: no geometry, no undo entry, and a message that says why --
+  const badLines=['box 40 30 20','circle (0,0) 40mm','sphere (0,0,0) -5','torus (0,0,0) 2 6',
+                  'circle (0,0)','extrude NoSuchFigure 5','polygon (0,0) 5 2','circle (0,0'];
+  badLines.forEach(L=>{const nf=M.doc.figures.length,nu=M.doc.undo.length;
+    ok(M.runCmd(L)===false,'refused: '+L);
+    ok(M.doc.figures.length===nf,'refusal created no figure: '+L);
+    ok(M.doc.undo.length===nu,'refusal left no undo entry: '+L);});
+
+  // -- unknown vs. not-yet-ported are different answers --
+  const el=global.document.querySelector('#conlog');
+  // #conlog is a rolling transcript rebuilt from the whole buffer, so read back only its last rows
+  const say=c=>{M.runCmd(c);return el.innerHTML.split('</div>').slice(-3).join(' ').replace(/<[^>]+>/g,'');};
+  ok(/unknown verb/.test(say('definitelynotaverb 1')),'an unknown verb says so');
+  ok(/C\+\+ host only/.test(say('loft A B'))&&!/unknown verb/.test(say('loft A B')),
+     'a known-but-unported verb says "C++ host only", not "unknown verb"');
+  ok(/must be a point/.test(say('box 40 30 20')),'refusal names the expected type');
+  ok(/usage:/.test(say('box 40 30 20')),'refusal quotes the usage string from ConsoleHost.cpp');
+
+  // -- queries never snapshot --
+  { const nu=M.doc.undo.length;['list','help','help box','echo hi','measure '+bx.name,'topology '+bx.name,'view iso','select none'].forEach(q=>M.runCmd(q));
+    ok(M.doc.undo.length===nu,'query verbs add no undo entries'); }
+
+  // -- the console is visible with nothing selected (the old #log only existed inside an inspector) --
+  M.doc.sel.clear();M.renderInspector();el.innerHTML='';M.runCmd('echo visible-with-empty-selection');
+  ok(/visible-with-empty-selection/.test(el.innerHTML),'console output survives an empty selection');
+
+  // -- multi-command lines, and fail-fast like ConsoleHost::RunScript --
+  M.runCmd('reset');
+  ok(M.runCmd('circle (0,0) 5 ; circle (10,0) 5 ; circle (20,0) 5')&&
+     M.doc.figures.filter(f=>f.ctype==='circle').length===3,'three commands on one line all run');
+  { const before=M.doc.figures.filter(f=>f.ctype==='circle').length;
+    ok(M.runCmd('circle (30,0) 5 ; bogusverb ; circle (40,0) 5')===false,'a bad command in the middle fails the line');
+    ok(M.doc.figures.filter(f=>f.ctype==='circle').length===before+1,'fail-fast: the command after the refusal did not run'); }
+  ok(M.runCmd('--name=x')===false||true,'a flag-only line does not throw');
+
+  // -- --name= and --construction are honoured --
+  M.runCmd('reset');M.runCmd('circle (0,0) 4 --name=Ring');
+  ok(M.doc.figures.some(f=>f.name==='Ring'),'--name= names the curve');
+  M.runCmd('line (-8,-8) (8,-8) --construction');
+  ok(M.doc.figures.filter(f=>f.ctype==='line').pop().cons===true,'--construction marks the curve');
+
+  // -- a real slice of Scripts/Phase2_Primitives.arc replays end to end --
+  M.runCmd('reset');
+  const script=['echo -- sketch on XY','circle (0,0) 3 --name=Ring','rect (-6,-2) (-2,2) --name=Plate',
+                'slot (2,-4) (6,-4) 0.8','polygon (5,3) 1.5 6 --name=Hex','ellipse (0,-7) 2.5 1.2 --rotation=20',
+                'arc (7,0) 2 30 240','line (-8,-8) (8,-8) --construction','echo -- primitives',
+                'sphere (0,0,1.5) 1.5','torus (-6,6,0.6) 1.6 0.6','cylinder (7,-7,0) 1 2.5','cone (-7,-6,0) 1.2 0.4 2',
+                'echo -- derived','extrude Hex 2','list','view iso','view fit'];
+  script.forEach(L=>ok(M.runCmd(L),'Phase2_Primitives replay: '+L));
+  ok(M.doc.figures.some(f=>f.name==='Hex')&&M.doc.figures.some(f=>f.op==='extrude'),'the replayed script left the expected figures');
+  M.doc.figures.forEach(f=>{ok(isFinite(M.measure(f).v),'replayed figure measures: '+f.name);});
+}
 
 
 console.log(`smoke: ${n} checks OK · ${M.doc.figures.length} figures`);
