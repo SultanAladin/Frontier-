@@ -1840,7 +1840,21 @@ Vector3 CelestialIntegrator::SampleEnvironmentRadiance(const Vector3& WorldDirec
     const float Facing = 0.5f + 0.5f * ((Direction.x / hxz) * (Solved.SunDirection.x / sxz)
                                       + (Direction.z / hxz) * (Solved.SunDirection.z / sxz));
     const float HdrScale = Criteria.Sun.Intensity / 22.0f * Criteria.Sky.Brightness * (Criteria.Sky.Visible ? 1.0f : 0.0f);
-    return Sky + TwilightGlow(Direction, Solved.SunElevationDeg, Facing) * HdrScale;
+    Vector3 Radiance = Sky + TwilightGlow(Direction, Solved.SunElevationDeg, Facing) * HdrScale;
+
+    //    ⚠️ The moons belong here, not only in the beauty pass. Without them this function returns ~0 for the
+    //    whole night hemisphere, so a moonlit room receives no indirect light at all and every night frame is
+    //    lit solely by whatever lamp happens to be in the scene. The moon is a genuine illuminant — full
+    //    moonlight is about 0.25 lux at the ground — and a bounce ray that escapes toward it has to see it.
+    //
+    //    The point stars are deliberately NOT included: their integrated contribution to a diffuse bounce is
+    //    negligible, while the 3x3 octahedral neighbour search is the most expensive thing in the integrator.
+    //    The Milky Way band is folded in through `MoonDiscs`' own ambient floor instead.
+    if (Criteria.MoonCount > 0u)
+    {
+        Radiance += MoonDiscs(Direction, Transmittance);
+    }
+    return Radiance;
 }
 
 } // namespace Frontier::ProjectZero

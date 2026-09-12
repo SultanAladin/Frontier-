@@ -97,9 +97,9 @@ int main()
     //    the wide aperture and the sky beyond it fill the upper frame. One picture, both systems.
     FlyThroughConfiguration CameraSetup{ 2.5f, 3.0f, 0.0025f, 0.5f, 12.0f };
     FlyThroughSolver Camera(CameraSetup);
-    Camera.AssignSpatialLocation(Vector3{ 0.0f, 0.06f, 0.42f });
-    Camera.AssignOrientationEuler(Radians(30.0f), 0.0f, 0.0f);
-    Camera.AssignFieldOfView(80.0f);
+    Camera.AssignSpatialLocation(Vector3{ 0.0f, 0.25f, 0.55f });
+    Camera.AssignOrientationEuler(Radians(38.0f), 0.0f, 0.0f);
+    Camera.AssignFieldOfView(92.0f);
 
     //    The aperture frames sky azimuth ≈ 0° (north, sky $-Z$) between 38° and 85° of elevation, measured from
     //    the eye point above. Each moment steers its principal body into that window: the physics is untouched,
@@ -133,16 +133,21 @@ int main()
 
         //    Bring the local volumes into the room's neighbourhood; the panel's defaults are placed for a
         //    600 m plane, and at Cornell-box scale they would sit far outside the shot.
-        Sky.LocalFog.Placement   = Vector3{ 2.0f, 1.2f, -3.0f };
-        Sky.LocalFog.HalfExtents = Vector3{ 6.0f, 2.0f, 6.0f };
+        //    A fog bank OUTSIDE the room, in the middle distance beyond the aperture. Placing it over the
+        //    room (as a naive transcription of the panel's 600 m-plane defaults would) submerges the whole
+        //    Cornell box in a 0.35-density medium and washes every wall grey — the volume has to sit where
+        //    the camera can see through it, not where the camera is standing.
+        Sky.LocalFog.Placement   = Vector3{ 0.0f, 6.0f, -26.0f };
+        Sky.LocalFog.HalfExtents = Vector3{ 22.0f, 5.0f, 14.0f };
         Sky.LocalCloud.Placement   = Vector3{ 18.0f, 90.0f, -70.0f };
         Sky.LocalCloud.HalfExtents = Vector3{ 60.0f, 26.0f, 45.0f };
 
         CelestialStageCriteria Setup{};
         Setup.Width  = 960u;
         Setup.Height = 640u;
-        Setup.SpatialPasses = 2u;
-        Setup.IndirectRays  = 8u;
+        Setup.SpatialPasses = 3u;
+        Setup.IndirectRays  = 24u;   // the room is lit through a small aperture: GI needs the samples
+        Setup.SkyTaps       = 48u;
 
         CelestialStage Stage(Setup, Sky);
 

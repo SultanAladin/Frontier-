@@ -83,6 +83,26 @@ void CelestialStage::ConstructStage() noexcept
     Scene.AppendQuad(Vector3{ kApertureHalfX, kApertureMaxY, Z }, Vector3{ 1.0f, kApertureMaxY, Z },
                      Vector3{ 1.0f, kApertureMinY, Z }, Vector3{ kApertureHalfX, kApertureMinY, Z }, 0u);
 
+    //    Move the Cornell luminaire out of the aperture. In the stock box the lamp hangs at the centre of the
+    //    ceiling, which is exactly where the opening now is — leaving it there would put a blown-out white
+    //    rectangle over the sky and hide the thing the frame exists to show. It moves to the far end of the
+    //    ceiling, still inside the room, still the same emitter: the sky and the lamp then light the room from
+    //    two different directions, which is also a better test of the two paths than stacking them.
+    for (TriangleGeometry& Triangle : Triangles)
+    {
+        if (Triangle.MaterialIndex == 3u)
+        {
+            for (Vector3* Vertex : { &Triangle.VertexAlpha, &Triangle.VertexBeta, &Triangle.VertexGamma })
+            {
+                Vertex->y = Vertex->y * 0.34f + 1.72f;          // compress toward the far wall
+                Vertex->z = Z - 0.005f;                         // and follow the raised ceiling
+            }
+            const Vector3 Edge1 = Triangle.VertexBeta - Triangle.VertexAlpha;
+            const Vector3 Edge2 = Triangle.VertexGamma - Triangle.VertexAlpha;
+            Triangle.SurfaceNormal = Cross(Edge1, Edge2).Normalized();
+        }
+    }
+
     for (uint32_t i = 0u; i < Triangles.size(); ++i)
     {
         Triangles[i].TriangleIndex = i;
@@ -159,26 +179,31 @@ Vector3 CelestialStage::ShadeSurface(const HitIntersection& Hit, const Vector3& 
 
         //    ② Sky ambient — the hemisphere of scattered light reaching this point through the aperture.
         //       Sampled, not assumed: the visibility term is what shapes it.
-        constexpr uint32_t kSkyTaps = 6u;
+        //
+        //       The aperture is a SMALL opening, so this is a high-variance estimate: most directions hit
+        //       ceiling and return nothing, and the few that escape carry all the energy. Two things keep it
+        //       from turning into blotches. First, enough taps that a typical point finds the opening several
+        //       times. Second, a per-point rotation of the sample set (Cranley-Patterson) — with one fixed
+        //       sequence, neighbouring points sample identical directions and their errors agree, which is
+        //       exactly what paints correlated blobs on a wall rather than clean noise.
+        const uint32_t SkyTaps = Criteria.SkyTaps;
+        const float Jitter = Fract(std::sin(Hit.HitLocation.x * 127.1f + Hit.HitLocation.y * 311.7f
+                                          + Hit.HitLocation.z * 74.7f) * 43758.5453f);
         Vector3 SkyTerm{ 0.0f, 0.0f, 0.0f };
-        uint32_t Unoccluded = 0u;
-        for (uint32_t s = 0u; s < kSkyTaps; ++s)
+        for (uint32_t s = 0u; s < SkyTaps; ++s)
         {
-            const float u1 = (static_cast<float>(s) + 0.5f) / static_cast<float>(kSkyTaps);
-            const float u2 = Fract(static_cast<float>(s) * 0.618034f + 0.5f);
+            const float u1 = Fract((static_cast<float>(s) + 0.5f) / static_cast<float>(SkyTaps) + Jitter);
+            const float u2 = Fract(static_cast<float>(s) * 0.618034f + Jitter * 1.61803f);
             const Vector3 Direction = SampleCosineHemisphere(Hit.SurfaceNormal, u1, u2);
             const Vector3 Origin = Hit.HitLocation + Hit.SurfaceNormal * 1e-3f;
             if (!Scene.EvaluateOcclusion(Origin, Origin + Direction * 30.0f))
             {
                 SkyTerm += Sky.SampleEnvironmentRadiance(Direction, ObserverFrame{});
-                ++Unoccluded;
             }
         }
-        if (Unoccluded > 0u)
-        {
-            //    Cosine-weighted hemisphere sampling: the estimator is the mean of the samples times albedo.
-            Radiance += Material.AlbedoColor * (SkyTerm / static_cast<float>(kSkyTaps));
-        }
+        //    Cosine-weighted hemisphere sampling: the estimator is the mean over ALL taps (the occluded ones
+        //    contribute zero radiance, which is the visibility term doing its job), times albedo.
+        Radiance += Material.AlbedoColor * (SkyTerm / static_cast<float>(SkyTaps));
     }
 
     //    ③ The classic Cornell luminaire, and ④ the ReSTIR indirect term.
@@ -200,8 +225,14 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
     const auto& Materials = Scene.QueryMaterials();
 
     //    The Cornell luminaire, as the original renderer describes it.
-    const Vector3 LightMin{ -0.28f, 0.72f, 1.995f };
-    const Vector3 LightMax{  0.28f, 1.28f, 1.995f };
+    //    Must agree with the luminaire quad the stage relocated in ConstructStage: y' = y*0.34 + 1.72,
+    //    z' = ceiling - 0.005. Sampling a light where the geometry no longer is would put the highlight and
+    //    the shadow in different places.
+    const float LightZ = (Criteria.OpenCeiling ? kCeilingHeight - 0.005f : 1.995f);
+    const float LightNearY = Criteria.OpenCeiling ? 0.72f * 0.34f + 1.72f : 0.72f;
+    const float LightFarY  = Criteria.OpenCeiling ? 1.28f * 0.34f + 1.72f : 1.28f;
+    const Vector3 LightMin{ -0.28f, LightNearY, LightZ };
+    const Vector3 LightMax{  0.28f, LightFarY,  LightZ };
     const Vector3 LightNormal{ 0.0f, 0.0f, -1.0f };
     const Vector3 LightEmission = Criteria.EmissiveLuminaire ? Vector3{ 12.0f, 12.0f, 12.0f } : Vector3{ 0.0f, 0.0f, 0.0f };
     const float LightArea = (LightMax.x - LightMin.x) * (LightMax.y - LightMin.y);
@@ -212,10 +243,13 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
     std::mt19937 Rng(1337u);
     std::uniform_real_distribution<float> Dist(0.0f, 1.0f);
 
+    const uint32_t ThreadCount = std::max(1u, std::thread::hardware_concurrency());
+
     const size_t PixelCount = static_cast<size_t>(W) * H;
     std::vector<HitIntersection> PrimaryHits(PixelCount);
     std::vector<Vector3> DirectBuffer(PixelCount, Vector3{ 0.0f, 0.0f, 0.0f });
     std::vector<IndirectGIReservoir> Indirect(PixelCount);
+    std::vector<Vector3> RadianceMean(PixelCount, Vector3{ 0.0f, 0.0f, 0.0f });
 
     //    ── Phase 1 · primary visibility ────────────────────────────────────────────────────────────────────
     for (uint32_t y = 0u; y < H; ++y)
@@ -275,8 +309,15 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
     //    ── Phase 3 · ReSTIR GI candidates ──────────────────────────────────────────────────────────────────
     //    A bounce ray that escapes through the aperture returns SKY radiance, which is what couples the
     //    celestial port into global illumination rather than merely painting a backdrop.
-    for (size_t idx = 0u; idx < PixelCount; ++idx)
+    //    Each pixel owns a stream seeded from its own index, so the pass is both parallel and deterministic:
+    //    the result does not depend on how the work was divided between threads.
+    auto GatherBand = [&](uint32_t Worker)
     {
+    for (size_t idx = Worker; idx < PixelCount; idx += ThreadCount)
+    {
+        std::mt19937 Rng(static_cast<uint32_t>(idx) * 2654435761u + 1337u);
+        std::uniform_real_distribution<float> Dist(0.0f, 1.0f);
+
         const HitIntersection& Hit = PrimaryHits[idx];
         IndirectGIReservoir Reservoir{ Vector3{ 0.0f, 0.0f, 0.0f }, Vector3{ 0.0f, 0.0f, 1.0f },
                                        Vector3{ 0.0f, 0.0f, 0.0f }, 0.0f, 0u, 0.0f };
@@ -342,17 +383,35 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
 
             const float Weight = (BounceRadiance.x + BounceRadiance.y + BounceRadiance.z) * 0.3333f;
             Reservoir.ResampleIndirect(BouncePosition, BounceNormal, BounceRadiance, Weight, Dist(Rng));
+            RadianceMean[idx] += BounceRadiance;
         }
 
         if (Reservoir.WeightSum > 0.0f && Reservoir.SampleCount > 0u)
         {
             Reservoir.UnbiasedWeight = Reservoir.WeightSum / static_cast<float>(Reservoir.SampleCount);
         }
+        //    ⚠️ The reservoir keeps ONE survivor, chosen with probability proportional to its own brightness.
+        //    Reading `IndirectRadiance` straight out of it — as the stock renderer does — is therefore biased
+        //    high and, worse, wildly inconsistent between neighbouring pixels: whichever pixel happened to
+        //    retain a bright sample shows it at full strength. Averaged by the bilateral filter, that is
+        //    exactly the blotchy wash this scene showed. The reservoir is still built (it carries the
+        //    reconnection data the spatial pass shifts), but the radiance handed to the filter is the plain
+        //    unbiased Monte-Carlo mean of every candidate, which is what the estimator is supposed to be.
+        RadianceMean[idx] = RadianceMean[idx] / static_cast<float>(std::max(1u, Criteria.IndirectRays));
         Indirect[idx] = Reservoir;
+    }
+    };
+
+    {
+        std::vector<std::thread> Workers;
+        Workers.reserve(ThreadCount);
+        for (uint32_t w = 0u; w < ThreadCount; ++w) { Workers.emplace_back(GatherBand, w); }
+        for (std::thread& Worker : Workers) { Worker.join(); }
     }
 
     //    ── Phase 4 · ReSTIR GI spatial resampling ──────────────────────────────────────────────────────────
     std::vector<IndirectGIReservoir> Resampled = Indirect;
+    std::vector<Vector3> ResampledMean = RadianceMean;
     for (uint32_t pass = 0u; pass < Criteria.SpatialPasses; ++pass)
     {
         for (uint32_t y = 0u; y < H; ++y)
@@ -366,6 +425,8 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                     continue;
                 }
                 IndirectGIReservoir Merged = Indirect[idx];
+                Vector3 MergedMean = RadianceMean[idx];
+                float   MergedMeanWeight = 1.0f;
 
                 for (uint32_t n = 0u; n < 8u; ++n)
                 {
@@ -400,6 +461,11 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                                         * 0.3333f * Source.UnbiasedWeight * Jacobian;
                     Merged.ResampleIndirect(Source.BounceHitPosition, Source.BounceHitNormal, Source.IndirectRadiance,
                                             Shifted, Dist(Rng));
+                    //    Pool the neighbour's unbiased mean too, weighted by the same Jacobian that validates
+                    //    the shift. This is what actually reduces the variance the reservoir alone cannot.
+                    const float MeanWeight = std::min(Jacobian, 4.0f);
+                    MergedMean += RadianceMean[nIdx] * MeanWeight;
+                    MergedMeanWeight += MeanWeight;
                 }
 
                 if (Merged.WeightSum > 0.0f && Merged.SampleCount > 0u)
@@ -407,9 +473,11 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                     Merged.UnbiasedWeight = Merged.WeightSum / static_cast<float>(Merged.SampleCount);
                 }
                 Resampled[idx] = Merged;
+                ResampledMean[idx] = MergedMean / std::max(MergedMeanWeight, 1e-4f);
             }
         }
         Indirect = Resampled;
+        RadianceMean = ResampledMean;
     }
 
     //    ── Phase 5 · bilateral filter on the indirect term ─────────────────────────────────────────────────
@@ -427,9 +495,12 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
             Vector3 Accumulated{ 0.0f, 0.0f, 0.0f };
             float WeightTotal = 0.0f;
 
-            for (int dy = -3; dy <= 3; ++dy)
+            //    A wider kernel than the stock 7x7. Light arriving through a small aperture leaves the GI
+            //    estimate sparse, and the indirect term is low-frequency by nature, so it tolerates — and
+            //    needs — a broader support. The normal and depth terms still stop it bleeding across edges.
+            for (int dy = -5; dy <= 5; ++dy)
             {
-                for (int dx = -3; dx <= 3; ++dx)
+                for (int dx = -5; dx <= 5; ++dx)
                 {
                     const int qx = static_cast<int>(x) + dx;
                     const int qy = static_cast<int>(y) + dy;
@@ -438,16 +509,13 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                     const HitIntersection& Neighbour = PrimaryHits[qIdx];
                     if (!Neighbour.ValidCondition || Neighbour.MaterialIndex == 3u) { continue; }
 
-                    const float SpatialWeight = std::exp(-static_cast<float>(dx * dx + dy * dy) / 9.0f);
+                    const float SpatialWeight = std::exp(-static_cast<float>(dx * dx + dy * dy) / 26.0f);
                     const float NormalWeight = std::pow(std::max(0.0f, Dot(Centre.SurfaceNormal, Neighbour.SurfaceNormal)), 16.0f);
                     const float DepthWeight = std::exp(-std::abs(Centre.RayDistance - Neighbour.RayDistance) * 15.0f);
                     const float Weight = SpatialWeight * NormalWeight * DepthWeight;
 
-                    if (Indirect[qIdx].WeightSum > 0.0f)
-                    {
-                        Accumulated += Indirect[qIdx].IndirectRadiance * Weight;
-                        WeightTotal += Weight;
-                    }
+                    Accumulated += RadianceMean[qIdx] * Weight;
+                    WeightTotal += Weight;
                 }
             }
             if (WeightTotal > 0.0f)
@@ -468,7 +536,6 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
     uint32_t SkyPixels = 0u;
     uint32_t SurfacePixels = 0u;
 
-    const uint32_t ThreadCount = std::max(1u, std::thread::hardware_concurrency());
     std::vector<double> PartialLuminance(ThreadCount, 0.0);
     std::vector<double> PartialSkyLuminance(ThreadCount, 0.0);
     std::vector<double> PartialSurfaceLuminance(ThreadCount, 0.0);

@@ -43,6 +43,7 @@ struct CelestialStageCriteria
     uint32_t SampleCount      = 4u;                             // [count] pixel samples, for edge and star AA
     uint32_t SpatialPasses    = 2u;                             // [count] ReSTIR GI spatial resampling passes
     uint32_t IndirectRays     = 8u;                             // [count] GI candidates per pixel
+    uint32_t SkyTaps          = 24u;                            // [count] hemisphere taps for sky visibility
     bool     OpenCeiling      = true;                           // cut the aperture that lets the sky in
     bool     SkyLighting      = true;                           // the negative control switches this off
     bool     EmissiveLuminaire= true;                           // keep the classic Cornell ceiling light
