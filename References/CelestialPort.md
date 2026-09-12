@@ -291,3 +291,53 @@ equivalence to the live page rests on the line-by-line transcription, the 190-un
 arithmetic and ablation checks across the four proofs — **not** on a pixel diff against the real shader.
 Screenshotting the reference page at a known camera and diffing against `Celestial_Noon.png` remains the one
 check that would close that gap, and it needs a machine with a GPU.
+
+---
+
+## The transliteration proof — the ported kernels ARE the reference kernels
+
+`Scratchpad/CelestialTransliterationProof.cpp` — **15 checks**, second of five in the gate.
+
+Until now "exact, not approximate" rested on a hand transcription checked against *independent physics*
+(Kasten-Young, Descartes, 1/λ⁴). That catches a kernel that is wrong about the world. It cannot catch a
+kernel that is wrong about the **reference** — a transposed argument, a dropped term, a `2.03` that became
+`2.3`. Those reproduce plausible physics and differ from the page, which is the one failure mode the brief
+explicitly rules out.
+
+A GPU differential test is impossible here (verified: no libGL/EGL/OSMesa, `moderngl` cannot create a
+context, no `glslangValidator`, `apt` needs root). So this proof takes the other route: each reference
+function is re-transcribed **line by line** out of `.ref_fs_snapshot.glsl` into a shim reproducing GLSL
+semantics exactly — including `mod`, which is *not* `fmod` for negative operands — and both are evaluated
+over 20 000 pseudo-random inputs spanning each kernel's real domain.
+
+**Twelve kernels agree to Δ = 0.000e+00 — bit-identical, not merely close:** `hash13`, `hash33`, `vnoise`,
+`kelvinRGB`, `kelvin`, `hue`, `rotY∘rotX`, `octDecode`, `expHeightK`, `tfield`, `cnoise2`, `clHG`,
+`clHeightProfile`. `airMassOf` agrees to 9.4e-6 *relative*, which is float32 round-off in `cos`/`pow` near
+its saturation ceiling of 40, not a divergence — the two expressions are character-identical.
+
+To keep the proof honest the kernels are exercised through thunks that forward to the **shipping**
+definitions; nothing is restated, so the test cannot pass by agreeing with a copy that has itself drifted.
+Two kernels that had been inlined (`expHeightK` inside `ApplyMedia`, `clHeightProfile` inside the cloud
+march) were hoisted to file scope for this, which is also a readability win.
+
+### What it found
+
+- **A real latent bug in `HueOf`.** It used `std::fmod`, but GLSL `mod(x,y) = x − y·floor(x/y)`. For
+  negative input the two differ by up to a **full 1.0** in a channel (`hue(-0.3)` → 0.200 GLSL vs 1.000
+  fmod). Both call sites currently pass `fract(...)`, so the argument lands in [0,1) and the difference is
+  masked today — but the kernel was wrong, and would have shipped wrong the moment anything fed it a
+  negative. Fixed to match GLSL exactly.
+- **Two different blackbody curves, which the first run conflated.** The reference has `kelvin()` in the
+  shader (a cheap 3-stop mix, used *only* to tint stars, line 70) and `kelvinRGB()` in the panel JS (Tanner
+  Helland's piecewise fit, uploaded as `uSunColor`). They are ported as `KelvinStar` and `KelvinColour`.
+  Comparing one against the other was a test bug; each is now checked against its true counterpart and both
+  are exact.
+- **`fbm` is dead code in the reference** — defined at line 32, zero call sites. Correctly absent from the
+  port. Recorded as a finding rather than silently skipped.
+
+### Coverage boundary
+
+This covers the self-contained numeric kernels, not the composite `main()`, whose uniform state and
+20×8-sample marches cannot be reproduced without a GL context. The ablation and scene proofs cover the
+composite. Together the five proofs are 100+ checks; a pixel diff against the live page still requires a
+machine with a GPU and remains the one outstanding form of evidence.

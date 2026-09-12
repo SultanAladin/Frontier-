@@ -153,9 +153,41 @@ Vector3 WavelengthColour(float w) noexcept
 // `hue` — the flare's chromatic ring.
 Vector3 HueOf(float h) noexcept
 {
-    auto Channel = [](float x) { return std::clamp(std::abs(std::fmod(x, 6.0f) - 3.0f) - 1.0f, 0.0f, 1.0f); };
+    //    ⚠️ GLSL `mod(x,y)` is `x - y*floor(x/y)`, which is NOT `std::fmod`: for negative x the two differ
+    //    in sign, and here that swings a channel by a full 1.0 (hue(-0.3) gives 0.200 under GLSL and 1.000
+    //    under fmod). Both call sites currently pass `fract(...)`, so the argument lands in [0,1) and the
+    //    difference is masked — but the kernel would be silently wrong the moment anything fed it a negative,
+    //    which is exactly how this class of bug ships. Matching GLSL exactly costs nothing.
+    auto Channel = [](float x)
+    {
+        const float m = x - 6.0f * std::floor(x / 6.0f);        // GLSL mod
+        return std::clamp(std::abs(m - 3.0f) - 1.0f, 0.0f, 1.0f);
+    };
     const float base = h * 6.0f;
     return Vector3{ Channel(base + 0.0f), Channel(base + 4.0f), Channel(base + 2.0f) };
+}
+
+// expHeightK: the exact integral of exp(-y/H) along a straight segment (Wenzel / Quilez). Shared by both
+// analytic fogs, and exercised directly by the transliteration proof.
+float HeightIntegralKernel(float hh, float a, float b) noexcept
+{
+    const float ya = std::max(0.0f, std::min(a, b));
+    const float yb = std::max(0.0f, std::max(a, b));
+    return (yb - ya) < 1e-3f ? std::exp(-ya / hh) : hh * (std::exp(-ya / hh) - std::exp(-yb / hh)) / (yb - ya);
+}
+
+// clHeightProfile: the per-variety vertical density envelope.
+// 0 stratus · 1 stratocumulus · 2 cumulus · 3 cumulonimbus · 4 altostratus · 5 cirrus
+float CloudHeightProfileKernel(float hn, float Variety, float Anvil) noexcept
+{
+    const float t = Variety;
+    if (t < 0.5f)  { return SmoothStep(0.0f, 0.08f, hn) * (1.0f - SmoothStep(0.75f, 1.0f, hn)); }
+    if (t < 1.5f)  { return SmoothStep(0.0f, 0.12f, hn) * (1.0f - SmoothStep(0.5f, 0.95f, hn)); }
+    if (t < 2.5f)  { return SmoothStep(0.0f, 0.07f, hn) * (1.0f - SmoothStep(0.35f, 1.0f, hn)) * 1.15f; }
+    if (t < 3.5f)  { return SmoothStep(0.0f, 0.05f, hn) * (1.0f - SmoothStep(0.85f, 1.0f, hn))
+                          * Mix(1.0f, 1.6f, SmoothStep(0.7f, 1.0f, hn) * Anvil); }
+    if (t < 4.5f)  { return SmoothStep(0.0f, 0.3f, hn) * (1.0f - SmoothStep(0.6f, 1.0f, hn)) * 0.7f; }
+    return SmoothStep(0.0f, 0.4f, hn) * (1.0f - SmoothStep(0.5f, 1.0f, hn)) * 0.35f;
 }
 
 // The tonemap ladder: `aces`, Reinhard, `filmic` (Uncharted 2) and `agxish`.
@@ -804,16 +836,8 @@ float CelestialIntegrator::CloudDensity(const Vector3& p, float Lod) const noexc
     const float Altitude = Vector3{ p.x, p.y + PlanetRadius, p.z }.Length() - PlanetRadius;
     const float hn = Clamp01((Altitude - C.BaseAltitude) / std::max(1.0f, C.Thickness));
 
-    //    clHeightProfile: the per-variety vertical density envelope.
-    float Profile = 0.0f;
-    const float t = C.Variety;
-    if (t < 0.5f)       { Profile = SmoothStep(0.0f, 0.08f, hn) * (1.0f - SmoothStep(0.75f, 1.0f, hn)); }
-    else if (t < 1.5f)  { Profile = SmoothStep(0.0f, 0.12f, hn) * (1.0f - SmoothStep(0.5f, 0.95f, hn)); }
-    else if (t < 2.5f)  { Profile = SmoothStep(0.0f, 0.07f, hn) * (1.0f - SmoothStep(0.35f, 1.0f, hn)) * 1.15f; }
-    else if (t < 3.5f)  { Profile = SmoothStep(0.0f, 0.05f, hn) * (1.0f - SmoothStep(0.85f, 1.0f, hn))
-                                  * Mix(1.0f, 1.6f, SmoothStep(0.7f, 1.0f, hn) * C.Anvil); }
-    else if (t < 4.5f)  { Profile = SmoothStep(0.0f, 0.3f, hn) * (1.0f - SmoothStep(0.6f, 1.0f, hn)) * 0.7f; }
-    else                { Profile = SmoothStep(0.0f, 0.4f, hn) * (1.0f - SmoothStep(0.5f, 1.0f, hn)) * 0.35f; }
+    //    clHeightProfile: the per-variety vertical density envelope, in `CloudHeightProfileKernel`.
+    const float Profile = CloudHeightProfileKernel(hn, C.Variety, C.Anvil);
 
     if (Profile <= 0.0f)
     {
@@ -1413,13 +1437,9 @@ Vector3 CelestialIntegrator::ApplyMedia(const Vector3& Radiance, const Vector3& 
     const float y0 = ObserverHeight;
     const float y1 = ObserverHeight + Direction.y * Distance;
 
-    //    expHeightK: the exact integral of exp(-y/H) along a straight segment (Wenzel / Quilez).
-    auto HeightKernel = [](float hh, float a, float b)
-    {
-        const float ya = std::max(0.0f, std::min(a, b));
-        const float yb = std::max(0.0f, std::max(a, b));
-        return (yb - ya) < 1e-3f ? std::exp(-ya / hh) : hh * (std::exp(-ya / hh) - std::exp(-yb / hh)) / (yb - ya);
-    };
+    //    expHeightK, hoisted to file scope as `HeightIntegralKernel` so the transliteration proof exercises
+    //    this exact definition rather than a restatement of it.
+    auto HeightKernel = HeightIntegralKernel;
 
     const float CosSun = std::clamp(Dot(Direction, Solved.SunDirection), -1.0f, 1.0f);
     const Vector3 SunLight = Transmittance * Solved.SunColour * (Criteria.Sun.Intensity * 0.02f);
@@ -2259,6 +2279,38 @@ Vector3 CelestialIntegrator::SampleEnvironmentRadiance(const Vector3& WorldDirec
         Radiance += MoonDiscs(Direction, Transmittance);
     }
     return Radiance;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                          TEST ACCESS — thunks onto the shared kernels, for the transliteration proof
+//------------------------------------------------------------------------------------------------------------------------
+//    Each forwards to the one true definition above. Nothing is restated here, so the proof cannot pass by
+//    agreeing with a copy that has itself drifted from the shipping path.
+
+Vector3 CelestialIntegrator::KernelKelvinStar(float t) noexcept                 { return KelvinStar(t); }
+float   CelestialIntegrator::KernelHash13(const Vector3& p) noexcept            { return Hash13(p); }
+Vector3 CelestialIntegrator::KernelHash33(const Vector3& p) noexcept            { return Hash33(p); }
+float   CelestialIntegrator::KernelValueNoise(const Vector3& p) noexcept        { return ValueNoise(p); }
+Vector3 CelestialIntegrator::KernelHue(float h) noexcept                        { return HueOf(h); }
+Vector3 CelestialIntegrator::KernelRotateY(const Vector3& v, float a) noexcept  { return RotateY(v, a); }
+Vector3 CelestialIntegrator::KernelRotateX(const Vector3& v, float a) noexcept  { return RotateX(v, a); }
+Vector3 CelestialIntegrator::KernelOctahedralDecode(float u, float v) noexcept  { return OctahedralDecode(u, v); }
+float   CelestialIntegrator::KernelHenyeyGreenstein(float c, float g) noexcept  { return HenyeyGreenstein(c, g); }
+float   CelestialIntegrator::KernelCloudNoise2(float px, float py) noexcept     { return CloudNoise2(px, py); }
+
+float CelestialIntegrator::KernelHeightIntegral(float FalloffHeight, float y0, float y1) noexcept
+{
+    return HeightIntegralKernel(FalloffHeight, y0, y1);
+}
+
+float CelestialIntegrator::KernelCloudHeightProfile(float hn, float Variety, float Anvil) noexcept
+{
+    return CloudHeightProfileKernel(hn, Variety, Anvil);
+}
+
+float CelestialIntegrator::TerrainFieldValue(float qx, float qz) const noexcept
+{
+    return TerrainField(qx, qz);
 }
 
 } // namespace Frontier::ProjectZero

@@ -170,6 +170,30 @@ public:
     void                        IntegrateAtmosphere(const Vector3& Origin, const Vector3& Direction,
                                                     Vector3& OutSky, Vector3& OutTransmittance, float& OutGround) const noexcept;
 
+    //------------------------------------------------------------------------------------------------------
+    //    TEST ACCESS — the shared numeric kernels, exposed for the transliteration proof.
+    //------------------------------------------------------------------------------------------------------
+    //    `Scratchpad/CelestialTransliterationProof.cpp` re-transcribes each of these straight out of the
+    //    reference shader and requires bit-level agreement. They live in an anonymous namespace in the .cpp
+    //    so the optimiser can inline them freely; these thunks forward to those exact definitions rather
+    //    than restating the arithmetic, so the proof tests the shipping code and not a copy of it.
+    //
+    //    ⚠️ If you change a kernel, the proof fails unless the reference changed too. That is the point.
+    [[nodiscard]] static Vector3 KernelKelvinStar(float t) noexcept;
+    [[nodiscard]] static float   KernelHash13(const Vector3& p) noexcept;
+    [[nodiscard]] static Vector3 KernelHash33(const Vector3& p) noexcept;
+    [[nodiscard]] static float   KernelValueNoise(const Vector3& p) noexcept;
+    [[nodiscard]] static Vector3 KernelHue(float h) noexcept;
+    [[nodiscard]] static Vector3 KernelRotateY(const Vector3& v, float a) noexcept;
+    [[nodiscard]] static Vector3 KernelRotateX(const Vector3& v, float a) noexcept;
+    [[nodiscard]] static Vector3 KernelOctahedralDecode(float u, float v) noexcept;
+    [[nodiscard]] static float   KernelHenyeyGreenstein(float c, float g) noexcept;
+    [[nodiscard]] static float   KernelCloudNoise2(float px, float py) noexcept;
+    [[nodiscard]] static float   KernelHeightIntegral(float FalloffHeight, float y0, float y1) noexcept;
+    [[nodiscard]] static float   KernelCloudHeightProfile(float hn, float Variety, float Anvil) noexcept;
+    //    `tfield` reads Frequency/Seed off the criteria, so it stays an instance method.
+    [[nodiscard]] float          TerrainFieldValue(float qx, float qz) const noexcept;
+
 private:
     [[nodiscard]] Vector3       TwilightGlow(const Vector3& Direction, float ElevationDeg, float Facing) const noexcept;
     [[nodiscard]] Vector3       StarField(const Vector3& Direction, float PixelAngle, float AirMass) const noexcept;
