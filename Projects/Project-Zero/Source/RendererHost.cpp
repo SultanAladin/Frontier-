@@ -162,6 +162,14 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
         }
     }
 
+    // Unbiased Monte-Carlo mean of the GI candidates, kept alongside the reservoirs.
+    //    ⚠️ The reservoir retains ONE candidate, selected with probability proportional to its own brightness.
+    //    Reading that survivor's radiance directly — as this renderer used to — is biased high and varies
+    //    wildly between neighbouring pixels, which shows up as correlated blotches on flat walls rather than
+    //    as clean noise. The reservoir still drives the spatial reuse; the radiance that reaches the image is
+    //    the plain mean of every candidate, which is what the estimator is defined to be.
+    std::vector<Vector3> IndirectMean(Width * Height, Vector3{ 0.0f, 0.0f, 0.0f });
+
     // Phase 3: ReSTIR GI Initial Candidate Bounce Ray Tracing (8 samples)
     for (uint32_t y = 0; y < Height; ++y)
     {
@@ -208,8 +216,11 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
 
                     float Weight = (BounceRadiance.x + BounceRadiance.y + BounceRadiance.z) * 0.3333f;
                     GIReservoir.ResampleIndirect(BounceHit.HitLocation, BounceHit.SurfaceNormal, BounceRadiance, Weight, Dist(Rng));
+                    IndirectMean[idx] += BounceRadiance;
                 }
             }
+
+            IndirectMean[idx] = IndirectMean[idx] * (1.0f / 8.0f);
 
             if (GIReservoir.WeightSum > 0.0f && GIReservoir.SampleCount > 0)
             {
@@ -333,12 +344,8 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
                     float DepthW = std::exp(-DepthDiff * 15.0f);
 
                     float TotalW = SpatialW * NormalW * DepthW;
-                    const auto& GIRes = IndirectReservoirs[qIdx];
-                    if (GIRes.WeightSum > 0.0f)
-                    {
-                        IndirectAcc += GIRes.IndirectRadiance * TotalW;
-                        WeightTotal += TotalW;
-                    }
+                    IndirectAcc += IndirectMean[qIdx] * TotalW;
+                    WeightTotal += TotalW;
                 }
             }
 

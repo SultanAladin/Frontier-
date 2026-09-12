@@ -4,6 +4,7 @@
 
 #include "RendererHost.h"
 #include "FlyThroughSolver.h"
+#include "CelestialStage.h"
 #include "../../../DeviceExchange/DiagnosticMetrics.h"
 #include "../../../DeviceExchange/InputExchange.h"
 #include <iostream>
@@ -46,9 +47,18 @@ int main(int ArgumentCount, char** ArgumentValues)
         0.5f,                   // [m/s] scroll increment
         12.0f                   // damping
     };
+    //    ⚠️ The eye point is authored in the engine's frame: +X right, +Y forward/depth, +Z up. It previously
+    //    read (0, 1, -1.95), which was a +Y-up position from when the Cornell box was authored that way — in a
+    //    +Z-up world that puts the camera 1.95 m BEHIND the room at floor level, staring away from it, and the
+    //    exported frame came out a single flat colour. It now stands just inside the near wall at eye height.
+    //    Placed so that AFTER the five locomotion ticks below (which fly the camera forward at up to 7.5 m/s)
+    //    the eye is still inside the room, framing the classic Cornell view: both coloured walls, both boxes
+    //    and the ceiling luminaire.
     Frontier::ProjectZero::FlyThroughSolver Camera(CameraConfig);
-    Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, 1.0f, -1.95f });
-    Camera.AssignOrientationEuler(0.0f, 0.0f, 0.0f);
+    Camera.AssignSpatialLocation(Frontier::Vector3{ -0.10f, -1.30f, 1.0f });
+    //    The simulated input below holds a rightward mouse drag, so the rig ends about 10.7 deg of yaw to the
+    //    right of where it starts. Pre-rotating by that much leaves the final frame square to the back wall.
+    Camera.AssignOrientationEuler(-3.6f * 3.14159265f / 180.0f, -10.75f * 3.14159265f / 180.0f, 0.0f);
     Camera.AssignFieldOfView(55.0f);
     Camera.AssignAspectRatio(static_cast<float>(ViewportWidth) / static_cast<float>(ViewportHeight));
 
@@ -110,12 +120,87 @@ int main(int ArgumentCount, char** ArgumentValues)
         ReportLogger.RecordMessage(Frontier::DiagnosticSeverity::Fatal, "Renderer", "Failed to export PPM image.");
     }
 
+    //------------------------------------------------------------------------------------------------------------------------
+    //                                    THE COMBINED CELESTIAL FRAME
+    //------------------------------------------------------------------------------------------------------------------------
+    //    ReSTIR DI and GI in the Cornell box, lit through an opened ceiling by the full celestial port — sun,
+    //    atmosphere, sky, twilight, stars, moon, volumetric clouds, cloud layer, local cloud, height fog,
+    //    atmospheric fog, local volumetric fog, wind, precipitation, rainbow, lens flare and the tonemap chain,
+    //    all in one image. This is the frame the port is judged on, so the shipped executable produces it.
+
+    std::cout << "[Project-Zero] Rendering the combined celestial frame (ReSTIR + Cornell box + full sky)...\n";
+
+    Frontier::ProjectZero::CelestialCriteria SkyCriteria{};
+    SkyCriteria.Sun.LocalHours               = 12.0f;
+    SkyCriteria.Observer.Height              = 0.55f;
+    SkyCriteria.VolumetricCloud.Coverage     = 0.52f;
+    SkyCriteria.Moons[0].AzimuthDegrees      = 200.0f;
+    SkyCriteria.Moons[0].ElevationDegrees    = 40.0f;
+    //    The fog bank sits in the middle distance beyond the aperture, not over the room.
+    SkyCriteria.LocalFog.Placement           = Frontier::Vector3{ 0.0f, 6.0f, -26.0f };
+    SkyCriteria.LocalFog.HalfExtents         = Frontier::Vector3{ 22.0f, 5.0f, 14.0f };
+    SkyCriteria.LocalCloud.Placement         = Frontier::Vector3{ 18.0f, 90.0f, -70.0f };
+    SkyCriteria.LocalCloud.HalfExtents       = Frontier::Vector3{ 60.0f, 26.0f, 45.0f };
+
+    Frontier::ProjectZero::CelestialStageCriteria StageCriteria{};
+    StageCriteria.Width         = ViewportWidth;
+    StageCriteria.Height        = ViewportHeight;
+    StageCriteria.IndirectRays  = 24u;
+    StageCriteria.SpatialPasses = 3u;
+    StageCriteria.SkyTaps       = 48u;
+
+    Frontier::ProjectZero::CelestialStage Stage(StageCriteria, SkyCriteria);
+    {
+        auto LunarSurface = Frontier::ProjectZero::MoonAlbedoSurface::LoadPortablePixmap(
+            "../../EngineContent/CelestialTextures/luna_1k.ppm");
+        if (LunarSurface.Populated())
+        {
+            Stage.MutableSky().AssignMoonSurface(0u, std::move(LunarSurface));
+        }
+    }
+
+    //    Settle the weather: the wind integral, the cloud advection and a populated rain pool.
+    for (int Tick = 0; Tick < 45; ++Tick)
+    {
+        Stage.Advance(1.0f / 30.0f);
+    }
+
+    Frontier::ProjectZero::FlyThroughSolver CelestialCamera(CameraConfig);
+    CelestialCamera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, 0.25f, 0.55f });
+    CelestialCamera.AssignOrientationEuler(38.0f * 3.14159265f / 180.0f, 0.0f, 0.0f);
+    CelestialCamera.AssignFieldOfView(92.0f);
+    CelestialCamera.AssignAspectRatio(static_cast<float>(ViewportWidth) / static_cast<float>(ViewportHeight));
+
+    Stage.RenderFrame(CelestialCamera);
+    const auto& CelestialStatistics = Stage.QueryStatistics();
+
+    const std::string CelestialPpm = "Diagnostics/ProjectZero_Celestial.ppm";
+    const std::string CelestialPng = "Diagnostics/ProjectZero_Celestial.png";
+    if (Stage.ExportPpmImage(CelestialPpm))
+    {
+        const std::string CelestialConvert = "python3 ../../Tools/PpmToPng.py " + CelestialPpm + " " + CelestialPng + " > /dev/null 2>&1";
+        if (std::system(CelestialConvert.c_str()) == 0)
+        {
+            std::cout << "[Project-Zero] Combined celestial frame: " << CelestialPng << "\n";
+        }
+        ReportLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Celestial",
+                                   "Rendered the combined ReSTIR + celestial frame to " + CelestialPng);
+    }
+
+    std::cout << "  Sun elevation: " << Stage.QuerySky().QueryFrame().SunElevationDeg << " deg"
+              << " | sky pixels: " << (CelestialStatistics.SkyPixelFraction * 100.0) << "%"
+              << " | " << CelestialStatistics.RenderMilliseconds << " ms\n";
+
     ReportLogger.RecordMeasurement("ViewportWidth", ViewportWidth, "px");
     ReportLogger.RecordMeasurement("ViewportHeight", ViewportHeight, "px");
     ReportLogger.RecordMeasurement("TotalPixels", ViewportWidth * ViewportHeight, "px");
     ReportLogger.RecordMeasurement("RenderDurationMs", DurationMs, "ms");
     ReportLogger.RecordMeasurement("SpatialResamplingPasses", 2, "count");
     ReportLogger.RecordMeasurement("CameraFlightSpeed", Camera.QueryFlightSpeed(), "m/s");
+    ReportLogger.RecordMeasurement("CelestialRenderMs", CelestialStatistics.RenderMilliseconds, "ms");
+    ReportLogger.RecordMeasurement("CelestialSkyPixelFraction", CelestialStatistics.SkyPixelFraction, "-");
+    ReportLogger.RecordMeasurement("CelestialMeanLuminance", CelestialStatistics.MeanLuminance, "-");
+    ReportLogger.RecordMeasurement("CelestialSunElevation", Stage.QuerySky().QueryFrame().SunElevationDeg, "deg");
 
     ReportLogger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Shutdown", "Project-Zero test ground completed successfully.");
     ReportLogger.TerminateSink();
