@@ -28,6 +28,10 @@ public:
     [[nodiscard]] bool            EvaluateOcclusion(const Vector3& PointA, const Vector3& PointB) const noexcept;
 
     [[nodiscard]] const std::vector<TriangleGeometry>&   QueryTriangles() const noexcept { return Triangles; }
+
+    //    Direct access for scene authoring that needs to re-cut existing geometry — the celestial stage opens
+    //    the ceiling this way so the sky can light the room.
+    [[nodiscard]] std::vector<TriangleGeometry>&         MutableTriangles() noexcept { return Triangles; }
     [[nodiscard]] const std::vector<AnalyticalMaterial>& QueryMaterials() const noexcept { return Materials; }
 
     // Single unified conversion operator for total triangle count

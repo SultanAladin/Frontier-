@@ -40,26 +40,35 @@ void RayTracingSolver::ConstructCornellBoxScene() noexcept
     // Material 5: Short Box (cool white diffuse)
     Materials.push_back(AnalyticalMaterial{ Vector3{ 0.78f, 0.78f, 0.78f }, Vector3{ 0.0f, 0.0f, 0.0f }, 0.4f, 0.0f, 5 });
 
-    // Cornell Box boundaries: X [-1..1], Y [0..2], Z [0..2]
-    // Floor (Y = 0, normal +Y)
-    AppendQuad(Vector3{ -1.0f, 0.0f, 2.0f }, Vector3{ 1.0f, 0.0f, 2.0f }, Vector3{ 1.0f, 0.0f, 0.0f }, Vector3{ -1.0f, 0.0f, 0.0f }, 0);
-    // Ceiling (Y = 2, normal -Y)
+    //    ⚠️ FRAME CORRECTION. This scene was authored $+Y$ up while the engine camera is strictly $+Z$ up
+    //    (CLAUDE.md §7, `CameraProjection::RecomputeDirectionalVectors` builds Forward from a $+Z$ world up).
+    //    The two never agreed, so every primary ray left the room and the exported frame was one flat colour —
+    //    `ProjectZero_ReSTIR_GI.ppm` held exactly 1 unique colour across all 307200 pixels. The geometry is now
+    //    authored in the engine's own convention: $+X$ right, $+Y$ forward/depth, $+Z$ up.
+    //
+    //    Cornell Box boundaries: X [-1..1] (left/right), Y [0..2] (near/far), Z [0..2] (floor/ceiling).
+
+    //    Each wall is wound so its normal points INTO the room, which is what the lighting integrators expect.
+
+    // Floor (Z = 0, normal +Z up)
+    AppendQuad(Vector3{ -1.0f, 0.0f, 0.0f }, Vector3{ 1.0f, 0.0f, 0.0f }, Vector3{ 1.0f, 2.0f, 0.0f }, Vector3{ -1.0f, 2.0f, 0.0f }, 0);
+    // Ceiling (Z = 2, normal -Z down)
+    AppendQuad(Vector3{ -1.0f, 2.0f, 2.0f }, Vector3{ 1.0f, 2.0f, 2.0f }, Vector3{ 1.0f, 0.0f, 2.0f }, Vector3{ -1.0f, 0.0f, 2.0f }, 0);
+    // Back Wall (Y = 2, normal -Y toward the camera)
     AppendQuad(Vector3{ -1.0f, 2.0f, 0.0f }, Vector3{ 1.0f, 2.0f, 0.0f }, Vector3{ 1.0f, 2.0f, 2.0f }, Vector3{ -1.0f, 2.0f, 2.0f }, 0);
-    // Back Wall (Z = 2, normal -Z)
-    AppendQuad(Vector3{ 1.0f, 0.0f, 2.0f }, Vector3{ -1.0f, 0.0f, 2.0f }, Vector3{ -1.0f, 2.0f, 2.0f }, Vector3{ 1.0f, 2.0f, 2.0f }, 0);
-    // Left Wall (X = -1, Red, normal +X)
-    AppendQuad(Vector3{ -1.0f, 0.0f, 2.0f }, Vector3{ -1.0f, 0.0f, 0.0f }, Vector3{ -1.0f, 2.0f, 0.0f }, Vector3{ -1.0f, 2.0f, 2.0f }, 1);
-    // Right Wall (X = 1, Green, normal -X)
-    AppendQuad(Vector3{ 1.0f, 0.0f, 0.0f }, Vector3{ 1.0f, 0.0f, 2.0f }, Vector3{ 1.0f, 2.0f, 2.0f }, Vector3{ 1.0f, 2.0f, 0.0f }, 2);
+    // Left Wall (X = -1, Red, normal +X into the room)
+    AppendQuad(Vector3{ -1.0f, 0.0f, 0.0f }, Vector3{ -1.0f, 2.0f, 0.0f }, Vector3{ -1.0f, 2.0f, 2.0f }, Vector3{ -1.0f, 0.0f, 2.0f }, 1);
+    // Right Wall (X = 1, Green, normal -X into the room)
+    AppendQuad(Vector3{ 1.0f, 2.0f, 0.0f }, Vector3{ 1.0f, 0.0f, 0.0f }, Vector3{ 1.0f, 0.0f, 2.0f }, Vector3{ 1.0f, 2.0f, 2.0f }, 2);
 
-    // Ceiling Light Quad (Y = 1.995, normal -Y)
-    AppendQuad(Vector3{ -0.30f, 1.995f, 0.70f }, Vector3{ 0.30f, 1.995f, 0.70f }, Vector3{ 0.30f, 1.995f, 1.30f }, Vector3{ -0.30f, 1.995f, 1.30f }, 3);
+    // Ceiling Light Quad (Z = 1.995, normal -Z downward into the room)
+    AppendQuad(Vector3{ -0.30f, 1.30f, 1.995f }, Vector3{ 0.30f, 1.30f, 1.995f }, Vector3{ 0.30f, 0.70f, 1.995f }, Vector3{ -0.30f, 0.70f, 1.995f }, 3);
 
-    // Tall Box inside room (Width 0.3, Height 0.6, Depth 0.3, rotated 22 deg)
-    AppendBox(Vector3{ -0.35f, 0.6f, 1.35f }, Vector3{ 0.28f, 0.6f, 0.28f }, 22.0f, 4);
+    // Tall Box inside room (0.56 × 0.56 footprint, 1.2 tall, rotated 22° about the vertical)
+    AppendBox(Vector3{ -0.35f, 1.35f, 0.6f }, Vector3{ 0.28f, 0.28f, 0.6f }, 22.0f, 4);
 
-    // Short Box inside room (Width 0.3, Height 0.3, Depth 0.3, rotated -18 deg)
-    AppendBox(Vector3{ 0.35f, 0.3f, 0.75f }, Vector3{ 0.28f, 0.3f, 0.28f }, -18.0f, 5);
+    // Short Box inside room (0.56 × 0.56 footprint, 0.6 tall, rotated -18° about the vertical)
+    AppendBox(Vector3{ 0.35f, 0.75f, 0.3f }, Vector3{ 0.28f, 0.28f, 0.3f }, -18.0f, 5);
 }
 
 void RayTracingSolver::AppendTriangle(const Vector3& v0, const Vector3& v1, const Vector3& v2, uint32_t MaterialIdx) noexcept
@@ -89,39 +98,41 @@ void RayTracingSolver::AppendBox(const Vector3& Center, const Vector3& Extents, 
     float CosAngle = std::cos(Rad);
     float SinAngle = std::sin(Rad);
 
-    auto RotateY = [CosAngle, SinAngle](const Vector3& p) -> Vector3
+    //    Yaw about the vertical axis. With $+Z$ up that is a rotation in the XY plane, not XZ.
+    auto RotateVertical = [CosAngle, SinAngle](const Vector3& p) -> Vector3
     {
-        return Vector3{ p.x * CosAngle + p.z * SinAngle, p.y, -p.x * SinAngle + p.z * CosAngle };
+        return Vector3{ p.x * CosAngle + p.y * SinAngle, -p.x * SinAngle + p.y * CosAngle, p.z };
     };
 
     float hx = Extents.x;
     float hy = Extents.y;
     float hz = Extents.z;
 
+    //    Corners in the engine frame: X right, Y forward/depth, Z up. Index bit 1 = +X, bit 2 = +Y, bit 4 = +Z.
     Vector3 Corners[8] = {
-        Center + RotateY(Vector3{ -hx, -hy, -hz }), // 0: Bottom-Left-Front
-        Center + RotateY(Vector3{  hx, -hy, -hz }), // 1: Bottom-Right-Front
-        Center + RotateY(Vector3{  hx, -hy,  hz }), // 2: Bottom-Right-Back
-        Center + RotateY(Vector3{ -hx, -hy,  hz }), // 3: Bottom-Left-Back
-        Center + RotateY(Vector3{ -hx,  hy, -hz }), // 4: Top-Left-Front
-        Center + RotateY(Vector3{  hx,  hy, -hz }), // 5: Top-Right-Front
-        Center + RotateY(Vector3{  hx,  hy,  hz }), // 6: Top-Right-Back
-        Center + RotateY(Vector3{ -hx,  hy,  hz })  // 7: Top-Left-Back
+        Center + RotateVertical(Vector3{ -hx, -hy, -hz }), // 0: lower · near · left
+        Center + RotateVertical(Vector3{  hx, -hy, -hz }), // 1: lower · near · right
+        Center + RotateVertical(Vector3{  hx,  hy, -hz }), // 2: lower · far  · right
+        Center + RotateVertical(Vector3{ -hx,  hy, -hz }), // 3: lower · far  · left
+        Center + RotateVertical(Vector3{ -hx, -hy,  hz }), // 4: upper · near · left
+        Center + RotateVertical(Vector3{  hx, -hy,  hz }), // 5: upper · near · right
+        Center + RotateVertical(Vector3{  hx,  hy,  hz }), // 6: upper · far  · right
+        Center + RotateVertical(Vector3{ -hx,  hy,  hz })  // 7: upper · far  · left
     };
 
-    // 6 faces of box with outward-pointing normals:
-    // Top (+Y)
-    AppendQuad(Corners[7], Corners[6], Corners[5], Corners[4], MaterialIdx);
-    // Bottom (-Y)
-    AppendQuad(Corners[0], Corners[1], Corners[2], Corners[3], MaterialIdx);
-    // Front (-Z)
-    AppendQuad(Corners[4], Corners[5], Corners[1], Corners[0], MaterialIdx);
-    // Back (+Z)
-    AppendQuad(Corners[6], Corners[7], Corners[3], Corners[2], MaterialIdx);
+    //    6 faces, each wound so the cross product of its first two edges points out of the solid.
+    // Top (+Z)
+    AppendQuad(Corners[4], Corners[5], Corners[6], Corners[7], MaterialIdx);
+    // Bottom (-Z)
+    AppendQuad(Corners[3], Corners[2], Corners[1], Corners[0], MaterialIdx);
+    // Near (-Y)
+    AppendQuad(Corners[0], Corners[1], Corners[5], Corners[4], MaterialIdx);
+    // Far (+Y)
+    AppendQuad(Corners[2], Corners[3], Corners[7], Corners[6], MaterialIdx);
     // Left (-X)
-    AppendQuad(Corners[7], Corners[4], Corners[0], Corners[3], MaterialIdx);
+    AppendQuad(Corners[3], Corners[0], Corners[4], Corners[7], MaterialIdx);
     // Right (+X)
-    AppendQuad(Corners[5], Corners[6], Corners[2], Corners[1], MaterialIdx);
+    AppendQuad(Corners[1], Corners[2], Corners[6], Corners[5], MaterialIdx);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
