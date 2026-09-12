@@ -25,6 +25,16 @@ constexpr float kApertureMinY  = 0.16f;
 constexpr float kApertureMaxY  = 1.94f;
 constexpr float kCeilingHeight = 2.4f;                          // the ceiling is lifted to open the sky further
 
+//    A window cut into the far wall. The opened ceiling lets the sky in, but a room with only a skylight can
+//    never see the WORLD — every downward ray terminates on the floor, so the checker ground, the height field
+//    and the two local lights are unreachable from inside no matter how faithfully they are integrated. The
+//    window is what puts the sky, the ground and the room in a single frame, which is the thing being proved.
+//    Its sill is at floor level so the ground outside reads as continuous with the floor inside, which is
+//    physically what it is: the room stands ON the celestial ground plane.
+constexpr float kWindowHalfX = 0.94f;                           // a picture window, not a porthole
+constexpr float kWindowMinZ  = 0.0f;                            // sill at floor level: ground reads continuous
+constexpr float kWindowMaxZ  = 1.90f;
+
 } // namespace
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -65,9 +75,28 @@ void CelestialStage::ConstructStage() noexcept
 
     const float Z = kCeilingHeight;
 
-    //    Walls, wound so each normal points into the room.
-    Scene.AppendQuad(Vector3{ -1.0f, 2.0f, 0.0f }, Vector3{ 1.0f, 2.0f, 0.0f },
-                     Vector3{ 1.0f, 2.0f, Z }, Vector3{ -1.0f, 2.0f, Z }, 0u);           // far wall
+    //    The far wall. With the window cut it becomes four strips framing the opening, all wound for a −Y
+    //    normal, into the room; without it, one solid quad exactly as the Cornell builder authored it.
+    if (Criteria.OpenWall)
+    {
+        Scene.AppendQuad(Vector3{ -1.0f, 2.0f, kWindowMaxZ }, Vector3{ 1.0f, 2.0f, kWindowMaxZ },
+                         Vector3{ 1.0f, 2.0f, Z }, Vector3{ -1.0f, 2.0f, Z }, 0u);       // above the window
+        if (kWindowMinZ > 0.0f)
+        {
+            Scene.AppendQuad(Vector3{ -1.0f, 2.0f, 0.0f }, Vector3{ 1.0f, 2.0f, 0.0f },
+                             Vector3{ 1.0f, 2.0f, kWindowMinZ }, Vector3{ -1.0f, 2.0f, kWindowMinZ }, 0u);
+        }
+        Scene.AppendQuad(Vector3{ -1.0f, 2.0f, kWindowMinZ }, Vector3{ -kWindowHalfX, 2.0f, kWindowMinZ },
+                         Vector3{ -kWindowHalfX, 2.0f, kWindowMaxZ }, Vector3{ -1.0f, 2.0f, kWindowMaxZ }, 0u);
+        Scene.AppendQuad(Vector3{ kWindowHalfX, 2.0f, kWindowMinZ }, Vector3{ 1.0f, 2.0f, kWindowMinZ },
+                         Vector3{ 1.0f, 2.0f, kWindowMaxZ }, Vector3{ kWindowHalfX, 2.0f, kWindowMaxZ }, 0u);
+    }
+    else
+    {
+        Scene.AppendQuad(Vector3{ -1.0f, 2.0f, 0.0f }, Vector3{ 1.0f, 2.0f, 0.0f },
+                         Vector3{ 1.0f, 2.0f, Z }, Vector3{ -1.0f, 2.0f, Z }, 0u);
+    }
+
     Scene.AppendQuad(Vector3{ -1.0f, 0.0f, 0.0f }, Vector3{ -1.0f, 2.0f, 0.0f },
                      Vector3{ -1.0f, 2.0f, Z }, Vector3{ -1.0f, 0.0f, Z }, 1u);          // left, red
     Scene.AppendQuad(Vector3{ 1.0f, 2.0f, 0.0f }, Vector3{ 1.0f, 0.0f, 0.0f },
@@ -114,8 +143,9 @@ void CelestialStage::Advance(float DeltaSeconds) noexcept
     Sky.AdvanceWind(DeltaSeconds);
     Sky.SolveFrame(Sky.QueryFrame().TimeSeconds + DeltaSeconds);
     Rain.AssignCriteria(Sky.QueryCriteria());
-    //    Rain falls in the sky frame; the room's floor is at world Z = 0, which is sky Y = 0.
-    Rain.Advance(DeltaSeconds, Vector3{ 0.0f, 1.0f, 0.0f }, Sky.QueryFrame(), 0.0f);
+    //    Rain falls in the sky frame. The room's floor is the terrace, at sky Y = FloorElevation, so that is
+    //    the height drops land and splash at — not sky Y = 0, which is the ground far below the window.
+    Rain.Advance(DeltaSeconds, Vector3{ 0.0f, 1.0f, 0.0f }, Sky.QueryFrame(), Criteria.FloorElevation);
     SunIrradiance = Sky.SampleSunIrradiance();
 }
 
@@ -127,14 +157,16 @@ ObserverFrame CelestialStage::ObserverFrameOf(const Frontier::CameraProjection& 
 {
     ObserverFrame Frame{};
     const Vector3 WorldPosition = Camera.QuerySpatialLocation();
-    //    The observer stands on the celestial ground plane: the room's floor is the world's surface, so the
-    //    camera's world Z becomes the sky frame's altitude.
+    //    The room stands on a terrace `FloorElevation` above the celestial ground plane, so the camera's
+    //    altitude in the sky frame is its height in the room plus that terrace. Getting this wrong by even
+    //    the terrace height puts the horizon in the wrong place and mis-scales the aerial perspective.
     Frame.Position    = SkyFrameOf(WorldPosition);
+    Frame.Position.y += Criteria.FloorElevation;
     Frame.Forward     = SkyFrameOf(Camera.QueryForwardVector());
     Frame.Right       = SkyFrameOf(Camera.QueryRightVector());
     Frame.Upward      = SkyFrameOf(Camera.QueryUpwardVector());
     Frame.TangentHalf = std::tan(Camera.QueryFieldOfViewRadians() * 0.5f);
-    Frame.Height      = std::max(WorldPosition.z, 0.1f);
+    Frame.Height      = std::max(WorldPosition.z + Criteria.FloorElevation, 0.1f);
     return Frame;
 }
 
@@ -150,6 +182,59 @@ Vector3 CelestialStage::SampleCosineHemisphere(const Vector3& Normal, float u1, 
     const Vector3 Tangent = Cross(Up, Normal).Normalized();
     const Vector3 Bitangent = Cross(Normal, Tangent);
     return (Tangent * x + Bitangent * y + Normal * z).Normalized();
+}
+
+Vector3 CelestialStage::LocalLightContribution(const Vector3& Position, const Vector3& Normal,
+                                               const Vector3& Albedo) const noexcept
+{
+    const CelestialCriteria& C = Sky.QueryCriteria();
+    Vector3 Radiance{ 0.0f, 0.0f, 0.0f };
+
+    //    The lights are authored in the sky frame, like everything else the panel owns; the room is in the
+    //    world frame and stands on the terrace, so they cross the same seam the sun and the rain cross.
+    const Vector3 Origin = Position + Normal * 1e-3f;
+    auto RoomFrameOf = [&](const Vector3& SkyPoint)
+    {
+        Vector3 World = WorldFrameOf(SkyPoint);
+        World.z -= Criteria.FloorElevation;
+        return World;
+    };
+
+    if (C.PointLight.Visible)
+    {
+        const Vector3 WorldPosition = RoomFrameOf(C.PointLight.Placement);
+        const Vector3 ToLight = WorldPosition - Position;
+        const float d = std::sqrt(Dot(ToLight, ToLight));
+        const Vector3 L = ToLight / std::max(d, 1e-3f);
+        const float NdotL = std::max(Dot(Normal, L), 0.0f);
+        if (NdotL > 0.0f && !Scene.EvaluateOcclusion(Origin, WorldPosition))
+        {
+            const float Falloff = C.PointLight.Intensity / std::pow(std::max(d, 1.0f), C.PointLight.Decay)
+                                * (1.0f - SmoothStep(C.PointLight.Reach * 0.7f, C.PointLight.Reach, d));
+            Radiance += Albedo * C.PointLight.Colour * (Falloff * NdotL * 0.02f);
+        }
+    }
+
+    if (C.SpotLight.Visible)
+    {
+        const Vector3 WorldPosition = RoomFrameOf(C.SpotLight.Placement);
+        //    A DIRECTION, not a point: it crosses the axis relabel but not the terrace offset.
+        const Vector3 WorldDirection = WorldFrameOf(C.SpotLight.Direction());
+        const Vector3 ToLight = WorldPosition - Position;
+        const float d = std::sqrt(Dot(ToLight, ToLight));
+        const Vector3 L = ToLight / std::max(d, 1e-3f);
+        const float NdotL = std::max(Dot(Normal, L), 0.0f);
+        const float CosTheta = Dot(Negate(L), WorldDirection);
+        const float CosHalf = C.SpotLight.CosineHalfAngle();
+        const float Cone = SmoothStep(CosHalf, Mix(CosHalf, 1.0f, C.SpotLight.Penumbra * 0.9f) + 1e-4f, CosTheta);
+        if (NdotL > 0.0f && Cone > 0.0f && !Scene.EvaluateOcclusion(Origin, WorldPosition))
+        {
+            Radiance += Albedo * C.SpotLight.Colour
+                      * ((C.SpotLight.Intensity / std::max(d * d, 1.0f)) * Cone * NdotL * 0.02f);
+        }
+    }
+
+    return Radiance;
 }
 
 Vector3 CelestialStage::ShadeSurface(const HitIntersection& Hit, const Vector3& ViewDirection,
@@ -204,6 +289,11 @@ Vector3 CelestialStage::ShadeSurface(const HitIntersection& Hit, const Vector3& 
         //    Cosine-weighted hemisphere sampling: the estimator is the mean over ALL taps (the occluded ones
         //    contribute zero radiance, which is the visibility term doing its job), times albedo.
         Radiance += Material.AlbedoColor * (SkyTerm / static_cast<float>(SkyTaps));
+
+        //    ③ The panel's two local lights. Both are ON by default in the reference and both are uploaded
+        //       every frame, so a surface inside the room has to answer to them exactly as the ground does —
+        //       shadowed by the room, and with the same photometric falloff the reference uses.
+        Radiance += LocalLightContribution(Hit.HitLocation, Hit.SurfaceNormal, Material.AlbedoColor);
     }
 
     //    ③ The classic Cornell luminaire, and ④ the ReSTIR indirect term.
@@ -373,6 +463,12 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                             BounceRadiance += BounceMaterial.AlbedoColor * SunIrradiance * NdotL;
                         }
                     }
+
+                    //    …and the two local lights. A lamp that lights a wall must also have that wall bounce
+                    //    its light onto the rest of the room, or the lamps are direct-only and the GI solve
+                    //    silently disagrees with the direct pass about where the light is.
+                    BounceRadiance += LocalLightContribution(BounceHit.HitLocation, BounceHit.SurfaceNormal,
+                                                             BounceMaterial.AlbedoColor);
                 }
             }
             else if (Criteria.SkyLighting)
@@ -535,12 +631,16 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
     double SurfaceLuminanceSum = 0.0;
     uint32_t SkyPixels = 0u;
     uint32_t SurfacePixels = 0u;
+    uint32_t GroundPixels = 0u;
+    double   GroundLuminanceSum = 0.0;
 
     std::vector<double> PartialLuminance(ThreadCount, 0.0);
     std::vector<double> PartialSkyLuminance(ThreadCount, 0.0);
     std::vector<double> PartialSurfaceLuminance(ThreadCount, 0.0);
     std::vector<uint32_t> PartialSkyPixels(ThreadCount, 0u);
     std::vector<uint32_t> PartialSurfacePixels(ThreadCount, 0u);
+    std::vector<uint32_t> PartialGroundPixels(ThreadCount, 0u);
+    std::vector<double>   PartialGroundLuminance(ThreadCount, 0.0);
 
     auto ShadeBand = [&](uint32_t Worker)
     {
@@ -562,6 +662,8 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
 
             Vector3 Radiance{ 0.0f, 0.0f, 0.0f };
             float SkyMask = 0.0f;
+            bool  GroundHit = false;
+            float GroundDistance = 0.0f;
 
             if (Hit.ValidCondition)
             {
@@ -594,14 +696,41 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                     ++PartialSurfacePixels[Worker];
                 }
             }
+            else if (Criteria.SkyLighting)
+            {
+                //    Nothing in the room: the ray left through the aperture or past the walls. The reference
+                //    resolves the WORLD before the sky — the sculpted height field and the checker plane, with
+                //    their own sun, ambient and local lights — and only falls through to the sky when neither
+                //    is hit. That ordering is kept here, so a downward ray escaping the room lands on ground
+                //    rather than on an upside-down sky.
+                const CelestialIntegrator::GroundSample Ground =
+                    Sky.SampleGround(SkyDirection, Observer, PixelAngle);
+
+                if (Ground.Hit)
+                {
+                    Radiance = Sky.CompositeGround(Ground.Radiance, SkyDirection, Ground.Distance, Observer, x, y);
+                    //    The ground is geometry, not sky: it occludes the bow and it counts as a surface.
+                    //    The reference gives a distant plane a partial sky mask (`smoothstep(1500,6000,planeT)
+                    //    *.35`) because far enough away it is mostly aerial perspective, which is sky light.
+                    SkyMask = SmoothStep(1500.0f, 6000.0f, Ground.Distance) * 0.35f;
+                    PartialSurfaceLuminance[Worker] += LuminanceOf(Radiance);
+                    ++PartialSurfacePixels[Worker];
+                    PartialGroundLuminance[Worker] += LuminanceOf(Radiance);
+                    ++PartialGroundPixels[Worker];
+                    GroundHit = true;
+                    GroundDistance = Ground.Distance;
+                }
+                else
+                {
+                    Radiance = Sky.SampleSkyRadiance(SkyDirection, Observer, PixelAngle, x, y);
+                    SkyMask = 1.0f;
+                    PartialSkyLuminance[Worker] += LuminanceOf(Radiance);
+                    ++PartialSkyPixels[Worker];
+                }
+            }
             else
             {
-                //    Nothing in the room: this pixel sees the sky, through the aperture or past the walls.
-                Radiance = Criteria.SkyLighting
-                         ? Sky.SampleSkyRadiance(SkyDirection, Observer, PixelAngle, x, y)
-                         : Vector3{ 0.0f, 0.0f, 0.0f };
                 SkyMask = 1.0f;
-                PartialSkyLuminance[Worker] += LuminanceOf(Radiance);
                 ++PartialSkyPixels[Worker];
             }
 
@@ -609,6 +738,15 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
             //    and sits over everything. Both are sunlight, so both answer to the negative control.
             if (Criteria.SkyLighting)
             {
+                //    The emissive glyphs marking the two local lights, occluded by the ground when it is
+                //    nearer than the light. Room geometry occludes them too: a ray that hit the Cornell box
+                //    never reaches the lamps outside it.
+                const bool  Occluder = GroundHit || Hit.ValidCondition;
+                const float OccluderDistance = Hit.ValidCondition
+                                             ? std::min(Hit.RayDistance, GroundHit ? GroundDistance : Hit.RayDistance)
+                                             : GroundDistance;
+                Radiance = Sky.AddLightGlyphs(Radiance, SkyDirection, Observer, Occluder, OccluderDistance);
+
                 Radiance = Sky.AddRainbow(Radiance, SkyDirection, SkyMask);
                 Radiance = Sky.AddLensFlare(Radiance, ndcU, ndcV, Observer);
             }
@@ -640,6 +778,8 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
         SurfaceLuminanceSum += PartialSurfaceLuminance[w];
         SkyPixels           += PartialSkyPixels[w];
         SurfacePixels       += PartialSurfacePixels[w];
+        GroundPixels        += PartialGroundPixels[w];
+        GroundLuminanceSum  += PartialGroundLuminance[w];
     }
 
     //    ── Phase 7 · precipitation, splatted as motion streaks in screen space ─────────────────────────────
@@ -660,6 +800,16 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
         //    Drops are lit by the same sky the scene is lit by, so they darken with the weather.
         const Vector3 DropRadiance = (Sky.QueryFrame().SkyAmbient * 2.2f + SunIrradiance * 0.35f) * Tint;
 
+        //    Drops live in the sky frame, whose origin is the celestial ground; the room's frame starts at the
+        //    terrace. Crossing the seam therefore has to subtract the terrace, or every drop renders that many
+        //    metres too high and the splashes land in mid-air above the floor.
+        auto RoomFrameOf = [&](const Vector3& SkyPoint)
+        {
+            Vector3 World = WorldFrameOf(SkyPoint);
+            World.z -= Criteria.FloorElevation;
+            return World;
+        };
+
         auto Project = [&](const Vector3& WorldPoint, float& OutX, float& OutY, float& OutDepth) -> bool
         {
             const Vector3 Relative = WorldPoint - CameraPosition;
@@ -675,7 +825,7 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
 
         for (const Hydrometeor& Drop : Rain.QueryPool())
         {
-            const Vector3 World = WorldFrameOf(Drop.Position);
+            const Vector3 World = RoomFrameOf(Drop.Position);
             float sx = 0.0f, sy = 0.0f, depth = 0.0f;
             if (!Project(World, sx, sy, depth)) { continue; }
 
@@ -709,7 +859,7 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
             if (Class.Shape == 0u)
             {
                 //    A motion streak from the drop's own velocity: length = speed × exposure.
-                const Vector3 TailWorld = WorldFrameOf(Drop.Position - Drop.Velocity * (StreakScale * 0.4f));
+                const Vector3 TailWorld = RoomFrameOf(Drop.Position - Drop.Velocity * (StreakScale * 0.4f));
                 float tx = sx, ty = sy, tdepth = depth;
                 Project(TailWorld, tx, ty, tdepth);
                 const float Alpha = 0.55f * Opacity * Fade;
@@ -760,6 +910,8 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
     Statistics.MeanSkyLuminance     = SkyPixels > 0u ? SkyLuminanceSum / SkyPixels : 0.0;
     Statistics.MeanSurfaceLuminance = SurfacePixels > 0u ? SurfaceLuminanceSum / SurfacePixels : 0.0;
     Statistics.RainPixels           = RainPixels;
+    Statistics.GroundPixels         = GroundPixels;
+    Statistics.MeanGroundLuminance  = GroundPixels > 0u ? GroundLuminanceSum / GroundPixels : 0.0;
     Statistics.RenderMilliseconds   = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
 }
 

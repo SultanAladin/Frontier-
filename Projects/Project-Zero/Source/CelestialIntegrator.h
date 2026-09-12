@@ -116,6 +116,46 @@ public:
     [[nodiscard]] Vector3       SampleSunIrradiance() const noexcept;
     [[nodiscard]] Vector3       SampleEnvironmentRadiance(const Vector3& WorldDirection, const ObserverFrame& Observer) const noexcept;
 
+    //------------------------------------------------------------------------------------------------------------
+    //                                   THE GROUND — reference `main()` plane / terrain branches
+    //------------------------------------------------------------------------------------------------------------
+    //    The reference resolves the world under the sky before it resolves the sky itself: the sculpted height
+    //    field first, then the checker plane, whichever is nearer. Both are shaded against the same sun, the
+    //    same sky ambient and the same local lights, then composited through the shared media path.
+
+    struct GroundSample
+    {
+        bool    Hit         = false;
+        float   Distance    = 0.0f;                             // [m]
+        Vector3 Radiance    { 0.0f, 0.0f, 0.0f };               // linear HDR, before `applyMedia`
+        Vector3 Normal      { 0.0f, 1.0f, 0.0f };               // sky frame
+    };
+
+    //    `terrH` — the sculpted height at a horizontal station, and the sphere-traced hit against it.
+    [[nodiscard]] float         TerrainHeightAt(float x, float z) const noexcept;
+    [[nodiscard]] bool          TerrainIntersect(const Vector3& Origin, const Vector3& Direction,
+                                                 float& OutDistance, Vector3& OutNormal) const noexcept;
+
+    //    The whole ground branch: terrain, then checker plane, shaded and returned unfogged so the caller can
+    //    composite it exactly where the reference does.
+    [[nodiscard]] GroundSample  SampleGround(const Vector3& Direction, const ObserverFrame& Observer,
+                                             float PixelFootprint) const noexcept;
+
+    //    `applyMedia` + `marchLocal` over a surface at `Distance`, which is what the reference does to
+    //    `planeCol` before anything else is composited over it.
+    [[nodiscard]] Vector3       CompositeGround(const Vector3& Radiance, const Vector3& Direction, float Distance,
+                                                const ObserverFrame& Observer,
+                                                uint32_t PixelX, uint32_t PixelY) const noexcept;
+
+    //    The emissive glyphs the reference draws where the point and spot lights sit, so a light that is on is
+    //    visible in the frame and not merely inferable from what it lights.
+    [[nodiscard]] Vector3       AddLightGlyphs(const Vector3& Radiance, const Vector3& Direction,
+                                               const ObserverFrame& Observer,
+                                               bool GroundHit, float GroundDistance) const noexcept;
+
+    //    The two local lights as they illuminate an opaque surface — `uPLOn`/`uSLOn` in the plane branch.
+    [[nodiscard]] Vector3       LocalLightsOnSurface(const Vector3& Position, const Vector3& Albedo) const noexcept;
+
     [[nodiscard]] const CelestialFrame&    QueryFrame() const noexcept      { return Solved; }
     [[nodiscard]] const CelestialCriteria& QueryCriteria() const noexcept   { return Criteria; }
     [[nodiscard]] CelestialCriteria&       MutableCriteria() noexcept       { return Criteria; }
@@ -160,6 +200,9 @@ private:
     [[nodiscard]] Vector3       WindDisplacement(const Vector3& Position) const noexcept;
     [[nodiscard]] Vector3       WindTurbulence(const Vector3& Position, float Time) const noexcept;
     [[nodiscard]] Vector3       SwirlAt(const Vector3& Position) const noexcept;
+
+    //    `tfield` — the terrain's analytic three-sinusoid field, in the panel's normalised patch coordinates.
+    [[nodiscard]] float         TerrainField(float qx, float qz) const noexcept;
 
     CelestialCriteria   Criteria;
     CelestialFrame      Solved;

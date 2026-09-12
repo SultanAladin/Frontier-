@@ -56,8 +56,13 @@ $(TARGET): $(ENGINE_OBJS) $(GAME_OBJS)
 	@mkdir -p bin
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^
 
+#    -MMD -MP emits a .d sidecar listing every header each .cpp pulled in, and the include below feeds those
+#    back to make. WITHOUT THIS a header-only change (adding a field to a struct, say) rebuilds nothing: the
+#    stale .o files keep the OLD struct layout while the new ones use the new one, the link succeeds anyway,
+#    and the program segfaults at run time on a corrupted object. That exact failure cost a debugging cycle
+#    here — the crash looked like a logic bug in the precipitation solver and was purely a stale object file.
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
 
 $(ENGINE_DIR)/%.o: $(ENGINE_DIR)/%.cpp
 	$(MAKE) -C $(ENGINE_DIR)
@@ -66,4 +71,6 @@ run: $(TARGET)
 	./$(TARGET)
 
 clean:
-	rm -rf $(GAME_OBJS) bin/Project-Zero
+	rm -rf $(GAME_OBJS) $(GAME_OBJS:.o=.d) bin/Project-Zero
+
+-include $(GAME_OBJS:.o=.d)

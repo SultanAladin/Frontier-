@@ -1339,7 +1339,37 @@ void CelestialIntegrator::MarchLocalVolumes(const Vector3& Origin, const Vector3
 
             if (RhoFog > 0.0f)
             {
-                const Vector3 Li = AmbientFog + SunBase * (SunUpFog * PhaseFog * Shadow);
+                Vector3 Li = AmbientFog + SunBase * (SunUpFog * PhaseFog * Shadow);
+
+                //    The two local lights in-scatter into the fog, each through its own HG lobe evaluated
+                //    against the light direction rather than the sun's. This is what makes a lamp inside a
+                //    fog bank show a visible cone instead of merely brightening the surface under it.
+                if (Criteria.PointLight.Visible)
+                {
+                    const PointLightCriteria& PL = Criteria.PointLight;
+                    const Vector3 ToLight = PL.Placement - p;
+                    const float d = std::sqrt(Dot(ToLight, ToLight));
+                    const Vector3 L = ToLight / std::max(d, 1e-3f);
+                    const float ph = (1.0f - gF * gF)
+                                   / (4.0f * 3.14159f * std::pow(std::max(1.0f + gF * gF - 2.0f * gF * Dot(Direction, L), 1e-6f), 1.5f));
+                    Li += PL.Colour * (PL.Intensity / std::pow(std::max(d, 1.0f), PL.Decay)
+                                     * (1.0f - SmoothStep(PL.Reach * 0.7f, PL.Reach, d))
+                                     * ph * 4.0f * 3.14159f * 0.02f);
+                }
+                if (Criteria.SpotLight.Visible)
+                {
+                    const SpotLightCriteria& SL = Criteria.SpotLight;
+                    const Vector3 ToLight = SL.Placement - p;
+                    const float d = std::sqrt(Dot(ToLight, ToLight));
+                    const Vector3 L = ToLight / std::max(d, 1e-3f);
+                    const float CosTheta = Dot(Negate(L), SL.Direction());
+                    const float CosHalf = SL.CosineHalfAngle();
+                    const float Cone = SmoothStep(CosHalf, Mix(CosHalf, 1.0f, SL.Penumbra * 0.9f) + 1e-4f, CosTheta);
+                    const float ph = (1.0f - gF * gF)
+                                   / (4.0f * 3.14159f * std::pow(std::max(1.0f + gF * gF - 2.0f * gF * Dot(Direction, L), 1e-6f), 1.5f));
+                    Li += SL.Colour * ((SL.Intensity / std::max(d * d, 1.0f)) * Cone * ph * 4.0f * 3.14159f * 0.02f);
+                }
+
                 Source += Li * F.Albedo * RhoFog;
             }
             if (RhoCloud > 0.0f)
@@ -1557,6 +1587,352 @@ Vector3 CelestialIntegrator::LensFlare(float u, float v, float SunU, float SunV,
     f += Vector3{ 1.0f, 0.9f, 0.8f } * (std::exp(-Length * 1.6f) * 0.04f);
 
     return f * (Visibility * P.FlareIntensity);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                               LOCAL LIGHTS ON A SURFACE — reference `main()` plane branch
+//------------------------------------------------------------------------------------------------------------------------
+//    The two photometric lights the panel holds in `S.plP` / `S.slP`. The reference uploads them every frame
+//    and both default to ON, so any surface the port shades has to answer to them:
+//
+//        point : uPLCol * uPLInt / max(d,1)^uPLDecay * (1 - smoothstep(reach*.7, reach, d)) * max(L.y,0) * .02
+//        spot  : uSLCol * uSLInt / max(d²,1) * cone(penumbra) * max(L.y,0) * .02
+//
+//    `max(L.y, 0)` is the reference's own stand-in for N·L on a level plane; the general form below uses the
+//    surface normal where one is available, which is the same expression when the normal is +Y.
+
+Vector3 CelestialIntegrator::LocalLightsOnSurface(const Vector3& Position, const Vector3& Albedo) const noexcept
+{
+    Vector3 Radiance{ 0.0f, 0.0f, 0.0f };
+
+    if (Criteria.PointLight.Visible)
+    {
+        const PointLightCriteria& P = Criteria.PointLight;
+        const Vector3 ToLight = P.Placement - Position;
+        const float d = std::sqrt(Dot(ToLight, ToLight));
+        const Vector3 L = ToLight / std::max(d, 1e-3f);
+        const float Falloff = P.Intensity / std::pow(std::max(d, 1.0f), P.Decay)
+                            * (1.0f - SmoothStep(P.Reach * 0.7f, P.Reach, d));
+        Radiance += Albedo * P.Colour * (Falloff * std::max(L.y, 0.0f) * 0.02f);
+    }
+
+    if (Criteria.SpotLight.Visible)
+    {
+        const SpotLightCriteria& S = Criteria.SpotLight;
+        const Vector3 ToLight = S.Placement - Position;
+        const float d = std::sqrt(Dot(ToLight, ToLight));
+        const Vector3 L = ToLight / std::max(d, 1e-3f);
+        const float CosTheta = Dot(Negate(L), S.Direction());
+        const float CosHalf = S.CosineHalfAngle();
+        const float Cone = SmoothStep(CosHalf, Mix(CosHalf, 1.0f, S.Penumbra * 0.9f) + 1e-4f, CosTheta);
+        Radiance += Albedo * S.Colour * ((S.Intensity / std::max(d * d, 1.0f)) * Cone * std::max(L.y, 0.0f) * 0.02f);
+    }
+
+    return Radiance;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                     HEIGHT FIELD — reference `tfield` / `terrH` / `terrHit`
+//------------------------------------------------------------------------------------------------------------------------
+//    The sculpted terrain: three sinusoids in the patch's normalised coordinates, sphere-traced with a growing
+//    step and refined by linear interpolation across the sign change, then differenced for the normal.
+
+float CelestialIntegrator::TerrainField(float qx, float qz) const noexcept
+{
+    const TerrainCriteria& T = Criteria.Terrain;
+    const float f = T.Frequency;
+    const float s = T.Seed;
+    return Clamp01(0.5f + 0.23f * std::sin((qx * 5.3f + s * 0.013f) * f)
+                        + 0.16f * std::sin((qz * 7.1f - s * 0.019f) * f)
+                        + 0.09f * std::sin((qx + qz) * 15.7f * f));
+}
+
+float CelestialIntegrator::TerrainHeightAt(float x, float z) const noexcept
+{
+    const TerrainCriteria& T = Criteria.Terrain;
+    const float qx = (x - T.Placement.x) / T.Size + 0.5f;
+    const float qz = (z - T.Placement.z) / T.Size + 0.5f;
+    return T.Placement.y + TerrainField(qx, qz) * T.Height;
+}
+
+bool CelestialIntegrator::TerrainIntersect(const Vector3& Origin, const Vector3& Direction,
+                                           float& OutDistance, Vector3& OutNormal) const noexcept
+{
+    OutDistance = -1.0f;
+    const TerrainCriteria& T = Criteria.Terrain;
+    if (!T.Visible)
+    {
+        return false;
+    }
+
+    const float Half = T.Size * 0.5f;
+    float t = 0.0f;
+    float dt = std::max(0.5f, T.Size / 160.0f);
+    float PreviousDelta = 0.0f;
+    bool Hit = false;
+
+    for (int i = 0; i < 160; ++i)
+    {
+        const Vector3 p = Origin + Direction * t;
+        const float lx = std::abs(p.x - T.Placement.x);
+        const float lz = std::abs(p.z - T.Placement.z);
+        if (lx > Half || lz > Half)
+        {
+            //    Outside the patch: give up only once the ray is climbing away above the highest ground.
+            if (t > 0.0f && p.y > T.Placement.y + T.Height && Direction.y >= 0.0f) { break; }
+        }
+        else
+        {
+            const float Delta = p.y - TerrainHeightAt(p.x, p.z);
+            if (Delta < 0.0f)
+            {
+                t -= dt * Delta / (Delta - PreviousDelta + 1e-5f);
+                Hit = true;
+                break;
+            }
+            PreviousDelta = Delta;
+        }
+        t += dt;
+        dt *= 1.03f;
+        if (t > T.Size * 4.0f) { break; }
+    }
+
+    if (!Hit)
+    {
+        return false;
+    }
+
+    const Vector3 p = Origin + Direction * t;
+    const float e = T.Size / 256.0f;
+    OutNormal = Vector3{ TerrainHeightAt(p.x - e, p.z) - TerrainHeightAt(p.x + e, p.z),
+                         2.0f * e,
+                         TerrainHeightAt(p.x, p.z - e) - TerrainHeightAt(p.x, p.z + e) }.Normalized();
+    OutDistance = t;
+    return true;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                       THE GROUND UNDER THE SKY — reference `main()` terrain + checker-plane branches
+//------------------------------------------------------------------------------------------------------------------------
+//    The reference resolves the world before the sky: the sculpted field first, the checker plane second and
+//    only if it is nearer. Both are shaded against the same sun, the same hemispherical ambient and the same
+//    two local lights, then faded into the sky by the distance fog `1-exp(-t*7e-5)` raised to 1.6.
+//
+//    The checker is filtered rather than point-sampled. A screen-space derivative is not available on the CPU,
+//    so the caller supplies the ray's footprint — the same quantity `fwidth` estimates — and the reference's
+//    box-filtered checker integral is evaluated with it. Point-sampling would alias the plane into moiré at
+//    grazing angles, which is the artefact `fwidth` exists to prevent.
+
+CelestialIntegrator::GroundSample CelestialIntegrator::SampleGround(const Vector3& Direction,
+                                                                    const ObserverFrame& Observer,
+                                                                    float PixelFootprint) const noexcept
+{
+    GroundSample Result{};
+
+    Vector3 SkyRadiance{}, Transmittance{};
+    float Ground = 0.0f;
+    IntegrateAtmosphere(Vector3{ 0.0f, Criteria.Atmosphere.PlanetRadius + Observer.Height, 0.0f },
+                        Direction, SkyRadiance, Transmittance, Ground);
+    SkyRadiance *= Criteria.Sky.Tint;
+    SkyRadiance *= Criteria.Sky.Brightness * (Criteria.Sky.Visible ? 1.0f : 0.0f)
+                 * (Criteria.Atmosphere.Visible ? 1.0f : 0.0f);
+    if (!Criteria.Atmosphere.Visible)
+    {
+        Transmittance = Vector3{ 1.0f, 1.0f, 1.0f };
+    }
+
+    const float ElevationDeg = Solved.SunElevationDeg;
+    const float hxz = std::sqrt(Direction.x * Direction.x + Direction.z * Direction.z) + 1e-5f;
+    const float sxz = std::sqrt(Solved.SunDirection.x * Solved.SunDirection.x
+                              + Solved.SunDirection.z * Solved.SunDirection.z) + 1e-5f;
+    const float Facing = 0.5f + 0.5f * ((Direction.x / hxz) * (Solved.SunDirection.x / sxz)
+                                      + (Direction.z / hxz) * (Solved.SunDirection.z / sxz));
+    const float HdrScale = Criteria.Sun.Intensity / 22.0f * Criteria.Sky.Brightness
+                         * (Criteria.Sky.Visible ? 1.0f : 0.0f);
+    const float GroundObserver = 1.0f - SmoothStep(1500.0f, 12000.0f, Observer.Height);
+    const Vector3 HorizonGlow = TwilightGlow(Vector3{ Direction.x, 0.0f, Direction.z }.Normalized() + Splat(1e-5f),
+                                             ElevationDeg, Facing) * (HdrScale * GroundObserver);
+
+    float PlaneDistance = 1e9f;
+    Vector3 PlaneRadiance{ 0.0f, 0.0f, 0.0f };
+    Vector3 PlaneNormal{ 0.0f, 1.0f, 0.0f };
+    bool    PlaneHit = false;
+
+    //    ── the sculpted height field ────────────────────────────────────────────────────────────────────────
+    {
+        float tHit = 0.0f;
+        Vector3 n{ 0.0f, 1.0f, 0.0f };
+        if (Observer.Height < 5000.0f && TerrainIntersect(Observer.Position, Direction, tHit, n))
+        {
+            const TerrainCriteria& T = Criteria.Terrain;
+            const Vector3 hp = Observer.Position + Direction * tHit;
+            const float hn = Clamp01((hp.y - T.Placement.y) / std::max(0.01f, T.Height));
+            const Vector3 Albedo = Mix(T.LowColour, T.HighColour, hn);
+            const float NdotL = std::max(Dot(n, Solved.SunDirection), 0.0f);
+            const float Shadow = 1.0f - Criteria.GroundPlane.ShadowPresence
+                               * (1.0f - SmoothStep(-1.0f, 3.0f, ElevationDeg)) * 0.35f * NdotL;
+
+            const Vector3 Half = (Solved.SunDirection - Direction).Normalized();
+            const Vector3 Specular = Transmittance * Solved.SunColour * (Criteria.Sun.Intensity * 0.02f)
+                                   * (std::pow(std::max(Dot(n, Half), 0.0f), Mix(64.0f, 4.0f, T.Roughness))
+                                      * (1.0f - T.Roughness));
+
+            const Vector3 Ambient = (SkyRadiance * 0.42f + HorizonGlow * 0.08f) * (0.5f + 0.5f * n.y);
+            PlaneRadiance = Albedo * (Transmittance * Solved.SunColour * (Criteria.Sun.Intensity * 0.11f * NdotL * Shadow)
+                                      + Ambient) + Specular;
+
+            if (T.Wireframe)
+            {
+                //    The reference draws a 32×32 wire over the patch, thresholded through `fwidth`.
+                const float qx = (hp.x - T.Placement.x) / T.Size * 32.0f;
+                const float qz = (hp.z - T.Placement.z) / T.Size * 32.0f;
+                const float w = std::max(PixelFootprint * tHit / T.Size * 32.0f, 1e-4f);
+                const float gx = std::abs(Fract(qx - 0.5f) - 0.5f) / w;
+                const float gz = std::abs(Fract(qz - 0.5f) - 0.5f) / w;
+                const float Line = 1.0f - std::min(std::min(gx, gz), 1.0f);
+                PlaneRadiance = Mix(PlaneRadiance, Splat(0.9f), Line * 0.6f);
+            }
+
+            float Fog = 1.0f - std::exp(-tHit * 7e-5f);
+            Fog = std::pow(Clamp01(Fog), 1.6f);
+            PlaneRadiance = Mix(PlaneRadiance, SkyRadiance * 0.8f + HorizonGlow * 0.6f, Fog);
+            PlaneDistance = tHit;
+            PlaneNormal = n;
+            PlaneHit = true;
+        }
+    }
+
+    //    ── the checker plane ────────────────────────────────────────────────────────────────────────────────
+    const GroundPlaneCriteria& G = Criteria.GroundPlane;
+    if (G.Visible && Direction.y < -1e-4f && Observer.Height < 2000.0f)
+    {
+        const float t = (G.Height - Observer.Position.y) / Direction.y;
+        if (t > 0.0f && t < PlaneDistance)
+        {
+            const Vector3 hp = Observer.Position + Direction * t;
+            //    `step(max(|x|,|z|), uPlaneSize)` — 1 inside the checkered extent, 0 on the bare plane beyond
+            //    it. Note the argument order: the reference's edge is the RADIUS and its x is the extent.
+            const float InsideChecker = Step(std::max(std::abs(hp.x), std::abs(hp.z)), G.HalfSize);
+
+            //    The reference's analytically box-filtered checker: the integral of the square wave over the
+            //    footprint, which is what keeps a receding plane from aliasing.
+            const float qx = hp.x / G.CellSize;
+            const float qz = hp.z / G.CellSize;
+            const float Footprint = std::max(PixelFootprint * t / G.CellSize, 1e-5f);
+            const float wx = Footprint * 1.5f + 1e-4f;
+            const float wz = Footprint * 1.5f + 1e-4f;
+            auto Triangle = [](float v) { return std::abs(Fract(v * 0.5f) - 0.5f); };
+            const float ix = 2.0f * (Triangle(qx - 0.5f * wx) - Triangle(qx + 0.5f * wx)) / wx;
+            const float iz = 2.0f * (Triangle(qz - 0.5f * wz) - Triangle(qz + 0.5f * wz)) / wz;
+            const float Checker = 0.5f - 0.5f * ix * iz;
+
+            Vector3 Albedo = Mix(G.TintA, Mix(G.TintA, G.TintB, Checker), InsideChecker);
+
+            if (G.Graticule)
+            {
+                //    Grid every cell, bold every ten, then the two coloured axis lines.
+                const float g1x = std::abs(Fract(qx - 0.5f) - 0.5f) / (Footprint + 1e-4f);
+                const float g1z = std::abs(Fract(qz - 0.5f) - 0.5f) / (Footprint + 1e-4f);
+                const float Line = 1.0f - std::min(std::min(g1x, g1z), 1.0f);
+                const float g10x = std::abs(Fract(qx / 10.0f - 0.5f) - 0.5f) / (Footprint * 0.1f + 1e-4f);
+                const float g10z = std::abs(Fract(qz / 10.0f - 0.5f) - 0.5f) / (Footprint * 0.1f + 1e-4f);
+                const float Line10 = 1.0f - std::min(std::min(g10x, g10z), 1.0f);
+                Albedo = Mix(Albedo, Albedo * 0.55f, Line * 0.6f * InsideChecker);
+                Albedo = Mix(Albedo, Vector3{ 0.35f, 0.4f, 0.5f }, Line10 * 0.8f * InsideChecker);
+
+                const float FootprintMetres = std::max(PixelFootprint * t, 1e-5f);
+                const float ax = 1.0f - std::min(std::abs(hp.z) / (FootprintMetres * 1.5f + 1e-4f), 1.0f);
+                const float az = 1.0f - std::min(std::abs(hp.x) / (FootprintMetres * 1.5f + 1e-4f), 1.0f);
+                Albedo = Mix(Albedo, Vector3{ 0.95f, 0.25f, 0.3f }, ax);
+                Albedo = Mix(Albedo, Vector3{ 0.25f, 0.55f, 0.95f }, az);
+            }
+
+            const float NdotL = std::max(Solved.SunDirection.y, 0.0f);
+            Vector3 SunLight = Transmittance * Solved.SunColour * (Criteria.Sun.Intensity * 0.11f * NdotL);
+
+            //    Hemispherical ambient, with the reference's tiny floor so the plane never goes fully black.
+            Vector3 Ambient = (SkyRadiance * 0.42f + HorizonGlow * 0.08f
+                             + Vector3{ 0.0015f, 0.002f, 0.004f } * Criteria.Sky.Brightness)
+                            * Mix(0.55f, 1.0f, G.GlobalPresence);
+            Ambient += G.TintA * (G.GlobalPresence * 0.5f * 0.35f) * SunLight;
+
+            const float Shadow = 1.0f - G.ShadowPresence * (1.0f - SmoothStep(-1.0f, 3.0f, ElevationDeg)) * 0.35f * NdotL;
+            SunLight *= Shadow;
+
+            //    Moonlight on the ground — the reference sums every visible moon.
+            for (uint32_t k = 0u; k < Criteria.MoonCount && k < 4u; ++k)
+            {
+                if (!Criteria.Moons[k].Visible) { continue; }
+                Ambient += Criteria.Moons[k].Tint * (Criteria.Moons[k].Brightness
+                         * std::max(Solved.MoonDirections[k].y, 0.0f) * 0.0025f
+                         * (0.5f + 0.5f * std::cos(Criteria.Moons[k].Phase * 6.2832f)));
+            }
+
+            PlaneRadiance = Albedo * (SunLight + Ambient);
+            PlaneRadiance += LocalLightsOnSurface(hp, Albedo);
+
+            float Fog = 1.0f - std::exp(-t * 7e-5f);
+            Fog = std::pow(Clamp01(Fog), 1.6f);
+            PlaneRadiance = Mix(PlaneRadiance, SkyRadiance * 0.8f + HorizonGlow * 0.6f, Fog);
+
+            PlaneDistance = t;
+            PlaneNormal = Vector3{ 0.0f, 1.0f, 0.0f };
+            PlaneHit = true;
+        }
+    }
+
+    Result.Hit      = PlaneHit;
+    Result.Distance = PlaneDistance;
+    Result.Radiance = PlaneRadiance;
+    Result.Normal   = PlaneNormal;
+    return Result;
+}
+
+Vector3 CelestialIntegrator::CompositeGround(const Vector3& Radiance, const Vector3& Direction, float Distance,
+                                             const ObserverFrame& Observer,
+                                             uint32_t PixelX, uint32_t PixelY) const noexcept
+{
+    //    `col = applyMedia(planeCol, ...)` then `col = col*lv.a + lv.rgb` — the reference's order exactly.
+    return ApplyAerialPerspective(Radiance, Direction, Distance, Observer, PixelX, PixelY);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                  LIGHT GLYPHS — reference `main()` light-source glyph block
+//------------------------------------------------------------------------------------------------------------------------
+//    A small emissive bloom where each local light sits, occluded by the ground when the ground is nearer than
+//    the light. Without it, a light that is on contributes illumination but is itself invisible.
+
+Vector3 CelestialIntegrator::AddLightGlyphs(const Vector3& Radiance, const Vector3& Direction,
+                                            const ObserverFrame& Observer,
+                                            bool GroundHit, float GroundDistance) const noexcept
+{
+    Vector3 col = Radiance;
+
+    if (Criteria.PointLight.Visible)
+    {
+        const Vector3 v = Criteria.PointLight.Placement - Observer.Position;
+        const float dl = std::sqrt(Dot(v, v));
+        const float c = Dot(v / std::max(dl, 1e-6f), Direction);
+        const float Angle = std::acos(std::clamp(c, -1.0f, 1.0f));
+        const float rr = 0.02f / std::max(1.0f, dl * 0.05f) * (1.0f + Criteria.PointLight.Intensity * 0.02f);
+        const float Bloom = std::exp(-Angle * Angle / (rr * rr * 0.25f)) * 0.9f + std::exp(-Angle / rr * 0.6f) * 0.05f;
+        const float Occluded = (GroundHit && GroundDistance < dl) ? 0.0f : 1.0f;
+        col += Criteria.PointLight.Colour * (Occluded * Bloom * Criteria.PointLight.Intensity * 0.02f);
+    }
+
+    if (Criteria.SpotLight.Visible)
+    {
+        const Vector3 v = Criteria.SpotLight.Placement - Observer.Position;
+        const float dl = std::sqrt(Dot(v, v));
+        const float c = Dot(v / std::max(dl, 1e-6f), Direction);
+        const float Angle = std::acos(std::clamp(c, -1.0f, 1.0f));
+        const float rr = 0.02f / std::max(1.0f, dl * 0.05f) * (1.0f + Criteria.SpotLight.Intensity * 0.005f);
+        const float Bloom = std::exp(-Angle * Angle / (rr * rr * 0.25f)) * 0.9f + std::exp(-Angle / rr * 0.6f) * 0.05f;
+        const float Occluded = (GroundHit && GroundDistance < dl) ? 0.0f : 1.0f;
+        col += Criteria.SpotLight.Colour * (Occluded * Bloom * Criteria.SpotLight.Intensity * 0.008f);
+    }
+
+    return col;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -1826,6 +2202,34 @@ Vector3 CelestialIntegrator::SampleEnvironmentRadiance(const Vector3& WorldDirec
     IntegrateAtmosphere(Origin, Direction, Sky, Transmittance, Ground);
     Sky *= Criteria.Sky.Tint;
     Sky *= Criteria.Sky.Brightness * (Criteria.Sky.Visible ? 1.0f : 0.0f) * (Criteria.Atmosphere.Visible ? 1.0f : 0.0f);
+
+    //    ⚠️ The checker plane is a real surface, and for a bounce ray leaving a room that stands ON it, it is
+    //    the dominant one: every downward direction in the hemisphere lands there. Returning sky radiance for
+    //    those directions would light the room from below with the wrong colour and the wrong intensity, and
+    //    omitting it would drop the ground bounce entirely. Shaded here with the plane's own albedo, sun term
+    //    and sky ambient — the same quantities `SampleGround` uses, without its filtered checker or grid,
+    //    which are texture detail a diffuse bounce cannot resolve anyway.
+    const GroundPlaneCriteria& G = Criteria.GroundPlane;
+    if (G.Visible && Direction.y < -1e-4f && Observer.Height < 2000.0f)
+    {
+        const float t = (G.Height - Observer.Position.y) / Direction.y;
+        if (t > 0.0f)
+        {
+            const Vector3 hp = Observer.Position + Direction * t;
+            //    The mean of the two tiles: a diffuse bounce integrates over many cells at once.
+            const Vector3 Albedo = (std::max(std::abs(hp.x), std::abs(hp.z)) <= G.HalfSize)
+                                 ? (G.TintA + G.TintB) * 0.5f
+                                 : G.TintA;
+            const float ndl = std::max(Solved.SunDirection.y, 0.0f);
+            const Vector3 SunLight = Transmittance * Solved.SunColour * (Criteria.Sun.Intensity * 0.11f * ndl);
+            const Vector3 Ambient = Sky * 0.42f + Vector3{ 0.0015f, 0.002f, 0.004f } * Criteria.Sky.Brightness;
+            Vector3 Radiance = Albedo * (SunLight + Ambient);
+            Radiance += LocalLightsOnSurface(hp, Albedo);
+            float Fog = 1.0f - std::exp(-t * 7e-5f);
+            Fog = std::pow(Clamp01(Fog), 1.6f);
+            return Mix(Radiance, Sky * 0.8f, Fog);
+        }
+    }
 
     if (Ground > 0.5f)
     {

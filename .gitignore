@@ -17,3 +17,6 @@ Scratchpad/GenerateControlPanelProof
 Scratchpad/VectorGlyphTest
 .DS_Store
 Scratchpad/.build/
+
+# Makefile header-dependency sidecars
+*.d

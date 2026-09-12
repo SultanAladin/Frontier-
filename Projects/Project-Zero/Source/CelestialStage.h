@@ -45,9 +45,20 @@ struct CelestialStageCriteria
     uint32_t IndirectRays     = 8u;                             // [count] GI candidates per pixel
     uint32_t SkyTaps          = 24u;                            // [count] hemisphere taps for sky visibility
     bool     OpenCeiling      = true;                           // cut the aperture that lets the sky in
+    bool     OpenWall         = true;                           // cut the window that lets the world in
     bool     SkyLighting      = true;                           // the negative control switches this off
     bool     EmissiveLuminaire= true;                           // keep the classic Cornell ceiling light
     float    Exposure         = 1.0f;
+
+    //    How far the room's floor stands above the celestial ground plane, in metres.
+    //
+    //    ⚠️ This is not decoration. The Cornell floor spans the whole room and the reference's checker plane
+    //    sits at `pl_y = 0`; put both at the same height and they are COPLANAR, so every downward ray hits the
+    //    floor before it can reach the ground and the entire `plane` entity is unobservable from inside — it
+    //    would be integrated perfectly and never once appear in a pixel. Standing the room on a terrace is
+    //    what makes the ground, its graticule, its axis lines and the two local lights visible through the
+    //    window, and it is also the only arrangement in which the room can cast a shadow onto the ground.
+    float    FloorElevation   = 6.0f;                           // [m]
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -87,6 +98,8 @@ public:
         double   MeanSurfaceLuminance = 0.0;
         uint32_t DistinctColours    = 0u;                       // a flat frame is a broken frame
         uint32_t RainPixels         = 0u;
+        uint32_t GroundPixels       = 0u;                       // pixels that landed on the celestial ground
+        double   MeanGroundLuminance = 0.0;
         double   RenderMilliseconds = 0.0;
     };
     [[nodiscard]] const FrameStatistics& QueryStatistics() const noexcept { return Statistics; }
@@ -96,6 +109,12 @@ private:
                                          const Vector3& IndirectRadiance) const noexcept;
     [[nodiscard]] Vector3   SampleCosineHemisphere(const Vector3& Normal, float u1, float u2) const noexcept;
     [[nodiscard]] ObserverFrame ObserverFrameOf(const Frontier::CameraProjection& Camera) const noexcept;
+
+    //    The panel's point and spot lights, shadow-tested against the room. Distinct from the integrator's own
+    //    `LocalLightsOnSurface`, which shades the celestial ground and has no occluder to test against: inside
+    //    the Cornell box the walls really do block the lamps, and the shadow is the whole point.
+    [[nodiscard]] Vector3   LocalLightContribution(const Vector3& Position, const Vector3& Normal,
+                                                   const Vector3& Albedo) const noexcept;
 
     CelestialStageCriteria      Criteria;
     RayTracingSolver            Scene;

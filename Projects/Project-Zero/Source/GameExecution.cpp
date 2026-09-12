@@ -166,8 +166,13 @@ int main(int ArgumentCount, char** ArgumentValues)
     }
 
     Frontier::ProjectZero::FlyThroughSolver CelestialCamera(CameraConfig);
-    CelestialCamera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, 0.25f, 0.55f });
-    CelestialCamera.AssignOrientationEuler(38.0f * 3.14159265f / 180.0f, 0.0f, 0.0f);
+    //    Eye height 1.2 m, looking level and slightly down. The camera has to stand high enough to see OVER
+    //    the two Cornell boxes and out through the window — from the old 0.55 m crouch the boxes occlude the
+    //    entire opening and not one ray reaches the ground, so the sky was the only celestial thing in frame.
+    //    A small downward pitch is what puts the horizon, the ground and the room's floor in the same image.
+    CelestialCamera.AssignSpatialLocation(Frontier::Vector3{ 0.60f, 0.25f, 1.20f });
+    CelestialCamera.AssignOrientationEuler(-6.0f * 3.14159265f / 180.0f,
+                                           -7.0f * 3.14159265f / 180.0f, 0.0f);
     CelestialCamera.AssignFieldOfView(92.0f);
     CelestialCamera.AssignAspectRatio(static_cast<float>(ViewportWidth) / static_cast<float>(ViewportHeight));
 

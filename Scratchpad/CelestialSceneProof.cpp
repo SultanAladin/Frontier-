@@ -97,8 +97,10 @@ int main()
     //    the wide aperture and the sky beyond it fill the upper frame. One picture, both systems.
     FlyThroughConfiguration CameraSetup{ 2.5f, 3.0f, 0.0025f, 0.5f, 12.0f };
     FlyThroughSolver Camera(CameraSetup);
-    Camera.AssignSpatialLocation(Vector3{ 0.0f, 0.25f, 0.55f });
-    Camera.AssignOrientationEuler(Radians(38.0f), 0.0f, 0.0f);
+    //    Must match GameExecution's celestial camera: eye height 1.2 m clears the Cornell boxes so the window
+    //    actually delivers ground pixels. See the note there.
+    Camera.AssignSpatialLocation(Vector3{ 0.60f, 0.25f, 1.20f });
+    Camera.AssignOrientationEuler(Radians(-6.0f), Radians(-7.0f), 0.0f);
     Camera.AssignFieldOfView(92.0f);
 
     //    The aperture frames sky azimuth ≈ 0° (north, sky $-Z$) between 38° and 85° of elevation, measured from
@@ -183,14 +185,25 @@ int main()
         std::printf("     sun elevation %.2f°   sky pixels %.1f%%   mean L %.4f   surfaces %.4f   sky %.4f\n",
                     static_cast<double>(F.SunElevationDeg), S.SkyPixelFraction * 100.0,
                     S.MeanLuminance, S.MeanSurfaceLuminance, S.MeanSkyLuminance);
-        std::printf("     rain pixels %u   distinct colours %u   %.0f ms\n",
-                    S.RainPixels, Distinct, S.RenderMilliseconds);
+        std::printf("     rain pixels %u   ground pixels %u (L %.4f)   distinct colours %u   %.0f ms\n",
+                    S.RainPixels, S.GroundPixels, S.MeanGroundLuminance, Distinct, S.RenderMilliseconds);
 
         //    ── The gates ───────────────────────────────────────────────────────────────────────────────────
         Gate(Distinct > 2000u, "the frame is not flat", std::to_string(Distinct) + " distinct colours");
         Gate(S.SkyPixelFraction > 0.02 && S.SkyPixelFraction < 0.80,
              "geometry and sky share the frame", "both are visible");
         Gate(S.MeanSurfaceLuminance > 1e-4, "the room is lit, not black", "surfaces carry radiance");
+
+        //    ⚠️ The ground must actually be IN the frame. For a long while every celestial ground feature was
+        //    integrated correctly and drawn zero times: the room is a closed box, so with only a skylight all
+        //    downward rays hit the floor, and even after cutting a window the Cornell boxes occluded it from
+        //    the old crouched camera. Nothing in the other gates could see that — the sky still rendered, the
+        //    room was still lit, the frame was still colourful. This counts the pixels, so the whole world
+        //    half of the port can never silently vanish again.
+        Gate(S.GroundPixels > 500u, "the celestial ground is visible through the window",
+             std::to_string(S.GroundPixels) + " ground pixels");
+        Gate(S.MeanGroundLuminance > 1e-4 && std::isfinite(S.MeanGroundLuminance),
+             "the ground is lit and finite", "L = " + std::to_string(S.MeanGroundLuminance));
         Gate(S.MeanLuminance > 1e-4 && std::isfinite(S.MeanLuminance), "radiance is finite and non-zero", "no NaN, no black frame");
 
         //    Per-moment feature gates: each names the system that moment exists to exercise, so a feature

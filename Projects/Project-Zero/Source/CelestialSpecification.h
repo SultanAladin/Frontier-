@@ -373,6 +373,60 @@ struct PostCriteria
     float   Chroma              = 0.65f;
 };
 
+// Point Light — panel entity `plight`. The reference holds it in `S.plP` rather than in a slider section,
+// which is why it is easy to miss; it is uploaded every frame and it is on by default.
+struct PointLightCriteria
+{
+    bool    Visible             = true;                         // `vis_plight`
+    Vector3 Placement           { 6.0f, 2.2f, -4.0f };          // [m] sky frame, offset by the plane height
+    Vector3 Colour              { 1.0f, 0.85098039f, 0.62745098f }; // #ffd9a0
+    float   Intensity           = 14.0f;                        // [cd]
+    float   Reach               = 26.0f;                        // [m] `distance`
+    float   Decay               = 2.0f;                         // [-] inverse-power exponent
+};
+
+// Spot Light — panel entity `slight`. Likewise held in `S.slP`.
+struct SpotLightCriteria
+{
+    bool    Visible             = true;                         // `vis_slight`
+    Vector3 Placement           { -5.0f, 6.0f, -8.0f };         // [m] sky frame
+    Vector3 Target              { 0.0f, 0.0f, -6.0f };          // [m] sky frame
+    Vector3 Colour              { 0.90980392f, 0.94117647f, 1.0f }; // #e8f0ff
+    float   Intensity           = 62.0f;                        // [cd]
+    float   ConeDegrees         = 26.0f;                        // [deg] full cone; the shader uploads cos(half)
+    float   Penumbra            = 0.42f;                        // [-] `uSLSoft`
+
+    //    `uSLDir` — the shader is handed the normalised pointing vector, not the target.
+    [[nodiscard]] Vector3 Direction() const noexcept
+    {
+        const Vector3 d = Target - Placement;
+        const float   l = std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+        return l > 1e-6f ? Vector3{ d.x / l, d.y / l, d.z / l } : Vector3{ 0.0f, -1.0f, 0.0f };
+    }
+
+    //    `uSLCos` — the cosine of the HALF angle, which is what the cone test compares against.
+    [[nodiscard]] float CosineHalfAngle() const noexcept
+    {
+        return std::cos(ConeDegrees * 0.5f * kDegreesToRadians);
+    }
+};
+
+// Height Field — panel entity `terrain`, held in `S.terrP`. The live panel uploads `uTerrOn = 0`; the
+// transcription keeps that default and keeps the sculpted field behind it, exactly as the reference does.
+struct TerrainCriteria
+{
+    bool    Visible             = false;                        // reference: `f1('uTerrOn',0)`
+    float   Size                = 180.0f;                       // [m] `terrP.size`
+    float   Height              = 12.0f;                        // [m] `terrP.height`
+    float   Frequency           = 1.2f;                         // [-] `terrP.frequency`
+    float   Seed                = 417.0f;                       // [-] `terrP.seed`
+    float   Roughness           = 0.88f;                        // [-] `terrP.roughness`
+    bool    Wireframe           = false;                        // [-] `terrP.wireframe`
+    Vector3 LowColour           { 0.14901961f, 0.21176471f, 0.15686275f }; // #263628
+    Vector3 HighColour          { 0.53333333f, 0.56862745f, 0.48235294f }; // #88917b
+    Vector3 Placement           { 0.0f, 0.0f, 0.0f };           // [m] sky frame
+};
+
 // Checker ground plane — panel entity `plane`.
 struct GroundPlaneCriteria
 {
@@ -422,6 +476,9 @@ struct CelestialCriteria
     RainbowCriteria          Rainbow;
     PostCriteria             Post;
     GroundPlaneCriteria      GroundPlane;
+    TerrainCriteria          Terrain;
+    PointLightCriteria       PointLight;
+    SpotLightCriteria        SpotLight;
     ObserverCriteria         Observer;
 };
 

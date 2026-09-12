@@ -3,9 +3,12 @@
 # 📦 Frontier/Scratchpad/CheckCelestialScene.sh — Numeric Gate for the Celestial Port
 #=============================================================================================================================================
 #
-#    Two executables, two jobs:
+#    Three executables, three jobs:
 #      · CelestialPhysicsProof  — the transcription against independent physics (Kasten-Young air mass, Descartes'
 #        rainbow angles, spherical astronomy, the 1/λ⁴ law, HG normalisation, a quadrature of the fog kernel).
+#      · CelestialGroundProof   — the world under the sky: ray/plane geometry in closed form, the box-filtered
+#        checker's convergence, the traced height field against the field it traces, the inverse-square law and
+#        the spot cone against cos(13°).
 #      · CelestialSceneProof    — the combined frame: ReSTIR + Cornell box + every celestial system at once,
 #        including the sky-off negative control that proves the sky is a light and not a painted backdrop.
 #
@@ -45,6 +48,12 @@ ${Compiler} ${CompilerFlags} -I. -o "${BuildDirectory}/CelestialPhysicsProof" \
     DeviceExchange/OrientationClassifier.cpp || { echo "  physics proof failed to build"; exit 90; }
 
 # shellcheck disable=SC2086
+${Compiler} ${CompilerFlags} -I. -o "${BuildDirectory}/CelestialGroundProof" \
+    Scratchpad/CelestialGroundProof.cpp \
+    Projects/Project-Zero/Source/CelestialIntegrator.cpp \
+    DeviceExchange/OrientationClassifier.cpp || { echo "  ground proof failed to build"; exit 92; }
+
+# shellcheck disable=SC2086
 ${Compiler} ${CompilerFlags} -I. -o "${BuildDirectory}/CelestialSceneProof" \
     Scratchpad/CelestialSceneProof.cpp ${CelestialSources} || { echo "  scene proof failed to build"; exit 91; }
 
@@ -53,6 +62,10 @@ TotalFailures=0
 "${BuildDirectory}/CelestialPhysicsProof"
 PhysicsFailures=$?
 TotalFailures=$(( TotalFailures + PhysicsFailures ))
+
+"${BuildDirectory}/CelestialGroundProof"
+GroundFailures=$?
+TotalFailures=$(( TotalFailures + GroundFailures ))
 
 pushd Projects/Project-Zero > /dev/null || exit 1
 mkdir -p Diagnostics
@@ -72,9 +85,9 @@ done
 echo
 echo "──────────────────────────────────────────────────────────────────────────────────────────"
 if [ "${TotalFailures}" -eq 0 ]; then
-    echo "  CELESTIAL GATE PASSED — physics 0 failures, scene 0 failures"
+    echo "  CELESTIAL GATE PASSED — physics 0, ground 0, scene 0 failures"
 else
-    echo "  CELESTIAL GATE FAILED — physics ${PhysicsFailures}, scene ${SceneFailures}"
+    echo "  CELESTIAL GATE FAILED — physics ${PhysicsFailures}, ground ${GroundFailures}, scene ${SceneFailures}"
 fi
 echo "──────────────────────────────────────────────────────────────────────────────────────────"
 exit "${TotalFailures}"

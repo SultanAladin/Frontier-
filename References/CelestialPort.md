@@ -123,3 +123,80 @@ sky light along a path the control did not switch off.
   `RendererHost`.
 - **Moonlight did not light anything.** `SampleEnvironmentRadiance` returned zero across the whole night
   hemisphere, so a bounce ray aimed at a full moon carried nothing.
+
+---
+
+## Session 3 — the world half: ground, terrain, local lights, and making them visible
+
+### New entities ported
+
+| Panel entity | Record | Default | Where it is evaluated |
+|---|---|---|---|
+| `plane` | `PlaneCriteria` | size 600, `y = 0`, cell 1, graticule on, tints `#f2f2f2`/`#c9ccd2` | `CelestialIntegrator::SampleGround` |
+| `terrain` | `TerrainCriteria` | **off**, size 180, height 12, freq 1.2, seed 417, roughness 0.88 | `TerrainField` / `TraceTerrain` |
+| `point light` | `PointLightCriteria` | on, (6, 2.2, −4), `#ffd9a0`, I 14, reach 26, decay 2 | `LocalLightsOnSurface`, `MarchLocalVolumes`, `CelestialStage::LocalLightContribution` |
+| `spot light` | `SpotLightCriteria` | on, (−5, 6, −8) → (0, 0, −6), `#e8f0ff`, I 62, cone 26°, penumbra 0.42 | as above |
+
+`uSLDir = (0.62017367, −0.74420841, 0.24806947)`, `uSLCos = cos 13° = 0.97437006`.
+
+### ⚠️ The bug that hid the entire world half
+
+Everything above integrated correctly and rendered **zero pixels** for a long stretch. Three separate
+occluders had to be removed before a single ground pixel appeared, and none of the existing gates could
+see the problem — the sky still rendered, the room was still lit, the frame was still colourful:
+
+1. **The room is a closed box.** With only the ceiling aperture, every downward ray terminates on the
+   Cornell floor. A skylight shows you sky; it can never show you ground. → cut a window in the far wall
+   (`kWindowHalfX 0.94`, z ∈ [0, 1.90], sill at floor level).
+2. **The floor and the plane were coplanar.** The Cornell floor is at world z = 0 and the reference's
+   plane is at `pl_y = 0`, so even through a window the floor won every intersection. → the room now
+   stands on a terrace, `CelestialStageCriteria::FloorElevation = 6 m`. This is also the only arrangement
+   in which the room can cast a shadow onto the ground.
+3. **The Cornell boxes occluded the window** from the old crouched camera at z = 0.55. → eye height
+   1.20 m, pitch −6°, yaw −7°, which clears the tall box and puts horizon, ground and floor in one frame.
+
+The terrace introduces a second frame seam on top of the existing world↔sky one. Sky-frame **points**
+crossing into the room must lose the terrace (`WorldFrameOf(p).z −= FloorElevation`); sky-frame
+**directions** must not. This applies to the rain splat, both local lights, and the observer frame.
+
+### Also fixed
+
+- **`InsideChecker` had its `Step` arguments transposed** and then negated, so the checker extent was
+  "outside" everywhere and the ground was a flat untextured tone. GLSL `step(edge, x)` is `x < edge ? 0 : 1`
+  — edge is the radius, x is the extent: `Step(max(|x|,|z|), HalfSize)`.
+- **The Makefile tracked no header dependencies.** A header-only change rebuilt nothing, so stale `.o`
+  files kept the old struct layout while new ones used the new one; the link succeeded and the program
+  segfaulted on a corrupted object. It presented as a logic bug in the precipitation solver and was
+  nothing of the sort. Now `-MMD -MP` with `-include $(GAME_OBJS:.o=.d)`.
+
+### Proofs
+
+`Scratchpad/CelestialGroundProof.cpp` — **26 checks**, wired into `Scratchpad/CheckCelestialScene.sh`
+between the physics and scene proofs (exit 92 on build failure). Plane hit matches `−h/d.y` exactly;
+checker spread 0.158 near → 0.062 far, box filter 2.0942 between tiles 2.2740/1.8715; terrain 40/40 hits,
+worst residual 0.047 m, worst normal deviation 0.034°; point light inverse-square 4.000000 exactly over two
+octaves; spot cut-off 2.308682 m = 10·tan 13°; penumbra soft 0.008711 < hard 0.010999 at 0.85 r.
+
+`CelestialStage::Statistics` gained `GroundPixels` / `MeanGroundLuminance`, and the scene proof now gates
+on them at all four times of day — so the world half can never silently vanish again.
+
+**Proof-isolation traps hit while writing these** (do not reintroduce): sampling a checkerboard along
+`x = 0` measures a constant, because any x-XOR-z pattern cancels on a cell boundary — sample off-axis;
+`Sun.Visible = false` suppresses only the sun *disc*, and `Sun.Intensity` must also go to zero to remove
+the sun as an illuminant; probing the spot penumbra inside ~0.78 of the edge radius compares two saturated
+values and proves nothing.
+
+### Reference provenance
+
+The reference is published from branch `arena/01a08c57-frontier`, path `/docs` — **not** `main`, and there
+is no separate `CelestialPanel.html`: the panel is the 2 343-line main `<script>` block inlined in
+`docs/celestial/index.html`. It is preserved here as `Scratchpad/.ref_panel.js`, alongside the verbatim
+fragment shader in `Scratchpad/.ref_fs_snapshot.glsl` (verified byte-identical to the live page).
+Retrieve with:
+
+```
+gh api repos/SultanAladin/Frontier-/contents/docs/celestial/index.html?ref=arena/01a08c57-frontier \
+  --jq .content | base64 -d
+```
+
+Plain `curl` on the Pages URL fails with SSL error 35 and `raw.githubusercontent.com/.../main/...` is 404.
