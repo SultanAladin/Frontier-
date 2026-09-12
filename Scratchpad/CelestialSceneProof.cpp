@@ -206,6 +206,19 @@ int main()
              std::to_string(S.GroundPixels) + " ground pixels");
         Gate(S.MeanGroundLuminance > 1e-4 && std::isfinite(S.MeanGroundLuminance),
              "the ground is lit and finite", "L = " + std::to_string(S.MeanGroundLuminance));
+
+        //    ⚠️ Rain is splatted in screen space AFTER the composition pass, so it has to be depth-tested
+        //    against the scene or drops in the open world paint straight over the Cornell walls — the room
+        //    appears to be raining indoors. The room subtends most of the frame and only the window shows
+        //    open air, so correct rain must cover well under half the image. Before the depth test this
+        //    read 2751 pixels of a 480x320 preview; after it, 770.
+        if (S.RainPixels > 0u)
+        {
+            const double RainFraction = static_cast<double>(S.RainPixels)
+                                      / static_cast<double>(960u * 640u);
+            Gate(RainFraction < 0.25, "rain is occluded by the room, not painted over it",
+                 std::to_string(RainFraction * 100.0) + "% of the frame");
+        }
         Gate(S.MeanLuminance > 1e-4 && std::isfinite(S.MeanLuminance), "radiance is finite and non-zero", "no NaN, no black frame");
 
         //    Per-moment feature gates: each names the system that moment exists to exercise, so a feature

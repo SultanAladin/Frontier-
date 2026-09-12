@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <cstdio>
 #include <fstream>
 #include <random>
@@ -642,6 +643,11 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
     std::vector<uint32_t> PartialGroundPixels(ThreadCount, 0u);
     std::vector<double>   PartialGroundLuminance(ThreadCount, 0.0);
 
+    //    Distance to the nearest opaque thing along each primary ray — room geometry or celestial ground,
+    //    whichever the composition pass actually resolved. Phase 7 needs it to depth-test the rain; without
+    //    it every drop in the world draws on top of the walls. Infinity means "nothing solid, open sky".
+    std::vector<float> SceneDepth(PixelCount, std::numeric_limits<float>::infinity());
+
     auto ShadeBand = [&](uint32_t Worker)
     {
         for (uint32_t y = Worker; y < H; y += ThreadCount)
@@ -745,6 +751,10 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                 const float OccluderDistance = Hit.ValidCondition
                                              ? std::min(Hit.RayDistance, GroundHit ? GroundDistance : Hit.RayDistance)
                                              : GroundDistance;
+                if (Occluder)
+                {
+                    SceneDepth[idx] = OccluderDistance;
+                }
                 Radiance = Sky.AddLightGlyphs(Radiance, SkyDirection, Observer, Occluder, OccluderDistance);
 
                 Radiance = Sky.AddRainbow(Radiance, SkyDirection, SkyMask);
@@ -810,6 +820,14 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
             return World;
         };
 
+        //    A drop is only drawn where it is actually in front of whatever the composition pass resolved for
+        //    that pixel. Rain lives in the open world beyond the window, so without this test the drops paint
+        //    straight over the Cornell walls and the boxes — the room appears to be raining indoors.
+        auto Visible = [&](size_t Index, float DropDepth)
+        {
+            return DropDepth < SceneDepth[Index];
+        };
+
         auto Project = [&](const Vector3& WorldPoint, float& OutX, float& OutY, float& OutDepth) -> bool
         {
             const Vector3 Relative = WorldPoint - CameraPosition;
@@ -850,6 +868,7 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                     const int py = static_cast<int>(sy + std::sin(t) * RingRadius * 0.35f);
                     if (px < 0 || px >= static_cast<int>(W) || py < 0 || py >= static_cast<int>(H)) { continue; }
                     const size_t ridx = static_cast<size_t>(py) * W + static_cast<uint32_t>(px);
+                    if (!Visible(ridx, depth)) { continue; }
                     RadianceBuffer[ridx] = Mix(RadianceBuffer[ridx], DropRadiance, Alpha);
                     ++RainPixels;
                 }
@@ -876,6 +895,8 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                         const int qx = px + w;
                         if (qx < 0 || qx >= static_cast<int>(W) || py < 0 || py >= static_cast<int>(H)) { continue; }
                         const size_t ridx = static_cast<size_t>(py) * W + static_cast<uint32_t>(qx);
+                        //    Interpolate the depth along the streak: a near-vertical drop can span a lot of Z.
+                        if (!Visible(ridx, depth + (tdepth - depth) * t)) { continue; }
                         RadianceBuffer[ridx] = Mix(RadianceBuffer[ridx], DropRadiance, Alpha);
                         ++RainPixels;
                     }
@@ -895,6 +916,7 @@ void CelestialStage::RenderFrame(const Frontier::CameraProjection& Camera) noexc
                         const int py = static_cast<int>(sy) + dy;
                         if (px < 0 || px >= static_cast<int>(W) || py < 0 || py >= static_cast<int>(H)) { continue; }
                         const size_t ridx = static_cast<size_t>(py) * W + static_cast<uint32_t>(px);
+                        if (!Visible(ridx, depth)) { continue; }
                         RadianceBuffer[ridx] = Mix(RadianceBuffer[ridx], DropRadiance, Alpha);
                         ++RainPixels;
                     }

@@ -200,3 +200,32 @@ gh api repos/SultanAladin/Frontier-/contents/docs/celestial/index.html?ref=arena
 ```
 
 Plain `curl` on the Pages URL fails with SSL error 35 and `raw.githubusercontent.com/.../main/...` is 404.
+
+### Rain was not depth-tested
+
+Precipitation is splatted in screen space in phase 7, after the composition pass, and it never consulted
+scene depth — it only ever bounds-checked against the framebuffer. Every drop in the open world therefore
+painted straight over the Cornell walls and boxes, so the closed room appeared to be raining indoors. It
+was invisible as a bug while the window did not exist, because before that there was no correct answer to
+compare against: drops over the walls looked like drops in the room.
+
+The composition pass already computes an occluder distance per pixel for the light glyphs (room geometry
+or celestial ground, whichever it resolved). That is now retained as a `SceneDepth` buffer, and all three
+splat paths — streak, splash ring, and the hail/snow disc — test against it. The streak interpolates depth
+along its length, since a near-vertical drop can span a lot of Z.
+
+At 480×320 this took the rain from 2751 pixels to 770: roughly 72% of what was being drawn was in front of
+geometry it should have been behind. The scene proof now gates rain coverage below 25% of the frame, since
+the room subtends most of the image and only the window shows open air.
+
+### Uniform coverage
+
+All 190 uniforms declared in the reference fragment shader were enumerated and matched against the C++.
+Every one is accounted for; the thirteen that did not match by name are naming differences only
+(`uCLWindDir` → `DriftDegrees`, `uHLInt`/`uHLAuto` → `LineIntensity`/`LineAtCivilOnly`, `uSunDiscBoost` →
+`DiscRadiance`, `uWLink*` → `Drives*`, `uMoonTex0..3` → the `MoonAlbedoSurface` atlas, `uCamFwd` → the
+observer frame). No reference uniform is unported.
+
+A GPU-side differential test against the live GLSL was attempted and is not possible in this sandbox:
+there is no EGL/GL driver and no `moderngl`/`glslangValidator`. Equivalence therefore rests on the
+line-by-line transcription plus the 69 arithmetic checks in the two proofs.
