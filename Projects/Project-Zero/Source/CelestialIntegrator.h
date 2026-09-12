@@ -193,6 +193,8 @@ public:
     [[nodiscard]] static float   KernelCloudHeightProfile(float hn, float Variety, float Anvil) noexcept;
     //    `tfield` reads Frequency/Seed off the criteria, so it stays an instance method.
     [[nodiscard]] float          TerrainFieldValue(float qx, float qz) const noexcept;
+    //    `starField` reads the whole star record plus the solved time, so likewise.
+    [[nodiscard]] Vector3        StarFieldValue(const Vector3& Direction, float PixelAngle, float AirMass) const noexcept;
 
 private:
     [[nodiscard]] Vector3       TwilightGlow(const Vector3& Direction, float ElevationDeg, float Facing) const noexcept;

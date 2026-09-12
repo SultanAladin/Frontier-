@@ -33,9 +33,26 @@ namespace Frontier::ProjectZero {
 constexpr float kPi = 3.14159265f;                              // [-] the reference's own PI literal, to the digit
 constexpr float kDegreesToRadians = kPi / 180.0f;               // [rad/deg] conversion
 
+//    The reference splits its trigonometry across two machines with two different precisions, and the split is
+//    load-bearing. Inside the fragment shader every angle is a float and PI is the truncated literal above.
+//    On the panel side every angle is a JavaScript *double* built from the full `Math.PI`, and it is rounded to
+//    float exactly once, when `gl.uniform*f` uploads it. Converting degrees in float instead reproduces the
+//    wrong machine: for the sun direction it costs ~49 arcsec, about 5% of the solar radius, which visibly
+//    walks the disc and the specular highlight. `PanelRadians` is that upload path — double throughout, one
+//    rounding at the end — and must be used for any quantity the panel computes and uploads as a uniform.
+constexpr double kPiPanel = 3.14159265358979323846;             // [-] JavaScript `Math.PI`
+constexpr double kDegreesToRadiansPanel = kPiPanel / 180.0;     // [rad/deg] the panel's `D2R`
+
+[[nodiscard]] inline float PanelRadians(float Degrees) noexcept
+{
+    return static_cast<float>(static_cast<double>(Degrees) * kDegreesToRadiansPanel);
+}
+
 [[nodiscard]] inline float Fract(float x) noexcept              { return x - std::floor(x); }
 [[nodiscard]] inline float Clamp01(float x) noexcept            { return std::clamp(x, 0.0f, 1.0f); }
 [[nodiscard]] inline float Mix(float a, float b, float t) noexcept { return a + (b - a) * t; }
+//    GLSL `radians()`: float, truncated PI. Correct ONLY for conversions the fragment shader itself performs
+//    (e.g. `airMassOf`). For anything the panel uploads as a uniform, use `PanelRadians` instead.
 [[nodiscard]] inline float Radians(float Degrees) noexcept      { return Degrees * kDegreesToRadians; }
 [[nodiscard]] inline float Degrees(float Rads) noexcept         { return Rads / kDegreesToRadians; }
 [[nodiscard]] inline float Step(float Edge, float x) noexcept   { return x < Edge ? 0.0f : 1.0f; }
@@ -407,7 +424,7 @@ struct SpotLightCriteria
     //    `uSLCos` — the cosine of the HALF angle, which is what the cone test compares against.
     [[nodiscard]] float CosineHalfAngle() const noexcept
     {
-        return std::cos(ConeDegrees * 0.5f * kDegreesToRadians);
+        return std::cos(PanelRadians(ConeDegrees * 0.5f));                   // uSLCos = cos(angle/2*D2R)
     }
 };
 

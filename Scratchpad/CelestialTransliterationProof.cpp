@@ -264,6 +264,194 @@ struct v3 { float x, y, z; };
     return smoothstepf(0.0f, 0.4f, hn) * (1.0f - smoothstepf(0.5f, 1.0f, hn)) * 0.35f;
 }
 
+// vec2 rsi(vec3 ro,vec3 rd,float r){ float b=dot(ro,rd); float c=dot(ro,ro)-r*r; float d=b*b-c;
+//                                    if(d<0.) return vec2(-1.,-1.); d=sqrt(d); return vec2(-b-d,-b+d); }
+[[nodiscard]] v2 ref_rsi(v3 ro, v3 rd, float r) noexcept
+{
+    const float b = dotp(ro, rd);
+    const float c = dotp(ro, ro) - r * r;
+    float d = b * b - c;
+    if (d < 0.0f) { return v2{ -1.0f, -1.0f }; }
+    d = std::sqrt(d);
+    return v2{ -b - d, -b + d };
+}
+
+//    void atmosphere(vec3 ro,vec3 rd,out vec3 sky,out vec3 trans,out float ground)
+//
+//    The whole port stands on this one. It is the single largest kernel that is still self-contained enough
+//    to transliterate without a GL context: 20 view samples x 8 light samples, quadratically distributed,
+//    with Rayleigh/Mie/ozone extinction and single scattering. Everything else — twilight, aerial
+//    perspective, the sky-ambient probe, the ground shading — is layered on top of its output, so a drift
+//    here would contaminate every pixel while still looking like a sky.
+struct AtmoUniforms
+{
+    float PlanetR, AtmoH, Rayleigh, Mie, Ozone, MieG, Hr, Hm, SunIntensity;
+    v3    SunDir, SunColor;
+};
+
+void ref_atmosphere(v3 ro, v3 rd, const AtmoUniforms& U, v3& sky, v3& trans, float& ground) noexcept
+{
+    sky = V3(0.0f); trans = V3(1.0f); ground = 0.0f;
+    const float Ra = U.PlanetR + U.AtmoH;
+    const v2 ta0 = ref_rsi(ro, rd, Ra);
+    if (ta0.y < 0.0f) { return; }
+    float t0 = std::max(ta0.x, 0.0f), t1 = ta0.y;
+    const v2 tg = ref_rsi(ro, rd, U.PlanetR);
+    if (tg.x > 0.0f) { t1 = tg.x; ground = 1.0f; }
+
+    const int N = 20, NL = 8;
+    const float len = t1 - t0;
+    const v3 betaR = v3{ 5.8e-6f, 13.5e-6f, 33.1e-6f } * U.Rayleigh;
+    const v3 betaM = V3(21e-6f) * U.Mie;
+    const v3 betaO = v3{ 0.65e-6f, 1.881e-6f, 0.085e-6f } * U.Ozone;
+
+    v3 sumR = V3(0.0f), sumM = V3(0.0f);
+    float odR = 0.0f, odM = 0.0f;
+    const float mu = dotp(rd, U.SunDir);
+    const float g = U.MieG;
+    const float PI = 3.14159265358979323846f;
+    const float pR = 3.0f / (16.0f * PI) * (1.0f + mu * mu);
+    const float pM = 3.0f / (8.0f * PI) * ((1.0f - g * g) * (1.0f + mu * mu))
+                   / ((2.0f + g * g) * std::pow(1.0f + g * g - 2.0f * g * mu, 1.5f));
+
+    for (int i = 0; i < N; ++i)
+    {
+        float s0 = static_cast<float>(i) / static_cast<float>(N);
+        float s1 = static_cast<float>(i + 1) / static_cast<float>(N);
+        s0 *= s0; s1 *= s1;
+        const float tA = t0 + len * s0, tB = t0 + len * s1;
+        const float seg = tB - tA, tm = 0.5f * (tA + tB);
+        const v3 p = ro + rd * tm;
+        const float h = std::sqrt(dotp(p, p)) - U.PlanetR;
+        const float hr = std::exp(-h / U.Hr) * seg, hm = std::exp(-h / U.Hm) * seg;
+        odR += hr; odM += hm;
+
+        const v2 tl = ref_rsi(p, U.SunDir, Ra);
+        const float lenL = tl.y;
+        float olR = 0.0f, olM = 0.0f;
+        bool ok = true;
+        for (int j = 0; j < NL; ++j)
+        {
+            float q0 = static_cast<float>(j) / static_cast<float>(NL);
+            float q1 = static_cast<float>(j + 1) / static_cast<float>(NL);
+            q0 *= q0; q1 *= q1;
+            const float segL = lenL * (q1 - q0);
+            const v3 q = p + U.SunDir * (lenL * 0.5f * (q0 + q1));
+            const float hq = std::sqrt(dotp(q, q)) - U.PlanetR;
+            if (hq < 0.0f) { ok = false; break; }
+            olR += std::exp(-hq / U.Hr) * segL;
+            olM += std::exp(-hq / U.Hm) * segL;
+        }
+        if (ok)
+        {
+            const v3 e = betaR * (odR + olR) + betaM * 1.1f * (odM + olM) + betaO * (odR + olR);
+            const v3 att{ std::exp(-e.x), std::exp(-e.y), std::exp(-e.z) };
+            sumR = sumR + att * hr;
+            sumM = sumM + att * hm;
+        }
+    }
+    const v3 e2 = betaR * odR + betaM * 1.1f * odM + betaO * odR;
+    trans = v3{ std::exp(-e2.x), std::exp(-e2.y), std::exp(-e2.z) };
+    sky = (sumR * betaR * pR + sumM * betaM * pM) * U.SunIntensity * U.SunColor;
+}
+
+// vec2 octEncode(vec3 n){ n/=abs(n.x)+abs(n.y)+abs(n.z); vec2 p=n.xz;
+//   if(n.y<0.) p=(1.-abs(p.yx))*vec2(p.x>=0.?1.:-1.,p.y>=0.?1.:-1.); return p*.5+.5; }
+[[nodiscard]] v2 ref_octEncode(v3 n) noexcept
+{
+    n = n * (1.0f / (std::abs(n.x) + std::abs(n.y) + std::abs(n.z)));
+    v2 p{ n.x, n.z };
+    if (n.y < 0.0f)
+    {
+        //    NOTE the `.yx` swizzle inside the abs: the x term uses |p.y| and the y term uses |p.x|.
+        //    Transposing this is a classic octahedral-mapping bug and would fold the southern hemisphere
+        //    onto the wrong diagonal — stars would still appear, just in the wrong places.
+        p = v2{ (1.0f - std::abs(p.y)) * (p.x >= 0.0f ? 1.0f : -1.0f),
+                (1.0f - std::abs(p.x)) * (p.y >= 0.0f ? 1.0f : -1.0f) };
+    }
+    return v2{ p.x * 0.5f + 0.5f, p.y * 0.5f + 0.5f };
+}
+
+//    vec3 starField(vec3 d,float pixAng,float am)
+//
+//    The most intricate kernel on the page: the Milky Way band with its dust lanes, then up to four layers
+//    of point stars on an octahedral grid with a 3x3 neighbour search, each with its own brightness
+//    distribution, blackbody tint, air-mass-dependent twinkle, glow halo and — on the brightest first-layer
+//    stars — diffraction spikes. Almost every line carries a magic constant, which is exactly the kind of
+//    surface where a hand transcription drifts without ever looking wrong.
+struct StarUniforms
+{
+    float Rot, Tilt, Milky, Layers, Density, Twinkle, ColorAmt, Size, Glow, Bright, Time;
+};
+
+[[nodiscard]] v3 ref_starField(v3 d, float pixAng, float am, const StarUniforms& U) noexcept
+{
+    const v3 sd = ref_rotX(ref_rotY(d, U.Rot), U.Tilt);
+    v3 col = V3(0.0f);
+
+    const float band = std::exp(-std::pow(sd.y / 0.15f, 2.0f));
+    const float n = ref_vnoise(sd * 6.0f) * 0.5f
+                  + ref_vnoise(sd * 13.0f + 3.1f) * 0.3f
+                  + ref_vnoise(sd * 29.0f + 7.3f) * 0.2f;
+    const float dust = smoothstepf(0.35f, 0.7f, ref_vnoise(sd * 9.0f + v3{ 5.2f, 1.1f, 8.8f }))
+                     * std::exp(-std::pow(sd.y / 0.06f, 2.0f)) * 0.8f;
+    const float mw = band * (0.35f + 0.65f * n) * (1.0f - dust) * U.Milky;
+    col = col + mixv(v3{ 0.55f, 0.62f, 0.9f }, v3{ 0.95f, 0.85f, 0.7f }, dust * 0.6f) * (mw * 3.2e-4f);
+
+    const v2 ouv = ref_octEncode(sd);
+    for (int o = 0; o < 4; ++o)
+    {
+        if (static_cast<float>(o) >= U.Layers) { break; }
+        const float freq     = (o == 0) ? 18.0f : (o == 1) ? 46.0f : (o == 2) ? 110.0f : 230.0f;
+        const float density  = (o == 0) ? 0.28f : (o == 1) ? 0.42f : (o == 2) ? 0.6f   : 0.7f;
+        const float layerGain= (o == 0) ? 1.0f  : (o == 1) ? 0.4f  : (o == 2) ? 0.15f  : 0.06f;
+        const v2 gp{ ouv.x * freq, ouv.y * freq };
+        const v2 base{ std::floor(gp.x), std::floor(gp.y) };
+        for (int j = -1; j <= 1; ++j)
+        for (int i = -1; i <= 1; ++i)
+        {
+            const v2 cell{ base.x + static_cast<float>(i), base.y + static_cast<float>(j) };
+            const v3 h = ref_hash33(v3{ cell.x, cell.y, static_cast<float>(o) * 17.0f });
+            if (h.x < 1.0f - density * U.Density) { continue; }
+            const v2 suv{ (cell.x + 0.5f + (h.y - 0.5f) * 0.9f) / freq,
+                          (cell.y + 0.5f + (h.z - 0.5f) * 0.9f) / freq };
+            const v3 sdir = ref_octDecode(v2{ clampf(suv.x, 0.0f, 1.0f), clampf(suv.y, 0.0f, 1.0f) });
+            const float ang = std::acos(clampf(dotp(sd, sdir), -1.0f, 1.0f));
+            float bright = (std::pow(ref_hash13(v3{ cell.x, cell.y, 3.3f + static_cast<float>(o) }), 8.0f) * 8.0f + 0.15f) * layerGain;
+            bright *= mixf(1.0f, band * 2.2f + 0.35f, U.Milky * 0.6f);
+            const float ph = ref_hash13(v3{ cell.x, cell.y, 5.7f }) * 6.283f;
+            const float tw = 1.0f - U.Twinkle * (0.3f + 0.5f * clampf(am / 6.0f, 0.0f, 1.0f))
+                           * (0.5f + 0.5f * std::sin(U.Time * (3.0f + ref_hash13(v3{ cell.x, cell.y, 2.2f }) * 8.0f) + ph));
+            const float T = mixf(2800.0f, 11000.0f, std::pow(ref_hash13(v3{ cell.x, cell.y, 9.1f }), 1.6f));
+            const v3 sc = mixv(V3(1.0f), ref_kelvin(T), U.ColorAmt);
+            const float ps = std::max(U.Size * (0.0006f + bright * 0.00028f), pixAng * 0.9f);
+            float core = (1.0f - smoothstepf(ps * 0.55f, ps, ang)) * (1.0f + 0.6f * (bright < 2.5f ? 0.0f : 1.0f));
+            core *= 3.2f;
+            const float halo = std::exp(-std::pow(ang / (ps * (2.0f + 6.0f * U.Glow)), 1.5f)) * 0.045f * U.Glow * (bright / 8.0f + 0.03f);
+            float spikes = 0.0f;
+            if (o == 0 && bright > 2.5f)
+            {
+                //    cross(sdir, vec3(0,1,0)+vec3(1e-3,0,0)) — the epsilon breaks the degeneracy at the poles.
+                const v3 up{ 1e-3f, 1.0f, 0.0f };
+                const v3 c1 = normalizev(v3{ sdir.y * up.z - sdir.z * up.y,
+                                             sdir.z * up.x - sdir.x * up.z,
+                                             sdir.x * up.y - sdir.y * up.x });
+                const v3 c2{ sdir.y * c1.z - sdir.z * c1.y,
+                             sdir.z * c1.x - sdir.x * c1.z,
+                             sdir.x * c1.y - sdir.y * c1.x };
+                const v3 rel = sd - sdir;
+                const v2 q{ dotp(rel, c1), dotp(rel, c2) };
+                const float w = std::max(pixAng * 0.6f, ps * 0.35f);
+                spikes = (std::exp(-std::abs(q.x) / w * 0.5f) * std::exp(-std::abs(q.y) * 70.0f)
+                        + std::exp(-std::abs(q.y) / w * 0.5f) * std::exp(-std::abs(q.x) * 70.0f))
+                       * 0.3f * U.Glow * (bright / 8.0f);
+            }
+            col = col + sc * ((core + halo + spikes) * bright * tw * 2.6e-3f);
+        }
+    }
+    return col * U.Bright;
+}
+
 //------------------------------------------------------------------------------------------------------------------------
 //    Comparison harness
 //------------------------------------------------------------------------------------------------------------------------
@@ -488,6 +676,188 @@ int main()
                                            - CelestialIntegrator::KernelCloudHeightProfile(hn, type, anvil))));
         }
         Report("clHeightProfile (all six cloud types)", WorstP);
+    }
+
+    //    ── atmosphere(): the kernel the whole port stands on ───────────────────────────────────────────────
+    //    Driven over real viewing geometry — every elevation from below the horizon to the zenith, a full
+    //    sweep of sun angles, and observer altitudes from the ground to the stratosphere — because the
+    //    interesting failures (the ground-intersection branch, the `ok=false` early-out when a light ray
+    //    digs into the planet) only fire in particular corners of that domain.
+    {
+        double WorstSky = 0.0, WorstTrans = 0.0, WorstGround = 0.0;
+        uint32_t GroundHits = 0u, Samples = 0u;
+
+        for (int i = 0; i < 4000; ++i)
+        {
+            CelestialCriteria C{};
+            C.Atmosphere.RayleighStrength = U(0.4f, 2.5f);
+            C.Atmosphere.MieStrength      = U(0.2f, 3.0f);
+            C.Atmosphere.OzoneStrength    = U(0.0f, 3.0f);
+            C.Atmosphere.MieAnisotropy    = U(0.0f, 0.95f);
+            C.Atmosphere.RayleighScaleHeight = U(3000.0f, 14000.0f);
+            C.Atmosphere.MieScaleHeight      = U(400.0f, 3500.0f);
+            C.Sun.Intensity               = U(0.0f, 60.0f);
+            C.Sun.LocalHours              = U(0.0f, 24.0f);
+
+            CelestialIntegrator Probe(C);
+            Probe.SolveFrame(0.0f);
+
+            //    Observer altitude from sea level to 30 km, in the reference's own frame: the origin is the
+            //    planet centre, so `ro = (0, PlanetR + height, 0)` in metres... the reference works in km for
+            //    the radius and metres for the scale heights, exactly as transcribed. Keep both sides on the
+            //    identical vector so this tests the arithmetic, not a unit convention.
+            const float Height = U(0.5f, 30000.0f);
+            const Vector3 Origin{ 0.0f, C.Atmosphere.PlanetRadius + Height, 0.0f };
+
+            const float Elev = U(-20.0f, 90.0f) * 3.14159265358979323846f / 180.0f;
+            const float Azim = U(0.0f, 6.2831853f);
+            const Vector3 Dir{ std::cos(Elev) * std::sin(Azim), std::sin(Elev), std::cos(Elev) * std::cos(Azim) };
+
+            Vector3 MSky, MTrans; float MGround = 0.0f;
+            Probe.IntegrateAtmosphere(Origin, Dir, MSky, MTrans, MGround);
+
+            AtmoUniforms Uni{};
+            Uni.PlanetR      = C.Atmosphere.PlanetRadius;
+            Uni.AtmoH        = C.Atmosphere.AtmosphereHeight;
+            Uni.Rayleigh     = C.Atmosphere.RayleighStrength;
+            Uni.Mie          = C.Atmosphere.MieStrength;
+            Uni.Ozone        = C.Atmosphere.OzoneStrength;
+            Uni.MieG         = C.Atmosphere.MieAnisotropy;
+            Uni.Hr           = C.Atmosphere.RayleighScaleHeight;
+            Uni.Hm           = C.Atmosphere.MieScaleHeight;
+            Uni.SunIntensity = C.Sun.Intensity;
+            const Vector3 SD = Probe.QueryFrame().SunDirection;
+            const Vector3 SC = Probe.QueryFrame().SunColour;
+            Uni.SunDir   = v3{ SD.x, SD.y, SD.z };
+            Uni.SunColor = v3{ SC.x, SC.y, SC.z };
+
+            v3 RSky, RTrans; float RGround = 0.0f;
+            ref_atmosphere(v3{ Origin.x, Origin.y, Origin.z }, v3{ Dir.x, Dir.y, Dir.z },
+                           Uni, RSky, RTrans, RGround);
+
+            ++Samples;
+            if (RGround > 0.5f) { ++GroundHits; }
+
+            //    Relative on the radiance, which spans many decades across sun angle and intensity.
+            const double Scale = std::max({ 1.0e-9, static_cast<double>(std::abs(RSky.x)),
+                                            static_cast<double>(std::abs(RSky.y)),
+                                            static_cast<double>(std::abs(RSky.z)) });
+            WorstSky = std::max({ WorstSky,
+                std::abs(RSky.x - MSky.x) / Scale,
+                std::abs(RSky.y - MSky.y) / Scale,
+                std::abs(RSky.z - MSky.z) / Scale });
+            WorstTrans = std::max({ WorstTrans,
+                static_cast<double>(std::abs(RTrans.x - MTrans.x)),
+                static_cast<double>(std::abs(RTrans.y - MTrans.y)),
+                static_cast<double>(std::abs(RTrans.z - MTrans.z)) });
+            WorstGround = std::max(WorstGround, static_cast<double>(std::abs(RGround - MGround)));
+        }
+
+        //    The ground branch must actually have been taken, or this proves only the easy half.
+        char Cover[128];
+        std::snprintf(Cover, sizeof(Cover), "%u of %u rays hit the planet", GroundHits, Samples);
+        Gate(GroundHits > 100u, "the ground-intersection branch was exercised", Cover);
+
+        Report("atmosphere() sky radiance (relative)", WorstSky, 1.0e-5);
+        Report("atmosphere() transmittance", WorstTrans);
+        Report("atmosphere() ground flag", WorstGround, 0.0);
+    }
+
+    //    ── the panel/shader precision split ────────────────────────────────────────────────────────────────
+    //    The reference computes degree->radian on two different machines. Panel-side conversions run in
+    //    JavaScript double from the full Math.PI and round to float exactly once, at `gl.uniform*f`. Shader-side
+    //    `radians()` is float with the truncated `#define PI 3.14159265`. Collapsing the two costs ~49 arcsec on
+    //    the sun direction (5% of the solar radius) and, because the star grid is a `floor()`, silently
+    //    reassigns stars to different cells. This pins the contract so it cannot quietly regress.
+    {
+        double WorstPanel = 0.0, WorstShader = 0.0;
+        for (int i = 0; i < 200000; ++i)
+        {
+            const float Deg = U(-360.0f, 360.0f);
+            //    Panel path: double throughout, one rounding on upload.
+            const float Expected = static_cast<float>(static_cast<double>(Deg)
+                                 * (3.14159265358979323846 / 180.0));
+            WorstPanel = std::max(WorstPanel, static_cast<double>(std::abs(PanelRadians(Deg) - Expected)));
+            //    Shader path: GLSL `radians()`, float, truncated PI.
+            const float ExpectedGl = Deg * (3.14159265f / 180.0f);
+            WorstShader = std::max(WorstShader, static_cast<double>(std::abs(Radians(Deg) - ExpectedGl)));
+        }
+        Report("PanelRadians reproduces the panel's double D2R upload", WorstPanel, 0.0);
+        Report("Radians reproduces GLSL radians() (truncated PI)", WorstShader, 0.0);
+
+        //    And the two must genuinely differ, or the distinction is not being tested at all.
+        uint32_t Differ = 0u;
+        for (int i = 0; i < 200000; ++i)
+        {
+            const float Deg = U(-360.0f, 360.0f);
+            if (PanelRadians(Deg) != Radians(Deg)) { ++Differ; }
+        }
+        char Note[128];
+        std::snprintf(Note, sizeof(Note), "%u of 200000 angles land on different floats", Differ);
+        Gate(Differ > 1000u, "the two conversions are actually distinct", Note);
+    }
+
+    //    ── starField(): the most magic-constant-dense kernel on the page ───────────────────────────────────
+    {
+        double WorstStar = 0.0;
+        uint32_t Lit = 0u;
+        for (int i = 0; i < 3000; ++i)
+        {
+            CelestialCriteria C{};
+            C.Stars.RotationDegrees  = U(-180.0f, 180.0f);
+            C.Stars.MilkyTiltDegrees = U(-90.0f, 90.0f);
+            C.Stars.MilkyWay         = U(0.0f, 2.0f);
+            C.Stars.Density          = U(0.1f, 2.0f);
+            C.Stars.Twinkle          = U(0.0f, 1.0f);
+            C.Stars.ColourStrength   = U(0.0f, 1.0f);
+            C.Stars.Size             = U(0.4f, 3.0f);
+            C.Stars.Glow             = U(0.0f, 2.0f);
+            C.Stars.Brightness       = U(0.0f, 4.0f);
+            //    Sweep every quality tier: `Layers` selects 1..4 and each adds a whole octave of stars.
+            C.Stars.Layers           = std::floor(U(1.0f, 5.0f));
+
+            const float TimeSeconds = U(0.0f, 400.0f);
+            CelestialIntegrator Probe(C);
+            Probe.SolveFrame(TimeSeconds);
+
+            const float Elev = U(-1.55f, 1.55f), Azim = U(0.0f, 6.2831853f);
+            const Vector3 Dir{ std::cos(Elev) * std::sin(Azim), std::sin(Elev), std::cos(Elev) * std::cos(Azim) };
+            const float PixAng = U(2.0e-4f, 4.0e-3f);
+            const float AirMass = U(1.0f, 12.0f);
+
+            const Vector3 M = Probe.StarFieldValue(Dir, PixAng, AirMass);
+
+            StarUniforms SU{};
+            //    The panel's D2R path: double, rounded once on upload. Computing this in float instead shifts
+            //    the angle by an ulp, and because the star grid is a `floor()` that silently picks a different
+            //    star — which is exactly how the double/float split was found.
+            SU.Rot      = PanelRadians(C.Stars.RotationDegrees);
+            SU.Tilt     = PanelRadians(C.Stars.MilkyTiltDegrees);
+            SU.Milky    = C.Stars.MilkyWay;
+            SU.Layers   = C.Stars.Layers;
+            SU.Density  = C.Stars.Density;
+            SU.Twinkle  = C.Stars.Twinkle;
+            SU.ColorAmt = C.Stars.ColourStrength;
+            SU.Size     = C.Stars.Size;
+            SU.Glow     = C.Stars.Glow;
+            SU.Bright   = C.Stars.Brightness;
+            SU.Time     = TimeSeconds;
+
+            const v3 R = ref_starField(v3{ Dir.x, Dir.y, Dir.z }, PixAng, AirMass, SU);
+            if (R.x + R.y + R.z > 1.0e-6f) { ++Lit; }
+
+            const double Scale = std::max({ 1.0e-7, static_cast<double>(std::abs(R.x)),
+                                            static_cast<double>(std::abs(R.y)),
+                                            static_cast<double>(std::abs(R.z)) });
+            WorstStar = std::max({ WorstStar,
+                std::abs(R.x - M.x) / Scale,
+                std::abs(R.y - M.y) / Scale,
+                std::abs(R.z - M.z) / Scale });
+        }
+        char Cover[128];
+        std::snprintf(Cover, sizeof(Cover), "%u of 3000 directions carried starlight", Lit);
+        Gate(Lit > 500u, "the star field actually produced light to compare", Cover);
+        Report("starField (4 layers, twinkle, spikes; relative)", WorstStar, 1.0e-5);
     }
 
     std::printf("\n");

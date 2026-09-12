@@ -337,16 +337,17 @@ Vector3 CelestialIntegrator::SolveSunDirection(float LocalHours) const noexcept
 {
     //    sunDirAt(t): lat = sun_lat, HA = (t-12)/24·2π, sinE = cos(lat)·cos(HA)
     //                 az  = atan2(sin HA, cos HA·sin lat) + π + sun_az
-    const float Latitude = Criteria.Sun.LatitudeDegrees * kDegreesToRadians;
-    const float HourAngle = (LocalHours - 12.0f) / 24.0f * kPi * 2.0f;
-    const float SinElevation = std::cos(Latitude) * std::cos(HourAngle);
-    const float Elevation = std::asin(std::clamp(SinElevation, -1.0f, 1.0f));
-    const float Azimuth = std::atan2(std::sin(HourAngle), std::cos(HourAngle) * std::sin(Latitude))
-                        + kPi + Criteria.Sun.AzimuthOffsetDegrees * kDegreesToRadians;
+    //    `sunDirAt` lives on the panel, so it runs in double and rounds once on upload. See `PanelRadians`.
+    const double Latitude = static_cast<double>(Criteria.Sun.LatitudeDegrees) * kDegreesToRadiansPanel;
+    const double HourAngle = (static_cast<double>(LocalHours) - 12.0) / 24.0 * kPiPanel * 2.0;
+    const double SinElevation = std::cos(Latitude) * std::cos(HourAngle);
+    const double Elevation = std::asin(std::clamp(SinElevation, -1.0, 1.0));
+    const double Azimuth = std::atan2(std::sin(HourAngle), std::cos(HourAngle) * std::sin(Latitude))
+                         + kPiPanel + static_cast<double>(Criteria.Sun.AzimuthOffsetDegrees) * kDegreesToRadiansPanel;
 
-    return Vector3{ std::sin(Azimuth) * std::cos(Elevation),
-                    std::sin(Elevation),
-                    -std::cos(Azimuth) * std::cos(Elevation) };
+    return Vector3{ static_cast<float>(std::sin(Azimuth) * std::cos(Elevation)),
+                    static_cast<float>(std::sin(Elevation)),
+                    static_cast<float>(-std::cos(Azimuth) * std::cos(Elevation)) };
 }
 
 Vector3 CelestialIntegrator::KelvinColour(float Temperature) noexcept
@@ -391,9 +392,12 @@ void CelestialIntegrator::SolveFrame(float TimeSeconds) noexcept
         }
         else
         {
-            const float e = M.ElevationDegrees * kDegreesToRadians;
-            const float a = M.AzimuthDegrees * kDegreesToRadians;
-            Solved.MoonDirections[i] = Vector3{ std::sin(a) * std::cos(e), std::sin(e), -std::cos(a) * std::cos(e) };
+            //    `dirFrom` is panel-side: double, rounded once on upload.
+            const double e = static_cast<double>(M.ElevationDegrees) * kDegreesToRadiansPanel;
+            const double a = static_cast<double>(M.AzimuthDegrees) * kDegreesToRadiansPanel;
+            Solved.MoonDirections[i] = Vector3{ static_cast<float>(std::sin(a) * std::cos(e)),
+                                                static_cast<float>(std::sin(e)),
+                                                static_cast<float>(-std::cos(a) * std::cos(e)) };
         }
     }
 
@@ -428,7 +432,7 @@ void CelestialIntegrator::AdvanceWind(float DeltaSeconds) noexcept
 {
     //    windStep: the integral of the ground-level base wind, and the gust phase.
     const float Speed = Criteria.Wind.Visible ? Criteria.Wind.Speed : 0.0f;
-    const float Bearing = Criteria.Wind.BearingDegrees * kDegreesToRadians;
+    const float Bearing = PanelRadians(Criteria.Wind.BearingDegrees);        // uWDir = wd_dir*D2R
     const float Gust = 1.0f + Criteria.Wind.Gust * (0.55f * std::sin(Solved.WindGustPhase)
                                                   + 0.30f * std::sin(Solved.WindGustPhase * 2.31f + 1.7f)
                                                   + 0.15f * std::sin(Solved.WindGustPhase * 4.7f + 0.4f));
@@ -447,7 +451,8 @@ Vector3 CelestialIntegrator::WindDisplacement(const Vector3& Position) const noe
     const float Speed = Criteria.Wind.Visible ? Criteria.Wind.Speed : 0.0f;
     const float km = std::max(0.0f, Position.y) / 1000.0f;
     const float sp = Speed * (1.0f + Criteria.Wind.Shear * km);
-    const float b  = Criteria.Wind.BearingDegrees * kDegreesToRadians
+    //    uWDir arrives from the panel (double); the veer term is shader-side float with the truncated PI.
+    const float b  = PanelRadians(Criteria.Wind.BearingDegrees)
                    + Criteria.Wind.VeerDegreesPerKm * km * kPi / 180.0f;
     const float Magnitude = std::sqrt(std::sin(b) * sp * std::sin(b) * sp + std::cos(b) * sp * std::cos(b) * sp);
     const float f = Magnitude / std::max(1e-3f, Speed);
@@ -654,8 +659,10 @@ Vector3 CelestialIntegrator::TwilightGlow(const Vector3& Direction, float Elevat
 Vector3 CelestialIntegrator::StarField(const Vector3& Direction, float PixelAngle, float AirMass) const noexcept
 {
     const StarCriteria& St = Criteria.Stars;
-    const Vector3 sd = RotateX(RotateY(Direction, St.RotationDegrees * kDegreesToRadians),
-                               St.MilkyTiltDegrees * kDegreesToRadians);
+    //    uStarRot / uMilkyTilt are panel uploads: st_rot*D2R and st_tilt*D2R in double. The cell grid is a
+    //    `floor()`, so a single ulp here can select a different star entirely — this must be the panel path.
+    const Vector3 sd = RotateX(RotateY(Direction, PanelRadians(St.RotationDegrees)),
+                               PanelRadians(St.MilkyTiltDegrees));
     Vector3 col{ 0.0f, 0.0f, 0.0f };
 
     //    The galaxy: a smooth band, 3-octave noise, dust lanes darkening the core.
@@ -766,12 +773,12 @@ Vector3 CelestialIntegrator::MoonDiscs(const Vector3& Direction, const Vector3& 
         }
 
         const Vector3 md = Solved.MoonDirections[i];
-        const float AngularRadius = M.AngularDiameterDeg * kDegreesToRadians / 2.0f;
+        const float AngularRadius = PanelRadians(M.AngularDiameterDeg) / 2.0f;   // uMoonP.x = m.size*D2R/2
         const float Brightness = M.Brightness;
         const float Phase = M.Phase;
         const float GlowAmount = M.Glow;
-        const float Spin = M.SpinDegrees * kDegreesToRadians;
-        const float Tilt = M.TiltDegrees * kDegreesToRadians;
+        const float Spin = PanelRadians(M.SpinDegrees);                          // uMoonSurf.x = m.spin*D2R
+        const float Tilt = PanelRadians(M.TiltDegrees);                          // uMoonSurf.y = m.tilt*D2R
         const float Haze = M.Haze;
         const float Gamma = M.Gamma;
 
@@ -855,8 +862,8 @@ float CelestialIntegrator::CloudDensity(const Vector3& p, float Lod) const noexc
     else
     {
         const float w = C.DriftSpeed * Solved.TimeSeconds * 0.8f;
-        wdx = std::sin(C.DriftDegrees * kDegreesToRadians) * w;
-        wdz = std::cos(C.DriftDegrees * kDegreesToRadians) * w;
+        wdx = std::sin(PanelRadians(C.DriftDegrees)) * w;                    // uCLWindDir = cl_winddir*D2R
+        wdz = std::cos(PanelRadians(C.DriftDegrees)) * w;
     }
 
     Vector3 q = p;
@@ -2054,7 +2061,7 @@ Vector3 CelestialIntegrator::SampleSkyRadiance(const Vector3& Direction, const O
     //    The solar disc: limb darkening, the air-mass reddening, and the capped aureole.
     if (Criteria.Sun.Visible)
     {
-        const float SunAngularRadius = Criteria.Sun.AngularDiameterDeg * kDegreesToRadians / 2.0f;
+        const float SunAngularRadius = PanelRadians(Criteria.Sun.AngularDiameterDeg) / 2.0f;  // uSunAng
         const float Angle = std::acos(std::clamp(Dot(Direction, Solved.SunDirection), -1.0f, 1.0f));
         const float Soft = Mix(1.0f, 2.2f, 1.0f - SmoothStep(0.0f, 4.0f, ElevationDeg));
         const float Disc = 1.0f - SmoothStep(SunAngularRadius * (1.0f - Criteria.Sun.Softness * 0.9f * Soft), SunAngularRadius, Angle);
@@ -2311,6 +2318,11 @@ float CelestialIntegrator::KernelCloudHeightProfile(float hn, float Variety, flo
 float CelestialIntegrator::TerrainFieldValue(float qx, float qz) const noexcept
 {
     return TerrainField(qx, qz);
+}
+
+Vector3 CelestialIntegrator::StarFieldValue(const Vector3& Direction, float PixelAngle, float AirMass) const noexcept
+{
+    return StarField(Direction, PixelAngle, AirMass);
 }
 
 } // namespace Frontier::ProjectZero

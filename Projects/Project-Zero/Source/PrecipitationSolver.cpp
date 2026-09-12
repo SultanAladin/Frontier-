@@ -101,11 +101,11 @@ void PrecipitationSolver::Advance(float DeltaSeconds, const Vector3& ObserverPos
     SpawnAccumulator += SpawnRate * DeltaSeconds;
 
     //    The ambient wind the drops relax toward.
-    float WindX = std::sin(C.DriftDegrees * kDegreesToRadians) * C.DriftSpeed * P.WindCoupling;
-    float WindZ = std::cos(C.DriftDegrees * kDegreesToRadians) * C.DriftSpeed * P.WindCoupling;
+    float WindX = std::sin(PanelRadians(C.DriftDegrees)) * C.DriftSpeed * P.WindCoupling;
+    float WindZ = std::cos(PanelRadians(C.DriftDegrees)) * C.DriftSpeed * P.WindCoupling;
     if (Criteria.Wind.DrivesPrecipitation && Criteria.Wind.Visible)
     {
-        const float Bearing = Criteria.Wind.BearingDegrees * kDegreesToRadians;
+        const float Bearing = PanelRadians(Criteria.Wind.BearingDegrees);
         const float Gust = 1.0f + Criteria.Wind.Gust * 0.55f * std::sin(Frame.WindGustPhase);
         WindX = std::sin(Bearing) * Criteria.Wind.Speed * Gust * P.WindCoupling * 2.0f;
         WindZ = std::cos(Bearing) * Criteria.Wind.Speed * Gust * P.WindCoupling * 2.0f;
@@ -130,7 +130,7 @@ void PrecipitationSolver::Advance(float DeltaSeconds, const Vector3& ObserverPos
         {
             //    cloudCoverAt: the same 4-octave value noise the volumetric layer uses for its base shape.
             const float sc = 1.0f / (C.NoiseScale * 900.0f);
-            const float wd = C.DriftDegrees * kDegreesToRadians;
+            const float wd = PanelRadians(C.DriftDegrees);
             const float w  = C.DriftSpeed * Frame.TimeSeconds * 0.8f;
             const float qx = px + std::sin(wd) * w;
             const float qz = pz + std::cos(wd) * w;

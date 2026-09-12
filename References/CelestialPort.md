@@ -341,3 +341,46 @@ This covers the self-contained numeric kernels, not the composite `main()`, whos
 20×8-sample marches cannot be reproduced without a GL context. The ablation and scene proofs cover the
 composite. Together the five proofs are 100+ checks; a pixel diff against the live page still requires a
 machine with a GPU and remains the one outstanding form of evidence.
+
+### The panel/shader precision split
+
+The reference performs degree-to-radian conversion on two machines with two different precisions, and the
+difference is observable. Panel-side conversions run in JavaScript `double` from the full `Math.PI`
+(`const D2R = Math.PI/180`) and are rounded to `float` exactly once, when `gl.uniform*f` uploads them.
+Shader-side conversions use GLSL `radians()`, which is `float` throughout against the truncated
+`#define PI 3.14159265`. The two disagree for **9.2%** of angles.
+
+The port originally used a single `float` `kDegreesToRadians` for both, which silently reproduced the wrong
+machine for every uploaded uniform:
+
+- **Sun direction** — `sunDirAt` is panel maths. In `float` the direction drifted by up to **2.36e-04 rad
+  (49 arcsec)**, about **5% of the solar radius**. That is enough to walk the disc against the horizon and
+  shift the specular highlight; noon elevation came out as 63.999…° instead of exactly 64°.
+- **Star field** — `uStarRot`/`uMilkyTilt` are panel uploads, and the star grid indexes cells with `floor()`.
+  A one-ulp change in the rotation moves a direction across a cell boundary and selects a *different star*,
+  so the error is not small-and-smooth but a wholesale change of which stars exist. This produced a **35%**
+  divergence and is how the split was discovered.
+
+`CelestialSpecification.h` now carries both conversions, and which one to use is part of the porting contract:
+
+| use | function | semantics |
+|---|---|---|
+| a uniform the panel computes and uploads | `PanelRadians(deg)` | `double` throughout, one rounding at the end |
+| a conversion the fragment shader performs | `Radians(deg)` | GLSL `radians()`: `float`, truncated `PI` |
+
+Converted to `PanelRadians`: `uSunDir` (and moon `dirFrom`), `uMoonP.x` (`size*D2R/2`), `uMoonSurf.xy`
+(`spin`, `tilt`), `uSunAng`, `uWDir`, `uCLWindDir`, `uSLCos`, `uStarRot`, `uMilkyTilt`. Deliberately left on
+`Radians`: `airMassOf`, which the shader computes itself, and the `uWVeer*km*PI/180` term inside `windBase`,
+which is shader-side float maths — note that `windBase` therefore mixes both conventions in a single
+expression, exactly as the reference does.
+
+Three checks in the transliteration proof pin this down: each conversion reproduces its own machine
+bit-exactly, and a third asserts the two are genuinely distinct (18 406 of 200 000 random angles land on
+different floats), so the distinction cannot be quietly collapsed again.
+
+### Deliberate departure: `PhaseMie` clamp
+
+`PhaseMie` clamps its `pow` base with `max(..., 1e-6)`; the reference does not. This guards a
+negative-base `pow` at grazing geometry. It never engaged across 4 000 randomised atmosphere geometries
+(sky, transmittance and ground flag all matched at Δ = 0.000e+00), so it is inert on the sampled domain,
+but it is a real departure and is recorded here rather than left implicit.
