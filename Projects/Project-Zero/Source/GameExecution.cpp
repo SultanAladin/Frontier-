@@ -134,8 +134,9 @@ int main(int ArgumentCount, char** ArgumentValues)
     SkyCriteria.Sun.LocalHours               = 12.0f;
     SkyCriteria.Observer.Height              = 0.55f;
     SkyCriteria.VolumetricCloud.Coverage     = 0.52f;
-    SkyCriteria.Moons[0].AzimuthDegrees      = 200.0f;
-    SkyCriteria.Moons[0].ElevationDegrees    = 40.0f;
+    //    Into the window's cone (elevations −34°…+22° about azimuth 7°), not above the lintel.
+    SkyCriteria.Moons[0].AzimuthDegrees      = 9.0f;
+    SkyCriteria.Moons[0].ElevationDegrees    = 16.0f;
     //    The fog bank sits in the middle distance beyond the aperture, not over the room.
     SkyCriteria.LocalFog.Placement           = Frontier::Vector3{ 0.0f, 6.0f, -26.0f };
     SkyCriteria.LocalFog.HalfExtents         = Frontier::Vector3{ 22.0f, 5.0f, 14.0f };

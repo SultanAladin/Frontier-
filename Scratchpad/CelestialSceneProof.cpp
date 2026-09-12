@@ -103,14 +103,16 @@ int main()
     Camera.AssignOrientationEuler(Radians(-6.0f), Radians(-7.0f), 0.0f);
     Camera.AssignFieldOfView(92.0f);
 
-    //    The aperture frames sky azimuth ≈ 0° (north, sky $-Z$) between 38° and 85° of elevation, measured from
-    //    the eye point above. Each moment steers its principal body into that window: the physics is untouched,
-    //    only the observer's placement relative to it — the same thing a photographer does.
+    //    ⚠️ The WINDOW, not the ceiling aperture, is what frames the sky now. From the eye point it spans
+    //    elevations −34°…+22° around sky azimuth ≈ 7°. The old moon elevations (40–56°) were tuned for the
+    //    ceiling opening and now sit above the lintel, which is why the night frame came out black with a
+    //    perfectly correct moon in it. Each moment steers its principal body into the window instead: the
+    //    physics is untouched, only where the observer stands relative to it — what a photographer does.
     const SceneMoment Moments[] = {
-        { "Dawn",     "06:20 · twilight band, white line, the last stars",  6.35f, 2u, 0.45f, 0u, 12.0f,  10.0f,  10.0f, 55.0f },
-        { "Noon",     "12:00 · cumulus, rainbow, aerial perspective",      12.00f, 2u, 0.52f, 0u, 14.0f,   0.0f, 200.0f, 40.0f },
-        { "Dusk",     "17:50 · low sun, lens flare, reddened disc",        17.85f, 3u, 0.58f, 0u,  9.0f, -10.0f, 350.0f, 50.0f },
-        { "Night",    "23:30 · moon, Milky Way, star field",               23.50f, 5u, 0.30f, 3u,  6.0f,   0.0f,   4.0f, 56.0f }
+        { "Dawn",     "06:20 · twilight band, white line, the last stars",  6.35f, 2u, 0.45f, 0u, 12.0f,  10.0f,  10.0f, 14.0f },
+        { "Noon",     "12:00 · cumulus, rainbow, aerial perspective",      12.00f, 2u, 0.52f, 0u, 14.0f,   0.0f, 200.0f, 16.0f },
+        { "Dusk",     "17:50 · low sun, lens flare, reddened disc",        17.85f, 3u, 0.58f, 0u,  9.0f, -10.0f, 350.0f, 12.0f },
+        { "Night",    "23:30 · moon, Milky Way, star field",               23.50f, 5u, 0.30f, 3u,  6.0f,   0.0f,   7.0f, 15.0f }
     };
 
     std::vector<std::string> Written;
