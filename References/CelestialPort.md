@@ -229,3 +229,65 @@ observer frame). No reference uniform is unported.
 A GPU-side differential test against the live GLSL was attempted and is not possible in this sandbox:
 there is no EGL/GL driver and no `moderngl`/`glslangValidator`. Equivalence therefore rests on the
 line-by-line transcription plus the 69 arithmetic checks in the two proofs.
+
+---
+
+## The ablation proof — is every element actually IN the one frame?
+
+`Scratchpad/CelestialCombinedProof.cpp` — **19 checks**, wired into the gate as the third of four proofs.
+
+The other proofs answer "does each system compute the right numbers" and "does a frame come out lit". Neither
+answers the question the port is judged on: *is every element simultaneously present in the single combined
+render?* That has a sharp, falsifiable form — render the combined frame, then switch **one element alone**
+off, re-render, and require the image to change. If the frame is identical without an element, that element
+is not in the picture, however perfectly its physics integrates.
+
+This is exactly the test that would have caught the ground plane in one run: it integrated flawlessly, the
+frame looked lovely, and removing it changed nothing, because it was occluded and never reached a pixel.
+
+Every element passes. Representative deltas against the shipped noon frame (320×224):
+
+| Element | Pixels moved | Peak Δ |
+|---|---:|---:|
+| sun | 71 604 | 2.405 |
+| sky / atmosphere | 70 957 | 1.448 |
+| ground plane | 56 729 | 1.985 |
+| point light | 60 790 | 0.091 |
+| atmospheric fog | 19 666 | 0.428 |
+| volumetric clouds | 6 965 | 1.400 |
+| wind | 7 539 | 1.509 |
+| local volumetric fog | 3 503 | 1.594 |
+| spot light | 1 267 | 0.001 |
+| local cloud volume | 473 | 0.633 |
+| precipitation | 336 | 1.637 |
+| Cornell luminaire (ReSTIR DI) | 59 175 | 163.783 |
+| window admits the world | 68 977 | 2.403 |
+| star field (midnight) | 170 | 0.003 |
+| moon (midnight) | 40 812 | 0.060 |
+
+### Three elements that correctly contribute nothing at noon
+
+The first run reported the rainbow, the lens flare and the cloud layer at **zero pixels**. All three turned
+out to be correct behaviour, and asserting them at noon would have been asserting a bug:
+
+- **Rainbow.** The bow is a 42° circle about the antisolar point, whose elevation is −sunElev, so its top sits
+  at (42 − sunElev). With the sun at 64° the whole bow is 22° *below the horizon* — no rainbow can exist at
+  noon, and the reference cannot draw one either. It is also centred on the antisolar *azimuth* (99.6° at
+  16:36) while the shipped camera looks at 7°. Proved instead at 16:36 with the camera turned toward the bow:
+  3 215 px, peak Δ 2.384. Sampled directly, the response peaks at exactly **42.00°** from the antisolar point.
+- **Lens flare.** An artefact of the sun being *on screen*. At noon the sun is 64° up while the camera looks
+  6° down through the window — 2.68 screen-heights outside the frame, and the flare fades out past 1.25.
+  Tilt the camera up through the ceiling aperture: 71 680 px, peak Δ 0.946.
+- **Cloud layer.** The reference uploads `uCloudOn = 0`; the thin analytic slab is legacy and inert in the
+  live page, and is ported switched off to match. Making it contribute at its shipped default would mean the
+  port had *diverged* from the reference. Gated instead as "inert by default but functional when enabled":
+  25 px when switched on.
+
+### A GPU differential test is not possible in this sandbox
+
+Confirmed, not assumed: there is no `libGL`/`libEGL`/OSMesa, `moderngl` cannot create a standalone context
+("libGL.so not found"), there is no `glslangValidator`, and `apt-get` cannot install one without root. So
+equivalence to the live page rests on the line-by-line transcription, the 190-uniform audit, and the 88
+arithmetic and ablation checks across the four proofs — **not** on a pixel diff against the real shader.
+Screenshotting the reference page at a known camera and diffing against `Celestial_Noon.png` remains the one
+check that would close that gap, and it needs a machine with a GPU.
