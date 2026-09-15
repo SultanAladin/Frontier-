@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Frontier Editor Glyph Proof</title>
+    <style>
+        :root {
+            --page: #0c1017;
+            --panel: #111823;
+            --panel-raised: #151f2d;
+            --line: #263348;
+            --line-bright: #3d516d;
+            --ink: #edf5ff;
+            --muted: #8999ae;
+            --faint: #526175;
+            --aqua: #65e5dc;
+            --violet: #a69afb;
+            --orange: #ffae69;
+            --rose: #f57d9e;
+            --lime: #a6e786;
+            --shadow: rgba(0, 0, 0, .25);
+            --radius: 16px;
+            --stroke: 2.15;
+            --glyph-size: 30px;
+        }
+
+        * { box-sizing: border-box; }
+        html { background: var(--page); color-scheme: dark; }
+        body {
+            margin: 0;
+            min-width: 320px;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 13% -8%, rgba(101, 229, 220, .12), transparent 31rem),
+                radial-gradient(circle at 96% 4%, rgba(166, 154, 251, .10), transparent 25rem),
+                var(--page);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        button, input { font: inherit; }
+        button { color: inherit; }
+        button:focus-visible, input:focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; }
+
+        .topline {
+            height: 4px;
+            background: linear-gradient(90deg, var(--aqua), var(--violet) 48%, var(--orange));
+        }
+
+        header {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 38px 28px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: end;
+            gap: 30px;
+        }
+
+        .eyebrow, .section-label, .origin, .card-group, .count-label, .shortcut, .logo-mark {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+        }
+        .eyebrow { margin: 0 0 11px; color: var(--aqua); }
+        h1 { margin: 0; font-size: clamp(31px, 4vw, 53px); line-height: .98; letter-spacing: -.065em; }
+        .intro { max-width: 570px; margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+        .provenance {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 266px;
+            padding: 14px 16px;
+            color: var(--muted);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(17, 24, 35, .66);
+        }
+        .provenance svg { width: 25px; height: 25px; color: var(--aqua); flex: 0 0 auto; }
+        .provenance strong { display: block; color: var(--ink); font-size: 12px; letter-spacing: .01em; }
+        .provenance span { display: block; margin-top: 3px; font-size: 11px; }
+
+        main {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 0 28px 64px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 24px;
+        }
+
+        .workbench { min-width: 0; }
+        .control-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: rgba(17, 24, 35, .78);
+            box-shadow: 0 16px 42px var(--shadow);
+        }
+        .search-wrap { position: relative; flex: 1 1 205px; min-width: 180px; }
+        .search-wrap svg { position: absolute; left: 13px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+        #search {
+            width: 100%;
+            padding: 10px 46px 10px 38px;
+            color: var(--ink);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #0d131d;
+            font-size: 13px;
+        }
+        #search::placeholder { color: #718096; }
+        .shortcut { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); padding: 2px 5px; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; }
+
+        .control-cluster { display: flex; align-items: center; gap: 7px; }
+        .control-label { color: var(--muted); font-size: 11px; font-weight: 700; }
+        .tabs { display: flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: #0d131d; }
+        .tab, .mode-button, .size-button {
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 750;
+        }
+        .tab { padding: 7px 9px; }
+        .tab.active, .mode-button.active, .size-button.active { color: #071818; background: var(--aqua); }
+        .mode-button { padding: 7px 9px; border: 1px solid var(--line); background: #0d131d; }
+        .size-button { width: 28px; height: 28px; border: 1px solid var(--line); background: #0d131d; }
+        .range { width: 75px; accent-color: var(--aqua); cursor: pointer; }
+
+        .collection-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            align-items: center;
+            padding: 21px 2px 14px;
+        }
+        .collection-meta h2 { margin: 0; font-size: 14px; letter-spacing: -.01em; }
+        .collection-meta p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+        .totals { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .total-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--aqua); box-shadow: 0 0 0 3px rgba(101, 229, 220, .12); }
+
+        .glyph-sets { display: grid; gap: 27px; }
+        .glyph-set[hidden] { display: none; }
+        .set-heading { display: flex; align-items: center; gap: 11px; margin: 0 0 10px; }
+        .set-heading::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+        .section-label { color: var(--aqua); }
+        .set-count { padding: 2px 6px; color: var(--faint); border: 1px solid var(--line); border-radius: 99px; font-size: 10px; }
+
+        .glyph-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(154px, 1fr)); gap: 10px; }
+        .glyph-card {
+            position: relative;
+            overflow: hidden;
+            min-height: 170px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 13px;
+            background: linear-gradient(145deg, rgba(21, 31, 45, .95), rgba(14, 20, 30, .95));
+            cursor: pointer;
+            transition: transform .17s ease, border-color .17s ease, background .17s ease;
+        }
+        .glyph-card:hover { z-index: 1; transform: translateY(-2px); border-color: var(--line-bright); background: #182334; }
+        .glyph-card.selected { border-color: var(--aqua); box-shadow: 0 0 0 1px rgba(101, 229, 220, .25), 0 13px 24px rgba(0, 0, 0, .18); }
+        .glyph-card.review { border-color: rgba(255, 174, 105, .78); }
+        .glyph-card.reject { opacity: .53; }
+        .glyph-card.keep { border-color: rgba(166, 231, 134, .88); }
+        .glyph-card.copied::after { content: "SVG copied"; position: absolute; right: 10px; top: 10px; padding: 4px 7px; color: #082013; border-radius: 5px; background: var(--lime); font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+
+        .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 7px; }
+        .glyph-art {
+            display: grid;
+            place-items: center;
+            width: 55px;
+            height: 55px;
+            color: var(--ink);
+            border: 1px solid #2a394f;
+            border-radius: 14px;
+            background:
+                linear-gradient(45deg, transparent 48%, rgba(101, 229, 220, .035) 49%, rgba(101, 229, 220, .035) 51%, transparent 52%),
+                linear-gradient(-45deg, transparent 48%, rgba(166, 154, 251, .035) 49%, rgba(166, 154, 251, .035) 51%, transparent 52%),
+                #101925;
+        }
+        .glyph-art svg { width: var(--glyph-size); height: var(--glyph-size); overflow: visible; }
+        .card-group { padding-top: 3px; color: var(--faint); text-align: right; font-size: 8px; }
+        .glyph-name { margin: 13px 0 2px; font-size: 13px; font-weight: 780; letter-spacing: -.015em; }
+        .glyph-description { min-height: 27px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
+        .card-bottom { display: flex; justify-content: space-between; align-items: end; gap: 8px; margin-top: 9px; }
+        .origin { color: var(--aqua); font-size: 8px; }
+        .quick-actions { display: flex; gap: 3px; }
+        .quick, .icon-button {
+            display: grid;
+            place-items: center;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            color: var(--muted);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #0c131d;
+            cursor: pointer;
+            transition: color .15s ease, border-color .15s ease, background .15s ease;
+        }
+        .quick:hover, .icon-button:hover { color: var(--ink); border-color: var(--line-bright); }
+        .quick svg, .icon-button svg { width: 13px; height: 13px; }
+        .quick[data-verdict="keep"].active { color: #11270e; border-color: var(--lime); background: var(--lime); }
+        .quick[data-verdict="review"].active { color: #2e1602; border-color: var(--orange); background: var(--orange); }
+        .quick[data-verdict="reject"].active { color: #35090f; border-color: var(--rose); background: var(--rose); }
+
+        .empty { display: none; padding: 52px 25px; text-align: center; color: var(--muted); border: 1px dashed var(--line-bright); border-radius: var(--radius); }
+        .empty.show { display: block; }
+        .empty strong { display: block; margin-bottom: 6px; color: var(--ink); }
+
+        .inspector {
+            position: sticky;
+            top: 20px;
+            align-self: start;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: rgba(17, 24, 35, .92);
+            box-shadow: 0 16px 42px var(--shadow);
+        }
+        .inspector-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 15px; border-bottom: 1px solid var(--line); }
+        .inspector-head h2 { margin: 0; font-size: 12px; letter-spacing: .01em; }
+        .inspector-head span { color: var(--aqua); font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+        .large-preview { position: relative; display: grid; place-items: center; height: 220px; overflow: hidden; background: #0d141e; }
+        .large-preview::before, .large-preview::after { content: ""; position: absolute; background: #1d2a3b; }
+        .large-preview::before { width: 1px; height: 100%; }
+        .large-preview::after { width: 100%; height: 1px; }
+        .large-preview .preview-ring { position: absolute; width: 144px; height: 144px; border: 1px solid #1d2a3b; border-radius: 50%; }
+        .large-preview svg { position: relative; z-index: 1; width: 91px; height: 91px; color: var(--ink); overflow: visible; }
+        .inspect-copy { position: absolute; z-index: 2; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 6px; padding: 7px 9px; color: var(--ink); border: 1px solid var(--line-bright); border-radius: 8px; background: rgba(13, 20, 30, .87); cursor: pointer; font-size: 10px; font-weight: 750; }
+        .inspect-copy:hover { border-color: var(--aqua); }
+        .inspect-copy svg { width: 13px; height: 13px; }
+        .inspect-content { padding: 17px 15px 15px; }
+        .inspect-name { margin: 0; font-size: 22px; letter-spacing: -.05em; }
+        .inspect-description { min-height: 35px; margin: 7px 0 13px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+        .facts { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; }
+        .fact { padding: 9px; }
+        .fact + .fact { border-left: 1px solid var(--line); }
+        .fact b { display: block; margin-bottom: 2px; color: var(--faint); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+        .fact span { color: var(--ink); font-size: 10px; font-weight: 750; }
+        .verdict-title { margin: 0 0 8px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+        .verdicts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+        .verdict {
+            padding: 8px 3px;
+            color: var(--muted);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #0d131d;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 800;
+        }
+        .verdict.keep.active { color: #10230d; border-color: var(--lime); background: var(--lime); }
+        .verdict.review.active { color: #2e1602; border-color: var(--orange); background: var(--orange); }
+        .verdict.reject.active { color: #35090f; border-color: var(--rose); background: var(--rose); }
+        .note-label { display: block; margin: 17px 0 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+        #note { display: block; width: 100%; min-height: 67px; resize: vertical; padding: 9px; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; background: #0d131d; font: inherit; font-size: 11px; line-height: 1.4; }
+        #note::placeholder { color: #607086; }
+        .inspector-footer { display: flex; gap: 8px; padding: 13px 15px; border-top: 1px solid var(--line); }
+        .action {
+            flex: 1;
+            padding: 9px 7px;
+            color: var(--ink);
+            border: 1px solid var(--line-bright);
+            border-radius: 8px;
+            background: #172235;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 800;
+        }
+        .action:hover { border-color: var(--aqua); color: var(--aqua); }
+        .action.secondary { color: var(--muted); background: transparent; border-color: var(--line); }
+
+        .footer-note { max-width: 1480px; margin: 0 auto; padding: 0 28px 30px; color: var(--faint); font-size: 11px; line-height: 1.5; }
+        .footer-note b { color: var(--muted); }
+        #toast { position: fixed; z-index: 30; left: 50%; bottom: 23px; padding: 10px 13px; color: #071818; border-radius: 8px; background: var(--aqua); box-shadow: 0 10px 30px rgba(0, 0, 0, .36); font-size: 11px; font-weight: 800; opacity: 0; pointer-events: none; transform: translate(-50%, 12px); transition: opacity .18s ease, transform .18s ease; }
+        #toast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+        .mono .accent, .mono .violet, .mono .orange, .mono .rose, .mono .lime { stroke: none !important; fill: currentColor !important; }
+        .mono .accent-stroke { stroke: currentColor !important; }
+        .mono .soft { stroke: currentColor !important; fill: transparent !important; opacity: .5; }
+        svg .accent { stroke: none; fill: var(--aqua); }
+        svg .accent-stroke { stroke: var(--aqua); }
+        svg .violet { stroke: none; fill: var(--violet); }
+        svg .orange { stroke: none; fill: var(--orange); }
+        svg .rose { stroke: none; fill: var(--rose); }
+        svg .lime { stroke: none; fill: var(--lime); }
+        svg .soft { stroke: var(--muted); fill: none; opacity: .75; }
+        svg use { vector-effect: non-scaling-stroke; }
+
+        @media (max-width: 1010px) {
+            main { grid-template-columns: minmax(0, 1fr); }
+            .inspector { position: relative; top: 0; display: grid; grid-template-columns: 235px 1fr; }
+            .inspector-head { grid-column: 1 / -1; }
+            .large-preview { height: auto; min-height: 265px; }
+            .inspect-content { border-left: 1px solid var(--line); }
+            .inspector-footer { grid-column: 1 / -1; }
+        }
+        @media (max-width: 640px) {
+            header { padding: 28px 17px 23px; display: block; }
+            .provenance { margin-top: 21px; width: 100%; }
+            main { padding: 0 17px 42px; }
+            .control-bar { align-items: stretch; }
+            .control-cluster { justify-content: space-between; flex: 1 1 100%; }
+            .tabs { overflow-x: auto; }
+            .collection-meta { align-items: flex-start; }
+            .totals { padding-top: 5px; }
+            .glyph-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+            .glyph-card { min-height: 159px; padding: 11px; }
+            .glyph-description { font-size: 9px; }
+            .inspector { display: block; }
+            .large-preview { height: 200px; min-height: 0; }
+            .inspect-content { border-left: 0; }
+            .footer-note { padding: 0 17px 25px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Frontier Orbit glyphs are hand-drawn specifically for this proof. No external icon package is loaded. -->
+    <svg aria-hidden="true" width="0" height="0" style="position:absolute;overflow:hidden">
+        <defs>
+            <symbol id="glyph-aim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5.2 5.2 17.8 9.4 9.4 17.8Z"/><path class="accent-stroke" d="m10.4 10.4 4.9 4.9"/><circle class="accent" cx="17.8" cy="17.8" r="1.5" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-drift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3.2v17.6M3.2 12h17.6"/><path d="m12 3.2-2 2M12 3.2l2 2M20.8 12l-2-2m2 2-2 2M12 20.8l2-2m-2 2-2-2M3.2 12l2 2m-2-2 2-2"/><circle class="accent" cx="12" cy="12" r="2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-turn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6.2 8.2A7.5 7.5 0 0 1 18.7 9.8"/><path d="m18.8 5.1-.1 4.7-4.6-.7"/><path d="M17.8 15.8A7.5 7.5 0 0 1 5.3 14.2"/><path d="m5.2 18.9.1-4.7 4.6.7"/><circle class="violet" cx="12" cy="12" r="1.3" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.7 4.3H4.3v4.4M15.3 4.3h4.4v4.4M19.7 15.3v4.4h-4.4M4.3 15.3v4.4h4.4"/><path class="accent-stroke" d="m4.8 8.2 4.4-4.4m6.6 0 4.4 4.4m0 7.6-4.4 4.4m-6.6 0-4.4-4.4"/><rect class="accent" x="10.5" y="10.5" width="3" height="3" rx=".6" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-track" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 18.5h16M6 15.5V8.8M18 15.5V5.5"/><path class="accent-stroke" d="M8 7.8h6.5M11.3 5l3.2 2.8-3.2 2.8"/><circle class="orange" cx="6" cy="18.5" r="1.4" stroke="none"/><circle class="violet" cx="18" cy="18.5" r="1.4" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-magnet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6.2 4.3v8.2a5.8 5.8 0 0 0 11.6 0V4.3"/><path d="M6.2 8h3.2m5.2 0h3.2"/><path class="accent-stroke" d="M8.2 18.1 12 21.2l3.8-3.1"/><rect class="violet" x="5.2" y="3" width="5" height="4" rx=".8" stroke="none"/><rect class="violet" x="13.8" y="3" width="5" height="4" rx=".8" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-ruler" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5.3 17.5 12.2-12.2 2.8 2.8L8.1 20.3Z"/><path d="m10 12.8 1.8 1.8m.5-5 1.8 1.8m.5-5 1.8 1.8"/><circle class="accent" cx="6.7" cy="18.9" r="1.3" stroke="none"/>
+            </symbol>
+
+            <symbol id="glyph-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m12 3.5 7.4 4.2v8.6L12 20.5l-7.4-4.2V7.7Z"/><path d="m4.6 7.7 7.4 4.2 7.4-4.2M12 11.9v8.6"/><path class="accent-stroke" d="m12 3.5 3.1 1.8"/><circle class="accent" cx="15.8" cy="5.7" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-orb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="7.8"/><path d="M4.2 12h15.6M12 4.2c2.3 2.2 3.5 4.8 3.5 7.8s-1.2 5.6-3.5 7.8c-2.3-2.2-3.5-4.8-3.5-7.8S9.7 6.4 12 4.2Z"/><path class="accent-stroke" d="M6.1 7.1c1.5-1.8 3.5-2.9 5.9-2.9"/><circle class="accent" cx="5.2" cy="8.3" r="1.1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3.5 15.5 7.8-7.8 9.2 2.1-7.8 7.8Z"/><path d="m3.5 15.5 9.2 2.1 2.1 2.9M11.3 7.7l2.1 7.8"/><path class="accent-stroke" d="m16.1 6.7 2.5.6"/><circle class="orange" cx="19.2" cy="7.4" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-pivot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 4.1v15.8M4.1 12h15.8"/><path class="soft" d="m6.4 6.4 11.2 11.2M17.6 6.4 6.4 17.6"/><circle cx="12" cy="12" r="3.1"/><path class="accent-stroke" d="M12 4.1v4.1"/><circle class="accent" cx="12" cy="4.1" r="1.3" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m4 7.3 8-3.8 8 3.8-8 3.8Z"/><path d="m4 12 8 3.8 8-3.8M4 16.7l8 3.8 8-3.8"/><path class="accent-stroke" d="m12 11.1 8-3.8"/><circle class="accent" cx="19.3" cy="7.6" r="1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m9.2 14.8-1 1a3.7 3.7 0 0 1-5.2-5.2l3.4-3.4a3.7 3.7 0 0 1 5.2 0"/><path d="m14.8 9.2 1-1a3.7 3.7 0 0 1 5.2 5.2l-3.4 3.4a3.7 3.7 0 0 1-5.2 0"/><path class="accent-stroke" d="m8.5 15.5 7-7"/><circle class="accent" cx="12" cy="12" r="1.4" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-collection" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.2 7.7h15.6v11.1H4.2z"/><path d="M4.2 7.7 7 4.9h4.4l1.8 2.8"/><path class="accent-stroke" d="M8 12h8M8 15.5h5.2"/><circle class="violet" cx="17.1" cy="15.5" r="1.3" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3.2c.7 4.8 2.1 7.3 6.8 8.8-4.7 1.5-6.1 4-6.8 8.8-.7-4.8-2.1-7.3-6.8-8.8 4.7-1.5 6.1-4 6.8-8.8Z"/><path class="accent-stroke" d="m18.1 4.4.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6Z"/><circle class="orange" cx="5.1" cy="18.2" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-brush" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m14.5 4.1 5.4 5.4-8.2 8.2c-1.9 1.9-4.3 2.2-7 2.2 0-2.7.3-5.1 2.2-7Z"/><path d="m12.4 6.2 5.4 5.4"/><path class="accent-stroke" d="M4.7 19.9c1.6-.9 3.1-1.2 4.6-.8"/><circle class="orange" cx="18.6" cy="5.4" r="1.3" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-erase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m6 14.2 6.1-8 6.7 5.1-6.1 8H7.1Z"/><path d="m9.8 9.2 6.7 5.1M13.6 17.3h6"/><path class="accent-stroke" d="m5.3 17.3 1.8 0"/><circle class="rose" cx="19.7" cy="17.3" r="1.1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-terrain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.6 17.8 8.8 8l3.2 5 2.7-3.7 5.7 8.5Z"/><path d="M5.3 19.5h13.4"/><path class="accent-stroke" d="m8.8 8 1.3-2.5 1.9 3"/><circle class="lime" cx="10.1" cy="5.5" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-curve" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.1 17.7C7.7 6.1 13.7 6.1 19.9 6.3"/><path class="soft" d="M4.1 17.7h15.8M4.1 17.7V4.1"/><circle class="accent" cx="4.1" cy="17.7" r="1.7" stroke="none"/><circle class="violet" cx="19.9" cy="6.3" r="1.7" stroke="none"/><circle class="orange" cx="12" cy="8.2" r="1.25" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m8.6 5.4-5 6.6 5 6.6M15.4 5.4l5 6.6-5 6.6"/><path class="accent-stroke" d="m13.4 4-2.8 16"/><circle class="violet" cx="13.4" cy="4" r="1" stroke="none"/>
+            </symbol>
+
+            <symbol id="glyph-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.6 8.5h4.2l1.5-2.4h5.4l1.5 2.4h4.2v10.1H3.6Z"/><circle cx="12" cy="13.2" r="3.5"/><path class="accent-stroke" d="M17.7 11.4h.1"/><circle class="accent" cx="17.8" cy="11.4" r="1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.5 12s3.1-5.8 8.5-5.8 8.5 5.8 8.5 5.8-3.1 5.8-8.5 5.8S3.5 12 3.5 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="accent-stroke" d="M17.2 7.9 19 6.1"/><circle class="accent" cx="18.9" cy="6.1" r="1.1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4.7" y="10" width="14.6" height="10" rx="2"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/><path class="accent-stroke" d="M12 14v2.3"/><circle class="accent" cx="12" cy="14" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3.6a5.6 5.6 0 0 1 3.3 10.1c-.8.6-1.2 1.4-1.2 2.4H9.9c0-1-.4-1.8-1.2-2.4A5.6 5.6 0 0 1 12 3.6Z"/><path d="M9.9 18.1h4.2M10.7 20.2h2.6"/><path class="accent-stroke" d="M12 1.8v1.4m8 8.8h-1.4M5.4 12H4"/><circle class="orange" cx="12" cy="1.8" r="1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-material" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.3 7.3 12 3.5l7.7 3.8v9.4L12 20.5l-7.7-3.8Z"/><path d="m4.3 7.3 7.7 3.8 7.7-3.8M12 11.1v9.4"/><path class="accent-stroke" d="m12 3.5 3 1.5"/><circle class="violet" cx="15.7" cy="5.3" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5.3 6.2h13.4M5.3 12h13.4M5.3 17.8h13.4"/><circle class="accent" cx="9" cy="6.2" r="1.8" stroke="none"/><circle class="violet" cx="15.6" cy="12" r="1.8" stroke="none"/><circle class="orange" cx="11.5" cy="17.8" r="1.8" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="7.7"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2.8v2M12 19.2v2M2.8 12h2M19.2 12h2"/><circle class="accent" cx="12" cy="12" r="1.4" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.5 12h2.2l1.8-5.1 3.2 10.2 2.8-8.4 2.1 4.4h4.9"/><path class="soft" d="M3.5 18.5h17"/><circle class="accent" cx="7.5" cy="6.9" r="1.1" stroke="none"/><circle class="orange" cx="13.5" cy="8.7" r="1.1" stroke="none"/>
+            </symbol>
+
+            <symbol id="glyph-add" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="8.2"/><path d="M12 7.8v8.4M7.8 12h8.4"/><circle class="accent" cx="12" cy="12" r="1.1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-clone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="7.2" y="4" width="11.3" height="11.3" rx="2"/><path d="M15.5 18.5H5.5a2 2 0 0 1-2-2v-10"/><path class="accent-stroke" d="M11 8.1h3.7m-1.9-1.9v3.7"/><circle class="accent" cx="14.7" cy="11.8" r="1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-cut" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5 5 14 14M19 5l-4.7 4.7M9.7 14.3 5 19"/><circle cx="6.2" cy="17.8" r="2.2"/><circle cx="17.8" cy="17.8" r="2.2"/><path class="accent-stroke" d="m10.2 10.2 3.6 3.6"/>
+            </symbol>
+            <symbol id="glyph-paste" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7.2 6.5H5.8a1.7 1.7 0 0 0-1.7 1.7v10a1.7 1.7 0 0 0 1.7 1.7h9.5a1.7 1.7 0 0 0 1.7-1.7v-1.1"/><rect x="8.5" y="4.1" width="11.4" height="11.4" rx="1.8"/><path class="accent-stroke" d="M12 8.2h4.4M12 11.5h3"/><circle class="violet" cx="16.4" cy="11.5" r="1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-return" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.2 7.2 4.1 11.3l4.1 4.1"/><path d="M4.6 11.3h9.5a5.3 5.3 0 1 1 0 10.6h-1.8"/><circle class="accent" cx="18.5" cy="16.6" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-forward" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m15.8 7.2 4.1 4.1-4.1 4.1"/><path d="M19.4 11.3H9.9a5.3 5.3 0 1 0 0 10.6h1.8"/><circle class="accent" cx="5.5" cy="16.6" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5.2 3.8h11.2l2.4 2.4v14H5.2Z"/><path d="M8.1 3.8v5.8h7V3.8M8 20v-6.4h8V20"/><path class="accent-stroke" d="M10.3 16.8h3.4"/><circle class="accent" cx="17.1" cy="6.8" r="1.1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6.5 4.4 18.8 12 6.5 19.6Z"/><path class="accent-stroke" d="m10.1 9.5 4.1 2.5-4.1 2.5"/><circle class="lime" cx="18.8" cy="12" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5.3 5.2h5.1v13.6H5.3zM13.6 5.2h5.1v13.6h-5.1z"/><path class="accent-stroke" d="M8.2 8.3v7.4"/><circle class="violet" cx="16.2" cy="8.1" r="1.1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5.1" y="5.1" width="13.8" height="13.8" rx="2.6"/><rect class="rose" x="9.4" y="9.4" width="5.2" height="5.2" rx="1" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13.3 8.1a4.4 4.4 0 1 1-2.7 4.1l-6.5 6.5H2.8v-2.3L5 14.2l1.6 1.6 1.8-1.8-1.6-1.6 1.2-1.2a4.4 4.4 0 0 1 5.3-3.1Z"/><circle class="accent" cx="14.7" cy="8.5" r="1.2" stroke="none"/>
+            </symbol>
+            <symbol id="glyph-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="10.4" cy="10.4" r="5.8"/><path d="m14.7 14.7 4.7 4.7"/><path class="accent-stroke" d="M8.2 10.4h4.4"/><circle class="accent" cx="10.4" cy="10.4" r="1.1" stroke="none"/>
+            </symbol>
+        </defs>
+    </svg>
+
+    <div class="topline"></div>
+    <header>
+        <div>
+            <p class="eyebrow">Frontier · Editor visual language</p>
+            <h1>Orbit glyph proof</h1>
+            <p class="intro">A hand-drawn, multicolour SVG direction for the editor. Review each mark at a glance, keep the ones that work, mark the weak ones for revision, and copy clean inline SVG when a choice is ready.</p>
+        </div>
+        <div class="provenance" aria-label="Origin note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2c.7 4.8 2.1 7.3 6.8 8.8-4.7 1.5-6.1 4-6.8 8.8-.7-4.8-2.1-7.3-6.8-8.8 4.7-1.5 6.1-4 6.8-8.8Z"/><circle cx="18.1" cy="5.2" r="1.1" fill="currentColor" stroke="none"/></svg>
+            <div><strong>Original Frontier study</strong><span>No external icon package or copied paths.</span></div>
+        </div>
+    </header>
+
+    <main>
+        <section class="workbench" aria-label="Glyph selection board">
+            <div class="control-bar">
+                <label class="search-wrap" aria-label="Search glyphs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round"><circle cx="10.4" cy="10.4" r="5.8"/><path d="m14.7 14.7 4.7 4.7"/></svg>
+                    <input id="search" type="search" placeholder="Search glyphs…" autocomplete="off">
+                    <span class="shortcut">/</span>
+                </label>
+                <div class="tabs" aria-label="Glyph category">
+                    <button class="tab active" data-set="all" type="button">All</button>
+                    <button class="tab" data-set="navigate" type="button">Navigate</button>
+                    <button class="tab" data-set="build" type="button">Build</button>
+                    <button class="tab" data-set="inspect" type="button">Inspect</button>
+                    <button class="tab" data-set="actions" type="button">Actions</button>
+                </div>
+                <div class="control-cluster" aria-label="Glyph appearance">
+                    <span class="control-label">Ink</span>
+                    <button class="mode-button active" id="color-mode" type="button" aria-pressed="true">Colour</button>
+                    <button class="mode-button" id="mono-mode" type="button" aria-pressed="false">Mono</button>
+                    <span class="control-label">Weight</span>
+                    <input class="range" id="stroke-width" type="range" min="1.2" max="3.2" step=".1" value="2.15" aria-label="Stroke weight">
+                    <div class="tabs" aria-label="Preview size">
+                        <button class="size-button" data-size="25" type="button">S</button>
+                        <button class="size-button active" data-size="30" type="button">M</button>
+                        <button class="size-button" data-size="36" type="button">L</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collection-meta">
+                <div><h2 id="result-title">40 editor glyphs</h2><p>Click a tile to inspect it. Your verdicts and notes stay in this browser.</p></div>
+                <div class="totals"><span class="total-dot"></span><span id="decision-total">0 marked</span></div>
+            </div>
+
+            <div class="glyph-sets" id="glyph-sets"></div>
+            <div class="empty" id="empty"><strong>No glyphs found</strong>Try a different name or return to all categories.</div>
+        </section>
+
+        <aside class="inspector" aria-label="Selected glyph inspector">
+            <div class="inspector-head"><h2>Selection</h2><span id="inspect-index">01 / 36</span></div>
+            <div class="large-preview" id="large-preview"><span class="preview-ring"></span><svg id="inspect-art" aria-hidden="true"><use href="#glyph-aim"></use></svg><button class="inspect-copy" id="copy-selected" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>Copy SVG</button></div>
+            <div class="inspect-content">
+                <p class="inspect-name" id="inspect-name">Aim</p>
+                <p class="inspect-description" id="inspect-description">Offset pointer with a small orbital confirmation point.</p>
+                <div class="facts"><div class="fact"><b>Origin</b><span>Frontier / original</span></div><div class="fact"><b>Canvas</b><span>24 × 24 · SVG</span></div></div>
+                <p class="verdict-title">Your verdict</p>
+                <div class="verdicts">
+                    <button class="verdict keep" data-verdict="keep" type="button">Keep</button>
+                    <button class="verdict review" data-verdict="review" type="button">Revise</button>
+                    <button class="verdict reject" data-verdict="reject" type="button">Skip</button>
+                </div>
+                <label class="note-label" for="note">Correction note</label>
+                <textarea id="note" maxlength="360" placeholder="e.g. make the silhouette calmer at 16px"></textarea>
+            </div>
+            <div class="inspector-footer"><button class="action" id="export-decisions" type="button">Export choices</button><button class="action secondary" id="clear-decisions" type="button">Clear all</button></div>
+        </aside>
+    </main>
+
+    <p class="footer-note"><b>Direction:</b> These use an asymmetrical “orbit” accent, structural silhouettes, and a 2.15px rounded stroke rather than an external icon family. The colour accents are decorative and can be switched to one-colour above. “Copy SVG” outputs standalone, editable inline markup with the selected glyph’s paths.</p>
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+        const glyphs = [
+            { id: 'aim', name: 'Aim', set: 'navigate', description: 'Offset pointer with an orbital confirmation point.' },
+            { id: 'drift', name: 'Drift', set: 'navigate', description: 'Four-way translation around a weighted centre.' },
+            { id: 'turn', name: 'Turn', set: 'navigate', description: 'Paired rotation arc with a stable pivot.' },
+            { id: 'expand', name: 'Expand', set: 'navigate', description: 'Corner-led scale action with centre anchor.' },
+            { id: 'track', name: 'Track', set: 'navigate', description: 'Horizontal travel measured between two anchors.' },
+            { id: 'magnet', name: 'Magnet', set: 'navigate', description: 'Snap pull with two opposing polar caps.' },
+            { id: 'ruler', name: 'Ruler', set: 'navigate', description: 'Diagonal distance readout with three divisions.' },
+
+            { id: 'cube', name: 'Cube', set: 'build', description: 'Constructed volume with a highlighted top direction.' },
+            { id: 'orb', name: 'Orb', set: 'build', description: 'Segmented globe for spherical geometry.' },
+            { id: 'plane', name: 'Plane', set: 'build', description: 'Angled surface with a leading edge point.' },
+            { id: 'pivot', name: 'Pivot', set: 'build', description: 'Axis intersection and diagonal orientation cues.' },
+            { id: 'layers', name: 'Layers', set: 'build', description: 'Three offset slices, joined by a selected edge.' },
+            { id: 'link', name: 'Link', set: 'build', description: 'Tensioned pair of joins meeting at one point.' },
+            { id: 'collection', name: 'Collection', set: 'build', description: 'Grouped contents inside a clipped container.' },
+            { id: 'spark', name: 'Spark', set: 'build', description: 'Creation pulse for a newly introduced part.' },
+            { id: 'brush', name: 'Brush', set: 'build', description: 'Tapered brush silhouette with a colour cap.' },
+            { id: 'erase', name: 'Erase', set: 'build', description: 'Split eraser with a deliberate clean edge.' },
+            { id: 'terrain', name: 'Terrain', set: 'build', description: 'Two-ridge terrain profile with summit marker.' },
+            { id: 'curve', name: 'Curve', set: 'build', description: 'Editable Bézier-like path between coloured anchors.' },
+            { id: 'code', name: 'Code', set: 'build', description: 'Brackets orbiting a purposeful centre slash.' },
+
+            { id: 'camera', name: 'Camera', set: 'inspect', description: 'Viewport capture with an off-axis status light.' },
+            { id: 'eye', name: 'Visible', set: 'inspect', description: 'Open view aperture with a separate attention point.' },
+            { id: 'lock', name: 'Locked', set: 'inspect', description: 'Secure enclosure with a vertical key gesture.' },
+            { id: 'light', name: 'Light', set: 'inspect', description: 'Soft cone source with isolated directional rays.' },
+            { id: 'material', name: 'Material', set: 'inspect', description: 'Faceted surface swatch with hue cue.' },
+            { id: 'sliders', name: 'Parameters', set: 'inspect', description: 'Three independent tuning lines and controls.' },
+            { id: 'target', name: 'Focus', set: 'inspect', description: 'Concentric focus readout with cardinal ticks.' },
+            { id: 'wave', name: 'Telemetry', set: 'inspect', description: 'Signal trace crossing a quiet baseline.' },
+
+            { id: 'add', name: 'Add', set: 'actions', description: 'Contained add action with a precise centre.' },
+            { id: 'clone', name: 'Clone', set: 'actions', description: 'Overlapping forms with a new-instance mark.' },
+            { id: 'cut', name: 'Cut', set: 'actions', description: 'Scissor action reduced to two circular grips.' },
+            { id: 'paste', name: 'Paste', set: 'actions', description: 'Inset document transfer with content strokes.' },
+            { id: 'return', name: 'Undo', set: 'actions', description: 'Return arc carrying a single destination point.' },
+            { id: 'forward', name: 'Redo', set: 'actions', description: 'Forward arc carrying a single origin point.' },
+            { id: 'save', name: 'Save', set: 'actions', description: 'File plate with a highlighted write position.' },
+            { id: 'play', name: 'Play', set: 'actions', description: 'Nested play wedge with a go-light.' },
+            { id: 'pause', name: 'Pause', set: 'actions', description: 'Twin pause bars offset by two point cues.' },
+            { id: 'stop', name: 'Stop', set: 'actions', description: 'Contained stop mark with a softer internal square.' },
+            { id: 'key', name: 'Shortcut', set: 'actions', description: 'Shortcut key cut into one continuous profile.' },
+            { id: 'search', name: 'Search', set: 'actions', description: 'Search lens with a centred scan indicator.' }
+        ];
+
+        const setNames = { navigate: 'Navigate', build: 'Build', inspect: 'Inspect', actions: 'Actions' };
+        const storageKey = 'frontier-orbit-glyph-review-v1';
+        let saved = {};
+        try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch { saved = {}; }
+        let selected = 'aim';
+        let selectedSet = 'all';
+        let term = '';
+
+        const setsRoot = document.getElementById('glyph-sets');
+        const search = document.getElementById('search');
+        const note = document.getElementById('note');
+        const toast = document.getElementById('toast');
+
+        function escapeHtml(text) {
+            return text.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character]);
+        }
+
+        function art(id, className = '') {
+            return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true"><use href="#glyph-${id}"></use></svg>`;
+        }
+
+        function miniIcon(type) {
+            const paths = {
+                keep: '<path d="m4 12.5 4.2 4.2L20 5.4"/>',
+                review: '<path d="M12 4.1 21 19.8H3Z"/><path d="M12 9v4.2m0 3.1h.01"/>',
+                reject: '<path d="m7 7 10 10M17 7 7 17"/>',
+                copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>'
+            };
+            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[type]}</svg>`;
+        }
+
+        function card(glyph) {
+            const choice = saved[glyph.id]?.verdict || '';
+            return `<article class="glyph-card ${choice}" data-id="${glyph.id}" tabindex="0" role="button" aria-label="Select ${glyph.name}">
+                <div class="card-top"><div class="glyph-art">${art(glyph.id)}</div><span class="card-group">${setNames[glyph.set]}</span></div>
+                <h3 class="glyph-name">${glyph.name}</h3><p class="glyph-description">${glyph.description}</p>
+                <div class="card-bottom"><span class="origin">Original path</span><div class="quick-actions">
+                    <button class="quick ${choice === 'keep' ? 'active' : ''}" data-verdict="keep" type="button" aria-label="Keep ${glyph.name}">${miniIcon('keep')}</button>
+                    <button class="quick ${choice === 'review' ? 'active' : ''}" data-verdict="review" type="button" aria-label="Revise ${glyph.name}">${miniIcon('review')}</button>
+                    <button class="quick ${choice === 'reject' ? 'active' : ''}" data-verdict="reject" type="button" aria-label="Skip ${glyph.name}">${miniIcon('reject')}</button>
+                    <button class="quick" data-copy="${glyph.id}" type="button" aria-label="Copy ${glyph.name} SVG">${miniIcon('copy')}</button>
+                </div></div>
+            </article>`;
+        }
+
+        function render() {
+            const visible = glyphs.filter(glyph => (selectedSet === 'all' || glyph.set === selectedSet) && (`${glyph.name} ${glyph.set} ${glyph.description}`).toLowerCase().includes(term));
+            setsRoot.innerHTML = Object.keys(setNames).map(set => {
+                const entries = visible.filter(glyph => glyph.set === set);
+                if (!entries.length) return '';
+                return `<section class="glyph-set" data-set="${set}"><div class="set-heading"><span class="section-label">${setNames[set]}</span><span class="set-count">${entries.length}</span></div><div class="glyph-grid">${entries.map(card).join('')}</div></section>`;
+            }).join('');
+            document.getElementById('empty').classList.toggle('show', visible.length === 0);
+            document.getElementById('result-title').textContent = selectedSet === 'all' && !term ? `${glyphs.length} editor glyphs` : `${visible.length} glyph${visible.length === 1 ? '' : 's'} shown`;
+            wireCards();
+            highlightSelected();
+            updateTotals();
+        }
+
+        function wireCards() {
+            document.querySelectorAll('.glyph-card').forEach(cardElement => {
+                cardElement.addEventListener('click', event => {
+                    if (event.target.closest('button')) return;
+                    select(cardElement.dataset.id);
+                });
+                cardElement.addEventListener('keydown', event => {
+                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(cardElement.dataset.id); }
+                });
+            });
+            document.querySelectorAll('.quick[data-verdict]').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const id = button.closest('.glyph-card').dataset.id;
+                    choose(id, button.dataset.verdict);
+                });
+            });
+            document.querySelectorAll('.quick[data-copy]').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.stopPropagation();
+                    copySvg(button.dataset.copy);
+                    button.closest('.glyph-card').classList.add('copied');
+                    setTimeout(() => button.closest('.glyph-card')?.classList.remove('copied'), 1300);
+                });
+            });
+        }
+
+        function select(id) {
+            selected = id;
+            updateInspector();
+            highlightSelected();
+        }
+
+        function highlightSelected() {
+            document.querySelectorAll('.glyph-card').forEach(cardElement => cardElement.classList.toggle('selected', cardElement.dataset.id === selected));
+        }
+
+        function updateInspector() {
+            const glyph = glyphs.find(entry => entry.id === selected);
+            const index = glyphs.findIndex(entry => entry.id === selected) + 1;
+            document.getElementById('inspect-index').textContent = `${String(index).padStart(2, '0')} / ${glyphs.length}`;
+            document.getElementById('inspect-name').textContent = glyph.name;
+            document.getElementById('inspect-description').textContent = glyph.description;
+            document.querySelector('#inspect-art use').setAttribute('href', `#glyph-${glyph.id}`);
+            note.value = saved[glyph.id]?.note || '';
+            document.querySelectorAll('.verdict').forEach(button => button.classList.toggle('active', button.dataset.verdict === saved[glyph.id]?.verdict));
+        }
+
+        function persist() {
+            localStorage.setItem(storageKey, JSON.stringify(saved));
+            updateTotals();
+        }
+
+        function choose(id, verdict) {
+            const existing = saved[id] || {};
+            saved[id] = { ...existing, verdict: existing.verdict === verdict ? '' : verdict };
+            if (!saved[id].verdict && !saved[id].note) delete saved[id];
+            persist();
+            render();
+            updateInspector();
+        }
+
+        function updateTotals() {
+            const total = Object.values(saved).filter(entry => entry.verdict || entry.note).length;
+            const keeps = Object.values(saved).filter(entry => entry.verdict === 'keep').length;
+            const reviews = Object.values(saved).filter(entry => entry.verdict === 'review').length;
+            const skips = Object.values(saved).filter(entry => entry.verdict === 'reject').length;
+            const parts = [`${total} marked`];
+            if (keeps) parts.push(`${keeps} keep`);
+            if (reviews) parts.push(`${reviews} revise`);
+            if (skips) parts.push(`${skips} skip`);
+            document.getElementById('decision-total').textContent = parts.join(' · ');
+        }
+
+        function standaloneSvg(id) {
+            const glyph = glyphs.find(entry => entry.id === id);
+            const symbol = document.getElementById(`glyph-${id}`);
+            const title = escapeHtml(`Frontier editor glyph: ${glyph.name}`);
+            const weight = document.getElementById('stroke-width').value;
+            const swatches = '<style>.accent{fill:#65e5dc;stroke:none}.accent-stroke{stroke:#65e5dc}.violet{fill:#a69afb;stroke:none}.orange{fill:#ffae69;stroke:none}.rose{fill:#f57d9e;stroke:none}.lime{fill:#a6e786;stroke:none}.soft{fill:none;stroke:#8999ae;opacity:.75}</style>';
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${weight}" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${title}"><title>${title}</title>${swatches}${symbol.innerHTML}</svg>`;
+        }
+
+        async function copySvg(id) {
+            const glyph = glyphs.find(entry => entry.id === id);
+            const markup = standaloneSvg(id);
+            try {
+                await navigator.clipboard.writeText(markup);
+            } catch {
+                const textarea = document.createElement('textarea');
+                textarea.value = markup;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                textarea.remove();
+            }
+            announce(`${glyph.name} SVG copied`);
+        }
+
+        function announce(message) {
+            toast.textContent = message;
+            toast.classList.add('visible');
+            clearTimeout(announce.timer);
+            announce.timer = setTimeout(() => toast.classList.remove('visible'), 1600);
+        }
+
+        document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => {
+            selectedSet = button.dataset.set;
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
+            render();
+        }));
+
+        search.addEventListener('input', () => { term = search.value.trim().toLowerCase(); render(); });
+        document.addEventListener('keydown', event => {
+            if (event.key === '/' && document.activeElement !== search && document.activeElement.tagName !== 'TEXTAREA') { event.preventDefault(); search.focus(); }
+        });
+
+        document.getElementById('color-mode').addEventListener('click', () => {
+            document.body.classList.remove('mono');
+            document.getElementById('color-mode').classList.add('active');
+            document.getElementById('mono-mode').classList.remove('active');
+            document.getElementById('color-mode').setAttribute('aria-pressed', 'true');
+            document.getElementById('mono-mode').setAttribute('aria-pressed', 'false');
+        });
+        document.getElementById('mono-mode').addEventListener('click', () => {
+            document.body.classList.add('mono');
+            document.getElementById('mono-mode').classList.add('active');
+            document.getElementById('color-mode').classList.remove('active');
+            document.getElementById('mono-mode').setAttribute('aria-pressed', 'true');
+            document.getElementById('color-mode').setAttribute('aria-pressed', 'false');
+        });
+        document.getElementById('stroke-width').addEventListener('input', event => {
+            document.documentElement.style.setProperty('--stroke', event.target.value);
+            document.querySelectorAll('symbol[id^="glyph-"]').forEach(symbol => symbol.setAttribute('stroke-width', event.target.value));
+        });
+        document.querySelectorAll('.size-button').forEach(button => button.addEventListener('click', () => {
+            document.querySelectorAll('.size-button').forEach(size => size.classList.toggle('active', size === button));
+            document.documentElement.style.setProperty('--glyph-size', `${button.dataset.size}px`);
+        }));
+
+        document.querySelectorAll('.verdict').forEach(button => button.addEventListener('click', () => choose(selected, button.dataset.verdict)));
+        note.addEventListener('input', () => {
+            const current = saved[selected] || {};
+            saved[selected] = { ...current, note: note.value };
+            if (!saved[selected].verdict && !note.value) delete saved[selected];
+            persist();
+        });
+        document.getElementById('copy-selected').addEventListener('click', () => copySvg(selected));
+        document.getElementById('export-decisions').addEventListener('click', () => {
+            const review = glyphs.map(glyph => ({ name: glyph.name, glyph: glyph.id, origin: 'Original Frontier study', verdict: saved[glyph.id]?.verdict || 'unmarked', note: saved[glyph.id]?.note || '' }));
+            const blob = new Blob([JSON.stringify({ set: 'Frontier Orbit glyph proof', exportedAt: new Date().toISOString(), review }, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'frontier-orbit-glyph-choices.json';
+            link.click();
+            URL.revokeObjectURL(url);
+            announce('Choices exported');
+        });
+        document.getElementById('clear-decisions').addEventListener('click', () => {
+            if (!Object.keys(saved).length || window.confirm('Clear every verdict and correction note?')) {
+                saved = {};
+                persist();
+                render();
+                updateInspector();
+                announce('Choices cleared');
+            }
+        });
+
+        render();
+        updateInspector();
+    </script>
+</body>
+</html>
