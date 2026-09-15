@@ -116,3 +116,58 @@ joints afterwards:
 
 Of these, the intersecting half-spaces is the one that addresses the root cause and
 is continuous by construction, so it should be tried first.
+
+## Outcome: the half-space corestone works
+
+Implemented as `RockCorestoneBody`. Facet normals come from a Fibonacci sphere rotated
+by the seed, each placed on the support plane of the envelope ellipsoid in its own
+direction (`length(MassExtent * Normal)`) and pushed inward per facet by a hashed
+amount so the fragment is irregular rather than a tidy polyhedron. Arrises are rounded
+with the existing smooth intersection. The ellipsoid is retained only as a bounding
+clip, so the body can never exceed the nominal extent.
+
+**It passed the gate on the first run, with no tear chasing at all.** This is the
+direct consequence of the primitive being continuous by construction: a plane is
+exactly 1-Lipschitz, a smooth intersection of unit-gradient fields stays unit-gradient,
+and the only charge needed was 0.35 for the blend overshoot near an arris. Compare the
+block-offset attempt, which produced three successive discontinuities and never passed.
+
+Cost is about five extra steps per ray (granite 44.4 -> 48.9, limestone 85.9 -> 90.1),
+with zero overshoots and coverage unchanged.
+
+### Evidence that the form actually changed
+
+Measuring the **mass surface only** (before joints and detail), by bisecting the radius
+from the body centre over 6000 directions:
+
+| | radius sdev | radius min | planar over 5 cm |
+|---|---|---|---|
+| Granite baseline | 0.1292 | 1.0468 | 55.5% |
+| Granite faceted  | 0.1569 | 0.8934 | 66.5% |
+| Basalt baseline  | 0.1292 | 1.0468 | 55.5% |
+| Basalt faceted   | 0.1663 | 0.8058 | 79.0% |
+| Schist faceted   | 0.1732 | 0.7788 | 32.9% |
+
+The baseline rows for granite and basalt are **identical to four decimal places**,
+which is the clearest possible confirmation of the "all five presets are the same
+potato" finding: they were literally the same body. After the change the presets
+diverge, and the planarity spread (basalt 79% flat and blocky, schist 33% and slabby)
+matches how those rocks actually break.
+
+A caution on metrics: an earlier attempt measured angularity on the **full** field and
+showed basalt at 32% crease coverage even in the baseline. That metric is dominated by
+the joint fissures cut into the surface and is nearly blind to body form, so it could
+not tell an egg from a block. Only isolating the mass term exposed the difference.
+
+### Still outstanding
+
+The renders are visibly better — flat faces, real arrises, and granite now reads as a
+rounded corestone while basalt reads as an angular block — but this is form, not
+finish. Remaining gaps, in priority order:
+
+1. **Material response is flat.** Everything is the same matte beige. Real rock has
+   mineral-scale albedo variation, wet/dry contrast, and lichen. This is now the single
+   largest gap between these images and a photograph.
+2. `MassExtent` and `MassRelief` are still shared across all five presets. The facet
+   parameters differentiate the bodies, but the underlying envelope does not.
+3. The plinth still reads as a cracked plane rather than bedrock.

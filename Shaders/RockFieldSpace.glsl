@@ -30,6 +30,7 @@
 //------------------------------------------------------------------------------------------------------------------------
 
 const int   ROCK_JOINT_SET_CAPACITY   = 3;                      // [count] conjugate joint families carried per lithology
+const int   ROCK_FACET_CAPACITY       = 14;                     // [count] bounding fracture facets of the corestone
 const int   ROCK_SHEET_COUNT          = 3;                      // [count] stacked exfoliation sheets tested for spalling
 const int   ROCK_EDIT_CAPACITY        = 24;                     // [count] sculpt strokes resident in the edit list
 
@@ -85,6 +86,10 @@ struct RockConfiguration
     vec3                    MassExtent;                         // [m] protolith semi-axes of the exposed body
     float                   MassRelief;                         // [m] low frequency shape irregularity of the body
     float                   Plinth;                             // [m] height of the bedrock shelf the body rests on
+
+    int                     FacetCount;                         // [count] bounding fracture facets of the corestone
+    float                   FacetInset;                         // [0..1] how far facets cut inside the envelope
+    float                   FacetRounding;                      // [m] arris rounding where two facets meet
 
     float                   BeddingThickness;                   // [m] stratum thickness (0 disables layering)
     float                   BeddingContrast;                    // [m] recess depth of the weak beds
@@ -379,13 +384,77 @@ float RockBeddingRecess(vec3 Position, float Footprint)
     return RockShape.BeddingContrast * Weak * Interior;
 }
 
+float RockCorestoneBody(vec3 Position)
+{
+    // A joint bounded corestone is not an egg. It is the piece of rock left between intersecting fracture planes,
+    // so its natural description is an intersection of half spaces: flat faces meeting along sharp arrises, which
+    // chemical attack then rounds from the corners inward. Building the body this way puts the angular form in
+    // the primitive itself instead of asking the joint carve to invent it afterwards.
+    //
+    // This is also the well behaved choice numerically. A plane is EXACTLY 1-Lipschitz, so an intersection of
+    // planes is too, and the smooth intersection that rounds the arrises preserves that. Contrast the ellipsoid
+    // estimate, whose gradient scales with the axis ratio, and contrast a per block lattice offset, which is
+    // discontinuous at the cell boundary by construction and could not be repaired.
+    //
+    // Facet directions come from a Fibonacci sphere so they stay well spread for any count, rotated by the seed.
+    // Each facet sits on the support plane of the envelope ellipsoid in its own direction, exactly
+    // length(MassExtent * Normal), then is pushed inward per facet so the faces actually bite into the mass.
+    vec3 Axes = RockShape.MassExtent;
+    float Count = float(max(RockShape.FacetCount, 1));
+    float Body = -1e9;
+    float SeedAngle = RockShape.Seed * 2.399963;
+
+    for (int Facet = 0; Facet < ROCK_FACET_CAPACITY; ++Facet)
+    {
+        if (Facet >= RockShape.FacetCount)
+        {
+            break;
+        }
+        float Index = float(Facet);
+
+        // Fibonacci sphere: uniform in cos(polar), golden angle in longitude.
+        float CosPolar = 1.0 - 2.0 * (Index + 0.5) / Count;
+        float SinPolar = sqrt(max(1.0 - CosPolar * CosPolar, 0.0));
+        float Longitude = 2.399963 * Index + SeedAngle;
+        vec3 Normal = vec3(SinPolar * cos(Longitude), SinPolar * sin(Longitude), CosPolar);
+
+        // Per facet inward push, so the block is an irregular fragment rather than a tidy polyhedron.
+        float Unit = RockLatticeUnit(vec3(Index, 0.0, 7.0), uint(RockShape.Seed) * 37u + 1499u);
+        float Support = length(Axes * Normal);
+        float Offset = Support * (1.0 - RockShape.FacetInset * Unit);
+
+        float Plane = dot(Position, Normal) - Offset;
+        Body = RockSmoothIntersect(Body, Plane, RockShape.FacetRounding);
+    }
+
+    // Every plane has unit gradient and the smooth intersection of unit gradient fields stays unit gradient, so
+    // the only charge is the mild overshoot the polynomial blend introduces near an arris.
+    RockLipschitz += 0.35;
+
+    return Body;
+}
+
 float RockProtolithMass(vec3 Position, float Footprint)
 {
     // The intact body: an irregular ellipsoidal kernel welded onto a bedrock shelf. Large scale irregularity is a
     // single low frequency octave so that the silhouette stays believable at any distance.
     vec3 Axes = RockShape.MassExtent;
-    float Body = RockEllipsoid(Position, Axes);
 
+    // The body is the intersection of its bounding fracture facets, clipped by the envelope ellipsoid so it can
+    // never grow past the nominal extent. The facets supply the angular form; the ellipsoid only bounds it.
+    float Body = RockCorestoneBody(Position);
+    if (RockShape.FacetCount <= 0)
+    {
+        Body = RockEllipsoid(Position, Axes);
+    }
+    else
+    {
+        Body = max(Body, RockEllipsoid(Position, Axes));
+    }
+
+    // Low frequency irregularity, now including a mid scale band. Nothing previously occupied 0.5-1.5 m, which
+    // is precisely the range that reads as "shape" at conversational distance, so the silhouette was an egg no
+    // matter how much fine detail was layered on top.
     float Irregular = RockShape.MassRelief * RockGradientNoise(Position * 0.55 + vec3(RockShape.Seed), 17u);
     Irregular += 0.45 * RockShape.MassRelief * RockGradientNoise(Position * 1.30 + vec3(RockShape.Seed), 19u);
     RockLipschitz += RockShape.MassRelief * (0.55 + 0.45 * 1.30) * 1.6;
@@ -1012,6 +1081,9 @@ RockConfiguration RockPreset(int Lithology, float Seed)
     Shape.Seed = Seed;
     Shape.MassExtent = vec3(1.55, 1.35, 1.05);
     Shape.MassRelief = 0.16;
+    Shape.FacetCount = 9;
+    Shape.FacetInset = 0.22;
+    Shape.FacetRounding = 0.30;
     Shape.Plinth = 0.92;
     Shape.BeddingNormal = normalize(vec3(0.04, 0.02, 1.0));
     Shape.BeddingThickness = 0.0;
@@ -1065,6 +1137,10 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.GrainRelief = 0.0022;
         Shape.SpallCoverage = 0.45;
         Shape.RoughnessAmplitude = 0.020;
+        // Few, large bounding joints and strong chemical rounding of every arris: the tor corestone.
+        Shape.FacetCount = 7;
+        Shape.FacetInset = 0.26;
+        Shape.FacetRounding = 0.20;
     }
     else if (Lithology == ROCK_LITHOLOGY_SANDSTONE)
     {
@@ -1075,6 +1151,10 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.BeddingThickness = 0.30;
         Shape.BeddingContrast = 0.055;
         Shape.TafoniIntensity = 0.85;
+        // Bedding and two joint sets leave a blocky fragment; case hardening keeps the edges crisp.
+        Shape.FacetCount = 8;
+        Shape.FacetInset = 0.30;
+        Shape.FacetRounding = 0.10;
         Shape.TafoniCellSize = 0.17;
         Shape.RindDepth = 0.008;
         Shape.SpheroidalRadius = 0.10;
@@ -1099,6 +1179,10 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.SpallCoverage = 0.15;
         Shape.RoughnessAmplitude = 0.012;
         Shape.RoughnessHurst = 0.72;
+        // Columnar jointing gives many near vertical faces meeting at sharp arrises that barely round.
+        Shape.FacetCount = 12;
+        Shape.FacetInset = 0.34;
+        Shape.FacetRounding = 0.045;
     }
     else if (Lithology == ROCK_LITHOLOGY_LIMESTONE)
     {
@@ -1111,6 +1195,10 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.WeatheringGrade = 0.70;
         Shape.SpheroidalRadius = 0.09;
         Shape.FlowIncision = 0.030;
+        // Solution attacks every arris, rounding the clint edges while the block form survives.
+        Shape.FacetCount = 9;
+        Shape.FacetInset = 0.32;
+        Shape.FacetRounding = 0.16;
         Shape.TafoniIntensity = 0.35;
         Shape.TafoniCellSize = 0.13;
         Shape.GrainSize = 0.0022;
@@ -1134,6 +1222,10 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.SpallCoverage = 0.50;
         Shape.RoughnessAmplitude = 0.014;
         Shape.RoughnessHurst = 0.85;
+        // Foliation parting leaves slabby fragments with thin, sharp edges.
+        Shape.FacetCount = 10;
+        Shape.FacetInset = 0.38;
+        Shape.FacetRounding = 0.05;
     }
 
     return Shape;
