@@ -225,49 +225,11 @@ static MeasurementRecord MeasureTraceBehaviour(int Lithology, int Resolution)
 //                                                  REFERENCE SHADING
 //------------------------------------------------------------------------------------------------------------------------
 
-static vec3 LithologyAlbedo(int Lithology, const RockSurfaceRecord& Surface, float Seed) noexcept
+// Albedo now lives in the shared kernel (RockLithologyAlbedo) so the CPU renderer, the WebGL preview and any
+// future engine path cannot drift apart. The wrapper keeps this call site unchanged.
+static vec3 LithologyAlbedo(const vec3& Position, const vec3& Normal, float Footprint) noexcept
 {
-    vec3 Fresh;
-    vec3 Weathered;
-
-    if (Lithology == ROCK_LITHOLOGY_GRANITE)
-    {
-        Fresh = vec3(0.560f, 0.530f, 0.505f);
-        Weathered = vec3(0.395f, 0.350f, 0.295f);
-    }
-    else if (Lithology == ROCK_LITHOLOGY_SANDSTONE)
-    {
-        Fresh = vec3(0.680f, 0.505f, 0.330f);
-        Weathered = vec3(0.520f, 0.360f, 0.225f);
-    }
-    else if (Lithology == ROCK_LITHOLOGY_BASALT)
-    {
-        Fresh = vec3(0.180f, 0.178f, 0.185f);
-        Weathered = vec3(0.128f, 0.120f, 0.118f);
-    }
-    else if (Lithology == ROCK_LITHOLOGY_LIMESTONE)
-    {
-        Fresh = vec3(0.700f, 0.685f, 0.630f);
-        Weathered = vec3(0.500f, 0.485f, 0.430f);
-    }
-    else
-    {
-        Fresh = vec3(0.395f, 0.390f, 0.395f);
-        Weathered = vec3(0.285f, 0.275f, 0.265f);
-    }
-
-    // Freshly spalled scars expose unweathered rock; long exposed faces darken and dull.
-    float Freshness = clamp(Surface.SpallFreshness, 0.0f, 1.0f);
-    vec3 Albedo = mix(Weathered, Fresh, Freshness);
-
-    // Grain scale mottling from the crystal / clast field.
-    Albedo = Albedo * (1.0f + 0.16f * Surface.GrainSignal);
-
-    // Case hardened rind is paler and slightly polished; cavity interiors are darker and dustier.
-    Albedo = mix(Albedo, Albedo * 1.12f, clamp(Surface.RindIntegrity - 0.5f, 0.0f, 0.5f) * 2.0f * 0.6f);
-    Albedo = mix(Albedo, Albedo * 0.62f, clamp(Surface.CavityDepth * 6.0f, 0.0f, 1.0f));
-    (void)Seed;
-    return clamp(Albedo, 0.0f, 1.0f);
+    return RockLithologyAlbedo(Position, Normal, Footprint);
 }
 
 static vec3 ShadeSample(const vec3& Position, const vec3& Normal, float Footprint, int Lithology) noexcept
@@ -278,7 +240,7 @@ static vec3 ShadeSample(const vec3& Position, const vec3& Normal, float Footprin
     const vec3 BounceColour = vec3(0.25f, 0.21f, 0.16f);
 
     RockSurfaceRecord Surface = RockSurface;
-    vec3 Albedo = LithologyAlbedo(Lithology, Surface, RockShape.Seed);
+    vec3 Albedo = LithologyAlbedo(Position, Normal, Footprint);
 
     float Occlusion = RockOcclusion(Position, Normal, Footprint);
 

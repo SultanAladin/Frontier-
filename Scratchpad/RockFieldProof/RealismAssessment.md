@@ -165,9 +165,68 @@ The renders are visibly better — flat faces, real arrises, and granite now rea
 rounded corestone while basalt reads as an angular block — but this is form, not
 finish. Remaining gaps, in priority order:
 
-1. **Material response is flat.** Everything is the same matte beige. Real rock has
-   mineral-scale albedo variation, wet/dry contrast, and lichen. This is now the single
-   largest gap between these images and a photograph.
+1. ~~**Material response is flat.**~~ Addressed, see below.
 2. `MassExtent` and `MassRelief` are still shared across all five presets. The facet
    parameters differentiate the bodies, but the underlying envelope does not.
 3. The plinth still reads as a cracked plane rather than bedrock.
+
+
+## Material response
+
+Albedo was duplicated verbatim in the CPU renderer and again in the WebGL module, which
+guarantees drift. It now lives once in the kernel as `RockLithologyAlbedo(Position,
+Normal, Footprint)` and both renderers call it through a thin wrapper.
+
+### The band-limiting bug
+
+`GrainSignal` measured **exactly 0.000** for sandstone, basalt and limestone at the wide
+render footprint. Cause: grain relief is band limited against the pixel cone, which is
+correct for *geometry* (1.2-8 mm grains are genuinely sub-pixel at a 20 mm footprint, and
+rendering them would alias), but the same gate was also killing the **colour** mottle.
+A granite face at ten metres still reads as speckled because the eye integrates the
+mineral colours even when no crystal is resolvable.
+
+Relief and colour are now separated: relief still fades with the cone, while the mottle
+falls back to the coarsest still-resolvable cell size so it stays stable instead of
+dissolving or aliasing.
+
+### What was added
+
+- **Mineral species for granite** — a three-way feldspar / quartz / mica split rather
+  than a uniform brightness scale, which is why granite reads speckled rather than
+  tinted. This is clearly visible in `RockField_GraniteMacro.png`.
+- **Patchy alteration** at the decimetre scale, two octaves.
+- **Iron staining** keyed to drainage and exposure.
+- **Lichen colonisation** keyed to patch, stability, dampness and surface orientation,
+  with a per-lithology `BioCover` (schist 0.70 down to basalt 0.22).
+
+### Two modelling errors caught by measurement
+
+1. **`BeddingPhase` as an "upward facing" proxy.** It is position *within a stratum* and
+   is identically zero for unbedded rock, so it silently suppressed lichen on granite and
+   basalt. The albedo function had no surface normal at all; one is now passed in.
+2. **Multiplying five independent sub-unit factors.** Patch 0.264 x stability 0.921 x
+   damp 0.789 x upward 0.843 x biocover 0.550 = **0.088**, which is invisible. Each factor
+   looked reasonable alone. Patch now decides *where* growth sits and the rest only
+   modulate *how strongly*, applied as a partial attenuation.
+
+Measured on real surface points, fraction of samples carrying a visible hue shift:
+
+| | greenish | reddish |
+|---|---|---|
+| Granite | 16.4% | 39.3% |
+| Sandstone | 19.7% | 54.5% |
+| Basalt | 0.0% | 14.4% |
+| Limestone | 0.0% | 16.9% |
+| Schist | 16.8% | 16.5% |
+
+Before this work every one of those columns was effectively zero.
+
+### Still outstanding
+
+- **Sandstone, basalt and limestone still read smooth even in macro**, because their
+  grains are 1.2-2.2 mm and remain sub-pixel at the macro footprint. Granite (8 mm)
+  resolves. These need a resolvable intermediate texture band, not finer grains.
+- No wet/dry contrast and no subsurface scattering; both matter for close-up realism.
+- `MassExtent` and `MassRelief` are still shared across all five presets.
+- The plinth still reads as a cracked plane rather than bedrock.

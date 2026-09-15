@@ -91,6 +91,8 @@ struct RockConfiguration
     float                   FacetInset;                         // [0..1] how far facets cut inside the envelope
     float                   FacetRounding;                      // [m] arris rounding where two facets meet
 
+    float                   BioCover;                           // [0..1] propensity for lichen / algal colonisation
+
     float                   BeddingThickness;                   // [m] stratum thickness (0 disables layering)
     float                   BeddingContrast;                    // [m] recess depth of the weak beds
     vec3                    BeddingNormal;                      // [-] pole to bedding / foliation
@@ -811,14 +813,19 @@ float RockGranularRelief(vec3 Position, float Footprint, float Loosening)
         return 0.0;
     }
 
-    float Visibility = RockOctaveVisibility(RockShape.GrainSize, Footprint);
-    if (Visibility <= 0.0)
-    {
-        RockSurface.GrainSignal = 0.0;
-        return 0.0;
-    }
 
-    vec3 Feature = RockCellularFeature(Position / RockShape.GrainSize, 97u);
+    // Geometric relief must be band limited or it aliases, but ALBEDO must not vanish with it. A granite face
+    // seen from ten metres still reads as speckled even though no individual crystal is resolvable, because the
+    // eye integrates the mineral colours rather than their relief. Tying the mottle to the geometric visibility
+    // made every rock turn flat matte beige at conversational distance, which measured as GrainSignal being
+    // exactly 0.000 for sandstone, basalt and limestone at the wide render footprint.
+    //
+    // So: relief fades out with the pixel cone, colour does not. Below the resolvable limit the mottle is driven
+    // at the coarsest still-resolvable scale, which keeps a stable speckle instead of dissolving or aliasing.
+    float Visibility = RockOctaveVisibility(RockShape.GrainSize, Footprint);
+    float MottleSize = max(RockShape.GrainSize, Footprint * 4.0 / 0.65);
+
+    vec3 Feature = RockCellularFeature(Position / MottleSize, 97u);
     float Amplitude = RockShape.GrainRelief * Visibility * (0.45 + 0.55 * Loosening);
 
     float Signal;
@@ -837,9 +844,17 @@ float RockGranularRelief(vec3 Position, float Footprint, float Loosening)
     }
 
     RockSurface.GrainSignal = Signal;
+
+    // Relief only exists while the grain is resolvable. When it is not, Amplitude is zero and this term returns
+    // zero, but GrainSignal above still carries the colour variation to the shader.
+    if (Visibility <= 0.0)
+    {
+        return 0.0;
+    }
+
     // Cellular F1 is 1-Lipschitz in cell space; the clastic branch scales it by 2.1 and the crystalline branch
     // by the 1/0.16 boundary smoothstep, so the steeper of the two sets the bound.
-    RockLipschitz += Amplitude / max(RockShape.GrainSize, 1e-4) * 6.5;
+    RockLipschitz += Amplitude / max(MottleSize, 1e-4) * 6.5;
     return -Amplitude * Signal;
 }
 
@@ -987,6 +1002,115 @@ float RockFieldDistance(vec3 Position, float Footprint)
 }
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                                 SURFACE APPEARANCE
+//------------------------------------------------------------------------------------------------------------------------
+
+vec3 RockLithologyAlbedo(vec3 Position, vec3 Normal, float Footprint)
+{
+    // Single source of truth for rock colour. This previously lived duplicated in the CPU renderer and again in
+    // the WebGL module, which guarantees the two drift apart; it belongs beside the geology that drives it.
+    //
+    // Real rock is never one flat tone. Colour varies over at least four decades of scale at once: mineral grains
+    // (millimetres), alteration patches and lichen (centimetres to decimetres), iron and organic staining that
+    // follows drainage (decimetres to metres), and the bulk difference between a fresh break and a long exposed
+    // face. Rendering only the bulk tone is what makes an SDF rock read as plastic no matter how good the
+    // geometry is, so every one of those bands is represented here.
+    vec3 Fresh;
+    vec3 Weathered;
+
+    if (RockShape.Lithology == ROCK_LITHOLOGY_GRANITE)
+    {
+        Fresh = vec3(0.560, 0.530, 0.505);
+        Weathered = vec3(0.395, 0.350, 0.295);
+    }
+    else if (RockShape.Lithology == ROCK_LITHOLOGY_SANDSTONE)
+    {
+        Fresh = vec3(0.680, 0.505, 0.330);
+        Weathered = vec3(0.520, 0.360, 0.225);
+    }
+    else if (RockShape.Lithology == ROCK_LITHOLOGY_BASALT)
+    {
+        Fresh = vec3(0.180, 0.178, 0.185);
+        Weathered = vec3(0.128, 0.120, 0.118);
+    }
+    else if (RockShape.Lithology == ROCK_LITHOLOGY_LIMESTONE)
+    {
+        Fresh = vec3(0.700, 0.685, 0.630);
+        Weathered = vec3(0.500, 0.485, 0.430);
+    }
+    else
+    {
+        Fresh = vec3(0.395, 0.390, 0.395);
+        Weathered = vec3(0.285, 0.275, 0.265);
+    }
+
+    float Freshness = clamp(RockSurface.SpallFreshness, 0.0, 1.0);
+    vec3 Albedo = mix(Weathered, Fresh, Freshness);
+
+    // ① Mineral grains. Granite is the extreme case: discrete feldspar, quartz and mica crystals each with their
+    // own colour, which is why granite reads as speckled rather than tinted. The signal is band limited for
+    // relief but NOT for colour, so the speckle survives to any viewing distance.
+    float Mineral = RockSurface.GrainSignal;
+    if (RockShape.Lithology == ROCK_LITHOLOGY_GRANITE)
+    {
+        // Three way mineral split rather than a uniform brightness scale: pale feldspar, grey quartz, dark mica.
+        float Species = RockLatticeUnit(floor(Position / max(RockShape.GrainSize, 1e-4)), 211u);
+        vec3 Feldspar = vec3(0.620, 0.575, 0.530);
+        vec3 Quartz = vec3(0.480, 0.480, 0.495);
+        vec3 Mica = vec3(0.150, 0.140, 0.135);
+        vec3 Crystal = Species < 0.52 ? Feldspar : (Species < 0.86 ? Quartz : Mica);
+        float Blend = 0.55 * clamp(RockOctaveVisibility(RockShape.GrainSize * 3.0, Footprint), 0.0, 1.0);
+        Albedo = mix(Albedo, Crystal, Blend);
+    }
+    Albedo = Albedo * (1.0 + 0.16 * Mineral);
+
+    // ② Patchy alteration at the decimetre scale: differential oxidation, case hardening, incipient lichen. Two
+    // octaves so the patches are not a single tidy blob.
+    float PatchNoise = RockGradientNoise(Position * 3.1 + vec3(RockShape.Seed), 223u) * 0.5 + 0.5;
+    PatchNoise = PatchNoise * 0.7 + 0.3 * (RockGradientNoise(Position * 7.3, 227u) * 0.5 + 0.5);
+    float Patch = smoothstep(0.40, 0.78, PatchNoise);
+
+    // ③ Iron staining follows drainage, so it concentrates on washed, unsheltered faces and runs downward.
+    float Washed = clamp(1.0 - RockSurface.Shelter, 0.0, 1.0);
+    float Drainage = RockGradientNoise(vec3(Position.x * 2.6, Position.y * 2.6, Position.z * 0.45), 229u) * 0.5 + 0.5;
+    // Washed is measured, not assumed: mean shelter over these bodies is only about 0.24, so most of the surface
+    // counts as washed and the drainage mask is what localises the staining, not the exposure term.
+    float Stain = smoothstep(0.35, 0.80, Drainage) * (0.45 + 0.55 * Washed) * RockShape.WeatheringGrade;
+    vec3 IronTone = vec3(0.335, 0.200, 0.105);
+    Albedo = mix(Albedo, IronTone, clamp(Stain, 0.0, 1.0) * 0.55);
+
+    // ④ Biological colonisation. Lichen and algae prefer sheltered, stable, non-friable surfaces and avoid both
+    // the freshest scars and the actively spalling interiors of cavities, which is why real boulders carry maps
+    // of growth rather than a uniform wash.
+    float Stability = clamp(1.0 - Freshness, 0.0, 1.0) * clamp(1.0 - RockSurface.CavityDepth * 4.0, 0.0, 1.0);
+
+    // Shelter biases colonisation but must not gate it: crustose lichen covers fully exposed upland tors, and
+    // mean shelter here is only ~0.24, so a 0.35 floor multiplied the whole term down to invisibility.
+    float Damp = mix(0.72, 1.0, clamp(RockSurface.Shelter, 0.0, 1.0));
+
+    // Upward facing surfaces collect the most growth: they catch rain and hold dust. This must come from the
+    // actual surface orientation. An earlier version used BeddingPhase as the proxy, which is position WITHIN a
+    // stratum and is identically zero for unbedded rock, so it silently suppressed lichen on granite and basalt.
+    float Upward = clamp(0.40 + 0.60 * (0.5 + 0.5 * Normal.z), 0.0, 1.0);
+    // Multiplying five independent sub-unit factors drove the mean colony weight to 0.088, which is invisible.
+    // Patch is the term that should decide WHERE growth sits; the rest only modulate how strongly. Applying them
+    // as a partial attenuation rather than a straight product keeps the spatial pattern while letting the
+    // colonised areas actually reach a lichen colour.
+    float Modulation = Stability * Damp * Upward;
+    Modulation = mix(0.55, 1.0, clamp(Modulation, 0.0, 1.0));
+    float Colony = smoothstep(0.12, 0.62, Patch) * Modulation * RockShape.BioCover;
+    vec3 LichenTone = mix(vec3(0.255, 0.265, 0.205), vec3(0.430, 0.445, 0.330), PatchNoise);
+    Albedo = mix(Albedo, LichenTone, clamp(Colony, 0.0, 1.0) * 0.80);
+
+    // ⑤ Bedding banding, case hardened rind, and cavity interiors.
+    Albedo = Albedo * (0.90 + 0.20 * RockSurface.BeddingHardness);
+    Albedo = mix(Albedo, Albedo * 1.12, clamp(RockSurface.RindIntegrity - 0.5, 0.0, 0.5) * 1.2);
+    Albedo = mix(Albedo, Albedo * 0.62, clamp(RockSurface.CavityDepth * 6.0, 0.0, 1.0));
+
+    return clamp(Albedo, 0.0, 1.0);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                              CONSERVATIVE TRACING SUPPORT
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -1082,8 +1206,9 @@ RockConfiguration RockPreset(int Lithology, float Seed)
     Shape.MassExtent = vec3(1.55, 1.35, 1.05);
     Shape.MassRelief = 0.16;
     Shape.FacetCount = 9;
-    Shape.FacetInset = 0.22;
-    Shape.FacetRounding = 0.30;
+    Shape.FacetInset = 0.30;
+    Shape.FacetRounding = 0.12;
+    Shape.BioCover = 0.45;
     Shape.Plinth = 0.92;
     Shape.BeddingNormal = normalize(vec3(0.04, 0.02, 1.0));
     Shape.BeddingThickness = 0.0;
@@ -1141,6 +1266,8 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.FacetCount = 7;
         Shape.FacetInset = 0.26;
         Shape.FacetRounding = 0.20;
+        // Granite carries the crustose lichen maps typical of upland tors.
+        Shape.BioCover = 0.55;
     }
     else if (Lithology == ROCK_LITHOLOGY_SANDSTONE)
     {
@@ -1155,6 +1282,8 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.FacetCount = 8;
         Shape.FacetInset = 0.30;
         Shape.FacetRounding = 0.10;
+        // Porous sandstone holds water and is the classic lichen and algal substrate.
+        Shape.BioCover = 0.62;
         Shape.TafoniCellSize = 0.17;
         Shape.RindDepth = 0.008;
         Shape.SpheroidalRadius = 0.10;
@@ -1183,6 +1312,8 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.FacetCount = 12;
         Shape.FacetInset = 0.34;
         Shape.FacetRounding = 0.045;
+        // Fresh basalt is a hostile substrate: dense, low porosity, little to colonise.
+        Shape.BioCover = 0.22;
     }
     else if (Lithology == ROCK_LITHOLOGY_LIMESTONE)
     {
@@ -1199,6 +1330,8 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.FacetCount = 9;
         Shape.FacetInset = 0.32;
         Shape.FacetRounding = 0.16;
+        // Limestone is alkaline and solution washed; lichen establishes but is repeatedly stripped.
+        Shape.BioCover = 0.40;
         Shape.TafoniIntensity = 0.35;
         Shape.TafoniCellSize = 0.13;
         Shape.GrainSize = 0.0022;
@@ -1226,6 +1359,8 @@ RockConfiguration RockPreset(int Lithology, float Seed)
         Shape.FacetCount = 10;
         Shape.FacetInset = 0.38;
         Shape.FacetRounding = 0.05;
+        // Schist holds moisture in its foliation partings, so colonisation is heavy.
+        Shape.BioCover = 0.70;
     }
 
     return Shape;

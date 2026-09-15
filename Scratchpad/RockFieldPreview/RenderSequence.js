@@ -196,51 +196,11 @@ float RockShadow(vec3 Position, vec3 SunDirection)
 //                                                   LITHOLOGY SHADING
 //------------------------------------------------------------------------------------------------------------------------
 
-vec3 LithologyAlbedo()
+// Albedo lives in the shared kernel (RockLithologyAlbedo) so this module and the CPU reference renderer cannot
+// drift apart. Kept as a thin wrapper so the call site below is unchanged.
+vec3 LithologyAlbedo(vec3 Position, vec3 Normal, float Footprint)
 {
-    vec3 Fresh;
-    vec3 Weathered;
-
-    if (RockShape.Lithology == ROCK_LITHOLOGY_GRANITE)
-    {
-        Fresh = vec3(0.560, 0.530, 0.505);
-        Weathered = vec3(0.395, 0.350, 0.295);
-    }
-    else if (RockShape.Lithology == ROCK_LITHOLOGY_SANDSTONE)
-    {
-        Fresh = vec3(0.680, 0.505, 0.330);
-        Weathered = vec3(0.520, 0.360, 0.225);
-    }
-    else if (RockShape.Lithology == ROCK_LITHOLOGY_BASALT)
-    {
-        Fresh = vec3(0.180, 0.178, 0.185);
-        Weathered = vec3(0.128, 0.120, 0.118);
-    }
-    else if (RockShape.Lithology == ROCK_LITHOLOGY_LIMESTONE)
-    {
-        Fresh = vec3(0.700, 0.685, 0.630);
-        Weathered = vec3(0.500, 0.485, 0.430);
-    }
-    else
-    {
-        Fresh = vec3(0.395, 0.390, 0.395);
-        Weathered = vec3(0.285, 0.275, 0.265);
-    }
-
-    float Freshness = clamp(RockSurface.SpallFreshness, 0.0, 1.0);
-    vec3 Albedo = mix(Weathered, Fresh, Freshness);
-
-    // Grain scale mottling from the crystal / clast field.
-    Albedo *= 1.0 + 0.16 * RockSurface.GrainSignal;
-
-    // Bedding: alternating competence reads as a subtle tonal banding.
-    Albedo *= 0.90 + 0.20 * RockSurface.BeddingHardness;
-
-    // Case hardened rind is paler; cavity interiors are darker and dustier.
-    Albedo = mix(Albedo, Albedo * 1.12, clamp(RockSurface.RindIntegrity - 0.5, 0.0, 0.5) * 1.2);
-    Albedo = mix(Albedo, Albedo * 0.62, clamp(RockSurface.CavityDepth * 6.0, 0.0, 1.0));
-
-    return clamp(Albedo, 0.0, 1.0);
+    return RockLithologyAlbedo(Position, Normal, Footprint);
 }
 
 vec3 ShadeSample(vec3 Position, vec3 Normal, vec3 ViewDirection, float Footprint)
@@ -252,7 +212,7 @@ vec3 ShadeSample(vec3 Position, vec3 Normal, vec3 ViewDirection, float Footprint
     vec3 SkyColour = vec3(0.34, 0.42, 0.56);
     vec3 BounceColour = vec3(0.25, 0.21, 0.16);
 
-    vec3 Albedo = LithologyAlbedo();
+    vec3 Albedo = LithologyAlbedo(Position, Normal, Footprint);
     float Occlusion = RockOcclusion(Position, Normal, Footprint);
     float Shadow = RockShadow(Position, SunDirection);
 
