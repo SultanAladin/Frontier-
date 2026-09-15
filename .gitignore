@@ -16,3 +16,9 @@ Scratchpad/GenerateCarouselProofs
 Scratchpad/GenerateControlPanelProof
 Scratchpad/VectorGlyphTest
 .DS_Store
+
+# Icon originality audit corpora (downloaded reference sets, not source)
+Scratchpad/.audit/
+Scratchpad/IconForge/proofs/
+Scratchpad/IconForge/node_modules
+Scratchpad/IconForge/audit-results.json
