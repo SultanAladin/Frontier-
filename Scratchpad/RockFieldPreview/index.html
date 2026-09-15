@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<!--===========================================================================================================================================
+  📦 Frontier/Scratchpad/RockFieldPreview/index.html — Browser Preview Harness for the Geologic Rock Signed Distance Field
+============================================================================================================================================-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frontier · Geologic Rock Field</title>
+<style>
+    :root {
+        --ink: #e8e6e1;
+        --ink-dim: #9a958c;
+        --panel: #16181b;
+        --panel-raised: #1e2125;
+        --line: #2c3036;
+        --accent: #c98a3f;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: #0d0e10;
+        color: var(--ink);
+        font-family: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+        font-size: 13px;
+        overflow: hidden;
+    }
+
+    #workspace {
+        display: grid;
+        grid-template-columns: 1fr 312px;
+        height: 100%;
+    }
+
+    #viewport {
+        position: relative;
+        background: #0a0b0c;
+        overflow: hidden;
+    }
+
+    #surface {
+        width: 100%;
+        height: 100%;
+        display: block;
+        cursor: grab;
+    }
+    #surface:active { cursor: grabbing; }
+
+    #status {
+        position: absolute;
+        left: 14px;
+        bottom: 12px;
+        padding: 6px 10px;
+        background: rgba(10, 11, 12, 0.78);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--ink-dim);
+        letter-spacing: 0.02em;
+        pointer-events: none;
+    }
+
+    #hint {
+        position: absolute;
+        left: 14px;
+        top: 12px;
+        padding: 6px 10px;
+        background: rgba(10, 11, 12, 0.78);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--ink-dim);
+        line-height: 1.55;
+        pointer-events: none;
+    }
+
+    #failure {
+        position: absolute;
+        inset: 24px;
+        display: none;
+        overflow: auto;
+        padding: 18px;
+        background: rgba(28, 12, 12, 0.95);
+        border: 1px solid #6b2b2b;
+        border-radius: 6px;
+        color: #ffb4a8;
+        white-space: pre-wrap;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    #inspector {
+        background: var(--panel);
+        border-left: 1px solid var(--line);
+        overflow-y: auto;
+        padding: 16px 16px 40px;
+    }
+
+    h1 {
+        margin: 0 0 4px;
+        font-size: 13px;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+        color: var(--ink);
+    }
+
+    .subtitle {
+        margin: 0 0 18px;
+        color: var(--ink-dim);
+        font-size: 11px;
+        line-height: 1.6;
+    }
+
+    fieldset {
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 12px 12px 14px;
+        margin: 0 0 14px;
+        background: var(--panel-raised);
+    }
+
+    legend {
+        padding: 0 6px;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+    }
+
+    label {
+        display: block;
+        margin: 10px 0 4px;
+        color: var(--ink-dim);
+        font-size: 11px;
+        letter-spacing: 0.03em;
+    }
+    label:first-of-type { margin-top: 0; }
+
+    .readout { float: right; color: var(--ink); }
+
+    input[type=range] {
+        width: 100%;
+        accent-color: var(--accent);
+        margin: 0;
+    }
+
+    select, button {
+        width: 100%;
+        padding: 7px 8px;
+        background: #101215;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 12px;
+    }
+
+    button {
+        margin-top: 8px;
+        cursor: pointer;
+        transition: border-color 120ms ease, color 120ms ease;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+
+    .grid-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .note {
+        margin: 10px 0 0;
+        color: #6f6a62;
+        font-size: 10px;
+        line-height: 1.6;
+    }
+</style>
+</head>
+<body>
+<div id="workspace">
+    <div id="viewport">
+        <canvas id="surface"></canvas>
+        <div id="hint">drag · orbit&nbsp;&nbsp;shift+drag · sun&nbsp;&nbsp;wheel · zoom</div>
+        <div id="status">compiling kernel…</div>
+        <pre id="failure"></pre>
+    </div>
+
+    <aside id="inspector">
+        <h1>Geologic Rock Field</h1>
+        <p class="subtitle">
+            Sphere traced signed distance field. Shape is produced by simulated rock forming and rock destroying
+            processes, not by sculpting. Kernel shared verbatim with the C++ reference renderer.
+        </p>
+
+        <fieldset>
+            <legend>Lithology</legend>
+            <select id="lithology">
+                <option value="0">Granite — plutonic, sheeted, spheroidal</option>
+                <option value="1" selected>Sandstone — bedded, tafoni, case hardened</option>
+                <option value="2">Basalt — columnar cooling joints</option>
+                <option value="3">Limestone — bedded, solution fluted</option>
+                <option value="4">Schist — foliated, platy</option>
+            </select>
+            <label>Variation seed <span class="readout" id="seedOut">3.0</span></label>
+            <input type="range" id="seed" min="0" max="64" step="1" value="3">
+        </fieldset>
+
+        <fieldset>
+            <legend>Weathering</legend>
+            <label>Alteration grade <span class="readout" id="weatheringOut">preset</span></label>
+            <input type="range" id="weathering" min="-1" max="100" step="1" value="-1">
+            <label>Cavernous decay (tafoni) <span class="readout" id="tafoniOut">preset</span></label>
+            <input type="range" id="tafoni" min="-1" max="100" step="1" value="-1">
+            <p class="note">
+                Tafoni only develop on sheltered faces behind a breached case hardened rind, so the effect is
+                strongest under overhangs and absent on washed upper surfaces.
+            </p>
+        </fieldset>
+
+        <fieldset>
+            <legend>Detail</legend>
+            <label>Relief scale <span class="readout" id="detailOut">1.00</span></label>
+            <input type="range" id="detail" min="0" max="250" step="1" value="100">
+            <p class="note">
+                Fracture roughness follows a self-affine spectrum with Hurst exponent H ≈ 0.8, the value measured on
+                natural joint surfaces. Octaves fade against the pixel cone to stay alias free.
+            </p>
+        </fieldset>
+
+        <fieldset>
+            <legend>Rendering</legend>
+            <label>View mode</label>
+            <select id="shadingMode">
+                <option value="0" selected>Shaded</option>
+                <option value="1">Surface normals</option>
+                <option value="2">Trace cost heat map</option>
+                <option value="3">Material fields (cavity / septa / spall)</option>
+            </select>
+            <label>Resolution scale <span class="readout" id="resolutionOut">0.62</span></label>
+            <input type="range" id="resolution" min="20" max="100" step="2" value="62">
+            <label>Step budget <span class="readout" id="stepsOut">220</span></label>
+            <input type="range" id="steps" min="60" max="512" step="4" value="220">
+            <label>Focal length <span class="readout" id="zoomOut">1.75</span></label>
+            <input type="range" id="zoom" min="80" max="420" step="5" value="175">
+        </fieldset>
+
+        <fieldset>
+            <legend>Sculpt</legend>
+            <div class="grid-pair">
+                <button id="cleave">Cleave</button>
+                <button id="excise">Excise</button>
+                <button id="planish">Planish</button>
+                <button id="deposit">Deposit</button>
+            </div>
+            <button id="clearEdits">Clear all strokes</button>
+            <p class="note">
+                Strokes are appended to the edit list and evaluated after the geology, so a cleave parts the rock
+                along a fracture facet rather than denting it like clay.
+            </p>
+        </fieldset>
+    </aside>
+</div>
+
+<script type="module">
+import { RenderSequence } from "./RenderSequence.js";
+
+const canvas = document.getElementById("surface");
+const status = document.getElementById("status");
+const failure = document.getElementById("failure");
+
+function reportFailure(error)
+{
+    failure.style.display = "block";
+    failure.textContent = String(error && error.message ? error.message : error);
+    status.textContent = "failed";
+    console.error(error);
+}
+
+let sequence = null;
+
+try
+{
+    sequence = await new RenderSequence(canvas, status).build();
+}
+catch (error)
+{
+    reportFailure(error);
+}
+
+if (sequence)
+{
+    const bind = (id, outputId, apply, format) =>
+    {
+        const control = document.getElementById(id);
+        const output = outputId ? document.getElementById(outputId) : null;
+        const push = () =>
+        {
+            const raw = Number(control.value);
+            const shown = apply(raw);
+            if (output)
+            {
+                output.textContent = format ? format(raw, shown) : String(shown);
+            }
+        };
+        control.addEventListener("input", push);
+        push();
+    };
+
+    bind("lithology", null, (v) => { sequence.applySetting("lithology", v | 0); return v; });
+    bind("seed", "seedOut", (v) => { sequence.applySetting("seed", v); return v.toFixed(1); });
+
+    bind("weathering", "weatheringOut",
+         (v) => { const n = v < 0 ? -1.0 : v / 100.0; sequence.applySetting("weathering", n); return n; },
+         (raw, n) => raw < 0 ? "preset" : n.toFixed(2));
+
+    bind("tafoni", "tafoniOut",
+         (v) => { const n = v < 0 ? -1.0 : v / 100.0; sequence.applySetting("tafoni", n); return n; },
+         (raw, n) => raw < 0 ? "preset" : n.toFixed(2));
+
+    bind("detail", "detailOut",
+         (v) => { const n = v / 100.0; sequence.applySetting("detailScale", n); return n; },
+         (raw, n) => n.toFixed(2));
+
+    bind("shadingMode", null, (v) => { sequence.applySetting("shadingMode", v | 0); return v; });
+
+    bind("resolution", "resolutionOut",
+         (v) => { const n = v / 100.0; sequence.applySetting("resolutionScale", n); return n; },
+         (raw, n) => n.toFixed(2));
+
+    bind("steps", "stepsOut", (v) => { sequence.applySetting("maxSteps", v | 0); return v | 0; });
+
+    bind("zoom", "zoomOut",
+         (v) => { const n = v / 100.0; sequence.applySetting("zoom", n); return n; },
+         (raw, n) => n.toFixed(2));
+
+    // ---- Sculpt strokes -------------------------------------------------------------------------------------
+    const edits = [];
+    const ROCK_EDIT_DEPOSIT = 0, ROCK_EDIT_EXCISE = 1, ROCK_EDIT_CLEAVE = 2, ROCK_EDIT_PLANISH = 3;
+
+    const appendStroke = (category) =>
+    {
+        // Place the stroke on the near upper face, oriented back toward the camera, so the effect is visible.
+        const eye = sequence.cameraEye();
+        const toEye = [eye[0], eye[1], eye[2] - 0.3];
+        const length = Math.hypot(toEye[0], toEye[1], toEye[2]) || 1.0;
+        const direction = [toEye[0] / length, toEye[1] / length, toEye[2] / length];
+        const reach = 0.95;
+
+        edits.push({
+            origin: [direction[0] * reach, direction[1] * reach, 0.30 + direction[2] * reach * 0.55],
+            direction: direction,
+            radius: 0.55,
+            strength: category === ROCK_EDIT_CLEAVE ? -0.12 : (category === ROCK_EDIT_PLANISH ? -0.10 : 0.0),
+            hardness: 0.62,
+            category: category
+        });
+        sequence.setEdits(edits);
+    };
+
+    document.getElementById("cleave").addEventListener("click", () => appendStroke(ROCK_EDIT_CLEAVE));
+    document.getElementById("excise").addEventListener("click", () => appendStroke(ROCK_EDIT_EXCISE));
+    document.getElementById("planish").addEventListener("click", () => appendStroke(ROCK_EDIT_PLANISH));
+    document.getElementById("deposit").addEventListener("click", () => appendStroke(ROCK_EDIT_DEPOSIT));
+    document.getElementById("clearEdits").addEventListener("click", () =>
+    {
+        edits.length = 0;
+        sequence.setEdits(edits);
+    });
+
+    const pump = () =>
+    {
+        try
+        {
+            sequence.renderFrame();
+        }
+        catch (error)
+        {
+            reportFailure(error);
+            return;
+        }
+        requestAnimationFrame(pump);
+    };
+    requestAnimationFrame(pump);
+}
+</script>
+</body>
+</html>

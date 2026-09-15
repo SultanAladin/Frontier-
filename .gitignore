@@ -5,6 +5,10 @@
 *.a
 *.lib
 *.ppm
+
+# Rock field reference renders (regenerate with Scratchpad/RockFieldProof/VerifyRockField.sh)
+Diagnostics/RockField_*.png
+Scratchpad/RockFieldProof/rockproof
 bin/
 build/
 Projects/**/bin/
