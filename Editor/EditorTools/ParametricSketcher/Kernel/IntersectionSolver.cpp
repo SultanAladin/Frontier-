@@ -19,8 +19,65 @@ const char* Describe(BodyOperation Operation) noexcept
 namespace
 {
     //------------------------------------------------------------------------------------------------------------------------
-    //                                     EXACT AXIS-ALIGNED BOX CONTACTS
+    //                               EXACT DUPLICATE B-REP / AXIS-ALIGNED BOX CONTACTS
     //------------------------------------------------------------------------------------------------------------------------
+    // A fully identical B-rep has no transversal section at all. Treat a separately stored but exactly equal copy as
+    // identity rather than asking SSI to rediscover every coincident face. This is intentionally exact comparison of
+    // geometry *and* topology (not a tolerance-based same-shape guess); near-coincident bodies continue to the normal
+    // contact/SSI classifiers below.
+    bool Exact(Vec3 A, Vec3 B) noexcept { return A.X == B.X && A.Y == B.Y && A.Z == B.Z; }
+    bool Exact(Vec4 A, Vec4 B) noexcept { return A.X == B.X && A.Y == B.Y && A.Z == B.Z && A.W == B.W; }
+
+    template <class T, class Equal>
+    bool ExactSequence(const std::vector<T>& A, const std::vector<T>& B, Equal Same) noexcept
+    {
+        return A.size() == B.size() && std::equal(A.begin(), A.end(), B.begin(), Same);
+    }
+
+    bool ExactCurve(const NurbsCurve& A, const NurbsCurve& B) noexcept
+    {
+        return A.Degree == B.Degree && A.Classification == B.Classification && Exact(A.Centre, B.Centre) && Exact(A.AxisZ, B.AxisZ) &&
+               A.RadiusMajor == B.RadiusMajor && A.RadiusMinor == B.RadiusMinor && A.Knots == B.Knots &&
+               ExactSequence(A.Poles, B.Poles, [](Vec4 P, Vec4 Q) { return Exact(P, Q); });
+    }
+
+    bool ExactSurface(const NurbsSurface& A, const NurbsSurface& B) noexcept
+    {
+        return A.DegreeU == B.DegreeU && A.DegreeV == B.DegreeV && A.CountU == B.CountU && A.CountV == B.CountV &&
+               A.Classification == B.Classification && Exact(A.Origin, B.Origin) && Exact(A.Axis, B.Axis) &&
+               A.RadiusMajor == B.RadiusMajor && A.RadiusMinor == B.RadiusMinor && A.HalfAngle == B.HalfAngle &&
+               A.KnotsU == B.KnotsU && A.KnotsV == B.KnotsV && ExactSequence(A.Poles, B.Poles, [](Vec4 P, Vec4 Q) { return Exact(P, Q); });
+    }
+
+    bool ExactBrepCopy(const BrepBody& A, const BrepBody& B) noexcept
+    {
+        if (!A.Validate().Solid() || !B.Validate().Solid() || A.Vertices.size() != B.Vertices.size() || A.Edges.size() != B.Edges.size() ||
+            A.Coedges.size() != B.Coedges.size() || A.Loops.size() != B.Loops.size() || A.Faces.size() != B.Faces.size()) return false;
+        for (size_t I = 0; I < A.Vertices.size(); ++I) if (!Exact(A.Vertices[I].Point, B.Vertices[I].Point)) return false;
+        for (size_t I = 0; I < A.Edges.size(); ++I)
+        {
+            const BrepEdge& P = A.Edges[I]; const BrepEdge& Q = B.Edges[I];
+            if (P.VertexStart != Q.VertexStart || P.VertexEnd != Q.VertexEnd || P.Coedges != Q.Coedges || !ExactCurve(P.Curve, Q.Curve)) return false;
+        }
+        for (size_t I = 0; I < A.Coedges.size(); ++I)
+        {
+            const BrepCoedge& P = A.Coedges[I]; const BrepCoedge& Q = B.Coedges[I];
+            if (P.Edge != Q.Edge || P.Reversed != Q.Reversed || P.Face != Q.Face || P.Loop != Q.Loop ||
+                !ExactSequence(P.Trace, Q.Trace, [](Vec2 U, Vec2 V) { return U.X == V.X && U.Y == V.Y; })) return false;
+        }
+        for (size_t I = 0; I < A.Loops.size(); ++I)
+        {
+            const BrepLoop& P = A.Loops[I]; const BrepLoop& Q = B.Loops[I];
+            if (P.Coedges != Q.Coedges || P.Face != Q.Face || P.Outer != Q.Outer) return false;
+        }
+        for (size_t I = 0; I < A.Faces.size(); ++I)
+        {
+            const BrepFace& P = A.Faces[I]; const BrepFace& Q = B.Faces[I];
+            if (P.Loops != Q.Loops || P.Reversed != Q.Reversed || P.Natural != Q.Natural || !ExactSurface(P.Surface, Q.Surface)) return false;
+        }
+        return true;
+    }
+
     // The SSI marcher correctly treats a face-on-face / edge-on-edge coincidence as non-transversal: there is no
     // unique section curve to trace.  Axis-aligned boxes are a common CAD primitive with an exact constructive answer,
     // though, so resolve their contact topology before invoking the general marcher.  This is deliberately structural
@@ -1012,6 +1069,18 @@ Deliver<BrepBody> IntersectionSolver::Combine(const BrepBody& A, const BrepBody&
 {
     if (A.Classification() != BodyClassification::Solid || B.Classification() != BodyClassification::Solid) return Deliver<BrepBody>::Reject(RefusalReason::OpenWire, "booleans need two closed solids");
     BooleanReport Rep;
+    if (ExactBrepCopy(A, B))
+    {
+        Rep.PiecesA = static_cast<int>(A.Faces.size()); Rep.PiecesB = static_cast<int>(B.Faces.size());
+        if (Operation == BodyOperation::Subtract)
+        {
+            if (Report) *Report = Rep;
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty (tool is an exact B-rep copy of the target)");
+        }
+        Rep.KeptA = static_cast<int>(A.Faces.size());
+        if (Report) *Report = Rep;
+        return Deliver<BrepBody>::Accept(A);
+    }
     if (std::optional<Deliver<BrepBody>> Exact = AxisAlignedBoxBoolean(A, B, Operation, Rep))
     {
         if (Report) *Report = Rep;

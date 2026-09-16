@@ -78,6 +78,27 @@ classification and explicit topology handling, rather than assuming every contac
 edge and point contacts preserve two valid hulls instead of a four-coedge non-manifold edge. General curved or
 non-transversal contact remains deliberately refused pending a separately validated contact classifier.
 
+### Completed Phase 24b: exact duplicate B-rep Boolean identity
+
+An exact duplicate valid B-rep is another non-transversal case that does not need a surface-intersection curve. The
+Boolean kernel now compares the complete B-rep representation exactly: vertices, NURBS edges and face surfaces
+(including analytic metadata), knots/poles, coedge traces, loops, orientation, and topology indices. When both input
+solids are exact copies, union and common retain one operand, while subtraction returns an explicit empty-result
+refusal. The comparison intentionally has **no fuzzy tolerance**: near-coincident shapes are not silently merged and
+remain in the bounded general contact path.
+
+`BooleanIdentityVerification` has 26 C++ checks covering copied and independently rebuilt spheres, cylinders, tori,
+and extrudes; an exact copy of a trimmed sphere-union result; a near-coincident refusal; and a distinct crossing pair
+that still takes SSI. It generates `Proofs/Phase24b_BooleanIdentity.png` directly from C++ console commands, with no
+HTML or browser code.
+
+This is aligned with the robust-kernel distinction between full coincidence (which should not be split) and partial
+or near coincidence (which needs interference classification). [OCCT Boolean Operations](https://occt3d.com/dev/doc/overview/html/specification__boolean_operations.html)
+
+**Exit gate met:** exactly identical valid B-reps no longer enter the non-transversal marcher; topology-rich trimmed
+copies are covered; nearby but distinct bodies are demonstrably not mistaken for identity. This is not geometric shape
+equivalence across reparameterized or reordered B-reps, which needs a future tolerance-aware correspondence stage.
+
 ### Phase 25: blend foundation — topology and eligibility
 
 Extend edge classification beyond the current planar/straight case:

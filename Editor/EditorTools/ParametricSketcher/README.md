@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 33 suites; see the current DimensionVerification baseline note below
+ctest --test-dir build --output-on-failure      # 34 suites; see the current DimensionVerification baseline note below
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -49,6 +49,14 @@ structurally verified axis-aligned box solids. Face-touching and rectangularly o
 clean box; point-/edge-touching or gapped boxes preserve separate, manifold B-rep hulls instead of welding a
 non-manifold edge. Empty common and complete subtraction are explicit refusals. The C++ verification itself renders
 [`Proofs/Phase24_BooleanContacts.png`](Proofs/Phase24_BooleanContacts.png); no HTML proof or browser component is used.
+
+## Duplicate B-rep Boolean identity (Phase 24b)
+
+`BooleanIdentityVerification` adds 26 C++ checks for valid B-reps that are exact representation-level copies:
+union/common return one source solid and difference returns an explicit empty result without a fictitious SSI curve.
+The comparison includes topology, NURBS surfaces/curves, analytic metadata and trim traces—no fuzzy equality is used.
+[`Proofs/Phase24b_BooleanIdentity.png`](Proofs/Phase24b_BooleanIdentity.png) is generated directly by that C++ test;
+there is no HTML proof or browser implementation.
 
 ## Layout
 
@@ -103,6 +111,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 
 | 23 | **Adversarial planar NURBS contacts, self-crossings, free-form offsets and Booleans.** `SelfIntersections` now also identifies non-rational cubic loops contained within one Bézier span. `offset` rejects pre-existing self crossings, sampled curvature cusps and folded candidate results; its rational-quadratic fast path verifies a span is circular before using an exact arc construction, preventing ellipse-to-osculating-circle corruption. | `ProfileAdversarialVerification` — 41 checks; `Scripts/Phase23_AdversarialProfiles.arc`; `Proofs/Phase23_AdversarialProfiles.png` (2560 × 1600 contact sheet) |
 | 24 | **B-rep Boolean contact healing for structurally verified axis-aligned boxes.** Shared faces and rectangular overlaps resolve constructively; edge/point contacts are retained as independent manifold hulls; empty-volume outcomes refuse explicitly. The general curved/non-transversal path remains bounded. | `BooleanContactVerification` — 31 C++ checks; `Proofs/Phase24_BooleanContacts.png` (2560 × 1600 C++-generated contact sheet) |
+| 24b | **Exact duplicate B-rep Boolean identity.** Full structural copies bypass non-transversal SSI; union/common retain one valid operand and difference refuses as empty. Near copies are not fuzzy-merged. | `BooleanIdentityVerification` — 26 C++ checks; `Proofs/Phase24b_BooleanIdentity.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -251,7 +260,7 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **33 suites** — 20 per-feature verification binaries (1,039 checks total) and 13 script smoke
+ctest now registers **34 suites** — 21 per-feature verification binaries (1,065 checks total) and 13 script smoke
 tests. The Phase 24 verification baseline is green except for two unrelated, pre-existing render-source assertions in
 `DimensionVerification` (white tint and 0.04 m world offset); they are recorded in the Phase 20 row and not changed by
 this Boolean kernel increment. The per-suite check counts:
@@ -268,6 +277,7 @@ this Boolean kernel increment. The per-suite check counts:
 | `SkinVerification`                | 48  |
 | `IntersectionVerification`        | 47  |
 | `BooleanContactVerification`      | 31  |
+| `BooleanIdentityVerification`     | 26  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -278,7 +288,7 @@ this Boolean kernel increment. The per-suite check counts:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1039** |
+| **Total** | **1065** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact
