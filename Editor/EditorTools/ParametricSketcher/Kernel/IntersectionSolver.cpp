@@ -19,12 +19,12 @@ const char* Describe(BodyOperation Operation) noexcept
 namespace
 {
     //------------------------------------------------------------------------------------------------------------------------
-    //                               EXACT DUPLICATE B-REP / AXIS-ALIGNED BOX CONTACTS
+    //                               EXACT NURBS-EQUIVALENT B-REP / AXIS-ALIGNED BOX CONTACTS
     //------------------------------------------------------------------------------------------------------------------------
     // A fully identical B-rep has no transversal section at all. Treat a separately stored but exactly equal copy as
-    // identity rather than asking SSI to rediscover every coincident face. This is intentionally exact comparison of
-    // geometry *and* topology (not a tolerance-based same-shape guess); near-coincident bodies continue to the normal
-    // contact/SSI classifiers below.
+    // identity rather than asking SSI to rediscover every coincident face. Geometry is exact in homogeneous control
+    // space and topology is exact; only affine knot-domain changes are normalised, so near-coincident bodies continue
+    // to the normal contact/SSI classifiers below.
     bool Exact(Vec3 A, Vec3 B) noexcept { return A.X == B.X && A.Y == B.Y && A.Z == B.Z; }
     bool Exact(Vec4 A, Vec4 B) noexcept { return A.X == B.X && A.Y == B.Y && A.Z == B.Z && A.W == B.W; }
 
@@ -34,22 +34,37 @@ namespace
         return A.size() == B.size() && std::equal(A.begin(), A.end(), B.begin(), Same);
     }
 
+    // Identical NURBS control nets describe identical geometry after an affine parameter remap. Primitive builders may
+    // choose a physical-length domain while another construction uses [0,1] (a cylinder versus a circular extrusion),
+    // so normalise only the knot coordinate. Every homogeneous control point remains an exact match—this is never a
+    // spatial fuzzy comparison.
+    bool AffineEquivalentKnots(const std::vector<double>& A, const std::vector<double>& B) noexcept
+    {
+        if (A.size() != B.size() || A.empty()) return false;
+        double SpanA = A.back() - A.front(), SpanB = B.back() - B.front();
+        if (SpanA <= 0.0 || SpanB <= 0.0) return false;
+        for (size_t I = 0; I < A.size(); ++I)
+        {
+            double Left = (A[I] - A.front()) * SpanB, Right = (B[I] - B.front()) * SpanA;
+            if (std::fabs(Left - Right) > 1e-12 * std::max({ 1.0, std::fabs(Left), std::fabs(Right) })) return false;
+        }
+        return true;
+    }
+
     bool ExactCurve(const NurbsCurve& A, const NurbsCurve& B) noexcept
     {
-        return A.Degree == B.Degree && A.Classification == B.Classification && Exact(A.Centre, B.Centre) && Exact(A.AxisZ, B.AxisZ) &&
-               A.RadiusMajor == B.RadiusMajor && A.RadiusMinor == B.RadiusMinor && A.Knots == B.Knots &&
+        return A.Degree == B.Degree && AffineEquivalentKnots(A.Knots, B.Knots) &&
                ExactSequence(A.Poles, B.Poles, [](Vec4 P, Vec4 Q) { return Exact(P, Q); });
     }
 
     bool ExactSurface(const NurbsSurface& A, const NurbsSurface& B) noexcept
     {
         return A.DegreeU == B.DegreeU && A.DegreeV == B.DegreeV && A.CountU == B.CountU && A.CountV == B.CountV &&
-               A.Classification == B.Classification && Exact(A.Origin, B.Origin) && Exact(A.Axis, B.Axis) &&
-               A.RadiusMajor == B.RadiusMajor && A.RadiusMinor == B.RadiusMinor && A.HalfAngle == B.HalfAngle &&
-               A.KnotsU == B.KnotsU && A.KnotsV == B.KnotsV && ExactSequence(A.Poles, B.Poles, [](Vec4 P, Vec4 Q) { return Exact(P, Q); });
+               AffineEquivalentKnots(A.KnotsU, B.KnotsU) && AffineEquivalentKnots(A.KnotsV, B.KnotsV) &&
+               ExactSequence(A.Poles, B.Poles, [](Vec4 P, Vec4 Q) { return Exact(P, Q); });
     }
 
-    bool ExactBrepCopy(const BrepBody& A, const BrepBody& B) noexcept
+    bool ExactBrepGeometry(const BrepBody& A, const BrepBody& B) noexcept
     {
         if (!A.Validate().Solid() || !B.Validate().Solid() || A.Vertices.size() != B.Vertices.size() || A.Edges.size() != B.Edges.size() ||
             A.Coedges.size() != B.Coedges.size() || A.Loops.size() != B.Loops.size() || A.Faces.size() != B.Faces.size()) return false;
@@ -1069,13 +1084,13 @@ Deliver<BrepBody> IntersectionSolver::Combine(const BrepBody& A, const BrepBody&
 {
     if (A.Classification() != BodyClassification::Solid || B.Classification() != BodyClassification::Solid) return Deliver<BrepBody>::Reject(RefusalReason::OpenWire, "booleans need two closed solids");
     BooleanReport Rep;
-    if (ExactBrepCopy(A, B))
+    if (ExactBrepGeometry(A, B))
     {
         Rep.PiecesA = static_cast<int>(A.Faces.size()); Rep.PiecesB = static_cast<int>(B.Faces.size());
         if (Operation == BodyOperation::Subtract)
         {
             if (Report) *Report = Rep;
-            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty (tool is an exact B-rep copy of the target)");
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty (tool matches the target's exact B-rep geometry)");
         }
         Rep.KeptA = static_cast<int>(A.Faces.size());
         if (Report) *Report = Rep;

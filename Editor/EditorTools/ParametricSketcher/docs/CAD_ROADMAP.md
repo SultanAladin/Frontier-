@@ -81,8 +81,8 @@ non-transversal contact remains deliberately refused pending a separately valida
 ### Completed Phase 24b: exact duplicate B-rep Boolean identity
 
 An exact duplicate valid B-rep is another non-transversal case that does not need a surface-intersection curve. The
-Boolean kernel now compares the complete B-rep representation exactly: vertices, NURBS edges and face surfaces
-(including analytic metadata), knots/poles, coedge traces, loops, orientation, and topology indices. When both input
+Boolean kernel now compares the complete B-rep representation exactly: vertices, NURBS edges and face surfaces,
+knots/poles, coedge traces, loops, orientation, and topology indices. When both input
 solids are exact copies, union and common retain one operand, while subtraction returns an explicit empty-result
 refusal. The comparison intentionally has **no fuzzy tolerance**: near-coincident shapes are not silently merged and
 remain in the bounded general contact path.
@@ -96,8 +96,26 @@ This is aligned with the robust-kernel distinction between full coincidence (whi
 or near coincidence (which needs interference classification). [OCCT Boolean Operations](https://occt3d.com/dev/doc/overview/html/specification__boolean_operations.html)
 
 **Exit gate met:** exactly identical valid B-reps no longer enter the non-transversal marcher; topology-rich trimmed
-copies are covered; nearby but distinct bodies are demonstrably not mistaken for identity. This is not geometric shape
-equivalence across reparameterized or reordered B-reps, which needs a future tolerance-aware correspondence stage.
+copies are covered; nearby but distinct bodies are demonstrably not mistaken for identity. At this stage, geometric
+equivalence across reparameterized or reordered B-reps remained outside the identity gate.
+
+### Completed Phase 24c: affine-NURBS-equivalent Boolean identity
+
+A native cylinder and the extrusion of the same full circle are geometrically identical, yet their side-face and seam
+NURBS use different affine parameter intervals and a different analytic classification hint. The identity comparator now
+normalizes only affine knot domains while requiring every homogeneous control point and every topology field to match
+exactly. This lets construction-independent but parameter-affine-equivalent B-reps take the same zero-section Boolean
+path. It does **not** use a spatial merge tolerance, reorder faces/edges, reverse parameter directions, or claim general
+shape equivalence.
+
+`BooleanEquivalenceVerification` has 17 C++ checks for cylinder versus circular extrusion in both operand orders, an
+explicitly reparameterized circle, a 0.0001-radius near miss that must not pass, and an ordinary sphere/sphere SSI case.
+It generates `Proofs/Phase24c_BooleanEquivalence.png` directly from C++ console commands; no HTML or browser work is
+included.
+
+**Exit gate met:** full coincident geometry generated through two construction paths is returned as one valid solid or
+an explicit empty subtraction; a geometric near miss remains outside the identity gate. Reversed/reordered topology and
+partial coincidence remain future correspondence/contact-classification work.
 
 ### Phase 25: blend foundation — topology and eligibility
 
