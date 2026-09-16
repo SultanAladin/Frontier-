@@ -174,7 +174,7 @@ int main()
         Deliver<BrepBody> Spanner = BlendSolver::PushFace(Prism.Payload, 1, 26.0);
         double Base = Spanner.Payload.Validate().Volume;
 
-        int Blendable = 0, Chamfered = 0, Rolled = 0, Broken = 0, Exact = 0;
+        int Blendable = 0, Chamfered = 0, Rolled = 0, Broken = 0, Exact = 0, KernelExact = 0;
         double WorstChamfer = 0.0;
         for (size_t E = 0; E < Spanner.Payload.Edges.size(); ++E)
         {
@@ -191,23 +191,27 @@ int main()
                     ++Chamfered;
                     double Error = std::fabs(Flat.Payload.Validate().Volume - (Base - BlendSolver::ChamferRemoval(F, 3.0)));
                     if (Error < 1e-6) ++Exact;
+                    // The Boolean's tessellated volume integral has a low-micron numerical floor after a direct face
+                    // push.  This is still 1.5e-10 of the body, not the old "near exact" 1% fallback.
+                    if (Error < 3e-6) ++KernelExact;
                     if (Error > WorstChamfer) WorstChamfer = Error;
                 }
             }
             Deliver<BrepBody> Roll = BlendSolver::FilletEdge(Spanner.Payload, (int)E, 3.0);
             if (Roll) { if (!Roll.Payload.Validate().Solid()) ++Broken; else ++Rolled; }
         }
-        std::printf("        spanner sweep: %d blendable edges, %d chamfered (%d exact), %d filleted, worst chamfer error %.4f\n",
-                    Blendable, Chamfered, Exact, Rolled, WorstChamfer);
+        std::printf("        spanner sweep: %d physical blendable edges, %d chamfered (%d exact, %d kernel-precise), %d filleted, worst chamfer error %.4f\n",
+                    Blendable, Chamfered, Exact, KernelExact, Rolled, WorstChamfer);
         Check("no blend ever returns a broken (non-solid) body", Broken == 0);
-        Check("most spanner edges chamfer", Chamfered >= Blendable * 3 / 4);
-        Check("most spanner edges fillet",  Rolled >= Blendable * 3 / 4);
-        // Where the ladder finds a placement whose cut plane clears the neighbouring faces, the chamfer is exact to
-        //    round-off. On the rest it settles for the closest valid solid: those are edges whose own cut plane
-        //    genuinely runs into the adjacent geometry, where "exact" is not defined by a single-plane cut at all.
-        //    Asserted as a floor so a regression in the ladder shows up, with the worst case bounded.
-        Check("at least a quarter of spanner chamfers are exact to round-off", Exact * 4 >= Chamfered);
-        Check("no chamfer is off by more than 1% of the body", WorstChamfer < Base * 0.01);
+        // A full planar face push has 26 boundary edges; the two root joins that lie in the top and bottom planes are
+        // tangent seams rather than corners, so Frame correctly excludes them.  Every actual corner must blend.
+        Check("all physical spanner corners chamfer", Chamfered == Blendable);
+        Check("all physical spanner corners fillet",  Rolled == Blendable);
+        Check("the full-face push leaves 24 physical blend corners", Blendable == 24);
+        Check("all but the two 120-degree shoulder corners are kernel-precise", KernelExact >= Blendable - 2);
+        // The remaining two shoulders are bounded by three non-parallel planes.  Their 3.235 mm³ maximum is 0.021%
+        // of this body, a 300× tighter cap than the former 1% fallback and an explicit regression guard.
+        Check("shoulder chamfers remain within 0.025% of the body", WorstChamfer < Base * 2.5e-4);
     }
 
     std::printf(Failures ? "\nBlendVerification: %d FAILED\n" : "\nBlendVerification: all checks passed\n", Failures);

@@ -69,6 +69,73 @@ namespace
         Out = N;
         return true;
     }
+
+    // Move a face by rebuilding its boundary as a ring of ruled faces instead of unioning a nearly coincident
+    // extrusion.  A Boolean needs the footprint pulled in by a small epsilon to avoid coincident side faces; that
+    // epsilon leaves a very thin, but real, rim around the old face.  On a full-face push the rim is not design
+    // geometry: its four inner edges are only a few microns long across, yet they were presented as blend targets.
+    //
+    // Replacing the face directly has the exact intended topology.  Existing boundary edges remain at the root and
+    // become shared by their old neighbour and one new ruled wall; translated copies become the moved cap's edges.
+    // It also means a subsequent blend sees the actual arm perimeter, rather than an epsilon-wide Boolean artefact.
+    Deliver<BrepBody> DirectPlanarPush(const BrepBody& Body, int Face, Vec3 Normal, double Distance) noexcept
+    {
+        if (Body.Faces[Face].Loops.empty())
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face has no boundary loops to push");
+
+        struct Boundary
+        {
+            int        Coedge = -1;
+            int        RootEdge = -1;
+            int        CapEdge = -1;
+            NurbsCurve Root;
+            NurbsCurve Cap;
+        };
+
+        BrepBody Result = Body;
+        const Mat4 Move = Mat4::Translation(Normal * Distance);
+        std::vector<Boundary> BoundaryEdges;
+        for (int Loop : Result.Faces[Face].Loops)
+            for (int Coedge : Result.Loops[Loop].Coedges)
+            {
+                int RootEdge = Result.Coedges[Coedge].Edge;
+                if (RootEdge < 0 || RootEdge >= (int)Result.Edges.size())
+                    return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face has an invalid boundary edge");
+                NurbsCurve Root = Result.Edges[RootEdge].Curve;
+                NurbsCurve Cap = Root.Transformed(Move);
+                int CapEdge = Result.AddEdge(Cap, Tol);
+                BoundaryEdges.push_back({ Coedge, RootEdge, CapEdge, std::move(Root), std::move(Cap) });
+            }
+        if (BoundaryEdges.size() < 3)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face boundary has fewer than three edges");
+
+        // Lift the selected face and rewire its existing coedges to the translated rim.  The same coedge/loop order
+        // is retained, so holes move with the cap as expected.
+        Result.Faces[Face].Surface = Result.Faces[Face].Surface.Transformed(Move);
+        for (const Boundary& B : BoundaryEdges)
+        {
+            std::vector<int>& Users = Result.Edges[B.RootEdge].Coedges;
+            Users.erase(std::remove(Users.begin(), Users.end(), B.Coedge), Users.end());
+            Result.Edges[B.CapEdge].Coedges.push_back(B.Coedge);
+            Result.Coedges[B.Coedge].Edge = B.CapEdge;
+            Result.Coedges[B.Coedge].Trace.clear();
+        }
+
+        // Every ruled wall naturally reuses its root and cap edge, and automatically shares the vertical joins with
+        // the adjacent ruled walls.  There is no coincident-face Boolean seam to leave behind.
+        for (const Boundary& B : BoundaryEdges)
+        {
+            Deliver<NurbsSurface> Wall = NurbsSurface::Ruled(B.Root, B.Cap);
+            if (!Wall) return Deliver<BrepBody>::Reject(Wall.Denial.Reason, Wall.Denial.Detail);
+            int WallFace = Result.AddFace(std::move(Wall.Payload));
+            Result.AddNaturalBoundary(WallFace, Tol);
+        }
+        Result.Orient();
+        BodyReport Report = Result.Validate();
+        if (!Report.Solid())
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "direct face push did not close into a manifold solid");
+        return Deliver<BrepBody>::Accept(std::move(Result));
+    }
 }
 
 bool BlendSolver::Frame(const BrepBody& Body, int Edge, EdgeCornerFrame& Out, std::string& Refusal) noexcept
@@ -179,7 +246,9 @@ Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, doubl
     //    endpoints (relative to the edge length); positive ones run it past (relative to the set-back). Each entry
     //    is tried, and the first whose result is a closed solid of the right volume wins; otherwise the closest
     //    valid solid is returned so the caller still gets a usable body rather than a refusal.
-    static const double Margins[] = { -1e-4, -1e-3, 1e-4, 1e-3, 0.01, 0.05, 0.13, 0.29, 0.53, 1.0, 2.0, 3.0 };
+    static const double Margins[] = { -1e-8, -1e-7, -1e-6, -1e-5, -1e-4, -1e-3,
+                                           1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3,
+                                           0.01, 0.05, 0.13, 0.29, 0.53, 1.0, 2.0, 3.0 };
     static const double HalfWidths[] = { 0.55, 0.8, 1.2, 2.0, 3.0 };
 
     Deliver<BrepBody> Best = Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "no cutter placement produced a valid solid for this edge");
@@ -307,6 +376,11 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
     if (std::fabs(Distance) <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push distance is zero");
     Vec3 Normal;
     if (!PlanarNormal(Body, Face, Normal)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "push requires a planar face");
+
+    // Prefer the exact topological construction.  Keep the Boolean path below as a conservative fallback for any
+    // future face type that the direct construction cannot sew into a closed manifold body.
+    Deliver<BrepBody> Direct = DirectPlanarPush(Body, Face, Normal, Distance);
+    if (Direct) return Direct;
 
     // The tool is the face's own outline swept along the normal. It is started *behind* the face, inside the material,
     //    so the tool's side walls are never coincident with the body's — the boolean refuses tangent contact, and a
