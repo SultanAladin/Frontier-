@@ -158,27 +158,49 @@ cone generatrix, explicit circular-extrusion scope refusal, feasibility refusals
 not general curved-edge blending: circular-extrusion topology, partial cylinders, cones, and arbitrary NURBS edges still
 refuse until independently implemented and verified.
 
-### Phase 26: constant-radius curved-support fillets
+### Completed Phase 26: exact circular right-cylinder cap rolling-ball fillet
 
-Implement one bounded generalization first: constant-radius rolling-ball fillets across one selected smooth edge between
-two supported surfaces. The construction should intersect the two offset supports to form a spine, create rational
-quadratic cross-sections, trim the support faces with the contact curves, sew, orient, and validate the resulting body.
+A circular cap rim of the same tightly verified native-cylinder topology now has a constant-radius rolling-ball solution.
+`BlendSolver::FilletEdge` creates the meridian as an exact rational quarter circle and revolves it around the cylinder
+axis. The resulting surface is recorded as the appropriate **partial torus** (`Rmajor = R−r`, `Rminor = r`), then sewn
+to the retained cylinder and planar caps; it is a closed `V3/E5/F4` B-rep. Its two endpoints are respectively tangent
+to the cylinder and cap, so the feature has measured G1 joins instead of merely a rounded-looking tessellation. It works
+at either cap, with a non-unit or reversed construction direction; a radius reaching the axis or full height is refused.
+
+`CylinderFilletVerification` has 22 C++ checks for exact torus samples, G1 normals at both joins, topology/solidity,
+top/bottom, oblique/reversed construction, explicit circular-extrusion rejection, feasibility bounds, the analytic
+volume observation, and console integration. It generates `Proofs/Phase26_CylinderFillets.png` directly from C++ commands
+(no HTML or browser implementation).
+
+The bounded feature follows established CAD fillet semantics: production kernels attach a constant radius to a selected
+edge/contour and track its continuity to support faces.
+[OCCT constant-radius fillet API](https://dev.opencascade.org/doc/refman/html/class_b_rep_fillet_a_p_i___make_fillet.html)
+
+**Exit gate met:** a supported circular rim has a true rational quarter-torus and measured G1 joins. Partial rims,
+circular-extrusion topology, cones, plane–cylinder/cylinder–cylinder intersections, and arbitrary NURBS supports still
+refuse rather than being treated as this primitive case.
+
+### Phase 27: constant-radius general smooth-support fillets
+
+Implement the next bounded generalization across one selected smooth edge between two supported surfaces. The
+construction should offset both supports to form a spine, create rational quadratic cross-sections, trim the support
+faces with the contact curves, sew, orient, and validate the result. Start with one plane–cylinder example before
+considering cylinder–cylinder or NURBS supports.
 
 This follows established blend research: constant-radius blends are produced by offsetting the two support surfaces,
 finding their intersection/spine, and sweeping rational quadratic sections; corner blends are a separate problem.
 [Constant-radius blending in surface modelling](https://www.sciencedirect.com/science/article/abs/pii/0010448589900468)
 
-**Exit gate:** plane–cylinder, cylinder–cylinder, and selected NURBS-support examples must retain valid B-rep topology,
-contact/tangency within tolerance, expected volume direction, and produce close-up proof renders. Unsupported corner
-cases must refuse cleanly.
+**Exit gate:** one plane–cylinder case must retain valid B-rep topology, contact/tangency within tolerance, expected
+volume direction, and a close-up C++ proof render. Unsupported support pairs must refuse cleanly.
 
-### Phase 27: blend chains and corners
+### Phase 28: blend chains and corners
 
 Add tangent-chain propagation, then multi-edge/corner resolution as separate subfeatures. Do not market this phase as
 complete until chain endpoints, three-face corners, holes, thin walls, and blend/blend intersections have their own
 topology and visual regressions.
 
-### Phase 28: variable radius, setbacks, partial edges, and G2
+### Phase 29: variable radius, setbacks, partial edges, and G2
 
 Variable-radius blends need a radius law along the spine, feasibility detection, and a non-linear solve. G2 continuity
 requires its own surface construction and curvature acceptance measurements. These are not small extensions of the

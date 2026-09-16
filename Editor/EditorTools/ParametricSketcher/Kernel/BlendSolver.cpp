@@ -182,6 +182,42 @@ namespace
         return Result;
     }
 
+    Deliver<BrepBody> FilletCylinderCap(const CylinderCap& Cap, double Radius) noexcept
+    {
+        if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
+        if (Radius >= Cap.Radius - Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet radius reaches the cylinder axis");
+        if (Radius >= Cap.Height - Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet radius consumes the entire cylinder height");
+
+        // The meridian is an exact rational quarter arc. Revolving it forms the constant-radius rolling-ball surface;
+        // the remaining cylinder touches its outer endpoint and the automatically capped plane touches its inner one.
+        Workplane Frame = Workplane::FromNormal(Cap.Base, Cap.Axis);
+        Vec3 Centre = Cap.Upper
+            ? Cap.Base + Cap.Axis * (Cap.Height - Radius) + Frame.AxisX * (Cap.Radius - Radius)
+            : Cap.Base + Cap.Axis * Radius + Frame.AxisX * (Cap.Radius - Radius);
+        Vec3 Outer = Centre + Frame.AxisX * Radius;
+        Vec3 Mid = Cap.Upper
+            ? Centre + (Frame.AxisX + Cap.Axis) * (Radius / std::sqrt(2.0))
+            : Centre + (Frame.AxisX - Cap.Axis) * (Radius / std::sqrt(2.0));
+        Vec3 Inner = Cap.Upper ? Centre + Cap.Axis * Radius : Centre - Cap.Axis * Radius;
+        Deliver<NurbsCurve> Meridian = NurbsCurve::ArcThreePoints(Outer, Mid, Inner);
+        if (!Meridian) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "circular-cap fillet meridian is degenerate");
+        Deliver<NurbsSurface> Roll = NurbsSurface::Revolution(Meridian.Payload, Cap.Base, Cap.Axis, ScalarCriteria::TwoPi);
+        Deliver<NurbsSurface> Cylinder = Cap.Upper
+            ? NurbsSurface::Cylinder(Cap.Base, Cap.Axis, Cap.Radius, Cap.Height - Radius)
+            : NurbsSurface::Cylinder(Cap.Base + Cap.Axis * Radius, Cap.Axis, Cap.Radius, Cap.Height - Radius);
+        if (!Roll || !Cylinder) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "circular-cap fillet support is degenerate");
+        // It is a partial torus, not a generic revolution: preserve exact analytic identity for downstream selection,
+        // checking and future blend correspondence while retaining its quarter-domain NURBS control net.
+        Roll.Payload.Classification = SurfaceClassification::Torus;
+        Roll.Payload.Origin = Centre - Frame.AxisX * (Cap.Radius - Radius);
+        Roll.Payload.Axis = Cap.Axis; Roll.Payload.RadiusMajor = Cap.Radius - Radius; Roll.Payload.RadiusMinor = Radius;
+        std::vector<NurbsSurface> Faces;
+        Faces.push_back(std::move(Cylinder.Payload)); Faces.push_back(std::move(Roll.Payload));
+        Deliver<BrepBody> Result = BrepBody::Sew(Faces);
+        if (!Result || !Result.Payload.Validate().Solid()) return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "circular-cap fillet could not be sewn into a valid solid");
+        return Result;
+    }
+
     // Move a face by rebuilding its boundary as a ring of ruled faces instead of unioning a nearly coincident
     // extrusion.  A Boolean needs the footprint pulled in by a small epsilon to avoid coincident side faces; that
     // epsilon leaves a very thin, but real, rim around the old face.  On a full-face push the rim is not design
@@ -521,6 +557,7 @@ Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, doubl
 
 Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept
 {
+    if (std::optional<CylinderCap> Cap = NativeCylinderCap(Body, Edge)) return FilletCylinderCap(*Cap, Radius);
     EdgeCornerFrame F; std::string Why;
     if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
     if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
