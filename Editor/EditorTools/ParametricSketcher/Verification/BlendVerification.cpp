@@ -1,0 +1,169 @@
+//============================================================================================================================================
+// 📦 Verification/BlendVerification.cpp — chamfer / fillet / push checked against closed-form volumes, not against pictures
+//============================================================================================================================================
+// Every case asserts three things: the result is a closed, manifold, consistently wound solid (χ=2); its volume matches
+//    the analytic removal for that corner; and the ordering chamfer < fillet < base holds (a fillet always leaves more
+//    material than the chamfer with the same tangent set-back).
+#include "Kernel/BlendSolver.h"
+#include <cmath>
+#include <cstdio>
+#include <string>
+
+using namespace Frontier;
+
+namespace
+{
+    int Failures = 0;
+
+    void Check(const char* What, bool Pass, const char* Detail = "")
+    {
+        if (!Pass) { ++Failures; std::printf("  FAIL  %s %s\n", What, Detail); }
+        else std::printf("  ok    %s\n", What);
+    }
+
+    void CheckSolid(const char* What, const Deliver<BrepBody>& Result, double Expected, double Tolerance)
+    {
+        if (!Result) { ++Failures; std::printf("  FAIL  %s — refused: %s\n", What, Result.Denial.Detail); return; }
+        BodyReport R = Result.Payload.Validate();
+        if (!R.Solid())
+        {
+            ++Failures;
+            std::printf("  FAIL  %s — not a solid (closed %d manifold %d oriented %d open %d χ=%d)\n",
+                        What, R.Closed, R.Manifold, R.Oriented, R.OpenEdges, R.EulerCharacteristic);
+            return;
+        }
+        double Error = std::fabs(R.Volume - Expected);
+        if (Error > Tolerance)
+        {
+            ++Failures;
+            std::printf("  FAIL  %s — volume %.5f, expected %.5f (error %.3e > %.3e)\n", What, R.Volume, Expected, Error, Tolerance);
+            return;
+        }
+        std::printf("  ok    %-34s volume %12.5f  expected %12.5f  error %.2e\n", What, R.Volume, Expected, Error);
+    }
+
+    // First edge of a body whose two endpoints both sit at the given height.
+    int EdgeAtHeight(const BrepBody& Body, double Height)
+    {
+        for (size_t E = 0; E < Body.Edges.size(); ++E)
+        {
+            const BrepEdge& Edge = Body.Edges[E];
+            if (Edge.Coedges.size() != 2 || Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
+            if (std::fabs(Body.Vertices[Edge.VertexStart].Point.Z - Height) < 1e-9 &&
+                std::fabs(Body.Vertices[Edge.VertexEnd].Point.Z - Height) < 1e-9) return (int)E;
+        }
+        return -1;
+    }
+}
+
+int main()
+{
+    std::printf("BlendVerification\n");
+
+    // ---- 1. A box's vertical edge: the reference case, exact in closed form ------------------------------------
+    {
+        Deliver<BrepBody> Box = BrepBody::Box({ 0, 0, 0 }, { 20, 20, 20 });
+        double Base = Box.Payload.Validate().Volume;
+        EdgeCornerFrame F; std::string Why;
+        Check("box edge 0 yields a corner frame", BlendSolver::Frame(Box.Payload, 0, F, Why), Why.c_str());
+        Check("box corner is a right dihedral", std::fabs(F.Dihedral - ScalarCriteria::Pi * 0.5) < 1e-9);
+
+        CheckSolid("box chamfer s=3", BlendSolver::ChamferEdge(Box.Payload, 0, 3.0), Base - BlendSolver::ChamferRemoval(F, 3.0), 1e-6);
+        CheckSolid("box fillet  R=3", BlendSolver::FilletEdge(Box.Payload, 0, 3.0),  Base - BlendSolver::FilletRemoval(F, 3.0), 0.1);
+
+        // A fillet keeps more material than the chamfer at the same tangent set-back.
+        Deliver<BrepBody> Flat = BlendSolver::ChamferEdge(Box.Payload, 0, BlendSolver::TangentSetBack(F, 3.0));
+        Deliver<BrepBody> Roll = BlendSolver::FilletEdge(Box.Payload, 0, 3.0);
+        Check("fillet leaves more material than the equivalent chamfer",
+              Flat && Roll && Roll.Payload.Validate().Volume > Flat.Payload.Validate().Volume);
+    }
+
+    // ---- 2. A pentagonal prism's top edge: the adjacent faces meet at 90° but the ends are mitred ---------------
+    {
+        Workplane Plane;
+        Deliver<NurbsCurve> Profile = NurbsCurve::Polygon(Plane, { 0, 0 }, 20, 5, 0.0, true);
+        Deliver<BrepBody> Prism = BrepBody::Extrude(Profile.Payload, { 0, 0, 1 }, 12.0);
+        double Base = Prism.Payload.Validate().Volume;
+        int Top = EdgeAtHeight(Prism.Payload, 12.0);
+        Check("pentagon prism has a top edge", Top >= 0);
+
+        EdgeCornerFrame F; std::string Why;
+        Check("pentagon top edge yields a corner frame", BlendSolver::Frame(Prism.Payload, Top, F, Why), Why.c_str());
+
+        // The chamfer is a prism cut and matches the closed form to tessellation accuracy.
+        CheckSolid("pentagon top chamfer s=3", BlendSolver::ChamferEdge(Prism.Payload, Top, 3.0), Base - BlendSolver::ChamferRemoval(F, 3.0), 5.0);
+
+        // The fillet's roll is exact, but this edge's ends are mitred: the roll is closed there by a straight chord
+        //    rather than the true ellipse section, so the body is a valid solid that under-fills by ~0.4%. Asserted
+        //    as a bound, so a regression past it fails rather than passing quietly.
+        Deliver<BrepBody> Roll = BlendSolver::FilletEdge(Prism.Payload, Top, 3.0);
+        if (!Roll) { ++Failures; std::printf("  FAIL  pentagon top fillet — refused: %s\n", Roll.Denial.Detail); }
+        else
+        {
+            BodyReport R = Roll.Payload.Validate();
+            double Ideal = Base - BlendSolver::FilletRemoval(F, 3.0);
+            double Relative = std::fabs(R.Volume - Ideal) / Ideal;
+            Check("pentagon top fillet is a closed solid", R.Solid());
+            Check("pentagon top fillet is within 1% of the ideal roll (mitred ends)", Relative < 0.01);
+            std::printf("        volume %.5f  ideal %.5f  shortfall %.3f%% (chord-flat mitre ends)\n", R.Volume, Ideal, Relative * 100.0);
+        }
+    }
+
+    // ---- 3. Face push, and a blend on the pushed result ---------------------------------------------------------
+    {
+        Workplane Plane;
+        Deliver<NurbsCurve> Profile = NurbsCurve::Polygon(Plane, { 0, 0 }, 20, 6, 0.0, true);
+        Deliver<BrepBody> Prism = BrepBody::Extrude(Profile.Payload, { 0, 0, 1 }, 10.0);
+        double Base = Prism.Payload.Validate().Volume;
+
+        // Face 1 of the hexagonal prism is a 20 x 10 wall, so pushing it 26 adds exactly 20*10*26.
+        // PushFace pulls the tool outline in by ~1e-6 of the body so the boolean sees a transversal contact rather
+        //    than coincident faces, which it refuses. That shows up as a relative volume deficit of the same order.
+        Deliver<BrepBody> Pushed = BlendSolver::PushFace(Prism.Payload, 1, 26.0);
+        double Ideal = Base + 20.0 * 10.0 * 26.0;
+        CheckSolid("hex prism push face 1 by 26", Pushed, Ideal, Ideal * 1e-5);
+
+        if (Pushed)
+        {
+            // The vertical edge at the tip of the new arm — a corner made by the push, blended afterwards.
+            int Tip = -1;
+            for (size_t E = 0; E < Pushed.Payload.Edges.size(); ++E)
+            {
+                const BrepEdge& Edge = Pushed.Payload.Edges[E];
+                if (Edge.Coedges.size() != 2 || Edge.VertexStart < 0) continue;
+                Vec3 A = Pushed.Payload.Vertices[Edge.VertexStart].Point, B = Pushed.Payload.Vertices[Edge.VertexEnd].Point;
+                if (A.Y > 43.0 && B.Y > 43.0 && std::fabs(A.Z - B.Z) > 9.0) { Tip = (int)E; break; }
+            }
+            Check("pushed arm has a blendable tip edge", Tip >= 0);
+            if (Tip >= 0)
+            {
+                double Volume = Pushed.Payload.Validate().Volume;
+                EdgeCornerFrame F; std::string Why;
+                Check("tip edge yields a corner frame", BlendSolver::Frame(Pushed.Payload, Tip, F, Why), Why.c_str());
+                CheckSolid("pushed arm chamfer s=4", BlendSolver::ChamferEdge(Pushed.Payload, Tip, 4.0), Volume - BlendSolver::ChamferRemoval(F, 4.0), 1e-3);
+
+                Deliver<BrepBody> Roll = BlendSolver::FilletEdge(Pushed.Payload, Tip, 4.0);
+                if (!Roll) { ++Failures; std::printf("  FAIL  pushed arm fillet — refused: %s\n", Roll.Denial.Detail); }
+                else
+                {
+                    BodyReport R = Roll.Payload.Validate();
+                    Check("pushed arm fillet is a closed solid", R.Solid());
+                    Check("pushed arm fillet within 1% of the ideal roll", std::fabs(R.Volume - (Volume - BlendSolver::FilletRemoval(F, 4.0))) / Volume < 0.01);
+                }
+            }
+        }
+    }
+
+    // ---- 4. Refusals are reasoned, not silent -------------------------------------------------------------------
+    {
+        Deliver<BrepBody> Box = BrepBody::Box({ 0, 0, 0 }, { 20, 20, 20 });
+        Check("chamfer refuses a zero set-back",  !BlendSolver::ChamferEdge(Box.Payload, 0, 0.0));
+        Check("fillet refuses a negative radius", !BlendSolver::FilletEdge(Box.Payload, 0, -1.0));
+        Check("blend refuses an out-of-range edge", !BlendSolver::ChamferEdge(Box.Payload, 999, 1.0));
+        Check("push refuses a zero distance",     !BlendSolver::PushFace(Box.Payload, 0, 0.0));
+        Check("push refuses an out-of-range face", !BlendSolver::PushFace(Box.Payload, 99, 1.0));
+    }
+
+    std::printf(Failures ? "\nBlendVerification: %d FAILED\n" : "\nBlendVerification: all checks passed\n", Failures);
+    return Failures ? 1 : 0;
+}

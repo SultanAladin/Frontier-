@@ -21,6 +21,7 @@ ALL_SRCS=(
     Kernel/ConstraintSolver.cpp
     Kernel/ConstraintGraph.cpp
     Kernel/MirrorSolver.cpp
+    Kernel/BlendSolver.cpp
     Presentation/SoftwareRaster.cpp
     Presentation/ScenePresentation.cpp
     Interaction/CameraProjection.cpp

@@ -29,6 +29,7 @@ add_library(SolidArcKernel STATIC
     Kernel/FairPatchSolver.cpp
     Kernel/ProfileSolver.cpp
     Kernel/MirrorSolver.cpp
+    Kernel/BlendSolver.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -127,6 +128,11 @@ add_test(NAME ConstraintVerification COMMAND ConstraintVerification)
 add_executable(MirrorVerification Verification/MirrorVerification.cpp)
 target_link_libraries(MirrorVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME MirrorVerification COMMAND MirrorVerification)
+
+# Blend operations: chamfer / fillet / face push, each checked against its closed-form volume.
+add_executable(BlendVerification Verification/BlendVerification.cpp)
+target_link_libraries(BlendVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME BlendVerification COMMAND BlendVerification)
 
 # Phase 10: chain-run every per-phase script and check the contact sheet.
 add_executable(SuiteVerification Verification/SuiteVerification.cpp)

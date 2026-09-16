@@ -9,6 +9,7 @@
 #include "Kernel/ConstraintSolver.h"
 #include "Kernel/ConstraintGraph.h"
 #include "Kernel/MirrorSolver.h"
+#include "Kernel/BlendSolver.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -2148,14 +2149,65 @@ void ConsoleHost::Register() noexcept
         for (const CurveCrossing& K : X) Row("  (%.6f %.6f %.6f)  tA %.6f  tB %.6f%s", K.Point.X, K.Point.Y, K.Point.Z, K.ParameterA, K.ParameterB, K.Tangent ? "  tangent" : "");
         return true;
     });
-    Add("fillet", "fillet <curve...> radius [--corners=i,j,…] — round the corners of a polyline / polygon / rectangle (Plasticity B)", [=, this](const CommandLine& C)
+    Add("fillet", "fillet <curve...> radius [--corners=i,j,…]  or  <body> radius --edges=i,j [--name=…] — round sketch corners, or roll a true tangent fillet on solid edges", [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "fillet")) return false;
         double R = 0; if (!NumberArg(C, C.Count() - 1, R, "fillet")) return false;
         CommandLine Sub = C; Sub.Arguments.pop_back();
         std::vector<int> Corners; bool Some = false;
         if (auto T = C.SwitchText("corners")) { Some = true; size_t P = 0; while (P < T->size()) { size_t Q = T->find(',', P); Corners.push_back(std::atoi(T->substr(P, Q == std::string::npos ? std::string::npos : Q - P).c_str())); if (Q == std::string::npos) break; P = Q + 1; } }
+        // --edges= selects the body mode: a rolling-ball fillet of one or more solid edges (BlendSolver). Without it
+        //    the verb keeps its curve meaning, rounding the corners of a sketch profile.
+        std::vector<int> EdgeList; bool BodyMode = false;
+        if (auto T = C.SwitchText("edges")) { BodyMode = true; size_t P = 0; while (P < T->size()) { size_t Q = T->find(',', P); EdgeList.push_back(std::atoi(T->substr(P, Q == std::string::npos ? std::string::npos : Q - P).c_str())); if (Q == std::string::npos) break; P = Q + 1; } }
         int Done = 0;
+        if (BodyMode)
+        {
+            if (R <= 0) return Refuse("fillet: radius must be positive");
+            if (EdgeList.empty()) return Refuse("fillet: --edges= is empty");
+            for (SceneFigure* I : ResolveMany(Sub, 0))
+            {
+                if (I->Classification != FigureClassification::Body) { Refuse("fillet: '%s' is not a body", I->Name.c_str()); continue; }
+                BrepBody Working = I->Body;
+                int Rolled = 0; std::string Why;
+                // Each fillet renumbers the body's edges, so the targets are resolved against the ORIGINAL body by
+                //    their midpoints and re-found after every roll. Filleting "edges 2,5" then means the two edges
+                //    the user pointed at, not whatever happens to sit at index 2 and 5 afterwards.
+                std::vector<Vec3> Wanted;
+                for (int E : EdgeList)
+                {
+                    if (E < 0 || E >= (int)I->Body.Edges.size()) { Refuse("fillet %s: edge %d out of range", I->Name.c_str(), E); continue; }
+                    const BrepEdge& Edge = I->Body.Edges[E];
+                    if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
+                    Wanted.push_back((I->Body.Vertices[Edge.VertexStart].Point + I->Body.Vertices[Edge.VertexEnd].Point) * 0.5);
+                }
+                for (Vec3 Midpoint : Wanted)
+                {
+                    int Found = -1; double Best = 1e-6;
+                    for (size_t E = 0; E < Working.Edges.size(); ++E)
+                    {
+                        const BrepEdge& Edge = Working.Edges[E];
+                        if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
+                        double D = ((Working.Vertices[Edge.VertexStart].Point + Working.Vertices[Edge.VertexEnd].Point) * 0.5 - Midpoint).Length();
+                        if (D < Best) { Best = D; Found = (int)E; }
+                    }
+                    if (Found < 0) { Why = "edge no longer exists after the previous fillet"; continue; }
+                    Deliver<BrepBody> Rolled1 = BlendSolver::FilletEdge(Working, Found, R);
+                    if (!Rolled1) { Why = Rolled1.Denial.Detail; continue; }
+                    Working = std::move(Rolled1.Payload); ++Rolled;
+                }
+                if (Rolled == 0) { Refuse("fillet %s: %s", I->Name.c_str(), Why.empty() ? "no edge could be rolled" : Why.c_str()); continue; }
+                std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
+                Scene.Remove(Id);
+                SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Filleted"), std::move(Working));
+                Out.Selected = Sel; DescribeFigure(Out);
+                BodyReport Check = Out.Body.Validate();
+                if (!Check.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", Check.OpenEdges, Check.NonManifoldEdges, Check.MisorientedEdges);
+                Row("fillet %s → %s  radius %.4f  edges %d/%d", Name.c_str(), Out.Name.c_str(), R, Rolled, int(Wanted.size()));
+                ++Done;
+            }
+            return Done > 0;
+        }
         for (SceneFigure* F : ResolveMany(Sub, 0))
         {
             if (F->Classification != FigureClassification::Curve) continue;
@@ -2187,13 +2239,34 @@ void ConsoleHost::Register() noexcept
                 else { for (size_t E = 0; E < Working.Edges.size(); ++E) if (Working.Edges[E].Coedges.size() == 2) Targets.push_back(int(E)); }
                 int EdgesChamfered = 0;
                 std::string FailureDetail;
+                // Resolve the targets by midpoint against the original body: a chamfer renumbers the edge table, so
+                //    index 2 after the first cut is not the edge the user asked for. (BrepBody::ChamferEdge, which
+                //    this replaces, also left the body an open sheet — see Kernel/BlendSolver.h.)
+                std::vector<Vec3> Wanted;
                 for (int E : Targets)
                 {
-                    Deliver<BrepBody> R = Working.ChamferEdge(E, D);
-                    if (!R) { FailureDetail = R.Denial.Detail; break; }
+                    if (E < 0 || E >= (int)I->Body.Edges.size()) { FailureDetail = "edge index out of range"; continue; }
+                    const BrepEdge& Edge = I->Body.Edges[E];
+                    if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
+                    Wanted.push_back((I->Body.Vertices[Edge.VertexStart].Point + I->Body.Vertices[Edge.VertexEnd].Point) * 0.5);
+                }
+                for (Vec3 Midpoint : Wanted)
+                {
+                    int Found = -1; double Best = 1e-6;
+                    for (size_t E = 0; E < Working.Edges.size(); ++E)
+                    {
+                        const BrepEdge& Edge = Working.Edges[E];
+                        if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
+                        double Gap = ((Working.Vertices[Edge.VertexStart].Point + Working.Vertices[Edge.VertexEnd].Point) * 0.5 - Midpoint).Length();
+                        if (Gap < Best) { Best = Gap; Found = (int)E; }
+                    }
+                    if (Found < 0) { FailureDetail = "edge no longer exists after the previous chamfer"; continue; }
+                    Deliver<BrepBody> R = BlendSolver::ChamferEdge(Working, Found, D);
+                    if (!R) { FailureDetail = R.Denial.Detail; continue; }
                     Working = std::move(R.Payload);
                     ++EdgesChamfered;
                 }
+                Targets.resize(Wanted.size());
                 if (EdgesChamfered == 0) { Refuse("chamfer %s: %s", I->Name.c_str(), FailureDetail.c_str()); continue; }
                 std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
                 BrepBody PreOp = I->Body;                                              // capture the pre-chamfer body BEFORE the remove
@@ -2235,6 +2308,33 @@ void ConsoleHost::Register() noexcept
                 if (!N) { Refuse("chamfer %s: %s", F->Name.c_str(), N.Denial.Detail); continue; }
                 F->Curve = std::move(N.Payload); DescribeFigure(*F); ++Done;
             }
+        }
+        return Done > 0;
+    });
+    Add("push", "push <body> distance --face=i [--name=…] — move one planar face along its own outward normal; + raises a boss, − sinks a pocket", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "push")) return false;
+        double D = 0; if (!NumberArg(C, C.Count() - 1, D, "push")) return false;
+        CommandLine Sub = C; Sub.Arguments.pop_back();
+        auto Text = C.SwitchText("face");
+        if (!Text) return Refuse("push: --face=i is required — use `topology <body>` to list the faces");
+        int Face = std::atoi(Text->c_str());
+        int Done = 0;
+        for (SceneFigure* I : ResolveMany(Sub, 0))
+        {
+            if (I->Classification != FigureClassification::Body) { Refuse("push: '%s' is not a body", I->Name.c_str()); continue; }
+            if (Face < 0 || Face >= (int)I->Body.Faces.size()) { Refuse("push %s: face %d out of range (0..%d)", I->Name.c_str(), Face, int(I->Body.Faces.size()) - 1); continue; }
+            Deliver<BrepBody> R = BlendSolver::PushFace(I->Body, Face, D);
+            if (!R) { Refuse("push %s: %s", I->Name.c_str(), R.Denial.Detail); continue; }
+            std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
+            double Before = I->Body.Validate().Volume;
+            Scene.Remove(Id);
+            SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Pushed"), std::move(R.Payload));
+            Out.Selected = Sel; DescribeFigure(Out);
+            BodyReport Check = Out.Body.Validate();
+            if (!Check.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", Check.OpenEdges, Check.NonManifoldEdges, Check.MisorientedEdges);
+            Row("push %s → %s  face %d  distance %.4f  volume %.4f → %.4f", Name.c_str(), Out.Name.c_str(), Face, D, Before, Check.Volume);
+            ++Done;
         }
         return Done > 0;
     });

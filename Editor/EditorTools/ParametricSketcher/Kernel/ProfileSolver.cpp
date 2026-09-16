@@ -601,7 +601,7 @@ namespace
 
     struct FilletConnector
     {
-        double Setback(double Radius, double HalfAngle) const noexcept { return Radius / std::tan(HalfAngle); }   // HalfAngle = half the turn's supplement
+        double Setback(double Radius, double HalfAngle) const noexcept { return Radius * std::tan(HalfAngle); }   // HalfAngle = half the turn's supplement = (pi - interior)/2, so the tangent set-back R/tan(interior/2) == R*tan(HalfAngle)
         NurbsCurve operator()(Vec3 P0, Vec3 Corner, Vec3 P1, Vec3 In, Vec3 Out, double Radius) const noexcept
         {
             // exact rational arc tangent to both sides: circle centre along the bisector

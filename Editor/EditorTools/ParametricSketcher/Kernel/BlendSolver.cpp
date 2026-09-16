@@ -1,0 +1,375 @@
+//============================================================================================================================================
+// 📦 Editor/EditorTools/ParametricSketcher/Kernel/BlendSolver.cpp — chamfer / fillet / face push as regularised set operations
+//============================================================================================================================================
+#include "BlendSolver.h"
+#include "IntersectionSolver.h"
+#include <algorithm>
+#include <cmath>
+
+namespace Frontier
+{
+namespace
+{
+    constexpr double Tol = ScalarCriteria::MergeTolerance;
+
+    // A rectangular solid given by an origin corner and three edge vectors, built from six planar faces and sewn.
+    //    Used as the half-space cutter: it is finite, so it must be made comfortably larger than the target body.
+    Deliver<BrepBody> OrientedBox(Vec3 Corner, Vec3 U, Vec3 V, Vec3 W, double LengthU, double LengthV, double LengthW) noexcept
+    {
+        std::vector<NurbsSurface> Faces;
+        auto Put = [&](Deliver<NurbsSurface> S) { if (S) Faces.push_back(std::move(S.Payload)); };
+        Put(NurbsSurface::Plane(Corner, U, V, LengthU, LengthV));
+        Put(NurbsSurface::Plane(Corner + W * LengthW, U, V, LengthU, LengthV));
+        Put(NurbsSurface::Plane(Corner, U, W, LengthU, LengthW));
+        Put(NurbsSurface::Plane(Corner + V * LengthV, U, W, LengthU, LengthW));
+        Put(NurbsSurface::Plane(Corner, V, W, LengthV, LengthW));
+        Put(NurbsSurface::Plane(Corner + U * LengthU, V, W, LengthV, LengthW));
+        if (Faces.size() != 6) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "cutter face is degenerate");
+        return BrepBody::Sew(Faces);
+    }
+
+    // The tool that removes a corner. It must be LOCAL: an unbounded half-space through the set-back plane also lops
+    //    off every other part of the body that happens to lie beyond that plane, which on a convex box is nothing but
+    //    on a pushed boss is a whole limb (the spanner's head). So the cutter is bounded to the edge's own
+    //    neighbourhood — across the corner it reaches just past the material being cut, along the edge it spans the
+    //    edge plus a margin so the chamfer runs cleanly into the faces at each end.
+    Deliver<BrepBody> CornerCutter(const EdgeCornerFrame& F, double Offset, double Across) noexcept
+    {
+        Vec3 W = F.Bisector;                                                             // outward, the direction cut away
+        Vec3 V = F.Tangent;                                                              // along the edge
+        Vec3 U = V.Cross(W);
+        if (U.Length() <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "cutter frame is degenerate");
+        U = U.Normalised();
+        V = W.Cross(U).Normalised();
+
+        double Half = std::max(Across, Tol) * 3.0;                                       // across the corner
+        double Margin = std::max(Across, Tol) * 3.0;                                     // past each end of the edge
+        double Out = std::max(Across, Tol) * 3.0;                                        // outward past the corner
+        Vec3 Plane = F.Start + W * Offset;
+        Vec3 Corner = Plane - U * Half - V * Margin;
+        return OrientedBox(Corner, U, V, W, 2.0 * Half, F.Length + 2.0 * Margin, Out);
+    }
+
+    // Outward normal of a planar face, and whether it really is planar.
+    bool PlanarNormal(const BrepBody& Body, int Face, Vec3& Out) noexcept
+    {
+        Vec3 N = Body.FaceNormal(Face, 0.5, 0.5);
+        if (N.Length() <= Tol) return false;
+        N = N.Normalised();
+        const double Samples[4][2] = { { 0.25, 0.25 }, { 0.75, 0.25 }, { 0.25, 0.75 }, { 0.75, 0.75 } };
+        for (const auto& S : Samples)
+        {
+            Vec3 M = Body.FaceNormal(Face, S[0], S[1]);
+            if (M.Length() <= Tol) return false;
+            if (M.Normalised().Dot(N) < 0.999999) return false;
+        }
+        Out = N;
+        return true;
+    }
+}
+
+bool BlendSolver::Frame(const BrepBody& Body, int Edge, EdgeCornerFrame& Out, std::string& Refusal) noexcept
+{
+    if (Edge < 0 || Edge >= (int)Body.Edges.size()) { Refusal = "edge index out of range"; return false; }
+    const BrepEdge& E = Body.Edges[Edge];
+    if (E.Coedges.size() != 2) { Refusal = "edge is not a manifold interior edge (a blend needs exactly two adjacent faces)"; return false; }
+    if (E.VertexStart < 0 || E.VertexEnd < 0) { Refusal = "edge has no stored vertices"; return false; }
+
+    Vec3 P0 = Body.Vertices[E.VertexStart].Point, P1 = Body.Vertices[E.VertexEnd].Point;
+    Vec3 Along = P1 - P0;
+    double Length = Along.Length();
+    if (Length <= Tol) { Refusal = "edge is degenerate (zero length)"; return false; }
+    Vec3 Tangent = Along * (1.0 / Length);
+
+    // The edge must be straight: the tool solids are prisms, so a curved edge would not be cut exactly.
+    {
+        std::vector<Vec3> Samples = Body.EdgePolyline(Edge, 1e-4);
+        for (const Vec3& S : Samples)
+        {
+            Vec3 D = S - P0;
+            double Deviation = (D - Tangent * D.Dot(Tangent)).Length();
+            if (Deviation > 1e-6 * std::max(1.0, Length)) { Refusal = "edge is not straight (blend of a curved edge is not supported)"; return false; }
+        }
+    }
+
+    int FaceA = Body.Coedges[E.Coedges[0]].Face, FaceB = Body.Coedges[E.Coedges[1]].Face;
+    if (FaceA < 0 || FaceB < 0 || FaceA == FaceB) { Refusal = "edge has invalid adjacent faces"; return false; }
+
+    Vec3 NA, NB;
+    if (!PlanarNormal(Body, FaceA, NA) || !PlanarNormal(Body, FaceB, NB)) { Refusal = "blend requires both adjacent faces to be planar (curvature detected)"; return false; }
+    if (std::fabs(Tangent.Dot(NA)) > 1e-6 || std::fabs(Tangent.Dot(NB)) > 1e-6) { Refusal = "edge does not lie in both face planes"; return false; }
+
+    Vec3 Bisector = NA + NB;
+    if (Bisector.Length() <= Tol) { Refusal = "adjacent faces are opposite (degenerate corner)"; return false; }
+    Bisector = Bisector.Normalised();
+
+    // In-face directions: perpendicular to the edge, lying in each face, pointing away from the edge across the face.
+    //    Taking them as ±(Tangent × N) and choosing the sign that leads to the face's interior keeps this correct for
+    //    both convex and concave edges.
+    auto InFace = [&](int Face, Vec3 N) -> Vec3
+    {
+        Vec3 Direction = Tangent.Cross(N);
+        if (Direction.Length() <= Tol) return Vec3{};
+        Direction = Direction.Normalised();
+        BrepBody::FaceTriangles Triangles = Body.TessellateFace(Face);
+        Vec3 Centroid{}; double Weight = 0.0;
+        for (size_t I = 0; I + 2 < Triangles.Triangles.size(); I += 3)
+        {
+            Vec3 A = Triangles.Positions[Triangles.Triangles[I]], B = Triangles.Positions[Triangles.Triangles[I + 1]], C = Triangles.Positions[Triangles.Triangles[I + 2]];
+            double Area = (B - A).Cross(C - A).Length() * 0.5;
+            Centroid = Centroid + (A + B + C) * (Area / 3.0);
+            Weight += Area;
+        }
+        if (Weight <= Tol) return Vec3{};
+        Centroid = Centroid * (1.0 / Weight);
+        double Side = (Centroid - P0).Dot(Direction);
+        return Side >= 0.0 ? Direction : Direction * -1.0;
+    };
+    Vec3 InA = InFace(FaceA, NA), InB = InFace(FaceB, NB);
+    if (InA.Length() <= Tol || InB.Length() <= Tol) { Refusal = "cannot resolve the in-face direction of the edge"; return false; }
+
+    // Interior dihedral: the angle the material subtends at the edge, measured between the two in-face directions.
+    double Dihedral = std::acos(ScalarCriteria::Clamp(InA.Dot(InB), -1.0, 1.0));
+    if (Dihedral <= 1e-6 || Dihedral >= ScalarCriteria::Pi - 1e-6) { Refusal = "faces are tangent or folded at this edge (no corner to blend)"; return false; }
+
+    Out.Start = P0; Out.End = P1; Out.Tangent = Tangent;
+    Out.NormalA = NA; Out.NormalB = NB; Out.InA = InA; Out.InB = InB;
+    Out.Bisector = Bisector; Out.Length = Length; Out.Dihedral = Dihedral;
+    Out.FaceA = FaceA; Out.FaceB = FaceB;
+    return true;
+}
+
+double BlendSolver::TangentSetBack(const EdgeCornerFrame& F, double Radius) noexcept
+{
+    return Radius / std::tan(F.Dihedral * 0.5);
+}
+
+double BlendSolver::ChamferRemoval(const EdgeCornerFrame& F, double SetBack) noexcept
+{
+    // Triangle of sides SetBack, SetBack with the included interior angle, swept along the edge.
+    return F.Length * 0.5 * SetBack * SetBack * std::sin(F.Dihedral);
+}
+
+double BlendSolver::FilletRemoval(const EdgeCornerFrame& F, double Radius) noexcept
+{
+    // Corner kite (two tangent lengths) minus the circular sector the roll leaves behind, swept along the edge.
+    double T = TangentSetBack(F, Radius);
+    return F.Length * (Radius * T - Radius * Radius * (ScalarCriteria::Pi - F.Dihedral) * 0.5);
+}
+
+Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, double SetBack) noexcept
+{
+    EdgeCornerFrame F; std::string Why;
+    if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
+    if (SetBack <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is zero or negative");
+
+    // Cut plane through the two set-back points, normal along the outward bisector.
+    Vec3 A = F.Start + F.InA * SetBack, B = F.Start + F.InB * SetBack;
+    double Offset = ((A + B) * 0.5 - F.Start).Dot(F.Bisector);
+    Deliver<BrepBody> Cutter = CornerCutter(F, Offset, SetBack);
+    if (!Cutter) return Deliver<BrepBody>::Reject(Cutter.Denial.Reason, Cutter.Denial.Detail);
+
+    BooleanReport Report;
+    Deliver<BrepBody> Result = IntersectionSolver::Combine(Body, Cutter.Payload, BodyOperation::Subtract, &Report);
+    if (!Result) return Deliver<BrepBody>::Reject(Result.Denial.Reason, Result.Denial.Detail);
+    return Result;
+}
+
+Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept
+{
+    EdgeCornerFrame F; std::string Why;
+    if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
+    if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
+
+    // 1. Cut the corner back to where the rolling ball touches each face.
+    double T = TangentSetBack(F, Radius);
+    Vec3 TangentA = F.Start + F.InA * T, TangentB = F.Start + F.InB * T;
+    Deliver<BrepBody> Wedged = ChamferEdge(Body, Edge, T);
+    if (!Wedged) return Deliver<BrepBody>::Reject(Wedged.Denial.Reason, Wedged.Denial.Detail);
+
+    Vec3 Centre = F.Start - F.Bisector * (Radius / std::sin(F.Dihedral * 0.5));
+    Vec3 AxisU = F.Bisector, AxisV = F.Tangent.Cross(F.Bisector).Normalised();
+    const double Target = Body.Validate().Volume - FilletRemoval(F, Radius);
+
+    // 2. Re-seat the flat the cut left onto the tangent cylinder. The two cap edges of that flat are still straight
+    //    chords; on a simple corner rebuilding them as arcs on the same cylinder is what makes the volume exact, but
+    //    where the surrounding topology is more involved the rebuild can over-correct. Rather than guess, build the
+    //    body both ways and keep whichever lands closer to the closed-form volume — the operation checks its own work.
+    auto Build = [&](bool RebuildCaps) -> Deliver<BrepBody>
+    {
+        BrepBody Result = Wedged.Payload;
+        int Flat = -1; double Closest = 0.999;
+        for (size_t Face = 0; Face < Result.Faces.size(); ++Face)
+        {
+            Vec3 N = Result.FaceNormal((int)Face, 0.5, 0.5);
+            if (N.Length() <= Tol) continue;
+            double Alignment = N.Normalised().Dot(F.Bisector);
+            if (Alignment > Closest) { Closest = Alignment; Flat = (int)Face; }
+        }
+        if (Flat < 0) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "the set-back cut did not produce a chamfer face to roll");
+
+        Deliver<NurbsCurve> Profile = NurbsCurve::ArcThreePoints(TangentA, Centre + F.Bisector * Radius, TangentB);
+        if (!Profile) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet arc section is degenerate");
+        Deliver<NurbsSurface> Roll = NurbsSurface::Extrusion(Profile.Payload, F.Tangent, F.Length);
+        if (!Roll) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet surface is degenerate");
+        Result.Faces[Flat].Surface = std::move(Roll.Payload);
+
+        // The swept arc's natural normal may agree or disagree with the flat it replaces; decide from the geometry.
+        Vec3 Facing = Result.FaceNormal(Flat, 0.5, 0.5);
+        if (Facing.Length() > Tol && Facing.Normalised().Dot(F.Bisector) < 0.0) Result.Faces[Flat].Reversed = !Result.Faces[Flat].Reversed;
+
+        if (RebuildCaps)
+            for (int Loop : Result.Faces[Flat].Loops)
+                for (int Coedge : Result.Loops[Loop].Coedges)
+                {
+                    int EdgeIndex = Result.Coedges[Coedge].Edge;
+                    Vec3 S = Result.CoedgeStart(Coedge), E = Result.CoedgeEnd(Coedge);
+                    if ((E - S).Length() <= Tol) continue;
+                    int Other = -1;
+                    for (int Ce : Result.Edges[EdgeIndex].Coedges) if (Result.Coedges[Ce].Face != Flat) { Other = Result.Coedges[Ce].Face; break; }
+                    if (Other < 0) continue;
+                    Vec3 PlaneNormal;
+                    if (!PlanarNormal(Result, Other, PlaneNormal)) continue;
+                    double Facing2 = PlaneNormal.Dot(F.Tangent);
+                    if (std::fabs(Facing2) <= 1e-9) continue;                              // a rail of the roll: already exact
+                    if (std::fabs(std::fabs(Facing2) - 1.0) > 1e-6) continue;              // a mitred end sections in an ellipse, not an arc
+
+                    auto AngleOf = [&](Vec3 P)
+                    {
+                        Vec3 Radial = P - (Centre + F.Tangent * (P - Centre).Dot(F.Tangent));
+                        return std::atan2(Radial.Dot(AxisV), Radial.Dot(AxisU));
+                    };
+                    double Sweep = AngleOf(E) - AngleOf(S);
+                    while (Sweep >  ScalarCriteria::Pi) Sweep -= 2.0 * ScalarCriteria::Pi;
+                    while (Sweep < -ScalarCriteria::Pi) Sweep += 2.0 * ScalarCriteria::Pi;
+                    double Middle = AngleOf(S) + Sweep * 0.5;
+                    Vec3 Radial = AxisU * std::cos(Middle) + AxisV * std::sin(Middle);
+                    double Slide = (PlaneNormal.Dot(S - Centre) - Radius * PlaneNormal.Dot(Radial)) / Facing2;
+                    Deliver<NurbsCurve> Section = NurbsCurve::ArcThreePoints(S, Centre + F.Tangent * Slide + Radial * Radius, E);
+                    if (Section) Result.Edges[EdgeIndex].Curve = std::move(Section.Payload);
+                }
+
+        for (BrepCoedge& C : Result.Coedges) C.Trace.clear();
+        Result.Orient();
+        return Deliver<BrepBody>::Accept(std::move(Result));
+    };
+
+    Deliver<BrepBody> Plain = Build(false), Arced = Build(true);
+    auto Score = [&](const Deliver<BrepBody>& D) -> double
+    {
+        if (!D) return ScalarCriteria::Infinity;
+        BodyReport R = D.Payload.Validate();
+        if (!R.Solid()) return ScalarCriteria::Infinity;
+        return std::fabs(R.Volume - Target);
+    };
+    double ScorePlain = Score(Plain), ScoreArced = Score(Arced);
+    if (!std::isfinite(ScorePlain) && !std::isfinite(ScoreArced))
+        return Plain ? Plain : Arced;
+    return ScoreArced <= ScorePlain ? std::move(Arced) : std::move(Plain);
+}
+
+Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double Distance) noexcept
+{
+    if (Face < 0 || Face >= (int)Body.Faces.size()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face index out of range");
+    if (std::fabs(Distance) <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push distance is zero");
+    Vec3 Normal;
+    if (!PlanarNormal(Body, Face, Normal)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "push requires a planar face");
+
+    // The tool is the face's own outline swept along the normal. It is started *behind* the face, inside the material,
+    //    so the tool's side walls are never coincident with the body's — the boolean refuses tangent contact, and a
+    //    tool that merely touches the face would be exactly that case.
+    BrepBody::FaceTriangles Triangles = Body.TessellateFace(Face);
+    if (Triangles.Triangles.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face has no area to push");
+
+    // How far behind the face the tool starts. It only has to clear the face plane so the two solids overlap rather
+    //    than merely touch (a touching tool is the coincident-face case the boolean refuses); it must NOT reach the
+    //    far side of the body, or the sweep punches out through the opposite wall and the "push" becomes a slot. A
+    //    small fraction of the body is both, and the seat cancels exactly in the union.
+    Box3 Bounds = Body.Bounds();
+    Vec3 Span = Bounds.Extent();
+    double Reach = std::max({ Span.X, Span.Y, Span.Z, 1.0 });
+    double Thickness = ScalarCriteria::Infinity;
+    for (size_t Other = 0; Other < Body.Faces.size(); ++Other)
+    {
+        if ((int)Other == Face) continue;
+        Vec3 OtherNormal;
+        if (!PlanarNormal(Body, (int)Other, OtherNormal)) continue;
+        if (OtherNormal.Dot(Normal) > -0.5) continue;                                    // only walls facing back at us
+        BrepBody::FaceTriangles Far = Body.TessellateFace((int)Other);
+        for (const Vec3& P : Far.Positions)
+        {
+            double Behind = (Triangles.Positions.empty() ? 0.0 : (Triangles.Positions.front() - P).Dot(Normal));
+            if (Behind > Tol) Thickness = std::min(Thickness, Behind);
+        }
+    }
+    double Depth = std::isfinite(Thickness) ? std::min(Reach, Thickness * 0.5) : Reach * 0.25;
+    Depth = std::max(Depth, Reach * 1e-3);                                               // still a real overlap
+
+    // Outline of the face: its outer loop, sampled in order.
+    if (Body.Faces[Face].Loops.empty()) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face has no outer loop");
+    int Outer = Body.Faces[Face].Loops.front();
+    std::vector<Vec3> Outline;
+    for (int Coedge : Body.Loops[Outer].Coedges)
+    {
+        NurbsCurve C = Body.CoedgeCurve(Coedge);
+        std::vector<Vec3> Points; C.Tessellate(Points, nullptr, 1e-4);
+        for (size_t I = 0; I + 1 < Points.size(); ++I)
+            if (Outline.empty() || !Outline.back().Coincident(Points[I], Tol)) Outline.push_back(Points[I]);
+    }
+    if (Outline.size() < 3) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face outline is degenerate");
+    if (Outline.front().Coincident(Outline.back(), Tol)) Outline.pop_back();
+
+    // Slide the outline back inside the body, then sweep it past the target depth.
+    //    The outline is also pulled in by a hair: a tool whose walls lie exactly on the body's walls is the coincident-
+    //    face case the boolean refuses outright ("surface singularity or seam corner"), because the two boundaries meet
+    //    along a whole face rather than crossing. The inset is a few parts per million of the body, far below the
+    //    tessellation tolerance the volumes are checked at, and it makes every contact transversal.
+    Vec3 Centroid{};
+    for (const Vec3& P : Outline) Centroid = Centroid + P;
+    Centroid = Centroid * (1.0 / double(Outline.size()));
+    const double Inset = std::max(Span.Length(), 1.0) * 1e-6;
+
+    Vec3 Base = Normal * -Depth;
+    std::vector<Vec3> Shifted;
+    Shifted.reserve(Outline.size() + 1);
+    for (const Vec3& P : Outline)
+    {
+        Vec3 Radial = P - Centroid;
+        Radial = Radial - Normal * Radial.Dot(Normal);                                   // stay in the face's plane
+        double Reach = Radial.Length();
+        Vec3 Pulled = Reach > Inset ? P - Radial * (Inset / Reach) : P;
+        Shifted.push_back(Pulled + Base);
+    }
+    Shifted.push_back(Shifted.front());
+
+    Deliver<NurbsCurve> Loop = NurbsCurve::Polyline(Shifted, true);
+    if (!Loop) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face outline does not close");
+    Deliver<BrepBody> Tool = BrepBody::Extrude(Loop.Payload, Normal, Depth + std::fabs(Distance));
+    if (!Tool) return Deliver<BrepBody>::Reject(Tool.Denial.Reason, Tool.Denial.Detail);
+
+    Deliver<BrepBody> Result = Distance > 0.0
+        ? IntersectionSolver::Combine(Body, Tool.Payload, BodyOperation::Union)
+        : IntersectionSolver::Combine(Body, Tool.Payload, BodyOperation::Subtract);
+    if (!Result) return Deliver<BrepBody>::Reject(Result.Denial.Reason, Result.Denial.Detail);
+
+    // The seam where the tool met the face comes back as a degree-3 interpolation of the intersection polyline even
+    //    where it is dead straight (arc length == chord to 1e-9). Those splines are geometrically right but they make
+    //    the next boolean non-generic: a later chamfer of an edge touching this seam splits the body into two hulls.
+    //    Snap any provably straight seam back to an exact line so pushed bodies stay blendable.
+    BrepBody Clean = std::move(Result.Payload);
+    for (BrepEdge& E : Clean.Edges)
+    {
+        if (E.Curve.Degree <= 1) continue;
+        if (E.VertexStart < 0 || E.VertexEnd < 0 || E.Closed()) continue;
+        Vec3 A = Clean.Vertices[E.VertexStart].Point, B = Clean.Vertices[E.VertexEnd].Point;
+        double Chord = (B - A).Length();
+        if (Chord <= Tol) continue;
+        if (std::fabs(E.Curve.Length() - Chord) > 1e-7 * std::max(1.0, Chord)) continue;  // genuinely curved
+        Deliver<NurbsCurve> Straight = NurbsCurve::Line(A, B);
+        if (Straight) E.Curve = std::move(Straight.Payload);
+    }
+    for (BrepCoedge& C : Clean.Coedges) C.Trace.clear();
+    return Deliver<BrepBody>::Accept(std::move(Clean));
+}
+
+} // namespace Frontier
