@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#10100f">
+  <title>Frontier Audio Lab</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="titlebar">
+      <div class="brand"><span class="brand-mark">F</span><span>Frontier</span><span class="product">Audio Lab</span></div>
+      <nav class="menus" aria-label="Application menu"><button>File</button><button>Edit</button><button>Asset</button><button>View</button></nav>
+      <div class="session-state"><span class="status-dot"></span><span id="audioState">Audio ready</span><span class="divider"></span><span>48 kHz · stereo</span></div>
+      <div class="title-actions"><button class="icon-button" id="themeButton" title="Toggle contrast">◐</button><button class="primary compact" id="importTop">＋ Import</button></div>
+    </header>
+
+    <main class="workspace">
+      <aside class="browser panel">
+        <div class="panel-heading"><div><span class="eyebrow">Content</span><h1>Sound library</h1></div><button class="icon-button" id="addFiles" title="Import audio">＋</button></div>
+        <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="Search sound assets"><kbd>/</kbd></label>
+        <div class="folder-tree" id="categoryList" aria-label="Audio categories"></div>
+        <div class="asset-section-title"><span id="assetCount">0 assets</span><button id="sortButton">Name ↕</button></div>
+        <div class="asset-list" id="assetList"></div>
+        <div class="drop-target" id="dropTarget"><strong>Drop audio here</strong><span>WAV, MP3, OGG, FLAC</span></div>
+      </aside>
+
+      <section class="editor">
+        <div class="asset-toolbar">
+          <div class="crumbs"><span>Content</span><b>›</b><span>Audio</span><b>›</b><strong id="crumbCategory">Ambience</strong></div>
+          <div class="tool-actions"><button id="undoButton" title="Undo (Ctrl+Z)" disabled>↶</button><button id="redoButton" title="Redo (Ctrl+Shift+Z)" disabled>↷</button><span class="rule"></span><button id="savePresetButton">Save preset</button><button class="primary" id="exportButton">Export WAV</button></div>
+        </div>
+
+        <div class="empty-state" id="emptyState">
+          <div class="empty-orbit"><span>⌁</span></div>
+          <p class="eyebrow">Non-destructive workspace</p>
+          <h2>Select or import an audio file</h2>
+          <p>Shape natural recordings with pitch, filters, dynamics and space. The source file is never modified.</p>
+          <button class="primary" id="emptyImport">Choose audio</button>
+        </div>
+
+        <div class="edit-stage hidden" id="editStage">
+          <div class="clip-header">
+            <div><span class="eyebrow" id="clipKind">Ambience · Loop</span><h2 id="clipTitle">Coastal wind</h2><p id="clipMeta">—</p></div>
+            <div class="clip-tags"><span id="formatTag">WAV</span><span id="channelTag">STEREO</span><span class="ready-tag">● READY</span></div>
+          </div>
+
+          <div class="wave-card">
+            <div class="wave-ruler" id="waveRuler"></div>
+            <div class="wave-wrap" id="waveWrap">
+              <canvas id="waveCanvas"></canvas>
+              <div class="selection" id="selection"><i class="handle left"></i><i class="handle right"></i></div>
+              <div class="playhead" id="playhead"></div>
+            </div>
+            <div class="wave-footer"><span id="selectionLabel">Selection —</span><label>Zoom <input id="zoomSlider" type="range" min="1" max="8" step="0.1" value="1"></label></div>
+          </div>
+
+          <div class="transport-card">
+            <div class="transport-buttons"><button id="toStartButton" title="Go to start">|◀</button><button class="play-button" id="playButton" title="Play / pause (Space)">▶</button><button id="stopButton" title="Stop">■</button><button id="loopButton" class="toggle" title="Loop (L)">↻</button></div>
+            <div class="timecode"><span id="currentTime">00:00.000</span><small>/</small><span id="durationTime">00:00.000</span></div>
+            <div class="level-meter"><span>L</span><i><b id="meterL"></b></i><span>R</span><i><b id="meterR"></b></i></div>
+            <label class="mini-control">Output <input id="monitorVolume" type="range" min="0" max="1.2" value="0.9" step="0.01"><span id="monitorVolumeValue">-0.9 dB</span></label>
+          </div>
+
+          <div class="markers"><span class="eyebrow">Cue points</span><div><button class="cue active"><b>IN</b><span id="inTime">00:00.000</span></button><button class="cue"><b>LOOP</b><span>Seam preview</span></button><button class="cue"><b>OUT</b><span id="outTime">00:00.000</span></button><button class="add-cue">＋ Add marker</button></div></div>
+        </div>
+      </section>
+
+      <aside class="inspector panel">
+        <div class="panel-heading"><div><span class="eyebrow">Inspector</span><h1>Signal chain</h1></div><button class="icon-button" id="resetButton" title="Reset all parameters">↺</button></div>
+        <div class="preset-row"><select id="presetSelect" aria-label="Preset"><option value="natural">Natural / untouched</option><option value="distance">Distant exterior</option><option value="cockpit">Inside cockpit</option><option value="impact">Impact focus</option><option value="wide">Wide ambience</option></select><button id="abButton" title="A/B compare">A/B</button></div>
+        <div id="parameterSections"></div>
+        <section class="export-summary">
+          <div><span class="eyebrow">Delivery</span><strong>Game-ready master</strong></div>
+          <dl><div><dt>Format</dt><dd>WAV · PCM 16</dd></div><div><dt>Sample rate</dt><dd>48,000 Hz</dd></div><div><dt>Channels</dt><dd id="exportChannels">Stereo</dd></div><div><dt>Normalize</dt><dd>Peak −1 dB</dd></div></dl>
+          <button class="primary full" id="exportBottom">Export selection</button>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="statusbar"><span><b id="footerName">No asset selected</b><i></i><span id="footerPath">Content/Audio</span></span><span class="shortcuts"><kbd>Space</kbd> play <kbd>L</kbd> loop <kbd>R</kbd> reset <kbd>E</kbd> export</span><span id="cpuState">Web Audio · idle</span></footer>
+  </div>
+
+  <input id="fileInput" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" multiple hidden>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
