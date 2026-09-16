@@ -1661,6 +1661,205 @@ void ConsoleHost::RebuildFigureFromBlueprint(SceneFigure& F) noexcept
     return E;
 }
 
+//------------------------------------------------------------------------------------------------------------------------
+//                                                  NATIVE .ARC DOCUMENTS
+//------------------------------------------------------------------------------------------------------------------------
+// A native document deliberately stores construction commands, not a cooked tessellation or an opaque dump of the
+// B-rep. That makes files small, reviewable in source control, and preserves the associative recipes / editable
+// blueprints already maintained by the host. Commands are canonicalised after they have succeeded, one per line, so a
+// malformed command can never be written into a document. The loader replays into a fresh ConsoleHost and adopts that
+// host only after every line succeeds; this is the transaction boundary for document open.
+namespace
+{
+[[nodiscard]] bool IsArcPath(std::filesystem::path& Path) noexcept
+{
+    if (Path.empty()) return false;
+    std::string Extension = Path.extension().string();
+    for (char& Ch : Extension) Ch = static_cast<char>(std::tolower(static_cast<unsigned char>(Ch)));
+    if (Extension.empty()) { Path += ".arc"; return true; }
+    return Extension == ".arc";
+}
+
+[[nodiscard]] bool NeedsArcQuotes(const std::string& Token) noexcept
+{
+    if (Token.empty()) return true;
+    for (unsigned char Ch : Token)
+        if (std::isspace(Ch) || Ch == '#' || Ch == ';' || Ch == '"') return true;
+    return false;
+}
+
+[[nodiscard]] std::string ArcToken(const std::string& Token)
+{
+    // CommandCodec does not define an escape sequence inside quoted identifiers. A literal quote therefore cannot
+    // enter the command language in the first place; replace it defensively rather than emitting a corrupt document.
+    if (!NeedsArcQuotes(Token)) return Token;
+    std::string Out = "\"";
+    for (char Ch : Token) if (Ch != '"') Out += Ch;
+    Out += "\"";
+    return Out;
+}
+
+[[nodiscard]] bool NativeArcHeader(const std::filesystem::path& Path, std::string& Error)
+{
+    std::ifstream In(Path);
+    if (!In) { Error = "cannot open"; return false; }
+    std::string Line;
+    while (std::getline(In, Line))
+    {
+        if (Line.size() >= 3 && static_cast<unsigned char>(Line[0]) == 0xef && static_cast<unsigned char>(Line[1]) == 0xbb && static_cast<unsigned char>(Line[2]) == 0xbf) Line.erase(0, 3);
+        size_t First = Line.find_first_not_of(" \t\r\n");
+        if (First == std::string::npos) continue;
+        size_t Last = Line.find_last_not_of(" \t\r\n");
+        Error = "expected '# SolidArc native document v1' as the first non-empty line";
+        return Line.substr(First, Last - First + 1) == "# SolidArc native document v1";
+    }
+    Error = "document is empty";
+    return false;
+}
+}
+
+bool ConsoleHost::IsPersistentDocumentCommand(const CommandLine& Command) noexcept
+{
+    // Diagnostics and proof rendering are intentionally not document state. Everything else that completed at the
+    // top level is replayable input, including selection and modal-tool events: those are needed to reproduce later
+    // gizmo and command operations faithfully.
+    const std::string& Verb = Command.Verb;
+    if (Verb == "save" || Verb == "open" || Verb == "help" || Verb == "hud" || Verb == "list" ||
+        Verb == "describe" || Verb == "topology" || Verb == "areas" || Verb == "profile" ||
+        Verb == "intersections" || Verb == "pick" || Verb == "inspect" || Verb == "render" ||
+        Verb == "echo" || Verb == "timeline" || Verb == "hotkeys") return false;
+    // Query forms share verbs with editing forms, so filter them narrowly instead of excluding the whole command.
+    if (Command.Count() > 0)
+    {
+        const std::string& First = Command.Arguments[0];
+        if ((Verb == "constraint" && (First == "list" || First == "dof")) ||
+            (Verb == "dim" && First == "list") ||
+            (Verb == "snap" && First == "status") ||
+            (Verb == "gizmo" && (First == "status" || First == "grips")) ||
+            (Verb == "selectmode" && First == "status")) return false;
+    }
+    return true;
+}
+
+std::string ConsoleHost::EncodeDocumentCommand(const CommandLine& Command) noexcept
+{
+    std::string Out = Command.Verb;
+    for (const std::string& Argument : Command.Arguments) { Out += ' '; Out += ArcToken(Argument); }
+    for (const auto& Flag : Command.Flags)
+    {
+        Out += " --" + Flag.first;
+        if (!Flag.second.empty()) Out += '=' + ArcToken(Flag.second);
+    }
+    return Out;
+}
+
+void ConsoleHost::RememberDocumentCommand(const CommandLine& Command) noexcept
+{
+    if (!IsPersistentDocumentCommand(Command)) return;
+    // A reset discards all preceding model history from the saved document as well. It is both correct and prevents
+    // exploratory work before a new part from accumulating indefinitely in a later save.
+    if (Command.Verb == "reset") DocumentJournal.clear();
+    DocumentJournal.push_back(EncodeDocumentCommand(Command));
+}
+
+bool ConsoleHost::SaveDocument(const std::string& RequestedPath) noexcept
+{
+    std::filesystem::path Path = RequestedPath.empty() ? std::filesystem::path(DocumentPath) : std::filesystem::path(RequestedPath);
+    if (Path.empty()) return Refuse("save: a path is required for a new document (example: save bracket.arc)");
+    if (!IsArcPath(Path)) return Refuse("save: native documents use the .arc extension (got '%s')", Path.string().c_str());
+    Path = Path.lexically_normal();
+
+    std::error_code Ec;
+    const std::filesystem::path Parent = Path.parent_path();
+    if (!Parent.empty()) std::filesystem::create_directories(Parent, Ec);
+    if (Ec) return Refuse("save: cannot create '%s' — %s", Parent.string().c_str(), Ec.message().c_str());
+
+    // Preserve the last known-good document before replacing it. If any following operation fails, the original
+    // remains untouched and its .bak sibling is independently usable for recovery.
+    if (std::filesystem::exists(Path, Ec) && !Ec)
+    {
+        const std::filesystem::path Backup = Path.string() + ".bak";
+        std::filesystem::copy_file(Path, Backup, std::filesystem::copy_options::overwrite_existing, Ec);
+        if (Ec) return Refuse("save: cannot create backup '%s' — %s", Backup.string().c_str(), Ec.message().c_str());
+    }
+    if (Ec) return Refuse("save: cannot inspect '%s' — %s", Path.string().c_str(), Ec.message().c_str());
+
+    const std::filesystem::path Temporary = Path.string() + ".tmp";
+    {
+        std::ofstream Out(Temporary, std::ios::binary | std::ios::trunc);
+        if (!Out) return Refuse("save: cannot write '%s'", Temporary.string().c_str());
+        Out << "# SolidArc native document v1\n";
+        Out << "# Construction journal. Edit only with the documented .arc grammar; save keeps a .bak recovery copy.\n\n";
+        for (const std::string& Line : DocumentJournal) Out << Line << '\n';
+        Out.flush();
+        if (!Out) { std::filesystem::remove(Temporary, Ec); return Refuse("save: write failed for '%s'", Temporary.string().c_str()); }
+    }
+    std::filesystem::rename(Temporary, Path, Ec);
+    if (Ec)
+    {
+        std::filesystem::remove(Temporary, Ec);
+        return Refuse("save: cannot atomically replace '%s' — %s", Path.string().c_str(), Ec.message().c_str());
+    }
+    DocumentPath = Path.string();
+    std::error_code BackupError;
+    const bool HasBackup = std::filesystem::exists(Path.string() + ".bak", BackupError) && !BackupError;
+    Row("saved %s  ·  SolidArc .arc v1  ·  %zu command(s)%s", DocumentPath.c_str(), DocumentJournal.size(),
+        HasBackup ? "  ·  backup refreshed" : "");
+    return true;
+}
+
+bool ConsoleHost::OpenDocument(const std::string& RequestedPath) noexcept
+{
+    std::filesystem::path Path(RequestedPath);
+    if (Path.empty()) return Refuse("open: a .arc document path is required");
+    if (!IsArcPath(Path)) return Refuse("open: native documents use the .arc extension (got '%s')", Path.string().c_str());
+    Path = Path.lexically_normal();
+
+    std::string HeaderError;
+    if (!NativeArcHeader(Path, HeaderError)) return Refuse("open: '%s' is not a SolidArc .arc v1 document — %s", Path.string().c_str(), HeaderError.c_str());
+
+    // Do not execute a document in the live host. Replaying in Candidate means syntax errors, refused geometry, and
+    // future-version content leave the live scene, undo history, named planes and constraints exactly as they were.
+    ConsoleHost Candidate(Proofs, Surface->Width(), Surface->Height());
+    Candidate.LoadingDocument = true;
+    const bool Replayed = Candidate.RunScript(Path.string(), false);
+    Candidate.LoadingDocument = false;
+    if (!Replayed || Candidate.RefusalCount() != 0)
+        return Refuse("open: '%s' was refused; the current document was left unchanged", Path.string().c_str());
+
+    Scene = std::move(Candidate.Scene);
+    Undo = std::move(Candidate.Undo);
+    Tool = ToolSession();                                                               // never restore an incomplete modal operation
+    GizmoRig = std::move(Candidate.GizmoRig);
+    GizmoOriginals.clear();
+    Snap = Candidate.Snap;
+    Hotkeys = std::move(Candidate.Hotkeys);
+    PointerX = Candidate.PointerX; PointerY = Candidate.PointerY;
+    LastCommand = std::move(Candidate.LastCommand);
+    ToolReportedRefusal = false;
+    Mode = Candidate.Mode;
+    HoverPick = 0;
+    Plane = Candidate.Plane;
+    NamedPlanes = std::move(Candidate.NamedPlanes);
+    Dimensions = std::move(Candidate.Dimensions);
+    NextDimensionId = Candidate.NextDimensionId;
+    CGraph = std::move(Candidate.CGraph);
+    HoverDimensionId = 0; EditDimensionId = 0;
+    GizmoShown = Candidate.GizmoShown;
+    ShowControlCages = Candidate.ShowControlCages;
+    ShowIsoCurves = Candidate.ShowIsoCurves;
+    ShowDimensions = Candidate.ShowDimensions;
+    Shading = Candidate.Shading;
+    for (Tile& T : SheetTiles) T = Tile();
+    DocumentJournal = std::move(Candidate.DocumentJournal);
+    DocumentPath = Path.string();
+    Refusals = 0;
+    LineNumber = 0;
+    Render();
+    Row("opened %s  ·  %zu figure(s)  ·  %zu command(s)", DocumentPath.c_str(), Scene.Figures().size(), DocumentJournal.size());
+    return true;
+}
+
 void ConsoleHost::Register() noexcept
 {
     auto Add = [&](const char* Verb, const char* Help, Command Fn) { Commands[Verb] = std::move(Fn); Usage[Verb] = Help; };
@@ -1689,6 +1888,20 @@ void ConsoleHost::Register() noexcept
         Out = Planar ? Plane.ToWorld({ P->X, P->Y }) : *P;
         return true;
     };
+
+    //---------------------------------------------- native document ----------------------------------------------
+    Add("save", "save [path.arc] — write the current parametric model as a versioned native .arc document (an existing document is backed up to .arc.bak)", [=, this](const CommandLine& C)
+    {
+        if (LoadingDocument) return Refuse("save: native documents cannot save while being opened");
+        if (C.Count() > 1) return Refuse("save: zero or one path argument required");
+        return SaveDocument(C.Count() ? C.Arguments[0] : "");
+    });
+    Add("open", "open <path.arc> — atomically replace the current scene with a versioned native .arc document", [=, this](const CommandLine& C)
+    {
+        if (LoadingDocument) return Refuse("open: native documents may not recursively open another document");
+        if (!Need(C, 1, "open") || C.Count() != 1) return C.Count() > 1 ? Refuse("open: exactly one path argument required") : false;
+        return OpenDocument(C.Arguments[0]);
+    });
 
     //---------------------------------------------- sketch curves ----------------------------------------------
     Add("line", "line (x,y[,z]) (x,y[,z]) [--name=N] [--construction]", [=, this](const CommandLine& C)
@@ -3748,8 +3961,11 @@ void ConsoleHost::Register() noexcept
 
 bool ConsoleHost::Execute(std::string_view Line) noexcept
 {
+    // Hotkeys and `repeat` recurse into Execute. Persist the user-level instruction only: saving both that instruction
+    // and its nested expansion would apply geometry twice when the document is reopened.
+    const bool TopLevel = ExecuteDepth++ == 0;
     std::vector<CommandLine> Batch; std::string Error;
-    if (!CommandCodec::Decode(Line, Batch, Error)) return Refuse("syntax: %s", Error.c_str());
+    if (!CommandCodec::Decode(Line, Batch, Error)) { --ExecuteDepth; return Refuse("syntax: %s", Error.c_str()); }
     bool Ok = true;
     for (const CommandLine& C : Batch)
     {
@@ -3775,13 +3991,18 @@ bool ConsoleHost::Execute(std::string_view Line) noexcept
             else Undo.Settle(Scene);
         }
         if (!Done) Ok = false;
-        else if (C.Verb != "repeat" && C.Verb != "render" && C.Verb != "list" && C.Verb != "hud" && C.Verb != "help")
+        else
         {
-            LastCommand = C.Verb;
-            for (const auto& A : C.Arguments) LastCommand += " " + A;
-            for (const auto& F : C.Flags) LastCommand += " --" + F.first + (F.second.empty() ? "" : "=" + F.second);
+            if (TopLevel) RememberDocumentCommand(C);
+            if (C.Verb != "repeat" && C.Verb != "render" && C.Verb != "list" && C.Verb != "hud" && C.Verb != "help" && C.Verb != "save" && C.Verb != "open")
+            {
+                LastCommand = C.Verb;
+                for (const auto& A : C.Arguments) LastCommand += " " + A;
+                for (const auto& F : C.Flags) LastCommand += " --" + F.first + (F.second.empty() ? "" : "=" + F.second);
+            }
         }
     }
+    --ExecuteDepth;
     return Ok;
 }
 

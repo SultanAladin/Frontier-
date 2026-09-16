@@ -128,7 +128,6 @@ int ConstraintSolver::Evaluate(std::vector<double>& Residuals, std::vector<std::
     size_t Row = 0;
     auto X = [&](const PointRef& P, size_t Idx) -> double { return Idx == SIZE_MAX ? 0.0 : Unknowns[Idx].X; };
     auto Y = [&](const PointRef& P, size_t Idx) -> double { return Idx == SIZE_MAX ? 0.0 : Unknowns[Idx].Y; };
-    auto Fix = [&](const PointRef& P, size_t Idx) -> bool { return Idx == SIZE_MAX ? false : Unknowns[Idx].Fixed; };
     auto ColX = [&](size_t Idx) { return Idx == SIZE_MAX ? SIZE_MAX : 2 * Idx; };
     auto ColY = [&](size_t Idx) { return Idx == SIZE_MAX ? SIZE_MAX : 2 * Idx + 1; };
     for (const Constraint& C : Constraints)
@@ -379,7 +378,7 @@ SolveReport ConstraintSolver::Solve(int MaxIterations, double Tolerance, double 
         // Evaluate at the trial point. We swap so Evaluate reads the trial; then swap back so Unknowns holds
         //    the original, and we move Trial into Unknowns only if the step is good.
         std::swap(Unknowns, Trial);
-        int TrialRows = Evaluate(Residuals, Jacobian);
+        Evaluate(Residuals, Jacobian);
         double TrialL2 = 0;
         for (double V : Residuals) TrialL2 += V * V;
         TrialL2 = std::sqrt(TrialL2);
@@ -408,7 +407,7 @@ SolveReport ConstraintSolver::Solve(int MaxIterations, double Tolerance, double 
                     Trial[I].Y = Unknowns[I].Y + Dx[2 * I + 1] * Step;
                 }
                 std::swap(Unknowns, Trial);
-                TrialRows = Evaluate(Residuals, Jacobian);
+                Evaluate(Residuals, Jacobian);
                 TrialL2 = 0;
                 for (double V : Residuals) TrialL2 += V * V;
                 TrialL2 = std::sqrt(TrialL2);

@@ -28,6 +28,8 @@ add_library(SolidArcKernel STATIC
     Kernel/IntersectionSolver.cpp
     Kernel/FairPatchSolver.cpp
     Kernel/ProfileSolver.cpp
+    Kernel/ConstraintSolver.cpp
+    Kernel/ConstraintGraph.cpp
     Kernel/MirrorSolver.cpp
     Kernel/BlendSolver.cpp
 )
@@ -133,6 +135,11 @@ add_test(NAME MirrorVerification COMMAND MirrorVerification)
 add_executable(BlendVerification Verification/BlendVerification.cpp)
 target_link_libraries(BlendVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME BlendVerification COMMAND BlendVerification)
+
+# Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
+add_executable(DocumentVerification Verification/DocumentVerification.cpp)
+target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME DocumentVerification COMMAND DocumentVerification)
 
 # Phase 10: chain-run every per-phase script and check the contact sheet.
 add_executable(SuiteVerification Verification/SuiteVerification.cpp)

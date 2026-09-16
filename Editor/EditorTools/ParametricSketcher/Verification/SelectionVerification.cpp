@@ -102,11 +102,12 @@ int main()
         Host.Execute("clear ; cylinder (2,0,0) 0.5 1 ; select Cylinder ; duplicate (0,3,0)");
         Panel.Expect("Duplicate creates a selected copy with a unique name", Figure("Cylinder.2") && Figure("Cylinder.2")->Selected && !Figure("Cylinder")->Selected);
         Panel.Within("Duplicate offset applied", Figure("Cylinder.2")->Bounds().Centre().Distance({ 2, 3, 0.5 }), 1e-9);
-        Host.Execute("select Cylinder ; mirror x --copy");
-        Panel.Expect("Mirror copy exists", Figure("Cylinder.3") != nullptr);
-        Panel.Within("Mirror across x flips the centre", Figure("Cylinder.3")->Bounds().Centre().Distance({ -2, 0, 0.5 }), 1e-9);
+        // `mirror` takes its source explicitly and `--across=yz` means reflection across x = 0.
+        Host.Execute("select Cylinder ; mirror Cylinder --across=yz --copy");
+        Panel.Expect("Mirror copy exists", Figure("Mirror.Cylinder") != nullptr);
+        Panel.Within("Mirror across x flips the centre", Figure("Mirror.Cylinder")->Bounds().Centre().Distance({ -2, 0, 0.5 }), 1e-9);
         // orientation: mirrored surface must still face outward → normal at a side point points away from the axis
-        const BrepBody& M = Figure("Cylinder.3")->Body;
+        const BrepBody& M = Figure("Mirror.Cylinder")->Body;
         const NurbsSurface& Side = M.Faces[0].Surface;
         Vec3 Pm = Side.Sample(0.125, 0.5), Nm = M.FaceNormal(0, 0.125, 0.5);
         Vec3 Radial = Vec3{ Pm.X + 2.0, Pm.Y, 0.0 }.Normalised();

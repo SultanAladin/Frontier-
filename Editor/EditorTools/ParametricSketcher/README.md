@@ -18,6 +18,16 @@ ctest --test-dir build --output-on-failure      # 23 suites, all green; the per-
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
 
+## Native `.arc` documents (Phase 22)
+
+`.arc` is now the native, versioned **construction-document** format: `save bracket.arc`, `save`, and
+`open bracket.arc` preserve the parametric command journal rather than flattening the NURBS/B-rep into display
+triangles. Opening is transactional (the current scene is not touched if replay refuses) and replacement saves retain a
+`.arc.bak` recovery copy. Proof scripts in `Scripts/` remain runnable scripts; they are not native documents and are
+intentionally refused by `open` unless they carry the v1 document header. See
+[`docs/NATIVE_DOCUMENTS.md`](docs/NATIVE_DOCUMENTS.md) for the on-disk contract and its verification coverage. The
+validated, incremental implementation plan is in [`docs/CAD_ROADMAP.md`](docs/CAD_ROADMAP.md).
+
 ## Layout
 
 | Folder | Role | Status |

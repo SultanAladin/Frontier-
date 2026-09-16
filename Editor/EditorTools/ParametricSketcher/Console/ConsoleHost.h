@@ -116,6 +116,16 @@ private:
     [[nodiscard]] std::vector<SceneFigure*> ResolveMany(const CommandLine& C, size_t FirstIndex) noexcept;
     [[nodiscard]] Workplane ActivePlane() const noexcept { return Plane; }
 
+    // Native document persistence. A .arc document is an auditable, versioned command journal: it
+    // preserves the *parametric construction*, rather than flattening the model into a mesh. `open`
+    // replays into an isolated host first, so a malformed or incompatible document cannot corrupt the
+    // document already open in this host. `save` writes a same-directory temporary file then renames it.
+    [[nodiscard]] bool SaveDocument(const std::string& Path) noexcept;
+    [[nodiscard]] bool OpenDocument(const std::string& Path) noexcept;
+    [[nodiscard]] static bool IsPersistentDocumentCommand(const CommandLine& Command) noexcept;
+    [[nodiscard]] static std::string EncodeDocumentCommand(const CommandLine& Command) noexcept;
+    void RememberDocumentCommand(const CommandLine& Command) noexcept;
+
     void RegisterInteraction() noexcept;                                                // Phase 3 commands
     void RegisterSelection() noexcept;                                                  // Phase 4 commands
     void DrawControlPoints(const SceneFigure& Figure) noexcept;
@@ -210,6 +220,13 @@ private:
     std::map<std::string, std::string>   Usage;
     int                                  Refusals = 0;
     int                                  LineNumber = 0;
+    // The source of truth for a native document. Entries are canonicalised one-command lines
+    // after successful top-level execution. Nested commands from hotkeys/repeat are deliberately
+    // omitted: replaying the top-level input regenerates them exactly once.
+    std::vector<std::string>             DocumentJournal;
+    std::string                          DocumentPath;
+    bool                                 LoadingDocument = false;
+    int                                  ExecuteDepth = 0;
     bool                                 ShowControlCages = false;
     bool                                 ShowIsoCurves = true;
     bool                                 ShowDimensions = false;        // [Phase 13] dims hidden by default until the renderer is polished
