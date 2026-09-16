@@ -106,6 +106,11 @@ add_test(NAME SkinVerification COMMAND SkinVerification)
 add_executable(IntersectionVerification Verification/IntersectionVerification.cpp)
 target_link_libraries(IntersectionVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME IntersectionVerification COMMAND IntersectionVerification)
+
+# Phase 24: exact B-rep Boolean contact classification / healing for axis-aligned boxes.
+add_executable(BooleanContactVerification Verification/BooleanContactVerification.cpp)
+target_link_libraries(BooleanContactVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME BooleanContactVerification COMMAND BooleanContactVerification)
 add_executable(FairPatchVerification Verification/FairPatchVerification.cpp)
 target_link_libraries(FairPatchVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME FairPatchVerification COMMAND FairPatchVerification)

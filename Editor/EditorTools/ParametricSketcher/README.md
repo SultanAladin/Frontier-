@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 32 suites, all green; the per-suite chart is at ./build/<Suite>Verification
+ctest --test-dir build --output-on-failure      # 33 suites; see the current DimensionVerification baseline note below
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -41,6 +41,14 @@ osculating circular arcs: they follow the measured free-form offset route instea
 `Scripts/Phase23_AdversarialProfiles.arc` to reproduce
 [`Proofs/Phase23_AdversarialProfiles.png`](Proofs/Phase23_AdversarialProfiles.png), a four-tile visual proof for shared
 boundaries/tangencies, rejected loop sources, safe offsets, and free-form Boolean union/common results.
+
+## Boolean contact healing (Phase 24)
+
+`BooleanContactVerification` adds a C++-only 31-check regression for coincident and zero-volume contact between
+structurally verified axis-aligned box solids. Face-touching and rectangularly overlapping boxes rebuild as a single
+clean box; point-/edge-touching or gapped boxes preserve separate, manifold B-rep hulls instead of welding a
+non-manifold edge. Empty common and complete subtraction are explicit refusals. The C++ verification itself renders
+[`Proofs/Phase24_BooleanContacts.png`](Proofs/Phase24_BooleanContacts.png); no HTML proof or browser component is used.
 
 ## Layout
 
@@ -94,6 +102,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 20 | **Dim placement polish + black background.** (1) `Backdrop` changed from slate `(0.117, 0.129, 0.153)` to pure black `0, 0, 0` everywhere (the main render pass, the backstop fill in the contact-sheet composite, and the RasterVerification harness). (2) `ConsoleHost::CameraFacingSide(Vec3 N)` — new helper that returns `+N` or `−N` flipped to point at the camera, with a screen-right fallback when the camera looks along `N` (so axis-aligned views front / back / side / top still pick a sensible side). (3) Every dim in `AutoEmitDimensions` is now placed on the camera-facing side: Box's X / Y / Z dims pick the +Y / +X / +X side that faces the camera, Cylinder / Cone / Extrude / Pipe / Sphere / Torus / ChamferEdge all use the camera-facing perpendicular, Loft / Sweep / Boolean pick the camera-facing top face. (4) Once a curve is consumed by an extrude / revolve / pipe / sweep / loft / boolean / bridge, the source's auto dim set is hidden so only the result's dim shows (no more "C1 radius 1.000 AND E1 length 2.000" — just the latter). (5) `reset` now also hides any auto dim whose anchor figure no longer exists (the old "dim id stability" behaviour is preserved — only the visibility changes). (6) The pre-render offset (`FaceOffset = 0.04` in the dim emit + `OffM = 0.04` in the renderer) is now only applied in the renderer, so the dim is 4 cm off the body instead of 8 cm. | `SuiteVerification` — 63 checks (+2: `Phase20_DimPolish.scr` runs without refusal and produces 12 PNGs: circle with radius dim, extrude with length dim iso / front / back / top, box with three bbox dims iso / front, sphere with radius dim iso / right — all on the camera-facing side, no source-dim leakage); `Scripts/Phase20_DimPolish.scr`; `Proofs/Phase20_{CircleRadius,ExtrudeLengthIso,ExtrudeLengthFront,ExtrudeLengthBack,ExtrudeLengthTop,BoxIso,BoxFront,SphereIso,SphereRight}.png`; also re-rendered the existing `Proofs/Phase19_*.png` and all per-phase proofs in the new black background. The `RasterVerification` check "Cell interior stays near backdrop" was updated from `R≈95, B≈110` (slate) to `R<25, G<25, B<25` (black) — same pixel test, new expectation. The pre-existing 2 dim-colour failures in `DimensionVerification` (Phase 13/14 follow-up) are not touched by this phase. |
 
 | 23 | **Adversarial planar NURBS contacts, self-crossings, free-form offsets and Booleans.** `SelfIntersections` now also identifies non-rational cubic loops contained within one Bézier span. `offset` rejects pre-existing self crossings, sampled curvature cusps and folded candidate results; its rational-quadratic fast path verifies a span is circular before using an exact arc construction, preventing ellipse-to-osculating-circle corruption. | `ProfileAdversarialVerification` — 41 checks; `Scripts/Phase23_AdversarialProfiles.arc`; `Proofs/Phase23_AdversarialProfiles.png` (2560 × 1600 contact sheet) |
+| 24 | **B-rep Boolean contact healing for structurally verified axis-aligned boxes.** Shared faces and rectangular overlaps resolve constructively; edge/point contacts are retained as independent manifold hulls; empty-volume outcomes refuse explicitly. The general curved/non-transversal path remains bounded. | `BooleanContactVerification` — 31 C++ checks; `Proofs/Phase24_BooleanContacts.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -242,8 +251,10 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **32 suites** — 19 per-feature verification binaries (1,008 checks total) and 13 script smoke
-tests — and all 32 run green on every commit. The per-suite check counts:
+ctest now registers **33 suites** — 20 per-feature verification binaries (1,039 checks total) and 13 script smoke
+tests. The Phase 24 verification baseline is green except for two unrelated, pre-existing render-source assertions in
+`DimensionVerification` (white tint and 0.04 m world offset); they are recorded in the Phase 20 row and not changed by
+this Boolean kernel increment. The per-suite check counts:
 
 | Suite | Checks |
 |---|---|
@@ -256,6 +267,7 @@ tests — and all 32 run green on every commit. The per-suite check counts:
 | `ProfileAdversarialVerification`  | 41  |
 | `SkinVerification`                | 48  |
 | `IntersectionVerification`        | 47  |
+| `BooleanContactVerification`      | 31  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -266,7 +278,7 @@ tests — and all 32 run green on every commit. The per-suite check counts:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1008** |
+| **Total** | **1039** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

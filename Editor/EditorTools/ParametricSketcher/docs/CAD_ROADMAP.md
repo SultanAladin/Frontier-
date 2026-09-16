@@ -52,12 +52,31 @@ claim of general offset-loop trimming or an interval-overlap contact API.
 
 ## Subsequent increments — 2D fixes, then general 3D blends
 
-### Phase 24: repair the verified 2D failures
+### Completed Phase 24: B-rep Boolean contact healing for axis-aligned boxes
 
-Use the Phase 23 measurements to make targeted changes to `ProfileSolver` and curve offsetting. Preserve exact lines and
-conics where possible; approximate arbitrary NURBS offsets under an explicit, tested deviation bound; split/trim loops
-only after classifying the topology. This is deliberately separated from test creation so that each algorithmic change
-has a known failing example and a measurable result.
+The Phase 23 contact policy exposed the analogous 3D failure mode: a generic surface-intersection marcher has no unique
+section curve for face-on-face coincidence or a zero-volume point/edge contact. It must not invent one or sew touching
+solids into a non-manifold edge. This increment adds a narrow, structural constructive resolver before the general SSI
+path when **both** operands prove to be natural six-plane, eight-corner axis-aligned boxes:
+
+- face-touching and rectangularly overlapping boxes are rebuilt as one exact box;
+- identical and contained boxes select the mathematically surviving box for union/common;
+- a one-sided box slice is rebuilt exactly for subtraction;
+- point-touching, edge-touching, and separated boxes return independent B-rep hulls with no topology weld;
+- zero-volume common and complete subtraction are explicit `DegenerateInput` empty-result refusals;
+- cavities and L-shaped differences retain the existing trimmed-face SSI path rather than being approximated as boxes.
+
+`BooleanContactVerification` has 31 checks for these cases, including a real 0.0001 overlap that must not be mistaken
+for contact, and creates `Proofs/Phase24_BooleanContacts.png` directly from C++ console commands. No HTML or browser
+implementation is part of this capability.
+
+The scope mirrors robust-kernel practice: Open CASCADE exposes a separate fuzzy tolerance for close/coincident Boolean
+classification and explicit topology handling, rather than assuming every contact has a transversal section curve.
+[OCCT Boolean options](https://dev.opencascade.org/doc/refman/html/class_b_o_p_algo___options.html)
+
+**Exit gate met:** the covered contact cases are closed, manifold, consistently wound B-reps or explicit empty results;
+edge and point contacts preserve two valid hulls instead of a four-coedge non-manifold edge. General curved or
+non-transversal contact remains deliberately refused pending a separately validated contact classifier.
 
 ### Phase 25: blend foundation — topology and eligibility
 

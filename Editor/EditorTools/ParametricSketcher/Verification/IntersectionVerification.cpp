@@ -129,7 +129,8 @@ int main()
         Panel.Expect("disjoint intersection → 'result is empty'", !Run(Box, BrepBody::Sphere({ 9, 9, 9 }, 1).Payload, BodyOperation::Intersect).Ok);
         BrepBody Sheet = BrepBody::FromSurface(NurbsSurface::Plane({ 0, 0, 1 }, Vec3::UnitX(), Vec3::UnitY(), 4, 4).Payload);
         Panel.Expect("a sheet is refused (booleans need two closed solids)", !Run(Box, Sheet, BodyOperation::Subtract).Ok);
-        Panel.Expect("coincident faces (box against itself shifted along one face) are refused, not guessed", !Run(Box, BrepBody::Box({ 1, 0, 0 }, { 3, 2, 2 }).Payload, BodyOperation::Union).Ok);
+        Result FaceContact = Run(Box, BrepBody::Box({ 1, 0, 0 }, { 3, 2, 2 }).Payload, BodyOperation::Union);
+        Panel.Expect("axis-aligned boxes with a shared face heal into one solid", FaceContact.Ok && FaceContact.R.Solid() && FaceContact.R.Hulls == 1 && std::fabs(FaceContact.R.Volume - 12.0) < 1e-9);
     }
 
     Panel.Section("Console: boolean verb on bodies, hotkeys, undo");

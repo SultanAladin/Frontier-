@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <cstdio>
 
 namespace Frontier
@@ -17,6 +18,246 @@ const char* Describe(BodyOperation Operation) noexcept
 
 namespace
 {
+    //------------------------------------------------------------------------------------------------------------------------
+    //                                     EXACT AXIS-ALIGNED BOX CONTACTS
+    //------------------------------------------------------------------------------------------------------------------------
+    // The SSI marcher correctly treats a face-on-face / edge-on-edge coincidence as non-transversal: there is no
+    // unique section curve to trace.  Axis-aligned boxes are a common CAD primitive with an exact constructive answer,
+    // though, so resolve their contact topology before invoking the general marcher.  This is deliberately structural
+    // (six natural planar faces and eight box corners), never a loose bounding-box shortcut for an arbitrary body.
+    struct AxisAlignedBox { Vec3 Low, High; };
+
+    bool AxisAlignedBoxOf(const BrepBody& Body, AxisAlignedBox& Out) noexcept
+    {
+        if (Body.Vertices.size() != 8 || Body.Edges.size() != 12 || Body.Faces.size() != 6 || !Body.Validate().Solid()) return false;
+        Box3 Bounds = Body.Bounds();
+        Vec3 D = Bounds.High - Bounds.Low;
+        double Scale = std::max({ 1.0, D.X, D.Y, D.Z });
+        double Epsilon = 1e-8 * Scale;
+        if (D.X <= Epsilon || D.Y <= Epsilon || D.Z <= Epsilon) return false;
+        auto CornerOf = [&](Vec3 Point, int& Index) -> bool
+        {
+            Index = 0;
+            auto Bit = [&](double Value, double Low, double High, int Shift) -> bool
+            {
+                if (std::fabs(Value - Low) <= Epsilon) return true;
+                if (std::fabs(Value - High) <= Epsilon) { Index |= 1 << Shift; return true; }
+                return false;
+            };
+            return Bit(Point.X, Bounds.Low.X, Bounds.High.X, 0) && Bit(Point.Y, Bounds.Low.Y, Bounds.High.Y, 1) && Bit(Point.Z, Bounds.Low.Z, Bounds.High.Z, 2);
+        };
+        int CornerVertex[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };                  // bound-corner code → body's vertex index
+        for (size_t V = 0; V < Body.Vertices.size(); ++V)
+        {
+            int Index = 0;
+            if (!CornerOf(Body.Vertices[V].Point, Index)) return false;
+            if (CornerVertex[Index] >= 0) return false;
+            CornerVertex[Index] = static_cast<int>(V);
+        }
+        for (int Vertex : CornerVertex) if (Vertex < 0) return false;
+        // A box's six faces are untrimmed quadrilateral planes, one on each side of its bounds; merely having
+        // rectangular bounds is insufficient (a cavity, an L-shape, or a reshaped planar body can share them).
+        if (Body.Loops.size() != 6 || Body.Coedges.size() != 24) return false;
+        bool FaceSide[6] = {};
+        for (size_t F = 0; F < Body.Faces.size(); ++F)
+        {
+            const BrepFace& Face = Body.Faces[F];
+            if (!Face.Natural || Face.Surface.Classification != SurfaceClassification::Plane || Face.Loops.size() != 1) return false;
+            int LoopIndex = Face.Loops.front();
+            if (LoopIndex < 0 || LoopIndex >= static_cast<int>(Body.Loops.size())) return false;
+            const BrepLoop& Loop = Body.Loops[LoopIndex];
+            if (!Loop.Outer || Loop.Face != static_cast<int>(F) || Loop.Coedges.size() != 4) return false;
+            bool FaceVertices[8] = {};
+            for (int CoedgeIndex : Loop.Coedges)
+            {
+                if (CoedgeIndex < 0 || CoedgeIndex >= static_cast<int>(Body.Coedges.size())) return false;
+                const BrepCoedge& Coedge = Body.Coedges[CoedgeIndex];
+                if (Coedge.Face != static_cast<int>(F) || Coedge.Loop != LoopIndex || Coedge.Edge < 0 || Coedge.Edge >= static_cast<int>(Body.Edges.size())) return false;
+                const BrepEdge& Edge = Body.Edges[Coedge.Edge];
+                for (int Vertex : { Edge.VertexStart, Edge.VertexEnd })
+                {
+                    if (Vertex < 0 || Vertex >= static_cast<int>(Body.Vertices.size())) return false;
+                    int Corner = 0;
+                    if (!CornerOf(Body.Vertices[Vertex].Point, Corner)) return false;
+                    FaceVertices[Corner] = true;
+                }
+            }
+            int CornerCount = 0; for (bool Used : FaceVertices) CornerCount += Used ? 1 : 0;
+            if (CornerCount != 4) return false;
+            const auto OnSide = [&](int Axis, double Value)
+            {
+                for (int V = 0; V < 8; ++V) if (FaceVertices[V] && std::fabs(Body.Vertices[CornerVertex[V]].Point[Axis] - Value) > Epsilon) return false;
+                return true;
+            };
+            int Side = -1;
+            for (int Axis = 0; Axis < 3; ++Axis)
+            {
+                if (OnSide(Axis, Bounds.Low[Axis])) { if (Side >= 0) return false; Side = Axis * 2; }
+                if (OnSide(Axis, Bounds.High[Axis])) { if (Side >= 0) return false; Side = Axis * 2 + 1; }
+            }
+            if (Side < 0 || FaceSide[Side]) return false;
+            FaceSide[Side] = true;
+            Vec3 N = Body.FaceNormal(static_cast<int>(F), 0.5, 0.5);
+            if (std::max({ std::fabs(N.X), std::fabs(N.Y), std::fabs(N.Z) }) < 0.999999) return false;
+        }
+        for (bool Covered : FaceSide) if (!Covered) return false;
+        for (const BrepEdge& Edge : Body.Edges)
+        {
+            if (Edge.VertexStart < 0 || Edge.VertexEnd < 0 || Edge.VertexStart >= static_cast<int>(Body.Vertices.size()) || Edge.VertexEnd >= static_cast<int>(Body.Vertices.size()) || Edge.Coedges.size() != 2) return false;
+            Vec3 Delta = Body.Vertices[Edge.VertexEnd].Point - Body.Vertices[Edge.VertexStart].Point;
+            int VaryingAxes = (std::fabs(Delta.X) > Epsilon ? 1 : 0) + (std::fabs(Delta.Y) > Epsilon ? 1 : 0) + (std::fabs(Delta.Z) > Epsilon ? 1 : 0);
+            if (VaryingAxes != 1) return false;
+        }
+        Out = { Bounds.Low, Bounds.High };
+        return true;
+    }
+
+    bool Contains(const AxisAlignedBox& Outer, const AxisAlignedBox& Inner, double Epsilon) noexcept
+    {
+        return Inner.Low.X >= Outer.Low.X - Epsilon && Inner.High.X <= Outer.High.X + Epsilon &&
+               Inner.Low.Y >= Outer.Low.Y - Epsilon && Inner.High.Y <= Outer.High.Y + Epsilon &&
+               Inner.Low.Z >= Outer.Low.Z - Epsilon && Inner.High.Z <= Outer.High.Z + Epsilon;
+    }
+
+    Vec3 Maximum(Vec3 A, Vec3 B) noexcept { return { std::max(A.X, B.X), std::max(A.Y, B.Y), std::max(A.Z, B.Z) }; }
+    Vec3 Minimum(Vec3 A, Vec3 B) noexcept { return { std::min(A.X, B.X), std::min(A.Y, B.Y), std::min(A.Z, B.Z) }; }
+
+    bool PositiveVolume(const AxisAlignedBox& B, double Epsilon) noexcept
+    {
+        Vec3 D = B.High - B.Low;
+        return D.X > Epsilon && D.Y > Epsilon && D.Z > Epsilon;
+    }
+
+    // Preserve disconnected or point-/edge-touching components without welding their coincident topology. `Sew` is
+    // intentionally not used here: it would merge a common edge and turn two valid solids touching at that edge into
+    // a four-coedge non-manifold edge.
+    BrepBody IndependentUnion(const BrepBody& A, const BrepBody& B) noexcept
+    {
+        BrepBody Out;
+        auto Append = [&](const BrepBody& Source)
+        {
+            const int VertexBase = static_cast<int>(Out.Vertices.size());
+            const int EdgeBase = static_cast<int>(Out.Edges.size());
+            const int CoedgeBase = static_cast<int>(Out.Coedges.size());
+            const int LoopBase = static_cast<int>(Out.Loops.size());
+            const int FaceBase = static_cast<int>(Out.Faces.size());
+            Out.Vertices.insert(Out.Vertices.end(), Source.Vertices.begin(), Source.Vertices.end());
+            for (BrepEdge E : Source.Edges)
+            {
+                if (E.VertexStart >= 0) E.VertexStart += VertexBase;
+                if (E.VertexEnd >= 0) E.VertexEnd += VertexBase;
+                for (int& C : E.Coedges) C += CoedgeBase;
+                Out.Edges.push_back(std::move(E));
+            }
+            for (BrepCoedge C : Source.Coedges)
+            {
+                C.Edge += EdgeBase; C.Face += FaceBase; C.Loop += LoopBase;
+                Out.Coedges.push_back(std::move(C));
+            }
+            for (BrepLoop L : Source.Loops)
+            {
+                L.Face += FaceBase;
+                for (int& C : L.Coedges) C += CoedgeBase;
+                Out.Loops.push_back(std::move(L));
+            }
+            for (BrepFace F : Source.Faces)
+            {
+                for (int& L : F.Loops) L += LoopBase;
+                Out.Faces.push_back(std::move(F));
+            }
+        };
+        Append(A); Append(B);
+        return Out;
+    }
+
+    bool SameInterval(double A0, double A1, double B0, double B1, double Epsilon) noexcept
+    {
+        return std::fabs(A0 - B0) <= Epsilon && std::fabs(A1 - B1) <= Epsilon;
+    }
+
+    // Two axis boxes have a box-shaped union only if they differ along one axis (or one contains the other).
+    bool RectangularUnion(const AxisAlignedBox& A, const AxisAlignedBox& B, double Epsilon) noexcept
+    {
+        const bool SameX = SameInterval(A.Low.X, A.High.X, B.Low.X, B.High.X, Epsilon);
+        const bool SameY = SameInterval(A.Low.Y, A.High.Y, B.Low.Y, B.High.Y, Epsilon);
+        const bool SameZ = SameInterval(A.Low.Z, A.High.Z, B.Low.Z, B.High.Z, Epsilon);
+        if (!(SameX && SameY) && !(SameX && SameZ) && !(SameY && SameZ)) return false;
+        AxisAlignedBox Intersection{ Maximum(A.Low, B.Low), Minimum(A.High, B.High) };
+        return Intersection.High.X >= Intersection.Low.X - Epsilon &&
+               Intersection.High.Y >= Intersection.Low.Y - Epsilon &&
+               Intersection.High.Z >= Intersection.Low.Z - Epsilon;
+    }
+
+    // A − B is still one box when B cuts through one end of A while spanning its other two dimensions.
+    std::optional<AxisAlignedBox> BoxSliceDifference(const AxisAlignedBox& A, const AxisAlignedBox& B, double Epsilon) noexcept
+    {
+        const bool CoverY = B.Low.Y <= A.Low.Y + Epsilon && B.High.Y >= A.High.Y - Epsilon;
+        const bool CoverZ = B.Low.Z <= A.Low.Z + Epsilon && B.High.Z >= A.High.Z - Epsilon;
+        if (CoverY && CoverZ)
+        {
+            if (B.Low.X <= A.Low.X + Epsilon && B.High.X < A.High.X - Epsilon) return AxisAlignedBox{ { B.High.X, A.Low.Y, A.Low.Z }, A.High };
+            if (B.Low.X > A.Low.X + Epsilon && B.High.X >= A.High.X - Epsilon) return AxisAlignedBox{ A.Low, { B.Low.X, A.High.Y, A.High.Z } };
+        }
+        const bool CoverX = B.Low.X <= A.Low.X + Epsilon && B.High.X >= A.High.X - Epsilon;
+        if (CoverX && CoverZ)
+        {
+            if (B.Low.Y <= A.Low.Y + Epsilon && B.High.Y < A.High.Y - Epsilon) return AxisAlignedBox{ { A.Low.X, B.High.Y, A.Low.Z }, A.High };
+            if (B.Low.Y > A.Low.Y + Epsilon && B.High.Y >= A.High.Y - Epsilon) return AxisAlignedBox{ A.Low, { A.High.X, B.Low.Y, A.High.Z } };
+        }
+        if (CoverX && CoverY)
+        {
+            if (B.Low.Z <= A.Low.Z + Epsilon && B.High.Z < A.High.Z - Epsilon) return AxisAlignedBox{ { A.Low.X, A.Low.Y, B.High.Z }, A.High };
+            if (B.Low.Z > A.Low.Z + Epsilon && B.High.Z >= A.High.Z - Epsilon) return AxisAlignedBox{ A.Low, { A.High.X, A.High.Y, B.Low.Z } };
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Deliver<BrepBody>> AxisAlignedBoxBoolean(const BrepBody& A, const BrepBody& B, BodyOperation Operation, BooleanReport& Report) noexcept
+    {
+        AxisAlignedBox BoxA, BoxB;
+        if (!AxisAlignedBoxOf(A, BoxA) || !AxisAlignedBoxOf(B, BoxB)) return std::nullopt;
+        const double Scale = std::max({ 1.0, (BoxA.High - BoxA.Low).Length(), (BoxB.High - BoxB.Low).Length() });
+        const double Epsilon = 1e-8 * Scale;
+        const AxisAlignedBox Common{ Maximum(BoxA.Low, BoxB.Low), Minimum(BoxA.High, BoxB.High) };
+        const bool HasVolume = PositiveVolume(Common, Epsilon);
+        const bool AInB = Contains(BoxB, BoxA, Epsilon), BInA = Contains(BoxA, BoxB, Epsilon);
+        Report.PiecesA = static_cast<int>(A.Faces.size()); Report.PiecesB = static_cast<int>(B.Faces.size());
+
+        auto Box = [](const AxisAlignedBox& Bounds) { return BrepBody::Box(Bounds.Low, Bounds.High); };
+        if (Operation == BodyOperation::Intersect)
+        {
+            if (!HasVolume) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty (touching solids have no volume)");
+            Report.KeptA = AInB ? 0 : static_cast<int>(A.Faces.size());
+            Report.KeptB = BInA ? 0 : static_cast<int>(B.Faces.size());
+            return Box(Common);
+        }
+        if (Operation == BodyOperation::Subtract)
+        {
+            if (AInB) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty (tool contains the target)");
+            if (!HasVolume) { Report.KeptA = static_cast<int>(A.Faces.size()); return Deliver<BrepBody>::Accept(A); }
+            if (std::optional<AxisAlignedBox> Remainder = BoxSliceDifference(BoxA, BoxB, Epsilon))
+            {
+                Report.KeptA = static_cast<int>(A.Faces.size());
+                return Box(*Remainder);
+            }
+            return std::nullopt;                                                        // cavity / L-shape: retain the general trimmed-face route
+        }
+
+        if (AInB) { Report.KeptB = static_cast<int>(B.Faces.size()); return Deliver<BrepBody>::Accept(B); }
+        if (BInA) { Report.KeptA = static_cast<int>(A.Faces.size()); return Deliver<BrepBody>::Accept(A); }
+        if (RectangularUnion(BoxA, BoxB, Epsilon))
+        {
+            Report.KeptA = static_cast<int>(A.Faces.size()); Report.KeptB = static_cast<int>(B.Faces.size());
+            return Box({ Minimum(BoxA.Low, BoxB.Low), Maximum(BoxA.High, BoxB.High) });
+        }
+        if (!HasVolume)
+        {
+            Report.KeptA = static_cast<int>(A.Faces.size()); Report.KeptB = static_cast<int>(B.Faces.size());
+            return Deliver<BrepBody>::Accept(IndependentUnion(A, B));
+        }
+        return std::nullopt;                                                            // non-box-shaped overlap: retain the general SSI route
+    }
+
     //------------------------------------------------------------------------------------------------------------------------
     //                                                  FACE DOMAINS
     //------------------------------------------------------------------------------------------------------------------------
@@ -770,10 +1011,16 @@ bool IntersectionSolver::Encloses(const BrepBody& Body, Vec3 P) noexcept
 Deliver<BrepBody> IntersectionSolver::Combine(const BrepBody& A, const BrepBody& B, BodyOperation Operation, BooleanReport* Report) noexcept
 {
     if (A.Classification() != BodyClassification::Solid || B.Classification() != BodyClassification::Solid) return Deliver<BrepBody>::Reject(RefusalReason::OpenWire, "booleans need two closed solids");
+    BooleanReport Rep;
+    if (std::optional<Deliver<BrepBody>> Exact = AxisAlignedBoxBoolean(A, B, Operation, Rep))
+    {
+        if (Report) *Report = Rep;
+        return std::move(*Exact);
+    }
     Tracer Tr;
     if (!TraceAll(A, B, Tr)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Tr.Failure ? Tr.Failure : "intersection failed");
     const BrepBody* Bodies[2] = { &A, &B };
-    BooleanReport Rep; Rep.Curves = static_cast<int>(Tr.Pieces.size());
+    Rep.Curves = static_cast<int>(Tr.Pieces.size());
 
     // ---- split every face
     struct FacePieces { int Body, Face; std::vector<Cell> Cells; };

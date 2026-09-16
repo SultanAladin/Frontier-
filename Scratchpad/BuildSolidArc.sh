@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build SolidArc + all verification binaries using g++ directly. Used when
 # the sandbox doesn't have cmake/ninja. Mirrors Editor/EditorTools/ParametricSketcher/CMakeLists.txt
-# (13 verification executables + the main SolidArc console + the new Phase 17 one).
+# (all verification executables plus the main SolidArc console).
 set -euo pipefail
 cd "$(dirname "$0")/../Editor/EditorTools/ParametricSketcher"
 
