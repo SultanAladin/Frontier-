@@ -140,17 +140,23 @@ existing topology rather than manufacture duplicate section curves at coincident
 or an explicit empty subtraction; any physical radius/height change remains outside the gate. Cones, partial cylinders,
 and non-circular periodic NURBS remain on the regular contact/SSI path.
 
-### Phase 25: blend foundation — topology and eligibility
+### Completed Phase 25: exact circular right-cylinder cap chamfer
 
-Extend edge classification beyond the current planar/straight case:
+A complete circular cap rim of the native right-cylinder B-rep is a curved edge, so the planar prism-cutter path is
+incorrect for it. `BlendSolver::ChamferEdge` now has a deliberately structural route for that one topology: two planar
+caps, one classified cylinder side, two rational quadratic circular rims, one straight seam, and `V2/E3/C6/L3/F3` before
+the operation. It keeps the cylinder over `H−s`, attaches an exact rational conical frustum over `s`, and sews the two
+surfaces and their planar caps. This gives an exact radial-and-axial set-back and a valid `V3/E5/F4` result without a
+Boolean cut or faceting. The route works on either cap and arbitrary non-unit construction axes; set-backs that reach
+the axis or consume the height refuse.
 
-- classify convex, reflex, tangent, and degenerate material angles from oriented adjacent faces;
-- obtain stable edge-on-face parameter traces and tangent directions;
-- define a per-edge radius feasibility bound and structured refusal diagnostics;
-- preserve source-face provenance and a stable edge-selection key across a single feature rebuild.
+`CylinderChamferVerification` supplies 19 C++ checks: top/bottom, an oblique axis, validity/topology, an exact sampled
+cone generatrix, explicit circular-extrusion scope refusal, feasibility refusals, and the console command. It generates
+`Proofs/Phase25_CylinderChamfers.png` directly from C++ commands with no HTML/browser component.
 
-**Exit gate:** no geometry is changed yet; every selected edge receives a correct classification and either a supported
-blend plan or a precise refusal. The corrected 210° handle root remains a mandatory regression.
+**Exit gate met:** the supported circular cap has exact conic geometry rather than an approximate cutter result. This is
+not general curved-edge blending: circular-extrusion topology, partial cylinders, cones, and arbitrary NURBS edges still
+refuse until independently implemented and verified.
 
 ### Phase 26: constant-radius curved-support fillets
 

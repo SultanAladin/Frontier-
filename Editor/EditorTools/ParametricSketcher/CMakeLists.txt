@@ -155,6 +155,11 @@ add_executable(BlendVerification Verification/BlendVerification.cpp)
 target_link_libraries(BlendVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME BlendVerification COMMAND BlendVerification)
 
+# Phase 25: exact conical chamfers on the circular cap edge of a right cylinder.
+add_executable(CylinderChamferVerification Verification/CylinderChamferVerification.cpp)
+target_link_libraries(CylinderChamferVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME CylinderChamferVerification COMMAND CylinderChamferVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

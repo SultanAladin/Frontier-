@@ -6,9 +6,12 @@
 //    loops never closed again, so every chamfered body came back as a Sheet — χ=3, genus −1, volume 0. It is not a
 //    tolerance bug, it is the wrong formulation, so this file replaces it rather than patching it.
 //
-//    Here a blend is a set operation against an exactly-built tool solid, which is how a solid modeller states it:
+//    Here a blend is a set operation against an exactly-built tool solid, which is how a solid modeller states it.
+//    The one curved-edge exception is intentionally direct: a complete native right-cylinder cap is rebuilt from its
+//    retained cylinder and an exact conical frustum, avoiding a faceted cutter or coincident circular Boolean:
 //
-//      chamfer(E, s) = Body − Wedge(E, s)                 the corner prism beyond the set-back plane is cut away
+//      chamfer(E, s) = Body − Wedge(E, s)                 the planar corner prism beyond the set-back plane is cut away
+//      circular-cap   = Cylinder(R, H−s) ∪ Cone(R, R−s, s) exact right-cylinder cap bevel
 //      fillet (E, R) = Body − Wedge(E, t) , then the flat  t = R / tan(θ/2) is the tangent set-back for dihedral θ
 //                      face is re-seated on the tangent cylinder of radius R and its two cap edges rebuilt as arcs
 //      push  (F, d)  = Body ∪ Prism(F, d)  ·  Body − Prism(F, −d)
@@ -44,7 +47,8 @@ public:
     // Local frame of a straight manifold edge between two planar faces. Refuses anything else, with the reason.
     [[nodiscard]] static bool Frame(const BrepBody& Body, int Edge, EdgeCornerFrame& Out, std::string& Refusal) noexcept;
 
-    // Planar-setback chamfer of one edge. SetBack is measured in each adjacent face, away from the edge.
+    // Planar-setback chamfer of one straight planar edge, or an exact conical bevel of a complete native right-cylinder cap edge.
+    // SetBack is measured in each adjacent face, away from the edge (and is radial/axial for the circular-cap case).
     [[nodiscard]] static Deliver<BrepBody> ChamferEdge(const BrepBody& Body, int Edge, double SetBack) noexcept;
 
     // Rolling-ball fillet of one edge: tangent to both adjacent faces, so both new seams are G1.

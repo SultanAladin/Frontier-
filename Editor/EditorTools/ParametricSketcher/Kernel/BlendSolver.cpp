@@ -71,6 +71,117 @@ namespace
         return true;
     }
 
+    // A full circular cylinder cap has an exact chamfer construction: retain the cylindrical run and sew a conical
+    // frustum at the selected cap. It avoids asking a planar prism cutter to approximate a curved edge.
+    struct CylinderCap
+    {
+        Vec3   Base, Axis;
+        double Radius = 0.0, Height = 0.0;
+        bool   Upper = false;
+    };
+
+    std::optional<CylinderCap> NativeCylinderCap(const BrepBody& Body, int Edge) noexcept
+    {
+        if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size()) || !Body.Validate().Solid() ||
+            Body.Vertices.size() != 2 || Body.Edges.size() != 3 || Body.Coedges.size() != 6 || Body.Loops.size() != 3 || Body.Faces.size() != 3) return std::nullopt;
+        const BrepEdge& Boundary = Body.Edges[Edge];
+        if (!Boundary.Closed() || Boundary.Curve.Classification != CurveClassification::Circle || Boundary.Curve.Degree != 2 || !Boundary.Curve.Rational() || Boundary.Coedges.size() != 2) return std::nullopt;
+        int Rims = 0, Seams = 0;
+        for (const BrepEdge& Candidate : Body.Edges)
+        {
+            if (Candidate.Closed() && Candidate.Curve.Classification == CurveClassification::Circle && Candidate.Curve.Degree == 2 && Candidate.Curve.Rational() && Candidate.Coedges.size() == 2) ++Rims;
+            else if (!Candidate.Closed() && Candidate.Curve.Classification == CurveClassification::Line && Candidate.Curve.Degree == 1 && Candidate.Coedges.size() == 2) ++Seams;
+            else return std::nullopt;
+        }
+        if (Rims != 2 || Seams != 1) return std::nullopt;
+        int Side = -1, Caps[2] = { -1, -1 }, CapCount = 0;
+        for (size_t F = 0; F < Body.Faces.size(); ++F)
+        {
+            const BrepFace& Face = Body.Faces[F];
+            if (Face.Loops.size() != 1) return std::nullopt;
+            if (Face.Surface.Classification == SurfaceClassification::Cylinder)
+            {
+                if (Side >= 0) return std::nullopt;
+                Side = static_cast<int>(F);
+            }
+            else if (Face.Surface.Classification == SurfaceClassification::Plane)
+            {
+                if (CapCount == 2) return std::nullopt;
+                Caps[CapCount++] = static_cast<int>(F);
+            }
+            else return std::nullopt;
+        }
+        if (Side < 0 || CapCount != 2) return std::nullopt;
+        int SelectedCap = -1;
+        for (int Coedge : Boundary.Coedges)
+        {
+            if (Coedge < 0 || Coedge >= static_cast<int>(Body.Coedges.size())) return std::nullopt;
+            int Face = Body.Coedges[Coedge].Face;
+            if (Face == Side) continue;
+            if (Face == Caps[0] || Face == Caps[1]) { if (SelectedCap >= 0) return std::nullopt; SelectedCap = Face; }
+            else return std::nullopt;
+        }
+        if (SelectedCap < 0) return std::nullopt;
+        const NurbsSurface& Cylinder = Body.Faces[Side].Surface;
+        Vec3 Axis = Cylinder.Axis.Normalised();
+        if (Axis.Length() <= Tol || Cylinder.RadiusMajor <= Tol || std::fabs(Cylinder.RadiusMajor - Cylinder.RadiusMinor) > Tol) return std::nullopt;
+        const double RadiusTolerance = 1e-8 * std::max(1.0, Cylinder.RadiusMajor);
+        for (const BrepEdge& Rim : Body.Edges)
+            if (Rim.Closed())
+            {
+                Vec3 Point = Rim.Curve.Sample(0.5 * (Rim.Curve.DomainStart() + Rim.Curve.DomainEnd()));
+                double Along = (Point - Cylinder.Origin).Dot(Axis);
+                Vec3 Radial = Point - (Cylinder.Origin + Axis * Along);
+                if (std::fabs(Radial.Length() - Cylinder.RadiusMajor) > RadiusTolerance) return std::nullopt;
+                for (int I = 0; I < 5; ++I)
+                {
+                    Vec3 Sample = Rim.Curve.Sample(Rim.Curve.DomainStart() + (Rim.Curve.DomainEnd() - Rim.Curve.DomainStart()) * (static_cast<double>(I) / 4.0));
+                    if (std::fabs((Sample - Cylinder.Origin).Dot(Axis) - Along) > RadiusTolerance) return std::nullopt;
+                }
+            }
+        for (int Cap : Caps)
+        {
+            Vec3 Normal;
+            if (!PlanarNormal(Body, Cap, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+        }
+        const auto HeightAt = [&](int Face)
+        {
+            const NurbsSurface& Surface = Body.Faces[Face].Surface;
+            Vec3 Point = Surface.Sample(0.5 * (Surface.DomainStartU() + Surface.DomainEndU()), 0.5 * (Surface.DomainStartV() + Surface.DomainEndV()));
+            return (Point - Cylinder.Origin).Dot(Axis);
+        };
+        double T0 = HeightAt(Caps[0]), T1 = HeightAt(Caps[1]);
+        double Low = std::min(T0, T1), High = std::max(T0, T1), Height = High - Low;
+        const double Epsilon = 1e-8 * std::max({ 1.0, Cylinder.RadiusMajor, Height });
+        if (Height <= Epsilon) return std::nullopt;
+        double Chosen = HeightAt(SelectedCap);
+        bool Upper = std::fabs(Chosen - High) <= Epsilon;
+        if (!Upper && std::fabs(Chosen - Low) > Epsilon) return std::nullopt;
+        Vec3 SeamPoint = Boundary.Curve.Sample(0.5 * (Boundary.Curve.DomainStart() + Boundary.Curve.DomainEnd()));
+        Vec3 Radial = SeamPoint - (Cylinder.Origin + Axis * Chosen);
+        if (std::fabs(Radial.Dot(Axis)) > Epsilon || std::fabs(Radial.Length() - Cylinder.RadiusMajor) > Epsilon) return std::nullopt;
+        return CylinderCap{ Cylinder.Origin + Axis * Low, Axis, Cylinder.RadiusMajor, Height, Upper };
+    }
+
+    Deliver<BrepBody> ChamferCylinderCap(const CylinderCap& Cap, double SetBack) noexcept
+    {
+        if (SetBack <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is zero or negative");
+        if (SetBack >= Cap.Radius - Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back reaches the cylinder axis");
+        if (SetBack >= Cap.Height - Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back consumes the entire cylinder height");
+        std::vector<NurbsSurface> Faces;
+        Deliver<NurbsSurface> Cylinder = Cap.Upper
+            ? NurbsSurface::Cylinder(Cap.Base, Cap.Axis, Cap.Radius, Cap.Height - SetBack)
+            : NurbsSurface::Cylinder(Cap.Base + Cap.Axis * SetBack, Cap.Axis, Cap.Radius, Cap.Height - SetBack);
+        Deliver<NurbsSurface> Cone = Cap.Upper
+            ? NurbsSurface::Cone(Cap.Base + Cap.Axis * (Cap.Height - SetBack), Cap.Axis, Cap.Radius, Cap.Radius - SetBack, SetBack)
+            : NurbsSurface::Cone(Cap.Base, Cap.Axis, Cap.Radius - SetBack, Cap.Radius, SetBack);
+        if (!Cylinder || !Cone) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "cylindrical chamfer support is degenerate");
+        Faces.push_back(std::move(Cylinder.Payload)); Faces.push_back(std::move(Cone.Payload));
+        Deliver<BrepBody> Result = BrepBody::Sew(Faces);
+        if (!Result || !Result.Payload.Validate().Solid()) return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "cylindrical chamfer could not be sewn into a valid solid");
+        return Result;
+    }
+
     // Move a face by rebuilding its boundary as a ring of ruled faces instead of unioning a nearly coincident
     // extrusion.  A Boolean needs the footprint pulled in by a small epsilon to avoid coincident side faces; that
     // epsilon leaves a very thin, but real, rim around the old face.  On a full-face push the rim is not design
@@ -363,6 +474,7 @@ double BlendSolver::FilletRemoval(const EdgeCornerFrame& F, double Radius) noexc
 
 Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, double SetBack) noexcept
 {
+    if (std::optional<CylinderCap> Cap = NativeCylinderCap(Body, Edge)) return ChamferCylinderCap(*Cap, SetBack);
     EdgeCornerFrame F; std::string Why;
     if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
     if (SetBack <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is zero or negative");
