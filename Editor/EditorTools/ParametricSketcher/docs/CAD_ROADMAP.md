@@ -20,25 +20,35 @@ The architecture follows the important distinction between native procedural dat
 work on ISO 10303 explains why a parametric model needs construction history, parameters, constraints, and a secondary
 B-rep validation representation rather than only its final boundary shape. [NISTIR 7433](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=822720)
 
-## Next increment — Phase 23: 2D adversarial geometry regression suite
+## Completed increment — Phase 23: adversarial 2D profile geometry
 
-Before changing the 2D algorithms, build explicit, reproducible cases and measure results. The suite will cover:
+Implemented and verified in this change:
 
-1. overlapping and coincident line/arc/NURBS portions;
-2. tangent and near-tangent curve intersections at progressively smaller offsets;
-3. self-intersecting splines and nested loops;
-4. offset cusps, local curvature-radius violations, global offset loops, and nested offsets;
-5. Boolean union/subtract/intersect combinations containing those cases;
-6. invariant checks: valid NURBS, no zero-length segments, clean loop orientation/nesting, expected area, and no
-   unannounced topology changes.
+- `ProfileAdversarialVerification`, a 41-check kernel-facing regression suite, covers coincident portions, shared
+  boundaries, exact tangency plus a ±0.0001 near-tangent separation, both closed interpolated and single-span cubic
+  self-crossings, free-form spline/ellipse offsets, curvature-cusp refusal, and overlapping free-form Boolean results;
+- `Scripts/Phase23_AdversarialProfiles.arc` and its committed 2560 × 1600 contact sheet reproduce the visual cases;
+- `SelfIntersections` now detects a non-rational cubic Bézier loop that lies wholly inside one span, in addition to
+  cross-span intersections;
+- `Offset` rejects a self-intersecting source, detects sampled normal-offset curvature cusps before interpolation, and
+  rejects a self-intersecting candidate result instead of returning a folded curve;
+- the rational-quadratic exact-offset path now verifies that a span is circular. Ellipses therefore follow the
+  distance-controlled free-form path rather than being replaced by osculating circular arcs. The covered ellipse case
+  remains within 0.001 mm of its requested 0.2 mm normal distance.
 
-Research informs the approach rather than replacing validation: offset self-intersections are both local (curvature) and
-global (distant portions collide), so sampling alone is not an adequate acceptance criterion. The distance-map/trimming
-work by Seong, Elber, and Kim describes detecting and trimming both classes through parameter-space zero sets and
-numeric marching. [Computer-Aided Design article](https://www.sciencedirect.com/science/article/abs/pii/S0010448505001491)
+The contact semantics are intentional. A coincident curve portion is a continuum, so the point-only `CurveCrossing` API
+emits no fabricated isolated crossing for it; Boolean classification still handles coincident profiles and shared edges.
+An external circle tangency emits one tangent contact, but its intersection profile is empty (zero area) and its union
+keeps two simple touching components rather than constructing one self-touching loop.
 
-**Exit gate:** every constructed case is either exact within its declared tolerance or rejected with a specific reason;
-no case may return malformed profile topology.
+Research informs the acceptance boundary rather than replacing validation: offset self-intersections are both local
+(curvature) and global (distant portions collide), so sampling alone is not an adequate acceptance criterion. The
+distance-map/trimming work by Seong, Elber, and Kim describes detecting and trimming both classes through
+parameter-space zero sets and numeric marching. [Computer-Aided Design article](https://www.sciencedirect.com/science/article/abs/pii/S0010448505001491)
+
+**Exit gate met:** every covered construction either meets its declared tolerance or refuses with a specific reason; the
+suite also verifies that no accepted result loop self-intersects. This is a targeted planar-curve safety boundary, not a
+claim of general offset-loop trimming or an interval-overlap contact API.
 
 ## Subsequent increments — 2D fixes, then general 3D blends
 

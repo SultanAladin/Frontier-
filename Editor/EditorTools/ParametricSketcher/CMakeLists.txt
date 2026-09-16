@@ -90,6 +90,11 @@ add_test(NAME TopologyVerification COMMAND TopologyVerification)
 add_executable(ProfileVerification Verification/ProfileVerification.cpp)
 target_link_libraries(ProfileVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME ProfileVerification COMMAND ProfileVerification)
+
+# Phase 23: adversarial 2D contacts, self-crossing NURBS, and free-form Boolean/offset quality.
+add_executable(ProfileAdversarialVerification Verification/ProfileAdversarialVerification.cpp)
+target_link_libraries(ProfileAdversarialVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME ProfileAdversarialVerification COMMAND ProfileAdversarialVerification)
 add_test(NAME Phase3_Sketching COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3_Sketching.arc)
 add_test(NAME Phase4_Selection COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase4_Selection.arc)
 add_test(NAME Phase3b_GizmoShading COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase3b_GizmoShading.arc)
@@ -157,3 +162,4 @@ add_test(NAME Phase9_Booleans COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scrip
 add_test(NAME Phase9b_FairPatch COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase9b_FairPatch.arc)
 add_test(NAME Phase10_Suite COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase10_Suite.arc)
 add_test(NAME Phase10_ContactSheet COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase10_ContactSheet.arc)
+add_test(NAME Phase23_AdversarialProfiles COMMAND SolidArc ${CMAKE_CURRENT_SOURCE_DIR}/Scripts/Phase23_AdversarialProfiles.arc)

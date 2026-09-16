@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 23 suites, all green; the per-suite chart is at ./build/<Suite>Verification
+ctest --test-dir build --output-on-failure      # 32 suites, all green; the per-suite chart is at ./build/<Suite>Verification
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -27,6 +27,20 @@ triangles. Opening is transactional (the current scene is not touched if replay 
 intentionally refused by `open` unless they carry the v1 document header. See
 [`docs/NATIVE_DOCUMENTS.md`](docs/NATIVE_DOCUMENTS.md) for the on-disk contract and its verification coverage. The
 validated, incremental implementation plan is in [`docs/CAD_ROADMAP.md`](docs/CAD_ROADMAP.md).
+
+## Adversarial planar NURBS safety (Phase 23)
+
+`ProfileAdversarialVerification` adds 41 checks around profile contact semantics and free-form quality. Coincident curve
+portions intentionally produce no fabricated *point* crossing; external tangencies report one tangent point but have a
+zero-area intersection profile and remain two simple components in a union. The checks cover shared boundaries,
+near-tangent crossings, closed interpolated and single-span cubic loops, and overlapping closed cubic Boolean results.
+
+`offset` now refuses a self-crossing source, a sampled curvature cusp, or a self-crossing candidate result. Circular arcs
+retain their exact radial offset. Rational quadratic spans are tested for circularity first, so ellipses no longer become
+osculating circular arcs: they follow the measured free-form offset route instead. Run
+`Scripts/Phase23_AdversarialProfiles.arc` to reproduce
+[`Proofs/Phase23_AdversarialProfiles.png`](Proofs/Phase23_AdversarialProfiles.png), a four-tile visual proof for shared
+boundaries/tangencies, rejected loop sources, safe offsets, and free-form Boolean union/common results.
 
 ## Layout
 
@@ -78,6 +92,8 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 18 | **2D constraint graph (Newton + analytic Jacobian).** A persistent constraint graph lives in the host: `constraint distance <fA.p> <fB.p> = <v>`, `constraint angle <lineA> <lineB> = <deg>`, `constraint coincident <fA.p> <fB.p>`, `constraint horizontal / vertical / parallel / perpendicular / equal / equal-radius`, `constraint pin <f.p>`, `constraint list / clear / dof / solve / delete`. The unknowns are 2D points on the workplane; each constraint type has a hand-derived residual and Jacobian row (no auto-diff). The solver is Newton with normal equations (A^T A dx = -A^T r) and backtracking line search; rank-deficient systems are reported with a dof count instead of refusing. `dim edit` on a figure that is referenced by the graph re-projects the Blueprint, re-solves, and rebuilds — the closed-loop dim-driven re-solve hook. The graph is also wiped by `reset` (the dim tree is not, to preserve Phase 13 script id expectations). Point refs are `Figure.start / end / centre / point / vertexK / cornerK`; line refs are figure names; circle refs are figure names. | `ConstraintVerification` — 51 checks (each constraint type's analytic Jacobian is checked row-by-row; dof analysis on 2 free points + 1 distance + 1 coincident + 1 vertical/horizontal returns the right rank-deficiency; Newton converges a 2×3 rectangle (4 lines, 4 distances, 4 coincident, 1 fixed), a 3-4-5 triangle (3 lines, 3 distances, 1 vertical), and a two-circles distance-between-centres; under-determined Newton still moves toward the constraint via the minimum-norm step; host integration: `constraint distance L1.start L1.end = 2` adds the constraint, `constraint solve` reshapes a 5×5 square into a 2×3 rectangle, `constraint dof` reports, `constraint list` / `clear` / `delete` round-trip, `dim edit C1 radius 1.5` triggers the re-solve hook, the solved rectangle renders to a non-empty PNG); `SuiteVerification` — 59 checks (+2: `Phase18_Constraints.scr` runs without refusal and produces 4 PNGs); `Scripts/Phase18_Constraints.scr`; `Proofs/Phase18_{Rectangle,Triangle,TwoCircles,DimEditResolves}.png` |
 | 19 | **3D mirror, radial mirror, and Empty transform handles.** `mirror <fig...|selected> [--across=<spec>] [--also=<spec>]... [--copy\|--in-place] [--name=<stem>]` reflects a figure across a plane (the spec is `xy`, `xz`, `yz`, a named workplane saved with `plane --name=…`, a plane through the origin with normal `(nx,ny,nz)`, or a line `(ox,oy,oz),(dx,dy,dz)`). `--also=<spec>` adds a second (or third) perpendicular axis, and the verb produces 2ⁿ−1 copies in one command (1 plane = 1 copy, 2 planes = 3 copies, 3 planes = 7 copies). `radial <fig...|selected> --count=N --axis=(ox,oy,oz),(dx,dy,dz) [--angle=deg=360] [--name=<stem>]` produces N−1 evenly-spaced rotated copies around the 3D line. `empty --name=E --at=(x,y,z)` adds a no-geometry transform handle (Blender Empty) that can itself be mirrored, used as a radial-axis anchor, or simply be the named reference of a workplane. `list empty` enumerates them; `delete empty <name>\|all` removes one or all. The math lives in `Kernel/MirrorSolver.{h,cpp}` (hand-rolled Rodrigues, no Eigen / GLM). The verb wraps the math by reflecting the source figure's `Blueprint.A` / `Blueprint.B` and rebuilding from the reflected source (so curved, planar, and Brep bodies all mirror consistently). | `MirrorVerification` — 40 checks (each reflection formula is checked point-by-point: XY / XZ / YZ axis-aligned planes, axis reflection with on-axis invariance, Rodrigues 90° / 180° / 360°, multi-axis composition is a 180° rotation around the line of intersection, radial 4 copies at 90° around Z are distinct, custom diagonal plane; host integration: empty create / list / delete round-trip, mirror of a line across XY flips the Z and preserves length, in-place reflection mutates the source instead of copying, mirror across a custom named workplane produces the right reflected point, mirror across an axis line flips only the perpendicular component, multi-axis mirror produces 3 copies in 2 perpendicular planes, mirror of a body reflects A and B and rebuilds, radial of a sphere produces 4 sphere figures); `SuiteVerification` — 61 checks (+2: `Phase19_Mirror.scr` runs without refusal and produces 6 PNGs); `Scripts/Phase19_Mirror.scr`; `Proofs/Phase19_{MirrorLine,MirrorBox,MultiAxis,RadialSphere,InPlace,Empties}.png` |
 | 20 | **Dim placement polish + black background.** (1) `Backdrop` changed from slate `(0.117, 0.129, 0.153)` to pure black `0, 0, 0` everywhere (the main render pass, the backstop fill in the contact-sheet composite, and the RasterVerification harness). (2) `ConsoleHost::CameraFacingSide(Vec3 N)` — new helper that returns `+N` or `−N` flipped to point at the camera, with a screen-right fallback when the camera looks along `N` (so axis-aligned views front / back / side / top still pick a sensible side). (3) Every dim in `AutoEmitDimensions` is now placed on the camera-facing side: Box's X / Y / Z dims pick the +Y / +X / +X side that faces the camera, Cylinder / Cone / Extrude / Pipe / Sphere / Torus / ChamferEdge all use the camera-facing perpendicular, Loft / Sweep / Boolean pick the camera-facing top face. (4) Once a curve is consumed by an extrude / revolve / pipe / sweep / loft / boolean / bridge, the source's auto dim set is hidden so only the result's dim shows (no more "C1 radius 1.000 AND E1 length 2.000" — just the latter). (5) `reset` now also hides any auto dim whose anchor figure no longer exists (the old "dim id stability" behaviour is preserved — only the visibility changes). (6) The pre-render offset (`FaceOffset = 0.04` in the dim emit + `OffM = 0.04` in the renderer) is now only applied in the renderer, so the dim is 4 cm off the body instead of 8 cm. | `SuiteVerification` — 63 checks (+2: `Phase20_DimPolish.scr` runs without refusal and produces 12 PNGs: circle with radius dim, extrude with length dim iso / front / back / top, box with three bbox dims iso / front, sphere with radius dim iso / right — all on the camera-facing side, no source-dim leakage); `Scripts/Phase20_DimPolish.scr`; `Proofs/Phase20_{CircleRadius,ExtrudeLengthIso,ExtrudeLengthFront,ExtrudeLengthBack,ExtrudeLengthTop,BoxIso,BoxFront,SphereIso,SphereRight}.png`; also re-rendered the existing `Proofs/Phase19_*.png` and all per-phase proofs in the new black background. The `RasterVerification` check "Cell interior stays near backdrop" was updated from `R≈95, B≈110` (slate) to `R<25, G<25, B<25` (black) — same pixel test, new expectation. The pre-existing 2 dim-colour failures in `DimensionVerification` (Phase 13/14 follow-up) are not touched by this phase. |
+
+| 23 | **Adversarial planar NURBS contacts, self-crossings, free-form offsets and Booleans.** `SelfIntersections` now also identifies non-rational cubic loops contained within one Bézier span. `offset` rejects pre-existing self crossings, sampled curvature cusps and folded candidate results; its rational-quadratic fast path verifies a span is circular before using an exact arc construction, preventing ellipse-to-osculating-circle corruption. | `ProfileAdversarialVerification` — 41 checks; `Scripts/Phase23_AdversarialProfiles.arc`; `Proofs/Phase23_AdversarialProfiles.png` (2560 × 1600 contact sheet) |
 
 ## Console quick start
 
@@ -220,14 +236,14 @@ staging buffer per `Begin/End`, an instance-rate draw record (push constant) and
 existing `.slang` sources. The acceptance criterion is a `RendersEqual` check: same scene, same view, SoftwareRaster
 vs VulkanRaster, PNG hashes within 1 LSB / channel.
 
-**Regression net.** `SuiteVerification` (59 checks) re-runs every per-phase `.arc` script, asserts each terminates
+**Regression net.** `SuiteVerification` (65 checks) re-runs every per-phase `.arc` script, asserts each terminates
 without refusal, decodes the resulting PNG to confirm the `IHDR` is `1280 × 800` `RGBA8` and the file is non-empty,
 runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` directly to confirm the new `render
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **24 suites** — 16 per-phase or per-feature verification binaries (~890 checks total) and 12
-script smoke tests — and all 24 run green on every commit. The per-suite check counts:
+ctest now registers **32 suites** — 19 per-feature verification binaries (1,008 checks total) and 13 script smoke
+tests — and all 32 run green on every commit. The per-suite check counts:
 
 | Suite | Checks |
 |---|---|
@@ -237,17 +253,20 @@ script smoke tests — and all 24 run green on every commit. The per-suite check
 | `RasterVerification`              | 24  |
 | `TopologyVerification`            | 79  |
 | `ProfileVerification`             | 103 |
+| `ProfileAdversarialVerification`  | 41  |
 | `SkinVerification`                | 48  |
 | `IntersectionVerification`        | 47  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
+| `BlendVerification`               | 33  |
 | `ArrayAndBridgeVerification`      | 67  |
 | `DimensionVerification`           | 101 |
+| `DocumentVerification`            | 38  |
 | `SubEntityDimensionVerification`  | 34  |
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
-| `SuiteVerification`               | 61  |
-| **Total** | **892** |
+| `SuiteVerification`               | 65  |
+| **Total** | **1008** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

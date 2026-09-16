@@ -62,6 +62,36 @@ namespace
 
     struct Candidate { double S, T; };
 
+    // A non-rational cubic Bézier can cross itself entirely inside one Bézier span. The general pairwise subdivision
+    // below deliberately compares different spans, so this closed-form reduction covers the otherwise invisible case:
+    // B(s) - B(t) = (s - t) [a(s² + st + t²) + b(s + t) + c].  Solving for u = s + t and v = st gives the two
+    // parameter roots without tessellating the curve or mistaking a span seam for a crossing.
+    void CubicBezierSelfCandidates(const NurbsCurve& C, std::vector<Candidate>& Out) noexcept
+    {
+        if (C.Degree != 3 || C.Poles.size() != 4 || C.Rational()) return;
+        Vec3 P0 = C.Poles[0].Divide(), P1 = C.Poles[1].Divide(), P2 = C.Poles[2].Divide(), P3 = C.Poles[3].Divide();
+        Vec3 A = P1 * 3.0 - P2 * 3.0 + P3 - P0;
+        Vec3 B = P0 * 3.0 - P1 * 6.0 + P2 * 3.0;
+        Vec3 D = (P1 - P0) * 3.0;
+        Vec3 BA = B.Cross(A), DA = D.Cross(A);
+        double BA2 = BA.LengthSquared(), A2 = A.LengthSquared();
+        double Scale = std::max({ 1.0, P1.Distance(P0), P2.Distance(P0), P3.Distance(P0), P2.Distance(P1), P3.Distance(P1), P3.Distance(P2) });
+        double Epsilon = 1e-10 * Scale * Scale;
+        if (BA2 <= Epsilon * Epsilon || A2 <= Epsilon * Epsilon) return;               // quadratic / collinear degeneration
+        double U = -BA.Dot(DA) / BA2;
+        if ((BA * U + DA).Length() > Epsilon) return;                                   // no common scalar u in all coordinates
+        Vec3 Residual = B * U + D;
+        double Q = -A.Dot(Residual) / A2, V = U * U - Q;
+        if ((A * Q + Residual).Length() > Epsilon) return;
+        double Discriminant = U * U - 4.0 * V;
+        if (Discriminant <= 1e-12) return;                                              // tangent/repeated root, not two distinct visits
+        double Root = std::sqrt(Discriminant);
+        double S = 0.5 * (U - Root), T = 0.5 * (U + Root);
+        if (S <= 1e-9 || T >= 1.0 - 1e-9) return;
+        double T0 = C.DomainStart(), Span = C.DomainEnd() - T0;
+        Out.push_back({ T0 + Span * S, T0 + Span * T });
+    }
+
     // Recursive subdivision of two Bézier pieces; parameters are real curve parameters carried through the recursion.
     void Subdivide(const NurbsCurve& A, double A0, double A1, const NurbsCurve& B, double B0, double B1, int Depth,
                    double Tolerance, std::vector<Candidate>& Out) noexcept
@@ -185,23 +215,32 @@ std::vector<CurveCrossing> ProfileSolver::SelfIntersections(const NurbsCurve& A)
 {
     std::vector<CurveCrossing> Out;
     std::vector<NurbsCurve> P = A.BezierSegments();
-    // spans carry their own knots so parameters are global
+    // Spans carry their own knots so parameters are global. Test both cross-span pairs and the interior of each
+    // polynomial cubic span: a loop can lie wholly within one span and therefore has no second span to intersect.
     const bool Closed = A.Closed();
+    auto Record = [&](Candidate K)
+    {
+        Polish(A, A, K.S, K.T);
+        if (std::fabs(K.S - K.T) < 1e-6) return;                                        // shared knot between neighbours
+        if (Closed && std::fabs(std::fabs(K.S - K.T) - (A.DomainEnd() - A.DomainStart())) < 1e-6) return; // seam
+        Vec3 Pt = A.Sample(K.S); if (Pt.Distance(A.Sample(K.T)) > ScalarCriteria::MergeTolerance) return;
+        for (const CurveCrossing& X : Out) if (X.Point.Distance(Pt) < ScalarCriteria::MergeTolerance) return;
+        Out.push_back({ K.S, K.T, Pt, A.Tangent(K.S).Cross(A.Tangent(K.T)).Length() < 1e-4 });
+    };
+    for (const NurbsCurve& Span : P)
+    {
+        std::vector<Candidate> Raw;
+        CubicBezierSelfCandidates(Span, Raw);
+        for (const Candidate& K : Raw) Record(K);
+    }
     for (size_t I = 0; I < P.size(); ++I)
         for (size_t J = I + 1; J < P.size(); ++J)
         {
             std::vector<Candidate> Raw;
             Subdivide(P[I], P[I].DomainStart(), P[I].DomainEnd(), P[J], P[J].DomainStart(), P[J].DomainEnd(), 0, 1e-7, Raw);
-            for (Candidate& K : Raw)
-            {
-                Polish(A, A, K.S, K.T);
-                if (std::fabs(K.S - K.T) < 1e-6) continue;                                         // shared knot between neighbours
-                if (Closed && std::fabs(std::fabs(K.S - K.T) - (A.DomainEnd() - A.DomainStart())) < 1e-6) continue;   // seam
-                Vec3 Pt = A.Sample(K.S); if (Pt.Distance(A.Sample(K.T)) > ScalarCriteria::MergeTolerance) continue;
-                bool Dup = false; for (const CurveCrossing& X : Out) if (X.Point.Distance(Pt) < ScalarCriteria::MergeTolerance) Dup = true;
-                if (!Dup) Out.push_back({ K.S, K.T, Pt, false });
-            }
+            for (const Candidate& K : Raw) Record(K);
         }
+    std::sort(Out.begin(), Out.end(), [](const CurveCrossing& L, const CurveCrossing& R) { return L.ParameterA < R.ParameterA; });
     return Out;
 }
 
@@ -642,8 +681,9 @@ Deliver<NurbsCurve> ProfileSolver::Chamfered(const NurbsCurve& C, double Setback
 Deliver<NurbsCurve> ProfileSolver::Offset(const NurbsCurve& C, double Distance, Vec3 Normal) noexcept
 {
     if (std::fabs(Distance) <= ScalarCriteria::KernelTolerance) return Deliver<NurbsCurve>::Accept(C);
+    if (!SelfIntersections(C).empty()) return Deliver<NurbsCurve>::Reject(RefusalReason::SelfIntersecting, "cannot offset a self-intersecting curve");
     Vec3 N = Normal.Normalised();
-    // Piecewise: lines and arcs offset exactly (arc radius ± d), free-form pieces by pole-wise normal offset of a fine
+    // Piecewise: lines and circular arcs offset exactly; free-form pieces are sampled along their planar left normal and
     //    interpolation. Pieces are re-joined by arcs at convex corners and trimmed at concave ones.
     // Work span by span (Bézier pieces): every line and every rational-quadratic arc offsets exactly; anything else is
     //    sampled, shifted along the left normal and re-interpolated. Tangent joints stay coincident, corners get a bridge.
@@ -668,12 +708,37 @@ Deliver<NurbsCurve> ProfileSolver::Offset(const NurbsCurve& C, double Distance, 
                 double R = 1.0 / K; Vec3 LeftN = N.Cross(D[1]).Normalised();
                 bool TurnsLeft = D[2].Dot(LeftN) > 0;
                 Vec3 Centre = D[0] + (TurnsLeft ? LeftN : LeftN * -1.0) * R;
-                double Rn = TurnsLeft ? R - Distance : R + Distance;
-                if (Rn <= ScalarCriteria::KernelTolerance) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "offset collapses an arc");
-                Vec3 A = Centre + (P.StartPoint() - Centre).Normalised() * Rn, B = Centre + (P.EndPoint() - Centre).Normalised() * Rn;
-                Vec3 Mid = Centre + (P.Sample(Tm) - Centre).Normalised() * Rn;
-                Deliver<NurbsCurve> Arc = NurbsCurve::ArcThreePoints(A, Mid, B); if (Arc) { Shifted.push_back(Arc.Payload); continue; }
+                // A rational quadratic is not automatically a circular arc: ellipses are rational quadratics too.
+                // Only take the exact arc branch when five samples lie on the osculating circle; otherwise it follows
+                // the free-form path below rather than replacing an ellipse by four unrelated osculating circles.
+                bool Circular = true;
+                const double RadiusTolerance = 1e-9 * std::max(1.0, R);
+                for (double F : { 0.0, 0.25, 0.5, 0.75, 1.0 })
+                    if (std::fabs(P.Sample(P.DomainStart() + (P.DomainEnd() - P.DomainStart()) * F).Distance(Centre) - R) > RadiusTolerance) Circular = false;
+                if (Circular)
+                {
+                    double Rn = TurnsLeft ? R - Distance : R + Distance;
+                    if (Rn <= ScalarCriteria::KernelTolerance) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "offset collapses an arc");
+                    Vec3 A = Centre + (P.StartPoint() - Centre).Normalised() * Rn, B = Centre + (P.EndPoint() - Centre).Normalised() * Rn;
+                    Vec3 Mid = Centre + (P.Sample(Tm) - Centre).Normalised() * Rn;
+                    Deliver<NurbsCurve> Arc = NurbsCurve::ArcThreePoints(A, Mid, B); if (Arc) { Shifted.push_back(Arc.Payload); continue; }
+                }
             }
+        }
+        // The normal-offset map has derivative (1 − d·κ) C′. Reject a sampled curvature cusp before interpolation;
+        // this prevents a folded result from masquerading as a valid free-form offset. A later global check catches
+        // non-local overlaps between otherwise regular portions of the result.
+        for (int I = 0; I <= 128; ++I)
+        {
+            double T = P.DomainStart() + (P.DomainEnd() - P.DomainStart()) * I / 128.0;
+            Vec3 D[3]; P.Derivatives(T, 2, D);
+            double Speed2 = D[1].LengthSquared();
+            if (Speed2 <= ScalarCriteria::KernelTolerance * ScalarCriteria::KernelTolerance)
+                return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "offset reaches a singular tangent");
+            Vec3 LeftN = N.Cross(D[1]).Normalised();
+            double SignedCurvature = D[2].Dot(LeftN) / Speed2;
+            if (Distance * SignedCurvature >= 1.0 - 1e-5)
+                return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "offset reaches a curvature cusp");
         }
         std::vector<Vec3> Pts, Src; std::vector<double> Prm; P.Tessellate(Src, &Prm, 1e-5);
         for (size_t I = 0; I < Src.size(); ++I) { Vec3 T = P.Tangent(Prm[I]); Pts.push_back(Src[I] + N.Cross(T).Normalised() * Distance); }
@@ -682,7 +747,13 @@ Deliver<NurbsCurve> ProfileSolver::Offset(const NurbsCurve& C, double Distance, 
         Deliver<NurbsCurve> S = NurbsCurve::Interpolate(Thin, 3, false); if (S) Shifted.push_back(S.Payload);
     }
     if (Shifted.empty()) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "nothing to offset");
-    if (Shifted.size() == 1 && !C.Closed()) { NurbsCurve R = Shifted.front(); return Deliver<NurbsCurve>::Accept(std::move(R)); }
+    auto Finish = [](NurbsCurve R) noexcept
+    {
+        if (!ProfileSolver::SelfIntersections(R).empty())
+            return Deliver<NurbsCurve>::Reject(RefusalReason::SelfIntersecting, "offset self-intersects; reduce the distance");
+        return Deliver<NurbsCurve>::Accept(std::move(R));
+    };
+    if (Shifted.size() == 1 && !C.Closed()) return Finish(std::move(Shifted.front()));
     // connect consecutive pieces: intersect if they cross (concave), else bridge with an arc about the original corner (convex)
     const bool Closed = C.Closed();
     size_t Count = Shifted.size();
@@ -710,7 +781,7 @@ Deliver<NurbsCurve> ProfileSolver::Offset(const NurbsCurve& C, double Distance, 
     }
     for (size_t I = 0; I < Count; ++I) { Out.push_back(Shifted[I]); if (Bridges[I].Poles.size() >= 2) Out.push_back(Bridges[I]); }
     NurbsCurve R = ChainPieces(std::move(Out));
-    return Deliver<NurbsCurve>::Accept(std::move(R));
+    return Finish(std::move(R));
 }
 
 Deliver<std::vector<NurbsCurve>> ProfileSolver::Trimmed(const NurbsCurve& C, const std::vector<NurbsCurve>& Cutters, Vec3 Near) noexcept
