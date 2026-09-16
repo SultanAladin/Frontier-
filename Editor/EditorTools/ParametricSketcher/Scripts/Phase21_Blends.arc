@@ -56,3 +56,19 @@ undo
 fillet Spanner 4 --edges=19 --name=VertFillet
 matcap VertFillet steel
 render Edge_Vert_Fillet --size=1100x850
+echo -- 4. reflex root: the handle joins the hex head at e1, a 210-degree material angle --
+reset
+polygon (0,0) 20 6 --name=Hex
+extrude Hex 10 --name=Body
+push Body 26 --face=1 --name=Spanner
+echo    e1 = vertical re-entrant edge where the handle meets the six-sided head
+chamfer Spanner 4 --edges=1 --name=RootConcaveChamfer
+matcap RootConcaveChamfer steel
+view iso
+view orbit 150 26
+view fit
+render Root_Concave_Chamfer --size=1100x850
+undo
+fillet Spanner 4 --edges=1 --name=RootConcaveFillet
+matcap RootConcaveFillet steel
+render Root_Concave_Fillet --size=1100x850

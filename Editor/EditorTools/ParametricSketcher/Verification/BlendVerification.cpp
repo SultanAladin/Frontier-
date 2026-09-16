@@ -154,7 +154,37 @@ int main()
         }
     }
 
-    // ---- 4. Refusals are reasoned, not silent -------------------------------------------------------------------
+    // ---- 4. Reflex handle root: this is the re-entrant (210° material) edge where the pushed handle meets the head
+    //    It must return a closed body for both modes; this is the edge rendered by Phase21_Blends.arc section 4.
+    {
+        Workplane Plane;
+        Deliver<NurbsCurve> Profile = NurbsCurve::Polygon(Plane, { 0, 0 }, 20, 6, 0.0, true);
+        Deliver<BrepBody> Prism = BrepBody::Extrude(Profile.Payload, { 0, 0, 1 }, 10.0);
+        Deliver<BrepBody> Spanner = BlendSolver::PushFace(Prism.Payload, 1, 26.0);
+        int Root = -1;
+        for (size_t E = 0; E < Spanner.Payload.Edges.size(); ++E)
+        {
+            const BrepEdge& Edge = Spanner.Payload.Edges[E];
+            if (Edge.Coedges.size() != 2 || Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
+            Vec3 A = Spanner.Payload.Vertices[Edge.VertexStart].Point, B = Spanner.Payload.Vertices[Edge.VertexEnd].Point;
+            if (std::fabs(A.X - 10.0) < 1e-9 && std::fabs(B.X - 10.0) < 1e-9 &&
+                std::fabs(A.Y - 17.3205080757) < 1e-8 && std::fabs(B.Y - 17.3205080757) < 1e-8 &&
+                std::fabs(std::fabs(A.Z - B.Z) - 10.0) < 1e-8) { Root = (int)E; break; }
+        }
+        Check("pushed spanner has its re-entrant handle-root edge", Root >= 0);
+        if (Root >= 0)
+        {
+            EdgeCornerFrame F; std::string Why;
+            Check("handle-root edge yields a blend frame", BlendSolver::Frame(Spanner.Payload, Root, F, Why), Why.c_str());
+            double Base = Spanner.Payload.Validate().Volume;
+            CheckSolid("re-entrant root chamfer s=4", BlendSolver::ChamferEdge(Spanner.Payload, Root, 4.0),
+                       Base - BlendSolver::ChamferRemoval(F, 4.0), Base * 5e-4);
+            Deliver<BrepBody> Roll = BlendSolver::FilletEdge(Spanner.Payload, Root, 4.0);
+            Check("re-entrant root fillet is a closed solid", Roll && Roll.Payload.Validate().Solid(), Roll ? "" : Roll.Denial.Detail);
+        }
+    }
+
+    // ---- 5. Refusals are reasoned, not silent -------------------------------------------------------------------
     {
         Deliver<BrepBody> Box = BrepBody::Box({ 0, 0, 0 }, { 20, 20, 20 });
         Check("chamfer refuses a zero set-back",  !BlendSolver::ChamferEdge(Box.Payload, 0, 0.0));
@@ -164,7 +194,7 @@ int main()
         Check("push refuses an out-of-range face", !BlendSolver::PushFace(Box.Payload, 99, 1.0));
     }
 
-    // ---- 5. Every edge of the pushed spanner: a blend must either work or refuse, never return a broken body ----
+    // ---- 6. Every edge of the pushed spanner: a blend must either work or refuse, never return a broken body ----
     //    This is the sweep that caught the real defect: a single fixed cutter size refused 14 of 30 edges and
     //    over-cut others by 1107 mm3 (the cut plane running past the edge's ends into the next face).
     {
