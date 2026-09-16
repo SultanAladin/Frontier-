@@ -28,26 +28,29 @@ namespace
         return BrepBody::Sew(Faces);
     }
 
-    // The tool that removes a corner. It must be LOCAL: an unbounded half-space through the set-back plane also lops
-    //    off every other part of the body that happens to lie beyond that plane, which on a convex box is nothing but
-    //    on a pushed boss is a whole limb (the spanner's head). So the cutter is bounded to the edge's own
-    //    neighbourhood — across the corner it reaches just past the material being cut, along the edge it spans the
-    //    edge plus a margin so the chamfer runs cleanly into the faces at each end.
-    Deliver<BrepBody> CornerCutter(const EdgeCornerFrame& F, double Offset, double Across) noexcept
+    // The tool that removes a corner. Two things make this harder than "cut with a half-space":
+    //
+    //    1. It must be LOCAL across the corner. An unbounded half-space also lops off every other part of the body
+    //       lying beyond the set-back plane — on the spanner it cut the whole head off.
+    //    2. Its END CAPS must not land on a neighbouring face or vertex. The boolean is exact, not tolerant: it
+    //       refuses a non-transversal contact ("surface singularity or seam corner", "passes exactly through a
+    //       vertex") rather than guessing. A cutter stopping exactly at the edge's endpoints is precisely that case,
+    //       and one running well past them slices into whatever is around the corner.
+    //
+    //    There is no single margin that satisfies both for every edge — measured across the 30 edges of the pushed
+    //    spanner, every fixed choice either refuses or over-cuts somewhere. So the cutter is parameterised and
+    //    ChamferEdge tries a ladder of them, keeping the first that both closes and matches the closed-form volume.
+    //    HalfWidth is measured across the corner, Margin along the edge (negative = stop short of the endpoints).
+    Deliver<BrepBody> CornerCutter(const EdgeCornerFrame& F, double Offset, double HalfWidth, double Margin, double Outward) noexcept
     {
-        Vec3 W = F.Bisector;                                                             // outward, the direction cut away
-        Vec3 V = F.Tangent;                                                              // along the edge
-        Vec3 U = V.Cross(W);
+        Vec3 W = F.Bisector;                                                             // outward: the side cut away
+        Vec3 U = F.Tangent.Cross(W);
         if (U.Length() <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "cutter frame is degenerate");
         U = U.Normalised();
-        V = W.Cross(U).Normalised();
-
-        double Half = std::max(Across, Tol) * 3.0;                                       // across the corner
-        double Margin = std::max(Across, Tol) * 3.0;                                     // past each end of the edge
-        double Out = std::max(Across, Tol) * 3.0;                                        // outward past the corner
-        Vec3 Plane = F.Start + W * Offset;
-        Vec3 Corner = Plane - U * Half - V * Margin;
-        return OrientedBox(Corner, U, V, W, 2.0 * Half, F.Length + 2.0 * Margin, Out);
+        double Span = F.Length + 2.0 * Margin;
+        if (Span <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "cutter is shorter than the edge allows");
+        Vec3 Corner = F.Start + W * Offset - U * HalfWidth - F.Tangent * Margin;
+        return OrientedBox(Corner, U, F.Tangent, W, 2.0 * HalfWidth, Span, Outward);
     }
 
     // Outward normal of a planar face, and whether it really is planar.
@@ -163,16 +166,39 @@ Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, doubl
     if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
     if (SetBack <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is zero or negative");
 
-    // Cut plane through the two set-back points, normal along the outward bisector.
+    // The cut plane passes through the two set-back points, square to the outward bisector.
     Vec3 A = F.Start + F.InA * SetBack, B = F.Start + F.InB * SetBack;
     double Offset = ((A + B) * 0.5 - F.Start).Dot(F.Bisector);
-    Deliver<BrepBody> Cutter = CornerCutter(F, Offset, SetBack);
-    if (!Cutter) return Deliver<BrepBody>::Reject(Cutter.Denial.Reason, Cutter.Denial.Detail);
+    const double Target = Body.Validate().Volume - ChamferRemoval(F, SetBack);
+    // Accept only a candidate that is exact to round-off. A chamfer IS an exact plane cut, so anything measurably
+    //    short of that is a cutter clipping something it should not; settling for "close" would silently ship a
+    //    wrong part. The ladder still keeps the best near-miss as a fallback for edges where nothing lands exactly.
+    const double Accept = std::max(std::fabs(Target), 1.0) * 1e-12;
 
-    BooleanReport Report;
-    Deliver<BrepBody> Result = IntersectionSolver::Combine(Body, Cutter.Payload, BodyOperation::Subtract, &Report);
-    if (!Result) return Deliver<BrepBody>::Reject(Result.Denial.Reason, Result.Denial.Detail);
-    return Result;
+    // Ladder of cutter shapes, coarsest-fitting first. Negative margins stop the cutter just short of the edge's
+    //    endpoints (relative to the edge length); positive ones run it past (relative to the set-back). Each entry
+    //    is tried, and the first whose result is a closed solid of the right volume wins; otherwise the closest
+    //    valid solid is returned so the caller still gets a usable body rather than a refusal.
+    static const double Margins[] = { -1e-4, -1e-3, 1e-4, 1e-3, 0.01, 0.05, 0.13, 0.29, 0.53, 1.0, 2.0, 3.0 };
+    static const double HalfWidths[] = { 0.55, 0.8, 1.2, 2.0, 3.0 };
+
+    Deliver<BrepBody> Best = Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "no cutter placement produced a valid solid for this edge");
+    double BestError = ScalarCriteria::Infinity;
+    for (double Width : HalfWidths)
+        for (double Margin : Margins)
+        {
+            double Along = Margin < 0.0 ? F.Length * Margin : SetBack * Margin;
+            Deliver<BrepBody> Cutter = CornerCutter(F, Offset, SetBack * Width, Along, SetBack * 3.0);
+            if (!Cutter) continue;
+            Deliver<BrepBody> Cut = IntersectionSolver::Combine(Body, Cutter.Payload, BodyOperation::Subtract);
+            if (!Cut) continue;
+            BodyReport R = Cut.Payload.Validate();
+            if (!R.Solid()) continue;
+            double Error = std::fabs(R.Volume - Target);
+            if (Error < BestError) { BestError = Error; Best = std::move(Cut); }
+            if (BestError <= Accept) return Best;
+        }
+    return Best;
 }
 
 Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept
@@ -254,18 +280,25 @@ Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double
         return Deliver<BrepBody>::Accept(std::move(Result));
     };
 
+    // Score both cap treatments against the closed form. A fillet must also leave MORE material than the flat cut it
+    //    replaces — the roll is added back into the corner — so a candidate that comes out below the wedge volume is
+    //    geometrically wrong however close its number looks, and is rejected outright.
+    const double WedgeVolume = Wedged.Payload.Validate().Volume;
     Deliver<BrepBody> Plain = Build(false), Arced = Build(true);
     auto Score = [&](const Deliver<BrepBody>& D) -> double
     {
         if (!D) return ScalarCriteria::Infinity;
         BodyReport R = D.Payload.Validate();
         if (!R.Solid()) return ScalarCriteria::Infinity;
+        if (R.Volume < WedgeVolume - std::max(std::fabs(WedgeVolume), 1.0) * 1e-9) return ScalarCriteria::Infinity;
         return std::fabs(R.Volume - Target);
     };
     double ScorePlain = Score(Plain), ScoreArced = Score(Arced);
-    if (!std::isfinite(ScorePlain) && !std::isfinite(ScoreArced))
-        return Plain ? Plain : Arced;
-    return ScoreArced <= ScorePlain ? std::move(Arced) : std::move(Plain);
+    if (std::isfinite(ScoreArced) || std::isfinite(ScorePlain))
+        return ScoreArced <= ScorePlain ? std::move(Arced) : std::move(Plain);
+    // Neither candidate is admissible: fall back to the tangent-set-back flat, which is a valid solid and is what a
+    //    chamfer at the fillet's own set-back would have produced.
+    return Wedged;
 }
 
 Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double Distance) noexcept

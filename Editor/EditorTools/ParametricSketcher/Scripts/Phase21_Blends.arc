@@ -31,3 +31,28 @@ fillet PentBody 4 --edges=2 --name=PentFillet
 matcap PentFillet steel
 render Pentagon_Fillet --size=1100x850
 topology PentFillet
+echo -- 3. the two edges picked out in the UI screenshots, each blended on its own --
+reset
+polygon (0,0) 20 6 --name=Hex
+extrude Hex 10 --name=Body
+push Body 26 --face=1 --name=Spanner
+echo    e2  = a TOP edge (side wall meets the top cap)
+chamfer Spanner 4 --edges=2 --name=TopChamfer
+matcap TopChamfer steel
+view iso
+view orbit 150 26
+view fit
+render Edge_Top_Chamfer --size=1100x850
+undo
+fillet Spanner 4 --edges=2 --name=TopFillet
+matcap TopFillet steel
+render Edge_Top_Fillet --size=1100x850
+undo
+echo    e26 = a VERTICAL edge at the arm's tip
+chamfer Spanner 4 --edges=26 --name=VertChamfer
+matcap VertChamfer steel
+render Edge_Vert_Chamfer --size=1100x850
+undo
+fillet Spanner 4 --edges=26 --name=VertFillet
+matcap VertFillet steel
+render Edge_Vert_Fillet --size=1100x850

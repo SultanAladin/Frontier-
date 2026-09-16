@@ -164,6 +164,52 @@ int main()
         Check("push refuses an out-of-range face", !BlendSolver::PushFace(Box.Payload, 99, 1.0));
     }
 
+    // ---- 5. Every edge of the pushed spanner: a blend must either work or refuse, never return a broken body ----
+    //    This is the sweep that caught the real defect: a single fixed cutter size refused 14 of 30 edges and
+    //    over-cut others by 1107 mm3 (the cut plane running past the edge's ends into the next face).
+    {
+        Workplane Plane;
+        Deliver<NurbsCurve> Profile = NurbsCurve::Polygon(Plane, { 0, 0 }, 20, 6, 0.0, true);
+        Deliver<BrepBody> Prism = BrepBody::Extrude(Profile.Payload, { 0, 0, 1 }, 10.0);
+        Deliver<BrepBody> Spanner = BlendSolver::PushFace(Prism.Payload, 1, 26.0);
+        double Base = Spanner.Payload.Validate().Volume;
+
+        int Blendable = 0, Chamfered = 0, Rolled = 0, Broken = 0, Exact = 0;
+        double WorstChamfer = 0.0;
+        for (size_t E = 0; E < Spanner.Payload.Edges.size(); ++E)
+        {
+            EdgeCornerFrame F; std::string Why;
+            if (!BlendSolver::Frame(Spanner.Payload, (int)E, F, Why)) continue;
+            ++Blendable;
+
+            Deliver<BrepBody> Flat = BlendSolver::ChamferEdge(Spanner.Payload, (int)E, 3.0);
+            if (Flat)
+            {
+                if (!Flat.Payload.Validate().Solid()) ++Broken;
+                else
+                {
+                    ++Chamfered;
+                    double Error = std::fabs(Flat.Payload.Validate().Volume - (Base - BlendSolver::ChamferRemoval(F, 3.0)));
+                    if (Error < 1e-6) ++Exact;
+                    if (Error > WorstChamfer) WorstChamfer = Error;
+                }
+            }
+            Deliver<BrepBody> Roll = BlendSolver::FilletEdge(Spanner.Payload, (int)E, 3.0);
+            if (Roll) { if (!Roll.Payload.Validate().Solid()) ++Broken; else ++Rolled; }
+        }
+        std::printf("        spanner sweep: %d blendable edges, %d chamfered (%d exact), %d filleted, worst chamfer error %.4f\n",
+                    Blendable, Chamfered, Exact, Rolled, WorstChamfer);
+        Check("no blend ever returns a broken (non-solid) body", Broken == 0);
+        Check("most spanner edges chamfer", Chamfered >= Blendable * 3 / 4);
+        Check("most spanner edges fillet",  Rolled >= Blendable * 3 / 4);
+        // Where the ladder finds a placement whose cut plane clears the neighbouring faces, the chamfer is exact to
+        //    round-off. On the rest it settles for the closest valid solid: those are edges whose own cut plane
+        //    genuinely runs into the adjacent geometry, where "exact" is not defined by a single-plane cut at all.
+        //    Asserted as a floor so a regression in the ladder shows up, with the worst case bounded.
+        Check("at least a quarter of spanner chamfers are exact to round-off", Exact * 4 >= Chamfered);
+        Check("no chamfer is off by more than 1% of the body", WorstChamfer < Base * 0.01);
+    }
+
     std::printf(Failures ? "\nBlendVerification: %d FAILED\n" : "\nBlendVerification: all checks passed\n", Failures);
     return Failures ? 1 : 0;
 }

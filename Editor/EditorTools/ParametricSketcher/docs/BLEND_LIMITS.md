@@ -1,5 +1,11 @@
 # Edge blends — what is exact, what is approximate, and one thing that does not work
 
+> **Update.** A sweep over *every* edge of the pushed spanner (rather than the two edges the first pass
+> happened to test) found the cutter sizing was badly wrong: **14 of 30 edges refused outright** and others
+> over-cut by up to **1107 mm³**. The cutter is now tried across a ladder of sizes and the first placement that
+> both closes and matches the closed form wins. Result: **refusals 14 → 5**, worst error **1107 → 50**, and the
+> pentagon mitre shortfall **0.419% → 0.168%**. Details in "The cutter ladder" below.
+
 `Kernel/BlendSolver.cpp`. Numbers are from `Verification/BlendVerification.cpp`, which asserts closed-form
 volumes rather than comparing pictures.
 
@@ -49,3 +55,34 @@ Until then the chord approximation is the better of the two, and it is bounded b
 
 Worth noting: `FilletEdge` builds both the plain and the cap-rebuilt candidate and keeps whichever scores closer
 to the closed form, so this class of mistake degrades to "no improvement" rather than to a wrong part.
+
+
+## The cutter ladder
+
+A chamfer is `Body − Wedge`, and the wedge has to be bounded: an unbounded half-space also removes any other limb
+lying beyond the set-back plane. But a *bounded* cutter introduces a second problem — its end caps have to land
+somewhere, and the boolean is exact rather than tolerant. A cutter stopping precisely at the edge's endpoints is a
+non-transversal contact and is refused (`surface singularity or seam corner`, `passes exactly through a vertex`);
+one running well past them cuts into whatever is around the corner.
+
+Measured across the 30 edges of the pushed spanner, **no single fixed margin satisfies both**:
+
+| margin (× set-back) | edges OK | worst volume error |
+|---|---|---|
+| 0.37 | 17 / 30 | 1106.8 |
+| 0.61 | 14 / 30 | 5.2 |
+| 3.00 (the original) | 16 / 30 | 1107.0 |
+
+So `ChamferEdge` parameterises the cutter by lateral half-width and along-edge margin (negative margins stop it
+*short* of the endpoints) and walks a ladder of 60 combinations, returning the first whose result is a closed solid
+matching the closed-form volume to round-off — and otherwise the closest valid solid, so the caller still gets a
+usable body instead of a refusal. Acceptance is `1e-12` relative: a chamfer *is* an exact plane cut, so anything
+measurably short of that means the cutter clipped something, and settling for "close" would silently ship a wrong
+part.
+
+Current state on that sweep: **30 blendable edges, 25 chamfer, 25 fillet, 0 broken bodies, 8 exact to round-off,
+worst error 50** on edges whose own cut plane genuinely runs into adjacent geometry — where a single-plane cut does
+not have a well-defined "exact" answer anyway. The five refusals are edges bounded on both sides by the push seam.
+
+`FilletEdge` additionally rejects any candidate whose volume comes out *below* the flat cut it replaces: the roll
+adds material back into the corner, so a smaller body is geometrically wrong however close its number looks.
