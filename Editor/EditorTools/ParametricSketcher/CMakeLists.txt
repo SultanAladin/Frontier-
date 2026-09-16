@@ -107,7 +107,7 @@ add_executable(IntersectionVerification Verification/IntersectionVerification.cp
 target_link_libraries(IntersectionVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME IntersectionVerification COMMAND IntersectionVerification)
 
-# Phase 24/24b/24c: exact B-rep Boolean contact classification, identity and affine-NURBS equivalence.
+# Phase 24/24b/24c/24d: exact B-rep Boolean contact, identity, parameter and periodic-seam equivalence.
 add_executable(BooleanContactVerification Verification/BooleanContactVerification.cpp)
 target_link_libraries(BooleanContactVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME BooleanContactVerification COMMAND BooleanContactVerification)
@@ -117,6 +117,9 @@ add_test(NAME BooleanIdentityVerification COMMAND BooleanIdentityVerification)
 add_executable(BooleanEquivalenceVerification Verification/BooleanEquivalenceVerification.cpp)
 target_link_libraries(BooleanEquivalenceVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME BooleanEquivalenceVerification COMMAND BooleanEquivalenceVerification)
+add_executable(BooleanCylinderSeamVerification Verification/BooleanCylinderSeamVerification.cpp)
+target_link_libraries(BooleanCylinderSeamVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME BooleanCylinderSeamVerification COMMAND BooleanCylinderSeamVerification)
 add_executable(FairPatchVerification Verification/FairPatchVerification.cpp)
 target_link_libraries(FairPatchVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME FairPatchVerification COMMAND FairPatchVerification)

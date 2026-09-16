@@ -93,6 +93,97 @@ namespace
         return true;
     }
 
+    struct RightCylinder { Vec3 Base, Axis; double Radius = 0.0, Height = 0.0; };
+
+    // Recover an exact circular boundary from three separated points on the classified, closed rational circle. The
+    // analytic hint narrows this to the kernel's circle primitive; the sampled points independently give its centre,
+    // radius and normal so a relocated periodic seam cannot change the cylinder identity.
+    bool CircleFrame(const NurbsCurve& Curve, Vec3& Centre, Vec3& Normal, double& Radius) noexcept
+    {
+        if (Curve.Classification != CurveClassification::Circle || Curve.Degree != 2 || !Curve.Rational() || !Curve.Closed()) return false;
+        double T0 = Curve.DomainStart(), Span = Curve.DomainEnd() - T0;
+        if (Span <= ScalarCriteria::ParametricEpsilon) return false;
+        Vec3 P0 = Curve.Sample(T0), P1 = Curve.Sample(T0 + Span * 0.25), P2 = Curve.Sample(T0 + Span * 0.5);
+        Vec3 U = P1 - P0, V = P2 - P0, Cross = U.Cross(V);
+        double Denominator = 2.0 * Cross.LengthSquared();
+        if (Denominator <= ScalarCriteria::KernelTolerance) return false;
+        Centre = P0 + (Cross.Cross(U) * V.LengthSquared() + V.Cross(Cross) * U.LengthSquared()) / Denominator;
+        Radius = Centre.Distance(P0);
+        if (Radius <= ScalarCriteria::KernelTolerance) return false;
+        Normal = Cross.Normalised();
+        const double Epsilon = 1e-9 * std::max(1.0, Radius);
+        for (int I = 1; I < 8; ++I)
+        {
+            Vec3 Radial = Curve.Sample(T0 + Span * (static_cast<double>(I) / 8.0)) - Centre;
+            if (std::fabs(Radial.Length() - Radius) > Epsilon || std::fabs(Radial.Dot(Normal)) > Epsilon) return false;
+        }
+        return true;
+    }
+
+    bool RightCylinderOf(const BrepBody& Body, RightCylinder& Out) noexcept
+    {
+        if (!Body.Validate().Solid() || Body.Vertices.size() != 2 || Body.Edges.size() != 3 || Body.Coedges.size() != 6 || Body.Loops.size() != 3 || Body.Faces.size() != 3) return false;
+        int CircularEdges[2] = { -1, -1 }, CircleCount = 0, Seam = -1, SideFaces = 0, CapFaces = 0;
+        for (size_t E = 0; E < Body.Edges.size(); ++E)
+        {
+            if (Body.Edges[E].Closed())
+            {
+                if (CircleCount == 2) return false;
+                CircularEdges[CircleCount++] = static_cast<int>(E);
+            }
+            else { if (Seam >= 0) return false; Seam = static_cast<int>(E); }
+        }
+        for (const BrepFace& Face : Body.Faces)
+        {
+            if (Face.Loops.size() != 1) return false;
+            if (Face.Surface.Classification == SurfaceClassification::Cylinder || Face.Surface.Classification == SurfaceClassification::Extrusion) ++SideFaces;
+            else if (Face.Surface.Classification == SurfaceClassification::Plane) ++CapFaces;
+            else return false;
+        }
+        if (CircleCount != 2 || Seam < 0 || SideFaces != 1 || CapFaces != 2) return false;
+        Vec3 C0, C1, N0, N1; double R0 = 0.0, R1 = 0.0;
+        if (!CircleFrame(Body.Edges[CircularEdges[0]].Curve, C0, N0, R0) || !CircleFrame(Body.Edges[CircularEdges[1]].Curve, C1, N1, R1)) return false;
+        Vec3 Along = C1 - C0; double Height = Along.Length();
+        const double Scale = std::max({ 1.0, R0, R1, Height });
+        const double Epsilon = 1e-9 * Scale;
+        if (Height <= Epsilon || std::fabs(R0 - R1) > Epsilon) return false;
+        Vec3 Axis = Along / Height;
+        if (N0.Cross(Axis).Length() > 1e-9 || N1.Cross(Axis).Length() > 1e-9) return false;
+        const BrepEdge& Line = Body.Edges[Seam];
+        if (Line.Curve.Classification != CurveClassification::Line || Line.VertexStart < 0 || Line.VertexEnd < 0 || Line.VertexStart >= static_cast<int>(Body.Vertices.size()) || Line.VertexEnd >= static_cast<int>(Body.Vertices.size())) return false;
+        Vec3 P = Body.Vertices[Line.VertexStart].Point, Q = Body.Vertices[Line.VertexEnd].Point;
+        const auto OnCap = [&](Vec3 Point, Vec3 Centre)
+        {
+            Vec3 Radial = Point - Centre;
+            return std::fabs(Radial.Dot(Axis)) <= Epsilon && std::fabs(Radial.Length() - R0) <= Epsilon;
+        };
+        if (!((OnCap(P, C0) && OnCap(Q, C1)) || (OnCap(P, C1) && OnCap(Q, C0))) || (Q - P).Cross(Axis).Length() > Epsilon || std::fabs((Q - P).Length() - Height) > Epsilon) return false;
+
+        // Canonicalise the axis sign so the same cylinder built from its top downward compares equally.
+        int Dominant = std::fabs(Axis.X) >= std::fabs(Axis.Y) && std::fabs(Axis.X) >= std::fabs(Axis.Z) ? 0 : (std::fabs(Axis.Y) >= std::fabs(Axis.Z) ? 1 : 2);
+        if (Axis[Dominant] < 0.0) Axis = -Axis;
+        Out = { (C1 - C0).Dot(Axis) > 0.0 ? C0 : C1, Axis, 0.5 * (R0 + R1), Height };
+        return true;
+    }
+
+    bool EquivalentRightCylinders(const BrepBody& A, const BrepBody& B) noexcept
+    {
+        RightCylinder CA, CB;
+        if (!RightCylinderOf(A, CA) || !RightCylinderOf(B, CB)) return false;
+        double Scale = std::max({ 1.0, CA.Radius, CB.Radius, CA.Height, CB.Height });
+        double Epsilon = 1e-9 * Scale;
+        return CA.Base.Distance(CB.Base) <= Epsilon && CA.Axis.Cross(CB.Axis).Length() <= 1e-9 &&
+               std::fabs(CA.Radius - CB.Radius) <= Epsilon && std::fabs(CA.Height - CB.Height) <= Epsilon;
+    }
+
+    Deliver<BrepBody> IdenticalBooleanResult(const BrepBody& A, const BrepBody& B, BodyOperation Operation, BooleanReport& Report) noexcept
+    {
+        Report.PiecesA = static_cast<int>(A.Faces.size()); Report.PiecesB = static_cast<int>(B.Faces.size());
+        if (Operation == BodyOperation::Subtract) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty (tool matches the target's exact B-rep geometry)");
+        Report.KeptA = static_cast<int>(A.Faces.size());
+        return Deliver<BrepBody>::Accept(A);
+    }
+
     // The SSI marcher correctly treats a face-on-face / edge-on-edge coincidence as non-transversal: there is no
     // unique section curve to trace.  Axis-aligned boxes are a common CAD primitive with an exact constructive answer,
     // though, so resolve their contact topology before invoking the general marcher.  This is deliberately structural
@@ -1084,17 +1175,11 @@ Deliver<BrepBody> IntersectionSolver::Combine(const BrepBody& A, const BrepBody&
 {
     if (A.Classification() != BodyClassification::Solid || B.Classification() != BodyClassification::Solid) return Deliver<BrepBody>::Reject(RefusalReason::OpenWire, "booleans need two closed solids");
     BooleanReport Rep;
-    if (ExactBrepGeometry(A, B))
+    if (ExactBrepGeometry(A, B) || EquivalentRightCylinders(A, B))
     {
-        Rep.PiecesA = static_cast<int>(A.Faces.size()); Rep.PiecesB = static_cast<int>(B.Faces.size());
-        if (Operation == BodyOperation::Subtract)
-        {
-            if (Report) *Report = Rep;
-            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty (tool matches the target's exact B-rep geometry)");
-        }
-        Rep.KeptA = static_cast<int>(A.Faces.size());
+        Deliver<BrepBody> Result = IdenticalBooleanResult(A, B, Operation, Rep);
         if (Report) *Report = Rep;
-        return Deliver<BrepBody>::Accept(A);
+        return Result;
     }
     if (std::optional<Deliver<BrepBody>> Exact = AxisAlignedBoxBoolean(A, B, Operation, Rep))
     {

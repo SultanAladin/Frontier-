@@ -117,6 +117,29 @@ included.
 an explicit empty subtraction; a geometric near miss remains outside the identity gate. Reversed/reordered topology and
 partial coincidence remain future correspondence/contact-classification work.
 
+### Completed Phase 24d: seam-invariant full right-cylinder Boolean identity
+
+A periodic circular seam is a parameterization/topology choice, not a material intersection. Two equal cylinders can
+therefore have different seam vertices, different full-circle start angles, or opposite construction directions even
+after affine knot normalization; the generic SSI marcher then sees coincident faces and correctly declines to fabricate
+a section. This increment recognizes only validated closed right cylinders with two classified full-circle caps, one
+classified straight seam, two planar caps, and one cylinder/circular-extrusion side. It derives and canonically signs
+the physical axis, base, radius, and height, then applies the identity Boolean result only when those values agree at
+kernel-scale numerical noise.
+
+`BooleanCylinderSeamVerification` has 18 C++ checks covering a native cylinder versus a 60° seam-shifted circular
+extrusion, top-down construction, two independent seam positions, radius/height near misses, and a perpendicular
+crossing-cylinder SSI control. It generates `Proofs/Phase24d_BooleanCylinderSeams.png` from C++ console commands; no
+HTML or browser work is included.
+
+Periodic parameterization is an explicit Boolean limitation in mature-kernel documentation, and their algorithms reuse
+existing topology rather than manufacture duplicate section curves at coincident entities.
+[OCCT Boolean parameterization limits](https://dev.opencascade.org/doc/overview/html/specification__boolean_operations.html)
+
+**Exit gate met:** fully coincident, seam-relocated right cylinders produce exactly one valid operand for union/common
+or an explicit empty subtraction; any physical radius/height change remains outside the gate. Cones, partial cylinders,
+and non-circular periodic NURBS remain on the regular contact/SSI path.
+
 ### Phase 25: blend foundation — topology and eligibility
 
 Extend edge classification beyond the current planar/straight case:

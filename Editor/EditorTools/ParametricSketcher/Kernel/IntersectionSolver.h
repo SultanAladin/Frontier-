@@ -14,8 +14,8 @@
 //                untouched hulls by a parity ray against the other body,
 //    6. assemble — union / subtract / intersect choose pieces (subtraction flips the tool's) and share edges and vertices
 //                so the result is again a closed, consistently wound B-rep with (u,v) trims on every coedge.
-//    General free-form intersections must be transversal. Exact NURBS-equivalent B-reps and contact cases for two axis-aligned
-//    box solids are classified constructively before the marcher, preserving distinct point-/edge-touching components
+//    General free-form intersections must be transversal. Exact NURBS-equivalent B-reps, seam-invariant full right cylinders, and contact cases for two axis-aligned box
+//    solids are classified constructively before the marcher, preserving distinct point-/edge-touching components
 //    without welding.
 #pragma once
 
@@ -52,8 +52,8 @@ class IntersectionSolver
 public:
     // Intersection curves between the boundaries of two bodies (each piece runs between face boundaries or closes on itself).
     [[nodiscard]] static std::vector<IntersectionCurve> Intersect(const BrepBody& A, const BrepBody& B) noexcept;
-    // A ∪ B, A − B, A ∩ B of two closed solids. Exact NURBS-equivalent B-reps and axis-aligned boxes resolve their
-    // covered coincident/touching cases; general non-transversal faces and every empty result remain explicit refusals.
+    // A ∪ B, A − B, A ∩ B of two closed solids. Exact NURBS-equivalent B-reps, seam-invariant full right cylinders, and axis-aligned boxes resolve their covered
+    // coincident/touching cases; general non-transversal faces and every empty result remain explicit refusals.
     [[nodiscard]] static Deliver<BrepBody> Combine(const BrepBody& A, const BrepBody& B, BodyOperation Operation, BooleanReport* Report = nullptr) noexcept;
     // Parity point-in-solid test against the body's tessellation (used for untouched hulls and exposed for verification).
     [[nodiscard]] static bool Encloses(const BrepBody& Body, Vec3 P) noexcept;
