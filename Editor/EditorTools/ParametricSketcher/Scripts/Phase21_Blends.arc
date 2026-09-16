@@ -68,7 +68,12 @@ view iso
 view orbit 150 26
 view fit
 render Root_Concave_Chamfer --size=1100x850
+view dolly 4
+render Root_Concave_Chamfer_Detail --size=1100x850
 undo
 fillet Spanner 4 --edges=1 --name=RootConcaveFillet
 matcap RootConcaveFillet steel
+view fit
 render Root_Concave_Fillet --size=1100x850
+view dolly 4
+render Root_Concave_Fillet_Detail --size=1100x850

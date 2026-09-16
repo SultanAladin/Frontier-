@@ -2,8 +2,8 @@
 // 📦 Verification/BlendVerification.cpp — chamfer / fillet / push checked against closed-form volumes, not against pictures
 //============================================================================================================================================
 // Every case asserts three things: the result is a closed, manifold, consistently wound solid (χ=2); its volume matches
-//    the analytic removal for that corner; and the ordering chamfer < fillet < base holds (a fillet always leaves more
-//    material than the chamfer with the same tangent set-back).
+// the analytic local wedge; and its feature topology is intentional.  Ordinary exterior blends remove material, while
+// a re-entrant/root blend fills its small void wedge (and therefore adds material).
 #include "Kernel/BlendSolver.h"
 #include <cmath>
 #include <cstdio>
@@ -53,6 +53,29 @@ namespace
                 std::fabs(Body.Vertices[Edge.VertexEnd].Point.Z - Height) < 1e-9) return (int)E;
         }
         return -1;
+    }
+
+    bool IsReflexHandleRoot(const BrepBody& Body, const BrepEdge& Edge)
+    {
+        if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) return false;
+        Vec3 A = Body.Vertices[Edge.VertexStart].Point, B = Body.Vertices[Edge.VertexEnd].Point;
+        return std::fabs(std::fabs(A.X) - 10.0) < 1e-9 && std::fabs(std::fabs(B.X) - 10.0) < 1e-9 &&
+               std::fabs(A.Y - 17.3205080757) < 1e-8 && std::fabs(B.Y - 17.3205080757) < 1e-8 &&
+               std::fabs(std::fabs(A.Z - B.Z) - 10.0) < 1e-8;
+    }
+
+    int ExactArcEdges(const BrepBody& Body, double Radius)
+    {
+        int Count = 0;
+        for (const BrepEdge& Edge : Body.Edges)
+        {
+            // Natural boundary extraction retains the Arc classification but intentionally drops analytic display
+            // metadata. Curvature remains the geometric source of truth for the exact rational conic.
+            double Middle = 0.5 * (Edge.Curve.DomainStart() + Edge.Curve.DomainEnd());
+            if (Edge.Curve.Classification == CurveClassification::Arc &&
+                std::fabs(Edge.Curve.Curvature(Middle) - 1.0 / Radius) < 1e-8) ++Count;
+        }
+        return Count;
     }
 }
 
@@ -154,8 +177,10 @@ int main()
         }
     }
 
-    // ---- 4. Reflex handle root: this is the re-entrant (210° material) edge where the pushed handle meets the head
-    //    It must return a closed body for both modes; this is the edge rendered by Phase21_Blends.arc section 4.
+    // ---- 4. Reflex handle root: the re-entrant 210° material edge where the pushed handle meets the head --------
+    //    Unlike an exterior edge, a blend at this root fills the small void wedge.  The checks deliberately verify
+    //    the clean rebuilt topology and the exact circular boundary; `Solid()` alone formerly let a visibly pinched
+    //    Boolean result pass here.  This is the edge rendered by Phase21_Blends.arc section 4.
     {
         Workplane Plane;
         Deliver<NurbsCurve> Profile = NurbsCurve::Polygon(Plane, { 0, 0 }, 20, 6, 0.0, true);
@@ -163,24 +188,27 @@ int main()
         Deliver<BrepBody> Spanner = BlendSolver::PushFace(Prism.Payload, 1, 26.0);
         int Root = -1;
         for (size_t E = 0; E < Spanner.Payload.Edges.size(); ++E)
-        {
-            const BrepEdge& Edge = Spanner.Payload.Edges[E];
-            if (Edge.Coedges.size() != 2 || Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
-            Vec3 A = Spanner.Payload.Vertices[Edge.VertexStart].Point, B = Spanner.Payload.Vertices[Edge.VertexEnd].Point;
-            if (std::fabs(A.X - 10.0) < 1e-9 && std::fabs(B.X - 10.0) < 1e-9 &&
-                std::fabs(A.Y - 17.3205080757) < 1e-8 && std::fabs(B.Y - 17.3205080757) < 1e-8 &&
-                std::fabs(std::fabs(A.Z - B.Z) - 10.0) < 1e-8) { Root = (int)E; break; }
-        }
+            if (IsReflexHandleRoot(Spanner.Payload, Spanner.Payload.Edges[E])) { Root = (int)E; break; }
         Check("pushed spanner has its re-entrant handle-root edge", Root >= 0);
         if (Root >= 0)
         {
             EdgeCornerFrame F; std::string Why;
             Check("handle-root edge yields a blend frame", BlendSolver::Frame(Spanner.Payload, Root, F, Why), Why.c_str());
             double Base = Spanner.Payload.Validate().Volume;
-            CheckSolid("re-entrant root chamfer s=4", BlendSolver::ChamferEdge(Spanner.Payload, Root, 4.0),
-                       Base - BlendSolver::ChamferRemoval(F, 4.0), Base * 5e-4);
+            Deliver<BrepBody> Flat = BlendSolver::ChamferEdge(Spanner.Payload, Root, 4.0);
+            CheckSolid("re-entrant root chamfer fills its 210-degree wedge", Flat,
+                       Base + BlendSolver::ChamferRemoval(F, 4.0), 1e-6);
+            Check("re-entrant chamfer is one clean added side face",
+                  Flat && Flat.Payload.Faces.size() == 11 && Flat.Payload.Edges.size() == 27);
+
             Deliver<BrepBody> Roll = BlendSolver::FilletEdge(Spanner.Payload, Root, 4.0);
-            Check("re-entrant root fillet is a closed solid", Roll && Roll.Payload.Validate().Solid(), Roll ? "" : Roll.Denial.Detail);
+            // Validate() integrates the curved face through its display tessellation; 0.002 mm³ is 1.3e-7 of this
+            // body and guards the analytic circular-wedge result without pretending that a tessellated integral is
+            // symbolic arithmetic.
+            CheckSolid("re-entrant root fillet fills its tangent circular wedge", Roll,
+                       Base + BlendSolver::FilletRemoval(F, 4.0), 2e-3);
+            Check("re-entrant fillet has one cylindrical root face and two exact R4 cap arcs",
+                  Roll && Roll.Payload.Faces.size() == 11 && Roll.Payload.Edges.size() == 27 && ExactArcEdges(Roll.Payload, 4.0) == 2);
         }
     }
 
@@ -219,7 +247,11 @@ int main()
                 else
                 {
                     ++Chamfered;
-                    double Error = std::fabs(Flat.Payload.Validate().Volume - (Base - BlendSolver::ChamferRemoval(F, 3.0)));
+                    // The one 210° handle root is a reflex profile blend: it fills, rather than removes, the
+                    // local wedge.  Keep it in the sweep so a future Boolean fallback cannot quietly regress it.
+                    bool Reflex = IsReflexHandleRoot(Spanner.Payload, Spanner.Payload.Edges[E]);
+                    double Expected = Base + (Reflex ? 1.0 : -1.0) * BlendSolver::ChamferRemoval(F, 3.0);
+                    double Error = std::fabs(Flat.Payload.Validate().Volume - Expected);
                     if (Error < 1e-6) ++Exact;
                     // The Boolean's tessellated volume integral has a low-micron numerical floor after a direct face
                     // push.  This is still 1.5e-10 of the body, not the old "near exact" 1% fallback.
@@ -238,10 +270,8 @@ int main()
         Check("all physical spanner corners chamfer", Chamfered == Blendable);
         Check("all physical spanner corners fillet",  Rolled == Blendable);
         Check("the full-face push leaves 24 physical blend corners", Blendable == 24);
-        Check("all but the two 120-degree shoulder corners are kernel-precise", KernelExact >= Blendable - 2);
-        // The remaining two shoulders are bounded by three non-parallel planes.  Their 3.235 mm³ maximum is 0.021%
-        // of this body, a 300× tighter cap than the former 1% fallback and an explicit regression guard.
-        Check("shoulder chamfers remain within 0.025% of the body", WorstChamfer < Base * 2.5e-4);
+        Check("every physical spanner chamfer reaches the numerical integration floor", KernelExact == Blendable);
+        Check("no accepted spanner chamfer exceeds 3 cubic microns of wedge error", WorstChamfer < 3e-6);
     }
 
     std::printf(Failures ? "\nBlendVerification: %d FAILED\n" : "\nBlendVerification: all checks passed\n", Failures);

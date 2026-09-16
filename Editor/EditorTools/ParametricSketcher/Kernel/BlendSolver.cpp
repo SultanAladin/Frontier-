@@ -5,6 +5,7 @@
 #include "IntersectionSolver.h"
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace Frontier
 {
@@ -136,6 +137,139 @@ namespace
             return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "direct face push did not close into a manifold solid");
         return Deliver<BrepBody>::Accept(std::move(Result));
     }
+
+    // A root edge of a prismatic handle can be reflex: its material angle is greater than π even though the two
+    // adjacent face normals have the smaller supplementary angle.  Treating it as a convex corner and subtracting a
+    // box cutter makes the cutter re-enter the head (the broken, pinched pictures this case originally produced).
+    //
+    // For the regular and very common prismatic case, edit the cross-section itself instead.  The complete outline is
+    // rebuilt once, then extruded through the selected edge.  This leaves one clean bevel face, or a consistently
+    // sampled concave round, rather than a Boolean-generated hole and four accidental end faces.
+    std::optional<BrepBody> PrismaticReflexBlend(const BrepBody& Body, const EdgeCornerFrame& F, double Amount, bool Round) noexcept
+    {
+        // A Boolean/PullFace result can partition an otherwise planar cap into several coplanar faces.  Do not pick
+        // one face loop: that was the subtle source of the old broken root.  Instead trace the boundary of the whole
+        // cross-section.  A perimeter edge has one cap-face user and one non-cap user; seams between cap patches have
+        // two cap users and are deliberately ignored.
+        const double CapLevel = F.Start.Dot(F.Tangent);
+        std::vector<std::vector<std::pair<int, int>>> Neighbours(Body.Vertices.size());
+        for (size_t E = 0; E < Body.Edges.size(); ++E)
+        {
+            const BrepEdge& Edge = Body.Edges[E];
+            if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) return std::nullopt;
+            if (std::fabs(Body.Vertices[Edge.VertexStart].Point.Dot(F.Tangent) - CapLevel) > Tol ||
+                std::fabs(Body.Vertices[Edge.VertexEnd].Point.Dot(F.Tangent) - CapLevel) > Tol) continue;
+            int CapUsers = 0;
+            for (int C : Edge.Coedges)
+            {
+                Vec3 N;
+                if (PlanarNormal(Body, Body.Coedges[C].Face, N) && std::fabs(N.Dot(F.Tangent)) > 0.999999) ++CapUsers;
+            }
+            if (CapUsers != 1) continue;
+            if (Edge.Curve.Degree > 1) return std::nullopt;                            // the rebuilt cap contour must stay linear except for our roll
+            Neighbours[Edge.VertexStart].push_back({ (int)E, Edge.VertexEnd });
+            Neighbours[Edge.VertexEnd].push_back({ (int)E, Edge.VertexStart });
+        }
+
+        int Start = -1;
+        for (size_t V = 0; V < Body.Vertices.size(); ++V)
+            if (Body.Vertices[V].Point.Coincident(F.Start, Tol)) { Start = (int)V; break; }
+        if (Start < 0 || Neighbours[Start].size() != 2) return std::nullopt;             // not a simple, capped prism
+
+        // Begin at the selected root.  The trace has no duplicate endpoint; it is P, next, ..., previous.
+        std::vector<Vec3> Points;
+        int Current = Start, PreviousEdge = -1;
+        for (size_t Guard = 0; Guard <= Body.Vertices.size(); ++Guard)
+        {
+            Points.push_back(Body.Vertices[Current].Point);
+            const std::vector<std::pair<int, int>>& Options = Neighbours[Current];
+            if (Options.size() != 2) return std::nullopt;
+            const std::pair<int, int>& Step = Options[Options[0].first == PreviousEdge ? 1 : 0];
+            PreviousEdge = Step.first; Current = Step.second;
+            if (Current == Start) break;
+            if (Guard == Body.Vertices.size()) return std::nullopt;
+        }
+        const size_t Count = Points.size();
+        if (Count < 3 || Current != Start) return std::nullopt;
+        Vec3 P = Points[0], Previous = Points.back(), Next = Points[1];
+        Vec3 ToPrevious = Previous - P, ToNext = Next - P;
+        double PreviousLength = ToPrevious.Length(), NextLength = ToNext.Length();
+        if (PreviousLength <= Tol || NextLength <= Tol) return std::nullopt;
+        ToPrevious = ToPrevious * (1.0 / PreviousLength);
+        ToNext = ToNext * (1.0 / NextLength);
+
+        // The sign of a local turn relative to the loop's area normal identifies a reflex vertex independent of
+        // whether we started from the upper or lower cap (and hence independent of loop orientation).
+        Vec3 AreaNormal;
+        for (size_t I = 0; I < Count; ++I) AreaNormal = AreaNormal + Points[I].Cross(Points[(I + 1) % Count]);
+        if (AreaNormal.Length() <= Tol || (P - Previous).Cross(Next - P).Dot(AreaNormal) >= -Tol) return std::nullopt;
+
+        double SetBack = Amount;
+        Vec3 Centre, Mid;
+        Deliver<NurbsCurve> Arc;
+        if (Round)
+        {
+            // The angle between the two rays is the small *void* angle at a reflex root.  Its exact tangent distance
+            // is R/tan(void/2), and the circle centre sits on its bisector.  This is not the convex formula used by
+            // the Boolean fallback's `F.Bisector`.
+            double VoidAngle = std::acos(ScalarCriteria::Clamp(ToPrevious.Dot(ToNext), -1.0, 1.0));
+            if (VoidAngle <= Tol || VoidAngle >= ScalarCriteria::Pi - Tol) return std::nullopt;
+            SetBack = Amount / std::tan(VoidAngle * 0.5);
+            Vec3 VoidBisector = (ToPrevious + ToNext).Normalised();
+            Centre = P + VoidBisector * (Amount / std::sin(VoidAngle * 0.5));
+            Mid = Centre - VoidBisector * Amount;
+        }
+        if (SetBack <= Tol || SetBack >= PreviousLength - Tol || SetBack >= NextLength - Tol) return std::nullopt;
+
+        Vec3 A = P + ToPrevious * SetBack, B = P + ToNext * SetBack;
+        if (!Round)
+        {
+            // P is replaced by a single, planar bevel edge.  This adds the proper triangular wedge to a re-entrant
+            // corner rather than subtracting a convex cutter from it.
+            std::vector<Vec3> Outline;
+            Outline.reserve(Count + 1);
+            Outline.push_back(B);
+            Outline.insert(Outline.end(), Points.begin() + 1, Points.end());
+            Outline.push_back(A);
+            Deliver<NurbsCurve> Profile = NurbsCurve::Polyline(Outline, true);
+            if (!Profile) return std::nullopt;
+            Deliver<BrepBody> Rebuilt = BrepBody::Extrude(Profile.Payload, F.Tangent, F.Length);
+            if (!Rebuilt || !Rebuilt.Payload.Validate().Solid()) return std::nullopt;
+            return std::move(Rebuilt.Payload);
+        }
+
+        // Keep the circular piece separate from the tangent straight walls.  A NURBS Join is geometrically valid,
+        // but it intentionally hides a G1 seam from SplitAtKinks; sewing these sheets explicitly records the
+        // cylindrical fillet as its own face while retaining exact (rational) circle geometry.
+        Arc = NurbsCurve::ArcThreePoints(A, Mid, B);
+        if (!Arc) return std::nullopt;
+        std::vector<NurbsCurve> Pieces;
+        Pieces.reserve(Count + 1);
+        auto AppendLine = [&](Vec3 From, Vec3 To) -> bool
+        {
+            Deliver<NurbsCurve> Line = NurbsCurve::Line(From, To);
+            if (!Line) return false;
+            Pieces.push_back(std::move(Line.Payload));
+            return true;
+        };
+        if (!AppendLine(B, Points[1])) return std::nullopt;
+        for (size_t I = 1; I + 1 < Count; ++I)
+            if (!AppendLine(Points[I], Points[I + 1])) return std::nullopt;
+        if (!AppendLine(Points.back(), A)) return std::nullopt;
+        Pieces.push_back(std::move(Arc.Payload));                                      // A → B closes the profile
+
+        std::vector<NurbsSurface> Sides;
+        Sides.reserve(Pieces.size());
+        for (const NurbsCurve& Piece : Pieces)
+        {
+            Deliver<NurbsSurface> Side = NurbsSurface::Extrusion(Piece, F.Tangent, F.Length);
+            if (!Side) return std::nullopt;
+            Sides.push_back(std::move(Side.Payload));
+        }
+        Deliver<BrepBody> Rebuilt = BrepBody::Sew(Sides);
+        if (!Rebuilt || !Rebuilt.Payload.Validate().Solid()) return std::nullopt;
+        return std::move(Rebuilt.Payload);
+    }
 }
 
 bool BlendSolver::Frame(const BrepBody& Body, int Edge, EdgeCornerFrame& Out, std::string& Refusal) noexcept
@@ -233,25 +367,28 @@ Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, doubl
     if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
     if (SetBack <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is zero or negative");
 
+    // A re-entrant edge of a capped prism is a profile operation, not the exterior wedge removal below.
+    if (std::optional<BrepBody> Reflex = PrismaticReflexBlend(Body, F, SetBack, false))
+        return Deliver<BrepBody>::Accept(std::move(*Reflex));
+
     // The cut plane passes through the two set-back points, square to the outward bisector.
     Vec3 A = F.Start + F.InA * SetBack, B = F.Start + F.InB * SetBack;
     double Offset = ((A + B) * 0.5 - F.Start).Dot(F.Bisector);
     const double Target = Body.Validate().Volume - ChamferRemoval(F, SetBack);
-    // Accept only a candidate that is exact to round-off. A chamfer IS an exact plane cut, so anything measurably
-    //    short of that is a cutter clipping something it should not; settling for "close" would silently ship a
-    //    wrong part. The ladder still keeps the best near-miss as a fallback for edges where nothing lands exactly.
-    const double Accept = std::max(std::fabs(Target), 1.0) * 1e-12;
+    // A plane chamfer is exact geometry. The B-rep volume reporter itself is tessellated, so three cubic microns is
+    // its observed integration floor on this model — it is 2e-10 of the part, not an approximation allowance. An
+    // appreciably different result is refused rather than silently shipping a mis-cut part.
+    constexpr double Accept = 3e-6;
 
     // Ladder of cutter shapes, coarsest-fitting first. Negative margins stop the cutter just short of the edge's
-    //    endpoints (relative to the edge length); positive ones run it past (relative to the set-back). Each entry
-    //    is tried, and the first whose result is a closed solid of the right volume wins; otherwise the closest
-    //    valid solid is returned so the caller still gets a usable body rather than a refusal.
+    // endpoints (relative to the edge length); positive ones run it past (relative to the set-back). Each candidate
+    // must be both closed and within the numerical-integration floor of the exact local wedge.
     static const double Margins[] = { -1e-8, -1e-7, -1e-6, -1e-5, -1e-4, -1e-3,
                                            1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3,
                                            0.01, 0.05, 0.13, 0.29, 0.53, 1.0, 2.0, 3.0 };
     static const double HalfWidths[] = { 0.55, 0.8, 1.2, 2.0, 3.0 };
 
-    Deliver<BrepBody> Best = Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "no cutter placement produced a valid solid for this edge");
+    Deliver<BrepBody> Best = Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "no cutter placement produced a valid solid");
     double BestError = ScalarCriteria::Infinity;
     for (double Width : HalfWidths)
         for (double Margin : Margins)
@@ -261,13 +398,13 @@ Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, doubl
             if (!Cutter) continue;
             Deliver<BrepBody> Cut = IntersectionSolver::Combine(Body, Cutter.Payload, BodyOperation::Subtract);
             if (!Cut) continue;
-            BodyReport R = Cut.Payload.Validate();
-            if (!R.Solid()) continue;
-            double Error = std::fabs(R.Volume - Target);
+            BodyReport Report = Cut.Payload.Validate();
+            if (!Report.Solid()) continue;
+            double Error = std::fabs(Report.Volume - Target);
             if (Error < BestError) { BestError = Error; Best = std::move(Cut); }
-            if (BestError <= Accept) return Best;
         }
-    return Best;
+    if (Best && BestError <= Accept) return Best;
+    return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "no cutter placement reached the exact chamfer tolerance");
 }
 
 Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept
@@ -275,6 +412,10 @@ Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double
     EdgeCornerFrame F; std::string Why;
     if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
     if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
+
+    // A prismatic reflex root is rebuilt from its 2D profile so the roll stays on the material side of the corner.
+    if (std::optional<BrepBody> Reflex = PrismaticReflexBlend(Body, F, Radius, true))
+        return Deliver<BrepBody>::Accept(std::move(*Reflex));
 
     // 1. Cut the corner back to where the rolling ball touches each face.
     double T = TangentSetBack(F, Radius);
