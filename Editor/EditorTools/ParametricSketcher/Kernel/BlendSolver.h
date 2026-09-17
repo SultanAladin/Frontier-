@@ -15,7 +15,8 @@
 //      circular fillet  = Cylinder(R, H−r) ∪ QuarterTorus(R−r, r) exact right-cylinder cap rolling-ball fillet
 //      fillet (E, R) = Body − Wedge(E, t) , then the flat  t = R / tan(θ/2) is the tangent set-back for dihedral θ
 //                      face is re-seated on the tangent cylinder of radius R and its two cap edges rebuilt as arcs
-//      circular cap push = Cylinder(R, H+d)                         exact native-cylinder cap offset
+//      circular cap push  = Cylinder(R, H+d)                        exact native-cylinder cap offset
+//      cylindrical side push = Cylinder(R+d, H)                     exact native-cylinder radial face offset
 //      push  (F, d)  = Body ∪ Prism(F, d)  ·  Body − Prism(F, −d)
 //
 //    IntersectionSolver::Combine already returns a closed, consistently wound, manifold B-rep with (u,v) trims on
@@ -57,8 +58,8 @@ public:
     // Both new seams are G1; the circular-cap radius is the radial and axial set-back.
     [[nodiscard]] static Deliver<BrepBody> FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept;
 
-    // Push a planar face along its own outward normal. Native right-cylinder caps rebuild directly as an exact cylinder;
-    // all other planar faces use the established direct/Boolean paths. Positive raises a boss, negative sinks a pocket.
+    // Push a face along its own outward normal. Native right-cylinder caps and side face rebuild directly as exact
+    // height/radius edits; all other planar faces use the established direct/Boolean paths. Positive adds material.
     [[nodiscard]] static Deliver<BrepBody> PushFace(const BrepBody& Body, int Face, double Distance) noexcept;
 
     // Closed-form volume a blend of this edge removes — the check verification asserts against.

@@ -197,7 +197,23 @@ reference cylinder.
 side-face offsets, circular-extrusion topology, partial cylinders, and arbitrary curved-face modifications remain out
 of scope and refuse/retain the established generic route.
 
-### Phase 28: constant-radius general smooth-support fillets
+### Completed Phase 28: exact native-cylinder radial side-face push
+
+The cylindrical side is a curved direct-modelling face: its normal offset is exactly a radius edit, not a planar push.
+`BlendSolver::PushFace` now recognizes only the checked native right-cylinder side and rebuilds
+`Cylinder(R+d, H)`. Its axial extent, two cap planes, and axis remain exact; positive `d` adds material outward and
+negative `d` removes material inward. A non-positive resulting radius explicitly refuses.
+
+`CylinderSidePushVerification` has 15 C++ checks for outward/inward exact sampled radii, oblique and reversed
+construction, collapse/zero refusal, exclusion of the topologically distinct circular extrusion, and console use. It
+creates `Proofs/Phase28_CylinderSidePushes.png` directly from C++ commands, including side-by-side reference/offset
+pairs plus a top-view radius comparison.
+
+**Exit gate met:** the supported cylindrical surface offsets exactly, preserving valid native cylinder topology. This
+is not a generic surface offset: partial cylinders, extrusion representations, cones, and freeform faces do not enter
+the route.
+
+### Phase 29: constant-radius general smooth-support fillets
 
 Implement the next bounded generalization across one selected smooth edge between two supported surfaces. The
 construction should offset both supports to form a spine, create rational quadratic cross-sections, trim the support
@@ -211,13 +227,13 @@ finding their intersection/spine, and sweeping rational quadratic sections; corn
 **Exit gate:** one plane–cylinder case must retain valid B-rep topology, contact/tangency within tolerance, expected
 volume direction, and a close-up C++ proof render. Unsupported support pairs must refuse cleanly.
 
-### Phase 29: blend chains and corners
+### Phase 30: blend chains and corners
 
 Add tangent-chain propagation, then multi-edge/corner resolution as separate subfeatures. Do not market this phase as
 complete until chain endpoints, three-face corners, holes, thin walls, and blend/blend intersections have their own
 topology and visual regressions.
 
-### Phase 30: variable radius, setbacks, partial edges, and G2
+### Phase 31: variable radius, setbacks, partial edges, and G2
 
 Variable-radius blends need a radius law along the spine, feasibility detection, and a non-linear solve. G2 continuity
 requires its own surface construction and curvature acceptance measurements. These are not small extensions of the

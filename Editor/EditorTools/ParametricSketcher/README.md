@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 39 suites (26 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 40 suites (27 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -119,6 +119,19 @@ commands produce [`Proofs/Phase27_CylinderPushes.png`](Proofs/Phase27_CylinderPu
 pushed cylinder pairs. The route remains intentionally limited to the fully verified native-cylinder topology; it does
 not claim radial side-face offsets, circular-extrusion caps, partial cylinders, or generic curved-face modification.
 
+## Exact cylindrical-side face push (Phase 28)
+
+`PushFace` also now recognizes the classified **cylindrical side** of that native topology. A positive push moves the
+entire curved support outward and an inward push moves it toward the axis, rebuilding `Cylinder(R + d, H)` with unchanged
+axis, end caps, and axial extent. This adds a true curved-face direct-modelling offset without approximating the surface,
+constructing a Boolean shell, or changing the cap topology.
+
+`CylinderSidePushVerification` has 15 C++ checks covering exact outward/inward radii, oblique and reversed construction,
+radius-collapse/zero refusal, explicit circular-extrusion exclusion, and console integration. It produces
+[`Proofs/Phase28_CylinderSidePushes.png`](Proofs/Phase28_CylinderSidePushes.png) directly in C++, including paired
+source/result comparisons and a plan-view radius proof. This remains a native-cylinder-only direct route; arbitrary
+curved faces, partial cylinders, and extrusion representations are not overclaimed.
+
 ## Layout
 
 | Folder | Role | Status |
@@ -178,6 +191,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 25 | **Exact circular native-cylinder cap chamfer.** A selected rational circular cap edge rebuilds as the retained cylinder plus an exact conical frustum, including top/bottom and oblique-axis instances; extrusion lookalikes and axis/full-height set-backs refuse. | `CylinderChamferVerification` — 19 C++ checks; `Proofs/Phase25_CylinderChamfers.png` (2560 × 1600 C++-generated contact sheet) |
 | 26 | **Exact circular native-cylinder cap fillet.** A selected circular cap edge rebuilds as the retained cylinder plus a rational quarter-torus rolling-ball patch, with G1 joins at side and cap, including reversed construction; extrusion lookalikes and axis/full-height radii refuse. | `CylinderFilletVerification` — 22 C++ checks; `Proofs/Phase26_CylinderFillets.png` (2560 × 1600 C++-generated contact sheet) |
 | 27 | **Exact native-cylinder cap face push.** A selected cap moves along its actual outward normal by directly rebuilding the cylinder height/base, including upper/lower, inward/outward, oblique, and reversed construction cases. | `CylinderPushVerification` — 19 C++ checks; `Proofs/Phase27_CylinderPushes.png` (2560 × 1600 C++-generated contact sheet) |
+| 28 | **Exact native-cylinder radial side-face push.** The selected cylindrical face offsets directly to `R+d`, retaining exact caps/axis/height across outward, inward, oblique, and reversed construction cases. | `CylinderSidePushVerification` — 15 C++ checks; `Proofs/Phase28_CylinderSidePushes.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -326,8 +340,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **39 suites** — 26 per-feature verification binaries (1,160 checks total) and 13 script smoke
-tests. The Phase 27 direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **40 suites** — 27 per-feature verification binaries (1,175 checks total) and 13 script smoke
+tests. The Phase 28 direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -348,6 +362,7 @@ are:
 | `CylinderChamferVerification`     | 19  |
 | `CylinderFilletVerification`      | 22  |
 | `CylinderPushVerification`        | 19  |
+| `CylinderSidePushVerification`    | 15  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -358,7 +373,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1160** |
+| **Total** | **1175** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

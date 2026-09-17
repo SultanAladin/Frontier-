@@ -95,8 +95,9 @@ int main()
         Panel.Expect("The reversed-direction outward push moves the low cap and preserves an exact cylinder", FarOut && ExactCylinder(FarOut.Payload, { 0, 0, -24 }, Axis, Radius, 24.0));
     }
 
-    Panel.Section("Unsupported and collapsing selections refuse cleanly");
-    Panel.Expect("The cylindrical side is not misclassified as a direct planar cap push", !BlendSolver::PushFace(Cylinder, Side, 2.0));
+    Panel.Section("Radial native-cylinder support and collapsing selections");
+    Deliver<BrepBody> SideOffset = BlendSolver::PushFace(Cylinder, Side, 2.0);
+    Panel.Expect("The cylindrical side takes its exact direct radial-offset route", SideOffset && ExactCylinder(SideOffset.Payload, Base, Axis, Radius + 2.0, Height));
     Panel.Expect("An inward push that consumes the complete cylinder height is refused", !BlendSolver::PushFace(Cylinder, Top, -Height));
 
     Panel.Section("C++ console proof: outward and inward direct cylinder-cap face pushes");
@@ -112,7 +113,7 @@ int main()
         bool Rendered =
             Run("gizmo off") &&
             Run("reset") && Run("view iso") && Run("cylinder (-13,0,0) 8 20 --name=TopReference") && Run("matcap TopReference steel") && Run("cylinder (13,0,0) 8 20 --name=TopSource") && Run("push TopSource 5 --face=2 --name=TopRaised") && Run("matcap TopRaised gold") && Run("view fit") && Run("view dolly 0.78") && Run("render sheet 0") &&
-            Run("reset") && Run("view bottom") && Run("view orbit 45 25") && Run("cylinder (-13,0,0) 8 20 --name=BottomReference") && Run("matcap BottomReference steel") && Run("cylinder (13,0,0) 8 20 --name=BottomSource") && Run("push BottomSource 5 --face=1 --name=BottomRaised") && Run("matcap BottomRaised plastic-blue") && Run("view fit") && Run("view dolly 0.78") && Run("render sheet 1") &&
+            Run("reset") && Run("view bottom") && Run("view orbit 45 25") && Run("cylinder (-13,0,0) 8 20 --name=BottomReference") && Run("matcap BottomReference steel") && Run("cylinder (13,0,0) 8 20 --name=BottomSource") && Run("push BottomSource 5 --face=2 --name=BottomRaised") && Run("matcap BottomRaised plastic-blue") && Run("view fit") && Run("view dolly 0.78") && Run("render sheet 1") &&
             Run("reset") && Run("view iso") && Run("cylinder (-13,0,0) 8 20 --name=InsetReference") && Run("matcap InsetReference steel") && Run("cylinder (13,0,0) 8 20 --name=TopInsetSource") && Run("push TopInsetSource -8 --face=2 --name=TopInset") && Run("matcap TopInset copper") && Run("view fit") && Run("view dolly 0.78") && Run("render sheet 2") &&
             Run("reset") && Run("view iso") && Run("cylinder (-13,0,0) 8 20 --axis=(2,-1,4) --name=ObliqueReference") && Run("matcap ObliqueReference steel") && Run("cylinder (13,0,0) 8 20 --axis=(2,-1,4) --name=ObliqueSource") && Run("push ObliqueSource 4 --face=2 --name=ObliqueRaised") && Run("matcap ObliqueRaised gold") && Run("view fit") && Run("view dolly 0.78") && Run("render sheet 3") &&
             Run("render sheet finalize Phase27_CylinderPushes");

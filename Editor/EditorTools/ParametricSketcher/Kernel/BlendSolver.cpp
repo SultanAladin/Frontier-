@@ -198,6 +198,15 @@ namespace
         return std::nullopt;
     }
 
+    std::optional<CylinderCap> NativeCylinderSideFace(const BrepBody& Body, int Face) noexcept
+    {
+        if (Face < 0 || Face >= static_cast<int>(Body.Faces.size()) || Body.Faces[Face].Surface.Classification != SurfaceClassification::Cylinder) return std::nullopt;
+        for (size_t E = 0; E < Body.Edges.size(); ++E)
+            if (Body.Edges[E].Closed())
+                if (std::optional<CylinderCap> Cap = NativeCylinderCap(Body, static_cast<int>(E))) return Cap;
+        return std::nullopt;
+    }
+
     Deliver<BrepBody> PushCylinderCap(const CylinderCap& Cap, double Distance) noexcept
     {
         const double NewHeight = Cap.Height + Distance;
@@ -205,6 +214,15 @@ namespace
         Vec3 NewBase = Cap.Upper ? Cap.Base : Cap.Base - Cap.Axis * Distance;
         Deliver<BrepBody> Result = BrepBody::Cylinder(NewBase, Cap.Axis, Cap.Radius, NewHeight);
         if (!Result || !Result.Payload.Validate().Solid()) return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "cylindrical cap push could not be rebuilt into a valid solid");
+        return Result;
+    }
+
+    Deliver<BrepBody> PushCylinderSide(const CylinderCap& Cylinder, double Distance) noexcept
+    {
+        const double NewRadius = Cylinder.Radius + Distance;
+        if (NewRadius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push would collapse the cylinder radius");
+        Deliver<BrepBody> Result = BrepBody::Cylinder(Cylinder.Base, Cylinder.Axis, NewRadius, Cylinder.Height);
+        if (!Result || !Result.Payload.Validate().Solid()) return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "cylindrical side push could not be rebuilt into a valid solid");
         return Result;
     }
 
@@ -690,6 +708,7 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
 {
     if (Face < 0 || Face >= (int)Body.Faces.size()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face index out of range");
     if (std::fabs(Distance) <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push distance is zero");
+    if (std::optional<CylinderCap> Cylinder = NativeCylinderSideFace(Body, Face)) return PushCylinderSide(*Cylinder, Distance);
     if (std::optional<CylinderCap> Cap = NativeCylinderCapFace(Body, Face)) return PushCylinderCap(*Cap, Distance);
     Vec3 Normal;
     if (!PlanarNormal(Body, Face, Normal)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "push requires a planar face");
