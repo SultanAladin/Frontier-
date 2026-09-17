@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 59 suites (46 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 60 suites (47 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -276,7 +276,11 @@ A canonical counterbore with one larger entrance cylinder, one annular shoulder,
 
 ## Bounded multistage coaxial blind bore (Phase 32p)
 
-The connected-span classifier and deterministic cutter sequence now scale to `3 <= N <= 8` strictly decreasing coaxial stages. Source and rounded topology follow the same genus-zero linear formula as other finite cylindrical cavity sets: source `V=8+2N/E=12+3N/C=24+6N/L=6+3N/F=6+2N`, output `V=16+2N/E=24+3N/C=48+6N/L=10+3N/F=10+2N`. Each added diameter contributes one cylindrical wall, one annular shoulder, and two exact rational rims; the last stage terminates at a planar floor. Three- and eight-stage cases, both entry ends, offsets, ordering, transforms, wall/eccentric refusal, and the explicit nine-stage cap are verified. Undercuts, non-decreasing radii, eccentric stages, multiple stepped cavities, and more than eight stages remain unsupported. `MultiStageBlindBorePrismFilletVerification` contributes 33 checks and `Proofs/Phase32p_MultiStageBlindBorePrism.png`.
+The connected-span classifier and deterministic cutter sequence scale to `3 <= N <= 8` strictly decreasing coaxial stages. Source and rounded topology follow the same genus-zero linear formula as other finite cylindrical cavity sets: source `V=8+2N/E=12+3N/C=24+6N/L=6+3N/F=6+2N`, output `V=16+2N/E=24+3N/C=48+6N/L=10+3N/F=10+2N`. Each added diameter contributes one cylindrical wall, one annular shoulder, and two exact rational rims; the last stage terminates at a planar floor. Three- and eight-stage cases, both entry ends, offsets, ordering, transforms, wall/eccentric refusal, and the explicit nine-stage cap are verified. `MultiStageBlindBorePrismFilletVerification` contributes 33 checks and `Proofs/Phase32p_MultiStageBlindBorePrism.png`.
+
+## Exactly two separated two-stage blind bores (Phase 32q)
+
+Two canonical counterbores may now enter the same or opposite prism ends. Each retains a larger shallow cylinder, annular shoulder, and smaller deep cylinder. Classification partitions four cylindrical spans into two unique coaxial chains; reconstruction applies both in deterministic geometric order. Pairwise clearance compares all four axial-band combinations using radial and bounded axial separation, permitting coaxial opposite-end counterbores when a positive ligament remains. Output is genus-zero `V24/E36/C72/L22/F18`, with ten planes, eight rational cylinders, four annular levels, and eight exact rational rims. A third stepped cavity, intersecting stage bands, eccentric chains, or multistage combinations remain separate increments. `DualSteppedBlindBorePrismFilletVerification` contributes 27 checks and `Proofs/Phase32q_DualSteppedBlindBorePrism.png`.
 
 ## Layout
 
@@ -357,6 +361,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32n | **Bounded multi-blind-bore rounded prism.** Three through eight separated finite cylinders scale by exact genus-zero topology formula and all-pairs finite clearance. | `MultiBlindBorePrismFilletVerification` — 31 C++ checks; `Proofs/Phase32n_MultiBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32o | **One coaxial two-diameter stepped blind bore.** A larger entrance stage, exact annular shoulder, and smaller deep stage retain four rational rims. | `SteppedBlindBorePrismFilletVerification` — 25 C++ checks; `Proofs/Phase32o_SteppedBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32p | **Bounded multistage coaxial blind bore.** Three through eight decreasing diameters preserve exact annular levels and `2N` rational rims. | `MultiStageBlindBorePrismFilletVerification` — 33 C++ checks; `Proofs/Phase32p_MultiStageBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
+| 32q | **Exactly two separated two-stage blind bores.** Same/opposite-end counterbores retain finite-band clearance, four annular levels, and eight rational rims. | `DualSteppedBlindBorePrismFilletVerification` — 27 C++ checks; `Proofs/Phase32q_DualSteppedBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -505,8 +510,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **59 suites** — 46 per-feature verification binaries (1,628 checks total) and 13 script smoke
-tests. The Phase 32p direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **60 suites** — 47 per-feature verification binaries (1,655 checks total) and 13 script smoke
+tests. The Phase 32q direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -547,6 +552,7 @@ are:
 | `MultiBlindBorePrismFilletVerification` | 31  |
 | `SteppedBlindBorePrismFilletVerification` | 25  |
 | `MultiStageBlindBorePrismFilletVerification` | 33  |
+| `DualSteppedBlindBorePrismFilletVerification` | 27  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -557,7 +563,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1628** |
+| **Total** | **1655** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

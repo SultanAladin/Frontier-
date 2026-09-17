@@ -413,9 +413,15 @@ The connected-span route now supports one chain of three through eight strictly 
 
 **Proof:** `MultiStageBlindBorePrismFilletVerification` (33 C++ checks) and `Proofs/Phase32p_MultiStageBlindBorePrism.png`.
 
+#### Phase 32q: exactly two separated two-stage blind cavities ✅
+
+Two canonical counterbores may enter a common end or opposite ends. Four cylindrical spans are partitioned into two unique coaxial decreasing-radius chains, each with its own annular shoulder and planar floor. Pairwise feasibility compares all stage-band pairs using bounded axial intervals and transverse disk separation; coaxial opposite-end counterbores remain valid across a positive axial ligament. Deterministic reconstruction produces genus-zero `V24/E36/C72/L22/F18`, with ten planes, eight rational cylinders, four annular levels, and eight exact rational rims. Same/opposite entry, transforms, ordering, wall refusal, an explicit third-cavity cap, and prior-route regression are covered.
+
+**Proof:** `DualSteppedBlindBorePrismFilletVerification` (27 C++ checks) and `Proofs/Phase32q_DualSteppedBlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering, more-than-eight, undercut, non-decreasing, eccentric, or multiple stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering, undercut, non-decreasing, eccentric, more-than-two, or multiple multistage blind cavities, more-than-eight simple cavities/through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

@@ -260,6 +260,11 @@ add_executable(MultiStageBlindBorePrismFilletVerification Verification/MultiStag
 target_link_libraries(MultiStageBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME MultiStageBlindBorePrismFilletVerification COMMAND MultiStageBlindBorePrismFilletVerification)
 
+# Phase 32q: preserve exactly two separated coaxial two-stage blind cavities with finite-band clearance.
+add_executable(DualSteppedBlindBorePrismFilletVerification Verification/DualSteppedBlindBorePrismFilletVerification.cpp)
+target_link_libraries(DualSteppedBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME DualSteppedBlindBorePrismFilletVerification COMMAND DualSteppedBlindBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)
