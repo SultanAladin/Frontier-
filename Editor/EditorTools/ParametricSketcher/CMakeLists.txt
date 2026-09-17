@@ -225,6 +225,11 @@ add_executable(OffsetBorePrismFilletVerification Verification/OffsetBorePrismFil
 target_link_libraries(OffsetBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME OffsetBorePrismFilletVerification COMMAND OffsetBorePrismFilletVerification)
 
+# Phase 32j: preserve exactly two separated axis-parallel bores with pairwise ligament feasibility.
+add_executable(TwinBorePrismFilletVerification Verification/TwinBorePrismFilletVerification.cpp)
+target_link_libraries(TwinBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME TwinBorePrismFilletVerification COMMAND TwinBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

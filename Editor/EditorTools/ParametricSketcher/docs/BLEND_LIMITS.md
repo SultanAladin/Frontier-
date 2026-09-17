@@ -91,9 +91,9 @@ number of distinct chains committed. The verified independent case is two opposi
 radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
 
 The outer shoulder rim, incomplete/non-circular chains, asymmetric or non-radial endpoints, cylinder–cylinder contacts,
-arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary/oblique/blind/multiple holes, unequal/non-orthogonal or two-edge corner patches, and
+arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary/oblique/blind/three-plus holes, unequal/non-orthogonal or two-edge corner patches, and
 general blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
-nine direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
+ten direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
 closed/diameter/radial-sector/multi-edge topology, endpoint meridians and caps, analytic volume direction/value,
 transformed axes, chain propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
 
@@ -111,7 +111,11 @@ Phase 32h extends only that complete outer-family route to a rectangular extrusi
 
 ### One offset axis-parallel through-hole
 
-Phase 32i permits that one bore to move away from the centreline while remaining parallel to the complete selected outer family. Its centre must lie in the erosion of the rounded cross-section by the bore disk. For `holeRadius < filletRadius`, this domain is the inner rectangle expanded by `filletRadius - holeRadius`; the implementation checks the Euclidean distance to that inner rectangle. For larger bores, strict distances to all four retained walls apply. Equality and merge-tolerance contact refuse. The exact cylinder, annular caps, and `V18/E27/C54/L13/F11` topology are unchanged. Oblique or blind holes, multiple holes, arbitrary perforated solids, and wall intersections refuse before any generic fillet fallback.
+Phase 32i permits that one bore to move away from the centreline while remaining parallel to the complete selected outer family. Its centre must lie in the erosion of the rounded cross-section by the bore disk. For `holeRadius < filletRadius`, this domain is the inner rectangle expanded by `filletRadius - holeRadius`; the implementation checks the Euclidean distance to that inner rectangle. For larger bores, strict distances to all four retained walls apply. Equality and merge-tolerance contact refuse. The exact cylinder, annular caps, and `V18/E27/C54/L13/F11` topology are unchanged.
+
+### Exactly two axis-parallel through-holes
+
+Phase 32j accepts the canonical two-hole extension `V12/E18/C36/L12/F8` of the same source extrusion. Four circular rims are partitioned by end plane and paired by radius and transverse centre, so profile-loop and edge-table order do not matter. Both bore disks independently satisfy the rounded-wall erosion test, and `distance(centre0,centre1) > radius0+radius1+MergeTolerance` enforces a positive ligament. Sewing two inward rational cylinders produces genus-two `V20/E30/C60/L16/F12`, with three loops on each planar end cap. Intersecting/tangent holes, three or more holes, oblique or blind holes, and arbitrary perforated solids refuse before generic fallback.
 
 ### Complete rounded-box network
 
