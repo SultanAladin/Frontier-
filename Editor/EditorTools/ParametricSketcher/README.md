@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 43 suites (30 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 44 suites (31 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -172,6 +172,21 @@ extents, V5/E9/C18/L6/F6 topology, volume direction/value, oblique and reversed 
 native-cylinder route, exact console commit, and the C++-generated
 [`Proofs/Phase31_PlaneCylinderFillet.png`](Proofs/Phase31_PlaneCylinderFillet.png).
 
+## Closed tangent-chain boss-root fillets (Phase 32a)
+
+A circular boss root may be represented by several rational arc edges when its shoulder, boss, and outer wall are split
+into angular NURBS patches. `BlendSolver::TangentChain` now follows unambiguous G1 edge continuations from one selected
+manifold seed. The plane–cylinder classifier validates that the discovered arcs close through a complete `2π`, that all
+support patches share the derived axis/radii/extents, and that the complete `3N+2` face stepped topology is present.
+Selecting one arc then rolls the whole root and heals the artificial representation seams into the same canonical exact
+quarter-torus result as the unsplit body.
+
+`TangentChainFilletVerification` has 28 C++ checks covering two- and four-member closed chains, seed independence,
+singleton closed edges, exact topology/torus residual/G1/supports/volume, seam healing, oblique axes, unsupported outer
+chains, radius bounds, non-analytic member refusal, console commit, and the C++-generated
+[`Proofs/Phase32a_TangentChainFillet.png`](Proofs/Phase32a_TangentChainFillet.png). Phase 32 remains open: finite open
+chain endpoints, three-face corners, holes, thin walls, and blend/blend intersections are not claimed by this increment.
+
 ## Layout
 
 | Folder | Role | Status |
@@ -235,6 +250,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 29 | **Exact native-frustum side-face push.** The selected conical side offsets normally by changing both radii by `d·sqrt(1+slope²)` while retaining cap planes, axis, and height. | `ConeSidePushVerification` — 10 C++ checks; `Proofs/Phase29_ConeSidePushes.png` (2560 × 1600 C++-generated contact sheet) |
 | 30 | **Exact native-frustum cap-face push.** Either cap follows the original infinite conical support; positive/negative height construction, tapering/expanding slopes, exact geometry and apex-crossing refusals are verified. | `ConeCapPushVerification` — 19 C++ checks; `Proofs/Phase30_ConeCapPushes.png` (2560 × 1600 C++-generated contact sheet) |
 | 31 | **Exact plane–cylinder boss-root fillet.** A structurally recognized circular boss/annular-shoulder contact rebuilds as trimmed exact supports and a rational quarter-torus along their offset-intersection spine. | `PlaneCylinderFilletVerification` — 24 C++ checks; `Proofs/Phase31_PlaneCylinderFillet.png` (2560 × 1600 C++-generated contact sheet) |
+| 32a | **Closed G1 tangent-chain propagation.** One arc seed follows a complete representation-split boss-root ring; all support patches are verified and rebuilt as one exact seam-healed roll. Open chains and corners remain pending. | `TangentChainFilletVerification` — 28 C++ checks; `Proofs/Phase32a_TangentChainFillet.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -383,8 +399,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **43 suites** — 30 per-feature verification binaries (1,228 checks total) and 13 script smoke
-tests. The Phase 31 direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **44 suites** — 31 per-feature verification binaries (1,256 checks total) and 13 script smoke
+tests. The Phase 32a direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -409,6 +425,7 @@ are:
 | `ConeSidePushVerification`        | 10  |
 | `ConeCapPushVerification`         | 19  |
 | `PlaneCylinderFilletVerification` | 24  |
+| `TangentChainFilletVerification`  | 28  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -419,7 +436,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1228** |
+| **Total** | **1256** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

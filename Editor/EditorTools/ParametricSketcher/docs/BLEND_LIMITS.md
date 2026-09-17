@@ -58,11 +58,17 @@ roll adds the analytic volume
 `ΔV = 2πr²[Rb(1 − π/4) + r(5/6 − π/4)]`; verification requires the tessellated solid volume to follow that value.
 
 The supported radius interval is strictly `0 < r < min(boss height, outer radius − boss radius)`. A radius at either
-upper bound consumes a support and refuses. The outer shoulder rim, partial cylinders, non-circular roots, different
-face counts, cylinder–cylinder contacts, arbitrary trimmed/free-form surfaces, chains, and corners remain unsupported;
-they refuse rather than entering the straight-planar approximation. `PlaneCylinderFilletVerification` measures the
-exact torus identity/residual, both G1 contacts, support extents, topology, analytic volume direction/value, transformed
-axes, refusal bounds, and console commit.
+upper bound consumes a support and refuses. Phase 32a also accepts a complete boss-root ring split into two or four
+rational arc edges by angular representation seams. `TangentChain` follows only unambiguous G1 edge continuations; the
+classifier then requires a closed `2π` ring and matching shoulder, boss, and outer-wall patch sets before it heals all
+seams into the canonical exact result. Selecting either member of a two-edge chain or any member of a four-edge chain
+therefore produces the same solid.
+
+The outer shoulder rim, incomplete/non-circular chains, partial cylinders, cylinder–cylinder contacts, arbitrary
+trimmed/free-form surfaces, open chain endpoints, branching chains, thin-wall interactions, and corner patches remain
+unsupported; they refuse rather than entering the straight-planar approximation. `PlaneCylinderFilletVerification` and
+`TangentChainFilletVerification` measure exact torus identity/residual, both G1 contacts, support extents, topology,
+analytic volume direction/value, transformed axes, chain propagation/healing, refusal bounds, and console commit.
 
 ### Re-entrant handle roots
 

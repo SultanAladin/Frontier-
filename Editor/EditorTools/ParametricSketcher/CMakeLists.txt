@@ -180,6 +180,11 @@ add_executable(PlaneCylinderFilletVerification Verification/PlaneCylinderFilletV
 target_link_libraries(PlaneCylinderFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME PlaneCylinderFilletVerification COMMAND PlaneCylinderFilletVerification)
 
+# Phase 32a: G1 tangent-chain propagation across angular representation seams at that exact boss root.
+add_executable(TangentChainFilletVerification Verification/TangentChainFilletVerification.cpp)
+target_link_libraries(TangentChainFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME TangentChainFilletVerification COMMAND TangentChainFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

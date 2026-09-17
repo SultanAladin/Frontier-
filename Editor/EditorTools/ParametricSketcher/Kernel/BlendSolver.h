@@ -9,7 +9,8 @@
 //    Here a blend is a set operation against an exactly-built tool solid, which is how a solid modeller states it.
 //    Curved-edge routes are deliberately bounded and direct: a complete native right-cylinder cap is rebuilt from its
 //    retained cylinder and an exact conical frustum/quarter torus, while the first general smooth-support case rebuilds
-//    a planar annular shoulder and cylindrical boss around their offset-surface spine:
+//    a planar annular shoulder and cylindrical boss around their offset-surface spine. A G1 tangent-chain walker lets
+//    that boss root be selected through one member of a complete representation-split circular ring:
 //
 //      chamfer(E, s) = Body − Wedge(E, s)                 the planar corner prism beyond the set-back plane is cut away
 //      circular chamfer = Cylinder(R, H−s) ∪ Cone(R, R−s, s)     exact right-cylinder cap bevel
@@ -49,6 +50,10 @@ struct EdgeCornerFrame
 class BlendSolver
 {
 public:
+    // Follow G1 edge-to-edge continuations from a manifold seed. A closed edge is a singleton; an ambiguous tangent
+    // branch refuses rather than selecting by edge-table order. The returned indices describe one complete chain.
+    [[nodiscard]] static Deliver<std::vector<int>> TangentChain(const BrepBody& Body, int SeedEdge) noexcept;
+
     // Local frame of a straight manifold edge between two planar faces. Refuses anything else, with the reason.
     [[nodiscard]] static bool Frame(const BrepBody& Body, int Edge, EdgeCornerFrame& Out, std::string& Refusal) noexcept;
 
@@ -57,8 +62,9 @@ public:
     [[nodiscard]] static Deliver<BrepBody> ChamferEdge(const BrepBody& Body, int Edge, double SetBack) noexcept;
 
     // Rolling-ball fillet of one straight planar edge, an exact quarter-torus on a native right-cylinder cap, or an exact
-    // concave quarter-torus at the circular root of the bounded five-face planar-shoulder/cylindrical-boss topology.
-    // Both contact seams are G1; unsupported smooth-support arrangements refuse without approximating the roll.
+    // concave quarter-torus at the circular root of a bounded planar-shoulder/cylindrical-boss topology. One member of a
+    // complete representation-split boss-root chain propagates around the ring and heals its angular support seams.
+    // Both contact seams are G1; unsupported/open/branching smooth-support arrangements refuse without approximation.
     [[nodiscard]] static Deliver<BrepBody> FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept;
 
     // Push a face along its own outward normal. Native right-cylinder caps and side face rebuild directly as exact

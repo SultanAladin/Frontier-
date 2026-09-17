@@ -263,11 +263,28 @@ axes, bounded refusals, legacy cylinder-cap dispatch, and exact console commit.
 **Proof:** `Verification/PlaneCylinderFilletVerification.cpp` (24 C++ checks) and
 `Proofs/Phase31_PlaneCylinderFillet.png` (2560 × 1600 C++-generated contact sheet).
 
-### Phase 32: blend chains and corners
+### Phase 32: blend chains and corners — in progress
 
-Add tangent-chain propagation, then multi-edge/corner resolution as separate subfeatures. Do not market this phase as
-complete until chain endpoints, three-face corners, holes, thin walls, and blend/blend intersections have their own
-topology and visual regressions.
+#### Phase 32a: closed representation-split tangent chains ✅
+
+`BlendSolver::TangentChain` now follows unambiguous G1 continuations from one manifold seed and refuses a branching
+choice instead of depending on edge-table order. The first consuming operation is deliberately bounded: a Phase 31
+boss-root ring may be represented by two or four angular NURBS support patches rather than one closed edge. The
+classifier proves that the propagated rational arcs close through `2π`, that the boss/shoulder/outer-wall patches share
+one axis and exact dimensions, and that the source has the complete `V=4N, E=7N, C=14N, L=3N+2, F=3N+2` topology.
+It then heals the representation seams by rebuilding the same canonical exact quarter-torus result.
+
+**32a exit gate met:** `TangentChainFilletVerification` proves seed independence, two- and four-member propagation,
+singleton closed-edge behavior, exact `V5/E9/C18/L6/F6` output, torus residual below `1e-9`, both G1 breaks below
+`1e-10`, support/contact healing, analytic volume, oblique axes, bounded refusals, and exact console commit.
+
+**Proof:** `Verification/TangentChainFilletVerification.cpp` (28 C++ checks) and
+`Proofs/Phase32a_TangentChainFillet.png` (2560 × 1600 C++-generated contact sheet).
+
+#### Still required before Phase 32 is complete
+
+Finite open-chain endpoints, intentional multi-edge selection, three-face corner patches, holes, thin walls, and
+blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

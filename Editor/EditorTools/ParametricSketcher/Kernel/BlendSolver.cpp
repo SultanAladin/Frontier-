@@ -208,9 +208,10 @@ namespace
     }
 
     // Phase 31's first general smooth-support pair is the circular root where a cylindrical boss leaves a planar
-    // annular shoulder. Unlike a three-face cylinder cap, this edge belongs to a five-face stepped solid and the fillet
-    // ADDS its rolling-ball wedge. The classifier derives all dimensions from the selected edge and its two supports;
-    // it does not rely on face-table order or a remembered primitive recipe.
+    // annular shoulder. Unlike a three-face cylinder cap, the unsplit edge belongs to a five-face stepped solid and the
+    // fillet ADDS its rolling-ball wedge. Phase 32a also follows a complete circular chain across angular representation
+    // seams. The classifier derives every patch and dimension from topology/support geometry, never face-table order or
+    // a remembered primitive recipe.
     struct PlaneCylinderRoot
     {
         Vec3   Base, Axis;
@@ -220,11 +221,13 @@ namespace
 
     bool CircularFrame(const NurbsCurve& Curve, Vec3& Centre, Vec3& Normal, double& Radius) noexcept
     {
-        if (Curve.Classification != CurveClassification::Circle || Curve.Degree != 2 ||
-            !Curve.Rational() || !Curve.Closed()) return false;
+        if ((Curve.Classification != CurveClassification::Arc && Curve.Classification != CurveClassification::Circle) ||
+            Curve.Degree != 2 || !Curve.Rational()) return false;
         const double T0 = Curve.DomainStart(), Span = Curve.DomainEnd() - T0;
         if (Span <= ScalarCriteria::ParametricEpsilon) return false;
-        Vec3 P0 = Curve.Sample(T0), P1 = Curve.Sample(T0 + Span * 0.25), P2 = Curve.Sample(T0 + Span * 0.5);
+        const double MiddleFraction = Curve.Closed() ? 0.25 : 0.5;
+        const double EndFraction = Curve.Closed() ? 0.5 : 1.0;
+        Vec3 P0 = Curve.Sample(T0), P1 = Curve.Sample(T0 + Span * MiddleFraction), P2 = Curve.Sample(T0 + Span * EndFraction);
         Vec3 U = P1 - P0, V = P2 - P0, Cross = U.Cross(V);
         const double Denominator = 2.0 * Cross.LengthSquared();
         if (Denominator <= ScalarCriteria::KernelTolerance) return false;
@@ -233,7 +236,7 @@ namespace
         if (Radius <= Tol) return false;
         Normal = Cross.Normalised();
         const double Epsilon = 1e-8 * std::max(1.0, Radius);
-        for (int I = 1; I < 8; ++I)
+        for (int I = 0; I <= 8; ++I)
         {
             Vec3 Radial = Curve.Sample(T0 + Span * (static_cast<double>(I) / 8.0)) - Centre;
             if (std::fabs(Radial.Length() - Radius) > Epsilon || std::fabs(Radial.Dot(Normal)) > Epsilon) return false;
@@ -248,17 +251,19 @@ namespace
         const double U0 = Cylinder.DomainStartU(), U1 = Cylinder.DomainEndU();
         const double V0 = Cylinder.DomainStartV(), V1 = Cylinder.DomainEndV();
         const double MiddleU = 0.5 * (U0 + U1);
-        Start = (Cylinder.Sample(U0, V0) + Cylinder.Sample(MiddleU, V0)) * 0.5;
-        End = (Cylinder.Sample(U0, V1) + Cylinder.Sample(MiddleU, V1)) * 0.5;
-        Radius = Cylinder.RadiusMajor;
         Vec3 Axis = Cylinder.Axis.Normalised();
+        if (Axis.Length() <= Tol) return false;
+        Vec3 PointStart = Cylinder.Sample(MiddleU, V0), PointEnd = Cylinder.Sample(MiddleU, V1);
+        Start = Cylinder.Origin + Axis * (PointStart - Cylinder.Origin).Dot(Axis);
+        End = Cylinder.Origin + Axis * (PointEnd - Cylinder.Origin).Dot(Axis);
+        Radius = Cylinder.RadiusMajor;
         const double Height = Start.Distance(End);
         const double Epsilon = 1e-8 * std::max({ 1.0, Radius, Height });
-        if (Axis.Length() <= Tol || Height <= Epsilon || (End - Start).Normalised().Cross(Axis).Length() > 1e-8) return false;
+        if (Height <= Epsilon || (End - Start).Normalised().Cross(Axis).Length() > 1e-8) return false;
         for (double V : { V0, V1 })
         {
             Vec3 Centre = V == V0 ? Start : End;
-            for (int I = 0; I < 8; ++I)
+            for (int I = 0; I <= 8; ++I)
             {
                 Vec3 Point = Cylinder.Sample(U0 + (U1 - U0) * (static_cast<double>(I) / 8.0), V);
                 Vec3 Radial = Point - Centre;
@@ -268,98 +273,200 @@ namespace
         return true;
     }
 
+    bool CompleteCircularChain(const BrepBody& Body, const std::vector<int>& Chain,
+                               Vec3 Centre, Vec3 Axis, double Radius) noexcept
+    {
+        if (Chain.empty()) return false;
+        if (Chain.size() == 1 && Body.Edges[Chain.front()].Closed()) return true;
+        std::vector<int> Degrees(Body.Vertices.size(), 0);
+        double Angle = 0.0;
+        for (int Edge : Chain)
+        {
+            if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size())) return false;
+            const BrepEdge& Candidate = Body.Edges[Edge];
+            if (Candidate.Closed() || Candidate.VertexStart < 0 || Candidate.VertexEnd < 0) return false;
+            Vec3 CandidateCentre, CandidateNormal; double CandidateRadius = 0.0;
+            if (!CircularFrame(Candidate.Curve, CandidateCentre, CandidateNormal, CandidateRadius) ||
+                CandidateCentre.Distance(Centre) > 1e-8 * std::max(1.0, Radius) ||
+                std::fabs(CandidateRadius - Radius) > 1e-8 * std::max(1.0, Radius) ||
+                std::fabs(CandidateNormal.Dot(Axis)) < 1.0 - 1e-8) return false;
+            ++Degrees[Candidate.VertexStart]; ++Degrees[Candidate.VertexEnd];
+            const double T0 = Candidate.Curve.DomainStart(), T1 = Candidate.Curve.DomainEnd(), TM = 0.5 * (T0 + T1);
+            Vec3 R0 = (Candidate.Curve.Sample(T0) - Centre).Normalised();
+            Vec3 RM = (Candidate.Curve.Sample(TM) - Centre).Normalised();
+            Vec3 R1 = (Candidate.Curve.Sample(T1) - Centre).Normalised();
+            Angle += std::acos(ScalarCriteria::Clamp(R0.Dot(RM), -1.0, 1.0));
+            Angle += std::acos(ScalarCriteria::Clamp(RM.Dot(R1), -1.0, 1.0));
+        }
+        for (int Degree : Degrees) if (Degree != 0 && Degree != 2) return false;
+        return std::fabs(Angle - ScalarCriteria::TwoPi) <= 1e-6;
+    }
+
     std::optional<PlaneCylinderRoot> PlaneCylinderBossRoot(const BrepBody& Body, int Edge) noexcept
     {
-        if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size()) || !Body.Validate().Solid() ||
-            Body.Vertices.size() != 4 || Body.Edges.size() != 7 || Body.Coedges.size() != 14 ||
-            Body.Loops.size() != 5 || Body.Faces.size() != 5) return std::nullopt;
-        const BrepEdge& RootEdge = Body.Edges[Edge];
-        if (!RootEdge.Closed() || RootEdge.Coedges.size() != 2) return std::nullopt;
+        if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size()) || !Body.Validate().Solid()) return std::nullopt;
+        Deliver<std::vector<int>> ChainResult = BlendSolver::TangentChain(Body, Edge);
+        if (!ChainResult || ChainResult.Payload.empty()) return std::nullopt;
+        const std::vector<int>& RootEdges = ChainResult.Payload;
+        const size_t SegmentCount = RootEdges.size();
 
-        Vec3 RootCentre, RootNormal; double BossRadius = 0.0;
-        if (!CircularFrame(RootEdge.Curve, RootCentre, RootNormal, BossRadius)) return std::nullopt;
-        int ShoulderFace = -1, BossFace = -1; Vec3 Axis;
-        for (int Coedge : RootEdge.Coedges)
+        // One angular patch for each outer-wall, shoulder, and boss segment, plus two planar end caps. The same formulas
+        // cover the original single closed edge and any fully sewn representation-seam split of that circular edge.
+        if (Body.Vertices.size() != 4 * SegmentCount || Body.Edges.size() != 7 * SegmentCount ||
+            Body.Coedges.size() != 14 * SegmentCount || Body.Loops.size() != 3 * SegmentCount + 2 ||
+            Body.Faces.size() != 3 * SegmentCount + 2) return std::nullopt;
+
+        auto Contains = [](const std::vector<int>& Values, int Value) noexcept
+        { return std::find(Values.begin(), Values.end(), Value) != Values.end(); };
+        auto AppendUnique = [&](std::vector<int>& Values, int Value) noexcept
+        { if (!Contains(Values, Value)) Values.push_back(Value); };
+
+        Vec3 RootCentre, Axis; double BossRadius = 0.0, BossHeight = 0.0;
+        bool FirstRoot = true;
+        std::vector<int> ShoulderFaces, BossFaces;
+        for (int RootIndex : RootEdges)
         {
-            if (Coedge < 0 || Coedge >= static_cast<int>(Body.Coedges.size())) return std::nullopt;
-            int Face = Body.Coedges[Coedge].Face;
-            if (Face < 0 || Face >= static_cast<int>(Body.Faces.size())) return std::nullopt;
-            if (Body.Faces[Face].Surface.Classification == SurfaceClassification::Cylinder)
+            const BrepEdge& RootEdge = Body.Edges[RootIndex];
+            if (RootEdge.Coedges.size() != 2) return std::nullopt;
+            Vec3 CandidateCentre, CandidateCircleNormal; double CandidateRadius = 0.0;
+            if (!CircularFrame(RootEdge.Curve, CandidateCentre, CandidateCircleNormal, CandidateRadius)) return std::nullopt;
+
+            int ShoulderFace = -1, BossFace = -1; Vec3 CandidateAxis;
+            for (int Coedge : RootEdge.Coedges)
             {
-                if (BossFace >= 0) return std::nullopt;
-                BossFace = Face;
+                if (Coedge < 0 || Coedge >= static_cast<int>(Body.Coedges.size())) return std::nullopt;
+                int Face = Body.Coedges[Coedge].Face;
+                if (Face < 0 || Face >= static_cast<int>(Body.Faces.size())) return std::nullopt;
+                if (Body.Faces[Face].Surface.Classification == SurfaceClassification::Cylinder)
+                {
+                    if (BossFace >= 0) return std::nullopt;
+                    BossFace = Face;
+                }
+                else
+                {
+                    Vec3 Normal;
+                    if (ShoulderFace >= 0 || !PlanarNormal(Body, Face, Normal)) return std::nullopt;
+                    ShoulderFace = Face; CandidateAxis = Normal.Normalised();
+                }
             }
-            else
+            if (ShoulderFace < 0 || BossFace < 0 || CandidateAxis.Length() <= Tol ||
+                std::fabs(CandidateCircleNormal.Dot(CandidateAxis)) < 1.0 - 1e-8) return std::nullopt;
+
+            Vec3 BossStart, BossEnd; double ClassifiedBossRadius = 0.0;
+            if (!CylinderEndCentres(Body.Faces[BossFace].Surface, BossStart, BossEnd, ClassifiedBossRadius)) return std::nullopt;
+            const double Scale = std::max({ 1.0, CandidateRadius, ClassifiedBossRadius, BossStart.Distance(BossEnd) });
+            const double Epsilon = 1e-8 * Scale;
+            if (std::fabs(CandidateRadius - ClassifiedBossRadius) > Epsilon) return std::nullopt;
+            Vec3 BossOther;
+            if (BossStart.Distance(CandidateCentre) <= Epsilon) BossOther = BossEnd;
+            else if (BossEnd.Distance(CandidateCentre) <= Epsilon) BossOther = BossStart;
+            else return std::nullopt;
+            double CandidateBossHeight = BossOther.Distance(CandidateCentre);
+            if (CandidateBossHeight <= Epsilon ||
+                (BossOther - CandidateCentre).Normalised().Dot(CandidateAxis) < 1.0 - 1e-8) return std::nullopt;
+
+            if (FirstRoot)
             {
-                Vec3 Normal;
-                if (ShoulderFace >= 0 || !PlanarNormal(Body, Face, Normal)) return std::nullopt;
-                ShoulderFace = Face; Axis = Normal.Normalised();
+                RootCentre = CandidateCentre; Axis = CandidateAxis;
+                BossRadius = CandidateRadius; BossHeight = CandidateBossHeight;
+                FirstRoot = false;
             }
+            else if (CandidateCentre.Distance(RootCentre) > Epsilon || CandidateAxis.Dot(Axis) < 1.0 - 1e-8 ||
+                     std::fabs(CandidateRadius - BossRadius) > Epsilon ||
+                     std::fabs(CandidateBossHeight - BossHeight) > Epsilon) return std::nullopt;
+            AppendUnique(ShoulderFaces, ShoulderFace);
+            AppendUnique(BossFaces, BossFace);
         }
-        if (ShoulderFace < 0 || BossFace < 0 || std::fabs(RootNormal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+        if (FirstRoot || ShoulderFaces.size() != SegmentCount || BossFaces.size() != SegmentCount ||
+            !CompleteCircularChain(Body, RootEdges, RootCentre, Axis, BossRadius)) return std::nullopt;
 
-        Vec3 BossStart, BossEnd; double ClassifiedBossRadius = 0.0;
-        if (!CylinderEndCentres(Body.Faces[BossFace].Surface, BossStart, BossEnd, ClassifiedBossRadius)) return std::nullopt;
-        const double Scale = std::max({ 1.0, BossRadius, ClassifiedBossRadius, BossStart.Distance(BossEnd) });
-        const double Epsilon = 1e-8 * Scale;
-        if (std::fabs(BossRadius - ClassifiedBossRadius) > Epsilon) return std::nullopt;
-        Vec3 BossOther;
-        if (BossStart.Distance(RootCentre) <= Epsilon) BossOther = BossEnd;
-        else if (BossEnd.Distance(RootCentre) <= Epsilon) BossOther = BossStart;
-        else return std::nullopt;
-        double BossHeight = BossOther.Distance(RootCentre);
-        if (BossHeight <= Epsilon || (BossOther - RootCentre).Normalised().Dot(Axis) < 1.0 - 1e-8) return std::nullopt;
-
-        int OuterEdge = -1;
-        for (int Loop : Body.Faces[ShoulderFace].Loops)
-            for (int Coedge : Body.Loops[Loop].Coedges)
-            {
-                int Candidate = Body.Coedges[Coedge].Edge;
-                if (Candidate == Edge || Candidate < 0 || Candidate >= static_cast<int>(Body.Edges.size()) ||
-                    !Body.Edges[Candidate].Closed()) continue;
-                if (OuterEdge >= 0 && OuterEdge != Candidate) return std::nullopt;
-                OuterEdge = Candidate;
-            }
-        if (OuterEdge < 0) return std::nullopt;
-
-        Vec3 OuterCentre, OuterNormal; double OuterRadius = 0.0;
-        if (!CircularFrame(Body.Edges[OuterEdge].Curve, OuterCentre, OuterNormal, OuterRadius) ||
-            OuterCentre.Distance(RootCentre) > Epsilon || std::fabs(OuterNormal.Dot(Axis)) < 1.0 - 1e-8 ||
-            OuterRadius <= BossRadius + Epsilon) return std::nullopt;
-        int OuterFace = -1;
-        for (int Coedge : Body.Edges[OuterEdge].Coedges)
+        // Every shoulder patch has one concentric outer circular arc. Follow those arcs through their adjacent cylindrical
+        // wall patches, just as the selected tangent chain was followed through the boss/shoulder patches.
+        std::vector<int> OuterEdges, OuterFaces;
+        double OuterRadius = 0.0;
+        for (int ShoulderFace : ShoulderFaces)
         {
-            int Face = Body.Coedges[Coedge].Face;
-            if (Face != ShoulderFace)
+            int FoundOuter = -1;
+            for (int Loop : Body.Faces[ShoulderFace].Loops)
             {
-                if (OuterFace >= 0 || Face < 0 || Face >= static_cast<int>(Body.Faces.size())) return std::nullopt;
-                OuterFace = Face;
+                if (Loop < 0 || Loop >= static_cast<int>(Body.Loops.size())) return std::nullopt;
+                for (int Coedge : Body.Loops[Loop].Coedges)
+                {
+                    if (Coedge < 0 || Coedge >= static_cast<int>(Body.Coedges.size())) return std::nullopt;
+                    int Candidate = Body.Coedges[Coedge].Edge;
+                    if (Candidate < 0 || Candidate >= static_cast<int>(Body.Edges.size()) || Contains(RootEdges, Candidate)) continue;
+                    Vec3 CandidateCentre, CandidateNormal; double CandidateRadius = 0.0;
+                    const double Epsilon = 1e-8 * std::max(1.0, BossRadius);
+                    if (!CircularFrame(Body.Edges[Candidate].Curve, CandidateCentre, CandidateNormal, CandidateRadius) ||
+                        CandidateCentre.Distance(RootCentre) > Epsilon ||
+                        std::fabs(CandidateNormal.Dot(Axis)) < 1.0 - 1e-8 || CandidateRadius <= BossRadius + Epsilon) continue;
+                    if (FoundOuter >= 0 && FoundOuter != Candidate) return std::nullopt;
+                    FoundOuter = Candidate;
+                }
             }
+            if (FoundOuter < 0) return std::nullopt;
+            Vec3 CandidateCentre, CandidateNormal; double CandidateRadius = 0.0;
+            if (!CircularFrame(Body.Edges[FoundOuter].Curve, CandidateCentre, CandidateNormal, CandidateRadius)) return std::nullopt;
+            if (OuterRadius <= Tol) OuterRadius = CandidateRadius;
+            else if (std::fabs(CandidateRadius - OuterRadius) > 1e-8 * std::max(1.0, OuterRadius)) return std::nullopt;
+            AppendUnique(OuterEdges, FoundOuter);
+
+            int OuterFace = -1;
+            for (int Coedge : Body.Edges[FoundOuter].Coedges)
+            {
+                if (Coedge < 0 || Coedge >= static_cast<int>(Body.Coedges.size())) return std::nullopt;
+                int Face = Body.Coedges[Coedge].Face;
+                if (!Contains(ShoulderFaces, Face))
+                {
+                    if (OuterFace >= 0 || Face < 0 || Face >= static_cast<int>(Body.Faces.size()) ||
+                        Body.Faces[Face].Surface.Classification != SurfaceClassification::Cylinder) return std::nullopt;
+                    OuterFace = Face;
+                }
+            }
+            if (OuterFace < 0) return std::nullopt;
+            AppendUnique(OuterFaces, OuterFace);
         }
-        if (OuterFace < 0 || OuterFace == BossFace) return std::nullopt;
+        if (OuterEdges.size() != SegmentCount || OuterFaces.size() != SegmentCount || OuterRadius <= BossRadius ||
+            !CompleteCircularChain(Body, OuterEdges, RootCentre, Axis, OuterRadius)) return std::nullopt;
 
-        Vec3 OuterStart, OuterEnd; double ClassifiedOuterRadius = 0.0;
-        if (!CylinderEndCentres(Body.Faces[OuterFace].Surface, OuterStart, OuterEnd, ClassifiedOuterRadius) ||
-            std::fabs(OuterRadius - ClassifiedOuterRadius) > Epsilon) return std::nullopt;
-        Vec3 Base;
-        if (OuterStart.Distance(RootCentre) <= Epsilon) Base = OuterEnd;
-        else if (OuterEnd.Distance(RootCentre) <= Epsilon) Base = OuterStart;
-        else return std::nullopt;
-        double ShoulderHeight = Base.Distance(RootCentre);
-        if (ShoulderHeight <= Epsilon || (Base - RootCentre).Normalised().Dot(Axis) > -1.0 + 1e-8) return std::nullopt;
+        Vec3 Base; double ShoulderHeight = 0.0; bool FirstOuter = true;
+        for (int OuterFace : OuterFaces)
+        {
+            Vec3 OuterStart, OuterEnd; double ClassifiedOuterRadius = 0.0;
+            if (!CylinderEndCentres(Body.Faces[OuterFace].Surface, OuterStart, OuterEnd, ClassifiedOuterRadius)) return std::nullopt;
+            const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, OuterStart.Distance(OuterEnd) });
+            if (std::fabs(OuterRadius - ClassifiedOuterRadius) > Epsilon) return std::nullopt;
+            Vec3 CandidateBase;
+            if (OuterStart.Distance(RootCentre) <= Epsilon) CandidateBase = OuterEnd;
+            else if (OuterEnd.Distance(RootCentre) <= Epsilon) CandidateBase = OuterStart;
+            else return std::nullopt;
+            double CandidateHeight = CandidateBase.Distance(RootCentre);
+            if (CandidateHeight <= Epsilon ||
+                (CandidateBase - RootCentre).Normalised().Dot(Axis) > -1.0 + 1e-8) return std::nullopt;
+            if (FirstOuter) { Base = CandidateBase; ShoulderHeight = CandidateHeight; FirstOuter = false; }
+            else if (CandidateBase.Distance(Base) > Epsilon || std::fabs(CandidateHeight - ShoulderHeight) > Epsilon)
+                return std::nullopt;
+        }
+        if (FirstOuter) return std::nullopt;
 
-        // The remaining two faces must be the planar end caps. This excludes a coincident five-face lookalike with
-        // hidden trims or another smooth support from entering the bounded reconstruction.
-        int EndCaps = 0;
+        // The only remaining faces are the planar end caps at the derived outer base and boss top.
+        int BottomCaps = 0, TopCaps = 0;
+        Vec3 BossTop = RootCentre + Axis * BossHeight;
         for (size_t Face = 0; Face < Body.Faces.size(); ++Face)
         {
-            if (static_cast<int>(Face) == ShoulderFace || static_cast<int>(Face) == BossFace || static_cast<int>(Face) == OuterFace) continue;
+            int FaceIndex = static_cast<int>(Face);
+            if (Contains(ShoulderFaces, FaceIndex) || Contains(BossFaces, FaceIndex) || Contains(OuterFaces, FaceIndex)) continue;
             Vec3 Normal;
-            if (Body.Faces[Face].Surface.Classification != SurfaceClassification::Plane || !PlanarNormal(Body, static_cast<int>(Face), Normal) ||
-                std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
-            ++EndCaps;
+            if (!PlanarNormal(Body, FaceIndex, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+            const NurbsSurface& Cap = Body.Faces[Face].Surface;
+            Vec3 Point = Cap.Sample(0.5 * (Cap.DomainStartU() + Cap.DomainEndU()),
+                                    0.5 * (Cap.DomainStartV() + Cap.DomainEndV()));
+            const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
+            if (std::fabs((Point - Base).Dot(Axis)) <= Epsilon) ++BottomCaps;
+            else if (std::fabs((Point - BossTop).Dot(Axis)) <= Epsilon) ++TopCaps;
+            else return std::nullopt;
         }
-        if (EndCaps != 2) return std::nullopt;
+        if (BottomCaps != 1 || TopCaps != 1) return std::nullopt;
         return PlaneCylinderRoot{ Base, Axis, OuterRadius, ShoulderHeight, BossRadius, BossHeight };
     }
 
@@ -819,6 +926,52 @@ namespace
         if (!Rebuilt || !Rebuilt.Payload.Validate().Solid()) return std::nullopt;
         return std::move(Rebuilt.Payload);
     }
+}
+
+Deliver<std::vector<int>> BlendSolver::TangentChain(const BrepBody& Body, int SeedEdge) noexcept
+{
+    if (SeedEdge < 0 || SeedEdge >= static_cast<int>(Body.Edges.size()))
+        return Deliver<std::vector<int>>::Reject(RefusalReason::DegenerateInput, "seed edge index is out of range");
+    if (Body.Edges[SeedEdge].Coedges.size() != 2)
+        return Deliver<std::vector<int>>::Reject(RefusalReason::Unsupported, "seed edge is not a manifold body edge");
+
+    std::vector<int> Chain{ SeedEdge };
+    for (size_t Cursor = 0; Cursor < Chain.size(); ++Cursor)
+    {
+        int CurrentIndex = Chain[Cursor];
+        const BrepEdge& Current = Body.Edges[CurrentIndex];
+        if (Current.Closed()) continue;
+        for (int Vertex : { Current.VertexStart, Current.VertexEnd })
+        {
+            if (Vertex < 0 || Vertex >= static_cast<int>(Body.Vertices.size()))
+                return Deliver<std::vector<int>>::Reject(RefusalReason::Unsupported, "chain edge has no valid endpoint vertex");
+            const double CurrentParameter = Vertex == Current.VertexStart
+                ? Current.Curve.DomainStart() : Current.Curve.DomainEnd();
+            Vec3 CurrentTangent = Current.Curve.Tangent(CurrentParameter).Normalised();
+            if (CurrentTangent.Length() <= Tol)
+                return Deliver<std::vector<int>>::Reject(RefusalReason::DegenerateInput, "chain edge has a zero endpoint tangent");
+
+            int Continuation = -1;
+            for (size_t CandidateIndex = 0; CandidateIndex < Body.Edges.size(); ++CandidateIndex)
+            {
+                if (static_cast<int>(CandidateIndex) == CurrentIndex) continue;
+                const BrepEdge& Candidate = Body.Edges[CandidateIndex];
+                if (Candidate.Coedges.size() != 2 || Candidate.Closed() ||
+                    (Candidate.VertexStart != Vertex && Candidate.VertexEnd != Vertex)) continue;
+                const double CandidateParameter = Vertex == Candidate.VertexStart
+                    ? Candidate.Curve.DomainStart() : Candidate.Curve.DomainEnd();
+                Vec3 CandidateTangent = Candidate.Curve.Tangent(CandidateParameter).Normalised();
+                if (CandidateTangent.Length() <= Tol ||
+                    std::fabs(CurrentTangent.Dot(CandidateTangent)) < 1.0 - 1e-8) continue;
+                if (Continuation >= 0 && Continuation != static_cast<int>(CandidateIndex))
+                    return Deliver<std::vector<int>>::Reject(RefusalReason::Unsupported, "tangent chain branches ambiguously at a vertex");
+                Continuation = static_cast<int>(CandidateIndex);
+            }
+            if (Continuation >= 0 && std::find(Chain.begin(), Chain.end(), Continuation) == Chain.end())
+                Chain.push_back(Continuation);
+        }
+    }
+    return Deliver<std::vector<int>>::Accept(std::move(Chain));
 }
 
 bool BlendSolver::Frame(const BrepBody& Body, int Edge, EdgeCornerFrame& Out, std::string& Refusal) noexcept

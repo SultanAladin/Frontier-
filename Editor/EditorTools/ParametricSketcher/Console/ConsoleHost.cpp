@@ -2362,7 +2362,7 @@ void ConsoleHost::Register() noexcept
         for (const CurveCrossing& K : X) Row("  (%.6f %.6f %.6f)  tA %.6f  tB %.6f%s", K.Point.X, K.Point.Y, K.Point.Z, K.ParameterA, K.ParameterB, K.Tangent ? "  tangent" : "");
         return true;
     });
-    Add("fillet", "fillet <curve...> radius [--corners=i,j,…]  or  <body> radius --edges=i,j [--name=…] — round sketches, planar edges, native caps, or stepped boss roots", [=, this](const CommandLine& C)
+    Add("fillet", "fillet <curve...> radius [--corners=i,j,…]  or  <body> radius --edges=i,j [--name=…] — round sketches, planar edges, native caps, or closed tangent boss-root chains", [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "fillet")) return false;
         double R = 0; if (!NumberArg(C, C.Count() - 1, R, "fillet")) return false;
