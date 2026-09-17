@@ -353,9 +353,15 @@ Selecting all twelve edges of a verified rectangular solid composes the bounded 
 
 **Proof:** `RoundedBoxFilletVerification` (19 C++ checks) and `Proofs/Phase32f_RoundedBox.png`.
 
+#### Phase 32g: exact parallel-edge families and cross-wall feasibility ✅
+
+All four mutually parallel edges of a verified rectangular solid now rebuild together as one rounded prism. Four retained planes and four exact cylinders close against two planar rounded end caps at `V16/E24/C48/L10/F10`. A global `2r < min(cross-section dimensions)` gate refuses thin-wall collapse before construction. All three box directions, seed deduplication/order, and rigid transforms are verified.
+
+**Proof:** `RoundedPrismFilletVerification` (20 C++ checks) and `Proofs/Phase32g_RoundedPrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, holes, thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

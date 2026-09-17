@@ -630,6 +630,41 @@ namespace
         return Result;
     }
 
+    Deliver<BrepBody> BuildRoundedBoxPrism(const OrthogonalBoxCorner& Box, int Along, double Radius) noexcept
+    {
+        Vec3 A=Along==0?Box.X:(Along==1?Box.Y:Box.Z);
+        Vec3 B=Along==0?Box.Y:(Along==1?Box.X:Box.X);
+        Vec3 C=Along==0?Box.Z:(Along==1?Box.Z:Box.Y);
+        double LA=Along==0?Box.LX:(Along==1?Box.LY:Box.LZ);
+        double LB=Along==0?Box.LY:Box.LX;
+        double LC=Along==0?Box.LZ:(Along==1?Box.LZ:Box.LY);
+        if(Radius<=Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"radius is zero or negative");
+        if(2.0*Radius>=std::min(LB,LC)-Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
+            "parallel-edge fillet radius consumes the rounded-prism cross-section");
+        auto P=[&](double X,double Y,double Z){return Box.Corner+A*X+B*Y+C*Z;};
+        std::vector<NurbsSurface>S;
+        auto Plane=[&](Vec3 O,Vec3 U,Vec3 V,double X,double Y){auto Q=NurbsSurface::Plane(O,U,V,X,Y);if(Q)S.push_back(std::move(Q.Payload));return(bool)Q;};
+        if(!Plane(P(0,0,Radius),A,C,LA,LC-2*Radius)||!Plane(P(0,LB,Radius),A,C,LA,LC-2*Radius)||
+           !Plane(P(0,Radius,0),A,B,LA,LB-2*Radius)||!Plane(P(0,Radius,LC),A,B,LA,LB-2*Radius))
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"rounded-prism planar support is degenerate");
+        const double D=Radius/std::sqrt(2.0);
+        for(int Y=0;Y<2;++Y)for(int Z=0;Z<2;++Z)
+        {
+            Vec3 Centre=P(0,Y?LB-Radius:Radius,Z?LC-Radius:Radius);
+            Vec3 U=Y?B:B*-1.0,V=Z?C:C*-1.0;
+            auto Arc=NurbsCurve::ArcThreePoints(Centre+U*Radius,Centre+(U+V)*D,Centre+V*Radius);
+            auto Roll=Arc?NurbsSurface::Extrusion(Arc.Payload,A,LA):Deliver<NurbsSurface>::Reject(RefusalReason::DegenerateInput,"prism arc");
+            if(!Roll)return Deliver<BrepBody>::Reject(Roll.Denial.Reason,Roll.Denial.Detail);
+            Roll.Payload.Classification=SurfaceClassification::Cylinder;Roll.Payload.Origin=Centre;Roll.Payload.Axis=A;
+            Roll.Payload.RadiusMajor=Roll.Payload.RadiusMinor=Radius;S.push_back(std::move(Roll.Payload));
+        }
+        auto Result=BrepBody::Sew(S);if(!Result)return Result;auto Report=Result.Payload.Validate();
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Result.Payload.Vertices.size()!=16||Result.Payload.Edges.size()!=24||
+           Result.Payload.Coedges.size()!=48||Result.Payload.Loops.size()!=10||Result.Payload.Faces.size()!=10)
+            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"parallel-edge rounded prism did not reach exact manifold topology");
+        return Result;
+    }
+
     std::optional<PlaneCylinderRoot> PlaneCylinderBossRoot(const BrepBody& Body, int Edge) noexcept
     {
         if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size()) || !Body.Validate().Solid()) return std::nullopt;
@@ -1746,6 +1781,22 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
                 return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "multi-edge fillet seeds overlap inconsistent tangent chains");
         }
         if (!Duplicate) Targets.push_back({ Effective, EdgeSignature(Body, Effective.front()) });
+    }
+
+    // Four mutually parallel edges form a complete cross-section family. Rebuild them together as one exact rounded
+    // prism so opposite rolls receive a global 2r clearance check instead of four unrelated local operations.
+    if(Targets.size()==4&&std::all_of(Targets.begin(),Targets.end(),[](const Target&T){return T.Chain.size()==1;}))
+    {
+        std::vector<int> FirstCorner;for(size_t E=0;E<Body.Edges.size();++E)
+            if(Body.Edges[E].VertexStart==0||Body.Edges[E].VertexEnd==0)FirstCorner.push_back(static_cast<int>(E));
+        if(auto Box=ClassifyOrthogonalBoxCorner(Body,FirstCorner))
+        {
+            int Family=-1;bool Same=true;
+            for(const Target&T:Targets){const BrepEdge&E=Body.Edges[T.Chain.front()];Vec3 D=(Body.Vertices[E.VertexEnd].Point-Body.Vertices[E.VertexStart].Point).Normalised();
+                int F=std::fabs(D.Dot(Box->X))>1.0-1e-8?0:(std::fabs(D.Dot(Box->Y))>1.0-1e-8?1:(std::fabs(D.Dot(Box->Z))>1.0-1e-8?2:-1));
+                if(Family<0)Family=F;else if(F!=Family)Same=false;}
+            if(Same&&Family>=0){auto Result=BuildRoundedBoxPrism(*Box,Family,Radius);if(Result&&AppliedChains)*AppliedChains=4;return Result;}
+        }
     }
 
     // A complete twelve-edge rectangular network is the first bounded blend/blend composition: inset planes, twelve

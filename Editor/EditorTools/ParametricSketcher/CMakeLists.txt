@@ -210,6 +210,11 @@ add_executable(RoundedBoxFilletVerification Verification/RoundedBoxFilletVerific
 target_link_libraries(RoundedBoxFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME RoundedBoxFilletVerification COMMAND RoundedBoxFilletVerification)
 
+# Phase 32g: complete four-edge parallel family rebuilt as an exact rounded prism with cross-wall feasibility.
+add_executable(RoundedPrismFilletVerification Verification/RoundedPrismFilletVerification.cpp)
+target_link_libraries(RoundedPrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME RoundedPrismFilletVerification COMMAND RoundedPrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)
