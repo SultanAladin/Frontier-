@@ -339,10 +339,17 @@ deduplication, malformed-cap and consumed-support refusal, console commit, and d
 **Proof:** `Verification/SectorEndpointFilletVerification.cpp` (33 C++ checks) and
 `Proofs/Phase32d_SectorEndpointFillet.png` (2560 × 1600 C++-generated contact sheet).
 
+#### Phase 32e: exact orthogonal three-face corner ✅
+
+Three equal-radius, mutually perpendicular box edges meeting at one vertex now take a dedicated transactional route. The classifier proves a six-plane rectangular solid from geometry, not edge numbering, then rebuilds six trimmed planes, three exact cylindrical rolls, and one rational spherical octant. The three sphere-cylinder seams are G1 and the far ends remain exact circular arcs.
+
+**32e exit gate met:** `CornerFilletVerification` proves `V13/E21/C42/L10/F10` manifold topology, analytic support identity, sphere residual below `1e-9`, three G1 transition seams below `1e-10`, volume, source immutability, seed-order and rigid-transform invariance, bounded refusal, console commit, and direct C++ proof generation.
+
+**Proof:** `Verification/CornerFilletVerification.cpp` (23 C++ checks) and `Proofs/Phase32e_CornerFillet.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, actual three-face corner patches, holes, thin walls, and blend/blend
-intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and two-edge corner patches, holes, thin walls, and general blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

@@ -200,6 +200,11 @@ add_executable(SectorEndpointFilletVerification Verification/SectorEndpointFille
 target_link_libraries(SectorEndpointFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME SectorEndpointFilletVerification COMMAND SectorEndpointFilletVerification)
 
+# Phase 32e: equal-radius orthogonal three-edge box corner with a rational spherical octant transition.
+add_executable(CornerFilletVerification Verification/CornerFilletVerification.cpp)
+target_link_libraries(CornerFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME CornerFilletVerification COMMAND CornerFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

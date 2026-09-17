@@ -425,6 +425,135 @@ namespace
         return Body.Validate().Solid();
     }
 
+    struct OrthogonalBoxCorner
+    {
+        Vec3 Corner, X, Y, Z;
+        double LX = 0.0, LY = 0.0, LZ = 0.0;
+    };
+
+    std::optional<OrthogonalBoxCorner> ClassifyOrthogonalBoxCorner(const BrepBody& Body,
+                                                                   const std::vector<int>& Edges) noexcept
+    {
+        if (Edges.size() != 3 || !Body.Validate().Solid() || Body.Vertices.size() != 8 || Body.Edges.size() != 12 ||
+            Body.Coedges.size() != 24 || Body.Loops.size() != 6 || Body.Faces.size() != 6) return std::nullopt;
+        for (const BrepFace& Face : Body.Faces)
+            if (Face.Surface.Classification != SurfaceClassification::Plane || Face.Loops.size() != 1) return std::nullopt;
+        int Common = -1;
+        for (size_t Vertex = 0; Vertex < Body.Vertices.size(); ++Vertex)
+        {
+            int Incidence = 0;
+            for (int Edge : Edges)
+            {
+                if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size())) return std::nullopt;
+                const BrepEdge& Candidate = Body.Edges[Edge];
+                if (Candidate.Curve.Classification != CurveClassification::Line || Candidate.Coedges.size() != 2 ||
+                    Candidate.VertexStart < 0 || Candidate.VertexEnd < 0) return std::nullopt;
+                if (Candidate.VertexStart == static_cast<int>(Vertex) || Candidate.VertexEnd == static_cast<int>(Vertex)) ++Incidence;
+            }
+            if (Incidence == 3) { if (Common >= 0) return std::nullopt; Common = static_cast<int>(Vertex); }
+        }
+        if (Common < 0) return std::nullopt;
+        OrthogonalBoxCorner Result; Result.Corner = Body.Vertices[Common].Point;
+        Vec3 Direction[3]; double Length[3]{};
+        for (size_t I = 0; I < Edges.size(); ++I)
+        {
+            const BrepEdge& Edge = Body.Edges[Edges[I]];
+            int Other = Edge.VertexStart == Common ? Edge.VertexEnd : Edge.VertexStart;
+            Vec3 Span = Body.Vertices[Other].Point - Result.Corner;
+            Length[I] = Span.Length(); if (Length[I] <= Tol) return std::nullopt;
+            Direction[I] = Span / Length[I];
+        }
+        if (std::fabs(Direction[0].Dot(Direction[1])) > 1e-8 || std::fabs(Direction[0].Dot(Direction[2])) > 1e-8 ||
+            std::fabs(Direction[1].Dot(Direction[2])) > 1e-8) return std::nullopt;
+        if (Direction[0].Cross(Direction[1]).Dot(Direction[2]) < 0.0)
+        { std::swap(Direction[1], Direction[2]); std::swap(Length[1], Length[2]); }
+        Result.X = Direction[0]; Result.Y = Direction[1]; Result.Z = Direction[2];
+        Result.LX = Length[0]; Result.LY = Length[1]; Result.LZ = Length[2];
+        const double Scale = std::max({ 1.0, Result.LX, Result.LY, Result.LZ });
+        for (const BrepVertex& Vertex : Body.Vertices)
+        {
+            Vec3 Offset = Vertex.Point - Result.Corner;
+            double C[3]{ Offset.Dot(Result.X), Offset.Dot(Result.Y), Offset.Dot(Result.Z) };
+            const double L[3]{ Result.LX, Result.LY, Result.LZ };
+            for (int I = 0; I < 3; ++I)
+                if (std::min(std::fabs(C[I]), std::fabs(C[I] - L[I])) > 1e-8 * Scale) return std::nullopt;
+        }
+        const double Volume = Result.LX * Result.LY * Result.LZ;
+        if (std::fabs(Body.Validate().Volume - Volume) > 1e-8 * std::max(1.0, Volume)) return std::nullopt;
+        return Result;
+    }
+
+    Deliver<BrepBody> BuildOrthogonalBoxCorner(const OrthogonalBoxCorner& Box, double Radius) noexcept
+    {
+        if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
+        if (Radius >= std::min({ Box.LX, Box.LY, Box.LZ }) - Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
+                "corner fillet radius consumes one of the three selected box edges");
+        auto P = [&](double X, double Y, double Z) noexcept
+        { return Box.Corner + Box.X * X + Box.Y * Y + Box.Z * Z; };
+        auto Arc = [&](Vec3 A, Vec3 M, Vec3 B) noexcept { return NurbsCurve::ArcThreePoints(A, M, B); };
+        const double D = Radius / std::sqrt(2.0);
+        const Vec3 SX=P(0,Radius,Radius), SY=P(Radius,0,Radius), SZ=P(Radius,Radius,0);
+        const Vec3 XY=P(Box.LX,0,Radius), XZ=P(Box.LX,Radius,0), YX=P(0,Box.LY,Radius);
+        const Vec3 YZ=P(Radius,Box.LY,0), ZX=P(0,Radius,Box.LZ), ZY=P(Radius,0,Box.LZ);
+        const Vec3 CXY=P(Box.LX,Box.LY,0), CXZ=P(Box.LX,0,Box.LZ), CYZ=P(0,Box.LY,Box.LZ);
+        const Vec3 CXYZ=P(Box.LX,Box.LY,Box.LZ);
+        std::vector<Deliver<NurbsCurve>> C{
+            Arc(SY,P(Radius,Radius-D,Radius-D),SZ), Arc(SX,P(Radius-D,Radius,Radius-D),SZ),
+            Arc(SX,P(Radius-D,Radius-D,Radius),SY), NurbsCurve::Line(SY,XY), NurbsCurve::Line(SZ,XZ),
+            Arc(XY,P(Box.LX,Radius-D,Radius-D),XZ), NurbsCurve::Line(SX,YX), NurbsCurve::Line(SZ,YZ),
+            Arc(YX,P(Radius-D,Box.LY,Radius-D),YZ), NurbsCurve::Line(SX,ZX), NurbsCurve::Line(SY,ZY),
+            Arc(ZX,P(Radius-D,Radius-D,Box.LZ),ZY), NurbsCurve::Line(XZ,CXY), NurbsCurve::Line(YZ,CXY),
+            NurbsCurve::Line(XY,CXZ), NurbsCurve::Line(ZY,CXZ), NurbsCurve::Line(YX,CYZ), NurbsCurve::Line(ZX,CYZ),
+            NurbsCurve::Line(CXY,CXYZ), NurbsCurve::Line(CXZ,CXYZ), NurbsCurve::Line(CYZ,CXYZ)
+        };
+        for (const auto& Curve : C) if (!Curve) return Deliver<BrepBody>::Reject(Curve.Denial.Reason, Curve.Denial.Detail);
+        BrepBody Result; std::vector<int> E;
+        for (auto& Curve : C) E.push_back(Result.AddEdge(std::move(Curve.Payload), ScalarCriteria::MergeTolerance));
+        auto Face = [&](NurbsSurface Surface, std::initializer_list<std::pair<int,bool>> Boundary)
+        {
+            int F=Result.AddFace(std::move(Surface)); Result.Faces[F].Natural=false; int L=Result.AddLoop(F,true);
+            for (auto [Edge,Reverse] : Boundary) Result.AddCoedge(E[Edge],Reverse,F,L);
+        };
+        auto Plane = [&](Vec3 O, Vec3 U, Vec3 V, double A, double B)
+        { return NurbsSurface::Plane(O,U,V,A,B); };
+        std::vector<Deliver<NurbsSurface>> Q{
+            Plane(Box.Corner,Box.Y,Box.Z,Box.LY,Box.LZ), Plane(Box.Corner,Box.X,Box.Z,Box.LX,Box.LZ),
+            Plane(Box.Corner,Box.X,Box.Y,Box.LX,Box.LY), Plane(P(Box.LX,0,0),Box.Y,Box.Z,Box.LY,Box.LZ),
+            Plane(P(0,Box.LY,0),Box.X,Box.Z,Box.LX,Box.LZ), Plane(P(0,0,Box.LZ),Box.X,Box.Y,Box.LX,Box.LY)
+        };
+        for (const auto& Surface : Q) if (!Surface) return Deliver<BrepBody>::Reject(Surface.Denial.Reason,Surface.Denial.Detail);
+        Face(std::move(Q[0].Payload),{{6,false},{16,false},{17,true},{9,true}});
+        Face(std::move(Q[1].Payload),{{3,false},{14,false},{15,true},{10,true}});
+        Face(std::move(Q[2].Payload),{{4,false},{12,false},{13,true},{7,true}});
+        Face(std::move(Q[3].Payload),{{5,false},{12,false},{18,false},{19,true},{14,true}});
+        Face(std::move(Q[4].Payload),{{8,false},{13,false},{18,false},{20,true},{16,true}});
+        Face(std::move(Q[5].Payload),{{11,false},{15,false},{19,false},{20,true},{17,true}});
+        auto SectionX=Arc(SY,P(Radius,Radius-D,Radius-D),SZ);
+        auto SectionY=Arc(SX,P(Radius-D,Radius,Radius-D),SZ);
+        auto SectionZ=Arc(SX,P(Radius-D,Radius-D,Radius),SY);
+        auto RX=SectionX?NurbsSurface::Extrusion(SectionX.Payload,Box.X,Box.LX-Radius):Deliver<NurbsSurface>::Reject(RefusalReason::DegenerateInput,"corner section");
+        auto RY=SectionY?NurbsSurface::Extrusion(SectionY.Payload,Box.Y,Box.LY-Radius):Deliver<NurbsSurface>::Reject(RefusalReason::DegenerateInput,"corner section");
+        auto RZ=SectionZ?NurbsSurface::Extrusion(SectionZ.Payload,Box.Z,Box.LZ-Radius):Deliver<NurbsSurface>::Reject(RefusalReason::DegenerateInput,"corner section");
+        if(!RX||!RY||!RZ) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"orthogonal corner roll is degenerate");
+        auto Cylinder=[&](NurbsSurface& S,Vec3 Axis){S.Classification=SurfaceClassification::Cylinder;S.Origin=P(Radius,Radius,Radius);S.Axis=Axis;S.RadiusMajor=S.RadiusMinor=Radius;};
+        Cylinder(RX.Payload,Box.X); Cylinder(RY.Payload,Box.Y); Cylinder(RZ.Payload,Box.Z);
+        Face(std::move(RX.Payload),{{0,false},{4,false},{5,true},{3,true}});
+        Face(std::move(RY.Payload),{{1,false},{7,false},{8,true},{6,true}});
+        Face(std::move(RZ.Payload),{{2,false},{10,false},{11,true},{9,true}});
+        auto Meridian=Arc(SX,P(Radius-D,Radius,Radius-D),SZ);
+        auto Sphere=Meridian?NurbsSurface::Revolution(Meridian.Payload,P(Radius,Radius,Radius),Box.Z,ScalarCriteria::Pi*0.5):Deliver<NurbsSurface>::Reject(RefusalReason::DegenerateInput,"corner sphere");
+        if(!Sphere) return Deliver<BrepBody>::Reject(Sphere.Denial.Reason,Sphere.Denial.Detail);
+        Sphere.Payload.Classification=SurfaceClassification::Sphere; Sphere.Payload.Origin=P(Radius,Radius,Radius);
+        Sphere.Payload.Axis=Box.Z; Sphere.Payload.RadiusMajor=Sphere.Payload.RadiusMinor=Radius;
+        Face(std::move(Sphere.Payload),{{2,false},{0,false},{1,true}});
+        Result.Orient(); BodyReport Report=Result.Validate();
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Result.Vertices.size()!=13||Result.Edges.size()!=21||
+           Result.Coedges.size()!=42||Result.Loops.size()!=10||Result.Faces.size()!=10)
+            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"orthogonal three-face corner fillet did not reach exact manifold topology");
+        return Deliver<BrepBody>::Accept(std::move(Result));
+    }
+
     std::optional<PlaneCylinderRoot> PlaneCylinderBossRoot(const BrepBody& Body, int Edge) noexcept
     {
         if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size()) || !Body.Validate().Solid()) return std::nullopt;
@@ -1543,8 +1672,22 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
         if (!Duplicate) Targets.push_back({ Effective, EdgeSignature(Body, Effective.front()) });
     }
 
-    // This increment handles independent sets only. A shared vertex is a corner-resolution request, not two independent
-    // edge rolls; reject it transactionally before either operation changes the working copy.
+    // The first actual corner patch is deliberately exact and bounded: three straight orthogonal edges of a six-face
+    // rectangular solid meeting at one vertex receive equal-radius cylinders and one rational spherical octant.
+    if (Targets.size() == 3 && std::all_of(Targets.begin(), Targets.end(), [](const Target& T) { return T.Chain.size() == 1; }))
+    {
+        std::vector<int> CornerEdges;
+        for (const Target& T : Targets) CornerEdges.push_back(T.Chain.front());
+        if (std::optional<OrthogonalBoxCorner> Corner = ClassifyOrthogonalBoxCorner(Body, CornerEdges))
+        {
+            Deliver<BrepBody> Result = BuildOrthogonalBoxCorner(*Corner, Radius);
+            if (Result && AppliedChains) *AppliedChains = 3;
+            return Result;
+        }
+    }
+
+    // Other shared-vertex sets are still corner-resolution requests, not independent rolls; reject them transactionally
+    // before either operation changes the working copy.
     for (size_t A = 0; A < Targets.size(); ++A)
         for (size_t B = A + 1; B < Targets.size(); ++B)
             for (int EdgeA : Targets[A].Chain)

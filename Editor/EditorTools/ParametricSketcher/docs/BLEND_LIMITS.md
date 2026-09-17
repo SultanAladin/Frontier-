@@ -91,11 +91,15 @@ number of distinct chains committed. The verified independent case is two opposi
 radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
 
 The outer shoulder rim, incomplete/non-circular chains, asymmetric or non-radial endpoints, cylinder–cylinder contacts,
-arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, holes, three-face corner patches, and
-blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
-five direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
+arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, holes, unequal/non-orthogonal or two-edge corner patches, and
+general blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
+six direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
 closed/diameter/radial-sector/multi-edge topology, endpoint meridians and caps, analytic volume direction/value,
 transformed axes, chain propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
+
+### Orthogonal three-face corner patch
+
+Phase 32e supports exactly three equal-radius edges incident to one vertex of a structurally verified rectangular solid. The direct reconstruction retains six planar supports, adds three radius-`r` cylinders along the selected edges, and joins them with a rational spherical octant centred one radius along each local box axis. The output is a `V13/E21/C42/L10/F10` one-hull solid. Two-edge requests and unequal or non-orthogonal corners still refuse; this route is not a general blend/blend intersection solver.
 
 ### Re-entrant handle roots
 
