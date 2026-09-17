@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 50 suites (37 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 51 suites (38 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -232,7 +232,7 @@ blend/blend intersections.
 
 `FilletEdges` now recognizes exactly three mutually perpendicular straight edges meeting at one vertex of a structurally verified rectangular solid. It rebuilds six trimmed planes, three exact equal-radius rolling cylinders, and one rational spherical octant transition as a one-hull `V13/E21/C42/L10/F10` solid. Input order and repeated seeds are invariant, and rigidly transformed boxes use the same geometric classifier.
 
-`CornerFilletVerification` has 23 C++ checks for topology, exact support counts, spherical identity/residual, three G1 sphere-cylinder seams, six exact radius arcs, analytic volume direction/value, source immutability, ordering, transforms, transactional refusal, console commit, and `Proofs/Phase32e_CornerFillet.png`. Two-edge and other partial corner networks, unequal radii, non-orthogonal corners, holes, and general non-box blend intersections remain unsupported.
+`CornerFilletVerification` has 23 C++ checks for topology, exact support counts, spherical identity/residual, three G1 sphere-cylinder seams, six exact radius arcs, analytic volume direction/value, source immutability, ordering, transforms, transactional refusal, console commit, and `Proofs/Phase32e_CornerFillet.png`. Two-edge and other partial corner networks, unequal radii, non-orthogonal corners, holes in this corner route, and general non-box blend intersections remain unsupported.
 
 ## Complete rounded rectangular solids (Phase 32f)
 
@@ -241,6 +241,10 @@ Selecting all twelve edges of a structurally verified rectangular solid now take
 ## Rounded-prism parallel edge families (Phase 32g)
 
 Selecting all four mutually parallel edges of a verified rectangular solid now rebuilds the complete cross-section as four planes and four rational cylinders, with two planar rounded end caps. The route produces `V16/E24/C48/L10/F10`, is invariant across all three box axes, seed order, duplicates, and rigid transforms, and refuses before construction when `2r` consumes either cross-wall. `RoundedPrismFilletVerification` contributes 20 checks and `Proofs/Phase32g_RoundedPrism.png`. Mixed or incomplete interacting families remain unsupported.
+
+## Perforated rounded prisms (Phase 32h)
+
+The same complete outer four-edge family now preserves one exact circular through-hole when the source is the verified `V10/E15/C30/L9/F7` rectangular extrusion, the bore is centred on and coaxial with the prism, and its radius leaves positive radial wall clearance. The rebuilt body adds the reversed exact cylindrical bore to the rounded outer shell so sewing creates two annular end caps and canonical genus-one `V18/E27/C54/L13/F11` topology. Off-centre bores, multiple holes, and unsafe walls refuse transactionally; no arbitrary-hole claim is made. `PerforatedPrismFilletVerification` contributes 20 checks and `Proofs/Phase32h_PerforatedPrism.png`.
 
 ## Layout
 
@@ -312,6 +316,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32e | **Exact orthogonal three-face corner.** Three incident edges of a rectangular solid rebuild as three equal-radius cylinders joined G1 to one rational spherical octant. | `CornerFilletVerification` — 23 C++ checks; `Proofs/Phase32e_CornerFillet.png` (2560 × 1600 C++-generated contact sheet) |
 | 32f | **Complete rounded rectangular solid.** Selecting all twelve edges composes six inset planes, twelve exact cylinders, and eight rational spherical octants. | `RoundedBoxFilletVerification` — 19 C++ checks; `Proofs/Phase32f_RoundedBox.png` (2560 × 1600 C++-generated contact sheet) |
 | 32g | **Complete parallel-edge family.** Four parallel box edges rebuild as an exact rounded prism with a global `2r` cross-wall feasibility gate. | `RoundedPrismFilletVerification` — 20 C++ checks; `Proofs/Phase32g_RoundedPrism.png` (2560 × 1600 C++-generated contact sheet) |
+| 32h | **One coaxial hole through a rounded prism.** The complete outer family retains one centred exact circular bore with positive radial wall clearance and genus-one annular caps. | `PerforatedPrismFilletVerification` — 20 C++ checks; `Proofs/Phase32h_PerforatedPrism.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -460,8 +465,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **50 suites** — 37 per-feature verification binaries (1,409 checks total) and 13 script smoke
-tests. The Phase 32g direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **51 suites** — 38 per-feature verification binaries (1,429 checks total) and 13 script smoke
+tests. The Phase 32h direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -493,6 +498,7 @@ are:
 | `CornerFilletVerification`        | 23  |
 | `RoundedBoxFilletVerification`     | 19  |
 | `RoundedPrismFilletVerification`   | 20  |
+| `PerforatedPrismFilletVerification`| 20  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -503,7 +509,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1409** |
+| **Total** | **1429** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

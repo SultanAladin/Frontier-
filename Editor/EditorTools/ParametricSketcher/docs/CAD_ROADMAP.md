@@ -359,9 +359,15 @@ All four mutually parallel edges of a verified rectangular solid now rebuild tog
 
 **Proof:** `RoundedPrismFilletVerification` (20 C++ checks) and `Proofs/Phase32g_RoundedPrism.png`.
 
+#### Phase 32h: one coaxial hole through a rounded prism ✅
+
+The complete four-edge outer route now recognizes the bounded `V10/E15/C30/L9/F7` rectangular extrusion with exactly one centred, coaxial circular through-hole. It retains the bore as a reversed exact rational cylinder while rebuilding the rounded exterior; sewing therefore makes two annular end caps and one genus-one `V18/E27/C54/L13/F11` hull. The classifier checks source topology, circular equality/coaxiality, analytic perforated volume, centred placement, and positive radial wall clearance before committing. Ordering, duplication, rigid transforms, refusal, and console use remain transactional.
+
+**Proof:** `PerforatedPrismFilletVerification` (20 C++ checks) and `Proofs/Phase32h_PerforatedPrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, off-centre or multiple holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

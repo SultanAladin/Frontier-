@@ -215,6 +215,11 @@ add_executable(RoundedPrismFilletVerification Verification/RoundedPrismFilletVer
 target_link_libraries(RoundedPrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME RoundedPrismFilletVerification COMMAND RoundedPrismFilletVerification)
 
+# Phase 32h: preserve one centred coaxial circular through-hole while rebuilding that outer parallel family.
+add_executable(PerforatedPrismFilletVerification Verification/PerforatedPrismFilletVerification.cpp)
+target_link_libraries(PerforatedPrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME PerforatedPrismFilletVerification COMMAND PerforatedPrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

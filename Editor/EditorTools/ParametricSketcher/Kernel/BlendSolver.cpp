@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <tuple>
 
 namespace Frontier
 {
@@ -483,6 +484,44 @@ namespace
         return Result;
     }
 
+    struct PerforatedBoxPrism { OrthogonalBoxCorner Box; double HoleB=0.0,HoleC=0.0,HoleRadius=0.0; };
+
+    std::optional<PerforatedBoxPrism> ClassifyPerforatedBoxPrism(const BrepBody& Body,const std::vector<int>& Edges) noexcept
+    {
+        auto Report=Body.Validate();
+        if(Edges.size()!=4||!Report.Solid()||Report.Hulls!=1||Report.Genus!=1||Body.Vertices.size()!=10||Body.Edges.size()!=15||
+           Body.Coedges.size()!=30||Body.Loops.size()!=9||Body.Faces.size()!=7)return std::nullopt;
+        int Planes=0,Extrusions=0;
+        for(const BrepFace& Face:Body.Faces){Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
+            Extrusions+=Face.Surface.Classification==SurfaceClassification::Extrusion;}
+        if(Planes!=2||Extrusions!=5)return std::nullopt;
+        Vec3 A;double LA=0;std::vector<Vec3> Low;
+        for(int Index:Edges){if(Index<0||Index>=static_cast<int>(Body.Edges.size()))return std::nullopt;const BrepEdge&E=Body.Edges[Index];
+            if(E.Curve.Classification!=CurveClassification::Line||E.VertexStart<0||E.VertexEnd<0)return std::nullopt;
+            Vec3 P0=Body.Vertices[E.VertexStart].Point,P1=Body.Vertices[E.VertexEnd].Point,D=P1-P0;double L=D.Length();if(L<=Tol)return std::nullopt;
+            if(LA==0){LA=L;A=D/L;}else if(std::fabs(L-LA)>1e-8*LA||std::fabs(D.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+            Low.push_back(P0.Dot(A)<=P1.Dot(A)?P0:P1);}
+        std::sort(Low.begin(),Low.end(),[](Vec3 X,Vec3 Y){if(X.X!=Y.X)return X.X<Y.X;if(X.Y!=Y.Y)return X.Y<Y.Y;return X.Z<Y.Z;});
+        Vec3 O=Low.front();std::vector<Vec3>D;for(size_t I=1;I<Low.size();++I)D.push_back(Low[I]-O);
+        std::sort(D.begin(),D.end(),[](Vec3 X,Vec3 Y){return X.LengthSquared()<Y.LengthSquared();});
+        if(D.size()!=3||D[0].Length()<=Tol||D[1].Length()<=Tol)return std::nullopt;
+        Vec3 B=D[0].Normalised(),C=D[1].Normalised();double LB=D[0].Length(),LC=D[1].Length();
+        if(std::fabs(B.Dot(C))>1e-8||D[2].Distance(D[0]+D[1])>1e-8*std::max(LB,LC))return std::nullopt;
+        if(A.Cross(B).Dot(C)<0){std::swap(B,C);std::swap(LB,LC);}
+        std::vector<std::tuple<Vec3,Vec3,double>>Rings;
+        for(const BrepEdge&E:Body.Edges)if(E.Closed()){Vec3 Centre,Normal;double R=0;if(CircularFrame(E.Curve,Centre,Normal,R))Rings.push_back({Centre,Normal,R});}
+        if(Rings.size()!=2)return std::nullopt;
+        auto [C0,N0,R0]=Rings[0];auto [C1,N1,R1]=Rings[1];
+        if(std::fabs(R0-R1)>1e-8*std::max(1.0,R0)||std::fabs(N0.Dot(A))<1.0-1e-8||std::fabs(N1.Dot(A))<1.0-1e-8||
+           std::fabs(C0.Distance(C1)-LA)>1e-8*std::max(1.0,LA))return std::nullopt;
+        Vec3 Foot=C0.Dot(A)<=C1.Dot(A)?C0:C1,Offset=Foot-O;
+        if(std::fabs(Offset.Dot(A))>1e-8*std::max(1.0,LA))return std::nullopt;
+        OrthogonalBoxCorner Box{O,A,B,C,LA,LB,LC};
+        double Exact=LA*(LB*LC-ScalarCriteria::Pi*R0*R0);
+        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        return PerforatedBoxPrism{Box,Offset.Dot(B),Offset.Dot(C),R0};
+    }
+
     Deliver<BrepBody> BuildOrthogonalBoxCorner(const OrthogonalBoxCorner& Box, double Radius) noexcept
     {
         if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
@@ -630,7 +669,8 @@ namespace
         return Result;
     }
 
-    Deliver<BrepBody> BuildRoundedBoxPrism(const OrthogonalBoxCorner& Box, int Along, double Radius) noexcept
+    Deliver<BrepBody> BuildRoundedBoxPrism(const OrthogonalBoxCorner& Box, int Along, double Radius,
+                                            double HoleB=-1.0, double HoleC=-1.0, double HoleRadius=0.0) noexcept
     {
         Vec3 A=Along==0?Box.X:(Along==1?Box.Y:Box.Z);
         Vec3 B=Along==0?Box.Y:(Along==1?Box.X:Box.X);
@@ -641,6 +681,14 @@ namespace
         if(Radius<=Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"radius is zero or negative");
         if(2.0*Radius>=std::min(LB,LC)-Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
             "parallel-edge fillet radius consumes the rounded-prism cross-section");
+        const bool Hole=HoleRadius>Tol;
+        if(Hole&&
+           (std::fabs(HoleB-LB*0.5)>1e-8*std::max(1.0,LB)||std::fabs(HoleC-LC*0.5)>1e-8*std::max(1.0,LC)))
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+                "rounded-prism hole must be coaxial with the rectangular cross-section");
+        if(Hole&&HoleRadius>=0.5*std::min(LB,LC)-Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
+                "rounded-prism hole consumes the radial wall");
         auto P=[&](double X,double Y,double Z){return Box.Corner+A*X+B*Y+C*Z;};
         std::vector<NurbsSurface>S;
         auto Plane=[&](Vec3 O,Vec3 U,Vec3 V,double X,double Y){auto Q=NurbsSurface::Plane(O,U,V,X,Y);if(Q)S.push_back(std::move(Q.Payload));return(bool)Q;};
@@ -658,9 +706,17 @@ namespace
             Roll.Payload.Classification=SurfaceClassification::Cylinder;Roll.Payload.Origin=Centre;Roll.Payload.Axis=A;
             Roll.Payload.RadiusMajor=Roll.Payload.RadiusMinor=Radius;S.push_back(std::move(Roll.Payload));
         }
+        if(Hole)
+        {
+            auto Bore=NurbsSurface::Cylinder(P(0,HoleB,HoleC),A,HoleRadius,LA);
+            if(!Bore)return Deliver<BrepBody>::Reject(Bore.Denial.Reason,Bore.Denial.Detail);
+            S.push_back(Bore.Payload.Reversed());
+        }
         auto Result=BrepBody::Sew(S);if(!Result)return Result;auto Report=Result.Payload.Validate();
-        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Result.Payload.Vertices.size()!=16||Result.Payload.Edges.size()!=24||
-           Result.Payload.Coedges.size()!=48||Result.Payload.Loops.size()!=10||Result.Payload.Faces.size()!=10)
+        const bool Topology=Hole
+            ? Report.Genus==1&&Result.Payload.Vertices.size()==18&&Result.Payload.Edges.size()==27&&Result.Payload.Coedges.size()==54&&Result.Payload.Loops.size()==13&&Result.Payload.Faces.size()==11
+            : Report.Genus==0&&Result.Payload.Vertices.size()==16&&Result.Payload.Edges.size()==24&&Result.Payload.Coedges.size()==48&&Result.Payload.Loops.size()==10&&Result.Payload.Faces.size()==10;
+        if(!Report.Solid()||Report.Hulls!=1||!Topology)
             return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"parallel-edge rounded prism did not reach exact manifold topology");
         return Result;
     }
@@ -1787,6 +1843,16 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
     // prism so opposite rolls receive a global 2r clearance check instead of four unrelated local operations.
     if(Targets.size()==4&&std::all_of(Targets.begin(),Targets.end(),[](const Target&T){return T.Chain.size()==1;}))
     {
+        std::vector<int> Selected;for(const Target&T:Targets)Selected.push_back(T.Chain.front());
+        if(auto Perforated=ClassifyPerforatedBoxPrism(Body,Selected))
+        {
+            auto Result=BuildRoundedBoxPrism(Perforated->Box,0,Radius,Perforated->HoleB,Perforated->HoleC,Perforated->HoleRadius);
+            if(Result&&AppliedChains)*AppliedChains=4;
+            return Result;
+        }
+        if(Body.Validate().Genus!=0)
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+                "perforated parallel-edge family is outside the centred single-bore route");
         std::vector<int> FirstCorner;for(size_t E=0;E<Body.Edges.size();++E)
             if(Body.Edges[E].VertexStart==0||Body.Edges[E].VertexEnd==0)FirstCorner.push_back(static_cast<int>(E));
         if(auto Box=ClassifyOrthogonalBoxCorner(Body,FirstCorner))
