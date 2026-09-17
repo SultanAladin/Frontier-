@@ -215,11 +215,31 @@ the route.
 
 ### Completed Phase 29: exact native-cone radial side-face push
 
-`PushFace` now recognizes the checked full native conical frustum side. A normal offset by `d` reconstructs the exact cone with both cap radii shifted by `d·sqrt(1+slope²)`, preserving axial height and axis; either cap collapsing refuses. `ConeSidePushVerification` has 10 C++ checks and creates `Proofs/Phase29_ConeSidePushes.png` directly from C++.
+`PushFace` recognizes a checked full native conical-frustum side. A normal offset by `d` reconstructs the exact cone with
+both cap radii shifted by `d·sqrt(1+slope²)`, preserving axial height, cap planes, and axis; either cap collapsing refuses.
+The structural gate checks the rational circular rims, straight seam, planar caps, and sampled linear conical support.
+`ConeSidePushVerification` has 10 C++ checks and creates `Proofs/Phase29_ConeSidePushes.png` directly from C++.
 
-**Exit gate met:** normal side offsets are exact for full native frusta; cone caps, apex cones, partial cones, and arbitrary curved faces remain outside this route.
+**Exit gate met:** normal side offsets are exact for full native frusta. Apex cones, partial cones, and arbitrary curved
+faces remain outside this route.
 
-### Phase 30: constant-radius general smooth-support fillets
+### Completed Phase 30: exact native-cone cap-face push
+
+Either planar cap of the same full native frustum now moves along its geometric outward normal while retaining the
+original infinite conical support. The direct route analytically updates the base, height, and selected radius. Native
+recognition derives the two physical end rings from the NURBS rather than assuming positive construction height, so a
+negative-height cone is canonicalized low-to-high and takes the same exact cap and side routes. Expanding and tapering
+frusta are both covered; consuming the height or continuing through an apex refuses.
+
+`ConeCapPushVerification` has 19 C++ checks for upper/lower inward/outward motion; exact base, axis, radii, height, cap
+planes, sampled support, topology, and volume; non-unit oblique and negative-height construction; expanding/tapering
+slope signs; height/radius-collapse and apex refusals; exact console commit; and a direct C++ proof render at
+`Proofs/Phase30_ConeCapPushes.png`.
+
+**Exit gate met:** both cap planes of a full native frustum follow the same exact conical support in either construction
+direction. Apex cones, partial/trimmed cones, and arbitrary free-form faces remain deliberately unsupported.
+
+### Phase 31: constant-radius general smooth-support fillets
 
 Implement the next bounded generalization across one selected smooth edge between two supported surfaces. The
 construction should offset both supports to form a spine, create rational quadratic cross-sections, trim the support
@@ -233,13 +253,13 @@ finding their intersection/spine, and sweeping rational quadratic sections; corn
 **Exit gate:** one plane–cylinder case must retain valid B-rep topology, contact/tangency within tolerance, expected
 volume direction, and a close-up C++ proof render. Unsupported support pairs must refuse cleanly.
 
-### Phase 31: blend chains and corners
+### Phase 32: blend chains and corners
 
 Add tangent-chain propagation, then multi-edge/corner resolution as separate subfeatures. Do not market this phase as
 complete until chain endpoints, three-face corners, holes, thin walls, and blend/blend intersections have their own
 topology and visual regressions.
 
-### Phase 32: variable radius, setbacks, partial edges, and G2
+### Phase 33: variable radius, setbacks, partial edges, and G2
 
 Variable-radius blends need a radius law along the spine, feasibility detection, and a non-linear solve. G2 continuity
 requires its own surface construction and curvature acceptance measurements. These are not small extensions of the

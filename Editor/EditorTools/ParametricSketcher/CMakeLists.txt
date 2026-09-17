@@ -155,7 +155,7 @@ add_executable(BlendVerification Verification/BlendVerification.cpp)
 target_link_libraries(BlendVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME BlendVerification COMMAND BlendVerification)
 
-# Phase 25–29: exact cap blends, cylinder pushes, and conical radial face push.
+# Phase 25–30: exact cylinder cap blends and exact native cylinder/frustum face pushes.
 add_executable(CylinderChamferVerification Verification/CylinderChamferVerification.cpp)
 target_link_libraries(CylinderChamferVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME CylinderChamferVerification COMMAND CylinderChamferVerification)

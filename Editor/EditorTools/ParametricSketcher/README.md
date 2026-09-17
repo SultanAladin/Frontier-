@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 41 suites (28 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 42 suites (29 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -132,6 +132,30 @@ radius-collapse/zero refusal, explicit circular-extrusion exclusion, and console
 source/result comparisons and a plan-view radius proof. This remains a native-cylinder-only direct route; arbitrary
 curved faces, partial cylinders, and extrusion representations are not overclaimed.
 
+## Exact conical-side face push (Phase 29)
+
+`PushFace` recognizes a full native conical-frustum side and reconstructs its exact normal offset. For slope `s`, both
+cap radii change by `d·sqrt(1+s²)` while the two cap planes, axis, and height remain fixed. The structural classifier
+checks the rational circular rims, straight seam, planar caps, and sampled linear conical support before taking the
+direct route. A radius collapse refuses instead of crossing the apex.
+
+`ConeSidePushVerification` has 10 C++ checks for inward/outward offsets, sampled exact radii, an oblique axis, collapse
+refusal, console integration, and a C++-generated
+[`Proofs/Phase29_ConeSidePushes.png`](Proofs/Phase29_ConeSidePushes.png).
+
+## Exact conical-cap face push (Phase 30)
+
+Either planar cap of the same full native frustum can move along its true outward normal while remaining on the original
+infinite conical support. The operation edits height, base, and the selected radius analytically. Native recognition is
+construction-direction invariant: a negative-height cone is canonicalized from its geometric low ring to its high ring,
+so cap and side pushes retain the same outward semantics. A continuation that consumes the height or crosses the apex
+refuses; apex cones and arbitrary trimmed/free-form conical faces remain outside this bounded route.
+
+`ConeCapPushVerification` has 19 C++ checks covering both caps inward/outward, exact base/axis/radii/height/caps/surface
+samples/topology/volume, oblique and negative-height construction, expanding and tapering slopes, height/radius-collapse
+refusals, apex refusal, exact console commit, and the C++-generated
+[`Proofs/Phase30_ConeCapPushes.png`](Proofs/Phase30_ConeCapPushes.png).
+
 ## Layout
 
 | Folder | Role | Status |
@@ -192,6 +216,8 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 26 | **Exact circular native-cylinder cap fillet.** A selected circular cap edge rebuilds as the retained cylinder plus a rational quarter-torus rolling-ball patch, with G1 joins at side and cap, including reversed construction; extrusion lookalikes and axis/full-height radii refuse. | `CylinderFilletVerification` — 22 C++ checks; `Proofs/Phase26_CylinderFillets.png` (2560 × 1600 C++-generated contact sheet) |
 | 27 | **Exact native-cylinder cap face push.** A selected cap moves along its actual outward normal by directly rebuilding the cylinder height/base, including upper/lower, inward/outward, oblique, and reversed construction cases. | `CylinderPushVerification` — 19 C++ checks; `Proofs/Phase27_CylinderPushes.png` (2560 × 1600 C++-generated contact sheet) |
 | 28 | **Exact native-cylinder radial side-face push.** The selected cylindrical face offsets directly to `R+d`, retaining exact caps/axis/height across outward, inward, oblique, and reversed construction cases. | `CylinderSidePushVerification` — 15 C++ checks; `Proofs/Phase28_CylinderSidePushes.png` (2560 × 1600 C++-generated contact sheet) |
+| 29 | **Exact native-frustum side-face push.** The selected conical side offsets normally by changing both radii by `d·sqrt(1+slope²)` while retaining cap planes, axis, and height. | `ConeSidePushVerification` — 10 C++ checks; `Proofs/Phase29_ConeSidePushes.png` (2560 × 1600 C++-generated contact sheet) |
+| 30 | **Exact native-frustum cap-face push.** Either cap follows the original infinite conical support; positive/negative height construction, tapering/expanding slopes, exact geometry and apex-crossing refusals are verified. | `ConeCapPushVerification` — 19 C++ checks; `Proofs/Phase30_ConeCapPushes.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -340,8 +366,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **41 suites** — 28 per-feature verification binaries (1,185 checks total) and 13 script smoke
-tests. The Phase 29 direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **42 suites** — 29 per-feature verification binaries (1,204 checks total) and 13 script smoke
+tests. The Phase 30 direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -364,6 +390,7 @@ are:
 | `CylinderPushVerification`        | 19  |
 | `CylinderSidePushVerification`    | 15  |
 | `ConeSidePushVerification`        | 10  |
+| `ConeCapPushVerification`         | 19  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -374,7 +401,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1185** |
+| **Total** | **1204** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

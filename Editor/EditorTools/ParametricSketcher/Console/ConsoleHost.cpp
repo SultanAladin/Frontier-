@@ -279,7 +279,7 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
                 Vec3 P = Points ? (*Points)[K] : C.Poles[K].Divide();
                 int BaseSlot = int(18 + int(K) * 3);
                 char Tag[16];
-                auto EmitVertex = [&](const char* Axis, int Comp, int Slot, double V, Vec3 Lift)
+                auto EmitVertex = [&](const char* Axis, int Slot, double V, Vec3 Lift)
                 {
                     std::snprintf(Tag, sizeof(Tag), "%s%zu", Axis, K);
                     DimensionEntry D; D.Form = DimensionForm::Linear; D.Anchor = Figure.Identity; D.AnchorName = Figure.Name + " " + Tag;
@@ -287,9 +287,9 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
                     D.Id = NextDimensionId++; D.Auto = true; Dimensions.push_back(std::move(D));
                 };
                 // Lift along each axis; the X dim lifts in +Y, the Y dim lifts in +X, the Z dim lifts in +X.
-                EmitVertex("X", 0, BaseSlot + 0, P.X, Vec3(0, 0.04, 0));
-                EmitVertex("Y", 1, BaseSlot + 1, P.Y, Vec3(-0.04, 0, 0));
-                EmitVertex("Z", 2, BaseSlot + 2, P.Z, Vec3(0, 0, 0));
+                EmitVertex("X", BaseSlot + 0, P.X, Vec3(0, 0.04, 0));
+                EmitVertex("Y", BaseSlot + 1, P.Y, Vec3(-0.04, 0, 0));
+                EmitVertex("Z", BaseSlot + 2, P.Z, Vec3(0, 0, 0));
             }
         }
     }
@@ -2524,7 +2524,7 @@ void ConsoleHost::Register() noexcept
         }
         return Done > 0;
     });
-    Add("push", "push <body> distance --face=i [--name=…] — move one planar face along its own outward normal; + raises a boss, − sinks a pocket", [=, this](const CommandLine& C)
+    Add("push", "push <body> distance --face=i [--name=…] — move a face along its outward normal; planar faces and full native cylinder/cone cap or side faces have direct exact routes", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "push")) return false;
         double D = 0; if (!NumberArg(C, C.Count() - 1, D, "push")) return false;

@@ -7,7 +7,7 @@ cd "$(dirname "$0")/../Editor/EditorTools/ParametricSketcher"
 
 SRC_ROOT="."
 INC="-I. -IPresentation -DSOLIDARC_PROOF_FOLDER=\"$PWD/Proofs\" -DFRONTIER_DEVELOPMENT"
-FLAGS="-std=c++20 -O2 -Wall -Wextra -Wpedantic -Wno-unused-function -Wno-unused-parameter"
+FLAGS="-std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror -Wno-unused-function"
 
 # All sources (the project is small enough to just compile them in one pass).
 ALL_SRCS=(

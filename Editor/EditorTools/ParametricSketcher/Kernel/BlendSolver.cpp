@@ -215,33 +215,118 @@ namespace
 
     std::optional<ConeSide> NativeConeSideFace(const BrepBody& Body, int Face) noexcept
     {
-        if (Face < 0 || Face >= static_cast<int>(Body.Faces.size()) || Body.Faces[Face].Surface.Classification != SurfaceClassification::Cone || !Body.Validate().Solid() ||
-            Body.Vertices.size() != 2 || Body.Edges.size() != 3 || Body.Coedges.size() != 6 || Body.Loops.size() != 3 || Body.Faces.size() != 3) return std::nullopt;
+        if (Face < 0 || Face >= static_cast<int>(Body.Faces.size()) ||
+            Body.Faces[Face].Surface.Classification != SurfaceClassification::Cone || !Body.Validate().Solid() ||
+            Body.Vertices.size() != 2 || Body.Edges.size() != 3 || Body.Coedges.size() != 6 ||
+            Body.Loops.size() != 3 || Body.Faces.size() != 3) return std::nullopt;
+
         const NurbsSurface& Side = Body.Faces[Face].Surface;
         Vec3 Axis = Side.Axis.Normalised();
         if (Axis.Length() <= Tol || Side.RadiusMajor <= Tol || Side.RadiusMinor <= Tol) return std::nullopt;
-        int Caps = 0, Rims = 0, Seams = 0; double Low = ScalarCriteria::Infinity, High = -ScalarCriteria::Infinity;
-        for (const BrepFace& Candidate : Body.Faces)
+
+        int Caps = 0, Rims = 0, Seams = 0;
+        double Low = ScalarCriteria::Infinity, High = -ScalarCriteria::Infinity;
+        for (size_t CandidateIndex = 0; CandidateIndex < Body.Faces.size(); ++CandidateIndex)
         {
+            const BrepFace& Candidate = Body.Faces[CandidateIndex];
             if (Candidate.Loops.size() != 1) return std::nullopt;
             if (Candidate.Surface.Classification == SurfaceClassification::Plane)
             {
                 Vec3 Normal;
-                if (!PlanarNormal(Body, static_cast<int>(&Candidate - Body.Faces.data()), Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
-                Vec3 Point = Candidate.Surface.Sample(0.5 * (Candidate.Surface.DomainStartU() + Candidate.Surface.DomainEndU()), 0.5 * (Candidate.Surface.DomainStartV() + Candidate.Surface.DomainEndV()));
-                double T = (Point - Side.Origin).Dot(Axis); Low = std::min(Low, T); High = std::max(High, T); ++Caps;
+                if (!PlanarNormal(Body, static_cast<int>(CandidateIndex), Normal) ||
+                    std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+                const NurbsSurface& Plane = Candidate.Surface;
+                Vec3 Point = Plane.Sample(0.5 * (Plane.DomainStartU() + Plane.DomainEndU()),
+                                          0.5 * (Plane.DomainStartV() + Plane.DomainEndV()));
+                double Along = (Point - Side.Origin).Dot(Axis);
+                Low = std::min(Low, Along); High = std::max(High, Along); ++Caps;
             }
-            else if (&Candidate != &Body.Faces[Face]) return std::nullopt;
+            else if (static_cast<int>(CandidateIndex) != Face) return std::nullopt;
         }
         for (const BrepEdge& Edge : Body.Edges)
         {
-            if (Edge.Closed() && Edge.Curve.Classification == CurveClassification::Circle && Edge.Curve.Degree == 2 && Edge.Curve.Rational() && Edge.Coedges.size() == 2) ++Rims;
-            else if (!Edge.Closed() && Edge.Curve.Classification == CurveClassification::Line && Edge.Curve.Degree == 1 && Edge.Coedges.size() == 2) ++Seams;
+            if (Edge.Closed() && Edge.Curve.Classification == CurveClassification::Circle &&
+                Edge.Curve.Degree == 2 && Edge.Curve.Rational() && Edge.Coedges.size() == 2) ++Rims;
+            else if (!Edge.Closed() && Edge.Curve.Classification == CurveClassification::Line &&
+                     Edge.Curve.Degree == 1 && Edge.Coedges.size() == 2) ++Seams;
             else return std::nullopt;
         }
-        const double Height = High - Low, Epsilon = 1e-8 * std::max({ 1.0, Side.RadiusMajor, Side.RadiusMinor, Height });
-        if (Caps != 2 || Rims != 2 || Seams != 1 || Height <= Epsilon || std::fabs(Low) > Epsilon) return std::nullopt;
-        return ConeSide{ Side.Origin, Axis, Side.RadiusMajor, Side.RadiusMinor, Height };
+
+        const double Height = High - Low;
+        const double Scale = std::max({ 1.0, Side.RadiusMajor, Side.RadiusMinor, std::fabs(Low), std::fabs(High), Height });
+        const double Epsilon = 1e-8 * Scale;
+        if (Caps != 2 || Rims != 2 || Seams != 1 || Height <= Epsilon) return std::nullopt;
+
+        // Verify the classified support against its actual NURBS. In particular, derive the two axial endpoints instead
+        // of assuming the construction height was positive: Cone(..., -H) is a valid primitive whose first ring is the
+        // geometrically upper ring. Canonicalising to low → high makes outward face motion independent of construction
+        // direction while preserving the same exact support.
+        const double U0 = Side.DomainStartU(), U1 = Side.DomainEndU();
+        const double V0 = Side.DomainStartV(), V1 = Side.DomainEndV();
+        auto Ring = [&](double V, double& Along, double& Radius) -> bool
+        {
+            Vec3 First = Side.Sample(U0, V);
+            Along = (First - Side.Origin).Dot(Axis);
+            Radius = (First - (Side.Origin + Axis * Along)).Length();
+            if (Radius <= Tol) return false;
+            for (int I = 1; I <= 8; ++I)
+            {
+                Vec3 Point = Side.Sample(U0 + (U1 - U0) * (static_cast<double>(I) / 8.0), V);
+                double T = (Point - Side.Origin).Dot(Axis);
+                double R = (Point - (Side.Origin + Axis * T)).Length();
+                if (std::fabs(T - Along) > Epsilon || std::fabs(R - Radius) > Epsilon) return false;
+            }
+            return true;
+        };
+
+        double AlongStart = 0.0, AlongEnd = 0.0, RadiusStart = 0.0, RadiusEnd = 0.0;
+        if (!Ring(V0, AlongStart, RadiusStart) || !Ring(V1, AlongEnd, RadiusEnd)) return std::nullopt;
+        if (std::fabs(std::min(AlongStart, AlongEnd) - Low) > Epsilon ||
+            std::fabs(std::max(AlongStart, AlongEnd) - High) > Epsilon ||
+            std::fabs(RadiusStart - Side.RadiusMajor) > Epsilon ||
+            std::fabs(RadiusEnd - Side.RadiusMinor) > Epsilon) return std::nullopt;
+
+        for (int J = 1; J < 4; ++J)
+        {
+            const double Fraction = static_cast<double>(J) / 4.0;
+            double Along = 0.0, Radius = 0.0;
+            if (!Ring(V0 + (V1 - V0) * Fraction, Along, Radius) ||
+                std::fabs(Along - ScalarCriteria::Lerp(AlongStart, AlongEnd, Fraction)) > Epsilon ||
+                std::fabs(Radius - ScalarCriteria::Lerp(RadiusStart, RadiusEnd, Fraction)) > Epsilon) return std::nullopt;
+        }
+
+        bool LowRim = false, HighRim = false;
+        for (const BrepEdge& Edge : Body.Edges)
+        {
+            if (!Edge.Closed()) continue;
+            double RimAlong = 0.0, RimRadius = 0.0;
+            for (int I = 0; I < 8; ++I)
+            {
+                Vec3 Point = Edge.Curve.Sample(Edge.Curve.DomainStart() +
+                    (Edge.Curve.DomainEnd() - Edge.Curve.DomainStart()) * (static_cast<double>(I) / 8.0));
+                double Along = (Point - Side.Origin).Dot(Axis);
+                double Radius = (Point - (Side.Origin + Axis * Along)).Length();
+                if (I == 0) { RimAlong = Along; RimRadius = Radius; }
+                else if (std::fabs(Along - RimAlong) > Epsilon || std::fabs(Radius - RimRadius) > Epsilon) return std::nullopt;
+            }
+            if (std::fabs(RimAlong - Low) <= Epsilon)
+            {
+                if (LowRim || std::fabs(RimRadius - (AlongStart < AlongEnd ? RadiusStart : RadiusEnd)) > Epsilon) return std::nullopt;
+                LowRim = true;
+            }
+            else if (std::fabs(RimAlong - High) <= Epsilon)
+            {
+                if (HighRim || std::fabs(RimRadius - (AlongStart > AlongEnd ? RadiusStart : RadiusEnd)) > Epsilon) return std::nullopt;
+                HighRim = true;
+            }
+            else return std::nullopt;
+        }
+        if (!LowRim || !HighRim) return std::nullopt;
+
+        const bool StartIsLow = AlongStart < AlongEnd;
+        return ConeSide{ Side.Origin + Axis * Low, Axis,
+                         StartIsLow ? RadiusStart : RadiusEnd,
+                         StartIsLow ? RadiusEnd : RadiusStart, Height };
     }
 
     struct ConeCap { ConeSide Shape; bool Upper = false; };

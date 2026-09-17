@@ -126,8 +126,8 @@ int ConstraintSolver::Evaluate(std::vector<double>& Residuals, std::vector<std::
     Residuals.assign(Rows, 0.0);
     Jacobian.assign(Rows, std::vector<double>(Cols, 0.0));
     size_t Row = 0;
-    auto X = [&](const PointRef& P, size_t Idx) -> double { return Idx == SIZE_MAX ? 0.0 : Unknowns[Idx].X; };
-    auto Y = [&](const PointRef& P, size_t Idx) -> double { return Idx == SIZE_MAX ? 0.0 : Unknowns[Idx].Y; };
+    auto X = [&](size_t Idx) -> double { return Idx == SIZE_MAX ? 0.0 : Unknowns[Idx].X; };
+    auto Y = [&](size_t Idx) -> double { return Idx == SIZE_MAX ? 0.0 : Unknowns[Idx].Y; };
     auto ColX = [&](size_t Idx) { return Idx == SIZE_MAX ? SIZE_MAX : 2 * Idx; };
     auto ColY = [&](size_t Idx) { return Idx == SIZE_MAX ? SIZE_MAX : 2 * Idx + 1; };
     for (const Constraint& C : Constraints)
@@ -135,10 +135,10 @@ int ConstraintSolver::Evaluate(std::vector<double>& Residuals, std::vector<std::
         if (!C.Active) continue;
         const size_t I1 = IndexOf(C.P1), I2 = IndexOf(C.P2);
         const size_t I3 = IndexOf(C.P3), I4 = IndexOf(C.P4);
-        const double X1 = X(C.P1, I1), Y1 = Y(C.P1, I1);
-        const double X2 = X(C.P2, I2), Y2 = Y(C.P2, I2);
-        const double X3 = X(C.P3, I3), Y3 = Y(C.P3, I3);
-        const double X4 = X(C.P4, I4), Y4 = Y(C.P4, I4);
+        const double X1 = X(I1), Y1 = Y(I1);
+        const double X2 = X(I2), Y2 = Y(I2);
+        const double X3 = X(I3), Y3 = Y(I3);
+        const double X4 = X(I4), Y4 = Y(I4);
         const size_t C1X = ColX(I1), C1Y = ColY(I1);
         const size_t C2X = ColX(I2), C2Y = ColY(I2);
         const size_t C3X = ColX(I3), C3Y = ColY(I3);
