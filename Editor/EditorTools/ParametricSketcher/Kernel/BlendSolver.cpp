@@ -483,6 +483,25 @@ namespace
         return Result;
     }
 
+    std::optional<OrthogonalBoxCorner> PrismFrameFromRails(const BrepBody& Body,const std::vector<int>& Edges) noexcept
+    {
+        if(Edges.size()!=4)return std::nullopt;
+        Vec3 A;double LA=0;std::vector<Vec3> Low;
+        for(int Index:Edges){if(Index<0||Index>=static_cast<int>(Body.Edges.size()))return std::nullopt;const BrepEdge&E=Body.Edges[Index];
+            if(E.Curve.Classification!=CurveClassification::Line||E.VertexStart<0||E.VertexEnd<0)return std::nullopt;
+            Vec3 P0=Body.Vertices[E.VertexStart].Point,P1=Body.Vertices[E.VertexEnd].Point,D=P1-P0;double L=D.Length();if(L<=Tol)return std::nullopt;
+            if(LA==0){LA=L;A=D/L;}else if(std::fabs(L-LA)>1e-8*LA||std::fabs(D.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+            Low.push_back(P0.Dot(A)<=P1.Dot(A)?P0:P1);}
+        std::sort(Low.begin(),Low.end(),[](Vec3 X,Vec3 Y){if(X.X!=Y.X)return X.X<Y.X;if(X.Y!=Y.Y)return X.Y<Y.Y;return X.Z<Y.Z;});
+        Vec3 O=Low.front();std::vector<Vec3>D;for(size_t I=1;I<Low.size();++I)D.push_back(Low[I]-O);
+        std::sort(D.begin(),D.end(),[](Vec3 X,Vec3 Y){return X.LengthSquared()<Y.LengthSquared();});
+        if(D.size()!=3||D[0].Length()<=Tol||D[1].Length()<=Tol)return std::nullopt;
+        Vec3 B=D[0].Normalised(),C=D[1].Normalised();double LB=D[0].Length(),LC=D[1].Length();
+        if(std::fabs(B.Dot(C))>1e-8||D[2].Distance(D[0]+D[1])>1e-8*std::max(LB,LC))return std::nullopt;
+        if(A.Cross(B).Dot(C)<0){std::swap(B,C);std::swap(LB,LC);}
+        return OrthogonalBoxCorner{O,A,B,C,LA,LB,LC};
+    }
+
     constexpr size_t MaxPrismHoles=8;
     struct PrismHole { double B=0.0,C=0.0,Radius=0.0; };
     struct PerforatedBoxPrism { OrthogonalBoxCorner Box; std::vector<PrismHole> Holes; };
@@ -498,19 +517,8 @@ namespace
         for(const BrepFace& Face:Body.Faces){Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
             Extrusions+=Face.Surface.Classification==SurfaceClassification::Extrusion;}
         if(Planes!=2||Extrusions!=4+HoleCount)return std::nullopt;
-        Vec3 A;double LA=0;std::vector<Vec3> Low;
-        for(int Index:Edges){if(Index<0||Index>=static_cast<int>(Body.Edges.size()))return std::nullopt;const BrepEdge&E=Body.Edges[Index];
-            if(E.Curve.Classification!=CurveClassification::Line||E.VertexStart<0||E.VertexEnd<0)return std::nullopt;
-            Vec3 P0=Body.Vertices[E.VertexStart].Point,P1=Body.Vertices[E.VertexEnd].Point,D=P1-P0;double L=D.Length();if(L<=Tol)return std::nullopt;
-            if(LA==0){LA=L;A=D/L;}else if(std::fabs(L-LA)>1e-8*LA||std::fabs(D.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
-            Low.push_back(P0.Dot(A)<=P1.Dot(A)?P0:P1);}
-        std::sort(Low.begin(),Low.end(),[](Vec3 X,Vec3 Y){if(X.X!=Y.X)return X.X<Y.X;if(X.Y!=Y.Y)return X.Y<Y.Y;return X.Z<Y.Z;});
-        Vec3 O=Low.front();std::vector<Vec3>D;for(size_t I=1;I<Low.size();++I)D.push_back(Low[I]-O);
-        std::sort(D.begin(),D.end(),[](Vec3 X,Vec3 Y){return X.LengthSquared()<Y.LengthSquared();});
-        if(D.size()!=3||D[0].Length()<=Tol||D[1].Length()<=Tol)return std::nullopt;
-        Vec3 B=D[0].Normalised(),C=D[1].Normalised();double LB=D[0].Length(),LC=D[1].Length();
-        if(std::fabs(B.Dot(C))>1e-8||D[2].Distance(D[0]+D[1])>1e-8*std::max(LB,LC))return std::nullopt;
-        if(A.Cross(B).Dot(C)<0){std::swap(B,C);std::swap(LB,LC);}
+        auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
+        Vec3 O=Frame->Corner,A=Frame->X,B=Frame->Y,C=Frame->Z;double LA=Frame->LX,LB=Frame->LY,LC=Frame->LZ;
         struct Ring{Vec3 Centre,Normal;double Radius=0.0;};std::vector<Ring>Lower,Upper;
         const double Epsilon=1e-8*std::max(1.0,LA);
         for(const BrepEdge&E:Body.Edges)if(E.Closed())
@@ -542,6 +550,44 @@ namespace
         OrthogonalBoxCorner Box{O,A,B,C,LA,LB,LC};double Exact=LA*(LB*LC-RemovedArea);
         if(!Intersecting&&std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return PerforatedBoxPrism{Box,std::move(Holes)};
+    }
+
+    struct BlindBoxPrism { OrthogonalBoxCorner Box; PrismHole Hole; bool FromLow=true; double Depth=0.0; };
+
+    std::optional<BlindBoxPrism> ClassifyBlindBoxPrism(const BrepBody& Body,const std::vector<int>& Edges) noexcept
+    {
+        auto Report=Body.Validate();
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Vertices.size()!=10||Body.Edges.size()!=15||
+           Body.Coedges.size()!=30||Body.Loops.size()!=9||Body.Faces.size()!=8)return std::nullopt;
+        auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
+        int Planes=0,Cylinders=0,HoledCaps=0,CylinderFace=-1;
+        for(size_t I=0;I<Body.Faces.size();++I)
+        {
+            const BrepFace& Face=Body.Faces[I];Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
+            HoledCaps+=Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()==2;
+            if(Face.Surface.Classification==SurfaceClassification::Cylinder){++Cylinders;CylinderFace=static_cast<int>(I);}
+        }
+        if(Planes!=7||Cylinders!=1||HoledCaps!=1||CylinderFace<0)return std::nullopt;
+        const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
+        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA);
+        if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+        std::vector<double>RingT;
+        for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
+            for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
+                int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
+                const BrepEdge& E=Body.Edges[Edge];if(!E.Closed())continue;double T=(E.Curve.Sample(E.Curve.DomainStart())-Frame->Corner).Dot(A);
+                for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(A)-T)>1e-8*Scale)return std::nullopt;
+                RingT.push_back(T);}}
+        if(RingT.size()!=2)return std::nullopt;
+        std::sort(RingT.begin(),RingT.end());
+        bool FromLow=std::fabs(RingT[0])<=1e-8*Scale&&RingT[1]>Tol&&RingT[1]<LA-Tol;
+        bool FromHigh=std::fabs(RingT[1]-LA)<=1e-8*Scale&&RingT[0]>Tol&&RingT[0]<LA-Tol;
+        if(FromLow==FromHigh)return std::nullopt;
+        double Depth=FromLow?RingT[1]:LA-RingT[0];
+        Vec3 Offset=Cylinder.Origin-Frame->Corner;PrismHole Hole{Offset.Dot(Frame->Y),Offset.Dot(Frame->Z),Cylinder.RadiusMajor};
+        double Exact=Frame->LX*(Frame->LY*Frame->LZ)-ScalarCriteria::Pi*Hole.Radius*Hole.Radius*Depth;
+        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        return BlindBoxPrism{*Frame,Hole,FromLow,Depth};
     }
 
     Deliver<BrepBody> BuildOrthogonalBoxCorner(const OrthogonalBoxCorner& Box, double Radius) noexcept
@@ -691,6 +737,21 @@ namespace
         return Result;
     }
 
+    const char* PrismHoleWallRefusal(const PrismHole& Hole,double LB,double LC,double Radius) noexcept
+    {
+        if(Hole.Radius<=Tol)return "rounded-prism hole radius is not positive";
+        if(Hole.Radius>=0.5*std::min(LB,LC)-Tol||Hole.B<=Hole.Radius+Tol||Hole.B>=LB-Hole.Radius-Tol||
+           Hole.C<=Hole.Radius+Tol||Hole.C>=LC-Hole.Radius-Tol)return "rounded-prism hole consumes the radial wall";
+        if(Hole.Radius<Radius)
+        {
+            double ClosestB=std::clamp(Hole.B,Radius,LB-Radius),ClosestC=std::clamp(Hole.C,Radius,LC-Radius);
+            double OffsetDistance=Vec2{Hole.B-ClosestB,Hole.C-ClosestC}.Length();
+            if(OffsetDistance>Tol&&OffsetDistance>=Radius-Hole.Radius-Tol)
+                return "rounded-prism hole intersects the inward-offset wall";
+        }
+        return nullptr;
+    }
+
     Deliver<BrepBody> BuildRoundedBoxPrism(const OrthogonalBoxCorner& Box, int Along, double Radius,
                                             const std::vector<PrismHole>& Holes={}) noexcept
     {
@@ -705,21 +766,8 @@ namespace
             "parallel-edge fillet radius consumes the rounded-prism cross-section");
         if(Holes.size()>MaxPrismHoles)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
             "rounded-prism route supports at most eight through-holes");
-        for(const PrismHole& Hole:Holes)
-        {
-            if(Hole.Radius<=Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"rounded-prism hole radius is not positive");
-            if(Hole.Radius>=0.5*std::min(LB,LC)-Tol||Hole.B<=Hole.Radius+Tol||Hole.B>=LB-Hole.Radius-Tol||
-               Hole.C<=Hole.Radius+Tol||Hole.C>=LC-Hole.Radius-Tol)
-                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"rounded-prism hole consumes the radial wall");
-            if(Hole.Radius<Radius)
-            {
-                double ClosestB=std::clamp(Hole.B,Radius,LB-Radius),ClosestC=std::clamp(Hole.C,Radius,LC-Radius);
-                double OffsetDistance=Vec2{Hole.B-ClosestB,Hole.C-ClosestC}.Length();
-                if(OffsetDistance>Tol&&OffsetDistance>=Radius-Hole.Radius-Tol)
-                    return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
-                        "rounded-prism hole intersects the inward-offset wall");
-            }
-        }
+        for(const PrismHole& Hole:Holes)if(const char* Denial=PrismHoleWallRefusal(Hole,LB,LC,Radius))
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,Denial);
         for(size_t I=0;I<Holes.size();++I)for(size_t J=I+1;J<Holes.size();++J)
             if(Vec2{Holes[I].B-Holes[J].B,Holes[I].C-Holes[J].C}.Length()<=Holes[I].Radius+Holes[J].Radius+Tol)
                 return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
@@ -754,6 +802,42 @@ namespace
             Result.Payload.Loops.size()==10+3*N&&Result.Payload.Faces.size()==10+N;
         if(!Report.Solid()||Report.Hulls!=1||!Topology)
             return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"parallel-edge rounded prism did not reach exact manifold topology");
+        return Result;
+    }
+
+    Deliver<BrepBody> BuildRoundedBlindPrism(const BlindBoxPrism& Blind,double Radius) noexcept
+    {
+        if(const char* Denial=PrismHoleWallRefusal(Blind.Hole,Blind.Box.LY,Blind.Box.LZ,Radius))
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,Denial);
+        if(Blind.Depth<=Tol||Blind.Depth>=Blind.Box.LX-Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"blind bore depth reaches a prism end");
+        auto Outer=BuildRoundedBoxPrism(Blind.Box,0,Radius);if(!Outer)return Outer;
+        auto P=[&](double X,double Y,double Z){return Blind.Box.Corner+Blind.Box.X*X+Blind.Box.Y*Y+Blind.Box.Z*Z;};
+        double Margin=std::max(1.0,Blind.Box.LX*0.1),Entry=Blind.FromLow?0.0:Blind.Box.LX;
+        Vec3 Direction=Blind.FromLow?Blind.Box.X:Blind.Box.X*-1.0;
+        auto Cutter=BrepBody::Cylinder(P(Blind.FromLow?-Margin:Blind.Box.LX+Margin,Blind.Hole.B,Blind.Hole.C),
+                                      Direction,Blind.Hole.Radius,Margin+Blind.Depth);
+        if(!Cutter)return Deliver<BrepBody>::Reject(Cutter.Denial.Reason,Cutter.Denial.Detail);
+        auto Result=IntersectionSolver::Combine(Outer.Payload,Cutter.Payload,BodyOperation::Subtract);
+        if(!Result)return Result;
+        int EntranceEdges=0;
+        for(BrepEdge& Edge:Result.Payload.Edges)if(Edge.Closed())
+        {
+            double T=(Edge.Curve.Sample(Edge.Curve.DomainStart())-Blind.Box.Corner).Dot(Blind.Box.X);
+            if(std::fabs(T-Entry)>1e-7*std::max(1.0,Blind.Box.LX))continue;
+            auto Circle=NurbsCurve::Circle(P(Entry,Blind.Hole.B,Blind.Hole.C),Direction,Blind.Hole.Radius);
+            if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind bore entrance seam could not be restored exactly");
+            Edge.Curve=std::move(Circle.Payload);++EntranceEdges;
+        }
+        auto Report=Result.Payload.Validate();int Planes=0,Cylinders=0,Circles=0;
+        for(const BrepFace& Face:Result.Payload.Faces){Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
+            Cylinders+=Face.Surface.Classification==SurfaceClassification::Cylinder;}
+        for(const BrepEdge& Edge:Result.Payload.Edges)Circles+=Edge.Closed()&&Edge.Curve.Classification==CurveClassification::Circle&&Edge.Curve.Rational();
+        if(EntranceEdges!=1||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Planes!=7||Cylinders!=5||Circles!=2||
+           Result.Payload.Vertices.size()!=18||Result.Payload.Edges.size()!=27||Result.Payload.Coedges.size()!=54||
+           Result.Payload.Loops.size()!=13||Result.Payload.Faces.size()!=12)
+            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"blind-bore rounded prism did not reach exact manifold topology");
         return Result;
     }
 
@@ -1880,6 +1964,14 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
     if(Targets.size()==4&&std::all_of(Targets.begin(),Targets.end(),[](const Target&T){return T.Chain.size()==1;}))
     {
         std::vector<int> Selected;for(const Target&T:Targets)Selected.push_back(T.Chain.front());
+        if(auto Blind=ClassifyBlindBoxPrism(Body,Selected))
+        {
+            auto Result=BuildRoundedBlindPrism(*Blind,Radius);
+            if(Result&&AppliedChains)*AppliedChains=4;
+            return Result;
+        }
+        if(Body.Validate().Genus==0&&Body.Vertices.size()==10&&Body.Edges.size()==15&&Body.Faces.size()==8)
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind-bore prism is outside the exact single-cavity route");
         if(auto Perforated=ClassifyPerforatedBoxPrism(Body,Selected))
         {
             auto Result=BuildRoundedBoxPrism(Perforated->Box,0,Radius,Perforated->Holes);

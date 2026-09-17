@@ -91,9 +91,9 @@ number of distinct chains committed. The verified independent case is two opposi
 radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
 
 The outer shoulder rim, incomplete/non-circular chains, asymmetric or non-radial endpoints, cylinder–cylinder contacts,
-arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary/oblique/blind/more-than-eight holes, unequal/non-orthogonal or two-edge corner patches, and
+arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary holes, oblique bores, multiple/stepped blind cavities, more-than-eight through-holes, unequal/non-orthogonal or two-edge corner patches, and
 general blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
-eleven direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
+twelve direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
 closed/diameter/radial-sector/multi-edge topology, endpoint meridians and caps, analytic volume direction/value,
 transformed axes, chain propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
 
@@ -119,7 +119,11 @@ Phase 32j accepts the canonical two-hole extension `V12/E18/C36/L12/F8` of the s
 
 ### Bounded multi-bore set
 
-Phase 32k generalizes the same exact construction to `3 <= N <= 8`. Canonical source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+N`; the rounded result is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+N`, with genus `N`. End-plane/radius/centre pairing is geometric, each bore passes the wall-offset gate, and every pair passes the ligament inequality. Nine or more holes, intersecting/tangent disks, oblique or blind holes, and non-canonical perforated solids refuse before fallback.
+Phase 32k generalizes the same exact construction to `3 <= N <= 8`. Canonical source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+N`; the rounded result is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+N`, with genus `N`. End-plane/radius/centre pairing is geometric, each bore passes the wall-offset gate, and every pair passes the ligament inequality. Nine or more holes, intersecting/tangent disks, and non-canonical perforated solids refuse before fallback.
+
+### One axis-parallel blind cavity
+
+Phase 32l recognizes only canonical `V10/E15/C30/L9/F8`, genus-zero rectangular prisms with seven planar faces and one inward cylindrical wall. Two closed cylinder rims locate the entrance and planar floor; exactly one rim must lie on a prism end and the depth must remain strictly below the prism length. The outer prism is rebuilt exactly, the finite cylinder is subtracted, and the Boolean entrance curve is replaced by an exact rational circle at the original seam. Canonical output is `V18/E27/C54/L13/F12`, with seven planes, five cylinders, two exact cavity circles, and one annular end cap. Either end and safe transverse offsets are supported. Side-entering, oblique, multiple, stepped, counterbored, or non-cylindrical blind cavities refuse transactionally.
 
 ### Complete rounded-box network
 

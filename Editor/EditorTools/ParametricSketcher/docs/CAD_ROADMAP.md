@@ -383,9 +383,15 @@ The same structural classifier and exact builder now scale to three through eigh
 
 **Proof:** `MultiBorePrismFilletVerification` (21 C++ checks) and `Proofs/Phase32k_MultiBorePrism.png`.
 
+#### Phase 32l: one axis-parallel blind cylindrical cavity ✅
+
+A canonical genus-zero rectangular prism with one finite-depth cylindrical cavity entering either end now takes a dedicated route. The classifier derives the outer frame from the selected rails, verifies seven planes plus one reversed cylinder, extracts entry/depth from both closed rims, and checks analytic cavity volume. The builder rounds the outer prism, subtracts the bounded exact cylinder, then replaces the fitted Boolean entrance intersection with its exact rational circle. The result is one `V18/E27/C54/L13/F12` hull with seven planes, five cylinders, one annular entrance cap, and a planar cavity floor. Offset placement, both entry directions, transforms, wall refusal, and side-axis refusal are verified.
+
+**Proof:** `BlindBorePrismFilletVerification` (21 C++ checks) and `Proofs/Phase32l_BlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/blind or more-than-eight holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering or multiple/stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 
