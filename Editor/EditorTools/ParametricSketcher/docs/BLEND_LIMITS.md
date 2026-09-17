@@ -64,10 +64,16 @@ classifier then requires a closed `2π` ring and matching shoulder, boss, and ou
 seams into the canonical exact result. Selecting either member of a two-edge chain or any member of a four-edge chain
 therefore produces the same solid.
 
-The outer shoulder rim, incomplete/non-circular chains, partial cylinders, cylinder–cylinder contacts, arbitrary
-trimmed/free-form surfaces, open chain endpoints, branching chains, thin-wall interactions, and corner patches remain
-unsupported; they refuse rather than entering the straight-planar approximation. `PlaneCylinderFilletVerification` and
-`TangentChainFilletVerification` measure exact torus identity/residual, both G1 contacts, support extents, topology,
+Phase 32b admits one finite endpoint arrangement: exactly half of the stepped solid bounded by one planar diameter face.
+The root chain must span `π` with two endpoints and matching bottom/top sector patches. Its internal two/four-member
+representation seams heal to one partial torus, while two exact quarter-circle meridians terminate the roll on the
+retained diameter cap. The result is one hull of genus zero with `V12/E17/C34/L7/F7`; its volume is exactly one half of
+the corresponding full-ring result. Positive and negative half-turns preserve which side of the cap contains material.
+
+The outer shoulder rim, incomplete/non-circular chains, non-semicircular or asymmetric endpoints, cylinder–cylinder
+contacts, arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, holes, and corner patches
+remain unsupported; they refuse rather than entering the straight-planar approximation. The three direct verifiers
+measure exact torus identity/residual, both G1 contacts, support extents, closed/open topology, endpoint meridians,
 analytic volume direction/value, transformed axes, chain propagation/healing, refusal bounds, and console commit.
 
 ### Re-entrant handle roots

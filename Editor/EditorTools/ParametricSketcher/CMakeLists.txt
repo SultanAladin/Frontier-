@@ -185,6 +185,11 @@ add_executable(TangentChainFilletVerification Verification/TangentChainFilletVer
 target_link_libraries(TangentChainFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME TangentChainFilletVerification COMMAND TangentChainFilletVerification)
 
+# Phase 32b: exact finite semicircular boss-root chain with two planar-cap endpoint meridians.
+add_executable(OpenChainFilletVerification Verification/OpenChainFilletVerification.cpp)
+target_link_libraries(OpenChainFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME OpenChainFilletVerification COMMAND OpenChainFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

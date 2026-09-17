@@ -209,14 +209,16 @@ namespace
 
     // Phase 31's first general smooth-support pair is the circular root where a cylindrical boss leaves a planar
     // annular shoulder. Unlike a three-face cylinder cap, the unsplit edge belongs to a five-face stepped solid and the
-    // fillet ADDS its rolling-ball wedge. Phase 32a also follows a complete circular chain across angular representation
-    // seams. The classifier derives every patch and dimension from topology/support geometry, never face-table order or
-    // a remembered primitive recipe.
+    // fillet ADDS its rolling-ball wedge. Phase 32a follows a complete circular chain across angular representation
+    // seams; Phase 32b admits one finite semicircular chain whose ends lie on a common planar diameter cap. The
+    // classifier derives every patch and dimension from topology/support geometry, never face-table order or a
+    // remembered primitive recipe.
     struct PlaneCylinderRoot
     {
-        Vec3   Base, Axis;
+        Vec3   Base, Axis, RadialStart;
         double OuterRadius = 0.0, ShoulderHeight = 0.0;
         double BossRadius = 0.0, BossHeight = 0.0;
+        double SweepAngle = ScalarCriteria::TwoPi;
     };
 
     bool CircularFrame(const NurbsCurve& Curve, Vec3& Centre, Vec3& Normal, double& Radius) noexcept
@@ -273,11 +275,11 @@ namespace
         return true;
     }
 
-    bool CompleteCircularChain(const BrepBody& Body, const std::vector<int>& Chain,
-                               Vec3 Centre, Vec3 Axis, double Radius) noexcept
+    bool CircularChain(const BrepBody& Body, const std::vector<int>& Chain, Vec3 Centre,
+                       Vec3 Axis, double Radius, bool Closed) noexcept
     {
         if (Chain.empty()) return false;
-        if (Chain.size() == 1 && Body.Edges[Chain.front()].Closed()) return true;
+        if (Closed && Chain.size() == 1 && Body.Edges[Chain.front()].Closed()) return true;
         std::vector<int> Degrees(Body.Vertices.size(), 0);
         double Angle = 0.0;
         for (int Edge : Chain)
@@ -298,8 +300,38 @@ namespace
             Angle += std::acos(ScalarCriteria::Clamp(R0.Dot(RM), -1.0, 1.0));
             Angle += std::acos(ScalarCriteria::Clamp(RM.Dot(R1), -1.0, 1.0));
         }
-        for (int Degree : Degrees) if (Degree != 0 && Degree != 2) return false;
-        return std::fabs(Angle - ScalarCriteria::TwoPi) <= 1e-6;
+        int Endpoints = 0;
+        for (int Degree : Degrees)
+        {
+            if (Degree == 1) ++Endpoints;
+            else if (Degree != 0 && Degree != 2) return false;
+        }
+        const double ExpectedAngle = Closed ? ScalarCriteria::TwoPi : ScalarCriteria::Pi;
+        return Endpoints == (Closed ? 0 : 2) && std::fabs(Angle - ExpectedAngle) <= 1e-6;
+    }
+
+    bool OpenChainSweep(const BrepBody& Body, const std::vector<int>& Chain, Vec3 Centre,
+                        Vec3 Axis, Vec3& RadialStart, double& SweepAngle) noexcept
+    {
+        std::vector<int> Degrees(Body.Vertices.size(), 0);
+        Vec3 InteriorDirection;
+        for (int Edge : Chain)
+        {
+            const BrepEdge& Candidate = Body.Edges[Edge];
+            if (Candidate.VertexStart < 0 || Candidate.VertexEnd < 0) return false;
+            ++Degrees[Candidate.VertexStart]; ++Degrees[Candidate.VertexEnd];
+            double Middle = 0.5 * (Candidate.Curve.DomainStart() + Candidate.Curve.DomainEnd());
+            InteriorDirection = InteriorDirection + (Candidate.Curve.Sample(Middle) - Centre).Normalised();
+        }
+        int StartVertex = -1;
+        for (size_t Vertex = 0; Vertex < Degrees.size(); ++Vertex)
+            if (Degrees[Vertex] == 1) { StartVertex = static_cast<int>(Vertex); break; }
+        if (StartVertex < 0 || InteriorDirection.Length() <= Tol) return false;
+        RadialStart = (Body.Vertices[StartVertex].Point - Centre).Normalised();
+        if (RadialStart.Length() <= Tol || std::fabs(RadialStart.Dot(Axis)) > 1e-8) return false;
+        Vec3 PositiveMiddle = Axis.Cross(RadialStart).Normalised();
+        SweepAngle = PositiveMiddle.Dot(InteriorDirection) >= 0.0 ? ScalarCriteria::Pi : -ScalarCriteria::Pi;
+        return true;
     }
 
     std::optional<PlaneCylinderRoot> PlaneCylinderBossRoot(const BrepBody& Body, int Edge) noexcept
@@ -310,11 +342,15 @@ namespace
         const std::vector<int>& RootEdges = ChainResult.Payload;
         const size_t SegmentCount = RootEdges.size();
 
-        // One angular patch for each outer-wall, shoulder, and boss segment, plus two planar end caps. The same formulas
-        // cover the original single closed edge and any fully sewn representation-seam split of that circular edge.
-        if (Body.Vertices.size() != 4 * SegmentCount || Body.Edges.size() != 7 * SegmentCount ||
-            Body.Coedges.size() != 14 * SegmentCount || Body.Loops.size() != 3 * SegmentCount + 2 ||
-            Body.Faces.size() != 3 * SegmentCount + 2) return std::nullopt;
+        // Closed rings have three angular support-patch bands plus two end caps. The first finite route is a semicircular
+        // chain: bottom/top sectors add two more bands, closed by one planar diameter face through the rotation axis.
+        const bool ClosedTopology = Body.Vertices.size() == 4 * SegmentCount &&
+            Body.Edges.size() == 7 * SegmentCount && Body.Coedges.size() == 14 * SegmentCount &&
+            Body.Loops.size() == 3 * SegmentCount + 2 && Body.Faces.size() == 3 * SegmentCount + 2;
+        const bool OpenTopology = Body.Vertices.size() == 4 * SegmentCount + 6 &&
+            Body.Edges.size() == 9 * SegmentCount + 5 && Body.Coedges.size() == 18 * SegmentCount + 10 &&
+            Body.Loops.size() == 5 * SegmentCount + 1 && Body.Faces.size() == 5 * SegmentCount + 1;
+        if (!ClosedTopology && !OpenTopology) return std::nullopt;
 
         auto Contains = [](const std::vector<int>& Values, int Value) noexcept
         { return std::find(Values.begin(), Values.end(), Value) != Values.end(); };
@@ -378,7 +414,7 @@ namespace
             AppendUnique(BossFaces, BossFace);
         }
         if (FirstRoot || ShoulderFaces.size() != SegmentCount || BossFaces.size() != SegmentCount ||
-            !CompleteCircularChain(Body, RootEdges, RootCentre, Axis, BossRadius)) return std::nullopt;
+            !CircularChain(Body, RootEdges, RootCentre, Axis, BossRadius, ClosedTopology)) return std::nullopt;
 
         // Every shoulder patch has one concentric outer circular arc. Follow those arcs through their adjacent cylindrical
         // wall patches, just as the selected tangent chain was followed through the boss/shoulder patches.
@@ -427,7 +463,7 @@ namespace
             AppendUnique(OuterFaces, OuterFace);
         }
         if (OuterEdges.size() != SegmentCount || OuterFaces.size() != SegmentCount || OuterRadius <= BossRadius ||
-            !CompleteCircularChain(Body, OuterEdges, RootCentre, Axis, OuterRadius)) return std::nullopt;
+            !CircularChain(Body, OuterEdges, RootCentre, Axis, OuterRadius, ClosedTopology)) return std::nullopt;
 
         Vec3 Base; double ShoulderHeight = 0.0; bool FirstOuter = true;
         for (int OuterFace : OuterFaces)
@@ -449,25 +485,59 @@ namespace
         }
         if (FirstOuter) return std::nullopt;
 
-        // The only remaining faces are the planar end caps at the derived outer base and boss top.
-        int BottomCaps = 0, TopCaps = 0;
         Vec3 BossTop = RootCentre + Axis * BossHeight;
+        if (ClosedTopology)
+        {
+            // The only remaining faces are the planar end caps at the derived outer base and boss top.
+            int BottomCaps = 0, TopCaps = 0;
+            for (size_t Face = 0; Face < Body.Faces.size(); ++Face)
+            {
+                int FaceIndex = static_cast<int>(Face);
+                if (Contains(ShoulderFaces, FaceIndex) || Contains(BossFaces, FaceIndex) || Contains(OuterFaces, FaceIndex)) continue;
+                Vec3 Normal;
+                if (!PlanarNormal(Body, FaceIndex, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+                const NurbsSurface& Cap = Body.Faces[Face].Surface;
+                Vec3 Point = Cap.Sample(0.5 * (Cap.DomainStartU() + Cap.DomainEndU()),
+                                        0.5 * (Cap.DomainStartV() + Cap.DomainEndV()));
+                const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
+                if (std::fabs((Point - Base).Dot(Axis)) <= Epsilon) ++BottomCaps;
+                else if (std::fabs((Point - BossTop).Dot(Axis)) <= Epsilon) ++TopCaps;
+                else return std::nullopt;
+            }
+            if (BottomCaps != 1 || TopCaps != 1) return std::nullopt;
+            return PlaneCylinderRoot{ Base, Axis, {}, OuterRadius, ShoulderHeight,
+                                      BossRadius, BossHeight, ScalarCriteria::TwoPi };
+        }
+
+        // A bounded finite chain is exactly one semicircular stepped sector. The remaining support set must contain N
+        // planar bottom patches, N planar top patches, and one planar diameter face joining both physical endpoints.
+        int BottomPatches = 0, TopPatches = 0, DiameterCaps = 0;
+        const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
         for (size_t Face = 0; Face < Body.Faces.size(); ++Face)
         {
             int FaceIndex = static_cast<int>(Face);
             if (Contains(ShoulderFaces, FaceIndex) || Contains(BossFaces, FaceIndex) || Contains(OuterFaces, FaceIndex)) continue;
+            const NurbsSurface& Surface = Body.Faces[Face].Surface;
             Vec3 Normal;
-            if (!PlanarNormal(Body, FaceIndex, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
-            const NurbsSurface& Cap = Body.Faces[Face].Surface;
-            Vec3 Point = Cap.Sample(0.5 * (Cap.DomainStartU() + Cap.DomainEndU()),
-                                    0.5 * (Cap.DomainStartV() + Cap.DomainEndV()));
-            const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
-            if (std::fabs((Point - Base).Dot(Axis)) <= Epsilon) ++BottomCaps;
-            else if (std::fabs((Point - BossTop).Dot(Axis)) <= Epsilon) ++TopCaps;
+            if (!PlanarNormal(Body, FaceIndex, Normal)) return std::nullopt;
+            Vec3 Point = Surface.Sample(0.5 * (Surface.DomainStartU() + Surface.DomainEndU()),
+                                        0.5 * (Surface.DomainStartV() + Surface.DomainEndV()));
+            double Alignment = std::fabs(Normal.Dot(Axis));
+            if (Alignment > 1.0 - 1e-8)
+            {
+                if (std::fabs((Point - Base).Dot(Axis)) <= Epsilon) ++BottomPatches;
+                else if (std::fabs((Point - BossTop).Dot(Axis)) <= Epsilon) ++TopPatches;
+                else return std::nullopt;
+            }
+            else if (Alignment < 1e-8 && Surface.Classification == SurfaceClassification::Plane) ++DiameterCaps;
             else return std::nullopt;
         }
-        if (BottomCaps != 1 || TopCaps != 1) return std::nullopt;
-        return PlaneCylinderRoot{ Base, Axis, OuterRadius, ShoulderHeight, BossRadius, BossHeight };
+        if (BottomPatches != static_cast<int>(SegmentCount) || TopPatches != static_cast<int>(SegmentCount) ||
+            DiameterCaps != 1) return std::nullopt;
+        Vec3 RadialStart; double SweepAngle = 0.0;
+        if (!OpenChainSweep(Body, RootEdges, RootCentre, Axis, RadialStart, SweepAngle)) return std::nullopt;
+        return PlaneCylinderRoot{ Base, Axis, RadialStart, OuterRadius, ShoulderHeight,
+                                  BossRadius, BossHeight, SweepAngle };
     }
 
     Deliver<BrepBody> FilletPlaneCylinderBossRoot(const PlaneCylinderRoot& Root, double Radius) noexcept
@@ -479,37 +549,97 @@ namespace
             return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet radius consumes the planar shoulder");
 
         const Vec3 ShoulderCentre = Root.Base + Root.Axis * Root.ShoulderHeight;
-        const Workplane Frame = Workplane::FromNormal(Root.Base, Root.Axis);
-        Deliver<NurbsSurface> Outer = NurbsSurface::Cylinder(Root.Base, Root.Axis, Root.OuterRadius, Root.ShoulderHeight);
+        const bool Closed = std::fabs(std::fabs(Root.SweepAngle) - ScalarCriteria::TwoPi) <= 1e-8;
+        const Vec3 Radial = Closed ? Workplane::FromNormal(Root.Base, Root.Axis).AxisX : Root.RadialStart.Normalised();
+        if (Radial.Length() <= Tol || std::fabs(Radial.Dot(Root.Axis)) > 1e-8)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "plane-cylinder fillet radial frame is degenerate");
+
+        auto RevolveLine = [&](Vec3 Start, Vec3 End) -> Deliver<NurbsSurface>
+        {
+            Deliver<NurbsCurve> Line = NurbsCurve::Line(Start, End);
+            return Line ? NurbsSurface::Revolution(Line.Payload, Root.Base, Root.Axis, Root.SweepAngle)
+                        : Deliver<NurbsSurface>::Reject(Line.Denial.Reason, Line.Denial.Detail);
+        };
+
+        Deliver<NurbsSurface> Outer;
+        if (Closed) Outer = NurbsSurface::Cylinder(Root.Base, Root.Axis, Root.OuterRadius, Root.ShoulderHeight);
+        else
+        {
+            Outer = RevolveLine(Root.Base + Radial * Root.OuterRadius,
+                                ShoulderCentre + Radial * Root.OuterRadius);
+            if (Outer)
+            {
+                Outer.Payload.Classification = SurfaceClassification::Cylinder;
+                Outer.Payload.Origin = Root.Base; Outer.Payload.Axis = Root.Axis;
+                Outer.Payload.RadiusMajor = Outer.Payload.RadiusMinor = Root.OuterRadius;
+            }
+        }
+
         Deliver<NurbsCurve> ShoulderLine = NurbsCurve::Line(
-            ShoulderCentre + Frame.AxisX * Root.OuterRadius,
-            ShoulderCentre + Frame.AxisX * (Root.BossRadius + Radius));
+            ShoulderCentre + Radial * Root.OuterRadius,
+            ShoulderCentre + Radial * (Root.BossRadius + Radius));
         Deliver<NurbsSurface> Shoulder = ShoulderLine
-            ? NurbsSurface::Revolution(ShoulderLine.Payload, Root.Base, Root.Axis, ScalarCriteria::TwoPi)
+            ? NurbsSurface::Revolution(ShoulderLine.Payload, Root.Base, Root.Axis, Root.SweepAngle)
             : Deliver<NurbsSurface>::Reject(ShoulderLine.Denial.Reason, ShoulderLine.Denial.Detail);
 
-        Vec3 MeridianCentre = ShoulderCentre + Root.Axis * Radius + Frame.AxisX * (Root.BossRadius + Radius);
+        Vec3 MeridianCentre = ShoulderCentre + Root.Axis * Radius + Radial * (Root.BossRadius + Radius);
         Vec3 ShoulderContact = MeridianCentre - Root.Axis * Radius;
-        Vec3 BossContact = MeridianCentre - Frame.AxisX * Radius;
-        Vec3 MeridianMiddle = MeridianCentre - (Root.Axis + Frame.AxisX) * (Radius / std::sqrt(2.0));
+        Vec3 BossContact = MeridianCentre - Radial * Radius;
+        Vec3 MeridianMiddle = MeridianCentre - (Root.Axis + Radial) * (Radius / std::sqrt(2.0));
         Deliver<NurbsCurve> Meridian = NurbsCurve::ArcThreePoints(ShoulderContact, MeridianMiddle, BossContact);
         Deliver<NurbsSurface> Roll = Meridian
-            ? NurbsSurface::Revolution(Meridian.Payload, Root.Base, Root.Axis, ScalarCriteria::TwoPi)
+            ? NurbsSurface::Revolution(Meridian.Payload, Root.Base, Root.Axis, Root.SweepAngle)
             : Deliver<NurbsSurface>::Reject(Meridian.Denial.Reason, Meridian.Denial.Detail);
-        Deliver<NurbsSurface> Boss = NurbsSurface::Cylinder(
-            ShoulderCentre + Root.Axis * Radius, Root.Axis, Root.BossRadius, Root.BossHeight - Radius);
+
+        Deliver<NurbsSurface> Boss;
+        if (Closed)
+            Boss = NurbsSurface::Cylinder(ShoulderCentre + Root.Axis * Radius, Root.Axis,
+                                          Root.BossRadius, Root.BossHeight - Radius);
+        else
+        {
+            Boss = RevolveLine(ShoulderCentre + Root.Axis * Radius + Radial * Root.BossRadius,
+                               ShoulderCentre + Root.Axis * Root.BossHeight + Radial * Root.BossRadius);
+            if (Boss)
+            {
+                Boss.Payload.Classification = SurfaceClassification::Cylinder;
+                Boss.Payload.Origin = ShoulderCentre + Root.Axis * Radius; Boss.Payload.Axis = Root.Axis;
+                Boss.Payload.RadiusMajor = Boss.Payload.RadiusMinor = Root.BossRadius;
+            }
+        }
         if (!Outer || !Shoulder || !Roll || !Boss)
             return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "plane-cylinder fillet support is degenerate");
 
-        // Preserve the exact partial-torus identity for checking, selection, and later support correspondence.
+        // Preserve exact partial-torus identity for checking, selection, and later support correspondence.
         Roll.Payload.Classification = SurfaceClassification::Torus;
         Roll.Payload.Origin = ShoulderCentre + Root.Axis * Radius;
         Roll.Payload.Axis = Root.Axis;
         Roll.Payload.RadiusMajor = Root.BossRadius + Radius;
         Roll.Payload.RadiusMinor = Radius;
-        Deliver<BrepBody> Result = BrepBody::Sew({ Outer.Payload, Shoulder.Payload, Roll.Payload, Boss.Payload });
-        if (!Result || !Result.Payload.Validate().Solid())
-            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "plane-cylinder fillet could not be sewn into a valid solid");
+
+        std::vector<NurbsSurface> Surfaces{ Outer.Payload, Shoulder.Payload, Roll.Payload, Boss.Payload };
+        if (!Closed)
+        {
+            // Bottom/top sectors meet at the axis endpoints; Sew adds the single planar diameter face containing both
+            // finite chain endpoints. Internal angular representation seams intentionally vanish.
+            Deliver<NurbsSurface> Bottom = RevolveLine(Root.Base, Root.Base + Radial * Root.OuterRadius);
+            Vec3 BossTop = ShoulderCentre + Root.Axis * Root.BossHeight;
+            Deliver<NurbsSurface> Top = RevolveLine(BossTop + Radial * Root.BossRadius, BossTop);
+            if (!Bottom || !Top)
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "open-chain fillet end support is degenerate");
+            Surfaces.push_back(std::move(Bottom.Payload));
+            Surfaces.push_back(std::move(Top.Payload));
+        }
+        Deliver<BrepBody> Result = BrepBody::Sew(Surfaces);
+        if (!Result) return Deliver<BrepBody>::Reject(Result.Denial.Reason, Result.Denial.Detail);
+        BodyReport Report = Result.Payload.Validate();
+        const bool ExpectedTopology = Closed
+            ? Result.Payload.Vertices.size() == 5 && Result.Payload.Edges.size() == 9 &&
+              Result.Payload.Coedges.size() == 18 && Result.Payload.Loops.size() == 6 && Result.Payload.Faces.size() == 6
+            : Report.Hulls == 1 && Report.Genus == 0 && Result.Payload.Vertices.size() == 12 &&
+              Result.Payload.Edges.size() == 17 && Result.Payload.Coedges.size() == 34 &&
+              Result.Payload.Loops.size() == 7 && Result.Payload.Faces.size() == 7;
+        if (!Report.Solid() || !ExpectedTopology)
+            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "plane-cylinder fillet did not reach its exact manifold topology");
         return Result;
     }
 

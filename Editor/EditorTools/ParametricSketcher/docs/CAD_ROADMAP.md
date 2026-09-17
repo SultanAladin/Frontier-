@@ -281,10 +281,27 @@ singleton closed-edge behavior, exact `V5/E9/C18/L6/F6` output, torus residual b
 **Proof:** `Verification/TangentChainFilletVerification.cpp` (28 C++ checks) and
 `Proofs/Phase32a_TangentChainFillet.png` (2560 × 1600 C++-generated contact sheet).
 
+#### Phase 32b: finite semicircular chain endpoints ✅
+
+The first endpoint-aware chain is deliberately exact and bounded: a semicircular stepped boss is cut by one planar
+diameter face, and its root may contain one, two, or four rational arc members. The classifier requires two chain
+endpoints, total angular span `π`, matching partial plane/cylinder supports, bottom/top sector patches, and the source
+formula `V=4N+6, E=9N+5, C=18N+10, L=5N+1, F=5N+1`. Positive and negative half-turns select the correct side of the
+diameter plane. Reconstruction heals only internal representation seams while preserving two exact torus meridians and
+the diameter cap as a one-hull, genus-zero `V12/E17/C34/L7/F7` solid.
+
+**32b exit gate met:** `OpenChainFilletVerification` proves two/four-member propagation and endpoint degree, seed
+independence, exact torus residual below `1e-9`, both G1 breaks below `1e-10`, support/contact/end-cap retention,
+analytic half-volume, oblique axes, reversed sweep, bounded refusals, native-cylinder regression, and console commit.
+
+**Proof:** `Verification/OpenChainFilletVerification.cpp` (30 C++ checks) and
+`Proofs/Phase32b_OpenChainFillet.png` (2560 × 1600 C++-generated contact sheet).
+
 #### Still required before Phase 32 is complete
 
-Finite open-chain endpoints, intentional multi-edge selection, three-face corner patches, holes, thin walls, and
-blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+General-angle or asymmetric open endpoints, intentional multi-edge selection, three-face corner patches, holes, thin
+walls, and blend/blend intersections each need separate topology and visual regressions. This increment does not claim
+them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

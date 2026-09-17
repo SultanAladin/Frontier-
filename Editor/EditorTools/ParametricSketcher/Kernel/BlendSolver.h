@@ -10,7 +10,7 @@
 //    Curved-edge routes are deliberately bounded and direct: a complete native right-cylinder cap is rebuilt from its
 //    retained cylinder and an exact conical frustum/quarter torus, while the first general smooth-support case rebuilds
 //    a planar annular shoulder and cylindrical boss around their offset-surface spine. A G1 tangent-chain walker lets
-//    that boss root be selected through one member of a complete representation-split circular ring:
+//    that boss root be selected through one member of a representation-split full ring or bounded semicircle:
 //
 //      chamfer(E, s) = Body − Wedge(E, s)                 the planar corner prism beyond the set-back plane is cut away
 //      circular chamfer = Cylinder(R, H−s) ∪ Cone(R, R−s, s)     exact right-cylinder cap bevel
@@ -63,8 +63,9 @@ public:
 
     // Rolling-ball fillet of one straight planar edge, an exact quarter-torus on a native right-cylinder cap, or an exact
     // concave quarter-torus at the circular root of a bounded planar-shoulder/cylindrical-boss topology. One member of a
-    // complete representation-split boss-root chain propagates around the ring and heals its angular support seams.
-    // Both contact seams are G1; unsupported/open/branching smooth-support arrangements refuse without approximation.
+    // representation-split full ring or semicircle propagates over the chain and heals internal angular support seams.
+    // Both contacts are G1; the semicircle retains two exact end meridians on its planar diameter cap. Other finite,
+    // unsupported, or branching smooth-support arrangements refuse without approximation.
     [[nodiscard]] static Deliver<BrepBody> FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept;
 
     // Push a face along its own outward normal. Native right-cylinder caps and side face rebuild directly as exact
