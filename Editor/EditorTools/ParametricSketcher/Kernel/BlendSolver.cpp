@@ -207,6 +207,205 @@ namespace
         return std::nullopt;
     }
 
+    // Phase 31's first general smooth-support pair is the circular root where a cylindrical boss leaves a planar
+    // annular shoulder. Unlike a three-face cylinder cap, this edge belongs to a five-face stepped solid and the fillet
+    // ADDS its rolling-ball wedge. The classifier derives all dimensions from the selected edge and its two supports;
+    // it does not rely on face-table order or a remembered primitive recipe.
+    struct PlaneCylinderRoot
+    {
+        Vec3   Base, Axis;
+        double OuterRadius = 0.0, ShoulderHeight = 0.0;
+        double BossRadius = 0.0, BossHeight = 0.0;
+    };
+
+    bool CircularFrame(const NurbsCurve& Curve, Vec3& Centre, Vec3& Normal, double& Radius) noexcept
+    {
+        if (Curve.Classification != CurveClassification::Circle || Curve.Degree != 2 ||
+            !Curve.Rational() || !Curve.Closed()) return false;
+        const double T0 = Curve.DomainStart(), Span = Curve.DomainEnd() - T0;
+        if (Span <= ScalarCriteria::ParametricEpsilon) return false;
+        Vec3 P0 = Curve.Sample(T0), P1 = Curve.Sample(T0 + Span * 0.25), P2 = Curve.Sample(T0 + Span * 0.5);
+        Vec3 U = P1 - P0, V = P2 - P0, Cross = U.Cross(V);
+        const double Denominator = 2.0 * Cross.LengthSquared();
+        if (Denominator <= ScalarCriteria::KernelTolerance) return false;
+        Centre = P0 + (Cross.Cross(U) * V.LengthSquared() + V.Cross(Cross) * U.LengthSquared()) / Denominator;
+        Radius = Centre.Distance(P0);
+        if (Radius <= Tol) return false;
+        Normal = Cross.Normalised();
+        const double Epsilon = 1e-8 * std::max(1.0, Radius);
+        for (int I = 1; I < 8; ++I)
+        {
+            Vec3 Radial = Curve.Sample(T0 + Span * (static_cast<double>(I) / 8.0)) - Centre;
+            if (std::fabs(Radial.Length() - Radius) > Epsilon || std::fabs(Radial.Dot(Normal)) > Epsilon) return false;
+        }
+        return true;
+    }
+
+    bool CylinderEndCentres(const NurbsSurface& Cylinder, Vec3& Start, Vec3& End, double& Radius) noexcept
+    {
+        if (Cylinder.Classification != SurfaceClassification::Cylinder || Cylinder.RadiusMajor <= Tol ||
+            std::fabs(Cylinder.RadiusMajor - Cylinder.RadiusMinor) > Tol) return false;
+        const double U0 = Cylinder.DomainStartU(), U1 = Cylinder.DomainEndU();
+        const double V0 = Cylinder.DomainStartV(), V1 = Cylinder.DomainEndV();
+        const double MiddleU = 0.5 * (U0 + U1);
+        Start = (Cylinder.Sample(U0, V0) + Cylinder.Sample(MiddleU, V0)) * 0.5;
+        End = (Cylinder.Sample(U0, V1) + Cylinder.Sample(MiddleU, V1)) * 0.5;
+        Radius = Cylinder.RadiusMajor;
+        Vec3 Axis = Cylinder.Axis.Normalised();
+        const double Height = Start.Distance(End);
+        const double Epsilon = 1e-8 * std::max({ 1.0, Radius, Height });
+        if (Axis.Length() <= Tol || Height <= Epsilon || (End - Start).Normalised().Cross(Axis).Length() > 1e-8) return false;
+        for (double V : { V0, V1 })
+        {
+            Vec3 Centre = V == V0 ? Start : End;
+            for (int I = 0; I < 8; ++I)
+            {
+                Vec3 Point = Cylinder.Sample(U0 + (U1 - U0) * (static_cast<double>(I) / 8.0), V);
+                Vec3 Radial = Point - Centre;
+                if (std::fabs(Radial.Length() - Radius) > Epsilon || std::fabs(Radial.Dot(Axis)) > Epsilon) return false;
+            }
+        }
+        return true;
+    }
+
+    std::optional<PlaneCylinderRoot> PlaneCylinderBossRoot(const BrepBody& Body, int Edge) noexcept
+    {
+        if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size()) || !Body.Validate().Solid() ||
+            Body.Vertices.size() != 4 || Body.Edges.size() != 7 || Body.Coedges.size() != 14 ||
+            Body.Loops.size() != 5 || Body.Faces.size() != 5) return std::nullopt;
+        const BrepEdge& RootEdge = Body.Edges[Edge];
+        if (!RootEdge.Closed() || RootEdge.Coedges.size() != 2) return std::nullopt;
+
+        Vec3 RootCentre, RootNormal; double BossRadius = 0.0;
+        if (!CircularFrame(RootEdge.Curve, RootCentre, RootNormal, BossRadius)) return std::nullopt;
+        int ShoulderFace = -1, BossFace = -1; Vec3 Axis;
+        for (int Coedge : RootEdge.Coedges)
+        {
+            if (Coedge < 0 || Coedge >= static_cast<int>(Body.Coedges.size())) return std::nullopt;
+            int Face = Body.Coedges[Coedge].Face;
+            if (Face < 0 || Face >= static_cast<int>(Body.Faces.size())) return std::nullopt;
+            if (Body.Faces[Face].Surface.Classification == SurfaceClassification::Cylinder)
+            {
+                if (BossFace >= 0) return std::nullopt;
+                BossFace = Face;
+            }
+            else
+            {
+                Vec3 Normal;
+                if (ShoulderFace >= 0 || !PlanarNormal(Body, Face, Normal)) return std::nullopt;
+                ShoulderFace = Face; Axis = Normal.Normalised();
+            }
+        }
+        if (ShoulderFace < 0 || BossFace < 0 || std::fabs(RootNormal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+
+        Vec3 BossStart, BossEnd; double ClassifiedBossRadius = 0.0;
+        if (!CylinderEndCentres(Body.Faces[BossFace].Surface, BossStart, BossEnd, ClassifiedBossRadius)) return std::nullopt;
+        const double Scale = std::max({ 1.0, BossRadius, ClassifiedBossRadius, BossStart.Distance(BossEnd) });
+        const double Epsilon = 1e-8 * Scale;
+        if (std::fabs(BossRadius - ClassifiedBossRadius) > Epsilon) return std::nullopt;
+        Vec3 BossOther;
+        if (BossStart.Distance(RootCentre) <= Epsilon) BossOther = BossEnd;
+        else if (BossEnd.Distance(RootCentre) <= Epsilon) BossOther = BossStart;
+        else return std::nullopt;
+        double BossHeight = BossOther.Distance(RootCentre);
+        if (BossHeight <= Epsilon || (BossOther - RootCentre).Normalised().Dot(Axis) < 1.0 - 1e-8) return std::nullopt;
+
+        int OuterEdge = -1;
+        for (int Loop : Body.Faces[ShoulderFace].Loops)
+            for (int Coedge : Body.Loops[Loop].Coedges)
+            {
+                int Candidate = Body.Coedges[Coedge].Edge;
+                if (Candidate == Edge || Candidate < 0 || Candidate >= static_cast<int>(Body.Edges.size()) ||
+                    !Body.Edges[Candidate].Closed()) continue;
+                if (OuterEdge >= 0 && OuterEdge != Candidate) return std::nullopt;
+                OuterEdge = Candidate;
+            }
+        if (OuterEdge < 0) return std::nullopt;
+
+        Vec3 OuterCentre, OuterNormal; double OuterRadius = 0.0;
+        if (!CircularFrame(Body.Edges[OuterEdge].Curve, OuterCentre, OuterNormal, OuterRadius) ||
+            OuterCentre.Distance(RootCentre) > Epsilon || std::fabs(OuterNormal.Dot(Axis)) < 1.0 - 1e-8 ||
+            OuterRadius <= BossRadius + Epsilon) return std::nullopt;
+        int OuterFace = -1;
+        for (int Coedge : Body.Edges[OuterEdge].Coedges)
+        {
+            int Face = Body.Coedges[Coedge].Face;
+            if (Face != ShoulderFace)
+            {
+                if (OuterFace >= 0 || Face < 0 || Face >= static_cast<int>(Body.Faces.size())) return std::nullopt;
+                OuterFace = Face;
+            }
+        }
+        if (OuterFace < 0 || OuterFace == BossFace) return std::nullopt;
+
+        Vec3 OuterStart, OuterEnd; double ClassifiedOuterRadius = 0.0;
+        if (!CylinderEndCentres(Body.Faces[OuterFace].Surface, OuterStart, OuterEnd, ClassifiedOuterRadius) ||
+            std::fabs(OuterRadius - ClassifiedOuterRadius) > Epsilon) return std::nullopt;
+        Vec3 Base;
+        if (OuterStart.Distance(RootCentre) <= Epsilon) Base = OuterEnd;
+        else if (OuterEnd.Distance(RootCentre) <= Epsilon) Base = OuterStart;
+        else return std::nullopt;
+        double ShoulderHeight = Base.Distance(RootCentre);
+        if (ShoulderHeight <= Epsilon || (Base - RootCentre).Normalised().Dot(Axis) > -1.0 + 1e-8) return std::nullopt;
+
+        // The remaining two faces must be the planar end caps. This excludes a coincident five-face lookalike with
+        // hidden trims or another smooth support from entering the bounded reconstruction.
+        int EndCaps = 0;
+        for (size_t Face = 0; Face < Body.Faces.size(); ++Face)
+        {
+            if (static_cast<int>(Face) == ShoulderFace || static_cast<int>(Face) == BossFace || static_cast<int>(Face) == OuterFace) continue;
+            Vec3 Normal;
+            if (Body.Faces[Face].Surface.Classification != SurfaceClassification::Plane || !PlanarNormal(Body, static_cast<int>(Face), Normal) ||
+                std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+            ++EndCaps;
+        }
+        if (EndCaps != 2) return std::nullopt;
+        return PlaneCylinderRoot{ Base, Axis, OuterRadius, ShoulderHeight, BossRadius, BossHeight };
+    }
+
+    Deliver<BrepBody> FilletPlaneCylinderBossRoot(const PlaneCylinderRoot& Root, double Radius) noexcept
+    {
+        if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
+        if (Radius >= Root.BossHeight - Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet radius consumes the cylindrical boss height");
+        if (Radius >= Root.OuterRadius - Root.BossRadius - Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet radius consumes the planar shoulder");
+
+        const Vec3 ShoulderCentre = Root.Base + Root.Axis * Root.ShoulderHeight;
+        const Workplane Frame = Workplane::FromNormal(Root.Base, Root.Axis);
+        Deliver<NurbsSurface> Outer = NurbsSurface::Cylinder(Root.Base, Root.Axis, Root.OuterRadius, Root.ShoulderHeight);
+        Deliver<NurbsCurve> ShoulderLine = NurbsCurve::Line(
+            ShoulderCentre + Frame.AxisX * Root.OuterRadius,
+            ShoulderCentre + Frame.AxisX * (Root.BossRadius + Radius));
+        Deliver<NurbsSurface> Shoulder = ShoulderLine
+            ? NurbsSurface::Revolution(ShoulderLine.Payload, Root.Base, Root.Axis, ScalarCriteria::TwoPi)
+            : Deliver<NurbsSurface>::Reject(ShoulderLine.Denial.Reason, ShoulderLine.Denial.Detail);
+
+        Vec3 MeridianCentre = ShoulderCentre + Root.Axis * Radius + Frame.AxisX * (Root.BossRadius + Radius);
+        Vec3 ShoulderContact = MeridianCentre - Root.Axis * Radius;
+        Vec3 BossContact = MeridianCentre - Frame.AxisX * Radius;
+        Vec3 MeridianMiddle = MeridianCentre - (Root.Axis + Frame.AxisX) * (Radius / std::sqrt(2.0));
+        Deliver<NurbsCurve> Meridian = NurbsCurve::ArcThreePoints(ShoulderContact, MeridianMiddle, BossContact);
+        Deliver<NurbsSurface> Roll = Meridian
+            ? NurbsSurface::Revolution(Meridian.Payload, Root.Base, Root.Axis, ScalarCriteria::TwoPi)
+            : Deliver<NurbsSurface>::Reject(Meridian.Denial.Reason, Meridian.Denial.Detail);
+        Deliver<NurbsSurface> Boss = NurbsSurface::Cylinder(
+            ShoulderCentre + Root.Axis * Radius, Root.Axis, Root.BossRadius, Root.BossHeight - Radius);
+        if (!Outer || !Shoulder || !Roll || !Boss)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "plane-cylinder fillet support is degenerate");
+
+        // Preserve the exact partial-torus identity for checking, selection, and later support correspondence.
+        Roll.Payload.Classification = SurfaceClassification::Torus;
+        Roll.Payload.Origin = ShoulderCentre + Root.Axis * Radius;
+        Roll.Payload.Axis = Root.Axis;
+        Roll.Payload.RadiusMajor = Root.BossRadius + Radius;
+        Roll.Payload.RadiusMinor = Radius;
+        Deliver<BrepBody> Result = BrepBody::Sew({ Outer.Payload, Shoulder.Payload, Roll.Payload, Boss.Payload });
+        if (!Result || !Result.Payload.Validate().Solid())
+            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "plane-cylinder fillet could not be sewn into a valid solid");
+        return Result;
+    }
+
     struct ConeSide
     {
         Vec3 Base, Axis;
@@ -761,6 +960,8 @@ Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, doubl
 Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept
 {
     if (std::optional<CylinderCap> Cap = NativeCylinderCap(Body, Edge)) return FilletCylinderCap(*Cap, Radius);
+    if (std::optional<PlaneCylinderRoot> Root = PlaneCylinderBossRoot(Body, Edge))
+        return FilletPlaneCylinderBossRoot(*Root, Radius);
     EdgeCornerFrame F; std::string Why;
     if (!Frame(Body, Edge, F, Why)) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, Why.c_str());
     if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");

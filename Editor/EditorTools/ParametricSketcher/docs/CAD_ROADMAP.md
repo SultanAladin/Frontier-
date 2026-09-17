@@ -239,19 +239,29 @@ slope signs; height/radius-collapse and apex refusals; exact console commit; and
 **Exit gate met:** both cap planes of a full native frustum follow the same exact conical support in either construction
 direction. Apex cones, partial/trimmed cones, and arbitrary free-form faces remain deliberately unsupported.
 
-### Phase 31: constant-radius general smooth-support fillets
+### Phase 31: first general smooth-support fillet ✅
 
-Implement the next bounded generalization across one selected smooth edge between two supported surfaces. The
-construction should offset both supports to form a spine, create rational quadratic cross-sections, trim the support
-faces with the contact curves, sew, orient, and validate the result. Start with one plane–cylinder example before
-considering cylinder–cylinder or NURBS supports.
+The bounded five-face stepped solid is now recognized structurally when the selected circular inner shoulder rim joins a
+planar annulus to a native cylindrical boss. Its two radius-offset supports intersect in an exact circular spine at
+`boss radius + r`, one radius above the shoulder plane. Reconstruction retains the outer cylinder, trims the annular
+shoulder, inserts a rational quarter-torus, shortens the boss cylinder, and sews both caps into a closed solid.
 
-This follows established blend research: constant-radius blends are produced by offsetting the two support surfaces,
-finding their intersection/spine, and sweeping rational quadratic sections; corner blends are a separate problem.
-[Constant-radius blending in surface modelling](https://www.sciencedirect.com/science/article/abs/pii/0010448589900468)
+Delivered:
 
-**Exit gate:** one plane–cylinder case must retain valid B-rep topology, contact/tangency within tolerance, expected
-volume direction, and a close-up C++ proof render. Unsupported support pairs must refuse cleanly.
+1. support/edge classification derived from NURBS geometry and B-rep adjacency rather than face order;
+2. exact plane and cylinder offsets with an analytic circular spine;
+3. an exact rational rolling-ball torus retaining torus analytic identity;
+4. sampled implicit-radius residual plus exact G1 normal checks at both contact circles;
+5. explicit feasibility interval `0 < r < min(boss height, outer radius − boss radius)`;
+6. clean refusal of the opposite shoulder rim, unsupported topologies, and consumed supports;
+7. unchanged dispatch to the established native-cylinder cap and straight-planar routes.
+
+**Exit gate met:** `PlaneCylinderFilletVerification` proves a `V5/E9/C18/L6/F6` closed manifold, exact retained support
+extents, torus residual below `1e-9`, G1 breaks below `1e-10`, positive/analytic volume change, oblique and reversed
+axes, bounded refusals, legacy cylinder-cap dispatch, and exact console commit.
+
+**Proof:** `Verification/PlaneCylinderFilletVerification.cpp` (24 C++ checks) and
+`Proofs/Phase31_PlaneCylinderFillet.png` (2560 × 1600 C++-generated contact sheet).
 
 ### Phase 32: blend chains and corners
 

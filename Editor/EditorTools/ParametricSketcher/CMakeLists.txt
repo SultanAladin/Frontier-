@@ -175,6 +175,11 @@ add_executable(ConeCapPushVerification Verification/ConeCapPushVerification.cpp)
 target_link_libraries(ConeCapPushVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME ConeCapPushVerification COMMAND ConeCapPushVerification)
 
+# Phase 31: first general smooth-support rolling-ball fillet — a planar annular shoulder meeting a cylindrical boss.
+add_executable(PlaneCylinderFilletVerification Verification/PlaneCylinderFilletVerification.cpp)
+target_link_libraries(PlaneCylinderFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME PlaneCylinderFilletVerification COMMAND PlaneCylinderFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

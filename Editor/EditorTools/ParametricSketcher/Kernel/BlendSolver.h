@@ -7,12 +7,14 @@
 //    tolerance bug, it is the wrong formulation, so this file replaces it rather than patching it.
 //
 //    Here a blend is a set operation against an exactly-built tool solid, which is how a solid modeller states it.
-//    The one curved-edge exception is intentionally direct: a complete native right-cylinder cap is rebuilt from its
-//    retained cylinder and an exact conical frustum, avoiding a faceted cutter or coincident circular Boolean:
+//    Curved-edge routes are deliberately bounded and direct: a complete native right-cylinder cap is rebuilt from its
+//    retained cylinder and an exact conical frustum/quarter torus, while the first general smooth-support case rebuilds
+//    a planar annular shoulder and cylindrical boss around their offset-surface spine:
 //
 //      chamfer(E, s) = Body − Wedge(E, s)                 the planar corner prism beyond the set-back plane is cut away
 //      circular chamfer = Cylinder(R, H−s) ∪ Cone(R, R−s, s)     exact right-cylinder cap bevel
 //      circular fillet  = Cylinder(R, H−r) ∪ QuarterTorus(R−r, r) exact right-cylinder cap rolling-ball fillet
+//      boss-root fillet = Shoulder(offset r) ∪ QuarterTorus(R+r, r) ∪ Boss(offset r) exact plane–cylinder G1 roll
 //      fillet (E, R) = Body − Wedge(E, t) , then the flat  t = R / tan(θ/2) is the tangent set-back for dihedral θ
 //                      face is re-seated on the tangent cylinder of radius R and its two cap edges rebuilt as arcs
 //      circular cap push  = Cylinder(R, H+d)                        exact native-cylinder cap offset
@@ -54,8 +56,9 @@ public:
     // SetBack is measured in each adjacent face, away from the edge (and is radial/axial for the circular-cap case).
     [[nodiscard]] static Deliver<BrepBody> ChamferEdge(const BrepBody& Body, int Edge, double SetBack) noexcept;
 
-    // Rolling-ball fillet of one straight planar edge, or an exact quarter-torus roll on a complete native right-cylinder cap edge.
-    // Both new seams are G1; the circular-cap radius is the radial and axial set-back.
+    // Rolling-ball fillet of one straight planar edge, an exact quarter-torus on a native right-cylinder cap, or an exact
+    // concave quarter-torus at the circular root of the bounded five-face planar-shoulder/cylindrical-boss topology.
+    // Both contact seams are G1; unsupported smooth-support arrangements refuse without approximating the roll.
     [[nodiscard]] static Deliver<BrepBody> FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept;
 
     // Push a face along its own outward normal. Native right-cylinder caps and side face rebuild directly as exact

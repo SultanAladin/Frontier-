@@ -42,6 +42,28 @@ The ladder now includes micro-margins from `1e-8` through `1e-3` in both directi
 
 `FilletEdge` first makes the tangent-set-back flat and then replaces that face with the rolling cylindrical surface. It evaluates both the original cap edges and square-end circular cap sections, retaining the valid closed body closer to the analytic removal. A candidate that leaves less material than the flat it replaces is rejected: a convex roll must add material back relative to its tangent chamfer.
 
+### Exact plane–cylinder boss roots
+
+Phase 31 adds the first bounded smooth-support route that does not depend on a native primitive cap. The classifier finds
+a rational circular edge shared by a planar annular shoulder and cylindrical boss, confirms the complete five-face
+stepped topology, and derives the common axis, shoulder plane, inner/outer radii, and support extents from geometry and
+adjacency rather than face order.
+
+For fillet radius `r`, the offset plane and offset boss cylinder intersect on a circular spine of radius `Rb + r`, one
+radius above the shoulder. Revolving an exact rational quadratic quarter-circle about that spine produces the retained
+partial torus. Its lower contact circle is at radius `Rb + r` in the shoulder plane; its upper contact circle is at
+radius `Rb` and height `shoulder + r`. Both joins are G1. The operation directly sews the retained outer cylinder,
+trimmed annulus, quarter-torus, shortened boss cylinder, and two caps into a `V5/E9/C18/L6/F6` solid. The concave
+roll adds the analytic volume
+`ΔV = 2πr²[Rb(1 − π/4) + r(5/6 − π/4)]`; verification requires the tessellated solid volume to follow that value.
+
+The supported radius interval is strictly `0 < r < min(boss height, outer radius − boss radius)`. A radius at either
+upper bound consumes a support and refuses. The outer shoulder rim, partial cylinders, non-circular roots, different
+face counts, cylinder–cylinder contacts, arbitrary trimmed/free-form surfaces, chains, and corners remain unsupported;
+they refuse rather than entering the straight-planar approximation. `PlaneCylinderFilletVerification` measures the
+exact torus identity/residual, both G1 contacts, support extents, topology, analytic volume direction/value, transformed
+axes, refusal bounds, and console commit.
+
 ### Re-entrant handle roots
 
 The rendered cases are reproducible with `Scripts/Phase21_Blends.arc`, including the re-entrant **210° material-angle** handle root (`e1`) requested for the spanner. The normal-based dihedral is the smaller 150° void angle, so a reflex root must not use the convex Boolean cutter.
