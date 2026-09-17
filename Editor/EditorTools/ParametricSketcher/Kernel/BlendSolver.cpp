@@ -244,6 +244,33 @@ namespace
         return ConeSide{ Side.Origin, Axis, Side.RadiusMajor, Side.RadiusMinor, Height };
     }
 
+    struct ConeCap { ConeSide Shape; bool Upper = false; };
+    std::optional<ConeCap> NativeConeCapFace(const BrepBody& Body, int Face) noexcept
+    {
+        if (Face < 0 || Face >= static_cast<int>(Body.Faces.size()) || Body.Faces[Face].Surface.Classification != SurfaceClassification::Plane) return std::nullopt;
+        for (size_t F = 0; F < Body.Faces.size(); ++F) if (Body.Faces[F].Surface.Classification == SurfaceClassification::Cone)
+            if (std::optional<ConeSide> Side = NativeConeSideFace(Body, static_cast<int>(F)))
+            {
+                const NurbsSurface& Cap = Body.Faces[Face].Surface;
+                Vec3 Point = Cap.Sample(0.5 * (Cap.DomainStartU() + Cap.DomainEndU()), 0.5 * (Cap.DomainStartV() + Cap.DomainEndV()));
+                double T = (Point - Side->Base).Dot(Side->Axis), Epsilon = 1e-8 * std::max({ 1.0, Side->Height, Side->RadiusFoot, Side->RadiusTop });
+                if (std::fabs(T - Side->Height) <= Epsilon) return ConeCap{ *Side, true };
+                if (std::fabs(T) <= Epsilon) return ConeCap{ *Side, false };
+            }
+        return std::nullopt;
+    }
+    Deliver<BrepBody> PushConeCap(const ConeCap& Cap, double Distance) noexcept
+    {
+        const double Slope = (Cap.Shape.RadiusTop - Cap.Shape.RadiusFoot) / Cap.Shape.Height, Height = Cap.Shape.Height + Distance;
+        if (Height <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push would consume the entire cone height");
+        Vec3 Base = Cap.Shape.Base; double Foot = Cap.Shape.RadiusFoot, Top = Cap.Shape.RadiusTop;
+        if (Cap.Upper) Top += Slope * Distance; else { Base = Base - Cap.Shape.Axis * Distance; Foot -= Slope * Distance; }
+        if (Foot <= Tol || Top <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push would collapse a conical cap radius");
+        Deliver<BrepBody> Result = BrepBody::Cone(Base, Cap.Shape.Axis, Foot, Top, Height);
+        if (!Result || !Result.Payload.Validate().Solid()) return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "conical cap push could not be rebuilt into a valid solid");
+        return Result;
+    }
+
     Deliver<BrepBody> PushConeSide(const ConeSide& Cone, double Distance) noexcept
     {
         const double OffsetScale = std::sqrt(1.0 + std::pow((Cone.RadiusTop - Cone.RadiusFoot) / Cone.Height, 2.0));
@@ -756,6 +783,7 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
     if (Face < 0 || Face >= (int)Body.Faces.size()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face index out of range");
     if (std::fabs(Distance) <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push distance is zero");
     if (std::optional<ConeSide> Cone = NativeConeSideFace(Body, Face)) return PushConeSide(*Cone, Distance);
+    if (std::optional<ConeCap> Cap = NativeConeCapFace(Body, Face)) return PushConeCap(*Cap, Distance);
     if (std::optional<CylinderCap> Cylinder = NativeCylinderSideFace(Body, Face)) return PushCylinderSide(*Cylinder, Distance);
     if (std::optional<CylinderCap> Cap = NativeCylinderCapFace(Body, Face)) return PushCylinderCap(*Cap, Distance);
     Vec3 Normal;

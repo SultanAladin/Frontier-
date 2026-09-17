@@ -171,6 +171,9 @@ add_test(NAME CylinderSidePushVerification COMMAND CylinderSidePushVerification)
 add_executable(ConeSidePushVerification Verification/ConeSidePushVerification.cpp)
 target_link_libraries(ConeSidePushVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME ConeSidePushVerification COMMAND ConeSidePushVerification)
+add_executable(ConeCapPushVerification Verification/ConeCapPushVerification.cpp)
+target_link_libraries(ConeCapPushVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME ConeCapPushVerification COMMAND ConeCapPushVerification)
 
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
