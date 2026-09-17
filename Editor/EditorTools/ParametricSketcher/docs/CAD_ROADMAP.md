@@ -389,9 +389,15 @@ A canonical genus-zero rectangular prism with one finite-depth cylindrical cavit
 
 **Proof:** `BlindBorePrismFilletVerification` (21 C++ checks) and `Proofs/Phase32l_BlindBorePrism.png`.
 
+#### Phase 32m: exactly two separated axis-parallel blind cavities ✅
+
+The bounded blind-cavity classifier now accepts canonical `V12/E18/C36/L12/F10` sources containing two inward finite cylinders. Each entrance/floor pair is recovered independently; the pair may enter one shared end or opposite ends. Clearance is measured between finite cylinders by combining transverse disk separation and bounded axial-interval separation, so same-end radial separation, opposite-end combined separation, and coaxial cavities across a positive axial ligament are all handled honestly. The rounded result has exact `V20/E30/C60/L16/F14` genus-zero topology, eight planes, six rational cylinders, and four exact rational cavity rims. Intersections, wall crossings, or a third blind cavity refuse without partial application.
+
+**Proof:** `DualBlindBorePrismFilletVerification` (26 C++ checks) and `Proofs/Phase32m_DualBlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering or multiple/stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering or more-than-two/stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

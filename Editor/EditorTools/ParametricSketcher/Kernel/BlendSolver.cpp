@@ -552,42 +552,52 @@ namespace
         return PerforatedBoxPrism{Box,std::move(Holes)};
     }
 
-    struct BlindBoxPrism { OrthogonalBoxCorner Box; PrismHole Hole; bool FromLow=true; double Depth=0.0; };
+    struct BlindCavity { PrismHole Hole; bool FromLow=true; double Depth=0.0; };
+    struct BlindBoxPrism { OrthogonalBoxCorner Box; std::vector<BlindCavity> Cavities; };
 
     std::optional<BlindBoxPrism> ClassifyBlindBoxPrism(const BrepBody& Body,const std::vector<int>& Edges) noexcept
     {
         auto Report=Body.Validate();
-        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Vertices.size()!=10||Body.Edges.size()!=15||
-           Body.Coedges.size()!=30||Body.Loops.size()!=9||Body.Faces.size()!=8)return std::nullopt;
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Faces.size()<8||(Body.Faces.size()-6)%2!=0)return std::nullopt;
+        size_t Count=(Body.Faces.size()-6)/2;
+        if(Count<1||Count>2||Body.Vertices.size()!=8+2*Count||Body.Edges.size()!=12+3*Count||
+           Body.Coedges.size()!=24+6*Count||Body.Loops.size()!=6+3*Count)return std::nullopt;
         auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
-        int Planes=0,Cylinders=0,HoledCaps=0,CylinderFace=-1;
+        int Planes=0,Cylinders=0,EndLoops=0;std::vector<int>CylinderFaces;
         for(size_t I=0;I<Body.Faces.size();++I)
         {
             const BrepFace& Face=Body.Faces[I];Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
-            HoledCaps+=Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()==2;
-            if(Face.Surface.Classification==SurfaceClassification::Cylinder){++Cylinders;CylinderFace=static_cast<int>(I);}
+            if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)EndLoops+=static_cast<int>(Face.Loops.size()-1);
+            if(Face.Surface.Classification==SurfaceClassification::Cylinder){++Cylinders;CylinderFaces.push_back(static_cast<int>(I));}
         }
-        if(Planes!=7||Cylinders!=1||HoledCaps!=1||CylinderFace<0)return std::nullopt;
-        const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
-        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA);
-        if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
-        std::vector<double>RingT;
-        for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
-            for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
-                int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
-                const BrepEdge& E=Body.Edges[Edge];if(!E.Closed())continue;double T=(E.Curve.Sample(E.Curve.DomainStart())-Frame->Corner).Dot(A);
-                for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(A)-T)>1e-8*Scale)return std::nullopt;
-                RingT.push_back(T);}}
-        if(RingT.size()!=2)return std::nullopt;
-        std::sort(RingT.begin(),RingT.end());
-        bool FromLow=std::fabs(RingT[0])<=1e-8*Scale&&RingT[1]>Tol&&RingT[1]<LA-Tol;
-        bool FromHigh=std::fabs(RingT[1]-LA)<=1e-8*Scale&&RingT[0]>Tol&&RingT[0]<LA-Tol;
-        if(FromLow==FromHigh)return std::nullopt;
-        double Depth=FromLow?RingT[1]:LA-RingT[0];
-        Vec3 Offset=Cylinder.Origin-Frame->Corner;PrismHole Hole{Offset.Dot(Frame->Y),Offset.Dot(Frame->Z),Cylinder.RadiusMajor};
-        double Exact=Frame->LX*(Frame->LY*Frame->LZ)-ScalarCriteria::Pi*Hole.Radius*Hole.Radius*Depth;
+        if(Planes!=static_cast<int>(6+Count)||Cylinders!=static_cast<int>(Count)||EndLoops!=static_cast<int>(Count))return std::nullopt;
+        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA),Removed=0.0;std::vector<BlindCavity>Cavities;
+        for(int CylinderFace:CylinderFaces)
+        {
+            const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
+            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+            std::vector<double>RingT;
+            for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
+                for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
+                    int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
+                    const BrepEdge& E=Body.Edges[Edge];if(!E.Closed())continue;double T=(E.Curve.Sample(E.Curve.DomainStart())-Frame->Corner).Dot(A);
+                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(A)-T)>1e-8*Scale)return std::nullopt;
+                    RingT.push_back(T);}}
+            if(RingT.size()!=2)return std::nullopt;
+            std::sort(RingT.begin(),RingT.end());
+            bool FromLow=std::fabs(RingT[0])<=1e-8*Scale&&RingT[1]>Tol&&RingT[1]<LA-Tol;
+            bool FromHigh=std::fabs(RingT[1]-LA)<=1e-8*Scale&&RingT[0]>Tol&&RingT[0]<LA-Tol;
+            if(FromLow==FromHigh)return std::nullopt;
+            double Depth=FromLow?RingT[1]:LA-RingT[0];
+            Vec3 Offset=Cylinder.Origin-Frame->Corner;PrismHole Hole{Offset.Dot(Frame->Y),Offset.Dot(Frame->Z),Cylinder.RadiusMajor};
+            Cavities.push_back({Hole,FromLow,Depth});Removed+=ScalarCriteria::Pi*Hole.Radius*Hole.Radius*Depth;
+        }
+        std::sort(Cavities.begin(),Cavities.end(),[](const BlindCavity& X,const BlindCavity& Y){if(X.FromLow!=Y.FromLow)return X.FromLow>Y.FromLow;
+            if(X.Hole.B!=Y.Hole.B)return X.Hole.B<Y.Hole.B;
+            return X.Hole.C<Y.Hole.C;});
+        double Exact=Frame->LX*(Frame->LY*Frame->LZ)-Removed;
         if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
-        return BlindBoxPrism{*Frame,Hole,FromLow,Depth};
+        return BlindBoxPrism{*Frame,std::move(Cavities)};
     }
 
     Deliver<BrepBody> BuildOrthogonalBoxCorner(const OrthogonalBoxCorner& Box, double Radius) noexcept
@@ -807,36 +817,58 @@ namespace
 
     Deliver<BrepBody> BuildRoundedBlindPrism(const BlindBoxPrism& Blind,double Radius) noexcept
     {
-        if(const char* Denial=PrismHoleWallRefusal(Blind.Hole,Blind.Box.LY,Blind.Box.LZ,Radius))
-            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,Denial);
-        if(Blind.Depth<=Tol||Blind.Depth>=Blind.Box.LX-Tol)
-            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"blind bore depth reaches a prism end");
-        auto Outer=BuildRoundedBoxPrism(Blind.Box,0,Radius);if(!Outer)return Outer;
-        auto P=[&](double X,double Y,double Z){return Blind.Box.Corner+Blind.Box.X*X+Blind.Box.Y*Y+Blind.Box.Z*Z;};
-        double Margin=std::max(1.0,Blind.Box.LX*0.1),Entry=Blind.FromLow?0.0:Blind.Box.LX;
-        Vec3 Direction=Blind.FromLow?Blind.Box.X:Blind.Box.X*-1.0;
-        auto Cutter=BrepBody::Cylinder(P(Blind.FromLow?-Margin:Blind.Box.LX+Margin,Blind.Hole.B,Blind.Hole.C),
-                                      Direction,Blind.Hole.Radius,Margin+Blind.Depth);
-        if(!Cutter)return Deliver<BrepBody>::Reject(Cutter.Denial.Reason,Cutter.Denial.Detail);
-        auto Result=IntersectionSolver::Combine(Outer.Payload,Cutter.Payload,BodyOperation::Subtract);
-        if(!Result)return Result;
-        int EntranceEdges=0;
-        for(BrepEdge& Edge:Result.Payload.Edges)if(Edge.Closed())
+        size_t N=Blind.Cavities.size();
+        if(N<1||N>2)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"rounded-prism route supports at most two blind cavities");
+        for(const BlindCavity& Cavity:Blind.Cavities)
         {
-            double T=(Edge.Curve.Sample(Edge.Curve.DomainStart())-Blind.Box.Corner).Dot(Blind.Box.X);
-            if(std::fabs(T-Entry)>1e-7*std::max(1.0,Blind.Box.LX))continue;
-            auto Circle=NurbsCurve::Circle(P(Entry,Blind.Hole.B,Blind.Hole.C),Direction,Blind.Hole.Radius);
-            if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
-                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind bore entrance seam could not be restored exactly");
-            Edge.Curve=std::move(Circle.Payload);++EntranceEdges;
+            if(const char* Denial=PrismHoleWallRefusal(Cavity.Hole,Blind.Box.LY,Blind.Box.LZ,Radius))
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,Denial);
+            if(Cavity.Depth<=Tol||Cavity.Depth>=Blind.Box.LX-Tol)
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"blind bore depth reaches a prism end");
         }
-        auto Report=Result.Payload.Validate();int Planes=0,Cylinders=0,Circles=0;
+        for(size_t I=0;I<N;++I)for(size_t J=I+1;J<N;++J)
+        {
+            const BlindCavity&A=Blind.Cavities[I],&B=Blind.Cavities[J];
+            double ALow=A.FromLow?0.0:Blind.Box.LX-A.Depth,AHigh=A.FromLow?A.Depth:Blind.Box.LX;
+            double BLow=B.FromLow?0.0:Blind.Box.LX-B.Depth,BHigh=B.FromLow?B.Depth:Blind.Box.LX;
+            double AxialGap=std::max({0.0,ALow-BHigh,BLow-AHigh});
+            double RadialGap=std::max(0.0,Vec2{A.Hole.B-B.Hole.B,A.Hole.C-B.Hole.C}.Length()-A.Hole.Radius-B.Hole.Radius);
+            if(std::hypot(AxialGap,RadialGap)<=Tol)
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"blind cavities consume the inter-cavity ligament");
+        }
+        auto Result=BuildRoundedBoxPrism(Blind.Box,0,Radius);if(!Result)return Result;
+        auto P=[&](double X,double Y,double Z){return Blind.Box.Corner+Blind.Box.X*X+Blind.Box.Y*Y+Blind.Box.Z*Z;};
+        double Margin=std::max(1.0,Blind.Box.LX*0.1);int EntranceEdges=0;
+        for(const BlindCavity& Cavity:Blind.Cavities)
+        {
+            double Entry=Cavity.FromLow?0.0:Blind.Box.LX;Vec3 Direction=Cavity.FromLow?Blind.Box.X:Blind.Box.X*-1.0;
+            auto Cutter=BrepBody::Cylinder(P(Cavity.FromLow?-Margin:Blind.Box.LX+Margin,Cavity.Hole.B,Cavity.Hole.C),
+                                          Direction,Cavity.Hole.Radius,Margin+Cavity.Depth);
+            if(!Cutter)return Deliver<BrepBody>::Reject(Cutter.Denial.Reason,Cutter.Denial.Detail);
+            auto Next=IntersectionSolver::Combine(Result.Payload,Cutter.Payload,BodyOperation::Subtract);if(!Next)return Next;
+            int Restored=0;Vec3 Centre=P(Entry,Cavity.Hole.B,Cavity.Hole.C);
+            for(BrepEdge& Edge:Next.Payload.Edges)if(Edge.Closed())
+            {
+                Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Blind.Box.Corner).Dot(Blind.Box.X);
+                Vec3 Radial=Sample-Centre-Blind.Box.X*(Sample-Centre).Dot(Blind.Box.X);
+                if(std::fabs(T-Entry)>1e-7*std::max(1.0,Blind.Box.LX)||std::fabs(Radial.Length()-Cavity.Hole.Radius)>1e-6)continue;
+                auto Circle=NurbsCurve::Circle(Centre,Direction,Cavity.Hole.Radius);
+                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                    return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind bore entrance seam could not be restored exactly");
+                Edge.Curve=std::move(Circle.Payload);++Restored;
+            }
+            if(Restored!=1)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind bore entrance could not be identified uniquely");
+            EntranceEdges+=Restored;Result=std::move(Next);
+        }
+        auto Report=Result.Payload.Validate();int Planes=0,Cylinders=0,Circles=0,EndLoops=0;
         for(const BrepFace& Face:Result.Payload.Faces){Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
-            Cylinders+=Face.Surface.Classification==SurfaceClassification::Cylinder;}
+            Cylinders+=Face.Surface.Classification==SurfaceClassification::Cylinder&&Face.Surface.Rational();
+            if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)EndLoops+=static_cast<int>(Face.Loops.size()-1);}
         for(const BrepEdge& Edge:Result.Payload.Edges)Circles+=Edge.Closed()&&Edge.Curve.Classification==CurveClassification::Circle&&Edge.Curve.Rational();
-        if(EntranceEdges!=1||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Planes!=7||Cylinders!=5||Circles!=2||
-           Result.Payload.Vertices.size()!=18||Result.Payload.Edges.size()!=27||Result.Payload.Coedges.size()!=54||
-           Result.Payload.Loops.size()!=13||Result.Payload.Faces.size()!=12)
+        if(EntranceEdges!=static_cast<int>(N)||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||
+           Planes!=static_cast<int>(6+N)||Cylinders!=static_cast<int>(4+N)||Circles!=static_cast<int>(2*N)||EndLoops!=static_cast<int>(N)||
+           Result.Payload.Vertices.size()!=16+2*N||Result.Payload.Edges.size()!=24+3*N||Result.Payload.Coedges.size()!=48+6*N||
+           Result.Payload.Loops.size()!=10+3*N||Result.Payload.Faces.size()!=10+2*N)
             return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"blind-bore rounded prism did not reach exact manifold topology");
         return Result;
     }
@@ -1970,15 +2002,19 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
             if(Result&&AppliedChains)*AppliedChains=4;
             return Result;
         }
-        if(Body.Validate().Genus==0&&Body.Vertices.size()==10&&Body.Edges.size()==15&&Body.Faces.size()==8)
-            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind-bore prism is outside the exact single-cavity route");
+        auto ShapeReport=Body.Validate();
+        size_t BlindCount=Body.Faces.size()>=8&&(Body.Faces.size()-6)%2==0?(Body.Faces.size()-6)/2:0;
+        if(ShapeReport.Genus==0&&BlindCount>=1&&Body.Vertices.size()==8+2*BlindCount&&Body.Edges.size()==12+3*BlindCount&&
+           Body.Coedges.size()==24+6*BlindCount&&Body.Loops.size()==6+3*BlindCount)
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+                "blind-bore prism is outside the exact route for one or two separated cavities");
         if(auto Perforated=ClassifyPerforatedBoxPrism(Body,Selected))
         {
             auto Result=BuildRoundedBoxPrism(Perforated->Box,0,Radius,Perforated->Holes);
             if(Result&&AppliedChains)*AppliedChains=4;
             return Result;
         }
-        if(Body.Validate().Genus!=0)
+        if(ShapeReport.Genus!=0)
             return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
                 "perforated parallel-edge family is outside the bounded axis-parallel bore route");
         std::vector<int> FirstCorner;for(size_t E=0;E<Body.Edges.size();++E)
