@@ -101,6 +101,10 @@ transformed axes, chain propagation/healing/deduplication, transactional refusal
 
 Phase 32e supports exactly three equal-radius edges incident to one vertex of a structurally verified rectangular solid. The direct reconstruction retains six planar supports, adds three radius-`r` cylinders along the selected edges, and joins them with a rational spherical octant centred one radius along each local box axis. The output is a `V13/E21/C42/L10/F10` one-hull solid. Two-edge requests and unequal or non-orthogonal corners still refuse; this route is not a general blend/blend intersection solver.
 
+### Complete rounded-box network
+
+Phase 32f recognizes the complete twelve-edge set of the same rectangular topology. For `2r < min(lengths)`, it directly sews six inset planes, twelve exact cylindrical strips, and eight rational spherical octants into `V24/E48/C96/L26/F26`. The result follows the closed-form Minkowski-sum volume. Any incomplete interacting network still refuses; this is not a general arbitrary subset or non-box blend-intersection solver.
+
 ### Re-entrant handle roots
 
 The rendered cases are reproducible with `Scripts/Phase21_Blends.arc`, including the re-entrant **210° material-angle** handle root (`e1`) requested for the spanner. The normal-based dihedral is the smaller 150° void angle, so a reflex root must not use the convex Boolean cutter.

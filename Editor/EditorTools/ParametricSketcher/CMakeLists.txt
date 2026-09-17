@@ -205,6 +205,11 @@ add_executable(CornerFilletVerification Verification/CornerFilletVerification.cp
 target_link_libraries(CornerFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME CornerFilletVerification COMMAND CornerFilletVerification)
 
+# Phase 32f: complete equal-radius rectangular edge network with twelve cylinders and eight spherical corners.
+add_executable(RoundedBoxFilletVerification Verification/RoundedBoxFilletVerification.cpp)
+target_link_libraries(RoundedBoxFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME RoundedBoxFilletVerification COMMAND RoundedBoxFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

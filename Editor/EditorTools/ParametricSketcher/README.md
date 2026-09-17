@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 48 suites (35 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 49 suites (36 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -234,6 +234,10 @@ intersections.
 
 `CornerFilletVerification` has 23 C++ checks for topology, exact support counts, spherical identity/residual, three G1 sphere-cylinder seams, six exact radius arcs, analytic volume direction/value, source immutability, ordering, transforms, transactional refusal, console commit, and `Proofs/Phase32e_CornerFillet.png`. Two-edge corners, unequal radii, non-orthogonal corners, holes, thin walls, and general blend/blend intersections remain unsupported.
 
+## Complete rounded rectangular solids (Phase 32f)
+
+Selecting all twelve edges of a structurally verified rectangular solid now takes one exact network route. Six inset planes, twelve equal-radius cylinders, and eight rational spherical octants sew to canonical `V24/E48/C96/L26/F26` topology. Repeated/reordered seeds and rigid transforms are invariant, and incomplete interacting networks refuse transactionally. `RoundedBoxFilletVerification` contributes 19 checks plus `Proofs/Phase32f_RoundedBox.png`. Partial networks, unequal radii, holes, and non-orthogonal blend intersections remain separate.
+
 ## Layout
 
 | Folder | Role | Status |
@@ -302,6 +306,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32c | **Intentional multi-edge fillet sets.** Repeated/tangent-chain member seeds deduplicate; independent vertex-disjoint chains apply in deterministic geometric order and commit transactionally; interacting corner sets refuse before construction. | `MultiEdgeFilletVerification` — 28 C++ checks; `Proofs/Phase32c_MultiEdgeFillet.png` (2560 × 1600 C++-generated contact sheet) |
 | 32d | **General-angle radial chain endpoints.** Ordered signed chain spans from 90° through reflex 270° rebuild as one exact partial torus between two verified radial caps sharing the axis edge. | `SectorEndpointFilletVerification` — 33 C++ checks; `Proofs/Phase32d_SectorEndpointFillet.png` (2560 × 1600 C++-generated contact sheet) |
 | 32e | **Exact orthogonal three-face corner.** Three incident edges of a rectangular solid rebuild as three equal-radius cylinders joined G1 to one rational spherical octant. | `CornerFilletVerification` — 23 C++ checks; `Proofs/Phase32e_CornerFillet.png` (2560 × 1600 C++-generated contact sheet) |
+| 32f | **Complete rounded rectangular solid.** Selecting all twelve edges composes six inset planes, twelve exact cylinders, and eight rational spherical octants. | `RoundedBoxFilletVerification` — 19 C++ checks; `Proofs/Phase32f_RoundedBox.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -450,8 +455,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **48 suites** — 35 per-feature verification binaries (1,370 checks total) and 13 script smoke
-tests. The Phase 32e direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **49 suites** — 36 per-feature verification binaries (1,389 checks total) and 13 script smoke
+tests. The Phase 32f direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -481,6 +486,7 @@ are:
 | `MultiEdgeFilletVerification`     | 28  |
 | `SectorEndpointFilletVerification`| 33  |
 | `CornerFilletVerification`        | 23  |
+| `RoundedBoxFilletVerification`     | 19  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -491,7 +497,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1370** |
+| **Total** | **1389** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

@@ -554,6 +554,82 @@ namespace
         return Deliver<BrepBody>::Accept(std::move(Result));
     }
 
+    Deliver<BrepBody> BuildRoundedOrthogonalBox(const OrthogonalBoxCorner& Box, double Radius) noexcept
+    {
+        if (Radius <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
+        if (2.0 * Radius >= std::min({ Box.LX, Box.LY, Box.LZ }) - Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
+                "all-edge box fillet radius consumes an inset planar support");
+        auto P = [&](double X, double Y, double Z) noexcept
+        { return Box.Corner + Box.X * X + Box.Y * Y + Box.Z * Z; };
+        std::vector<NurbsSurface> Surfaces;
+        auto AddPlane = [&](Vec3 O, Vec3 U, Vec3 V, double A, double B)
+        {
+            Deliver<NurbsSurface> S = NurbsSurface::Plane(O, U, V, A, B);
+            if (S) Surfaces.push_back(std::move(S.Payload));
+            return static_cast<bool>(S);
+        };
+        if (!AddPlane(P(0,Radius,Radius),Box.Y,Box.Z,Box.LY-2*Radius,Box.LZ-2*Radius) ||
+            !AddPlane(P(Box.LX,Radius,Radius),Box.Y,Box.Z,Box.LY-2*Radius,Box.LZ-2*Radius) ||
+            !AddPlane(P(Radius,0,Radius),Box.X,Box.Z,Box.LX-2*Radius,Box.LZ-2*Radius) ||
+            !AddPlane(P(Radius,Box.LY,Radius),Box.X,Box.Z,Box.LX-2*Radius,Box.LZ-2*Radius) ||
+            !AddPlane(P(Radius,Radius,0),Box.X,Box.Y,Box.LX-2*Radius,Box.LY-2*Radius) ||
+            !AddPlane(P(Radius,Radius,Box.LZ),Box.X,Box.Y,Box.LX-2*Radius,Box.LY-2*Radius))
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "rounded-box planar support is degenerate");
+
+        const double D = Radius / std::sqrt(2.0);
+        auto AddCylinder = [&](Vec3 StartCentre, Vec3 Axis, double Length, Vec3 A, Vec3 B)
+        {
+            Deliver<NurbsCurve> Section = NurbsCurve::ArcThreePoints(StartCentre + A * Radius,
+                StartCentre + (A + B) * D, StartCentre + B * Radius);
+            Deliver<NurbsSurface> Roll = Section
+                ? NurbsSurface::Extrusion(Section.Payload, Axis, Length)
+                : Deliver<NurbsSurface>::Reject(Section.Denial.Reason, Section.Denial.Detail);
+            if (!Roll) return false;
+            Roll.Payload.Classification=SurfaceClassification::Cylinder; Roll.Payload.Origin=StartCentre;
+            Roll.Payload.Axis=Axis; Roll.Payload.RadiusMajor=Roll.Payload.RadiusMinor=Radius;
+            Surfaces.push_back(std::move(Roll.Payload)); return true;
+        };
+        for (int Y=0;Y<2;++Y) for (int Z=0;Z<2;++Z)
+        {
+            double CY=Y?Box.LY-Radius:Radius, CZ=Z?Box.LZ-Radius:Radius;
+            if(!AddCylinder(P(Radius,CY,CZ),Box.X,Box.LX-2*Radius,Y?Box.Y:Box.Y*-1.0,Z?Box.Z:Box.Z*-1.0))
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"rounded-box X roll is degenerate");
+        }
+        for (int X=0;X<2;++X) for (int Z=0;Z<2;++Z)
+        {
+            double CX=X?Box.LX-Radius:Radius, CZ=Z?Box.LZ-Radius:Radius;
+            if(!AddCylinder(P(CX,Radius,CZ),Box.Y,Box.LY-2*Radius,X?Box.X:Box.X*-1.0,Z?Box.Z:Box.Z*-1.0))
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"rounded-box Y roll is degenerate");
+        }
+        for (int X=0;X<2;++X) for (int Y=0;Y<2;++Y)
+        {
+            double CX=X?Box.LX-Radius:Radius, CY=Y?Box.LY-Radius:Radius;
+            if(!AddCylinder(P(CX,CY,Radius),Box.Z,Box.LZ-2*Radius,X?Box.X:Box.X*-1.0,Y?Box.Y:Box.Y*-1.0))
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"rounded-box Z roll is degenerate");
+        }
+        for(int X=0;X<2;++X)for(int Y=0;Y<2;++Y)for(int Z=0;Z<2;++Z)
+        {
+            Vec3 SX=X?Box.X:Box.X*-1.0, SZ=Z?Box.Z:Box.Z*-1.0;
+            Vec3 Centre=P(X?Box.LX-Radius:Radius,Y?Box.LY-Radius:Radius,Z?Box.LZ-Radius:Radius);
+            Deliver<NurbsCurve> Meridian=NurbsCurve::ArcThreePoints(Centre+SX*Radius,Centre+(SX+SZ)*D,Centre+SZ*Radius);
+            double Sweep=(X==Y?1.0:-1.0)*ScalarCriteria::Pi*0.5;
+            Deliver<NurbsSurface> Patch=Meridian
+                ? NurbsSurface::Revolution(Meridian.Payload,Centre,Box.Z,Sweep)
+                : Deliver<NurbsSurface>::Reject(Meridian.Denial.Reason,Meridian.Denial.Detail);
+            if(!Patch) return Deliver<BrepBody>::Reject(Patch.Denial.Reason,Patch.Denial.Detail);
+            Patch.Payload.Classification=SurfaceClassification::Sphere; Patch.Payload.Origin=Centre; Patch.Payload.Axis=Box.Z;
+            Patch.Payload.RadiusMajor=Patch.Payload.RadiusMinor=Radius; Surfaces.push_back(std::move(Patch.Payload));
+        }
+        Deliver<BrepBody> Result=BrepBody::Sew(Surfaces);
+        if(!Result) return Result;
+        BodyReport Report=Result.Payload.Validate();
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Result.Payload.Vertices.size()!=24||Result.Payload.Edges.size()!=48||
+           Result.Payload.Coedges.size()!=96||Result.Payload.Loops.size()!=26||Result.Payload.Faces.size()!=26)
+            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"all-edge rounded box did not reach exact manifold topology");
+        return Result;
+    }
+
     std::optional<PlaneCylinderRoot> PlaneCylinderBossRoot(const BrepBody& Body, int Edge) noexcept
     {
         if (Edge < 0 || Edge >= static_cast<int>(Body.Edges.size()) || !Body.Validate().Solid()) return std::nullopt;
@@ -1670,6 +1746,21 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
                 return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "multi-edge fillet seeds overlap inconsistent tangent chains");
         }
         if (!Duplicate) Targets.push_back({ Effective, EdgeSignature(Body, Effective.front()) });
+    }
+
+    // A complete twelve-edge rectangular network is the first bounded blend/blend composition: inset planes, twelve
+    // exact cylinders, and eight copies of the same spherical octant corner transition.
+    if (Targets.size() == 12 && std::all_of(Targets.begin(), Targets.end(), [](const Target& T) { return T.Chain.size() == 1; }))
+    {
+        std::vector<int> FirstCorner;
+        for (size_t Edge=0; Edge<Body.Edges.size(); ++Edge)
+            if (Body.Edges[Edge].VertexStart==0 || Body.Edges[Edge].VertexEnd==0) FirstCorner.push_back(static_cast<int>(Edge));
+        if (std::optional<OrthogonalBoxCorner> Box = ClassifyOrthogonalBoxCorner(Body, FirstCorner))
+        {
+            Deliver<BrepBody> Result=BuildRoundedOrthogonalBox(*Box,Radius);
+            if(Result&&AppliedChains)*AppliedChains=12;
+            return Result;
+        }
     }
 
     // The first actual corner patch is deliberately exact and bounded: three straight orthogonal edges of a six-face

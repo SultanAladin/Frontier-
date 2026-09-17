@@ -347,9 +347,15 @@ Three equal-radius, mutually perpendicular box edges meeting at one vertex now t
 
 **Proof:** `Verification/CornerFilletVerification.cpp` (23 C++ checks) and `Proofs/Phase32e_CornerFillet.png`.
 
+#### Phase 32f: complete rounded rectangular edge network ✅
+
+Selecting all twelve edges of a verified rectangular solid composes the bounded corner solution globally: six inset planar faces, twelve exact equal-radius cylinders, and eight rational spherical octants sew directly to one `V24/E48/C96/L26/F26` solid. The route is deterministic under seed duplication/order and rigid transforms, verifies the exact rounded-box volume formula, and refuses incomplete interacting networks or radii that consume an inset face.
+
+**Proof:** `RoundedBoxFilletVerification` (19 C++ checks) and `Proofs/Phase32f_RoundedBox.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and two-edge corner patches, holes, thin walls, and general blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, holes, thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 
