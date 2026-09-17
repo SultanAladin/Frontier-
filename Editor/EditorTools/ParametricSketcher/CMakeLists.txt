@@ -195,6 +195,11 @@ add_executable(MultiEdgeFilletVerification Verification/MultiEdgeFilletVerificat
 target_link_libraries(MultiEdgeFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME MultiEdgeFilletVerification COMMAND MultiEdgeFilletVerification)
 
+# Phase 32d: exact general-angle plane-cylinder chains terminated by two radial caps and one axis edge.
+add_executable(SectorEndpointFilletVerification Verification/SectorEndpointFilletVerification.cpp)
+target_link_libraries(SectorEndpointFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME SectorEndpointFilletVerification COMMAND SectorEndpointFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

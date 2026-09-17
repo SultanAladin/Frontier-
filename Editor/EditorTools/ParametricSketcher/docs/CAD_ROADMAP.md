@@ -318,9 +318,30 @@ proof generation.
 **Proof:** `Verification/MultiEdgeFilletVerification.cpp` (28 C++ checks) and
 `Proofs/Phase32c_MultiEdgeFillet.png` (2560 × 1600 C++-generated contact sheet).
 
+#### Phase 32d: general-angle radial endpoint pairs ✅
+
+The finite plane–cylinder route now measures an open chain's ordered signed sweep rather than assuming `±π`. Its source
+gate recognizes the bounded rotational sector topology: matching shoulder, boss, and outer-wall angular spans; planar
+bottom/top patches; and two radial caps sharing one physical rotation-axis edge. The cap support planes must actually
+contain their corresponding chain endpoint rays. A merely topological face with displaced support refuses.
+
+Reconstruction revolves the exact outer wall, trimmed shoulder, rational quarter-torus meridian, shortened boss, bottom,
+and top through the measured sweep. Non-half-turn results explicitly close the two radial endpoint paths against one
+axis edge. Internal two/four-member representation seams heal while the two physical torus meridians remain. Both
+positive and negative quarter turns, 120° sectors, reflex 270° sectors, and shifted oblique axes retain the exact
+`V12/E18/C36/L8/F8` one-hull, genus-zero result.
+
+**32d exit gate met:** `SectorEndpointFilletVerification` proves source topology and endpoint degree, seed/split/sweep
+invariance, exact partial-torus identity and angular span, implicit residual below `1e-9`, both G1 breaks below `1e-10`,
+two radial caps and one axis edge, exact end meridians, angular-fraction volume, transformed axes, transactional chain
+deduplication, malformed-cap and consumed-support refusal, console commit, and direct C++ proof generation.
+
+**Proof:** `Verification/SectorEndpointFilletVerification.cpp` (33 C++ checks) and
+`Proofs/Phase32d_SectorEndpointFillet.png` (2560 × 1600 C++-generated contact sheet).
+
 #### Still required before Phase 32 is complete
 
-General-angle or asymmetric open endpoints, actual three-face corner patches, holes, thin walls, and blend/blend
+Asymmetric or non-radial endpoint supports, actual three-face corner patches, holes, thin walls, and blend/blend
 intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2

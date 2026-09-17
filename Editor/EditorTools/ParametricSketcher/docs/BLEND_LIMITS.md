@@ -64,11 +64,17 @@ classifier then requires a closed `2π` ring and matching shoulder, boss, and ou
 seams into the canonical exact result. Selecting either member of a two-edge chain or any member of a four-edge chain
 therefore produces the same solid.
 
-Phase 32b admits one finite endpoint arrangement: exactly half of the stepped solid bounded by one planar diameter face.
-The root chain must span `π` with two endpoints and matching bottom/top sector patches. Its internal two/four-member
-representation seams heal to one partial torus, while two exact quarter-circle meridians terminate the roll on the
-retained diameter cap. The result is one hull of genus zero with `V12/E17/C34/L7/F7`; its volume is exactly one half of
-the corresponding full-ring result. Positive and negative half-turns preserve which side of the cap contains material.
+Phase 32b admits a half-turn of the stepped solid bounded by one planar diameter face. The root chain spans `π` with two
+endpoints and matching bottom/top sector patches. Its internal two/four-member representation seams heal to one partial
+torus, while two exact quarter-circle meridians terminate the roll on the retained diameter cap. The result is one hull
+of genus zero with `V12/E17/C34/L7/F7`; its volume is one half of the corresponding full-ring result.
+
+Phase 32d extends only this rotational-sector topology. A general open chain's signed arc span is derived by walking its
+members in endpoint order, and the outer circular chain must have the same magnitude. Two distinct radial cap planes
+must contain the corresponding start/end rays and meet on one axis edge. Reconstruction closes those radial paths
+explicitly and returns a seam-healed `V12/E18/C36/L8/F8` result. Positive/negative quarter turns, 120° and reflex 270°
+spans, and oblique axes are verified. The result volume is the absolute angular fraction of the full-ring analytic value.
+This does not cover unequal, mitred, free-form, or otherwise non-radial endpoint supports.
 
 ### Intentional multi-edge sets
 
@@ -84,12 +90,12 @@ intersection. The console body form of `fillet --edges=i,j,…` now uses the sam
 number of distinct chains committed. The verified independent case is two opposite straight box edges at one common
 radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
 
-The outer shoulder rim, incomplete/non-circular chains, non-semicircular or asymmetric endpoints, cylinder–cylinder
-contacts, arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, holes, three-face corner
-patches, and blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar
-approximation. The four direct verifiers measure exact torus identity/residual, both G1 contacts, support extents,
-closed/open/multi-edge topology, endpoint meridians, analytic volume direction/value, transformed axes, chain
-propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
+The outer shoulder rim, incomplete/non-circular chains, asymmetric or non-radial endpoints, cylinder–cylinder contacts,
+arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, holes, three-face corner patches, and
+blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
+five direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
+closed/diameter/radial-sector/multi-edge topology, endpoint meridians and caps, analytic volume direction/value,
+transformed axes, chain propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
 
 ### Re-entrant handle roots
 

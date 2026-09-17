@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 46 suites (33 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 47 suites (34 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -210,8 +210,23 @@ refuses before any geometry changes rather than pretending two independent rolls
 `MultiEdgeFilletVerification` has 28 C++ checks covering two opposite box-edge rolls, summed analytic volume, exact
 V12/E18/C36/L8/F8 topology, order independence, source immutability, two/four-member boss-chain deduplication, empty,
 out-of-range, oversize, mixed unsupported and shared-corner refusals, console scene rollback, and the C++-generated
-[`Proofs/Phase32c_MultiEdgeFillet.png`](Proofs/Phase32c_MultiEdgeFillet.png). Phase 32 remains open for general-angle or
-asymmetric endpoints, actual three-face corner patches, holes, thin walls, and blend/blend intersections.
+[`Proofs/Phase32c_MultiEdgeFillet.png`](Proofs/Phase32c_MultiEdgeFillet.png).
+
+## General-angle radial chain endpoints (Phase 32d)
+
+Finite plane–cylinder root chains are no longer restricted to a half-turn. The classifier measures the ordered signed
+arc sweep from the actual chain, verifies a matching outer-wall span, and recognizes a structurally exact sector whose
+two radial planar caps share one rotation-axis edge. Reconstruction heals angular representation seams but retains both
+physical torus meridians and both endpoint caps. Positive/negative quarter turns, 120° sectors, 270° reflex sectors, and
+shifted oblique axes use the same exact-support route.
+
+`SectorEndpointFilletVerification` has 33 C++ checks covering two/four-member source topology, exact
+V12/E18/C36/L8/F8 output, rational partial-torus identity and span, implicit residual, both G1 contacts, radial caps and
+axis edge, exact meridians, angular-fraction volume, direction/split invariance, transformed axes, transactional chain
+deduplication, malformed-cap/radius refusal, console commit, and the C++-generated
+[`Proofs/Phase32d_SectorEndpointFillet.png`](Proofs/Phase32d_SectorEndpointFillet.png). Phase 32 remains open for
+asymmetric/non-radial endpoint supports, actual three-face corner patches, holes, thin walls, and blend/blend
+intersections.
 
 ## Layout
 
@@ -279,6 +294,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32a | **Closed G1 tangent-chain propagation.** One arc seed follows a complete representation-split boss-root ring; all support patches are verified and rebuilt as one exact seam-healed roll. | `TangentChainFilletVerification` — 28 C++ checks; `Proofs/Phase32a_TangentChainFillet.png` (2560 × 1600 C++-generated contact sheet) |
 | 32b | **Finite semicircular chain endpoints.** A two/four-member half-turn root retains one planar diameter cap and two exact torus end meridians while healing internal seams. | `OpenChainFilletVerification` — 30 C++ checks; `Proofs/Phase32b_OpenChainFillet.png` (2560 × 1600 C++-generated contact sheet) |
 | 32c | **Intentional multi-edge fillet sets.** Repeated/tangent-chain member seeds deduplicate; independent vertex-disjoint chains apply in deterministic geometric order and commit transactionally; interacting corner sets refuse before construction. | `MultiEdgeFilletVerification` — 28 C++ checks; `Proofs/Phase32c_MultiEdgeFillet.png` (2560 × 1600 C++-generated contact sheet) |
+| 32d | **General-angle radial chain endpoints.** Ordered signed chain spans from 90° through reflex 270° rebuild as one exact partial torus between two verified radial caps sharing the axis edge. | `SectorEndpointFilletVerification` — 33 C++ checks; `Proofs/Phase32d_SectorEndpointFillet.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -427,8 +443,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **46 suites** — 33 per-feature verification binaries (1,314 checks total) and 13 script smoke
-tests. The Phase 32c direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **47 suites** — 34 per-feature verification binaries (1,347 checks total) and 13 script smoke
+tests. The Phase 32d direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -456,6 +472,7 @@ are:
 | `TangentChainFilletVerification`  | 28  |
 | `OpenChainFilletVerification`     | 30  |
 | `MultiEdgeFilletVerification`     | 28  |
+| `SectorEndpointFilletVerification`| 33  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -466,7 +483,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1314** |
+| **Total** | **1347** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact
