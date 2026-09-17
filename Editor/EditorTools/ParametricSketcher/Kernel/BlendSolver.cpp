@@ -207,6 +207,53 @@ namespace
         return std::nullopt;
     }
 
+    struct ConeSide
+    {
+        Vec3 Base, Axis;
+        double RadiusFoot = 0.0, RadiusTop = 0.0, Height = 0.0;
+    };
+
+    std::optional<ConeSide> NativeConeSideFace(const BrepBody& Body, int Face) noexcept
+    {
+        if (Face < 0 || Face >= static_cast<int>(Body.Faces.size()) || Body.Faces[Face].Surface.Classification != SurfaceClassification::Cone || !Body.Validate().Solid() ||
+            Body.Vertices.size() != 2 || Body.Edges.size() != 3 || Body.Coedges.size() != 6 || Body.Loops.size() != 3 || Body.Faces.size() != 3) return std::nullopt;
+        const NurbsSurface& Side = Body.Faces[Face].Surface;
+        Vec3 Axis = Side.Axis.Normalised();
+        if (Axis.Length() <= Tol || Side.RadiusMajor <= Tol || Side.RadiusMinor <= Tol) return std::nullopt;
+        int Caps = 0, Rims = 0, Seams = 0; double Low = ScalarCriteria::Infinity, High = -ScalarCriteria::Infinity;
+        for (const BrepFace& Candidate : Body.Faces)
+        {
+            if (Candidate.Loops.size() != 1) return std::nullopt;
+            if (Candidate.Surface.Classification == SurfaceClassification::Plane)
+            {
+                Vec3 Normal;
+                if (!PlanarNormal(Body, static_cast<int>(&Candidate - Body.Faces.data()), Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+                Vec3 Point = Candidate.Surface.Sample(0.5 * (Candidate.Surface.DomainStartU() + Candidate.Surface.DomainEndU()), 0.5 * (Candidate.Surface.DomainStartV() + Candidate.Surface.DomainEndV()));
+                double T = (Point - Side.Origin).Dot(Axis); Low = std::min(Low, T); High = std::max(High, T); ++Caps;
+            }
+            else if (&Candidate != &Body.Faces[Face]) return std::nullopt;
+        }
+        for (const BrepEdge& Edge : Body.Edges)
+        {
+            if (Edge.Closed() && Edge.Curve.Classification == CurveClassification::Circle && Edge.Curve.Degree == 2 && Edge.Curve.Rational() && Edge.Coedges.size() == 2) ++Rims;
+            else if (!Edge.Closed() && Edge.Curve.Classification == CurveClassification::Line && Edge.Curve.Degree == 1 && Edge.Coedges.size() == 2) ++Seams;
+            else return std::nullopt;
+        }
+        const double Height = High - Low, Epsilon = 1e-8 * std::max({ 1.0, Side.RadiusMajor, Side.RadiusMinor, Height });
+        if (Caps != 2 || Rims != 2 || Seams != 1 || Height <= Epsilon || std::fabs(Low) > Epsilon) return std::nullopt;
+        return ConeSide{ Side.Origin, Axis, Side.RadiusMajor, Side.RadiusMinor, Height };
+    }
+
+    Deliver<BrepBody> PushConeSide(const ConeSide& Cone, double Distance) noexcept
+    {
+        const double OffsetScale = std::sqrt(1.0 + std::pow((Cone.RadiusTop - Cone.RadiusFoot) / Cone.Height, 2.0));
+        const double Foot = Cone.RadiusFoot + Distance * OffsetScale, Top = Cone.RadiusTop + Distance * OffsetScale;
+        if (Foot <= Tol || Top <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push would collapse a conical cap radius");
+        Deliver<BrepBody> Result = BrepBody::Cone(Cone.Base, Cone.Axis, Foot, Top, Cone.Height);
+        if (!Result || !Result.Payload.Validate().Solid()) return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "conical side push could not be rebuilt into a valid solid");
+        return Result;
+    }
+
     Deliver<BrepBody> PushCylinderCap(const CylinderCap& Cap, double Distance) noexcept
     {
         const double NewHeight = Cap.Height + Distance;
@@ -708,6 +755,7 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
 {
     if (Face < 0 || Face >= (int)Body.Faces.size()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face index out of range");
     if (std::fabs(Distance) <= Tol) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "push distance is zero");
+    if (std::optional<ConeSide> Cone = NativeConeSideFace(Body, Face)) return PushConeSide(*Cone, Distance);
     if (std::optional<CylinderCap> Cylinder = NativeCylinderSideFace(Body, Face)) return PushCylinderSide(*Cylinder, Distance);
     if (std::optional<CylinderCap> Cap = NativeCylinderCapFace(Body, Face)) return PushCylinderCap(*Cap, Distance);
     Vec3 Normal;

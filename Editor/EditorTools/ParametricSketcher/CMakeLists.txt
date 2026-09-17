@@ -155,7 +155,7 @@ add_executable(BlendVerification Verification/BlendVerification.cpp)
 target_link_libraries(BlendVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME BlendVerification COMMAND BlendVerification)
 
-# Phase 25–28: exact cap chamfer/fillet and direct planar/radial face pushes on a native right cylinder.
+# Phase 25–29: exact cap blends, cylinder pushes, and conical radial face push.
 add_executable(CylinderChamferVerification Verification/CylinderChamferVerification.cpp)
 target_link_libraries(CylinderChamferVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME CylinderChamferVerification COMMAND CylinderChamferVerification)
@@ -168,6 +168,9 @@ add_test(NAME CylinderPushVerification COMMAND CylinderPushVerification)
 add_executable(CylinderSidePushVerification Verification/CylinderSidePushVerification.cpp)
 target_link_libraries(CylinderSidePushVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME CylinderSidePushVerification COMMAND CylinderSidePushVerification)
+add_executable(ConeSidePushVerification Verification/ConeSidePushVerification.cpp)
+target_link_libraries(ConeSidePushVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME ConeSidePushVerification COMMAND ConeSidePushVerification)
 
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)

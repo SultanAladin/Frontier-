@@ -213,7 +213,13 @@ pairs plus a top-view radius comparison.
 is not a generic surface offset: partial cylinders, extrusion representations, cones, and freeform faces do not enter
 the route.
 
-### Phase 29: constant-radius general smooth-support fillets
+### Completed Phase 29: exact native-cone radial side-face push
+
+`PushFace` now recognizes the checked full native conical frustum side. A normal offset by `d` reconstructs the exact cone with both cap radii shifted by `d·sqrt(1+slope²)`, preserving axial height and axis; either cap collapsing refuses. `ConeSidePushVerification` has 10 C++ checks and creates `Proofs/Phase29_ConeSidePushes.png` directly from C++.
+
+**Exit gate met:** normal side offsets are exact for full native frusta; cone caps, apex cones, partial cones, and arbitrary curved faces remain outside this route.
+
+### Phase 30: constant-radius general smooth-support fillets
 
 Implement the next bounded generalization across one selected smooth edge between two supported surfaces. The
 construction should offset both supports to form a spine, create rational quadratic cross-sections, trim the support
@@ -227,13 +233,13 @@ finding their intersection/spine, and sweeping rational quadratic sections; corn
 **Exit gate:** one plane–cylinder case must retain valid B-rep topology, contact/tangency within tolerance, expected
 volume direction, and a close-up C++ proof render. Unsupported support pairs must refuse cleanly.
 
-### Phase 30: blend chains and corners
+### Phase 31: blend chains and corners
 
 Add tangent-chain propagation, then multi-edge/corner resolution as separate subfeatures. Do not market this phase as
 complete until chain endpoints, three-face corners, holes, thin walls, and blend/blend intersections have their own
 topology and visual regressions.
 
-### Phase 31: variable radius, setbacks, partial edges, and G2
+### Phase 32: variable radius, setbacks, partial edges, and G2
 
 Variable-radius blends need a radius law along the spine, feasibility detection, and a non-linear solve. G2 continuity
 requires its own surface construction and curvature acceptance measurements. These are not small extensions of the

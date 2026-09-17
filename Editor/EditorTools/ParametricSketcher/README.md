@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 40 suites (27 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 41 suites (28 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -340,8 +340,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **40 suites** — 27 per-feature verification binaries (1,175 checks total) and 13 script smoke
-tests. The Phase 28 direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **41 suites** — 28 per-feature verification binaries (1,185 checks total) and 13 script smoke
+tests. The Phase 29 direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -363,6 +363,7 @@ are:
 | `CylinderFilletVerification`      | 22  |
 | `CylinderPushVerification`        | 19  |
 | `CylinderSidePushVerification`    | 15  |
+| `ConeSidePushVerification`        | 10  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -373,7 +374,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1175** |
+| **Total** | **1185** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact
