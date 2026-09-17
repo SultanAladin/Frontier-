@@ -220,6 +220,11 @@ add_executable(PerforatedPrismFilletVerification Verification/PerforatedPrismFil
 target_link_libraries(PerforatedPrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME PerforatedPrismFilletVerification COMMAND PerforatedPrismFilletVerification)
 
+# Phase 32i: extend that single through-hole route to safe offsets using the exact rounded-wall inward offset.
+add_executable(OffsetBorePrismFilletVerification Verification/OffsetBorePrismFilletVerification.cpp)
+target_link_libraries(OffsetBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME OffsetBorePrismFilletVerification COMMAND OffsetBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

@@ -365,9 +365,15 @@ The complete four-edge outer route now recognizes the bounded `V10/E15/C30/L9/F7
 
 **Proof:** `PerforatedPrismFilletVerification` (20 C++ checks) and `Proofs/Phase32h_PerforatedPrism.png`.
 
+#### Phase 32i: one offset axis-parallel through-hole ✅
+
+The single-bore classifier now retains the exact circular cylinder away from the rectangular centreline when its axis remains parallel to the selected outer-edge family. Clearance is evaluated against the inward offset of the final rounded cross-section rather than only the source box: smaller bores use a reduced-radius rounded-rectangle centre domain, while bores at least as large as the outer roll use strict retained-wall distances. Safe corner-adjacent placement keeps canonical `V18/E27/C54/L13/F11` genus-one topology; side/corner overlap and every multi-bore genus refuse transactionally before generic fallback.
+
+**Proof:** `OffsetBorePrismFilletVerification` (21 C++ checks) and `Proofs/Phase32i_OffsetBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, off-centre or multiple holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/blind or multiple holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

@@ -91,9 +91,9 @@ number of distinct chains committed. The verified independent case is two opposi
 radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
 
 The outer shoulder rim, incomplete/non-circular chains, asymmetric or non-radial endpoints, cylinder–cylinder contacts,
-arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary/off-centre/multiple holes, unequal/non-orthogonal or two-edge corner patches, and
+arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary/oblique/blind/multiple holes, unequal/non-orthogonal or two-edge corner patches, and
 general blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
-eight direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
+nine direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
 closed/diameter/radial-sector/multi-edge topology, endpoint meridians and caps, analytic volume direction/value,
 transformed axes, chain propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
 
@@ -107,7 +107,11 @@ Phase 32g recognizes all four box edges parallel to one local axis. It rebuilds 
 
 ### One coaxial through-hole
 
-Phase 32h extends only that complete outer-family route to a rectangular extrusion with exactly one centred circular bore along the selected edge direction. The classifier requires canonical genus-one `V10/E15/C30/L9/F7` source topology, two equal coaxial circular rims, matching extrusion length, centred cross-section coordinates, and positive radial wall clearance `holeRadius < min(cross-wall dimensions)/2`. The builder adds the exact bore cylinder with inward orientation before sewing, yielding two annular cap loops and canonical `V18/E27/C54/L13/F11` topology. Off-centre or oblique holes, multiple holes, blind holes, arbitrary perforated solids, and non-positive wall clearance refuse without approximation.
+Phase 32h extends only that complete outer-family route to a rectangular extrusion with exactly one centred circular bore along the selected edge direction. The classifier requires canonical genus-one `V10/E15/C30/L9/F7` source topology, two equal coaxial circular rims, matching extrusion length, centred cross-section coordinates, and positive radial wall clearance `holeRadius < min(cross-wall dimensions)/2`. The builder adds the exact bore cylinder with inward orientation before sewing, yielding two annular cap loops and canonical `V18/E27/C54/L13/F11` topology.
+
+### One offset axis-parallel through-hole
+
+Phase 32i permits that one bore to move away from the centreline while remaining parallel to the complete selected outer family. Its centre must lie in the erosion of the rounded cross-section by the bore disk. For `holeRadius < filletRadius`, this domain is the inner rectangle expanded by `filletRadius - holeRadius`; the implementation checks the Euclidean distance to that inner rectangle. For larger bores, strict distances to all four retained walls apply. Equality and merge-tolerance contact refuse. The exact cylinder, annular caps, and `V18/E27/C54/L13/F11` topology are unchanged. Oblique or blind holes, multiple holes, arbitrary perforated solids, and wall intersections refuse before any generic fillet fallback.
 
 ### Complete rounded-box network
 

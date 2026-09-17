@@ -682,13 +682,21 @@ namespace
         if(2.0*Radius>=std::min(LB,LC)-Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
             "parallel-edge fillet radius consumes the rounded-prism cross-section");
         const bool Hole=HoleRadius>Tol;
-        if(Hole&&
-           (std::fabs(HoleB-LB*0.5)>1e-8*std::max(1.0,LB)||std::fabs(HoleC-LC*0.5)>1e-8*std::max(1.0,LC)))
-            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
-                "rounded-prism hole must be coaxial with the rectangular cross-section");
         if(Hole&&HoleRadius>=0.5*std::min(LB,LC)-Tol)
             return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
                 "rounded-prism hole consumes the radial wall");
+        if(Hole&&(HoleB<=HoleRadius+Tol||HoleB>=LB-HoleRadius-Tol||
+                 HoleC<=HoleRadius+Tol||HoleC>=LC-HoleRadius-Tol))
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
+                "rounded-prism hole consumes the radial wall");
+        if(Hole&&HoleRadius<Radius)
+        {
+            double ClosestB=std::clamp(HoleB,Radius,LB-Radius),ClosestC=std::clamp(HoleC,Radius,LC-Radius);
+            double OffsetDistance=Vec2{HoleB-ClosestB,HoleC-ClosestC}.Length();
+            if(OffsetDistance>Tol&&OffsetDistance>=Radius-HoleRadius-Tol)
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
+                    "rounded-prism hole intersects the inward-offset wall");
+        }
         auto P=[&](double X,double Y,double Z){return Box.Corner+A*X+B*Y+C*Z;};
         std::vector<NurbsSurface>S;
         auto Plane=[&](Vec3 O,Vec3 U,Vec3 V,double X,double Y){auto Q=NurbsSurface::Plane(O,U,V,X,Y);if(Q)S.push_back(std::move(Q.Payload));return(bool)Q;};
