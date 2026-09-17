@@ -5,6 +5,7 @@
 #include "IntersectionSolver.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <optional>
 
 namespace Frontier
@@ -600,16 +601,19 @@ namespace
         return BlindBoxPrism{*Frame,std::move(Cavities)};
     }
 
+    struct SteppedBlindStage { PrismHole Hole;double Depth=0.0; };
     struct SteppedBlindPrism
     {
-        OrthogonalBoxCorner Box;PrismHole Outer,Inner;bool FromLow=true;double ShoulderDepth=0.0,TotalDepth=0.0;
+        OrthogonalBoxCorner Box;std::vector<SteppedBlindStage> Stages;bool FromLow=true;
     };
 
     std::optional<SteppedBlindPrism> ClassifySteppedBlindPrism(const BrepBody& Body,const std::vector<int>& Edges) noexcept
     {
         auto Report=Body.Validate();
-        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Vertices.size()!=12||Body.Edges.size()!=18||
-           Body.Coedges.size()!=36||Body.Loops.size()!=12||Body.Faces.size()!=10)return std::nullopt;
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Faces.size()<10||(Body.Faces.size()-6)%2!=0)return std::nullopt;
+        size_t Count=(Body.Faces.size()-6)/2;
+        if(Count<2||Count>MaxPrismBores||Body.Vertices.size()!=8+2*Count||Body.Edges.size()!=12+3*Count||
+           Body.Coedges.size()!=24+6*Count||Body.Loops.size()!=6+3*Count)return std::nullopt;
         auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
         int Planes=0,Cylinders=0,InnerLoops=0;std::vector<int>CylinderFaces;
         for(size_t I=0;I<Body.Faces.size();++I)
@@ -618,9 +622,9 @@ namespace
             if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)InnerLoops+=static_cast<int>(Face.Loops.size()-1);
             if(Face.Surface.Classification==SurfaceClassification::Cylinder){++Cylinders;CylinderFaces.push_back(static_cast<int>(I));}
         }
-        if(Planes!=8||Cylinders!=2||InnerLoops!=2)return std::nullopt;
+        if(Planes!=static_cast<int>(6+Count)||Cylinders!=static_cast<int>(Count)||InnerLoops!=static_cast<int>(Count))return std::nullopt;
         struct Span{PrismHole Hole;double Low=0.0,High=0.0;};std::vector<Span>Spans;
-        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA);
+        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA),PositionTolerance=1e-8*Scale;
         for(int CylinderFace:CylinderFaces)
         {
             const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
@@ -630,42 +634,50 @@ namespace
                 for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
                     int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
                     const BrepEdge& E=Body.Edges[Edge];if(!E.Closed())continue;double T=(E.Curve.Sample(E.Curve.DomainStart())-Frame->Corner).Dot(A);
-                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(A)-T)>1e-8*Scale)return std::nullopt;
+                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(A)-T)>PositionTolerance)return std::nullopt;
                     RingT.push_back(T);}}
             if(RingT.size()!=2)return std::nullopt;
-            std::sort(RingT.begin(),RingT.end());
-            Vec3 Offset=Cylinder.Origin-Frame->Corner;
+            std::sort(RingT.begin(),RingT.end());Vec3 Offset=Cylinder.Origin-Frame->Corner;
             Spans.push_back({{Offset.Dot(Frame->Y),Offset.Dot(Frame->Z),Cylinder.RadiusMajor},RingT[0],RingT[1]});
         }
         int Entry=-1;bool FromLow=false;
-        for(int I=0;I<2;++I)
+        for(size_t I=0;I<Count;++I)
         {
-            bool Low=std::fabs(Spans[I].Low)<=1e-8*Scale,High=std::fabs(Spans[I].High-LA)<=1e-8*Scale;
+            bool Low=std::fabs(Spans[I].Low)<=PositionTolerance,High=std::fabs(Spans[I].High-LA)<=PositionTolerance;
             if(Low==High)continue;
             if(Entry>=0)return std::nullopt;
-            Entry=I;FromLow=Low;
+            Entry=static_cast<int>(I);FromLow=Low;
         }
         if(Entry<0)return std::nullopt;
-        const Span& Outer=Spans[Entry];const Span& Inner=Spans[1-Entry];
-        if(Outer.Hole.Radius<=Inner.Hole.Radius+Tol||std::hypot(Outer.Hole.B-Inner.Hole.B,Outer.Hole.C-Inner.Hole.C)>1e-8*Scale)
-            return std::nullopt;
-        double ShoulderDepth=0.0,TotalDepth=0.0;
-        if(FromLow)
+        std::vector<bool>Used(Count,false);std::vector<SteppedBlindStage>Stages;Stages.reserve(Count);
+        int Current=Entry;double PreviousDepth=0.0,PreviousRadius=std::numeric_limits<double>::infinity(),Removed=0.0;
+        const PrismHole& Centre=Spans[Entry].Hole;
+        for(size_t StageIndex=0;StageIndex<Count;++StageIndex)
         {
-            if(std::fabs(Outer.High-Inner.Low)>1e-8*Scale||Inner.High>=LA-Tol)return std::nullopt;
-            ShoulderDepth=Outer.High;TotalDepth=Inner.High;
+            if(Current<0||Used[Current])return std::nullopt;
+            const Span& CurrentSpan=Spans[Current];Used[Current]=true;
+            if(std::hypot(CurrentSpan.Hole.B-Centre.B,CurrentSpan.Hole.C-Centre.C)>PositionTolerance||
+               CurrentSpan.Hole.Radius>=PreviousRadius-Tol)return std::nullopt;
+            double Depth=FromLow?CurrentSpan.High:LA-CurrentSpan.Low;
+            if(Depth<=PreviousDepth+Tol||Depth>=LA-Tol)return std::nullopt;
+            Stages.push_back({CurrentSpan.Hole,Depth});
+            Removed+=ScalarCriteria::Pi*CurrentSpan.Hole.Radius*CurrentSpan.Hole.Radius*(Depth-PreviousDepth);
+            PreviousDepth=Depth;PreviousRadius=CurrentSpan.Hole.Radius;
+            if(StageIndex+1==Count)break;
+            double Boundary=FromLow?CurrentSpan.High:CurrentSpan.Low;int Next=-1;
+            for(size_t I=0;I<Count;++I)if(!Used[I])
+            {
+                double Candidate=FromLow?Spans[I].Low:Spans[I].High;
+                if(std::fabs(Candidate-Boundary)>PositionTolerance)continue;
+                if(Next>=0)return std::nullopt;
+                Next=static_cast<int>(I);
+            }
+            if(Next<0)return std::nullopt;
+            Current=Next;
         }
-        else
-        {
-            if(std::fabs(Outer.Low-Inner.High)>1e-8*Scale||Inner.Low<=Tol)return std::nullopt;
-            ShoulderDepth=LA-Outer.Low;TotalDepth=LA-Inner.Low;
-        }
-        if(ShoulderDepth<=Tol||TotalDepth<=ShoulderDepth+Tol||TotalDepth>=LA-Tol)return std::nullopt;
-        double Removed=ScalarCriteria::Pi*(Outer.Hole.Radius*Outer.Hole.Radius*ShoulderDepth+
-            Inner.Hole.Radius*Inner.Hole.Radius*(TotalDepth-ShoulderDepth));
         double Exact=LA*Frame->LY*Frame->LZ-Removed;
         if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
-        return SteppedBlindPrism{*Frame,Outer.Hole,Inner.Hole,FromLow,ShoulderDepth,TotalDepth};
+        return SteppedBlindPrism{*Frame,std::move(Stages),FromLow};
     }
 
     Deliver<BrepBody> BuildOrthogonalBoxCorner(const OrthogonalBoxCorner& Box, double Radius) noexcept
@@ -943,38 +955,49 @@ namespace
 
     Deliver<BrepBody> BuildRoundedSteppedBlindPrism(const SteppedBlindPrism& Step,double Radius) noexcept
     {
-        if(const char* Denial=PrismHoleWallRefusal(Step.Outer,Step.Box.LY,Step.Box.LZ,Radius))
+        size_t N=Step.Stages.size();
+        if(N<2||N>MaxPrismBores)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+            "rounded-prism route supports at most eight coaxial blind-bore stages");
+        const PrismHole& Outer=Step.Stages.front().Hole;
+        if(const char* Denial=PrismHoleWallRefusal(Outer,Step.Box.LY,Step.Box.LZ,Radius))
             return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,Denial);
-        if(Step.Inner.Radius<=Tol||Step.Outer.Radius<=Step.Inner.Radius+Tol||Step.ShoulderDepth<=Tol||
-           Step.TotalDepth<=Step.ShoulderDepth+Tol||Step.TotalDepth>=Step.Box.LX-Tol)
-            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"stepped blind bore consumes a radial or axial shoulder");
+        double PreviousRadius=std::numeric_limits<double>::infinity(),PreviousDepth=0.0,Scale=std::max(1.0,Step.Box.LX);
+        for(const SteppedBlindStage& Stage:Step.Stages)
+        {
+            if(Stage.Hole.Radius<=Tol||Stage.Hole.Radius>=PreviousRadius-Tol||Stage.Depth<=PreviousDepth+Tol||
+               Stage.Depth>=Step.Box.LX-Tol||std::hypot(Stage.Hole.B-Outer.B,Stage.Hole.C-Outer.C)>1e-8*Scale)
+                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"stepped blind bore consumes or misaligns a radial or axial shoulder");
+            PreviousRadius=Stage.Hole.Radius;PreviousDepth=Stage.Depth;
+        }
         auto Result=BuildRoundedBoxPrism(Step.Box,0,Radius);if(!Result)return Result;
         auto P=[&](double X,double Y,double Z){return Step.Box.Corner+Step.Box.X*X+Step.Box.Y*Y+Step.Box.Z*Z;};
         double Margin=std::max(1.0,Step.Box.LX*0.1),Entry=Step.FromLow?0.0:Step.Box.LX;
         Vec3 Direction=Step.FromLow?Step.Box.X:Step.Box.X*-1.0;
-        auto Cut=[&](double Bore,double Depth)->Deliver<BrepBody>
+        for(const SteppedBlindStage& Stage:Step.Stages)
         {
-            auto Cutter=BrepBody::Cylinder(P(Step.FromLow?-Margin:Step.Box.LX+Margin,Step.Outer.B,Step.Outer.C),
-                                           Direction,Bore,Margin+Depth);
+            auto Cutter=BrepBody::Cylinder(P(Step.FromLow?-Margin:Step.Box.LX+Margin,Outer.B,Outer.C),
+                                           Direction,Stage.Hole.Radius,Margin+Stage.Depth);
             if(!Cutter)return Deliver<BrepBody>::Reject(Cutter.Denial.Reason,Cutter.Denial.Detail);
-            return IntersectionSolver::Combine(Result.Payload,Cutter.Payload,BodyOperation::Subtract);
-        };
-        auto OuterCut=Cut(Step.Outer.Radius,Step.ShoulderDepth);if(!OuterCut)return OuterCut;Result=std::move(OuterCut);
-        auto InnerCut=Cut(Step.Inner.Radius,Step.TotalDepth);if(!InnerCut)return InnerCut;Result=std::move(InnerCut);
-        double Shoulder=Step.FromLow?Step.ShoulderDepth:Step.Box.LX-Step.ShoulderDepth;
-        double Floor=Step.FromLow?Step.TotalDepth:Step.Box.LX-Step.TotalDepth;
-        struct Ring{double T=0.0,Radius=0.0;};
-        const std::vector<Ring>Rings{{Entry,Step.Outer.Radius},{Shoulder,Step.Outer.Radius},
-                                      {Shoulder,Step.Inner.Radius},{Floor,Step.Inner.Radius}};
+            auto Next=IntersectionSolver::Combine(Result.Payload,Cutter.Payload,BodyOperation::Subtract);if(!Next)return Next;
+            Result=std::move(Next);
+        }
+        struct Ring{double T=0.0,Radius=0.0;};std::vector<Ring>Rings;Rings.reserve(2*N);
+        Rings.push_back({Entry,Outer.Radius});
+        for(size_t I=0;I<N;++I)
+        {
+            double T=Step.FromLow?Step.Stages[I].Depth:Step.Box.LX-Step.Stages[I].Depth;
+            Rings.push_back({T,Step.Stages[I].Hole.Radius});
+            if(I+1<N)Rings.push_back({T,Step.Stages[I+1].Hole.Radius});
+        }
         int Restored=0;
         for(const Ring& Expected:Rings)
         {
-            int Matches=0;Vec3 Centre=P(Expected.T,Step.Outer.B,Step.Outer.C);
+            int Matches=0;Vec3 Centre=P(Expected.T,Outer.B,Outer.C);
             for(BrepEdge& Edge:Result.Payload.Edges)if(Edge.Closed())
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Step.Box.Corner).Dot(Step.Box.X);
                 Vec3 Radial=Sample-Centre-Step.Box.X*(Sample-Centre).Dot(Step.Box.X);
-                if(std::fabs(T-Expected.T)>1e-7*std::max(1.0,Step.Box.LX)||std::fabs(Radial.Length()-Expected.Radius)>1e-6)continue;
+                if(std::fabs(T-Expected.T)>1e-7*Scale||std::fabs(Radial.Length()-Expected.Radius)>1e-6)continue;
                 auto Circle=NurbsCurve::Circle(Centre,Direction,Expected.Radius);
                 if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"stepped blind-bore rim could not be restored exactly");
@@ -988,9 +1011,10 @@ namespace
             Cylinders+=Face.Surface.Classification==SurfaceClassification::Cylinder&&Face.Surface.Rational();
             if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)InnerLoops+=static_cast<int>(Face.Loops.size()-1);}
         for(const BrepEdge& Edge:Result.Payload.Edges)Circles+=Edge.Closed()&&Edge.Curve.Classification==CurveClassification::Circle&&Edge.Curve.Rational();
-        if(Restored!=4||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Planes!=8||Cylinders!=6||Circles!=4||InnerLoops!=2||
-           Result.Payload.Vertices.size()!=20||Result.Payload.Edges.size()!=30||Result.Payload.Coedges.size()!=60||
-           Result.Payload.Loops.size()!=16||Result.Payload.Faces.size()!=14)
+        if(Restored!=static_cast<int>(2*N)||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||
+           Planes!=static_cast<int>(6+N)||Cylinders!=static_cast<int>(4+N)||Circles!=static_cast<int>(2*N)||InnerLoops!=static_cast<int>(N)||
+           Result.Payload.Vertices.size()!=16+2*N||Result.Payload.Edges.size()!=24+3*N||Result.Payload.Coedges.size()!=48+6*N||
+           Result.Payload.Loops.size()!=10+3*N||Result.Payload.Faces.size()!=10+2*N)
             return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"stepped blind-bore rounded prism did not reach exact manifold topology");
         return Result;
     }

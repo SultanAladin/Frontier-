@@ -91,9 +91,9 @@ number of distinct chains committed. The verified independent case is two opposi
 radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
 
 The outer shoulder rim, incomplete/non-circular chains, asymmetric or non-radial endpoints, cylinder–cylinder contacts,
-arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary holes, oblique bores, more-than-eight or general stepped blind cavities, more-than-eight through-holes, unequal/non-orthogonal or two-edge corner patches, and
+arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary holes, oblique bores, more-than-eight or non-coaxial stepped blind cavities, more-than-eight through-holes, unequal/non-orthogonal or two-edge corner patches, and
 general blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
-fifteen direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
+sixteen direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
 closed/diameter/radial-sector/multi-edge topology, endpoint meridians and caps, analytic volume direction/value,
 transformed axes, chain propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
 
@@ -129,7 +129,9 @@ Phase 32m extends this route to exactly two separated cavities. Canonical source
 
 Phase 32n scales the same construction to `3 <= N <= 8`. Canonical source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+2N`; the rounded result is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+2N`, with genus zero throughout. Both ends, safe offsets, deterministic order, rigid transforms, and all `N(N-1)/2` finite-cylinder clearance checks are supported. Side-entering, oblique, intersecting, more-than-eight, or non-cylindrical blind cavities refuse transactionally.
 
-Phase 32o separately accepts one canonical coaxial two-diameter counterbore. The source is `V12/E18/C36/L12/F10`: one large cylinder runs from the selected end to an annular shoulder, and one smaller coaxial cylinder continues to a planar floor. Strictly decreasing radius and increasing depth distinguish it from separated cavities. Rebuilding the rounded exterior and subtracting the outer stage before the inner stage yields `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, two annular planar regions, and four exact rational rims. Eccentric stages, undercuts, three or more diameters, and multiple stepped cavities remain unsupported.
+Phase 32o separately accepts one canonical coaxial two-diameter counterbore. The source is `V12/E18/C36/L12/F10`: one large cylinder runs from the selected end to an annular shoulder, and one smaller coaxial cylinder continues to a planar floor. Strictly decreasing radius and increasing depth distinguish it from separated cavities. Rebuilding the rounded exterior and subtracting the outer stage before the inner stage yields `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, two annular planar regions, and four exact rational rims.
+
+Phase 32p scales that one connected chain to `3 <= N <= 8` stages. Source and rounded topology use the same linear formula as the separated finite-cavity route, but classification additionally requires one entry span, a unique contiguous shoulder chain, one common transverse centre, strictly decreasing radii, and strictly increasing cumulative depths. Deterministic largest-to-smallest subtraction restores `2N` exact rational rims. Nine or more stages, eccentric/non-coaxial stages, undercuts, non-decreasing radii, and multiple stepped cavities remain unsupported.
 
 ### Complete rounded-box network
 

@@ -73,8 +73,8 @@ public:
     // Transactional constant-radius fillet of an intentional seed set. Members of the same curved tangent chain are
     // deduplicated and independent chains apply in deterministic geometric order. Three orthogonal box edges at one
     // vertex rebuild with an exact spherical corner patch; four parallel box edges rebuild one rounded-prism family,
-    // preserving up to eight separated axis-parallel through-holes/blind cylindrical cavities, or one coaxial
-    // two-diameter stepped blind cavity, inside the exact inward-offset wall. Other shared-vertex sets refuse.
+    // preserving up to eight separated axis-parallel through-holes/blind cylindrical cavities, or one coaxial stepped
+    // blind cavity with up to eight decreasing diameters, inside the exact inward-offset wall. Other sets refuse.
     // AppliedChains receives the committed count, or zero.
     [[nodiscard]] static Deliver<BrepBody> FilletEdges(const BrepBody& Body, const std::vector<int>& SeedEdges,
                                                        double Radius, int* AppliedChains = nullptr) noexcept;

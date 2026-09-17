@@ -255,6 +255,11 @@ add_executable(SteppedBlindBorePrismFilletVerification Verification/SteppedBlind
 target_link_libraries(SteppedBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME SteppedBlindBorePrismFilletVerification COMMAND SteppedBlindBorePrismFilletVerification)
 
+# Phase 32p: scale one coaxial stepped cavity to a bounded chain of at most eight decreasing diameters.
+add_executable(MultiStageBlindBorePrismFilletVerification Verification/MultiStageBlindBorePrismFilletVerification.cpp)
+target_link_libraries(MultiStageBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME MultiStageBlindBorePrismFilletVerification COMMAND MultiStageBlindBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

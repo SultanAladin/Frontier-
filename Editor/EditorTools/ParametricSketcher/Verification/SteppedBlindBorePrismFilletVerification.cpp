@@ -146,8 +146,8 @@ int main()
     P.Expect("A counterbore crossing the rounded wall refuses transactionally",WallSource&&!WallR&&Refused==0);
     auto Eccentric=Fixture(S,.6,0);Refused=99;auto EccentricR=BlendSolver::FilletEdges(Eccentric.Payload,Rails(Eccentric.Payload),2,&Refused);
     P.Expect("An eccentric second stage remains outside the coaxial route",Eccentric&&Eccentric.Payload.Validate().Solid()&&!EccentricR&&Refused==0);
-    auto Triple=TripleFixture();Refused=99;auto TripleR=BlendSolver::FilletEdges(Triple.Payload,Rails(Triple.Payload),2,&Refused);
-    P.Expect("A third diameter stage remains unsupported transactionally",Triple&&Triple.Payload.Validate().Solid()&&!TripleR&&Refused==0);
+    auto Triple=TripleFixture();int TripleApplied=-1;auto TripleR=BlendSolver::FilletEdges(Triple.Payload,Rails(Triple.Payload),2,&TripleApplied);
+    P.Expect("A third decreasing diameter delegates to the bounded multistage route",TripleR&&TripleApplied==4&&TripleR.Payload.Faces.size()==16);
     auto Plain=BrepBody::Box({0,0,0},{20,16,12});int PA=-1;auto PlainR=BlendSolver::FilletEdges(Plain.Payload,Rails(Plain.Payload),2,&PA);
     P.Expect("The established unperforated rounded-prism route remains intact",PlainR&&PA==4&&PlainR.Payload.Faces.size()==10);
 

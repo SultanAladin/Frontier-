@@ -403,13 +403,19 @@ The exact finite-cylinder route now scales to three through eight separated blin
 
 #### Phase 32o: one coaxial two-diameter stepped blind cavity ✅
 
-One canonical counterbore may now enter either selected prism end. Its larger cylinder terminates at an annular shoulder and its smaller coaxial cylinder continues to a deeper planar floor. The structural classifier distinguishes these connected spans from two independent cavities, requires strict radius decrease and depth increase, and verifies the two-stage analytic volume. Deterministic reconstruction subtracts the shallow outer stage before the deep inner stage and restores all four entrance/shoulder/floor rims as exact rational circles. The result is genus-zero `V20/E30/C60/L16/F14`, with eight planes and six rational cylinders. Safe offsets, transforms, opposite entry, wall refusal, eccentric-stage refusal, and an explicit third-stage cap are covered without claiming general counterbore networks.
+One canonical counterbore may enter either selected prism end. Its larger cylinder terminates at an annular shoulder and its smaller coaxial cylinder continues to a deeper planar floor. The structural classifier distinguishes these connected spans from two independent cavities, requires strict radius decrease and depth increase, and verifies the two-stage analytic volume. Deterministic reconstruction subtracts the shallow outer stage before the deep inner stage and restores all four entrance/shoulder/floor rims as exact rational circles. The result is genus-zero `V20/E30/C60/L16/F14`, with eight planes and six rational cylinders. Safe offsets, transforms, opposite entry, wall refusal, and eccentric-stage refusal are covered.
 
 **Proof:** `SteppedBlindBorePrismFilletVerification` (25 C++ checks) and `Proofs/Phase32o_SteppedBlindBorePrism.png`.
 
+#### Phase 32p: bounded multistage coaxial blind cavities ✅
+
+The connected-span route now supports one chain of three through eight strictly decreasing coaxial diameters. It discovers the unique entry span, orders every subsequent cylinder through matching shoulder planes, rejects branches or eccentricity, and verifies the sum of every finite axial-band removal. For `N` stages, source topology is `V=8+2N/E=12+3N/C=24+6N/L=6+3N/F=6+2N`; rounded topology is `V=16+2N/E=24+3N/C=48+6N/L=10+3N/F=10+2N`, with genus zero and `2N` exact rational rims. Three/eight stages, both ends, offsets, ordering, transforms, wall/eccentric refusal, the nine-stage cap, and two-stage regression are verified.
+
+**Proof:** `MultiStageBlindBorePrismFilletVerification` (33 C++ checks) and `Proofs/Phase32p_MultiStageBlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering, more-than-eight, multi-step, undercut, or multiple stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering, more-than-eight, undercut, non-decreasing, eccentric, or multiple stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 
