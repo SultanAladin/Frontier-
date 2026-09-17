@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 56 suites (43 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 57 suites (44 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -264,7 +264,11 @@ A canonical rectangular prism with one cylindrical cavity entering either select
 
 ## Exactly two separated axis-parallel blind bores (Phase 32m)
 
-The same bounded classifier now accepts canonical genus-zero `V12/E18/C36/L12/F10` sources containing exactly two finite cylindrical cavities. The cavities may enter one common end or opposite ends, and may even be coaxial across a positive axial ligament. Pairwise finite-cylinder clearance combines bounded axial-interval and transverse-disk separation rather than treating the cavities as infinite cylinders. Reconstruction subtracts both cavities deterministically and restores both fitted entrances, yielding exact `V20/E30/C60/L16/F14` topology with eight planes, six cylinders, and four rational cavity rims. More than two cavities, intersections, side/oblique entries, steps, and counterbores remain unsupported. `DualBlindBorePrismFilletVerification` contributes 26 checks and `Proofs/Phase32m_DualBlindBorePrism.png`.
+The same bounded classifier accepts canonical genus-zero `V12/E18/C36/L12/F10` sources containing exactly two finite cylindrical cavities. The cavities may enter one common end or opposite ends, and may even be coaxial across a positive axial ligament. Pairwise finite-cylinder clearance combines bounded axial-interval and transverse-disk separation rather than treating the cavities as infinite cylinders. Reconstruction subtracts both cavities deterministically and restores both fitted entrances, yielding exact `V20/E30/C60/L16/F14` topology with eight planes, six cylinders, and four rational cavity rims. `DualBlindBorePrismFilletVerification` contributes 26 checks and `Proofs/Phase32m_DualBlindBorePrism.png`.
+
+## Bounded multi-blind-bore set (Phase 32n)
+
+Phase 32n scales the same exact construction to `3 <= N <= 8` separated finite cavities. Canonical source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+2N`; the rounded result is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+2N`, always with genus zero. Every cavity passes the rounded-wall gate, all finite-cylinder pairs retain positive radial, axial, or combined clearance, and all `2N` fitted/floor rims finish as rational circles. Three- and eight-cavity cases are verified across both ends. Nine or more cavities, intersections, side/oblique entries, steps, and counterbores remain unsupported. `MultiBlindBorePrismFilletVerification` contributes 31 checks and `Proofs/Phase32n_MultiBlindBorePrism.png`.
 
 ## Layout
 
@@ -342,6 +346,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32k | **Bounded multi-bore rounded prism.** Three through eight separated axis-parallel bores scale by exact topology formula with all-pairs ligament checks. | `MultiBorePrismFilletVerification` — 21 C++ checks; `Proofs/Phase32k_MultiBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32l | **One axis-parallel blind bore.** Either prism end may retain one finite-depth exact cylindrical cavity with a planar floor and restored rational entrance rim. | `BlindBorePrismFilletVerification` — 21 C++ checks; `Proofs/Phase32l_BlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32m | **Exactly two separated axis-parallel blind bores.** Same-end, opposite-end, and coaxial opposite-end cavities retain finite-cylinder clearance and four rational rims. | `DualBlindBorePrismFilletVerification` — 26 C++ checks; `Proofs/Phase32m_DualBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
+| 32n | **Bounded multi-blind-bore rounded prism.** Three through eight separated finite cylinders scale by exact genus-zero topology formula and all-pairs finite clearance. | `MultiBlindBorePrismFilletVerification` — 31 C++ checks; `Proofs/Phase32n_MultiBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -490,8 +495,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **56 suites** — 43 per-feature verification binaries (1,539 checks total) and 13 script smoke
-tests. The Phase 32m direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **57 suites** — 44 per-feature verification binaries (1,570 checks total) and 13 script smoke
+tests. The Phase 32n direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -529,6 +534,7 @@ are:
 | `MultiBorePrismFilletVerification` | 21  |
 | `BlindBorePrismFilletVerification` | 21  |
 | `DualBlindBorePrismFilletVerification` | 26  |
+| `MultiBlindBorePrismFilletVerification` | 31  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -539,7 +545,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1539** |
+| **Total** | **1570** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

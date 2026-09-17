@@ -391,13 +391,19 @@ A canonical genus-zero rectangular prism with one finite-depth cylindrical cavit
 
 #### Phase 32m: exactly two separated axis-parallel blind cavities ✅
 
-The bounded blind-cavity classifier now accepts canonical `V12/E18/C36/L12/F10` sources containing two inward finite cylinders. Each entrance/floor pair is recovered independently; the pair may enter one shared end or opposite ends. Clearance is measured between finite cylinders by combining transverse disk separation and bounded axial-interval separation, so same-end radial separation, opposite-end combined separation, and coaxial cavities across a positive axial ligament are all handled honestly. The rounded result has exact `V20/E30/C60/L16/F14` genus-zero topology, eight planes, six rational cylinders, and four exact rational cavity rims. Intersections, wall crossings, or a third blind cavity refuse without partial application.
+The bounded blind-cavity classifier accepts canonical `V12/E18/C36/L12/F10` sources containing two inward finite cylinders. Each entrance/floor pair is recovered independently; the pair may enter one shared end or opposite ends. Clearance is measured between finite cylinders by combining transverse disk separation and bounded axial-interval separation, so same-end radial separation, opposite-end combined separation, and coaxial cavities across a positive axial ligament are all handled honestly. The rounded result has exact `V20/E30/C60/L16/F14` genus-zero topology, eight planes, six rational cylinders, and four exact rational cavity rims. Intersections and wall crossings refuse without partial application.
 
 **Proof:** `DualBlindBorePrismFilletVerification` (26 C++ checks) and `Proofs/Phase32m_DualBlindBorePrism.png`.
 
+#### Phase 32n: bounded multi-blind-cavity rounded prisms ✅
+
+The exact finite-cylinder route now scales to three through eight separated blind cavities entering either prism end. For `N` cavities, source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+2N`; rounded topology is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+2N`, with genus zero. Every cavity independently passes the rounded-wall gate, every pair retains positive finite-cylinder distance, and all `2N` rims are exact rational circles after deterministic sequential reconstruction. Three- and eight-cavity cases, both entry ends, ordering, transforms, wall refusal, the explicit nine-cavity cap, and the prior one/two routes are verified.
+
+**Proof:** `MultiBlindBorePrismFilletVerification` (31 C++ checks) and `Proofs/Phase32n_MultiBlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering or more-than-two/stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering or more-than-eight/stepped blind cavities, more-than-eight through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

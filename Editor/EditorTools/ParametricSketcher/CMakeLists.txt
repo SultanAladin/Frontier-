@@ -245,6 +245,11 @@ add_executable(DualBlindBorePrismFilletVerification Verification/DualBlindBorePr
 target_link_libraries(DualBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME DualBlindBorePrismFilletVerification COMMAND DualBlindBorePrismFilletVerification)
 
+# Phase 32n: scale the same exact finite-cylinder route to a bounded set of at most eight blind cavities.
+add_executable(MultiBlindBorePrismFilletVerification Verification/MultiBlindBorePrismFilletVerification.cpp)
+target_link_libraries(MultiBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME MultiBlindBorePrismFilletVerification COMMAND MultiBlindBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

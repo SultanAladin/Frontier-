@@ -502,14 +502,14 @@ namespace
         return OrthogonalBoxCorner{O,A,B,C,LA,LB,LC};
     }
 
-    constexpr size_t MaxPrismHoles=8;
+    constexpr size_t MaxPrismBores=8;
     struct PrismHole { double B=0.0,C=0.0,Radius=0.0; };
     struct PerforatedBoxPrism { OrthogonalBoxCorner Box; std::vector<PrismHole> Holes; };
 
     std::optional<PerforatedBoxPrism> ClassifyPerforatedBoxPrism(const BrepBody& Body,const std::vector<int>& Edges) noexcept
     {
         auto Report=Body.Validate();int HoleCount=Report.Genus;
-        if(Edges.size()!=4||!Report.Solid()||Report.Hulls!=1||HoleCount<1||HoleCount>static_cast<int>(MaxPrismHoles)||
+        if(Edges.size()!=4||!Report.Solid()||Report.Hulls!=1||HoleCount<1||HoleCount>static_cast<int>(MaxPrismBores)||
            Body.Vertices.size()!=static_cast<size_t>(8+2*HoleCount)||Body.Edges.size()!=static_cast<size_t>(12+3*HoleCount)||
            Body.Coedges.size()!=static_cast<size_t>(24+6*HoleCount)||Body.Loops.size()!=static_cast<size_t>(6+3*HoleCount)||
            Body.Faces.size()!=static_cast<size_t>(6+HoleCount))return std::nullopt;
@@ -560,7 +560,7 @@ namespace
         auto Report=Body.Validate();
         if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Faces.size()<8||(Body.Faces.size()-6)%2!=0)return std::nullopt;
         size_t Count=(Body.Faces.size()-6)/2;
-        if(Count<1||Count>2||Body.Vertices.size()!=8+2*Count||Body.Edges.size()!=12+3*Count||
+        if(Count<1||Count>MaxPrismBores||Body.Vertices.size()!=8+2*Count||Body.Edges.size()!=12+3*Count||
            Body.Coedges.size()!=24+6*Count||Body.Loops.size()!=6+3*Count)return std::nullopt;
         auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
         int Planes=0,Cylinders=0,EndLoops=0;std::vector<int>CylinderFaces;
@@ -774,7 +774,7 @@ namespace
         if(Radius<=Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"radius is zero or negative");
         if(2.0*Radius>=std::min(LB,LC)-Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
             "parallel-edge fillet radius consumes the rounded-prism cross-section");
-        if(Holes.size()>MaxPrismHoles)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+        if(Holes.size()>MaxPrismBores)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
             "rounded-prism route supports at most eight through-holes");
         for(const PrismHole& Hole:Holes)if(const char* Denial=PrismHoleWallRefusal(Hole,LB,LC,Radius))
             return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,Denial);
@@ -818,7 +818,7 @@ namespace
     Deliver<BrepBody> BuildRoundedBlindPrism(const BlindBoxPrism& Blind,double Radius) noexcept
     {
         size_t N=Blind.Cavities.size();
-        if(N<1||N>2)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"rounded-prism route supports at most two blind cavities");
+        if(N<1||N>MaxPrismBores)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"rounded-prism route supports at most eight blind cavities");
         for(const BlindCavity& Cavity:Blind.Cavities)
         {
             if(const char* Denial=PrismHoleWallRefusal(Cavity.Hole,Blind.Box.LY,Blind.Box.LZ,Radius))
@@ -2007,7 +2007,7 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
         if(ShapeReport.Genus==0&&BlindCount>=1&&Body.Vertices.size()==8+2*BlindCount&&Body.Edges.size()==12+3*BlindCount&&
            Body.Coedges.size()==24+6*BlindCount&&Body.Loops.size()==6+3*BlindCount)
             return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
-                "blind-bore prism is outside the exact route for one or two separated cavities");
+                "blind-bore prism is outside the exact route for one to eight separated cavities");
         if(auto Perforated=ClassifyPerforatedBoxPrism(Body,Selected))
         {
             auto Result=BuildRoundedBoxPrism(Perforated->Box,0,Radius,Perforated->Holes);

@@ -152,9 +152,9 @@ int main()
     P.Expect("Either cavity crossing a rounded wall refuses transactionally",Wall&&!WR&&Refused==0);
     auto Crossing=Fixture({{true,7,6,2,10},{true,9,6,2,8}});
     P.Expect("Intersecting finite cavity construction is rejected before blend dispatch",!Crossing);
-    auto Three=Fixture({{true,4,4,.75,8},{true,8,8,.75,9},{true,12,4,.75,10}});Refused=99;
-    auto ThreeR=BlendSolver::FilletEdges(Three.Payload,Rails(Three.Payload),2,&Refused);
-    P.Expect("Three blind cavities remain unsupported transactionally",Three&&!ThreeR&&Refused==0);
+    auto Three=Fixture({{true,4,4,.75,8},{true,8,8,.75,9},{true,12,4,.75,10}});int ThreeApplied=-1;
+    auto ThreeR=BlendSolver::FilletEdges(Three.Payload,Rails(Three.Payload),2,&ThreeApplied);
+    P.Expect("Three separated blind cavities delegate to the bounded extension",ThreeR&&ThreeApplied==4&&ThreeR.Payload.Faces.size()==16);
     auto Single=Fixture({Same[0]});int SingleApplied=-1;
     auto SingleR=BlendSolver::FilletEdges(Single.Payload,Rails(Single.Payload),2,&SingleApplied);
     P.Expect("The established single-cavity route remains intact",SingleR&&SingleApplied==4&&SingleR.Payload.Faces.size()==12);
