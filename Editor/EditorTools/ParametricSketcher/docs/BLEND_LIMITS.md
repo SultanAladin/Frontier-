@@ -91,9 +91,9 @@ number of distinct chains committed. The verified independent case is two opposi
 radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
 
 The outer shoulder rim, incomplete/non-circular chains, asymmetric or non-radial endpoints, cylinder–cylinder contacts,
-arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary/oblique/blind/three-plus holes, unequal/non-orthogonal or two-edge corner patches, and
+arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, arbitrary/oblique/blind/more-than-eight holes, unequal/non-orthogonal or two-edge corner patches, and
 general blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar approximation. The
-ten direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
+eleven direct verifiers measure exact torus identity/residual/span, both G1 contacts, support extents,
 closed/diameter/radial-sector/multi-edge topology, endpoint meridians and caps, analytic volume direction/value,
 transformed axes, chain propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
 
@@ -115,7 +115,11 @@ Phase 32i permits that one bore to move away from the centreline while remaining
 
 ### Exactly two axis-parallel through-holes
 
-Phase 32j accepts the canonical two-hole extension `V12/E18/C36/L12/F8` of the same source extrusion. Four circular rims are partitioned by end plane and paired by radius and transverse centre, so profile-loop and edge-table order do not matter. Both bore disks independently satisfy the rounded-wall erosion test, and `distance(centre0,centre1) > radius0+radius1+MergeTolerance` enforces a positive ligament. Sewing two inward rational cylinders produces genus-two `V20/E30/C60/L16/F12`, with three loops on each planar end cap. Intersecting/tangent holes, three or more holes, oblique or blind holes, and arbitrary perforated solids refuse before generic fallback.
+Phase 32j accepts the canonical two-hole extension `V12/E18/C36/L12/F8` of the same source extrusion. Four circular rims are partitioned by end plane and paired by radius and transverse centre, so profile-loop and edge-table order do not matter. Both bore disks independently satisfy the rounded-wall erosion test, and `distance(centre0,centre1) > radius0+radius1+MergeTolerance` enforces a positive ligament. Sewing two inward rational cylinders produces genus-two `V20/E30/C60/L16/F12`, with three loops on each planar end cap.
+
+### Bounded multi-bore set
+
+Phase 32k generalizes the same exact construction to `3 <= N <= 8`. Canonical source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+N`; the rounded result is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+N`, with genus `N`. End-plane/radius/centre pairing is geometric, each bore passes the wall-offset gate, and every pair passes the ligament inequality. Nine or more holes, intersecting/tangent disks, oblique or blind holes, and non-canonical perforated solids refuse before fallback.
 
 ### Complete rounded-box network
 

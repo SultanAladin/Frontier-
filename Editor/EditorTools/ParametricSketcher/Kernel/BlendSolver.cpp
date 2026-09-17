@@ -483,13 +483,14 @@ namespace
         return Result;
     }
 
+    constexpr size_t MaxPrismHoles=8;
     struct PrismHole { double B=0.0,C=0.0,Radius=0.0; };
     struct PerforatedBoxPrism { OrthogonalBoxCorner Box; std::vector<PrismHole> Holes; };
 
     std::optional<PerforatedBoxPrism> ClassifyPerforatedBoxPrism(const BrepBody& Body,const std::vector<int>& Edges) noexcept
     {
         auto Report=Body.Validate();int HoleCount=Report.Genus;
-        if(Edges.size()!=4||!Report.Solid()||Report.Hulls!=1||HoleCount<1||HoleCount>2||
+        if(Edges.size()!=4||!Report.Solid()||Report.Hulls!=1||HoleCount<1||HoleCount>static_cast<int>(MaxPrismHoles)||
            Body.Vertices.size()!=static_cast<size_t>(8+2*HoleCount)||Body.Edges.size()!=static_cast<size_t>(12+3*HoleCount)||
            Body.Coedges.size()!=static_cast<size_t>(24+6*HoleCount)||Body.Loops.size()!=static_cast<size_t>(6+3*HoleCount)||
            Body.Faces.size()!=static_cast<size_t>(6+HoleCount))return std::nullopt;
@@ -702,8 +703,8 @@ namespace
         if(Radius<=Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"radius is zero or negative");
         if(2.0*Radius>=std::min(LB,LC)-Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,
             "parallel-edge fillet radius consumes the rounded-prism cross-section");
-        if(Holes.size()>2)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
-            "rounded-prism route supports at most two through-holes");
+        if(Holes.size()>MaxPrismHoles)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+            "rounded-prism route supports at most eight through-holes");
         for(const PrismHole& Hole:Holes)
         {
             if(Hole.Radius<=Tol)return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"rounded-prism hole radius is not positive");
@@ -1887,7 +1888,7 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
         }
         if(Body.Validate().Genus!=0)
             return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
-                "perforated parallel-edge family is outside the one/two axis-parallel bore route");
+                "perforated parallel-edge family is outside the bounded axis-parallel bore route");
         std::vector<int> FirstCorner;for(size_t E=0;E<Body.Edges.size();++E)
             if(Body.Edges[E].VertexStart==0||Body.Edges[E].VertexEnd==0)FirstCorner.push_back(static_cast<int>(E));
         if(auto Box=ClassifyOrthogonalBoxCorner(Body,FirstCorner))

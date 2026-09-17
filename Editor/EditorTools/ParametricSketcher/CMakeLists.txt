@@ -230,6 +230,11 @@ add_executable(TwinBorePrismFilletVerification Verification/TwinBorePrismFilletV
 target_link_libraries(TwinBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME TwinBorePrismFilletVerification COMMAND TwinBorePrismFilletVerification)
 
+# Phase 32k: scale exact geometric rim pairing to a bounded set of at most eight separated bores.
+add_executable(MultiBorePrismFilletVerification Verification/MultiBorePrismFilletVerification.cpp)
+target_link_libraries(MultiBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME MultiBorePrismFilletVerification COMMAND MultiBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

@@ -373,13 +373,19 @@ The single-bore classifier now retains the exact circular cylinder away from the
 
 #### Phase 32j: exactly two separated axis-parallel through-holes ✅
 
-Canonical perforated-extrusion classification now pairs two lower and two upper circular rims geometrically, independent of profile-loop order. Each bore passes the Phase 32i rounded-wall offset test and their centre distance must exceed the sum of their radii by merge tolerance. Two reversed rational cylinders sew into end caps with three loops each and canonical one-hull, genus-two `V20/E30/C60/L16/F12` topology. Intersecting bores and every source with three or more holes refuse before generic fallback.
+Canonical perforated-extrusion classification now pairs two lower and two upper circular rims geometrically, independent of profile-loop order. Each bore passes the Phase 32i rounded-wall offset test and their centre distance must exceed the sum of their radii by merge tolerance. Two reversed rational cylinders sew into end caps with three loops each and canonical one-hull, genus-two `V20/E30/C60/L16/F12` topology.
 
 **Proof:** `TwinBorePrismFilletVerification` (21 C++ checks) and `Proofs/Phase32j_TwinBorePrism.png`.
 
+#### Phase 32k: bounded multi-bore rounded prisms ✅
+
+The same structural classifier and exact builder now scale to three through eight separated axis-parallel bores. For `N` holes, the source and result obey explicit linear topology formulae, both end caps gain `N+1` loops, and the result genus is exactly `N`. Every bore passes the rounded-wall erosion gate and all `N(N-1)/2` pairs retain positive merge-tolerance ligaments. Three- and eight-bore constructions, profile ordering, rigid transforms, collision/wall refusal, and the explicit nine-hole cap are verified without claiming unrestricted perforated profiles.
+
+**Proof:** `MultiBorePrismFilletVerification` (21 C++ checks) and `Proofs/Phase32k_MultiBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/blind or three-plus holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/blind or more-than-eight holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

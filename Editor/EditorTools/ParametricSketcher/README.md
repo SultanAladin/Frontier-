@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 53 suites (40 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 54 suites (41 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -252,7 +252,11 @@ One axis-parallel circular through-hole may now move away from the prism centrel
 
 ## Twin axis-parallel bores (Phase 32j)
 
-Exactly two geometrically paired circular through-holes now survive the same complete outer-edge rebuild. Each bore independently passes the rounded-wall offset test and the pair must retain a strictly positive inter-hole ligament. The result has two inward rational cylinders, two end caps with three loops each, and canonical genus-two `V20/E30/C60/L16/F12` topology. Profile-loop order, rail order, and rigid transforms are invariant. Intersecting bores, three or more holes, oblique/blind holes, and arbitrary perforated solids refuse transactionally. `TwinBorePrismFilletVerification` contributes 21 checks and `Proofs/Phase32j_TwinBorePrism.png`.
+Exactly two geometrically paired circular through-holes now survive the same complete outer-edge rebuild. Each bore independently passes the rounded-wall offset test and the pair must retain a strictly positive inter-hole ligament. The result has two inward rational cylinders, two end caps with three loops each, and canonical genus-two `V20/E30/C60/L16/F12` topology. Profile-loop order, rail order, and rigid transforms are invariant. `TwinBorePrismFilletVerification` contributes 21 checks and `Proofs/Phase32j_TwinBorePrism.png`.
+
+## Bounded multi-bore rounded prisms (Phase 32k)
+
+The geometric rim-pairing and pairwise-clearance route now accepts three through eight axis-parallel circular bores. For `N` holes, source topology must be canonical `V(8+2N)/E(12+3N)/C(24+6N)/L(6+3N)/F(6+N)` and the rounded result is exactly `V(16+2N)/E(24+3N)/C(48+6N)/L(10+3N)/F(10+N)`, with genus `N`. Every disk passes the rounded-wall erosion gate and every pair retains a merge-tolerance ligament. Three- and eight-hole cases are verified; nine holes, intersections, oblique/blind bores, and arbitrary perforated solids refuse transactionally. `MultiBorePrismFilletVerification` contributes 21 checks and `Proofs/Phase32k_MultiBorePrism.png`.
 
 ## Layout
 
@@ -327,6 +331,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32h | **One coaxial hole through a rounded prism.** The complete outer family retains one centred exact circular bore with positive radial wall clearance and genus-one annular caps. | `PerforatedPrismFilletVerification` — 20 C++ checks; `Proofs/Phase32h_PerforatedPrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32i | **One offset axis-parallel through-hole.** Exact rounded-wall inward-offset clearance admits safe side/corner placements and refuses wall intersections. | `OffsetBorePrismFilletVerification` — 21 C++ checks; `Proofs/Phase32i_OffsetBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32j | **Exactly two axis-parallel through-holes.** Geometric rim pairing plus wall and inter-hole ligament checks preserve canonical genus-two topology. | `TwinBorePrismFilletVerification` — 21 C++ checks; `Proofs/Phase32j_TwinBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
+| 32k | **Bounded multi-bore rounded prism.** Three through eight separated axis-parallel bores scale by exact topology formula with all-pairs ligament checks. | `MultiBorePrismFilletVerification` — 21 C++ checks; `Proofs/Phase32k_MultiBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -475,8 +480,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **53 suites** — 40 per-feature verification binaries (1,471 checks total) and 13 script smoke
-tests. The Phase 32j direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **54 suites** — 41 per-feature verification binaries (1,492 checks total) and 13 script smoke
+tests. The Phase 32k direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -511,6 +516,7 @@ are:
 | `PerforatedPrismFilletVerification`| 20  |
 | `OffsetBorePrismFilletVerification`| 21  |
 | `TwinBorePrismFilletVerification`  | 21  |
+| `MultiBorePrismFilletVerification` | 21  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -521,7 +527,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1471** |
+| **Total** | **1492** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact
