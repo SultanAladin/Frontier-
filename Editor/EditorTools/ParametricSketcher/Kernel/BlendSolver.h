@@ -10,7 +10,8 @@
 //    Curved-edge routes are deliberately bounded and direct: a complete native right-cylinder cap is rebuilt from its
 //    retained cylinder and an exact conical frustum/quarter torus, while the first general smooth-support case rebuilds
 //    a planar annular shoulder and cylindrical boss around their offset-surface spine. A G1 tangent-chain walker lets
-//    that boss root be selected through one member of a representation-split full ring or bounded semicircle:
+//    that boss root be selected through one member of a representation-split full ring or bounded semicircle. Intentional
+//    multi-edge sets deduplicate those members and compose independent rolls transactionally:
 //
 //      chamfer(E, s) = Body − Wedge(E, s)                 the planar corner prism beyond the set-back plane is cut away
 //      circular chamfer = Cylinder(R, H−s) ∪ Cone(R, R−s, s)     exact right-cylinder cap bevel
@@ -67,6 +68,12 @@ public:
     // Both contacts are G1; the semicircle retains two exact end meridians on its planar diameter cap. Other finite,
     // unsupported, or branching smooth-support arrangements refuse without approximation.
     [[nodiscard]] static Deliver<BrepBody> FilletEdge(const BrepBody& Body, int Edge, double Radius) noexcept;
+
+    // Transactional constant-radius fillet of an intentional seed set. Members of the same curved tangent chain are
+    // deduplicated, independent chains are applied in deterministic geometric order, and shared-vertex corner sets
+    // refuse before construction. AppliedChains receives the committed chain count, or zero on refusal.
+    [[nodiscard]] static Deliver<BrepBody> FilletEdges(const BrepBody& Body, const std::vector<int>& SeedEdges,
+                                                       double Radius, int* AppliedChains = nullptr) noexcept;
 
     // Push a face along its own outward normal. Native right-cylinder caps and side face rebuild directly as exact
     // height/radius edits; all other planar faces use the established direct/Boolean paths. Positive adds material.

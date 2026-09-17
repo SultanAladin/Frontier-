@@ -190,6 +190,11 @@ add_executable(OpenChainFilletVerification Verification/OpenChainFilletVerificat
 target_link_libraries(OpenChainFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME OpenChainFilletVerification COMMAND OpenChainFilletVerification)
 
+# Phase 32c: deterministic transactional multi-edge sets with chain-member deduplication and corner refusal.
+add_executable(MultiEdgeFilletVerification Verification/MultiEdgeFilletVerification.cpp)
+target_link_libraries(MultiEdgeFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME MultiEdgeFilletVerification COMMAND MultiEdgeFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

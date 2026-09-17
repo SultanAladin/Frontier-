@@ -70,11 +70,26 @@ representation seams heal to one partial torus, while two exact quarter-circle m
 retained diameter cap. The result is one hull of genus zero with `V12/E17/C34/L7/F7`; its volume is exactly one half of
 the corresponding full-ring result. Positive and negative half-turns preserve which side of the cap contains material.
 
+### Intentional multi-edge sets
+
+Phase 32c introduces `FilletEdges` as a transactional composition layer. Every source seed is validated and expanded to
+its tangent chain before construction. Repeated indices and multiple selected members of one chain collapse to one
+target. Vertex-disjoint targets are sorted by orientation-free start/middle/end geometry, then geometrically re-resolved
+after each earlier roll changes edge numbering. All results live in a working copy; one failed or ambiguous target
+rejects the complete call. The original body is never mutated.
+
+Chains sharing any source vertex refuse up front as an unsupported corner set. This is stricter than applying edges one
+at a time on purpose: two adjacent rolling cylinders do not supply the three-face corner patch needed to close their
+intersection. The console body form of `fillet --edges=i,j,…` now uses the same all-or-nothing route and reports the
+number of distinct chains committed. The verified independent case is two opposite straight box edges at one common
+radius, producing `V12/E18/C36/L8/F8`; this does not imply support for general blend/blend intersections.
+
 The outer shoulder rim, incomplete/non-circular chains, non-semicircular or asymmetric endpoints, cylinder–cylinder
-contacts, arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, holes, and corner patches
-remain unsupported; they refuse rather than entering the straight-planar approximation. The three direct verifiers
-measure exact torus identity/residual, both G1 contacts, support extents, closed/open topology, endpoint meridians,
-analytic volume direction/value, transformed axes, chain propagation/healing, refusal bounds, and console commit.
+contacts, arbitrary trimmed/free-form surfaces, branching chains, thin-wall interactions, holes, three-face corner
+patches, and blend/blend intersections remain unsupported; they refuse rather than entering the straight-planar
+approximation. The four direct verifiers measure exact torus identity/residual, both G1 contacts, support extents,
+closed/open/multi-edge topology, endpoint meridians, analytic volume direction/value, transformed axes, chain
+propagation/healing/deduplication, transactional refusal bounds, and console commit/rollback.
 
 ### Re-entrant handle roots
 

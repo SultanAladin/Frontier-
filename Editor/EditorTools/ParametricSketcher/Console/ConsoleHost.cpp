@@ -2362,7 +2362,7 @@ void ConsoleHost::Register() noexcept
         for (const CurveCrossing& K : X) Row("  (%.6f %.6f %.6f)  tA %.6f  tB %.6f%s", K.Point.X, K.Point.Y, K.Point.Z, K.ParameterA, K.ParameterB, K.Tangent ? "  tangent" : "");
         return true;
     });
-    Add("fillet", "fillet <curve...> radius [--corners=i,j,…]  or  <body> radius --edges=i,j [--name=…] — round sketches, planar edges, native caps, or bounded tangent boss-root chains", [=, this](const CommandLine& C)
+    Add("fillet", "fillet <curve...> radius [--corners=i,j,…]  or  <body> radius --edges=i,j [--name=…] — sketches or transactional solid-edge/chain sets; shared-vertex corners refuse", [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "fillet")) return false;
         double R = 0; if (!NumberArg(C, C.Count() - 1, R, "fillet")) return false;
@@ -2381,42 +2381,17 @@ void ConsoleHost::Register() noexcept
             for (SceneFigure* I : ResolveMany(Sub, 0))
             {
                 if (I->Classification != FigureClassification::Body) { Refuse("fillet: '%s' is not a body", I->Name.c_str()); continue; }
-                BrepBody Working = I->Body;
-                int Rolled = 0; std::string Why;
-                // Each fillet renumbers the body's edges, so the targets are resolved against the ORIGINAL body by
-                //    their midpoints and re-found after every roll. Filleting "edges 2,5" then means the two edges
-                //    the user pointed at, not whatever happens to sit at index 2 and 5 afterwards.
-                std::vector<Vec3> Wanted;
-                for (int E : EdgeList)
-                {
-                    if (E < 0 || E >= (int)I->Body.Edges.size()) { Refuse("fillet %s: edge %d out of range", I->Name.c_str(), E); continue; }
-                    const BrepEdge& Edge = I->Body.Edges[E];
-                    if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
-                    Wanted.push_back((I->Body.Vertices[Edge.VertexStart].Point + I->Body.Vertices[Edge.VertexEnd].Point) * 0.5);
-                }
-                for (Vec3 Midpoint : Wanted)
-                {
-                    int Found = -1; double Best = 1e-6;
-                    for (size_t E = 0; E < Working.Edges.size(); ++E)
-                    {
-                        const BrepEdge& Edge = Working.Edges[E];
-                        if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
-                        double D = ((Working.Vertices[Edge.VertexStart].Point + Working.Vertices[Edge.VertexEnd].Point) * 0.5 - Midpoint).Length();
-                        if (D < Best) { Best = D; Found = (int)E; }
-                    }
-                    if (Found < 0) { Why = "edge no longer exists after the previous fillet"; continue; }
-                    Deliver<BrepBody> Rolled1 = BlendSolver::FilletEdge(Working, Found, R);
-                    if (!Rolled1) { Why = Rolled1.Denial.Detail; continue; }
-                    Working = std::move(Rolled1.Payload); ++Rolled;
-                }
-                if (Rolled == 0) { Refuse("fillet %s: %s", I->Name.c_str(), Why.empty() ? "no edge could be rolled" : Why.c_str()); continue; }
+                int AppliedChains = 0;
+                Deliver<BrepBody> Working = BlendSolver::FilletEdges(I->Body, EdgeList, R, &AppliedChains);
+                if (!Working) { Refuse("fillet %s: %s", I->Name.c_str(), Working.Denial.Detail); continue; }
                 std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
                 Scene.Remove(Id);
-                SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Filleted"), std::move(Working));
+                SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Filleted"), std::move(Working.Payload));
                 Out.Selected = Sel; DescribeFigure(Out);
                 BodyReport Check = Out.Body.Validate();
                 if (!Check.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", Check.OpenEdges, Check.NonManifoldEdges, Check.MisorientedEdges);
-                Row("fillet %s → %s  radius %.4f  edges %d/%d", Name.c_str(), Out.Name.c_str(), R, Rolled, int(Wanted.size()));
+                Row("fillet %s → %s  radius %.4f  seeds %d  applied chains %d (transactional)",
+                    Name.c_str(), Out.Name.c_str(), R, int(EdgeList.size()), AppliedChains);
                 ++Done;
             }
             return Done > 0;

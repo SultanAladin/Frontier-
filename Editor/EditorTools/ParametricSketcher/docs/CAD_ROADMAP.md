@@ -297,11 +297,31 @@ analytic half-volume, oblique axes, reversed sweep, bounded refusals, native-cyl
 **Proof:** `Verification/OpenChainFilletVerification.cpp` (30 C++ checks) and
 `Proofs/Phase32b_OpenChainFillet.png` (2560 × 1600 C++-generated contact sheet).
 
+#### Phase 32c: intentional multi-edge selection ✅
+
+`BlendSolver::FilletEdges` adds an all-or-nothing layer over the bounded exact fillet routes. It validates all seed
+indices and the source solid before construction, expands each seed through `TangentChain`, and deduplicates repeated
+indices or multiple members of the same chain. The remaining vertex-disjoint chains are ordered by their sampled
+three-point geometric signatures; each later target is matched against the changed B-rep by the same orientation-free
+signature instead of an old edge index or midpoint alone. A missing or ambiguous target refuses the complete operation.
+
+Interacting chains that share a source vertex are classified up front as a corner request and refuse before either roll.
+That boundary is intentional: sequentially applying two edge rolls does not construct the required three-face corner
+patch. The console now dispatches one body-edge selection through this transactional API and reports requested seeds and
+committed chains rather than retaining a partially modified intermediate body.
+
+**32c exit gate met:** `MultiEdgeFilletVerification` proves two independent opposite box rolls with exact
+`V12/E18/C36/L8/F8` topology, summed analytic volume, input-order invariance, source immutability, duplicate and
+two/four-member chain deduplication, empty/invalid/oversize/mixed/corner refusal, console scene rollback, and direct C++
+proof generation.
+
+**Proof:** `Verification/MultiEdgeFilletVerification.cpp` (28 C++ checks) and
+`Proofs/Phase32c_MultiEdgeFillet.png` (2560 × 1600 C++-generated contact sheet).
+
 #### Still required before Phase 32 is complete
 
-General-angle or asymmetric open endpoints, intentional multi-edge selection, three-face corner patches, holes, thin
-walls, and blend/blend intersections each need separate topology and visual regressions. This increment does not claim
-them.
+General-angle or asymmetric open endpoints, actual three-face corner patches, holes, thin walls, and blend/blend
+intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

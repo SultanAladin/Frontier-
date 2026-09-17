@@ -1347,6 +1347,147 @@ Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double
     return Wedged;
 }
 
+Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vector<int>& SeedEdges,
+                                           double Radius, int* AppliedChains) noexcept
+{
+    if (AppliedChains) *AppliedChains = 0;
+    if (!Body.Validate().Solid())
+        return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "multi-edge fillet requires a valid solid body");
+    if (Radius <= Tol)
+        return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "radius is zero or negative");
+    if (SeedEdges.empty())
+        return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "multi-edge fillet seed set is empty");
+
+    struct Signature
+    {
+        Vec3 Start, Middle, End, Centre;
+    };
+    struct Target
+    {
+        std::vector<int> Chain;
+        Signature Geometry;
+    };
+    auto EdgeSignature = [](const BrepBody& Source, int Edge) noexcept -> Signature
+    {
+        const NurbsCurve& Curve = Source.Edges[Edge].Curve;
+        double T0 = Curve.DomainStart(), T1 = Curve.DomainEnd();
+        Signature Result{ Curve.Sample(T0), Curve.Sample(0.5 * (T0 + T1)), Curve.Sample(T1), {} };
+        Result.Centre = (Result.Start + Result.Middle + Result.End) / 3.0;
+        return Result;
+    };
+    auto Intersects = [](const std::vector<int>& A, const std::vector<int>& B) noexcept
+    {
+        for (int Value : A) if (std::find(B.begin(), B.end(), Value) != B.end()) return true;
+        return false;
+    };
+
+    std::vector<int> OrderedSeeds = SeedEdges;
+    std::sort(OrderedSeeds.begin(), OrderedSeeds.end());
+    OrderedSeeds.erase(std::unique(OrderedSeeds.begin(), OrderedSeeds.end()), OrderedSeeds.end());
+    std::vector<Target> Targets;
+    for (int Seed : OrderedSeeds)
+    {
+        if (Seed < 0 || Seed >= static_cast<int>(Body.Edges.size()))
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "multi-edge fillet seed is out of range");
+        Deliver<std::vector<int>> FoundChain = TangentChain(Body, Seed);
+        if (!FoundChain) return Deliver<BrepBody>::Reject(FoundChain.Denial.Reason, FoundChain.Denial.Detail);
+        std::vector<int> Effective{ Seed };
+        const bool CurvedPropagation = FoundChain.Payload.size() > 1 &&
+            std::all_of(FoundChain.Payload.begin(), FoundChain.Payload.end(), [&](int Edge)
+            {
+                CurveClassification Classification = Body.Edges[Edge].Curve.Classification;
+                return Classification == CurveClassification::Arc || Classification == CurveClassification::Circle;
+            });
+        if (CurvedPropagation) Effective = FoundChain.Payload;
+        std::sort(Effective.begin(), Effective.end());
+
+        bool Duplicate = false;
+        for (const Target& Existing : Targets)
+        {
+            if (Existing.Chain == Effective) { Duplicate = true; break; }
+            if (Intersects(Existing.Chain, Effective))
+                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "multi-edge fillet seeds overlap inconsistent tangent chains");
+        }
+        if (!Duplicate) Targets.push_back({ Effective, EdgeSignature(Body, Effective.front()) });
+    }
+
+    // This increment handles independent sets only. A shared vertex is a corner-resolution request, not two independent
+    // edge rolls; reject it transactionally before either operation changes the working copy.
+    for (size_t A = 0; A < Targets.size(); ++A)
+        for (size_t B = A + 1; B < Targets.size(); ++B)
+            for (int EdgeA : Targets[A].Chain)
+                for (int EdgeB : Targets[B].Chain)
+                {
+                    const BrepEdge& EA = Body.Edges[EdgeA];
+                    const BrepEdge& EB = Body.Edges[EdgeB];
+                    for (int VA : { EA.VertexStart, EA.VertexEnd })
+                        for (int VB : { EB.VertexStart, EB.VertexEnd })
+                            if (VA >= 0 && VA == VB)
+                                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+                                    "multi-edge fillet chains share a vertex (corner resolution is not supported)");
+                }
+
+    auto VecLess = [](Vec3 A, Vec3 B) noexcept
+    {
+        if (A.X != B.X) return A.X < B.X;
+        if (A.Y != B.Y) return A.Y < B.Y;
+        return A.Z < B.Z;
+    };
+    auto SamePoint = [](Vec3 A, Vec3 B) noexcept { return A.X == B.X && A.Y == B.Y && A.Z == B.Z; };
+    auto Less = [&](const Target& A, const Target& B) noexcept
+    {
+        if (!SamePoint(A.Geometry.Centre, B.Geometry.Centre)) return VecLess(A.Geometry.Centre, B.Geometry.Centre);
+        if (!SamePoint(A.Geometry.Middle, B.Geometry.Middle)) return VecLess(A.Geometry.Middle, B.Geometry.Middle);
+        Vec3 ALow = VecLess(A.Geometry.Start, A.Geometry.End) ? A.Geometry.Start : A.Geometry.End;
+        Vec3 AHigh = VecLess(A.Geometry.Start, A.Geometry.End) ? A.Geometry.End : A.Geometry.Start;
+        Vec3 BLow = VecLess(B.Geometry.Start, B.Geometry.End) ? B.Geometry.Start : B.Geometry.End;
+        Vec3 BHigh = VecLess(B.Geometry.Start, B.Geometry.End) ? B.Geometry.End : B.Geometry.Start;
+        if (!SamePoint(ALow, BLow)) return VecLess(ALow, BLow);
+        if (!SamePoint(AHigh, BHigh)) return VecLess(AHigh, BHigh);
+        return A.Chain.front() < B.Chain.front();
+    };
+    std::sort(Targets.begin(), Targets.end(), Less);
+
+    const double MatchTolerance = 1e-7 * std::max(1.0, Body.Bounds().Diagonal());
+    auto Resolve = [&](const BrepBody& Working, const Signature& Wanted) noexcept -> int
+    {
+        int Found = -1; double Best = ScalarCriteria::Infinity; bool Ambiguous = false;
+        const double TieTolerance = MatchTolerance * 1e-6;
+        for (size_t Edge = 0; Edge < Working.Edges.size(); ++Edge)
+        {
+            if (Working.Edges[Edge].Coedges.size() != 2) continue;
+            Signature Candidate = EdgeSignature(Working, static_cast<int>(Edge));
+            double Direct = std::max({ Candidate.Start.Distance(Wanted.Start), Candidate.Middle.Distance(Wanted.Middle),
+                                       Candidate.End.Distance(Wanted.End) });
+            double Reverse = std::max({ Candidate.Start.Distance(Wanted.End), Candidate.Middle.Distance(Wanted.Middle),
+                                        Candidate.End.Distance(Wanted.Start) });
+            double Error = std::min(Direct, Reverse);
+            if (Error < Best - TieTolerance)
+            {
+                Best = Error; Found = static_cast<int>(Edge); Ambiguous = false;
+            }
+            else if (Error <= MatchTolerance && std::fabs(Error - Best) <= TieTolerance) Ambiguous = true;
+        }
+        return Best <= MatchTolerance && !Ambiguous ? Found : -1;
+    };
+
+    BrepBody Working = Body;
+    for (const Target& TargetEdge : Targets)
+    {
+        int Current = Resolve(Working, TargetEdge.Geometry);
+        if (Current < 0)
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+                "multi-edge fillet target is missing or geometrically ambiguous after an earlier independent roll");
+        Deliver<BrepBody> Rolled = FilletEdge(Working, Current, Radius);
+        if (!Rolled) return Deliver<BrepBody>::Reject(Rolled.Denial.Reason, Rolled.Denial.Detail);
+        Working = std::move(Rolled.Payload);
+    }
+    if (!Working.Validate().Solid())
+        return Deliver<BrepBody>::Reject(RefusalReason::NonManifold, "multi-edge fillet did not return a valid solid");
+    if (AppliedChains) *AppliedChains = static_cast<int>(Targets.size());
+    return Deliver<BrepBody>::Accept(std::move(Working));
+}
+
 Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double Distance) noexcept
 {
     if (Face < 0 || Face >= (int)Body.Faces.size()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "face index out of range");
