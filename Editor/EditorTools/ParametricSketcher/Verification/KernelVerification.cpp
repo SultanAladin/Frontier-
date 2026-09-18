@@ -77,6 +77,7 @@ int main()
         Panel.Expect("Equal-radius plane mode refuses unequal radii", !BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
         Taper.Low.Radius = Taper.High.Radius;
         Panel.Expect("Equal-radius plane mode accepts equal radii", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
+        Panel.Expect("Equal-radius asymmetric planes reconstruct", BlendSolver::ReconstructAsymmetricSupport(Taper));
     }
 
     //------------------------------------------------------------------ scalar tolerance policy

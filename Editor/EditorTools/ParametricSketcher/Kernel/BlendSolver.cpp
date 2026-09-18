@@ -3113,8 +3113,9 @@ Deliver<BrepBody> BlendSolver::ReconstructAsymmetricFrustum(const AsymmetricBlen
 {
     std::string Refusal;
     if (Specification.Kind != AsymmetricSupportKind::TaperedFrustum &&
-        Specification.Kind != AsymmetricSupportKind::UnequalRadialCaps)
-        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "frustum reconstruction requires a supported unequal-radial mode");
+        Specification.Kind != AsymmetricSupportKind::UnequalRadialCaps &&
+        Specification.Kind != AsymmetricSupportKind::EqualRadiusAsymmetricPlanes)
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "frustum reconstruction requires a supported endpoint mode");
     if (!ValidateAsymmetricSpecification(Specification, Refusal))
         return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "invalid asymmetric frustum specification");
     Vec3 Delta = Specification.High.Centre - Specification.Low.Centre;
@@ -3135,6 +3136,7 @@ Deliver<BrepBody> BlendSolver::ReconstructAsymmetricSupport(const AsymmetricBlen
     {
         case AsymmetricSupportKind::TaperedFrustum:
         case AsymmetricSupportKind::UnequalRadialCaps:
+        case AsymmetricSupportKind::EqualRadiusAsymmetricPlanes:
             return ReconstructAsymmetricFrustum(Specification);
         default:
             return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
