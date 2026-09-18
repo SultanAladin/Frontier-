@@ -308,8 +308,8 @@ namespace
             else if (Degree != 0 && Degree != 2) return false;
         }
         if (Span) *Span = Angle;
-        if (Closed) return Endpoints == 0 && std::fabs(Angle - ScalarCriteria::TwoPi) <= 1e-6;
-        return Endpoints == 2 && Angle > 1e-6 && Angle < ScalarCriteria::TwoPi - 1e-6;
+        if (Closed) return Endpoints == 0 && ScalarCriteria::WithinAngularTolerance(Angle, ScalarCriteria::TwoPi);
+        return Endpoints == 2 && Angle > ScalarCriteria::AngularTolerance && Angle < ScalarCriteria::TwoPi - ScalarCriteria::AngularTolerance;
     }
 
     bool OpenChainSweep(const BrepBody& Body, const std::vector<int>& Chain, Vec3 Centre,
