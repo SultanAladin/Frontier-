@@ -60,6 +60,10 @@ struct VariableRadiusLaw
     double End = 0.0;
 
     [[nodiscard]] double Evaluate(double T) const noexcept { return Start + (End - Start) * T; }
+    [[nodiscard]] double Slope() const noexcept { return End - Start; }
+    [[nodiscard]] bool Positive() const noexcept { return std::isfinite(Start) && std::isfinite(End) && Start > 0.0 && End > 0.0; }
+    [[nodiscard]] bool Decreasing() const noexcept { return Slope() < -ScalarCriteria::CircularTolerance; }
+    [[nodiscard]] bool Increasing() const noexcept { return Slope() > ScalarCriteria::CircularTolerance; }
 };
 
 struct AsymmetricBlendSpecification

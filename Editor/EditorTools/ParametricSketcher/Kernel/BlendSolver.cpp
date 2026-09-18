@@ -3108,7 +3108,7 @@ bool BlendSolver::ValidateAsymmetricSpecification(const AsymmetricBlendSpecifica
     {
         if (Specification.BlendRadius <= ScalarCriteria::MergeTolerance)
         { Refusal = "variable-radius roll requires a positive blend radius"; return false; }
-        if (!std::isfinite(Specification.RadiusLaw.Start) || !std::isfinite(Specification.RadiusLaw.End) ||
+        if (!Specification.RadiusLaw.Positive() ||
             Specification.RadiusLaw.Start <= ScalarCriteria::MergeTolerance ||
             std::fabs(Specification.RadiusLaw.Start - Specification.Low.Radius) > ScalarCriteria::CircularTolerance ||
             std::fabs(Specification.RadiusLaw.End - Specification.High.Radius) > ScalarCriteria::CircularTolerance)
