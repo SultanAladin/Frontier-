@@ -427,13 +427,19 @@ One canonical finite cylindrical cavity may now enter either retained planar sid
 
 #### Phase 32s: exactly two separated parallel side-entering blind cavities ✅
 
-Two canonical finite cylinders may now enter one common retained side or opposite parallel sides while sharing either prism cross-section direction. Both cavities independently retain side, centre, radius, depth, planar floor, rounded-corner-strip clearance, and selected-axis end-cap clearance. Pairwise feasibility combines bounded intervals along the shared side axis with transverse disk separation, admitting coaxial opposite-side cavities across a positive ligament. Deterministic reconstruction restores four exact rational entrance/floor rims and produces genus-zero `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, and two planar inner loops. Same/opposite entry, coaxial ligament, the alternate Z direction, construction/rail ordering, transforms, corner/end/intersection refusal, mixed-axis and third-cavity caps, prior-route regression, console commit, and deterministic rendering are verified.
+Two canonical finite cylinders may now enter one common retained side or opposite parallel sides while sharing either prism cross-section direction. Both cavities independently retain side, centre, radius, depth, planar floor, rounded-corner-strip clearance, and selected-axis end-cap clearance. Pairwise feasibility combines bounded intervals along the shared side axis with transverse disk separation, admitting coaxial opposite-side cavities across a positive ligament. Deterministic reconstruction restores four exact rational entrance/floor rims and produces genus-zero `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, and two planar inner loops. Same/opposite entry, coaxial ligament, the alternate Z direction, construction/rail ordering, transforms, corner/end/intersection refusal, mixed-axis refusal, delegation of a third cavity to Phase 32t, prior-route regression, console commit, and deterministic rendering are verified.
 
 **Proof:** `DualSideBlindBorePrismFilletVerification` (32 C++ checks) and `Proofs/Phase32s_DualSideBlindBorePrism.png`.
 
+#### Phase 32t: bounded parallel side-entering blind-cavity set ✅
+
+The parallel side route now scales to three through eight separated finite cylinders sharing either prism cross-section direction. For `N` cavities, source topology is `V=8+2N/E=12+3N/C=24+6N/L=6+3N/F=6+2N`; rounded topology is genus-zero `V=16+2N/E=24+3N/C=48+6N/L=10+3N/F=10+2N`. Every entrance independently clears the selected-axis end caps and retained planar strip, all finite-cylinder pairs retain positive distance, and deterministic reconstruction restores `2N` exact rational entrance/floor rims. Three- and eight-cavity cases, a one-side grid, opposite parallel sides, Y/Z direction, construction and rail ordering, transforms, corner/end/intersection/mixed-axis refusal, the explicit ninth-cavity cap, prior-route regression, console commit, and deterministic rendering are verified.
+
+**Proof:** `MultiSideBlindBorePrismFilletVerification` (33 C++ checks) and `Proofs/Phase32t_MultiSideBlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique, mixed-axis, more-than-two, or stepped side-entering cavities, undercut/non-decreasing/eccentric selected-axis stages, more-than-two stepped or multiple multistage selected-axis cavities, more-than-eight simple cavities/through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique, mixed-axis, more-than-eight, or stepped side-entering cavities, undercut/non-decreasing/eccentric selected-axis stages, more-than-two stepped or multiple multistage selected-axis cavities, more-than-eight simple cavities/through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

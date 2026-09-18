@@ -612,7 +612,7 @@ namespace
         auto Report=Body.Validate();
         if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Faces.size()<8||(Body.Faces.size()-6)%2!=0)return std::nullopt;
         size_t Count=(Body.Faces.size()-6)/2;
-        if(Count<1||Count>2||Body.Vertices.size()!=8+2*Count||Body.Edges.size()!=12+3*Count||
+        if(Count<1||Count>MaxPrismBores||Body.Vertices.size()!=8+2*Count||Body.Edges.size()!=12+3*Count||
            Body.Coedges.size()!=24+6*Count||Body.Loops.size()!=6+3*Count)return std::nullopt;
         auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
         int Planes=0,Cylinders=0,InnerLoops=0;std::vector<int>CylinderFaces;
@@ -649,7 +649,7 @@ namespace
             Cavities.push_back({Along,Offset.Dot(Frame->X),Offset.Dot(Along==1?Frame->Z:Frame->Y),Cylinder.RadiusMajor,FromLow,Depth});
             Removed+=ScalarCriteria::Pi*Cylinder.RadiusMajor*Cylinder.RadiusMajor*Depth;
         }
-        if(Count==2&&Cavities[0].Along!=Cavities[1].Along)return std::nullopt;
+        for(size_t I=1;I<Cavities.size();++I)if(Cavities[I].Along!=Cavities[0].Along)return std::nullopt;
         std::sort(Cavities.begin(),Cavities.end(),[](const SideBlindCavity& A,const SideBlindCavity& B)
         {
             if(A.Along!=B.Along)return A.Along<B.Along;
@@ -1100,7 +1100,7 @@ namespace
     Deliver<BrepBody> BuildRoundedSideBlindPrism(const SideBlindPrism& Side,double Radius) noexcept
     {
         const size_t N=Side.Cavities.size();
-        if(N<1||N>2)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"rounded-prism route supports at most two parallel side blind cavities");
+        if(N<1||N>MaxPrismBores)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"rounded-prism route supports at most eight parallel side blind cavities");
         const int Along=Side.Cavities.front().Along;
         const double SideLength=Along==1?Side.Box.LY:Side.Box.LZ,StripLength=Along==1?Side.Box.LZ:Side.Box.LY;
         for(const SideBlindCavity& Cavity:Side.Cavities)
@@ -1127,13 +1127,13 @@ namespace
         Vec3 Axis=Along==1?Side.Box.Y:Side.Box.Z;double Margin=std::max(1.0,SideLength*0.1);int RestoredEdges=0;
         for(const SideBlindCavity& Cavity:Side.Cavities)
         {
-            Vec3 Direction=Cavity.FromLow?Axis:Axis*-1.0;double Entry=Cavity.FromLow?0.0:SideLength;
-            Vec3 Origin=Along==1?P(Cavity.X,Cavity.FromLow?-Margin:SideLength+Margin,Cavity.Cross):
-                                 P(Cavity.X,Cavity.Cross,Cavity.FromLow?-Margin:SideLength+Margin);
-            auto Cutter=BrepBody::Cylinder(Origin,Direction,Cavity.Radius,Margin+Cavity.Depth);
+            Vec3 FloorDirection=Cavity.FromLow?Axis:Axis*-1.0;double Entry=Cavity.FromLow?0.0:SideLength;
+            double CutterStart=Cavity.FromLow?-Margin:SideLength-Cavity.Depth;
+            Vec3 Origin=Along==1?P(Cavity.X,CutterStart,Cavity.Cross):P(Cavity.X,Cavity.Cross,CutterStart);
+            auto Cutter=BrepBody::Cylinder(Origin,Axis,Cavity.Radius,Margin+Cavity.Depth);
             if(!Cutter)return Deliver<BrepBody>::Reject(Cutter.Denial.Reason,Cutter.Denial.Detail);
             auto Next=IntersectionSolver::Combine(Result.Payload,Cutter.Payload,BodyOperation::Subtract);if(!Next)return Next;
-            Vec3 Centre=Along==1?P(Cavity.X,Entry,Cavity.Cross):P(Cavity.X,Cavity.Cross,Entry),FloorCentre=Centre+Direction*Cavity.Depth;
+            Vec3 Centre=Along==1?P(Cavity.X,Entry,Cavity.Cross):P(Cavity.X,Cavity.Cross,Entry),FloorCentre=Centre+FloorDirection*Cavity.Depth;
             int Restored=0;
             for(BrepEdge& Edge:Next.Payload.Edges)if(Edge.Closed())
             {
@@ -1142,8 +1142,11 @@ namespace
                 Vec3 Target=AtEntry?Centre:FloorCentre,Radial=Sample-Target-Axis*(Sample-Target).Dot(Axis);
                 if((!AtEntry&&std::fabs((Sample-FloorCentre).Dot(Axis))>1e-7*std::max(1.0,SideLength))||
                    std::fabs(Radial.Length()-Cavity.Radius)>1e-6)continue;
-                auto Circle=NurbsCurve::Circle(Target,Direction,Cavity.Radius);
-                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                auto Circle=NurbsCurve::Circle(Target,Axis,Cavity.Radius);
+                if(Edge.VertexStart<0)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side blind-bore rim has no start vertex");
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                    Circle=NurbsCurve::Circle(Target,Axis*-1.0,Cavity.Radius);
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side blind-bore rim could not be restored exactly");
                 Edge.Curve=std::move(Circle.Payload);++Restored;
             }

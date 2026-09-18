@@ -143,7 +143,9 @@ int main()
     auto Intersecting=Fixture({{1,false,8,6,1.5,8},{1,false,9,6,1.5,7}});P.Expect("Intersecting side cavities cannot partially commit",TransactionallyRefuses(Intersecting));
     auto Mixed=Fixture({{1,false,5,4,.7,6},{2,false,15,10,.8,5}});P.Expect("Mixed Y/Z side-cavity axes remain outside the parallel pair route",Mixed&&TransactionallyRefuses(Mixed));
     auto Through=Fixture({Same[0],{1,false,14,8,1,16}});P.Expect("A side cavity reaching the opposite wall remains outside the blind pair route",Through&&TransactionallyRefuses(Through));
-    auto Three=Fixture({{1,false,4,4,.6,6},{1,false,10,8,.6,7},{1,false,16,4,.6,8}});P.Expect("A third side cavity remains outside the bounded pair route",Three&&TransactionallyRefuses(Three));
+    auto Three=Fixture({{1,false,4,4,.6,6},{1,false,10,8,.6,7},{1,false,16,4,.6,8}});int ThreeApplied=-1;
+    auto ThreeR=BlendSolver::FilletEdges(Three.Payload,Rails(Three.Payload),2,&ThreeApplied);
+    P.Expect("A third parallel side cavity delegates to the bounded-set route",Three&&ThreeR&&ThreeApplied==4&&ThreeR.Payload.Faces.size()==16);
     auto Single=Fixture({Same[0]});int SingleApplied=-1;auto SingleR=BlendSolver::FilletEdges(Single.Payload,Rails(Single.Payload),2,&SingleApplied);
     P.Expect("The established single side-cavity route remains intact",SingleR&&SingleApplied==4&&SingleR.Payload.Faces.size()==12);
     auto AxialBox=BrepBody::Box({0,0,0},{20,16,12});auto AxialCut=BrepBody::Cylinder({22,8,6},{-1,0,0},1,10);
