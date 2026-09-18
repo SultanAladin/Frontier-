@@ -3074,6 +3074,30 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
     return Deliver<BrepBody>::Accept(std::move(Clean));
 }
 
+bool BlendSolver::ValidateAsymmetricSpecification(const AsymmetricBlendSpecification& Specification,
+                                                    std::string& Refusal) noexcept
+{
+    if (!ValidateAsymmetricEndpointPair(Specification.Low, Specification.High,
+                                         Specification.MinimumClearance, Refusal)) return false;
+    if (Specification.MinimumClearance < 0.0 || !std::isfinite(Specification.MinimumClearance))
+    { Refusal = "minimum clearance is invalid"; return false; }
+    if (Specification.BlendRadius < 0.0 || !std::isfinite(Specification.BlendRadius))
+    { Refusal = "blend radius is invalid"; return false; }
+    const bool HasAngles = std::fabs(Specification.Low.EndpointAngle) > ScalarCriteria::SweepTolerance ||
+                           std::fabs(Specification.High.EndpointAngle) > ScalarCriteria::SweepTolerance;
+    if (HasAngles && (Specification.Low.EndpointAngle <= ScalarCriteria::SweepTolerance ||
+                      Specification.High.EndpointAngle <= ScalarCriteria::SweepTolerance ||
+                      Specification.Low.EndpointAngle >= ScalarCriteria::TwoPi - ScalarCriteria::SweepTolerance ||
+                      Specification.High.EndpointAngle >= ScalarCriteria::TwoPi - ScalarCriteria::SweepTolerance))
+    { Refusal = "endpoint angles must be finite partial sweeps"; return false; }
+    if (Specification.Kind == AsymmetricSupportKind::VariableRadiusRoll && Specification.BlendRadius <= ScalarCriteria::MergeTolerance)
+    { Refusal = "variable-radius roll requires a positive blend radius"; return false; }
+    if (Specification.Kind == AsymmetricSupportKind::EqualRadiusAsymmetricPlanes &&
+        std::fabs(Specification.Low.Radius - Specification.High.Radius) > ScalarCriteria::CircularTolerance)
+    { Refusal = "equal-radius plane mode received unequal endpoint radii"; return false; }
+    return true;
+}
+
 bool BlendSolver::ValidateAsymmetricEndpointPair(const EndpointSupport& Low, const EndpointSupport& High,
                                                    double MinimumClearance, std::string& Refusal) noexcept
 {

@@ -37,11 +37,30 @@ namespace Frontier
 {
 
 // Local frame of a manifold edge shared by two planar faces.
+enum class AsymmetricSupportKind : uint8_t
+{
+    TaperedFrustum,
+    VariableRadiusRoll,
+    UnequalRadialCaps,
+    EqualRadiusAsymmetricPlanes,
+    PartialEndpointChain
+};
+
 struct EndpointSupport
 {
     Vec3   Centre{};
     Vec3   Normal{};
     double Radius = 0.0;
+    double EndpointAngle = 0.0;                                                         // [rad] optional radial-cap angle
+};
+
+struct AsymmetricBlendSpecification
+{
+    EndpointSupport Low{};
+    EndpointSupport High{};
+    AsymmetricSupportKind Kind = AsymmetricSupportKind::TaperedFrustum;
+    double MinimumClearance = 0.0;
+    double BlendRadius = 0.0;
 };
 
 struct EdgeCornerFrame
@@ -64,6 +83,8 @@ public:
     // while construction/topology ownership remains in the asymmetric route.
     [[nodiscard]] static bool ValidateAsymmetricEndpointPair(const EndpointSupport& Low, const EndpointSupport& High,
                                                               double MinimumClearance, std::string& Refusal) noexcept;
+    [[nodiscard]] static bool ValidateAsymmetricSpecification(const AsymmetricBlendSpecification& Specification,
+                                                               std::string& Refusal) noexcept;
 
     // Follow G1 edge-to-edge continuations from a manifold seed. A closed edge is a singleton; an ambiguous tangent
     // branch refuses rather than selecting by edge-table order. The returned indices describe one complete chain.

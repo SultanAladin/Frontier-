@@ -57,6 +57,15 @@ int main()
         Panel.Expect("Non-parallel endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, { 1, 0, 0 }, 1.25 }, 0.1, Refusal));
         Panel.Expect("Consumed endpoint ligament is refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ { 3, 0, 0 }, High.Normal, 1.25 }, 0.1, Refusal));
         Panel.Expect("Degenerate endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, {}, 1.25 }, 0.1, Refusal));
+        AsymmetricBlendSpecification Taper{ Low, EndpointSupport{ High.Centre, High.Normal, 1.25, ScalarCriteria::HalfPi }, AsymmetricSupportKind::TaperedFrustum, 0.1, 0.0 };
+        Taper.Low.EndpointAngle = ScalarCriteria::HalfPi;
+        Panel.Expect("Tapered asymmetric specification is accepted", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
+        Taper.Kind = AsymmetricSupportKind::VariableRadiusRoll;
+        Panel.Expect("Variable-radius roll requires a blend radius", !BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
+        Taper.BlendRadius = 0.25;
+        Panel.Expect("Variable-radius roll accepts a positive blend radius", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
+        Taper.Kind = AsymmetricSupportKind::EqualRadiusAsymmetricPlanes;
+        Panel.Expect("Equal-radius plane mode refuses unequal radii", !BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
     }
 
     //------------------------------------------------------------------ scalar tolerance policy
