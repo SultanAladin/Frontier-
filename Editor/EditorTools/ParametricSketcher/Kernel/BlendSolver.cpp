@@ -3074,4 +3074,23 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
     return Deliver<BrepBody>::Accept(std::move(Clean));
 }
 
+bool BlendSolver::ValidateAsymmetricEndpointPair(const EndpointSupport& Low, const EndpointSupport& High,
+                                                   double MinimumClearance, std::string& Refusal) noexcept
+{
+    const double Scale = std::max({ 1.0, Low.Radius, High.Radius, MinimumClearance });
+    const double PositionTolerance = ScalarCriteria::GeometricTolerance * Scale;
+    if (!std::isfinite(Low.Radius) || !std::isfinite(High.Radius) || Low.Radius <= ScalarCriteria::MergeTolerance ||
+        High.Radius <= ScalarCriteria::MergeTolerance)
+    { Refusal = "endpoint support radius is not positive"; return false; }
+    if (std::fabs(Low.Radius - High.Radius) <= ScalarCriteria::CircularTolerance)
+    { Refusal = "endpoint supports are not asymmetric"; return false; }
+    if (Low.Normal.Length() <= ScalarCriteria::GeometricTolerance || High.Normal.Length() <= ScalarCriteria::GeometricTolerance)
+    { Refusal = "endpoint support normal is degenerate"; return false; }
+    if (std::fabs(std::fabs(Low.Normal.Normalised().Dot(High.Normal.Normalised())) - 1.0) > ScalarCriteria::AngularTolerance)
+    { Refusal = "endpoint support normals are not parallel"; return false; }
+    if ((High.Centre - Low.Centre).Length() <= Low.Radius + High.Radius + std::max(MinimumClearance, PositionTolerance))
+    { Refusal = "endpoint support intervals have no positive ligament"; return false; }
+    return true;
+}
+
 } // namespace Frontier

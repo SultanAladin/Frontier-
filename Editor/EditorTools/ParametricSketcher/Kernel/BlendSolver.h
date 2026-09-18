@@ -37,6 +37,13 @@ namespace Frontier
 {
 
 // Local frame of a manifold edge shared by two planar faces.
+struct EndpointSupport
+{
+    Vec3   Centre{};
+    Vec3   Normal{};
+    double Radius = 0.0;
+};
+
 struct EdgeCornerFrame
 {
     Vec3   Start, End;                                                                  // [m] edge endpoints
@@ -52,6 +59,12 @@ struct EdgeCornerFrame
 class BlendSolver
 {
 public:
+    // Validate an explicitly paired endpoint-support set before reconstruction. This foundation is intentionally
+    // conservative: it accepts two finite, non-coincident, parallel support normals and unequal positive radii,
+    // while construction/topology ownership remains in the asymmetric route.
+    [[nodiscard]] static bool ValidateAsymmetricEndpointPair(const EndpointSupport& Low, const EndpointSupport& High,
+                                                              double MinimumClearance, std::string& Refusal) noexcept;
+
     // Follow G1 edge-to-edge continuations from a manifold seed. A closed edge is a singleton; an ambiguous tangent
     // branch refuses rather than selecting by edge-table order. The returned indices describe one complete chain.
     [[nodiscard]] static Deliver<std::vector<int>> TangentChain(const BrepBody& Body, int SeedEdge) noexcept;
