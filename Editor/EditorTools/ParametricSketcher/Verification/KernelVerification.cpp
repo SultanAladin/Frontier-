@@ -58,6 +58,7 @@ int main()
         Panel.Expect("Sweep gate rejects beyond boundary", !ScalarCriteria::WithinAngularTolerance(ScalarCriteria::Pi + 1.1 * ScalarCriteria::SweepTolerance, ScalarCriteria::Pi));
         Panel.Expect("Circular gate accepts its boundary", ScalarCriteria::WithinCircularTolerance(2.0 + ScalarCriteria::CircularTolerance, 2.0));
         Panel.Expect("Circular gate rejects beyond boundary", !ScalarCriteria::WithinCircularTolerance(2.0 + 1.1 * ScalarCriteria::CircularTolerance, 2.0));
+        Panel.Expect("Curve tolerance is tighter than merge tolerance", ScalarCriteria::CurveTolerance < ScalarCriteria::MergeTolerance);
     }
 
     //------------------------------------------------------------------ vectors & matrices

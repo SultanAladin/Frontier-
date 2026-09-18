@@ -193,7 +193,7 @@ std::vector<CurveCrossing> ProfileSolver::Intersect(const NurbsCurve& A, const N
     std::vector<NurbsCurve> Pa = A.BezierSegments(), Pb = B.BezierSegments();
     for (const NurbsCurve& Sa : Pa)
         for (const NurbsCurve& Sb : Pb)
-            Subdivide(Sa, Sa.DomainStart(), Sa.DomainEnd(), Sb, Sb.DomainStart(), Sb.DomainEnd(), 0, std::max(Tolerance, 1e-7), Raw);
+            Subdivide(Sa, Sa.DomainStart(), Sa.DomainEnd(), Sb, Sb.DomainStart(), Sb.DomainEnd(), 0, std::max(Tolerance, ScalarCriteria::CurveTolerance), Raw);
     std::vector<CurveCrossing> Out;
     for (Candidate& K : Raw)
     {
@@ -237,7 +237,7 @@ std::vector<CurveCrossing> ProfileSolver::SelfIntersections(const NurbsCurve& A)
         for (size_t J = I + 1; J < P.size(); ++J)
         {
             std::vector<Candidate> Raw;
-            Subdivide(P[I], P[I].DomainStart(), P[I].DomainEnd(), P[J], P[J].DomainStart(), P[J].DomainEnd(), 0, 1e-7, Raw);
+            Subdivide(P[I], P[I].DomainStart(), P[I].DomainEnd(), P[J], P[J].DomainStart(), P[J].DomainEnd(), 0, ScalarCriteria::CurveTolerance, Raw);
             for (const Candidate& K : Raw) Record(K);
         }
     std::sort(Out.begin(), Out.end(), [](const CurveCrossing& L, const CurveCrossing& R) { return L.ParameterA < R.ParameterA; });
@@ -760,7 +760,7 @@ Deliver<NurbsCurve> ProfileSolver::Offset(const NurbsCurve& C, double Distance, 
     std::vector<NurbsCurve> Out;
     auto Connect = [&](NurbsCurve& Prev, NurbsCurve& Next, Vec3 Corner)
     {
-        std::vector<CurveCrossing> X = Intersect(Prev, Next, 1e-7);
+        std::vector<CurveCrossing> X = Intersect(Prev, Next, ScalarCriteria::CurveTolerance);
         if (!X.empty())
         {
             const CurveCrossing& K = X.back();
