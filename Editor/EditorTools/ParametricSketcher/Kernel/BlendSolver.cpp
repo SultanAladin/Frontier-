@@ -3192,6 +3192,14 @@ Deliver<VariableRadiusSurface> BlendSolver::BuildVariableRadiusSurface(const Asy
     return Deliver<VariableRadiusSurface>::Accept(VariableRadiusSurface{ Specification.Low.Centre, Axis, Radial, Length, Specification.RadiusLaw });
 }
 
+Deliver<BrepBody> BlendSolver::ReconstructVariableRadiusRuledSolid(const AsymmetricBlendSpecification& Specification) noexcept
+{
+    auto Surface = BuildVariableRadiusSurface(Specification);
+    if (!Surface) return Deliver<BrepBody>::Reject(Surface.Denial.Reason, "invalid variable-radius ruled surface");
+    return BrepBody::Cone(Surface.Payload.Origin, Surface.Payload.Axis, Surface.Payload.Law.Start,
+                          Surface.Payload.Law.End, Surface.Payload.Length);
+}
+
 bool BlendSolver::ValidateVariableSurfaceG1(const VariableRadiusSurface& Surface,
                                               Vec3 LowSupportNormal, Vec3 HighSupportNormal,
                                               double Angle, std::string& Refusal) noexcept

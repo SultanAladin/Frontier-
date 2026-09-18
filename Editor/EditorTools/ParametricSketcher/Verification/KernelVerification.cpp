@@ -107,6 +107,8 @@ int main()
         Panel.Expect("Variable-radius roll accepts a matching linear law", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
         Deliver<VariableRadiusSurface> BuiltSurface = BlendSolver::BuildVariableRadiusSurface(Taper);
         Panel.Expect("Variable-radius surface builds from specification", BuiltSurface && BuiltSurface.Payload.Length > 0.0);
+        Deliver<BrepBody> Ruled = BlendSolver::ReconstructVariableRadiusRuledSolid(Taper);
+        Panel.Expect("Variable-radius ruled solid reconstructs", Ruled && Ruled.Payload.Validate().Solid());
         Taper.Kind = AsymmetricSupportKind::EqualRadiusAsymmetricPlanes;
         Panel.Expect("Equal-radius plane mode refuses unequal radii", !BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
         Taper.Low.Radius = Taper.High.Radius;
