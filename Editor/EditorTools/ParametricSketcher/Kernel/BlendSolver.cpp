@@ -3173,6 +3173,18 @@ bool BlendSolver::ValidateG1EndpointMatch(Vec3 SurfaceNormal, Vec3 SupportNormal
     return true;
 }
 
+bool BlendSolver::ValidateVariableSurfaceG1(const VariableRadiusSurface& Surface,
+                                              Vec3 LowSupportNormal, Vec3 HighSupportNormal,
+                                              double Angle, std::string& Refusal) noexcept
+{
+    if (Surface.Length <= ScalarCriteria::GeometricTolerance || !Surface.Law.Positive())
+    { Refusal = "variable-radius surface is degenerate"; return false; }
+    const Vec3 SurfaceNormal = Surface.Normal(Angle);
+    if (!ValidateG1EndpointMatch(SurfaceNormal, LowSupportNormal, Refusal)) return false;
+    if (!ValidateG1EndpointMatch(SurfaceNormal, HighSupportNormal, Refusal)) return false;
+    return true;
+}
+
 bool BlendSolver::ValidateAsymmetricEndpointChain(const AsymmetricEndpointChain& Chain,
                                                     double MinimumClearance, std::string& Refusal) noexcept
 {
