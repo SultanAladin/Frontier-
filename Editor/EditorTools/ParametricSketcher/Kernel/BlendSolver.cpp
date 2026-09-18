@@ -1257,9 +1257,9 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Blind.Box.Corner).Dot(Blind.Box.X);
                 Vec3 Radial=Sample-Centre-Blind.Box.X*(Sample-Centre).Dot(Blind.Box.X);
-                if(std::fabs(T-Entry)>1e-7*std::max(1.0,Blind.Box.LX)||std::fabs(Radial.Length()-Cavity.Hole.Radius)>1e-6)continue;
+                if(std::fabs(T-Entry)>1e-7*std::max(1.0,Blind.Box.LX)||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Cavity.Hole.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Centre,Direction,Cavity.Hole.Radius);
-                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind bore entrance seam could not be restored exactly");
                 Edge.Curve=std::move(Circle.Payload);++Restored;
             }
@@ -1323,12 +1323,12 @@ namespace
                 bool AtEntry=std::fabs(T-Entry)<=1e-7*std::max(1.0,SideLength);
                 Vec3 Target=AtEntry?Centre:FloorCentre,Radial=Sample-Target-Axis*(Sample-Target).Dot(Axis);
                 if((!AtEntry&&std::fabs((Sample-FloorCentre).Dot(Axis))>1e-7*std::max(1.0,SideLength))||
-                   std::fabs(Radial.Length()-Cavity.Radius)>1e-6)continue;
+                   !ScalarCriteria::WithinCircularTolerance(Radial.Length(), Cavity.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Target,Axis,Cavity.Radius);
                 if(Edge.VertexStart<0)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side blind-bore rim has no start vertex");
-                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     Circle=NurbsCurve::Circle(Target,Axis*-1.0,Cavity.Radius);
-                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side blind-bore rim could not be restored exactly");
                 Edge.Curve=std::move(Circle.Payload);++Restored;
             }
@@ -1390,12 +1390,12 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Step.Box.Corner).Dot(Axis);
                 Vec3 Radial=Sample-Centre-Axis*(Sample-Centre).Dot(Axis);
-                if(std::fabs(T-Expected.T)>PositionTolerance||std::fabs(Radial.Length()-Expected.Radius)>1e-6)continue;
+                if(std::fabs(T-Expected.T)>PositionTolerance||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
                 if(Edge.VertexStart<0)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped rim has no start vertex");
                 auto Circle=NurbsCurve::Circle(Centre,Axis,Expected.Radius);
-                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     Circle=NurbsCurve::Circle(Centre,Axis*-1.0,Expected.Radius);
-                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped blind-bore rim could not be restored exactly");
                 Edge.Curve=std::move(Circle.Payload);++Matches;
             }
@@ -1489,12 +1489,12 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Set.Box.Corner).Dot(Axis);
                 Vec3 Radial=Sample-Centre-Axis*(Sample-Centre).Dot(Axis);
-                if(std::fabs(T-Expected.T)>PositionTolerance||std::fabs(Radial.Length()-Expected.Radius)>1e-6)continue;
+                if(std::fabs(T-Expected.T)>PositionTolerance||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
                 if(Edge.VertexStart<0)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped set rim has no start vertex");
                 auto Circle=NurbsCurve::Circle(Centre,Axis,Expected.Radius);
-                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     Circle=NurbsCurve::Circle(Centre,Axis*-1.0,Expected.Radius);
-                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped set rim could not be restored exactly");
                 Edge.Curve=std::move(Circle.Payload);++Matches;
             }
@@ -1560,9 +1560,9 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Step.Box.Corner).Dot(Step.Box.X);
                 Vec3 Radial=Sample-Centre-Step.Box.X*(Sample-Centre).Dot(Step.Box.X);
-                if(std::fabs(T-Expected.T)>1e-7*Scale||std::fabs(Radial.Length()-Expected.Radius)>1e-6)continue;
+                if(std::fabs(T-Expected.T)>1e-7*Scale||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Centre,Direction,Expected.Radius);
-                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"stepped blind-bore rim could not be restored exactly");
                 Edge.Curve=std::move(Circle.Payload);++Matches;
             }
@@ -1648,9 +1648,9 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Dual.Box.Corner).Dot(Dual.Box.X);
                 Vec3 Radial=Sample-Centre-Dual.Box.X*(Sample-Centre).Dot(Dual.Box.X);
-                if(std::fabs(T-Expected.T)>1e-7*Scale||std::fabs(Radial.Length()-Expected.Radius)>1e-6)continue;
+                if(std::fabs(T-Expected.T)>1e-7*Scale||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Centre,Direction,Expected.Radius);
-                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"dual stepped blind-bore rim could not be restored exactly");
                 Edge.Curve=std::move(Circle.Payload);++Matches;
             }

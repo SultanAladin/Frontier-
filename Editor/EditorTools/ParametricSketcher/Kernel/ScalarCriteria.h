@@ -30,6 +30,7 @@ struct ScalarCriteria
     static constexpr double MergeTolerance    = 1e-6;                                   // [m]   topological sewing
     static constexpr double AngularTolerance  = 1e-7;                                   // [rad] direction equality
     static constexpr double SweepTolerance  = 1e-6;                                   // [rad] arc endpoint classification
+    static constexpr double CircularTolerance = 1e-6;                               // [m] circular rim / radius matching
     static constexpr double ChordTolerance    = 1e-4;                                   // [m]   tessellation sagitta
     static constexpr double VolumeTolerance  = 1e-3;                                   // [m³]  analytic-vs-tessellated volume gate
     static constexpr double ParametricEpsilon = 1e-12;                                  // [-]   knot / parameter equality
@@ -57,6 +58,11 @@ struct ScalarCriteria
     [[nodiscard]] static bool WithinAngularTolerance(double Measured, double Exact) noexcept
     {
         return std::fabs(Measured - Exact) <= SweepTolerance;
+    }
+
+    [[nodiscard]] static bool WithinCircularTolerance(double Measured, double Exact) noexcept
+    {
+        return std::fabs(Measured - Exact) <= CircularTolerance;
     }
 
     [[nodiscard]] static bool WithinVolumeTolerance(double Measured, double Exact) noexcept
