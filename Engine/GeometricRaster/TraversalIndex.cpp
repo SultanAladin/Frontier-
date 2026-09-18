@@ -12,10 +12,10 @@
 #if defined(_MSC_VER)
 #pragma warning(push)
 // 4005: tiny_bvh.h unconditionally re-#defines WIN32_LEAN_AND_MEAN (already /D-defined by the toolchain).
-// 0:    attempt to silence tiny_bvh.h's informational C0000 ("AVX2 and FMA not enabled" — expected: this
-//        build targets /arch:AVX for Sandy Bridge hosts, so tinybvh knowingly uses its SSE/scalar fallback).
-//        Harmless no-op if the message bypasses the warning system.
-#pragma warning(disable : 0 4005 4244 4267 4310 4324 4456 4457 4458 4459 4701 4702 4996)
+// tiny_bvh.h's informational C0000 ("AVX not enabled" — expected: baseline ISA builds use its SSE/scalar
+//    fallback) bypasses the warning system entirely, so it cannot be disabled here — and listing `0` in the
+//    disable list is itself invalid (it produced C4616 on every build). It is a message, not a defect.
+#pragma warning(disable : 4005 4244 4267 4310 4324 4456 4457 4458 4459 4701 4702 4996)
 #elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wall"

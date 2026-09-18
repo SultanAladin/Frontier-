@@ -666,6 +666,7 @@ $EngineRelative = @(
     'Engine\DeviceExchange\RayTracingCapabilitySet.cpp'
     'Engine\DeviceExchange\InputExchange.cpp'
     'Engine\DeviceExchange\DiagnosticMetrics.cpp'
+    'Engine\DeviceExchange\TelemetryProbe.cpp'   # dev/debug-only in-RAM probe; compiles to an empty TU in ship builds
     'Engine\DeviceExchange\OrientationClassifier.cpp'
     'Engine\DisplayPresentation\ReSTIRIntegrator.cpp'
     'Engine\DisplayPresentation\ShadingTableCodec.cpp'

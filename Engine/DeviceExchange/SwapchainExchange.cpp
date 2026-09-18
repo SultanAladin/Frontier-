@@ -15,6 +15,7 @@
 #include <thorvg.h>
 
 #include "SwapchainExchange.h"
+#include "TelemetryProbe.h"   // dev/debug-only: exact shader-load and bring-up stage timings; compiles out of ship builds
 #include "../ContentInterchange/MaterialIndex.h"
 #include "../ContentInterchange/TextureIndex.h"
 #include "../GeometricRaster/TraversalIndex.h"
@@ -36,6 +37,11 @@
 #   endif
 #   ifndef NOMINMAX
 #       define NOMINMAX
+#   endif
+    // GLFW (included above) defines APIENTRY for its own declarations; minwindef.h then re-#defines it to the
+    //    same expansion, which MSVC reports as C4005 on every build. Same macro either way — yield to Windows'.
+#   ifdef APIENTRY
+#       undef APIENTRY
 #   endif
 #   include <windows.h>
 #elif defined(__APPLE__)
@@ -322,6 +328,7 @@ static std::filesystem::path ResolveAssetPath(const std::string& RelativePath)
 
 static std::vector<uint32_t> LoadSpirv(const std::string& RelativePath)
 {
+    FRONTIER_PROBE_SHADER_SCOPE(RelativePath.c_str());   // dev/debug only: exact per-shader load time, RAM-held until close
     const std::filesystem::path Path = ResolveAssetPath(RelativePath);
 
     std::ifstream File(Path, std::ios::binary | std::ios::ate);
@@ -498,6 +505,7 @@ bool SwapchainExchange::Bring() noexcept
 
     for (const Stage& Current : Stages)
     {
+        FRONTIER_PROBE_STAGE_SCOPE(Current.Name);   // dev/debug only: every Bring* stage gets an exact duration row
         if (!(this->*Current.Fn)())
         {
             std::cerr << "[SwapchainExchange] Bring-up stopped at stage " << Current.Name << ".\n";

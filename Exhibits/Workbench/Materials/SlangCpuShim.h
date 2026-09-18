@@ -12,6 +12,14 @@
 
 #pragma once
 
+// Any TU that includes this shim is, by definition, compiling shader text as C++ — so the shim itself turns the
+//    port on. Without this, a TU that forgot -DFRONTIER_CPU_PORT (or a build system that dropped it, which is
+//    exactly what broke the Windows Project-Zero link of ShaderballExhibit.cpp) compiles MaterialEvaluation.slang's
+//    GLSL branch (`layout(binding = 13) uniform sampler2D ...`) as C++ and fails on the first `layout(`.
+#ifndef FRONTIER_CPU_PORT
+#define FRONTIER_CPU_PORT 1
+#endif
+
 #include <cmath>
 
 typedef unsigned int uint;   // M3: the selection/channel table in MaterialEvaluation.slang uses uint (native in GLSL)

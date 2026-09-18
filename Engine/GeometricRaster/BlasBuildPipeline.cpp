@@ -6,6 +6,7 @@
 //    mirror actually builds. If the plan and the kernels disagree about the stage order, the gate catches it there — this
 //    file only turns each plan entry into a dispatch and puts a barrier between them.
 #include "BlasBuildPipeline.h"
+#include "../DeviceExchange/TelemetryProbe.h"   // dev/debug-only shader-load timing; compiles out of ship builds
 
 #include <algorithm>
 #include <array>
@@ -262,6 +263,7 @@ bool BlasBuildPipeline::Build(VkDevice InDevice, const VulkanSourced& InApi, con
     // ── deserialize the two SPIR-V blobs and make the pipelines ─────────────────────────────────────────────────────
     const auto MakePipeline = [&](const char* Name, VkPipelineLayout Layout, VkPipeline& OutPipeline) -> bool
     {
+        FRONTIER_PROBE_SHADER_SCOPE(Name);   // dev/debug only: exact per-shader load + pipeline time, RAM-held until close
         std::vector<char> Code;
         if (!LoadSpirv(ShaderDir, Name, Code))
         {

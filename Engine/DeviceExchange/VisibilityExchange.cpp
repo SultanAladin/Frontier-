@@ -6,6 +6,7 @@
 
 #include <vulkan/vulkan.h>
 #include "VisibilityExchange.h"
+#include "TelemetryProbe.h"   // dev/debug-only shader-load timing; compiles out of ship builds
 #include "../GeometricRaster/SceneStructure.h"
 #include <algorithm>
 #include <array>
@@ -171,6 +172,7 @@ std::filesystem::path ResolveAssetPath(const std::string& Relative)
 
 VkShaderModule LoadShader(VkDevice Device, const char* Relative)
 {
+    FRONTIER_PROBE_SHADER_SCOPE(Relative);   // dev/debug only: exact per-shader load time, RAM-held until close
     const std::filesystem::path Path = ResolveAssetPath(Relative);
     std::ifstream File(Path, std::ios::binary | std::ios::ate);
     if (!File.is_open()) { std::cerr << "[VisibilityExchange] Cannot open SPIR-V: " << Relative << "\n"; return VK_NULL_HANDLE; }

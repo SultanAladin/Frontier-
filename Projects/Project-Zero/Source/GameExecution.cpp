@@ -51,6 +51,7 @@
 #include "InterfaceTrialSequence.h"
 #include "InstanceMotionSequence.h"
 #include "PerformanceTelemetrySequence.h"
+#include "../../../Engine/DeviceExchange/TelemetryProbe.h"   // dev/debug-only in-RAM probe; every FRONTIER_PROBE_* call compiles out of ship builds
 #include "PhysicsInstanceSequence.h"
 #include "InterfaceAudioSequence.h"
 #include "../../../Engine/SpatialInterface/InterfaceScreenSequence.h"
@@ -69,6 +70,10 @@
 
 int main(int argc, char** argv)
 {
+    // Dev/debug-only in-RAM telemetry probe (TelemetryProbe.h): pins the boot epoch FIRST so every startup phase,
+    //    shader load and frame row is measured against the true start of main. Ship builds compile this to nothing.
+    FRONTIER_PROBE_BOOT();
+
     // D4: how many rigid bodies the --scene drop level contains. Fixed so the exported glTF and the solver agree
     //    on instance ordinals without either having to inspect the other.
     constexpr uint32_t kDropBodyCount = 12u;
@@ -235,6 +240,7 @@ int main(int argc, char** argv)
     uint32_t MoonSlots[Frontier::kMoonAtlasCount];
     for (uint32_t M = 0u; M < Frontier::kMoonAtlasCount; ++M) MoonSlots[M] = 0xFFFFFFFFu;
     {
+        FRONTIER_PROBE_PHASE_BEGIN("SceneDecode");
         Frontier::SceneDecodeConfiguration Decode;
         Decode.UniformScale = SceneScale;
         Decode.SlabLimit    = Configuration.Query().Backend.SlabLimit;
@@ -265,7 +271,9 @@ int main(int argc, char** argv)
                       Level.QueryName().c_str(), Level.QueryTriangleCount(), Level.QueryInstances().size(), Level.QueryClusters().size(),
                       (size_t)Level.QueryMaterials().QueryCount(), Level.QueryLuminaires().size(), Lo.x, Lo.y, Lo.z, Hi.x, Hi.y, Hi.z);
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Scene", Line);
+        FRONTIER_PROBE_PHASE_END("SceneDecode");
         {
+            FRONTIER_PROBE_PHASE_BEGIN("TextureDecode");
             const Frontier::MaterialIndexMetrics& M = Level.QueryMaterials().QueryMetrics();
             std::vector<std::string> TextureReport;
             (void)Textures.Decode(Configuration.Query().Backend.TextureEdgeLimit, &TextureReport);
@@ -275,6 +283,7 @@ int main(int argc, char** argv)
             std::snprintf(Line, sizeof(Line), "Materials: %u descriptors -> %u records, %u slabs (limit %u, %u folded), %zu placements, %zu cameras, %zu punctual lights",
                           M.DescriptorCount, M.DescriptorCount, M.SlabCount, M.SlabLimit, M.FoldedCount, Level.QueryPlacements().size(), Level.QueryCameras().size(), Level.QueryPunctualLuminaires().size());
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Materials", Line);
+            FRONTIER_PROBE_PHASE_END("TextureDecode");
         }
     }
     const uint32_t LuminaireCount = static_cast<uint32_t>(Level.QueryLuminaires().size());
@@ -371,10 +380,12 @@ int main(int argc, char** argv)
     //     (Scratchpad/CheckTraversalIdentity.sh is the gate). Per-instance transforms arrive in D2/D3.
     Frontier::TraversalIndex Traversal;
     {
+        FRONTIER_PROBE_PHASE_BEGIN("CwbvhBuild");
         // SBVH; ~2× build time for ~10 % fewer steps. The drop level opts OUT: spatial splits cut triangles,
         //    which makes the tree unrefittable, and movable geometry is worth more here than the traversal gain.
         const bool HighQuality = !DropScene && Level.QueryTriangleCount() <= 2'000'000u;
         Traversal.BuildBottomLevel(Level.QueryFlatTriangles(), HighQuality);
+        FRONTIER_PROBE_PHASE_END("CwbvhBuild");
         const Frontier::TraversalMetrics& M = Traversal.QueryMetrics();
         char Line[256];
         std::snprintf(Line, sizeof(Line), "CWBVH: %u triangles → %u nodes, %.1f KB nodes + %.1f KB leaves (%.1f B/tri), SAH %.2f, built in %.1f ms (%s)",
@@ -500,6 +511,7 @@ int main(int argc, char** argv)
     Frontier::SwapchainExchange Surface(SurfaceConfig);
     Surface.AssignRayTracingRequest(static_cast<Frontier::RayTracingRequestCategory>(Configuration.Query().Backend.RayTracingTier));
 
+    FRONTIER_PROBE_PHASE_BEGIN("VulkanBringUp");
     if (!Surface.Bring())
     {
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Fatal,
@@ -510,14 +522,19 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    FRONTIER_PROBE_PHASE_END("VulkanBringUp");
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
                          "Bootstrap", "Window and Vulkan swapchain ready.");
 
     {
+        FRONTIER_PROBE_PHASE_BEGIN("ShadingTableBake");
         const Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake();   // R4b: GGX energy + LTC sheen LUTs
         Surface.UploadShadingTables(Tables.Energy.data(), Tables.Sheen.data(), Frontier::ShadingTableSet::kResolution);
+        FRONTIER_PROBE_PHASE_END("ShadingTableBake");
     }
+    FRONTIER_PROBE_PHASE_BEGIN("SceneUpload");
     Surface.UploadScene(Level, Traversal, &Textures);
+    FRONTIER_PROBE_PHASE_END("SceneUpload");
 
     //──────────────────────────────────────────────────────────────────────────
     // D3 — scripted instance motion (--animate), proving the transform path before physics
@@ -919,6 +936,7 @@ int main(int argc, char** argv)
     // P2: previous-frame mouse state, so a press is detected as an edge rather than a level.
     bool PointerHeldLastFrame = false;
 
+    FRONTIER_PROBE_PHASE_BEGIN("InterfaceBringUp");
     if (Interface.Bring(Surface.QueryDevice(), Surface.QueryPhysicalDevice(),
                         Surface.QueryCycleSlotCount(), Surface.QueryColourFormat(), Surface.QueryDepthFormat()))
     {
@@ -1020,6 +1038,8 @@ int main(int argc, char** argv)
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Warning, "Interface",
                              "Spatial interface unavailable - the scene renders without the panel.");
     }
+    FRONTIER_PROBE_PHASE_END("InterfaceBringUp");
+    FRONTIER_PROBE_EVENT("StartupComplete");
 
     // Recorded after the scene resolves and before the blit, so the panel is part of the presented image.
     Surface.AssignOverlaySequence([&](void* Command, uint32_t CycleSlot) noexcept
@@ -1070,6 +1090,11 @@ int main(int argc, char** argv)
         // Clamp Δτ to prevent spiral-of-death on window drag or breakpoints
         if (Δτ > 0.1f) Δτ = 0.1f;
 
+        // Dev/debug probe: open this frame's row. Every FRONTIER_PROBE_LAP below charges the time since the
+        //    previous lap to its section, and FRONTIER_PROBE_FRAME_END (in the telemetry block at the bottom)
+        //    commits the row to RAM. Ship builds: all of these compile to nothing.
+        FRONTIER_PROBE_FRAME_BEGIN(Δτ);
+
         // ① Poll input — GLFW callbacks forward into Input
         Surface.PollInput(Input);
 
@@ -1084,6 +1109,7 @@ int main(int argc, char** argv)
         Notifications.Advance(Δτ);
         Configuration.Advance(Δτ);
         Telemetry.RecordFrame(Δτ);
+        FRONTIER_PROBE_LAP(InputAndUi);
 
         // ①a' The sky and the weather. Ticked here, beside the other per-frame advances, so the clock, the wind
         //     phase and the precipitation pool all move exactly once and in a fixed order. The camera position
@@ -1094,6 +1120,7 @@ int main(int argc, char** argv)
             const float CameraWorld[3] = { Eye.x, Eye.y, Eye.z };
             Celestial.Tick(static_cast<float>(Δτ), CameraWorld, 0.0f);
         }
+        FRONTIER_PROBE_LAP(CelestialTick);
 
         // ①b' F3 debug popup: view / HiZ / alias-pick toggles persist to [render] and restart the accumulation.
         // R6 row 3: the scheduler's Alias-pick checkbox writes the integrator directly — mirror it into the popup
@@ -1480,6 +1507,7 @@ int main(int argc, char** argv)
             AppliedOrbit = Orbit.Revision;
         }
 #endif
+        FRONTIER_PROBE_LAP(EditorAndPanels);
 
         // ④ Build dispatch configuration from live camera + integrator state (camera motion restarts accumulation)
         //    Render scale: the kernel runs on a sub-rectangle of the storage image and the blit stretches it.
@@ -1743,6 +1771,8 @@ int main(int argc, char** argv)
             }
         }
 
+        FRONTIER_PROBE_LAP(SimulationAndInterface);
+
         // ④d GPU sky — the kernel reads the packed record at binding 21 on every miss and every escaped bounce.
         //     Pushed every frame like the instances: 128 bytes, and the sun moves. Refusal is impossible here by
         //     construction (the size is pinned by static_assert and the device is up), so the nodiscard is cast
@@ -1880,8 +1910,11 @@ int main(int argc, char** argv)
             }
         }
 
+        FRONTIER_PROBE_LAP(ScenePush);
+
         // ⑤ Cull → raster → HiZ → resolve → kernel, blit to swapchain, submit ImGui, present
         Surface.RecordAndPresent(Dispatch);
+        FRONTIER_PROBE_LAP(RecordAndPresent);
 
         Integrator.IncrementAccumulationIndex();
 
@@ -1894,6 +1927,7 @@ int main(int argc, char** argv)
             if (Clock::now() < Coarse) std::this_thread::sleep_until(Coarse);
             while (Clock::now() < Deadline) { }
         }
+        FRONTIER_PROBE_LAP(FrameCapWait);
 
         //──────────────────────────────────────────────────────────────────────
         // Performance telemetry — CPU frame pacing and the GPU stage timings
@@ -1923,6 +1957,12 @@ int main(int argc, char** argv)
             }
         }
 
+        // Dev/debug probe: commit this frame's row — CPU laps above plus the device timestamps and the workload
+        //    counters — to RAM. Nothing is written to disk here; FRONTIER_PROBE_SAVE at shutdown does that once.
+        FRONTIER_PROBE_FRAME_END(Surface.QueryVisibilityTelemetry(),
+                                 Telemetry.QueryAverageFramesPerSecond(),
+                                 Telemetry.QueryResidentMebibytes());
+
         // Keep the on-disk telemetry current even if the process is killed mid-run.
         if ((Integrator.QueryAccumulationIndex() & 63u) == 0u) Logger.FlushSink();
     }
@@ -1930,7 +1970,13 @@ int main(int argc, char** argv)
     //──────────────────────────────────────────────────────────────────────────
     // Shutdown
     //──────────────────────────────────────────────────────────────────────────
+    FRONTIER_PROBE_EVENT("Shutdown");
     Surface.Retire();
+
+    // Dev/debug probe: THE one and only disk write of the probe's life. Every frame row, startup phase, shader
+    //    load and event recorded above is released to Diagnostics/ProjectZero_TelemetryProbe.{md,csv} now that
+    //    the application is closing. Ship builds compile this to nothing.
+    FRONTIER_PROBE_SAVE("Diagnostics");
 
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information,
                          "Shutdown", "Render loop exited cleanly.");

@@ -200,6 +200,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DeviceExchange/OrientationClassifier.cpp
     Engine/DeviceExchange/InputExchange.cpp
     Engine/DeviceExchange/DiagnosticMetrics.cpp
+    Engine/DeviceExchange/TelemetryProbe.cpp   # dev/debug-only in-RAM probe; empty TU unless FRONTIER_DEVELOPMENT/FRONTIER_DEBUG
     Engine/GeometricRaster/GeometryStructure.cpp
     Engine/GeometricRaster/CameraProjection.cpp
     Engine/GeometricRaster/SceneStructure.cpp

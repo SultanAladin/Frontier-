@@ -65,7 +65,18 @@ inline vec4 FetchSheenFull(float mu, float alpha)
     return vec4(Out[0], Out[1], Out[2], Out[3]);
 }
 
+// MaterialEvaluation.slang is GLSL first and C++ second: its literals are un-suffixed (3.0, 0.5), which GLSL
+//    treats as float and MSVC as double — hence a wall of C4244/C4305 "double to float" on every Windows build.
+//    The narrowing is intentional and exact for these constants; suffixing hundreds of literals would make the
+//    file worse GLSL. Silence the two conversion warnings for the include alone.
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4244 4305)
+#endif
 #include "MaterialEvaluation.slang"
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 #include "PngWriteCounterpart.h"
 #ifdef SHADERBALL_PREVIEW_LIB
 #include "ShaderballPreview.h"   // M7b preview entry (engine descriptor -> ball 0)

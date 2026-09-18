@@ -7,6 +7,7 @@
 
 #include <vulkan/vulkan.h>
 #include "InterfaceExchange.h"
+#include "TelemetryProbe.h"   // dev/debug-only shader-load timing; compiles out of ship builds
 #include "../SpatialInterface/InterfaceLayoutCodec.h"
 
 #include <algorithm>
@@ -68,6 +69,7 @@ std::filesystem::path ResolveInterfaceAssetPath(const char* Relative)
 
 VkShaderModule LoadInterfaceShader(VkDevice Device, const char* Relative)
 {
+    FRONTIER_PROBE_SHADER_SCOPE(Relative);   // dev/debug only: exact per-shader load time, RAM-held until close
     const std::filesystem::path Path = ResolveInterfaceAssetPath(Relative);
     std::ifstream File(Path, std::ios::binary | std::ios::ate);
     if (!File.is_open()) { std::cerr << "[InterfaceExchange] Cannot open SPIR-V: " << Relative << "\n"; return VK_NULL_HANDLE; }
