@@ -3,6 +3,7 @@
 //============================================================================================================================================
 
 #include "Kernel/SurfaceSpecification.h"
+#include "Kernel/BlendSolver.h"
 #include "VerificationPanel.h"
 #include <algorithm>
 #include <cstdarg>
@@ -44,6 +45,19 @@ double MaxRadiusError(const NurbsCurve& C, Vec3 Centre, double Radius, int Sampl
 int main()
 {
     VerificationPanel Panel("SolidArc · Phase 1 · Kernel Verification — VectorSpecification · CurveSpecification · SurfaceSpecification");
+
+    //------------------------------------------------------------------ asymmetric endpoint support classifier
+    Panel.Section("BlendSolver · asymmetric endpoint support classifier");
+    {
+        EndpointSupport Low{ { 0, 0, 0 }, { 0, 0, 1 }, 2.0 };
+        EndpointSupport High{ { 0, 0, 8 }, { 0, 0, -1 }, 1.25 };
+        std::string Refusal;
+        Panel.Expect("Asymmetric parallel endpoint supports are accepted", BlendSolver::ValidateAsymmetricEndpointPair(Low, High, 0.1, Refusal));
+        Panel.Expect("Equal endpoint radii are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, High.Normal, 2.0 }, 0.1, Refusal));
+        Panel.Expect("Non-parallel endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, { 1, 0, 0 }, 1.25 }, 0.1, Refusal));
+        Panel.Expect("Consumed endpoint ligament is refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ { 3, 0, 0 }, High.Normal, 1.25 }, 0.1, Refusal));
+        Panel.Expect("Degenerate endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, {}, 1.25 }, 0.1, Refusal));
+    }
 
     //------------------------------------------------------------------ scalar tolerance policy
     Panel.Section("ScalarCriteria · centralized volume acceptance");
