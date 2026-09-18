@@ -45,6 +45,15 @@ int main()
 {
     VerificationPanel Panel("SolidArc · Phase 1 · Kernel Verification — VectorSpecification · CurveSpecification · SurfaceSpecification");
 
+    //------------------------------------------------------------------ scalar tolerance policy
+    Panel.Section("ScalarCriteria · centralized volume acceptance");
+    {
+        Panel.Expect("Volume gate accepts exact value", ScalarCriteria::WithinVolumeTolerance(12.0, 12.0));
+        Panel.Expect("Volume gate accepts its scaled boundary", ScalarCriteria::WithinVolumeTolerance(12.0 + ScalarCriteria::VolumeTolerance * 12.0, 12.0));
+        Panel.Expect("Volume gate refuses beyond scaled boundary", !ScalarCriteria::WithinVolumeTolerance(12.0 + ScalarCriteria::VolumeTolerance * 12.1, 12.0));
+        Panel.Expect("Volume gate has absolute floor for small solids", ScalarCriteria::WithinVolumeTolerance(0.0, 0.25 * ScalarCriteria::VolumeTolerance));
+    }
+
     //------------------------------------------------------------------ vectors & matrices
     Panel.Section("VectorSpecification");
     {
