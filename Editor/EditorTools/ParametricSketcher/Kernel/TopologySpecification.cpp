@@ -520,7 +520,7 @@ int BrepBody::Capped(double Tolerance) noexcept
         {
             Rim& Cand = Rims[H];
             if (Cand.Taken) continue;
-            if (std::fabs(std::fabs(Cand.Normal.Dot(N)) - 1.0) > 1e-6) continue;                   // not parallel
+            if (std::fabs(std::fabs(Cand.Normal.Dot(N)) - 1.0) > ScalarCriteria::DirectionTolerance) continue;                   // not parallel
             if (std::fabs(Cand.Normal.Dot(N) * Cand.Offset - Outer.Offset) > Tolerance * 10.0) continue;   // not the same plane
             if (Cand.Normal.Dot(N) > 0) continue;                                                    // same walk sense → its own cap, not a hole
             if (!Inside(Cand.Pts[0])) continue;
@@ -1041,7 +1041,7 @@ Deliver<BrepBody> BrepBody::ChamferEdge(int EdgeIndex, double SetBack, double To
     //    normals: Tangent · N1 = 0 and Tangent · N2 = 0. For non-90° dihedrals, the set-back would be along N1 and N2
     //    but those displacements are not parallel to the original edge; the chamfer face would not be planar. Refuse
     //    those — the user can split the edge first.
-    if (std::fabs(Tangent.Dot(N1)) > 1e-6 || std::fabs(Tangent.Dot(N2)) > 1e-6) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge is not perpendicular to the face normals at the chamfer point (chamfer is planar only); for a rolling-ball fillet, see Phase 11b");
+    if (std::fabs(Tangent.Dot(N1)) > 1e-6 || std::fabs(Tangent.Dot(N2)) > ScalarCriteria::DirectionTolerance) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "edge is not perpendicular to the face normals at the chamfer point (chamfer is planar only); for a rolling-ball fillet, see Phase 11b");
     // The chamfer's outward direction is the bisector of N1 and N2 — this is the direction we displace the original
     //    edge into. For a 90° corner, N1 and N2 are perpendicular and the bisector is at 45°; for an obtuse corner, the
     //    bisector leans toward the steeper face.
@@ -1053,7 +1053,7 @@ Deliver<BrepBody> BrepBody::ChamferEdge(int EdgeIndex, double SetBack, double To
     //    sin(half-dihedral). For dihedral θ between F1 and F2, sin(θ/2) = |N1 × N2| / 2. If SetBack / sin(θ/2) > edge
     //    length, the chamfer overshoots — refuse. (We use 80% of the edge length as the safe upper bound so adjacent
     //    chamfers still meet cleanly.)
-    double SinHalf = (N1.Cross(N2)).Length() * 0.5; if (SinHalf <= 1e-6) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face normals are parallel (no corner)");
+    double SinHalf = (N1.Cross(N2)).Length() * 0.5; if (SinHalf <= ScalarCriteria::DirectionTolerance) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face normals are parallel (no corner)");
     double EdgeLen = (P1 - P0).Length();
     double MaxSetback = EdgeLen * 0.4 * SinHalf;
     if (SetBack > MaxSetback) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "set-back is too large for this edge (would self-intersect)");

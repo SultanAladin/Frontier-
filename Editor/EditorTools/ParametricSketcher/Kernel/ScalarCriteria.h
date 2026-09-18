@@ -32,6 +32,9 @@ struct ScalarCriteria
     static constexpr double SweepTolerance  = 1e-6;                                   // [rad] arc endpoint classification
     static constexpr double CircularTolerance = 1e-6;                               // [m] circular rim / radius matching
     static constexpr double CurveTolerance = 1e-7;                                  // [m or -] curve intersection / subdivision
+    static constexpr double ScaledPositionTolerance = 1e-7;                      // [m or -] bounded rim / parameter positions
+    static constexpr double DirectionTolerance = 1e-6;                           // [rad or -] legacy face/edge direction tests
+    static constexpr double DistanceTolerance = 1e-6;                            // [m] local surface/intersection distance
     static constexpr double ChordTolerance    = 1e-4;                                   // [m]   tessellation sagitta
     static constexpr double VolumeTolerance  = 1e-3;                                   // [m³]  analytic-vs-tessellated volume gate
     static constexpr double ParametricEpsilon = 1e-12;                                  // [-]   knot / parameter equality

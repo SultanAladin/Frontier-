@@ -1257,7 +1257,7 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Blind.Box.Corner).Dot(Blind.Box.X);
                 Vec3 Radial=Sample-Centre-Blind.Box.X*(Sample-Centre).Dot(Blind.Box.X);
-                if(std::fabs(T-Entry)>1e-7*std::max(1.0,Blind.Box.LX)||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Cavity.Hole.Radius))continue;
+                if(std::fabs(T-Entry)>ScalarCriteria::ScaledPositionTolerance*std::max(1.0,Blind.Box.LX)||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Cavity.Hole.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Centre,Direction,Cavity.Hole.Radius);
                 if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Next.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"blind bore entrance seam could not be restored exactly");
@@ -1320,9 +1320,9 @@ namespace
             for(BrepEdge& Edge:Next.Payload.Edges)if(Edge.Closed())
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Side.Box.Corner).Dot(Axis);
-                bool AtEntry=std::fabs(T-Entry)<=1e-7*std::max(1.0,SideLength);
+                bool AtEntry=std::fabs(T-Entry)<=ScalarCriteria::ScaledPositionTolerance*std::max(1.0,SideLength);
                 Vec3 Target=AtEntry?Centre:FloorCentre,Radial=Sample-Target-Axis*(Sample-Target).Dot(Axis);
-                if((!AtEntry&&std::fabs((Sample-FloorCentre).Dot(Axis))>1e-7*std::max(1.0,SideLength))||
+                if((!AtEntry&&std::fabs((Sample-FloorCentre).Dot(Axis))>ScalarCriteria::ScaledPositionTolerance*std::max(1.0,SideLength))||
                    !ScalarCriteria::WithinCircularTolerance(Radial.Length(), Cavity.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Target,Axis,Cavity.Radius);
                 if(Edge.VertexStart<0)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side blind-bore rim has no start vertex");
@@ -1382,7 +1382,7 @@ namespace
             Rings.push_back({T,Step.Stages[I].Radius});
             if(I+1<N)Rings.push_back({T,Step.Stages[I+1].Radius});
         }
-        int Restored=0;double PositionTolerance=1e-7*std::max(1.0,SideLength);
+        int Restored=0;double PositionTolerance=ScalarCriteria::ScaledPositionTolerance*std::max(1.0,SideLength);
         for(const Ring& Expected:Rings)
         {
             int Matches=0;Vec3 Centre=Step.Along==1?P(Step.X,Expected.T,Step.Cross):P(Step.X,Step.Cross,Expected.T);
@@ -1481,7 +1481,7 @@ namespace
                 if(I+1<Cavity.Stages.size())Rings.push_back({T,Cavity.Stages[I+1].Radius,Cavity.X,Cavity.Cross});
             }
         }
-        int Restored=0;double PositionTolerance=1e-7*std::max(1.0,SideLength);
+        int Restored=0;double PositionTolerance=ScalarCriteria::ScaledPositionTolerance*std::max(1.0,SideLength);
         for(const Ring& Expected:Rings)
         {
             int Matches=0;Vec3 Centre=Along==1?P(Expected.X,Expected.T,Expected.Cross):P(Expected.X,Expected.Cross,Expected.T);
@@ -1560,7 +1560,7 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Step.Box.Corner).Dot(Step.Box.X);
                 Vec3 Radial=Sample-Centre-Step.Box.X*(Sample-Centre).Dot(Step.Box.X);
-                if(std::fabs(T-Expected.T)>1e-7*Scale||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
+                if(std::fabs(T-Expected.T)>ScalarCriteria::ScaledPositionTolerance*Scale||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Centre,Direction,Expected.Radius);
                 if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"stepped blind-bore rim could not be restored exactly");
@@ -1648,7 +1648,7 @@ namespace
             {
                 Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Dual.Box.Corner).Dot(Dual.Box.X);
                 Vec3 Radial=Sample-Centre-Dual.Box.X*(Sample-Centre).Dot(Dual.Box.X);
-                if(std::fabs(T-Expected.T)>1e-7*Scale||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
+                if(std::fabs(T-Expected.T)>ScalarCriteria::ScaledPositionTolerance*Scale||!ScalarCriteria::WithinCircularTolerance(Radial.Length(), Expected.Radius))continue;
                 auto Circle=NurbsCurve::Circle(Centre,Direction,Expected.Radius);
                 if(!Circle||Edge.VertexStart<0||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>ScalarCriteria::CircularTolerance)
                     return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"dual stepped blind-bore rim could not be restored exactly");
@@ -2509,7 +2509,7 @@ bool BlendSolver::Frame(const BrepBody& Body, int Edge, EdgeCornerFrame& Out, st
 
     Vec3 NA, NB;
     if (!PlanarNormal(Body, FaceA, NA) || !PlanarNormal(Body, FaceB, NB)) { Refusal = "blend requires both adjacent faces to be planar (curvature detected)"; return false; }
-    if (std::fabs(Tangent.Dot(NA)) > 1e-6 || std::fabs(Tangent.Dot(NB)) > 1e-6) { Refusal = "edge does not lie in both face planes"; return false; }
+    if (std::fabs(Tangent.Dot(NA)) > 1e-6 || std::fabs(Tangent.Dot(NB)) > ScalarCriteria::DirectionTolerance) { Refusal = "edge does not lie in both face planes"; return false; }
 
     Vec3 Bisector = NA + NB;
     if (Bisector.Length() <= Tol) { Refusal = "adjacent faces are opposite (degenerate corner)"; return false; }
@@ -2680,7 +2680,7 @@ Deliver<BrepBody> BlendSolver::FilletEdge(const BrepBody& Body, int Edge, double
                     if (!PlanarNormal(Result, Other, PlaneNormal)) continue;
                     double Facing2 = PlaneNormal.Dot(F.Tangent);
                     if (std::fabs(Facing2) <= 1e-9) continue;                              // a rail of the roll: already exact
-                    if (std::fabs(std::fabs(Facing2) - 1.0) > 1e-6) continue;              // a mitred end sections in an ellipse, not an arc
+                    if (std::fabs(std::fabs(Facing2) - 1.0) > ScalarCriteria::DirectionTolerance) continue;              // a mitred end sections in an ellipse, not an arc
 
                     auto AngleOf = [&](Vec3 P)
                     {
@@ -2921,7 +2921,7 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
     };
     std::sort(Targets.begin(), Targets.end(), Less);
 
-    const double MatchTolerance = 1e-7 * std::max(1.0, Body.Bounds().Diagonal());
+    const double MatchTolerance = ScalarCriteria::ScaledPositionTolerance * std::max(1.0, Body.Bounds().Diagonal());
     auto Resolve = [&](const BrepBody& Working, const Signature& Wanted) noexcept -> int
     {
         int Found = -1; double Best = ScalarCriteria::Infinity; bool Ambiguous = false;
@@ -3066,7 +3066,7 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
         Vec3 A = Clean.Vertices[E.VertexStart].Point, B = Clean.Vertices[E.VertexEnd].Point;
         double Chord = (B - A).Length();
         if (Chord <= Tol) continue;
-        if (std::fabs(E.Curve.Length() - Chord) > 1e-7 * std::max(1.0, Chord)) continue;  // genuinely curved
+        if (std::fabs(E.Curve.Length() - Chord) > ScalarCriteria::ScaledPositionTolerance * std::max(1.0, Chord)) continue;  // genuinely curved
         Deliver<NurbsCurve> Straight = NurbsCurve::Line(A, B);
         if (Straight) E.Curve = std::move(Straight.Payload);
     }

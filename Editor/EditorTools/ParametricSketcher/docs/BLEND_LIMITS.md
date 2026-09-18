@@ -32,6 +32,21 @@ This replaces the previous **25 / 30** sweep, its five artificial seam refusals,
 
 A planar chamfer has an exact local construction. If no cutter placement lands within the round-off bound, `ChamferEdge` now returns an explicit refusal rather than a "closest" but incorrect solid. The pushed-spanner sweep has an exact placement for all 24 physical corners, including both 120-degree shoulders.
 
+## Tolerance hierarchy
+
+Kernel tolerance policy is centralized in `ScalarCriteria` and deliberately separates decision bands:
+
+- `KernelTolerance` (`1e-9`): coincidence and exact parameter boundaries.
+- `GeometricTolerance` (`1e-8`): strict frame, axis, and geometric classification.
+- `CurveTolerance` / `ScaledPositionTolerance` (`1e-7`): curve subdivision, intersections, and bounded rim positions.
+- `AngularTolerance` (`1e-7`): direction classification; `SweepTolerance` (`1e-6`) handles finite arc-span endpoints.
+- `CircularTolerance` / `DirectionTolerance` / `DistanceTolerance` (`1e-6`): circular rims, legacy face-edge direction checks, and local surface distances.
+- `MergeTolerance` (`1e-6`): topological sewing and positive-clearance decisions.
+- `VolumeTolerance` (`1e-3`): scaled analytic-versus-tessellated volume acceptance.
+- `ChordTolerance` (`1e-4`): tessellation sagitta, not a topology acceptance threshold.
+
+A smaller tolerance is not automatically safer: each category must match the numerical operation being classified. New kernel code should use a named policy constant or helper and add boundary acceptance/refusal coverage.
+
 ## Cutter precision
 
 A bounded cutter needs end caps. A cap placed exactly at an edge end is a non-transversal intersection; placing it well past the end can trim a neighbouring face. `ChamferEdge` therefore evaluates a deterministic ladder of **100** cutter placements: five lateral half-widths and twenty positive/negative along-edge margins, retains the closest closed candidate, and returns it only when its measured volume is within **3 μm³** of the exact closed-form wedge. Otherwise the operation explicitly refuses the inaccurate cut. That tolerance is the tessellated volume integrator's observed numerical floor, not a percentage allowance.

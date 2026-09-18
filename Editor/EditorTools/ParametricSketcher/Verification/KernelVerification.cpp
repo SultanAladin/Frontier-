@@ -59,6 +59,9 @@ int main()
         Panel.Expect("Circular gate accepts its boundary", ScalarCriteria::WithinCircularTolerance(2.0 + ScalarCriteria::CircularTolerance, 2.0));
         Panel.Expect("Circular gate rejects beyond boundary", !ScalarCriteria::WithinCircularTolerance(2.0 + 1.1 * ScalarCriteria::CircularTolerance, 2.0));
         Panel.Expect("Curve tolerance is tighter than merge tolerance", ScalarCriteria::CurveTolerance < ScalarCriteria::MergeTolerance);
+        Panel.Expect("Scaled position tolerance is tighter than merge tolerance", ScalarCriteria::ScaledPositionTolerance < ScalarCriteria::MergeTolerance);
+        Panel.Expect("Direction tolerance is distinct from angular policy", ScalarCriteria::DirectionTolerance > ScalarCriteria::AngularTolerance);
+        Panel.Expect("Distance tolerance is positive", ScalarCriteria::DistanceTolerance > 0.0);
     }
 
     //------------------------------------------------------------------ vectors & matrices
