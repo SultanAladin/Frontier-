@@ -180,6 +180,11 @@ add_executable(PlaneCylinderFilletVerification Verification/PlaneCylinderFilletV
 target_link_libraries(PlaneCylinderFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME PlaneCylinderFilletVerification COMMAND PlaneCylinderFilletVerification)
 
+# Phase 32z: bounded asymmetric endpoint-support classification and tapered/radial reconstruction.
+add_executable(AsymmetricEndpointVerification Verification/AsymmetricEndpointVerification.cpp)
+target_link_libraries(AsymmetricEndpointVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME AsymmetricEndpointVerification COMMAND AsymmetricEndpointVerification)
+
 # Phase 32a: G1 tangent-chain propagation across angular representation seams at that exact boss root.
 add_executable(TangentChainFilletVerification Verification/TangentChainFilletVerification.cpp)
 target_link_libraries(TangentChainFilletVerification PRIVATE SolidArcConsoleKit)
