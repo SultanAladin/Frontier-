@@ -3160,6 +3160,24 @@ Deliver<BrepBody> BlendSolver::ReconstructAsymmetricSupport(const AsymmetricBlen
     }
 }
 
+bool BlendSolver::ValidateAsymmetricEndpointChain(const AsymmetricEndpointChain& Chain,
+                                                    double MinimumClearance, std::string& Refusal) noexcept
+{
+    if (Chain.Supports.size() < 2) { Refusal = "endpoint chain requires at least two supports"; return false; }
+    for (size_t I = 0; I + 1 < Chain.Supports.size(); ++I)
+    {
+        if (!ValidateAsymmetricEndpointPair(Chain.Supports[I], Chain.Supports[I + 1], MinimumClearance, Refusal)) return false;
+        Vec3 Axis = (Chain.Supports[I + 1].Centre - Chain.Supports[I].Centre).Normalised();
+        if (I + 2 < Chain.Supports.size())
+        {
+            Vec3 Next = (Chain.Supports[I + 2].Centre - Chain.Supports[I + 1].Centre).Normalised();
+            if (std::fabs(std::fabs(Axis.Dot(Next)) - 1.0) > ScalarCriteria::AngularTolerance)
+            { Refusal = "endpoint chain changes axis direction"; return false; }
+        }
+    }
+    return true;
+}
+
 bool BlendSolver::ValidateAsymmetricEndpointPair(const EndpointSupport& Low, const EndpointSupport& High,
                                                    double MinimumClearance, std::string& Refusal) noexcept
 {

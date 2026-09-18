@@ -57,6 +57,10 @@ int main()
         Panel.Expect("Non-parallel endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, { 1, 0, 0 }, 1.25 }, 0.1, Refusal));
         Panel.Expect("Consumed endpoint ligament is refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ { 3, 0, 0 }, High.Normal, 1.25 }, 0.1, Refusal));
         Panel.Expect("Degenerate endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, {}, 1.25 }, 0.1, Refusal));
+        AsymmetricEndpointChain Chain{ { Low, High, EndpointSupport{ { 0, 0, 16 }, High.Normal, 0.75, ScalarCriteria::HalfPi } } };
+        Panel.Expect("Collinear asymmetric endpoint chain is accepted", BlendSolver::ValidateAsymmetricEndpointChain(Chain, 0.1, Refusal));
+        Chain.Supports[2].Centre = { 1, 0, 16 };
+        Panel.Expect("Bending endpoint chain is refused", !BlendSolver::ValidateAsymmetricEndpointChain(Chain, 0.1, Refusal));
         AsymmetricBlendSpecification Taper{ Low, EndpointSupport{ High.Centre, High.Normal, 1.25, ScalarCriteria::HalfPi }, AsymmetricSupportKind::TaperedFrustum, 0.1, 0.0 };
         Taper.Low.EndpointAngle = ScalarCriteria::HalfPi;
         Panel.Expect("Tapered asymmetric specification is accepted", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
