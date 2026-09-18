@@ -356,10 +356,10 @@ namespace
             CurrentVertex = Reverse ? Candidate.VertexStart : Candidate.VertexEnd;
             Remaining.erase(It);
         }
-        if (std::fabs(std::fabs(SweepAngle) - ScalarCriteria::Pi) <= 1e-6)
+        if (ScalarCriteria::WithinAngularTolerance(std::fabs(SweepAngle), ScalarCriteria::Pi))
             SweepAngle = std::copysign(ScalarCriteria::Pi, SweepAngle);
         return Degrees[CurrentVertex] == 1 && CurrentVertex != StartVertex &&
-            std::fabs(SweepAngle) > 1e-6 && std::fabs(SweepAngle) < ScalarCriteria::TwoPi - 1e-6;
+            std::fabs(SweepAngle) > ScalarCriteria::SweepTolerance && std::fabs(SweepAngle) < ScalarCriteria::TwoPi - ScalarCriteria::SweepTolerance;
     }
 
     bool CapRadialSector(BrepBody& Body, Vec3 AxisStart, Vec3 AxisEnd, Vec3 RadialStart,
@@ -1806,7 +1806,7 @@ namespace
         double OuterSpan = 0.0;
         if (OuterEdges.size() != SegmentCount || OuterFaces.size() != SegmentCount || OuterRadius <= BossRadius ||
             !CircularChain(Body, OuterEdges, RootCentre, Axis, OuterRadius, ClosedTopology, &OuterSpan) ||
-            std::fabs(OuterSpan - RootSpan) > 1e-6) return std::nullopt;
+            !ScalarCriteria::WithinAngularTolerance(OuterSpan, RootSpan)) return std::nullopt;
 
         Vec3 Base; double ShoulderHeight = 0.0; bool FirstOuter = true;
         for (int OuterFace : OuterFaces)
@@ -1883,8 +1883,8 @@ namespace
             RadialCaps.size() != ExpectedRadialCaps) return std::nullopt;
         Vec3 RadialStart; double SweepAngle = 0.0;
         if (!OpenChainSweep(Body, RootEdges, RootCentre, Axis, RadialStart, SweepAngle) ||
-            std::fabs(std::fabs(SweepAngle) - RootSpan) > 1e-6) return std::nullopt;
-        const bool HalfTurn = std::fabs(std::fabs(SweepAngle) - ScalarCriteria::Pi) <= 1e-6;
+            !ScalarCriteria::WithinAngularTolerance(std::fabs(SweepAngle), RootSpan)) return std::nullopt;
+        const bool HalfTurn = ScalarCriteria::WithinAngularTolerance(std::fabs(SweepAngle), ScalarCriteria::Pi);
         if (HalfTurn != SemicircleTopology) return std::nullopt;
         Vec3 RadialEnd = RadialStart * std::cos(SweepAngle) + Axis.Cross(RadialStart) * std::sin(SweepAngle);
         auto MatchesCap = [&](const RadialCap& Cap, Vec3 Radial) noexcept
@@ -1995,7 +1995,7 @@ namespace
         }
         Deliver<BrepBody> Result = BrepBody::Sew(Surfaces);
         if (!Result) return Deliver<BrepBody>::Reject(Result.Denial.Reason, Result.Denial.Detail);
-        const bool HalfTurn = !Closed && std::fabs(std::fabs(Root.SweepAngle) - ScalarCriteria::Pi) <= 1e-6;
+        const bool HalfTurn = !Closed && ScalarCriteria::WithinAngularTolerance(std::fabs(Root.SweepAngle), ScalarCriteria::Pi);
         if (!Closed && !HalfTurn)
         {
             Vec3 BossTop = ShoulderCentre + Root.Axis * Root.BossHeight;
