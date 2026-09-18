@@ -47,9 +47,14 @@ struct ScalarCriteria
         return A <= Tolerance && A >= -Tolerance;
     }
 
+    [[nodiscard]] static bool WithinScaledTolerance(double Measured, double Exact, double Tolerance) noexcept
+    {
+        return std::fabs(Measured - Exact) <= Tolerance * std::fmax(1.0, std::fabs(Exact));
+    }
+
     [[nodiscard]] static bool WithinVolumeTolerance(double Measured, double Exact) noexcept
     {
-        return std::fabs(Measured - Exact) <= VolumeTolerance * std::fmax(1.0, std::fabs(Exact));
+        return WithinScaledTolerance(Measured, Exact, VolumeTolerance);
     }
 
     [[nodiscard]] static constexpr double Clamp(double A, double Low, double High) noexcept

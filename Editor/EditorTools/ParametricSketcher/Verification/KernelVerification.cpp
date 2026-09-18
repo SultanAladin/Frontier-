@@ -52,6 +52,8 @@ int main()
         Panel.Expect("Volume gate accepts its scaled boundary", ScalarCriteria::WithinVolumeTolerance(12.0 + ScalarCriteria::VolumeTolerance * 12.0, 12.0));
         Panel.Expect("Volume gate refuses beyond scaled boundary", !ScalarCriteria::WithinVolumeTolerance(12.0 + ScalarCriteria::VolumeTolerance * 12.1, 12.0));
         Panel.Expect("Volume gate has absolute floor for small solids", ScalarCriteria::WithinVolumeTolerance(0.0, 0.25 * ScalarCriteria::VolumeTolerance));
+        Panel.Expect("Generic scaled gate preserves strict geometry checks", ScalarCriteria::WithinScaledTolerance(2.0 + 2e-8, 2.0, 1e-8));
+        Panel.Expect("Generic scaled gate rejects beyond its bound", !ScalarCriteria::WithinScaledTolerance(2.0 + 2.1e-8, 2.0, 1e-8));
     }
 
     //------------------------------------------------------------------ vectors & matrices

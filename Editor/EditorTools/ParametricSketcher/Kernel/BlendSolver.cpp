@@ -480,7 +480,7 @@ namespace
                 if (std::min(std::fabs(C[I]), std::fabs(C[I] - L[I])) > 1e-8 * Scale) return std::nullopt;
         }
         const double Volume = Result.LX * Result.LY * Result.LZ;
-        if (std::fabs(Body.Validate().Volume - Volume) > 1e-8 * std::max(1.0, Volume)) return std::nullopt;
+        if (!ScalarCriteria::WithinScaledTolerance(Body.Validate().Volume, Volume, 1e-8)) return std::nullopt;
         return Result;
     }
 
