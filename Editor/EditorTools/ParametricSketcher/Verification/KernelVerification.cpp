@@ -63,6 +63,8 @@ int main()
         Panel.Expect("Variable-radius surface normal is finite", Surface.Normal(ScalarCriteria::HalfPi).Length() > 0.0);
         Panel.Expect("Linear radius law has zero meridional curvature", Surface.MeridionalCurvature() == 0.0);
         Panel.Expect("Variable-radius surface has finite circumferential curvature", std::isfinite(Surface.CircumferentialCurvature(0.5)));
+        Panel.Expect("Variable-radius surface G1 endpoints align", BlendSolver::ValidateVariableSurfaceG1(Surface, Surface.Normal(ScalarCriteria::HalfPi), Surface.Normal(ScalarCriteria::HalfPi), ScalarCriteria::HalfPi, Refusal));
+        Panel.Expect("Variable-radius surface rejects a non-G1 support", !BlendSolver::ValidateVariableSurfaceG1(Surface, { 1, 0, 0 }, Surface.Normal(ScalarCriteria::HalfPi), ScalarCriteria::HalfPi, Refusal));
         AsymmetricEndpointChain Chain{ { Low, High, EndpointSupport{ { 0, 0, 16 }, High.Normal, 0.75, ScalarCriteria::HalfPi } } };
         Panel.Expect("Collinear asymmetric endpoint chain is accepted", BlendSolver::ValidateAsymmetricEndpointChain(Chain, 0.1, Refusal));
         Chain.Supports[2].Centre = { 1, 0, 16 };
