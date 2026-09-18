@@ -17,7 +17,7 @@ FlyThroughSolver::FlyThroughSolver() noexcept
     , Config{
         2.5f,                   // Base flight speed 2.5 m/s
         3.0f,                   // 3x speed boost when holding Shift
-        0.0025f,                // Mouse sensitivity 0.0025 rad/px
+        0.00125f,               // Mouse sensitivity 0.00125 rad/px (≈ 0.07°/px, Unreal-like default)
         0.5f,                   // Scroll speed increment 0.5 m/s per click
         12.0f                   // Acceleration damping rate
     }
@@ -60,7 +60,7 @@ void FlyThroughSolver::AdvanceLocomotion(const InputExchange& Input, float Δτ)
     {
         Vector3 CursorDelta = Input.QueryCursorDelta();
         float NewYaw   = YawRadians + CursorDelta.x * Config.MouseSensitivity;
-        float NewPitch = PitchRadians - CursorDelta.y * Config.MouseSensitivity;
+        float NewPitch = PitchRadians - CursorDelta.y * Config.MouseSensitivity * (Config.InvertPitch ? -1.0f : 1.0f);
         AssignOrientationEuler(NewPitch, NewYaw, 0.0f);
     }
 
