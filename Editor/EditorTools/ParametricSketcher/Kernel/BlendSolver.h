@@ -54,6 +54,14 @@ struct EndpointSupport
     double EndpointAngle = 0.0;                                                         // [rad] optional radial-cap angle
 };
 
+struct VariableRadiusLaw
+{
+    double Start = 0.0;
+    double End = 0.0;
+
+    [[nodiscard]] double Evaluate(double T) const noexcept { return Start + (End - Start) * T; }
+};
+
 struct AsymmetricBlendSpecification
 {
     EndpointSupport Low{};
@@ -61,6 +69,7 @@ struct AsymmetricBlendSpecification
     AsymmetricSupportKind Kind = AsymmetricSupportKind::TaperedFrustum;
     double MinimumClearance = 0.0;
     double BlendRadius = 0.0;
+    VariableRadiusLaw RadiusLaw{};
 };
 
 struct EdgeCornerFrame

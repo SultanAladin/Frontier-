@@ -3104,8 +3104,16 @@ bool BlendSolver::ValidateAsymmetricSpecification(const AsymmetricBlendSpecifica
                       Specification.Low.EndpointAngle >= ScalarCriteria::TwoPi - ScalarCriteria::SweepTolerance ||
                       Specification.High.EndpointAngle >= ScalarCriteria::TwoPi - ScalarCriteria::SweepTolerance))
     { Refusal = "endpoint angles must be finite partial sweeps"; return false; }
-    if (Specification.Kind == AsymmetricSupportKind::VariableRadiusRoll && Specification.BlendRadius <= ScalarCriteria::MergeTolerance)
-    { Refusal = "variable-radius roll requires a positive blend radius"; return false; }
+    if (Specification.Kind == AsymmetricSupportKind::VariableRadiusRoll)
+    {
+        if (Specification.BlendRadius <= ScalarCriteria::MergeTolerance)
+        { Refusal = "variable-radius roll requires a positive blend radius"; return false; }
+        if (!std::isfinite(Specification.RadiusLaw.Start) || !std::isfinite(Specification.RadiusLaw.End) ||
+            Specification.RadiusLaw.Start <= ScalarCriteria::MergeTolerance ||
+            std::fabs(Specification.RadiusLaw.Start - Specification.Low.Radius) > ScalarCriteria::CircularTolerance ||
+            std::fabs(Specification.RadiusLaw.End - Specification.High.Radius) > ScalarCriteria::CircularTolerance)
+        { Refusal = "variable-radius law does not match endpoint radii"; return false; }
+    }
     return true;
 }
 
