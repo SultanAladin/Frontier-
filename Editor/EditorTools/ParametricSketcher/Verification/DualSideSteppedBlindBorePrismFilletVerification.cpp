@@ -177,7 +177,9 @@ int main()
     auto Mixed=Fixture({{1,false,5,4,{{.7,3},{.3,6}}},{2,false,15,10,{{.8,3},{.35,6}}}});P.Expect("Mixed Y/Z side-step axes remain unsupported",Mixed&&TransactionallyRefuses(Mixed));
     auto EccentricSpecs=Same;EccentricSpecs[1].Stages[1].XOffset=.3;auto Eccentric=Fixture(EccentricSpecs);P.Expect("An eccentric inner stage refuses transactionally",Eccentric&&TransactionallyRefuses(Eccentric));
     auto ThroughSpecs=Same;ThroughSpecs[1].Stages[1].Depth=16;auto Through=Fixture(ThroughSpecs);P.Expect("Either final stage reaching the opposite wall refuses",Through&&TransactionallyRefuses(Through));
-    const Cavity Third{1,false,10,6,{{.7,4},{.3,8}}};auto Three=Fixture({Same[0],Same[1],Third});P.Expect("A third stepped side cavity remains outside the dual route",Three&&TransactionallyRefuses(Three));
+    const Cavity Third{1,false,10,6,{{.7,4},{.3,8}}};auto Three=Fixture({Same[0],Same[1],Third});int ThreeApplied=-1;
+    auto ThreeR=BlendSolver::FilletEdges(Three.Payload,Rails(Three.Payload),2,&ThreeApplied);
+    P.Expect("A third two-stage side cavity delegates to the bounded-set route",Three&&ThreeR&&ThreeApplied==4&&ThreeR.Payload.Faces.size()==22);
     auto MixedStages=Same;MixedStages[1].Stages.push_back({.2,12});auto FiveStageSource=Fixture(MixedStages);P.Expect("A multistage plus two-stage side combination remains unsupported",FiveStageSource&&TransactionallyRefuses(FiveStageSource));
     auto Single=Fixture({Same[0]});int SA=-1;auto SingleR=BlendSolver::FilletEdges(Single.Payload,Rails(Single.Payload),2,&SA);
     P.Expect("The established single side-counterbore route remains intact",SingleR&&SA==4&&SingleR.Payload.Faces.size()==14);

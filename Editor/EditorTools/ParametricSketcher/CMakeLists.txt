@@ -295,6 +295,11 @@ add_executable(DualSideSteppedBlindBorePrismFilletVerification Verification/Dual
 target_link_libraries(DualSideSteppedBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME DualSideSteppedBlindBorePrismFilletVerification COMMAND DualSideSteppedBlindBorePrismFilletVerification)
 
+# Phase 32x: scale separated parallel side-entering two-stage cavities to a bounded set of three through eight.
+add_executable(MultiSideSteppedBlindBorePrismFilletVerification Verification/MultiSideSteppedBlindBorePrismFilletVerification.cpp)
+target_link_libraries(MultiSideSteppedBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME MultiSideSteppedBlindBorePrismFilletVerification COMMAND MultiSideSteppedBlindBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)
