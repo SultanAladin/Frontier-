@@ -421,7 +421,7 @@ Two canonical counterbores may enter a common end or opposite ends. Four cylindr
 
 #### Phase 32r: one orthogonal side-entering blind cavity ✅
 
-One canonical finite cylindrical cavity may now enter either retained planar side parallel to either prism cross-section direction while all four selected-axis rails round. The classifier derives side and entry direction, centre, radius, and depth from the inward cylinder and both rims; it requires canonical genus-zero `V10/E15/C30/L9/F8` source topology and analytic volume. The complete entrance disk must clear the rounded corners on that side and both selected-axis end caps. Bounded reconstruction explicitly restores the Boolean-fitted entrance and planar-floor rims as exact rational circles, producing genus-zero `V18/E27/C54/L13/F12` with seven planes, five rational cylinders, and one annular side wall. Low/high Y and Z entry, offsets, rail ordering, transforms, corner/through refusal, delegation of a parallel pair to Phase 32s, prior-route regression, console commit, and deterministic rendering are verified.
+One canonical finite cylindrical cavity may now enter either retained planar side parallel to either prism cross-section direction while all four selected-axis rails round. The classifier derives side and entry direction, centre, radius, and depth from the inward cylinder and both rims; it requires canonical genus-zero `V10/E15/C30/L9/F8` source topology and analytic volume. The complete entrance disk must clear the rounded corners on that side and both selected-axis end caps. Bounded reconstruction explicitly restores the Boolean-fitted entrance and planar-floor rims as exact rational circles, producing genus-zero `V18/E27/C54/L13/F12` with seven planes, five rational cylinders, and one annular side wall. Low/high Y and Z entry, offsets, rail ordering, transforms, corner/through refusal, delegation of a parallel pair to Phase 32s and a two-diameter counterbore to Phase 32u, prior-route regression, console commit, and deterministic rendering are verified.
 
 **Proof:** `SideBlindBorePrismFilletVerification` (27 C++ checks) and `Proofs/Phase32r_SideBlindBorePrism.png`.
 
@@ -437,9 +437,15 @@ The parallel side route now scales to three through eight separated finite cylin
 
 **Proof:** `MultiSideBlindBorePrismFilletVerification` (33 C++ checks) and `Proofs/Phase32t_MultiSideBlindBorePrism.png`.
 
+#### Phase 32u: one two-diameter side-entering stepped blind cavity ✅
+
+One canonical counterbore may now enter either retained Y/Z side. A larger entrance cylinder terminates at an annular shoulder and a smaller coaxial cylinder continues to a planar floor. Classification requires canonical genus-zero `V12/E18/C36/L12/F10` topology, one common side axis and centre, strict radius decrease, increasing finite depths, and analytic stepped volume. Reconstruction independently checks the outer disk against selected-axis end caps and the retained planar strip, subtracts both bounded stages, and restores four exact rational entrance/shoulder/floor rims. Output is genus-zero `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, and two annular levels. Low/high Y and Z entry, offsets, ordering, transforms, corner/end/undercut/eccentric/third-stage refusal, prior side and selected-axis routes, console commit, and deterministic rendering are verified.
+
+**Proof:** `SideSteppedBlindBorePrismFilletVerification` (31 C++ checks) and `Proofs/Phase32u_SideSteppedBlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique, mixed-axis, more-than-eight, or stepped side-entering cavities, undercut/non-decreasing/eccentric selected-axis stages, more-than-two stepped or multiple multistage selected-axis cavities, more-than-eight simple cavities/through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique, mixed-axis, more-than-eight, multistage, or multiple stepped side-entering cavities, undercut/non-decreasing/eccentric selected-axis stages, more-than-two stepped or multiple multistage selected-axis cavities, more-than-eight simple cavities/through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

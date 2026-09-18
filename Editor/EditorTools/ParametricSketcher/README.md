@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 63 suites (50 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 64 suites (51 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -284,15 +284,19 @@ Two canonical counterbores may now enter the same or opposite prism ends. Each r
 
 ## One orthogonal side-entering blind bore (Phase 32r)
 
-One canonical blind cylindrical cavity may enter either planar side parallel to either prism cross-section direction while the complete selected-axis edge family rounds. Classification preserves the chosen side, entry direction, axial and transverse centre, radius, finite depth, inward rational cylinder, and planar floor. Reconstruction requires the complete entrance circle to lie within the retained planar strip between rounded corners and clear of the selected-axis end caps, then restores the fitted entrance and existing floor as two exact rational circles. The result is genus-zero `V18/E27/C54/L13/F12`, with seven planes, five rational cylinders, one annular side wall, and analytic volume. A second parallel side cavity delegates to Phase 32s; oblique, through, stepped, mixed-axis, corner-crossing, end-crossing, and opposite-wall side cavities refuse transactionally. `SideBlindBorePrismFilletVerification` contributes 27 checks and `Proofs/Phase32r_SideBlindBorePrism.png`.
+One canonical blind cylindrical cavity may enter either planar side parallel to either prism cross-section direction while the complete selected-axis edge family rounds. Classification preserves the chosen side, entry direction, axial and transverse centre, radius, finite depth, inward rational cylinder, and planar floor. Reconstruction requires the complete entrance circle to lie within the retained planar strip between rounded corners and clear of the selected-axis end caps, then restores the fitted entrance and existing floor as two exact rational circles. The result is genus-zero `V18/E27/C54/L13/F12`, with seven planes, five rational cylinders, one annular side wall, and analytic volume. A second parallel side cavity delegates to Phase 32s and a two-diameter side counterbore to Phase 32u; oblique, through, multistage, mixed-axis, corner-crossing, end-crossing, and opposite-wall side cavities refuse transactionally. `SideBlindBorePrismFilletVerification` contributes 27 checks and `Proofs/Phase32r_SideBlindBorePrism.png`.
 
 ## Exactly two separated parallel side-entering blind bores (Phase 32s)
 
-Exactly two canonical side cavities may share either cross-section direction and enter one common retained side or opposite parallel sides. Each entrance disk independently clears the selected-axis end caps and rounded-corner strips. Pairwise finite-cylinder clearance combines separation of the axial intervals along the common side direction with disk separation in the selected-axis/transverse plane, permitting coaxial opposite-side cavities across a positive ligament. Deterministic reconstruction restores all four entrance/floor rims as exact rational circles and produces genus-zero `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, and two planar inner loops. A third parallel cavity delegates to Phase 32t; intersecting, mixed-axis, oblique, stepped, corner-crossing, end-crossing, and through side cavities refuse transactionally. `DualSideBlindBorePrismFilletVerification` contributes 32 checks and `Proofs/Phase32s_DualSideBlindBorePrism.png`.
+Exactly two canonical side cavities may share either cross-section direction and enter one common retained side or opposite parallel sides. Each entrance disk independently clears the selected-axis end caps and rounded-corner strips. Pairwise finite-cylinder clearance combines separation of the axial intervals along the common side direction with disk separation in the selected-axis/transverse plane, permitting coaxial opposite-side cavities across a positive ligament. Deterministic reconstruction restores all four entrance/floor rims as exact rational circles and produces genus-zero `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, and two planar inner loops. A third parallel cavity delegates to Phase 32t; intersecting, mixed-axis, oblique, multiple stepped, corner-crossing, end-crossing, and through side combinations refuse transactionally. `DualSideBlindBorePrismFilletVerification` contributes 32 checks and `Proofs/Phase32s_DualSideBlindBorePrism.png`.
 
 ## Bounded parallel side-entering blind-bore set (Phase 32t)
 
-The parallel side route now scales to `3 <= N <= 8` separated finite cavities. Source topology is `V=8+2N/E=12+3N/C=24+6N/L=6+3N/F=6+2N`; rounded topology is genus-zero `V=16+2N/E=24+3N/C=48+6N/L=10+3N/F=10+2N`. Every entrance disk independently clears the selected-axis end caps and rounded-corner strip, every finite-cylinder pair retains positive radial, axial, or combined clearance, and all `2N` entrance/floor rims finish as exact rational circles. Cavities may enter one retained side or span opposite parallel sides while sharing Y or Z direction. Mixed-axis, intersecting, ninth, oblique, stepped, through, corner-crossing, and end-crossing side sets refuse transactionally. `MultiSideBlindBorePrismFilletVerification` contributes 33 checks and `Proofs/Phase32t_MultiSideBlindBorePrism.png`.
+The parallel side route now scales to `3 <= N <= 8` separated finite cavities. Source topology is `V=8+2N/E=12+3N/C=24+6N/L=6+3N/F=6+2N`; rounded topology is genus-zero `V=16+2N/E=24+3N/C=48+6N/L=10+3N/F=10+2N`. Every entrance disk independently clears the selected-axis end caps and rounded-corner strip, every finite-cylinder pair retains positive radial, axial, or combined clearance, and all `2N` entrance/floor rims finish as exact rational circles. Cavities may enter one retained side or span opposite parallel sides while sharing Y or Z direction. Mixed-axis, intersecting, ninth, oblique, stepped sets, through, corner-crossing, and end-crossing side cavities refuse transactionally. `MultiSideBlindBorePrismFilletVerification` contributes 33 checks and `Proofs/Phase32t_MultiSideBlindBorePrism.png`.
+
+## One two-diameter side-entering stepped blind bore (Phase 32u)
+
+One canonical side counterbore may enter either retained Y/Z side with a larger shallow cylinder, exact annular shoulder, and smaller coaxial deep cylinder ending at a planar floor. Classification derives side, centre, radii, shoulder depth, and total depth from two connected spans in canonical genus-zero `V12/E18/C36/L12/F10` topology and verifies analytic removed volume. Reconstruction independently checks the outer entrance disk against the selected-axis end caps and retained planar strip, subtracts both bounded stages, and restores four exact rational entrance/shoulder/floor rims. Output is genus-zero `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, and two annular planar levels. Eccentric, undercut, third-stage, corner-crossing, end-crossing, and opposite-wall side counterbores refuse transactionally. `SideSteppedBlindBorePrismFilletVerification` contributes 31 checks and `Proofs/Phase32u_SideSteppedBlindBorePrism.png`.
 
 ## Layout
 
@@ -377,6 +381,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32r | **One orthogonal side-entering blind bore.** Either cross-section direction and either retained planar side preserve finite depth and two rational rims. | `SideBlindBorePrismFilletVerification` — 27 C++ checks; `Proofs/Phase32r_SideBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32s | **Exactly two separated parallel side-entering blind bores.** Same/opposite retained sides preserve finite-cylinder clearance and four rational rims. | `DualSideBlindBorePrismFilletVerification` — 32 C++ checks; `Proofs/Phase32s_DualSideBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32t | **Bounded parallel side-entering blind-bore set.** Three through eight cavities preserve finite-cylinder clearance and `2N` rational rims. | `MultiSideBlindBorePrismFilletVerification` — 33 C++ checks; `Proofs/Phase32t_MultiSideBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
+| 32u | **One two-diameter side-entering stepped blind bore.** A retained side entrance, annular shoulder, and planar floor preserve four rational rims. | `SideSteppedBlindBorePrismFilletVerification` — 31 C++ checks; `Proofs/Phase32u_SideSteppedBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -525,8 +530,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **63 suites** — 50 per-feature verification binaries (1,747 checks total) and 13 script smoke
-tests. The Phase 32t direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **64 suites** — 51 per-feature verification binaries (1,778 checks total) and 13 script smoke
+tests. The Phase 32u direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -571,6 +576,7 @@ are:
 | `SideBlindBorePrismFilletVerification` | 27  |
 | `DualSideBlindBorePrismFilletVerification` | 32  |
 | `MultiSideBlindBorePrismFilletVerification` | 33  |
+| `SideSteppedBlindBorePrismFilletVerification` | 31  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -581,7 +587,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1747** |
+| **Total** | **1778** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

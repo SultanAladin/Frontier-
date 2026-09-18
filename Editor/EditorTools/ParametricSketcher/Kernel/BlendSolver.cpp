@@ -662,6 +662,71 @@ namespace
         return SideBlindPrism{*Frame,std::move(Cavities)};
     }
 
+    struct SideSteppedBlindStage { double Radius=0.0,Depth=0.0; };
+    struct SideSteppedBlindPrism
+    {
+        OrthogonalBoxCorner Box;int Along=1;double X=0.0,Cross=0.0;std::vector<SideSteppedBlindStage> Stages;bool FromLow=true;
+    };
+
+    std::optional<SideSteppedBlindPrism> ClassifySideSteppedBlindPrism(const BrepBody& Body,const std::vector<int>& Edges) noexcept
+    {
+        auto Report=Body.Validate();
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Vertices.size()!=12||Body.Edges.size()!=18||
+           Body.Coedges.size()!=36||Body.Loops.size()!=12||Body.Faces.size()!=10)return std::nullopt;
+        auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
+        int Planes=0,Cylinders=0,InnerLoops=0;std::vector<int>CylinderFaces;
+        for(size_t I=0;I<Body.Faces.size();++I)
+        {
+            const BrepFace& Face=Body.Faces[I];Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
+            if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)InnerLoops+=static_cast<int>(Face.Loops.size()-1);
+            if(Face.Surface.Classification==SurfaceClassification::Cylinder){++Cylinders;CylinderFaces.push_back(static_cast<int>(I));}
+        }
+        if(Planes!=8||Cylinders!=2||InnerLoops!=2)return std::nullopt;
+        struct Span{int Along=0;double X=0.0,Cross=0.0,Radius=0.0,Low=0.0,High=0.0;};std::vector<Span>Spans;
+        for(int CylinderFace:CylinderFaces)
+        {
+            const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
+            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol)return std::nullopt;
+            Vec3 Axis=Cylinder.Axis.Normalised();int Along=0;
+            if(std::fabs(Axis.Dot(Frame->Y))>1.0-1e-8)Along=1;
+            else if(std::fabs(Axis.Dot(Frame->Z))>1.0-1e-8)Along=2;
+            else return std::nullopt;
+            Vec3 Direction=Along==1?Frame->Y:Frame->Z;double Length=Along==1?Frame->LY:Frame->LZ;
+            double PositionTolerance=1e-8*std::max(1.0,Length);std::vector<double>RingT;
+            for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
+                for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
+                    int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
+                    const BrepEdge& E=Body.Edges[Edge];if(!E.Closed())continue;double T=(E.Curve.Sample(E.Curve.DomainStart())-Frame->Corner).Dot(Direction);
+                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(Direction)-T)>PositionTolerance)return std::nullopt;
+                    RingT.push_back(T);}}
+            if(RingT.size()!=2)return std::nullopt;
+            std::sort(RingT.begin(),RingT.end());Vec3 Offset=Cylinder.Origin-Frame->Corner;
+            Spans.push_back({Along,Offset.Dot(Frame->X),Offset.Dot(Along==1?Frame->Z:Frame->Y),Cylinder.RadiusMajor,RingT[0],RingT[1]});
+        }
+        if(Spans[0].Along!=Spans[1].Along)return std::nullopt;
+        int Along=Spans[0].Along;double Length=Along==1?Frame->LY:Frame->LZ,PositionTolerance=1e-8*std::max(1.0,Length);
+        int Entry=-1;bool FromLow=false;
+        for(size_t I=0;I<Spans.size();++I)
+        {
+            bool Low=std::fabs(Spans[I].Low)<=PositionTolerance,High=std::fabs(Spans[I].High-Length)<=PositionTolerance;
+            if(Low==High)continue;
+            if(Entry>=0)return std::nullopt;
+            Entry=static_cast<int>(I);FromLow=Low;
+        }
+        if(Entry<0)return std::nullopt;
+        const Span& Outer=Spans[Entry];const Span& Inner=Spans[1-Entry];double Boundary=FromLow?Outer.High:Outer.Low;
+        double InnerBoundary=FromLow?Inner.Low:Inner.High;
+        if(std::fabs(InnerBoundary-Boundary)>PositionTolerance||std::hypot(Inner.X-Outer.X,Inner.Cross-Outer.Cross)>PositionTolerance||
+           Outer.Radius<=Inner.Radius+Tol)return std::nullopt;
+        double ShoulderDepth=FromLow?Outer.High:Length-Outer.Low,TotalDepth=FromLow?Inner.High:Length-Inner.Low;
+        if(ShoulderDepth<=Tol||TotalDepth<=ShoulderDepth+Tol||TotalDepth>=Length-Tol)return std::nullopt;
+        double Removed=ScalarCriteria::Pi*(Outer.Radius*Outer.Radius*ShoulderDepth+
+            Inner.Radius*Inner.Radius*(TotalDepth-ShoulderDepth));
+        double Exact=Frame->LX*Frame->LY*Frame->LZ-Removed;
+        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        return SideSteppedBlindPrism{*Frame,Along,Outer.X,Outer.Cross,{{Outer.Radius,ShoulderDepth},{Inner.Radius,TotalDepth}},FromLow};
+    }
+
     struct SteppedBlindStage { PrismHole Hole;double Depth=0.0; };
     struct SteppedBlindPrism
     {
@@ -1163,6 +1228,68 @@ namespace
            Result.Payload.Vertices.size()!=16+2*N||Result.Payload.Edges.size()!=24+3*N||Result.Payload.Coedges.size()!=48+6*N||
            Result.Payload.Loops.size()!=10+3*N||Result.Payload.Faces.size()!=10+2*N)
             return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"side blind-bore rounded prism did not reach exact manifold topology");
+        return Result;
+    }
+
+    Deliver<BrepBody> BuildRoundedSideSteppedBlindPrism(const SideSteppedBlindPrism& Step,double Radius) noexcept
+    {
+        if(Step.Stages.size()!=2)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped route requires exactly two diameters");
+        double SideLength=Step.Along==1?Step.Box.LY:Step.Box.LZ,StripLength=Step.Along==1?Step.Box.LZ:Step.Box.LY;
+        const SideSteppedBlindStage& Outer=Step.Stages.front();
+        if(Outer.Radius<=Tol||Step.Stages[1].Radius<=Tol||Outer.Radius<=Step.Stages[1].Radius+Tol||
+           Outer.Depth<=Tol||Step.Stages[1].Depth<=Outer.Depth+Tol||Step.Stages[1].Depth>=SideLength-Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"side stepped blind bore consumes a radial or axial shoulder");
+        if(Step.X<=Outer.Radius+Tol||Step.X>=Step.Box.LX-Outer.Radius-Tol||
+           Step.Cross<=Radius+Outer.Radius+Tol||Step.Cross>=StripLength-Radius-Outer.Radius-Tol)
+            return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"side stepped blind bore leaves the retained rounded-prism wall");
+        auto Result=BuildRoundedBoxPrism(Step.Box,0,Radius);if(!Result)return Result;
+        auto P=[&](double X,double Y,double Z){return Step.Box.Corner+Step.Box.X*X+Step.Box.Y*Y+Step.Box.Z*Z;};
+        Vec3 Axis=Step.Along==1?Step.Box.Y:Step.Box.Z;double Margin=std::max(1.0,SideLength*0.1),Entry=Step.FromLow?0.0:SideLength;
+        for(const SideSteppedBlindStage& Stage:Step.Stages)
+        {
+            double CutterStart=Step.FromLow?-Margin:SideLength-Stage.Depth;
+            Vec3 Origin=Step.Along==1?P(Step.X,CutterStart,Step.Cross):P(Step.X,Step.Cross,CutterStart);
+            auto Cutter=BrepBody::Cylinder(Origin,Axis,Stage.Radius,Margin+Stage.Depth);
+            if(!Cutter)return Deliver<BrepBody>::Reject(Cutter.Denial.Reason,Cutter.Denial.Detail);
+            auto Next=IntersectionSolver::Combine(Result.Payload,Cutter.Payload,BodyOperation::Subtract);if(!Next)return Next;
+            Result=std::move(Next);
+        }
+        struct Ring{double T=0.0,Radius=0.0;};std::vector<Ring>Rings{{Entry,Outer.Radius}};
+        for(size_t I=0;I<Step.Stages.size();++I)
+        {
+            double T=Step.FromLow?Step.Stages[I].Depth:SideLength-Step.Stages[I].Depth;
+            Rings.push_back({T,Step.Stages[I].Radius});
+            if(I+1<Step.Stages.size())Rings.push_back({T,Step.Stages[I+1].Radius});
+        }
+        int Restored=0;double PositionTolerance=1e-7*std::max(1.0,SideLength);
+        for(const Ring& Expected:Rings)
+        {
+            int Matches=0;Vec3 Centre=Step.Along==1?P(Step.X,Expected.T,Step.Cross):P(Step.X,Step.Cross,Expected.T);
+            for(BrepEdge& Edge:Result.Payload.Edges)if(Edge.Closed())
+            {
+                Vec3 Sample=Edge.Curve.Sample(Edge.Curve.DomainStart());double T=(Sample-Step.Box.Corner).Dot(Axis);
+                Vec3 Radial=Sample-Centre-Axis*(Sample-Centre).Dot(Axis);
+                if(std::fabs(T-Expected.T)>PositionTolerance||std::fabs(Radial.Length()-Expected.Radius)>1e-6)continue;
+                if(Edge.VertexStart<0)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped rim has no start vertex");
+                auto Circle=NurbsCurve::Circle(Centre,Axis,Expected.Radius);
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                    Circle=NurbsCurve::Circle(Centre,Axis*-1.0,Expected.Radius);
+                if(!Circle||Circle.Payload.Sample(Circle.Payload.DomainStart()).Distance(Result.Payload.Vertices[Edge.VertexStart].Point)>1e-6)
+                    return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped blind-bore rim could not be restored exactly");
+                Edge.Curve=std::move(Circle.Payload);++Matches;
+            }
+            if(Matches!=1)return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped blind-bore rim could not be identified uniquely");
+            Restored+=Matches;
+        }
+        auto Report=Result.Payload.Validate();int Planes=0,Cylinders=0,Circles=0,InnerLoops=0;
+        for(const BrepFace& Face:Result.Payload.Faces){Planes+=Face.Surface.Classification==SurfaceClassification::Plane;
+            Cylinders+=Face.Surface.Classification==SurfaceClassification::Cylinder&&Face.Surface.Rational();
+            if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)InnerLoops+=static_cast<int>(Face.Loops.size()-1);}
+        for(const BrepEdge& Edge:Result.Payload.Edges)Circles+=Edge.Closed()&&Edge.Curve.Classification==CurveClassification::Circle&&Edge.Curve.Rational();
+        if(Restored!=4||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Planes!=8||Cylinders!=6||Circles!=4||InnerLoops!=2||
+           Result.Payload.Vertices.size()!=20||Result.Payload.Edges.size()!=30||Result.Payload.Coedges.size()!=60||
+           Result.Payload.Loops.size()!=16||Result.Payload.Faces.size()!=14)
+            return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"side stepped rounded prism did not reach exact manifold topology");
         return Result;
     }
 
@@ -2451,6 +2578,12 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
         if(auto SideBlind=ClassifySideBlindPrism(Body,Selected))
         {
             auto Result=BuildRoundedSideBlindPrism(*SideBlind,Radius);
+            if(Result&&AppliedChains)*AppliedChains=4;
+            return Result;
+        }
+        if(auto SideStepped=ClassifySideSteppedBlindPrism(Body,Selected))
+        {
+            auto Result=BuildRoundedSideSteppedBlindPrism(*SideStepped,Radius);
             if(Result&&AppliedChains)*AppliedChains=4;
             return Result;
         }
