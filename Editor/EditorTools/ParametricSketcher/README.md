@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 61 suites (48 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 62 suites (49 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -268,7 +268,7 @@ The same bounded classifier accepts canonical genus-zero `V12/E18/C36/L12/F10` s
 
 ## Bounded multi-blind-bore set (Phase 32n)
 
-Phase 32n scales the same exact construction to `3 <= N <= 8` separated finite cavities. Canonical source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+2N`; the rounded result is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+2N`, always with genus zero. Every cavity passes the rounded-wall gate, all finite-cylinder pairs retain positive radial, axial, or combined clearance, and all `2N` fitted/floor rims finish as rational circles. Three- and eight-cavity cases are verified across both ends. Nine or more cavities, intersections, and side/oblique entries remain unsupported. `MultiBlindBorePrismFilletVerification` contributes 31 checks and `Proofs/Phase32n_MultiBlindBorePrism.png`.
+Phase 32n scales the same exact construction to `3 <= N <= 8` separated finite cavities. Canonical source topology is `V=8+2N`, `E=12+3N`, `C=24+6N`, `L=6+3N`, `F=6+2N`; the rounded result is `V=16+2N`, `E=24+3N`, `C=48+6N`, `L=10+3N`, `F=10+2N`, always with genus zero. Every cavity passes the rounded-wall gate, all finite-cylinder pairs retain positive radial, axial, or combined clearance, and all `2N` fitted/floor rims finish as rational circles. Three- and eight-cavity cases are verified across both selected-axis ends. Nine or more selected-axis cavities, intersections, and oblique entries remain unsupported; one or two parallel side cavities use Phases 32r/32s. `MultiBlindBorePrismFilletVerification` contributes 31 checks and `Proofs/Phase32n_MultiBlindBorePrism.png`.
 
 ## One coaxial two-diameter stepped blind bore (Phase 32o)
 
@@ -284,7 +284,11 @@ Two canonical counterbores may now enter the same or opposite prism ends. Each r
 
 ## One orthogonal side-entering blind bore (Phase 32r)
 
-One canonical blind cylindrical cavity may enter either planar side parallel to either prism cross-section direction while the complete selected-axis edge family rounds. Classification preserves the chosen side, entry direction, axial and transverse centre, radius, finite depth, inward rational cylinder, and planar floor. Reconstruction requires the complete entrance circle to lie within the retained planar strip between rounded corners and clear of the selected-axis end caps, then restores the fitted entrance and existing floor as two exact rational circles. The result is genus-zero `V18/E27/C54/L13/F12`, with seven planes, five rational cylinders, one annular side wall, and analytic volume. Oblique, through, stepped, multiple, corner-crossing, end-crossing, and opposite-wall side cavities refuse transactionally. `SideBlindBorePrismFilletVerification` contributes 27 checks and `Proofs/Phase32r_SideBlindBorePrism.png`.
+One canonical blind cylindrical cavity may enter either planar side parallel to either prism cross-section direction while the complete selected-axis edge family rounds. Classification preserves the chosen side, entry direction, axial and transverse centre, radius, finite depth, inward rational cylinder, and planar floor. Reconstruction requires the complete entrance circle to lie within the retained planar strip between rounded corners and clear of the selected-axis end caps, then restores the fitted entrance and existing floor as two exact rational circles. The result is genus-zero `V18/E27/C54/L13/F12`, with seven planes, five rational cylinders, one annular side wall, and analytic volume. A second parallel side cavity delegates to Phase 32s; oblique, through, stepped, mixed-axis, corner-crossing, end-crossing, and opposite-wall side cavities refuse transactionally. `SideBlindBorePrismFilletVerification` contributes 27 checks and `Proofs/Phase32r_SideBlindBorePrism.png`.
+
+## Exactly two separated parallel side-entering blind bores (Phase 32s)
+
+Exactly two canonical side cavities may share either cross-section direction and enter one common retained side or opposite parallel sides. Each entrance disk independently clears the selected-axis end caps and rounded-corner strips. Pairwise finite-cylinder clearance combines separation of the axial intervals along the common side direction with disk separation in the selected-axis/transverse plane, permitting coaxial opposite-side cavities across a positive ligament. Deterministic reconstruction restores all four entrance/floor rims as exact rational circles and produces genus-zero `V20/E30/C60/L16/F14`, with eight planes, six rational cylinders, and two planar inner loops. Intersecting, mixed-axis, third, oblique, stepped, corner-crossing, end-crossing, and through side cavities refuse transactionally. `DualSideBlindBorePrismFilletVerification` contributes 32 checks and `Proofs/Phase32s_DualSideBlindBorePrism.png`.
 
 ## Layout
 
@@ -367,6 +371,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32p | **Bounded multistage coaxial blind bore.** Three through eight decreasing diameters preserve exact annular levels and `2N` rational rims. | `MultiStageBlindBorePrismFilletVerification` — 33 C++ checks; `Proofs/Phase32p_MultiStageBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32q | **Exactly two separated two-stage blind bores.** Same/opposite-end counterbores retain finite-band clearance, four annular levels, and eight rational rims. | `DualSteppedBlindBorePrismFilletVerification` — 27 C++ checks; `Proofs/Phase32q_DualSteppedBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32r | **One orthogonal side-entering blind bore.** Either cross-section direction and either retained planar side preserve finite depth and two rational rims. | `SideBlindBorePrismFilletVerification` — 27 C++ checks; `Proofs/Phase32r_SideBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
+| 32s | **Exactly two separated parallel side-entering blind bores.** Same/opposite retained sides preserve finite-cylinder clearance and four rational rims. | `DualSideBlindBorePrismFilletVerification` — 32 C++ checks; `Proofs/Phase32s_DualSideBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -515,8 +520,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **61 suites** — 48 per-feature verification binaries (1,682 checks total) and 13 script smoke
-tests. The Phase 32r direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **62 suites** — 49 per-feature verification binaries (1,714 checks total) and 13 script smoke
+tests. The Phase 32s direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -559,6 +564,7 @@ are:
 | `MultiStageBlindBorePrismFilletVerification` | 33  |
 | `DualSteppedBlindBorePrismFilletVerification` | 27  |
 | `SideBlindBorePrismFilletVerification` | 27  |
+| `DualSideBlindBorePrismFilletVerification` | 32  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -569,7 +575,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1682** |
+| **Total** | **1714** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact

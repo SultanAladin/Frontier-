@@ -138,8 +138,8 @@ int main()
     P.Expect("An oblique side-entering blind cavity remains unsupported",Oblique&&Oblique.Payload.Validate().Solid()&&ObliqueRefusal);
     auto Through=ThroughFixture(1);Refused=99;auto ThroughR=BlendSolver::FilletEdges(Through.Payload,Rails(Through.Payload),2,&Refused);
     P.Expect("An orthogonal side through-hole remains outside the blind route",Through&&Through.Payload.Validate().Solid()&&!ThroughR&&Refused==0);
-    auto Dual=DualSideFixture();Refused=99;auto DualR=BlendSolver::FilletEdges(Dual.Payload,Rails(Dual.Payload),2,&Refused);
-    P.Expect("Multiple side-entering cavities remain outside this single-cavity route",Dual&&Dual.Payload.Validate().Solid()&&!DualR&&Refused==0);
+    auto Dual=DualSideFixture();int DualApplied=-1;auto DualR=BlendSolver::FilletEdges(Dual.Payload,Rails(Dual.Payload),2,&DualApplied);
+    P.Expect("Two parallel side cavities delegate to the bounded pair route",Dual&&Dual.Payload.Validate().Solid()&&DualR&&DualApplied==4&&DualR.Payload.Faces.size()==14);
     auto AxialBox=BrepBody::Box({0,0,0},{20,16,12});auto AxialCut=BrepBody::Cylinder({22,8,6},{-1,0,0},1,10);
     auto Axial=IntersectionSolver::Combine(AxialBox.Payload,AxialCut.Payload,BodyOperation::Subtract);int AA=-1;
     auto AxialR=BlendSolver::FilletEdges(Axial.Payload,Rails(Axial.Payload),2,&AA);
