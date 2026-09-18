@@ -108,6 +108,8 @@ public:
     [[nodiscard]] static Deliver<BrepBody> ReconstructAsymmetricSupport(const AsymmetricBlendSpecification& Specification) noexcept;
     [[nodiscard]] static bool ValidateAsymmetricEndpointChain(const AsymmetricEndpointChain& Chain,
                                                                double MinimumClearance, std::string& Refusal) noexcept;
+    [[nodiscard]] static bool ValidateG1EndpointMatch(Vec3 SurfaceNormal, Vec3 SupportNormal,
+                                                       std::string& Refusal) noexcept;
 
     // Follow G1 edge-to-edge continuations from a manifold seed. A closed edge is a singleton; an ambiguous tangent
     // branch refuses rather than selecting by edge-table order. The returned indices describe one complete chain.

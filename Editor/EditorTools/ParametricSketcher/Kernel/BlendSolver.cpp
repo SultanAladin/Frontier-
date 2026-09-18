@@ -3160,6 +3160,18 @@ Deliver<BrepBody> BlendSolver::ReconstructAsymmetricSupport(const AsymmetricBlen
     }
 }
 
+bool BlendSolver::ValidateG1EndpointMatch(Vec3 SurfaceNormal, Vec3 SupportNormal,
+                                               std::string& Refusal) noexcept
+{
+    if (SurfaceNormal.Length() <= ScalarCriteria::GeometricTolerance ||
+        SupportNormal.Length() <= ScalarCriteria::GeometricTolerance)
+    { Refusal = "G1 endpoint normal is degenerate"; return false; }
+    const double Alignment = SurfaceNormal.Normalised().Dot(SupportNormal.Normalised());
+    if (std::fabs(std::fabs(Alignment) - 1.0) > ScalarCriteria::AngularTolerance)
+    { Refusal = "surface and support normals are not G1 aligned"; return false; }
+    return true;
+}
+
 bool BlendSolver::ValidateAsymmetricEndpointChain(const AsymmetricEndpointChain& Chain,
                                                     double MinimumClearance, std::string& Refusal) noexcept
 {
