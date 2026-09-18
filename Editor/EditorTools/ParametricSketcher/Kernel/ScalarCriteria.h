@@ -26,6 +26,7 @@ namespace Frontier
 struct ScalarCriteria
 {
     static constexpr double KernelTolerance   = 1e-9;                                   // [m]   coincidence
+    static constexpr double GeometricTolerance = 1e-8;                                // [m or -] strict geometric classification
     static constexpr double MergeTolerance    = 1e-6;                                   // [m]   topological sewing
     static constexpr double AngularTolerance  = 1e-7;                                   // [rad] direction equality
     static constexpr double ChordTolerance    = 1e-4;                                   // [m]   tessellation sagitta

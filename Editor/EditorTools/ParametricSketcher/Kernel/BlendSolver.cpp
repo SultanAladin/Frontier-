@@ -126,7 +126,7 @@ namespace
         const NurbsSurface& Cylinder = Body.Faces[Side].Surface;
         Vec3 Axis = Cylinder.Axis.Normalised();
         if (Axis.Length() <= Tol || Cylinder.RadiusMajor <= Tol || std::fabs(Cylinder.RadiusMajor - Cylinder.RadiusMinor) > Tol) return std::nullopt;
-        const double RadiusTolerance = 1e-8 * std::max(1.0, Cylinder.RadiusMajor);
+        const double RadiusTolerance = ScalarCriteria::GeometricTolerance * std::max(1.0, Cylinder.RadiusMajor);
         for (const BrepEdge& Rim : Body.Edges)
             if (Rim.Closed())
             {
@@ -143,7 +143,7 @@ namespace
         for (int Cap : Caps)
         {
             Vec3 Normal;
-            if (!PlanarNormal(Body, Cap, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+            if (!PlanarNormal(Body, Cap, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - ScalarCriteria::GeometricTolerance) return std::nullopt;
         }
         const auto HeightAt = [&](int Face)
         {
@@ -153,7 +153,7 @@ namespace
         };
         double T0 = HeightAt(Caps[0]), T1 = HeightAt(Caps[1]);
         double Low = std::min(T0, T1), High = std::max(T0, T1), Height = High - Low;
-        const double Epsilon = 1e-8 * std::max({ 1.0, Cylinder.RadiusMajor, Height });
+        const double Epsilon = ScalarCriteria::GeometricTolerance * std::max({ 1.0, Cylinder.RadiusMajor, Height });
         if (Height <= Epsilon) return std::nullopt;
         double Chosen = HeightAt(SelectedCap);
         bool Upper = std::fabs(Chosen - High) <= Epsilon;
@@ -238,7 +238,7 @@ namespace
         Radius = Centre.Distance(P0);
         if (Radius <= Tol) return false;
         Normal = Cross.Normalised();
-        const double Epsilon = 1e-8 * std::max(1.0, Radius);
+        const double Epsilon = ScalarCriteria::GeometricTolerance * std::max(1.0, Radius);
         for (int I = 0; I <= 8; ++I)
         {
             Vec3 Radial = Curve.Sample(T0 + Span * (static_cast<double>(I) / 8.0)) - Centre;
@@ -261,8 +261,8 @@ namespace
         End = Cylinder.Origin + Axis * (PointEnd - Cylinder.Origin).Dot(Axis);
         Radius = Cylinder.RadiusMajor;
         const double Height = Start.Distance(End);
-        const double Epsilon = 1e-8 * std::max({ 1.0, Radius, Height });
-        if (Height <= Epsilon || (End - Start).Normalised().Cross(Axis).Length() > 1e-8) return false;
+        const double Epsilon = ScalarCriteria::GeometricTolerance * std::max({ 1.0, Radius, Height });
+        if (Height <= Epsilon || (End - Start).Normalised().Cross(Axis).Length() > ScalarCriteria::GeometricTolerance) return false;
         for (double V : { V0, V1 })
         {
             Vec3 Centre = V == V0 ? Start : End;
@@ -290,9 +290,9 @@ namespace
             if (Candidate.Closed() || Candidate.VertexStart < 0 || Candidate.VertexEnd < 0) return false;
             Vec3 CandidateCentre, CandidateNormal; double CandidateRadius = 0.0;
             if (!CircularFrame(Candidate.Curve, CandidateCentre, CandidateNormal, CandidateRadius) ||
-                CandidateCentre.Distance(Centre) > 1e-8 * std::max(1.0, Radius) ||
-                std::fabs(CandidateRadius - Radius) > 1e-8 * std::max(1.0, Radius) ||
-                std::fabs(CandidateNormal.Dot(Axis)) < 1.0 - 1e-8) return false;
+                CandidateCentre.Distance(Centre) > ScalarCriteria::GeometricTolerance * std::max(1.0, Radius) ||
+                std::fabs(CandidateRadius - Radius) > ScalarCriteria::GeometricTolerance * std::max(1.0, Radius) ||
+                std::fabs(CandidateNormal.Dot(Axis)) < 1.0 - ScalarCriteria::GeometricTolerance) return false;
             ++Degrees[Candidate.VertexStart]; ++Degrees[Candidate.VertexEnd];
             const double T0 = Candidate.Curve.DomainStart(), T1 = Candidate.Curve.DomainEnd(), TM = 0.5 * (T0 + T1);
             Vec3 R0 = (Candidate.Curve.Sample(T0) - Centre).Normalised();
@@ -327,7 +327,7 @@ namespace
             if (Degrees[Vertex] == 1) { StartVertex = static_cast<int>(Vertex); break; }
         if (StartVertex < 0) return false;
         RadialStart = (Body.Vertices[StartVertex].Point - Centre).Normalised();
-        if (RadialStart.Length() <= Tol || std::fabs(RadialStart.Dot(Axis)) > 1e-8) return false;
+        if (RadialStart.Length() <= Tol || std::fabs(RadialStart.Dot(Axis)) > ScalarCriteria::GeometricTolerance) return false;
 
         std::vector<int> Remaining = Chain;
         int CurrentVertex = StartVertex;
@@ -464,8 +464,8 @@ namespace
             Length[I] = Span.Length(); if (Length[I] <= Tol) return std::nullopt;
             Direction[I] = Span / Length[I];
         }
-        if (std::fabs(Direction[0].Dot(Direction[1])) > 1e-8 || std::fabs(Direction[0].Dot(Direction[2])) > 1e-8 ||
-            std::fabs(Direction[1].Dot(Direction[2])) > 1e-8) return std::nullopt;
+        if (std::fabs(Direction[0].Dot(Direction[1])) > ScalarCriteria::GeometricTolerance || std::fabs(Direction[0].Dot(Direction[2])) > ScalarCriteria::GeometricTolerance ||
+            std::fabs(Direction[1].Dot(Direction[2])) > ScalarCriteria::GeometricTolerance) return std::nullopt;
         if (Direction[0].Cross(Direction[1]).Dot(Direction[2]) < 0.0)
         { std::swap(Direction[1], Direction[2]); std::swap(Length[1], Length[2]); }
         Result.X = Direction[0]; Result.Y = Direction[1]; Result.Z = Direction[2];
@@ -477,10 +477,10 @@ namespace
             double C[3]{ Offset.Dot(Result.X), Offset.Dot(Result.Y), Offset.Dot(Result.Z) };
             const double L[3]{ Result.LX, Result.LY, Result.LZ };
             for (int I = 0; I < 3; ++I)
-                if (std::min(std::fabs(C[I]), std::fabs(C[I] - L[I])) > 1e-8 * Scale) return std::nullopt;
+                if (std::min(std::fabs(C[I]), std::fabs(C[I] - L[I])) > ScalarCriteria::GeometricTolerance * Scale) return std::nullopt;
         }
         const double Volume = Result.LX * Result.LY * Result.LZ;
-        if (!ScalarCriteria::WithinScaledTolerance(Body.Validate().Volume, Volume, 1e-8)) return std::nullopt;
+        if (!ScalarCriteria::WithinScaledTolerance(Body.Validate().Volume, Volume, ScalarCriteria::GeometricTolerance)) return std::nullopt;
         return Result;
     }
 
@@ -491,14 +491,14 @@ namespace
         for(int Index:Edges){if(Index<0||Index>=static_cast<int>(Body.Edges.size()))return std::nullopt;const BrepEdge&E=Body.Edges[Index];
             if(E.Curve.Classification!=CurveClassification::Line||E.VertexStart<0||E.VertexEnd<0)return std::nullopt;
             Vec3 P0=Body.Vertices[E.VertexStart].Point,P1=Body.Vertices[E.VertexEnd].Point,D=P1-P0;double L=D.Length();if(L<=Tol)return std::nullopt;
-            if(LA==0){LA=L;A=D/L;}else if(std::fabs(L-LA)>1e-8*LA||std::fabs(D.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+            if(LA==0){LA=L;A=D/L;}else if(std::fabs(L-LA)>ScalarCriteria::GeometricTolerance*LA||std::fabs(D.Normalised().Dot(A))<1.0-ScalarCriteria::GeometricTolerance)return std::nullopt;
             Low.push_back(P0.Dot(A)<=P1.Dot(A)?P0:P1);}
         std::sort(Low.begin(),Low.end(),[](Vec3 X,Vec3 Y){if(X.X!=Y.X)return X.X<Y.X;if(X.Y!=Y.Y)return X.Y<Y.Y;return X.Z<Y.Z;});
         Vec3 O=Low.front();std::vector<Vec3>D;for(size_t I=1;I<Low.size();++I)D.push_back(Low[I]-O);
         std::sort(D.begin(),D.end(),[](Vec3 X,Vec3 Y){return X.LengthSquared()<Y.LengthSquared();});
         if(D.size()!=3||D[0].Length()<=Tol||D[1].Length()<=Tol)return std::nullopt;
         Vec3 B=D[0].Normalised(),C=D[1].Normalised();double LB=D[0].Length(),LC=D[1].Length();
-        if(std::fabs(B.Dot(C))>1e-8||D[2].Distance(D[0]+D[1])>1e-8*std::max(LB,LC))return std::nullopt;
+        if(std::fabs(B.Dot(C))>ScalarCriteria::GeometricTolerance||D[2].Distance(D[0]+D[1])>ScalarCriteria::GeometricTolerance*std::max(LB,LC))return std::nullopt;
         if(A.Cross(B).Dot(C)<0){std::swap(B,C);std::swap(LB,LC);}
         return OrthogonalBoxCorner{O,A,B,C,LA,LB,LC};
     }
@@ -521,10 +521,10 @@ namespace
         auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
         Vec3 O=Frame->Corner,A=Frame->X,B=Frame->Y,C=Frame->Z;double LA=Frame->LX,LB=Frame->LY,LC=Frame->LZ;
         struct Ring{Vec3 Centre,Normal;double Radius=0.0;};std::vector<Ring>Lower,Upper;
-        const double Epsilon=1e-8*std::max(1.0,LA);
+        const double Epsilon=ScalarCriteria::GeometricTolerance*std::max(1.0,LA);
         for(const BrepEdge&E:Body.Edges)if(E.Closed())
         {
-            Ring R;if(!CircularFrame(E.Curve,R.Centre,R.Normal,R.Radius)||std::fabs(R.Normal.Dot(A))<1.0-1e-8)return std::nullopt;
+            Ring R;if(!CircularFrame(E.Curve,R.Centre,R.Normal,R.Radius)||std::fabs(R.Normal.Dot(A))<1.0-ScalarCriteria::GeometricTolerance)return std::nullopt;
             double T=(R.Centre-O).Dot(A);if(std::fabs(T)<=Epsilon)Lower.push_back(R);else if(std::fabs(T-LA)<=Epsilon)Upper.push_back(R);else return std::nullopt;
         }
         if(Lower.size()!=static_cast<size_t>(HoleCount)||Upper.size()!=Lower.size())return std::nullopt;
@@ -538,7 +538,7 @@ namespace
             {
                 Vec3 Span=Upper[I].Centre-L.Centre;double Axial=Span.Dot(A);
                 if(std::fabs(std::fabs(Axial)-LA)<=Epsilon&&(Span-A*Axial).Length()<=Epsilon&&
-                   std::fabs(Upper[I].Radius-L.Radius)<=1e-8*std::max(1.0,L.Radius)){if(Match>=0)return std::nullopt;Match=static_cast<int>(I);}
+                   std::fabs(Upper[I].Radius-L.Radius)<=ScalarCriteria::GeometricTolerance*std::max(1.0,L.Radius)){if(Match>=0)return std::nullopt;Match=static_cast<int>(I);}
             }
             if(Match<0)return std::nullopt;
             Used[Match]=true;Vec3 Offset=L.Centre-O;
@@ -576,18 +576,18 @@ namespace
         for(int CylinderFace:CylinderFaces)
         {
             const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
-            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-ScalarCriteria::GeometricTolerance)return std::nullopt;
             std::vector<double>RingT;
             for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
                 for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
                     int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
                     const BrepEdge& E=Body.Edges[Edge];if(!E.Closed())continue;double T=(E.Curve.Sample(E.Curve.DomainStart())-Frame->Corner).Dot(A);
-                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(A)-T)>1e-8*Scale)return std::nullopt;
+                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(A)-T)>ScalarCriteria::GeometricTolerance*Scale)return std::nullopt;
                     RingT.push_back(T);}}
             if(RingT.size()!=2)return std::nullopt;
             std::sort(RingT.begin(),RingT.end());
-            bool FromLow=std::fabs(RingT[0])<=1e-8*Scale&&RingT[1]>Tol&&RingT[1]<LA-Tol;
-            bool FromHigh=std::fabs(RingT[1]-LA)<=1e-8*Scale&&RingT[0]>Tol&&RingT[0]<LA-Tol;
+            bool FromLow=std::fabs(RingT[0])<=ScalarCriteria::GeometricTolerance*Scale&&RingT[1]>Tol&&RingT[1]<LA-Tol;
+            bool FromHigh=std::fabs(RingT[1]-LA)<=ScalarCriteria::GeometricTolerance*Scale&&RingT[0]>Tol&&RingT[0]<LA-Tol;
             if(FromLow==FromHigh)return std::nullopt;
             double Depth=FromLow?RingT[1]:LA-RingT[0];
             Vec3 Offset=Cylinder.Origin-Frame->Corner;PrismHole Hole{Offset.Dot(Frame->Y),Offset.Dot(Frame->Z),Cylinder.RadiusMajor};
@@ -629,8 +629,8 @@ namespace
             const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
             if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol)return std::nullopt;
             Vec3 Axis=Cylinder.Axis.Normalised();int Along=0;
-            if(std::fabs(Axis.Dot(Frame->Y))>1.0-1e-8)Along=1;
-            else if(std::fabs(Axis.Dot(Frame->Z))>1.0-1e-8)Along=2;
+            if(std::fabs(Axis.Dot(Frame->Y))>1.0-ScalarCriteria::GeometricTolerance)Along=1;
+            else if(std::fabs(Axis.Dot(Frame->Z))>1.0-ScalarCriteria::GeometricTolerance)Along=2;
             else return std::nullopt;
             Vec3 Direction=Along==1?Frame->Y:Frame->Z;double Length=Along==1?Frame->LY:Frame->LZ;
             double Scale=std::max(1.0,Length);std::vector<double>RingT;
@@ -638,12 +638,12 @@ namespace
                 for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
                     int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
                     const BrepEdge& E=Body.Edges[Edge];if(!E.Closed())continue;double T=(E.Curve.Sample(E.Curve.DomainStart())-Frame->Corner).Dot(Direction);
-                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(Direction)-T)>1e-8*Scale)return std::nullopt;
+                    for(int K=1;K<=4;++K)if(std::fabs((E.Curve.Sample(E.Curve.DomainStart()+(E.Curve.DomainEnd()-E.Curve.DomainStart())*K/4.0)-Frame->Corner).Dot(Direction)-T)>ScalarCriteria::GeometricTolerance*Scale)return std::nullopt;
                     RingT.push_back(T);}}
             if(RingT.size()!=2)return std::nullopt;
             std::sort(RingT.begin(),RingT.end());
-            bool FromLow=std::fabs(RingT[0])<=1e-8*Scale&&RingT[1]>Tol&&RingT[1]<Length-Tol;
-            bool FromHigh=std::fabs(RingT[1]-Length)<=1e-8*Scale&&RingT[0]>Tol&&RingT[0]<Length-Tol;
+            bool FromLow=std::fabs(RingT[0])<=ScalarCriteria::GeometricTolerance*Scale&&RingT[1]>Tol&&RingT[1]<Length-Tol;
+            bool FromHigh=std::fabs(RingT[1]-Length)<=ScalarCriteria::GeometricTolerance*Scale&&RingT[0]>Tol&&RingT[0]<Length-Tol;
             if(FromLow==FromHigh)return std::nullopt;
             double Depth=FromLow?RingT[1]:Length-RingT[0];Vec3 Offset=Cylinder.Origin-Frame->Corner;
             Cavities.push_back({Along,Offset.Dot(Frame->X),Offset.Dot(Along==1?Frame->Z:Frame->Y),Cylinder.RadiusMajor,FromLow,Depth});
@@ -690,11 +690,11 @@ namespace
             const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
             if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol)return std::nullopt;
             Vec3 Axis=Cylinder.Axis.Normalised();int Along=0;
-            if(std::fabs(Axis.Dot(Frame->Y))>1.0-1e-8)Along=1;
-            else if(std::fabs(Axis.Dot(Frame->Z))>1.0-1e-8)Along=2;
+            if(std::fabs(Axis.Dot(Frame->Y))>1.0-ScalarCriteria::GeometricTolerance)Along=1;
+            else if(std::fabs(Axis.Dot(Frame->Z))>1.0-ScalarCriteria::GeometricTolerance)Along=2;
             else return std::nullopt;
             Vec3 Direction=Along==1?Frame->Y:Frame->Z;double Length=Along==1?Frame->LY:Frame->LZ;
-            double PositionTolerance=1e-8*std::max(1.0,Length);std::vector<double>RingT;
+            double PositionTolerance=ScalarCriteria::GeometricTolerance*std::max(1.0,Length);std::vector<double>RingT;
             for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
                 for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
                     int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
@@ -706,7 +706,7 @@ namespace
             Spans.push_back({Along,Offset.Dot(Frame->X),Offset.Dot(Along==1?Frame->Z:Frame->Y),Cylinder.RadiusMajor,RingT[0],RingT[1]});
         }
         int Along=Spans.front().Along;for(const Span& SpanValue:Spans)if(SpanValue.Along!=Along)return std::nullopt;
-        double Length=Along==1?Frame->LY:Frame->LZ,PositionTolerance=1e-8*std::max(1.0,Length);
+        double Length=Along==1?Frame->LY:Frame->LZ,PositionTolerance=ScalarCriteria::GeometricTolerance*std::max(1.0,Length);
         int Entry=-1;bool FromLow=false;
         for(size_t I=0;I<Spans.size();++I)
         {
@@ -777,11 +777,11 @@ namespace
             const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
             if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol)return std::nullopt;
             Vec3 Axis=Cylinder.Axis.Normalised();int Along=0;
-            if(std::fabs(Axis.Dot(Frame->Y))>1.0-1e-8)Along=1;
-            else if(std::fabs(Axis.Dot(Frame->Z))>1.0-1e-8)Along=2;
+            if(std::fabs(Axis.Dot(Frame->Y))>1.0-ScalarCriteria::GeometricTolerance)Along=1;
+            else if(std::fabs(Axis.Dot(Frame->Z))>1.0-ScalarCriteria::GeometricTolerance)Along=2;
             else return std::nullopt;
             Vec3 Direction=Along==1?Frame->Y:Frame->Z;double Length=Along==1?Frame->LY:Frame->LZ;
-            double PositionTolerance=1e-8*std::max(1.0,Length);std::vector<double>RingT;
+            double PositionTolerance=ScalarCriteria::GeometricTolerance*std::max(1.0,Length);std::vector<double>RingT;
             for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
                 for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
                     int Edge=Body.Coedges[Coedge].Edge;if(Edge<0||Edge>=static_cast<int>(Body.Edges.size()))return std::nullopt;
@@ -793,7 +793,7 @@ namespace
             Spans.push_back({Along,Offset.Dot(Frame->X),Offset.Dot(Along==1?Frame->Z:Frame->Y),Cylinder.RadiusMajor,RingT[0],RingT[1]});
         }
         int Along=Spans.front().Along;for(const Span& SpanValue:Spans)if(SpanValue.Along!=Along)return std::nullopt;
-        double Length=Along==1?Frame->LY:Frame->LZ,PositionTolerance=1e-8*std::max(1.0,Length);
+        double Length=Along==1?Frame->LY:Frame->LZ,PositionTolerance=ScalarCriteria::GeometricTolerance*std::max(1.0,Length);
         std::vector<int>Entries;
         for(size_t I=0;I<Spans.size();++I)
         {
@@ -867,11 +867,11 @@ namespace
         }
         if(Planes!=static_cast<int>(6+Count)||Cylinders!=static_cast<int>(Count)||InnerLoops!=static_cast<int>(Count))return std::nullopt;
         struct Span{PrismHole Hole;double Low=0.0,High=0.0;};std::vector<Span>Spans;
-        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA),PositionTolerance=1e-8*Scale;
+        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA),PositionTolerance=ScalarCriteria::GeometricTolerance*Scale;
         for(int CylinderFace:CylinderFaces)
         {
             const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
-            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-ScalarCriteria::GeometricTolerance)return std::nullopt;
             std::vector<double>RingT;
             for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
                 for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
@@ -947,11 +947,11 @@ namespace
         }
         if(Planes!=10||Cylinders!=4||InnerLoops!=4)return std::nullopt;
         struct Span{PrismHole Hole;double Low=0.0,High=0.0;};std::vector<Span>Spans;
-        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA),PositionTolerance=1e-8*Scale;
+        Vec3 A=Frame->X;double LA=Frame->LX,Scale=std::max(1.0,LA),PositionTolerance=ScalarCriteria::GeometricTolerance*Scale;
         for(int CylinderFace:CylinderFaces)
         {
             const BrepFace& Face=Body.Faces[CylinderFace];const NurbsSurface& Cylinder=Face.Surface;
-            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-1e-8)return std::nullopt;
+            if(!Cylinder.Rational()||Cylinder.RadiusMajor<=Tol||std::fabs(Cylinder.Axis.Normalised().Dot(A))<1.0-ScalarCriteria::GeometricTolerance)return std::nullopt;
             std::vector<double>RingT;
             for(int Loop:Face.Loops){if(Loop<0||Loop>=static_cast<int>(Body.Loops.size()))return std::nullopt;
                 for(int Coedge:Body.Loops[Loop].Coedges){if(Coedge<0||Coedge>=static_cast<int>(Body.Coedges.size()))return std::nullopt;
@@ -1528,7 +1528,7 @@ namespace
         for(const SteppedBlindStage& Stage:Step.Stages)
         {
             if(Stage.Hole.Radius<=Tol||Stage.Hole.Radius>=PreviousRadius-Tol||Stage.Depth<=PreviousDepth+Tol||
-               Stage.Depth>=Step.Box.LX-Tol||std::hypot(Stage.Hole.B-Outer.B,Stage.Hole.C-Outer.C)>1e-8*Scale)
+               Stage.Depth>=Step.Box.LX-Tol||std::hypot(Stage.Hole.B-Outer.B,Stage.Hole.C-Outer.C)>ScalarCriteria::GeometricTolerance*Scale)
                 return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"stepped blind bore consumes or misaligns a radial or axial shoulder");
             PreviousRadius=Stage.Hole.Radius;PreviousDepth=Stage.Depth;
         }
@@ -1726,12 +1726,12 @@ namespace
                 }
             }
             if (ShoulderFace < 0 || BossFace < 0 || CandidateAxis.Length() <= Tol ||
-                std::fabs(CandidateCircleNormal.Dot(CandidateAxis)) < 1.0 - 1e-8) return std::nullopt;
+                std::fabs(CandidateCircleNormal.Dot(CandidateAxis)) < 1.0 - ScalarCriteria::GeometricTolerance) return std::nullopt;
 
             Vec3 BossStart, BossEnd; double ClassifiedBossRadius = 0.0;
             if (!CylinderEndCentres(Body.Faces[BossFace].Surface, BossStart, BossEnd, ClassifiedBossRadius)) return std::nullopt;
             const double Scale = std::max({ 1.0, CandidateRadius, ClassifiedBossRadius, BossStart.Distance(BossEnd) });
-            const double Epsilon = 1e-8 * Scale;
+            const double Epsilon = ScalarCriteria::GeometricTolerance * Scale;
             if (std::fabs(CandidateRadius - ClassifiedBossRadius) > Epsilon) return std::nullopt;
             Vec3 BossOther;
             if (BossStart.Distance(CandidateCentre) <= Epsilon) BossOther = BossEnd;
@@ -1739,7 +1739,7 @@ namespace
             else return std::nullopt;
             double CandidateBossHeight = BossOther.Distance(CandidateCentre);
             if (CandidateBossHeight <= Epsilon ||
-                (BossOther - CandidateCentre).Normalised().Dot(CandidateAxis) < 1.0 - 1e-8) return std::nullopt;
+                (BossOther - CandidateCentre).Normalised().Dot(CandidateAxis) < 1.0 - ScalarCriteria::GeometricTolerance) return std::nullopt;
 
             if (FirstRoot)
             {
@@ -1747,7 +1747,7 @@ namespace
                 BossRadius = CandidateRadius; BossHeight = CandidateBossHeight;
                 FirstRoot = false;
             }
-            else if (CandidateCentre.Distance(RootCentre) > Epsilon || CandidateAxis.Dot(Axis) < 1.0 - 1e-8 ||
+            else if (CandidateCentre.Distance(RootCentre) > Epsilon || CandidateAxis.Dot(Axis) < 1.0 - ScalarCriteria::GeometricTolerance ||
                      std::fabs(CandidateRadius - BossRadius) > Epsilon ||
                      std::fabs(CandidateBossHeight - BossHeight) > Epsilon) return std::nullopt;
             AppendUnique(ShoulderFaces, ShoulderFace);
@@ -1773,10 +1773,10 @@ namespace
                     int Candidate = Body.Coedges[Coedge].Edge;
                     if (Candidate < 0 || Candidate >= static_cast<int>(Body.Edges.size()) || Contains(RootEdges, Candidate)) continue;
                     Vec3 CandidateCentre, CandidateNormal; double CandidateRadius = 0.0;
-                    const double Epsilon = 1e-8 * std::max(1.0, BossRadius);
+                    const double Epsilon = ScalarCriteria::GeometricTolerance * std::max(1.0, BossRadius);
                     if (!CircularFrame(Body.Edges[Candidate].Curve, CandidateCentre, CandidateNormal, CandidateRadius) ||
                         CandidateCentre.Distance(RootCentre) > Epsilon ||
-                        std::fabs(CandidateNormal.Dot(Axis)) < 1.0 - 1e-8 || CandidateRadius <= BossRadius + Epsilon) continue;
+                        std::fabs(CandidateNormal.Dot(Axis)) < 1.0 - ScalarCriteria::GeometricTolerance || CandidateRadius <= BossRadius + Epsilon) continue;
                     if (FoundOuter >= 0 && FoundOuter != Candidate) return std::nullopt;
                     FoundOuter = Candidate;
                 }
@@ -1785,7 +1785,7 @@ namespace
             Vec3 CandidateCentre, CandidateNormal; double CandidateRadius = 0.0;
             if (!CircularFrame(Body.Edges[FoundOuter].Curve, CandidateCentre, CandidateNormal, CandidateRadius)) return std::nullopt;
             if (OuterRadius <= Tol) OuterRadius = CandidateRadius;
-            else if (std::fabs(CandidateRadius - OuterRadius) > 1e-8 * std::max(1.0, OuterRadius)) return std::nullopt;
+            else if (std::fabs(CandidateRadius - OuterRadius) > ScalarCriteria::GeometricTolerance * std::max(1.0, OuterRadius)) return std::nullopt;
             AppendUnique(OuterEdges, FoundOuter);
 
             int OuterFace = -1;
@@ -1813,7 +1813,7 @@ namespace
         {
             Vec3 OuterStart, OuterEnd; double ClassifiedOuterRadius = 0.0;
             if (!CylinderEndCentres(Body.Faces[OuterFace].Surface, OuterStart, OuterEnd, ClassifiedOuterRadius)) return std::nullopt;
-            const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, OuterStart.Distance(OuterEnd) });
+            const double Epsilon = ScalarCriteria::GeometricTolerance * std::max({ 1.0, OuterRadius, OuterStart.Distance(OuterEnd) });
             if (std::fabs(OuterRadius - ClassifiedOuterRadius) > Epsilon) return std::nullopt;
             Vec3 CandidateBase;
             if (OuterStart.Distance(RootCentre) <= Epsilon) CandidateBase = OuterEnd;
@@ -1821,7 +1821,7 @@ namespace
             else return std::nullopt;
             double CandidateHeight = CandidateBase.Distance(RootCentre);
             if (CandidateHeight <= Epsilon ||
-                (CandidateBase - RootCentre).Normalised().Dot(Axis) > -1.0 + 1e-8) return std::nullopt;
+                (CandidateBase - RootCentre).Normalised().Dot(Axis) > -1.0 + ScalarCriteria::GeometricTolerance) return std::nullopt;
             if (FirstOuter) { Base = CandidateBase; ShoulderHeight = CandidateHeight; FirstOuter = false; }
             else if (CandidateBase.Distance(Base) > Epsilon || std::fabs(CandidateHeight - ShoulderHeight) > Epsilon)
                 return std::nullopt;
@@ -1838,11 +1838,11 @@ namespace
                 int FaceIndex = static_cast<int>(Face);
                 if (Contains(ShoulderFaces, FaceIndex) || Contains(BossFaces, FaceIndex) || Contains(OuterFaces, FaceIndex)) continue;
                 Vec3 Normal;
-                if (!PlanarNormal(Body, FaceIndex, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+                if (!PlanarNormal(Body, FaceIndex, Normal) || std::fabs(Normal.Dot(Axis)) < 1.0 - ScalarCriteria::GeometricTolerance) return std::nullopt;
                 const NurbsSurface& Cap = Body.Faces[Face].Surface;
                 Vec3 Point = Cap.Sample(0.5 * (Cap.DomainStartU() + Cap.DomainEndU()),
                                         0.5 * (Cap.DomainStartV() + Cap.DomainEndV()));
-                const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
+                const double Epsilon = ScalarCriteria::GeometricTolerance * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
                 if (std::fabs((Point - Base).Dot(Axis)) <= Epsilon) ++BottomCaps;
                 else if (std::fabs((Point - BossTop).Dot(Axis)) <= Epsilon) ++TopCaps;
                 else return std::nullopt;
@@ -1857,7 +1857,7 @@ namespace
         struct RadialCap { Vec3 Normal, Point; };
         int BottomPatches = 0, TopPatches = 0;
         std::vector<RadialCap> RadialCaps;
-        const double Epsilon = 1e-8 * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
+        const double Epsilon = ScalarCriteria::GeometricTolerance * std::max({ 1.0, OuterRadius, ShoulderHeight, BossHeight });
         for (size_t Face = 0; Face < Body.Faces.size(); ++Face)
         {
             int FaceIndex = static_cast<int>(Face);
@@ -1868,13 +1868,13 @@ namespace
             Vec3 Point = Surface.Sample(0.5 * (Surface.DomainStartU() + Surface.DomainEndU()),
                                         0.5 * (Surface.DomainStartV() + Surface.DomainEndV()));
             double Alignment = std::fabs(Normal.Dot(Axis));
-            if (Alignment > 1.0 - 1e-8)
+            if (Alignment > 1.0 - ScalarCriteria::GeometricTolerance)
             {
                 if (std::fabs((Point - Base).Dot(Axis)) <= Epsilon) ++BottomPatches;
                 else if (std::fabs((Point - BossTop).Dot(Axis)) <= Epsilon) ++TopPatches;
                 else return std::nullopt;
             }
-            else if (Alignment < 1e-8 && Surface.Classification == SurfaceClassification::Plane)
+            else if (Alignment < ScalarCriteria::GeometricTolerance && Surface.Classification == SurfaceClassification::Plane)
                 RadialCaps.push_back({ Normal.Normalised(), Point });
             else return std::nullopt;
         }
@@ -1890,7 +1890,7 @@ namespace
         auto MatchesCap = [&](const RadialCap& Cap, Vec3 Radial) noexcept
         {
             Vec3 ExpectedNormal = Axis.Cross(Radial).Normalised();
-            return std::fabs(Cap.Normal.Dot(ExpectedNormal)) > 1.0 - 1e-8 &&
+            return std::fabs(Cap.Normal.Dot(ExpectedNormal)) > 1.0 - ScalarCriteria::GeometricTolerance &&
                 std::fabs((Cap.Point - Base).Dot(ExpectedNormal)) <= Epsilon;
         };
         int StartCaps = 0, EndCaps = 0;
@@ -1913,9 +1913,9 @@ namespace
             return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "fillet radius consumes the planar shoulder");
 
         const Vec3 ShoulderCentre = Root.Base + Root.Axis * Root.ShoulderHeight;
-        const bool Closed = std::fabs(std::fabs(Root.SweepAngle) - ScalarCriteria::TwoPi) <= 1e-8;
+        const bool Closed = std::fabs(std::fabs(Root.SweepAngle) - ScalarCriteria::TwoPi) <= ScalarCriteria::GeometricTolerance;
         const Vec3 Radial = Closed ? Workplane::FromNormal(Root.Base, Root.Axis).AxisX : Root.RadialStart.Normalised();
-        if (Radial.Length() <= Tol || std::fabs(Radial.Dot(Root.Axis)) > 1e-8)
+        if (Radial.Length() <= Tol || std::fabs(Radial.Dot(Root.Axis)) > ScalarCriteria::GeometricTolerance)
             return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "plane-cylinder fillet radial frame is degenerate");
 
         auto RevolveLine = [&](Vec3 Start, Vec3 End) -> Deliver<NurbsSurface>
@@ -2046,7 +2046,7 @@ namespace
             {
                 Vec3 Normal;
                 if (!PlanarNormal(Body, static_cast<int>(CandidateIndex), Normal) ||
-                    std::fabs(Normal.Dot(Axis)) < 1.0 - 1e-8) return std::nullopt;
+                    std::fabs(Normal.Dot(Axis)) < 1.0 - ScalarCriteria::GeometricTolerance) return std::nullopt;
                 const NurbsSurface& Plane = Candidate.Surface;
                 Vec3 Point = Plane.Sample(0.5 * (Plane.DomainStartU() + Plane.DomainEndU()),
                                           0.5 * (Plane.DomainStartV() + Plane.DomainEndV()));
@@ -2066,7 +2066,7 @@ namespace
 
         const double Height = High - Low;
         const double Scale = std::max({ 1.0, Side.RadiusMajor, Side.RadiusMinor, std::fabs(Low), std::fabs(High), Height });
-        const double Epsilon = 1e-8 * Scale;
+        const double Epsilon = ScalarCriteria::GeometricTolerance * Scale;
         if (Caps != 2 || Rims != 2 || Seams != 1 || Height <= Epsilon) return std::nullopt;
 
         // Verify the classified support against its actual NURBS. In particular, derive the two axial endpoints instead
@@ -2150,7 +2150,7 @@ namespace
             {
                 const NurbsSurface& Cap = Body.Faces[Face].Surface;
                 Vec3 Point = Cap.Sample(0.5 * (Cap.DomainStartU() + Cap.DomainEndU()), 0.5 * (Cap.DomainStartV() + Cap.DomainEndV()));
-                double T = (Point - Side->Base).Dot(Side->Axis), Epsilon = 1e-8 * std::max({ 1.0, Side->Height, Side->RadiusFoot, Side->RadiusTop });
+                double T = (Point - Side->Base).Dot(Side->Axis), Epsilon = ScalarCriteria::GeometricTolerance * std::max({ 1.0, Side->Height, Side->RadiusFoot, Side->RadiusTop });
                 if (std::fabs(T - Side->Height) <= Epsilon) return ConeCap{ *Side, true };
                 if (std::fabs(T) <= Epsilon) return ConeCap{ *Side, false };
             }
@@ -2468,7 +2468,7 @@ Deliver<std::vector<int>> BlendSolver::TangentChain(const BrepBody& Body, int Se
                     ? Candidate.Curve.DomainStart() : Candidate.Curve.DomainEnd();
                 Vec3 CandidateTangent = Candidate.Curve.Tangent(CandidateParameter).Normalised();
                 if (CandidateTangent.Length() <= Tol ||
-                    std::fabs(CurrentTangent.Dot(CandidateTangent)) < 1.0 - 1e-8) continue;
+                    std::fabs(CurrentTangent.Dot(CandidateTangent)) < 1.0 - ScalarCriteria::GeometricTolerance) continue;
                 if (Continuation >= 0 && Continuation != static_cast<int>(CandidateIndex))
                     return Deliver<std::vector<int>>::Reject(RefusalReason::Unsupported, "tangent chain branches ambiguously at a vertex");
                 Continuation = static_cast<int>(CandidateIndex);
@@ -2593,7 +2593,7 @@ Deliver<BrepBody> BlendSolver::ChamferEdge(const BrepBody& Body, int Edge, doubl
     // endpoints (relative to the edge length); positive ones run it past (relative to the set-back). Each candidate
     // must be both closed and within the numerical-integration floor of the exact local wedge.
     static const double Margins[] = { -1e-8, -1e-7, -1e-6, -1e-5, -1e-4, -1e-3,
-                                           1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3,
+                                           ScalarCriteria::GeometricTolerance, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3,
                                            0.01, 0.05, 0.13, 0.29, 0.53, 1.0, 2.0, 3.0 };
     static const double HalfWidths[] = { 0.55, 0.8, 1.2, 2.0, 3.0 };
 
@@ -2849,7 +2849,7 @@ Deliver<BrepBody> BlendSolver::FilletEdges(const BrepBody& Body, const std::vect
         {
             int Family=-1;bool Same=true;
             for(const Target&T:Targets){const BrepEdge&E=Body.Edges[T.Chain.front()];Vec3 D=(Body.Vertices[E.VertexEnd].Point-Body.Vertices[E.VertexStart].Point).Normalised();
-                int F=std::fabs(D.Dot(Box->X))>1.0-1e-8?0:(std::fabs(D.Dot(Box->Y))>1.0-1e-8?1:(std::fabs(D.Dot(Box->Z))>1.0-1e-8?2:-1));
+                int F=std::fabs(D.Dot(Box->X))>1.0-ScalarCriteria::GeometricTolerance?0:(std::fabs(D.Dot(Box->Y))>1.0-ScalarCriteria::GeometricTolerance?1:(std::fabs(D.Dot(Box->Z))>1.0-ScalarCriteria::GeometricTolerance?2:-1));
                 if(Family<0)Family=F;else if(F!=Family)Same=false;}
             if(Same&&Family>=0){auto Result=BuildRoundedBoxPrism(*Box,Family,Radius);if(Result&&AppliedChains)*AppliedChains=4;return Result;}
         }
