@@ -57,7 +57,7 @@ namespace
         Vec3 N = Da.Cross(Db); double N2 = N.LengthSquared();
         if (N2 < 1e-30) return false;
         S = W.Cross(Db).Dot(N) / N2; T = W.Cross(Da).Dot(N) / N2;
-        return S >= -1e-9 && S <= 1 + 1e-9 && T >= -1e-9 && T <= 1 + 1e-9;
+        return S >= -ScalarCriteria::KernelTolerance && S <= 1 + ScalarCriteria::KernelTolerance && T >= -ScalarCriteria::KernelTolerance && T <= 1 + ScalarCriteria::KernelTolerance;
     }
 
     struct Candidate { double S, T; };
@@ -87,7 +87,7 @@ namespace
         if (Discriminant <= 1e-12) return;                                              // tangent/repeated root, not two distinct visits
         double Root = std::sqrt(Discriminant);
         double S = 0.5 * (U - Root), T = 0.5 * (U + Root);
-        if (S <= 1e-9 || T >= 1.0 - 1e-9) return;
+        if (S <= ScalarCriteria::KernelTolerance || T >= 1.0 - ScalarCriteria::KernelTolerance) return;
         double T0 = C.DomainStart(), Span = C.DomainEnd() - T0;
         Out.push_back({ T0 + Span * S, T0 + Span * T });
     }
@@ -177,7 +177,7 @@ namespace
             I += Mult - 1;
         }
         auto Push = [&](double T, Vec3 In, Vec3 Outg) { if (In.Cross(Outg).Length() > 1e-6 || In.Dot(Outg) < 0) Out.push_back({ T, C.Sample(T), In, Outg }); };
-        for (double T : Breaks) Push(T, C.Tangent(T - 1e-9 * (C.DomainEnd() - C.DomainStart())), C.Tangent(T + 1e-9 * (C.DomainEnd() - C.DomainStart())));
+        for (double T : Breaks) Push(T, C.Tangent(T - ScalarCriteria::KernelTolerance * (C.DomainEnd() - C.DomainStart())), C.Tangent(T + ScalarCriteria::KernelTolerance * (C.DomainEnd() - C.DomainStart())));
         if (Closed) Push(C.DomainStart(), C.Tangent(C.DomainEnd()), C.Tangent(C.DomainStart()));
         std::sort(Out.begin(), Out.end(), [](const Corner& A, const Corner& B) { return A.T < B.T; });
         return Out;
@@ -249,14 +249,14 @@ std::vector<NurbsCurve> ProfileSolver::SplitAt(const NurbsCurve& C, std::vector<
     const double T0 = C.DomainStart(), T1 = C.DomainEnd();
     std::sort(Parameters.begin(), Parameters.end());
     std::vector<double> Cuts;
-    for (double T : Parameters) if (T > T0 + 1e-9 && T < T1 - 1e-9 && (Cuts.empty() || T - Cuts.back() > 1e-9)) Cuts.push_back(T);
+    for (double T : Parameters) if (T > T0 + ScalarCriteria::KernelTolerance && T < T1 - ScalarCriteria::KernelTolerance && (Cuts.empty() || T - Cuts.back() > ScalarCriteria::KernelTolerance)) Cuts.push_back(T);
     std::vector<NurbsCurve> Out;
     if (Cuts.empty()) { Out.push_back(C); return Out; }
     double Prev = T0;
     for (double T : Cuts) { Out.push_back(C.Trimmed(Prev, T)); Prev = T; }
     Out.push_back(C.Trimmed(Prev, T1));
     // closed curve not cut at the seam: merge last and first so a piece does not start at an arbitrary seam
-    if (C.Closed() && std::find_if(Parameters.begin(), Parameters.end(), [&](double T) { return std::fabs(T - T0) < 1e-9 || std::fabs(T - T1) < 1e-9; }) == Parameters.end() && Out.size() > 1)
+    if (C.Closed() && std::find_if(Parameters.begin(), Parameters.end(), [&](double T) { return std::fabs(T - T0) < ScalarCriteria::KernelTolerance || std::fabs(T - T1) < ScalarCriteria::KernelTolerance; }) == Parameters.end() && Out.size() > 1)
     {
         Deliver<NurbsCurve> J = NurbsCurve::Join(Out.back(), Out.front());
         if (J) { Out.front() = std::move(J.Payload); Out.pop_back(); }
@@ -506,8 +506,8 @@ std::vector<PlanarCell> ProfileSolver::Cells(const std::vector<NurbsCurve>& Curv
                 const Half& K = Halves[Cand];
                 bool Twin = K.Arc == H.Arc && K.Forward != H.Forward;
                 double Turn = Back - K.HeadingOut;                                                   // clockwise angle from Back to K
-                while (Turn <= 1e-9) Turn += ScalarCriteria::TwoPi;
-                while (Turn > ScalarCriteria::TwoPi + 1e-9) Turn -= ScalarCriteria::TwoPi;
+                while (Turn <= ScalarCriteria::KernelTolerance) Turn += ScalarCriteria::TwoPi;
+                while (Turn > ScalarCriteria::TwoPi + ScalarCriteria::KernelTolerance) Turn -= ScalarCriteria::TwoPi;
                 if (Twin) Turn = ScalarCriteria::TwoPi;                                              // U-turn only when nothing else leaves
                 if (Turn < BestTurn) { BestTurn = Turn; Best = Cand; }
             }
@@ -586,7 +586,7 @@ namespace
             double Total = C.Length();
             double Lb = Lk - Setback, La = Lk + Setback;
             if (Closed) { if (Lb < 0) Lb += Total; if (La > Total) La -= Total; }
-            else if (Lb < -1e-9 || La > Total + 1e-9) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "setback exceeds the neighbouring segment");
+            else if (Lb < -ScalarCriteria::KernelTolerance || La > Total + ScalarCriteria::KernelTolerance) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "setback exceeds the neighbouring segment");
             Cut Q; Q.Before = C.ParameterAtLength(std::max(Lb, 0.0)); Q.After = C.ParameterAtLength(std::min(La, Total));
             Q.P0 = C.Sample(Q.Before); Q.P1 = C.Sample(Q.After); Q.K = K; Q.On = Pick[I]; Q.Setback = Setback;
             Cuts.push_back(Q);
@@ -599,7 +599,7 @@ namespace
             double AtI = C.Trimmed(C.DomainStart(), Cuts[I].K.T).Length(), AtJ = C.Trimmed(C.DomainStart(), Cuts[J].K.T).Length();
             double Gap = J == 0 ? (C.Length() - AtI) + AtJ : AtJ - AtI;
             double Need = Cuts[I].Setback + Cuts[J].Setback;
-            if (Need > Gap + 1e-9) { Cuts[I].On = false; Cuts[J].On = false; }
+            if (Need > Gap + ScalarCriteria::KernelTolerance) { Cuts[I].On = false; Cuts[J].On = false; }
         }
         if (std::none_of(Cuts.begin(), Cuts.end(), [](const Cut& Q) { return Q.On; })) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "every corner's setback collides with its neighbour — use a smaller distance");
         // rebuild: walk the curve, splicing connectors in
@@ -617,8 +617,8 @@ namespace
             const Cut& Q = Cuts[Idx];
             if (!Q.On) continue;
             // segment from Cursor to Q.Before (wrap-aware)
-            if (Q.Before < Cursor - 1e-9) { Parts.push_back(C.Trimmed(Cursor, C.DomainEnd())); Parts.push_back(C.Trimmed(C.DomainStart(), Q.Before)); }
-            else if (Q.Before > Cursor + 1e-9) Parts.push_back(C.Trimmed(Cursor, Q.Before));
+            if (Q.Before < Cursor - ScalarCriteria::KernelTolerance) { Parts.push_back(C.Trimmed(Cursor, C.DomainEnd())); Parts.push_back(C.Trimmed(C.DomainStart(), Q.Before)); }
+            else if (Q.Before > Cursor + ScalarCriteria::KernelTolerance) Parts.push_back(C.Trimmed(Cursor, Q.Before));
             Parts.push_back(Connect(Q.P0, Q.K.P, Q.P1, Q.K.In, Q.K.Out, Distance));
             Cursor = Q.After;
             (void)Span;
@@ -627,10 +627,10 @@ namespace
         {
             // close back to the start of the walk (FirstOn->After)
             double End = FirstOn->After;
-            if (End < Cursor - 1e-9) { Parts.push_back(C.Trimmed(Cursor, C.DomainEnd())); if (End > C.DomainStart() + 1e-9) Parts.push_back(C.Trimmed(C.DomainStart(), End)); }
-            else if (End > Cursor + 1e-9) Parts.push_back(C.Trimmed(Cursor, End));
+            if (End < Cursor - ScalarCriteria::KernelTolerance) { Parts.push_back(C.Trimmed(Cursor, C.DomainEnd())); if (End > C.DomainStart() + ScalarCriteria::KernelTolerance) Parts.push_back(C.Trimmed(C.DomainStart(), End)); }
+            else if (End > Cursor + ScalarCriteria::KernelTolerance) Parts.push_back(C.Trimmed(Cursor, End));
         }
-        else if (Cursor < C.DomainEnd() - 1e-9) Parts.push_back(C.Trimmed(Cursor, C.DomainEnd()));
+        else if (Cursor < C.DomainEnd() - ScalarCriteria::KernelTolerance) Parts.push_back(C.Trimmed(Cursor, C.DomainEnd()));
         // drop empty pieces then chain
         std::vector<NurbsCurve> Live; for (NurbsCurve& P : Parts) if (P.Poles.size() >= 2 && P.Length() > ScalarCriteria::KernelTolerance) Live.push_back(std::move(P));
         NurbsCurve R = ChainPieces(std::move(Live));
@@ -703,7 +703,7 @@ Deliver<NurbsCurve> ProfileSolver::Offset(const NurbsCurve& C, double Distance, 
         {
             double K = P.Curvature(Tm);
             Vec3 D[3]; P.Derivatives(Tm, 2, D);
-            if (K > 1e-9)
+            if (K > ScalarCriteria::KernelTolerance)
             {
                 double R = 1.0 / K; Vec3 LeftN = N.Cross(D[1]).Normalised();
                 bool TurnsLeft = D[2].Dot(LeftN) > 0;
@@ -712,7 +712,7 @@ Deliver<NurbsCurve> ProfileSolver::Offset(const NurbsCurve& C, double Distance, 
                 // Only take the exact arc branch when five samples lie on the osculating circle; otherwise it follows
                 // the free-form path below rather than replacing an ellipse by four unrelated osculating circles.
                 bool Circular = true;
-                const double RadiusTolerance = 1e-9 * std::max(1.0, R);
+                const double RadiusTolerance = ScalarCriteria::KernelTolerance * std::max(1.0, R);
                 for (double F : { 0.0, 0.25, 0.5, 0.75, 1.0 })
                     if (std::fabs(P.Sample(P.DomainStart() + (P.DomainEnd() - P.DomainStart()) * F).Distance(Centre) - R) > RadiusTolerance) Circular = false;
                 if (Circular)
