@@ -3200,6 +3200,21 @@ Deliver<BrepBody> BlendSolver::ReconstructVariableRadiusRuledSolid(const Asymmet
                           Surface.Payload.Law.End, Surface.Payload.Length);
 }
 
+bool BlendSolver::ValidateVariableSurfaceCurvature(const VariableRadiusSurface& Surface,
+                                                       double MaximumCircumferentialCurvature,
+                                                       std::string& Refusal) noexcept
+{
+    if (!std::isfinite(MaximumCircumferentialCurvature) || MaximumCircumferentialCurvature <= 0.0)
+    { Refusal = "curvature bound is invalid"; return false; }
+    for (int I = 0; I <= 16; ++I)
+    {
+        const double K = Surface.CircumferentialCurvature(static_cast<double>(I) / 16.0);
+        if (!std::isfinite(K) || K > MaximumCircumferentialCurvature + ScalarCriteria::GeometricTolerance)
+        { Refusal = "variable surface curvature exceeds bound"; return false; }
+    }
+    return true;
+}
+
 bool BlendSolver::ValidateVariableSurfaceG1(const VariableRadiusSurface& Surface,
                                               Vec3 LowSupportNormal, Vec3 HighSupportNormal,
                                               double Angle, std::string& Refusal) noexcept

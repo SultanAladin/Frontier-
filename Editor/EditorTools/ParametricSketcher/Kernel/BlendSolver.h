@@ -165,6 +165,9 @@ public:
                                                          double Angle, std::string& Refusal) noexcept;
     [[nodiscard]] static Deliver<VariableRadiusSurface> BuildVariableRadiusSurface(const AsymmetricBlendSpecification& Specification) noexcept;
     [[nodiscard]] static Deliver<BrepBody> ReconstructVariableRadiusRuledSolid(const AsymmetricBlendSpecification& Specification) noexcept;
+    [[nodiscard]] static bool ValidateVariableSurfaceCurvature(const VariableRadiusSurface& Surface,
+                                                                double MaximumCircumferentialCurvature,
+                                                                std::string& Refusal) noexcept;
 
     // Follow G1 edge-to-edge continuations from a manifold seed. A closed edge is a singleton; an ambiguous tangent
     // branch refuses rather than selecting by edge-table order. The returned indices describe one complete chain.
