@@ -385,7 +385,7 @@ The same structural classifier and exact builder now scale to three through eigh
 
 #### Phase 32l: one axis-parallel blind cylindrical cavity ✅
 
-A canonical genus-zero rectangular prism with one finite-depth cylindrical cavity entering either end now takes a dedicated route. The classifier derives the outer frame from the selected rails, verifies seven planes plus one reversed cylinder, extracts entry/depth from both closed rims, and checks analytic cavity volume. The builder rounds the outer prism, subtracts the bounded exact cylinder, then replaces the fitted Boolean entrance intersection with its exact rational circle. The result is one `V18/E27/C54/L13/F12` hull with seven planes, five cylinders, one annular entrance cap, and a planar cavity floor. Offset placement, both entry directions, transforms, wall refusal, and side-axis refusal are verified.
+A canonical genus-zero rectangular prism with one finite-depth cylindrical cavity entering either end now takes a dedicated route. The classifier derives the outer frame from the selected rails, verifies seven planes plus one reversed cylinder, extracts entry/depth from both closed rims, and checks analytic cavity volume. The builder rounds the outer prism, subtracts the bounded exact cylinder, then replaces the fitted Boolean entrance intersection with its exact rational circle. The result is one `V18/E27/C54/L13/F12` hull with seven planes, five cylinders, one annular entrance cap, and a planar cavity floor. Offset placement, both entry directions, transforms, wall refusal, and delegation of an orthogonal side-axis cavity to Phase 32r are verified.
 
 **Proof:** `BlindBorePrismFilletVerification` (21 C++ checks) and `Proofs/Phase32l_BlindBorePrism.png`.
 
@@ -419,9 +419,15 @@ Two canonical counterbores may enter a common end or opposite ends. Four cylindr
 
 **Proof:** `DualSteppedBlindBorePrismFilletVerification` (27 C++ checks) and `Proofs/Phase32q_DualSteppedBlindBorePrism.png`.
 
+#### Phase 32r: one orthogonal side-entering blind cavity ✅
+
+One canonical finite cylindrical cavity may now enter either retained planar side parallel to either prism cross-section direction while all four selected-axis rails round. The classifier derives side and entry direction, centre, radius, and depth from the inward cylinder and both rims; it requires canonical genus-zero `V10/E15/C30/L9/F8` source topology and analytic volume. The complete entrance disk must clear the rounded corners on that side and both selected-axis end caps. Bounded reconstruction explicitly restores the Boolean-fitted entrance and planar-floor rims as exact rational circles, producing genus-zero `V18/E27/C54/L13/F12` with seven planes, five rational cylinders, and one annular side wall. Low/high Y and Z entry, offsets, rail ordering, transforms, corner/through/multiple refusal, prior-route delegation, console commit, and deterministic rendering are verified.
+
+**Proof:** `SideBlindBorePrismFilletVerification` (27 C++ checks) and `Proofs/Phase32r_SideBlindBorePrism.png`.
+
 #### Still required before Phase 32 is complete
 
-Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique/side-entering, undercut, non-decreasing, eccentric, more-than-two, or multiple multistage blind cavities, more-than-eight simple cavities/through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
+Asymmetric or non-radial endpoint supports, unequal/non-orthogonal and partial corner networks, oblique or multiple/stepped side-entering cavities, undercut, non-decreasing, eccentric, more-than-two, or multiple multistage blind cavities, more-than-eight simple cavities/through-holes, non-box thin walls, and general non-box blend/blend intersections each need separate topology and visual regressions. This increment does not claim them.
 
 ### Phase 33: variable radius, setbacks, partial edges, and G2
 

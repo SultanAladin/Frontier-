@@ -265,6 +265,11 @@ add_executable(DualSteppedBlindBorePrismFilletVerification Verification/DualStep
 target_link_libraries(DualSteppedBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME DualSteppedBlindBorePrismFilletVerification COMMAND DualSteppedBlindBorePrismFilletVerification)
 
+# Phase 32r: preserve one orthogonal blind cavity entering any retained planar rounded-prism side.
+add_executable(SideBlindBorePrismFilletVerification Verification/SideBlindBorePrismFilletVerification.cpp)
+target_link_libraries(SideBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME SideBlindBorePrismFilletVerification COMMAND SideBlindBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

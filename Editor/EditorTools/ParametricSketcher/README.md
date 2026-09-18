@@ -13,7 +13,7 @@ console, all visuals go to PNG proofs in `Proofs/`.
 cd ParametricSketcher
 cmake -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # 60 suites (47 C++ verification binaries + 13 script smoke tests)
+ctest --test-dir build --output-on-failure      # 61 suites (48 C++ verification binaries + 13 script smoke tests)
 ```
 
 No external packages. `-Wall -Wextra -Wpedantic -Werror`.
@@ -260,7 +260,7 @@ The geometric rim-pairing and pairwise-clearance route now accepts three through
 
 ## One axis-parallel blind bore (Phase 32l)
 
-A canonical rectangular prism with one cylindrical cavity entering either selected-family end now retains its offset, radius, entry side, and finite depth while the outer four edges round. The source is a one-hull genus-zero `V10/E15/C30/L9/F8` Boolean result. The dedicated route rebuilds the exact rounded exterior, subtracts the bounded cavity, and restores the fitted entrance intersection as an exact rational circle. Output is canonical genus-zero `V18/E27/C54/L13/F12`, with seven planes, four outer rolls, one inward cylindrical wall, one annular entrance cap, and one planar cavity floor. Side-entering, oblique, stepped, or counterbored blind cavities remain separate. `BlindBorePrismFilletVerification` contributes 21 checks and `Proofs/Phase32l_BlindBorePrism.png`.
+A canonical rectangular prism with one cylindrical cavity entering either selected-family end now retains its offset, radius, entry side, and finite depth while the outer four edges round. The source is a one-hull genus-zero `V10/E15/C30/L9/F8` Boolean result. The dedicated route rebuilds the exact rounded exterior, subtracts the bounded cavity, and restores the fitted entrance intersection as an exact rational circle. Output is canonical genus-zero `V18/E27/C54/L13/F12`, with seven planes, four outer rolls, one inward cylindrical wall, one annular entrance cap, and one planar cavity floor. The orthogonal side-entering case delegates to Phase 32r; oblique, stepped, or counterbored side cavities remain separate. `BlindBorePrismFilletVerification` contributes 21 checks and `Proofs/Phase32l_BlindBorePrism.png`.
 
 ## Exactly two separated axis-parallel blind bores (Phase 32m)
 
@@ -281,6 +281,10 @@ The connected-span classifier and deterministic cutter sequence scale to `3 <= N
 ## Exactly two separated two-stage blind bores (Phase 32q)
 
 Two canonical counterbores may now enter the same or opposite prism ends. Each retains a larger shallow cylinder, annular shoulder, and smaller deep cylinder. Classification partitions four cylindrical spans into two unique coaxial chains; reconstruction applies both in deterministic geometric order. Pairwise clearance compares all four axial-band combinations using radial and bounded axial separation, permitting coaxial opposite-end counterbores when a positive ligament remains. Output is genus-zero `V24/E36/C72/L22/F18`, with ten planes, eight rational cylinders, four annular levels, and eight exact rational rims. A third stepped cavity, intersecting stage bands, eccentric chains, or multistage combinations remain separate increments. `DualSteppedBlindBorePrismFilletVerification` contributes 27 checks and `Proofs/Phase32q_DualSteppedBlindBorePrism.png`.
+
+## One orthogonal side-entering blind bore (Phase 32r)
+
+One canonical blind cylindrical cavity may enter either planar side parallel to either prism cross-section direction while the complete selected-axis edge family rounds. Classification preserves the chosen side, entry direction, axial and transverse centre, radius, finite depth, inward rational cylinder, and planar floor. Reconstruction requires the complete entrance circle to lie within the retained planar strip between rounded corners and clear of the selected-axis end caps, then restores the fitted entrance and existing floor as two exact rational circles. The result is genus-zero `V18/E27/C54/L13/F12`, with seven planes, five rational cylinders, one annular side wall, and analytic volume. Oblique, through, stepped, multiple, corner-crossing, end-crossing, and opposite-wall side cavities refuse transactionally. `SideBlindBorePrismFilletVerification` contributes 27 checks and `Proofs/Phase32r_SideBlindBorePrism.png`.
 
 ## Layout
 
@@ -362,6 +366,7 @@ outside. Verified numerically in `KernelVerification` — this is what booleans 
 | 32o | **One coaxial two-diameter stepped blind bore.** A larger entrance stage, exact annular shoulder, and smaller deep stage retain four rational rims. | `SteppedBlindBorePrismFilletVerification` — 25 C++ checks; `Proofs/Phase32o_SteppedBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32p | **Bounded multistage coaxial blind bore.** Three through eight decreasing diameters preserve exact annular levels and `2N` rational rims. | `MultiStageBlindBorePrismFilletVerification` — 33 C++ checks; `Proofs/Phase32p_MultiStageBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 | 32q | **Exactly two separated two-stage blind bores.** Same/opposite-end counterbores retain finite-band clearance, four annular levels, and eight rational rims. | `DualSteppedBlindBorePrismFilletVerification` — 27 C++ checks; `Proofs/Phase32q_DualSteppedBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
+| 32r | **One orthogonal side-entering blind bore.** Either cross-section direction and either retained planar side preserve finite depth and two rational rims. | `SideBlindBorePrismFilletVerification` — 27 C++ checks; `Proofs/Phase32r_SideBlindBorePrism.png` (2560 × 1600 C++-generated contact sheet) |
 
 ## Console quick start
 
@@ -510,8 +515,8 @@ runs the Phase 10 suite + contact sheet, and finally drives a `ConsoleHost` dire
 sheet` / `reset` / `recipe` verbs exist and refuse garbage. It is the single executable that proves the console,
 the scene, the kernel and the raster still all agree after every commit.
 
-ctest now registers **60 suites** — 47 per-feature verification binaries (1,655 checks total) and 13 script smoke
-tests. The Phase 32q direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
+ctest now registers **61 suites** — 48 per-feature verification binaries (1,682 checks total) and 13 script smoke
+tests. The Phase 32r direct C++ verifier sweep is green, including `DimensionVerification`; the per-suite check counts
 are:
 
 | Suite | Checks |
@@ -553,6 +558,7 @@ are:
 | `SteppedBlindBorePrismFilletVerification` | 25  |
 | `MultiStageBlindBorePrismFilletVerification` | 33  |
 | `DualSteppedBlindBorePrismFilletVerification` | 27  |
+| `SideBlindBorePrismFilletVerification` | 27  |
 | `FairPatchVerification`           | 47  |
 | `BodyOpsVerification`             | 25  |
 | `BlendVerification`               | 33  |
@@ -563,7 +569,7 @@ are:
 | `ConstraintVerification`          | 51  |
 | `MirrorVerification`              | 40  |
 | `SuiteVerification`               | 65  |
-| **Total** | **1655** |
+| **Total** | **1682** |
 
 Phase 10 also adds two new console verbs that the other phases do not need: `reset` (clears the scene + undo +
 workplane + the contact-sheet tile buffer) and `render sheet <0|1|2|3> / render sheet finalize <name>` (the contact
