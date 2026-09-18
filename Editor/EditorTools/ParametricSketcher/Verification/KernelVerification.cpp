@@ -66,6 +66,8 @@ int main()
         Panel.Expect("Variable-radius roll accepts a positive blend radius", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
         Taper.Kind = AsymmetricSupportKind::EqualRadiusAsymmetricPlanes;
         Panel.Expect("Equal-radius plane mode refuses unequal radii", !BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
+        Taper.Low.Radius = Taper.High.Radius;
+        Panel.Expect("Equal-radius plane mode accepts equal radii", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
     }
 
     //------------------------------------------------------------------ scalar tolerance policy

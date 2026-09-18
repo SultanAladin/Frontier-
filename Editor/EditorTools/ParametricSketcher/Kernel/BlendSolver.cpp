@@ -3077,10 +3077,24 @@ Deliver<BrepBody> BlendSolver::PushFace(const BrepBody& Body, int Face, double D
 bool BlendSolver::ValidateAsymmetricSpecification(const AsymmetricBlendSpecification& Specification,
                                                     std::string& Refusal) noexcept
 {
-    if (!ValidateAsymmetricEndpointPair(Specification.Low, Specification.High,
-                                         Specification.MinimumClearance, Refusal)) return false;
     if (Specification.MinimumClearance < 0.0 || !std::isfinite(Specification.MinimumClearance))
     { Refusal = "minimum clearance is invalid"; return false; }
+    if (Specification.Kind == AsymmetricSupportKind::EqualRadiusAsymmetricPlanes)
+    {
+        if (!std::isfinite(Specification.Low.Radius) || !std::isfinite(Specification.High.Radius) ||
+            Specification.Low.Radius <= ScalarCriteria::MergeTolerance ||
+            std::fabs(Specification.Low.Radius - Specification.High.Radius) > ScalarCriteria::CircularTolerance)
+        { Refusal = "equal-radius plane mode requires equal positive radii"; return false; }
+        if (Specification.Low.Normal.Length() <= ScalarCriteria::GeometricTolerance ||
+            Specification.High.Normal.Length() <= ScalarCriteria::GeometricTolerance ||
+            std::fabs(std::fabs(Specification.Low.Normal.Normalised().Dot(Specification.High.Normal.Normalised())) - 1.0) > ScalarCriteria::AngularTolerance)
+        { Refusal = "equal-radius plane supports must be parallel and non-degenerate"; return false; }
+        if ((Specification.High.Centre - Specification.Low.Centre).Length() <=
+            2.0 * Specification.Low.Radius + std::max(Specification.MinimumClearance, ScalarCriteria::GeometricTolerance))
+        { Refusal = "equal-radius plane supports have no positive ligament"; return false; }
+    }
+    else if (!ValidateAsymmetricEndpointPair(Specification.Low, Specification.High,
+                                               Specification.MinimumClearance, Refusal)) return false;
     if (Specification.BlendRadius < 0.0 || !std::isfinite(Specification.BlendRadius))
     { Refusal = "blend radius is invalid"; return false; }
     const bool HasAngles = std::fabs(Specification.Low.EndpointAngle) > ScalarCriteria::SweepTolerance ||
@@ -3092,9 +3106,6 @@ bool BlendSolver::ValidateAsymmetricSpecification(const AsymmetricBlendSpecifica
     { Refusal = "endpoint angles must be finite partial sweeps"; return false; }
     if (Specification.Kind == AsymmetricSupportKind::VariableRadiusRoll && Specification.BlendRadius <= ScalarCriteria::MergeTolerance)
     { Refusal = "variable-radius roll requires a positive blend radius"; return false; }
-    if (Specification.Kind == AsymmetricSupportKind::EqualRadiusAsymmetricPlanes &&
-        std::fabs(Specification.Low.Radius - Specification.High.Radius) > ScalarCriteria::CircularTolerance)
-    { Refusal = "equal-radius plane mode received unequal endpoint radii"; return false; }
     return true;
 }
 
