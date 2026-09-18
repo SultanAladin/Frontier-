@@ -38,6 +38,8 @@ A bounded cutter needs end caps. A cap placed exactly at an edge end is a non-tr
 
 The ladder now includes micro-margins from `1e-8` through `1e-3` in both directions. This lets the Boolean clear a seam without paying the old 0.018 mm³ minimum over-cut from its coarser first step. The direct face push removes the one topology in which no local cutter could be valid at all.
 
+Analytic-volume acceptance gates are centralized as `ScalarCriteria::VolumeTolerance` (`1e-3` in model units) instead of repeating a solver-local literal. The current acceptance behavior is unchanged; future tolerance tightening is now a single reviewed policy change.
+
 ## Fillets
 
 `FilletEdge` first makes the tangent-set-back flat and then replaces that face with the rolling cylindrical surface. It evaluates both the original cap edges and square-end circular cap sections, retaining the valid closed body closer to the analytic removal. A candidate that leaves less material than the flat it replaces is rejected: a convex roll must add material back relative to its tangent chamfer.
