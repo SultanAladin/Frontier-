@@ -74,8 +74,8 @@ public:
     // deduplicated and independent chains apply in deterministic geometric order. Three orthogonal box edges at one
     // vertex rebuild with an exact spherical corner patch; four parallel box edges rebuild one rounded-prism family,
     // preserving up to eight selected-axis through/blind cavities, up to eight parallel orthogonal side blind cavities,
-    // selected-axis stepped cavities, one two-to-eight-stage side cavity, up to eight side two-stage cavities, or exactly two
-    // selected-axis two-stage cavities. Other sets refuse.
+    // selected-axis stepped cavities, one two-to-eight-stage side cavity, or up to eight side stepped cavities with two
+    // through eight stages each and at most sixteen total stages. Exactly two selected-axis two-stage cavities also remain supported.
     // AppliedChains receives the committed count, or zero.
     [[nodiscard]] static Deliver<BrepBody> FilletEdges(const BrepBody& Body, const std::vector<int>& SeedEdges,
                                                        double Radius, int* AppliedChains = nullptr) noexcept;

@@ -194,7 +194,9 @@ int main()
     auto End=C3;End[1].X=.800000005;auto EndSource=Fixture(End);P.Expect("Any outer disk touching an end cap refuses",EndSource&&TransactionallyRefuses(EndSource,Radius));
     auto Eccentric=C3;Eccentric[1].Stages[1].XOffset=.3;auto EccentricSource=Fixture(Eccentric);P.Expect("An eccentric stage in the set refuses",EccentricSource&&TransactionallyRefuses(EccentricSource,Radius));
     auto Through=C3;Through[2].Stages[1].Depth=16;auto ThroughSource=Fixture(Through);P.Expect("Any final stage reaching the opposite wall refuses",ThroughSource&&TransactionallyRefuses(ThroughSource,Radius));
-    auto MixedStages=C3;MixedStages[1].Stages.push_back({.2,11});auto MixedStageSource=Fixture(MixedStages);P.Expect("A multistage member remains outside the two-stage set route",MixedStageSource&&TransactionallyRefuses(MixedStageSource,Radius));
+    auto MixedStages=C3;MixedStages[1].Stages.push_back({.2,11});auto MixedStageSource=Fixture(MixedStages);int MixedStageApplied=-1;
+    auto MixedStageR=BlendSolver::FilletEdges(MixedStageSource.Payload,Rails(MixedStageSource.Payload),Radius,&MixedStageApplied);
+    P.Expect("A multistage member delegates to the bounded mixed-stage route",MixedStageSource&&MixedStageR&&MixedStageApplied==4&&MixedStageR.Payload.Faces.size()==24);
     auto Dual=Fixture({C3[0],C3[1]});int DA=-1;auto DualR=BlendSolver::FilletEdges(Dual.Payload,Rails(Dual.Payload),Radius,&DA);
     P.Expect("The established dual side-counterbore route remains intact",DualR&&DA==4&&DualR.Payload.Faces.size()==18);
     auto Single=Fixture({C3[0]});int SA=-1;auto SingleR=BlendSolver::FilletEdges(Single.Payload,Rails(Single.Payload),Radius,&SA);

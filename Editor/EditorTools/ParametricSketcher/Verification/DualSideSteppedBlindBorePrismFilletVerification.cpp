@@ -180,7 +180,9 @@ int main()
     const Cavity Third{1,false,10,6,{{.7,4},{.3,8}}};auto Three=Fixture({Same[0],Same[1],Third});int ThreeApplied=-1;
     auto ThreeR=BlendSolver::FilletEdges(Three.Payload,Rails(Three.Payload),2,&ThreeApplied);
     P.Expect("A third two-stage side cavity delegates to the bounded-set route",Three&&ThreeR&&ThreeApplied==4&&ThreeR.Payload.Faces.size()==22);
-    auto MixedStages=Same;MixedStages[1].Stages.push_back({.2,12});auto FiveStageSource=Fixture(MixedStages);P.Expect("A multistage plus two-stage side combination remains unsupported",FiveStageSource&&TransactionallyRefuses(FiveStageSource));
+    auto MixedStages=Same;MixedStages[1].Stages.push_back({.2,12});auto FiveStageSource=Fixture(MixedStages);int FiveStageApplied=-1;
+    auto FiveStageR=BlendSolver::FilletEdges(FiveStageSource.Payload,Rails(FiveStageSource.Payload),2,&FiveStageApplied);
+    P.Expect("A multistage plus two-stage pair delegates to the mixed-stage route",FiveStageSource&&FiveStageR&&FiveStageApplied==4&&FiveStageR.Payload.Faces.size()==20);
     auto Single=Fixture({Same[0]});int SA=-1;auto SingleR=BlendSolver::FilletEdges(Single.Payload,Rails(Single.Payload),2,&SA);
     P.Expect("The established single side-counterbore route remains intact",SingleR&&SA==4&&SingleR.Payload.Faces.size()==14);
     auto Simple=Fixture({{1,false,6,4,{{.8,8}}},{1,false,14,8,{{1,10}}}});int SimpleApplied=-1;auto SimpleR=BlendSolver::FilletEdges(Simple.Payload,Rails(Simple.Payload),2,&SimpleApplied);

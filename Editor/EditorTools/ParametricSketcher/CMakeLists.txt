@@ -300,6 +300,11 @@ add_executable(MultiSideSteppedBlindBorePrismFilletVerification Verification/Mul
 target_link_libraries(MultiSideSteppedBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
 add_test(NAME MultiSideSteppedBlindBorePrismFilletVerification COMMAND MultiSideSteppedBlindBorePrismFilletVerification)
 
+# Phase 32y: generalize bounded side-stepped sets to mixed two-through-eight-stage chains with sixteen total stages.
+add_executable(MixedStageSideBlindBorePrismFilletVerification Verification/MixedStageSideBlindBorePrismFilletVerification.cpp)
+target_link_libraries(MixedStageSideBlindBorePrismFilletVerification PRIVATE SolidArcConsoleKit)
+add_test(NAME MixedStageSideBlindBorePrismFilletVerification COMMAND MixedStageSideBlindBorePrismFilletVerification)
+
 # Phase 22: versioned native .arc construction journals — atomic save/open and transactional failed opens.
 add_executable(DocumentVerification Verification/DocumentVerification.cpp)
 target_link_libraries(DocumentVerification PRIVATE SolidArcConsoleKit)

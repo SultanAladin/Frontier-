@@ -746,22 +746,22 @@ namespace
         return SideSteppedBlindPrism{*Frame,Along,Outer.X,Outer.Cross,std::move(Stages),FromLow};
     }
 
-    struct TwoStageSideBlindCavity
+    struct SideSteppedBlindCavity
     {
         int Along=1;double X=0.0,Cross=0.0;std::vector<SideSteppedBlindStage> Stages;bool FromLow=true;
     };
     struct SideSteppedBlindSet
     {
-        OrthogonalBoxCorner Box;std::vector<TwoStageSideBlindCavity> Cavities;
+        OrthogonalBoxCorner Box;std::vector<SideSteppedBlindCavity> Cavities;
     };
 
     std::optional<SideSteppedBlindSet> ClassifySideSteppedBlindSet(const BrepBody& Body,const std::vector<int>& Edges) noexcept
     {
         auto Report=Body.Validate();
-        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Faces.size()<14||(Body.Faces.size()-6)%4!=0)return std::nullopt;
-        size_t Count=(Body.Faces.size()-6)/4;
-        if(Count<2||Count>MaxPrismBores||Body.Vertices.size()!=8+4*Count||Body.Edges.size()!=12+6*Count||
-           Body.Coedges.size()!=24+12*Count||Body.Loops.size()!=6+6*Count)return std::nullopt;
+        if(!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||Body.Faces.size()<14||(Body.Faces.size()-6)%2!=0)return std::nullopt;
+        size_t StageCount=(Body.Faces.size()-6)/2;
+        if(StageCount<4||StageCount>2*MaxPrismBores||Body.Vertices.size()!=8+2*StageCount||Body.Edges.size()!=12+3*StageCount||
+           Body.Coedges.size()!=24+6*StageCount||Body.Loops.size()!=6+3*StageCount)return std::nullopt;
         auto Frame=PrismFrameFromRails(Body,Edges);if(!Frame)return std::nullopt;
         int Planes=0,Cylinders=0,InnerLoops=0;std::vector<int>CylinderFaces;
         for(size_t I=0;I<Body.Faces.size();++I)
@@ -770,7 +770,7 @@ namespace
             if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)InnerLoops+=static_cast<int>(Face.Loops.size()-1);
             if(Face.Surface.Classification==SurfaceClassification::Cylinder){++Cylinders;CylinderFaces.push_back(static_cast<int>(I));}
         }
-        if(Planes!=static_cast<int>(6+2*Count)||Cylinders!=static_cast<int>(2*Count)||InnerLoops!=static_cast<int>(2*Count))return std::nullopt;
+        if(Planes!=static_cast<int>(6+StageCount)||Cylinders!=static_cast<int>(StageCount)||InnerLoops!=static_cast<int>(StageCount))return std::nullopt;
         struct Span{int Along=0;double X=0.0,Cross=0.0,Radius=0.0,Low=0.0,High=0.0;};std::vector<Span>Spans;
         for(int CylinderFace:CylinderFaces)
         {
@@ -800,33 +800,40 @@ namespace
             bool Low=std::fabs(Spans[I].Low)<=PositionTolerance,High=std::fabs(Spans[I].High-Length)<=PositionTolerance;
             if(Low!=High)Entries.push_back(static_cast<int>(I));
         }
-        if(Entries.size()!=Count)return std::nullopt;
-        std::vector<bool>Used(Spans.size(),false);std::vector<TwoStageSideBlindCavity>Cavities;Cavities.reserve(Count);double Removed=0.0;
+        if(Entries.size()<2||Entries.size()>MaxPrismBores)return std::nullopt;
+        std::vector<bool>Used(Spans.size(),false);std::vector<SideSteppedBlindCavity>Cavities;Cavities.reserve(Entries.size());double Removed=0.0;
         for(int Entry:Entries)
         {
             if(Used[Entry])return std::nullopt;
-            const Span& Outer=Spans[Entry];bool FromLow=std::fabs(Outer.Low)<=PositionTolerance;
-            double Boundary=FromLow?Outer.High:Outer.Low;int InnerIndex=-1;
-            for(size_t I=0;I<Spans.size();++I)if(!Used[I]&&static_cast<int>(I)!=Entry)
+            const Span& Outer=Spans[Entry];bool FromLow=std::fabs(Outer.Low)<=PositionTolerance;int Current=Entry;
+            double PreviousDepth=0.0,PreviousRadius=std::numeric_limits<double>::infinity();std::vector<SideSteppedBlindStage>Stages;
+            while(Current>=0)
             {
-                const Span& Candidate=Spans[I];double CandidateBoundary=FromLow?Candidate.Low:Candidate.High;
-                if(std::fabs(CandidateBoundary-Boundary)>PositionTolerance||
-                   std::hypot(Candidate.X-Outer.X,Candidate.Cross-Outer.Cross)>PositionTolerance)continue;
-                if(InnerIndex>=0)return std::nullopt;
-                InnerIndex=static_cast<int>(I);
+                if(Used[Current]||Stages.size()>=MaxPrismBores)return std::nullopt;
+                const Span& CurrentSpan=Spans[Current];Used[Current]=true;
+                if(std::hypot(CurrentSpan.X-Outer.X,CurrentSpan.Cross-Outer.Cross)>PositionTolerance||CurrentSpan.Radius>=PreviousRadius-Tol)
+                    return std::nullopt;
+                double Depth=FromLow?CurrentSpan.High:Length-CurrentSpan.Low;
+                if(Depth<=PreviousDepth+Tol||Depth>=Length-Tol)return std::nullopt;
+                Stages.push_back({CurrentSpan.Radius,Depth});
+                Removed+=ScalarCriteria::Pi*CurrentSpan.Radius*CurrentSpan.Radius*(Depth-PreviousDepth);
+                PreviousDepth=Depth;PreviousRadius=CurrentSpan.Radius;
+                double Boundary=FromLow?CurrentSpan.High:CurrentSpan.Low;int Next=-1;
+                for(size_t I=0;I<Spans.size();++I)if(!Used[I])
+                {
+                    double CandidateBoundary=FromLow?Spans[I].Low:Spans[I].High;
+                    if(std::fabs(CandidateBoundary-Boundary)>PositionTolerance||
+                       std::hypot(Spans[I].X-Outer.X,Spans[I].Cross-Outer.Cross)>PositionTolerance)continue;
+                    if(Next>=0)return std::nullopt;
+                    Next=static_cast<int>(I);
+                }
+                Current=Next;
             }
-            if(InnerIndex<0)return std::nullopt;
-            const Span& Inner=Spans[InnerIndex];double ShoulderDepth=FromLow?Outer.High:Length-Outer.Low;
-            double TotalDepth=FromLow?Inner.High:Length-Inner.Low;
-            if(Outer.Radius<=Inner.Radius+Tol||ShoulderDepth<=Tol||TotalDepth<=ShoulderDepth+Tol||TotalDepth>=Length-Tol)
-                return std::nullopt;
-            Used[Entry]=true;Used[InnerIndex]=true;
-            Cavities.push_back({Along,Outer.X,Outer.Cross,{{Outer.Radius,ShoulderDepth},{Inner.Radius,TotalDepth}},FromLow});
-            Removed+=ScalarCriteria::Pi*(Outer.Radius*Outer.Radius*ShoulderDepth+
-                Inner.Radius*Inner.Radius*(TotalDepth-ShoulderDepth));
+            if(Stages.size()<2)return std::nullopt;
+            Cavities.push_back({Along,Outer.X,Outer.Cross,std::move(Stages),FromLow});
         }
         if(std::find(Used.begin(),Used.end(),false)!=Used.end())return std::nullopt;
-        std::sort(Cavities.begin(),Cavities.end(),[](const TwoStageSideBlindCavity& A,const TwoStageSideBlindCavity& B)
+        std::sort(Cavities.begin(),Cavities.end(),[](const SideSteppedBlindCavity& A,const SideSteppedBlindCavity& B)
         {
             if(A.FromLow!=B.FromLow)return A.FromLow>B.FromLow;
             if(A.X!=B.X)return A.X<B.X;
@@ -1410,23 +1417,29 @@ namespace
 
     Deliver<BrepBody> BuildRoundedSideSteppedBlindSet(const SideSteppedBlindSet& Set,double Radius) noexcept
     {
-        size_t N=Set.Cavities.size();
+        size_t N=Set.Cavities.size(),TotalStages=0;
         if(N<2||N>MaxPrismBores)
-            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped route supports two through eight two-stage cavities");
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped route supports two through eight cavities");
         int Along=Set.Cavities.front().Along;double SideLength=Along==1?Set.Box.LY:Set.Box.LZ;
         double StripLength=Along==1?Set.Box.LZ:Set.Box.LY;
-        for(const TwoStageSideBlindCavity& Cavity:Set.Cavities)
+        for(const SideSteppedBlindCavity& Cavity:Set.Cavities)
         {
-            if(Cavity.Along!=Along||Cavity.Stages.size()!=2)
-                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped cavities must share one direction and contain two stages each");
-            const SideSteppedBlindStage& Outer=Cavity.Stages.front();const SideSteppedBlindStage& Inner=Cavity.Stages.back();
-            if(Outer.Radius<=Tol||Inner.Radius<=Tol||Outer.Radius<=Inner.Radius+Tol||Outer.Depth<=Tol||
-               Inner.Depth<=Outer.Depth+Tol||Inner.Depth>=SideLength-Tol)
-                return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"side stepped cavity consumes a radial or axial shoulder");
+            if(Cavity.Along!=Along||Cavity.Stages.size()<2||Cavity.Stages.size()>MaxPrismBores)
+                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped cavities must share one direction and contain two through eight stages each");
+            TotalStages+=Cavity.Stages.size();double PreviousRadius=std::numeric_limits<double>::infinity(),PreviousDepth=0.0;
+            for(const SideSteppedBlindStage& Stage:Cavity.Stages)
+            {
+                if(Stage.Radius<=Tol||Stage.Radius>=PreviousRadius-Tol||Stage.Depth<=PreviousDepth+Tol||Stage.Depth>=SideLength-Tol)
+                    return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"side stepped cavity consumes a radial or axial shoulder");
+                PreviousRadius=Stage.Radius;PreviousDepth=Stage.Depth;
+            }
+            const SideSteppedBlindStage& Outer=Cavity.Stages.front();
             if(Cavity.X<=Outer.Radius+Tol||Cavity.X>=Set.Box.LX-Outer.Radius-Tol||
                Cavity.Cross<=Radius+Outer.Radius+Tol||Cavity.Cross>=StripLength-Radius-Outer.Radius-Tol)
                 return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput,"side stepped cavity leaves the retained rounded-prism wall");
         }
+        if(TotalStages>2*MaxPrismBores)
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"side stepped set exceeds the sixteen-stage construction budget");
         struct Band{double Low=0.0,High=0.0,Radius=0.0,X=0.0,Cross=0.0;};std::vector<std::vector<Band>>Bands(N);
         for(size_t C=0;C<N;++C)
         {
@@ -1448,7 +1461,7 @@ namespace
         auto Result=BuildRoundedBoxPrism(Set.Box,0,Radius);if(!Result)return Result;
         auto P=[&](double X,double Y,double Z){return Set.Box.Corner+Set.Box.X*X+Set.Box.Y*Y+Set.Box.Z*Z;};
         Vec3 Axis=Along==1?Set.Box.Y:Set.Box.Z;double Margin=std::max(1.0,SideLength*0.1);
-        for(const TwoStageSideBlindCavity& Cavity:Set.Cavities)for(const SideSteppedBlindStage& Stage:Cavity.Stages)
+        for(const SideSteppedBlindCavity& Cavity:Set.Cavities)for(const SideSteppedBlindStage& Stage:Cavity.Stages)
         {
             double CutterStart=Cavity.FromLow?-Margin:SideLength-Stage.Depth;
             Vec3 Origin=Along==1?P(Cavity.X,CutterStart,Cavity.Cross):P(Cavity.X,Cavity.Cross,CutterStart);
@@ -1457,15 +1470,15 @@ namespace
             auto Next=IntersectionSolver::Combine(Result.Payload,Cutter.Payload,BodyOperation::Subtract);if(!Next)return Next;
             Result=std::move(Next);
         }
-        struct Ring{double T=0.0,Radius=0.0,X=0.0,Cross=0.0;};std::vector<Ring>Rings;Rings.reserve(4*N);
-        for(const TwoStageSideBlindCavity& Cavity:Set.Cavities)
+        struct Ring{double T=0.0,Radius=0.0,X=0.0,Cross=0.0;};std::vector<Ring>Rings;Rings.reserve(2*TotalStages);
+        for(const SideSteppedBlindCavity& Cavity:Set.Cavities)
         {
             const SideSteppedBlindStage& Outer=Cavity.Stages.front();Rings.push_back({Cavity.FromLow?0.0:SideLength,Outer.Radius,Cavity.X,Cavity.Cross});
-            for(size_t I=0;I<2;++I)
+            for(size_t I=0;I<Cavity.Stages.size();++I)
             {
                 double T=Cavity.FromLow?Cavity.Stages[I].Depth:SideLength-Cavity.Stages[I].Depth;
                 Rings.push_back({T,Cavity.Stages[I].Radius,Cavity.X,Cavity.Cross});
-                if(I==0)Rings.push_back({T,Cavity.Stages[1].Radius,Cavity.X,Cavity.Cross});
+                if(I+1<Cavity.Stages.size())Rings.push_back({T,Cavity.Stages[I+1].Radius,Cavity.X,Cavity.Cross});
             }
         }
         int Restored=0;double PositionTolerance=1e-7*std::max(1.0,SideLength);
@@ -1493,10 +1506,12 @@ namespace
             Cylinders+=Face.Surface.Classification==SurfaceClassification::Cylinder&&Face.Surface.Rational();
             if(Face.Surface.Classification==SurfaceClassification::Plane&&Face.Loops.size()>1)InnerLoops+=static_cast<int>(Face.Loops.size()-1);}
         for(const BrepEdge& Edge:Result.Payload.Edges)Circles+=Edge.Closed()&&Edge.Curve.Classification==CurveClassification::Circle&&Edge.Curve.Rational();
-        if(Restored!=static_cast<int>(4*N)||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||
-           Planes!=static_cast<int>(6+2*N)||Cylinders!=static_cast<int>(4+2*N)||Circles!=static_cast<int>(4*N)||InnerLoops!=static_cast<int>(2*N)||
-           Result.Payload.Vertices.size()!=16+4*N||Result.Payload.Edges.size()!=24+6*N||Result.Payload.Coedges.size()!=48+12*N||
-           Result.Payload.Loops.size()!=10+6*N||Result.Payload.Faces.size()!=10+4*N)
+        if(Restored!=static_cast<int>(2*TotalStages)||!Report.Solid()||Report.Hulls!=1||Report.Genus!=0||
+           Planes!=static_cast<int>(6+TotalStages)||Cylinders!=static_cast<int>(4+TotalStages)||
+           Circles!=static_cast<int>(2*TotalStages)||InnerLoops!=static_cast<int>(TotalStages)||
+           Result.Payload.Vertices.size()!=16+2*TotalStages||Result.Payload.Edges.size()!=24+3*TotalStages||
+           Result.Payload.Coedges.size()!=48+6*TotalStages||Result.Payload.Loops.size()!=10+3*TotalStages||
+           Result.Payload.Faces.size()!=10+2*TotalStages)
             return Deliver<BrepBody>::Reject(RefusalReason::NonManifold,"side stepped set did not reach exact rounded-prism topology");
         return Result;
     }
