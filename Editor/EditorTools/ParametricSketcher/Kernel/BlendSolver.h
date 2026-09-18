@@ -110,6 +110,16 @@ struct VariableRadiusSurface
         Vec3 Circumferential = -R * std::sin(Angle) + B * std::cos(Angle);
         return Circumferential.Cross(TangentAlong(Angle)).Normalised();
     }
+
+    [[nodiscard]] double CircumferentialCurvature(double T) const noexcept
+    {
+        double Radius = Law.Evaluate(ScalarCriteria::Clamp(T, 0.0, 1.0));
+        if (Length <= ScalarCriteria::GeometricTolerance) return ScalarCriteria::Infinity;
+        return Radius > ScalarCriteria::GeometricTolerance
+            ? 1.0 / (Radius * std::sqrt(1.0 + (Law.Slope() / Length) * (Law.Slope() / Length))) : ScalarCriteria::Infinity;
+    }
+
+    [[nodiscard]] double MeridionalCurvature() const noexcept { return 0.0; }
 };
 
 struct AsymmetricBlendSpecification
