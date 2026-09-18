@@ -65,6 +65,10 @@ struct VariableRadiusLaw
     [[nodiscard]] bool Positive() const noexcept { return std::isfinite(Start) && std::isfinite(End) && Start > 0.0 && End > 0.0; }
     [[nodiscard]] bool Decreasing() const noexcept { return Slope() < -ScalarCriteria::CircularTolerance; }
     [[nodiscard]] bool Increasing() const noexcept { return Slope() > ScalarCriteria::CircularTolerance; }
+    [[nodiscard]] double SweptVolume(double Length) const noexcept
+    {
+        return ScalarCriteria::Pi * Length * (Start * Start + Start * End + End * End) / 3.0;
+    }
 };
 
 struct AsymmetricEndpointChain

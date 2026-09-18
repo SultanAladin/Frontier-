@@ -3140,7 +3140,8 @@ Deliver<BrepBody> BlendSolver::ReconstructAsymmetricFrustum(const AsymmetricBlen
     if (!Result) return Result;
     const double R0 = Specification.Low.Radius;
     const double R1 = Specification.High.Radius;
-    const double ExactVolume = ScalarCriteria::Pi * Height * (R0 * R0 + R0 * R1 + R1 * R1) / 3.0;
+    const VariableRadiusLaw Law{ R0, R1 };
+    const double ExactVolume = Law.SweptVolume(Height);
     if (!ScalarCriteria::WithinVolumeTolerance(Result.Payload.Validate().Volume, ExactVolume))
         return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "asymmetric frustum volume failed analytic acceptance");
     return Result;
