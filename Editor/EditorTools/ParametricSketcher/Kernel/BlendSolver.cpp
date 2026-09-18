@@ -3173,6 +3173,25 @@ bool BlendSolver::ValidateG1EndpointMatch(Vec3 SurfaceNormal, Vec3 SupportNormal
     return true;
 }
 
+Deliver<VariableRadiusSurface> BlendSolver::BuildVariableRadiusSurface(const AsymmetricBlendSpecification& Specification) noexcept
+{
+    if (Specification.Kind != AsymmetricSupportKind::VariableRadiusRoll)
+        return Deliver<VariableRadiusSurface>::Reject(RefusalReason::Unsupported, "variable surface requires variable-radius mode");
+    std::string Refusal;
+    if (!ValidateAsymmetricSpecification(Specification, Refusal))
+        return Deliver<VariableRadiusSurface>::Reject(RefusalReason::DegenerateInput, "invalid variable-radius surface specification");
+    Vec3 Delta = Specification.High.Centre - Specification.Low.Centre;
+    double Length = Delta.Length();
+    if (Length <= ScalarCriteria::MergeTolerance)
+        return Deliver<VariableRadiusSurface>::Reject(RefusalReason::DegenerateInput, "variable surface has zero axial length");
+    Vec3 Axis = Delta / Length;
+    Vec3 Radial = Axis.Cross(Vec3::UnitX());
+    if (Radial.Length() <= ScalarCriteria::GeometricTolerance) Radial = Axis.Cross(Vec3::UnitY());
+    if (Radial.Length() <= ScalarCriteria::GeometricTolerance)
+        return Deliver<VariableRadiusSurface>::Reject(RefusalReason::DegenerateInput, "variable surface frame is degenerate");
+    return Deliver<VariableRadiusSurface>::Accept(VariableRadiusSurface{ Specification.Low.Centre, Axis, Radial, Length, Specification.RadiusLaw });
+}
+
 bool BlendSolver::ValidateVariableSurfaceG1(const VariableRadiusSurface& Surface,
                                               Vec3 LowSupportNormal, Vec3 HighSupportNormal,
                                               double Angle, std::string& Refusal) noexcept
