@@ -3127,7 +3127,15 @@ Deliver<BrepBody> BlendSolver::ReconstructAsymmetricFrustum(const AsymmetricBlen
         return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "endpoint centres are not on the support axis");
     if (std::fabs(std::fabs(Axis.Dot(Specification.High.Normal.Normalised())) - 1.0) > ScalarCriteria::AngularTolerance)
         return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "endpoint centres are not on the support axis");
-    return BrepBody::Cone(Specification.Low.Centre, Axis, Specification.Low.Radius, Specification.High.Radius, Height);
+    Deliver<BrepBody> Result = BrepBody::Cone(Specification.Low.Centre, Axis,
+                                               Specification.Low.Radius, Specification.High.Radius, Height);
+    if (!Result) return Result;
+    const double R0 = Specification.Low.Radius;
+    const double R1 = Specification.High.Radius;
+    const double ExactVolume = ScalarCriteria::Pi * Height * (R0 * R0 + R0 * R1 + R1 * R1) / 3.0;
+    if (!ScalarCriteria::WithinVolumeTolerance(Result.Payload.Validate().Volume, ExactVolume))
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "asymmetric frustum volume failed analytic acceptance");
+    return Result;
 }
 
 Deliver<BrepBody> BlendSolver::ReconstructAsymmetricSupport(const AsymmetricBlendSpecification& Specification) noexcept
