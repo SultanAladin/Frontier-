@@ -57,6 +57,10 @@ int main()
         Panel.Expect("Non-parallel endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, { 1, 0, 0 }, 1.25 }, 0.1, Refusal));
         Panel.Expect("Consumed endpoint ligament is refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ { 3, 0, 0 }, High.Normal, 1.25 }, 0.1, Refusal));
         Panel.Expect("Degenerate endpoint normals are refused", !BlendSolver::ValidateAsymmetricEndpointPair(Low, EndpointSupport{ High.Centre, {}, 1.25 }, 0.1, Refusal));
+        VariableRadiusSurface Surface{ Low.Centre, High.Centre - Low.Centre, { 1, 0, 0 }, 8.0, { 2.0, 1.25 } };
+        Panel.Expect("Variable-radius surface reaches both endpoint radii", Surface.Evaluate(0.0, 0.0).Distance(Low.Centre) == 2.0 && Surface.Evaluate(1.0, 0.0).Distance(High.Centre) == 1.25);
+        Panel.Expect("Variable-radius surface tangent is finite", Surface.TangentAlong(ScalarCriteria::HalfPi).Length() > 0.0);
+        Panel.Expect("Variable-radius surface normal is finite", Surface.Normal(ScalarCriteria::HalfPi).Length() > 0.0);
         AsymmetricEndpointChain Chain{ { Low, High, EndpointSupport{ { 0, 0, 16 }, High.Normal, 0.75, ScalarCriteria::HalfPi } } };
         Panel.Expect("Collinear asymmetric endpoint chain is accepted", BlendSolver::ValidateAsymmetricEndpointChain(Chain, 0.1, Refusal));
         Chain.Supports[2].Centre = { 1, 0, 16 };

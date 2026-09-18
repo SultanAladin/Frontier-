@@ -76,6 +76,42 @@ struct AsymmetricEndpointChain
     std::vector<EndpointSupport> Supports;
 };
 
+// Parametric ruled surface used by the bounded variable-radius route. It is kept separate from the B-rep
+// reconstruction until endpoint tangency and curvature acceptance have both passed.
+struct VariableRadiusSurface
+{
+    Vec3 Origin{};
+    Vec3 Axis{ 0, 0, 1 };
+    Vec3 Radial{ 1, 0, 0 };
+    double Length = 0.0;
+    VariableRadiusLaw Law{};
+
+    [[nodiscard]] Vec3 Evaluate(double T, double Angle) const noexcept
+    {
+        Vec3 A = Axis.Normalised();
+        Vec3 R = (Radial - A * Radial.Dot(A)).Normalised();
+        Vec3 B = A.Cross(R);
+        double S = ScalarCriteria::Clamp(T, 0.0, 1.0);
+        return Origin + A * (Length * S) + (R * std::cos(Angle) + B * std::sin(Angle)) * Law.Evaluate(S);
+    }
+
+    [[nodiscard]] Vec3 TangentAlong(double Angle) const noexcept
+    {
+        Vec3 A = Axis.Normalised();
+        Vec3 R = (Radial - A * Radial.Dot(A)).Normalised();
+        return A * Length + R * Law.Slope() * std::cos(Angle);
+    }
+
+    [[nodiscard]] Vec3 Normal(double Angle) const noexcept
+    {
+        Vec3 A = Axis.Normalised();
+        Vec3 R = (Radial - A * Radial.Dot(A)).Normalised();
+        Vec3 B = A.Cross(R);
+        Vec3 Circumferential = -R * std::sin(Angle) + B * std::cos(Angle);
+        return Circumferential.Cross(TangentAlong(Angle)).Normalised();
+    }
+};
+
 struct AsymmetricBlendSpecification
 {
     EndpointSupport Low{};
