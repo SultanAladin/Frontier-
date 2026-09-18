@@ -62,6 +62,19 @@ int main()
         Panel.Expect("Tapered asymmetric specification is accepted", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
         Deliver<BrepBody> Frustum = BlendSolver::ReconstructAsymmetricFrustum(Taper);
         Panel.Expect("Asymmetric tapered frustum reconstructs", Frustum && Frustum.Payload.Validate().Solid());
+        if (Frustum)
+        {
+            const BodyReport Report = Frustum.Payload.Validate();
+            Panel.Expect("Asymmetric frustum is closed and manifold", Report.Closed && Report.Manifold && Report.Oriented);
+            Panel.Expect("Asymmetric frustum has one hull", Report.Hulls == 1);
+            Panel.Expect("Asymmetric frustum has two endpoint circular rims", Report.Faces >= 3 && Report.Edges >= 3);
+        }
+        AsymmetricBlendSpecification Transformed = Taper;
+        Transformed.Low.Centre = { 4, -3, 2 };
+        Transformed.High.Centre = { 4, 5, 10 };
+        Transformed.Low.Normal = { 0, 1, 1 };
+        Transformed.High.Normal = { 0, -1, -1 };
+        Panel.Expect("Translated oblique asymmetric frustum reconstructs", BlendSolver::ReconstructAsymmetricFrustum(Transformed));
         Panel.Within("Asymmetric frustum analytic volume", Frustum ? Frustum.Payload.Validate().Volume : 0.0,
                      ScalarCriteria::Pi * 8.0 / 3.0 * (4.0 + 2.5 + 1.5625), 1e-6);
         Panel.Expect("Non-tapered modes refuse frustum reconstruction", !BlendSolver::ReconstructAsymmetricFrustum(AsymmetricBlendSpecification{ Low, Taper.High, AsymmetricSupportKind::VariableRadiusRoll, 0.1, 0.25 }));
