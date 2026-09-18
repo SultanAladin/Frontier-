@@ -164,7 +164,8 @@ int main()
     SideStep Undercut=S;Undercut.InnerRadius=1.8;auto UndercutSource=UndercutFixture(Undercut);
     P.Expect("An increasing-radius undercut cannot enter the exact route",TransactionallyRefuses(UndercutSource));
     auto Eccentric=Fixture(S,.5,0);P.Expect("An eccentric inner side stage remains unsupported",Eccentric&&TransactionallyRefuses(Eccentric));
-    auto Triple=TripleFixture(S);P.Expect("A third side diameter remains outside this two-stage route",Triple&&TransactionallyRefuses(Triple));
+    auto Triple=TripleFixture(S);int TripleApplied=-1;auto TripleR=BlendSolver::FilletEdges(Triple.Payload,Rails(Triple.Payload),2,&TripleApplied);
+    P.Expect("A third side diameter delegates to the bounded multistage route",Triple&&TripleR&&TripleApplied==4&&TripleR.Payload.Faces.size()==16);
     auto Simple=SimpleSideFixture();int SimpleApplied=-1;auto SimpleR=BlendSolver::FilletEdges(Simple.Payload,Rails(Simple.Payload),2,&SimpleApplied);
     P.Expect("The established simple side-cavity route remains intact",SimpleR&&SimpleApplied==4&&SimpleR.Payload.Faces.size()==12);
     auto Axial=AxialSteppedFixture();int AxialApplied=-1;auto AxialR=BlendSolver::FilletEdges(Axial.Payload,Rails(Axial.Payload),2,&AxialApplied);
