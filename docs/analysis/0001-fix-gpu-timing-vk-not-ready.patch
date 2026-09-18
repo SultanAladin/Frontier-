@@ -1,0 +1,37 @@
+diff --git a/Engine/DeviceExchange/VisibilityExchange.cpp b/Engine/DeviceExchange/VisibilityExchange.cpp
+index e51eb82..d69f248 100644
+--- a/Engine/DeviceExchange/VisibilityExchange.cpp
++++ b/Engine/DeviceExchange/VisibilityExchange.cpp
+@@ -1067,10 +1067,29 @@ void VisibilityExchange::ReadTelemetry(uint32_t Slot) noexcept
+     //    actually recorded (GI off, shadow frame valid). A reset-but-never-written query returns UNDEFINED data,
+     //    not zero, so without the availability word a GI-on frame would subtract garbage from the kernel figure.
+     //    The flag makes the driver tell us which stamps are real; unavailable ones are treated as "stage absent".
++    // ⚠️ VK_NOT_READY IS THE NORMAL RESULT HERE, NOT A FAILURE.
++    //
++    //    Without VK_QUERY_RESULT_WAIT_BIT the spec says this call returns VK_NOT_READY if ANY query in the range
++    //    is still unavailable — and in this pool some queries are unavailable on EVERY frame BY DESIGN:
++    //
++    //        · 16..19 (sky, volume) have no call site at all yet — reserved spans, never written.
++    //        · 12..13 (shadow) are only written on a GI-off frame.
++    //        · 14..15 (ReSTIR) are only written on a frame that actually dispatched the kernel.
++    //
++    //    So the range ALWAYS contains an unwritten query, the call ALWAYS returns VK_NOT_READY, and testing
++    //    `== VK_SUCCESS` meant this entire block never executed once. Every stage read 0.00 ms and the report
++    //    printed "GPU 0.00 ms total" forever, which then made the pacing line conclude "CPU-BOUND" on every
++    //    frame — a diagnosis derived purely from the timing block being skipped.
++    //
++    //    The availability word already tells us, per query, which stamps are real; that is precisely why
++    //    WITH_AVAILABILITY is requested. VK_NOT_READY is therefore expected and must be accepted: the Have()
++    //    guard below is what keeps an unwritten query out of the arithmetic. Only a hard error is a failure.
+     uint64_t Stamps[kTimestampCount * 2u]{};
+-    if (vkGetQueryPoolResults(Vulkan->Device, Vulkan->Timestamps, Slot * kTimestampCount, kTimestampCount,
+-                              sizeof(Stamps), Stamps, sizeof(uint64_t) * 2u,
+-                              VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT) == VK_SUCCESS)
++    const VkResult QueryResult = vkGetQueryPoolResults(
++        Vulkan->Device, Vulkan->Timestamps, Slot * kTimestampCount, kTimestampCount,
++        sizeof(Stamps), Stamps, sizeof(uint64_t) * 2u,
++        VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
++    if (QueryResult == VK_SUCCESS || QueryResult == VK_NOT_READY)
+     {
+         const auto Have  = [&](uint32_t I) { return Stamps[I * 2u + 1u] != 0u; };
+         const auto Value = [&](uint32_t I) { return Stamps[I * 2u]; };
