@@ -3112,8 +3112,9 @@ bool BlendSolver::ValidateAsymmetricSpecification(const AsymmetricBlendSpecifica
 Deliver<BrepBody> BlendSolver::ReconstructAsymmetricFrustum(const AsymmetricBlendSpecification& Specification) noexcept
 {
     std::string Refusal;
-    if (Specification.Kind != AsymmetricSupportKind::TaperedFrustum)
-        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "frustum reconstruction requires tapered-frustum mode");
+    if (Specification.Kind != AsymmetricSupportKind::TaperedFrustum &&
+        Specification.Kind != AsymmetricSupportKind::UnequalRadialCaps)
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "frustum reconstruction requires a supported unequal-radial mode");
     if (!ValidateAsymmetricSpecification(Specification, Refusal))
         return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "invalid asymmetric frustum specification");
     Vec3 Delta = Specification.High.Centre - Specification.Low.Centre;
@@ -3126,6 +3127,19 @@ Deliver<BrepBody> BlendSolver::ReconstructAsymmetricFrustum(const AsymmetricBlen
     if (std::fabs(std::fabs(Axis.Dot(Specification.High.Normal.Normalised())) - 1.0) > ScalarCriteria::AngularTolerance)
         return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "endpoint centres are not on the support axis");
     return BrepBody::Cone(Specification.Low.Centre, Axis, Specification.Low.Radius, Specification.High.Radius, Height);
+}
+
+Deliver<BrepBody> BlendSolver::ReconstructAsymmetricSupport(const AsymmetricBlendSpecification& Specification) noexcept
+{
+    switch (Specification.Kind)
+    {
+        case AsymmetricSupportKind::TaperedFrustum:
+        case AsymmetricSupportKind::UnequalRadialCaps:
+            return ReconstructAsymmetricFrustum(Specification);
+        default:
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,
+                                             "asymmetric support mode has no bounded reconstruction route");
+    }
 }
 
 bool BlendSolver::ValidateAsymmetricEndpointPair(const EndpointSupport& Low, const EndpointSupport& High,

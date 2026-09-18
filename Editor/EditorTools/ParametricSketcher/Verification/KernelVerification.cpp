@@ -65,6 +65,10 @@ int main()
         Panel.Within("Asymmetric frustum analytic volume", Frustum ? Frustum.Payload.Validate().Volume : 0.0,
                      ScalarCriteria::Pi * 8.0 / 3.0 * (4.0 + 2.5 + 1.5625), 1e-6);
         Panel.Expect("Non-tapered modes refuse frustum reconstruction", !BlendSolver::ReconstructAsymmetricFrustum(AsymmetricBlendSpecification{ Low, Taper.High, AsymmetricSupportKind::VariableRadiusRoll, 0.1, 0.25 }));
+        Taper.Kind = AsymmetricSupportKind::UnequalRadialCaps;
+        Panel.Expect("Unequal radial caps reconstruct through the bounded support route", BlendSolver::ReconstructAsymmetricSupport(Taper));
+        Taper.Kind = AsymmetricSupportKind::PartialEndpointChain;
+        Panel.Expect("Partial endpoint chain remains explicitly refused", !BlendSolver::ReconstructAsymmetricSupport(Taper));
         Taper.Kind = AsymmetricSupportKind::VariableRadiusRoll;
         Panel.Expect("Variable-radius roll requires a blend radius", !BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
         Taper.BlendRadius = 0.25;
