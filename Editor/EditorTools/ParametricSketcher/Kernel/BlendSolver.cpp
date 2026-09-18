@@ -549,7 +549,7 @@ namespace
         for(size_t I=0;I<Holes.size();++I)for(size_t J=I+1;J<Holes.size();++J)
             Intersecting|=Vec2{Holes[I].B-Holes[J].B,Holes[I].C-Holes[J].C}.Length()<=Holes[I].Radius+Holes[J].Radius+Tol;
         OrthogonalBoxCorner Box{O,A,B,C,LA,LB,LC};double Exact=LA*(LB*LC-RemovedArea);
-        if(!Intersecting&&std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        if(!Intersecting&&std::fabs(Report.Volume-Exact)>ScalarCriteria::VolumeTolerance*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return PerforatedBoxPrism{Box,std::move(Holes)};
     }
 
@@ -597,7 +597,7 @@ namespace
             if(X.Hole.B!=Y.Hole.B)return X.Hole.B<Y.Hole.B;
             return X.Hole.C<Y.Hole.C;});
         double Exact=Frame->LX*(Frame->LY*Frame->LZ)-Removed;
-        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        if(std::fabs(Report.Volume-Exact)>ScalarCriteria::VolumeTolerance*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return BlindBoxPrism{*Frame,std::move(Cavities)};
     }
 
@@ -658,7 +658,7 @@ namespace
             return A.Cross<B.Cross;
         });
         double Exact=Frame->LX*Frame->LY*Frame->LZ-Removed;
-        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        if(std::fabs(Report.Volume-Exact)>ScalarCriteria::VolumeTolerance*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return SideBlindPrism{*Frame,std::move(Cavities)};
     }
 
@@ -742,7 +742,7 @@ namespace
             Current=Next;
         }
         double Exact=Frame->LX*Frame->LY*Frame->LZ-Removed;
-        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        if(std::fabs(Report.Volume-Exact)>ScalarCriteria::VolumeTolerance*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return SideSteppedBlindPrism{*Frame,Along,Outer.X,Outer.Cross,std::move(Stages),FromLow};
     }
 
@@ -840,7 +840,7 @@ namespace
             return A.Cross<B.Cross;
         });
         double Exact=Frame->LX*Frame->LY*Frame->LZ-Removed;
-        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        if(std::fabs(Report.Volume-Exact)>ScalarCriteria::VolumeTolerance*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return SideSteppedBlindSet{*Frame,std::move(Cavities)};
     }
 
@@ -919,7 +919,7 @@ namespace
             Current=Next;
         }
         double Exact=LA*Frame->LY*Frame->LZ-Removed;
-        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        if(std::fabs(Report.Volume-Exact)>ScalarCriteria::VolumeTolerance*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return SteppedBlindPrism{*Frame,std::move(Stages),FromLow};
     }
 
@@ -1002,7 +1002,7 @@ namespace
             return X.Stages[0].Hole.C<Y.Stages[0].Hole.C;
         });
         double Exact=LA*Frame->LY*Frame->LZ-Removed;
-        if(std::fabs(Report.Volume-Exact)>1e-3*std::max(1.0,std::fabs(Exact)))return std::nullopt;
+        if(std::fabs(Report.Volume-Exact)>ScalarCriteria::VolumeTolerance*std::max(1.0,std::fabs(Exact)))return std::nullopt;
         return DualSteppedBlindPrism{*Frame,std::move(Cavities)};
     }
 

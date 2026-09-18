@@ -29,6 +29,7 @@ struct ScalarCriteria
     static constexpr double MergeTolerance    = 1e-6;                                   // [m]   topological sewing
     static constexpr double AngularTolerance  = 1e-7;                                   // [rad] direction equality
     static constexpr double ChordTolerance    = 1e-4;                                   // [m]   tessellation sagitta
+    static constexpr double VolumeTolerance  = 1e-3;                                   // [m³]  analytic-vs-tessellated volume gate
     static constexpr double ParametricEpsilon = 1e-12;                                  // [-]   knot / parameter equality
     static constexpr double Infinity          = std::numeric_limits<double>::infinity(); // [-]
     static constexpr double Pi                = std::numbers::pi_v<double>;             // [rad]
