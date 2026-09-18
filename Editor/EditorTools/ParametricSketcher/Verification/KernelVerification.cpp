@@ -60,6 +60,11 @@ int main()
         AsymmetricBlendSpecification Taper{ Low, EndpointSupport{ High.Centre, High.Normal, 1.25, ScalarCriteria::HalfPi }, AsymmetricSupportKind::TaperedFrustum, 0.1, 0.0 };
         Taper.Low.EndpointAngle = ScalarCriteria::HalfPi;
         Panel.Expect("Tapered asymmetric specification is accepted", BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
+        Deliver<BrepBody> Frustum = BlendSolver::ReconstructAsymmetricFrustum(Taper);
+        Panel.Expect("Asymmetric tapered frustum reconstructs", Frustum && Frustum.Payload.Validate().Solid());
+        Panel.Within("Asymmetric frustum analytic volume", Frustum ? Frustum.Payload.Validate().Volume : 0.0,
+                     ScalarCriteria::Pi * 8.0 / 3.0 * (4.0 + 2.5 + 1.5625), 1e-6);
+        Panel.Expect("Non-tapered modes refuse frustum reconstruction", !BlendSolver::ReconstructAsymmetricFrustum(AsymmetricBlendSpecification{ Low, Taper.High, AsymmetricSupportKind::VariableRadiusRoll, 0.1, 0.25 }));
         Taper.Kind = AsymmetricSupportKind::VariableRadiusRoll;
         Panel.Expect("Variable-radius roll requires a blend radius", !BlendSolver::ValidateAsymmetricSpecification(Taper, Refusal));
         Taper.BlendRadius = 0.25;

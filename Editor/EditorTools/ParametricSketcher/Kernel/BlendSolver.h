@@ -85,6 +85,7 @@ public:
                                                               double MinimumClearance, std::string& Refusal) noexcept;
     [[nodiscard]] static bool ValidateAsymmetricSpecification(const AsymmetricBlendSpecification& Specification,
                                                                std::string& Refusal) noexcept;
+    [[nodiscard]] static Deliver<BrepBody> ReconstructAsymmetricFrustum(const AsymmetricBlendSpecification& Specification) noexcept;
 
     // Follow G1 edge-to-edge continuations from a manifold seed. A closed edge is a singleton; an ambiguous tangent
     // branch refuses rather than selecting by edge-table order. The returned indices describe one complete chain.

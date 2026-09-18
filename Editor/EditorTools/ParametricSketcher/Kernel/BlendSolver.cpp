@@ -3109,6 +3109,25 @@ bool BlendSolver::ValidateAsymmetricSpecification(const AsymmetricBlendSpecifica
     return true;
 }
 
+Deliver<BrepBody> BlendSolver::ReconstructAsymmetricFrustum(const AsymmetricBlendSpecification& Specification) noexcept
+{
+    std::string Refusal;
+    if (Specification.Kind != AsymmetricSupportKind::TaperedFrustum)
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "frustum reconstruction requires tapered-frustum mode");
+    if (!ValidateAsymmetricSpecification(Specification, Refusal))
+        return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "invalid asymmetric frustum specification");
+    Vec3 Delta = Specification.High.Centre - Specification.Low.Centre;
+    double Height = Delta.Length();
+    if (Height <= ScalarCriteria::MergeTolerance)
+        return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "endpoint supports have zero axial span");
+    Vec3 Axis = Delta / Height;
+    if (std::fabs(std::fabs(Axis.Dot(Specification.Low.Normal.Normalised())) - 1.0) > ScalarCriteria::AngularTolerance)
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "endpoint centres are not on the support axis");
+    if (std::fabs(std::fabs(Axis.Dot(Specification.High.Normal.Normalised())) - 1.0) > ScalarCriteria::AngularTolerance)
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "endpoint centres are not on the support axis");
+    return BrepBody::Cone(Specification.Low.Centre, Axis, Specification.Low.Radius, Specification.High.Radius, Height);
+}
+
 bool BlendSolver::ValidateAsymmetricEndpointPair(const EndpointSupport& Low, const EndpointSupport& High,
                                                    double MinimumClearance, std::string& Refusal) noexcept
 {
