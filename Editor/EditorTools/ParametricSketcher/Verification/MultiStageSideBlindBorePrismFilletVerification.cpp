@@ -187,7 +187,8 @@ int main()
     BrepBody Malformed=S.Payload;Malformed.Faces.pop_back();int MalformedApplied=99;
     auto MalformedResult=BlendSolver::FilletEdges(Malformed,Rails(Malformed),2,&MalformedApplied);
     P.Expect("Malformed side-cavity topology refuses without partial application",!MalformedResult&&MalformedApplied==0);
-    auto Multiple=MultipleSteppedFixture();P.Expect("Multiple stepped side cavities remain outside the single-chain route",Multiple&&TransactionallyRefuses(Multiple));
+    auto Multiple=MultipleSteppedFixture();int MultipleApplied=-1;auto MultipleR=BlendSolver::FilletEdges(Multiple.Payload,Rails(Multiple.Payload),2,&MultipleApplied);
+    P.Expect("Exactly two side counterbores delegate to the dual-chain route",Multiple&&MultipleR&&MultipleApplied==4&&MultipleR.Payload.Faces.size()==18);
     SideCounterbore Through=C3;Through.Stages.back().Depth=16;auto ThroughSource=Fixture(Through);P.Expect("A final side stage reaching the opposite wall remains unsupported",ThroughSource&&TransactionallyRefuses(ThroughSource));
     auto N=Fixture(Nine());P.Expect("Nine side diameters remain outside the explicit bound",N&&TransactionallyRefuses(N));
     SideCounterbore Two{1,false,10,6,{{1.5,5},{.75,10}}};auto D=Fixture(Two);int DA=-1;auto DR=BlendSolver::FilletEdges(D.Payload,Rails(D.Payload),2,&DA);
