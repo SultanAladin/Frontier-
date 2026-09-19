@@ -448,15 +448,13 @@ int main(int argc, char** argv)
     }
     else if (Level.QueryName() == "Showcase")
     {
-        // Showcase: 9.5 m south of the material grid at 5.6 m, pitched down 21° and looking straight up +Y. The
-        //    elevation is what makes the six rows read AS six rows: from eye height they telescope into each other
-        //    and the back rows are hidden behind the front ones.
-        //
-        //    ⚠️ The old framing (0, −14, 2.2) at yaw 220° pointed AWAY from the grid — it was aimed at the sunset
-        //    for the lens flare, which made sense when the level was a scattered analytical field with nothing in
-        //    particular to look at. Pointed at the new level it would frame empty ground, which reads as "the new
-        //    scene did not load". This is the framing the CPU proof renders, so the two match shot for shot.
-        Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -9.5f, 5.6f });
+        // Showcase: 15 m south of the material grid at 8 m, pitched down 21° and looking straight up +Y. The
+        //    elevation is what makes the rows read AS rows: from eye height they telescope into each other and the
+        //    back rows are hidden behind the front ones. r4 pulled the old (0, −9.5, 5.6) framing back and up:
+        //    the grid grew 6×6 → 15×15 (21 m deep, 21 m wide), and from the old spot the near row's outer columns
+        //    clipped at the frame edges. From here the whole 15×15 field is in shot at 55° FoV.
+        //    This is the framing the CPU proof renders, so the two match shot for shot.
+        Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -15.0f, 8.0f });
         Camera.AssignOrientationEuler(-21.0f * 3.14159265f / 180.0f, 0.0f, 0.0f);
     }
     else if (Level.QueryName() == "Showroom" || Level.QueryName() == "ShowroomDrop")

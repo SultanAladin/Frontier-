@@ -54,7 +54,13 @@ struct CloudShadowStaging
 //    that keeps 80 of 81 zenith columns out from under cloud at frame-top geometry). Non-showcase levels use this.
 inline constexpr CloudShadowStaging kCloudShadowPanelKm{ true, 2u, 1400.0f, 1100.0f, 0.34f, 2.4f, 0.35f, 0.5f, 14000.0f, 7.0f, 250.0f, 0.0f };
 
-// Showcase diorama deck (FIN3): visible broken shadow on the 46 m of ground the camera sees. Frozen 2026-09-15.
-inline constexpr CloudShadowStaging kCloudShadowShowcaseDiorama{ true, 2u, 250.0f, 200.0f, 0.55f, 4.0f, 0.05f, 0.5f, 14000.0f, 7.0f, 250.0f, 40.0f };
+// Showcase diorama deck (FIN3-thin, 2026-09-19): visible broken cloud shadow on the ground WITHOUT eating the sun.
+//    The original FIN3 staging (coverage 0.55, density 4.0) measured transmittance 0.072..0.743 (mean x0.70) — swept
+//    for drama when the panels were the key light. With the sun now the Showcase's key light (the shadow-diagnosis
+//    rebalance: panel luminance cut 140/60 → 8/4, SunDirect default 2.5), that deck made sun shadows a 2–3%
+//    modulation nobody could see. Thinned to coverage 0.35 / density 2.5 so transmittance stays ≥ ~0.6 under the
+//    puffs: the broken-cloud character survives, the sun's shadows read. Same scale/wind/time — the pattern and
+//    drift are unchanged, only its optical depth.
+inline constexpr CloudShadowStaging kCloudShadowShowcaseDiorama{ true, 2u, 250.0f, 200.0f, 0.35f, 2.5f, 0.05f, 0.5f, 14000.0f, 7.0f, 250.0f, 40.0f };
 
 } // namespace Frontier

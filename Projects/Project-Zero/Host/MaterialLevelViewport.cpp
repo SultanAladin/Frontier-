@@ -322,12 +322,12 @@ Viewpoint ViewpointFor(const std::string& Name)
 //    whole point of this harness: the sheet must be the shot the product gives you, not a flattering angle.
 Viewpoint ShowcaseViewpointFor(const std::string& Name)
 {
-    if (Name == "grid")   return { Frontier::Vector3{  0.0f, -7.50f, 2.40f },  -7.0f,  0.0f, 55.0f };  // closer on the grid
+    if (Name == "grid")   return { Frontier::Vector3{  0.0f, -9.50f, 4.20f }, -10.0f,  0.0f, 55.0f };  // closer on the grid's front rows
     if (Name == "metals") return { Frontier::Vector3{ -1.0f, -5.40f, 1.60f },  -7.0f,  0.0f, 50.0f };  // row 0: anisotropic metals
-    if (Name == "glass")  return { Frontier::Vector3{ -1.0f, -3.60f, 1.60f },  -6.0f,  0.0f, 50.0f };  // row 1: the IOR ramp
-    if (Name == "wide")   return { Frontier::Vector3{  0.0f, -13.0f, 5.20f }, -14.0f,  0.0f, 62.0f };  // grid + scattered field
+    if (Name == "glass")  return { Frontier::Vector3{ -1.0f, -3.90f, 1.60f },  -6.0f,  0.0f, 50.0f };  // row 1: the IOR ramp
+    if (Name == "wide")   return { Frontier::Vector3{  0.0f, -22.0f, 11.0f }, -18.0f,  0.0f, 62.0f };  // 15×15 grid + scattered ring
     if (Name == "panel")  return { Frontier::Vector3{ 2.35f, -5.60f, 1.35f },  -4.0f,  8.0f, 42.0f };  // the interface panel, close
-    return { Frontier::Vector3{ 0.0f, -9.50f, 5.60f }, -21.0f, 0.0f, 55.0f };                          // the product's entry shot
+    return { Frontier::Vector3{ 0.0f, -15.0f, 8.00f }, -21.0f, 0.0f, 55.0f };                          // the product's entry shot (r4)
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -676,12 +676,27 @@ float PHatSun(const ShadingRecord& m, const ResolvedLayers& L, const vec3& Ng, c
     return max(dot(EvaluateBsdf(m, L, wo, wi), SunEmit), 0.0f) * CosT;
 }
 
-vec3 SunEmissionRender() { return SkyRadianceWorld(g_SunDirRender); }
-
 float SunSolidAngleRender()
 {
     const float S = sinf(g_SunAngularRadius * 0.5f);
     return 4.0f * kPi * S * S;
+}
+
+// The NEE sun term, ALIGNED WITH THE KERNEL (2026-09-19). The kernel's SunEmission() is SkySunDirect/Ω, where the
+//    record carries the panel's direct-sun factor Q = 0.11·Direct·colour·gain·transmittance (SkyConstantRecord.h
+//    PackSkyConstants). This mirror used to return SkyRadianceWorld(sunDir) — the sky MODEL's disc radiance, which
+//    carries the ×12 sunDiscBoost the panel applies for the visible disc, NOT for surface lighting. That made the
+//    mirror's sun up to an order of magnitude hotter than the product's, so the A/B "proof" images flattered the
+//    shadows the GPU could never reproduce. Now both sides light surfaces with the same Q/Ω: CoreSunRadiance is
+//    exactly colour·gain·transmittance (SkyFogIntegrator.cpp:257, zeroed below the horizon like the packer's
+//    elevation gate), and g_SunDirectGain mirrors the product's Direct slider (CelestialSequence default).
+float g_SunDirectGain = 2.5f;             // [-] the panel's Direct slider; product default (CelestialSequence.h)
+
+vec3 SunEmissionRender()
+{
+    const Frontier::Vector3 R = g_Sky.QuerySunRadiance();
+    const float Q = 0.11f * g_SunDirectGain / SunSolidAngleRender();
+    return vec3(R.x * Q, R.y * Q, R.z * Q);
 }
 
 // An ABSOLUTE cap on M, applied consistently: the weight sum is scaled with the count, so W (the estimate) is
@@ -2939,6 +2954,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--exposure") Exposure = static_cast<float>(std::atof(Next("--exposure")));
         else if (A == "--threads")  Threads = static_cast<unsigned>(std::atoi(Next("--threads")));
         else if (A == "--no-sun")   g_SunNee = false;
+        else if (A == "--sun-direct") g_SunDirectGain = static_cast<float>(std::atof(Next("--sun-direct")));   // panel Direct slider (default = product default)
         else if (A == "--row")      g_RowFilter = std::atoi(Next("--row"));
         else if (A == "--frames")   Frames = std::atoi(Next("--frames"));
         else if (A == "--pan")      PanPerFrame = static_cast<float>(std::atof(Next("--pan")));

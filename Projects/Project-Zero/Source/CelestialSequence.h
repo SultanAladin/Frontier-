@@ -198,7 +198,10 @@ public:
     // Sky appearance, which the reference panel exposes separately from the medium.
     float SkyTint[3]     = { 1.0f, 1.0f, 1.0f };
     float SkyBrightness  = 1.0f;
-    float SunDirect      = 1.0f;   // [x] direct-sun gain on top of the panel's 0.11 (the Sun row's Direct slider)
+    float SunDirect      = 2.5f;   // [x] direct-sun gain on top of the panel's 0.11 (the Sun row's Direct slider).
+                                   //     Raised 1.0 → 2.5 (2026-09-19 shadow diagnosis): at gain 1 the sun's ground
+                                   //     irradiance in the Showcase was ~1/37th of the key panel's, so its shadows
+                                   //     were invisible. 2.5 + the panel-luminance cut makes the sun the key light.
     float GroundAlbedo[3] = { 0.19f, 0.17f, 0.14f };
     float StarBrightness = 1.0f;
     float StarSize       = 1.0f;

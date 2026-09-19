@@ -30,7 +30,11 @@ namespace Frontier {
 
 // Revision of the authored level. Bump whenever Construct() changes what the level contains, so an already-exported
 //    Showcase.gltf from an older revision is regenerated instead of being reused forever by the export-once rule.
-inline constexpr uint32_t kShowcaseRevision = 3u;   // r3: the interface panel's stand and housing slab
+inline constexpr uint32_t kShowcaseRevision = 4u;   // r4: 15×15 generated material grid + sun-key light rebalance
+
+// The r4 grid's side: 15 rows (material families) × 15 columns (hue/parameter sweeps) = 225 spheres, 225 materials.
+//    Published so the structure, the CPU reference harness and any proof agree on the layout without restating it.
+inline constexpr uint32_t kShowcaseGridSide = 15u;
 
 // ── The interface panel's berth ─────────────────────────────────────────────────────────────────────────────────────
 // The showcase carries Project-Zero's spatial-interface panel as a physical exhibit: a stand and a housing slab are
