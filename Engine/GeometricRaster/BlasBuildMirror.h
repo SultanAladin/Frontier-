@@ -43,7 +43,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "SwapchainExchange.h"   // TriangleIndex
+#include "../DeviceExchange/SwapchainExchange.h"   // TriangleIndex
 
 namespace Frontier
 {

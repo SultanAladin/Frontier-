@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "SwapchainExchange.h"       // TriangleIndex
+#include "../DeviceExchange/SwapchainExchange.h"   // TriangleIndex
 #include "InstanceAcceleration.h"    // QueryNodeBlob / QueryLeafBlob / QueryBlasObjectAabb
 #include "BlasBuildMirror.h"         // kMortonDepth / kLeafSlots / kMaxTrianglesPerLeaf — the layout's own numbers
 

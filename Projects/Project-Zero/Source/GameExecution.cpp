@@ -1847,9 +1847,9 @@ int main(int argc, char** argv)
                     if (Up <= 0.0f) continue;
                     // Phase is the REFERENCE convention here (0 = full), matching MoonAmbient's cosine exactly.
                     const float Phase = Moons.Params[M][2];
-                    const float Lit   = 0.5f + 0.5f * std::cos(Phase * 2.0f * 3.14159265358979323846f);
-                    const float Level = Moons.Params[M][1] * Up * Lit;
-                    if (Level > BestLevel) { BestLevel = Level; Brightest = static_cast<int>(M); }
+                    const float Lit       = 0.5f + 0.5f * std::cos(Phase * 2.0f * 3.14159265358979323846f);
+                    const float MoonLevel = Moons.Params[M][1] * Up * Lit;   // not `Level` — the scene object owns that name here (C4456)
+                    if (MoonLevel > BestLevel) { BestLevel = MoonLevel; Brightest = static_cast<int>(M); }
                 }
 
                 ShadowFrameStaged.MoonEnabled = Brightest >= 0 && BestLevel > 0.0f;

@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "BlasDevicePayload.h"
-#include "SwapchainExchange.h"       // TriangleIndex
+#include "../DeviceExchange/SwapchainExchange.h"   // TriangleIndex
 #include "InstanceAcceleration.h"    // BlasRecord
 
 namespace Frontier
