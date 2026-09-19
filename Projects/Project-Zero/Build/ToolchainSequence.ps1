@@ -194,12 +194,13 @@ function Get-IncludePaths([string] $VulkanRoot)
         "/I$(Join-Path $PackageRoot 'ufbx')"
         "/I$(Join-Path $PackageRoot 'fast_obj')"
         # The engine's own shader sources are #included as C++ by the CPU-side TUs (MaterialEvaluation.slang), which is
-        #    how the shipped lobe set is compiled 1:1 for the host. The other three carry headers the M7b preview TU and
-        #    the D9 build-pipeline TUs include across directories; CMake lists the same four per-file on those TUs.
+        #    how the shipped lobe set is compiled 1:1 for the host. The other two carry headers the M7b preview TU and
+        #    the D9 build-pipeline TUs include across directories; CMake lists the same set per-file on those TUs.
+        #    (No Exhibits\Workbench path here: the app is engine + project sources only. The preview TU that used to
+        #    live there is Engine\ContentInterchange\ShaderballPreview.cpp now.)
         "/I$(Join-Path $EngineRoot 'Shaders')"
         "/I$(Join-Path $EngineRoot 'DisplayPresentation')"
         "/I$(Join-Path $EngineRoot 'ContentInterchange')"
-        "/I$(Join-Path $RepositoryRoot 'Exhibits\Workbench\Editor')"
     )
 }
 
@@ -758,7 +759,7 @@ $EngineRelative = @(
     'Engine\ContentInterchange\SpaceCodec.cpp'                  # P1/P3 .space container
     'Engine\ContentInterchange\SpaceExport.cpp'                 # P2/P6 exporters
     'Projects\Project-Zero\Source\CommandLine.cpp'             # P4 the launch line both hosts parse
-    'Exhibits\Workbench\Materials\ShaderballExhibit.cpp'       # M7b preview entry — compiled with the override below
+    'Engine\ContentInterchange\ShaderballPreview.cpp'          # M7b preview entry — compiled with the override below
 )
 
 $EngineSources = New-Object System.Collections.Generic.List[string]
@@ -780,11 +781,11 @@ if ($MissingSources.Count -gt 0) { throw ('missing source files in the translati
 #    override for the same file (`set_source_files_properties(... COMPILE_DEFINITIONS SHADERBALL_PREVIEW_LIB)`), so the
 #    two build systems agree — which is exactly the agreement that had rotted here.
 #
-#      · ShaderballExhibit.cpp IS the M7b preview entry (`RenderShaderballPreview`). SHADERBALL_PREVIEW_LIB compiles the
+#      · ShaderballPreview.cpp IS the M7b preview entry (`RenderShaderballPreview`). SHADERBALL_PREVIEW_LIB compiles the
 #        renderer without the exhibit's own main(), which is what lets the showroom link it. Undefined, that file defines
 #        main() as well and the link fails on a duplicate entry point instead of a missing one.
 $Overrides = @(
-    @{ Source = (Join-Path $RepositoryRoot 'Exhibits\Workbench\Materials\ShaderballExhibit.cpp')
+    @{ Source = (Join-Path $RepositoryRoot 'Engine\ContentInterchange\ShaderballPreview.cpp')
        Flags  = @('/DSHADERBALL_PREVIEW_LIB')
        Label  = 'Project-Zero preview TU' }
 )

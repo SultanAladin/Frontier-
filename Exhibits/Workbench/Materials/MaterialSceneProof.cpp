@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-// The slang file is instantiated exactly once in this binary — inside the linked ShaderballExhibit.cpp TU (with its
+// The slang file is instantiated exactly once in this binary — inside the linked ShaderballPreview.cpp TU (Engine/ContentInterchange) (with its
 // real table-backed Fetch*). Re-including it here would multiply-define every shading function at link time, so §E
 // reaches the pure stage×channel table through an extern declaration of its single instantiation instead.
 bool ReflectanceConsumes(unsigned int Selection, unsigned int Channel);

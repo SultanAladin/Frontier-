@@ -8,7 +8,7 @@ Size="${1:-512}" Spp="${2:-256}" Sheet="${3:-triptych}"
 Bin="$(mktemp -u /tmp/ShaderballExhibit.XXXXXX)"
 echo "[ShaderballExhibit] building"
 if ! g++ -std=c++20 -O2 -DFRONTIER_CPU_PORT -I Exhibits/Workbench/Materials -I Engine/DisplayPresentation \
-     -I Engine/Shaders -I Exhibits/Workbench/Editor Exhibits/Workbench/Materials/ShaderballExhibit.cpp \
+     -I Engine/Shaders -I Exhibits/Workbench/Editor Engine/ContentInterchange/ShaderballPreview.cpp \
      Engine/DisplayPresentation/ShadingTableCodec.cpp -o "$Bin" 2>/tmp/ShaderballExhibit.build; then
     echo "  BUILD FAILED"; head -30 /tmp/ShaderballExhibit.build; exit 1
 fi

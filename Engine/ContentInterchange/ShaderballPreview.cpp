@@ -1,5 +1,10 @@
 //============================================================================================================================================
-//                                                         SHADERBALLEXHIBIT.CPP
+//                                                        SHADERBALLPREVIEW.CPP
+//============================================================================================================================================
+// (Was Exhibits/Workbench/Materials/ShaderballExhibit.cpp. The app's M7b preview button links this TU, so it lives in
+//    the engine now — the app toolchain must not reach into Exhibits/Workbench. SHADERBALL_PREVIEW_LIB selects the
+//    library surface [RenderShaderballPreview, no main()]; without it the file is still the standalone workbench
+//    exhibit with its own main(), which RunShaderballExhibit.sh builds from this path.)
 //============================================================================================================================================
 // 🧩 Headless CPU exhibit — the CC0 shaderball (Pseudopode/UnityShaderBall, Models/shaderball.obj) path-traced with
 //    the proven Engine/Shaders/MaterialEvaluation.slang BSDF (FRONTIER_CPU_PORT, see SlangCpuShim.h) in three panels:
@@ -20,14 +25,14 @@
 //    SSS hit (miss ⟹ Beer 0 — the ray crossed the whole volume); concave partial-chords fold in as medium (v1
 //    approximation, documented at SssChord). Interior hits skip both NEE strata, as before.
 //
-//    Kept harness: Exhibits/Workbench/Materials/ShaderballExhibit.cpp, driven by RunShaderballExhibit.sh (NOT part
-//    of the materials gate — the full sheet is a ~5 min render). Mesh + sheet live in Exhibits/Gallery/Materials/.
-//    Build: g++ -std=c++20 -O2 -DFRONTIER_CPU_PORT -I Exhibits/Workbench/Materials -I Engine/DisplayPresentation
-//               -I Engine/Shaders -I Exhibits/Workbench/Editor Exhibits/Workbench/Materials/ShaderballExhibit.cpp
+//    Kept harness: this file without SHADERBALL_PREVIEW_LIB, driven by RunShaderballExhibit.sh (NOT part of the
+//    materials gate — the full sheet is a ~5 min render). Mesh + sheet live in Exhibits/Gallery/Materials/.
+//    Build: g++ -std=c++20 -O2 -DFRONTIER_CPU_PORT -I Engine/DisplayPresentation
+//               -I Engine/Shaders Engine/ContentInterchange/ShaderballPreview.cpp
 //               Engine/DisplayPresentation/ShadingTableCodec.cpp -o /tmp/sb-exhibit
 
-#include "SlangCpuShim.h"
-#include "ShadingTableCodec.h"
+#include "../Shaders/SlangCpuShim.h"
+#include "../DisplayPresentation/ShadingTableCodec.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -73,7 +78,7 @@ inline vec4 FetchSheenFull(float mu, float alpha)
 #pragma warning(push)
 #pragma warning(disable : 4244 4305)
 #endif
-#include "MaterialEvaluation.slang"
+#include "../Shaders/MaterialEvaluation.slang"
 #if defined(_MSC_VER)
 #pragma warning(pop)
 #endif

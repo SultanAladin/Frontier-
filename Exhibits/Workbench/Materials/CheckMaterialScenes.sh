@@ -64,7 +64,7 @@ if ! g++ -std=c++20 -O2 -Wall -Wextra -ffunction-sections -fdata-sections -Wl,--
      Engine/GeometricRaster/GeometryStructure.cpp \
      Engine/DeviceExchange/OrientationClassifier.cpp \
      Engine/DisplayPresentation/ShadingTableCodec.cpp \
-     Exhibits/Workbench/Materials/ShaderballExhibit.cpp \
+     Engine/ContentInterchange/ShaderballPreview.cpp \
      -o "$Bin" 2>/tmp/MaterialScenes.build; then
     echo "[MaterialScenes] COMPILE FAILED"; sed 's/^/    /' /tmp/MaterialScenes.build | head -40; exit 1
 fi

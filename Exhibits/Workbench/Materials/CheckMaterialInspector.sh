@@ -44,7 +44,7 @@ if ! g++ -std=c++20 -O2 -Wall -Wextra -ffunction-sections -fdata-sections -Wl,--
      Engine/DisplayPresentation/FontCodec.cpp \
      Engine/DisplayPresentation/ConfigurationRegistry.cpp \
      Engine/DisplayPresentation/ShadingTableCodec.cpp \
-     Exhibits/Workbench/Materials/ShaderballExhibit.cpp \
+     Engine/ContentInterchange/ShaderballPreview.cpp \
      Engine/ContentInterchange/MaterialIndex.cpp \
      Engine/DeviceExchange/InputExchange.cpp \
      Engine/DeviceExchange/VisibilityExchange.cpp \

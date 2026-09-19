@@ -118,10 +118,10 @@ fi
 grep -q "SHADERBALL_PREVIEW_LIB" "$CMakeFile" || Fail "⑤ CMake no longer sets SHADERBALL_PREVIEW_LIB on the preview TU"
 grep -q "SHADERBALL_PREVIEW_LIB" "$Ps1File"   || Fail "⑤ the PowerShell script does not set SHADERBALL_PREVIEW_LIB on the preview TU"
 if grep -q "SHADERBALL_PREVIEW_LIB" "$CMakeFile" && grep -q "SHADERBALL_PREVIEW_LIB" "$Ps1File"; then
-    if grep -q "ShaderballExhibit.cpp" "$Work/cmake.txt" && grep -qxF 'Exhibits\Workbench\Materials\ShaderballExhibit.cpp' "$Work/ps1.txt"; then
-        Pass "⑤ ShaderballExhibit.cpp is built by both, with SHADERBALL_PREVIEW_LIB on both (so neither links a second main)"
+    if grep -q "ShaderballPreview.cpp" "$Work/cmake.txt" && grep -qxF 'Engine\ContentInterchange\ShaderballPreview.cpp' "$Work/ps1.txt"; then
+        Pass "⑤ ShaderballPreview.cpp is built by both, with SHADERBALL_PREVIEW_LIB on both (so neither links a second main)"
     else
-        Fail "⑤ ShaderballExhibit.cpp is not in both batches (the override's TU must be)"
+        Fail "⑤ ShaderballPreview.cpp is not in both batches (the override's TU must be)"
     fi
 fi
 
