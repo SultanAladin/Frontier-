@@ -288,6 +288,26 @@ void ShowcaseStructure::Construct() noexcept
         }
     }
 
+    // ── the interface panel's berth: stand + housing slab ───────────────────────────────────────────────────────
+    //    The panel itself (figures, materials, its light) is the PROJECT's — this level only guarantees the panel a
+    //    physical body: a slab the figures visually sit on, and a stand holding it at eye height. Dark satin
+    //    dielectric, the fascia every consumer of the level sees and occludes against.
+    const uint32_t PanelBodyMaterial = static_cast<uint32_t>(Materials.size());
+    {
+        MaterialDescriptor D = MakeMaterial("interface_panel_body");
+        SetColor(D.Slabs[0].BaseColor, 0.020f, 0.022f, 0.026f);
+        D.Slabs[0].SpecularWeight     = 1.0f;
+        D.Slabs[0].SpecularIor        = 1.5f;
+        D.Slabs[0].SpecularRoughness  = 0.35f;   // satin, not gloss: a mirror bezel would fight the figures
+        Materials.push_back(D);
+
+        D = MakeMaterial("interface_panel_stand");
+        SetColor(D.Slabs[0].BaseColor, 0.10f, 0.10f, 0.11f);
+        D.Slabs[0].BaseMetalness      = 1.0f;
+        D.Slabs[0].SpecularRoughness  = 0.45f;   // brushed dark steel
+        Materials.push_back(D);
+    }
+
     // ── last: the luminaire ──────────────────────────────────────────────────────────────────────────────────────
     //    ⚠️ THE WHOLE LEVEL DEPENDS ON THIS EXISTING. The previous showcase had no emissive triangle anywhere, so the
     //    scene reported "0 luminaires": PlaceShadowTaps refused (empty emitter set ⇒ no shadow maps) and the ReSTIR
@@ -377,6 +397,25 @@ void ShowcaseStructure::Construct() noexcept
             default: AppendSphere(Vector3{ Spot.x, Spot.y, Size * 0.5f }, Size * 0.5f, Material, 16u, 28u); break;
             }
             ++Built;
+        }
+    }
+
+    // The interface panel's body. The FACE plane the project seats its figures on is published in the header
+    //    (kShowcasePanelCentre*, kShowcasePanelScale); the slab here sits 5 mm behind it so the figures read as
+    //    laminated onto glass rather than floating. Half extents follow the trial panel's authored 0.180 × 0.110
+    //    at the published scale, with a 20 mm bezel margin all round.
+    {
+        constexpr float FaceX = kShowcasePanelCentreX, FaceY = kShowcasePanelCentreY, FaceZ = kShowcasePanelCentreZ;
+        constexpr float HalfW = 0.180f * kShowcasePanelScale + 0.02f;   // [m] slab half width
+        constexpr float HalfH = 0.110f * kShowcasePanelScale + 0.02f;   // [m] slab half height
+        {
+            const auto SlabSpan = OpenSpan("Interface Panel Housing");
+            AppendBox(Vector3{ FaceX, FaceY + 0.030f, FaceZ }, Vector3{ HalfW, 0.025f, HalfH }, 0.0f, PanelBodyMaterial);
+        }
+        {
+            const auto StandSpan = OpenSpan("Interface Panel Stand");
+            AppendCylinder(Vector3{ FaceX, FaceY + 0.030f, 0.0f }, 0.06f, FaceZ - HalfH + 0.01f, PanelBodyMaterial + 1u, 16u);
+            AppendCylinder(Vector3{ FaceX, FaceY + 0.030f, 0.0f }, 0.30f, 0.02f, PanelBodyMaterial + 1u, 24u);
         }
     }
 

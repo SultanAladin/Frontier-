@@ -55,6 +55,20 @@ struct PlanePlacement
 //    documented in InterfaceSpecification.h. Semantic ranges (rpm, km/h, gear) never appear here — the project
 //    normalises before writing (CLAUDE.md §6).
 
+// How a figure participates in the scene's LIGHT, independently of how it draws. Two widget kinds exist in a real
+//    cockpit and they are not the same thing:
+//        Illuminant  an HMI element — a telltale LED, a lit gauge arc. Its emission is physically real: it feeds the
+//                    panel's scene luminaire (InterfaceLightProjection), lights the plinth, shows in the chrome.
+//        Overlay     a pure widget — a marking, a readout, a needle. It is drawn at full brightness on the panel and
+//                    is visible wherever the panel is visible, but it contributes NOTHING to the room's light.
+//    This is orthogonal to EmissiveWeight: an Overlay figure may be visually bright (weight 1) yet cast no light,
+//    where EmissiveWeight 0 means the figure is albedo — it neither glows on screen nor lights the room.
+enum class InterfaceLightRole : uint32_t
+{
+    Illuminant = 0u,    // default — every pre-existing figure behaves exactly as before
+    Overlay    = 1u,
+};
+
 struct InterfaceFigure
 {
     InterfaceCategory Category     = InterfaceCategory::Surface;
@@ -76,6 +90,12 @@ struct InterfaceFigure
     //    panel sets a dark BaseColour with EmissiveWeight 0 on the housing and 1 on the lit elements.
     uint32_t          BaseColour     = 0u;              // [-]   RGBA8 albedo; a = 0 → fall back to the resolved tint
     float             EmissiveWeight = 1.0f;            // [-]   0 = pure albedo (receives room light), 1 = pure emitter
+
+    // ⑧ Scene participation. Orthogonal to EmissiveWeight (how BRIGHT the figure draws): whether that brightness is
+    //    physically real. Illuminant figures feed InterfaceLightProjection::MeasureRadiance and therefore the panel's
+    //    scene luminaire — a telltale LED that tints the plinth. Overlay figures draw identically but are EXCLUDED
+    //    from the measurement: a needle or a readout is information, not a lamp, and must not light the room.
+    InterfaceLightRole LightRole     = InterfaceLightRole::Illuminant;
 
     // ⑥ Clip extent in the figure's OWN local plane, metres. Left wide open in P0; P2 animates it for masked wipes
     //    and intersects ancestor rectangles on the CPU so a batch group emits one tightest rectangle.

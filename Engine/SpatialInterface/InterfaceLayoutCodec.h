@@ -52,10 +52,12 @@ struct InterfaceInstanceFigure
     uint32_t BaseColour;                       // [-]   RGBA8 albedo of the unlit surface; a = 0 → fall back to Tint
     float    EmissiveWeight;                   // [-]   0 = pure albedo (receives light), 1 = pure emitter ⑦
 
-    // Reserved so the 16-byte std430 tail is named rather than silent. Future channels (roughness, a second
-    //    emissive band) land here without moving a single existing offset. Written as 0, unread.
-    float    ReserveAlpha;                     // [-]
-    float    ReserveBeta;                      // [-]
+    // The named std430 tail. ReserveAlpha carries facing (0 = single-sided, 1 = double-sided — the vertex stage
+    //    reads it through InterfaceIsDoubleSided). ReserveBeta carries the ⑧ light role (0 = Illuminant: the figure
+    //    feeds the panel's scene luminaire; 1 = Overlay: drawn identically, contributes nothing to the room's
+    //    light). Both default to 0-compatible encodings so pre-existing captures decode unchanged.
+    float    ReserveAlpha;                     // [-]   facing: 1 = double-sided
+    float    ReserveBeta;                      // [-]   ⑧ light role: 1 = overlay-only (no scene light)
 };
 
 static_assert(sizeof(InterfaceInstanceFigure) == 112u, "InterfaceInstanceFigure must be 112 bytes (std430 mirror of Shaders/InterfaceRecords.slang)");

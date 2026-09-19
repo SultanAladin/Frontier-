@@ -128,7 +128,10 @@ void InterfaceLayoutCodec::Encode(const InterfaceFigure& Figure, const WorldPlac
     //    discards the quad once the eye is behind the figure's plane), 1 = double-sided. Kept as a float because
     //    the tail is already float-typed and the proof harness round-trips it bit-exactly.
     Slot.ReserveAlpha    = Figure.DoubleSided ? 1.0f : 0.0f;
-    Slot.ReserveBeta     = 0.0f;
+    // ⑧ Light role, in the second reserved slot: 0 = Illuminant (feeds the panel's scene luminaire), 1 = Overlay
+    //    (drawn identically, contributes nothing to the room's light). The default writes 0, so every slot encoded
+    //    before this channel existed is bit-identical to what it was — the round-trip proof still holds.
+    Slot.ReserveBeta     = Figure.LightRole == InterfaceLightRole::Overlay ? 1.0f : 0.0f;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -159,6 +162,8 @@ void InterfaceLayoutCodec::Decode(const InterfaceInstanceFigure& Slot, Interface
 
     Figure.BaseColour     = Slot.BaseColour;
     Figure.EmissiveWeight = Slot.EmissiveWeight;
+    Figure.DoubleSided    = Slot.ReserveAlpha > 0.5f;
+    Figure.LightRole      = Slot.ReserveBeta > 0.5f ? InterfaceLightRole::Overlay : InterfaceLightRole::Illuminant;
 }
 
 } // namespace Frontier

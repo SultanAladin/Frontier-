@@ -30,7 +30,17 @@ namespace Frontier {
 
 // Revision of the authored level. Bump whenever Construct() changes what the level contains, so an already-exported
 //    Showcase.gltf from an older revision is regenerated instead of being reused forever by the export-once rule.
-inline constexpr uint32_t kShowcaseRevision = 2u;
+inline constexpr uint32_t kShowcaseRevision = 3u;   // r3: the interface panel's stand and housing slab
+
+// ── The interface panel's berth ─────────────────────────────────────────────────────────────────────────────────────
+// The showcase carries Project-Zero's spatial-interface panel as a physical exhibit: a stand and a housing slab are
+//    authored here (so every consumer of the level — GPU build, CPU reference, exporter — agrees the panel exists and
+//    occludes), and the panel's FACE plane is published so the project can seat its figures and its light proxy on
+//    exactly the surface the geometry presents. The face looks along −Y (toward the default viewpoint), upright.
+inline constexpr float kShowcasePanelCentreX = 2.6f;    // [m]
+inline constexpr float kShowcasePanelCentreY = -3.60f;  // [m]  the FACE plane (5 mm proud of the housing slab)
+inline constexpr float kShowcasePanelCentreZ = 1.18f;   // [m]
+inline constexpr float kShowcasePanelScale   = 3.0f;    // [-]  interface-local metres → world metres
 
 // True when the file at Path was written by this revision of ShowcaseStructure. A missing, unreadable or older file
 //    answers false, and the caller re-exports. Cheap: it only scans the glTF header region for the revision marker.

@@ -49,8 +49,8 @@ struct InterfaceInstanceFigure
 
     uint  BaseColour;           // [-]      ⑦ RGBA8 albedo of the unlit surface
     float EmissiveWeight;       // [-]      ⑦ 0 = pure albedo (receives room light), 1 = pure emitter
-    float ReserveAlpha;         // [-]      reserved, written 0
-    float ReserveBeta;          // [-]      reserved, written 0
+    float ReserveAlpha;         // [-]      facing: 1 = double-sided (see InterfaceIsDoubleSided)
+    float ReserveBeta;          // [-]      ⑧ light role: 1 = overlay-only (excluded from the panel's scene light)
 };
 
 layout(std430, set = 0, binding = 1) readonly buffer InterfaceExtent { InterfaceInstanceFigure Figures[]; };

@@ -56,6 +56,12 @@ PanelRadiance InterfaceLightProjection::MeasureRadiance(const InterfaceStructure
     {
         const InterfaceInstanceFigure& Slot = Instances[Index];
 
+        // ⑧ Light role: an Overlay figure is a pure widget — a needle, a readout, a marking. It draws at full
+        //    brightness wherever the panel is visible, but its light is informational, not physical, so it is
+        //    excluded from what the panel radiates into the room. Only Illuminant figures (the HMI elements —
+        //    telltale lamps, lit fills, the car-dashboard LED) feed the scene luminaire.
+        if (Slot.ReserveBeta > 0.5f) continue;
+
         // EmissiveWeight is the ⑦ channel added in P0-4: 0 = pure albedo, 1 = pure emitter. A figure that only
         //    reflects room light contributes nothing to what the panel RADIATES, which is the whole distinction
         //    that field was added to express.

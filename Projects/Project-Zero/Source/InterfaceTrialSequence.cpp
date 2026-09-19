@@ -80,6 +80,16 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
 {
     Structure.Reserve(16u);
 
+    // The panel's figures split into the two widget kinds a real fascia has (⑦/⑧):
+    //
+    //    · PHYSICAL SURFACES — housing, face card, control beds, buttons. EmissiveWeight 0: they are albedo, lit by
+    //      the room, dark when the room is dark. They neither glow nor light anything.
+    //    · TYPE 1, pure widgets (LightRole Overlay) — ticks, needle, readout digits. Drawn at full brightness so the
+    //      information is always legible, but their light is informational: they contribute NOTHING to the room.
+    //    · TYPE 2, HMI elements (LightRole Illuminant, the default) — the telltale lamp, the toggle knob's LED, the
+    //      meter's lit arc, the bar's fill. Like an LED in a car dashboard: the emission is physically real, feeds
+    //      the panel's scene luminaire (InterfaceLightProjection), pools on the plinth and shows in the chrome.
+
     // ── Housing ──────────────────────────────────────────────────────────────────────────────────────────────────
     {
         InterfaceFigure Figure;
@@ -89,6 +99,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight   = PanelHalfHeight;
         Figure.CornerRadius = 0.016f;
         Figure.Palette      = PaletteSlot::Housing;
+        Figure.EmissiveWeight = 0.0f;           // ⑦ a dark bezel is a physical surface, not a glowing decal
         Figure.OrderingRank = 0u;
         Housing = Structure.Construct(Figure);
     }
@@ -103,6 +114,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight   = PanelHalfHeight - 0.008f;
         Figure.CornerRadius = 0.012f;
         Figure.Palette      = PaletteSlot::Surface;
+        Figure.EmissiveWeight = 0.0f;           // ⑦ the card the controls sit on: albedo, lit by the room
         Figure.OrderingRank = 1u;
         Face = Structure.Construct(Figure);
         (void)Structure.Attach(Face, Housing);
@@ -130,6 +142,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight   = MeterRadius - 0.010f;
         Figure.ScalarBeta   = 11.0f;            // mark count
         Figure.Palette      = PaletteSlot::MarkingMute;
+        Figure.LightRole    = InterfaceLightRole::Overlay;   // ⑧ Type 1: markings inform, they do not illuminate
         Figure.OrderingRank = 3u;
         MeterTicks = Structure.Construct(Figure);
         (void)Structure.Attach(MeterTicks, Face);
@@ -143,6 +156,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.ScalarAlpha  = 0.0f;             // angle fraction, spring-driven
         Figure.ScalarBeta   = 0.0055f;          // hub radius [m]
         Figure.Palette      = PaletteSlot::Marking;
+        Figure.LightRole    = InterfaceLightRole::Overlay;   // ⑧ Type 1: the needle is information, not a lamp
         Figure.OrderingRank = 4u;
         MeterNeedle = Structure.Construct(Figure);
         (void)Structure.Attach(MeterNeedle, Face);
@@ -157,6 +171,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight    = ButtonHalfHeight;
         Figure.CornerRadius  = 0.008f;
         Figure.Palette       = PaletteSlot::SurfaceSunk;
+        Figure.EmissiveWeight = 0.0f;           // ⑦ an unlit button cap is a physical surface
         Figure.PointerTarget = true;            // ③ reserved for P2 — unread today
         Figure.OrderingRank  = 5u;
         ButtonLeft = Structure.Construct(Figure);
@@ -170,6 +185,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight    = ButtonHalfHeight;
         Figure.CornerRadius  = 0.008f;
         Figure.Palette       = PaletteSlot::SurfaceSunk;
+        Figure.EmissiveWeight = 0.0f;           // ⑦ as the left button: albedo until something lights it
         Figure.PointerTarget = true;
         Figure.OrderingRank  = 6u;
         ButtonRight = Structure.Construct(Figure);
@@ -185,6 +201,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight    = 0.012f;
         Figure.CornerRadius  = 0.012f;
         Figure.Palette       = PaletteSlot::SurfaceSunk;
+        Figure.EmissiveWeight = 0.0f;           // ⑦ the toggle's bed is a trough, not a light
         Figure.PointerTarget = true;
         Figure.OrderingRank  = 7u;
         ToggleBed = Structure.Construct(Figure);
@@ -198,6 +215,8 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight   = 0.0088f;
         Figure.ScalarAlpha  = 1.0f;
         Figure.Palette      = PaletteSlot::MarkingMute;
+        // ⑧ Type 2 (default Illuminant): the knob's lamp is the panel's LED — engaged it turns Confirm green
+        //    (AdvanceTrial) and that green is real light, pooling on the plinth like a car's dashboard telltale.
         Figure.OrderingRank = 8u;
         ToggleKnob = Structure.Construct(Figure);
         (void)Structure.Attach(ToggleKnob, ToggleBed);
@@ -212,6 +231,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight   = 0.0075f;
         Figure.CornerRadius = 0.0075f;
         Figure.Palette      = PaletteSlot::SurfaceSunk;
+        Figure.EmissiveWeight = 0.0f;           // ⑦ the trough is a physical channel; only its FILL emits
         Figure.OrderingRank = 9u;
         // P2: the trough is the one CONTINUOUS control — dragging along it sets a value, where the buttons and
         //    the toggle are discrete. That makes it the natural thing to bind a real quantity to.
@@ -244,6 +264,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.ScalarAlpha  = 0.0f;             // digit
         Figure.ScalarBeta   = 0.0034f;          // bar thickness [m]
         Figure.Palette      = PaletteSlot::Marking;
+        Figure.LightRole    = InterfaceLightRole::Overlay;   // ⑧ Type 1: a readout informs, it does not illuminate
         Figure.OrderingRank = 11u;
         ReadoutTens = Structure.Construct(Figure);
         (void)Structure.Attach(ReadoutTens, Face);
@@ -257,6 +278,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.ScalarAlpha  = 0.0f;
         Figure.ScalarBeta   = 0.0034f;
         Figure.Palette      = PaletteSlot::Marking;
+        Figure.LightRole    = InterfaceLightRole::Overlay;   // ⑧ Type 1, as the tens cell
         Figure.OrderingRank = 12u;
         ReadoutUnits = Structure.Construct(Figure);
         (void)Structure.Attach(ReadoutUnits, Face);
@@ -271,6 +293,8 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
         Figure.HalfHeight   = 0.0095f;
         Figure.ScalarAlpha  = 0.0f;
         Figure.Palette      = PaletteSlot::Caution;
+        // ⑧ Type 2 (default Illuminant): THE telltale — an amber warning LED whose glow is physically real. When
+        //    it fires, the amber tints the panel's luminaire and the room sees the warning before the driver does.
         Figure.OrderingRank = 13u;
         LampOrdinal = Structure.Construct(Figure);
         (void)Structure.Attach(LampOrdinal, Face);
@@ -474,6 +498,9 @@ void InterfaceTrialSequence::AdvanceTrial(InterfaceStructure& Structure, MotionI
         InterfaceFigure& Knob_ = Structure.Access(ToggleKnob);
         Knob_.Placement.Origin.X = static_cast<float>(-0.012 + 0.024 * std::clamp(Knob, 0.0, 1.0));
         Knob_.Palette            = Knob > 0.5 ? PaletteSlot::Confirm : PaletteSlot::MarkingMute;
+        // ⑧ The knob's LED: engaged it burns Confirm green at full emission; disengaged it idles as a dim locator
+        //    lamp — bright enough to find in the dark, too dim to register in the room's light budget.
+        Knob_.EmissiveWeight     = Knob > 0.5 ? 1.0f : 0.2f;
     }
 
     // Buttons: the pressed one sinks slightly and picks up the accent.
@@ -481,9 +508,13 @@ void InterfaceTrialSequence::AdvanceTrial(InterfaceStructure& Structure, MotionI
         InterfaceFigure& Left = Structure.Access(ButtonLeft);
         Left.Placement.Origin.Z = static_cast<float>(0.0020 - 0.0008 * Press);
         Left.Palette            = Press > 0.5 ? PaletteSlot::Accent : PaletteSlot::SurfaceSunk;
+        // ⑦/⑧ A pressed button is BACKLIT — its cap goes from albedo to emitter, and because a button is an HMI
+        //    element (Illuminant), that accent blue is real light the room sees. Released, it is a dark cap again.
+        Left.EmissiveWeight     = Press > 0.5 ? 1.0f : 0.0f;
 
         InterfaceFigure& Right = Structure.Access(ButtonRight);
-        Right.Palette = ToggleEngaged ? PaletteSlot::Accent : PaletteSlot::SurfaceSunk;
+        Right.Palette        = ToggleEngaged ? PaletteSlot::Accent : PaletteSlot::SurfaceSunk;
+        Right.EmissiveWeight = ToggleEngaged ? 1.0f : 0.0f;
     }
 
     // Readout counts 00..99 with the bar; the engine only ever sees a digit.

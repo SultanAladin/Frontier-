@@ -70,6 +70,16 @@ MaterialLevelViewport: MaterialLevelViewport.cpp ../../../Engine/ContentIntercha
 	../../../Engine/ContentInterchange/ShowcaseStructure.cpp \
 		../../../Engine/GeometricRaster/CameraProjection.cpp \
 		../../../Engine/DeviceExchange/OrientationClassifier.cpp \
+		../../../Engine/GeometricRaster/SceneStructure.cpp \
+		../../../Engine/GeometricRaster/GeometryStructure.cpp \
+		../../../Engine/SpatialInterface/InterfaceStructure.cpp \
+		../../../Engine/SpatialInterface/InterfaceSequence.cpp \
+		../../../Engine/SpatialInterface/InterfaceLayoutCodec.cpp \
+		../../../Engine/SpatialInterface/InterfaceLightProjection.cpp \
+		../../../Engine/SpatialInterface/InterfacePointerProjection.cpp \
+		../../../Engine/SpatialInterface/PaletteConfiguration.cpp \
+		../../../Engine/DisplayPresentation/MotionIntegrator.cpp \
+		../Source/InterfaceTrialSequence.cpp \
 		../Source/SkyFogIntegrator.cpp
 
 FogViewport: FogViewport.cpp CelHost.h ../Integration/Shaders/SlangInterchange.h SunPosition.h ../Integration/Shaders/SkySpecification.slang ../Integration/Shaders/FogSpecification.slang

@@ -86,6 +86,16 @@ inline vec4 FetchSheenFull(float mu, float alpha)
 }
 
 #include "MaterialEvaluation.slang"   // the shipped OpenPBR lobe set, compiled 1:1 as C++ (see the file's own header)
+
+// ── The spatial interface's figure evaluation, compiled 1:1 as C++ (the R4b discipline, same as the lobe set) ──────
+// InterfaceSignedDistance.slang needs three GLSL builtins the material shim never met (GLSL's two-argument atan is
+//    C's atan2; fract has no C name; floor gets a float overload for the same reason the shim gives sqrt one).
+inline float atan(float y, float x) { return std::atan2(y, x); }
+inline float fract(float x)         { return x - std::floor(x); }
+inline float floor(float x)         { return std::floor(x); }
+inline double abs(double x)         { return x < 0.0 ? -x : x; }   // un-suffixed literals promote; keep the call exact
+#include "InterfaceSignedDistance.slang"
+
 #include "PngWriteCounterpart.h"
 
 #include "CameraProjection.h"
@@ -94,6 +104,15 @@ inline vec4 FetchSheenFull(float mu, float alpha)
 #include "MaterialSwatchStructure.h"
 #include "ShowcaseStructure.h"
 #include "SkyFogIntegrator.h"
+
+// The spatial interface: the showcase carries Project-Zero's trial panel as a physical exhibit, so the CPU render
+//    proves BOTH widget kinds end to end — Type 1 overlay figures (needle, ticks, readout: drawn, never lighting)
+//    and Type 2 HMI figures (telltale, toggle LED, lit fills: drawn AND feeding the panel's scene luminaire).
+#include "MotionIntegrator.h"
+#include "InterfaceTrialSequence.h"
+#include "../../../Engine/SpatialInterface/InterfaceLayoutCodec.h"
+#include "../../../Engine/SpatialInterface/InterfaceLightProjection.h"
+#include "../../../Engine/GeometricRaster/SceneStructure.h"
 
 namespace {
 
@@ -162,6 +181,30 @@ int   g_RowFilter = -1;    // [-] -1 = the whole grid; 0..5 = one sphere row (a 
 //    product's own DEFAULT level — what Project-Zero.exe opens with no --scene argument at all. They are built from
 //    the same kind of source (a Structure's Construct + MaterialIndex), so the renderer below does not care which.
 std::string g_Level = "materials";
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                 THE INTERFACE PANEL (showcase only) — two widget kinds, end to end
+//------------------------------------------------------------------------------------------------------------------------
+// The showcase carries Project-Zero's trial panel at the berth ShowcaseStructure authors (stand + housing slab).
+//    The harness composes the panel's figures with the ENGINE's own pipeline (InterfaceTrialSequence → InterfaceSequence),
+//    measures its radiance with the ENGINE's own MeasureRadiance — which is where the ⑧ light-role split bites:
+//
+//      · Type 1, Overlay figures (needle, tick ring, readout): drawn in the composite below, EXCLUDED from the light.
+//      · Type 2, Illuminant figures (telltale lamp, toggle LED, lit fills, backlit buttons): drawn identically AND
+//        averaged into the panel's proxy luminaire, which ComposeProxy registers through a real SceneStructure —
+//        so the two panel triangles that light the plinth come out of the engine's own Finalise, not a lookalike.
+//
+//    The figures themselves are composited over the film after the trace (the raster overlay's CPU mirror): the
+//    panel face pixel shows the FIGURES, while reflections and bounce light show the Low-tier average — exactly the
+//    tier contract References/InterfaceLightContribution-Plan.md specifies.
+bool  g_PanelActive = false;
+std::vector<Frontier::InterfaceInstanceFigure> g_PanelFigures;   // composed slots, submission (draw) order
+vec3  g_PanelCentre(0.0f), g_PanelNormal(0.0f, -1.0f, 0.0f);     // world face
+float g_PanelGain = 120.0f;                                      // [-] proxy gain. GameExecution uses 26 against the
+                                                                 //     showroom's 32-nit ceiling; this room's key is
+                                                                 //     140 nits, so the proportional setting is ~120.
+constexpr float kPanelDisplayNits = 120.0f;                      // [nit] what an emissive figure shows at on the face
+constexpr float kPanelAmbientNits = 18.0f;                       // [nit] flat ambient on the albedo figures (P0 term)
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                          RNG
@@ -283,6 +326,7 @@ Viewpoint ShowcaseViewpointFor(const std::string& Name)
     if (Name == "metals") return { Frontier::Vector3{ -1.0f, -5.40f, 1.60f },  -7.0f,  0.0f, 50.0f };  // row 0: anisotropic metals
     if (Name == "glass")  return { Frontier::Vector3{ -1.0f, -3.60f, 1.60f },  -6.0f,  0.0f, 50.0f };  // row 1: the IOR ramp
     if (Name == "wide")   return { Frontier::Vector3{  0.0f, -13.0f, 5.20f }, -14.0f,  0.0f, 62.0f };  // grid + scattered field
+    if (Name == "panel")  return { Frontier::Vector3{ 2.35f, -5.60f, 1.35f },  -4.0f,  8.0f, 42.0f };  // the interface panel, close
     return { Frontier::Vector3{ 0.0f, -9.50f, 5.60f }, -21.0f, 0.0f, 55.0f };                          // the product's entry shot
 }
 
@@ -1695,6 +1739,133 @@ float TotalLightPower()
 //    same descriptors into the same MaterialRecord / MaterialSlabRecord rows the GPU build uploads (the export → decode
 //    round trip that stands between the two is the M10 gate's A/E checks: 65/65, zero drift). Geometry arrives
 //    world-space with three authored smooth normals per triangle, exactly what the kernel interpolates per hit.
+// Compose the interface panel and register its light. Runs only for the showcase, AFTER the level's own triangles
+//    are in g_Tris and BEFORE the luminaire gather + BVH build, so the proxy quad is picked up by both exactly the
+//    way any authored emitter is. ObjectId is the span ordinal the proxy's triangles report as their instance.
+bool BuildInterfacePanel(uint16_t ObjectId)
+{
+    using Frontier::ProjectZero::InterfaceTrialSequence;
+
+    // ── The panel, composed by the engine's own pipeline ────────────────────────────────────────────────────────
+    // Placement is the berth ShowcaseStructure authors: upright (local +Y onto world +Z), face along −Y toward the
+    //    default viewpoint, at the published scale.
+    Frontier::PlanePlacement Placement;
+    Placement.Origin    = Frontier::PlaneOrigin{ Frontier::kShowcasePanelCentreX,
+                                                 Frontier::kShowcasePanelCentreY,
+                                                 Frontier::kShowcasePanelCentreZ };
+    Placement.RotationX = 1.57079633f;
+    Placement.Scale     = Frontier::kShowcasePanelScale;
+
+    InterfaceTrialSequence Trial;
+    Trial.AssignPanelPlacement(Placement);
+
+    Frontier::InterfaceStructure Figures;
+    Frontier::MotionIntegrator   Motion;
+    Trial.Construct(Figures, Motion);
+
+    // Drive the demonstration to t = 3.5 s (phase 0.58): the meter is pulled to full scale and has settled in the
+    //    warning band, so the telltale burns, the toggle is engaged (green LED), the right button is backlit, and
+    //    the bar sits near ⅚ fill — the moment that shows BOTH widget kinds doing their jobs.
+    for (int Step = 0; Step < 210; ++Step)
+        Trial.AdvanceTrial(Figures, Motion, 1.0 / 60.0, true);
+
+    Frontier::InterfaceSequence Composition;
+    Frontier::InterfaceViewConfiguration View;
+    View.EyeX = 0.0f; View.EyeY = -9.5f; View.EyeZ = 5.6f;   // the default showcase viewpoint, for the sort
+    View.ForwardX = 0.0f; View.ForwardY = 1.0f; View.ForwardZ = 0.0f;
+    Composition.AssignView(View);
+    Composition.Advance(Figures, 0.0);
+
+    const Frontier::InterfaceInstanceFigure* Slots = Composition.QueryInstances();
+    const uint32_t SlotCount = Composition.QueryInstanceCount();
+    if (Slots == nullptr || SlotCount == 0u)
+    {
+        std::printf("[material-level] interface panel composed no figures — skipped\n");
+        return true;
+    }
+    g_PanelFigures.assign(Slots, Slots + SlotCount);
+    g_PanelActive = true;
+
+    // The face frame, world space. Placement is baked into the half-axes (ComposeProxy's own contract). The proxy
+    //    is INSET from the housing edge by the bezel: the emitting region of a display is its active area, and a
+    //    proxy flush with the housing shows as a glowing rim wherever the rounded corners fall inside the quad.
+    const float Inset = 0.020f * Frontier::kShowcasePanelScale;   // [m] world bezel inset (≥ the corner radius 0.016)
+    const float HalfW = 0.180f * Frontier::kShowcasePanelScale - Inset;
+    const float HalfH = 0.110f * Frontier::kShowcasePanelScale - Inset;
+    g_PanelCentre = vec3(Placement.Origin.X, Placement.Origin.Y, Placement.Origin.Z);
+    g_PanelNormal = vec3(0.0f, -1.0f, 0.0f);
+
+    // ── The light: Low-tier proxy through the ENGINE's own path ─────────────────────────────────────────────────
+    // MeasureRadiance applies the ⑧ split (Overlay figures contribute nothing); ComposeProxy registers the quad
+    //    and its emissive material into a real SceneStructure whose Finalise flattens them — the two triangles
+    //    appended to the harness scene below are the engine's own output, not a transcription of it.
+    //    The panel area is in the figures' LOCAL metres, the same space the slots' half extents live in.
+    const Frontier::PanelRadiance Radiance =
+        Frontier::InterfaceLightProjection::MeasureRadiance(Figures, Composition, 4.0f * 0.180f * 0.110f);
+
+    Frontier::PanelProxyRequest Request;
+    Request.Tier    = Frontier::InterfaceFidelityTier::Low;
+    Request.CentreX = g_PanelCentre.x; Request.CentreY = g_PanelCentre.y; Request.CentreZ = g_PanelCentre.z;
+    Request.RightX  = HalfW; Request.RightY = 0.0f; Request.RightZ = 0.0f;
+    Request.UpX     = 0.0f;  Request.UpY    = 0.0f; Request.UpZ    = HalfH;
+    Request.Gain    = g_PanelGain;
+
+    Frontier::SceneStructure Proxy;
+    const uint32_t Instance = Frontier::InterfaceLightProjection::ComposeProxy(Proxy, Request, Radiance);
+    if (Instance == 0xFFFFFFFFu)
+    {
+        std::printf("[material-level] interface panel: overlay only — the illuminant set emits nothing "
+                    "(%u contributors)\n", Radiance.Contributors);
+        return true;
+    }
+    Proxy.Finalise(1u, nullptr);
+
+    const std::vector<Frontier::TriangleIndex>& Flats = Proxy.QueryFlatTriangles();
+    const std::vector<MaterialRecord>&          Records = Proxy.QueryMaterials().QueryRecords();
+    const std::vector<MaterialSlabRecord>&      Slabs   = Proxy.QueryMaterials().QuerySlabRecords();
+    if (Flats.empty() || Records.empty() || Slabs.empty())
+    {
+        std::printf("[material-level] interface panel: the proxy scene flattened to nothing — skipped\n");
+        return true;
+    }
+
+    const size_t MaterialBase = g_Mat.size();
+    for (const MaterialRecord& R : Records)
+    {
+        const uint32_t Selection = (R.Flags & Frontier::kMaterialReflectanceMask) >> Frontier::kMaterialReflectanceShift;
+        const MaterialSlabRecord& S = Slabs[std::min(static_cast<size_t>(R.SlabOffset), Slabs.size() - 1u)];
+        g_Mat.push_back(TranscribeShadingRecord(S, Selection));
+        g_MatFlags.push_back(R.Flags);
+        g_MatCutoff.push_back(R.AlphaCutoff);
+        g_MatCutAway.push_back(false);
+    }
+
+    for (const Frontier::TriangleIndex& F : Flats)
+    {
+        RenderTriangle R;
+        R.P0 = vec3(F.VertexAlphaX, F.VertexAlphaY, F.VertexAlphaZ);
+        R.P1 = vec3(F.VertexBetaX,  F.VertexBetaY,  F.VertexBetaZ);
+        R.P2 = vec3(F.VertexGammaX, F.VertexGammaY, F.VertexGammaZ);
+        const vec3 Ng = normalize(cross(R.P1 - R.P0, R.P2 - R.P0));
+        R.N0 = Ng; R.N1 = Ng; R.N2 = Ng;
+        R.U0 = F.TextureAlphaU; R.V0 = F.TextureAlphaV;
+        R.U1 = F.TextureBetaU;  R.V1 = F.TextureBetaV;
+        R.U2 = F.TextureGammaU; R.V2 = F.TextureGammaV;
+        uint32_t Slot = 0u;
+        std::memcpy(&Slot, &F.MaterialSlot, sizeof(Slot));
+        R.Material = static_cast<int>(MaterialBase + Slot);
+        R.Object   = static_cast<int>(ObjectId);
+        R.Light    = -1;   // the luminaire gather below this call assigns it, same as every authored emitter
+        g_Tris.push_back(R);
+    }
+
+    std::printf("[material-level] interface panel: %u figures composed (%u illuminant contributors), light rgb "
+                "(%.3f %.3f %.3f), %.0f%% coverage, gain %.0f — proxy quad and luminaire registered by the engine\n",
+                SlotCount, Radiance.Contributors, Radiance.Red, Radiance.Green, Radiance.Blue,
+                static_cast<double>(Radiance.Coverage()) * 100.0, static_cast<double>(g_PanelGain));
+    return true;
+}
+
 bool BuildLevel()
 {
     // Both levels are authored the same way — a Structure whose Construct() emits a world-space soup, three smooth
@@ -1796,6 +1967,10 @@ bool BuildLevel()
         }
         g_Tris.push_back(R);
     }
+
+    // The interface panel (showcase only): composes the figures, and appends the engine-built proxy quad + emissive
+    //    material to the soup — BEFORE the luminaire gather, so the panel's light enters the table like any other.
+    if (IsShowcase && !BuildInterfacePanel(static_cast<uint16_t>(Spans.size()))) return false;
 
     // Luminaires: every emissive triangle (the level's key, fill and emissive panel — the same set Finalise gathers).
     for (size_t I = 0; I < g_Tris.size(); ++I)
@@ -2411,6 +2586,134 @@ void ApplyAtrousChain(SequenceResult& Result, int Extent, int Levels, float Expo
 }
 
 //------------------------------------------------------------------------------------------------------------------------
+//                              THE INTERFACE OVERLAY — the raster stage's CPU mirror, over the film
+//------------------------------------------------------------------------------------------------------------------------
+// The engine draws the interface as an overlay composited after the resolve (premultiplied alpha, one quad per
+//    figure, InterfaceRaster.frag.slang). This is that stage on the CPU: for every film pixel whose primary ray
+//    strikes the panel's face plane no deeper than the traced hit, walk the composed figures at that plane point —
+//    THE SAME DistanceFigure/CoverageFromDistance text the GPU compiles — and alpha-over the film.
+//
+//    The ⑦ surface response is honoured per figure: emissive figures (whatever their ⑧ role) show their tint at
+//    display luminance; albedo figures show BaseColour under a flat ambient — the P0 AmbientIrradiance term. The ⑧
+//    role changes NOTHING here, which is the whole point: a Type 1 needle and a Type 2 telltale draw the same way;
+//    only the light differs, and that was settled at scene-build time by MeasureRadiance/ComposeProxy.
+void CompositeInterfaceOverlay(SequenceResult& Result, const Viewpoint& VP, int Width, int Height)
+{
+    if (!g_PanelActive || g_PanelFigures.empty()) return;
+
+    Frontier::CameraProjection Camera;
+    Camera.AssignSpatialLocation(VP.Position);
+    Camera.AssignOrientationEuler(VP.PitchDegrees * kPi / 180.0f, VP.YawDegrees * kPi / 180.0f, 0.0f);
+    Camera.AssignFieldOfView(VP.FieldOfView);
+    Camera.AssignAspectRatio(static_cast<float>(Width) / static_cast<float>(Height));
+
+    const vec3  N = g_PanelNormal;
+    const float PlaneD = dot(g_PanelCentre, N);
+    // The panel's plane basis: local +X (right) and +Y (up) in world space, at world scale. The figures' rows carry
+    //    placement × scale, so plane points are measured in WORLD metres here and the figures' own rows undo it.
+    const vec3 Right(1.0f, 0.0f, 0.0f);
+    const vec3 Up(0.0f, 0.0f, 1.0f);
+
+    long Touched = 0;
+    for (int Y = 0; Y < Height; ++Y)
+        for (int X = 0; X < Width; ++X)
+        {
+            const size_t Pixel = static_cast<size_t>(Y) * Width + X;
+            const float U = (static_cast<float>(X) + 0.5f) / static_cast<float>(Width);
+            const float V = (static_cast<float>(Y) + 0.5f) / static_cast<float>(Height);
+            const Frontier::ViewRay Ray = Camera.ConstructRay(U, V);
+            const vec3 O(Ray.OriginLocation.x, Ray.OriginLocation.y, Ray.OriginLocation.z);
+            const vec3 D = normalize(vec3(Ray.UnitDirection.x, Ray.UnitDirection.y, Ray.UnitDirection.z));
+
+            const float Facing = dot(D, N);
+            if (Facing >= -1.0e-6f) continue;                    // behind the face or edge-on: single-sided fascia
+            const float T = (PlaneD - dot(O, N)) / Facing;
+            if (T <= 0.0f) continue;
+
+            // Occlusion against the traced scene: the film's own G-buffer depth. A sphere in front of the panel
+            //    hides it; the panel's own slab (5 mm behind the face) does not.
+            const float SceneDepth = Result.Surface[Pixel * 4u + 3u];
+            if (SceneDepth > 0.0f && SceneDepth < T - 2.0e-3f) continue;
+
+            const vec3 P = O + D * T;
+            const vec3 FromCentre = P - g_PanelCentre;
+            const vec2 Plane(dot(FromCentre, Right), dot(FromCentre, Up));
+
+            // One pixel in plane metres, from the projected pixel footprint at this depth (the fwidth stand-in).
+            const float PixelWidth = 2.0f * T * std::tan(Camera.QueryFieldOfViewRadians() * 0.5f)
+                                   / static_cast<float>(Height);
+
+            // Walk the composed slots in submission order (back-to-front within the transparent group — the sort
+            //    the engine already did) and alpha-over, exactly as the raster's blend state would.
+            vec3  Colour(Result.Mean[Pixel * 3u + 0u], Result.Mean[Pixel * 3u + 1u], Result.Mean[Pixel * 3u + 2u]);
+            bool  Hit = false;
+            for (const Frontier::InterfaceInstanceFigure& Figure : g_PanelFigures)
+            {
+                // Plane point → figure-local metres: subtract the figure's translation projected on the panel
+                //    axes, divide by the figure's scale (rows are orthonormal × scale — same inverse the GPU
+                //    sampler and InterfacePointerProjection use).
+                const vec3 FigRight(Figure.RowXx, Figure.RowYx, Figure.RowZx);
+                const vec3 FigUp   (Figure.RowXy, Figure.RowYy, Figure.RowZy);
+                const float Scale = length(FigRight);
+                if (Scale < 1.0e-9f) continue;
+                const vec3 Translation(Figure.RowXw, Figure.RowYw, Figure.RowZw);
+                const vec3 FromFigure = P - Translation;
+                const vec2 Local(dot(FromFigure, FigRight) / (Scale * Scale),
+                                 dot(FromFigure, FigUp)    / (Scale * Scale));
+
+                const uint32_t Category = Figure.CategoryPalette >> 24;
+                const float Distance = DistanceFigure(Category, vec2(Local.x, Local.y),
+                                                      vec2(Figure.HalfWidth, Figure.HalfHeight),
+                                                      Figure.CornerRadius, Figure.ScalarAlpha, Figure.ScalarBeta);
+                float Coverage = CoverageFromDistance(Distance, PixelWidth / Scale);
+                Coverage *= ClipCoverage(vec2(Local.x, Local.y),
+                                         vec4(Figure.ClipMinimumX, Figure.ClipMinimumY,
+                                              Figure.ClipMaximumX, Figure.ClipMaximumY),
+                                         0.0f, PixelWidth / Scale);
+                if (Coverage <= 0.0f) continue;
+
+                const auto Unpack = [](uint32_t Packed) -> vec4
+                {
+                    constexpr float K = 1.0f / 255.0f;
+                    return vec4(static_cast<float>( Packed         & 0xFFu) * K,
+                                static_cast<float>((Packed >>  8u) & 0xFFu) * K,
+                                static_cast<float>((Packed >> 16u) & 0xFFu) * K,
+                                static_cast<float>((Packed >> 24u) & 0xFFu) * K);
+                };
+                const auto ToLinear = [](const vec4& C) -> vec3
+                {
+                    const auto Chan = [](float E) { return E <= 0.04045f ? E / 12.92f
+                                                                         : std::pow((E + 0.055f) / 1.055f, 2.4f); };
+                    return vec3(Chan(C.x), Chan(C.y), Chan(C.z));
+                };
+
+                const vec4 Tint  = Unpack(Figure.Tint);
+                const float Alpha = Coverage * Figure.Opacity * Tint.w;
+                if (Alpha <= 0.0f) continue;
+
+                // ⑦ InterfaceRaster.frag.slang's surface response, in the film's linear nits: emissive figures at
+                //    display luminance, albedo figures under the flat ambient.
+                const vec3 Emitted  = ToLinear(Tint) * kPanelDisplayNits;
+                const vec3 Received = ToLinear(Unpack(Figure.BaseColour)) * kPanelAmbientNits;
+                const float Weight  = std::clamp(Figure.EmissiveWeight, 0.0f, 1.0f);
+                const vec3 FigureColour = mix(Received, Emitted, Weight);
+
+                Colour = FigureColour * Alpha + Colour * (1.0f - Alpha);
+                Hit = true;
+            }
+            if (Hit)
+            {
+                Result.Mean[Pixel * 3u + 0u] = Colour.x;
+                Result.Mean[Pixel * 3u + 1u] = Colour.y;
+                Result.Mean[Pixel * 3u + 2u] = Colour.z;
+                ++Touched;
+            }
+        }
+    std::printf("[material-level] interface overlay: %ld film pixels composited (%zu figures)\n",
+                Touched, g_PanelFigures.size());
+}
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                          D10 — DOES THE OBJECT'S SHADOW FOLLOW IT?
 //------------------------------------------------------------------------------------------------------------------------
 // The acceptance for moving geometry is not "the transform was uploaded" — it is that the SHADOW (and the reflection) is
@@ -2621,6 +2924,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--taps")     g_RestirSpatialTaps = static_cast<uint32_t>(std::atoi(Next("--taps")));
         else if (A == "--restir-bounce-mis") g_RestirBounceMis = true;
         else if (A == "--m-cap")    g_RestirMCap = static_cast<uint32_t>(std::atoi(Next("--m-cap")));
+        else if (A == "--panel-gain") g_PanelGain = static_cast<float>(std::atof(Next("--panel-gain")));   // 0 = overlay only, no scene light
         else if (A == "--denoise")  Denoise = true;
         else if (A == "--denoise-levels") DenoiseLevels = std::atoi(Next("--denoise-levels"));
         else if (A == "--help")
@@ -2636,7 +2940,8 @@ int main(int ArgumentCount, char** ArgumentValues)
                         "                            [--seed-stream N] (an independent RNG stream: 0 = the shipped one)\n"
                         "                            [--class-map file.png] (roadmap #5: per-pixel GI class, grey = class * 32)\n"
                         "                            [--drift-axis x|y|z]\n"
-                        "                            [--denoise] [--denoise-levels N]\n");
+                        "                            [--denoise] [--denoise-levels N]\n"
+                        "                            [--panel-gain X] (showcase: the interface panel's luminaire gain; 0 = widget only)\n");
             return 0;
         }
         else { std::printf("[material-level] unknown argument '%s' (try --help)\n", A.c_str()); return 2; }
@@ -2699,6 +3004,9 @@ int main(int ArgumentCount, char** ArgumentValues)
         std::printf("[material-level] reprojection DISABLED: the temporal merge reads the same pixel (the pre-R7a rule)\n");
 
     SequenceResult Sequence = RenderSequence(VP, Width, Height, Spp, Bounces, Frames, PanPerFrame, UseRestir, Threads, true);
+    // The interface overlay composites on LINEAR radiance, straight after the resolve — the engine's own order.
+    //    (With --denoise the filter then runs over the composited film; the gallery render does not filter.)
+    CompositeInterfaceOverlay(Sequence, VP, Width, Height);
     if (Denoise) ApplyAtrousChain(Sequence, Width, DenoiseLevels, Exposure);
     const std::vector<float>& Film = Sequence.Mean;
     if (UseRestir)

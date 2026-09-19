@@ -97,8 +97,11 @@ PanelSample SampleInterfacePanel(vec2 PanelUv, float PanelHalfWidth, float Panel
 
         // Emission is the resolved tint scaled by the ⑦ emissive weight, so a figure that only reflects room
         //    light contributes nothing to what the panel RADIATES — the same rule the CPU averaging path uses.
+        //    The ⑧ light role gates it the same way: an Overlay figure (ReserveBeta 1) is a widget, not a lamp,
+        //    and radiates nothing however bright it draws — MeasureRadiance skips it, so this must too, or the
+        //    High tier would disagree with the Low tier about what the panel emits.
         vec3 Tint = InterfaceTintToLinear(Figure.Tint);
-        float Weight = clamp(Figure.EmissiveWeight, 0.0, 1.0);
+        float Weight = clamp(Figure.EmissiveWeight, 0.0, 1.0) * (Figure.ReserveBeta > 0.5 ? 0.0 : 1.0);
 
         // Alpha-over, front-to-back is not available here (the buffer is submission order), so composite
         //    straightforwardly: later figures sit on top, which matches the raster's own back-to-front submission.
