@@ -85,6 +85,20 @@ public:
     // Mutable configuration — updated live by RenderScheduler
     // Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
     void AssignCandidatesPerPixel(uint32_t Count) noexcept { if (ActiveConfiguration.CandidatesPerPixel != Count) { ActiveConfiguration.CandidatesPerPixel = Count; ResetAccumulation(); } }
+    // The sun-vs-lamps pick probability, power-proportional. Computed by the PROJECT (it alone knows both the sun's
+    //    packed direct term and the level's total lamp power) and pushed here whenever the sky changes. Clamped to
+    //    [0.05, 0.95] so neither source is starved of discovery samples — RIS stays unbiased for any probability,
+    //    the clamp only bounds the variance of the minority source. 0 keeps the kernel's legacy fixed 0.5 coin.
+    //    ⚠️ No ResetAccumulation: the estimator is unbiased for EVERY pick probability, so a change alters only the
+    //    noise profile, never the converged image — restarting the history on each sun tick would defeat temporal
+    //    reuse entirely (the sun refreshes every frame while its elevation drifts).
+    void AssignSunPickProbability(float Probability) noexcept
+    {
+        SunPickProbability = Probability <= 0.0f ? 0.0f
+                           : Probability < 0.05f ? 0.05f
+                           : Probability > 0.95f ? 0.95f
+                           : Probability;
+    }
     void AssignExtraCandidateCount  (uint32_t Count) noexcept { if (ActiveConfiguration.ExtraCandidateCount   != Count) { ActiveConfiguration.ExtraCandidateCount   = Count; ResetAccumulation(); } }
     void AssignSpatialTapCount      (uint32_t Count) noexcept { if (ActiveConfiguration.SpatialTapCount       != Count) { ActiveConfiguration.SpatialTapCount       = Count; ResetAccumulation(); } }
     void AssignDenoiseLevelCount    (uint32_t Count) noexcept { if (ActiveConfiguration.DenoiseLevelCount     != Count) { ActiveConfiguration.DenoiseLevelCount     = Count; ResetAccumulation(); } }
@@ -159,6 +173,8 @@ private:
     uint32_t                      AccumulationIndex;    // [-]  temporal frame counter (incremented per frame)
     uint32_t                      ResidentInstanceCount = 0u;   // [cnt] D6/D7: top-level instances the kernel should walk
                                                           //       (0 = the single-blob path; see AssignInstanceCount)
+    float                         SunPickProbability = 0.0f;    // [-]  power-proportional sun-vs-lamps pick; 0 = the
+                                                          //       kernel's legacy fixed 0.5 coin (see AssignSunPickProbability)
     bool                          ResetPending = false; // [-]  a reset landed after the dispatch read the index
 
     Vector3                       HistoryOrigin;        // [m]   camera position the history was accumulated from

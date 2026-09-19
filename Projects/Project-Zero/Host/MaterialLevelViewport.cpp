@@ -528,7 +528,12 @@ uint32_t g_RestirSpatialTaps = 4u;  // SpatialTapCount: the shipped default (R6 
 const uint32_t kRestirTapCeiling    = 4u;          // kSpatialTapCeiling
 const float    kRestirRadiusMinPx   = 4.0f;        // kSpatialRadiusMinPx
 const float    kRestirRadiusMaxPx   = 16.0f;       // kSpatialRadiusMaxPx
-const float    kRestirSunPick       = 0.5f;        // kSunPickProbability
+const float    kRestirSunPick       = 0.5f;        // kSunPickProbability (the kernel's legacy fixed coin)
+// Power-proportional sun coin, mirroring the kernel's SunPickChance() (2026-09-19): 0 = the fixed 0.5 above;
+//    otherwise the host-computed pSun = sunFlux / (sunFlux + lampFlux), clamped like the engine ([0.05, 0.95]).
+//    Set in main() after the scene and sky exist; --sun-pick overrides for A/Bs.
+float g_SunPickProbability = 0.0f;
+float SunPickChance() { return g_SunPickProbability > 0.0f ? g_SunPickProbability : kRestirSunPick; }
 const float    kRestirSunDistance   = 1.0e4f;      // kSunShadowDistance
 const uint32_t kRestirSunLight      = 0xFFFFFFFFu; // kSunLightIndex
 // A GI tap's vertices must be the SAME PLACE within this fraction of the path's own length: the primary depth test
@@ -727,7 +732,7 @@ void DrawDirectCandidate(const ShadingRecord& m, const ResolvedLayers& L, const 
                          const vec3& Ns, const vec3& wo, const vec3& HitPos, bool SunUp, Rng& R,
                          vec3& OutPoint, uint32_t& OutLight, float& OutU, float& OutV, float& OutWeight)
 {
-    const bool Sun = SunUp && !g_RestirNoSunCoin && (g_Lights.empty() || R.Next() < kRestirSunPick);
+    const bool Sun = SunUp && !g_RestirNoSunCoin && (g_Lights.empty() || R.Next() < SunPickChance());
     if (Sun)
     {
         const float U1 = R.Next(), U2 = R.Next();
@@ -743,7 +748,7 @@ void DrawDirectCandidate(const ShadingRecord& m, const ResolvedLayers& L, const 
         OutLight = kRestirSunLight;
         OutU = U1; OutV = U2;
         const float PHat = PHatSun(m, L, Ng, T, B, Ns, wo, SunEmissionRender(), SunDir);
-        const float PPick = g_Lights.empty() ? 1.0f : kRestirSunPick;
+        const float PPick = g_Lights.empty() ? 1.0f : SunPickChance();
         OutWeight = PHat * SunSolidAngleRender() / PPick;
         return;
     }
@@ -760,7 +765,7 @@ void DrawDirectCandidate(const ShadingRecord& m, const ResolvedLayers& L, const 
     OutU = Su; OutV = Sv;
     const vec3 ToLight = OutPoint - HitPos;
     const float PHat = PHatSurface(m, L, Ng, T, B, Ns, wo, Q.Radiance, ToLight, Q.Ng);
-    const float PPick = (SunUp && !g_RestirNoSunCoin) ? 1.0f - kRestirSunPick : 1.0f;
+    const float PPick = (SunUp && !g_RestirNoSunCoin) ? 1.0f - SunPickChance() : 1.0f;
     OutWeight = PHat * Area / (Pl * PPick);
 }
 
@@ -2955,6 +2960,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--threads")  Threads = static_cast<unsigned>(std::atoi(Next("--threads")));
         else if (A == "--no-sun")   g_SunNee = false;
         else if (A == "--sun-direct") g_SunDirectGain = static_cast<float>(std::atof(Next("--sun-direct")));   // panel Direct slider (default = product default)
+        else if (A == "--sun-pick")   g_SunPickProbability = static_cast<float>(std::atof(Next("--sun-pick"))); // override the power-proportional sun coin (A/B; 0.5 = legacy)
         else if (A == "--row")      g_RowFilter = std::atoi(Next("--row"));
         else if (A == "--frames")   Frames = std::atoi(Next("--frames"));
         else if (A == "--pan")      PanPerFrame = static_cast<float>(std::atof(Next("--pan")));
@@ -3028,6 +3034,40 @@ int main(int ArgumentCount, char** ArgumentValues)
     }
     std::printf("[material-level] sky: sun hour %.2f, sun dir render (%.3f %.3f %.3f), fog %s\n",
                 SunHour, g_SunDirRender.x, g_SunDirRender.y, g_SunDirRender.z, FogName.c_str());
+
+    // The power-proportional sun coin, the engine's formula verbatim (GameExecution ④d): sunFlux = the packed
+    //    direct term's luminance × sin(elevation) × the level's footprint; lampFlux = Σ area·luminance × π.
+    //    --sun-pick overrides for A/Bs; clamped to [0.05, 0.95] like AssignSunPickProbability.
+    if (g_SunPickProbability <= 0.0f)
+    {
+        const Frontier::Vector3 SunRgb = g_Sky.QuerySunRadiance();
+        const float SunLum = 0.11f * g_SunDirectGain
+                           * (0.2126f * SunRgb.x + 0.7152f * SunRgb.y + 0.0722f * SunRgb.z);
+        const float SinElevation = max(0.0f, g_SunDirRender.y);          // render frame is Y-up
+        float MinX = 1.0e9f, MaxX = -1.0e9f, MinY = 1.0e9f, MaxY = -1.0e9f;
+        for (const RenderTriangle& T : g_Tris)
+        {
+            const vec3 Ps[3] = { T.P0, T.P1, T.P2 };
+            for (const vec3& P : Ps)
+            {
+                MinX = min(MinX, P.x); MaxX = max(MaxX, P.x);
+                MinY = min(MinY, P.y); MaxY = max(MaxY, P.y);
+            }
+        }
+        const float Footprint = max(1.0f, (MaxX - MinX) * (MaxY - MinY));
+        float LampPower = 0.0f;
+        for (const EmissiveTriangle& L : g_Lights) LampPower += L.Power;
+        const float SunFlux  = SunLum * SinElevation * Footprint;
+        const float LampFlux = LampPower * kPi;
+        if (SunFlux + LampFlux > 0.0f)
+        {
+            const float P = SunFlux / (SunFlux + LampFlux);
+            g_SunPickProbability = P < 0.05f ? 0.05f : P > 0.95f ? 0.95f : P;
+        }
+    }
+    if (g_SunPickProbability > 0.0f)
+        std::printf("[material-level] sun pick: %.3f power-proportional (was the fixed 0.5 coin)\n",
+                    static_cast<double>(g_SunPickProbability));
 
     const Viewpoint VP = (g_Level == "showcase") ? ShowcaseViewpointFor(View) : ViewpointFor(View);
     std::printf("[material-level] view '%s': eye (%.2f %.2f %.2f), pitch %.1f°, yaw %.1f°, FoV %.0f°, %dx%d @ %d spp, %d bounces, %d frame%s%s%s%s\n",

@@ -485,7 +485,13 @@ int main(int argc, char** argv)
     //    be inserted anywhere without quietly repointing every value after it.
     Frontier::ReSTIRIntegratorConfiguration IntegratorConfig
     {
-        .CandidatesPerPixel  = 8u,      // [-]  primary DI candidates per pixel
+        // ⚠️ Seeded to the STANDARD tier (4 candidates), not Ultra's 8 (2026-09-19). These values only govern the
+        //    frames before ApplyControlCentreSettings runs its forced first application — but that first window is
+        //    exactly when startup hitches are felt, and the Control Centre's own default is Standard
+        //    (ControlCentreHost.h), so seeding Ultra here meant the very first frames cost twice what the resolved
+        //    settings ask for. Measured on a GTX 1650 SUPER: Ultra (8+2, 3 spatial) is beyond the card; Standard
+        //    (4+2, 2 spatial) is the tier that holds frame rate there. Higher tiers remain one tap away.
+        .CandidatesPerPixel  = 4u,      // [-]  primary DI candidates per pixel (Standard tier)
         .ExtraCandidateCount = 2u,      // [-]  extra same-pixel candidates
         .Exposure            = 1.05f,   // [-]  ACES exposure
         .AmbientStrength     = 0.015f   // [-]  ambient strength
@@ -1860,6 +1866,28 @@ int main(int argc, char** argv)
             {
                 LastSky = Sky;
                 Integrator.ResetAccumulation();
+            }
+
+            // The sun-vs-lamps pick probability, POWER-PROPORTIONAL (2026-09-19). The kernel's coin was a fixed
+            //    0.5: half of every pixel's DI candidates went to whichever source was weaker — over the rebalanced
+            //    Showcase (sun-key, 6/3-nit accent panels) half the candidates interrogated lamps that carry a few
+            //    percent of the image. Computed HERE because only the project holds both halves of the ratio:
+            //    · the sun's side: the packed direct term Q (already 0.11·Direct·colour·gain·T, hard zero below
+            //      the horizon) projected onto the ground (× sin elevation) and spread over the level's footprint;
+            //    · the lamps' side: the level's total emissive power Σ area·luminance·π (SceneStructure keeps it
+            //      for the alias table — the same power the table picks by).
+            //    Both are flux in matching units, so the ratio is dimensionless. The integrator clamps to
+            //    [0.05, 0.95] so the minority source keeps discovery samples; 0 (sun down / lamps absent) lets the
+            //    kernel's own gates take over. No accumulation reset: the estimator is unbiased for any pick
+            //    probability, so a drifting sun retunes the noise profile without erasing the temporal history.
+            {
+                const float SunLum = 0.2126f * Sky.SunDirect[0] + 0.7152f * Sky.SunDirect[1] + 0.0722f * Sky.SunDirect[2];
+                const float SinElevation = std::sin(std::max(0.0f, Sky.SunDirection[3]) * 3.14159265f / 180.0f);
+                const Frontier::Vector3 Lo = Level.QueryBoundsMinimum(), Hi = Level.QueryBoundsMaximum();
+                const float Footprint = std::max(1.0f, (Hi.x - Lo.x) * (Hi.y - Lo.y));   // [m²] ≥ 1 so a degenerate level cannot zero the sun
+                const float SunFlux   = SunLum * SinElevation * Footprint;
+                const float LampFlux  = Level.QueryLuminairePower() * 3.14159265f;
+                Integrator.AssignSunPickProbability(SunFlux + LampFlux > 0.0f ? SunFlux / (SunFlux + LampFlux) : 0.0f);
             }
         }
 

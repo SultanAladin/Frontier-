@@ -30,7 +30,7 @@ namespace Frontier {
 
 // Revision of the authored level. Bump whenever Construct() changes what the level contains, so an already-exported
 //    Showcase.gltf from an older revision is regenerated instead of being reused forever by the export-once rule.
-inline constexpr uint32_t kShowcaseRevision = 4u;   // r4: 15×15 generated material grid + sun-key light rebalance
+inline constexpr uint32_t kShowcaseRevision = 5u;   // r5: two spot fixtures (emissive disc in an open hood) flanking the grid
 
 // The r4 grid's side: 15 rows (material families) × 15 columns (hue/parameter sweeps) = 225 spheres, 225 materials.
 //    Published so the structure, the CPU reference harness and any proof agree on the layout without restating it.

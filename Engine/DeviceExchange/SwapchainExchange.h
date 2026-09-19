@@ -162,7 +162,11 @@ struct DispatchConfiguration
     float    ColourSaturation;                                     // [-] A7d: 1 in daylight, 0 under starlight
     uint32_t SpatialTapCount;                                      // [-] spatial-reuse neighbours per pixel (0 = cross off); taken from the reserve, block still 128 B
     uint32_t DenoiseLevelCount;                                    // [-] a-trous levels to dispatch, 1..kDenoiseLevelCount (tier-keyed); also from the reserve
-    uint32_t PushReserve[4];                                       // [-] keeps the block 128 B and 16-B aligned
+    float    SunPickProbability;                                   // [-] chance a DI candidate samples the sun instead of a lamp
+                                                                   //     (power-proportional, host-computed; 0 = kernel falls back
+                                                                   //     to the legacy fixed 0.5 coin). From the reserve, block
+                                                                   //     still 128 B — mirrors ReSTIRViewport.slang.
+    uint32_t PushReserve[3];                                       // [-] keeps the block 128 B and 16-B aligned
     uint32_t TlasInstanceCount;                                    // [cnt] D6/D7: resident top-level instances (0 = single
                                                                    //       world-space blob, the pre-D6 path). Mirrors
                                                                    //       ReSTIRViewport.slang's last reserve slot.

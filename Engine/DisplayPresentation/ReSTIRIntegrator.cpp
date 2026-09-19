@@ -119,6 +119,9 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
                                    | (ActiveConfiguration.TemporalReprojection ? DispatchFeatureTemporalReprojection : 0u)
                                    | (ActiveConfiguration.Denoise            ? DispatchFeatureDenoise            : 0u);
 
+    // The power-proportional sun coin (0 = the kernel's legacy fixed 0.5); see AssignSunPickProbability.
+    Dispatch.SunPickProbability    = SunPickProbability;
+
     for (uint32_t& Reserve : Dispatch.PushReserve) Reserve = 0u;
 
     return Dispatch;

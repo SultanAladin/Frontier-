@@ -485,8 +485,10 @@ layout(push_constant) uniform ReSTIRConstants
     // A7d. How much colour the eye still has at the adapted luminance: 1 in daylight, 0 under starlight.
     float   ColourSaturation;       // [-]   taken from one of the reserves, so the block is still 128 B
     uint    SpatialTapCount;        // [cnt] R10: spatial-reuse neighbours per pixel, tier-keyed (0 = cross off)
-    uint    PushReserve2;
-    uint    PushReserve3;
+    uint    PushReserve2;           // (host: DenoiseLevelCount — the à-trous stage reads it, this kernel does not)
+    float   SunPickProbability;     // [-]   chance a DI candidate samples the sun instead of a lamp. Host-computed,
+                                    //       power-proportional (sun power vs total lamp power); 0 ⇒ fall back to
+                                    //       the legacy fixed 0.5 coin so old captures replay bit-for-bit.
     uint    PushReserve4;
     uint    PushReserve5;
     uint    PushReserve6;
@@ -812,7 +814,19 @@ vec3 LightNormal(uint lightIndex)
 //    shadowed by the same TraceShadow every mesh sample takes. It rides the SAME reservoir (not a side
 //    estimator), so temporal/spatial reuse, M-clamp and W apply to sunlight unchanged — the reservoir algebra
 //    only ever asks w = p̂/p, and both light kinds now answer it exactly.
-const float kSunPickProbability = 0.5;   // when sun and lamps coexist, each candidate flips this coin
+const float kSunPickProbability = 0.5;   // legacy fixed coin — the fallback when the host sends no probability
+
+// The sun-vs-lamps coin, now POWER-PROPORTIONAL (2026-09-19). The fixed 0.5 wasted half of every pixel's candidates
+//    on whichever source was weaker: at noon over a field of 6-nit accent lamps, half the samples interrogated
+//    lamps that contribute a few percent of the image; at night (sun below the horizon this is moot — sunUp gates
+//    the coin) or indoors under bright panels, half interrogated a sun that barely reached the floor. The host now
+//    sends pSun = sunPower / (sunPower + totalLampPower) (clamped to [0.05, 0.95] so neither source is starved —
+//    RIS stays unbiased for ANY pick probability, the clamp just preserves discovery of the minority source).
+//    0 means "host didn't compute one": fall back to the fixed coin so old captures replay bit-for-bit.
+float SunPickChance()
+{
+    return SunPickProbability > 0.0 ? SunPickProbability : kSunPickProbability;
+}
 const uint  kSunLightIndex      = 0xFFFFFFFFu;   // SelectedLight sentinel: the sample is a sun direction, not a triangle
 const float kSunShadowDistance  = 1.0e4;   // [m] the far point sun samples are stored as — past any scene, inside float range
 
@@ -956,7 +970,7 @@ void ResampleCandidate(inout Reservoir res, vec3 point, uint light, vec2 uv, flo
 void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 hitPos, bool sunUp,
                          out vec3 point, out uint light, out vec2 uv, out float weight, inout uint seed)
 {
-    bool sun = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < kSunPickProbability);
+    bool sun = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < SunPickChance());
     if (sun)
     {
         float u1 = RandFloat(seed);
@@ -966,7 +980,7 @@ void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3
         light  = kSunLightIndex;
         uv     = vec2(u1, u2);
         float pHat = PHatSun(F, m, L, wo, SunEmission() * CloudShadowTransmittance(hitPos, sunDir), sunDir);
-        float pPick = LightTriangleCount > 0u ? kSunPickProbability : 1.0;
+        float pPick = LightTriangleCount > 0u ? SunPickChance() : 1.0;
         weight = pHat * SunSolidAngle() / pPick;
     }
     else
@@ -980,7 +994,7 @@ void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3
         uv    = vec2(u1, u2);
         vec3 toLight = point - hitPos;
         float pHat = PHatFull(F, m, L, wo, LightEmission(li), toLight, dot(toLight, toLight), LightNormal(li));
-        float pPick = sunUp ? 1.0 - kSunPickProbability : 1.0;
+        float pPick = sunUp ? 1.0 - SunPickChance() : 1.0;
         weight = pHat * Luminaires[li].Area / (pSource * pPick);
     }
 }
@@ -1734,7 +1748,7 @@ void main()
     //------------------------------------------------------------------------------------------------------------------
     if (layers.SssMix > 0.0 && (sunUp || LightTriangleCount > 0u))
     {
-        bool sunBelow = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < kSunPickProbability);
+        bool sunBelow = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < SunPickChance());
         if (sunBelow)
         {
             vec3 sSunDir = SampleSunDirection(SkySunDirection.xyz, RandFloat(seed), RandFloat(seed));
@@ -1743,7 +1757,7 @@ void main()
             if (sCos > 0.0 && sWi.z < 0.0)
             {
                 vec3  sF = EvaluateBsdf(shading, layers, woLocal, sWi);   // below-branch: SSS (+ T when mixed)
-                float pPick = LightTriangleCount > 0u ? kSunPickProbability : 1.0;
+                float pPick = LightTriangleCount > 0u ? SunPickChance() : 1.0;
                 accumulatedRadiance += sF * SunEmission() * sCos * SunSolidAngle() / pPick;
             }
         }
@@ -1764,7 +1778,7 @@ void main()
             {
                 float sDist2 = sDist * sDist;
                 vec3  sF = EvaluateBsdf(shading, layers, woLocal, sWi);
-                float pMesh = sunUp ? 1.0 - kSunPickProbability : 1.0;
+                float pMesh = sunUp ? 1.0 - SunPickChance() : 1.0;
                 accumulatedRadiance += sF * LightEmission(sLi) * sCos * sCosL
                                      * Luminaires[sLi].Area * float(sSlots) / ((sDist2 + 0.01) * pMesh);
             }
@@ -1887,7 +1901,7 @@ void main()
                     //    coin — because a single unweighted sample is a one-candidate reservoir and the pdfs are the
                     //    same ones DrawDirectCandidate divides by. (The old mesh-only line divided by the slot count
                     //    but not the area: the same 1/A bias the reservoir had, fixed here too.)
-                    bool sunBounce = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < kSunPickProbability);
+                    bool sunBounce = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < SunPickChance());
                     if (sunBounce)
                     {
                         vec3 bSunDir = SampleSunDirection(SkySunDirection.xyz, RandFloat(seed), RandFloat(seed));
@@ -1897,7 +1911,7 @@ void main()
                             && !TraceShadow(bHitPos + bHitNormal * kEps, bHitPos + bSunDir * kSunShadowDistance))
                         {
                             vec3  bF = EvaluateBsdf(bShading, bLayers, bWo, bWi);
-                            float pPick = LightTriangleCount > 0u ? kSunPickProbability : 1.0;
+                            float pPick = LightTriangleCount > 0u ? SunPickChance() : 1.0;
                             accumulatedRadiance += BoundIndirect(throughput * bF * SunEmission() * bCos * SunSolidAngle() / pPick);
                         }
                     }
@@ -1924,7 +1938,7 @@ void main()
                             //    pdf is pMesh/(bSlots·area) and the estimate divides by the PDF — i.e. multiplies
                             //    by slots·area. The old line divided by bSlots (a defended-in-comment inversion),
                             //    which paid the whole second bounce divided by N² and forgot the area too.
-                            float pMesh = sunUp ? 1.0 - kSunPickProbability : 1.0;
+                            float pMesh = sunUp ? 1.0 - SunPickChance() : 1.0;
                             accumulatedRadiance += BoundIndirect(throughput * bF * bLEmit * bCos * bCosL
                                                  * Luminaires[bLi].Area * float(bSlots) / ((bDist2 + 0.01) * pMesh));
                         }
@@ -1934,7 +1948,7 @@ void main()
                     // gate — interior endpoints skip both strata. v-prefix: the bounce frame's below-stratum draws).
                     if (bLayers.SssMix > 0.0)
                     {
-                        bool sunBelowV = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < kSunPickProbability);
+                        bool sunBelowV = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < SunPickChance());
                         if (sunBelowV)
                         {
                             vec3 vSunDir = SampleSunDirection(SkySunDirection.xyz, RandFloat(seed), RandFloat(seed));
@@ -1943,7 +1957,7 @@ void main()
                             if (vCos > 0.0 && vWi.z < 0.0)
                             {
                                 vec3  vF = EvaluateBsdf(bShading, bLayers, bWo, vWi);
-                                float vPick = LightTriangleCount > 0u ? kSunPickProbability : 1.0;
+                                float vPick = LightTriangleCount > 0u ? SunPickChance() : 1.0;
                                 accumulatedRadiance += BoundIndirect(throughput * vF * SunEmission() * vCos * SunSolidAngle() / vPick);
                             }
                         }
@@ -1962,7 +1976,7 @@ void main()
                             {
                                 float vDist2 = vDist * vDist;
                                 vec3  vF = EvaluateBsdf(bShading, bLayers, bWo, vWi);
-                                float vMesh = sunUp ? 1.0 - kSunPickProbability : 1.0;
+                                float vMesh = sunUp ? 1.0 - SunPickChance() : 1.0;
                                 accumulatedRadiance += BoundIndirect(throughput * vF * LightEmission(vLi) * vCos * vCosL
                                                      * Luminaires[vLi].Area * float(vSlots) / ((vDist2 + 0.01) * vMesh));
                             }

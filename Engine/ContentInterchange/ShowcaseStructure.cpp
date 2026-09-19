@@ -335,6 +335,26 @@ void ShowcaseStructure::Construct() noexcept
         Materials.push_back(D);
     }
 
+    // r5 — SPOT LIGHTS AS FIXTURES. The engine's punctual-light records (KHR_lights_punctual) are imported but the
+    //    kernel does not light from them yet (SceneStructure.h: "stored only in R4a"), so a spot is built the way a
+    //    physical one is: a small, BRIGHT emissive quad recessed inside an open hood. The hood's plates shadow the
+    //    emission into a cone — no kernel change, and the ReSTIR path treats it like any other luminaire: the alias
+    //    table weights it by power, shadow rays give the cone its edge, and the denoiser sees a normal light. The
+    //    150-nit disc is small (0.13 m²), so its POWER stays modest next to the 9 m² panels — high contrast pool,
+    //    low sampling weight.
+    const uint32_t SpotMaterial = static_cast<uint32_t>(Materials.size());
+    {
+        MaterialDescriptor D = MakeMaterial("spot_warm");
+        SetColor(D.Slabs[0].BaseColor, 1.0f, 1.0f, 1.0f); D.Slabs[0].SpecularWeight = 0.0f;
+        D.Slabs[0].EmissionLuminance = 150.0f; SetColor(D.Slabs[0].EmissionColor, 1.0f, 0.85f, 0.60f);
+        Materials.push_back(D);
+
+        D = MakeMaterial("spot_cool");
+        SetColor(D.Slabs[0].BaseColor, 1.0f, 1.0f, 1.0f); D.Slabs[0].SpecularWeight = 0.0f;
+        D.Slabs[0].EmissionLuminance = 150.0f; SetColor(D.Slabs[0].EmissionColor, 0.65f, 0.80f, 1.0f);
+        Materials.push_back(D);
+    }
+
     //──────────────────────────────────────────────────────────────────────────────────────────────────────────────
     //                                                  GEOMETRY
     //──────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -440,6 +460,40 @@ void ShowcaseStructure::Construct() noexcept
         }
     }
 
+    // r5 — the two spot fixtures' HOUSINGS: pole + open-bottomed square shroud, flanking the grid's front corners.
+    //    ⚠️ AppendBox and AppendCylinder build CLOSED solids — a closed hood would trap the light entirely — so the
+    //    shroud is four side plates and a top cap from AppendQuad, open at the bottom. The emissive disc sits
+    //    recessed 0.05 m inside the opening; the walls (0.35 m deep on a 0.44 m mouth) shadow it into a ~32°
+    //    half-angle cone, so each spot throws a crisp ~2.3 m pool on the ground in the default shot. The housings
+    //    are ordinary geometry; the DISCS join the span list at the very end (luminaires-last convention).
+    constexpr float kSpotX[2]   = { -7.0f, 7.0f };
+    constexpr float kSpotY      = -4.5f;
+    constexpr float kSpotHeadZ  = 4.0f;    // [m] underside of the top cap
+    constexpr float kSpotHalf   = 0.22f;   // [m] shroud mouth half-width
+    constexpr float kSpotDepth  = 0.35f;   // [m] shroud wall depth
+    for (uint32_t SpotIndex = 0u; SpotIndex < 2u; ++SpotIndex)
+    {
+        const float X = kSpotX[SpotIndex], Y = kSpotY;
+        char Name[64];
+        std::snprintf(Name, sizeof(Name), "Spot Fixture %u", SpotIndex + 1u);
+        const auto Span = OpenSpan(Name);
+        // Pole and a small base plate, sharing the scatter field's dark-metal material.
+        AppendCylinder(Vector3{ X, Y, 0.0f }, 0.05f, kSpotHeadZ + 0.05f, ScatterFirst + 1u, 12u);
+        AppendCylinder(Vector3{ X, Y, 0.0f }, 0.22f, 0.02f, ScatterFirst + 1u, 16u);
+        // The shroud: four walls (outward normals; the shadowing is geometric, not shading-dependent) + top cap.
+        const float H = kSpotHalf, Z0 = kSpotHeadZ - kSpotDepth, Z1 = kSpotHeadZ + 0.02f;
+        AppendQuad(Vector3{ X - H, Y - H, Z0 }, Vector3{ X + H, Y - H, Z0 },
+                   Vector3{ X + H, Y - H, Z1 }, Vector3{ X - H, Y - H, Z1 }, ScatterFirst + 1u, 1.0f);   // −Y wall
+        AppendQuad(Vector3{ X + H, Y + H, Z0 }, Vector3{ X - H, Y + H, Z0 },
+                   Vector3{ X - H, Y + H, Z1 }, Vector3{ X + H, Y + H, Z1 }, ScatterFirst + 1u, 1.0f);   // +Y wall
+        AppendQuad(Vector3{ X - H, Y + H, Z0 }, Vector3{ X - H, Y - H, Z0 },
+                   Vector3{ X - H, Y - H, Z1 }, Vector3{ X - H, Y + H, Z1 }, ScatterFirst + 1u, 1.0f);   // −X wall
+        AppendQuad(Vector3{ X + H, Y - H, Z0 }, Vector3{ X + H, Y + H, Z0 },
+                   Vector3{ X + H, Y + H, Z1 }, Vector3{ X + H, Y - H, Z1 }, ScatterFirst + 1u, 1.0f);   // +X wall
+        AppendQuad(Vector3{ X - H, Y - H, Z1 }, Vector3{ X + H, Y - H, Z1 },
+                   Vector3{ X + H, Y + H, Z1 }, Vector3{ X - H, Y + H, Z1 }, ScatterFirst + 1u, 1.0f);   // top cap
+    }
+
     // Luminaires LAST (the convention every other level follows: the emissive spans close the list).
     {
         const auto KeySpan = OpenSpan("Luminaire Key");
@@ -450,6 +504,18 @@ void ShowcaseStructure::Construct() noexcept
         const auto FillSpan = OpenSpan("Luminaire Fill");
         AppendQuad(Vector3{ 1.0f, 4.0f, 6.0f }, Vector3{ 4.0f, 4.0f, 6.0f },
                    Vector3{ 4.0f, 1.0f, 6.0f }, Vector3{ 1.0f, 1.0f, 6.0f }, LuminaireMaterial + 1u, 1.0f);
+    }
+    // The spot DISCS: down-facing emissive quads recessed inside each shroud (winding chosen so the derived normal
+    //    is −Z — PHatFull samples the normal side, so the emission goes down into the cone, not up into the cap).
+    for (uint32_t SpotIndex = 0u; SpotIndex < 2u; ++SpotIndex)
+    {
+        const float X = kSpotX[SpotIndex], Y = kSpotY;
+        const float H = kSpotHalf * 0.82f, Z = kSpotHeadZ - 0.05f;
+        char Name[64];
+        std::snprintf(Name, sizeof(Name), "Spot Disc %u", SpotIndex + 1u);
+        const auto Span = OpenSpan(Name);
+        AppendQuad(Vector3{ X - H, Y - H, Z }, Vector3{ X - H, Y + H, Z },
+                   Vector3{ X + H, Y + H, Z }, Vector3{ X + H, Y - H, Z }, SpotMaterial + SpotIndex, 1.0f);
     }
 }
 
