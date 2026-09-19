@@ -100,7 +100,6 @@ struct SwapchainExchange::VulkanRecord
     uint32_t                          ComputeFamily   = 0u;
     VkQueue                           GraphicsQueue   = VK_NULL_HANDLE;
     VkQueue                           ComputeQueue    = VK_NULL_HANDLE;
-    VkPipelineCache                   PipelineCache   = VK_NULL_HANDLE; // R12: persisted across launches to avoid 90s driver recompiles
 
     // ── Swapchain ─────────────────────────────────────────────────────────────────────────────────────────────────────
     VkSwapchainKHR           Swapchain             = VK_NULL_HANDLE;
@@ -351,44 +350,6 @@ static std::vector<uint32_t> LoadSpirv(const std::string& RelativePath)
     File.read(reinterpret_cast<char*>(Spirv.data()), ByteCount);
     std::cerr << "[SwapchainExchange] Loaded SPIR-V: " << Path.string() << "\n";
     return Spirv;
-}
-
-static std::filesystem::path PipelineCachePath()
-{
-    std::error_code Error;
-    const std::filesystem::path Directory = "Diagnostics";
-    std::filesystem::create_directories(Directory, Error);
-    return Directory / "Frontier_PipelineCache.vkcache";
-}
-
-static std::vector<char> LoadPipelineCacheBlob()
-{
-    const std::filesystem::path Path = PipelineCachePath();
-    std::ifstream File(Path, std::ios::binary | std::ios::ate);
-    if (!File.is_open()) return {};
-    const std::streamsize ByteCount = File.tellg();
-    if (ByteCount <= 0) return {};
-    std::vector<char> Bytes(static_cast<size_t>(ByteCount));
-    File.seekg(0);
-    File.read(Bytes.data(), ByteCount);
-    std::cerr << "[SwapchainExchange] Loaded Vulkan pipeline cache: " << Path.string()
-              << " (" << Bytes.size() << " B)\n";
-    return Bytes;
-}
-
-static void SavePipelineCacheBlob(VkDevice Device, VkPipelineCache Cache) noexcept
-{
-    if (!Device || !Cache) return;
-    size_t ByteCount = 0u;
-    if (vkGetPipelineCacheData(Device, Cache, &ByteCount, nullptr) != VK_SUCCESS || ByteCount == 0u) return;
-    std::vector<char> Bytes(ByteCount);
-    if (vkGetPipelineCacheData(Device, Cache, &ByteCount, Bytes.data()) != VK_SUCCESS || ByteCount == 0u) return;
-    const std::filesystem::path Path = PipelineCachePath();
-    std::ofstream File(Path, std::ios::binary | std::ios::trunc);
-    if (!File.is_open()) return;
-    File.write(Bytes.data(), static_cast<std::streamsize>(ByteCount));
-    std::cerr << "[SwapchainExchange] Saved Vulkan pipeline cache: " << Path.string()
-              << " (" << ByteCount << " B)\n";
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -656,9 +617,6 @@ void SwapchainExchange::Retire() noexcept
     if (Vulkan->DenoisePool)           vkDestroyDescriptorPool    (Vulkan->Device, Vulkan->DenoisePool,           nullptr);
     if (Vulkan->ComputeDescriptorPool) vkDestroyDescriptorPool    (Vulkan->Device, Vulkan->ComputeDescriptorPool, nullptr);
     if (Vulkan->ComputeDescriptorLayout) vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ComputeDescriptorLayout, nullptr);
-
-    SavePipelineCacheBlob(Vulkan->Device, Vulkan->PipelineCache);
-    if (Vulkan->PipelineCache) vkDestroyPipelineCache(Vulkan->Device, Vulkan->PipelineCache, nullptr);
 
     if (Vulkan->Device)   vkDestroyDevice             (Vulkan->Device,             nullptr);
     if (Vulkan->Surface)  vkDestroySurfaceKHR          (Vulkan->Instance, Vulkan->Surface, nullptr);
@@ -985,21 +943,6 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
 
     vkGetDeviceQueue(Vulkan->Device, Vulkan->GraphicsFamily, 0u, &Vulkan->GraphicsQueue);
     vkGetDeviceQueue(Vulkan->Device, Vulkan->ComputeFamily,  0u, &Vulkan->ComputeQueue);
-
-    // R12: persist the driver's compiled pipeline state between launches. The user's Windows telemetry showed the
-    //    ReSTIR compute pipeline alone taking ~96 s to create; a VkPipelineCache is the portable way to give the
-    //    driver its previous compiler output before vkCreateComputePipelines runs again.
-    const std::vector<char> CacheBlob = LoadPipelineCacheBlob();
-    VkPipelineCacheCreateInfo CacheInfo{ VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
-    CacheInfo.initialDataSize = CacheBlob.size();
-    CacheInfo.pInitialData    = CacheBlob.empty() ? nullptr : CacheBlob.data();
-    const VkResult CacheResult = vkCreatePipelineCache(Vulkan->Device, &CacheInfo, nullptr, &Vulkan->PipelineCache);
-    if (CacheResult != VK_SUCCESS)
-    {
-        Vulkan->PipelineCache = VK_NULL_HANDLE;
-        std::cerr << "[SwapchainExchange] vkCreatePipelineCache failed (VkResult "
-                  << static_cast<int>(CacheResult) << ") - continuing without a persistent pipeline cache.\n";
-    }
     return true;
 }
 
@@ -1440,7 +1383,7 @@ bool SwapchainExchange::BringComputePipeline() noexcept
     ComputeInfo.layout       = Vulkan->ComputePipelineLayout;
 
     const VkResult PipelineResult = vkCreateComputePipelines(
-        Vulkan->Device, Vulkan->PipelineCache, 1u, &ComputeInfo, nullptr, &Vulkan->ComputePipeline);
+        Vulkan->Device, VK_NULL_HANDLE, 1u, &ComputeInfo, nullptr, &Vulkan->ComputePipeline);
     vkDestroyShaderModule(Vulkan->Device, ShaderModule, nullptr);
 
     if (PipelineResult != VK_SUCCESS)
@@ -1653,7 +1596,7 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
     ComputeInfo.stage.module = Module;
     ComputeInfo.stage.pName  = "main";
     ComputeInfo.layout       = Vulkan->LuminanceLayout;
-    const VkResult Created = vkCreateComputePipelines(Vulkan->Device, Vulkan->PipelineCache, 1u, &ComputeInfo, nullptr,
+    const VkResult Created = vkCreateComputePipelines(Vulkan->Device, VK_NULL_HANDLE, 1u, &ComputeInfo, nullptr,
                                                       &Vulkan->LuminancePipeline);
     vkDestroyShaderModule(Vulkan->Device, Module, nullptr);
     return Created == VK_SUCCESS;
@@ -1726,7 +1669,7 @@ bool SwapchainExchange::BringDenoisePipeline() noexcept
     ComputeInfo.stage.pName  = "main";
     ComputeInfo.layout       = Vulkan->DenoisePipelineLayout;
 
-    const VkResult Result = vkCreateComputePipelines(Vulkan->Device, Vulkan->PipelineCache, 1u, &ComputeInfo, nullptr,
+    const VkResult Result = vkCreateComputePipelines(Vulkan->Device, VK_NULL_HANDLE, 1u, &ComputeInfo, nullptr,
                                                      &Vulkan->DenoisePipeline);
     vkDestroyShaderModule(Vulkan->Device, Module, nullptr);
     if (Result != VK_SUCCESS)
