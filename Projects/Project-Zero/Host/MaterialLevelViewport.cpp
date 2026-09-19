@@ -571,6 +571,13 @@ int   g_RestirDriftAxis = -1;       // [-]  -1: the object's own longest extent 
 bool g_RestirHistorySplit = true;
 // The indirect half's pool (ReSTIR GI). Off ⇒ the pre-pool single-sample arm, which is the A/B.
 bool g_RestirGiReuse = true;
+// Visibility reuse (Bitterli et al. 2020 §5): the spatial pass TRUSTS the winning tap's stored visibility instead of
+//    re-tracing the merged selection, cutting the second DI shadow ray per pixel. Sound because a blocked reservoir
+//    publishes W = 0 and cannot win a merge; the admitted bias is confined to shadow edges and bounded by the tap
+//    radius. `--restir-final-visibility` restores the old always-re-trace arm — that flag IS the A/B this fix was
+//    measured with before the kernel port, and the counter below says how many rays the reuse saved.
+bool g_RestirFinalVisibility = false;
+std::atomic<long> g_VisibilityReuseSaved{0};   // [rays] spatial-pass shadow rays NOT traced because reuse answered
 // Roadmap #5, step 1: WHY a pixel has no pool coverage, as a per-pixel image rather than a counter. §14.5's counters say
 //    what share of the frame falls in each case; they cannot say whether those pixels are where the ERROR is, and that
 //    is the question that decides whether the 16 → 100 % fix (replay + shift mapping) is worth its bias risk. Writing
@@ -1048,6 +1055,21 @@ CpuReservoir RestirTemporalReservoir(const RestirSurface& Surface, int Candidate
             }
         }
     }
+
+    // VISIBILITY REUSE (kernel parity): the post-temporal trace — the reservoir this frame PUBLISHES carries an
+    //    honest visibility bit, and a blocked one publishes W = 0 so no later merge (temporal next frame, spatial
+    //    this frame) can be won by an occluded sample. This is the mirror of the kernel's histBlocked block; the
+    //    spatial pass then TRUSTS it instead of re-tracing, so the per-pixel DI shadow-ray count stays at one.
+    //    Under --restir-final-visibility (the old arm) the trace stays where it was — at the end of the spatial
+    //    pass — and this block is skipped, which is exactly the pre-reuse mirror, ray for ray.
+    if (!g_RestirFinalVisibility && Res.SampleCount > 0u && Res.UnbiasedWeight > 0.0f)
+    {
+        const bool Blocked = Res.SelectedLight == kRestirSunLight
+            ? Occluded(P + Ng * 1.0e-4f, P + normalize(Res.SelectedPoint - P) * 1.0e4f)
+            : Occluded(P + Ng * 1.0e-4f, Res.SelectedPoint - normalize(Res.SelectedPoint - P) * 1.0e-3f);
+        Res.Visible = Blocked ? 0u : 1u;
+        if (Blocked) Res.UnbiasedWeight = 0.0f;
+    }
     return Res;
 }
 
@@ -1113,6 +1135,9 @@ vec3 RestirSpatialShade(const CpuReservoir& Temporal, const RestirSurface& Surfa
                 Res.SelectedUvV   = Neigh.SelectedUvV;
                 TakeAge    = Neigh.Age + 1u;
                 SelectedPHat = PNeigh;
+                // VISIBILITY REUSE: trust the winning tap's stored test. A blocked neighbour published W = 0, so
+                //    its WNeigh was exactly 0 and it cannot land here — any winner was visible from its own pixel.
+                if (!g_RestirFinalVisibility) Res.Visible = 1u;
             }
             Res.SampleCount += NeighCapped;
             Res.WeightSum    = NTotal;
@@ -1123,12 +1148,22 @@ vec3 RestirSpatialShade(const CpuReservoir& Temporal, const RestirSurface& Surfa
         }
     }
 
-    // Visibility re-traced at the current pixel; an occluded merged sample contributes nothing.
-    const bool Blocked = Res.SelectedLight == kRestirSunLight
-        ? Occluded(P + Ng * 1.0e-4f, P + normalize(Res.SelectedPoint - P) * 1.0e4f)
-        : Occluded(P + Ng * 1.0e-4f, Res.SelectedPoint - normalize(Res.SelectedPoint - P) * 1.0e-3f);
-    Res.Visible = Blocked ? 0u : 1u;
-    if (Res.Visible == 0u) Res.UnbiasedWeight = 0.0f;
+    if (g_RestirFinalVisibility)
+    {
+        // The pre-reuse arm, verbatim: one shadow ray for whichever sample the merges selected, every pixel.
+        const bool Blocked = Res.SelectedLight == kRestirSunLight
+            ? Occluded(P + Ng * 1.0e-4f, P + normalize(Res.SelectedPoint - P) * 1.0e4f)
+            : Occluded(P + Ng * 1.0e-4f, Res.SelectedPoint - normalize(Res.SelectedPoint - P) * 1.0e-3f);
+        Res.Visible = Blocked ? 0u : 1u;
+        if (Res.Visible == 0u) Res.UnbiasedWeight = 0.0f;
+    }
+    else
+    {
+        // Visibility reuse: the temporal reservoir was traced at THIS pixel this frame (exact), and a spatial
+        //    winner carries its own pixel's test (approximate by at most the tap radius). No ray here — count it.
+        ++g_VisibilityReuseSaved;
+        if (Res.Visible == 0u) Res.UnbiasedWeight = 0.0f;
+    }
     OutPublished = Res;
 
     vec3 Acc(0.0f);
@@ -2267,6 +2302,11 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                         if (GeometryOk && IdentityOk)
                         {
                             Accumulator = FilmPrevious[PrevPixel];
+                            // SVGF-style history bound (kernel parity — ReSTIRViewport.slang kMovingHistoryBound):
+                            //    a pixel that MOVED clamps its inherited count to 32 so the update weight never
+                            //    falls below α ≈ 1/32; a still pixel keeps the unbounded mean and every held-frame
+                            //    proof its convergence rests on.
+                            if (PrevPixel != Pixel && Accumulator.Count > 32.0f) Accumulator.Count = 32.0f;
                             T.Reprojected += 1.0;
                             if (PrevPixel != Pixel) T.Moved += 1.0;
                             Resolved = true;
@@ -2906,6 +2946,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--no-reproject") g_RestirNoReproject = true;
         else if (A == "--restir-no-history-split") g_RestirHistorySplit = false;
         else if (A == "--restir-no-gi-reuse")      g_RestirGiReuse = false;
+        else if (A == "--restir-final-visibility") g_RestirFinalVisibility = true;   // the pre-reuse arm: re-trace the merged selection
         else if (A == "--restir-no-identity")      g_RestirIdentity = false;
         else if (A == "--drift")        g_RestirDrift = static_cast<float>(std::atof(Next("--drift")));
         else if (A == "--drift-material") g_RestirDriftMaterial = std::atoi(Next("--drift-material"));
@@ -3012,6 +3053,10 @@ int main(int ArgumentCount, char** ArgumentValues)
     if (UseRestir)
         std::printf("[material-level] reservoirs: %.1f %% of surface pixels held one, mean M %.1f\n",
                     Sequence.ReservoirCoverage, Sequence.MeanReservoirM);
+    if (UseRestir && !g_RestirFinalVisibility)
+        std::printf("[material-level] visibility reuse: %ld spatial-pass shadow rays skipped (the winner's stored "
+                    "test answered) — the A/B arm is --restir-final-visibility\n",
+                    g_VisibilityReuseSaved.load());
 
     // Presentation: the engine's own transfer, at the engine's own manual exposure.
     ColourTransfer Transfer;

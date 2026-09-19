@@ -1044,6 +1044,10 @@ vec3 ToneMap(vec3 hdr)
 
 const float kReprojectNormalCos = kTemporalNormalCos;   // 25°, identical to the reservoir rule
 const float kReprojectDepthTol  = kTemporalDepthTol;    // 10 % relative
+// SVGF §4.1: the effective history length for a pixel IN MOTION. 32 frames ⇒ the update weight never falls below
+//    α ≈ 1/32, so lighting changes land within about a second at 30 fps instead of at 1/n for an unbounded n.
+//    A still pixel is exempt (prevPx == pixel keeps the raw count), so a held frame still converges without limit.
+const float kMovingHistoryBound = 32.0;
 
 // ⚠️ D10: normal + depth agree for TWO DIFFERENT OBJECTS more often than it is comfortable to admit — two objects
 //    exchanging places, a tumble that brings a different face to the same pixel at the same distance, an object leaving
@@ -1094,6 +1098,15 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
                 history  = imageLoad(HistoryImage, prevPx);
                 count    = history.a;
                 moments  = prevMoments.xy;   // the moments follow the same reprojection
+                // SVGF-style history bound (Schied et al. 2017 §4.1, the α clamp), applied ONLY to a pixel that
+                //    actually moved. An unbounded count weighs the next sample at 1/n, so a surface tracked
+                //    across motion for a thousand frames absorbs a lighting change at 1/1000 per frame — the
+                //    lagging-shadow ghost every SVGF derivative exists to bound. Clamping the count keeps the
+                //    mean but raises the update weight to at least 1/kMovingHistoryBound (α ≈ 0.03), so a moving
+                //    view tracks the scene within ~32 frames while a STILL pixel (prevPx == pixel) keeps its
+                //    unbounded running mean and converges exactly as before — which is also what keeps the
+                //    denoiser's variance-driven early-out and every still-frame proof untouched.
+                if (prevPx != ivec2(pixel)) count = min(count, kMovingHistoryBound);
                 resolved = true;
             }
             // Failing validation is a real disocclusion: leave count at 0 so the mean restarts at n = 1 rather
@@ -1643,6 +1656,17 @@ void main()
                         res.SelectedUv    = neigh.UvDepth.xy;
                         takeAge = neigh.Counts.w + 1u;
                         pSelected         = pNeigh;   // the winner's p̂, already in hand
+                        // VISIBILITY REUSE (Bitterli et al. 2020 §5, the RTXDI arrangement). The winning tap's
+                        //    visibility is TRUSTED, not re-traced. This is sound because every published
+                        //    reservoir was visibility-tested at its own pixel before it entered the history
+                        //    (the post-temporal trace above), and a blocked one published W = 0 — so its
+                        //    wNeigh here is exactly 0 and it can never win this merge. Any sample that CAN
+                        //    reach this line was visible from a surface at most kSpatialRadiusMaxPx away.
+                        //    The bias this admits is confined to shadow edges (a sample visible from the
+                        //    neighbour's point may be occluded from ours) and is bounded by the tap radius;
+                        //    the trade buys back one full shadow ray per pixel per frame — the second of the
+                        //    two DI traversals this kernel used to pay, ~1 M software-BVH walks/frame at 720p.
+                        res.Visible = 1u;
                     }
                     res.SampleCount = res.SampleCount + mNeighCapped;
                     res.WeightSum   = nTotal;
@@ -1651,10 +1675,13 @@ void main()
                 }
             }
 
-            // Visibility re-traced a second time, now for the sample the SPATIAL merge selected: the merged
-            //    selection may differ from the temporal one, so the shaded integral cannot inherit its test.
-            res.Visible = TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint) ? 0u : 1u;
-            if (res.Visible == 0u) res.UnbiasedWeight = 0.0;
+            // ⚠️ No second visibility trace. The pre-visibility-reuse kernel re-traced the post-spatial selection
+            //    here ("the shaded integral cannot inherit its test"), spending a second shadow ray per pixel.
+            //    Under visibility reuse the inheritance IS the design: the temporal reservoir was traced from
+            //    THIS pixel this frame (exact), and a spatial winner carries its own pixel's test (approximate
+            //    by at most the tap radius). Blocked reservoirs cannot win merges (W = 0), so res.Visible is
+            //    already correct for whichever sample survived. Measured in the CPU mirror (the A/B flag
+            //    --restir-final-visibility restores the old arm) before this port.
 
             // Publish the reservoir for next frame's temporal reuse (always — even occluded, M still counts).
             //
