@@ -162,6 +162,7 @@ layout(std430, binding = 17) writeonly buffer CurrReservoirExtent { GpuReservoir
 //    needs no buffer: this kernel is one dispatch, so the receiver's vertex is in registers where it was built.
 layout(std430, binding = 25) readonly buffer GiPrevReservoirExtent { GpuReservoir GiPrevReservoirs[]; };
 layout(std430, binding = 26) writeonly buffer GiCurrReservoirExtent { GpuReservoir GiCurrReservoirs[]; };
+
 layout(rgba16f, binding = 18) uniform image2D HistorySurfaceImage;   // R7a: xyz = normal, w = depth the history mean was shaded at (w ≤ 0 = no surface)
 layout(rgba32f, binding = 19) uniform image2D MomentImage;           // R7: x = E[luma], y = E[luma²], reprojected with the mean
 layout(rgba32f, binding = 20) uniform writeonly image2D DenoiseImage; // R7: xyz = linear radiance, w = variance — the à-trous input
@@ -186,6 +187,7 @@ const uint  kSpatialTapCeiling = 4u;         // R6 row 3: the widest cross the k
                                              //    cheapest tier spend two thirds of its lighting budget — 12 of 18 full-BSDF target-function
                                              //    evaluations per pixel — on spatial reuse. The ceiling stays 4 so the 90° tap spacing below is
                                              //    unchanged for any tier that asks for the full cross.
+const uint  kSpatialCompatibilityCandidates = 4u; // R12: choose the best of four jittered neighbours per tap by normal/depth compatibility.
 // ⚠️ The cross is ROTATED and its radius JITTERED per pixel per frame. A fixed offset set makes the reuse graph static:
 //    pixel (x,y) could only ever exchange reservoirs with (x±r,y) and (x,y±r), which partitions the image into r²
 //    residue classes that never share a sample. Each class converges to its own estimate and temporal accumulation
@@ -495,6 +497,27 @@ layout(push_constant) uniform ReSTIRConstants
     uint    TlasInstanceCount;  // [cnt] D6/D7: resident top-level instances (0 ⇒ single world-space blob, the pre-D6 path)
                                  //       — the last reserve slot, so the block is still 128 B and no other field moved
 };
+
+float SpatialCompatibilityScore(vec3 receiverNormal, float receiverDepth, GpuReservoir candidate)
+{
+    if (candidate.Counts.x == 0u) return 0.0;
+    if (candidate.Normal.w != float(ViewportWidth)) return 0.0;   // stride guard (render-scale change)
+    if (candidate.UvDepth.z <= 0.0) return 0.0;                   // already blocked / zero-weight history
+
+    float normalAgreement = dot(receiverNormal, candidate.Normal.xyz);
+    if (normalAgreement <= kTemporalNormalCos) return 0.0;
+
+    float relativeDepth = abs(receiverDepth - candidate.UvDepth.w) / max(receiverDepth, 1e-3);
+    if (relativeDepth >= kTemporalDepthTol) return 0.0;
+
+    // Compatibility-guided neighbour selection (Junkins et al. 2026): rank candidates before merging, so the spatial
+    //    pass spends its MIS work on reservoirs likely to describe the same local light transport. We use only values
+    //    already in the reservoir record — no extra ray or BSDF eval before the winner is chosen.
+    float normalScore = (normalAgreement - kTemporalNormalCos) / max(1.0 - kTemporalNormalCos, 1e-4);
+    float depthScore  = 1.0 - relativeDepth / kTemporalDepthTol;
+    float ageScore    = 1.0 / (1.0 + 0.02 * float(min(candidate.Counts.w, 64u))); // prefer fresh but never hard-reject old
+    return normalScore * normalScore * depthScore * depthScore * ageScore;
+}
 
 const uint kFeatureGlobalIllumination = 1u;   // bit 0: trace the secondary bounce (section 4)
 const uint kFeatureAntiAliasing       = 2u;   // bit 1: sub-pixel jitter — applied by the R2 raster/resolve, not here
@@ -1075,6 +1098,14 @@ const float kReprojectDepthTol  = kTemporalDepthTol;    // 10 % relative
 //    α ≈ 1/32, so lighting changes land within about a second at 30 fps instead of at 1/n for an unbounded n.
 //    A still pixel is exempt (prevPx == pixel keeps the raw count), so a held frame still converges without limit.
 const float kMovingHistoryBound = 32.0;
+// R12: ReLAX/ReBLUR-style fast history for lighting changes. The still camera may keep an unbounded mean, but when
+//    the current sample's luma disagrees with the history by more than the history's own sample variance explains,
+//    clamp the effective history length before the update. In alpha terms: α rises from ~1/N to 1/64…1/4 only where
+//    a temporal gradient says the old lighting is stale.
+const float kFastHistoryMinCount = 4.0;
+const float kFastHistoryMaxCount = 64.0;
+const float kFastHistorySoftStart = 1.0;
+const float kFastHistoryFullReset = 4.0;
 
 // ⚠️ D10: normal + depth agree for TWO DIFFERENT OBJECTS more often than it is comfortable to admit — two objects
 //    exchanging places, a tumble that brings a different face to the same pixel at the same distance, an object leaving
@@ -1163,13 +1194,33 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
         radiance += FlareAlong((vec2(pixel) + 0.5) / extent, extent.x / max(extent.y, 1.0));
     }
 
+    float luma = Luminance(radiance);
+
+    // R12: variance-guided temporal response (A-SVGF / ReLAX / ReBLUR family). A still pixel is allowed to converge
+    //    without a fixed cap, but only while the new sample is statistically compatible with the history. A lighting
+    //    step — a shadow moving, a bright spot turning on, a camera cut that still passes depth/normal — raises α by
+    //    clamping the effective count BEFORE both the colour mean and moment mean update.
+    if (count > kFastHistoryMinCount)
+    {
+        float historyLuma = Luminance(history.rgb);
+        float oldSampleVariance = max(moments.y - moments.x * moments.x, 0.0);
+        float sigma = sqrt(max(oldSampleVariance, 1e-5));
+        float relativeFloor = max(0.02 * max(max(historyLuma, luma), 1e-3), 1e-4);
+        float changeScore = abs(luma - historyLuma) / (sigma + relativeFloor);
+        float response = smoothstep(kFastHistorySoftStart, kFastHistoryFullReset, changeScore);
+        if (response > 0.0)
+        {
+            float adaptiveCap = mix(kFastHistoryMaxCount, kFastHistoryMinCount, response);
+            count = min(count, adaptiveCap);
+        }
+    }
+
     count      = count + 1.0;
     vec3 mean  = history.rgb + (radiance - history.rgb) / count;
 
     // R7: the same incremental mean applied to the first two luminance moments. Variance is E[x²] − E[x]², which is
     //    the noise estimate the à-trous filter divides by; a pixel with many samples reports a small variance and
     //    is therefore barely filtered, which is how the denoiser fades out as the image converges.
-    float luma = Luminance(radiance);
     moments   += (vec2(luma, luma * luma) - moments) / count;
     // Clamped at zero: with one sample the estimator is exactly zero and float error can push it slightly negative.
     float sampleVariance = max(moments.y - moments.x * moments.x, 0.0);
@@ -1332,23 +1383,35 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
         uint  tapSeed = PcgHash(MakeSeed(pixel, FrameIndex) ^ 0x85EBCA6Bu);
         float scale   = float(ViewportWidth) / 1280.0;
         float angle   = RandFloat(tapSeed) * 6.28318531;
-        float radius  = mix(kSpatialRadiusMinPx, kSpatialRadiusMaxPx, RandFloat(tapSeed)) * scale;
         uint  spatialTaps = min(SpatialTapCount, kSpatialTapCeiling);
         uint  capReference = max(ris.SampleCount, 1u);
         for (uint tap = 0u; tap < spatialTaps; ++tap)
         {
-            float theta  = angle + float(tap) * (6.28318531 / float(spatialTaps));
-            ivec2 offset = ivec2(int(round(radius * cos(theta))), int(round(radius * sin(theta))));
-            if (offset.x == 0 && offset.y == 0) continue;
-            ivec2 npx = ivec2(pixel) + offset;
-            if (any(lessThan(npx, ivec2(0))) || npx.x >= int(ViewportWidth) || npx.y >= int(ViewportHeight)) continue;
-            GpuReservoir neigh = GiPrevReservoirs[npx.y * int(ViewportWidth) + npx.x];
+            float tapArc = 6.28318531 / float(max(spatialTaps, 1u));
+            float theta  = angle + float(tap) * tapArc;
+
+            GpuReservoir neigh;
+            bool  haveNeighbour = false;
+            float bestScore = 0.0;
+            for (uint choice = 0u; choice < kSpatialCompatibilityCandidates; ++choice)
+            {
+                float rChoice = mix(kSpatialRadiusMinPx, kSpatialRadiusMaxPx, RandFloat(tapSeed)) * scale;
+                float aChoice = theta + (RandFloat(tapSeed) - 0.5) * tapArc;
+                ivec2 offset = ivec2(int(round(rChoice * cos(aChoice))), int(round(rChoice * sin(aChoice))));
+                if (offset.x == 0 && offset.y == 0) continue;
+                ivec2 npx = ivec2(pixel) + offset;
+                if (any(lessThan(npx, ivec2(0))) || npx.x >= int(ViewportWidth) || npx.y >= int(ViewportHeight)) continue;
+                GpuReservoir candidate = GiPrevReservoirs[npx.y * int(ViewportWidth) + npx.x];
+                float score = SpatialCompatibilityScore(primaryNormal, primaryT, candidate);
+                if (score > bestScore)
+                {
+                    neigh = candidate;
+                    bestScore = score;
+                    haveNeighbour = true;
+                }
+            }
+            if (!haveNeighbour) continue;
             uint neighM = neigh.Counts.x;
-            bool nValid = neighM > 0u
-                && neigh.Normal.w == float(ViewportWidth)
-                && dot(primaryNormal, neigh.Normal.xyz) > kTemporalNormalCos
-                && abs(primaryT - neigh.UvDepth.w) / max(primaryT, 1e-3) < kTemporalDepthTol;
-            if (!nValid) continue;
             uint mNeighCapped = min(neighM, kTemporalMClamp * capReference);
             float pNeigh = PHatSelected(F, m, L, wo, neigh.Counts.y, neigh.Sample.xyz - hitPos, hitPos);
             float wSelf  = pSelected * ris.UnbiasedWeight * float(ris.SampleCount);
@@ -1642,7 +1705,6 @@ void main()
                 uint  tapSeed = PcgHash(MakeSeed(pixel, FrameIndex) ^ 0x9E3779B9u);
                 float scale   = float(ViewportWidth) / 1280.0;
                 float angle   = RandFloat(tapSeed) * 6.28318531;
-                float radius  = mix(kSpatialRadiusMinPx, kSpatialRadiusMaxPx, RandFloat(tapSeed)) * scale;
 
                 uint spatialTaps = min(SpatialTapCount, kSpatialTapCeiling);
 
@@ -1654,20 +1716,34 @@ void main()
                 uint capReference = max(histCount, 1u);
                 for (uint tap = 0u; tap < spatialTaps; ++tap)
                 {
-                    // The cross keeps its 90° spacing — it is still four taps of equal reach, just aimed
-                    //    differently each frame, so no direction is systematically favoured over time.
-                    float  theta  = angle + float(tap) * (6.28318531 / float(spatialTaps));
-                    ivec2  offset = ivec2(int(round(radius * cos(theta))), int(round(radius * sin(theta))));
-                    if (offset.x == 0 && offset.y == 0) continue;   // a rounded-to-zero tap is the pixel itself
-                    ivec2 npx = ivec2(pixel) + offset;
-                    if (any(lessThan(npx, ivec2(0))) || npx.x >= int(ViewportWidth) || npx.y >= int(ViewportHeight)) continue;
-                    GpuReservoir neigh = PrevReservoirs[npx.y * int(ViewportWidth) + npx.x];
+                    // R12: keep the rotated tap bands, but choose the most compatible neighbour from four jittered
+                    //    candidates in that band before paying the PHat/MIS merge. This is the cheap form of
+                    //    compatibility-guided neighbour selection: extra reservoir reads, no extra shadow ray.
+                    float tapArc = 6.28318531 / float(max(spatialTaps, 1u));
+                    float theta  = angle + float(tap) * tapArc;
+
+                    GpuReservoir neigh;
+                    bool  haveNeighbour = false;
+                    float bestScore = 0.0;
+                    for (uint choice = 0u; choice < kSpatialCompatibilityCandidates; ++choice)
+                    {
+                        float rChoice = mix(kSpatialRadiusMinPx, kSpatialRadiusMaxPx, RandFloat(tapSeed)) * scale;
+                        float aChoice = theta + (RandFloat(tapSeed) - 0.5) * tapArc;
+                        ivec2 offset = ivec2(int(round(rChoice * cos(aChoice))), int(round(rChoice * sin(aChoice))));
+                        if (offset.x == 0 && offset.y == 0) continue;
+                        ivec2 npx = ivec2(pixel) + offset;
+                        if (any(lessThan(npx, ivec2(0))) || npx.x >= int(ViewportWidth) || npx.y >= int(ViewportHeight)) continue;
+                        GpuReservoir candidate = PrevReservoirs[npx.y * int(ViewportWidth) + npx.x];
+                        float score = SpatialCompatibilityScore(hitNormal, primaryT, candidate);
+                        if (score > bestScore)
+                        {
+                            neigh = candidate;
+                            bestScore = score;
+                            haveNeighbour = true;
+                        }
+                    }
+                    if (!haveNeighbour) continue;
                     uint neighM = neigh.Counts.x;
-                    bool nValid = neighM > 0u
-                        && neigh.Normal.w == float(ViewportWidth)   // stride guard (render-scale change)
-                        && dot(hitNormal, neigh.Normal.xyz) > kTemporalNormalCos
-                        && abs(primaryT - neigh.UvDepth.w) / max(primaryT, 1e-3) < kTemporalDepthTol;
-                    if (!nValid) continue;
                     uint mNeighCapped = min(neighM, kTemporalMClamp * capReference);
                     vec3 neighToL  = neigh.Sample.xyz - hitPos;
                     float pNeigh = PHatSelected(frame, shading, layers, woLocal, neigh.Counts.y, neighToL, hitPos);
