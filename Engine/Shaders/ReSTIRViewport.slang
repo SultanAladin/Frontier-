@@ -865,6 +865,124 @@ float SunPickChance()
 }
 const uint  kSunLightIndex      = 0xFFFFFFFFu;   // SelectedLight sentinel: the sample is a sun direction, not a triangle
 const float kSunShadowDistance  = 1.0e4;   // [m] the far point sun samples are stored as — past any scene, inside float range
+const uint  kMoonLightBase      = 0xFFFFFFF0u;   // SelectedLight sentinels 0xFFFFFFF0..F3: analytic moon discs
+const float kMoonShadowDistance = 1.0e4;   // [m] same convention as the sun: a direction encoded as a far point
+const float kMoonDirectIrradianceScale = 0.035; // [scene] full overhead moon irradiance multiplier; brighter than ambient so it casts readable shadows
+const float kMoonPickAtNight    = 0.25;    // [-] candidate share when moon competes with emissive lamps at night
+const float kMoonPickInDaylight = 0.05;    // [-] tiny share in daylight; the sun/lamp power split still dominates
+
+bool IsMoonLight(uint light) { return light >= kMoonLightBase && light < (kMoonLightBase + 4u); }
+uint MoonLightIndex(uint moonIndex) { return kMoonLightBase + moonIndex; }
+uint MoonIndexFromLight(uint light) { return light - kMoonLightBase; }
+
+float MoonPhaseFactor(uint moonIndex)
+{
+    const float kPi = 3.14159265358979323846;
+    return 0.5 + 0.5 * cos(MoonParams[int(moonIndex)].z * 2.0 * kPi);
+}
+
+float MoonSolidAngle(uint moonIndex)
+{
+    const float kPi = 3.14159265358979323846;
+    float radius = max(MoonParams[int(moonIndex)].x, 1.0e-6);
+    float s = sin(radius * 0.5);
+    return 4.0 * kPi * s * s;
+}
+
+float MoonIrradianceEstimate(uint moonIndex)
+{
+    if (moonIndex >= MoonControl.x || moonIndex >= 4u) return 0.0;
+    vec3 dir = MoonDirection[int(moonIndex)].xyz;
+    float radius = MoonParams[int(moonIndex)].x;
+    float bright = MoonParams[int(moonIndex)].y;
+    float phase  = MoonPhaseFactor(moonIndex);
+    return (radius > 1.0e-6 && bright > 0.0 && dir.z > 0.0)
+        ? bright * phase * dir.z * kMoonDirectIrradianceScale
+        : 0.0;
+}
+
+float TotalMoonIrradiance()
+{
+    float total = 0.0;
+    for (uint i = 0u; i < 4u; ++i)
+        total += MoonIrradianceEstimate(i);
+    return total;
+}
+
+vec3 MoonEmission(uint moonIndex)
+{
+    float irradiance = MoonIrradianceEstimate(moonIndex);
+    return irradiance > 0.0 ? MoonTint[int(moonIndex)].xyz * irradiance / MoonSolidAngle(moonIndex) : vec3(0.0);
+}
+
+vec3 SampleMoonDirection(uint moonIndex, float u1, float u2)
+{
+    vec3 moonDir = MoonDirection[int(moonIndex)].xyz;
+    float radius = max(MoonParams[int(moonIndex)].x, 1.0e-6);
+    float cosMax = cos(radius);
+    float cosT = mix(1.0, cosMax, u1);
+    float sinT = sqrt(max(0.0, 1.0 - cosT * cosT));
+    float phi = 6.28318530718 * u2;
+    vec3 up = abs(moonDir.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+    vec3 t = normalize(cross(up, moonDir));
+    vec3 b = cross(moonDir, t);
+    return normalize(t * (sinT * cos(phi)) + b * (sinT * sin(phi)) + moonDir * cosT);
+}
+
+bool PickMoon(inout uint seed, out uint moonIndex, out float pMoonIndex)
+{
+    float total = TotalMoonIrradiance();
+    if (total <= 0.0)
+    {
+        moonIndex = 0u;
+        pMoonIndex = 0.0;
+        return false;
+    }
+    float target = RandFloat(seed) * total;
+    float prefix = 0.0;
+    moonIndex = 0u;
+    for (uint i = 0u; i < 4u; ++i)
+    {
+        float power = MoonIrradianceEstimate(i);
+        if (power <= 0.0) continue;
+        prefix += power;
+        moonIndex = i;
+        if (target <= prefix) break;
+    }
+    float chosen = MoonIrradianceEstimate(moonIndex);
+    pMoonIndex = chosen / total;
+    return pMoonIndex > 0.0;
+}
+
+void DirectPickProbabilities(bool sunUp, bool moonUp, out float pSun, out float pMoon, out float pMesh)
+{
+    bool meshUp = LightTriangleCount > 0u;
+    pSun = 0.0; pMoon = 0.0; pMesh = 0.0;
+
+    if (moonUp)
+    {
+        if (!sunUp && !meshUp) pMoon = 1.0;
+        else pMoon = sunUp ? kMoonPickInDaylight : kMoonPickAtNight;
+    }
+
+    float rest = max(0.0, 1.0 - pMoon);
+    if (sunUp)
+    {
+        float sunShare = meshUp ? SunPickChance() : 1.0;
+        pSun  = rest * sunShare;
+        pMesh = meshUp ? rest * (1.0 - sunShare) : 0.0;
+    }
+    else if (meshUp)
+    {
+        pMesh = rest;
+    }
+
+    float sum = pSun + pMoon + pMesh;
+    if (sum > 0.0)
+    {
+        pSun /= sum; pMoon /= sum; pMesh /= sum;
+    }
+}
 
 // Indirect-contribution bound. Applied to every term the BOUNCE adds to the image (its NEE arms and the GI pool's
 //    shade), never to the primary hit's direct lighting — clamping direct light would visibly darken a surface that
@@ -970,6 +1088,12 @@ float PHatSelected(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, u
         vec3 sunDir = normalize(toLight);
         return PHatSun(F, m, L, wo, SunEmission() * CloudShadowTransmittance(hitPos, sunDir), sunDir);
     }
+    if (IsMoonLight(light))
+    {
+        uint moonIndex = MoonIndexFromLight(light);
+        vec3 moonDir = normalize(toLight);
+        return PHatSun(F, m, L, wo, MoonEmission(moonIndex), moonDir);
+    }
     return PHatFull(F, m, L, wo, LightEmission(light), toLight, dot(toLight, toLight), LightNormal(light));
 }
 
@@ -1003,11 +1127,14 @@ void ResampleCandidate(inout Reservoir res, vec3 point, uint light, vec2 uv, flo
 //    too bright) — the CPU raster never had this bug (Tap.Weight carries the area), and the SunDirectProof pins
 //    the corrected scale against quadrature. HitPos anchors the sun's far point; SunUp (any direct radiance)
 //    decides whether the coin is flipped at all.
-void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 hitPos, bool sunUp,
+void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 hitPos, bool sunUp, bool moonUp,
                          out vec3 point, out uint light, out vec2 uv, out float weight, inout uint seed)
 {
-    bool sun = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < SunPickChance());
-    if (sun)
+    float pSun, pMoon, pMesh;
+    DirectPickProbabilities(sunUp, moonUp, pSun, pMoon, pMesh);
+    float pick = RandFloat(seed);
+
+    if (pSun > 0.0 && pick < pSun)
     {
         float u1 = RandFloat(seed);
         float u2 = RandFloat(seed);
@@ -1016,10 +1143,29 @@ void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3
         light  = kSunLightIndex;
         uv     = vec2(u1, u2);
         float pHat = PHatSun(F, m, L, wo, SunEmission() * CloudShadowTransmittance(hitPos, sunDir), sunDir);
-        float pPick = LightTriangleCount > 0u ? SunPickChance() : 1.0;
-        weight = pHat * SunSolidAngle() / pPick;
+        weight = pHat * SunSolidAngle() / pSun;
+        return;
     }
-    else
+
+    if (pMoon > 0.0 && pick < pSun + pMoon)
+    {
+        uint moonIndex;
+        float pMoonIndex;
+        if (PickMoon(seed, moonIndex, pMoonIndex))
+        {
+            float u1 = RandFloat(seed);
+            float u2 = RandFloat(seed);
+            vec3 moonDir = SampleMoonDirection(moonIndex, u1, u2);
+            point  = hitPos + moonDir * kMoonShadowDistance;
+            light  = MoonLightIndex(moonIndex);
+            uv     = vec2(u1, u2);
+            float pHat = PHatSun(F, m, L, wo, MoonEmission(moonIndex), moonDir);
+            weight = pHat * MoonSolidAngle(moonIndex) / max(pMoon * pMoonIndex, 1.0e-6);
+            return;
+        }
+    }
+
+    if (pMesh > 0.0 && LightTriangleCount > 0u)
     {
         float  pSource;
         uint   li = PickLight(seed, pSource);
@@ -1030,10 +1176,18 @@ void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3
         uv    = vec2(u1, u2);
         vec3 toLight = point - hitPos;
         float pHat = PHatFull(F, m, L, wo, LightEmission(li), toLight, dot(toLight, toLight), LightNormal(li));
-        float pPick = sunUp ? 1.0 - SunPickChance() : 1.0;
-        weight = pHat * Luminaires[li].Area / (pSource * pPick);
+        weight = pHat * Luminaires[li].Area / (pSource * pMesh);
+        return;
     }
+
+    // No direct-light source is active. The caller normally gates this path, but returning a zero candidate keeps the
+    // shader robust against a hand-filled moon/sun record that goes dark between the gate and the draw.
+    point = hitPos;
+    light = 0u;
+    uv = vec2(0.0);
+    weight = 0.0;
 }
+
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                              ACES FILMIC TONE MAPPING
@@ -1286,7 +1440,7 @@ void Resolve(uvec2 pixel, vec3 radiance)
 //    Writes GiCurrReservoirs[pixel] unconditionally (zeros when the vertex is ineligible) so a stale entry cannot be
 //    reused across a frame in which this pixel had no vertex.
 vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 hitPos,
-                 vec3 primaryNormal, float primaryT, uint primaryIdentity, uvec2 pixel, bool sunUp, inout uint seed)
+                 vec3 primaryNormal, float primaryT, uint primaryIdentity, uvec2 pixel, bool sunUp, bool moonUp, inout uint seed)
 {
     Reservoir ris;
     ris.SelectedPoint  = vec3(0.0);
@@ -1301,7 +1455,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
     for (uint s = 0u; s < SamplesPerPixel; ++s)
     {
         vec3  lp; uint li; vec2 uv; float w;
-        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, lp, li, uv, w, seed);
+        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, moonUp, lp, li, uv, w, seed);
         ResampleCandidate(ris, lp, li, uv, w, seed);
     }
     // The tier's extra same-pixel candidates count for the indirect pool too: it is the same dial, and leaving them to
@@ -1309,7 +1463,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
     for (uint e = 0u; e < ExtraCandidateCount; ++e)
     {
         vec3  lp; uint li; vec2 uv; float w;
-        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, lp, li, uv, w, seed);
+        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, moonUp, lp, li, uv, w, seed);
         ResampleCandidate(ris, lp, li, uv, w, seed);
     }
 
@@ -1435,7 +1589,8 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
 
     // 4. Visibility re-traced at the vertex for whichever sample the merges selected — an occluded selection
     //    contributes nothing this frame (the direct pool's rule at the primary).
-    bool blocked = ris.SelectedLight == kSunLightIndex
+    bool analyticDistant = ris.SelectedLight == kSunLightIndex || IsMoonLight(ris.SelectedLight);
+    bool blocked = analyticDistant
         ? TraceShadow(hitPos + F.Geometric * kEps, ris.SelectedPoint)
         : TraceShadow(hitPos + F.Geometric * kEps, ris.SelectedPoint - normalize(ris.SelectedPoint - hitPos) * 1e-3);
     if (blocked || ris.SampleCount == 0u) return vec3(0.0);
@@ -1447,6 +1602,8 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
     vec3 f = wiLocal.z > 0.0 ? EvaluateBsdf(m, L, wo, wiLocal) : vec3(0.0);
     if (ris.SelectedLight == kSunLightIndex)
         return f * SunEmission() * shadeCos * ris.UnbiasedWeight;
+    if (IsMoonLight(ris.SelectedLight))
+        return f * MoonEmission(MoonIndexFromLight(ris.SelectedLight)) * shadeCos * ris.UnbiasedWeight;
     vec3 chosenEmit = LightEmission(ris.SelectedLight);
     float shadeCosL = max(0.0, dot(LightNormal(ris.SelectedLight), -shadeDir));
     float dist2 = dot(ris.SelectedPoint - hitPos, ris.SelectedPoint - hitPos);
@@ -1567,7 +1724,8 @@ void main()
     //    used to skip it entirely and shade with skylight alone). The sun switch is the record's direct row, so
     //    night, a hidden sun and a disabled sky all take the lamps-only path with no flag to flip.
     bool sunUp = dot(SkySunDirect.xyz, vec3(1.0)) > 0.0;
-    if (sunUp || LightTriangleCount > 0u)
+    bool moonUp = TotalMoonIrradiance() > 0.0;
+    if (sunUp || moonUp || LightTriangleCount > 0u)
     {
         // Initial reservoir from M = SamplesPerPixel candidates
         Reservoir res;
@@ -1582,7 +1740,7 @@ void main()
         for (uint s = 0u; s < SamplesPerPixel; ++s)
         {
             vec3  lp; uint li; vec2 luv; float w;
-            DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, lp, li, luv, w, seed);
+            DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, moonUp, lp, li, luv, w, seed);
             ResampleCandidate(res, lp, li, luv, w, seed);
         }
 
@@ -1608,7 +1766,7 @@ void main()
             for (uint sp = 0u; sp < ExtraCandidateCount; ++sp)
             {
                 vec3  nlp; uint nli; vec2 nuv; float nW;
-                DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, nlp, nli, nuv, nW, seed);
+                DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, moonUp, nlp, nli, nuv, nW, seed);
                 ResampleCandidate(res, nlp, nli, nuv, nW, seed);
             }
             // W for the final selection (the selected point may have changed in the loop above). This is the one
@@ -1675,7 +1833,8 @@ void main()
             //    honest weight, and the two passes are two dispatches — the spatial pass cannot validate a value it
             //    is not allowed to write back. The spatial pass re-traces for whichever sample it ends up shading.
             {
-                bool histBlocked = res.SelectedLight == kSunLightIndex
+                bool histAnalyticDistant = res.SelectedLight == kSunLightIndex || IsMoonLight(res.SelectedLight);
+                bool histBlocked = histAnalyticDistant
                     ? TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint)
                     : TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint - normalize(res.SelectedPoint - hitPos) * 1e-3);
                 res.Visible = histBlocked ? 0u : 1u;
@@ -1782,7 +1941,8 @@ void main()
             //    temporal reservoir, which is the non-feedback rule that keeps temporal M bounded.
             if (spatialWinnerNeedsCurrentPixelVisibility && res.Visible == 1u)
             {
-                bool spatialBlocked = res.SelectedLight == kSunLightIndex
+                bool spatialAnalyticDistant = res.SelectedLight == kSunLightIndex || IsMoonLight(res.SelectedLight);
+                bool spatialBlocked = spatialAnalyticDistant
                     ? TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint)
                     : TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint - normalize(res.SelectedPoint - hitPos) * 1e-3);
                 res.Visible = spatialBlocked ? 0u : 1u;
@@ -1820,6 +1980,8 @@ void main()
                 vec3  f = wiLocal.z > 0.0 ? EvaluateBsdf(shading, layers, woLocal, wiLocal) : vec3(0.0);   // R4b: full lobe stack
                 if (res.SelectedLight == kSunLightIndex)
                     accumulatedRadiance += f * SunEmission() * shadeCos * res.UnbiasedWeight;
+                else if (IsMoonLight(res.SelectedLight))
+                    accumulatedRadiance += f * MoonEmission(MoonIndexFromLight(res.SelectedLight)) * shadeCos * res.UnbiasedWeight;
                 else
                 {
                     vec3 chosenEmit = LightEmission(res.SelectedLight);
@@ -1986,7 +2148,7 @@ void main()
                         && bShading.SssWeight <= 0.0;
                     if (giPoolOwns)
                         accumulatedRadiance += BoundIndirect(throughput * GiPoolShade(bFrame, bShading, bLayers, bWo, bHitPos,
-                                                                        hitNormal, primaryT, primaryIdentity, pixel, sunUp, seed));
+                                                                        hitNormal, primaryT, primaryIdentity, pixel, sunUp, moonUp, seed));
                     else if (true)
                     {
                     // The bounce draws one light the same way the reservoir candidates do — sun or lamp by the same
