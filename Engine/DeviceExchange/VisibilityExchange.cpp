@@ -1070,9 +1070,19 @@ void VisibilityExchange::ReadTelemetry(uint32_t Slot) noexcept
     //    not zero, so without the availability word a GI-on frame would subtract garbage from the kernel figure.
     //    The flag makes the driver tell us which stamps are real; unavailable ones are treated as "stage absent".
     uint64_t Stamps[kTimestampCount * 2u]{};
-    if (vkGetQueryPoolResults(Vulkan->Device, Vulkan->Timestamps, Slot * kTimestampCount, kTimestampCount,
-                              sizeof(Stamps), Stamps, sizeof(uint64_t) * 2u,
-                              VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT) == VK_SUCCESS)
+    // ⚠️ VK_NOT_READY is the EXPECTED result here, not a failure. The slot's whole 20-query range is reset every
+    //    frame but only conditionally written — the shadow pair exists only in GI-off frames, ReSTIR / sky /
+    //    volume only when those stages ran — so the range virtually always contains reset-but-never-written
+    //    queries, which stay unavailable forever. Per the specification, vkGetQueryPoolResults without WAIT or
+    //    PARTIAL then returns VK_NOT_READY even though it HAS written values for every available query and a
+    //    zero availability word for the rest (PARTIAL is illegal on timestamp pools, so it cannot help). Testing
+    //    for VK_SUCCESS alone therefore skipped this block on every single frame, and the whole [GpuTiming]
+    //    report read 0.00 ms for the life of the run. The availability words below already sort real stamps
+    //    from absent ones; accept both results and let them do exactly that.
+    const VkResult QueryResult = vkGetQueryPoolResults(Vulkan->Device, Vulkan->Timestamps, Slot * kTimestampCount, kTimestampCount,
+                                                       sizeof(Stamps), Stamps, sizeof(uint64_t) * 2u,
+                                                       VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+    if (QueryResult == VK_SUCCESS || QueryResult == VK_NOT_READY)
     {
         const auto Have  = [&](uint32_t I) { return Stamps[I * 2u + 1u] != 0u; };
         const auto Value = [&](uint32_t I) { return Stamps[I * 2u]; };

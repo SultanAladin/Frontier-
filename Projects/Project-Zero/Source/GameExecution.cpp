@@ -297,6 +297,7 @@ int main(int argc, char** argv)
     // Where the panel hangs, resolved here because the proxy must be registered before the acceleration structure
     //    is built — well before the interface itself is brought up further down.
     const bool ShowroomLevelForLight = Level.QueryName() == "Showroom" || Level.QueryName() == "ShowroomDrop";
+    const bool ShowcaseLevelForLight = Level.QueryName() == "Showcase";   // r3 authors the berth; the panel must sit in it
     Frontier::PlanePlacement PanelPlacementForLight;
     if (ShowroomLevelForLight)
     {
@@ -304,6 +305,16 @@ int main(int argc, char** argv)
         PanelPlacementForLight.Origin    = Frontier::PlaneOrigin{ LightAnchor.x, LightAnchor.y, LightAnchor.z };
         PanelPlacementForLight.RotationX = 1.57079633f + Frontier::ProjectZero::ShowroomStructure::QueryPanelTilt();
         PanelPlacementForLight.Scale     = 2.2f;
+    }
+    else if (ShowcaseLevelForLight)
+    {
+        // The showcase berth: upright (no tilt), face along −Y, at the constants ShowcaseStructure publishes —
+        //    the same numbers the CPU reference harness renders with, so the two paths agree by construction.
+        PanelPlacementForLight.Origin    = Frontier::PlaneOrigin{ Frontier::kShowcasePanelCentreX,
+                                                                  Frontier::kShowcasePanelCentreY,
+                                                                  Frontier::kShowcasePanelCentreZ };
+        PanelPlacementForLight.RotationX = 1.57079633f;
+        PanelPlacementForLight.Scale     = Frontier::kShowcasePanelScale;
     }
 
     // Registered BEFORE the acceleration structure is built, and the scene re-finalised, because Finalise is what
@@ -315,7 +326,7 @@ int main(int argc, char** argv)
     //    the 28 ms rebuild D6 measured — far too expensive for a second-order lighting effect. The panel's average
     //    colour barely moves during the trial loop, so a static proxy is the honest trade.
     Frontier::InterfaceFidelityTier PanelTier = Frontier::InterfaceFidelityTier::Low;
-    if (ShowroomLevelForLight)
+    if (ShowroomLevelForLight || ShowcaseLevelForLight)
     {
         Frontier::InterfaceStructure RestFigures;
         Frontier::MotionIntegrator   RestMotion;
@@ -330,16 +341,18 @@ int main(int argc, char** argv)
         RestComposition.AssignView(RestView);
         RestComposition.Advance(RestFigures, 1.5);
 
-        // Panel face in world space. Scale 2.2 and the trial's authored half extents give the half-axes; the
-        //    showroom tilt leans the face back, so the up axis is not simply world +Z.
-        const float HalfWidth  = 0.115f * 2.2f;   // [m]
-        const float HalfHeight = 0.072f * 2.2f;   // [m]
-        const float Tilt = Frontier::ProjectZero::ShowroomStructure::QueryPanelTilt();
-        const Frontier::Vector3 Anchor = Frontier::ProjectZero::ShowroomStructure::QueryPanelOrigin();
+        // Panel face in world space. The placement scale and the trial's authored half extents give the half-axes;
+        //    the showroom tilt leans the face back, so its up axis is not simply world +Z. The showcase berth is
+        //    upright (tilt 0), so there the up axis IS world +Z.
+        const float HalfWidth  = 0.115f * PanelPlacementForLight.Scale;   // [m]
+        const float HalfHeight = 0.072f * PanelPlacementForLight.Scale;   // [m]
+        const float Tilt = ShowroomLevelForLight ? Frontier::ProjectZero::ShowroomStructure::QueryPanelTilt() : 0.0f;
 
         Frontier::PanelProxyRequest Proxy;
         Proxy.Tier    = PanelTier;
-        Proxy.CentreX = Anchor.x; Proxy.CentreY = Anchor.y; Proxy.CentreZ = Anchor.z;
+        Proxy.CentreX = PanelPlacementForLight.Origin.X;
+        Proxy.CentreY = PanelPlacementForLight.Origin.Y;
+        Proxy.CentreZ = PanelPlacementForLight.Origin.Z;
         Proxy.RightX  = HalfWidth; Proxy.RightY = 0.0f; Proxy.RightZ = 0.0f;
         // Local +Y after the stand-up rotation and tilt: mostly world +Z, leaning toward −Y.
         Proxy.UpX = 0.0f;
@@ -872,6 +885,27 @@ int main(int argc, char** argv)
             ShadowTierFrame      = Shadow;
             ShadowTierFrameValid = true;
             Surface.AssignShadowFrame(Shadow);
+
+            // State the active shadow path in the log so a run report never has to guess. The renderer is
+            //    dual-mode by design: GI ON = every shadow is a ReSTIR shadow ray traced in the kernel (the
+            //    R10 map stage does not record at all); GI OFF = rasterised shadow maps with the tier's filter.
+            {
+                char ShadowLine[192];
+                if (S.GlobalIllumination)
+                    std::snprintf(ShadowLine, sizeof(ShadowLine),
+                                  "Shadow path: ReSTIR ray-traced (GI on - shadow maps idle). "
+                                  "Tier stage if GI is switched off: %s @ %u px, %u taps.",
+                                  Shadow.Filter == Frontier::ShadowFilterCategory::Hard ? "Hard"
+                                : Shadow.Filter == Frontier::ShadowFilterCategory::Pcf  ? "PCF" : "PCSS",
+                                  Shadow.MapSide, Shadow.FilterTaps);
+                else
+                    std::snprintf(ShadowLine, sizeof(ShadowLine),
+                                  "Shadow path: rasterised maps (GI off) - %s @ %u px, %u taps.",
+                                  Shadow.Filter == Frontier::ShadowFilterCategory::Hard ? "Hard"
+                                : Shadow.Filter == Frontier::ShadowFilterCategory::Pcf  ? "PCF" : "PCSS",
+                                  Shadow.MapSide, Shadow.FilterTaps);
+                Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Shadows", ShadowLine);
+            }
         }
 
         // The celestial budget comes from the SAME tier, through CelestialTier — the one translation from a
@@ -945,6 +979,7 @@ int main(int argc, char** argv)
         //    interface hangs and the trial sequence owns what is on it. Any other level keeps the default upright
         //    placement, which is why this is conditional rather than unconditional.
         const bool ShowroomLevel = Level.QueryName() == "Showroom" || Level.QueryName() == "ShowroomDrop";
+        const bool ShowcaseLevel = Level.QueryName() == "Showcase";
 
         // Shared by the trial panel and every other screen, so they all hang in the same place. Declared out here
         //    rather than inside the branch because the director's second screen needs the same placement.
@@ -959,6 +994,21 @@ int main(int argc, char** argv)
             // π/2 stands the panel up (local +Y → world +Z); the showroom's tilt then leans it back toward the eye.
             PanelPlacement.RotationX = 1.57079633f + Frontier::ProjectZero::ShowroomStructure::QueryPanelTilt();
             PanelPlacement.Scale     = 2.2f;   // the trial layout is authored at ~0.14 m across; this reads at 2 m
+            InterfaceTrial.AssignPanelPlacement(PanelPlacement);
+            PanelPlacementForScreens = PanelPlacement;
+        }
+        else if (ShowcaseLevel)
+        {
+            // The showcase authors a physical stand + housing for exactly this panel and publishes the face plane
+            //    (ShowcaseStructure.h). Seat the trial figures on that surface — upright, facing −Y, at the level's
+            //    scale — so the spatial UI hangs on the exhibit instead of defaulting to the world origin (where it
+            //    sat under the floor, invisible: the "old UI only" symptom).
+            Frontier::PlanePlacement PanelPlacement;
+            PanelPlacement.Origin    = Frontier::PlaneOrigin{ Frontier::kShowcasePanelCentreX,
+                                                              Frontier::kShowcasePanelCentreY,
+                                                              Frontier::kShowcasePanelCentreZ };
+            PanelPlacement.RotationX = 1.57079633f;   // stand the panel up; the berth is authored upright
+            PanelPlacement.Scale     = Frontier::kShowcasePanelScale;
             InterfaceTrial.AssignPanelPlacement(PanelPlacement);
             PanelPlacementForScreens = PanelPlacement;
         }
@@ -1971,6 +2021,11 @@ int main(int argc, char** argv)
     // Shutdown
     //──────────────────────────────────────────────────────────────────────────
     FRONTIER_PROBE_EVENT("Shutdown");
+    // The interface's Vulkan resources live on Surface's device, so they must go FIRST: Surface.Retire()
+    //    destroys the VkDevice, and Interface is declared later in this scope, so its destructor would
+    //    otherwise run against a device that no longer exists — the render pass / framebuffer / buffer
+    //    leaks the validation layer reported at vkDestroyDevice.
+    Interface.Retire();
     Surface.Retire();
 
     // Dev/debug probe: THE one and only disk write of the probe's life. Every frame row, startup phase, shader

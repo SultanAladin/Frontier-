@@ -263,7 +263,13 @@ void CelestialSequence::Prepare() noexcept
     //    sky showed no moon at all. The 19th is first quarter — a half-lit moon high in the default afternoon
     //    (el +51, az 102) and up all evening. The ephemeris stays exact; this only picks a date with a moon.
     Observation.Year = 2026; Observation.Month = 9; Observation.Day = 19;
-    Observation.LocalHours = 17.93f; Observation.UtcOffset = 2.0f;   // Sunset staging default (pattern seats 15.5f mid-afternoon).
+    // ⚠️ Mid-afternoon, NOT sunset. The 17.93 h staging put the sun ~1° above the horizon: through twenty air
+    //    masses its direct term is a deep-red trickle, and a shadow it casts is hundreds of metres long and
+    //    dimmer than the sky fill — every run "had no shadows" when in fact the shadows were simply invisible.
+    //    At 15.5 h the sun stands ~40° up, its direct light dominates the sky fill, and both the ReSTIR sun
+    //    shadows (GI on) and the R10 shadow maps (GI off) read unmistakably. Sunset is one Weather-panel
+    //    slider away; the DEFAULT must be the hour that proves the lighting works.
+    Observation.LocalHours = 15.5f; Observation.UtcOffset = 2.0f;
     Observation.Latitude = -26.19f; Observation.Longitude = 28.32f;
 
     Cloud.Enabled = true;
