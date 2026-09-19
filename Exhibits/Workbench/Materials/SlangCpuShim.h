@@ -142,22 +142,37 @@ inline vec2  min(vec2 a, vec2 b) { return vec2(min(a.x, b.x), min(a.y, b.y)); }
 inline vec2  max(vec2 a, vec2 b) { return vec2(max(a.x, b.x), max(a.y, b.y)); }
 inline vec3  min(vec3 a, vec3 b) { return vec3(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z)); }
 inline vec3  max(vec3 a, vec3 b) { return vec3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z)); }
+// MSVC's UCRT already defines the global float overloads of abs/sqrt/cos/sin/exp/pow in <cmath> (inline, noexcept,
+//    "strengthened") — redefining them here is C2382. glibc declares only the C double versions globally, so the
+//    shim must supply the float set there. Same call sites, same semantics either way.
+#ifndef _MSC_VER
 inline float abs(float x) { return x < 0.0f ? -x : x; }   // M4: |cos| in the transmission half-vector (GLSL abs, 1:1)
+#endif
 inline vec3  abs(vec3 x) { return vec3(abs(x.x), abs(x.y), abs(x.z)); }
 inline vec3  log(vec3 x) { return vec3(std::log(x.x), std::log(x.y), std::log(x.z)); }   // M4: σ = −ln(color)/depth
 
+#ifndef _MSC_VER
 inline float sqrt(float x) { return std::sqrt(x); }
+#endif
 inline vec3  sqrt(vec3 x) { return vec3(std::sqrt(x.x), std::sqrt(x.y), std::sqrt(x.z)); }
+#ifndef _MSC_VER
 inline float cos(float x) { return std::cos(x); }
+#endif
 inline vec3  cos(vec3 x) { return vec3(std::cos(x.x), std::cos(x.y), std::cos(x.z)); }
+#ifndef _MSC_VER
 inline float sin(float x) { return std::sin(x); }   // M2: aniso-basis construction
+#endif
 inline vec3  cross(vec3 a, vec3 b)   // M2: coat bitangent
 {
     return vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 }
+#ifndef _MSC_VER
 inline float exp(float x) { return std::exp(x); }
+#endif
 inline vec3  exp(vec3 x) { return vec3(std::exp(x.x), std::exp(x.y), std::exp(x.z)); }
+#ifndef _MSC_VER
 inline float pow(float x, float y) { return std::pow(x, y); }
+#endif
 inline vec3  pow(vec3 x, vec3 y) { return vec3(std::pow(x.x, y.x), std::pow(x.y, y.y), std::pow(x.z, y.z)); }
 inline float smoothstep(float e0, float e1, float x)
 {

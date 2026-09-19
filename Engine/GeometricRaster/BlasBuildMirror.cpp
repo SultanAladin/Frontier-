@@ -545,7 +545,8 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
         return Depth < kMortonDepth ? OctantAt(Sorted_[Lo].Morton, Depth) : 0u;
     };
     // A contiguous slice of the node's Morton range as a child. `Slot` starts as the preference; the pool resolves it.
-    const auto Child = [&](uint32_t Slot, uint32_t Lo, uint32_t Hi, uint32_t Depth) -> StagedChild
+    //    (Named MakeChild, not Child: the emit loops below iterate `StagedChild& Child`, which would hide it — C4456.)
+    const auto MakeChild = [&](uint32_t Slot, uint32_t Lo, uint32_t Hi, uint32_t Depth) -> StagedChild
     {
         if (Hi - Lo <= kMaxTrianglesPerLeaf) return StagedChild{ false, Slot, Lo, Hi, Depth, 0u, Hi - Lo };
         return StagedChild{ true, Slot, Lo, Hi, Depth, 0u, 0u };
@@ -559,7 +560,7 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
     const auto EmitRuns = [&](uint32_t Lo, uint32_t Hi, uint32_t Depth, std::vector<StagedChild>& Out)
     {
         for (uint32_t Run = Lo; Run < Hi; Run += kMaxTrianglesPerLeaf)
-            Out.push_back(Child(PreferredSlot(Run, Depth), Run, std::min(Hi, Run + kMaxTrianglesPerLeaf), Depth + 1u));
+            Out.push_back(MakeChild(PreferredSlot(Run, Depth), Run, std::min(Hi, Run + kMaxTrianglesPerLeaf), Depth + 1u));
     };
     for (size_t Head = 0u; Head < Pending.size(); ++Head)
     {
@@ -620,21 +621,21 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
                     for (uint32_t Bin = 0u; Bin < 8u; ++Bin)
                     {
                         if (Bin + 1u < 8u && (Mask & (1u << Bin)) == 0u) continue;   // this boundary is merged away
-                        float Lo[3], Hi[3];
+                        float GroupLo[3], GroupHi[3];   // not Lo/Hi — those are the function's Morton bounds (C4456)
                         uint32_t GroupCount = 0u;
-                        for (int C = 0; C < 3; ++C) { Lo[C] = 1.0e30f; Hi[C] = -1.0e30f; }
+                        for (int C = 0; C < 3; ++C) { GroupLo[C] = 1.0e30f; GroupHi[C] = -1.0e30f; }
                         for (uint32_t B = GroupStart; B <= Bin; ++B)
                         {
                             for (int C = 0; C < 3; ++C)
                             {
-                                Lo[C] = std::min(Lo[C], BinLo[B][C]);
-                                Hi[C] = std::max(Hi[C], BinHi[B][C]);
+                                GroupLo[C] = std::min(GroupLo[C], BinLo[B][C]);
+                                GroupHi[C] = std::max(GroupHi[C], BinHi[B][C]);
                             }
                             GroupCount += Bound[B + 1u] - Bound[B];
                         }
-                        const float Ex = std::max(0.0f, Hi[0] - Lo[0]);
-                        const float Ey = std::max(0.0f, Hi[1] - Lo[1]);
-                        const float Ez = std::max(0.0f, Hi[2] - Lo[2]);
+                        const float Ex = std::max(0.0f, GroupHi[0] - GroupLo[0]);
+                        const float Ey = std::max(0.0f, GroupHi[1] - GroupLo[1]);
+                        const float Ez = std::max(0.0f, GroupHi[2] - GroupLo[2]);
                         const double Area = double(Ex) * Ey + double(Ey) * Ez + double(Ez) * Ex;   // half a surface area: the factor cancels
                         Cost += (GroupCount == 0u ? 0.0 : Area * (1.0 + 3.0 * static_cast<double>(GroupCount)));
                         GroupStart = Bin + 1u;
@@ -647,8 +648,8 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
             for (uint32_t Bin = 0u; Bin < 8u; ++Bin)
             {
                 if (Bin + 1u < 8u && (BestMask & (1u << Bin)) == 0u) continue;
-                const uint32_t Lo = Bound[GroupStart], Hi = Bound[Bin + 1u];
-                if (Hi > Lo) Staged.push_back(Child(PreferredSlot(Lo, W.Depth), Lo, Hi, W.Depth + 1u));
+                const uint32_t RangeLo = Bound[GroupStart], RangeHi = Bound[Bin + 1u];   // not Lo/Hi — Morton bounds above (C4456)
+                if (RangeHi > RangeLo) Staged.push_back(MakeChild(PreferredSlot(RangeLo, W.Depth), RangeLo, RangeHi, W.Depth + 1u));
                 GroupStart = Bin + 1u;
             }
         }
@@ -675,7 +676,7 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
             for (uint32_t Slot = 0u; Slot < 8u; ++Slot)
             {
                 if (Counts[Slot] == 0u) continue;
-                Staged.push_back(Child(Slot, Starts[Slot], Starts[Slot] + Counts[Slot], W.Depth + 1u));
+                Staged.push_back(MakeChild(Slot, Starts[Slot], Starts[Slot] + Counts[Slot], W.Depth + 1u));
             }
         }
 
