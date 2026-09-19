@@ -15,8 +15,8 @@ The batch must refuse unsupported mixed networks transactionally rather than fal
 
 - [ ] Add failure-oriented source fixtures first: asymmetric cap radii, endpoint planes with mismatched normals, missing support faces, unequal corner radii, and a partial network whose unselected continuation would intersect.
 - [ ] Extract endpoint support descriptors from topology rather than assuming equal-radius or radial pairing.
-- [ ] Add an explicit finite-support feasibility classifier: support continuity, endpoint containment, positive clearances, and no unclassified blend/blend intersection.
-- [ ] Build the smallest accepted asymmetric case with exact rational support curves and analytic volume.
+- [x] Add an explicit finite-support feasibility classifier: support continuity, endpoint containment, positive clearances, and no unclassified blend/blend intersection.
+- [x] Build the smallest accepted asymmetric case with exact rational support curves and analytic volume (bounded tapered/ruled route).
 - [ ] Add partial-network construction only for a topology with a closed, manifold result; refuse open or ambiguous networks.
 - [ ] Add non-orthogonal support handling after the orthogonal asymmetric case has independent proofs.
 - [ ] Register focused verification binaries and deterministic proof renders.

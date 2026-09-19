@@ -24,6 +24,8 @@ int main()
     Spec.RadiusLaw = { Low.Radius, High.Radius };
     auto VariableSurface = BlendSolver::BuildVariableRadiusSurface(Spec);
     Panel.Expect("variable-radius surface frame builds", VariableSurface && VariableSurface.Payload.Length > 0.0);
+    Panel.Expect("variable-radius surface curvature is bounded", VariableSurface && BlendSolver::ValidateVariableSurfaceCurvature(VariableSurface.Payload, 1.0, Refusal));
+    Panel.Expect("variable-radius surface rejects an over-tight curvature bound", VariableSurface && !BlendSolver::ValidateVariableSurfaceCurvature(VariableSurface.Payload, 0.1, Refusal));
     Panel.Expect("variable-radius G1 normals align", VariableSurface && BlendSolver::ValidateVariableSurfaceG1(
         VariableSurface.Payload, VariableSurface.Payload.Normal(0.0), VariableSurface.Payload.Normal(0.0), 0.0, Refusal));
     auto Ruled = BlendSolver::ReconstructVariableRadiusRuledSolid(Spec);
