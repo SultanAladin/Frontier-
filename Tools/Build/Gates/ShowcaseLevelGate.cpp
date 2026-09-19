@@ -69,12 +69,13 @@ int main(){
     chk(scatter>=30,"the scattered object field is present");
     chk(sphere>=30,"the material sphere grid is present");
 
-    // ⑥ bounds are sane (old scene was +/-500 m around 2 m objects)
+    // ⑥ bounds are sane (old scene was +/-500 m around 2 m objects). r5 deliberately uses an 80 m proof floor so
+    //    the sun/spot shadows have room to read; the gate rejects only the old kilometre-scale plane.
     float lo[3]={1e30f,1e30f,1e30f},hi[3]={-1e30f,-1e30f,-1e30f};
     for(const auto&t:T){ const float v[3][3]={{t.VertexAlphaX,t.VertexAlphaY,t.VertexAlphaZ},{t.VertexBetaX,t.VertexBetaY,t.VertexBetaZ},{t.VertexGammaX,t.VertexGammaY,t.VertexGammaZ}};
         for(int k=0;k<3;++k)for(int c=0;c<3;++c){ lo[c]=std::fmin(lo[c],v[k][c]); hi[c]=std::fmax(hi[c],v[k][c]); } }
     printf("bounds [%.1f %.1f %.1f]..[%.1f %.1f %.1f]\n",lo[0],lo[1],lo[2],hi[0],hi[1],hi[2]);
-    chk(hi[0]-lo[0]<=61.0f && hi[1]-lo[1]<=61.0f,"scene bounds are tight (not the old 1000 m plane)");
+    chk(hi[0]-lo[0]<=81.0f && hi[1]-lo[1]<=81.0f,"scene bounds are tight (not the old 1000 m plane)");
     chk(hi[2]>5.0f,"the luminaires sit above the field");
 
     printf(fails? "\nRED - %d check(s) failed\n":"\nGREEN - every check passed\n",fails);

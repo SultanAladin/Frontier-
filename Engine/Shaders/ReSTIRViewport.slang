@@ -704,12 +704,25 @@ Hit TraceScene(Ray ray)
 
 bool TraceShadow(vec3 origin, vec3 target)
 {
-    vec3 dir = target - origin;
-    float tMax = length(dir) - 2.0 * kEps;
-    dir = normalize(dir);
-    vec3 rD = vec3(1.0) / dir;
+    vec3  delta = target - origin;
+    float dist  = length(delta);
+    if (dist <= 3.0 * kEps) return false;   // degenerate self/light point: do not manufacture a NaN direction
+
+    vec3  dir  = delta / dist;
+    float tMax = dist - 2.0 * kEps;
+    vec3  rD   = vec3(1.0) / dir;
+
+    // R11 shadow-proofing: use the same bounded closest-hit walk for opaque shadow rays that the alpha-mask arm
+    // already used. The previous opaque fast path (`Traverse*Occluded`) was a separate any-hit traversal from the
+    // CPU reference / closest-hit path. On the Windows release telemetry the ReSTIR kernel was running (shadow maps
+    // idle, GpuShadowMs = 0 as expected) but the viewport could still look shadowless; making the direct-light
+    // visibility query share TraceTraversal removes that second, easier-to-diverge code path. The bound preserves
+    // the old light-distance test, and the light sample itself is still excluded by the caller shortening `target`.
     if (AlphaMaskedMaterialCount == 0u)
-        return TraceTraversalOccluded(origin + dir * kEps, dir, rD, tMax);   // R3 fast path: any-hit, no material fetch (Cornell unchanged)
+    {
+        TraversalResult r = TraceTraversal(origin + dir * kEps, dir, rD, tMax);
+        return r.valid && r.t < tMax;
+    }
 
     // R4b: closest-hit walk that steps through cut-out texels (foliage cards); an opaque hit before the light occludes.
     //    D6/D7: the same walk over the two-level traversal when instances are resident (TraceTraversal picks the arm).
@@ -1621,6 +1634,7 @@ void main()
             //    pixels of the current frame (same-frame Curr reads would race within the dispatch). Each valid tap
             //    merges by the same pairwise-MIS algebra as temporal: validation, per-tap M-clamp, winner age+1.
             //    Gated on kFeatureSpatialReuse and FrameIndex > 0 (no prev frame on the first accumulation frame).
+            bool spatialWinnerNeedsCurrentPixelVisibility = false;
             if ((FeatureFlags & kFeatureSpatialReuse) != 0u && FrameIndex > 0u)
             {
                 // Rotation and radius are drawn from a SEPARATE stream, seeded from the pixel and frame, so the
@@ -1670,16 +1684,12 @@ void main()
                         res.SelectedUv    = neigh.UvDepth.xy;
                         takeAge = neigh.Counts.w + 1u;
                         pSelected         = pNeigh;   // the winner's p̂, already in hand
-                        // VISIBILITY REUSE (Bitterli et al. 2020 §5, the RTXDI arrangement). The winning tap's
-                        //    visibility is TRUSTED, not re-traced. This is sound because every published
-                        //    reservoir was visibility-tested at its own pixel before it entered the history
-                        //    (the post-temporal trace above), and a blocked one published W = 0 — so its
-                        //    wNeigh here is exactly 0 and it can never win this merge. Any sample that CAN
-                        //    reach this line was visible from a surface at most kSpatialRadiusMaxPx away.
-                        //    The bias this admits is confined to shadow edges (a sample visible from the
-                        //    neighbour's point may be occluded from ours) and is bounded by the tap radius;
-                        //    the trade buys back one full shadow ray per pixel per frame — the second of the
-                        //    two DI traversals this kernel used to pay, ~1 M software-BVH walks/frame at 720p.
+                        // R11 shadow-proofing: a spatial tap's visibility was tested at the neighbour, not at THIS
+                        //    receiver. The old visibility-reuse shortcut trusted it immediately, which is acceptable
+                        //    for noise but can visibly leak light across blockers and read as "no shadows" on the live
+                        //    GPU path. Mark only actual spatial winners for a late current-pixel validation below;
+                        //    temporal/local winners keep their already-exact trace and do not pay another ray.
+                        spatialWinnerNeedsCurrentPixelVisibility = true;
                         res.Visible = 1u;
                     }
                     res.SampleCount = res.SampleCount + mNeighCapped;
@@ -1689,13 +1699,19 @@ void main()
                 }
             }
 
-            // ⚠️ No second visibility trace. The pre-visibility-reuse kernel re-traced the post-spatial selection
-            //    here ("the shaded integral cannot inherit its test"), spending a second shadow ray per pixel.
-            //    Under visibility reuse the inheritance IS the design: the temporal reservoir was traced from
-            //    THIS pixel this frame (exact), and a spatial winner carries its own pixel's test (approximate
-            //    by at most the tap radius). Blocked reservoirs cannot win merges (W = 0), so res.Visible is
-            //    already correct for whichever sample survived. Measured in the CPU mirror (the A/B flag
-            //    --restir-final-visibility restores the old arm) before this port.
+            // R11: late validation only for SPATIAL winners. This keeps the visibility-reuse saving for local and
+            //    temporal selections (already traced at the current pixel above) while closing the leak that matters
+            //    perceptually: a neighbour's sample that can see around a blocker must not illuminate this pixel.
+            //    If it fails, W is zeroed for this frame only; the history below still receives the pre-spatial
+            //    temporal reservoir, which is the non-feedback rule that keeps temporal M bounded.
+            if (spatialWinnerNeedsCurrentPixelVisibility && res.Visible == 1u)
+            {
+                bool spatialBlocked = res.SelectedLight == kSunLightIndex
+                    ? TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint)
+                    : TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint - normalize(res.SelectedPoint - hitPos) * 1e-3);
+                res.Visible = spatialBlocked ? 0u : 1u;
+                if (res.Visible == 0u) res.UnbiasedWeight = 0.0;
+            }
 
             // Publish the reservoir for next frame's temporal reuse (always — even occluded, M still counts).
             //

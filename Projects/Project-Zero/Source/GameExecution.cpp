@@ -894,10 +894,12 @@ int main(int argc, char** argv)
             //    dual-mode by design: GI ON = every shadow is a ReSTIR shadow ray traced in the kernel (the
             //    R10 map stage does not record at all); GI OFF = rasterised shadow maps with the tier's filter.
             {
-                char ShadowLine[192];
+                char ShadowLine[320];
                 if (S.GlobalIllumination)
                     std::snprintf(ShadowLine, sizeof(ShadowLine),
-                                  "Shadow path: ReSTIR ray-traced (GI on - shadow maps idle). "
+                                  "Shadow path: ReSTIR ray-traced (GI on - shadow maps idle; inline shadow rays are "
+                                  "counted inside GpuReSTIRMs, so GpuShadowMs=0 is expected). Opaque rays use the "
+                                  "bounded closest-hit path and spatial winners are revalidated at the current pixel. "
                                   "Tier stage if GI is switched off: %s @ %u px, %u taps.",
                                   Shadow.Filter == Frontier::ShadowFilterCategory::Hard ? "Hard"
                                 : Shadow.Filter == Frontier::ShadowFilterCategory::Pcf  ? "PCF" : "PCSS",
@@ -1489,7 +1491,11 @@ int main(int argc, char** argv)
             Celestial.RefreshRoster(SceneInstances, CelestialFirstRow, SceneRowCount);
         {
             EditorFooter.Fps = Telemetry.QueryAverageFramesPerSecond();
-            std::snprintf(EditorFooter.Quality, sizeof(EditorFooter.Quality), "%s", Frontier::InterfaceFidelityTierName(PanelTier));
+            // The footer says QUALITY, so show the renderer's quality tier. It used to print the spatial-interface
+            // fidelity (Low/Medium/High), which made a Standard/Ultra render look like it was running in "Low" and
+            // sent shadow/performance diagnosis down the wrong path.
+            std::snprintf(EditorFooter.Quality, sizeof(EditorFooter.Quality), "%s",
+                          Frontier::FidelityLabel(ControlCentre.QuerySettings().Quality));
             std::snprintf(EditorFooter.Pixels, sizeof(EditorFooter.Pixels), "%u\xc3\x97%u", Surface.QueryWidth(), Surface.QueryHeight());
             EditorFooter.SunElevation = Celestial.Frame().Sun.Elevation;
             uint32_t Seated = 0u;
