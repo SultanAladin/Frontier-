@@ -15,12 +15,17 @@ SolidArcEditorHost::SolidArcEditorHost() noexcept
 {
     Outliner_.AssignControls(&Controls_);
     Viewport_.AssignControls(&Controls_);
+    Inspector_.AssignControls(&Controls_);
     Outliner_.AssignTabOpen(&OutlinerTabOpen_);
     Viewport_.AssignTabOpen(&ViewportTabOpen_);
+    Inspector_.AssignTabOpen(&InspectorTabOpen_);
     Outliner_.AssignWindowTitle("SolidArc Outliner");
     Viewport_.AssignWindowTitle("SolidArc Viewport");
+    Inspector_.AssignWindowTitle("SolidArc Inspector");
+    Viewport_.AssignChrome(ViewportPanelChrome::SolidArcCad);
     Outliner_.AssignReadout(&Readout_);
     Viewport_.AssignReadout(&Readout_);
+    Inspector_.AssignReadout(&Readout_);
 }
 
 void SolidArcEditorHost::ApplyTheme() noexcept
@@ -60,13 +65,18 @@ void SolidArcEditorHost::ConstructLayout() noexcept
     ImGui::DockBuilderAddNode(DockId, ImGuiDockNodeFlags_DockSpace);
     ImGui::DockBuilderSetNodeSize(DockId, Main->Size);
 
-    ImGuiID Left = 0u, Centre = 0u;
-    const float LeftShare = Main->Size.x > 0.0f ? std::clamp(316.0f / Main->Size.x, 0.18f, 0.38f) : 0.25f;
-    ImGui::DockBuilderSplitNode(DockId, ImGuiDir_Left, LeftShare, &Left, &Centre);
+    ImGuiID Left = 0u, CentreAndRight = 0u, Centre = 0u, Right = 0u;
+    const float LeftShare = Main->Size.x > 0.0f ? std::clamp(316.0f / Main->Size.x, 0.15f, 0.34f) : 0.25f;
+    ImGui::DockBuilderSplitNode(DockId, ImGuiDir_Left, LeftShare, &Left, &CentreAndRight);
+    const float RestWidth = std::max(1.0f, Main->Size.x * (1.0f - LeftShare));
+    const float RightShare = std::clamp(340.0f / RestWidth, 0.18f, 0.38f);
+    ImGui::DockBuilderSplitNode(CentreAndRight, ImGuiDir_Right, RightShare, &Right, &Centre);
     ImGui::DockBuilderDockWindow("SolidArc Outliner", Left);
     ImGui::DockBuilderDockWindow("SolidArc Viewport", Centre);
+    ImGui::DockBuilderDockWindow("SolidArc Inspector", Right);
     LeftColumn_ = Left;
     CentreColumn_ = Centre;
+    RightColumn_ = Right;
     ImGui::DockBuilderFinish(DockId);
 }
 
@@ -105,7 +115,18 @@ void SolidArcEditorHost::Record(ConsoleHost& Host) noexcept
 
     Outliner_.Record(Rows_, RowCount_);
     Viewport_.Record(Rows_, RowCount_);
+
+    const uint32_t Picked = Outliner_.QueryPicked();
+    EditorInstance* PickedRow = (Picked < RowCount_) ? &Rows_[Picked] : nullptr;
+    if (PickedRow != nullptr)
+        BuildSolidArcInspectorSheet(Host, Bindings_[Picked], &PickedSheet_);
+    else
+        BuildSolidArcInspectorSheet(Host, SolidArcOutlinerBinding{}, &PickedSheet_);
+    Inspector_.Record(PickedRow, Picked, &PickedSheet_);
+
     ApplySolidArcOutlinerVisibility(Host, Rows_, Bindings_, RowCount_);
+    if (Picked < RowCount_)
+        ApplySolidArcInspectorSheet(Host, Bindings_[Picked], PickedSheet_);
 }
 
 uint32_t SolidArcEditorHost::QueryPickedFigureIdentity() const noexcept

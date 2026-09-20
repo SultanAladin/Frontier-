@@ -22,6 +22,8 @@ public:
     void AssignControls(ControlPanel* Controls) noexcept;
     // The tab's close mark writes through this; null leaves the tab without one.
     void AssignTabOpen(bool* Open) noexcept;
+    // Lets SolidArc seat this exact inspector beside Project-Zero without sharing the same ImGui title/id.
+    void AssignWindowTitle(const char* Title) noexcept { WindowTitle_ = (Title != nullptr && Title[0] != '\0') ? Title : "Inspector"; }
 
     // The foot strip's live figures (realtime, triangle total); without a readout the strip prints its dashes.
     void AssignReadout(const EditorReadout* Readout) noexcept;
@@ -40,6 +42,7 @@ private:
     ControlPanel*        Controls_ = nullptr;
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;
+    const char*          WindowTitle_ = "Inspector";
 
     bool     CardShut_[8] = {};                        // false reads open; sheet cards, then the notes card
     uint32_t SheetFor_    = kNoEditorInstance;

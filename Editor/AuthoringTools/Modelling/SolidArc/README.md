@@ -10,19 +10,41 @@ Editor/AuthoringTools/Modelling/SolidArc
 
 This keeps it in the editor authoring-tool tree beside future `TexturePainting`, `Baking`, and `Terrain` tools, instead of mixing it into the runtime `Engine/Editor` panel code.
 
-This import intentionally contains the C++ side only:
+This import contains the C++ side of the tool:
 
 - kernel NURBS/B-rep modelling code,
 - document/undo model,
 - console command host,
 - interaction and gizmo helpers,
 - software-raster presentation proof path,
-- shared-editor outliner adapter and optional ImGui editor shell,
-- C++ verification sources.
+- shared-editor outliner, viewport and inspector adapters,
+- optional ImGui editor shell,
+- C++ verification sources,
+- lightweight `.arc` sample construction journals for ToyCar, ToySailboat and ToyBiplane testing.
 
-The SolidArc editor shell reuses `Engine/Editor/OutlinerPanel` and `Engine/Editor/ViewportPanel`; the adapter maps CAD figures into the same `EditorInstance` feed that Project-Zero's in-game editor uses.
+The SolidArc editor shell reuses the engine editor panels while presenting SolidArc-specific content:
 
-It intentionally excludes the upstream HTML panel, PNG proof artifacts, `.arc` script assets, and browser-only verification files.
+- `OutlinerPanel` is fed CAD folders matching the live HTML panel: `Sketches`, `Bodies`, `Surfaces`, `Construction`, `Dimensions`, `Constraints`.
+- `ViewportPanel` switches to SolidArc chrome with `Construct`, `Body/Face/Edge/Vertex`, `Wire/Flat/Plastic/Matcap`, `Move/Rotate/Scale`, and view controls.
+- `InspectorPanel` receives a CAD sheet with identity, B-rep/NURBS geometry, bounds, parametric blueprint slots, sub-selection counts, and display controls.
+
+The upstream browser HTML panel and PNG proof artifacts are still not built into the runtime; the native editor reproduces the relevant controls in ImGui.
+
+## Sample scripts
+
+Native `.arc` construction journals live under:
+
+```text
+Editor/AuthoringTools/Modelling/SolidArc/Samples/
+```
+
+They can be replayed with the standalone console build:
+
+```bash
+SolidArc --continue Editor/AuthoringTools/Modelling/SolidArc/Samples/ToyCar.arc
+SolidArc --continue Editor/AuthoringTools/Modelling/SolidArc/Samples/ToySailboat.arc
+SolidArc --continue Editor/AuthoringTools/Modelling/SolidArc/Samples/ToyBiplane.arc
+```
 
 ## Standalone build
 
@@ -44,4 +66,10 @@ The dependency-free repository gate is:
 Tools/Build/CheckSolidArc.sh
 ```
 
-It compiles and links the console target with `g++`, then compile-checks every C++ verification translation unit. This is the fallback gate for sandboxes that do not have CMake installed.
+It compiles and links the console target with `g++`, checks the CAD outliner/inspector adapter, verifies the `.arc` samples are present, then compile-checks every C++ verification translation unit. This is the fallback gate for sandboxes that do not have CMake installed.
+
+Visual proof boards for both editor shells are generated with:
+
+```bash
+Tools/Build/CheckEditorVisualProofs.sh
+```

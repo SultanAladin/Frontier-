@@ -42,8 +42,9 @@ else
     Pass "viewport is an opaque docked window, not a fullscreen backing plate"
 fi
 if grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/OutlinerPanel.cpp \
-   && grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/ViewportPanel.cpp; then
-    Pass "OutlinerPanel and ViewportPanel can be retitled for SolidArc without duplicating panel code"
+   && grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/InspectorPanel.cpp; then
+    Pass "OutlinerPanel, ViewportPanel and InspectorPanel can be retitled for SolidArc without duplicating panel code"
 else
     FailOne "shared panels do not use the assigned window title"
 fi
@@ -56,20 +57,23 @@ else
     FailOne "SolidArc editor host or outliner adapter is missing"
 fi
 if grep -q 'OutlinerPanel.h' Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.h \
-   && grep -q 'ViewportPanel.h' Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.h; then
-    Pass "SolidArc reuses the engine OutlinerPanel and ViewportPanel"
+   && grep -q 'ViewportPanel.h' Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.h \
+   && grep -q 'InspectorPanel.h' Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.h; then
+    Pass "SolidArc reuses the engine OutlinerPanel, ViewportPanel and InspectorPanel"
 else
     FailOne "SolidArc is not wired to the shared editor panels"
 fi
 if grep -q 'AssignWindowTitle("SolidArc Outliner")' "$SolidHost" \
-   && grep -q 'AssignWindowTitle("SolidArc Viewport")' "$SolidHost"; then
-    Pass "SolidArc seats distinct outliner and viewport window titles"
+   && grep -q 'AssignWindowTitle("SolidArc Viewport")' "$SolidHost" \
+   && grep -q 'AssignWindowTitle("SolidArc Inspector")' "$SolidHost"; then
+    Pass "SolidArc seats distinct outliner, viewport and inspector window titles"
 else
     FailOne "SolidArc window titles are not assigned"
 fi
 if grep -q 'DockBuilderDockWindow("SolidArc Outliner", Left)' "$SolidHost" \
-   && grep -q 'DockBuilderDockWindow("SolidArc Viewport", Centre)' "$SolidHost"; then
-    Pass "SolidArc docks outliner left and viewport centre"
+   && grep -q 'DockBuilderDockWindow("SolidArc Viewport", Centre)' "$SolidHost" \
+   && grep -q 'DockBuilderDockWindow("SolidArc Inspector", Right)' "$SolidHost"; then
+    Pass "SolidArc docks outliner left, viewport centre and inspector right"
 else
     FailOne "SolidArc docking layout is missing or not dedicated"
 fi
@@ -85,6 +89,38 @@ if grep -q 'Engine/Editor/EditorInstance.h' Editor/AuthoringTools/Modelling/Soli
 else
     FailOne "SolidArc outliner adapter does not use the shared feed/writeback"
 fi
+if grep -q '"Sketches"' "$Adapter" \
+   && grep -q '"Bodies"' "$Adapter" \
+   && grep -q '"Surfaces"' "$Adapter" \
+   && grep -q '"Construction"' "$Adapter" \
+   && grep -q '"Dimensions"' "$Adapter"; then
+    Pass "SolidArc outliner exposes CAD folders from the HTML panel instead of game-engine categories"
+else
+    FailOne "SolidArc outliner CAD folder labels are missing"
+fi
+if grep -q 'BuildSolidArcInspectorSheet' "$Adapter" \
+   && grep -q '"CAD geometry"' "$Adapter" \
+   && grep -q '"Bounds"' "$Adapter" \
+   && grep -q '"Parameters"' "$Adapter"; then
+    Pass "SolidArc inspector sheet exposes CAD identity, geometry, bounds and parameter groups"
+else
+    FailOne "SolidArc CAD inspector sheet is missing"
+fi
+if grep -q 'AssignChrome(ViewportPanelChrome::SolidArcCad)' "$SolidHost" \
+   && grep -q 'RecordSolidArcBar' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Construct' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Body 1' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Face 2' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Edge 3' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Vertex 4' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Matcap' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Move G' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Rotate ⇧R' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Scale S' Engine/Editor/ViewportPanel.cpp; then
+    Pass "SolidArc viewport top toolbar matches the live HTML controls: Construct, sub-selection, Matcap and transform gizmos"
+else
+    FailOne "SolidArc viewport toolbar controls are missing"
+fi
 
 ImguiRoot="${IMGUI_INCLUDE_DIR:-}"
 if [ -z "$ImguiRoot" ] && [ -f ExternalPackages/imgui/imgui.h ]; then ImguiRoot="ExternalPackages/imgui"; fi
@@ -95,7 +131,7 @@ if [ -n "$ImguiRoot" ]; then
         -I"$ImguiRoot" -I. -IEditor/AuthoringTools/Modelling/SolidArc -IEngine/Editor \
         -fsyntax-only \
         Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.cpp \
-        Engine/Editor/ControlPanel.cpp Engine/Editor/OutlinerPanel.cpp Engine/Editor/ViewportPanel.cpp \
+        Engine/Editor/ControlPanel.cpp Engine/Editor/OutlinerPanel.cpp Engine/Editor/ViewportPanel.cpp Engine/Editor/InspectorPanel.cpp \
         >/tmp/EditorDockingSolidArc.syntax 2>&1; then
         Pass "SolidArc optional ImGui editor shell syntax-compiles against $ImguiRoot"
     else
@@ -108,7 +144,7 @@ fi
 
 echo
 if [ "$Fail" -eq 0 ]; then
-    echo "[EditorDocking] GREEN — game editor and SolidArc use dedicated docked viewport windows, and SolidArc uses the shared outliner"
+    echo "[EditorDocking] GREEN — game editor and SolidArc use dedicated docked viewport windows, and SolidArc uses shared outliner/inspector panels with CAD chrome"
     exit 0
 fi
 echo "[EditorDocking] RED — docking proof failed"

@@ -40,4 +40,12 @@ void ApplySolidArcOutlinerVisibility(ConsoleHost& Host,
                                       const SolidArcOutlinerBinding* Bindings,
                                       uint32_t RowCount) noexcept;
 
+[[nodiscard]] bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
+                                               const SolidArcOutlinerBinding& Binding,
+                                               EditorSheet* Sheet) noexcept;
+
+void ApplySolidArcInspectorSheet(ConsoleHost& Host,
+                                 const SolidArcOutlinerBinding& Binding,
+                                 const EditorSheet& Sheet) noexcept;
+
 } // namespace Frontier

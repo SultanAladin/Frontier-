@@ -68,6 +68,14 @@ ConsoleObj="$Work/obj/SolidArcConsole.o"
 
 echo "[SolidArc] console target links and starts"
 
+for Sample in Samples/ToyCar.arc Samples/ToySailboat.arc Samples/ToyBiplane.arc; do
+    if [ ! -s "$Root/$Sample" ]; then
+        echo "[SolidArc] RED — missing sample script $Sample"
+        exit 1
+    fi
+done
+echo "[SolidArc] sample .arc scripts present: ToyCar, ToySailboat, ToyBiplane"
+
 cat > "$Work/SolidArcOutlinerProof.cpp" <<'PROOF'
 #include "Editor/SolidArcOutlinerAdapter.h"
 #include <cstdio>
@@ -83,23 +91,38 @@ int main()
     Frontier::SolidArcOutlinerBinding Bindings[Frontier::kMaxEditorInstances] = {};
     Frontier::EditorReadout Readout = {};
     const uint32_t Count = Frontier::BuildSolidArcOutliner(Host, Rows, Bindings, Frontier::kMaxEditorInstances, &Readout);
-    if (Count < 5u) return 4;
-    bool SawRoot = false, SawBody = false, SawCurve = false;
+    if (Count < 8u) return 4;
+    bool SawSketches = false, SawBodies = false, SawSurfaces = false, SawConstruction = false, SawDimensions = false;
+    bool SawBody = false, SawCurve = false;
     uint32_t BodyRow = Frontier::kNoEditorInstance;
     for (uint32_t I = 0; I < Count; ++I)
     {
-        SawRoot  = SawRoot  || std::strcmp(Rows[I].Label, "SolidArc Document") == 0;
-        SawBody  = SawBody  || std::strcmp(Rows[I].Label, "ProofBox") == 0;
-        SawCurve = SawCurve || std::strcmp(Rows[I].Label, "ProofLine") == 0;
+        SawSketches     = SawSketches     || std::strcmp(Rows[I].Label, "Sketches") == 0;
+        SawBodies       = SawBodies       || std::strcmp(Rows[I].Label, "Bodies") == 0;
+        SawSurfaces     = SawSurfaces     || std::strcmp(Rows[I].Label, "Surfaces") == 0;
+        SawConstruction = SawConstruction || std::strcmp(Rows[I].Label, "Construction") == 0;
+        SawDimensions   = SawDimensions   || std::strcmp(Rows[I].Label, "Dimensions") == 0;
+        SawBody         = SawBody         || std::strcmp(Rows[I].Label, "ProofBox") == 0;
+        SawCurve        = SawCurve        || std::strcmp(Rows[I].Label, "ProofLine") == 0;
         if (std::strcmp(Rows[I].Label, "ProofBox") == 0) BodyRow = I;
     }
-    if (!SawRoot || !SawBody || !SawCurve || BodyRow == Frontier::kNoEditorInstance) return 5;
+    if (!SawSketches || !SawBodies || !SawSurfaces || !SawConstruction || !SawDimensions || !SawBody || !SawCurve || BodyRow == Frontier::kNoEditorInstance) return 5;
     if (Bindings[BodyRow].RowRole != Frontier::SolidArcOutlinerBinding::Role::Figure) return 6;
+    Frontier::EditorSheet Sheet = {};
+    if (!Frontier::BuildSolidArcInspectorSheet(Host, Bindings[BodyRow], &Sheet)) return 7;
+    bool SawIdentity = false, SawGeometry = false, SawBounds = false;
+    for (uint32_t G = 0; G < Sheet.GroupCount; ++G)
+    {
+        SawIdentity = SawIdentity || std::strcmp(Sheet.Groups[G].Title, "Identity") == 0;
+        SawGeometry = SawGeometry || std::strcmp(Sheet.Groups[G].Title, "CAD geometry") == 0;
+        SawBounds   = SawBounds   || std::strcmp(Sheet.Groups[G].Title, "Bounds") == 0;
+    }
+    if (!SawIdentity || !SawGeometry || !SawBounds) return 8;
     Rows[BodyRow].Visible = false;
     Frontier::ApplySolidArcOutlinerVisibility(Host, Rows, Bindings, Count);
     Frontier::SceneFigure* Box = Host.Document().Find("ProofBox");
-    if (Box == nullptr || !Box->Hidden) return 7;
-    std::printf("[SolidArc] outliner proof mapped %u rows; body visibility writes back\n", Count);
+    if (Box == nullptr || !Box->Hidden) return 9;
+    std::printf("[SolidArc] outliner proof mapped %u rows; CAD folders and inspector sheet write back\n", Count);
     return 0;
 }
 PROOF

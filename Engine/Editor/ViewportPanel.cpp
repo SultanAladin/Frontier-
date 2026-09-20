@@ -560,8 +560,168 @@ void ViewportPanel::StepOnce() noexcept
 //                                                         HEADER BAR
 //------------------------------------------------------------------------------------------------------------------------
 
+void ViewportPanel::RecordSolidArcBar() noexcept
+{
+    const float RowWidth = ImGui::GetContentRegionAvail().x;
+    ImGui::Dummy(ImVec2(RowWidth, 44.0f));
+    const ImVec2 Cursor = ImGui::GetItemRectMin();
+
+    ImDrawList* Draw  = ImGui::GetWindowDrawList();
+    ImFont*     Ui    = Controls_->QueryUi() != nullptr ? Controls_->QueryUi() : ImGui::GetFont();
+    ImFont*     Small = Controls_->QuerySmall() != nullptr ? Controls_->QuerySmall() : ImGui::GetFont();
+
+    const ImVec2 TileMin(Cursor.x, Cursor.y + 8.0f);
+    const ImVec2 TileMax(Cursor.x + 62.0f, Cursor.y + 36.0f);
+    Draw->AddRectFilled(TileMin, TileMax, IM_COL32(10, 11, 13, 255), 14.0f);
+    Draw->AddRect(TileMin, TileMax, kStroke, 14.0f);
+    ImGui::PushFont(Ui);
+    const ImVec2 Brand = Ui->CalcTextSizeA(Ui->LegacySize, FLT_MAX, 0.0f, "SolidArc");
+    Draw->AddText(ImVec2(TileMin.x + 12.0f, TileMin.y + (28.0f - Brand.y) * 0.5f), IM_COL32(79, 216, 224, 255), "SolidArc");
+    ImGui::PopFont();
+
+    if (RowWidth < 720.0f)
+        return;
+
+    const float EndX = Cursor.x + RowWidth - 8.0f;
+    float X = Cursor.x + 72.0f;
+    const float Y = Cursor.y + 9.0f;
+
+    auto TextWidth = [Small](const char* Text) noexcept -> float
+    {
+        return Small->CalcTextSizeA(Small->LegacySize, FLT_MAX, 0.0f, Text).x;
+    };
+
+    auto Chip = [&](const char* Id, const char* Label, bool On, float Width = 0.0f) noexcept -> bool
+    {
+        if (Width <= 0.0f)
+            Width = TextWidth(Label) + 22.0f;
+        if (X + Width > EndX)
+            return false;
+        ImGui::SetCursorScreenPos(ImVec2(X, Y + 2.0f));
+        ImGui::InvisibleButton(Id, ImVec2(Width, 24.0f));
+        const bool Hot = ImGui::IsItemHovered();
+        const bool Clicked = Hot && ImGui::IsMouseClicked(0);
+        const ImU32 Fill = On ? IM_COL32(255, 255, 255, 36) : (Hot ? IM_COL32(255, 255, 255, 22) : IM_COL32(0, 0, 0, 90));
+        const ImU32 Edge = On ? IM_COL32(255, 255, 255, 36) : kStroke;
+        Draw->AddRectFilled(ImVec2(X, Y + 2.0f), ImVec2(X + Width, Y + 26.0f), Fill, 12.0f);
+        Draw->AddRect(ImVec2(X, Y + 2.0f), ImVec2(X + Width, Y + 26.0f), Edge, 12.0f);
+        ImGui::PushFont(Small);
+        const ImVec2 T = Small->CalcTextSizeA(Small->LegacySize, FLT_MAX, 0.0f, Label);
+        Draw->AddText(ImVec2(X + (Width - T.x) * 0.5f, Y + 2.0f + (24.0f - T.y) * 0.5f), On ? kText : kDim, Label);
+        ImGui::PopFont();
+        X += Width + 4.0f;
+        return Clicked;
+    };
+
+    const float ConstructW = TextWidth("Construct") + 34.0f;
+    if (X + ConstructW <= EndX)
+    {
+        ImGui::SetCursorScreenPos(ImVec2(X, Y + 2.0f));
+        ImGui::InvisibleButton("##solidarc_construct", ImVec2(ConstructW, 24.0f));
+        const bool Hot = ImGui::IsItemHovered();
+        Draw->AddRectFilled(ImVec2(X, Y + 2.0f), ImVec2(X + ConstructW, Y + 26.0f),
+            Hot ? IM_COL32(79, 216, 224, 36) : IM_COL32(0, 0, 0, 90), 12.0f);
+        Draw->AddRect(ImVec2(X, Y + 2.0f), ImVec2(X + ConstructW, Y + 26.0f),
+            Hot ? IM_COL32(79, 216, 224, 94) : kStroke, 12.0f);
+        Draw->AddLine(ImVec2(X + 12.0f, Y + 14.0f), ImVec2(X + 22.0f, Y + 14.0f), IM_COL32(79, 216, 224, 255), 1.6f);
+        Draw->AddLine(ImVec2(X + 17.0f, Y + 9.0f), ImVec2(X + 17.0f, Y + 19.0f), IM_COL32(79, 216, 224, 255), 1.6f);
+        ImGui::PushFont(Small);
+        Draw->AddText(ImVec2(X + 28.0f, Y + 2.0f + (24.0f - Small->LegacySize) * 0.5f), kText, "Construct");
+        ImGui::PopFont();
+        X += ConstructW + 8.0f;
+    }
+
+    struct ModeChip { const char* Label; uint32_t Bit; };
+    const ModeChip Modes[] = { { "Body 1", 1u }, { "Face 2", 2u }, { "Edge 3", 4u }, { "Vertex 4", 8u } };
+    for (uint32_t I = 0u; I < 4u; ++I)
+    {
+        char Id[32] = {};
+        std::snprintf(Id, sizeof(Id), "##solidarc_sel_%u", I);
+        if (Chip(Id, Modes[I].Label, (SolidArcSelectMask_ & Modes[I].Bit) != 0u))
+        {
+            if (ImGui::GetIO().KeyShift)
+            {
+                SolidArcSelectMask_ ^= Modes[I].Bit;
+                if (SolidArcSelectMask_ == 0u)
+                    SolidArcSelectMask_ = Modes[I].Bit;
+            }
+            else
+            {
+                SolidArcSelectMask_ = Modes[I].Bit;
+            }
+        }
+    }
+
+    if (X + 72.0f <= EndX)
+    {
+        ImGui::PushFont(Small);
+        Draw->AddText(ImVec2(X + 6.0f, Y + 8.0f), kFaint, "⇧ combine");
+        ImGui::PopFont();
+        X += 78.0f;
+    }
+
+    const char* Shading[] = { "Wire", "Flat", "Plastic", "Matcap" };
+    for (uint32_t I = 0u; I < 4u; ++I)
+    {
+        char Id[32] = {};
+        std::snprintf(Id, sizeof(Id), "##solidarc_shade_%u", I);
+        if (Chip(Id, Shading[I], SolidArcShade_ == I))
+            SolidArcShade_ = I;
+    }
+    X += 4.0f;
+
+    const char* Gizmo[] = { "Move G", "Rotate ⇧R", "Scale S" };
+    for (uint32_t I = 0u; I < 3u; ++I)
+    {
+        char Id[32] = {};
+        std::snprintf(Id, sizeof(Id), "##solidarc_gizmo_%u", I);
+        if (Chip(Id, Gizmo[I], SolidArcGizmo_ == I))
+            SolidArcGizmo_ = I;
+    }
+    X += 4.0f;
+
+    const char* Views[] = { "Top 7", "Front 1", "Right 3", "Iso", "Ortho 5" };
+    for (uint32_t I = 0u; I < 5u; ++I)
+    {
+        char Id[32] = {};
+        std::snprintf(Id, sizeof(Id), "##solidarc_view_%u", I);
+        const bool ViewOn = (I == 4u) ? Orbit_.Ortho : (SolidArcView_ == I);
+        if (Chip(Id, Views[I], ViewOn))
+        {
+            SolidArcView_ = I;
+            if (I == 0u)
+            {
+                Orbit_.Yaw = kSnaps[5].Yaw; Orbit_.Pitch = kSnaps[5].Pitch; Orbit_.ViewPoint = 5u;
+            }
+            else if (I == 1u)
+            {
+                Orbit_.Yaw = kSnaps[1].Yaw; Orbit_.Pitch = kSnaps[1].Pitch; Orbit_.ViewPoint = 1u;
+            }
+            else if (I == 2u)
+            {
+                Orbit_.Yaw = kSnaps[3].Yaw; Orbit_.Pitch = kSnaps[3].Pitch; Orbit_.ViewPoint = 3u;
+            }
+            else if (I == 3u)
+            {
+                Orbit_.Yaw = 0.7853982f; Orbit_.Pitch = 0.5235988f; Orbit_.ViewPoint = 0u;
+            }
+            else
+            {
+                Orbit_.Ortho = !Orbit_.Ortho;
+            }
+            ++Orbit_.Revision;
+        }
+    }
+}
+
 void ViewportPanel::RecordBar() noexcept
 {
+    if (Chrome_ == ViewportPanelChrome::SolidArcCad)
+    {
+        RecordSolidArcBar();
+        return;
+    }
+
     const float RowWidth = ImGui::GetContentRegionAvail().x;
     ImGui::Dummy(ImVec2(RowWidth, 44.0f));
     const ImVec2 Cursor = ImGui::GetItemRectMin();

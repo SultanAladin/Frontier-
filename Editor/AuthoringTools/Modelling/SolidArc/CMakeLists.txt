@@ -86,6 +86,7 @@ if(EXISTS "${SOLIDARC_IMGUI_ROOT}/imgui.h")
         "${FRONTIER_REPO_ROOT}/Engine/Editor/ControlPanel.cpp"
         "${FRONTIER_REPO_ROOT}/Engine/Editor/OutlinerPanel.cpp"
         "${FRONTIER_REPO_ROOT}/Engine/Editor/ViewportPanel.cpp"
+        "${FRONTIER_REPO_ROOT}/Engine/Editor/InspectorPanel.cpp"
     )
     target_link_libraries(SolidArcEditorUi PUBLIC SolidArcEditorModel)
     target_include_directories(SolidArcEditorUi PUBLIC

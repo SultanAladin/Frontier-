@@ -95,7 +95,7 @@ void InspectorPanel::AssignReadout(const EditorReadout* Readout) noexcept
 void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, EditorSheet* Sheet) noexcept
 {
     IM_ASSERT(Controls_ != nullptr);
-    if (!ImGui::Begin("Inspector", TabOpen_, ImGuiWindowFlags_NoScrollbar))
+    if (!ImGui::Begin(WindowTitle_, TabOpen_, ImGuiWindowFlags_NoScrollbar))
     {
         ImGui::End();
         return;

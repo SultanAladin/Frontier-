@@ -19,6 +19,14 @@ class ControlPanel;
 struct EditorInstance;
 struct EditorReadout;
 
+// The shared viewport panel can wear the game editor chrome or the SolidArc CAD chrome. The framebuffer body
+// stays common; only the top tool strip changes.
+enum class ViewportPanelChrome : uint32_t
+{
+    FrontierGame = 0u,
+    SolidArcCad,
+};
+
 // The viewport's orbit: yaw and pitch around a target at a distance, the projection in use, and which
 //    compass snap posed it (home reads free). The harness seats home from its own camera; the views menu,
 //    the gizmo and the wheel rewrite the figures and bump Revision, and the harness re-poses its trace
@@ -43,6 +51,8 @@ public:
     void AssignTabOpen(bool* Open) noexcept;
     // Lets SolidArc seat this exact panel beside Project-Zero without sharing the same ImGui title/id.
     void AssignWindowTitle(const char* Title) noexcept;
+    // Switches the top chrome between the Project-Zero/game controls and SolidArc's CAD controls.
+    void AssignChrome(ViewportPanelChrome Chrome) noexcept { Chrome_ = Chrome; }
 
     // Seats the scene view: RGBA32 top-down rows the view draws under its orb. The headless harness seats a CPU
     //    trace here; the engine build seats its ReSTIR target through AssignViewTexture instead.
@@ -68,6 +78,7 @@ public:
 
 private:
     void RecordBar() noexcept;
+    void RecordSolidArcBar() noexcept;
     void RecordView() noexcept;
     void RecordCommand(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
     void RecordFooter(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
@@ -85,6 +96,7 @@ private:
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;
     const char*          WindowTitle_ = "Viewport";
+    ViewportPanelChrome  Chrome_ = ViewportPanelChrome::FrontierGame;
 
     const unsigned char* ViewRgba_    = nullptr;   // CPU rows; the seated texture id aliases them headless
     ImTextureID          ViewTexture_ = static_cast<ImTextureID>(0);
@@ -101,6 +113,10 @@ private:
     bool     MarkersOn_ = true;
     ViewportOrbit Orbit_;   // the views menu, the gizmo and the wheel pose through this
     ViewportOrbit Home_    = {};   // the seated home; the projection rows restore it
+    uint32_t SolidArcSelectMask_ = 1u;   // Body, Face, Edge, Vertex bits: HTML top-panel parity
+    uint32_t SolidArcShade_      = 3u;   // Wire, Flat, Plastic, Matcap
+    uint32_t SolidArcGizmo_      = 0u;   // Move, Rotate, Scale
+    uint32_t SolidArcView_       = 3u;   // Top, Front, Right, Iso, Ortho
     bool     DockLeft_  = true;
     bool     DockRight_ = true;
 

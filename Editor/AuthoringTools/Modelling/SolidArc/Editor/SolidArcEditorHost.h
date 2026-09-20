@@ -8,6 +8,7 @@
 
 #include "SolidArcOutlinerAdapter.h"
 #include "../../../../../Engine/Editor/ControlPanel.h"
+#include "../../../../../Engine/Editor/InspectorPanel.h"
 #include "../../../../../Engine/Editor/OutlinerPanel.h"
 #include "../../../../../Engine/Editor/ViewportPanel.h"
 
@@ -33,17 +34,21 @@ private:
     ControlPanel Controls_;
     OutlinerPanel Outliner_;
     ViewportPanel Viewport_;
+    InspectorPanel Inspector_;
 
     bool OutlinerTabOpen_ = true;
     bool ViewportTabOpen_ = true;
+    bool InspectorTabOpen_ = true;
     ImGuiID LeftColumn_   = 0u;
     ImGuiID CentreColumn_ = 0u;
+    ImGuiID RightColumn_  = 0u;
     bool LayoutSeated_    = false;
 
     EditorInstance Rows_[kMaxEditorInstances] = {};
     SolidArcOutlinerBinding Bindings_[kMaxEditorInstances] = {};
     uint32_t RowCount_ = 0u;
     EditorReadout Readout_ = {};
+    EditorSheet PickedSheet_ = {};
     RasterImage ViewImage_ = {};
 };
 
