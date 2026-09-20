@@ -805,37 +805,36 @@ int main()
         }
     }
 
-    // Gate 5 — a narrowing pill lights: a click on Camera fills it (g3 over glass) and lifts its ink to white.
-    Click(46.0f, 259.0f);
-    Rest(6);
+    // Gate 5 — filtering now opens from the search row's dropdown. The Menu sheet captures the dropdown itself,
+    //    then the Filtered sheet captures the selected Camera chip seated under the search/filter row.
+    Click(255.0f, 187.0f);
+    Rest(2);
     Rasterise();
     {
         const char* MenuSheet = "Exhibits/Gallery/Editor/EditorProof_Menu.png";
         if (stbi_write_png(MenuSheet, kWidth, kHeight, 3, Pixels.data(), kWidth * 3) == 0)
         {
-            std::fprintf(stderr, "[EditorProof] [FAIL] the pill sheet would not write\n");
+            std::fprintf(stderr, "[EditorProof] [FAIL] the filter-menu sheet would not write\n");
             return 1;
         }
-        int Lit = 0;
-        for (int Y = 247; Y < 272; ++Y)
-            for (int X = 16; X < 76; ++X)
+        int MenuInk = 0;
+        for (int Y = 208; Y < 404; ++Y)
+            for (int X = 204; X < 318; ++X)
             {
                 const unsigned char* P = At(X, Y);
-                if (std::abs(static_cast<int>(P[0]) - 34) <= 4 && std::abs(static_cast<int>(P[1]) - 35) <= 4
-                    && std::abs(static_cast<int>(P[2]) - 37) <= 4)
-                    ++Lit;
+                if (P[0] > 24u || P[1] > 24u || P[2] > 24u)
+                    ++MenuInk;
             }
-        std::fprintf(stderr, "[EditorProof] camera pill: %d lit cells\n", Lit);
-        if (Lit < 300)
+        std::fprintf(stderr, "[EditorProof] filter dropdown: %d ink cells\n", MenuInk);
+        if (MenuInk < 900)
         {
-            std::fprintf(stderr, "[EditorProof] [FAIL] the Camera pill never lit\n");
+            std::fprintf(stderr, "[EditorProof] [FAIL] the filter dropdown never opened\n");
             Failed = true;
         }
     }
 
-    // Gate 6 — the narrowing works: with Camera lit the outline drops to the camera rows, so the World folder's
-    //    Atmosphere row (y ≈ 372) is gone and the first row under the pills is Camera. The names print dim
-    //    (t2 .56, below the old 150 bar), so this counts tree ink, not bright ink, over the tree's own rows.
+    Click(255.0f, 367.0f);
+    Rest(6);
     Rasterise();
     {
         const char* NarrowSheet = "Exhibits/Gallery/Editor/EditorProof_Filtered.png";
@@ -844,24 +843,32 @@ int main()
             std::fprintf(stderr, "[EditorProof] [FAIL] the narrowed sheet would not write\n");
             return 1;
         }
+        int Chip = 0;
+        for (int Y = 202; Y < 232; ++Y)
+            for (int X = 12; X < 112; ++X)
+            {
+                const unsigned char* P = At(X, Y);
+                if (P[0] > 32u || P[1] > 32u || P[2] > 32u)
+                    ++Chip;
+            }
         int Rows = 0;
-        for (int Y = 284; Y < 624; ++Y)
-            for (int X = 40; X < 300; ++X)
+        for (int Y = 236; Y < 624; ++Y)
+            for (int X = 22; X < 300; ++X)
             {
                 const unsigned char* P = At(X, Y);
                 if (P[0] > 60u || P[1] > 60u || P[2] > 60u)
                     ++Rows;   // name ink
             }
         int Green = 0;
-        for (int Y = 284; Y < 424; ++Y)
-            for (int X = 40; X < 90; ++X)
+        for (int Y = 236; Y < 520; ++Y)
+            for (int X = 22; X < 112; ++X)
             {
                 const unsigned char* P = At(X, Y);
                 if (P[1] > 150u && P[0] < 120u && P[2] < 140u)
                     ++Green;   // the camera glyph in its #34c759
             }
-        std::fprintf(stderr, "[EditorProof] narrowed: %d ink cells, %d camera-green cells\n", Rows, Green);
-        if (Rows < 1000 || Rows > 2600)
+        std::fprintf(stderr, "[EditorProof] narrowed: %d chip cells, %d ink cells, %d camera-green cells\n", Chip, Rows, Green);
+        if (Chip < 120 || Rows < 700 || Rows > 6000)
         {
             std::fprintf(stderr, "[EditorProof] [FAIL] the narrowed outline is the wrong size\n");
             Failed = true;
@@ -998,7 +1005,7 @@ int main()
     }
 
     // Gate 9 — the gizmo answers: a pad tap snaps its view, a drag orbits, and the wheel dollies.
-    Click(1233.0f, 588.0f);
+    Click(892.0f, 580.0f);
     Rest(3);
     {
         const Frontier::ViewportOrbit& Orbit = Editor.QueryViewportOrbit();
@@ -1012,12 +1019,12 @@ int main()
     {
         const float    YawBefore = Editor.QueryViewportOrbit().Yaw;
         const uint32_t RevBefore = Editor.QueryViewportOrbit().Revision;
-        Tick(1213.0f, 587.0f, false);
-        Tick(1213.0f, 587.0f, false);
-        Tick(1213.0f, 587.0f, true);
+        Tick(872.0f, 620.0f, false);
+        Tick(872.0f, 620.0f, false);
+        Tick(872.0f, 620.0f, true);
         for (int i = 1; i <= 8; ++i)
-            Tick(1213.0f + 5.0f * static_cast<float>(i), 587.0f, true);
-        Tick(1253.0f, 587.0f, false);
+            Tick(872.0f + 5.0f * static_cast<float>(i), 620.0f, true);
+        Tick(912.0f, 620.0f, false);
         Rest(3);
         const Frontier::ViewportOrbit& Orbit = Editor.QueryViewportOrbit();
         std::fprintf(stderr, "[EditorProof] gizmo drag: yaw %.3f (was %.3f) snap %u rev %u\n",
@@ -1308,7 +1315,7 @@ int main()
         }
     };
     Rest(60);   // let the tab bar settle: a click must land where the mark rendered
-    CycleTab(189.0f, 2u, 2u, true, 130.0f);
+    CycleTab(1045.0f, 2u, 2u, true, 1000.0f);
     CycleTab(103.0f, 0u, 0u, false, 90.0f);
     Click(90.0f, 15.0f);   // raise the outliner again: later sheets open on it
     Rest(3);

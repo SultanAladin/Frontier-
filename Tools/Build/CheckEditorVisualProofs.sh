@@ -73,7 +73,76 @@ if ! grep -q 'TabSlant' "$ImguiRoot/imgui.h" || ! grep -q 'FRONTIER PATCH E' "$I
     exit 1
 fi
 
+TomlRoot="${TOMLPP_INCLUDE_DIR:-}"
+if [ -n "$TomlRoot" ]; then
+    echo "[EditorVisualProof] using TOMLPP_INCLUDE_DIR=$TomlRoot"
+elif [ -f ExternalPackages/tomlpp/include/toml++/toml.hpp ]; then
+    TomlRoot="ExternalPackages/tomlpp/include"
+else
+    echo "[EditorVisualProof] fetching toml++ input tree into $Work/tomlpp"
+    git clone --depth 1 -q https://github.com/marzer/tomlplusplus.git "$Work/tomlpp"
+    TomlRoot="$Work/tomlpp/include"
+fi
+if [ ! -f "$TomlRoot/toml++/toml.hpp" ]; then
+    echo "[EditorVisualProof] RED — missing toml++ at $TomlRoot"
+    exit 1
+fi
+
 mkdir -p Exhibits/Gallery/Editor
+
+GameSources=(
+    Exhibits/Workbench/Editor/EditorProof.cpp
+    Engine/Editor/EditorHost.cpp
+    Engine/Editor/ControlPanel.cpp
+    Engine/Editor/OutlinerPanel.cpp
+    Engine/Editor/ViewportPanel.cpp
+    Engine/Editor/InspectorPanel.cpp
+    Engine/Editor/ShadeTick.cpp
+    Engine/DisplayPresentation/ControlCentreHost.cpp
+    Engine/DisplayPresentation/PixelSpace.cpp
+    Engine/DisplayPresentation/MotionIntegrator.cpp
+    Engine/DisplayPresentation/ThemeStructure.cpp
+    Engine/DisplayPresentation/ControlKit.cpp
+    Engine/DisplayPresentation/AppearanceInspector.cpp
+    Engine/DisplayPresentation/ConfigurationInspector.cpp
+    Engine/DisplayPresentation/MaterialInspector.cpp
+    Engine/DisplayPresentation/DialogueHost.cpp
+    Engine/DisplayPresentation/FidelityClassifier.cpp
+    Engine/DisplayPresentation/VectorCodec.cpp
+    Engine/DisplayPresentation/NotificationQueue.cpp
+    Engine/DisplayPresentation/TelemetryMetrics.cpp
+    Engine/DisplayPresentation/TypefaceRegistry.cpp
+    Engine/DisplayPresentation/GlyphSpace.cpp
+    Engine/DisplayPresentation/FontCodec.cpp
+    Engine/ContentInterchange/AssetResolution.cpp
+    Engine/ContentInterchange/MaterialIndex.cpp
+    Engine/DeviceExchange/InputExchange.cpp
+    Projects/Project-Zero/Source/RayTracingSolver.cpp
+    Projects/Project-Zero/Source/FlyThroughSolver.cpp
+    Engine/GeometricRaster/CameraProjection.cpp
+    Engine/DeviceExchange/OrientationClassifier.cpp
+    "$ImguiRoot/imgui.cpp"
+    "$ImguiRoot/imgui_draw.cpp"
+    "$ImguiRoot/imgui_tables.cpp"
+    "$ImguiRoot/imgui_widgets.cpp"
+)
+
+if ! "$Compiler" -std=c++20 -O2 -Wall -Wextra -Wno-unused-function -DFRONTIER_DEVELOPMENT \
+    -I"$ImguiRoot" -I. -IEngine/Editor -IEngine/DisplayPresentation -I"$TomlRoot" \
+    -IExhibits/Workbench/Editor -IExhibits/Workbench/Editor/Counterparts -pthread \
+    "${GameSources[@]}" -o "$Work/EditorProof" >/tmp/EditorProof.visual.build 2>&1; then
+    echo "[EditorVisualProof] RED — game editor proof did not compile"
+    sed 's/^/    /' /tmp/EditorProof.visual.build | head -40
+    exit 1
+fi
+
+if ! "$Work/EditorProof" >/tmp/EditorProof.visual.run 2>&1; then
+    echo "[EditorVisualProof] RED — game editor proof did not run"
+    sed 's/^/    /' /tmp/EditorProof.visual.run | head -80
+    exit 1
+fi
+sed 's/^/    /' /tmp/EditorProof.visual.run | head -30
+
 Root="Editor/AuthoringTools/Modelling/SolidArc"
 
 Sources=(
