@@ -62,6 +62,7 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include <future>
 #include <string>
 #include <cstdio>
 #include <cstring>
@@ -239,6 +240,15 @@ int main(int argc, char** argv)
     //    block; kNoMoonSlot until filled.
     uint32_t MoonSlots[Frontier::kMoonAtlasCount];
     for (uint32_t M = 0u; M < Frontier::kMoonAtlasCount; ++M) MoonSlots[M] = 0xFFFFFFFFu;
+
+    struct TextureDecodeAsyncResult
+    {
+        uint32_t DecodeFailureCount = 0u;
+        uint32_t DeepestLevelCount = 1u;
+        std::vector<std::string> Report;
+    };
+    std::future<TextureDecodeAsyncResult> TextureDecodeFuture;
+    bool TextureDecodeStarted = false;
     {
         FRONTIER_PROBE_PHASE_BEGIN("SceneDecode");
         Frontier::SceneDecodeConfiguration Decode;
@@ -272,19 +282,26 @@ int main(int argc, char** argv)
                       (size_t)Level.QueryMaterials().QueryCount(), Level.QueryLuminaires().size(), Lo.x, Lo.y, Lo.z, Hi.x, Hi.y, Hi.z);
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Scene", Line);
         FRONTIER_PROBE_PHASE_END("SceneDecode");
+        const Frontier::MaterialIndexMetrics& M = Level.QueryMaterials().QueryMetrics();
+        std::snprintf(Line, sizeof(Line), "Materials: %u descriptors -> %u records, %u slabs (limit %u, %u folded), %zu placements, %zu cameras, %zu punctual lights",
+                      M.DescriptorCount, M.DescriptorCount, M.SlabCount, M.SlabLimit, M.FoldedCount, Level.QueryPlacements().size(), Level.QueryCameras().size(), Level.QueryPunctualLuminaires().size());
+        Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Materials", Line);
+
+        // Texture decode is independent of the panel-light proxy, BVH build and Vulkan bring-up once the scene paths
+        //    (including the moon atlas entries) are registered. Kick it to a worker and join only before the first
+        //    scene upload needs the decoded mip payloads.
+        const uint32_t TextureEdgeLimit = Configuration.Query().Backend.TextureEdgeLimit;
+        TextureDecodeFuture = std::async(std::launch::async, [&Textures, TextureEdgeLimit]() -> TextureDecodeAsyncResult
         {
+            TextureDecodeAsyncResult Result;
             FRONTIER_PROBE_PHASE_BEGIN("TextureDecode");
-            const Frontier::MaterialIndexMetrics& M = Level.QueryMaterials().QueryMetrics();
-            std::vector<std::string> TextureReport;
-            (void)Textures.Decode(Configuration.Query().Backend.TextureEdgeLimit, &TextureReport);
+            Result.DecodeFailureCount = Textures.Decode(TextureEdgeLimit, &Result.Report);
             for (const Frontier::TextureDescriptor& T : Textures.QueryTextures())
-                MaxTextureLevels = std::max(MaxTextureLevels, T.LevelCount);   // R6 row 3: LOD census for the F3 popup
-            for (const std::string& L : TextureReport) Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Textures", L.c_str());
-            std::snprintf(Line, sizeof(Line), "Materials: %u descriptors -> %u records, %u slabs (limit %u, %u folded), %zu placements, %zu cameras, %zu punctual lights",
-                          M.DescriptorCount, M.DescriptorCount, M.SlabCount, M.SlabLimit, M.FoldedCount, Level.QueryPlacements().size(), Level.QueryCameras().size(), Level.QueryPunctualLuminaires().size());
-            Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Materials", Line);
+                Result.DeepestLevelCount = std::max(Result.DeepestLevelCount, T.LevelCount);   // R6 row 3: LOD census for the F3 popup
             FRONTIER_PROBE_PHASE_END("TextureDecode");
-        }
+            return Result;
+        });
+        TextureDecodeStarted = true;
     }
     const uint32_t LuminaireCount = static_cast<uint32_t>(Level.QueryLuminaires().size());
     uint32_t AlphaMaskedMaterialCount = 0u;   // R4b: > 0 switches shadow rays to the alpha-mask-aware walk
@@ -392,20 +409,19 @@ int main(int argc, char** argv)
     //     instance, so object space is world space and this is bit-for-bit what Build() produced before
     //     (Scratchpad/CheckTraversalIdentity.sh is the gate). Per-instance transforms arrive in D2/D3.
     Frontier::TraversalIndex Traversal;
+    std::future<void> TraversalBuildFuture;
+    bool TraversalBuildStarted = false;
     {
-        FRONTIER_PROBE_PHASE_BEGIN("CwbvhBuild");
         // SBVH; ~2× build time for ~10 % fewer steps. The drop level opts OUT: spatial splits cut triangles,
         //    which makes the tree unrefittable, and movable geometry is worth more here than the traversal gain.
         const bool HighQuality = !DropScene && Level.QueryTriangleCount() <= 2'000'000u;
-        Traversal.BuildBottomLevel(Level.QueryFlatTriangles(), HighQuality);
-        FRONTIER_PROBE_PHASE_END("CwbvhBuild");
-        const Frontier::TraversalMetrics& M = Traversal.QueryMetrics();
-        char Line[256];
-        std::snprintf(Line, sizeof(Line), "CWBVH: %u triangles → %u nodes, %.1f KB nodes + %.1f KB leaves (%.1f B/tri), SAH %.2f, built in %.1f ms (%s)",
-                      M.TriangleCount, M.NodeCount, M.NodeByteCount / 1024.0, M.LeafByteCount / 1024.0,
-                      double(M.NodeByteCount + M.LeafByteCount) / std::max(1u, M.TriangleCount), M.SahCost, M.BuildMilliseconds,
-                      M.HighQuality ? "spatial splits" : "binned SAH");
-        Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Traversal", Line);
+        TraversalBuildFuture = std::async(std::launch::async, [&Traversal, &Level, HighQuality]()
+        {
+            FRONTIER_PROBE_PHASE_BEGIN("CwbvhBuild");
+            Traversal.BuildBottomLevel(Level.QueryFlatTriangles(), HighQuality);
+            FRONTIER_PROBE_PHASE_END("CwbvhBuild");
+        });
+        TraversalBuildStarted = true;
     }
 
     //──────────────────────────────────────────────────────────────────────────
@@ -549,6 +565,34 @@ int main(int argc, char** argv)
         Surface.UploadShadingTables(Tables.Energy.data(), Tables.Sheen.data(), Frontier::ShadingTableSet::kResolution);
         FRONTIER_PROBE_PHASE_END("ShadingTableBake");
     }
+    if (TraversalBuildStarted && TraversalBuildFuture.valid())
+    {
+        TraversalBuildFuture.get();
+        const Frontier::TraversalMetrics& M = Traversal.QueryMetrics();
+        char Line[256];
+        std::snprintf(Line, sizeof(Line), "CWBVH: %u triangles → %u nodes, %.1f KB nodes + %.1f KB leaves (%.1f B/tri), SAH %.2f, built in %.1f ms (%s)",
+                      M.TriangleCount, M.NodeCount, M.NodeByteCount / 1024.0, M.LeafByteCount / 1024.0,
+                      double(M.NodeByteCount + M.LeafByteCount) / std::max(1u, M.TriangleCount), M.SahCost, M.BuildMilliseconds,
+                      M.HighQuality ? "spatial splits" : "binned SAH");
+        Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Traversal", Line);
+        Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Startup", "CWBVH build worker joined before scene upload.");
+    }
+
+    if (TextureDecodeStarted && TextureDecodeFuture.valid())
+    {
+        const TextureDecodeAsyncResult TextureResult = TextureDecodeFuture.get();
+        MaxTextureLevels = std::max(MaxTextureLevels, TextureResult.DeepestLevelCount);
+        for (const std::string& L : TextureResult.Report)
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Textures", L.c_str());
+        if (TextureResult.DecodeFailureCount > 0u)
+        {
+            char TextureLine[160];
+            std::snprintf(TextureLine, sizeof(TextureLine), "Texture decode substituted %u placeholder(s); continuing with fallback texture payloads.", TextureResult.DecodeFailureCount);
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Warning, "Textures", TextureLine);
+        }
+        Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Startup", "Texture decode worker joined before scene upload.");
+    }
+
     FRONTIER_PROBE_PHASE_BEGIN("SceneUpload");
     Surface.UploadScene(Level, Traversal, &Textures);
     FRONTIER_PROBE_PHASE_END("SceneUpload");

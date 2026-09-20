@@ -11,6 +11,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# ─── Editor authoring tools ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# Standalone C++ tools live outside the runtime Project-Zero source batch. SolidArc is the first modelling/CAD tool;
+# future siblings sit beside it under Editor/AuthoringTools/{TexturePainting,Baking,Terrain}.
+add_subdirectory(Editor/AuthoringTools/Modelling/SolidArc EXCLUDE_FROM_ALL)
+
 # ─── Reject Windows CMake builds — use ToolchainSequence.ps1 instead ────────────────────────────────────────────────────────────────────────
 if(WIN32 AND MSVC)
     message(FATAL_ERROR
