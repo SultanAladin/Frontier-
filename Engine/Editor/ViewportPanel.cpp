@@ -563,35 +563,27 @@ void ViewportPanel::StepOnce() noexcept
 void ViewportPanel::RecordSolidArcBar() noexcept
 {
     const float RowWidth = ImGui::GetContentRegionAvail().x;
-    ImGui::Dummy(ImVec2(RowWidth, 44.0f));
+    const bool Wrapped = RowWidth < 1120.0f;
+    const bool ThreeRows = RowWidth < 860.0f;
+    const float BarH = ThreeRows ? 112.0f : (Wrapped ? 78.0f : 44.0f);
+    ImGui::Dummy(ImVec2(RowWidth, BarH));
     const ImVec2 Cursor = ImGui::GetItemRectMin();
 
     ImDrawList* Draw  = ImGui::GetWindowDrawList();
     ImFont*     Ui    = Controls_->QueryUi() != nullptr ? Controls_->QueryUi() : ImGui::GetFont();
     ImFont*     Small = Controls_->QuerySmall() != nullptr ? Controls_->QuerySmall() : ImGui::GetFont();
 
-    const ImVec2 TileMin(Cursor.x, Cursor.y + 8.0f);
-    const ImVec2 TileMax(Cursor.x + 62.0f, Cursor.y + 36.0f);
-    Draw->AddRectFilled(TileMin, TileMax, IM_COL32(10, 11, 13, 255), 14.0f);
-    Draw->AddRect(TileMin, TileMax, kStroke, 14.0f);
-    ImGui::PushFont(Ui);
-    const ImVec2 Brand = Ui->CalcTextSizeA(Ui->LegacySize, FLT_MAX, 0.0f, "SolidArc");
-    Draw->AddText(ImVec2(TileMin.x + 12.0f, TileMin.y + (28.0f - Brand.y) * 0.5f), IM_COL32(79, 216, 224, 255), "SolidArc");
-    ImGui::PopFont();
-
-    if (RowWidth < 720.0f)
-        return;
-
     const float EndX = Cursor.x + RowWidth - 8.0f;
-    float X = Cursor.x + 72.0f;
-    const float Y = Cursor.y + 9.0f;
+    const float Row1 = Cursor.y + 8.0f;
+    const float Row2 = ThreeRows || Wrapped ? Cursor.y + 42.0f : Row1;
+    const float Row3 = ThreeRows ? Cursor.y + 76.0f : Row2;
 
     auto TextWidth = [Small](const char* Text) noexcept -> float
     {
         return Small->CalcTextSizeA(Small->LegacySize, FLT_MAX, 0.0f, Text).x;
     };
 
-    auto Chip = [&](const char* Id, const char* Label, bool On, float Width = 0.0f) noexcept -> bool
+    auto Chip = [&](const char* Id, const char* Label, bool On, float& X, float Y, float Width = 0.0f) noexcept -> bool
     {
         if (Width <= 0.0f)
             Width = TextWidth(Label) + 22.0f;
@@ -613,20 +605,29 @@ void ViewportPanel::RecordSolidArcBar() noexcept
         return Clicked;
     };
 
+    float X = Cursor.x + 10.0f;
+    const float BrandW = Wrapped ? 72.0f : 78.0f;
+    Draw->AddRectFilled(ImVec2(X, Row1 + 2.0f), ImVec2(X + BrandW, Row1 + 26.0f), IM_COL32(10, 11, 13, 255), 12.0f);
+    Draw->AddRect(ImVec2(X, Row1 + 2.0f), ImVec2(X + BrandW, Row1 + 26.0f), kStroke, 12.0f);
+    ImGui::PushFont(Ui);
+    Draw->AddText(ImVec2(X + 11.0f, Row1 + 2.0f + (24.0f - Ui->LegacySize) * 0.5f), IM_COL32(79, 216, 224, 255), "SolidArc");
+    ImGui::PopFont();
+    X += BrandW + 8.0f;
+
     const float ConstructW = TextWidth("Construct") + 34.0f;
     if (X + ConstructW <= EndX)
     {
-        ImGui::SetCursorScreenPos(ImVec2(X, Y + 2.0f));
+        ImGui::SetCursorScreenPos(ImVec2(X, Row1 + 2.0f));
         ImGui::InvisibleButton("##solidarc_construct", ImVec2(ConstructW, 24.0f));
         const bool Hot = ImGui::IsItemHovered();
-        Draw->AddRectFilled(ImVec2(X, Y + 2.0f), ImVec2(X + ConstructW, Y + 26.0f),
+        Draw->AddRectFilled(ImVec2(X, Row1 + 2.0f), ImVec2(X + ConstructW, Row1 + 26.0f),
             Hot ? IM_COL32(79, 216, 224, 36) : IM_COL32(0, 0, 0, 90), 12.0f);
-        Draw->AddRect(ImVec2(X, Y + 2.0f), ImVec2(X + ConstructW, Y + 26.0f),
+        Draw->AddRect(ImVec2(X, Row1 + 2.0f), ImVec2(X + ConstructW, Row1 + 26.0f),
             Hot ? IM_COL32(79, 216, 224, 94) : kStroke, 12.0f);
-        Draw->AddLine(ImVec2(X + 12.0f, Y + 14.0f), ImVec2(X + 22.0f, Y + 14.0f), IM_COL32(79, 216, 224, 255), 1.6f);
-        Draw->AddLine(ImVec2(X + 17.0f, Y + 9.0f), ImVec2(X + 17.0f, Y + 19.0f), IM_COL32(79, 216, 224, 255), 1.6f);
+        Draw->AddLine(ImVec2(X + 12.0f, Row1 + 14.0f), ImVec2(X + 22.0f, Row1 + 14.0f), IM_COL32(79, 216, 224, 255), 1.6f);
+        Draw->AddLine(ImVec2(X + 17.0f, Row1 + 9.0f), ImVec2(X + 17.0f, Row1 + 19.0f), IM_COL32(79, 216, 224, 255), 1.6f);
         ImGui::PushFont(Small);
-        Draw->AddText(ImVec2(X + 28.0f, Y + 2.0f + (24.0f - Small->LegacySize) * 0.5f), kText, "Construct");
+        Draw->AddText(ImVec2(X + 28.0f, Row1 + 2.0f + (24.0f - Small->LegacySize) * 0.5f), kText, "Construct");
         ImGui::PopFont();
         X += ConstructW + 8.0f;
     }
@@ -637,7 +638,7 @@ void ViewportPanel::RecordSolidArcBar() noexcept
     {
         char Id[32] = {};
         std::snprintf(Id, sizeof(Id), "##solidarc_sel_%u", I);
-        if (Chip(Id, Modes[I].Label, (SolidArcSelectMask_ & Modes[I].Bit) != 0u))
+        if (Chip(Id, Modes[I].Label, (SolidArcSelectMask_ & Modes[I].Bit) != 0u, X, Row1))
         {
             if (ImGui::GetIO().KeyShift)
             {
@@ -655,17 +656,17 @@ void ViewportPanel::RecordSolidArcBar() noexcept
     if (X + 72.0f <= EndX)
     {
         ImGui::PushFont(Small);
-        Draw->AddText(ImVec2(X + 6.0f, Y + 8.0f), kFaint, "⇧ combine");
+        Draw->AddText(ImVec2(X + 6.0f, Row1 + 8.0f), kFaint, "⇧ combine");
         ImGui::PopFont();
-        X += 78.0f;
     }
 
+    X = Wrapped ? Cursor.x + 10.0f : (X + 78.0f);
     const char* Shading[] = { "Wire", "Flat", "Plastic", "Matcap" };
     for (uint32_t I = 0u; I < 4u; ++I)
     {
         char Id[32] = {};
         std::snprintf(Id, sizeof(Id), "##solidarc_shade_%u", I);
-        if (Chip(Id, Shading[I], SolidArcShade_ == I))
+        if (Chip(Id, Shading[I], SolidArcShade_ == I, X, Row2))
             SolidArcShade_ = I;
     }
     X += 4.0f;
@@ -675,18 +676,20 @@ void ViewportPanel::RecordSolidArcBar() noexcept
     {
         char Id[32] = {};
         std::snprintf(Id, sizeof(Id), "##solidarc_gizmo_%u", I);
-        if (Chip(Id, Gizmo[I], SolidArcGizmo_ == I))
+        if (Chip(Id, Gizmo[I], SolidArcGizmo_ == I, X, Row2))
             SolidArcGizmo_ = I;
     }
     X += 4.0f;
 
+    if (ThreeRows)
+        X = Cursor.x + 10.0f;
     const char* Views[] = { "Top 7", "Front 1", "Right 3", "Iso", "Ortho 5" };
     for (uint32_t I = 0u; I < 5u; ++I)
     {
         char Id[32] = {};
         std::snprintf(Id, sizeof(Id), "##solidarc_view_%u", I);
         const bool ViewOn = (I == 4u) ? Orbit_.Ortho : (SolidArcView_ == I);
-        if (Chip(Id, Views[I], ViewOn))
+        if (Chip(Id, Views[I], ViewOn, X, Row3))
         {
             SolidArcView_ = I;
             if (I == 0u)
@@ -712,6 +715,8 @@ void ViewportPanel::RecordSolidArcBar() noexcept
             ++Orbit_.Revision;
         }
     }
+
+    Draw->AddLine(ImVec2(Cursor.x, Cursor.y + BarH), ImVec2(Cursor.x + RowWidth, Cursor.y + BarH), kStroke);
 }
 
 void ViewportPanel::RecordBar() noexcept

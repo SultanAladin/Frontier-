@@ -126,17 +126,21 @@ ImguiRoot="${IMGUI_INCLUDE_DIR:-}"
 if [ -z "$ImguiRoot" ] && [ -f ExternalPackages/imgui/imgui.h ]; then ImguiRoot="ExternalPackages/imgui"; fi
 if [ -z "$ImguiRoot" ] && [ -f /tmp/imgui-docking/imgui.h ]; then ImguiRoot="/tmp/imgui-docking"; fi
 if [ -n "$ImguiRoot" ]; then
-    Compiler="${CXX:-g++}"
-    if "$Compiler" -std=c++20 -Wall -Wextra -Wpedantic -Wno-unused-function -DFRONTIER_DEVELOPMENT \
-        -I"$ImguiRoot" -I. -IEditor/AuthoringTools/Modelling/SolidArc -IEngine/Editor \
-        -fsyntax-only \
-        Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.cpp \
-        Engine/Editor/ControlPanel.cpp Engine/Editor/OutlinerPanel.cpp Engine/Editor/ViewportPanel.cpp Engine/Editor/InspectorPanel.cpp \
-        >/tmp/EditorDockingSolidArc.syntax 2>&1; then
-        Pass "SolidArc optional ImGui editor shell syntax-compiles against $ImguiRoot"
+    if ! grep -q 'TabSlant' "$ImguiRoot/imgui.h"; then
+        echo "  SKIP  optional ImGui syntax compile — $ImguiRoot is not patched with Frontier tab geometry"
     else
-        FailOne "SolidArc optional ImGui editor shell does not syntax-compile against $ImguiRoot"
-        sed 's/^/        /' /tmp/EditorDockingSolidArc.syntax | head -30
+        Compiler="${CXX:-g++}"
+        if "$Compiler" -std=c++20 -Wall -Wextra -Wpedantic -Wno-unused-function -DFRONTIER_DEVELOPMENT \
+            -I"$ImguiRoot" -I. -IEditor/AuthoringTools/Modelling/SolidArc -IEngine/Editor \
+            -fsyntax-only \
+            Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.cpp \
+            Engine/Editor/ControlPanel.cpp Engine/Editor/OutlinerPanel.cpp Engine/Editor/ViewportPanel.cpp Engine/Editor/InspectorPanel.cpp \
+            >/tmp/EditorDockingSolidArc.syntax 2>&1; then
+            Pass "SolidArc optional ImGui editor shell syntax-compiles against $ImguiRoot"
+        else
+            FailOne "SolidArc optional ImGui editor shell does not syntax-compile against $ImguiRoot"
+            sed 's/^/        /' /tmp/EditorDockingSolidArc.syntax | head -30
+        fi
     fi
 else
     echo "  SKIP  optional ImGui syntax compile — set IMGUI_INCLUDE_DIR or populate ExternalPackages/imgui"

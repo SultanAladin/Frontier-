@@ -68,8 +68,10 @@ Tools/Build/CheckSolidArc.sh
 
 It compiles and links the console target with `g++`, checks the CAD outliner/inspector adapter, verifies the `.arc` samples are present, then compile-checks every C++ verification translation unit. This is the fallback gate for sandboxes that do not have CMake installed.
 
-Visual proof boards for both editor shells are generated with:
+High-fidelity editor visual proofs are checked with:
 
 ```bash
 Tools/Build/CheckEditorVisualProofs.sh
 ```
+
+That gate uses the same headless ImGui draw-list raster path as `Exhibits/Workbench/Editor/EditorProof.cpp`; it verifies the canonical game editor proof at `Exhibits/Gallery/Editor/EditorProof_Inspector.png` and regenerates the SolidArc editor proof at `Exhibits/Gallery/Editor/EditorProof_SolidArc.png`. It does not emit SVG or simplified mockup boards.

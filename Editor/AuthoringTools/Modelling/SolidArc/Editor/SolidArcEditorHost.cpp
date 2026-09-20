@@ -31,6 +31,19 @@ SolidArcEditorHost::SolidArcEditorHost() noexcept
 void SolidArcEditorHost::ApplyTheme() noexcept
 {
     ImGuiStyle& Style = ImGui::GetStyle();
+#ifdef FRONTIER_DEVELOPMENT
+    Style.TabSlant                  = 14.0f;
+    Style.TabOverlap                = 24.0f;
+    Style.TabHeight                 = 24.0f;
+    Style.TabStripPadTop            = 4.0f;
+    Style.TabMinWidthBase           = 110.0f;
+    Style.TabMinWidthShrink         = 110.0f;
+    Style.DockingNodeHasCloseButton = false;
+    Style.TabRounding               = 0.0f;
+    Style.TabBorderSize             = 0.0f;
+    Style.TabBarBorderSize          = 0.0f;
+    Style.TabButtonRounding         = 1.0f;
+#endif
     Style.WindowPadding    = ImVec2(14.0f, 12.0f);
     Style.WindowRounding   = 8.0f;
     Style.ChildRounding    = 12.0f;
@@ -44,6 +57,9 @@ void SolidArcEditorHost::ApplyTheme() noexcept
     Colours[ImGuiCol_ChildBg]        = ImVec4(0.000f, 0.000f, 0.000f, 0.0f);
     Colours[ImGuiCol_Border]         = ImVec4(1.000f, 1.000f, 1.000f, 0.05f);
     Colours[ImGuiCol_FrameBg]        = ImVec4(0.000f, 0.000f, 0.000f, 1.0f);
+    Colours[ImGuiCol_TitleBg]        = ImVec4(0.039f, 0.039f, 0.039f, 1.0f);
+    Colours[ImGuiCol_TitleBgActive]  = ImVec4(0.039f, 0.039f, 0.039f, 1.0f);
+    Colours[ImGuiCol_TitleBgCollapsed] = ImVec4(0.039f, 0.039f, 0.039f, 1.0f);
     Colours[ImGuiCol_Button]         = ImVec4(0.133f, 0.133f, 0.133f, 1.0f);
     Colours[ImGuiCol_ButtonHovered]  = ImVec4(0.180f, 0.180f, 0.180f, 1.0f);
     Colours[ImGuiCol_Header]         = ImVec4(0.165f, 0.165f, 0.165f, 1.0f);
