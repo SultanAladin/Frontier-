@@ -501,7 +501,7 @@ EditorNarrowing NarrowingFor(const EditorInstance& Row) noexcept
     }
 }
 
-ImU32 PillTint(EditorNarrowing Narrowing) noexcept
+ImU32 DefaultPillTint(EditorNarrowing Narrowing) noexcept
 {
     switch (Narrowing)
     {
@@ -514,7 +514,7 @@ ImU32 PillTint(EditorNarrowing Narrowing) noexcept
     }
 }
 
-const char* PillLabel(EditorNarrowing Narrowing) noexcept
+const char* DefaultPillLabel(EditorNarrowing Narrowing) noexcept
 {
     switch (Narrowing)
     {
@@ -525,6 +525,33 @@ const char* PillLabel(EditorNarrowing Narrowing) noexcept
     case EditorNarrowing::Camera:   return "Camera";
     default:                        return "";
     }
+}
+
+constexpr uint32_t kDefaultFilterCount = static_cast<uint32_t>(EditorNarrowing::Count) - 1u;
+
+uint32_t NarrowingMask(EditorNarrowing Narrowing) noexcept
+{
+    const uint32_t Slot = static_cast<uint32_t>(Narrowing);
+    if (Slot == 0u || Slot >= 32u)
+        return 0u;
+    return 1u << Slot;
+}
+
+EditorNarrowing DefaultFilterNarrowing(uint32_t Slot) noexcept
+{
+    return Slot < kDefaultFilterCount ? static_cast<EditorNarrowing>(Slot + 1u) : EditorNarrowing::Auto;
+}
+
+uint32_t DefaultFilterMask(uint32_t Slot) noexcept
+{
+    return NarrowingMask(DefaultFilterNarrowing(Slot));
+}
+
+uint32_t RowFilterMask(const EditorInstance& Row) noexcept
+{
+    if (Row.FilterMask != 0u)
+        return Row.FilterMask;
+    return NarrowingMask(NarrowingFor(Row));
 }
 
 // The row after Index's run: the next row at Index's depth or shallower.
@@ -631,6 +658,91 @@ void OutlinerPanel::AssignWindowTitle(const char* Title) noexcept
 void OutlinerPanel::AssignReadout(const EditorReadout* Readout) noexcept
 {
     Readout_ = Readout;
+}
+
+void OutlinerPanel::ClearFilterCatalog() noexcept
+{
+    FilterCount_ = 0u;
+    for (uint32_t Slot = 0u; Slot < kMaxOutlinerFilters; ++Slot)
+    {
+        FilterOn_[Slot] = false;
+        FilterLabels_[Slot] = nullptr;
+        FilterTints_[Slot] = 0u;
+        FilterMasks_[Slot] = 0u;
+    }
+}
+
+void OutlinerPanel::AssignFilter(uint32_t Slot, const char* Label, uint32_t Tint, uint32_t Mask) noexcept
+{
+    if (Slot >= kMaxOutlinerFilters || Label == nullptr || Label[0] == '\0' || Mask == 0u)
+        return;
+    FilterLabels_[Slot] = Label;
+    FilterTints_[Slot]  = Tint;
+    FilterMasks_[Slot]  = Mask;
+    if (FilterCount_ <= Slot)
+        FilterCount_ = Slot + 1u;
+}
+
+void OutlinerPanel::AssignFilterCatalog(const OutlinerFilterEntry* Entries, uint32_t Count) noexcept
+{
+    ClearFilterCatalog();
+    if (Entries == nullptr)
+        return;
+    const uint32_t Clamped = Count < kMaxOutlinerFilters ? Count : kMaxOutlinerFilters;
+    for (uint32_t Slot = 0u; Slot < Clamped; ++Slot)
+        AssignFilter(Slot, Entries[Slot].Label, Entries[Slot].Tint, Entries[Slot].Mask);
+}
+
+void OutlinerPanel::AssignNarrowingSlot(EditorNarrowing Slot, const char* Label, uint32_t Tint) noexcept
+{
+    const uint32_t Index = static_cast<uint32_t>(Slot);
+    if (Index == 0u || Index >= static_cast<uint32_t>(EditorNarrowing::Count))
+        return;
+    if (FilterCount_ == 0u)
+    {
+        for (uint32_t DefaultSlot = 0u; DefaultSlot < kDefaultFilterCount; ++DefaultSlot)
+        {
+            const EditorNarrowing Narrowing = DefaultFilterNarrowing(DefaultSlot);
+            AssignFilter(DefaultSlot, DefaultPillLabel(Narrowing), DefaultPillTint(Narrowing), NarrowingMask(Narrowing));
+        }
+    }
+    AssignFilter(Index - 1u, Label, Tint, NarrowingMask(Slot));
+}
+
+uint32_t OutlinerPanel::QueryFilterCount() const noexcept
+{
+    return FilterCount_ != 0u ? FilterCount_ : kDefaultFilterCount;
+}
+
+const char* OutlinerPanel::QueryFilterLabel(uint32_t Slot) const noexcept
+{
+    if (FilterCount_ != 0u)
+        return (Slot < FilterCount_ && FilterLabels_[Slot] != nullptr) ? FilterLabels_[Slot] : "";
+    return DefaultPillLabel(DefaultFilterNarrowing(Slot));
+}
+
+uint32_t OutlinerPanel::QueryFilterTint(uint32_t Slot) const noexcept
+{
+    if (FilterCount_ != 0u)
+        return (Slot < FilterCount_ && FilterTints_[Slot] != 0u) ? FilterTints_[Slot] : kT2;
+    return DefaultPillTint(DefaultFilterNarrowing(Slot));
+}
+
+uint32_t OutlinerPanel::QueryFilterMask(uint32_t Slot) const noexcept
+{
+    if (FilterCount_ != 0u)
+        return (Slot < FilterCount_ && FilterMasks_[Slot] != 0u) ? FilterMasks_[Slot] : 0u;
+    return DefaultFilterMask(Slot);
+}
+
+uint32_t OutlinerPanel::QuerySelectedFilterMask() const noexcept
+{
+    uint32_t Mask = 0u;
+    const uint32_t Count = QueryFilterCount();
+    for (uint32_t Slot = 0u; Slot < Count && Slot < kMaxOutlinerFilters; ++Slot)
+        if (FilterOn_[Slot])
+            Mask |= QueryFilterMask(Slot);
+    return Mask;
 }
 
 uint32_t OutlinerPanel::QueryPicked() const noexcept
@@ -1071,10 +1183,11 @@ void OutlinerPanel::RecordSearch() noexcept
     ImDrawList* Draw = ImGui::GetWindowDrawList();
     ImFont*     Ui   = Controls_->QueryUi();
 
+    const uint32_t FilterCount = QueryFilterCount();
     uint32_t Lit = 0u;
-    for (uint32_t n = 1u; n < static_cast<uint32_t>(EditorNarrowing::Count); ++n)
+    for (uint32_t Slot = 0u; Slot < FilterCount && Slot < kMaxOutlinerFilters; ++Slot)
     {
-        if (NarrowOn_[n])
+        if (FilterOn_[Slot])
         {
             ++Lit;
         }
@@ -1165,29 +1278,28 @@ void OutlinerPanel::RecordSearch() noexcept
     if (ImGui::BeginPopup("##narrow_menu_popup", ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
     {
         ImDrawList* PopDraw = ImGui::GetWindowDrawList();
-        for (uint32_t n = 1u; n < static_cast<uint32_t>(EditorNarrowing::Count); ++n)
+        for (uint32_t Slot = 0u; Slot < FilterCount && Slot < kMaxOutlinerFilters; ++Slot)
         {
-            const EditorNarrowing Narrowing = static_cast<EditorNarrowing>(n);
-            const char* Label = PillLabel(Narrowing);
+            const char* Label = QueryFilterLabel(Slot);
             const ImVec2 P = ImGui::GetCursorScreenPos();
             const float W = ImGui::GetContentRegionAvail().x;
-            ImGui::PushID(static_cast<int>(n));
+            ImGui::PushID(static_cast<int>(Slot));
             ImGui::InvisibleButton("##choice", ImVec2(W, 28.0f));
             const bool RowHot = ImGui::IsItemHovered();
             if (ImGui::IsItemClicked())
             {
-                NarrowOn_[n] = !NarrowOn_[n];
+                FilterOn_[Slot] = !FilterOn_[Slot];
                 NarrowMenuOpen_ = false;
                 ImGui::CloseCurrentPopup();
             }
             ImGui::PopID();
-            if (RowHot || NarrowOn_[n])
+            if (RowHot || FilterOn_[Slot])
             {
                 PopDraw->AddRectFilled(P, ImVec2(P.x + W, P.y + 28.0f), RowHot ? kG3 : kG2, 14.0f);
             }
-            PopDraw->AddCircleFilled(ImVec2(P.x + 13.0f, P.y + 14.0f), 3.0f, PillTint(Narrowing));
-            DrawSized(PopDraw, Ui, 11.0f, P.x + 26.0f, P.y + 14.0f, NarrowOn_[n] ? kText : kT2, Label);
-            if (NarrowOn_[n])
+            PopDraw->AddCircleFilled(ImVec2(P.x + 13.0f, P.y + 14.0f), 3.0f, QueryFilterTint(Slot));
+            DrawSized(PopDraw, Ui, 11.0f, P.x + 26.0f, P.y + 14.0f, FilterOn_[Slot] ? kText : kT2, Label);
+            if (FilterOn_[Slot])
             {
                 DrawIcon(PopDraw, OutlinerIconCategory::Check, ImVec2(P.x + W - 22.0f, P.y + 7.0f), 14.0f, kGreen);
             }
@@ -1218,15 +1330,15 @@ void OutlinerPanel::RecordChips() noexcept
     float Y = Start.y;
     const float Right = Start.x + RowWidth - kSidePad;
     bool Any = false;
-    for (uint32_t n = 1u; n < static_cast<uint32_t>(EditorNarrowing::Count); ++n)
+    const uint32_t FilterCount = QueryFilterCount();
+    for (uint32_t Slot = 0u; Slot < FilterCount && Slot < kMaxOutlinerFilters; ++Slot)
     {
-        if (!NarrowOn_[n])
+        if (!FilterOn_[Slot])
         {
             continue;
         }
         Any = true;
-        const EditorNarrowing Narrowing = static_cast<EditorNarrowing>(n);
-        const char* Label = PillLabel(Narrowing);
+        const char* Label = QueryFilterLabel(Slot);
         const float W = 10.0f + 6.0f + 6.0f + MeasureSized(Ui, 11.0f, Label) + 20.0f;
         if (X + W > Right && X > Start.x + kSidePad)
         {
@@ -1236,18 +1348,18 @@ void OutlinerPanel::RecordChips() noexcept
         const ImVec2 Min(X, Y);
         const ImVec2 Max(X + W, Y + 26.0f);
         ImGui::SetCursorScreenPos(Min);
-        ImGui::PushID(static_cast<int>(n));
+        ImGui::PushID(static_cast<int>(Slot));
         ImGui::InvisibleButton("##pill", ImVec2(W, 26.0f));
         if (ImGui::IsItemClicked())
         {
-            NarrowOn_[n] = false;
+            FilterOn_[Slot] = false;
         }
         const bool Hot = ImGui::IsItemHovered();
         ImGui::PopID();
         Draw->AddRectFilled(Min, Max, Hot ? kG3 : kG2, 13.0f);
         Draw->AddRect(Min, Max, Hot ? kStroke2 : kStroke, 13.0f, 0, 1.0f);
         const float Cy = Y + 13.0f;
-        Draw->AddCircleFilled(ImVec2(X + 10.0f + 3.0f, Cy), 3.0f, PillTint(Narrowing));
+        Draw->AddCircleFilled(ImVec2(X + 10.0f + 3.0f, Cy), 3.0f, QueryFilterTint(Slot));
         DrawSized(Draw, Ui, 11.0f, X + 10.0f + 6.0f + 6.0f, Cy, kText, Label);
         Draw->AddLine(ImVec2(Max.x - 13.0f, Cy - 4.0f), ImVec2(Max.x - 7.0f, Cy + 2.0f), Hot ? kText : kT3, 1.2f);
         Draw->AddLine(ImVec2(Max.x - 7.0f, Cy - 4.0f), ImVec2(Max.x - 13.0f, Cy + 2.0f), Hot ? kText : kT3, 1.2f);
@@ -1266,11 +1378,8 @@ void OutlinerPanel::RecordChips() noexcept
 uint32_t OutlinerPanel::RecordOutline(EditorInstance* Instances, uint32_t InstanceCount) noexcept
 {
     const bool Searching = QueryText_[0] != '\0';
-    bool AnyPill = false;
-    for (uint32_t n = 0u; n < static_cast<uint32_t>(EditorNarrowing::Count); ++n)
-    {
-        AnyPill = AnyPill || NarrowOn_[n];
-    }
+    const uint32_t SelectedFilterMask = QuerySelectedFilterMask();
+    const bool AnyPill = SelectedFilterMask != 0u;
 
     // Matches, then ancestors of matches. Folders match only through their rows (the page's 'world' rule).
     uint32_t Hits = 0u;
@@ -1280,8 +1389,8 @@ uint32_t OutlinerPanel::RecordOutline(EditorInstance* Instances, uint32_t Instan
         bool Match = !Searching || ContainsFolded(Row.Label, QueryText_);
         if (Match && AnyPill)
         {
-            const EditorNarrowing N = NarrowingFor(Row);
-            Match = N != EditorNarrowing::Auto && NarrowOn_[static_cast<uint32_t>(N)];
+            const uint32_t RowMask = Row.FilterMask != 0u ? Row.FilterMask : RowFilterMask(Row);
+            Match = (RowMask & SelectedFilterMask) != 0u;
         }
         if (Match && Row.Category == EditorInstanceCategory::Folder && (Searching || AnyPill))
         {

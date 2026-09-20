@@ -221,10 +221,26 @@ int main()
             RasterizeList(Drawings->CmdLists[Index], GlyphSheet, GlyphSheetWidth, GlyphSheetHeight, Pixels.data(),
                           Drawings->DisplayPos, Drawings->FramebufferScale);
     };
+    auto WriteSheet = [&](const char* Sheet, int FailureCode) -> int
+    {
+        if (stbi_write_png(Sheet, kWidth, kHeight, 3, Pixels.data(), kWidth * 3) == 0)
+        {
+            std::fprintf(stderr, "[SolidArcEditorProof] [FAIL] could not write %s\n", Sheet);
+            return FailureCode;
+        }
+        return 0;
+    };
 
     for (int I = 0; I < 12; ++I)
         Rest();
     Click(178.0f, 175.0f); // Filter dropdown in the SolidArc outliner search row.
+    for (int I = 0; I < 3; ++I)
+        Rest();
+    Rasterise();
+    const char* MenuSheet = "Exhibits/Gallery/Editor/EditorProof_SolidArc_Menu.png";
+    if (const int Write = WriteSheet(MenuSheet, 7); Write != 0)
+        return Write;
+
     Click(160.0f, 281.0f); // Bodies entry; selected filters appear as chips below the search/filter row.
     for (int I = 0; I < 4; ++I)
         Rest();
@@ -234,11 +250,8 @@ int main()
     Rasterise();
 
     const char* Sheet = "Exhibits/Gallery/Editor/EditorProof_SolidArc.png";
-    if (stbi_write_png(Sheet, kWidth, kHeight, 3, Pixels.data(), kWidth * 3) == 0)
-    {
-        std::fprintf(stderr, "[SolidArcEditorProof] [FAIL] could not write %s\n", Sheet);
-        return 7;
-    }
+    if (const int Write = WriteSheet(Sheet, 8); Write != 0)
+        return Write;
 
     int Bright = 0;
     for (size_t I = 0; I < Pixels.size(); I += 3u)
@@ -247,9 +260,9 @@ int main()
     if (Bright < 5000)
     {
         std::fprintf(stderr, "[SolidArcEditorProof] [FAIL] proof image is nearly empty\n");
-        return 8;
+        return 9;
     }
-    std::fprintf(stderr, "[SolidArcEditorProof] wrote %s with %d bright pixels\n", Sheet, Bright);
+    std::fprintf(stderr, "[SolidArcEditorProof] wrote %s and %s with %d bright pixels in the filtered sheet\n", MenuSheet, Sheet, Bright);
     ImGui::DestroyContext();
     return 0;
 }

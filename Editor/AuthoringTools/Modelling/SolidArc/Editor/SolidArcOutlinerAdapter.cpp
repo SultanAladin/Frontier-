@@ -12,12 +12,30 @@
 namespace Frontier {
 namespace {
 
+// Exact SolidArc web palette from docs/solidarc/index.html KINDS:
+// sketch/curve #4fd8e0, body #ffb454, surface #4da3ff, plane #b48cff, dim #e5d33a.
+constexpr float Channel(uint32_t V) noexcept { return static_cast<float>(V) / 255.0f; }
+constexpr float kSketchTint[3]       = { Channel( 79u), Channel(216u), Channel(224u) }; // #4fd8e0
+constexpr float kBodyTint[3]         = { Channel(255u), Channel(180u), Channel( 84u) }; // #ffb454
+constexpr float kSurfaceTint[3]      = { Channel( 77u), Channel(163u), Channel(255u) }; // #4da3ff
+constexpr float kConstructionTint[3] = { Channel(180u), Channel(140u), Channel(255u) }; // #b48cff
+constexpr float kDimensionTint[3]    = { Channel(229u), Channel(211u), Channel( 58u) }; // #e5d33a
+constexpr float kConstraintTint[3]   = { Channel(255u), Channel(180u), Channel( 84u) }; // SolidArc constraint key rows use the orange status accent
+
+void AssignTint(EditorInstance& Row, const float Tint[3]) noexcept
+{
+    Row.Tint[0] = Tint[0];
+    Row.Tint[1] = Tint[1];
+    Row.Tint[2] = Tint[2];
+}
+
 struct SolidArcBucket
 {
     enum class Kind : uint32_t { Sketches, Bodies, Surfaces, Construction, Dimensions, Constraints } BucketKind;
     const char*          Label;
     EditorGlyph          Glyph;
     EditorNarrowing      Narrowing;
+    uint32_t             FilterMask;
     float                Tint[3];
 };
 
@@ -40,6 +58,7 @@ void SeatFolder(EditorInstance& Row,
                 uint32_t KidCount,
                 EditorGlyph Glyph,
                 EditorNarrowing Narrowing,
+                uint32_t FilterMask,
                 const float Tint[3]) noexcept
 {
     CopyText(Row.Label, sizeof(Row.Label), Label);
@@ -48,6 +67,7 @@ void SeatFolder(EditorInstance& Row,
     Row.Category   = EditorInstanceCategory::Folder;
     Row.Glyph      = Glyph;
     Row.Narrowing  = Narrowing;
+    Row.FilterMask = FilterMask;
     Row.Pinned     = true;
     Row.Visible    = true;
     Row.Tint[0]    = Tint[0];
@@ -91,9 +111,49 @@ EditorGlyph FigureGlyph(FigureClassification Class) noexcept
     }
 }
 
-EditorNarrowing FigureNarrowing(FigureClassification Class) noexcept
+bool IsLineFigure(const SceneFigure& Figure) noexcept
 {
-    return Class == FigureClassification::Body ? EditorNarrowing::Bodies : EditorNarrowing::Geometry;
+    using FormT = SceneFigure::ParametricForm;
+    return Figure.Blueprint.Form == FormT::Line;
+}
+
+EditorNarrowing FigureNarrowing(const SceneFigure& Figure) noexcept
+{
+    if (Figure.Construction || Figure.Classification == FigureClassification::Empty)
+        return EditorNarrowing::Camera;   // SolidArc catalogue: Construction
+    if (Figure.Classification == FigureClassification::Body)
+        return EditorNarrowing::Bodies;   // SolidArc catalogue: Bodies
+    if (Figure.Classification == FigureClassification::Surface)
+        return EditorNarrowing::Geometry; // SolidArc catalogue: Surfaces
+    if (Figure.Classification == FigureClassification::Curve)
+        return IsLineFigure(Figure) ? EditorNarrowing::Lights : EditorNarrowing::Sky; // Lines / Profiles
+    return EditorNarrowing::Sky;
+}
+
+uint32_t FigureFilterMask(const SceneFigure& Figure) noexcept
+{
+    if (Figure.Construction || Figure.Classification == FigureClassification::Empty)
+        return SolidArcOutlinerFilter::Construction;
+    if (Figure.Classification == FigureClassification::Body)
+        return SolidArcOutlinerFilter::Bodies;
+    if (Figure.Classification == FigureClassification::Surface)
+        return SolidArcOutlinerFilter::Surfaces;
+    if (Figure.Classification == FigureClassification::Curve)
+        return IsLineFigure(Figure) ? SolidArcOutlinerFilter::Lines : SolidArcOutlinerFilter::Profiles;
+    return SolidArcOutlinerFilter::Profiles;
+}
+
+const float* FigureOutlinerTint(const SceneFigure& Figure) noexcept
+{
+    if (Figure.Construction || Figure.Classification == FigureClassification::Empty)
+        return kConstructionTint;
+    if (Figure.Classification == FigureClassification::Body)
+        return kBodyTint;
+    if (Figure.Classification == FigureClassification::Surface)
+        return kSurfaceTint;
+    if (Figure.Classification == FigureClassification::Curve)
+        return kSketchTint;
+    return kSketchTint;
 }
 
 const char* BlueprintLabel(SceneFigure::ParametricForm Form) noexcept
@@ -211,12 +271,11 @@ void SeatFigureRow(EditorInstance& Row, SolidArcOutlinerBinding& Binding, const 
     Row.KidCount  = 0u;
     Row.Category  = EditorInstanceCategory::Geometry;
     Row.Glyph     = FigureGlyph(Figure.Classification);
-    Row.Narrowing = FigureNarrowing(Figure.Classification);
+    Row.Narrowing = FigureNarrowing(Figure);
+    Row.FilterMask = FigureFilterMask(Figure);
     Row.Visible   = !Figure.Hidden;
     Row.Locked    = Figure.Construction;
-    Row.Tint[0]   = Figure.Tint[0];
-    Row.Tint[1]   = Figure.Tint[1];
-    Row.Tint[2]   = Figure.Tint[2];
+    AssignTint(Row, FigureOutlinerTint(Figure));
     FormatFigureMeta(Figure, Row.Meta, sizeof(Row.Meta));
     if (Figure.Construction)
         CopyText(Row.Tag, sizeof(Row.Tag), "Ref");
@@ -417,12 +476,12 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
 
     const SolidArcBucket Buckets[] =
     {
-        { SolidArcBucket::Kind::Sketches,     "Sketches",     EditorGlyph::Wave,    EditorNarrowing::Geometry, { 0.31f, 0.85f, 0.88f } },
-        { SolidArcBucket::Kind::Bodies,       "Bodies",       EditorGlyph::Lattice, EditorNarrowing::Bodies,   { 1.00f, 0.70f, 0.33f } },
-        { SolidArcBucket::Kind::Surfaces,     "Surfaces",     EditorGlyph::Plane,   EditorNarrowing::Geometry, { 0.30f, 0.64f, 1.00f } },
-        { SolidArcBucket::Kind::Construction, "Construction", EditorGlyph::Orbit,   EditorNarrowing::Geometry, { 0.71f, 0.55f, 1.00f } },
-        { SolidArcBucket::Kind::Dimensions,   "Dimensions",   EditorGlyph::Sliders, EditorNarrowing::Geometry, { 0.90f, 0.83f, 0.23f } },
-        { SolidArcBucket::Kind::Constraints,  "Constraints",  EditorGlyph::Key,     EditorNarrowing::Geometry, { 1.00f, 0.70f, 0.33f } },
+        { SolidArcBucket::Kind::Sketches,     "Sketches",     EditorGlyph::Wave,    EditorNarrowing::Lights,   SolidArcOutlinerFilter::Lines | SolidArcOutlinerFilter::Profiles, { kSketchTint[0],       kSketchTint[1],       kSketchTint[2] } },
+        { SolidArcBucket::Kind::Bodies,       "Bodies",       EditorGlyph::Lattice, EditorNarrowing::Bodies,   SolidArcOutlinerFilter::Bodies,                                { kBodyTint[0],         kBodyTint[1],         kBodyTint[2] } },
+        { SolidArcBucket::Kind::Surfaces,     "Surfaces",     EditorGlyph::Plane,   EditorNarrowing::Geometry, SolidArcOutlinerFilter::Surfaces,                              { kSurfaceTint[0],      kSurfaceTint[1],      kSurfaceTint[2] } },
+        { SolidArcBucket::Kind::Construction, "Construction", EditorGlyph::Orbit,   EditorNarrowing::Camera,   SolidArcOutlinerFilter::Construction,                          { kConstructionTint[0], kConstructionTint[1], kConstructionTint[2] } },
+        { SolidArcBucket::Kind::Dimensions,   "Dimensions",   EditorGlyph::Sliders, EditorNarrowing::Sky,      SolidArcOutlinerFilter::Dimensions,                            { kDimensionTint[0],    kDimensionTint[1],    kDimensionTint[2] } },
+        { SolidArcBucket::Kind::Constraints,  "Constraints",  EditorGlyph::Key,     EditorNarrowing::Auto,     SolidArcOutlinerFilter::Unfiltered,                         { kConstraintTint[0],   kConstraintTint[1],   kConstraintTint[2] } },
     };
 
     uint32_t At = 0u;
@@ -440,7 +499,7 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
             KidCount = CountFigures(Host, Bucket);
 
         const uint32_t FolderRow = At++;
-        SeatFolder(Rows[FolderRow], Bucket.Label, 0u, KidCount, Bucket.Glyph, Bucket.Narrowing, Bucket.Tint);
+        SeatFolder(Rows[FolderRow], Bucket.Label, 0u, KidCount, Bucket.Glyph, Bucket.Narrowing, Bucket.FilterMask, Bucket.Tint);
         char CountText[24] = {};
         std::snprintf(CountText, sizeof(CountText), "%u", KidCount);
         CopyText(Rows[FolderRow].Meta, sizeof(Rows[FolderRow].Meta), CountText);
@@ -459,9 +518,10 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                 Row.Depth     = 1u;
                 Row.Category  = EditorInstanceCategory::Geometry;
                 Row.Glyph     = EditorGlyph::Sliders;
-                Row.Narrowing = EditorNarrowing::Geometry;
+                Row.Narrowing = Bucket.Narrowing;
+                Row.FilterMask = Bucket.FilterMask;
                 Row.Visible   = !Dimension.Hidden;
-                Row.Tint[0]   = Bucket.Tint[0]; Row.Tint[1] = Bucket.Tint[1]; Row.Tint[2] = Bucket.Tint[2];
+                AssignTint(Row, Bucket.Tint);
                 CopyText(Row.Meta, sizeof(Row.Meta), Dimension.Label.c_str());
                 Binding.RowRole = SolidArcOutlinerBinding::Role::Dimension;
                 Binding.DimensionId = Dimension.Id;
@@ -480,9 +540,10 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                 Row.Depth     = 1u;
                 Row.Category  = EditorInstanceCategory::Geometry;
                 Row.Glyph     = EditorGlyph::Key;
-                Row.Narrowing = EditorNarrowing::Geometry;
+                Row.Narrowing = Bucket.Narrowing;
+                Row.FilterMask = Bucket.FilterMask;
                 Row.Visible   = true;
-                Row.Tint[0]   = Bucket.Tint[0]; Row.Tint[1] = Bucket.Tint[1]; Row.Tint[2] = Bucket.Tint[2];
+                AssignTint(Row, Bucket.Tint);
                 char IdText[24] = {};
                 std::snprintf(IdText, sizeof(IdText), "#%u", Constraint.Id);
                 CopyText(Row.Meta, sizeof(Row.Meta), IdText);

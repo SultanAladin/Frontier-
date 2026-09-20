@@ -206,6 +206,7 @@ sed 's/^/    /' /tmp/SolidArcEditorProof.run | head -20
 
 GameProof="Exhibits/Gallery/Editor/EditorProof_Inspector.png"
 SolidArcProof="Exhibits/Gallery/Editor/EditorProof_SolidArc.png"
+SolidArcMenuProof="Exhibits/Gallery/Editor/EditorProof_SolidArc_Menu.png"
 if [ ! -s "$GameProof" ]; then
     echo "[EditorVisualProof] RED — missing canonical game editor proof: $GameProof"
     echo "    Run Exhibits/Workbench/Editor/CheckEditorProof.sh when full editor proof dependencies are available."
@@ -215,6 +216,10 @@ if [ ! -s "$SolidArcProof" ]; then
     echo "[EditorVisualProof] RED — missing SolidArc editor proof: $SolidArcProof"
     exit 1
 fi
+if [ ! -s "$SolidArcMenuProof" ]; then
+    echo "[EditorVisualProof] RED — missing SolidArc CAD filter menu proof: $SolidArcMenuProof"
+    exit 1
+fi
 if [ -n "$(find Exhibits/Gallery/EditorPanels -type f 2>/dev/null | head -1)" ]; then
     echo "[EditorVisualProof] RED — simplified EditorPanels mockups are still present"
     exit 1
@@ -222,4 +227,5 @@ fi
 
 echo "[EditorVisualProof] game proof:     $GameProof"
 echo "[EditorVisualProof] SolidArc proof: $SolidArcProof"
+echo "[EditorVisualProof] SolidArc menu:  $SolidArcMenuProof"
 echo "[EditorVisualProof] GREEN — real ImGui editor proofs, no SVG/mockup boards"

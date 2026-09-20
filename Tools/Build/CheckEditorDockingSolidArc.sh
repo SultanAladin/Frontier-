@@ -55,6 +55,16 @@ if grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/OutlinerPanel.cpp \
 else
     FailOne "shared panels do not use the assigned window title"
 fi
+if grep -q 'Outliner_.AssignFilterCatalog(GameFilters' "$EditorHost" \
+   && grep -q '"Lights"' "$EditorHost" \
+   && grep -q '"Sky"' "$EditorHost" \
+   && grep -q '"Bodies"' "$EditorHost" \
+   && grep -q '"Geometry"' "$EditorHost" \
+   && grep -q '"Camera"' "$EditorHost"; then
+    Pass "Project-Zero owns an explicit game filter catalogue"
+else
+    FailOne "Project-Zero game filter catalogue is missing"
+fi
 
 echo
 echo "[EditorDocking] SolidArc editor shell"
@@ -104,6 +114,33 @@ if grep -q '"Sketches"' "$Adapter" \
     Pass "SolidArc outliner exposes CAD folders from the HTML panel instead of game-engine categories"
 else
     FailOne "SolidArc outliner CAD folder labels are missing"
+fi
+if grep -q 'AssignFilterCatalog' "$SolidHost" \
+   && grep -q '"Lines"' "$SolidHost" \
+   && grep -q '"Profiles"' "$SolidHost" \
+   && grep -q '"Bodies"' "$SolidHost" \
+   && grep -q '"Surfaces"' "$SolidHost" \
+   && grep -q '"Construction"' "$SolidHost" \
+   && grep -q '"Dimensions"' "$SolidHost"; then
+    Pass "SolidArc uses a CAD-specific filter catalogue instead of the game editor's Lights/Sky/Geometry/Camera vocabulary"
+else
+    FailOne "SolidArc CAD filter labels are missing"
+fi
+if grep -q 'kSketchTint' "$Adapter" \
+   && grep -q 'kDimensionTint' "$Adapter" \
+   && grep -q 'kBodyTint' "$Adapter" \
+   && grep -q 'kSurfaceTint' "$Adapter" \
+   && grep -q 'kConstructionTint' "$Adapter" \
+   && grep -q 'SolidArcOutlinerFilter::Lines' "$Adapter" \
+   && grep -q 'SolidArcOutlinerFilter::Profiles' "$Adapter" \
+   && grep -q '#4fd8e0' "$Adapter" \
+   && grep -q '#ffb454' "$Adapter" \
+   && grep -q '#4da3ff' "$Adapter" \
+   && grep -q '#b48cff' "$Adapter" \
+   && grep -q '#e5d33a' "$Adapter"; then
+    Pass "SolidArc outliner seats the web category colour coding for lines, profiles, bodies, surfaces, construction and dimensions"
+else
+    FailOne "SolidArc outliner category colour coding is missing"
 fi
 if grep -q 'BuildSolidArcInspectorSheet' "$Adapter" \
    && grep -q '"CAD geometry"' "$Adapter" \

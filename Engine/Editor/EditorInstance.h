@@ -56,8 +56,8 @@ enum class EditorStanding : uint32_t
     Err
 };
 
-// The five narrowing pills the outliner offers. Auto maps from the category: Light → Lights, Camera →
-//    Camera, Geometry → Geometry; the feed names Sky and Bodies for the rows the category cannot tell apart.
+// The Project-Zero/game default filter slots. Tools can override the visible filter catalogue and can set
+//    EditorInstance::FilterMask for their own domain-specific rows; Auto still maps from category for game rows.
 enum class EditorNarrowing : uint32_t
 {
     Auto = 0u,
@@ -87,7 +87,8 @@ struct EditorInstance
 
     // The outliner's extra columns — all optional; a feed that leaves them alone gets the category defaults.
     EditorGlyph      Glyph     = EditorGlyph::Auto;         // the 14 px row icon
-    EditorNarrowing  Narrowing = EditorNarrowing::Auto;     // which pill narrows to this row
+    EditorNarrowing  Narrowing = EditorNarrowing::Auto;     // default/game filter slot; Auto picks from Category
+    uint32_t         FilterMask = 0u;                        // optional per-tool filter bits; 0 derives from Narrowing/Category
     EditorStanding   Standing  = EditorStanding::Auto;      // the 16 px standing dot
     char             StandingNote[20] = {};                 // its hover title ("Below horizon")
     char             Meta[24]  = {};                        // the right-hand live figure ("12.4°", "AM 1.02")

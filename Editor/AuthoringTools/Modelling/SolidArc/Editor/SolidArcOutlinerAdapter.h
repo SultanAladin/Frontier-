@@ -13,6 +13,18 @@
 
 namespace Frontier {
 
+
+namespace SolidArcOutlinerFilter
+{
+constexpr uint32_t Lines        = 1u << 0u;
+constexpr uint32_t Profiles     = 1u << 1u;
+constexpr uint32_t Bodies       = 1u << 2u;
+constexpr uint32_t Surfaces     = 1u << 3u;
+constexpr uint32_t Construction = 1u << 4u;
+constexpr uint32_t Dimensions   = 1u << 5u;
+constexpr uint32_t Unfiltered   = 1u << 31u;
+}
+
 struct SolidArcOutlinerBinding
 {
     enum class Role : uint32_t

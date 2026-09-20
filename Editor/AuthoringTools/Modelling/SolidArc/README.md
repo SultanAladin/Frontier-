@@ -24,7 +24,7 @@ This import contains the C++ side of the tool:
 
 The SolidArc editor shell reuses the engine editor panels while presenting SolidArc-specific content:
 
-- `OutlinerPanel` is fed CAD folders matching the live HTML panel: `Sketches`, `Bodies`, `Surfaces`, `Construction`, `Dimensions`, `Constraints`.
+- `OutlinerPanel` is fed CAD folders matching the live HTML panel: `Sketches`, `Bodies`, `Surfaces`, `Construction`, `Dimensions`, `Constraints`, with SolidArc-only filter labels (`Lines`, `Profiles`, `Bodies`, `Surfaces`, `Construction`, `Dimensions`) and the exact CAD category colours from the web editor (`#4fd8e0`, `#ffb454`, `#4da3ff`, `#b48cff`, `#e5d33a`).
 - `ViewportPanel` switches to SolidArc chrome with `Construct`, `Body/Face/Edge/Vertex`, `Wire/Flat/Plastic/Matcap`, `Move/Rotate/Scale`, and view controls.
 - `InspectorPanel` receives a CAD sheet with identity, B-rep/NURBS geometry, bounds, parametric blueprint slots, sub-selection counts, and display controls.
 

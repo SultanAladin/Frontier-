@@ -29,6 +29,17 @@ EditorHost::EditorHost() noexcept
     Outliner_.AssignTabOpen(&OutlinerTabOpen_);
     Viewport_.AssignTabOpen(&ViewportTabOpen_);
     Inspector_.AssignTabOpen(&InspectorTabOpen_);
+
+    // Project-Zero owns the game/editor filter catalogue explicitly; tools such as SolidArc seat their own.
+    const OutlinerFilterEntry GameFilters[] =
+    {
+        { "Lights",   IM_COL32(0xFF, 0xB4, 0x54, 255), 1u << static_cast<uint32_t>(EditorNarrowing::Lights) },
+        { "Sky",      IM_COL32(0x5A, 0xA9, 0xFF, 255), 1u << static_cast<uint32_t>(EditorNarrowing::Sky) },
+        { "Bodies",   IM_COL32(0xDF, 0xE6, 0xF5, 255), 1u << static_cast<uint32_t>(EditorNarrowing::Bodies) },
+        { "Geometry", IM_COL32(0xE2, 0xE8, 0xF0, 255), 1u << static_cast<uint32_t>(EditorNarrowing::Geometry) },
+        { "Camera",   IM_COL32(0x34, 0xC7, 0x59, 255), 1u << static_cast<uint32_t>(EditorNarrowing::Camera) },
+    };
+    Outliner_.AssignFilterCatalog(GameFilters, static_cast<uint32_t>(sizeof(GameFilters) / sizeof(GameFilters[0])));
 }
 
 EditorHost::~EditorHost() noexcept

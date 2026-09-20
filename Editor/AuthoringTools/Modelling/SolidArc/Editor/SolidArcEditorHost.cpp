@@ -22,6 +22,19 @@ SolidArcEditorHost::SolidArcEditorHost() noexcept
     Outliner_.AssignWindowTitle("SolidArc Outliner");
     Viewport_.AssignWindowTitle("SolidArc Viewport");
     Inspector_.AssignWindowTitle("SolidArc Inspector");
+    // SolidArc uses its CAD filter catalogue, not Project-Zero's game narrowing labels.
+    // Colours match the web editor KINDS palette: curve/sketch #4fd8e0, body #ffb454,
+    // surface #4da3ff, construction plane #b48cff and dimensions #e5d33a.
+    const OutlinerFilterEntry SolidArcFilters[] =
+    {
+        { "Lines",        IM_COL32(79, 216, 224, 255), SolidArcOutlinerFilter::Lines },
+        { "Profiles",     IM_COL32(79, 216, 224, 255), SolidArcOutlinerFilter::Profiles },
+        { "Bodies",       IM_COL32(255, 180, 84, 255), SolidArcOutlinerFilter::Bodies },
+        { "Surfaces",     IM_COL32(77, 163, 255, 255), SolidArcOutlinerFilter::Surfaces },
+        { "Construction", IM_COL32(180, 140, 255, 255), SolidArcOutlinerFilter::Construction },
+        { "Dimensions",   IM_COL32(229, 211, 58, 255), SolidArcOutlinerFilter::Dimensions },
+    };
+    Outliner_.AssignFilterCatalog(SolidArcFilters, static_cast<uint32_t>(sizeof(SolidArcFilters) / sizeof(SolidArcFilters[0])));
     Viewport_.AssignChrome(ViewportPanelChrome::SolidArcCad);
     Outliner_.AssignReadout(&Readout_);
     Viewport_.AssignReadout(&Readout_);

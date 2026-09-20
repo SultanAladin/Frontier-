@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // 🧩 Development editor outliner — the instance roster as an outline. The celestial page's outliner, spoken in
 //    ImGui, measure for measure: the panel head with its compact toggle, the two census tiles, the search pill,
-//    the five narrowing pills, the 36 px rows (chevron · SVG glyph · name · tag · live meta · standing dot · eye)
+//    the per-host filter dropdown, the 36 px rows (chevron · SVG glyph · name · tag · live meta · standing dot · eye)
 //    with drag-and-drop reparenting, and the four-column readout strip at the foot. The panel borrows the roster
 //    each tick and edits it in place: a toggle, a reparent or a rename lands in the project's own rows on the
 //    same tick.
@@ -18,6 +18,15 @@ namespace Frontier {
 
 class ControlPanel;
 
+constexpr uint32_t kMaxOutlinerFilters = 8u;
+
+struct OutlinerFilterEntry
+{
+    const char* Label = nullptr;
+    uint32_t    Tint  = 0u;
+    uint32_t    Mask  = 0u;
+};
+
 class OutlinerPanel final
 {
 public:
@@ -29,6 +38,13 @@ public:
 
     // The foot strip's five figures. Optional: without a readout the strip prints its resting figures.
     void AssignReadout(const EditorReadout* Readout) noexcept;
+    // Lets each editor/tool seat its own filter vocabulary, colour chips and row masks.
+    // Leaving it empty keeps Project-Zero's default game catalogue: Lights, Sky, Bodies, Geometry, Camera.
+    void AssignFilterCatalog(const OutlinerFilterEntry* Entries, uint32_t Count) noexcept;
+    void AssignFilter(uint32_t Slot, const char* Label, uint32_t Tint, uint32_t Mask) noexcept;
+    void ClearFilterCatalog() noexcept;
+    // Compatibility shim for callers that still address the game filter slots directly.
+    void AssignNarrowingSlot(EditorNarrowing Slot, const char* Label, uint32_t Tint) noexcept;
 
     void Record(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
 
@@ -53,6 +69,11 @@ private:
     void RecordRow(EditorInstance* Instances, uint32_t InstanceCount, uint32_t Index, bool HasKids) noexcept;
     void RecordEmpty(float Width) noexcept;
     void RecordFooter() noexcept;
+    [[nodiscard]] uint32_t QueryFilterCount() const noexcept;
+    [[nodiscard]] const char* QueryFilterLabel(uint32_t Slot) const noexcept;
+    [[nodiscard]] uint32_t QueryFilterTint(uint32_t Slot) const noexcept;
+    [[nodiscard]] uint32_t QueryFilterMask(uint32_t Slot) const noexcept;
+    [[nodiscard]] uint32_t QuerySelectedFilterMask() const noexcept;
 
     [[nodiscard]] bool IsPicked(uint32_t Index) const noexcept;
     void AddPick(uint32_t Index) noexcept;
@@ -69,7 +90,11 @@ private:
     const char*          WindowTitle_ = "Outliner";
 
     char     QueryText_[64] = {};
-    bool     NarrowOn_[static_cast<uint32_t>(EditorNarrowing::Count)] = {};   // the lit pills; none lit shows all
+    bool     FilterOn_[kMaxOutlinerFilters] = {};                             // the lit filters; none lit shows all
+    const char* FilterLabels_[kMaxOutlinerFilters] = {};
+    uint32_t FilterTints_[kMaxOutlinerFilters] = {};
+    uint32_t FilterMasks_[kMaxOutlinerFilters] = {};
+    uint32_t FilterCount_ = 0u;                                                // 0 means the default game catalogue
     uint32_t Picked_[kMaxEditorPicked] = {};
     uint32_t PickedCount_ = 0u;
     uint32_t Revealed_    = kNoEditorInstance;   // the pick last scrolled into view (the page's scrollIntoView on select)
