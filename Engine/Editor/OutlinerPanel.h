@@ -79,6 +79,7 @@ private:
 
     bool     Compact_      = false;
     bool     SearchFocus_  = false;   // Ctrl+Shift+F lands the caret next tick
+    bool     NarrowMenuOpen_ = false;
     uint32_t DragLifted_   = kNoEditorInstance;
     uint32_t OrderRevision_ = 0u;
     bool     Shown_[kMaxEditorInstances] = {};                                 // this tick's search / narrowing hits

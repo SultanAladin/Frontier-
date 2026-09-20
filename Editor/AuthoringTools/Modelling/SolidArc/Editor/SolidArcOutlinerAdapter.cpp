@@ -93,7 +93,7 @@ EditorGlyph FigureGlyph(FigureClassification Class) noexcept
 
 EditorNarrowing FigureNarrowing(FigureClassification Class) noexcept
 {
-    return Class == FigureClassification::Empty ? EditorNarrowing::Bodies : EditorNarrowing::Geometry;
+    return Class == FigureClassification::Body ? EditorNarrowing::Bodies : EditorNarrowing::Geometry;
 }
 
 const char* BlueprintLabel(SceneFigure::ParametricForm Form) noexcept
@@ -418,9 +418,9 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
     const SolidArcBucket Buckets[] =
     {
         { SolidArcBucket::Kind::Sketches,     "Sketches",     EditorGlyph::Wave,    EditorNarrowing::Geometry, { 0.31f, 0.85f, 0.88f } },
-        { SolidArcBucket::Kind::Bodies,       "Bodies",       EditorGlyph::Lattice, EditorNarrowing::Geometry, { 1.00f, 0.70f, 0.33f } },
+        { SolidArcBucket::Kind::Bodies,       "Bodies",       EditorGlyph::Lattice, EditorNarrowing::Bodies,   { 1.00f, 0.70f, 0.33f } },
         { SolidArcBucket::Kind::Surfaces,     "Surfaces",     EditorGlyph::Plane,   EditorNarrowing::Geometry, { 0.30f, 0.64f, 1.00f } },
-        { SolidArcBucket::Kind::Construction, "Construction", EditorGlyph::Orbit,   EditorNarrowing::Bodies,   { 0.71f, 0.55f, 1.00f } },
+        { SolidArcBucket::Kind::Construction, "Construction", EditorGlyph::Orbit,   EditorNarrowing::Geometry, { 0.71f, 0.55f, 1.00f } },
         { SolidArcBucket::Kind::Dimensions,   "Dimensions",   EditorGlyph::Sliders, EditorNarrowing::Geometry, { 0.90f, 0.83f, 0.23f } },
         { SolidArcBucket::Kind::Constraints,  "Constraints",  EditorGlyph::Key,     EditorNarrowing::Geometry, { 1.00f, 0.70f, 0.33f } },
     };

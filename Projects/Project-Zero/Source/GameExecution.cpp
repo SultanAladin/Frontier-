@@ -820,6 +820,9 @@ int main(int argc, char** argv)
     uint32_t CelestialFirstRow = Frontier::kNoEditorInstance;
 
     Panel.ApplyTheme();
+#ifdef FRONTIER_DEVELOPMENT
+    Surface.AssignSceneBackdrop(false);
+#endif
 
     //──────────────────────────────────────────────────────────────────────────
     // Control Centre — top notch + pull-down shade (engine overlay, drawn above every ImGui window)

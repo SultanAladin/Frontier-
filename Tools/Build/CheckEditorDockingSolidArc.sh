@@ -41,6 +41,13 @@ if grep -q 'PassthruCentralNode' "$EditorHost" || grep -q 'ImGuiWindowFlags_NoBa
 else
     Pass "viewport is an opaque docked window, not a fullscreen backing plate"
 fi
+if grep -q 'AssignSceneBackdrop(false)' Projects/Project-Zero/Source/GameExecution.cpp \
+   && grep -q 'SceneBackdrop' Engine/DeviceExchange/SwapchainExchange.h \
+   && grep -q 'if (SceneBackdrop)' Engine/DeviceExchange/SwapchainExchange.cpp; then
+    Pass "development editor disables the fullscreen scene backdrop, so the render appears only inside the viewport panel"
+else
+    FailOne "development editor can still blit the scene as a fullscreen backing plate behind docked panels"
+fi
 if grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/OutlinerPanel.cpp \
    && grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/ViewportPanel.cpp \
    && grep -q 'ImGui::Begin(WindowTitle_' Engine/Editor/InspectorPanel.cpp; then

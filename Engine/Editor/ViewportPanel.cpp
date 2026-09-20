@@ -563,157 +563,183 @@ void ViewportPanel::StepOnce() noexcept
 void ViewportPanel::RecordSolidArcBar() noexcept
 {
     const float RowWidth = ImGui::GetContentRegionAvail().x;
-    const bool Wrapped = RowWidth < 1120.0f;
-    const bool ThreeRows = RowWidth < 860.0f;
-    const float BarH = ThreeRows ? 112.0f : (Wrapped ? 78.0f : 44.0f);
-    ImGui::Dummy(ImVec2(RowWidth, BarH));
-    const ImVec2 Cursor = ImGui::GetItemRectMin();
-
     ImDrawList* Draw  = ImGui::GetWindowDrawList();
-    ImFont*     Ui    = Controls_->QueryUi() != nullptr ? Controls_->QueryUi() : ImGui::GetFont();
     ImFont*     Small = Controls_->QuerySmall() != nullptr ? Controls_->QuerySmall() : ImGui::GetFont();
 
-    const float EndX = Cursor.x + RowWidth - 8.0f;
-    const float Row1 = Cursor.y + 8.0f;
-    const float Row2 = ThreeRows || Wrapped ? Cursor.y + 42.0f : Row1;
-    const float Row3 = ThreeRows ? Cursor.y + 76.0f : Row2;
-
-    auto TextWidth = [Small](const char* Text) noexcept -> float
+    constexpr float kToolPx = 9.0f;
+    constexpr float kToolH = 22.0f;
+    constexpr float kGap = 4.0f;
+    auto TextWidth = [Small, kToolPx](const char* Text) noexcept -> float
     {
-        return Small->CalcTextSizeA(Small->LegacySize, FLT_MAX, 0.0f, Text).x;
+        return Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Text).x;
+    };
+    auto TextAt = [Draw, Small, kToolPx, kToolH](const char* Text, float X, float Y, ImU32 Tint) noexcept
+    {
+        const ImVec2 T = Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Text);
+        Draw->AddText(Small, kToolPx, ImVec2(X, Y + (kToolH - T.y) * 0.5f), Tint, Text);
+    };
+    auto GroupWidth = [&](const char* const* Labels, uint32_t Count) noexcept -> float
+    {
+        float W = 0.0f;
+        for (uint32_t I = 0u; I < Count; ++I)
+            W += TextWidth(Labels[I]) + 6.0f;
+        return W;
     };
 
-    auto Chip = [&](const char* Id, const char* Label, bool On, float& X, float Y, float Width = 0.0f) noexcept -> bool
+    const char* const SelectLabels[] = { "Body 1", "Face 2", "Edge 3", "Vertex 4" };
+    const char* const ShadeLabels[]  = { "Wire", "Flat", "Plastic", "Matcap" };
+    const char* const GizmoLabels[]  = { "Move G", "Rotate ⇧R", "Scale S" };
+    const char* const ViewLabels[]   = { "Top 7", "Front 1", "Right 3", "Iso", "Ortho 5" };
+
+    const float ConstructW = TextWidth("Construct") + 22.0f;
+    const float SelectW = GroupWidth(SelectLabels, 4u);
+    const float CombineW = TextWidth("⇧ combine") + 12.0f;
+    const float ShadeW = GroupWidth(ShadeLabels, 4u);
+    const float GizmoW = GroupWidth(GizmoLabels, 3u);
+    const float ViewW = GroupWidth(ViewLabels, 5u);
+    const float ToolSpan = ConstructW + SelectW + CombineW + ShadeW + GizmoW + ViewW + kGap * 5.0f;
+    const bool Wrap = ToolSpan > RowWidth - 20.0f;
+    const float BarH = Wrap ? 72.0f : 38.0f;
+
+    ImGui::Dummy(ImVec2(RowWidth, BarH));
+    const ImVec2 Cursor = ImGui::GetItemRectMin();
+    const float StartX = Cursor.x + 10.0f;
+    const float EndX = Cursor.x + RowWidth - 10.0f;
+    const float Row1 = Cursor.y + 8.0f;
+    const float Row2 = Cursor.y + 42.0f;
+    float X = StartX;
+    float Y = Row1;
+
+    auto Seat = [&](float W) noexcept -> bool
     {
-        if (Width <= 0.0f)
-            Width = TextWidth(Label) + 22.0f;
-        if (X + Width > EndX)
+        if (X + W > EndX && Wrap && Y == Row1)
+        {
+            X = StartX;
+            Y = Row2;
+        }
+        return X + W <= EndX;
+    };
+    auto Advance = [&]() noexcept { X += kGap; };
+
+    auto Pill = [&](const char* Id, const char* Label, bool On, float W, ImU32 Accent, bool Enabled = true) noexcept -> bool
+    {
+        if (!Seat(W))
             return false;
-        ImGui::SetCursorScreenPos(ImVec2(X, Y + 2.0f));
-        ImGui::InvisibleButton(Id, ImVec2(Width, 24.0f));
-        const bool Hot = ImGui::IsItemHovered();
-        const bool Clicked = Hot && ImGui::IsMouseClicked(0);
-        const ImU32 Fill = On ? IM_COL32(255, 255, 255, 36) : (Hot ? IM_COL32(255, 255, 255, 22) : IM_COL32(0, 0, 0, 90));
-        const ImU32 Edge = On ? IM_COL32(255, 255, 255, 36) : kStroke;
-        Draw->AddRectFilled(ImVec2(X, Y + 2.0f), ImVec2(X + Width, Y + 26.0f), Fill, 12.0f);
-        Draw->AddRect(ImVec2(X, Y + 2.0f), ImVec2(X + Width, Y + 26.0f), Edge, 12.0f);
-        ImGui::PushFont(Small);
-        const ImVec2 T = Small->CalcTextSizeA(Small->LegacySize, FLT_MAX, 0.0f, Label);
-        Draw->AddText(ImVec2(X + (Width - T.x) * 0.5f, Y + 2.0f + (24.0f - T.y) * 0.5f), On ? kText : kDim, Label);
-        ImGui::PopFont();
-        X += Width + 4.0f;
+        ImGui::SetCursorScreenPos(ImVec2(X, Y));
+        ImGui::InvisibleButton(Id, ImVec2(W, kToolH));
+        const bool Hot = Enabled && ImGui::IsItemHovered();
+        const bool Clicked = Enabled && Hot && ImGui::IsMouseClicked(0);
+        const ImU32 Fill = On ? IM_COL32(255, 255, 255, 34) : (Hot ? IM_COL32(255, 255, 255, 20) : IM_COL32(0, 0, 0, 95));
+        Draw->AddRectFilled(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), Fill, kToolH * 0.5f);
+        Draw->AddRect(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), Hot ? IM_COL32(255, 255, 255, 44) : kStroke, kToolH * 0.5f);
+        if (Accent != 0u)
+        {
+            Draw->AddLine(ImVec2(X + 10.0f, Y + kToolH * 0.5f), ImVec2(X + 18.0f, Y + kToolH * 0.5f), Accent, 1.5f);
+            Draw->AddLine(ImVec2(X + 14.0f, Y + kToolH * 0.5f - 4.0f), ImVec2(X + 14.0f, Y + kToolH * 0.5f + 4.0f), Accent, 1.5f);
+            TextAt(Label, X + 24.0f, Y, Enabled ? kText : kFaint);
+        }
+        else
+        {
+            const ImVec2 T = Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Label);
+            TextAt(Label, X + (W - T.x) * 0.5f, Y, Enabled ? (On ? kText : kDim) : kFaint);
+        }
+        X += W;
+        Advance();
         return Clicked;
     };
 
-    float X = Cursor.x + 10.0f;
-    const float BrandW = Wrapped ? 72.0f : 78.0f;
-    Draw->AddRectFilled(ImVec2(X, Row1 + 2.0f), ImVec2(X + BrandW, Row1 + 26.0f), IM_COL32(10, 11, 13, 255), 12.0f);
-    Draw->AddRect(ImVec2(X, Row1 + 2.0f), ImVec2(X + BrandW, Row1 + 26.0f), kStroke, 12.0f);
-    ImGui::PushFont(Ui);
-    Draw->AddText(ImVec2(X + 11.0f, Row1 + 2.0f + (24.0f - Ui->LegacySize) * 0.5f), IM_COL32(79, 216, 224, 255), "SolidArc");
-    ImGui::PopFont();
-    X += BrandW + 8.0f;
-
-    const float ConstructW = TextWidth("Construct") + 34.0f;
-    if (X + ConstructW <= EndX)
+    auto Segments = [&](const char* Prefix, const char* const* Labels, uint32_t Count, uint32_t ActiveMask, float W) noexcept -> int
     {
-        ImGui::SetCursorScreenPos(ImVec2(X, Row1 + 2.0f));
-        ImGui::InvisibleButton("##solidarc_construct", ImVec2(ConstructW, 24.0f));
-        const bool Hot = ImGui::IsItemHovered();
-        Draw->AddRectFilled(ImVec2(X, Row1 + 2.0f), ImVec2(X + ConstructW, Row1 + 26.0f),
-            Hot ? IM_COL32(79, 216, 224, 36) : IM_COL32(0, 0, 0, 90), 12.0f);
-        Draw->AddRect(ImVec2(X, Row1 + 2.0f), ImVec2(X + ConstructW, Row1 + 26.0f),
-            Hot ? IM_COL32(79, 216, 224, 94) : kStroke, 12.0f);
-        Draw->AddLine(ImVec2(X + 12.0f, Row1 + 14.0f), ImVec2(X + 22.0f, Row1 + 14.0f), IM_COL32(79, 216, 224, 255), 1.6f);
-        Draw->AddLine(ImVec2(X + 17.0f, Row1 + 9.0f), ImVec2(X + 17.0f, Row1 + 19.0f), IM_COL32(79, 216, 224, 255), 1.6f);
-        ImGui::PushFont(Small);
-        Draw->AddText(ImVec2(X + 28.0f, Row1 + 2.0f + (24.0f - Small->LegacySize) * 0.5f), kText, "Construct");
-        ImGui::PopFont();
-        X += ConstructW + 8.0f;
+        if (!Seat(W))
+            return -1;
+        Draw->AddRectFilled(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), IM_COL32(0, 0, 0, 95), kToolH * 0.5f);
+        Draw->AddRect(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), kStroke, kToolH * 0.5f);
+        int Pick = -1;
+        float SX = X;
+        for (uint32_t I = 0u; I < Count; ++I)
+        {
+            const float SW = TextWidth(Labels[I]) + 6.0f;
+            char Id[64] = {};
+            std::snprintf(Id, sizeof(Id), "%s_%u", Prefix, I);
+            ImGui::SetCursorScreenPos(ImVec2(SX, Y));
+            ImGui::InvisibleButton(Id, ImVec2(SW, kToolH));
+            const bool Hot = ImGui::IsItemHovered();
+            const bool On = (ActiveMask & (1u << I)) != 0u;
+            if (On || Hot)
+                Draw->AddRectFilled(ImVec2(SX + 1.0f, Y + 1.0f), ImVec2(SX + SW - 1.0f, Y + kToolH - 1.0f),
+                                    On ? IM_COL32(255, 255, 255, 38) : IM_COL32(255, 255, 255, 18), 10.0f);
+            if (I > 0u)
+                Draw->AddLine(ImVec2(SX, Y + 5.0f), ImVec2(SX, Y + kToolH - 5.0f), kStroke);
+            const ImVec2 T = Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Labels[I]);
+            TextAt(Labels[I], SX + (SW - T.x) * 0.5f, Y, On ? kText : kDim);
+            if (Hot && ImGui::IsMouseClicked(0))
+                Pick = static_cast<int>(I);
+            SX += SW;
+        }
+        X += W;
+        Advance();
+        return Pick;
+    };
+
+    if (Pill("##solidarc_construct", "Construct", false, ConstructW, IM_COL32(79, 216, 224, 255)))
+    {
+        // The catalogue opens in the SolidArc document host; this chip keeps the viewport-side affordance live.
     }
 
-    struct ModeChip { const char* Label; uint32_t Bit; };
-    const ModeChip Modes[] = { { "Body 1", 1u }, { "Face 2", 2u }, { "Edge 3", 4u }, { "Vertex 4", 8u } };
-    for (uint32_t I = 0u; I < 4u; ++I)
+    const int SelectPick = Segments("##solidarc_sel", SelectLabels, 4u, SolidArcSelectMask_, SelectW);
+    if (SelectPick >= 0)
     {
-        char Id[32] = {};
-        std::snprintf(Id, sizeof(Id), "##solidarc_sel_%u", I);
-        if (Chip(Id, Modes[I].Label, (SolidArcSelectMask_ & Modes[I].Bit) != 0u, X, Row1))
+        const uint32_t Bit = 1u << static_cast<uint32_t>(SelectPick);
+        if (ImGui::GetIO().KeyShift)
         {
-            if (ImGui::GetIO().KeyShift)
-            {
-                SolidArcSelectMask_ ^= Modes[I].Bit;
-                if (SolidArcSelectMask_ == 0u)
-                    SolidArcSelectMask_ = Modes[I].Bit;
-            }
-            else
-            {
-                SolidArcSelectMask_ = Modes[I].Bit;
-            }
+            SolidArcSelectMask_ ^= Bit;
+            if (SolidArcSelectMask_ == 0u)
+                SolidArcSelectMask_ = Bit;
+        }
+        else
+        {
+            SolidArcSelectMask_ = Bit;
         }
     }
+    (void)Pill("##solidarc_combine", "⇧ combine", false, CombineW, 0u, false);
 
-    if (X + 72.0f <= EndX)
-    {
-        ImGui::PushFont(Small);
-        Draw->AddText(ImVec2(X + 6.0f, Row1 + 8.0f), kFaint, "⇧ combine");
-        ImGui::PopFont();
-    }
+    const int ShadePick = Segments("##solidarc_shade", ShadeLabels, 4u, 1u << SolidArcShade_, ShadeW);
+    if (ShadePick >= 0)
+        SolidArcShade_ = static_cast<uint32_t>(ShadePick);
 
-    X = Wrapped ? Cursor.x + 10.0f : (X + 78.0f);
-    const char* Shading[] = { "Wire", "Flat", "Plastic", "Matcap" };
-    for (uint32_t I = 0u; I < 4u; ++I)
-    {
-        char Id[32] = {};
-        std::snprintf(Id, sizeof(Id), "##solidarc_shade_%u", I);
-        if (Chip(Id, Shading[I], SolidArcShade_ == I, X, Row2))
-            SolidArcShade_ = I;
-    }
-    X += 4.0f;
+    const int GizmoPick = Segments("##solidarc_gizmo", GizmoLabels, 3u, 1u << SolidArcGizmo_, GizmoW);
+    if (GizmoPick >= 0)
+        SolidArcGizmo_ = static_cast<uint32_t>(GizmoPick);
 
-    const char* Gizmo[] = { "Move G", "Rotate ⇧R", "Scale S" };
-    for (uint32_t I = 0u; I < 3u; ++I)
+    uint32_t ViewMask = 1u << SolidArcView_;
+    if (Orbit_.Ortho)
+        ViewMask |= 1u << 4u;
+    const int ViewPick = Segments("##solidarc_view", ViewLabels, 5u, ViewMask, ViewW);
+    if (ViewPick >= 0)
     {
-        char Id[32] = {};
-        std::snprintf(Id, sizeof(Id), "##solidarc_gizmo_%u", I);
-        if (Chip(Id, Gizmo[I], SolidArcGizmo_ == I, X, Row2))
-            SolidArcGizmo_ = I;
-    }
-    X += 4.0f;
-
-    if (ThreeRows)
-        X = Cursor.x + 10.0f;
-    const char* Views[] = { "Top 7", "Front 1", "Right 3", "Iso", "Ortho 5" };
-    for (uint32_t I = 0u; I < 5u; ++I)
-    {
-        char Id[32] = {};
-        std::snprintf(Id, sizeof(Id), "##solidarc_view_%u", I);
-        const bool ViewOn = (I == 4u) ? Orbit_.Ortho : (SolidArcView_ == I);
-        if (Chip(Id, Views[I], ViewOn, X, Row3))
+        const uint32_t I = static_cast<uint32_t>(ViewPick);
+        SolidArcView_ = I;
+        if (I == 0u)
         {
-            SolidArcView_ = I;
-            if (I == 0u)
-            {
-                Orbit_.Yaw = kSnaps[5].Yaw; Orbit_.Pitch = kSnaps[5].Pitch; Orbit_.ViewPoint = 5u;
-            }
-            else if (I == 1u)
-            {
-                Orbit_.Yaw = kSnaps[1].Yaw; Orbit_.Pitch = kSnaps[1].Pitch; Orbit_.ViewPoint = 1u;
-            }
-            else if (I == 2u)
-            {
-                Orbit_.Yaw = kSnaps[3].Yaw; Orbit_.Pitch = kSnaps[3].Pitch; Orbit_.ViewPoint = 3u;
-            }
-            else if (I == 3u)
-            {
-                Orbit_.Yaw = 0.7853982f; Orbit_.Pitch = 0.5235988f; Orbit_.ViewPoint = 0u;
-            }
-            else
-            {
-                Orbit_.Ortho = !Orbit_.Ortho;
-            }
-            ++Orbit_.Revision;
+            Orbit_.Yaw = kSnaps[5].Yaw; Orbit_.Pitch = kSnaps[5].Pitch; Orbit_.ViewPoint = 5u;
         }
+        else if (I == 1u)
+        {
+            Orbit_.Yaw = kSnaps[1].Yaw; Orbit_.Pitch = kSnaps[1].Pitch; Orbit_.ViewPoint = 1u;
+        }
+        else if (I == 2u)
+        {
+            Orbit_.Yaw = kSnaps[3].Yaw; Orbit_.Pitch = kSnaps[3].Pitch; Orbit_.ViewPoint = 3u;
+        }
+        else if (I == 3u)
+        {
+            Orbit_.Yaw = 0.7853982f; Orbit_.Pitch = 0.5235988f; Orbit_.ViewPoint = 0u;
+        }
+        else
+        {
+            Orbit_.Ortho = !Orbit_.Ortho;
+        }
+        ++Orbit_.Revision;
     }
 
     Draw->AddLine(ImVec2(Cursor.x, Cursor.y + BarH), ImVec2(Cursor.x + RowWidth, Cursor.y + BarH), kStroke);

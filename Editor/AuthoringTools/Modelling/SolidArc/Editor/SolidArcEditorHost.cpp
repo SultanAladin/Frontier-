@@ -82,10 +82,10 @@ void SolidArcEditorHost::ConstructLayout() noexcept
     ImGui::DockBuilderSetNodeSize(DockId, Main->Size);
 
     ImGuiID Left = 0u, CentreAndRight = 0u, Centre = 0u, Right = 0u;
-    const float LeftShare = Main->Size.x > 0.0f ? std::clamp(316.0f / Main->Size.x, 0.15f, 0.34f) : 0.25f;
+    const float LeftShare = Main->Size.x > 0.0f ? std::clamp(236.0f / Main->Size.x, 0.15f, 0.26f) : 0.18f;
     ImGui::DockBuilderSplitNode(DockId, ImGuiDir_Left, LeftShare, &Left, &CentreAndRight);
     const float RestWidth = std::max(1.0f, Main->Size.x * (1.0f - LeftShare));
-    const float RightShare = std::clamp(340.0f / RestWidth, 0.18f, 0.38f);
+    const float RightShare = std::clamp(236.0f / RestWidth, 0.16f, 0.28f);
     ImGui::DockBuilderSplitNode(CentreAndRight, ImGuiDir_Right, RightShare, &Right, &Centre);
     ImGui::DockBuilderDockWindow("SolidArc Outliner", Left);
     ImGui::DockBuilderDockWindow("SolidArc Viewport", Centre);

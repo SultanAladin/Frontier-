@@ -338,6 +338,10 @@ public:
 
     [[nodiscard]] uint32_t QueryTargetGeneration() const noexcept { return TargetGeneration; }
 
+    // In the development editor the resolved scene is sampled by the docked viewport panel, not blitted as a
+    // fullscreen plate behind the editor columns.
+    void AssignSceneBackdrop(bool Enabled) noexcept { SceneBackdrop = Enabled; }
+
     //--------------------------------------------------------------------------------------------------------------------
     // Overlay seam — one callback recorded after the scene, before ImGui.
     //--------------------------------------------------------------------------------------------------------------------
@@ -423,6 +427,7 @@ private:
     OverlaySequence         Overlay;                       // [-]   optional per-frame overlay recorder (project-owned)
     void                    BringSceneViewSet() noexcept;
     uint32_t                TargetGeneration = 0u;         // [cnt] bumped on every swapchain rebuild; overlays re-Resize on change
+    bool                    SceneBackdrop = true;           // [-] true blits the resolved scene over the whole swapchain before ImGui
     bool                    DrawIndirectCountSupported = false;   // [-] VkPhysicalDeviceVulkan12Features::drawIndirectCount
     RayTracingRequestCategory RayTracingRequest = RayTracingRequestCategory::Auto;
     int                     WindowedX, WindowedY, WindowedW, WindowedH;   // [px] rectangle to restore on leaving fullscreen

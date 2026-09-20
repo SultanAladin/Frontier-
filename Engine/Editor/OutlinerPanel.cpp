@@ -1071,8 +1071,23 @@ void OutlinerPanel::RecordSearch() noexcept
     ImDrawList* Draw = ImGui::GetWindowDrawList();
     ImFont*     Ui   = Controls_->QueryUi();
 
+    uint32_t Lit = 0u;
+    for (uint32_t n = 1u; n < static_cast<uint32_t>(EditorNarrowing::Count); ++n)
+    {
+        if (NarrowOn_[n])
+        {
+            ++Lit;
+        }
+    }
+
+    const char NarrowWord[] = { 'F', 'i', 'l', 't', 'e', 'r', '\0' };
+    const float BtnW = Compact_ ? 82.0f : 92.0f;
+    const float Gap = 8.0f;
     const ImVec2 Min(Cursor.x + kSidePad, Cursor.y);
-    const ImVec2 Max(Cursor.x + RowWidth - kSidePad, Cursor.y + H);
+    const ImVec2 Max(Cursor.x + RowWidth - kSidePad - BtnW - Gap, Cursor.y + H);
+    const ImVec2 BtnMin(Max.x + Gap, Cursor.y);
+    const ImVec2 BtnMax(BtnMin.x + BtnW, Cursor.y + H);
+
     Draw->AddRectFilled(Min, Max, kG2, H * 0.5f);
     Draw->AddRect(Min, Max, kStroke, H * 0.5f, 0, 1.0f);
     const float Cy = (Min.y + Max.y) * 0.5f;
@@ -1102,8 +1117,87 @@ void OutlinerPanel::RecordSearch() noexcept
     ImGui::PopStyleColor(4);
     if (Empty && !Active)
     {
-        DrawSized(Draw, Ui, 13.0f, FieldX, Cy, kT3, "Search  Ctrl+Shift+F");
+        DrawClipped(Draw, Ui, 13.0f, FieldX, Cy, FieldW, kT3,
+                    FieldW < 110.0f ? "Search" : "Search  Ctrl+Shift+F");
     }
+
+    ImGui::SetCursorScreenPos(BtnMin);
+    ImGui::InvisibleButton("##narrow_menu", ImVec2(BtnW, H));
+    const bool Hot = ImGui::IsItemHovered();
+    if (ImGui::IsItemClicked())
+    {
+        NarrowMenuOpen_ = !NarrowMenuOpen_;
+        if (NarrowMenuOpen_)
+        {
+            ImGui::OpenPopup("##narrow_menu_popup");
+        }
+    }
+    const bool PopupOpen = ImGui::IsPopupOpen("##narrow_menu_popup");
+    if (!PopupOpen)
+    {
+        NarrowMenuOpen_ = false;
+    }
+    Draw->AddRectFilled(BtnMin, BtnMax, (Hot || PopupOpen) ? kG3 : kG2, H * 0.5f);
+    Draw->AddRect(BtnMin, BtnMax, (Hot || PopupOpen) ? kStroke2 : kStroke, H * 0.5f, 0, 1.0f);
+    DrawIcon(Draw, OutlinerIconCategory::Sliders, ImVec2(BtnMin.x + 11.0f, Cy - 7.0f), 14.0f, (Hot || PopupOpen) ? kText : kT3);
+    DrawSized(Draw, Ui, 12.0f, BtnMin.x + 32.0f, Cy, (Hot || PopupOpen || Lit > 0u) ? kText : kT3, NarrowWord);
+    const float ArrowX = BtnMax.x - 17.0f;
+    const float ArrowY = Cy - 2.0f;
+    Draw->AddTriangleFilled(ImVec2(ArrowX - 4.0f, ArrowY), ImVec2(ArrowX + 4.0f, ArrowY),
+                            ImVec2(ArrowX, ArrowY + (PopupOpen ? -4.0f : 4.0f)), (Hot || PopupOpen) ? kText : kT3);
+    if (Lit > 0u)
+    {
+        char Count[8];
+        std::snprintf(Count, sizeof(Count), "%u", Lit);
+        const float CountW = MeasureSized(Ui, 10.0f, Count) + 10.0f;
+        Draw->AddRectFilled(ImVec2(BtnMax.x - 28.0f - CountW, Cy - 9.0f), ImVec2(BtnMax.x - 28.0f, Cy + 9.0f),
+                            kG3, 9.0f);
+        DrawSized(Draw, Ui, 10.0f, BtnMax.x - 28.0f - CountW + 5.0f, Cy, kText, Count);
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(BtnMin.x, BtnMax.y + 6.0f), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(170.0f, 0.0f), ImGuiCond_Appearing);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 8.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 5.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 16.0f);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGui::ColorConvertU32ToFloat4(kGlass));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImGui::ColorConvertU32ToFloat4(kStroke2));
+    if (ImGui::BeginPopup("##narrow_menu_popup", ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+    {
+        ImDrawList* PopDraw = ImGui::GetWindowDrawList();
+        for (uint32_t n = 1u; n < static_cast<uint32_t>(EditorNarrowing::Count); ++n)
+        {
+            const EditorNarrowing Narrowing = static_cast<EditorNarrowing>(n);
+            const char* Label = PillLabel(Narrowing);
+            const ImVec2 P = ImGui::GetCursorScreenPos();
+            const float W = ImGui::GetContentRegionAvail().x;
+            ImGui::PushID(static_cast<int>(n));
+            ImGui::InvisibleButton("##choice", ImVec2(W, 28.0f));
+            const bool RowHot = ImGui::IsItemHovered();
+            if (ImGui::IsItemClicked())
+            {
+                NarrowOn_[n] = !NarrowOn_[n];
+                NarrowMenuOpen_ = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::PopID();
+            if (RowHot || NarrowOn_[n])
+            {
+                PopDraw->AddRectFilled(P, ImVec2(P.x + W, P.y + 28.0f), RowHot ? kG3 : kG2, 14.0f);
+            }
+            PopDraw->AddCircleFilled(ImVec2(P.x + 13.0f, P.y + 14.0f), 3.0f, PillTint(Narrowing));
+            DrawSized(PopDraw, Ui, 11.0f, P.x + 26.0f, P.y + 14.0f, NarrowOn_[n] ? kText : kT2, Label);
+            if (NarrowOn_[n])
+            {
+                DrawIcon(PopDraw, OutlinerIconCategory::Check, ImVec2(P.x + W - 22.0f, P.y + 7.0f), 14.0f, kGreen);
+            }
+        }
+        NarrowMenuOpen_ = true;
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(3);
+
     ImGui::SetCursorScreenPos(ImVec2(Cursor.x, Cursor.y + H + 8.0f));
 }
 
@@ -1123,11 +1217,17 @@ void OutlinerPanel::RecordChips() noexcept
     float X = Start.x + kSidePad;
     float Y = Start.y;
     const float Right = Start.x + RowWidth - kSidePad;
+    bool Any = false;
     for (uint32_t n = 1u; n < static_cast<uint32_t>(EditorNarrowing::Count); ++n)
     {
+        if (!NarrowOn_[n])
+        {
+            continue;
+        }
+        Any = true;
         const EditorNarrowing Narrowing = static_cast<EditorNarrowing>(n);
         const char* Label = PillLabel(Narrowing);
-        const float W = 10.0f + 6.0f + 6.0f + MeasureSized(Ui, 11.0f, Label) + 10.0f;
+        const float W = 10.0f + 6.0f + 6.0f + MeasureSized(Ui, 11.0f, Label) + 20.0f;
         if (X + W > Right && X > Start.x + kSidePad)
         {
             X = Start.x + kSidePad;
@@ -1140,21 +1240,20 @@ void OutlinerPanel::RecordChips() noexcept
         ImGui::InvisibleButton("##pill", ImVec2(W, 26.0f));
         if (ImGui::IsItemClicked())
         {
-            NarrowOn_[n] = !NarrowOn_[n];
+            NarrowOn_[n] = false;
         }
+        const bool Hot = ImGui::IsItemHovered();
         ImGui::PopID();
-        const bool On = NarrowOn_[n];
-        if (On)
-        {
-            Draw->AddRectFilled(Min, Max, kG3, 13.0f);
-        }
-        Draw->AddRect(Min, Max, On ? kStroke2 : kStroke, 13.0f, 0, 1.0f);
+        Draw->AddRectFilled(Min, Max, Hot ? kG3 : kG2, 13.0f);
+        Draw->AddRect(Min, Max, Hot ? kStroke2 : kStroke, 13.0f, 0, 1.0f);
         const float Cy = Y + 13.0f;
         Draw->AddCircleFilled(ImVec2(X + 10.0f + 3.0f, Cy), 3.0f, PillTint(Narrowing));
-        DrawSized(Draw, Ui, 11.0f, X + 10.0f + 6.0f + 6.0f, Cy, On ? kText : kT3, Label);
+        DrawSized(Draw, Ui, 11.0f, X + 10.0f + 6.0f + 6.0f, Cy, kText, Label);
+        Draw->AddLine(ImVec2(Max.x - 13.0f, Cy - 4.0f), ImVec2(Max.x - 7.0f, Cy + 2.0f), Hot ? kText : kT3, 1.2f);
+        Draw->AddLine(ImVec2(Max.x - 7.0f, Cy - 4.0f), ImVec2(Max.x - 13.0f, Cy + 2.0f), Hot ? kText : kT3, 1.2f);
         X += W + 5.0f;
     }
-    ImGui::SetCursorScreenPos(ImVec2(Start.x, Y + 26.0f + 8.0f));
+    ImGui::SetCursorScreenPos(ImVec2(Start.x, Any ? (Y + 26.0f + 8.0f) : Start.y));
 }
 
 //------------------------------------------------------------------------------------------------------------------------

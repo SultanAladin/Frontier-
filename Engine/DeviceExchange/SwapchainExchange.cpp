@@ -3229,87 +3229,146 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
             0u, 0u, nullptr, 0u, nullptr, 1u, &ToGeneral);
     }
 
-    // ③ Storage image → TRANSFER_SRC for blit
+    if (SceneBackdrop)
     {
-        VkImageMemoryBarrier Barrier{};
-        Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        Barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
-        Barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        Barrier.image                           = Vulkan->StorageImage;
-        Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        Barrier.subresourceRange.levelCount     = 1u;
-        Barrier.subresourceRange.layerCount     = 1u;
-        Barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT;
-        Barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_READ_BIT;
-        vkCmdPipelineBarrier(Command,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        // ③ Storage image → TRANSFER_SRC for blit
+        {
+            VkImageMemoryBarrier Barrier{};
+            Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            Barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+            Barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            Barrier.image                           = Vulkan->StorageImage;
+            Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            Barrier.subresourceRange.levelCount     = 1u;
+            Barrier.subresourceRange.layerCount     = 1u;
+            Barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
+            Barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_READ_BIT;
+            vkCmdPipelineBarrier(Command,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        }
+
+        // ④ Swapchain image → TRANSFER_DST
+        {
+            VkImageMemoryBarrier Barrier{};
+            Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            Barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+            Barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            Barrier.image                           = Vulkan->SwapchainImages[ImageOrdinal];
+            Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            Barrier.subresourceRange.levelCount     = 1u;
+            Barrier.subresourceRange.layerCount     = 1u;
+            Barrier.srcAccessMask                   = 0u;
+            Barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
+            vkCmdPipelineBarrier(Command,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        }
+
+        // ⑤ Blit storage → swapchain
+        VkImageBlit BlitRegion{};
+        BlitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
+        BlitRegion.srcOffsets[0]  = { 0, 0, 0 };
+        BlitRegion.srcOffsets[1]  = { static_cast<int32_t>(RenderWidth), static_cast<int32_t>(RenderHeight), 1 };
+        BlitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
+        BlitRegion.dstOffsets[0]  = { 0, 0, 0 };
+        BlitRegion.dstOffsets[1]  = { static_cast<int32_t>(Configuration.Width), static_cast<int32_t>(Configuration.Height), 1 };
+        const bool Upscaling = RenderWidth != Configuration.Width || RenderHeight != Configuration.Height;
+        vkCmdBlitImage(Command,
+            Vulkan->StorageImage,                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            Vulkan->SwapchainImages[ImageOrdinal],   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1u, &BlitRegion, Upscaling ? VK_FILTER_LINEAR : VK_FILTER_NEAREST);
+
+        // ⑤b Storage image → GENERAL again: the ImGui pass samples it for the editor's viewport panel, and the
+        //    scene view descriptor names the GENERAL layout.
+        {
+            VkImageMemoryBarrier Barrier{};
+            Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            Barrier.oldLayout                       = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            Barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+            Barrier.image                           = Vulkan->StorageImage;
+            Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            Barrier.subresourceRange.levelCount     = 1u;
+            Barrier.subresourceRange.layerCount     = 1u;
+            Barrier.srcAccessMask                   = VK_ACCESS_TRANSFER_READ_BIT;
+            Barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT;
+            vkCmdPipelineBarrier(Command,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        }
+
+        // ⑥ Swapchain image → COLOR_ATTACHMENT_OPTIMAL for ImGui
+        {
+            VkImageMemoryBarrier Barrier{};
+            Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            Barrier.oldLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            Barrier.newLayout                       = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            Barrier.image                           = Vulkan->SwapchainImages[ImageOrdinal];
+            Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            Barrier.subresourceRange.levelCount     = 1u;
+            Barrier.subresourceRange.layerCount     = 1u;
+            Barrier.srcAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
+            Barrier.dstAccessMask                   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            vkCmdPipelineBarrier(Command,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        }
     }
-
-    // ④ Swapchain image → TRANSFER_DST
+    else
     {
-        VkImageMemoryBarrier Barrier{};
-        Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        Barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
-        Barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        Barrier.image                           = Vulkan->SwapchainImages[ImageOrdinal];
-        Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        Barrier.subresourceRange.levelCount     = 1u;
-        Barrier.subresourceRange.layerCount     = 1u;
-        Barrier.srcAccessMask                   = 0u;
-        Barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
-        vkCmdPipelineBarrier(Command,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
-    }
-
-    // ⑤ Blit storage → swapchain
-    VkImageBlit BlitRegion{};
-    BlitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
-    BlitRegion.srcOffsets[0]  = { 0, 0, 0 };
-    BlitRegion.srcOffsets[1]  = { static_cast<int32_t>(RenderWidth), static_cast<int32_t>(RenderHeight), 1 };
-    BlitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
-    BlitRegion.dstOffsets[0]  = { 0, 0, 0 };
-    BlitRegion.dstOffsets[1]  = { static_cast<int32_t>(Configuration.Width), static_cast<int32_t>(Configuration.Height), 1 };
-    const bool Upscaling = RenderWidth != Configuration.Width || RenderHeight != Configuration.Height;
-    vkCmdBlitImage(Command,
-        Vulkan->StorageImage,                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        Vulkan->SwapchainImages[ImageOrdinal],   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1u, &BlitRegion, Upscaling ? VK_FILTER_LINEAR : VK_FILTER_NEAREST);
-
-    // ⑤b Storage image → GENERAL again: the ImGui pass samples it for the editor's viewport panel, and the
-    //    scene view descriptor names the GENERAL layout.
-    {
-        VkImageMemoryBarrier Barrier{};
-        Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        Barrier.oldLayout                       = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        Barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
-        Barrier.image                           = Vulkan->StorageImage;
-        Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        Barrier.subresourceRange.levelCount     = 1u;
-        Barrier.subresourceRange.layerCount     = 1u;
-        Barrier.srcAccessMask                   = VK_ACCESS_TRANSFER_READ_BIT;
-        Barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT;
-        vkCmdPipelineBarrier(Command,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
-    }
-
-    // ⑥ Swapchain image → COLOR_ATTACHMENT_OPTIMAL for ImGui
-    {
-        VkImageMemoryBarrier Barrier{};
-        Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        Barrier.oldLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        Barrier.newLayout                       = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        Barrier.image                           = Vulkan->SwapchainImages[ImageOrdinal];
-        Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        Barrier.subresourceRange.levelCount     = 1u;
-        Barrier.subresourceRange.layerCount     = 1u;
-        Barrier.srcAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
-        Barrier.dstAccessMask                   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        vkCmdPipelineBarrier(Command,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        // The development editor samples the resolved scene inside the docked viewport. Keep the storage image in
+        // GENERAL for ImGui and clear the swapchain behind the editor instead of blitting a fullscreen plate.
+        {
+            VkImageMemoryBarrier Barrier{};
+            Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            Barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+            Barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+            Barrier.image                           = Vulkan->StorageImage;
+            Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            Barrier.subresourceRange.levelCount     = 1u;
+            Barrier.subresourceRange.layerCount     = 1u;
+            Barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
+            Barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT;
+            vkCmdPipelineBarrier(Command,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        }
+        {
+            VkImageMemoryBarrier Barrier{};
+            Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            Barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+            Barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            Barrier.image                           = Vulkan->SwapchainImages[ImageOrdinal];
+            Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            Barrier.subresourceRange.levelCount     = 1u;
+            Barrier.subresourceRange.layerCount     = 1u;
+            Barrier.srcAccessMask                   = 0u;
+            Barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
+            vkCmdPipelineBarrier(Command,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        }
+        const VkClearColorValue ClearBlack = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+        const VkImageSubresourceRange ClearRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0u, 1u, 0u, 1u };
+        vkCmdClearColorImage(Command, Vulkan->SwapchainImages[ImageOrdinal], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             &ClearBlack, 1u, &ClearRange);
+        {
+            VkImageMemoryBarrier Barrier{};
+            Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            Barrier.oldLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            Barrier.newLayout                       = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            Barrier.image                           = Vulkan->SwapchainImages[ImageOrdinal];
+            Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            Barrier.subresourceRange.levelCount     = 1u;
+            Barrier.subresourceRange.layerCount     = 1u;
+            Barrier.srcAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
+            Barrier.dstAccessMask                   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            vkCmdPipelineBarrier(Command,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        }
     }
 
     // ⑦ ImGui render pass

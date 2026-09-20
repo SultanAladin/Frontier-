@@ -224,7 +224,11 @@ int main()
 
     for (int I = 0; I < 12; ++I)
         Rest();
-    Click(86.0f, 396.0f); // Body01 row in the SolidArc outliner; seats the CAD inspector like the game proof.
+    Click(178.0f, 175.0f); // Filter dropdown in the SolidArc outliner search row.
+    Click(160.0f, 281.0f); // Bodies entry; selected filters appear as chips below the search/filter row.
+    for (int I = 0; I < 4; ++I)
+        Rest();
+    Click(78.0f, 294.0f); // Body01 row after the Bodies filter; seats the CAD inspector like the game proof.
     for (int I = 0; I < 8; ++I)
         Rest();
     Rasterise();
