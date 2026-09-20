@@ -160,13 +160,17 @@ struct SwapchainExchange::VulkanRecord
     VkDescriptorSet          LuminanceSets[kCycleSlotCount] = {};
 
     bool                     DescriptorIndexing    = false;   // runtimeDescriptorArray + partially bound granted by the driver
-    VkBuffer                 TraversalNodeBuffer   = VK_NULL_HANDLE;   // R3 CWBVH nodes (binding 8)
+    // Binding 8/9 are the active CWBVH node/leaf blobs. With TlasInstanceCount == 0 they hold the world-space
+    //    single-blob TraversalIndex; with TlasInstanceCount > 0 they MUST hold InstanceAcceleration's concatenated
+    //    object/rest-space BLAS blobs because bindings 27-30 only carry the TLAS, instance rows, and BLAS offsets.
+    VkBuffer                 TraversalNodeBuffer   = VK_NULL_HANDLE;   // CWBVH nodes (binding 8)
     VkDeviceMemory           TraversalNodeMemory   = VK_NULL_HANDLE;
-    VkBuffer                 TraversalLeafBuffer   = VK_NULL_HANDLE;   // R3 CWBVH triangles (binding 9)
+    VkBuffer                 TraversalLeafBuffer   = VK_NULL_HANDLE;   // CWBVH triangles/leaves (binding 9)
     VkDeviceMemory           TraversalLeafMemory   = VK_NULL_HANDLE;
     // D6/D7 two-level traversal (bindings 27-30). Allocated by UploadInstanceTraversal, rewritten in place every frame
     //    by RefreshInstanceTraversal: the top level is rebuilt from the instances' world AABBs on the CPU (the same
-    //    work the CPU mirror measures) and re-uploaded as 8 floats a node.
+    //    work the CPU mirror measures) and re-uploaded as 8 floats a node. The BLAS blobs themselves live in bindings
+    //    8/9 while the two-level path is active.
     VkBuffer                 TlasNodeBuffer        = VK_NULL_HANDLE;   // 8 floats per top-level node (binding 27)
     VkDeviceMemory           TlasNodeMemory        = VK_NULL_HANDLE;
     VkBuffer                 TlasPrimitiveBuffer   = VK_NULL_HANDLE;   // instance list the leaves index (binding 28)
@@ -2531,8 +2535,13 @@ void SwapchainExchange::UploadTraversal(const TraversalIndex& Traversal) noexcep
     if (Vulkan->BlasPlacementMemory) vkFreeMemory   (Vulkan->Device, Vulkan->BlasPlacementMemory, nullptr);
     Vulkan->TraversalNodeBuffer = Vulkan->TraversalLeafBuffer = VK_NULL_HANDLE;
     Vulkan->TraversalNodeMemory = Vulkan->TraversalLeafMemory = VK_NULL_HANDLE;
-    // The two-level buffers are NOT reset here: they are a separate upload (UploadInstanceTraversal) and a re-upload of
-    //    the single-blob pair must not orphan them. Their own upload path resets them, keeping the two lifetimes apart.
+    Vulkan->TlasNodeBuffer = Vulkan->TlasPrimitiveBuffer = Vulkan->TlasInstanceBuffer = Vulkan->BlasPlacementBuffer = VK_NULL_HANDLE;
+    Vulkan->TlasNodeMemory = Vulkan->TlasPrimitiveMemory = Vulkan->TlasInstanceMemory = Vulkan->BlasPlacementMemory = VK_NULL_HANDLE;
+    TlasNodeCapacity = TlasPrimitiveCapacity = TlasInstanceCapacity = BlasPlacementCapacity = 0u;
+    InstanceTraversalResident = false;
+    // UploadTraversal is the world-space fallback. It therefore owns bindings 8/9 and deliberately tears down the
+    //    two-level bindings too; UploadInstanceTraversal will replace 8/9 with BLAS blobs when the instance TLAS is
+    //    selected again.
 
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     const auto Upload = [&](const std::vector<float>& Blob, VkBuffer& Buffer, VkDeviceMemory& Memory)
@@ -2583,48 +2592,70 @@ bool SwapchainExchange::RefreshTraversal(const TraversalIndex& Traversal, const 
 
 void SwapchainExchange::UploadInstanceTraversal(const InstanceAcceleration& Instances) noexcept
 {
-    // D6/D7 → bindings 27-30. The single-blob pair above and this pair are uploaded independently: a scene keeps its
-    //    world-space CWBVH either way, and only the dispatcher's TlasInstanceCount decides which one the kernel walks.
+    // D6/D7 → bindings 8/9 plus 27-30. The shader's two-level path does NOT have separate BLAS bindings: after a
+    //    TLAS leaf it reads BlasPlacements[blas].NodeOffset/LeafOffset and then indexes CwbvhNodes/CwbvhTris — the same
+    //    buffers at bindings 8 and 9 used by the world-space path. Therefore, while TlasInstanceCount > 0, bindings
+    //    8/9 must be the InstanceAcceleration shared BLAS blobs, not the stale world-space whole-scene CWBVH. The
+    //    Cornell box/single-instance path worked because TlasInstanceCount stayed 0 and the shader never took this arm.
     if (!Vulkan || !Vulkan->Device) return;
-    if (Vulkan->TlasNodeBuffer)      vkDestroyBuffer(Vulkan->Device, Vulkan->TlasNodeBuffer, nullptr);
-    if (Vulkan->TlasPrimitiveBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TlasPrimitiveBuffer, nullptr);
-    if (Vulkan->TlasInstanceBuffer)  vkDestroyBuffer(Vulkan->Device, Vulkan->TlasInstanceBuffer, nullptr);
-    if (Vulkan->BlasPlacementBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->BlasPlacementBuffer, nullptr);
-    if (Vulkan->TlasNodeMemory)      vkFreeMemory(Vulkan->Device, Vulkan->TlasNodeMemory, nullptr);
-    if (Vulkan->TlasPrimitiveMemory) vkFreeMemory(Vulkan->Device, Vulkan->TlasPrimitiveMemory, nullptr);
-    if (Vulkan->TlasInstanceMemory)  vkFreeMemory(Vulkan->Device, Vulkan->TlasInstanceMemory, nullptr);
-    if (Vulkan->BlasPlacementMemory) vkFreeMemory(Vulkan->Device, Vulkan->BlasPlacementMemory, nullptr);
-    Vulkan->TlasNodeBuffer = Vulkan->TlasPrimitiveBuffer = Vulkan->TlasInstanceBuffer = Vulkan->BlasPlacementBuffer = VK_NULL_HANDLE;
-    Vulkan->TlasNodeMemory = Vulkan->TlasPrimitiveMemory = Vulkan->TlasInstanceMemory = Vulkan->BlasPlacementMemory = VK_NULL_HANDLE;
 
+    const std::vector<float>&    BlasNodes  = Instances.QueryNodeBlob();
+    const std::vector<float>&    BlasLeaves = Instances.QueryLeafBlob();
     const std::vector<float>&    Nodes      = Instances.QueryTlasNodePayload();
     const std::vector<uint32_t>& Primitives = Instances.QueryTlasPrimitiveList();
     const std::vector<TlasInstanceRecord>& Rows = Instances.QueryInstances();
     const std::vector<BlasPlacement>&      Places = Instances.QueryBlasPlacements();
-    if (Nodes.empty() || Primitives.empty() || Rows.empty() || Places.empty()) return;
+    if (BlasNodes.empty() || BlasLeaves.empty() || Nodes.empty() || Primitives.empty() || Rows.empty() || Places.empty()) return;
+
+    vkDeviceWaitIdle(Vulkan->Device);
+    if (Vulkan->TraversalNodeBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalNodeBuffer, nullptr);
+    if (Vulkan->TraversalLeafBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalLeafBuffer, nullptr);
+    if (Vulkan->TlasNodeBuffer)      vkDestroyBuffer(Vulkan->Device, Vulkan->TlasNodeBuffer, nullptr);
+    if (Vulkan->TlasPrimitiveBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TlasPrimitiveBuffer, nullptr);
+    if (Vulkan->TlasInstanceBuffer)  vkDestroyBuffer(Vulkan->Device, Vulkan->TlasInstanceBuffer, nullptr);
+    if (Vulkan->BlasPlacementBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->BlasPlacementBuffer, nullptr);
+    if (Vulkan->TraversalNodeMemory) vkFreeMemory(Vulkan->Device, Vulkan->TraversalNodeMemory, nullptr);
+    if (Vulkan->TraversalLeafMemory) vkFreeMemory(Vulkan->Device, Vulkan->TraversalLeafMemory, nullptr);
+    if (Vulkan->TlasNodeMemory)      vkFreeMemory(Vulkan->Device, Vulkan->TlasNodeMemory, nullptr);
+    if (Vulkan->TlasPrimitiveMemory) vkFreeMemory(Vulkan->Device, Vulkan->TlasPrimitiveMemory, nullptr);
+    if (Vulkan->TlasInstanceMemory)  vkFreeMemory(Vulkan->Device, Vulkan->TlasInstanceMemory, nullptr);
+    if (Vulkan->BlasPlacementMemory) vkFreeMemory(Vulkan->Device, Vulkan->BlasPlacementMemory, nullptr);
+    Vulkan->TraversalNodeBuffer = Vulkan->TraversalLeafBuffer = VK_NULL_HANDLE;
+    Vulkan->TraversalNodeMemory = Vulkan->TraversalLeafMemory = VK_NULL_HANDLE;
+    Vulkan->TlasNodeBuffer = Vulkan->TlasPrimitiveBuffer = Vulkan->TlasInstanceBuffer = Vulkan->BlasPlacementBuffer = VK_NULL_HANDLE;
+    Vulkan->TlasNodeMemory = Vulkan->TlasPrimitiveMemory = Vulkan->TlasInstanceMemory = Vulkan->BlasPlacementMemory = VK_NULL_HANDLE;
 
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    const auto Upload = [&](const void* Source, VkDeviceSize ByteCount, VkBuffer& Buffer, VkDeviceMemory& Memory)
+    const auto Upload = [&](const void* Source, VkDeviceSize ByteCount, VkBuffer& Buffer, VkDeviceMemory& Memory) -> bool
     {
+        if (!Source || ByteCount == 0u) return false;
         AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible, Buffer, Memory);
+        if (!Buffer || !Memory) return false;
         void* Mapped = nullptr;
-        (void)vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped);
-        if (Mapped) { std::memcpy(Mapped, Source, static_cast<size_t>(ByteCount)); vkUnmapMemory(Vulkan->Device, Memory); }
+        if (vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped) != VK_SUCCESS || Mapped == nullptr) return false;
+        std::memcpy(Mapped, Source, static_cast<size_t>(ByteCount));
+        vkUnmapMemory(Vulkan->Device, Memory);
+        return true;
     };
-    Upload(Nodes.data(),      static_cast<VkDeviceSize>(Nodes.size()) * sizeof(float), Vulkan->TlasNodeBuffer, Vulkan->TlasNodeMemory);
-    Upload(Primitives.data(), static_cast<VkDeviceSize>(Primitives.size()) * sizeof(uint32_t), Vulkan->TlasPrimitiveBuffer, Vulkan->TlasPrimitiveMemory);
-    Upload(Rows.data(),       static_cast<VkDeviceSize>(Rows.size()) * sizeof(TlasInstanceRecord), Vulkan->TlasInstanceBuffer, Vulkan->TlasInstanceMemory);
-    Upload(Places.data(),     static_cast<VkDeviceSize>(Places.size()) * sizeof(BlasPlacement), Vulkan->BlasPlacementBuffer, Vulkan->BlasPlacementMemory);
+    if (!Upload(BlasNodes.data(),  static_cast<VkDeviceSize>(BlasNodes.size()) * sizeof(float), Vulkan->TraversalNodeBuffer, Vulkan->TraversalNodeMemory)) return;
+    if (!Upload(BlasLeaves.data(), static_cast<VkDeviceSize>(BlasLeaves.size()) * sizeof(float), Vulkan->TraversalLeafBuffer, Vulkan->TraversalLeafMemory)) return;
+    if (!Upload(Nodes.data(),      static_cast<VkDeviceSize>(Nodes.size()) * sizeof(float), Vulkan->TlasNodeBuffer, Vulkan->TlasNodeMemory)) return;
+    if (!Upload(Primitives.data(), static_cast<VkDeviceSize>(Primitives.size()) * sizeof(uint32_t), Vulkan->TlasPrimitiveBuffer, Vulkan->TlasPrimitiveMemory)) return;
+    if (!Upload(Rows.data(),       static_cast<VkDeviceSize>(Rows.size()) * sizeof(TlasInstanceRecord), Vulkan->TlasInstanceBuffer, Vulkan->TlasInstanceMemory)) return;
+    if (!Upload(Places.data(),     static_cast<VkDeviceSize>(Places.size()) * sizeof(BlasPlacement), Vulkan->BlasPlacementBuffer, Vulkan->BlasPlacementMemory)) return;
 
     // What was allocated, so the per-frame refresh can refuse a payload that no longer fits rather than truncate.
+    TraversalNodeCapacity = static_cast<VkDeviceSize>(BlasNodes.size()) * sizeof(float);
+    TraversalLeafCapacity = static_cast<VkDeviceSize>(BlasLeaves.size()) * sizeof(float);
     TlasNodeCapacity      = static_cast<VkDeviceSize>(Nodes.size()) * sizeof(float);
     TlasPrimitiveCapacity = static_cast<VkDeviceSize>(Primitives.size()) * sizeof(uint32_t);
     TlasInstanceCapacity  = static_cast<VkDeviceSize>(Rows.size()) * sizeof(TlasInstanceRecord);
     BlasPlacementCapacity = static_cast<VkDeviceSize>(Places.size()) * sizeof(BlasPlacement);
+    TraversalResident = true;
     InstanceTraversalResident = true;
     WriteDescriptorSet();
     std::cout << "[SwapchainExchange] Instances: " << Rows.size() << " rows, " << Places.size() << " BLASes, "
-              << Instances.QueryMetrics().TlasNodeCount << " top-level nodes (bindings 27-30)\n";
+              << Instances.QueryMetrics().TlasNodeCount << " top-level nodes (BLAS bindings 8-9, TLAS bindings 27-30)\n";
 }
 
 bool SwapchainExchange::RefreshInstanceTraversal(const InstanceAcceleration& Instances) noexcept
