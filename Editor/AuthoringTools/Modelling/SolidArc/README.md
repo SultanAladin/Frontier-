@@ -17,7 +17,10 @@ This import intentionally contains the C++ side only:
 - console command host,
 - interaction and gizmo helpers,
 - software-raster presentation proof path,
+- shared-editor outliner adapter and optional ImGui editor shell,
 - C++ verification sources.
+
+The SolidArc editor shell reuses `Engine/Editor/OutlinerPanel` and `Engine/Editor/ViewportPanel`; the adapter maps CAD figures into the same `EditorInstance` feed that Project-Zero's in-game editor uses.
 
 It intentionally excludes the upstream HTML panel, PNG proof artifacts, `.arc` script assets, and browser-only verification files.
 

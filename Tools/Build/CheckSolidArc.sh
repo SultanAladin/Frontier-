@@ -3,7 +3,7 @@
 #
 # SolidArc intentionally lives under Editor/AuthoringTools/Modelling instead of the Project-Zero runtime source batch.
 # This gate proves the C++ side still compiles without CMake or external packages: kernel, document, console,
-# interaction, software-raster presentation, console executable, and every C++ verification TU.
+# interaction, software-raster presentation, shared outliner adapter, console executable, and every C++ verification TU.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
@@ -51,6 +51,7 @@ Core=(
     Console/ConsoleHost.cpp
     Console/ConsoleInteraction.cpp
     Console/ConsoleSelection.cpp
+    Editor/SolidArcOutlinerAdapter.cpp
 )
 
 Objects=()
@@ -66,6 +67,46 @@ ConsoleObj="$Work/obj/SolidArcConsole.o"
 "$Work/SolidArc" --help >/dev/null
 
 echo "[SolidArc] console target links and starts"
+
+cat > "$Work/SolidArcOutlinerProof.cpp" <<'PROOF'
+#include "Editor/SolidArcOutlinerAdapter.h"
+#include <cstdio>
+#include <cstring>
+
+int main()
+{
+    Frontier::ConsoleHost Host("/tmp/solidarc-outliner-proof", 320, 220);
+    if (!Host.Execute("box (0,0,0) (1,1,1) --name=ProofBox")) return 2;
+    if (!Host.Execute("line (0,0) (2,0) --name=ProofLine")) return 3;
+
+    Frontier::EditorInstance Rows[Frontier::kMaxEditorInstances] = {};
+    Frontier::SolidArcOutlinerBinding Bindings[Frontier::kMaxEditorInstances] = {};
+    Frontier::EditorReadout Readout = {};
+    const uint32_t Count = Frontier::BuildSolidArcOutliner(Host, Rows, Bindings, Frontier::kMaxEditorInstances, &Readout);
+    if (Count < 5u) return 4;
+    bool SawRoot = false, SawBody = false, SawCurve = false;
+    uint32_t BodyRow = Frontier::kNoEditorInstance;
+    for (uint32_t I = 0; I < Count; ++I)
+    {
+        SawRoot  = SawRoot  || std::strcmp(Rows[I].Label, "SolidArc Document") == 0;
+        SawBody  = SawBody  || std::strcmp(Rows[I].Label, "ProofBox") == 0;
+        SawCurve = SawCurve || std::strcmp(Rows[I].Label, "ProofLine") == 0;
+        if (std::strcmp(Rows[I].Label, "ProofBox") == 0) BodyRow = I;
+    }
+    if (!SawRoot || !SawBody || !SawCurve || BodyRow == Frontier::kNoEditorInstance) return 5;
+    if (Bindings[BodyRow].RowRole != Frontier::SolidArcOutlinerBinding::Role::Figure) return 6;
+    Rows[BodyRow].Visible = false;
+    Frontier::ApplySolidArcOutlinerVisibility(Host, Rows, Bindings, Count);
+    Frontier::SceneFigure* Box = Host.Document().Find("ProofBox");
+    if (Box == nullptr || !Box->Hidden) return 7;
+    std::printf("[SolidArc] outliner proof mapped %u rows; body visibility writes back\n", Count);
+    return 0;
+}
+PROOF
+ProofObj="$Work/obj/SolidArcOutlinerProof.o"
+"$Compiler" "${Flags[@]}" -I. -c "$Work/SolidArcOutlinerProof.cpp" -o "$ProofObj"
+"$Compiler" "${Objects[@]}" "$ProofObj" -o "$Work/SolidArcOutlinerProof"
+"$Work/SolidArcOutlinerProof"
 
 VerifyCount=0
 while IFS= read -r Source; do

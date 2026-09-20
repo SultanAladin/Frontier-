@@ -60,10 +60,17 @@ add_library(SolidArcConsoleKit STATIC
 target_link_libraries(SolidArcConsoleKit PUBLIC SolidArcPresentation)
 target_include_directories(SolidArcConsoleKit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+set(FRONTIER_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+add_library(SolidArcEditorModel STATIC
+    Editor/SolidArcOutlinerAdapter.cpp
+)
+target_link_libraries(SolidArcEditorModel PUBLIC SolidArcConsoleKit)
+target_include_directories(SolidArcEditorModel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} "${FRONTIER_REPO_ROOT}")
+
 add_executable(SolidArc Console/SolidArcConsole.cpp)
 target_link_libraries(SolidArc PRIVATE SolidArcConsoleKit)
 
-foreach(Target SolidArcKernel SolidArcPresentation SolidArcConsoleKit SolidArc)
+foreach(Target SolidArcKernel SolidArcPresentation SolidArcConsoleKit SolidArcEditorModel SolidArc)
     if(MSVC)
         target_compile_options(${Target} PRIVATE /W4 /permissive- /utf-8)
         target_compile_definitions(${Target} PRIVATE NOMINMAX)
@@ -71,6 +78,29 @@ foreach(Target SolidArcKernel SolidArcPresentation SolidArcConsoleKit SolidArc)
         target_compile_options(${Target} PRIVATE -Wall -Wextra -Wpedantic -Wno-unused-function)
     endif()
 endforeach()
+
+set(SOLIDARC_IMGUI_ROOT "${FRONTIER_REPO_ROOT}/ExternalPackages/imgui")
+if(EXISTS "${SOLIDARC_IMGUI_ROOT}/imgui.h")
+    add_library(SolidArcEditorUi STATIC
+        Editor/SolidArcEditorHost.cpp
+        "${FRONTIER_REPO_ROOT}/Engine/Editor/ControlPanel.cpp"
+        "${FRONTIER_REPO_ROOT}/Engine/Editor/OutlinerPanel.cpp"
+        "${FRONTIER_REPO_ROOT}/Engine/Editor/ViewportPanel.cpp"
+    )
+    target_link_libraries(SolidArcEditorUi PUBLIC SolidArcEditorModel)
+    target_include_directories(SolidArcEditorUi PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        "${FRONTIER_REPO_ROOT}"
+        "${FRONTIER_REPO_ROOT}/Engine/Editor"
+        "${SOLIDARC_IMGUI_ROOT}")
+    if(MSVC)
+        target_compile_options(SolidArcEditorUi PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(SolidArcEditorUi PRIVATE NOMINMAX FRONTIER_DEVELOPMENT)
+    else()
+        target_compile_options(SolidArcEditorUi PRIVATE -Wall -Wextra -Wpedantic -Wno-unused-function)
+        target_compile_definitions(SolidArcEditorUi PRIVATE FRONTIER_DEVELOPMENT)
+    endif()
+endif()
 
 if(SOLIDARC_BUILD_VERIFICATION)
     enable_testing()

@@ -623,6 +623,11 @@ void OutlinerPanel::AssignTabOpen(bool* Open) noexcept
     TabOpen_ = Open;
 }
 
+void OutlinerPanel::AssignWindowTitle(const char* Title) noexcept
+{
+    WindowTitle_ = (Title != nullptr && Title[0] != '\0') ? Title : "Outliner";
+}
+
 void OutlinerPanel::AssignReadout(const EditorReadout* Readout) noexcept
 {
     Readout_ = Readout;
@@ -871,7 +876,7 @@ void OutlinerPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) no
     IM_ASSERT(Controls_ != nullptr);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(15.0f / 255.0f, 16.0f / 255.0f, 18.0f / 255.0f, 1.0f));
-    const bool Open = ImGui::Begin("Outliner", TabOpen_, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    const bool Open = ImGui::Begin(WindowTitle_, TabOpen_, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     if (!Open)

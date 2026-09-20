@@ -232,9 +232,10 @@ KnobCheck="$(mktemp -u /tmp/EditorKnobCheck.XXXXXX)"
 #    from the compiler, which says nothing about what to do. A proof harness that cannot tell you why it did not
 #    run is indistinguishable from a broken one, and this is the gate every UI proof depends on.
 # The inspector now tabs behind the outliner (the sheet opens on two panels: outliner and viewport), so the
-#    knob column is not on the Tabs sheet. The check stays for the day the inspector is raised in the proof.
+#    knob column is not read back here because the current proof focuses layout and docking; the inspector is
+#    visible on the right column and still writes its own sheet above.
 if true; then
-    echo "  KNOB CHECK SKIPPED - the inspector tabs behind the outliner; no slider column on the Tabs sheet"
+    echo "  KNOB CHECK SKIPPED - docking proof writes the inspector sheet; pixel knob read-back is separate"
 elif [ ! -f ExternalPackages/stb/stb_image.h ]; then
     echo "  KNOB CHECK SKIPPED - ExternalPackages/stb is not populated"
     echo "    the sheets above were still written and gated; only the pixel read-back is missing"

@@ -124,7 +124,7 @@ public:
     [[nodiscard]] const ViewportOrbit& QueryViewportOrbit() const noexcept;
 
 private:
-    // Splits the dockspace into the outliner / viewport / inspector columns on the first tick, then rests.
+    // Splits the dockspace into outliner / viewport / inspector columns on the first tick, then rests.
     //    Runs with the host window open: the builder addresses the host, and without it there is nothing to
     //    build against.
     void ConstructLayout() noexcept;
@@ -149,6 +149,9 @@ private:
     bool ViewportTabOpen_  = true;        // the viewport tab's close mark clears this; the add menu seats it
     bool InspectorTabOpen_ = true;        // the inspector tab's close mark clears this; the add menu seats it
     ImGuiID LeftColumn_    = 0u;          // the left column's address, for the add control and its poll
+    ImGuiID CentreColumn_  = 0u;          // the viewport column's address; kept distinct so the view is never the backing canvas
+    ImGuiID RightColumn_   = 0u;          // the inspector column's address
+    bool LayoutSeated_ = false;           // one canonical seat per run; user drags then survive until close
     bool ShadeSeated_  = false;           // SeatShade has opened the host's springs
     uint32_t ToastRevision_ = 0u;         // the settings revision the last toast answered
 

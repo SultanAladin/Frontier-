@@ -24,6 +24,8 @@ public:
     void AssignControls(ControlPanel* Controls) noexcept;
     // The tab's close mark writes through this; null leaves the tab without one.
     void AssignTabOpen(bool* Open) noexcept;
+    // Lets SolidArc seat this exact panel beside Project-Zero without sharing the same ImGui title/id.
+    void AssignWindowTitle(const char* Title) noexcept;
 
     // The foot strip's five figures. Optional: without a readout the strip prints its resting figures.
     void AssignReadout(const EditorReadout* Readout) noexcept;
@@ -64,6 +66,7 @@ private:
     ControlPanel*        Controls_ = nullptr;
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;
+    const char*          WindowTitle_ = "Outliner";
 
     char     QueryText_[64] = {};
     bool     NarrowOn_[static_cast<uint32_t>(EditorNarrowing::Count)] = {};   // the lit pills; none lit shows all

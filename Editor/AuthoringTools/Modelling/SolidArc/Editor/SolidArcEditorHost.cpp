@@ -1,0 +1,119 @@
+//=============================================================================================================================================
+// SolidArcEditorHost.cpp
+//=============================================================================================================================================
+
+#include "SolidArcEditorHost.h"
+
+#include <imgui.h>
+#include <imgui_internal.h>
+
+#include <algorithm>
+
+namespace Frontier {
+
+SolidArcEditorHost::SolidArcEditorHost() noexcept
+{
+    Outliner_.AssignControls(&Controls_);
+    Viewport_.AssignControls(&Controls_);
+    Outliner_.AssignTabOpen(&OutlinerTabOpen_);
+    Viewport_.AssignTabOpen(&ViewportTabOpen_);
+    Outliner_.AssignWindowTitle("SolidArc Outliner");
+    Viewport_.AssignWindowTitle("SolidArc Viewport");
+    Outliner_.AssignReadout(&Readout_);
+    Viewport_.AssignReadout(&Readout_);
+}
+
+void SolidArcEditorHost::ApplyTheme() noexcept
+{
+    ImGuiStyle& Style = ImGui::GetStyle();
+    Style.WindowPadding    = ImVec2(14.0f, 12.0f);
+    Style.WindowRounding   = 8.0f;
+    Style.ChildRounding    = 12.0f;
+    Style.FrameRounding    = 16.0f;
+    Style.WindowBorderSize = 1.0f;
+    Style.FrameBorderSize  = 1.0f;
+    Style.ScrollbarSize    = 8.0f;
+
+    ImVec4* Colours = Style.Colors;
+    Colours[ImGuiCol_WindowBg]       = ImVec4(0.071f, 0.071f, 0.071f, 1.0f);
+    Colours[ImGuiCol_ChildBg]        = ImVec4(0.000f, 0.000f, 0.000f, 0.0f);
+    Colours[ImGuiCol_Border]         = ImVec4(1.000f, 1.000f, 1.000f, 0.05f);
+    Colours[ImGuiCol_FrameBg]        = ImVec4(0.000f, 0.000f, 0.000f, 1.0f);
+    Colours[ImGuiCol_Button]         = ImVec4(0.133f, 0.133f, 0.133f, 1.0f);
+    Colours[ImGuiCol_ButtonHovered]  = ImVec4(0.180f, 0.180f, 0.180f, 1.0f);
+    Colours[ImGuiCol_Header]         = ImVec4(0.165f, 0.165f, 0.165f, 1.0f);
+    Colours[ImGuiCol_Tab]            = ImVec4(0.149f, 0.149f, 0.173f, 1.0f);
+    Colours[ImGuiCol_TabHovered]     = ImVec4(0.196f, 0.196f, 0.227f, 1.0f);
+    Colours[ImGuiCol_TabActive]      = ImVec4(0.071f, 0.071f, 0.071f, 1.0f);
+    Colours[ImGuiCol_DockingPreview] = ImVec4(1.000f, 1.000f, 1.000f, 0.12f);
+}
+
+void SolidArcEditorHost::ConstructLayout() noexcept
+{
+    const ImGuiID DockId = ImGui::GetID("SolidArcEditorDockSpace");
+    if (LayoutSeated_)
+        return;
+    LayoutSeated_ = true;
+
+    ImGuiViewport* Main = ImGui::GetMainViewport();
+    ImGui::DockBuilderRemoveNode(DockId);
+    ImGui::DockBuilderAddNode(DockId, ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderSetNodeSize(DockId, Main->Size);
+
+    ImGuiID Left = 0u, Centre = 0u;
+    const float LeftShare = Main->Size.x > 0.0f ? std::clamp(316.0f / Main->Size.x, 0.18f, 0.38f) : 0.25f;
+    ImGui::DockBuilderSplitNode(DockId, ImGuiDir_Left, LeftShare, &Left, &Centre);
+    ImGui::DockBuilderDockWindow("SolidArc Outliner", Left);
+    ImGui::DockBuilderDockWindow("SolidArc Viewport", Centre);
+    LeftColumn_ = Left;
+    CentreColumn_ = Centre;
+    ImGui::DockBuilderFinish(DockId);
+}
+
+void SolidArcEditorHost::Record(ConsoleHost& Host) noexcept
+{
+    Host.Render();
+    ViewImage_ = Host.Raster().Readback();
+    RowCount_ = BuildSolidArcOutliner(Host, Rows_, Bindings_, kMaxEditorInstances, &Readout_);
+    if (!ViewImage_.Pixels.empty())
+        Viewport_.AssignView(ViewImage_.Pixels.data(), ViewImage_.Width, ViewImage_.Height);
+    else
+        Viewport_.AssignView(nullptr, 0u, 0u);
+
+    ImGuiViewport* Main = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(Main->Pos.x, Main->Pos.y));
+    ImGui::SetNextWindowSize(ImVec2(Main->Size.x, Main->Size.y));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    constexpr ImGuiWindowFlags HostFlags = ImGuiWindowFlags_NoTitleBar
+                                         | ImGuiWindowFlags_NoResize
+                                         | ImGuiWindowFlags_NoMove
+                                         | ImGuiWindowFlags_NoScrollbar
+                                         | ImGuiWindowFlags_NoScrollWithMouse
+                                         | ImGuiWindowFlags_NoSavedSettings
+                                         | ImGuiWindowFlags_NoBringToFrontOnFocus
+                                         | ImGuiWindowFlags_NoNavFocus;
+    if (ImGui::Begin("SolidArcDockHost", nullptr, HostFlags))
+    {
+        const ImGuiDockNodeFlags DockFlags =
+            static_cast<ImGuiDockNodeFlags>(ImGuiDockNodeFlags_NoWindowMenuButton);
+        ConstructLayout();
+        ImGui::DockSpace(ImGui::GetID("SolidArcEditorDockSpace"), ImVec2(0.0f, 0.0f), DockFlags);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+
+    Outliner_.Record(Rows_, RowCount_);
+    Viewport_.Record(Rows_, RowCount_);
+    ApplySolidArcOutlinerVisibility(Host, Rows_, Bindings_, RowCount_);
+}
+
+uint32_t SolidArcEditorHost::QueryPickedFigureIdentity() const noexcept
+{
+    const uint32_t Picked = Outliner_.QueryPicked();
+    if (Picked >= RowCount_ || Bindings_[Picked].RowRole != SolidArcOutlinerBinding::Role::Figure)
+        return 0u;
+    return Bindings_[Picked].FigureIdentity;
+}
+
+} // namespace Frontier

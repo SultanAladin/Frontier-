@@ -41,6 +41,8 @@ public:
     void AssignControls(ControlPanel* Controls) noexcept;
     // The tab's close mark writes through this; null leaves the tab without one.
     void AssignTabOpen(bool* Open) noexcept;
+    // Lets SolidArc seat this exact panel beside Project-Zero without sharing the same ImGui title/id.
+    void AssignWindowTitle(const char* Title) noexcept;
 
     // Seats the scene view: RGBA32 top-down rows the view draws under its orb. The headless harness seats a CPU
     //    trace here; the engine build seats its ReSTIR target through AssignViewTexture instead.
@@ -82,6 +84,7 @@ private:
     ControlPanel*        Controls_ = nullptr;
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;
+    const char*          WindowTitle_ = "Viewport";
 
     const unsigned char* ViewRgba_    = nullptr;   // CPU rows; the seated texture id aliases them headless
     ImTextureID          ViewTexture_ = static_cast<ImTextureID>(0);

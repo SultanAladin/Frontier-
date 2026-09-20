@@ -601,12 +601,12 @@ int main()
         }
     }
 
-    // Gate 1 — two occupied columns: the outliner's 316 px and the viewport must carry panel ink, not bare ground.
+    // Gate 1 — three occupied columns: outliner, dedicated viewport window, inspector.
     {
-        const int LoX[2] = { 10, 400 };
-        const int HiX[2] = { 300, 1260 };
-        const char* Name[2] = { "outliner", "viewport" };
-        for (int Third = 0; Third < 2; ++Third)
+        const int LoX[3] = { 10, 360, 970 };
+        const int HiX[3] = { 300, 910, 1260 };
+        const char* Name[3] = { "outliner", "viewport", "inspector" };
+        for (int Third = 0; Third < 3; ++Third)
         {
             int Ink = 0;
             for (int Y = 100; Y < 700; ++Y)
@@ -769,7 +769,7 @@ int main()
         }
     }
 
-    // Gate 4c — one unbroken sill: the outliner foot and the viewport foot open on the same row. The
+    // Gate 4c — one unbroken sill: the outliner, viewport and inspector feet open on the same row. The
     //    hairline itself will not rasterise, so this reads the wash bands' top step instead: the first
     //    wash-mean row scanning down. The dock host insets the columns eight below the sill, so the
     //    shared forty opens at 672, not 680.
@@ -793,10 +793,12 @@ int main()
             return -1;
         };
         const int OutTop  = FootTop(40, 280);
-        const int ViewTop = FootTop(400, 1000);
-        std::fprintf(stderr, "[EditorProof] foot tops: outliner %d, viewport %d (want 672, one line)\n",
-                     OutTop, ViewTop);
-        if (OutTop < 670 || OutTop > 676 || ViewTop < 670 || ViewTop > 676 || std::abs(OutTop - ViewTop) > 2)
+        const int ViewTop = FootTop(400, 900);
+        const int InspTop = FootTop(980, 1240);
+        std::fprintf(stderr, "[EditorProof] foot tops: outliner %d, viewport %d, inspector %d (want 672, one line)\n",
+                     OutTop, ViewTop, InspTop);
+        if (OutTop < 670 || OutTop > 676 || ViewTop < 670 || ViewTop > 676 || InspTop < 670 || InspTop > 676
+            || std::abs(OutTop - ViewTop) > 2 || std::abs(OutTop - InspTop) > 2)
         {
             std::fprintf(stderr, "[EditorProof] [FAIL] the foot strips are not one height\n");
             Failed = true;
@@ -1041,7 +1043,7 @@ int main()
         }
     }
 
-    // Gate 10 — the inspector rises: its tab raised, the foot strip sits forty above the sill, carrying
+    // Gate 10 — the inspector column: its foot strip sits forty above the sill, carrying
     //    the picked instance's standing beside the live realtime and triangle figures.
     ImGui::SetWindowFocus("Inspector");
     Rest(8);
@@ -1071,11 +1073,11 @@ int main()
             }
             return -1;
         };
-        const int InspTop = FootTop(40, 280);
-        const int ViewTop = FootTop(400, 1000);
+        const int InspTop = FootTop(980, 1240);
+        const int ViewTop = FootTop(400, 900);
         int Ink = 0;
         for (int Y = 676; Y < 710; ++Y)
-            for (int X = 14; X < 302; ++X)
+            for (int X = 954; X < 1266; ++X)
             {
                 const unsigned char* P = At(X, Y);
                 if (P[0] > 60u || P[1] > 60u || P[2] > 60u)

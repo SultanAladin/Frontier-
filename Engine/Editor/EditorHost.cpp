@@ -475,28 +475,34 @@ void EditorHost::ApplyTheme() noexcept
 void EditorHost::ConstructLayout() noexcept
 {
 #ifdef FRONTIER_DEVELOPMENT
-    const ImGuiID DockId = ImGui::GetID("FrontierDockSpace");
+    const ImGuiID DockId = ImGui::GetID("FrontierEditorDockSpace");
 
-    // Once the columns exist this rests, so a dragged rearrangement survives; with no .ini (the headless
-    //    proof) the same seating rebuilds every run.
-    if (ImGui::DockBuilderGetNode(DockId) != nullptr)
+    // Seat once per run so stale .ini entries cannot keep the old stacked layout, while user drags still
+    //    survive after this first canonical seating.
+    if (LayoutSeated_)
         return;
+    LayoutSeated_ = true;
 
     ImGuiViewport* Main = ImGui::GetMainViewport();
     ImGui::DockBuilderRemoveNode(DockId);
     ImGui::DockBuilderAddNode(DockId, ImGuiDockNodeFlags_DockSpace);
     ImGui::DockBuilderSetNodeSize(DockId, Main->Size);
 
-    // Two columns: the outliner at the page's 316 px on the left, the viewport filling the rest. The inspector
-    //    tabs behind the outliner — it is not one of the two panels the sheet opens on, but it stays a drag away.
-    ImGuiID Left = 0u, Centre = 0u;
-    const float LeftShare = Main->Size.x > 0.0f ? std::clamp(316.0f / Main->Size.x, 0.15f, 0.45f) : 0.25f;
-    ImGui::DockBuilderSplitNode(DockId, ImGuiDir_Left, LeftShare, &Left, &Centre);
+    // Three columns: outliner left, the viewport in its own centre docked window, inspector right. The centre
+    //    window is opaque and docked, so the render target cannot sit underneath the editor as a fullscreen plate.
+    ImGuiID Left = 0u, CentreAndRight = 0u, Centre = 0u, Right = 0u;
+    const float LeftShare = Main->Size.x > 0.0f ? std::clamp(316.0f / Main->Size.x, 0.15f, 0.34f) : 0.25f;
+    ImGui::DockBuilderSplitNode(DockId, ImGuiDir_Left, LeftShare, &Left, &CentreAndRight);
+    const float RestWidth = std::max(1.0f, Main->Size.x * (1.0f - LeftShare));
+    const float RightShare = std::clamp(340.0f / RestWidth, 0.18f, 0.38f);
+    ImGui::DockBuilderSplitNode(CentreAndRight, ImGuiDir_Right, RightShare, &Right, &Centre);
 
     ImGui::DockBuilderDockWindow("Outliner", Left);
-    ImGui::DockBuilderDockWindow("Inspector", Left);
     ImGui::DockBuilderDockWindow("Viewport", Centre);
+    ImGui::DockBuilderDockWindow("Inspector", Right);
     LeftColumn_ = Left;   // seated for the add control
+    CentreColumn_ = Centre;
+    RightColumn_ = Right;
     ImGui::DockBuilderFinish(DockId);
 #endif
 }
@@ -524,24 +530,19 @@ void EditorHost::Record(EditorInstance* Instances, uint32_t InstanceCount, Edito
                                     | ImGuiWindowFlags_NoScrollWithMouse
                                     | ImGuiWindowFlags_NoSavedSettings
                                     | ImGuiWindowFlags_NoBringToFrontOnFocus
-                                    | ImGuiWindowFlags_NoNavFocus
-                                    | ImGuiWindowFlags_NoBackground;
+                                    | ImGuiWindowFlags_NoNavFocus;
 
     if (ImGui::Begin("FrontierDockHost", nullptr, Bare))
     {
-        // 🔴 PassthruCentralNode so the render shows through where nothing is docked — without it the vendor
-        //    fills the whole column with its own colour. The silencer removes the caret the sheet has none
-        //    of; the close marks stay, one per tab, and the add control closes the left column's strip.
-        //    Docking over the centre stays allowed: the central column HOLDS the Viewport tab, so covering
-        //    it means tabbing with the view, not losing it.
+        // The viewport now lives in its own docked window. Do not use a passthrough centre: the swapchain render
+        //    target must not remain visible as a fullscreen plate under the editor columns.
         const ImGuiDockNodeFlags NodeFlags =
-              static_cast<ImGuiDockNodeFlags>(ImGuiDockNodeFlags_PassthruCentralNode)
-            | static_cast<ImGuiDockNodeFlags>(ImGuiDockNodeFlags_NoWindowMenuButton);
+            static_cast<ImGuiDockNodeFlags>(ImGuiDockNodeFlags_NoWindowMenuButton);
 
         ConstructLayout();
         // The add control belongs to the left column alone; seated every tick so a rebuilt column keeps it.
         ImGui::DockNodeSetAddButton(LeftColumn_, true);
-        ImGui::DockSpace(ImGui::GetID("FrontierDockSpace"), ImVec2(0.0f, 0.0f), NodeFlags);
+        ImGui::DockSpace(ImGui::GetID("FrontierEditorDockSpace"), ImVec2(0.0f, 0.0f), NodeFlags);
     }
     ImGui::End();
     ImGui::PopStyleVar(2);
