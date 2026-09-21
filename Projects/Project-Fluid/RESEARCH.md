@@ -69,7 +69,12 @@ bugs. Production can move the field to device-local memory and copy only a
 small validation probe.
 
 The `Project-Fluid-CPU` executable validates finite values and RMS energy
-without Vulkan. It is the headless/server fallback and CI smoke test.
+without Vulkan. It is the headless/server fallback and CI smoke test. Its proof
+renderer is a line-by-line CPU port of `OceanPresent.comp`: identical camera,
+ray construction, height-field marching and refinement, bilinear field lookup,
+sky/sun model, Fresnel BRDF, haze, particle test, and output transfer function.
+It is not a separate raster scene. The locked output and reproduction record
+live in `Exhibits/Project-Fluid`.
 
 ## 4. Vulkan synchronization and ownership
 
