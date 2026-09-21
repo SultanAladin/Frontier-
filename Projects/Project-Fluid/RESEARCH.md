@@ -6,6 +6,41 @@ This project ports **Flux 0.3**, commit `c708b47926dec2e31d08b2a0bc01ab15c84983c
 from `eosclient0001-rgb/Frontier`, branch `arena/01a0c4da-frontier`. The earlier
 spectral-ocean implementation was removed because it came from the wrong source.
 
+## Additional Ripple pond provenance
+
+Project Fluid also carries the original Ripple pond from
+`eosclient0001-rgb/Frontier`, branch `arena/01a0b20a-frontier`, commit
+`35aa3778ce5d487d6567dce1a1987b6128b29a1f`. `PondWave.cpp` is the native
+adaptation of that branch's `solver.mjs`; `PondBody.cpp` adapts
+`floating-body.mjs`. This is deliberately a separate mode from Flux and from the
+same branch's later WebGPU WCSPH/experimental fixed-iteration DFSPH volume demo.
+
+Ripple integrates
+`h_tt = c^2 laplacian(h) - damping h_t` on a fixed-world-space rectangular grid.
+The default 12 x 8 m domain starts at 144 x 96 samples, uses wave speed 1.4 m/s,
+damping 0.45, reflective outer/rock boundaries, symmetric exponential damping,
+and velocity-Verlet steps bounded by
+`min(1/90, 0.35 / (c sqrt(1/dx^2 + 1/dz^2)))`. Adaptive refinement interpolates
+height and velocity without changing physical extent, under a 160,000-sample
+budget. The source's +/-0.55 m safety clamp and diagnostics are preserved.
+
+The floating duck remains the source's lightweight kinematic/buoyant coupling,
+not a rigid-body pressure solve. It uses bounded 1/120 s substeps, surface-slope
+drift, spring/damper heave, wet-mask containment, smooth heading, and finite bow
+mound/stern depression disturbances. Thus wakes are solver state rather than
+painted trails. The CPU proof samples the real adaptive mesh and its normals,
+uses the five source-style optical presets, and visibly draws the domain and rock
+obstacles. Limitations are explicit: a height field cannot overturn, break,
+represent vertical jets, or provide the localized 3D behavior of Flux.
+
+The branch's WebGPU WCSPH experiment uses GPU cell-linked lists, density and
+pressure kernels, contacts, and screen-space reconstruction. Its optional DFSPH
+path is experimental and fixed-iteration; its own notes do not establish
+production incompressibility. Neither experiment has been relabeled as the
+original Ripple pond or as the existing Flux solver.
+
+---
+
 The source is a CPU Position-Based Fluids laboratory, not an ocean FFT. The C++
 port preserves its defining scene and scale: 1,440 initial particles, 2,800
 capacity, a `3.90 x 3.51 x 2.50 m` basin, 0.31 m support radius, 265 reference

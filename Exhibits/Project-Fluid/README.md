@@ -35,6 +35,25 @@ scene's stationary obstacle and is depth-tested against the liquid. The visible
 liquid separation around it comes from the same sphere non-penetration
 projection used during pressure iterations.
 
+## Ripple pond mode
+
+![Ripple adaptive height-field pond](ProjectFluid_Ripple_Pond.png)
+
+This second native mode comes from Ripple commit
+`35aa3778ce5d487d6567dce1a1987b6128b29a1f`; it is not a replacement for the
+Flux volume above. The image directly rasterizes the evolved adaptive height
+mesh. Its waves include reflected disturbances and eight physical duck
+bow/stern wake emissions. The orange rectangle is the 12 x 8 m solver boundary;
+the two rocks are the actual reflective solid masks.
+
+```text
+Ripple pond C++ mirror | 288x192 samples | t 2.99317 s | dt 0.0073978
+energy 1.19084 | refinements 2 | clamps 0 | duck wakes 8
+```
+
+Reproduce it with `Project-Fluid-Pond-CPU pond.ppm clean`. The executable also
+accepts `ocean`, `swamp`, `puddle`, and `dirty` optical presets.
+
 ## Recorded run
 
 ```text
@@ -69,6 +88,7 @@ Checksums:
 aa3527fd03cda4abe83debad72eccea9139f5c55f9c91aea72340fba67d8686a  ProjectFluid_Flux_PBF_Collision.gif
 7ea103715540f278f0808a6d6f34592cc5d402c2d9d275e166d585256c3e172a  ProjectFluid_Flux_Surface_Material_Comparison.png
 d6723b89e22a6ece93a2cfe19e68019f00ff78100735b31f819134c14e50f81a  ProjectFluid_Flux_Surface_Mesh.obj
+aeb48ed369d9f3ca92f8e645014ab4aba78b9c3dbdd0fc84907a936d98943d68  ProjectFluid_Ripple_Pond.png
 ```
 
 The GIF samples twelve independently reproduced fixed-step states. The

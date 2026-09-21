@@ -2,6 +2,8 @@ add_library(ProjectFluidCore STATIC
     Source/PbfFluid.cpp Source/PbfFluid.h
     Source/SurfaceReconstruction.cpp Source/SurfaceReconstruction.h
     Source/AnisotropicSurfaceMesh.cpp Source/AnisotropicSurfaceMesh.h
+    Source/PondWave.cpp Source/PondWave.h
+    Source/PondBody.cpp Source/PondBody.h
     Source/MarchingCubesTables.h)
 target_include_directories(ProjectFluidCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_features(ProjectFluidCore PUBLIC cxx_std_20)
@@ -10,6 +12,10 @@ add_executable(Project-Fluid-CPU Source/CpuProofMain.cpp)
 target_link_libraries(Project-Fluid-CPU PRIVATE ProjectFluidCore)
 add_executable(Project-Fluid-Surface-Test Source/SurfaceMeshTest.cpp)
 target_link_libraries(Project-Fluid-Surface-Test PRIVATE ProjectFluidCore)
+add_executable(Project-Fluid-Pond-CPU Source/PondProofMain.cpp)
+target_link_libraries(Project-Fluid-Pond-CPU PRIVATE ProjectFluidCore)
+add_executable(Project-Fluid-Pond-Test Source/PondWaveTest.cpp)
+target_link_libraries(Project-Fluid-Pond-Test PRIVATE ProjectFluidCore)
 
 option(FRONTIER_BUILD_PROJECT_FLUID_VULKAN "Build the interactive Vulkan Flux window" ON)
 if(FRONTIER_BUILD_PROJECT_FLUID_VULKAN)
@@ -77,4 +83,5 @@ include(CTest)
 if(BUILD_TESTING)
     add_test(NAME ProjectFluidCpuPbf COMMAND Project-Fluid-CPU)
     add_test(NAME ProjectFluidWatertightSurface COMMAND Project-Fluid-Surface-Test)
+    add_test(NAME ProjectFluidPondWave COMMAND Project-Fluid-Pond-Test)
 endif()

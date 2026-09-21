@@ -3,7 +3,9 @@
 Native C++20/Vulkan conversion of Flux 0.3 from
 `eosclient0001-rgb/Frontier@c708b47926dec2e31d08b2a0bc01ab15c84983c8`.
 This is the requested 3D PBF basin simulation—not the unrelated ocean prototype,
-which has been removed.
+which has been removed. Project Fluid also includes **Ripple pond mode**, ported
+from `eosclient0001-rgb/Frontier@35aa3778ce5d487d6567dce1a1987b6128b29a1f`.
+It is an additional broad-water 2.5D solver and does not replace Flux.
 
 ## Included
 
@@ -28,6 +30,19 @@ which has been removed.
 - native CPU mirror of the same depth/thickness reconstruction, scene and optics
 - particle points are simulation data only; they are not the default presentation
 
+### Ripple pond mode
+
+- damped linear surface-wave equation on a rectangular physical grid
+- reflective shoreline and circular rock masks
+- CFL-limited velocity-Verlet integration and adaptive grid refinement
+- bounded floating-body substeps, slope drift, buoyancy and finite bow/stern wakes
+- five optical presets: clean, ocean, swamp, puddle and dirty
+- deterministic perspective CPU proof drawn from the actual adaptive height mesh
+
+The pond and Flux solve different models. Ripple represents one-valued surface
+height and cannot overturn; Flux remains the mode for pouring, splashing and 3D
+free surfaces.
+
 ## Build
 
 ```bash
@@ -43,6 +58,11 @@ and are lowered to SPIR-V by the same staged build pattern as Project Zero. With
 ```bash
 cmake --build build --target Project-Fluid-CPU -j
 ./build/Projects/Project-Fluid/Project-Fluid-CPU proof.ppm 90 water
+
+# Ripple pond numerical test and deterministic proof
+cmake --build build --target Project-Fluid-Pond-Test Project-Fluid-Pond-CPU -j
+./build/Projects/Project-Fluid/Project-Fluid-Pond-Test
+./build/Projects/Project-Fluid/Project-Fluid-Pond-CPU pond.ppm clean
 ```
 
 ## Interactive controls
