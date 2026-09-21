@@ -129,6 +129,24 @@ void AddCylinder(const vec3& Center, float Radius, float HalfLength, int Mat, in
     }
 }
 
+void AddFacetedReflector(const vec3& Center, float Radius, float Depth, int Mat, int Segments = 18)
+{
+    // A shallow faceted bowl opening toward the camera (−Y). The shell is real geometry, so its alternating facets
+    // catch the studio sources independently instead of using a textured or emissive reflector card.
+    vec3 Apex = Center + vec3(0.0f, Depth, 0.0f);
+    for (int X = 0; X < Segments; ++X)
+    {
+        float U0 = 2.0f * kPi * static_cast<float>(X) / Segments;
+        float U1 = 2.0f * kPi * static_cast<float>(X + 1) / Segments;
+        vec3 P0 = Center + vec3(Radius * std::cos(U0), 0.0f, Radius * std::sin(U0));
+        vec3 P1 = Center + vec3(Radius * std::cos(U1), 0.0f, Radius * std::sin(U1));
+        vec3 N = normalize(cross(P0 - Apex, P1 - Apex));
+        AddSmoothTri(Apex, P0, P1, N, N, N, Mat,
+                     vec2(0.5f, 0.95f), vec2(0.5f + 0.5f * std::cos(U0), 0.5f + 0.5f * std::sin(U0)),
+                     vec2(0.5f + 0.5f * std::cos(U1), 0.5f + 0.5f * std::sin(U1)));
+    }
+}
+
 void AddQuad(const vec3& A, const vec3& B, const vec3& C, const vec3& D, int Mat)
 {
     AddTri(A, B, C, Mat);
@@ -164,6 +182,8 @@ void ClearScene()
     g_SolidBall = true;
     g_AutomotiveCarbonMat = -1;
     g_AutomotiveTireMat = -1;
+    g_AutomotiveDispersionFirstMat = -1;
+    g_AutomotiveDispersionMatCount = 0;
     for (ShadingRecord& M : g_Mats) M = AutomotiveDefaults();
 }
 
@@ -306,6 +326,49 @@ void BuildUvDetailScene()
     FinaliseScene();
 }
 
+void BuildDispersionScene()
+{
+    ClearScene();
+    g_Mats[0] = AutomotiveClearHeadlight(1.33f, 0.045f);
+    g_Mats[1] = AutomotiveClearHeadlight(1.52f, 0.045f);
+    g_Mats[2] = AutomotiveClearHeadlight(1.72f, 0.045f);
+    g_Mats[3] = GroundMaterial();
+    g_AutomotiveDispersionFirstMat = 0;
+    g_AutomotiveDispersionMatCount = 3;
+
+    AddQuad(vec3(-6.0f, -3.0f, 0.0f), vec3(6.0f, -3.0f, 0.0f),
+            vec3(6.0f, 4.0f, 0.0f), vec3(-6.0f, 4.0f, 0.0f), 3);
+    // Three solid dielectric samples expose the wavelength-separated Snell/TIR paths at nD = 1.33, 1.52, and 1.72.
+    AddSphere(vec3(-2.15f, 0.55f, 1.18f), 1.02f, 0, 56, 36);
+    AddSphere(vec3(0.0f, 0.62f, 1.18f), 1.02f, 1, 56, 36);
+    AddSphere(vec3(2.15f, 0.70f, 1.18f), 1.02f, 2, 56, 36);
+    AddStudioRig(vec3(0.0f, 0.75f, 1.05f));
+    FinaliseScene();
+}
+
+void BuildLightingOpticsScene()
+{
+    ClearScene();
+    // The lens depths are authored as review distances (red 0.32 m, amber 0.45 m), so the solid tracer applies
+    // colored Beer attenuation over the actual interior path while the reflector remains a separate opaque metal.
+    g_Mats[0] = AutomotiveRedTailLens(1.52f, 0.045f);
+    g_Mats[0].TransmissionDepth = 0.32f;
+    g_Mats[0].TransmissionColor = vec3(0.62f, 0.012f, 0.003f);
+    g_Mats[1] = AutomotiveRedTailLens(1.52f, 0.045f);
+    g_Mats[1].TransmissionDepth = 0.45f;
+    g_Mats[1].TransmissionColor = vec3(0.92f, 0.46f, 0.018f);
+    g_Mats[2] = AutomotiveBrushedAlloy(vec3(0.78f, 0.82f, 0.90f), 0.13f, 0.42f, 0.0f);
+    g_Mats[3] = GroundMaterial();
+
+    AddQuad(vec3(-6.0f, -3.0f, 0.0f), vec3(6.0f, -3.0f, 0.0f),
+            vec3(6.0f, 4.0f, 0.0f), vec3(-6.0f, 4.0f, 0.0f), 3);
+    AddFacetedReflector(vec3(-1.85f, 0.95f, 1.20f), 1.18f, 0.52f, 2, 20);
+    AddSphere(vec3(1.00f, 0.38f, 1.12f), 0.88f, 0, 56, 36);
+    AddSphere(vec3(3.05f, 0.55f, 1.08f), 0.80f, 1, 56, 36);
+    AddStudioRig(vec3(0.35f, 0.75f, 1.05f));
+    FinaliseScene();
+}
+
 Camera MakeCamera(const vec3& Origin, const vec3& Look, float Aspect, float FovDegrees)
 {
     Camera C;
@@ -318,7 +381,8 @@ Camera MakeCamera(const vec3& Origin, const vec3& Look, float Aspect, float FovD
     return C;
 }
 
-void RenderFilm(const Camera& C, int Width, int Height, int Spp, std::vector<float>& Film, int SeedTag)
+void RenderFilm(const Camera& C, int Width, int Height, int Spp, std::vector<float>& Film, int SeedTag,
+                float SpectralWavelengthNm = 0.0f)
 {
     Film.assign(static_cast<size_t>(Width) * Height * 3u, 0.0f);
     unsigned Threads = std::thread::hardware_concurrency();
@@ -340,7 +404,7 @@ void RenderFilm(const Camera& C, int Width, int Height, int Spp, std::vector<flo
                         float Sx = ((static_cast<float>(X) + R.Next()) / Width * 2.0f - 1.0f) * C.TanHalf * C.Aspect;
                         float Sy = (1.0f - (static_cast<float>(Y) + R.Next()) / Height * 2.0f) * C.TanHalf;
                         vec3 D = normalize(C.F + C.R * Sx + C.U * Sy);
-                        vec3 L = Radiance(C.O, D, R);
+                        vec3 L = Radiance(C.O, D, R, SpectralWavelengthNm);
                         float* P = &Film[(static_cast<size_t>(Y) * Width + X) * 3u];
                         P[0] += L.x; P[1] += L.y; P[2] += L.z;
                     }
@@ -349,6 +413,19 @@ void RenderFilm(const Camera& C, int Width, int Height, int Spp, std::vector<flo
     }
     float Inv = 1.0f / static_cast<float>(Spp);
     for (float& V : Film) V *= Inv;
+}
+
+void RenderSpectralFilm(const Camera& C, int Width, int Height, int Spp, std::vector<float>& Film, int SeedTag)
+{
+    Film.assign(static_cast<size_t>(Width) * Height * 3u, 0.0f);
+    std::vector<float> Channel;
+    const float Wavelengths[3] = { 610.0f, 550.0f, 460.0f }; // R, G, B display primaries for the Cauchy review.
+    for (int Ch = 0; Ch < 3; ++Ch)
+    {
+        RenderFilm(C, Width, Height, Spp, Channel, SeedTag, Wavelengths[Ch]);
+        for (size_t Pixel = 0; Pixel < static_cast<size_t>(Width) * Height; ++Pixel)
+            Film[Pixel * 3u + static_cast<size_t>(Ch)] = Channel[Pixel * 3u + static_cast<size_t>(Ch)];
+    }
 }
 
 float AcesEncode(float X)
@@ -391,6 +468,24 @@ bool WriteSideBySide(const char* Path, const std::vector<float>& Left, const std
     return PngWriteCounterpart::WritePng(Path, SheetW, H, 3, Pixels.data(), SheetW * 3) != 0;
 }
 
+bool ValidateOptics()
+{
+    float Blue = AutomotiveCauchyIor(1.52f, 0.009f, 0.0002f, 460.0f);
+    float Green = AutomotiveCauchyIor(1.52f, 0.009f, 0.0002f, 550.0f);
+    float Red = AutomotiveCauchyIor(1.52f, 0.009f, 0.0002f, 610.0f);
+    float Tir = TransmissionFresnel(0.20f, 0.10f, 1.52f, 1.0f);
+    float Refracting = TransmissionFresnel(0.92f, 0.72f, 1.52f, 1.0f);
+    if (!(Blue > Green && Green > Red && Tir > 0.999f && Refracting < 1.0f))
+    {
+        std::fprintf(stderr, "[AutomotivePreview] optics validation failed: Cauchy %.6f %.6f %.6f, TIR %.6f, refraction %.6f\n",
+                     Blue, Green, Red, Tir, Refracting);
+        return false;
+    }
+    std::printf("[AutomotivePreview] optics validation: Cauchy blue/green/red = %.6f/%.6f/%.6f, TIR/refraction = %.3f/%.3f\n",
+                Blue, Green, Red, Tir, Refracting);
+    return true;
+}
+
 } // namespace
 
 int main(int Argc, char** Argv)
@@ -403,6 +498,7 @@ int main(int Argc, char** Argv)
     if (Argc > 2) Height = std::atoi(Argv[2]);
     if (Argc > 3) Spp = std::atoi(Argv[3]);
     if (Argc > 4) OutDir = Argv[4];
+    if (!ValidateOptics()) return 8;
 
     Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake(1024u);
     g_Tables = &Tables;
@@ -431,6 +527,22 @@ int main(int Argc, char** Argv)
     std::string UvPath = OutDir + "/AutomotiveUvSurfaceDetail.png";
     if (!WriteFilm(UvPath.c_str(), UvDetail, Width, Height, 1.25f)) return 5;
 
+    BuildDispersionScene();
+    Camera DispersionCamera = MakeCamera(vec3(0.15f, -9.4f, 3.15f), vec3(0.10f, 0.70f, 1.12f),
+                                         static_cast<float>(Width) / Height, 30.0f);
+    std::vector<float> Dispersion;
+    RenderSpectralFilm(DispersionCamera, Width, Height, Spp, Dispersion, 272);
+    std::string DispersionPath = OutDir + "/AutomotiveDispersionAndTir.png";
+    if (!WriteFilm(DispersionPath.c_str(), Dispersion, Width, Height, 1.0f)) return 6;
+
+    BuildLightingOpticsScene();
+    Camera LightingCamera = MakeCamera(vec3(0.25f, -10.8f, 3.45f), vec3(0.35f, 0.72f, 1.14f),
+                                       static_cast<float>(Width) / Height, 31.0f);
+    std::vector<float> Lighting;
+    RenderFilm(LightingCamera, Width, Height, Spp, Lighting, 282);
+    std::string LightingPath = OutDir + "/AutomotiveLightingOptics.png";
+    if (!WriteFilm(LightingPath.c_str(), Lighting, Width, Height, 1.0f)) return 7;
+
     BuildPaintScene();
     int PaintW = Width / 2;
     Camera FaceCamera = MakeCamera(vec3(0.0f, -8.5f, 2.45f), vec3(0.0f, 0.65f, 1.45f),
@@ -446,6 +558,8 @@ int main(int Argc, char** Argv)
     std::printf("[AutomotivePreview] wrote %s\n", SuitePath.c_str());
     std::printf("[AutomotivePreview] wrote %s\n", OpticsPath.c_str());
     std::printf("[AutomotivePreview] wrote %s\n", UvPath.c_str());
+    std::printf("[AutomotivePreview] wrote %s\n", DispersionPath.c_str());
+    std::printf("[AutomotivePreview] wrote %s\n", LightingPath.c_str());
     std::printf("[AutomotivePreview] wrote %s\n", PaintPath.c_str());
     std::printf("[AutomotivePreview] exact BSDF: Engine/Shaders/MaterialEvaluation.slang\n");
     std::printf("[AutomotivePreview] exact profiles: Engine/Shaders/AutomotiveMaterialProfiles.slang\n");

@@ -42,6 +42,8 @@ Implemented in this branch:
 - `Exhibits/Gallery/Automotive/AutomotiveMaterialSuite.png`
 - `Exhibits/Gallery/Automotive/AutomotiveOpticsAndCoatings.png`
 - `Exhibits/Gallery/Automotive/AutomotiveUvSurfaceDetail.png`
+- `Exhibits/Gallery/Automotive/AutomotiveDispersionAndTir.png`
+- `Exhibits/Gallery/Automotive/AutomotiveLightingOptics.png`
 
 These are reference images, not GPU captures. They are rendered from the shipped evaluator compiled as C++ so the
 material math is identical to the Slang evaluator. GPU lowering/runtime validation remains a separate machine gate.
@@ -79,14 +81,20 @@ Implemented in the shared profile source and standalone preview:
 4. These analytic fields are the texture-binding-independent review fallback. Authored texture assets remain outside
    Project-Zero until the preview acceptance sheet is approved.
 
-The next phase is lighting optics (dispersion, reflector geometry, and TIR comparison); host integration remains gated
-on review of the standalone sheets.
+The next phase is host integration, but it remains gated on review of all standalone sheets.
 
-### C. Lighting optics
+### C. Lighting optics — preview complete
 
-1. Add Cauchy dispersion as a shared profile parameter and verify wavelength-separated paths.
-2. Add faceted reflector geometry and a red/amber lens with measured attenuation distance.
-3. Add a TIR/dispersion comparison sheet at multiple IOR values.
+Implemented in the shared profile source and standalone preview:
+
+1. `AutomotiveCauchyIor` evaluates the Cauchy A/B/C curve around the 589.3 nm reference line. The CPU preview traces
+   red, green, and blue channels with wavelength-specific IORs through the existing Fresnel, Snell, Beer, and TIR path.
+2. `AutomotiveDispersionAndTir.png` compares solid dielectric samples at nD 1.33, 1.52, and 1.72. The runtime gate
+   checks blue > green > red Cauchy indices plus both a TIR and a refracting case.
+3. `AddFacetedReflector` creates a real shallow faceted bowl; `AutomotiveLightingOptics.png` pairs it with red and
+   amber solid lenses using authored attenuation distances of 0.32 m and 0.45 m.
+4. No reflector or lens effect is emissive geometry; direct-light reflections and solid-medium traversal remain the
+   transport mechanism.
 
 ### D. Host integration — intentionally not started
 

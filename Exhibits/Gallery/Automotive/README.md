@@ -23,6 +23,10 @@ is included by `MaterialEvaluation.slang` and therefore is shared with the GPU s
   and thin-film titanium in a closer optics/coating arrangement.
 - `AutomotiveUvSurfaceDetail.png` — close standalone carbon dual-weave and wrapped tire-tread UV review. The UVs are
   carried per triangle, interpolated at each hit, and evaluated by the shared analytic surface-detail functions.
+- `AutomotiveDispersionAndTir.png` — three solid dielectric IOR cases traced with wavelength-specific Cauchy indices,
+  including the runtime TIR/refracting validation gate.
+- `AutomotiveLightingOptics.png` — real faceted reflector geometry with red and amber solid lenses using separate
+  attenuation distances.
 - `AutomotivePaintFlakeFlopComparison.png` — the same red tri-coat paint from a face-on and grazing camera. The
   deterministic analytic flake signal and grazing-angle flop are active in both panels.
 

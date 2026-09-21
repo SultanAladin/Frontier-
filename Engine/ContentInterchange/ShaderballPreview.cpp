@@ -406,6 +406,8 @@ ShadingRecord g_Mats[8];
 // exhibit and Project-Zero paths therefore retain their legacy material bytes and shading behavior.
 int g_AutomotiveCarbonMat = -1;
 int g_AutomotiveTireMat = -1;
+int g_AutomotiveDispersionFirstMat = -1;
+int g_AutomotiveDispersionMatCount = 0;
 bool g_SolidBall = false;   // M4b: the ball (slot 0) is traversed as solid glass (medium tracking, not skip-ball)
 
 #ifndef SHADERBALL_PREVIEW_LIB
@@ -572,7 +574,7 @@ vec3 DirectMISsss(const ShadingRecord& m, const ResolvedLayers& L, const vec3& P
     return F * ((-wi.z) * W / max(Pl, 1e-12f)) * Q.Radiance;
 }
 
-vec3 Radiance(vec3 O, vec3 D, Rng& R)
+vec3 Radiance(vec3 O, vec3 D, Rng& R, float SpectralWavelengthNm = 0.0f)
 {
     vec3 L(0.0f), Beta(1.0f);
     int Skip = -1;
@@ -629,6 +631,14 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R)
             Ns = Ng;
         ShadingRecord m = g_Mats[T.Mat];   // local copy: the v1 nested fallback below may zero transmission
 #ifdef FRONTIER_AUTOMOTIVE_PREVIEW
+        if (SpectralWavelengthNm > 0.0f && g_AutomotiveDispersionMatCount > 0 &&
+            T.Mat >= g_AutomotiveDispersionFirstMat &&
+            T.Mat < g_AutomotiveDispersionFirstMat + g_AutomotiveDispersionMatCount)
+        {
+            // The RGB path calls Radiance once per wavelength. Each call changes only the dielectric IOR; the
+            // existing Fresnel, Snell, Beer, and TIR code then carries the separated ray exactly as authored.
+            m.SpecularIor = AutomotiveCauchyIor(m.SpecularIor, 0.009f, 0.0002f, SpectralWavelengthNm);
+        }
         // UVs are interpolated at the hit and consumed by the shared analytic review patterns. The normal detail is
         // applied before the shading frame is built; the lobe evaluator remains the exact shared implementation.
         vec2 Uv = T.UvA * (1.0f - H.U - H.V) + T.UvB * H.U + T.UvC * H.V;
@@ -658,7 +668,7 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R)
         if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
             m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f), 0.38f, 24.0f, 0.37f);
 #endif
-        bool solidHit = g_SolidBall && T.Mat == 0 && m.TransmissionWeight > 0.0f;
+        bool solidHit = g_SolidBall && m.TransmissionWeight > 0.0f;
         bool fromInside = Inside && T.Mat == EntryMat;
         if (Inside && T.Mat != EntryMat && m.TransmissionWeight > 0.0f)
         {

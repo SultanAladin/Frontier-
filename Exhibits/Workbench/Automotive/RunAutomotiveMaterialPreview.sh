@@ -26,5 +26,7 @@ g++ -std=c++20 -O2 -DFRONTIER_CPU_PORT \
 sha256sum "$OutDir/AutomotiveMaterialSuite.png" \
           "$OutDir/AutomotiveOpticsAndCoatings.png" \
           "$OutDir/AutomotiveUvSurfaceDetail.png" \
+          "$OutDir/AutomotiveDispersionAndTir.png" \
+          "$OutDir/AutomotiveLightingOptics.png" \
           "$OutDir/AutomotivePaintFlakeFlopComparison.png"
 printf '[AutomotivePreview] GREEN — standalone automotive images written to %s\n' "$OutDir"

@@ -64,6 +64,19 @@ vec3 AutomotiveFlopColor(vec3 faceColor, vec3 edgeColor, float mu)
     return mix(faceColor, edgeColor, grazing);
 }
 
+// Cauchy dispersion at wavelengthNm. B and C are authored around the 589.3 nm reference line so the supplied
+// IorD remains the measured yellow-green index. This is a transport parameter, not an RGB tint: the preview traces
+// each display channel with its wavelength-specific IOR through the existing Fresnel/Snell/TIR path.
+float AutomotiveCauchyIor(float iorD, float cauchyB, float cauchyC, float wavelengthNm)
+{
+    float lambdaUm = max(wavelengthNm * 0.001f, 0.25f);
+    float referenceUm = 0.5893f;
+    float a = iorD - cauchyB / (referenceUm * referenceUm) - cauchyC /
+              (referenceUm * referenceUm * referenceUm * referenceUm);
+    return max(1.0001f, a + cauchyB / (lambdaUm * lambdaUm) +
+               cauchyC / (lambdaUm * lambdaUm * lambdaUm * lambdaUm));
+}
+
 // Deterministic, texture-free microflake signal. Three incommensurate bands avoid a visible grid while remaining
 // identical in the CPU port and the GPU shader. The signal is deliberately a material-detail term, not a light
 // source: it only modulates the shared coat/base lobes and their resolved microfacet normal.
