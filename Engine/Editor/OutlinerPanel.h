@@ -53,6 +53,12 @@ public:
     [[nodiscard]] uint32_t QueryPickedAt(uint32_t Slot) const noexcept;
     void PickInstance(uint32_t Index) noexcept;                            // the test seam; the proof drives the pick
 
+    // Selection operations are public because EditorHost and RenderScheduler expose the same editor seams to the
+    // runtime and to the headless proof harness. Row-click policy (plain/Ctrl/Shift) remains private in HandleRowClick.
+    [[nodiscard]] bool IsPicked(uint32_t Index) const noexcept;
+    void TogglePick(uint32_t Index) noexcept;
+    void AddPick(uint32_t Index) noexcept;
+
     // The page's Tab: the panel narrows to 236 px and drops its tiles, pills and metas.
     [[nodiscard]] bool QueryCompact() const noexcept { return Compact_; }
     void AssignCompact(bool On) noexcept { Compact_ = On; }
@@ -75,8 +81,6 @@ private:
     [[nodiscard]] uint32_t QueryFilterMask(uint32_t Slot) const noexcept;
     [[nodiscard]] uint32_t QuerySelectedFilterMask() const noexcept;
 
-    [[nodiscard]] bool IsPicked(uint32_t Index) const noexcept;
-    void AddPick(uint32_t Index) noexcept;
     void RemovePick(uint32_t Index) noexcept;
     void HandleRowClick(uint32_t Index, uint32_t InstanceCount) noexcept;
 

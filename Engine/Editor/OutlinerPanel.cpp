@@ -781,10 +781,21 @@ bool OutlinerPanel::IsPicked(uint32_t Index) const noexcept
 
 void OutlinerPanel::AddPick(uint32_t Index) noexcept
 {
+    if (Index == kNoEditorInstance) return;
     if (!IsPicked(Index) && PickedCount_ < kMaxEditorPicked)
     {
         Picked_[PickedCount_++] = Index;
     }
+}
+
+void OutlinerPanel::TogglePick(uint32_t Index) noexcept
+{
+    if (Index == kNoEditorInstance) return;
+    if (IsPicked(Index))
+        RemovePick(Index);
+    else
+        AddPick(Index);
+    Anchor_ = Index;
 }
 
 void OutlinerPanel::RemovePick(uint32_t Index) noexcept
