@@ -608,6 +608,13 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R)
         ShadingFrame(Ns, Tt, Bt);
         vec3 wo(dot(-D, Tt), dot(-D, Bt), dot(-D, Ns));
         ShadingRecord m = g_Mats[T.Mat];   // local copy: the v1 nested fallback below may zero transmission
+#ifdef FRONTIER_AUTOMOTIVE_PREVIEW
+        // The standalone automotive scene opts into the shared analytic flake/flop profile. The hook is compile-time
+        // isolated from the ordinary shaderball exhibit and Project-Zero; the material math itself lives in the
+        // included AutomotiveMaterialProfiles.slang, which is also visible to the GPU Slang evaluator.
+        if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
+            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f), 0.32f, 28.0f, 0.37f);
+#endif
         bool solidHit = g_SolidBall && T.Mat == 0 && m.TransmissionWeight > 0.0f;
         bool fromInside = Inside && T.Mat == EntryMat;
         if (Inside && T.Mat != EntryMat && m.TransmissionWeight > 0.0f)

@@ -64,6 +64,37 @@ vec3 AutomotiveFlopColor(vec3 faceColor, vec3 edgeColor, float mu)
     return mix(faceColor, edgeColor, grazing);
 }
 
+// Deterministic, texture-free microflake signal. Two incommensurate bands avoid a visible grid while remaining
+// identical in the CPU port and the GPU shader. The signal is deliberately a material-detail term, not a light
+// source: it only modulates the shared coat/base lobes.
+float AutomotiveFlakeSignal(vec3 position, vec3 normal, float density, float scale, float jitter)
+{
+    float h0 = abs(float(sin(dot(position, vec3(12.9898, 78.233, 37.719)) * scale + jitter * 17.17)));
+    float h1 = abs(float(sin(dot(position, vec3(39.3468, 11.135, 83.155)) * (scale * 1.731) + jitter * 29.31)));
+    float sparkle = smoothstep(1.0 - density, 1.0 - density + 0.08, h0)
+                  * smoothstep(1.0 - density * 0.72, 1.0 - density * 0.72 + 0.10, h1);
+    float grazing = 1.0 - clamp(dot(normalize(normal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
+    return clamp(sparkle * (0.65 + 0.35 * grazing), 0.0, 1.0);
+}
+
+// Apply the automotive paint's analytic detail after the material record has been resolved. The caller supplies the
+// view direction for the flop term. A later host integration can replace position with UV-backed flakes while keeping
+// this exact fallback and the same lobe fields.
+ShadingRecord AutomotiveApplyTriCoatFlakes(ShadingRecord M, vec3 position, vec3 normal, vec3 viewDirection,
+                                           vec3 edgeColor, float density, float scale, float jitter)
+{
+    if (M.Metalness <= 0.0 || M.CoatWeight <= 0.0) return M;
+    float mu = clamp(dot(normalize(normal), normalize(viewDirection)), 0.0, 1.0);
+    M.BaseColor = AutomotiveFlopColor(M.BaseColor, edgeColor, mu);
+    float signal = AutomotiveFlakeSignal(position, normal, density, scale, jitter);
+    // The flake is a bright microfacet population, not an emissive decal: it raises the shared metallic F82 tint and
+    // locally narrows the roughness so a direct-light sample produces a visible sparkle at finite preview spp.
+    M.BaseColor = M.BaseColor + signal * vec3(0.58, 0.62, 0.78);
+    M.SpecularColor = mix(M.SpecularColor, vec3(1.0), signal * 0.86);
+    M.SpecularRoughness = mix(M.SpecularRoughness, max(0.018, M.SpecularRoughness * 0.28), signal * 0.86);
+    return M;
+}
+
 ShadingRecord AutomotiveTriCoat(vec3 pigment, float roughness, float coatRoughness, float coatIor)
 {
     ShadingRecord M = AutomotiveDefaults();

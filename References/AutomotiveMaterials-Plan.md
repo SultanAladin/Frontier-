@@ -46,13 +46,20 @@ material math is identical to the Slang evaluator. GPU lowering/runtime validati
 
 ## Next implementation stages
 
-### A. Procedural flakes and flop
+### A. Procedural flakes and flop — preview complete
 
-1. Add an explicit automotive parameter block to the material authoring/profile format.
-2. Add deterministic dual-scale flake density/jitter and micro-roughness to the shared Slang profile layer.
-3. Add view-angle flop from face tint to grazing tint using the canonical `AutomotiveFlopColor` curve.
-4. Keep a texture-free analytic fallback for CPU/GPU parity.
-5. Add a close-up render with direct sunlight and a grazing camera angle.
+Implemented in the shared profile source and standalone preview:
+
+1. `AutomotiveFlakeSignal` uses two deterministic incommensurate analytic bands for sparse flakes.
+2. `AutomotiveApplyTriCoatFlakes` modulates the shared base/coat record and micro-roughness; it does not add a fake
+   light source or bypass the OpenPBR evaluator.
+3. `AutomotiveFlopColor` shifts face tint toward a grazing tint with a canonical fifth-power Fresnel-style curve.
+4. The CPU preview hook is compile-time isolated to the standalone automotive scene; the profile functions remain in the
+   common Slang include for the eventual GPU material-record integration.
+5. `AutomotivePaintFlakeFlopComparison.png` renders face-on versus grazing views.
+
+The GPU host does not serialize the new automotive parameters yet. That is intentional and remains part of the later
+Project-Zero integration gate.
 
 ### B. UV-backed surface detail
 

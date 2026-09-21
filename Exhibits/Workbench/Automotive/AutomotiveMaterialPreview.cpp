@@ -5,6 +5,7 @@
 // MaterialEvaluation.slang text through ShaderballPreview.cpp, and uses the shared profile constructors in
 // AutomotiveMaterialProfiles.slang. Nothing here is wired into Project-Zero's scene or host serialization.
 #define SHADERBALL_PREVIEW_LIB
+#define FRONTIER_AUTOMOTIVE_PREVIEW
 #include "../../../Engine/ContentInterchange/ShaderballPreview.cpp"
 
 #include <algorithm>
@@ -161,6 +162,9 @@ void AddStudioRig(const vec3& Subject)
     // A broad rear light makes transmission through the red tail lens readable.
     AddSoftbox(vec3(-0.3f, 4.8f, 2.0f), Subject - vec3(-0.3f, 4.8f, 2.0f),
                vec3(0.0f, 0.0f, 1.0f), 1.3f, 1.3f, vec3(7.0f, 7.0f, 7.0f), 7);
+    // Small high-intensity source: real direct light for the flake lobe, not an emissive paint cheat.
+    AddSoftbox(vec3(-1.8f, -4.5f, 3.4f), Subject - vec3(-1.8f, -4.5f, 3.4f),
+               vec3(0.0f, 0.0f, 1.0f), 0.10f, 0.10f, vec3(70.0f, 72.0f, 78.0f), 7);
 }
 
 void BuildSuiteScene()
@@ -190,6 +194,19 @@ void BuildSuiteScene()
     AddSphere(vec3(0.95f, 2.05f, 0.78f), 0.68f, 6);          // Alcantara sample
 
     AddStudioRig(vec3(0.0f, 1.0f, 1.0f));
+    FinaliseScene();
+}
+
+void BuildPaintScene()
+{
+    ClearScene();
+    g_Mats[0] = AutomotiveTriCoat(vec3(0.42f, 0.008f, 0.018f), 0.11f, 0.045f, 1.58f);
+    g_Mats[1] = GroundMaterial();
+    for (int I = 2; I < 8; ++I) g_Mats[I] = GroundMaterial();
+    AddQuad(vec3(-6.0f, -4.0f, 0.0f), vec3(6.0f, -4.0f, 0.0f),
+            vec3(6.0f, 4.0f, 0.0f), vec3(-6.0f, 4.0f, 0.0f), 1);
+    AddSphere(vec3(0.0f, 0.65f, 1.48f), 1.38f, 0, 48, 28);
+    AddStudioRig(vec3(0.0f, 0.8f, 1.4f));
     FinaliseScene();
 }
 
@@ -283,6 +300,26 @@ bool WriteFilm(const char* Path, const std::vector<float>& Film, int W, int H, f
     return PngWriteCounterpart::WritePng(Path, W, H, 3, Pixels.data(), W * 3) != 0;
 }
 
+bool WriteSideBySide(const char* Path, const std::vector<float>& Left, const std::vector<float>& Right,
+                     int W, int H, float Exposure = 1.0f)
+{
+    int SheetW = W * 2;
+    std::vector<unsigned char> Pixels(static_cast<size_t>(SheetW) * H * 3u, 0u);
+    for (int Panel = 0; Panel < 2; ++Panel)
+    {
+        const std::vector<float>& Film = Panel == 0 ? Left : Right;
+        for (int Y = 0; Y < H; ++Y)
+            for (int X = 0; X < W; ++X)
+                for (int Ch = 0; Ch < 3; ++Ch)
+                {
+                    float V = AcesEncode(Film[(static_cast<size_t>(Y) * W + X) * 3u + Ch] * Exposure);
+                    Pixels[(static_cast<size_t>(Y) * SheetW + Panel * W + X) * 3u + Ch] =
+                        static_cast<unsigned char>(std::pow(V, 1.0f / 2.2f) * 255.0f + 0.5f);
+                }
+    }
+    return PngWriteCounterpart::WritePng(Path, SheetW, H, 3, Pixels.data(), SheetW * 3) != 0;
+}
+
 } // namespace
 
 int main(int Argc, char** Argv)
@@ -315,8 +352,21 @@ int main(int Argc, char** Argv)
     std::string OpticsPath = OutDir + "/AutomotiveOpticsAndCoatings.png";
     if (!WriteFilm(OpticsPath.c_str(), Optics, Width, Height, 1.0f)) return 3;
 
+    BuildPaintScene();
+    int PaintW = Width / 2;
+    Camera FaceCamera = MakeCamera(vec3(0.0f, -8.5f, 2.45f), vec3(0.0f, 0.65f, 1.45f),
+                                   static_cast<float>(PaintW) / Height, 28.0f);
+    Camera GrazingCamera = MakeCamera(vec3(4.8f, -6.4f, 2.85f), vec3(0.0f, 0.65f, 1.45f),
+                                      static_cast<float>(PaintW) / Height, 28.0f);
+    std::vector<float> Face, Grazing;
+    RenderFilm(FaceCamera, PaintW, Height, Spp, Face, 303);
+    RenderFilm(GrazingCamera, PaintW, Height, Spp, Grazing, 404);
+    std::string PaintPath = OutDir + "/AutomotivePaintFlakeFlopComparison.png";
+    if (!WriteSideBySide(PaintPath.c_str(), Face, Grazing, PaintW, Height, 1.0f)) return 4;
+
     std::printf("[AutomotivePreview] wrote %s\n", SuitePath.c_str());
     std::printf("[AutomotivePreview] wrote %s\n", OpticsPath.c_str());
+    std::printf("[AutomotivePreview] wrote %s\n", PaintPath.c_str());
     std::printf("[AutomotivePreview] exact BSDF: Engine/Shaders/MaterialEvaluation.slang\n");
     std::printf("[AutomotivePreview] exact profiles: Engine/Shaders/AutomotiveMaterialProfiles.slang\n");
     std::printf("[AutomotivePreview] scene is standalone; Project-Zero integration is intentionally absent\n");
