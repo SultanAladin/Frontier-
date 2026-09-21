@@ -74,13 +74,36 @@ The dedicated source gate is:
 bash Tools/Build/CheckGlassPathState.sh
 ```
 
+## Glass reflected by aluminum — new CPU reference renders
+
+![Red solid glass reflected by aluminum](GlassOnAluminum_IOR1p50_CPUReference.png)
+
+The large red sphere is solid glass in front of the aluminum panel; the smaller red sphere in the panel is its
+reflection. It is not a transparent cutout: the reflected path reaches the glass from outside, so the glass reflection
+branch uses the air-side incident state and does not receive interior Beer attenuation.
+
+![IOR and Fresnel comparison](GlassOnAluminum_FresnelIOR_Comparison.png)
+
+The three panels hold the red volume absorption fixed and change only the glass IOR: 1.10, 1.50, and 2.40. The
+reflection gets stronger and less transmission-dominated as IOR rises, while the transmitted body remains red. This
+render is produced by `Exhibits/Workbench/Materials/GlassAluminumProof.cpp`, which compiles the shipped
+`Engine/Shaders/MaterialEvaluation.slang` as C++; rerun it with:
+
+```text
+bash Exhibits/Workbench/Materials/RunGlassAluminumProof.sh
+```
+
+This is an executable CPU reference proof of Fresnel, IOR, transmission, and Beer tint. It is intentionally labeled
+CPU reference: it does not claim to be a compiled GPU/ReSTIR capture. The GPU path-state A/B still requires rebuilding
+`ReSTIRViewport.spv` on the Windows/Vulkan machine.
+
 ## Visual material reference
 
 ![Thin versus solid glass reference](ShaderballSheet_SolidGlass.png)
 
 `ShaderballSheet_SolidGlass.png` is the existing thin-wall versus solid-glass reference sheet from the material gallery.
 It shows the intended clear-glass transport behaviour. The new path-state gate is the regression proof for the renderer
-state fix; a new GPU capture still requires the shader toolchain and runtime GPU verification.
+state fix.
 
 ## Validation boundary
 

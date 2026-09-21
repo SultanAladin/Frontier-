@@ -3,9 +3,9 @@
 ## Glass reflection path-state proof — 2026-09-21
 
 `GlassReflectionPathStateProof.md` documents the solid-glass reflection regression fix. It includes the before/after
-medium-state diagram, the exact proof commands, their GREEN results, and the thin-versus-solid visual reference
-`ShaderballSheet_SolidGlass.png`. The fix is in `Engine/Shaders/ReSTIRViewport.slang`; the sky reservoir candidate
-roadmap item is intentionally excluded.
+medium-state diagram, the exact proof commands, their GREEN results, a new red-glass-on-aluminum CPU reference render,
+an IOR/Fresnel comparison sheet, and the thin-versus-solid visual reference `ShaderballSheet_SolidGlass.png`. The fix
+is in `Engine/Shaders/ReSTIRViewport.slang`; the sky reservoir candidate roadmap item is intentionally excluded.
 
 `ShaderballSheet_GlassClothCoat.png` (1544×512): the CC0 shaderball path-traced on the CPU with the
 proven `MaterialEvaluation.slang` BSDF — thin-wall glass (rough 0.06, η 1.5), deep-red velvet cloth
