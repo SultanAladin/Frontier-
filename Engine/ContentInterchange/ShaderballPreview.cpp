@@ -613,7 +613,7 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R)
         // isolated from the ordinary shaderball exhibit and Project-Zero; the material math itself lives in the
         // included AutomotiveMaterialProfiles.slang, which is also visible to the GPU Slang evaluator.
         if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
-            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f), 0.32f, 28.0f, 0.37f);
+            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f), 0.42f, 18.0f, 0.37f);
 #endif
         bool solidHit = g_SolidBall && T.Mat == 0 && m.TransmissionWeight > 0.0f;
         bool fromInside = Inside && T.Mat == EntryMat;

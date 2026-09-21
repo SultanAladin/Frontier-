@@ -64,17 +64,20 @@ vec3 AutomotiveFlopColor(vec3 faceColor, vec3 edgeColor, float mu)
     return mix(faceColor, edgeColor, grazing);
 }
 
-// Deterministic, texture-free microflake signal. Two incommensurate bands avoid a visible grid while remaining
-// identical in the CPU port and the GPU shader. The signal is deliberately a material-detail term, not a light
-// source: it only modulates the shared coat/base lobes.
+// Deterministic, texture-free microflake signal. It is continuous but multi-band and domain-warped, so it resolves
+// irregular bright flakes without exposing a regular cell lattice. The same math is available to the future GPU profile
+// and the FRONTIER_CPU_PORT build.
 float AutomotiveFlakeSignal(vec3 position, vec3 normal, float density, float scale, float jitter)
 {
-    float h0 = abs(float(sin(dot(position, vec3(12.9898, 78.233, 37.719)) * scale + jitter * 17.17)));
-    float h1 = abs(float(sin(dot(position, vec3(39.3468, 11.135, 83.155)) * (scale * 1.731) + jitter * 29.31)));
-    float sparkle = smoothstep(1.0 - density, 1.0 - density + 0.08, h0)
-                  * smoothstep(1.0 - density * 0.72, 1.0 - density * 0.72 + 0.10, h1);
+    float warp0 = sin(position.x * 13.17 + position.z * 7.31 + jitter * 3.0) * 2.7;
+    float warp1 = sin(position.x * 5.43 - position.z * 17.83 + jitter * 5.0) * 2.1;
+    float h0 = abs(float(sin((position.x * 91.17 + position.z * 47.13 + warp0) * scale)));
+    float h1 = abs(float(sin((position.x * 183.5 - position.z * 89.7 + warp1) * (scale * 1.137))));
+    float flake = h0 * h1;
+    float threshold = 0.72 - density * 0.25;
+    float spot = smoothstep(threshold, min(0.999, threshold + 0.12), flake);
     float grazing = 1.0 - clamp(dot(normalize(normal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
-    return clamp(sparkle * (0.65 + 0.35 * grazing), 0.0, 1.0);
+    return clamp(spot * (0.65 + 0.35 * grazing), 0.0, 1.0);
 }
 
 // Apply the automotive paint's analytic detail after the material record has been resolved. The caller supplies the
