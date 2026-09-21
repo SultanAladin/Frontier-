@@ -42,6 +42,8 @@ struct SolverDiagnostics {
     float MeanShear{};
     float MeanApparentViscosity{};
     std::uint32_t PressureIterations{};
+    std::uint32_t ViscosityIterations{};
+    float ViscosityRelativeResidual{};
     std::uint32_t SphereContacts{};
     std::uint32_t WallContacts{};
 };
@@ -78,6 +80,8 @@ private:
     void Add(Vec3 position, Vec3 velocity = {});
     void Collide(Vec3& position);
     void BuildNeighbours();
+    void RebuildBoundarySamples();
+    void BuildBoundaryNeighbours();
     void ComputeDensity(bool computeLambda);
     void SolvePressure();
     void ApplySurfaceTension(float dt);
@@ -88,10 +92,14 @@ private:
     std::vector<Vec3> Velocities_;
     std::vector<Vec3> Previous_;
     std::vector<Vec3> Corrections_;
+    std::vector<Vec3> BoundaryGradients_;
     std::vector<float> Density_;
     std::vector<float> Lambda_;
     std::vector<float> ApparentViscosity_;
     std::vector<std::vector<std::uint16_t>> Neighbours_;
+    std::vector<Vec3> BoundaryPositions_;
+    std::vector<float> BoundaryPseudoMasses_;
+    std::vector<std::vector<std::uint16_t>> BoundaryNeighbours_;
     SolverDiagnostics Diagnostics_{};
     Material Material_{Material::Water};
     Experiment Experiment_{Experiment::Basin};

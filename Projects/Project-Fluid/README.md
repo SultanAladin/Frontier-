@@ -59,5 +59,7 @@ console reports pressure passes, measured compression, and sphere/wall contacts.
 
 - [`../../Exhibits/Project-Fluid`](../../Exhibits/Project-Fluid/README.md) contains
   a native execution frame with visible bounds and sphere interaction.
-- [`RESEARCH.md`](RESEARCH.md) records provenance, C++ adaptations, limitations,
-  equations and the complete research notes from the requested source commit.
+- [`RESEARCH.md`](RESEARCH.md) records provenance, equations, sources, and adaptation limits.
+- [`PAPER_FIDELITY.md`](PAPER_FIDELITY.md) is the acceptance checklist for the
+  strict sampled-boundary, PCG, Yu–Turk mesh, dynamic-rigid, and Vulkan RT path;
+  unchecked items are explicitly not claimed as implemented.

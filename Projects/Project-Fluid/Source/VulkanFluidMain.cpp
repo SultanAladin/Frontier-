@@ -516,6 +516,7 @@ private:
         std::cout << "[Flux CPU simulation / Vulkan render] particles=" << Fluid_.Positions().size()
                   << " pressure=" << d.PressureIterations << " mean/peak compression="
                   << d.MeanCompression << "/" << d.PeakCompression
+                  << " viscosity PCG=" << d.ViscosityIterations << " residual=" << d.ViscosityRelativeResidual
                   << " sphere/wall contacts=" << d.SphereContacts << "/" << d.WallContacts << '\n';
     }
 

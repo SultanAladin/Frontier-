@@ -114,7 +114,8 @@ int main(int argc,char**argv){
     if(fluid.ObstacleEnabled()&&minimumObstacleDistance<PF::PbfFluid::ObstacleRadius()-1e-5f) return 4;
     std::cout<<std::fixed<<std::setprecision(5)<<"Flux PBF C++ mirror | material "<<fluid.ActiveMaterial().Name<<" | particles "<<fluid.Positions().size()<<" | t "<<fluid.Time()<<" s\n"
              <<"bounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts "<<d.SphereContacts<<" | wall contacts "<<d.WallContacts<<" | min sphere distance "<<minimumObstacleDistance<<" m\n"
-             <<"pressure passes "<<d.PressureIterations<<" | mean/peak compression "<<d.MeanCompression<<" / "<<d.PeakCompression<<"\n";
+             <<"pressure passes "<<d.PressureIterations<<" | mean/peak compression "<<d.MeanCompression<<" / "<<d.PeakCompression<<"\n"
+             <<"viscosity PCG iterations "<<d.ViscosityIterations<<" | relative residual "<<d.ViscosityRelativeResidual<<"\n";
     if(argc>1){ProofRenderer renderer(1280,720);renderer.Bounds();const auto& material=fluid.ActiveMaterial();renderer.FluidSurface(fluid.Positions(),fluid.Velocities(),material);renderer.Sphere(PF::PbfFluid::ObstacleCentre(),PF::PbfFluid::ObstacleRadius(),{.16f,.18f,.20f},true,.25f,1.0f,1.45f);renderer.Bounds(false);if(!renderer.Save(argv[1]))return 2;std::cout<<"proof frame: "<<argv[1]<<'\n';}
     return std::isfinite(d.PeakCompression)?0:1;
 }

@@ -21,10 +21,12 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
   limit, fixed bounds, sphere projection, source lattice, material coefficients,
   Carreau-style thinning response, pairwise capillary response and fixed-step
   policy follow the source.
-- Basin density support is represented by analytic ghost-wall support rather
-  than the TypeScript version's pre-sampled pseudo-mass cloud. Collision geometry
-  is exact; this density-support substitution is documented rather than claimed
-  as a byte-for-byte paper reproduction.
+- Basin and sphere density support now use the source implementation's sampled
+  Akinci boundary cloud. Floor/wall samples use 0.157 m spacing, the sphere uses
+  quasi-uniform Fibonacci samples, and every sample receives
+  `Psi_b = rho0 / sum_k W(x_b-x_k)`. Samples contribute density, pressure
+  gradients, adhesion, and stationary-boundary viscosity; analytic constraints
+  remain only as a non-penetration safety net.
 - The default native presentation is a continuous screen-space liquid surface,
   not one rendered sphere per simulation particle. A first compute/CPU-mirror
   pass accumulates nearest front depth and additive optical thickness from
@@ -39,6 +41,15 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
   materials, with refraction, Fresnel and rough highlights. The explicit orange
   basin and opaque striped sphere remain visible and depth-tested so bounds and
   collision behavior remain auditable.
+- Native viscosity now uses backward Euler and a symmetric radial SPH Laplacian,
+  solved matrix-free with preconditioned conjugate gradients. Fluid pairs are
+  assembled once, sampled stationary solids contribute positive rank-one blocks,
+  and the native solver uses full 3x3 block-Jacobi inverses rather than the
+  source TypeScript path's scalar diagonal preconditioner. Iteration count and
+  relative residual are retained in solver diagnostics.
+- Native capillarity now evaluates the complete Flux/Akinci pair model: weighted
+  color-field normals, the piecewise cohesion kernel, equal/opposite pair
+  scattering, density-deficiency correction, and sampled-solid adhesion.
 - This is honestly a depth/thickness screen-space reconstruction, not a claim
   that the source's CPU covariance ellipsoids, complete Yu–Turk implicit field,
   or Marching Cubes were ported. It retains the known overlap, thin-sheet and
