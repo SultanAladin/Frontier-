@@ -50,7 +50,7 @@ precision highp float;in vec2 uv;out vec4 outState;uniform sampler2D stateTex;un
 ${common}
 vec4 S(vec2 p){return texture(stateTex,clamp(p,texel*.5,1.-texel*.5));}
 void main(){vec4 c=S(uv),l=S(uv-vec2(texel.x,0)),r=S(uv+vec2(texel.x,0)),d=S(uv-vec2(0,texel.y)),u=S(uv+vec2(0,texel.y));vec3 q=c.xyz;
- vec3 change=-(rx(q,r)-rx(l,q))/(LX*texel.x)-(rz(q,u)-rz(d,q))/(LZ*texel.y);
+ vec3 change=-(rx(q,r.xyz)-rx(l.xyz,q))/(LX*texel.x)-(rz(q,u.xyz)-rz(d.xyz,q))/(LZ*texel.y);
  float dbx=(bed(uv+vec2(texel.x,0))-bed(uv-vec2(texel.x,0)))/(2.*LX*texel.x),dbz=(bed(uv+vec2(0,texel.y))-bed(uv-vec2(0,texel.y)))/(2.*LZ*texel.y);
  q+=dt*change;q.y-=dt*g*max(q.x,0.)*dbx;q.z-=dt*g*max(q.x,0.)*dbz;
  if(q.x>1e-4){float speed=length(q.yz)/q.x;float drag=1./(1.+dt*friction*g*speed/max(pow(q.x,1.333),.025));q.yz*=drag;}else q=vec3(0);
