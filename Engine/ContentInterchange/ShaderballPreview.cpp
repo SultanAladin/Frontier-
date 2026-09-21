@@ -604,17 +604,22 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R)
         else
             Ns = Ng;
         if (dot(Ns, D) > 0.0f) Ns = -Ns;
-        vec3 Tt, Bt;
-        ShadingFrame(Ns, Tt, Bt);
-        vec3 wo(dot(-D, Tt), dot(-D, Bt), dot(-D, Ns));
         ShadingRecord m = g_Mats[T.Mat];   // local copy: the v1 nested fallback below may zero transmission
 #ifdef FRONTIER_AUTOMOTIVE_PREVIEW
         // The standalone automotive scene opts into the shared analytic flake/flop profile. The hook is compile-time
         // isolated from the ordinary shaderball exhibit and Project-Zero; the material math itself lives in the
         // included AutomotiveMaterialProfiles.slang, which is also visible to the GPU Slang evaluator.
         if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
-            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f), 0.42f, 18.0f, 0.37f);
+        {
+            // Perturb the actual shading frame before the lobe is evaluated; otherwise the flakes would only change
+            // F0 and could never create the pin-point facet highlights that make automotive paint read as metallic.
+            Ns = AutomotiveFlakeNormal(P, Ns, 0.78f, 48.0f, 0.37f);
+            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.08f, 0.24f, 0.88f), 0.78f, 48.0f, 0.37f);
+        }
 #endif
+        vec3 Tt, Bt;
+        ShadingFrame(Ns, Tt, Bt);
+        vec3 wo(dot(-D, Tt), dot(-D, Bt), dot(-D, Ns));
         bool solidHit = g_SolidBall && T.Mat == 0 && m.TransmissionWeight > 0.0f;
         bool fromInside = Inside && T.Mat == EntryMat;
         if (Inside && T.Mat != EntryMat && m.TransmissionWeight > 0.0f)

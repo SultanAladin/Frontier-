@@ -50,13 +50,15 @@ material math is identical to the Slang evaluator. GPU lowering/runtime validati
 
 Implemented in the shared profile source and standalone preview:
 
-1. `AutomotiveFlakeSignal` uses two deterministic incommensurate analytic bands for sparse flakes.
-2. `AutomotiveApplyTriCoatFlakes` modulates the shared base/coat record and micro-roughness; it does not add a fake
-   light source or bypass the OpenPBR evaluator.
-3. `AutomotiveFlopColor` shifts face tint toward a grazing tint with a canonical fifth-power Fresnel-style curve.
-4. The CPU preview hook is compile-time isolated to the standalone automotive scene; the profile functions remain in the
+1. `AutomotiveFlakeSignal` uses two deterministic incommensurate analytic bands for fine, dense flakes.
+2. `AutomotiveFlakeNormal` gives selected flakes a bounded facet tilt before the shared lobe frame is built, producing
+   pin-point highlights rather than only a colour-noise mask.
+3. `AutomotiveApplyTriCoatFlakes` modulates the shared base/coat record, micro-roughness, F82 tint and fuzz population;
+   it does not add a fake light source or bypass the OpenPBR evaluator.
+4. `AutomotiveFlopColor` shifts face tint toward a grazing tint with a canonical fifth-power Fresnel-style curve.
+5. The CPU preview hook is compile-time isolated to the standalone automotive scene; the profile functions remain in the
    common Slang include for the eventual GPU material-record integration.
-5. `AutomotivePaintFlakeFlopComparison.png` renders face-on versus grazing views.
+6. `AutomotivePaintFlakeFlopComparison.png` renders face-on versus grazing views.
 
 The GPU host does not serialize the new automotive parameters yet. That is intentional and remains part of the later
 Project-Zero integration gate.

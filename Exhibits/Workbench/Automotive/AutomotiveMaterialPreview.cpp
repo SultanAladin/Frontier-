@@ -200,9 +200,8 @@ void BuildSuiteScene()
 void BuildPaintScene()
 {
     ClearScene();
-    // Silver-blue showcase paint matches the real flake reference: the suite keeps its red paint sample, while this
-    // close-up makes the microflake population readable against a light metallic base.
-    g_Mats[0] = AutomotiveTriCoat(vec3(0.30f, 0.46f, 0.62f), 0.11f, 0.045f, 1.58f);
+    // Silver-blue paint keeps the flakes readable against the reference's cool automotive clearcoat.
+    g_Mats[0] = AutomotiveTriCoat(vec3(0.24f, 0.42f, 0.66f), 0.11f, 0.045f, 1.58f);
     g_Mats[1] = GroundMaterial();
     for (int I = 2; I < 8; ++I) g_Mats[I] = GroundMaterial();
     AddQuad(vec3(-6.0f, -4.0f, 0.0f), vec3(6.0f, -4.0f, 0.0f),
