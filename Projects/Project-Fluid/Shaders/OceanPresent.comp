@@ -48,28 +48,33 @@ void main() {
     vec3 skyHorizon = mix(vec3(0.48, 0.72, 0.88), vec3(1.0, 0.44, 0.16), sim.sun);
     vec3 colour = mix(skyTop, skyHorizon, smoothstep(0.0, 0.72, uv.y));
 
-    if (all(greaterThanEqual(gridf, vec2(0.0))) && all(lessThan(gridf, vec2(sim.resolution - 1u)))) {
+    // The spectrum is periodic in X. Wrapping removes artificial side wedges
+    // while Z still supplies a clear physical horizon at the domain boundary.
+    gridf.x = mod(gridf.x, float(sim.resolution - 1u));
+    if (gridf.y >= 0.0 && gridf.y < float(sim.resolution - 1u)) {
         ivec2 cell = ivec2(gridf);
         vec4 s = field[uint(cell.y) * sim.resolution + uint(cell.x)];
-        vec3 normal = normalize(vec3(-s.y, 1.0, -s.z));
+        vec3 normal = normalize(vec3(-s.y * 2.5, 1.0, -s.z * 2.5));
         vec3 light = normalize(vec3(-0.35, 0.8, 0.48));
+        vec3 viewDirection = normalize(vec3(0.0, 0.55, 0.835));
         float diffuse = max(dot(normal, light), 0.0);
-        float fresnel = pow(1.0 - max(normal.y * 0.75, 0.0), 5.0);
+        float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 5.0);
         float crest = smoothstep(0.05, 0.65, s.x);
-        vec3 deep = vec3(0.015, 0.16, 0.25);
-        vec3 shallow = vec3(0.02, 0.46, 0.50);
-        colour = mix(deep, shallow, 0.28 + 0.32 * diffuse + 0.12 * crest);
-        colour += mix(skyHorizon, skyTop, normal.y) * (0.18 + 0.52 * fresnel);
-        colour += vec3(1.0, 0.82, 0.58) * pow(max(dot(reflect(-light, normal), normalize(vec3(0.0, 1.0, 0.7))), 0.0), 90.0);
+        vec3 deep = vec3(0.008, 0.09, 0.18);
+        vec3 shallow = vec3(0.02, 0.50, 0.54);
+        colour = mix(deep, shallow, 0.14 + 0.48 * diffuse + 0.22 * crest);
+        colour += mix(skyHorizon, skyTop, normal.y) * (0.12 + 0.48 * fresnel);
+        vec3 halfVector = normalize(light + viewDirection);
+        colour += vec3(1.0, 0.86, 0.64) * pow(max(dot(normal, halfVector), 0.0), 72.0) * 1.8;
 
         // Particle-pull compositor: each compressed cell owns a seeded bubble
         // sprite. The water colour above has no foam mask; only these discrete
         // circular particles make whitewater visible.
         vec2 local = fract(gridf) - 0.5;
         float seed = hash12(vec2(cell));
-        float radius = 0.10 + 0.22 * seed;
+        float radius = 0.16 + 0.30 * seed;
         float particle = 1.0 - smoothstep(radius * 0.65, radius, length(local));
-        float alive = step(0.60 - 0.45 * seed, s.w);
+        float alive = step(0.25 - 0.25 * seed, s.w);
         colour = mix(colour, vec3(0.88, 0.96, 1.0), particle * alive * (0.50 + 0.45 * seed));
     }
 

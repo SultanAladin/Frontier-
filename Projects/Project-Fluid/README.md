@@ -57,5 +57,13 @@ was skipped and still generates `Project-Fluid-CPU`.
 5. The packed BGRA compute result is copied to a Vulkan swapchain image.
 6. C++ periodically evaluates the exact same cells and checks GPU parity.
 
+## Captured execution proof
+
+The repository includes a real native CPU-mirror frame and its exact reproduction
+command in [`Exhibits/Project-Fluid`](../../Exhibits/Project-Fluid/README.md).
+The exhibit explicitly distinguishes verified CPU execution from the Vulkan
+runtime, which this Arena sandbox cannot launch because it has no Vulkan loader,
+window system, CMake, or `glslc`.
+
 See [RESEARCH.md](RESEARCH.md) for equations, source review, ReSTIR integration,
 validation criteria, and limitations.
