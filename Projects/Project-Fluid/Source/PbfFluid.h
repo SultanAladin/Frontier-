@@ -22,6 +22,10 @@ Vec3 Normalized(Vec3 a) noexcept;
 struct FluidMaterial {
     std::string_view Name;
     Vec3 Colour;
+    Vec3 Absorption;
+    float Opacity;
+    float Roughness;
+    float Ior;
     float Viscosity;
     float SurfaceTension;
     float Wetting;

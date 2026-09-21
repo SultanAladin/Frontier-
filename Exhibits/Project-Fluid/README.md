@@ -8,6 +8,16 @@ Source: `eosclient0001-rgb/Frontier`, commit
 
 ![Bounds and collision frame](ProjectFluid_Flux_PBF_Bounds_Collision.png)
 
+## Material and optical response
+
+![Water, milk, honey and chocolate](ProjectFluid_Flux_Material_Comparison.png)
+
+The four panels are separate native runs at the same 0.30000 s simulation
+budget. They use the requested source commit's base colour, absorption,
+opacity, roughness and IOR, while viscosity, surface tension, wetting and
+shear-thinning alter the corresponding simulation state. The Vulkan `.slang`
+path reads the same material structure.
+
 These are native C++ execution outputs, not generated artwork or captures from
 the removed ocean project. The orange box is the real solver domain. The striped
 sphere is the source scene's stationary obstacle. Every cyan sphere is one PBF
@@ -40,6 +50,7 @@ Checksums:
 ```text
 51056578c59fefec7c766017147d4e8fcbef4aeda2d3349d7c324ff87fd35de1  ProjectFluid_Flux_PBF_Bounds_Collision.png
 55e890da9efc72208926f0b5ab518f9338157947422cce516db38b1d58dbf658  ProjectFluid_Flux_PBF_Collision.gif
+143ce4bb7d806fa8e5d79630f829dcd606cd4d58ab456149de020bf7cbaa57f0  ProjectFluid_Flux_Material_Comparison.png
 ```
 
 The GIF samples twelve deterministic fixed-step states. The interactive Vulkan

@@ -10,14 +10,39 @@ if(FRONTIER_BUILD_PROJECT_FLUID_VULKAN)
     find_package(Vulkan QUIET)
     find_package(glfw3 QUIET)
     find_program(PROJECT_FLUID_GLSLC NAMES glslc HINTS "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin")
-    if(Vulkan_FOUND AND PROJECT_FLUID_GLSLC AND (TARGET glfw OR TARGET glfw3::glfw))
+    find_program(PROJECT_FLUID_SLANGC NAMES slangc HINTS "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin")
+
+    if(Vulkan_FOUND AND (PROJECT_FLUID_GLSLC OR PROJECT_FLUID_SLANGC) AND (TARGET glfw OR TARGET glfw3::glfw))
         set(SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/Shaders)
         file(MAKE_DIRECTORY ${SHADER_DIR})
-        set(CLEAR_SPV ${SHADER_DIR}/ParticleClear.comp.spv)
-        set(SPLAT_SPV ${SHADER_DIR}/ParticleSplat.comp.spv)
-        add_custom_command(OUTPUT ${CLEAR_SPV} COMMAND ${PROJECT_FLUID_GLSLC} -O ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ParticleClear.comp -o ${CLEAR_SPV} DEPENDS Shaders/ParticleClear.comp VERBATIM)
-        add_custom_command(OUTPUT ${SPLAT_SPV} COMMAND ${PROJECT_FLUID_GLSLC} -O ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ParticleSplat.comp -o ${SPLAT_SPV} DEPENDS Shaders/ParticleSplat.comp VERBATIM)
+        set(CLEAR_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ParticleClear.slang)
+        set(SPLAT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ParticleSplat.slang)
+        set(CLEAR_SPV ${SHADER_DIR}/ParticleClear.spv)
+        set(SPLAT_SPV ${SHADER_DIR}/ParticleSplat.spv)
+
+        if(PROJECT_FLUID_GLSLC)
+            # Frontier stores GLSL compute sources as .slang; stage a recognized
+            # extension exactly as the engine-wide shader table does.
+            set(CLEAR_STAGED ${SHADER_DIR}/ParticleClear.comp.glsl)
+            set(SPLAT_STAGED ${SHADER_DIR}/ParticleSplat.comp.glsl)
+            add_custom_command(OUTPUT ${CLEAR_SPV}
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CLEAR_SOURCE} ${CLEAR_STAGED}
+                COMMAND ${PROJECT_FLUID_GLSLC} --target-env=vulkan1.2 -fshader-stage=compute -O ${CLEAR_STAGED} -o ${CLEAR_SPV}
+                DEPENDS ${CLEAR_SOURCE} VERBATIM)
+            add_custom_command(OUTPUT ${SPLAT_SPV}
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SPLAT_SOURCE} ${SPLAT_STAGED}
+                COMMAND ${PROJECT_FLUID_GLSLC} --target-env=vulkan1.2 -fshader-stage=compute -O ${SPLAT_STAGED} -o ${SPLAT_SPV}
+                DEPENDS ${SPLAT_SOURCE} VERBATIM)
+        else()
+            add_custom_command(OUTPUT ${CLEAR_SPV}
+                COMMAND ${PROJECT_FLUID_SLANGC} ${CLEAR_SOURCE} -target spirv -profile glsl_450 -stage compute -entry main -o ${CLEAR_SPV}
+                DEPENDS ${CLEAR_SOURCE} VERBATIM)
+            add_custom_command(OUTPUT ${SPLAT_SPV}
+                COMMAND ${PROJECT_FLUID_SLANGC} ${SPLAT_SOURCE} -target spirv -profile glsl_450 -stage compute -entry main -o ${SPLAT_SPV}
+                DEPENDS ${SPLAT_SOURCE} VERBATIM)
+        endif()
         add_custom_target(ProjectFluidShaders DEPENDS ${CLEAR_SPV} ${SPLAT_SPV})
+
         add_executable(Project-Fluid Source/VulkanFluidMain.cpp)
         add_dependencies(Project-Fluid ProjectFluidShaders)
         target_link_libraries(Project-Fluid PRIVATE ProjectFluidCore Vulkan::Vulkan)
@@ -28,7 +53,7 @@ if(FRONTIER_BUILD_PROJECT_FLUID_VULKAN)
         endif()
         target_compile_definitions(Project-Fluid PRIVATE PROJECT_FLUID_CLEAR_SPV="${CLEAR_SPV}" PROJECT_FLUID_SPLAT_SPV="${SPLAT_SPV}")
     else()
-        message(STATUS "Project-Fluid Vulkan window disabled: Vulkan SDK, glslc and GLFW3 are required. CPU proof remains available.")
+        message(STATUS "Project-Fluid Vulkan window disabled: Vulkan SDK, glslc/slangc and GLFW3 are required. CPU proof remains available.")
     endif()
 endif()
 

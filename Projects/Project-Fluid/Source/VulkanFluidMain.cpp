@@ -58,9 +58,17 @@ struct alignas(16) Parameters {
     float ColourG{0.82f};
     float ColourB{0.86f};
     std::uint32_t Paused{};
+    float Opacity{0.01f};
+    float Roughness{0.09f};
+    float Ior{1.333f};
+    float MaterialIndex{};
+    float AbsorptionR{0.85f};
+    float AbsorptionG{0.20f};
+    float AbsorptionB{0.12f};
+    float OpticalPadding{};
 };
 struct alignas(16) GpuParticle { float X{},Y{},Z{},Padding{}; };
-static_assert(sizeof(Parameters) == 48 && sizeof(GpuParticle) == 16);
+static_assert(sizeof(Parameters) == 80 && sizeof(GpuParticle) == 16);
 
 class FluidApplication final {
 public:
@@ -374,8 +382,11 @@ private:
         Params_.ParticleCount = static_cast<std::uint32_t>(positions.size());
         Params_.Time = Fluid_.Time();
         Params_.ObstacleEnabled = Fluid_.ObstacleEnabled() ? 1u : 0u;
-        const PF::Vec3 colour = Fluid_.ActiveMaterial().Colour;
-        Params_.ColourR = colour.x; Params_.ColourG = colour.y; Params_.ColourB = colour.z;
+        const PF::FluidMaterial& material = Fluid_.ActiveMaterial();
+        Params_.ColourR = material.Colour.x; Params_.ColourG = material.Colour.y; Params_.ColourB = material.Colour.z;
+        Params_.Opacity = material.Opacity; Params_.Roughness = material.Roughness; Params_.Ior = material.Ior;
+        Params_.MaterialIndex = static_cast<float>(Fluid_.ActiveMaterialKey());
+        Params_.AbsorptionR = material.Absorption.x; Params_.AbsorptionG = material.Absorption.y; Params_.AbsorptionB = material.Absorption.z;
     }
 
     bool Pressed(int key, bool& latch) {

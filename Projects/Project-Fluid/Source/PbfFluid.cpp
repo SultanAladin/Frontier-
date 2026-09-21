@@ -9,10 +9,10 @@ namespace Frontier::ProjectFluid {
 namespace {
 constexpr float Pi = 3.14159265358979323846f;
 constexpr std::array<FluidMaterial, 4> Materials{{
-    {"Water",     {0.36f, 0.82f, 0.86f}, 0.018f, 0.018f, 0.45f, 0.00f, 20.0f},
-    {"Milk",      {0.94f, 0.90f, 0.81f}, 0.090f, 0.030f, 0.55f, 0.08f, 20.0f},
-    {"Honey",     {0.89f, 0.52f, 0.07f}, 0.780f, 0.080f, 0.85f, 0.00f, 25.0f},
-    {"Chocolate", {0.31f, 0.12f, 0.06f}, 0.580f, 0.070f, 0.70f, 0.80f, 40.0f},
+    {"Water",     {0.36f,0.82f,0.86f}, {0.85f,0.20f,0.12f}, 0.01f,0.09f,1.333f, 0.018f,0.018f,0.45f,0.00f,20.0f},
+    {"Milk",      {0.94f,0.90f,0.81f}, {0.20f,0.25f,0.40f}, 0.96f,0.28f,1.350f, 0.090f,0.030f,0.55f,0.08f,20.0f},
+    {"Honey",     {0.89f,0.52f,0.07f}, {0.18f,1.60f,5.80f}, 0.08f,0.18f,1.490f, 0.780f,0.080f,0.85f,0.00f,25.0f},
+    {"Chocolate", {0.31f,0.12f,0.06f}, {2.10f,4.50f,6.50f}, 0.97f,0.24f,1.460f, 0.580f,0.070f,0.70f,0.80f,40.0f},
 }};
 float CohesionKernel(float r, float h) noexcept {
     if (r <= 0.0f || r >= h) return 0.0f;

@@ -26,7 +26,26 @@ public:
     }
     Screen Project(PF::Vec3 p)const{PF::Vec3 q=p-Camera;float z=PF::Dot(q,Forward);return{W*.5f+PF::Dot(q,Right)*Focal/z,H*.5f-PF::Dot(q,Up)*Focal/z,z,z>.05f};}
     void Line(PF::Vec3 a,PF::Vec3 b,Pixel c,int thickness=2){Screen x=Project(a),y=Project(b);if(!x.visible||!y.visible)return;int steps=std::max(1,static_cast<int>(std::max(std::abs(y.x-x.x),std::abs(y.y-x.y))));for(int i=0;i<=steps;++i){float t=static_cast<float>(i)/steps;int px=static_cast<int>(x.x+(y.x-x.x)*t),py=static_cast<int>(x.y+(y.y-x.y)*t);for(int oy=-thickness;oy<=thickness;++oy)for(int ox=-thickness;ox<=thickness;++ox)if(px+ox>=0&&py+oy>=0&&px+ox<(int)W&&py+oy<(int)H)Colour[(py+oy)*W+px+ox]=c;}}
-    void Sphere(PF::Vec3 centre,float radius,Pixel base,bool obstacle=false){Screen s=Project(centre);if(!s.visible)return;int r=std::clamp(static_cast<int>(Focal*radius/s.z),1,90);PF::Vec3 light=PF::Normalized({-.4f,.8f,.3f});for(int oy=-r;oy<=r;++oy)for(int ox=-r;ox<=r;++ox){float nx=static_cast<float>(ox)/r,ny=-static_cast<float>(oy)/r,d2=nx*nx+ny*ny;if(d2>1.0f)continue;float nz=std::sqrt(std::max(0.0f,1.0f-d2));int x=static_cast<int>(s.x)+ox,y=static_cast<int>(s.y)+oy;if(x<0||y<0||x>=(int)W||y>=(int)H)continue;float z=s.z-radius*nz;std::size_t stdIndex=static_cast<std::size_t>(y)*W+x;if(z>=Depth[stdIndex])continue;Depth[stdIndex]=z;float lit=.18f+.75f*std::max(0.0f,nx*light.x+ny*light.y+nz*light.z);float rim=std::pow(1.0f-nz,3.0f);Pixel colour{base.r*lit+rim*.25f,base.g*lit+rim*.28f,base.b*lit+rim*.32f};if(obstacle){float stripe=std::fmod(std::abs(nx+ny)*12.0f,2.0f)<1.0f?1.0f:.3f;colour=Mix(colour,{1.0f,.24f,.025f},stripe*.35f);}Colour[stdIndex]=colour;}}
+    void Sphere(PF::Vec3 centre,float radius,Pixel base,bool obstacle=false,float roughness=.1f,float opacity=1.0f,float ior=1.33f,PF::Vec3 absorption={}){
+        Screen s=Project(centre);if(!s.visible)return;int r=std::clamp(static_cast<int>(Focal*radius/s.z),1,90);
+        PF::Vec3 light=PF::Normalized({-.4f,.8f,.3f});PF::Vec3 halfVector=PF::Normalized(light+PF::Vec3{0,0,1});
+        for(int oy=-r;oy<=r;++oy)for(int ox=-r;ox<=r;++ox){
+            float nx=static_cast<float>(ox)/r,ny=-static_cast<float>(oy)/r,d2=nx*nx+ny*ny;if(d2>1.0f)continue;
+            float nz=std::sqrt(std::max(0.0f,1.0f-d2));int x=static_cast<int>(s.x)+ox,y=static_cast<int>(s.y)+oy;
+            if(x<0||y<0||x>=(int)W||y>=(int)H) continue;
+            float z=s.z-radius*nz;std::size_t index=static_cast<std::size_t>(y)*W+x;
+            if(z>=Depth[index]) continue;
+            Depth[index]=z;PF::Vec3 normal{nx,ny,nz};
+            float lit=.14f+.72f*std::max(0.0f,PF::Dot(normal,light));float edge=std::pow(1.0f-nz,3.0f);
+            float f0=std::pow((ior-1.0f)/(ior+1.0f),2.0f),fresnel=f0+(1.0f-f0)*std::pow(1.0f-nz,5.0f);
+            float specular=std::pow(std::max(0.0f,PF::Dot(normal,halfVector)),120.0f*(1.0f-roughness)+16.0f)*(.9f-roughness*.45f);
+            Pixel colour{base.r*lit,base.g*lit,base.b*lit};
+            Pixel transmitted{base.r*.24f+.08f*std::exp(-absorption.x*radius*3.0f),base.g*.24f+.11f*std::exp(-absorption.y*radius*3.0f),base.b*.24f+.13f*std::exp(-absorption.z*radius*3.0f)};
+            colour=Mix(colour,transmitted,(1.0f-opacity)*.58f);colour.r+=specular+fresnel*.34f+edge*.06f;colour.g+=specular*.94f+fresnel*.38f+edge*.07f;colour.b+=specular*.82f+fresnel*.45f+edge*.09f;
+            if(obstacle){float stripe=std::fmod(std::abs(nx+ny)*12.0f,2.0f)<1.0f?1.0f:.3f;colour=Mix(colour,{1.0f,.24f,.025f},stripe*.35f);}Colour[index]=colour;
+        }
+    }
+
     void Bounds(){PF::Vec3 lo=PF::PbfFluid::BoundsMin(),hi=PF::PbfFluid::BoundsMax();Pixel c{1.0f,.32f,.05f};std::array<PF::Vec3,8> p{{{lo.x,lo.y,lo.z},{hi.x,lo.y,lo.z},{hi.x,lo.y,hi.z},{lo.x,lo.y,hi.z},{lo.x,hi.y,lo.z},{hi.x,hi.y,lo.z},{hi.x,hi.y,hi.z},{lo.x,hi.y,hi.z}}};int e[][2]={{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}};for(auto& q:e)Line(p[q[0]],p[q[1]],c,1);for(float x=-1.5f;x<=1.5f;x+=.5f)Line({x,lo.y,lo.z},{x,lo.y,hi.z},{.23f,.27f,.29f},0);for(float z=-1;z<=1;z+=.5f)Line({lo.x,lo.y,z},{hi.x,lo.y,z},{.23f,.27f,.29f},0);}
     bool Save(const std::string& path){std::ofstream f(path,std::ios::binary);if(!f)return false;f<<"P6\n"<<W<<' '<<H<<"\n255\n";for(auto c:Colour){for(float v:{c.r,c.g,c.b}){unsigned char q=static_cast<unsigned char>(std::pow(std::clamp(v,0.0f,1.0f),1.0f/2.2f)*255+.5f);f.write(reinterpret_cast<char*>(&q),1);}}return(bool)f;}
 private:
@@ -35,7 +54,9 @@ private:
 }
 
 int main(int argc,char**argv){
-    PF::PbfFluid fluid;fluid.SetObstacle(true);fluid.Stir(1.7f);
+    PF::PbfFluid fluid;fluid.SetObstacle(true);
+    if(argc>3){const std::string material=argv[3];if(material=="milk")fluid.SetMaterial(PF::Material::Milk);else if(material=="honey")fluid.SetMaterial(PF::Material::Honey);else if(material=="chocolate")fluid.SetMaterial(PF::Material::Chocolate);}
+    fluid.Stir(1.7f);
     int steps=argc>2?std::max(0,std::stoi(argv[2])):18;
     for(int i=0;i<steps;++i)fluid.Step(1.0f/60.0f);
     const auto& d=fluid.Diagnostics();
@@ -46,9 +67,9 @@ int main(int argc,char**argv){
         minimumObstacleDistance=std::min(minimumObstacleDistance,PF::Length(p-centre));
     }
     if(fluid.ObstacleEnabled()&&minimumObstacleDistance<PF::PbfFluid::ObstacleRadius()-1e-5f) return 4;
-    std::cout<<std::fixed<<std::setprecision(5)<<"Flux PBF C++ mirror | particles "<<fluid.Positions().size()<<" | t "<<fluid.Time()<<" s\n"
+    std::cout<<std::fixed<<std::setprecision(5)<<"Flux PBF C++ mirror | material "<<fluid.ActiveMaterial().Name<<" | particles "<<fluid.Positions().size()<<" | t "<<fluid.Time()<<" s\n"
              <<"bounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts "<<d.SphereContacts<<" | wall contacts "<<d.WallContacts<<" | min sphere distance "<<minimumObstacleDistance<<" m\n"
              <<"pressure passes "<<d.PressureIterations<<" | mean/peak compression "<<d.MeanCompression<<" / "<<d.PeakCompression<<"\n";
-    if(argc>1){ProofRenderer renderer(1280,720);renderer.Bounds();const auto colour=fluid.ActiveMaterial().Colour;for(const auto&p:fluid.Positions())renderer.Sphere(p,.079f,{colour.x,colour.y,colour.z});renderer.Sphere(PF::PbfFluid::ObstacleCentre(),PF::PbfFluid::ObstacleRadius(),{.16f,.18f,.20f},true);renderer.Bounds();if(!renderer.Save(argv[1]))return 2;std::cout<<"proof frame: "<<argv[1]<<'\n';}
+    if(argc>1){ProofRenderer renderer(1280,720);renderer.Bounds();const auto& material=fluid.ActiveMaterial();for(const auto&p:fluid.Positions())renderer.Sphere(p,.079f,{material.Colour.x,material.Colour.y,material.Colour.z},false,material.Roughness,material.Opacity,material.Ior,material.Absorption);renderer.Sphere(PF::PbfFluid::ObstacleCentre(),PF::PbfFluid::ObstacleRadius(),{.16f,.18f,.20f},true,.25f,1.0f,1.45f);renderer.Bounds();if(!renderer.Save(argv[1]))return 2;std::cout<<"proof frame: "<<argv[1]<<'\n';}
     return std::isfinite(d.PeakCompression)?0:1;
 }

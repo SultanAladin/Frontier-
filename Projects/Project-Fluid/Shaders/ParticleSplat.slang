@@ -1,0 +1,54 @@
+#version 450
+// Frontier .slang convention: GLSL source lowered to SPIR-V by glslc/slangc.
+layout(local_size_x = 64) in;
+layout(std430, binding = 0) readonly buffer Particles { vec4 particles[]; };
+layout(std430, binding = 1) buffer Pixels { uint pixels[]; };
+layout(std430, binding = 2) buffer Depths { uint depths[]; };
+layout(std140, binding = 3) uniform Params {
+    uvec4 counts;             // particle count, width, height, obstacle enabled
+    vec4 scene;               // time, particle radius, bounds X, bounds Z
+    vec4 colourPaused;        // source base colour, paused bits
+    vec4 optical;             // opacity, roughness, IOR, material index
+    vec4 absorptionMaterial;  // Beer-Lambert absorption RGB
+} p;
+uint bgra(vec3 c) { c=pow(clamp(c,0.0,1.0),vec3(1.0/2.2)); uvec3 q=uvec3(c*255.0+0.5); return 0xff000000u|(q.r<<16)|(q.g<<8)|q.b; }
+void main() {
+    uint id=gl_GlobalInvocationID.x;
+    bool obstacle=id==p.counts.x;
+    if(id>p.counts.x||(!bool(p.counts.w)&&obstacle)) return;
+    vec3 centre=obstacle?vec3(.65,.65,0):particles[id].xyz;
+    float radius=obstacle?0.36:p.scene.y;
+    vec3 base=obstacle?vec3(.16,.18,.20):p.colourPaused.rgb;
+    vec3 camera=vec3(4.4,3.0,5.2),target=vec3(0,.9,0);
+    vec3 f=normalize(target-camera),right=normalize(cross(f,vec3(0,1,0))),up=normalize(cross(right,f));
+    vec3 rel=centre-camera; float z=dot(rel,f); if(z<=.05)return;
+    float focal=(float(p.counts.z)*.5)/tan(radians(26.0));
+    vec2 screen=vec2(float(p.counts.y)*.5+dot(rel,right)*focal/z,float(p.counts.z)*.5-dot(rel,up)*focal/z);
+    int r=clamp(int(focal*radius/z),1,90);
+    vec3 light=normalize(vec3(-.4,.8,.3)),halfVector=normalize(light+vec3(0,0,1));
+    for(int oy=-r;oy<=r;oy++) for(int ox=-r;ox<=r;ox++) {
+        vec2 n=vec2(ox,-oy)/float(r); float d2=dot(n,n); if(d2>1.0)continue;
+        ivec2 pixel=ivec2(screen)+ivec2(ox,oy);
+        if(any(lessThan(pixel,ivec2(0)))||pixel.x>=int(p.counts.y)||pixel.y>=int(p.counts.z))continue;
+        float nz=sqrt(max(0.0,1.0-d2)),sampleDepth=z-radius*nz;
+        uint encoded=uint(clamp(sampleDepth*1000000.0,0.0,4294967294.0));
+        uint index=uint(pixel.y)*p.counts.y+uint(pixel.x);
+        uint previous=atomicMin(depths[index],encoded);
+        if(encoded<previous) {
+            vec3 normal=vec3(n,nz);
+            float lit=.14+.72*max(0.0,dot(normal,light));
+            float roughness=obstacle ? 0.25 : p.optical.y;
+            float opacity=obstacle ? 1.0 : p.optical.x;
+            float ior=obstacle ? 1.45 : p.optical.z;
+            float f0=pow((ior-1.0)/(ior+1.0),2.0);
+            float fresnel=f0+(1.0-f0)*pow(1.0-nz,5.0);
+            float specular=pow(max(0.0,dot(normal,halfVector)),120.0*(1.0-roughness)+16.0)*(.9-roughness*.45);
+            vec3 transmittance=exp(-p.absorptionMaterial.rgb*radius*3.0);
+            vec3 transmitted=base*.24+vec3(.08,.11,.13)*transmittance;
+            vec3 c=mix(base*lit,transmitted,(1.0-opacity)*.58);
+            c+=vec3(specular)+fresnel*vec3(.34,.38,.45)+pow(1.0-nz,3.0)*vec3(.06,.07,.09);
+            if(obstacle){float stripe=mod(abs(n.x+n.y)*12.0,2.0)<1.0?1.0:.3;c=mix(c,vec3(1.0,.24,.025),stripe*.35);}
+            pixels[index]=bgra(c);
+        }
+    }
+}

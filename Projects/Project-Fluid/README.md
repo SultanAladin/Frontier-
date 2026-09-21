@@ -16,7 +16,9 @@ which has been removed.
 - water, milk, honey and chocolate presets
 - pouring, stirring, pause and deterministic reset
 - Vulkan compute particle splatting into a depth/pixel buffer and swapchain
-- native CPU proof renderer using the same positions, bounds and obstacle
+- Frontier `.slang` shader sources lowered to Vulkan SPIR-V
+- source optical presets: base colour, absorption, opacity, roughness and IOR
+- native CPU proof renderer using the same positions, bounds, obstacle and optics
 
 ## Build
 
@@ -26,8 +28,9 @@ cmake --build build --target Project-Fluid -j
 ./build/Projects/Project-Fluid/Project-Fluid
 ```
 
-Vulkan window requirements: Vulkan SDK/loader, `glslc`, GLFW3 and a C++20
-compiler. Without those packages, the CPU target remains available:
+Vulkan window requirements: Vulkan SDK/loader, `glslc` or `slangc`, GLFW3 and
+a C++20 compiler. The `.slang` files follow Frontier's GLSL-in-Slang convention
+and are lowered to SPIR-V by the same staged build pattern as Project Zero. Without those packages, the CPU target remains available:
 
 ```bash
 cmake --build build --target Project-Fluid-CPU -j

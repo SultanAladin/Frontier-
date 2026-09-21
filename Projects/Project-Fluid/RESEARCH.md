@@ -28,6 +28,11 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 - The native proof uses particle spheres to make individual simulation samples,
   the full orange bounds and sphere collisions auditable. The Vulkan compute
   renderer uses the same positions and scene geometry.
+- Vulkan kernels use Frontier's `.slang` file convention and lower to SPIR-V.
+  CPU and Vulkan presentation consume the source commit's base colour,
+  Beer-Lambert absorption, opacity, roughness and IOR values for all four
+  materials. This remains particle-surface preview shading, not the removed
+  WebGL anisotropic reconstruction or a claim of calibrated measured optics.
 - The WebGL anisotropic screen-space reconstruction is not falsely relabeled as
   ReSTIR. Future ReSTIR integration consumes an immutable particle/surface
   snapshot after the fixed step, writes fluid motion vectors, and rejects
