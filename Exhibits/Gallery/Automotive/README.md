@@ -21,12 +21,14 @@ is included by `MaterialEvaluation.slang` and therefore is shared with the GPU s
   titanium, tire rubber, and Alcantara on procedural preview geometry.
 - `AutomotiveOpticsAndCoatings.png` — clear headlight glass, red tail-lens glass, blue tri-coat paint, brushed alloy,
   and thin-film titanium in a closer optics/coating arrangement.
+- `AutomotiveUvSurfaceDetail.png` — close standalone carbon dual-weave and wrapped tire-tread UV review. The UVs are
+  carried per triangle, interpolated at each hit, and evaluated by the shared analytic surface-detail functions.
 - `AutomotivePaintFlakeFlopComparison.png` — the same red tri-coat paint from a face-on and grazing camera. The
   deterministic analytic flake signal and grazing-angle flop are active in both panels.
 
-The geometry is generated from UV-parameterized spheres, torus rings, and a cylinder. The current flakes are a
-texture-free analytic fallback in the shared Slang profile; UV-backed carbon weave and tread textures remain deferred
-until this preview is accepted.
+The geometry is generated from UV-parameterized spheres, torus rings, and a cylinder. The flake and UV detail passes
+are texture-free analytic fallbacks in the shared Slang profile so the CPU review remains exact; host texture binding
+and authored assets remain deferred until this preview is accepted.
 
 The saved implementation plan is `References/AutomotiveMaterials-Plan.md`.
 

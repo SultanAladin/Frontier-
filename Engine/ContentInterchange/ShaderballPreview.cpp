@@ -114,6 +114,7 @@ struct Tri
 {
     vec3 A, B, C;      // vertices (world)
     vec3 Na, Nb, Nc;   // smooth vertex normals (world); zero when the source has none
+    vec2 UvA, UvB, UvC; // interpolated surface UVs; zero when the source has none
     vec3 Ng;           // geometric normal (unit)
     int  Mat;          // material slot
     int  Light;        // emissive quad id, −1 when not a luminaire
@@ -263,11 +264,13 @@ struct QuadLight
 
 std::vector<QuadLight> g_Lights;
 
-void AddTri(const vec3& A, const vec3& B, const vec3& C, int Mat, int Light = -1)
+void AddTri(const vec3& A, const vec3& B, const vec3& C, int Mat, int Light = -1,
+            const vec2& UvA = vec2(0.0f), const vec2& UvB = vec2(0.0f), const vec2& UvC = vec2(0.0f))
 {
     Tri T;
     T.A = A; T.B = B; T.C = C;
     T.Na = T.Nb = T.Nc = vec3(0.0f);
+    T.UvA = UvA; T.UvB = UvB; T.UvC = UvC;
     T.Ng = normalize(cross(B - A, C - A));
     T.Mat = Mat; T.Light = Light;
     g_Tris.push_back(T);
@@ -278,6 +281,7 @@ bool LoadObj(const char* Path, int Mat)
     FILE* F = std::fopen(Path, "r");
     if (!F) return false;
     std::vector<vec3> V, N;
+    std::vector<vec2> UV;
     char Line[1024];
     int Added = 0;
     while (std::fgets(Line, sizeof(Line), F))
@@ -287,6 +291,11 @@ bool LoadObj(const char* Path, int Mat)
             vec3 P;
             if (std::sscanf(Line + 2, "%f %f %f", &P.x, &P.y, &P.z) == 3) V.push_back(P);
         }
+        else if (Line[0] == 'v' && Line[1] == 't')
+        {
+            vec2 Q;
+            if (std::sscanf(Line + 3, "%f %f", &Q.x, &Q.y) >= 2) UV.push_back(Q);
+        }
         else if (Line[0] == 'v' && Line[1] == 'n')
         {
             vec3 Q;
@@ -294,8 +303,9 @@ bool LoadObj(const char* Path, int Mat)
         }
         else if (Line[0] == 'f' && Line[1] == ' ')
         {
-            // Fan-triangulate; accepts v, v/vt/vn, v//vn.
-            int VI[16], NI[16], NV = 0;
+            // Fan-triangulate; accepts v, v/vt/vn, v//vn. UVs are kept alongside positions so material detail
+            // can be evaluated in the same interpolated hit path as the smooth shading normal.
+            int VI[16], TI[16], NI[16], NV = 0;
             const char* P = Line + 2;
             while (*P && NV < 16)
             {
@@ -306,7 +316,10 @@ bool LoadObj(const char* Path, int Mat)
                 if (Read <= 0) { Read = std::sscanf(P, "%d//%d", &Vi, &Ni); }
                 if (Read <= 0) { Read = std::sscanf(P, "%d", &Vi); }
                 if (Read <= 0) break;
-                VI[NV] = Vi - 1; NI[NV] = (Read >= 3 || (Read == 2 && std::strchr(P, '/'))) ? Ni - 1 : -1;
+                VI[NV] = Vi - 1;
+                bool HasUv = Read >= 2 && std::strchr(P, '/') != nullptr && std::strstr(P, "//") == nullptr;
+                TI[NV] = HasUv ? Ti - 1 : -1;
+                NI[NV] = (Read >= 3 || (Read == 2 && std::strstr(P, "//") != nullptr)) ? Ni - 1 : -1;
                 ++NV;
                 while (*P && *P != ' ' && *P != '\t' && *P != '\n' && *P != '\r') ++P;
             }
@@ -315,7 +328,13 @@ bool LoadObj(const char* Path, int Mat)
                 int I0 = VI[0], I1 = VI[K], I2 = VI[K + 1];
                 if (I0 < 0 || I1 < 0 || I2 < 0 || I0 >= (int)V.size() || I1 >= (int)V.size() || I2 >= (int)V.size()) continue;
                 size_t Base = g_Tris.size();
-                AddTri(V[I0], V[I1], V[I2], Mat);
+                vec2 T0(0.0f), T1(0.0f), T2(0.0f);
+                int K0 = TI[0], K1 = TI[K], K2 = TI[K + 1];
+                if (K0 >= 0 && K1 >= 0 && K2 >= 0 && K0 < (int)UV.size() && K1 < (int)UV.size() && K2 < (int)UV.size())
+                {
+                    T0 = UV[K0]; T1 = UV[K1]; T2 = UV[K2];
+                }
+                AddTri(V[I0], V[I1], V[I2], Mat, -1, T0, T1, T2);
                 Tri& T = g_Tris[Base];
                 int J0 = NI[0], J1 = NI[K], J2 = NI[K + 1];
                 if (J0 >= 0 && J1 >= 0 && J2 >= 0 && J0 < (int)N.size() && J1 < (int)N.size() && J2 < (int)N.size())
@@ -382,6 +401,11 @@ ShadingRecord StandardMaterial(vec3 albedo, float roughness)
 }
 
 ShadingRecord g_Mats[8];
+
+// Standalone automotive scene selectors. A value below zero keeps UV review detail opt-in; the ordinary shaderball
+// exhibit and Project-Zero paths therefore retain their legacy material bytes and shading behavior.
+int g_AutomotiveCarbonMat = -1;
+int g_AutomotiveTireMat = -1;
 bool g_SolidBall = false;   // M4b: the ball (slot 0) is traversed as solid glass (medium tracking, not skip-ball)
 
 #ifndef SHADERBALL_PREVIEW_LIB
@@ -603,17 +627,30 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R)
             Ns = normalize(T.Na * (1.0f - H.U - H.V) + T.Nb * H.U + T.Nc * H.V);
         else
             Ns = Ng;
+        ShadingRecord m = g_Mats[T.Mat];   // local copy: the v1 nested fallback below may zero transmission
 #ifdef FRONTIER_AUTOMOTIVE_PREVIEW
+        // UVs are interpolated at the hit and consumed by the shared analytic review patterns. The normal detail is
+        // applied before the shading frame is built; the lobe evaluator remains the exact shared implementation.
+        vec2 Uv = T.UvA * (1.0f - H.U - H.V) + T.UvB * H.U + T.UvC * H.V;
+        if (T.Mat == g_AutomotiveCarbonMat)
+        {
+            m = AutomotiveApplyCarbonUvDetail(m, Uv);
+            Ns = AutomotiveUvFrameNormal(Ns, Uv, 0.0f, 0.035f);
+        }
+        else if (T.Mat == g_AutomotiveTireMat)
+        {
+            m = AutomotiveApplyTireUvDetail(m, Uv);
+            Ns = AutomotiveUvFrameNormal(Ns, Uv, 1.0f, 0.055f);
+        }
         // The standalone paint preview uses the same shared procedural fallback as its material record: flakes are
         // microfacets under the coat, so their bounded normal variation is applied before the shading frame is built.
-        if (g_Mats[T.Mat].Metalness > 0.8f && g_Mats[T.Mat].CoatWeight > 0.0f)
+        if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
             Ns = AutomotiveApplyTriCoatFlakeNormal(Ns, P, 0.38f, 24.0f, 0.37f);
 #endif
         if (dot(Ns, D) > 0.0f) Ns = -Ns;
         vec3 Tt, Bt;
         ShadingFrame(Ns, Tt, Bt);
         vec3 wo(dot(-D, Tt), dot(-D, Bt), dot(-D, Ns));
-        ShadingRecord m = g_Mats[T.Mat];   // local copy: the v1 nested fallback below may zero transmission
 #ifdef FRONTIER_AUTOMOTIVE_PREVIEW
         // The standalone automotive scene opts into the shared analytic flake/flop profile. The hook is compile-time
         // isolated from the ordinary shaderball exhibit and Project-Zero; the material math itself lives in the

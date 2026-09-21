@@ -20,10 +20,11 @@ namespace
 constexpr float kPi = 3.14159265358979323846f;
 
 void AddSmoothTri(const vec3& A, const vec3& B, const vec3& C,
-                  const vec3& Na, const vec3& Nb, const vec3& Nc, int Mat)
+                  const vec3& Na, const vec3& Nb, const vec3& Nc, int Mat,
+                  const vec2& UvA = vec2(0.0f), const vec2& UvB = vec2(0.0f), const vec2& UvC = vec2(0.0f))
 {
     size_t Base = g_Tris.size();
-    AddTri(A, B, C, Mat);
+    AddTri(A, B, C, Mat, -1, UvA, UvB, UvC);
     Tri& T = g_Tris[Base];
     T.Na = Na; T.Nb = Nb; T.Nc = Nc;
 }
@@ -44,10 +45,14 @@ void AddSphere(const vec3& Center, float Radius, int Mat, int Segments = 36, int
                                               std::sin(P) * std::sin(U), std::cos(P));
             };
             vec3 A = Point(P0, U0), B = Point(P0, U1), C = Point(P1, U1), D = Point(P1, U0);
+            vec2 Ua(static_cast<float>(X) / Segments, static_cast<float>(Y) / Rings);
+            vec2 Ub(static_cast<float>(X + 1) / Segments, static_cast<float>(Y) / Rings);
+            vec2 Uc(static_cast<float>(X + 1) / Segments, static_cast<float>(Y + 1) / Rings);
+            vec2 Ud(static_cast<float>(X) / Segments, static_cast<float>(Y + 1) / Rings);
             if (Y != 0)
-                AddSmoothTri(A, B, D, normalize(A - Center), normalize(B - Center), normalize(D - Center), Mat);
+                AddSmoothTri(A, B, D, normalize(A - Center), normalize(B - Center), normalize(D - Center), Mat, Ua, Ub, Ud);
             if (Y != Rings - 1)
-                AddSmoothTri(B, C, D, normalize(B - Center), normalize(C - Center), normalize(D - Center), Mat);
+                AddSmoothTri(B, C, D, normalize(B - Center), normalize(C - Center), normalize(D - Center), Mat, Ub, Uc, Ud);
         }
     }
 }
@@ -73,12 +78,19 @@ void AddTorus(const vec3& Center, float Major, float Minor, int Mat, int Segment
                 return normalize(vec3(std::cos(V) * std::cos(U), std::sin(V), std::cos(V) * std::sin(U)));
             };
             vec3 A = Point(U0, V0), B = Point(U1, V0), C = Point(U1, V1), D = Point(U0, V1);
-            if (dot(cross(B - A, D - A), Normal(U0, V0)) < 0.0f)
+            vec3 Na = Normal(U0, V0), Nb = Normal(U1, V0), Nc = Normal(U1, V1), Nd = Normal(U0, V1);
+            vec2 Ua(static_cast<float>(X) / Segments, static_cast<float>(Y) / Tube);
+            vec2 Ub(static_cast<float>(X + 1) / Segments, static_cast<float>(Y) / Tube);
+            vec2 Uc(static_cast<float>(X + 1) / Segments, static_cast<float>(Y + 1) / Tube);
+            vec2 Ud(static_cast<float>(X) / Segments, static_cast<float>(Y + 1) / Tube);
+            if (dot(cross(B - A, D - A), Na) < 0.0f)
             {
                 vec3 T = B; B = D; D = T;
+                vec3 Tn = Nb; Nb = Nd; Nd = Tn;
+                vec2 Tu = Ub; Ub = Ud; Ud = Tu;
             }
-            AddSmoothTri(A, B, D, Normal(U0, V0), Normal(U1, V0), Normal(U0, V1), Mat);
-            AddSmoothTri(B, C, D, Normal(U1, V0), Normal(U1, V1), Normal(U0, V1), Mat);
+            AddSmoothTri(A, B, D, Na, Nb, Nd, Mat, Ua, Ub, Ud);
+            AddSmoothTri(B, C, D, Nb, Nc, Nd, Mat, Ub, Uc, Ud);
         }
     }
 }
@@ -96,16 +108,24 @@ void AddCylinder(const vec3& Center, float Radius, float HalfLength, int Mat, in
         vec3 B = Center + vec3(R1.x * Radius, -HalfLength, R1.z * Radius);
         vec3 C = Center + vec3(R1.x * Radius, HalfLength, R1.z * Radius);
         vec3 D = Center + vec3(R0.x * Radius, HalfLength, R0.z * Radius);
-        AddSmoothTri(A, B, D, R0, R1, R0, Mat);
-        AddSmoothTri(B, C, D, R1, R1, R0, Mat);
+        vec2 Ua(static_cast<float>(X) / Segments, 0.0f);
+        vec2 Ub(static_cast<float>(X + 1) / Segments, 0.0f);
+        vec2 Uc(static_cast<float>(X + 1) / Segments, 1.0f);
+        vec2 Ud(static_cast<float>(X) / Segments, 1.0f);
+        AddSmoothTri(A, B, D, R0, R1, R0, Mat, Ua, Ub, Ud);
+        AddSmoothTri(B, C, D, R1, R1, R0, Mat, Ub, Uc, Ud);
         vec3 F0 = Center + vec3(R0.x * Radius, -HalfLength, R0.z * Radius);
         vec3 F1 = Center + vec3(R1.x * Radius, -HalfLength, R1.z * Radius);
         AddSmoothTri(Center + vec3(0.0f, -HalfLength, 0.0f), F1, F0,
-                     vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), Mat);
+                     vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), Mat,
+                     vec2(0.5f), vec2(0.5f + 0.5f * R1.x, 0.5f + 0.5f * R1.z),
+                     vec2(0.5f + 0.5f * R0.x, 0.5f + 0.5f * R0.z));
         vec3 B0 = Center + vec3(R0.x * Radius, HalfLength, R0.z * Radius);
         vec3 B1 = Center + vec3(R1.x * Radius, HalfLength, R1.z * Radius);
         AddSmoothTri(Center + vec3(0.0f, HalfLength, 0.0f), B0, B1,
-                     vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), Mat);
+                     vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f), Mat,
+                     vec2(0.5f), vec2(0.5f + 0.5f * R0.x, 0.5f + 0.5f * R0.z),
+                     vec2(0.5f + 0.5f * R1.x, 0.5f + 0.5f * R1.z));
     }
 }
 
@@ -142,6 +162,8 @@ void ClearScene()
     g_Order.clear();
     g_Lights.clear();
     g_SolidBall = true;
+    g_AutomotiveCarbonMat = -1;
+    g_AutomotiveTireMat = -1;
     for (ShadingRecord& M : g_Mats) M = AutomotiveDefaults();
 }
 
@@ -207,6 +229,8 @@ void BuildSuiteScene()
     g_Mats[5] = AutomotiveTireRubber();
     g_Mats[6] = AutomotiveAlcantara();
     g_Mats[7] = GroundMaterial();
+    g_AutomotiveCarbonMat = 2;
+    g_AutomotiveTireMat = 5;
 
     AddQuad(vec3(-8.0f, -4.0f, 0.0f), vec3(8.0f, -4.0f, 0.0f),
             vec3(8.0f, 5.0f, 0.0f), vec3(-8.0f, 5.0f, 0.0f), 7);
@@ -260,6 +284,25 @@ void BuildOpticsScene()
     AddCylinder(vec3(2.95f, 0.68f, 1.05f), 0.76f, 0.18f, 3);
     AddTorus(vec3(4.35f, 0.80f, 0.92f), 0.55f, 0.15f, 6);
     AddStudioRig(vec3(0.0f, 0.8f, 1.0f));
+    FinaliseScene();
+}
+
+void BuildUvDetailScene()
+{
+    ClearScene();
+    g_Mats[0] = AutomotiveCarbonResin();
+    g_Mats[1] = AutomotiveTireRubber();
+    g_Mats[2] = GroundMaterial();
+    g_AutomotiveCarbonMat = 0;
+    g_AutomotiveTireMat = 1;
+
+    AddQuad(vec3(-6.0f, -3.0f, 0.0f), vec3(6.0f, -3.0f, 0.0f),
+            vec3(6.0f, 4.0f, 0.0f), vec3(-6.0f, 4.0f, 0.0f), 2);
+    // Close review samples: the sphere exposes the dual-weave carbon UV field, while the torus exposes the wrapped
+    // tire tread UV field. Both are procedurally generated and carry interpolated UVs into the shared hit path.
+    AddSphere(vec3(-1.45f, 0.55f, 1.18f), 1.05f, 0, 64, 40);
+    AddTorus(vec3(1.55f, 0.85f, 1.08f), 0.78f, 0.29f, 1, 64, 28);
+    AddStudioRig(vec3(0.0f, 0.75f, 1.05f));
     FinaliseScene();
 }
 
@@ -380,6 +423,14 @@ int main(int Argc, char** Argv)
     std::string OpticsPath = OutDir + "/AutomotiveOpticsAndCoatings.png";
     if (!WriteFilm(OpticsPath.c_str(), Optics, Width, Height, 1.0f)) return 3;
 
+    BuildUvDetailScene();
+    Camera UvCamera = MakeCamera(vec3(0.10f, -7.4f, 2.55f), vec3(0.10f, 0.70f, 1.10f),
+                                 static_cast<float>(Width) / Height, 27.5f);
+    std::vector<float> UvDetail;
+    RenderFilm(UvCamera, Width, Height, Spp, UvDetail, 252);
+    std::string UvPath = OutDir + "/AutomotiveUvSurfaceDetail.png";
+    if (!WriteFilm(UvPath.c_str(), UvDetail, Width, Height, 1.25f)) return 5;
+
     BuildPaintScene();
     int PaintW = Width / 2;
     Camera FaceCamera = MakeCamera(vec3(0.0f, -8.5f, 2.45f), vec3(0.0f, 0.65f, 1.45f),
@@ -394,6 +445,7 @@ int main(int Argc, char** Argv)
 
     std::printf("[AutomotivePreview] wrote %s\n", SuitePath.c_str());
     std::printf("[AutomotivePreview] wrote %s\n", OpticsPath.c_str());
+    std::printf("[AutomotivePreview] wrote %s\n", UvPath.c_str());
     std::printf("[AutomotivePreview] wrote %s\n", PaintPath.c_str());
     std::printf("[AutomotivePreview] exact BSDF: Engine/Shaders/MaterialEvaluation.slang\n");
     std::printf("[AutomotivePreview] exact profiles: Engine/Shaders/AutomotiveMaterialProfiles.slang\n");

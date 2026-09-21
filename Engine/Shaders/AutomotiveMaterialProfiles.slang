@@ -94,6 +94,61 @@ vec3 AutomotiveApplyTriCoatFlakeNormal(vec3 normal, vec3 position, float density
     return normalize(normal + tangent * (tx * tilt) + bitangent * (ty * tilt));
 }
 
+// UV-backed review detail. These analytic test patterns stand in for texture reads until the host texture binding is
+// integrated: both CPU and GPU still consume the same UV coordinates, phase, thresholds, and lobe modulation. The
+// carbon pattern is a dual-weave warp/weft, while the tire pattern uses staggered longitudinal ribs and cross grooves.
+float AutomotiveCarbonWeave(vec2 uv)
+{
+    float Tau = 6.28318530718f;
+    float warp = 0.5f + 0.5f * float(sin(uv.x * Tau * 34.0f + 0.22f * sin(uv.y * Tau * 3.0f)));
+    float weft = 0.5f + 0.5f * float(sin(uv.y * Tau * 34.0f + 0.22f * sin(uv.x * Tau * 3.0f)));
+    float diagonal = 0.5f + 0.5f * float(sin((uv.x + uv.y) * Tau * 17.0f));
+    return clamp(0.50f * max(pow(warp, 3.0f), pow(weft, 3.0f)) + 0.16f * diagonal, 0.0f, 1.0f);
+}
+
+float AutomotiveTireTread(vec2 uv)
+{
+    float Tau = 6.28318530718f;
+    float rib = abs(float(sin(uv.x * Tau * 11.0f + 0.35f * sin(uv.y * Tau * 2.0f))));
+    float crossGroove = abs(float(sin(uv.y * Tau * 5.5f + uv.x * Tau * 2.0f)));
+    return clamp(smoothstep(0.28f, 0.72f, rib) * (0.72f + 0.28f * crossGroove), 0.0f, 1.0f);
+}
+
+vec3 AutomotiveUvFrameNormal(vec3 normal, vec2 uv, float pattern, float amplitude)
+{
+    vec3 helper = abs(normal.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(helper, normal));
+    vec3 bitangent = cross(normal, tangent);
+    float Tau = 6.28318530718;
+    float hx = pattern < 0.5
+        ? sin(uv.x * Tau * 34.0 + 0.18 * sin(uv.y * Tau * 3.0))
+        : sin(uv.x * Tau * 11.0 + 0.35 * sin(uv.y * Tau * 2.0));
+    float hy = pattern < 0.5
+        ? sin(uv.y * Tau * 34.0 + 0.18 * sin(uv.x * Tau * 3.0))
+        : sin(uv.y * Tau * 5.5 + uv.x * Tau * 2.0);
+    return normalize(normal + tangent * (hx * amplitude) + bitangent * (hy * amplitude));
+}
+
+ShadingRecord AutomotiveApplyCarbonUvDetail(ShadingRecord M, vec2 uv)
+{
+    float weave = AutomotiveCarbonWeave(uv);
+    M.BaseColor = mix(vec3(0.008, 0.010, 0.013), vec3(0.055, 0.068, 0.082), weave * 0.72);
+    M.SpecularRoughness = mix(0.30, 0.18, weave);
+    M.SpecularAnisotropy = mix(0.58, 0.88, weave);
+    M.CoatRoughness = mix(0.10, 0.055, weave);
+    return M;
+}
+
+ShadingRecord AutomotiveApplyTireUvDetail(ShadingRecord M, vec2 uv)
+{
+    float tread = AutomotiveTireTread(uv);
+    M.BaseColor = mix(vec3(0.009, 0.010, 0.011), vec3(0.030, 0.034, 0.038), tread);
+    M.DiffuseRoughness = mix(0.98, 0.82, tread);
+    M.SpecularWeight = mix(0.12, 0.28, tread);
+    M.SpecularRoughness = mix(0.88, 0.66, tread);
+    return M;
+}
+
 // Apply the automotive paint's analytic detail after the material record has been resolved. The caller supplies the
 // view direction for the flop term. A later host integration can replace position with UV-backed flakes while keeping
 // this exact fallback and the same lobe fields.

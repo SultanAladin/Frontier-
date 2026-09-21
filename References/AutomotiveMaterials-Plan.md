@@ -16,6 +16,7 @@ Implemented in this branch:
   - no duplicate CPU-only BSDF implementation
 - `Exhibits/Workbench/Automotive/AutomotiveMaterialPreview.cpp`
   - procedural UV-parameterized sphere, torus, and cylinder geometry
+  - standalone UV-detail review scene for carbon dual-weave and tire tread
   - separate rack scene, not Project-Zero
   - renders through the exact `MaterialEvaluation.slang` OpenPBR evaluator compiled as C++
 - `Exhibits/Workbench/Automotive/RunAutomotiveMaterialPreview.sh`
@@ -40,6 +41,7 @@ Implemented in this branch:
 
 - `Exhibits/Gallery/Automotive/AutomotiveMaterialSuite.png`
 - `Exhibits/Gallery/Automotive/AutomotiveOpticsAndCoatings.png`
+- `Exhibits/Gallery/Automotive/AutomotiveUvSurfaceDetail.png`
 
 These are reference images, not GPU captures. They are rendered from the shipped evaluator compiled as C++ so the
 material math is identical to the Slang evaluator. GPU lowering/runtime validation remains a separate machine gate.
@@ -65,11 +67,20 @@ Implemented in the shared profile source and standalone preview:
 The GPU host does not serialize the new automotive parameters yet. That is intentional and remains part of the later
 Project-Zero integration gate.
 
-### B. UV-backed surface detail
+### B. UV-backed surface detail — preview complete
 
-1. Extend the preview mesh path to carry UVs through the CPU mirror.
-2. Add UV dual-weave carbon and tire tread test textures.
-3. Keep the authored textures outside Project-Zero until the preview acceptance sheet is approved.
+Implemented in the shared profile source and standalone preview:
+
+1. `Tri` carries per-vertex UVs, the OBJ loader preserves `vt` coordinates, and procedural sphere/torus/cylinder meshes
+   emit UVs that are barycentrically interpolated at the hit.
+2. `AutomotiveCarbonWeave` and `AutomotiveTireTread` are deterministic UV test fields shared by the CPU and GPU source;
+   they modulate the base/roughness lobes and feed a bounded UV-frame normal detail pass.
+3. `AutomotiveUvSurfaceDetail.png` provides a close standalone review of the carbon dual-weave and wrapped tire tread.
+4. These analytic fields are the texture-binding-independent review fallback. Authored texture assets remain outside
+   Project-Zero until the preview acceptance sheet is approved.
+
+The next phase is lighting optics (dispersion, reflector geometry, and TIR comparison); host integration remains gated
+on review of the standalone sheets.
 
 ### C. Lighting optics
 
