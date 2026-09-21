@@ -122,8 +122,13 @@ struct ShadingRecord
     float SssThickness;       // M5: geometric chord t [m] at THIS hit (tracer-side, M4b-style; +∞ on miss = Beer 0)
 };
 
+// Standalone automotive profiles are included after the shared record definition so both the GPU shader and the
+// FRONTIER_CPU_PORT build expose the same material constructors. Project-Zero does not serialize these profiles yet;
+// the separate automotive scene is the review gate before that host integration.
+#include "AutomotiveMaterialProfiles.slang"
+
 //------------------------------------------------------------------------------------------------------------------------
-//                                                    FRESNEL
+//                                                  FRESNEL
 //------------------------------------------------------------------------------------------------------------------------
 
 // Exact unpolarised dielectric Fresnel for relative IOR eta = n_transmitted / n_incident.
