@@ -65,6 +65,17 @@ cmake --build build --target Project-Fluid-Pond-Test Project-Fluid-Pond-CPU -j
 ./build/Projects/Project-Fluid/Project-Fluid-Pond-CPU pond.ppm clean
 ```
 
+## Browser near-shore laboratory
+
+`Web/NearShore.html` is a self-contained WebGL 2 research prototype for the
+beach architecture. It evolves conservative water depth and horizontal momentum
+on a `256 x 144` GPU grid with Rusanov finite-volume fluxes, bathymetry source
+terms, positivity-preserving wet/dry cells, bottom friction, incoming wave
+forcing, breaking/foam diagnostics, and visible swash. Run any static server at
+the repository root and open `/Projects/Project-Fluid/Web/NearShore.html`.
+This prototype demonstrates the coastal solver; the production port remains
+Vulkan compute.
+
 ## Interactive controls
 
 | Input | Action |
