@@ -15,9 +15,10 @@ which has been removed.
 - pairwise surface response, viscosity and shear-thinning material response
 - water, milk, honey and chocolate presets
 - pouring, stirring, pause and deterministic reset
-- Vulkan compute screen-space surface reconstruction: velocity-aligned
-  anisotropic front-depth/thickness kernels, wide filtered resolve,
-  reconstructed normals and swapchain copy
+- shared CPU/Vulkan Yu–Turk weighted covariance/PCA reconstruction with
+  smoothed centers and bounded, volume-normalized ellipsoid kernels
+- Vulkan front-depth/thickness projection, wide filtered resolve, reconstructed
+  normals and swapchain copy
 - Frontier `.slang` shader sources lowered to Vulkan SPIR-V
 - source optical presets: base colour, absorption, opacity, roughness and IOR
 - continuous refraction, Beer–Lambert attenuation, Fresnel and rough highlights

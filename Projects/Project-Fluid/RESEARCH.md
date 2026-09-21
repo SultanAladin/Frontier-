@@ -30,11 +30,11 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 - The default native presentation is a continuous screen-space liquid surface,
   not one rendered sphere per simulation particle. A first compute/CPU-mirror
   pass accumulates nearest front depth and additive optical thickness from
-  velocity-aligned anisotropic kernels. The major axis stretches along projected
-  flow while preserving a smaller depth axis, closing gaps in jets without
-  exposing a chain of spheres. Repeated broad bilateral depth and Gaussian
-  thickness filters close the sampled sheet; depth gradients reconstruct a
-  low-frequency shading normal.
+  weighted-covariance/PCA ellipsoids. Dense neighborhoods use bounded 3:1,
+  volume-normalized principal axes and Laplacian-smoothed render centers; sparse
+  spray remains mass-volume spherical. Repeated broad bilateral depth and
+  Gaussian thickness filters close the sampled sheet; depth gradients
+  reconstruct a low-frequency shading normal.
 - Vulkan kernels use Frontier's `.slang` file convention and lower to SPIR-V.
   CPU and Vulkan resolves consume the source commit's base colour,
   Beer–Lambert absorption, opacity, roughness and IOR values for all four
@@ -50,10 +50,11 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 - Native capillarity now evaluates the complete Flux/Akinci pair model: weighted
   color-field normals, the piecewise cohesion kernel, equal/opposite pair
   scattering, density-deficiency correction, and sampled-solid adhesion.
-- This is honestly a depth/thickness screen-space reconstruction, not a claim
-  that the source's CPU covariance ellipsoids, complete Yu–Turk implicit field,
-  or Marching Cubes were ported. It retains the known overlap, thin-sheet and
-  silhouette limits recorded in the original research below.
+- Weighted covariance/PCA, smoothed centers, and bounded ellipsoids are now
+  shared by the CPU and Vulkan paths. The resolve is still honestly a
+  depth/thickness screen-space reconstruction—not yet the complete Yu–Turk
+  summed implicit field or Marching Cubes extraction. It therefore retains the
+  known overlap and thin-sheet limits recorded in the original research below.
 - The WebGL anisotropic screen-space reconstruction is not falsely relabeled as
   ReSTIR. Future ReSTIR integration consumes an immutable particle/surface
   snapshot after the fixed step, writes fluid motion vectors, and rejects

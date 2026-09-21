@@ -1,4 +1,5 @@
 #include "PbfFluid.h"
+#include "SurfaceReconstruction.h"
 
 #include <algorithm>
 #include <array>
@@ -46,20 +47,21 @@ public:
         }
     }
 
-    void FluidSurface(const std::vector<PF::Vec3>& positions,const std::vector<PF::Vec3>& velocities,const PF::FluidMaterial& material){
+    void FluidSurface(const std::vector<PF::SurfaceKernel>& kernels,const PF::FluidMaterial& material){
         const std::size_t count=static_cast<std::size_t>(W)*H;
         std::vector<float> front(count,std::numeric_limits<float>::max()),thickness(count,0.0f),scratch(count,std::numeric_limits<float>::max());
-        constexpr float surfaceRadius=.180f;
-        for(std::size_t i=0;i<positions.size();++i){
-            const PF::Vec3 centre=positions[i],velocity=velocities[i];Screen s=Project(centre);if(!s.visible)continue;
-            float vx=PF::Dot(velocity,Right),vy=-PF::Dot(velocity,Up),speed=std::sqrt(vx*vx+vy*vy);float ux=speed>.01f?vx/speed:0.0f,uy=speed>.01f?vy/speed:1.0f;
-            float aspect=1.0f+std::clamp(speed*.22f,0.0f,1.4f),major=surfaceRadius*aspect,minor=surfaceRadius/std::sqrt(aspect),depthRadius=minor;
-            int majorPixels=std::clamp(static_cast<int>(Focal*major/s.z),1,72),minorPixels=std::clamp(static_cast<int>(Focal*minor/s.z),1,48),extent=majorPixels;
+        for(const PF::SurfaceKernel& kernel:kernels){
+            const PF::Vec3 centre=kernel.Centre;Screen s=Project(centre);if(!s.visible)continue;
+            const Screen ea=Project(centre+kernel.AxisA),eb=Project(centre+kernel.AxisB),ec=Project(centre+kernel.AxisC);
+            const float ax=ea.x-s.x,ay=ea.y-s.y,bx=eb.x-s.x,by=eb.y-s.y,cx=ec.x-s.x,cy=ec.y-s.y;
+            const float m00=ax*ax+bx*bx+cx*cx,m01=ax*ay+bx*by+cx*cy,m11=ay*ay+by*by+cy*cy,trace=m00+m11,disc=std::sqrt(std::max(0.0f,(m00-m11)*(m00-m11)+4*m01*m01));
+            const float majorPixels=std::sqrt(std::max(1.0f,(trace+disc)*.5f)),minorPixels=std::sqrt(std::max(1.0f,(trace-disc)*.5f)),angle=.5f*std::atan2(2*m01,m00-m11),ux=std::cos(angle),uy=std::sin(angle);
+            const float da=PF::Dot(kernel.AxisA,Forward),db=PF::Dot(kernel.AxisB,Forward),dc=PF::Dot(kernel.AxisC,Forward),depthRadius=std::sqrt(da*da+db*db+dc*dc);const int extent=std::clamp(static_cast<int>(majorPixels)+1,1,72);
             for(int oy=-extent;oy<=extent;++oy)for(int ox=-extent;ox<=extent;++ox){
-                float along=(ox*ux+oy*uy)/majorPixels,across=(-ox*uy+oy*ux)/minorPixels,d2=along*along+across*across;if(d2>1.0f)continue;
-                int x=static_cast<int>(s.x)+ox,y=static_cast<int>(s.y)+oy;if(x<0||y<0||x>=(int)W||y>=(int)H)continue;
-                float nz=std::sqrt(1.0f-d2);std::size_t at=static_cast<std::size_t>(y)*W+x;
-                front[at]=std::min(front[at],s.z-depthRadius*nz);thickness[at]+=2.0f*depthRadius*nz;
+                const float along=(ox*ux+oy*uy)/majorPixels,across=(-ox*uy+oy*ux)/minorPixels,d2=along*along+across*across;if(d2>1.0f)continue;
+                const int x=static_cast<int>(s.x)+ox,y=static_cast<int>(s.y)+oy;if(x<0||y<0||x>=(int)W||y>=(int)H)continue;
+                const float nz=std::sqrt(1.0f-d2);const std::size_t at=static_cast<std::size_t>(y)*W+x;
+                front[at]=std::min(front[at],s.z-depthRadius*nz);thickness[at]+=2.0f*depthRadius*nz*kernel.VolumeWeight;
             }
         }
         // Six edge-aware depth/thickness passes mirror the source renderer's
@@ -101,7 +103,6 @@ private:
 int main(int argc,char**argv){
     PF::PbfFluid fluid;fluid.SetObstacle(true);
     if(argc>3){const std::string material=argv[3];if(material=="milk")fluid.SetMaterial(PF::Material::Milk);else if(material=="honey")fluid.SetMaterial(PF::Material::Honey);else if(material=="chocolate")fluid.SetMaterial(PF::Material::Chocolate);}
-    fluid.Stir(1.7f);
     int steps=argc>2?std::max(0,std::stoi(argv[2])):18;
     for(int i=0;i<steps;++i){fluid.Pour(1.0f/60.0f);fluid.Step(1.0f/60.0f);}
     const auto& d=fluid.Diagnostics();
@@ -116,6 +117,6 @@ int main(int argc,char**argv){
              <<"bounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts "<<d.SphereContacts<<" | wall contacts "<<d.WallContacts<<" | min sphere distance "<<minimumObstacleDistance<<" m\n"
              <<"pressure passes "<<d.PressureIterations<<" | mean/peak compression "<<d.MeanCompression<<" / "<<d.PeakCompression<<"\n"
              <<"viscosity PCG iterations "<<d.ViscosityIterations<<" | relative residual "<<d.ViscosityRelativeResidual<<"\n";
-    if(argc>1){ProofRenderer renderer(1280,720);renderer.Bounds();const auto& material=fluid.ActiveMaterial();renderer.FluidSurface(fluid.Positions(),fluid.Velocities(),material);renderer.Sphere(PF::PbfFluid::ObstacleCentre(),PF::PbfFluid::ObstacleRadius(),{.16f,.18f,.20f},true,.25f,1.0f,1.45f);renderer.Bounds(false);if(!renderer.Save(argv[1]))return 2;std::cout<<"proof frame: "<<argv[1]<<'\n';}
+    if(argc>1){ProofRenderer renderer(1280,720);renderer.Bounds();const auto& material=fluid.ActiveMaterial();PF::SurfaceReconstruction reconstruction;reconstruction.Update(fluid.Positions());renderer.FluidSurface(reconstruction.Kernels(),material);renderer.Sphere(PF::PbfFluid::ObstacleCentre(),PF::PbfFluid::ObstacleRadius(),{.16f,.18f,.20f},true,.25f,1.0f,1.45f);renderer.Bounds(false);if(!renderer.Save(argv[1]))return 2;std::cout<<"proof frame: "<<argv[1]<<'\n';}
     return std::isfinite(d.PeakCompression)?0:1;
 }

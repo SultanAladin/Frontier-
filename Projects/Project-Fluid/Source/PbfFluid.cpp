@@ -65,6 +65,7 @@ void PbfFluid::Reset(Experiment experiment) {
                 Add({x*0.157f,1.0f+y*0.157f,z*0.157f});
     }
     RebuildBoundarySamples(); BuildNeighbours(); BuildBoundaryNeighbours(); ComputeDensity(false);
+    if(experiment==Experiment::Basin){SolvePressure();std::fill(Velocities_.begin(),Velocities_.end(),Vec3{});Diagnostics_={};}
 }
 
 float PbfFluid::Poly6(float r2) const noexcept {

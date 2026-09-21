@@ -1,4 +1,6 @@
-add_library(ProjectFluidCore STATIC Source/PbfFluid.cpp Source/PbfFluid.h)
+add_library(ProjectFluidCore STATIC
+    Source/PbfFluid.cpp Source/PbfFluid.h
+    Source/SurfaceReconstruction.cpp Source/SurfaceReconstruction.h)
 target_include_directories(ProjectFluidCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_features(ProjectFluidCore PUBLIC cxx_std_20)
 

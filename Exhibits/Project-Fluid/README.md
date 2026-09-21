@@ -19,9 +19,9 @@ tension, wetting and shear thinning alter the corresponding simulation state.
 
 These are C++ CPU-mirror execution outputs, not generated artwork or captures
 from the removed ocean project. The proof executes the same scene and same
-front-depth/thickness surface algorithm as the Vulkan `.slang` path: velocity-aligned anisotropic
-kernels build continuous front depth and optical thickness, then broad depth and
-thickness filters remove particle-frequency lobes, and a resolve reconstructs normals and applies
+front-depth/thickness surface algorithm as the Vulkan `.slang` path: weighted-covariance/PCA ellipsoids with smoothed render centers build continuous
+front depth and optical thickness, then broad depth and thickness filters remove
+particle-frequency lobes, and a resolve reconstructs normals and applies
 refraction, Beer–Lambert attenuation, Fresnel response and rough highlights.
 Individual simulation particles are not directly drawn in the default proof.
 
@@ -35,8 +35,9 @@ projection used during pressure iterations.
 ```text
 Flux PBF C++ mirror | material Water | particles 1620 | t 1.50000 s
 bounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m
-sphere contacts 75 | wall contacts 5922 | minimum sphere distance 0.36001 m
-pressure passes 6 | mean/peak compression 0.00323 / 0.05044
+sphere contacts 0 | wall contacts 0 | minimum sphere distance 0.46668 m
+pressure passes 3 | mean/peak compression 0.00245 / 0.02244
+viscosity PCG iterations 1 | relative residual 0.00000
 ```
 
 Build and reproduce:
@@ -54,9 +55,9 @@ python3 Tools/PpmToPng.py /tmp/flux.ppm \
 Checksums:
 
 ```text
-923075059850a165c3b45a79ec4d8ac2b63289322ee18eea2985c9eca098e5d8  ProjectFluid_Flux_PBF_Bounds_Collision.png
-976d394a161e8bc8c3790d6d4896dbb29df918cc3648cafa0539f19d01617bf6  ProjectFluid_Flux_PBF_Collision.gif
-6f3781ac93481ccf7fa31d22cc0732841945da38c9e663650f7a4542cda79c5f  ProjectFluid_Flux_Surface_Material_Comparison.png
+c9188fd017912aa2048d60a01781fbb1e048bdbbea9b9f982716f185c8d91880  ProjectFluid_Flux_PBF_Bounds_Collision.png
+0417a3eff2dc4627b1a902a80889ae7766a9f3729e0c426e57c3bb3d07ab679a  ProjectFluid_Flux_PBF_Collision.gif
+8f35342e5610d8d2435c2ff644fea7a46320223948925a64f7e35995a3eb94c3  ProjectFluid_Flux_Surface_Material_Comparison.png
 ```
 
 The GIF samples twelve independently reproduced fixed-step states. The

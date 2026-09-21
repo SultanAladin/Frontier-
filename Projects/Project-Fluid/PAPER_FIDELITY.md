@@ -30,7 +30,7 @@ Primary PDFs and adaptation notes are indexed in `RESEARCH.md`.
 - [ ] Divergence-free velocity projection before implicit viscosity
 - [ ] Published-SI material conversion with explicit scene-unit scaling and validation benchmarks
 - [ ] Dynamic rigid sphere inertia, angular momentum, and equal/opposite hydrodynamic forces
-- [ ] Yu–Turk weighted covariance/PCA and smoothed render centers in native C++
+- [x] Yu–Turk weighted covariance/PCA, bounded volume-normalized ellipsoids, and smoothed render centers in native C++
 - [ ] Summed anisotropic implicit density field
 - [ ] Marching Cubes mesh extraction with topology/volume validation
 - [ ] Vulkan BLAS/TLAS construction for the extracted fluid mesh
