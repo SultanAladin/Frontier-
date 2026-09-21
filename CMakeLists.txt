@@ -148,5 +148,5 @@ if(NOT MSVC)
     target_link_libraries(Project-Zero PRIVATE pthread)
 endif()
 
-# Interactive Vulkan spectral-fluid demonstration plus deterministic CPU mirror.
+# Native Flux PBF simulation, CPU proof and interactive Vulkan presentation.
 add_subdirectory(Projects/Project-Fluid)

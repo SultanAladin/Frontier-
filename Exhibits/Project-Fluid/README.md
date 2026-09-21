@@ -1,62 +1,47 @@
-# Project Fluid — exact CPU shader-mirror proof
+# Project Fluid — corrected Flux PBF proof
 
-![Project Fluid exact CPU mirror](ProjectFluid_CPU_Mirror_Proof.png)
+Source: `eosclient0001-rgb/Frontier`, commit
+`c708b47926dec2e31d08b2a0bc01ab15c84983c8`, branch
+`arena/01a0c4da-frontier`.
 
-This 1280×720 frame was emitted by the native C++ `Project-Fluid-CPU`
-executable in the Arena workspace on 2026-09-21. It is not an AI-generated
-image, HTML capture, or a separate artistic renderer.
+![Animated fixed-step PBF collision](ProjectFluid_Flux_PBF_Collision.gif)
 
-## Exact scene contract
+![Bounds and collision frame](ProjectFluid_Flux_PBF_Bounds_Collision.png)
 
-The proof now mirrors the two Vulkan compute stages directly:
+These are native C++ execution outputs, not generated artwork or captures from
+the removed ocean project. The orange box is the real solver domain. The striped
+sphere is the source scene's stationary obstacle. Every cyan sphere is one PBF
+simulation particle; visible separation around the obstacle comes from the same
+sphere non-penetration projection used during pressure iterations.
 
-1. `OceanSurface.comp` ↔ `SpectralOcean::Evaluate`: the same 192 modes, phase,
-   deep-water dispersion, height, slopes, Jacobian, 256×256 domain, and `t=9`.
-2. `OceanPresent.comp` ↔ `RenderProof`: the same camera and ray construction,
-   2 m height-field marching, six bisection refinements, bilinear field reads,
-   sky/sun function, Fresnel water BRDF, specular response, distance haze,
-   compression-driven particle test, linear-to-sRGB conversion, and 1280×720
-   viewport.
+## Recorded run
 
-This follows the same CPU-reference principle used by Project Zero: CPU code
-executes the shader algorithm and scene rather than producing an unrelated
-“representative” image.
+```text
+Flux PBF C++ mirror | particles 1440 | t 0.30000 s
+bounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m
+sphere contacts 26 | wall contacts 2868 | minimum sphere distance 0.36000 m
+pressure passes 4 | mean/peak compression 0.00198 / 0.02686
+```
 
-## Reproduction command
+Build and reproduce:
 
 ```bash
 g++ -std=c++20 -O3 -Wall -Wextra -Werror -Wpedantic \
-  Projects/Project-Fluid/Source/SpectralOcean.cpp \
-  Projects/Project-Fluid/Source/CpuMirrorMain.cpp \
-  -o /tmp/project-fluid-test/cpu-mirror
-
-/tmp/project-fluid-test/cpu-mirror \
-  --render /tmp/ProjectFluid_CPU_Mirror_Proof.ppm
-
-python3 Tools/PpmToPng.py \
-  /tmp/ProjectFluid_CPU_Mirror_Proof.ppm \
-  Exhibits/Project-Fluid/ProjectFluid_CPU_Mirror_Proof.png
+  Projects/Project-Fluid/Source/PbfFluid.cpp \
+  Projects/Project-Fluid/Source/CpuProofMain.cpp \
+  -o /tmp/flux-proof
+/tmp/flux-proof /tmp/flux.ppm 18
+python3 Tools/PpmToPng.py /tmp/flux.ppm \
+  Exhibits/Project-Fluid/ProjectFluid_Flux_PBF_Bounds_Collision.png
 ```
 
-Observed output:
+Checksums:
 
 ```text
-Project-Fluid CPU mirror: 192 shared spectral modes
-height range [-0.9634, 0.9169] m, RMS 0.3498 m
-CPU mirror proof rendered to /tmp/ProjectFluid_CPU_Mirror_Proof.ppm
-render time: 2.360 seconds
+51056578c59fefec7c766017147d4e8fcbef4aeda2d3349d7c324ff87fd35de1  ProjectFluid_Flux_PBF_Bounds_Collision.png
+55e890da9efc72208926f0b5ab518f9338157947422cce516db38b1d58dbf658  ProjectFluid_Flux_PBF_Collision.gif
 ```
 
-PNG SHA-256:
-
-```text
-d66732021e63e0959ab7a727b4908b0dc52e0eca927f48e4fdf9f55614600aee
-```
-
-## GPU status
-
-This proves the complete **CPU mirror of the Vulkan scene**. This Arena image
-does not claim to be a GPU capture: the current sandbox exposes no Vulkan
-loader/device, native display, CMake, or `glslc`. On a Vulkan-capable machine,
-the interactive executable runs the corresponding compute shaders and reports
-sampled CPU/GPU surface errors every 180 frames.
+The GIF samples twelve deterministic fixed-step states. The interactive Vulkan
+window advances continuously at 1/60 s, supports reset/stir/pour/material input,
+and shows live contact counts in its title and diagnostics in the console.

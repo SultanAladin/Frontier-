@@ -1,196 +1,191 @@
-# Project Fluid — research and integration record
+# Project Fluid — Flux C++/Vulkan port research
 
-Last reviewed: 2026-09-21. This document replaces the skipped HTML prototype as
-the implementation record for the native C++/Vulkan project.
+## Provenance and correction
 
-## 1. Scope and decision
+This project ports **Flux 0.3**, commit `c708b47926dec2e31d08b2a0bc01ab15c84983c8`
+from `eosclient0001-rgb/Frontier`, branch `arena/01a0c4da-frontier`. The earlier
+spectral-ocean implementation was removed because it came from the wrong source.
 
-The source experiment was an ocean surface, not a general smoke solver. Project
-Fluid therefore implements a **spectral free surface**. It does not relabel a
-2D stable-fluids toy as an ocean. The first native version uses a bounded set of
-spectral modes and direct summation. This is computationally heavier than an
-IFFT at high mode counts, but it has three useful properties for engine
-integration: a small reviewable implementation, deterministic CPU/GPU parity,
-and no hidden FFT normalization mismatch. A Stockham FFT is the planned scale
-path; the field ABI does not need to change.
+The source is a CPU Position-Based Fluids laboratory, not an ocean FFT. The C++
+port preserves its defining scene and scale: 1,440 initial particles, 2,800
+capacity, a `3.90 x 3.51 x 2.50 m` basin, 0.31 m support radius, 265 reference
+density, 1/60 s fixed steps, adaptive six-pass balanced PBF pressure projection,
+water/milk/honey/chocolate controls, pouring, stirring, and the sampled-source
+sphere obstacle location. Vulkan replaces WebGL for rendering; simulation stays
+on the CPU because that is the architecture and research claim of the referenced
+commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 
-The old hand-authored Gerstner approach was rejected because independent waves
-produced repetition, CPU/GPU versions drifted, and apparent foam was mixed into
-the water material. The new implementation has one seeded mode buffer shared by
-both processors and a separate emission/particle appearance step.
+### C++ adaptation boundaries
 
-## 2. Surface model
+- The PBF density and pressure equations, under-relaxed lambda, 0.035 m correction
+  limit, fixed bounds, sphere projection, source lattice, material coefficients,
+  Carreau-style thinning response, pairwise capillary response and fixed-step
+  policy follow the source.
+- Basin density support is represented by analytic ghost-wall support rather
+  than the TypeScript version's pre-sampled pseudo-mass cloud. Collision geometry
+  is exact; this density-support substitution is documented rather than claimed
+  as a byte-for-byte paper reproduction.
+- The native proof uses particle spheres to make individual simulation samples,
+  the full orange bounds and sphere collisions auditable. The Vulkan compute
+  renderer uses the same positions and scene geometry.
+- The WebGL anisotropic screen-space reconstruction is not falsely relabeled as
+  ReSTIR. Future ReSTIR integration consumes an immutable particle/surface
+  snapshot after the fixed step, writes fluid motion vectors, and rejects
+  temporal reservoirs across material/depth/normal/disocclusion failures.
 
-For wavevector **k**, the implementation stores amplitude `a`, random phase
-`phi`, and deep-water angular frequency:
+---
 
-```text
-omega(k) = sqrt(g |k|)
-h(x,t) = sum_i a_i cos(k_i dot x + omega_i t + phi_i)
-grad h = -sum_i a_i k_i sin(k_i dot x + omega_i t + phi_i)
+## Original Flux 0.3 research record (verbatim)
+
+# CPU fluid research notes — Flux 0.3
+
+Flux is a browser-scale adaptation of published ideas, not a reproduction of the papers' complete pipelines or reported results. All simulation, surface-neighborhood analysis, and material-response evaluation run on the CPU. WebGL 2 renders the output.
+
+## 1. Surface tension and wetting
+
+**Reference:** Nadir Akinci, Gizem Akinci and Matthias Teschner, *Versatile Surface Tension and Adhesion for SPH Fluids*, SIGGRAPH Asia 2013.
+
+Paper: https://cg.informatik.uni-freiburg.de/publications/2013_SIGGRAPHASIA_surfaceTensionAdhesion.pdf
+
+### Implemented in `src/surface-tension.ts`
+
+- The paper's piecewise cohesion kernel (eq. 2), with repulsion at short range and attraction farther apart.
+- Unnormalized color-field gradient normals, using the poly6 kernel gradient. Solid samples contribute to the occupied-space estimate so a wall is not simply treated as missing fluid/air.
+- The normal-difference surface-area term (eq. 3), combined with cohesion and a bounded symmetric density-deficiency correction (eqs. 4–5).
+- Each fluid pair is evaluated once; equal/opposite accelerations are scattered to both particles. The old linear attraction and pressure-stage artificial-tension term have been removed.
+- The compact-support adhesion kernel (eq. 7) attracts fluid toward volume-weighted solid samples.
+
+The internal `cohesion` property is retained for compatibility with the UI code, but now controls surface tension through `gamma = 8 * cohesion`. Export calls this parameter `surfaceTension`. This is an **uncalibrated scalar**, not N/m. Wall wetting sets the adhesion coefficient independently; it is not a prescribed or measured contact angle.
+
+Explicit capillary/adhesion acceleration is limited to 35 scene units/s² using one global scale, preserving fluid-fluid linear force cancellation under the limiter. The density-deficiency multiplier is capped at four. These are stability adaptations, not part of a proof of physical accuracy. The curvature term is not pairwise central, so the implementation does not claim angular-momentum conservation for the complete capillary model.
+
+### Validation
+
+`tests/interfaces.test.ts` checks kernel support and signs, continuity at the cohesion branch point, internal force cancellation, zero-force disabling, a suspended elongated drop becoming rounder without significant bulk translation, and stronger adhesion producing more spreading in a matched reduced-gravity experiment. These are numerical/qualitative checks, not Young–Laplace or contact-angle calibration.
+
+## 2. Sampled solids and pressure projection
+
+**Reference:** Nadir Akinci et al., *Versatile Rigid-Fluid Coupling for Incompressible SPH*, SIGGRAPH 2012.
+
+Paper: https://cg.informatik.uni-freiburg.de/publications/2012_SIGGRAPH_rigidFluidCoupling.pdf
+
+### Implemented in `src/boundaries.ts` and `src/physics.ts`
+
+The floor and walls use fixed surface samples. An optional stationary sphere uses quasi-uniform Fibonacci sampling. Duplicate corner samples are removed. Each sample gets a pseudo-mass:
+
+`Psi_b = rho0 / sum_k W(x_b - x_k)`
+
+This weights its contribution according to local solid-sample density. The samples participate in:
+
+- Fluid density estimation.
+- The density constraint's gradient with respect to the **fluid** particle. Solids have no free pressure-solve degrees of freedom.
+- Adhesion and color-field normal estimates.
+- Implicit stationary-boundary viscosity, as symmetric positive rank-one additions to each fluid particle's matrix block.
+
+The fluid/solid neighbor graphs use spatial hashing and are rebuilt during projection, rather than retaining an arbitrarily stale graph for the entire solve. A box projection and sphere signed-distance constraint provide a geometric nonpenetration safety net. The collider's 0.0785 center-clearance represents half a rest particle spacing.
+
+The basin samples end at the visible rim, but the box safety bounds still confine particles above it; **spill-out over the rim is not modeled**. Solids are stationary and infinitely massive: forces are not integrated into rigid-body motion. This is **one-way static coupling**, not the complete two-way method in the paper or support for arbitrary meshes.
+
+### Pressure accuracy
+
+The solver remains PBF, not DFSPH or a pressure-Poisson solver. Its density constraint now uses the exact derivative of its poly6 density kernel for both fluid and solid contributions. The under-relaxed Jacobi update has a bounded displacement, and solid samples enter the particle's own gradient rather than being incorrectly counted as free unknowns.
+
+| Mode | Maximum positive-density-error target | Maximum projection passes |
+|---|---:|---:|
+| Fast | 6% | 3 |
+| Balanced | 3% | 6 |
+| Precise | 1% | 12 |
+
+At least two passes are considered. The graph is refreshed every second pass and once more for final measurement. Targets are **not guarantees**: exhausted budgets report `BUDGET LIMIT`, and both mean and peak errors are shown. The metric is `max(rho / rho0 - 1, 0)`; ordinary free-surface underdensity is not counted as compression. Truncated-neighbor overflow is reported and prevents a convergence claim. This does not measure exact total reconstructed volume or divergence error.
+
+The initial basin lattice is pressure-relaxed at rest before velocity integration. Otherwise the initial boundary overlap can be converted into a large, nonphysical startup impulse. Reset remains deterministic.
+
+### Validation
+
+Tests check pseudo-mass normalization, restored density near a wall without filling remote air, compressed-lattice error reduction, the effect of a larger iteration budget, final-state diagnostics, overflow reporting, sphere nonpenetration, dissipative stationary-boundary viscosity, and a quiet basin startup. More rigorous hydrostatic and convergence studies remain future work.
+
+## 3. Shear- and temperature-dependent viscosity
+
+**Context:** Chocolate rheology is recipe- and processing-dependent. No single model fits all samples or all shear-rate ranges.
+
+Open review: https://www.scielo.br/j/cta/a/Ggm9YqGn3nvLTqRVcZyYnPs/?lang=en
+
+### Implemented in `src/rheology.ts`
+
+The flow is a generalized Newtonian approximation. A weighted least-squares fit estimates the local velocity gradient from fluid neighbors. The strain-rate invariant is:
+
+`gammaDot = sqrt(2 D:D), D = (grad(v) + grad(v)^T) / 2`
+
+Full-rank affine velocity fields are reproduced by the fit, so rigid rotation does not appear as shear. Degenerate/sparse neighborhoods conservatively use zero shear instead of producing unstable large rates; the estimated rate is capped at 250/s.
+
+A bounded Carreau response (Yasuda exponent `a=2`) supplies the apparent kinematic coefficient:
+
+```
+nu0 = 0.5 * baseViscosity²
+n = 1 - 0.85 * shearThinning
+nu(gammaDot,T) = nu0 * [0.12 + 0.88 * (1 + (0.6 gammaDot)²)^((n-1)/2)] * aT
+aT = exp[(E/R) * (1 / T_kelvin - 1 / T_reference_kelvin)]
 ```
 
-Mode energy is sampled from a Phillips-style directional spectrum:
+The temperature exponent is limited to [-3, 3] and apparent viscosity to at most 2 solver units. Zero base viscosity remains zero. A zero shear-thinning control recovers a temperature-dependent Newtonian coefficient.
 
-```text
-P(k) = A exp(-1 / (k L)^2) / k^4 * max(k_hat dot w_hat, 0)^2
-L = U^2 / g
-```
+| Material | Reference temperature | Illustrative E/R | Default thinning |
+|---|---:|---:|---:|
+| Water | 20°C | 1,800 K | 0 |
+| Milk | 20°C | 2,200 K | 0.08 |
+| Honey | 25°C | 6,500 K | 0 |
+| Chocolate | 40°C | 5,000 K | 0.8 |
 
-A high-frequency damping term suppresses waves below the representable scale.
-Polar stratification and a seeded PRNG make the finite mode set deterministic
-and reduce square-lattice bias.
+**These parameters are illustrative, not measured values for the named materials.** Temperature is prescribed uniformly throughout the liquid. There is no heat transport, latent heat, melting, tempering, crystallization, thermal expansion, yield-stress threshold, or thixotropic memory. Cold chocolate still remains a fluid in this model. Carreau describes continuous thinning, not a true solid-to-liquid transition.
 
-Horizontal choppiness follows the normalized wave direction. Its deformation
-Jacobian is evaluated from the same modes:
+The effective viscosity field is evaluated before each implicit viscosity solve and frozen during that linear solve. Fluid-pair coefficients use the symmetric harmonic mean of the two apparent viscosities. Boundary coupling uses the local fluid coefficient. Changing temperature or thinning while paused refreshes the diagnostic field without advancing particle motion.
 
-```text
-J = (1 + dDx/dx)(1 + dDz/dz) - (dDx/dz)(dDz/dx)
-emission = clamp(1 - J, 0, 1)
-```
+### Implicit operator
 
-`J < 1` indicates compression and `J <= 0` indicates folding. Compression is an
-**emission signal**, not a white term in the water BRDF. The presentation pass
-uses it to activate discrete seeded circular particles. This preserves the
-standing “particle-only visible foam” rule.
+**Reference:** Marcel Weiler et al., *A Physically Consistent Implicit Viscosity Solver for SPH Fluids*, Eurographics 2018.
 
-## 3. CPU/GPU mirror contract
+Paper: https://dankoschier.github.io/resources/papers/WKBB18.pdf
 
-`OceanMode` is an aligned 32-byte structure whose two `vec4` blocks have the
-same C++ and std430 layout. CPU and GPU consume exactly these values. Both paths
-compute height, slopes, horizontal derivatives and compression from the same
-phase equation. No CPU-side “representative waves” are permitted.
+`src/viscosity.ts` uses radial SPH velocity-difference projections, backward Euler and matrix-free preconditioned conjugate gradients. It assumes equal fluid masses and constant reference density; it uses diagonal rather than block-Jacobi preconditioning, a maximum of 18 iterations and relative residual target 1e-5. It does not include a DFSPH stage or a nonlinear viscosity iteration. The UI shows actual iteration count and residual.
 
-The Vulkan surface buffer is host-visible for this diagnostic build. Every 180
-frames the host waits for the frame fence, compares 16 distributed cells, and
-reports maximum height and slope errors. A 2 mm height tolerance accommodates
-normal `sin/cos` implementation differences without hiding phase or indexing
-bugs. Production can move the field to device-local memory and copy only a
-small validation probe.
+Legacy XSPH is retained for comparison. It uses the new apparent-viscosity field, but has neither the same physical interpretation nor the sampled implicit boundary coupling. The controls are not calibrated to equal physical viscosity across the two algorithms.
 
-The `Project-Fluid-CPU` executable validates finite values and RMS energy
-without Vulkan. It is the headless/server fallback and CI smoke test. Its proof
-renderer is a line-by-line CPU port of `OceanPresent.comp`: identical camera,
-ray construction, height-field marching and refinement, bilinear field lookup,
-sky/sun model, Fresnel BRDF, haze, particle test, and output transfer function.
-It is not a separate raster scene. The locked output and reproduction record
-live in `Exhibits/Project-Fluid`.
+### Validation
 
-## 4. Vulkan synchronization and ownership
+Tests cover the analytical two-particle backward-Euler solution, uniform translation, rigid rotation, energy dissipation, isolated fluid-operator momentum conservation, decay under timestep refinement, general-direction stationary-solid response, the Newtonian limit, monotonic shear thinning and warming response, affine-gradient reconstruction, and cold-chocolate stability with a sphere. Conservation tests apply to the isolated viscosity operator, not to the whole bounded simulation.
 
-The frame has explicit ownership boundaries:
+## 4. Surface rendering and vorticity retained from 0.2
 
-1. surface compute writes `height/slope/compression`;
-2. a compute-write to compute-read memory barrier publishes the snapshot;
-3. presentation compute reads the snapshot and writes packed BGRA pixels;
-4. a shader-write to transfer-read buffer barrier publishes pixels;
-5. the acquired swapchain image transitions to transfer destination, receives
-   the buffer copy, transitions to present, then is presented under semaphores.
+**Yu & Turk (2010):** https://faculty.cc.gatech.edu/~turk/my_papers/sph_surfaces.pdf
 
-A frame fence protects mapped parity reads and command-buffer reuse. FIFO
-presentation is chosen intentionally. This reference uses one queue to make
-correctness obvious; an async-compute production path must use timeline
-semaphores and queue-family ownership transfers where families differ.
+CPU weighted covariance/PCA produces bounded ellipsoid axes and smoothed render centers. Physics positions are not changed. Sparse particles use small spheres; dense neighborhoods use volume-normalized ellipsoids. Reconstruction is cached while particle revision and reconstruction mode are unchanged. It adapts the paper's neighborhood-analysis idea, not its complete summed implicit field and Marching Cubes surface.
 
-## 5. Correct ReSTIR integration
+WebGL 2 shares analytic ray–ellipsoid intersections between depth and thickness passes. Optical path contributions are nominal-particle-volume weighted and clipped at opaque geometry. Six bilateral passes reconstruct a front surface. Front-interface Snell refraction, Beer–Lambert-style absorption, approximate thickness-dependent scattering, Fresnel reflection, roughness-filtered studio lighting and FXAA produce the image.
 
-ReSTIR must never call a moving simulation in the middle of candidate or reuse
-passes. Project Fluid exposes a **versioned, immutable surface snapshot** after
-the simulation barrier. Integration should follow this order:
+This remains screen-space rendering: overlap artifacts, transparent sorting, undersampled sheets and blobby silhouettes remain possible. Nominal splat normalization does not guarantee exact reconstructed liquid volume. There is no multiple scattering, physical caustic solve, second-interface ray tracing or path tracing.
 
-1. Advance fluid at the fixed simulation clock and publish snapshot `S_n`.
-2. Raster/trace water geometry from `S_n`; write world position, normal,
-   material ID, linear depth, and motion vectors derived from `S_(n-1)` to
-   `S_n`.
-3. Generate ReSTIR DI candidates only after those buffers are visible to the
-   graphics/ray queue.
-4. Temporal reuse accepts a previous reservoir only if reprojection passes
-   depth, normal, material, and surface-version tests. Rapid folding/foam
-   emission lowers confidence; it must not blindly reuse history.
-5. Spatial reuse must include the same geometry tests. Neighbouring screen
-   pixels can lie on different wave sheets even when close in 2D.
-6. Trace final visibility against the current displaced surface. Do not reuse a
-   stale undisplaced water BLAS. A practical path is procedural intersection
-   against the height field or a refitted mesh BLAS; refit completion is a
-   dependency of visibility.
-7. Particle foam is a separate participating/alpha geometry class. It should
-   not inherit the water reservoir merely because it occupies the same pixel.
-8. Hold `S_n` stable until all ReSTIR consumers signal completion. Double or
-   triple buffer surface snapshots; do not overwrite the field in place.
+**Macklin & Müller (2013):** https://mmacklin.com/pbf_sig_preprint.pdf
 
-The reservoir itself stores lighting samples and weights, **not fluid state**.
-Fluid version and material identity belong in validation metadata. This avoids
-bias from carrying a sample across a changed visibility distribution. For
-strongly deforming cells, rejection is safer than aggressive temporal reuse.
-The ReSTIR estimator must still apply the implementation's target-function and
-normalization rules; the fluid integration does not alter RIS mathematics.
+Optional vorticity confinement estimates existing curl and its magnitude gradient, adding a capped `epsilon (N × omega)` correction. It intentionally restores energy lost through numerical damping; it does not inject random noise and it is not energy-conserving. Honey/chocolate default to zero recovery. The new physical-interface terms replace the old artistic cohesion force and pressure-stage artificial-tension term.
 
-Useful implementation sequence in Frontier:
+## 5. Experiments and controls
 
-```text
-fixed fluid step -> publish SurfaceSnapshot + timeline value
-geometry/visibility waits -> G-buffer + motion
-ReSTIR candidate -> temporal validation -> spatial validation -> visibility
-shade water/particles -> tone map/present
-```
+The selector in the viewport's upper-left switches experiments:
 
-## 6. Validation gates
+- **Liquid basin:** 1,440 initial particles; gravity 9.81; material-default tension; pouring enabled. Enable the sphere to inspect fluid/solid interactions.
+- **Wetting drop:** 227 particles; gravity **1 m/s²** and tension **0.080**; pouring disabled. Compare wetting 0 and 2, resetting each trial. Reduced gravity is deliberate to expose capillary effects at this coarse scene scale, not a claim of normal-gravity millimeter-droplet accuracy.
+- **Suspended drop:** the same elongated 227-particle initialization at **zero gravity**, tension **0.080**. Compare enabled tension with zero, resetting each trial.
 
-- **Determinism:** same seed/settings produce byte-identical mode buffers.
-- **CPU health:** finite field, plausible nonzero RMS energy.
-- **Parity:** sampled CPU/GPU height error below 0.002 m under normal drivers.
-- **Synchronization:** Vulkan validation layers report no hazards in a Vulkan
-  SDK debug run.
-- **Foam separation:** water colour is calculated before the discrete particle
-  compositor; compression only controls particle lifetime.
-- **Temporal integration:** force a large time jump and verify ReSTIR history is
-  rejected rather than streaked.
-- **Resize/swapchain:** this first executable intentionally uses a fixed-size
-  window; resize support is a stated limitation, not an untested path.
+Experiment changes update the visible gravity/tension controls. Selecting a material afterward applies that material's tension, temperature, thinning, viscosity, wetting and vorticity defaults. Reset preserves the current experiment and controls; Reset Scene Controls returns everything to the water basin defaults.
 
-## 7. Limitations and next work
+For warm/cold chocolate, choose Chocolate and compare 20°C with 60°C after resetting at each temperature. Use the mean effective viscosity, local-range tooltip and mean shear-rate readout. These are current constitutive-model evaluations, not rheometer measurements.
 
-- Direct summation is `O(cells * modes)`. Replace it with 256²/512² Stockham
-  IFFT cascades for production-scale spectra while retaining the output ABI.
-- The model currently uses deep-water dispersion. Add
-  `omega = sqrt(g k tanh(k d))`, a bathymetry/depth field, shoaling and a Miche
-  breaker criterion for shore surf.
-- Presentation is an oblique compute projection, not the final visibility
-  buffer renderer. The simulation buffer is designed to feed a displaced mesh
-  or procedural ray intersection later.
-- Foam particles are screen-composited seeded sprites. A production system
-  should persist particle state, advect it, and write reactive masks for the
-  temporal upscaler.
-- Wind changes currently require rebuilding/uploading the mode buffer; the UI
-  exposes choppiness live and keeps wind state visible.
-- Add swapchain recreation and device-local simulation memory before shipping.
+Boundary-density support can be switched off for a density/pressure comparison; geometry protection, adhesion and implicit boundary viscosity remain active. Show Solid Samples displays the actual boundary points.
 
-## 8. Sources consulted
+For surface A/B, pause and switch **Anisotropic / Spheres** on the identical particle state. Strict motion comparisons use fixed-step tests, not uncontrolled human click timing.
 
-1. Jerry Tessendorf, *Simulating Ocean Water* (SIGGRAPH course notes), spectrum,
-   dispersion, displacement, slopes and FFT construction:
-   https://people.computing.clemson.edu/~jtessen/reports/papers_files/coursenotes2004.pdf
-2. Horvath, *Empirical Directional Wave Spectra for Computer Graphics*, modern
-   spectral controls and directional distributions:
-   https://dl.acm.org/doi/10.1145/2791261.2791267
-3. GPU Gems, Chapter 1, *Effective Water Simulation from Physical Models*,
-   sum-of-sines derivatives, normals and parameter relationships:
-   https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models
-4. Bruneton, Neyret and Holzschuch, *Real-time Realistic Ocean Lighting using
-   Seamless Transitions from Geometry to BRDF*, ocean lighting and scale
-   transitions: https://inria.hal.science/inria-00443630
-5. Miche breaking criterion overview and coastal-wave context (Coastal Wiki):
-   https://www.coastalwiki.org/wiki/Breaker_index
-6. Bitterli et al., *Spatiotemporal reservoir resampling for real-time ray
-   tracing with dynamic direct lighting* (ReSTIR DI):
-   https://research.nvidia.com/publication/2020-07_spatiotemporal-reservoir-resampling-real-time-ray-tracing-dynamic-direct
-7. Ouyang et al., *ReSTIR GI: Path Resampling for Real-Time Path Tracing*,
-   temporal/spatial validation and path reuse:
-   https://research.nvidia.com/publication/2021-06_restir-gi-path-resampling-real-time-path-tracing
-8. Vulkan specification, synchronization and swapchain requirements:
-   https://registry.khronos.org/vulkan/specs/1.3-extensions/html/
-9. Khronos Vulkan Guide, synchronization examples:
-   https://docs.vulkan.org/guide/latest/synchronization_examples.html
+## 6. Performance and remaining work
 
-Source URLs are retained here so implementation choices can be audited even
-when no generated HTML report is shipped.
+The local benchmark reports frame intervals, CPU physics time and CPU reconstruction time. The physics measurement includes the added capillary, boundary and rheology work. It does not measure actual GPU execution or compare against Unreal. Targets and budgets trade CPU cost for numerical error; no fixed frame-rate guarantee is made.
+
+Remaining priorities: calibrated surface tension/contact angles and rheology; divergence/hydrostatic validation; a consistent capillary timestep strategy; nonlinear viscosity convergence; thermal transport and phase behavior; moving/two-way solids and arbitrary SDFs; worker-based scheduling and profiling; accurate temporal surface reconstruction and secondary spray/foam. A GPU compute port is optional future work, not a dependency of these CPU improvements.

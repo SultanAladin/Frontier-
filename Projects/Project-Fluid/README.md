@@ -1,20 +1,24 @@
-# Project Fluid
+# Project Fluid — Flux native port
 
-A native C++20, interactive Vulkan spectral-ocean project for Frontier. This is
-not an HTML/WebGL wrapper. The same deterministic mode buffer drives:
+Native C++20/Vulkan conversion of Flux 0.3 from
+`eosclient0001-rgb/Frontier@c708b47926dec2e31d08b2a0bc01ab15c84983c8`.
+This is the requested 3D PBF basin simulation—not the unrelated ocean prototype,
+which has been removed.
 
-- a Vulkan compute surface simulation and compute presentation path;
-- a C++ CPU mirror used for headless/server execution and live parity checks;
-- a compression/Jacobian field consumed by a discrete particle-pull foam pass.
+## Included
 
-The CPU mirror is deliberately not a second approximation. `OceanMode` is the
-shared ABI, and both paths evaluate the same phase, dispersion, slope and
-Jacobian equations. The window prints sampled CPU/GPU errors every 180 frames.
+- CPU 3D PBF simulation with 1,440 initial / 2,800 maximum particles
+- 0.31 m support, poly6 density, adaptive balanced pressure projection
+- fixed 1/60 s clock, maximum two steps per displayed frame
+- visible `[-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m` collision bounds
+- visible stationary sphere obstacle and non-penetration projection
+- pairwise surface response, viscosity and shear-thinning material response
+- water, milk, honey and chocolate presets
+- pouring, stirring, pause and deterministic reset
+- Vulkan compute particle splatting into a depth/pixel buffer and swapchain
+- native CPU proof renderer using the same positions, bounds and obstacle
 
 ## Build
-
-Requirements for the window: CMake 3.20+, C++20 compiler, Vulkan 1.1 loader and
-headers, `glslc`, and GLFW 3.3+. The CPU mirror requires only a C++20 compiler.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -22,48 +26,31 @@ cmake --build build --target Project-Fluid -j
 ./build/Projects/Project-Fluid/Project-Fluid
 ```
 
-Headless CPU validation:
+Vulkan window requirements: Vulkan SDK/loader, `glslc`, GLFW3 and a C++20
+compiler. Without those packages, the CPU target remains available:
 
 ```bash
 cmake --build build --target Project-Fluid-CPU -j
-ctest --test-dir build -R ProjectFluidCpuMirror --output-on-failure
+./build/Projects/Project-Fluid/Project-Fluid-CPU proof.ppm 18
 ```
 
-If Vulkan development packages are absent, CMake reports why the window target
-was skipped and still generates `Project-Fluid-CPU`.
-
-### Controls
+## Interactive controls
 
 | Input | Action |
 |---|---|
-| W/A/S/D | Pan across the ocean domain |
-| Q / E | Zoom out / in |
-| Up / Down | Increase / decrease choppiness |
-| Left / Right | Decrease / increase wind speed and rebuild the shared spectrum |
-| Space | Pause simulation time |
-| C | Toggle CPU-parity marker |
+| Space | Pause/resume fixed-step simulation |
+| R | Deterministic basin reset |
+| S | Stir the actual particle velocities |
+| Hold P | Pour particles until the 2,800 capacity |
+| 1 / 2 / 3 / 4 | Water / milk / honey / chocolate |
 | Escape | Exit |
 
-## Architecture
+The window title reports particle and collision counts. Every 180 frames the
+console reports pressure passes, measured compression, and sphere/wall contacts.
 
-1. `SpectralOcean` creates a seeded Phillips/Tessendorf-style directional mode
-   set once. It uses deep-water dispersion `omega = sqrt(g |k|)`.
-2. `OceanSurface.comp` evolves all modes into height, two slopes, and horizontal
-   displacement Jacobian compression on a 256x256 field.
-3. A compute-to-compute barrier publishes that immutable field snapshot.
-4. `OceanPresent.comp` shades the water and composites seeded circular foam
-   particles only where compression emits them. There is no continuous white
-   foam mask in the water colour calculation.
-5. The packed BGRA compute result is copied to a Vulkan swapchain image.
-6. C++ periodically evaluates the exact same cells and checks GPU parity.
+## Proof and research
 
-## Captured execution proof
-
-The repository includes a real native CPU-mirror frame and its exact reproduction
-command in [`Exhibits/Project-Fluid`](../../Exhibits/Project-Fluid/README.md).
-The exhibit explicitly distinguishes verified CPU execution from the Vulkan
-runtime, which this Arena sandbox cannot launch because it has no Vulkan loader,
-window system, CMake, or `glslc`.
-
-See [RESEARCH.md](RESEARCH.md) for equations, source review, ReSTIR integration,
-validation criteria, and limitations.
+- [`../../Exhibits/Project-Fluid`](../../Exhibits/Project-Fluid/README.md) contains
+  a native execution frame with visible bounds and sphere interaction.
+- [`RESEARCH.md`](RESEARCH.md) records provenance, C++ adaptations, limitations,
+  equations and the complete research notes from the requested source commit.
