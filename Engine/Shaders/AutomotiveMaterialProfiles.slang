@@ -6,10 +6,10 @@
 // same profile bytes and the exact same OpenPBR lobe evaluator. They are not wired into Project-Zero's material
 // records yet; the preview scene is the review gate before that integration.
 //
-// Current preview milestone: clearcoat paint, carbon/resin, red/clear optics, brushed alloy, heat-tinted titanium,
-// rubber, and Alcantara. Procedural glint flakes, UV texture sampling, water, and automotive host serialization remain
-// later milestones. The functions below are intentionally texture-free so a CPU render can be compared bit-for-bit
-// against the same constants on the GPU.
+// Current preview milestone: clearcoat paint with dense analytic metallic flakes, carbon/resin, red/clear optics,
+// brushed alloy, heat-tinted titanium, rubber, and Alcantara. UV texture sampling, water, and automotive host
+// serialization remain later milestones. The functions below are intentionally texture-free so a CPU render can be
+// compared bit-for-bit against the same constants on the GPU.
 
 #ifndef FRONTIER_AUTOMOTIVE_MATERIAL_PROFILES
 #define FRONTIER_AUTOMOTIVE_MATERIAL_PROFILES
@@ -64,34 +64,34 @@ vec3 AutomotiveFlopColor(vec3 faceColor, vec3 edgeColor, float mu)
     return mix(faceColor, edgeColor, grazing);
 }
 
-// Deterministic, texture-free microflake signal. Two incommensurate bands avoid a visible grid while remaining
+// Deterministic, texture-free microflake signal. Three incommensurate bands avoid a visible grid while remaining
 // identical in the CPU port and the GPU shader. The signal is deliberately a material-detail term, not a light
-// source: it only modulates the shared coat/base lobes.
+// source: it only modulates the shared coat/base lobes and their resolved microfacet normal.
 float AutomotiveFlakeSignal(vec3 position, vec3 normal, float density, float scale, float jitter)
 {
     float h0 = abs(float(sin(dot(position, vec3(12.9898, 78.233, 37.719)) * scale + jitter * 17.17)));
     float h1 = abs(float(sin(dot(position, vec3(39.3468, 11.135, 83.155)) * (scale * 1.731) + jitter * 29.31)));
-    // Keep the flakes fine but numerous: density changes the peak threshold, while the second band breaks up
-    // the highlights so the field reads as metallic sparkle rather than a tiled checker.
-    float peak = smoothstep(1.0 - density * 0.56, 0.995, h0);
-    float breakup = 0.24 + 0.76 * h1;
+    float h2 = abs(float(sin(dot(position, vec3(91.17, 17.31, 43.77)) * (scale * 0.617) + jitter * 47.03)));
+    float sparkle = smoothstep(1.0 - density, 1.0 - density + 0.13, h0)
+                  * smoothstep(1.0 - density * 0.70, 1.0 - density * 0.70 + 0.14, h1);
+    sparkle = max(sparkle, smoothstep(0.91, 0.995, h2) * 0.72);
     float grazing = 1.0 - clamp(dot(normalize(normal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
-    return clamp(peak * breakup * (0.72 + 0.28 * grazing), 0.0, 1.0);
+    return clamp(sparkle * (0.65 + 0.35 * grazing), 0.0, 1.0);
 }
 
-// Give each selected flake a tiny deterministic facet tilt. This is the missing visual cue between a colour-noise
-// paint and a metallic flake: the shared GGX lobe receives a slightly different half-vector at each flake, producing
-// pin-point highlights under a small direct source. It is a bounded normal perturbation, not a normal-map texture.
-vec3 AutomotiveFlakeNormal(vec3 position, vec3 normal, float density, float scale, float jitter)
+// The flakes are tiny metallic facets under the clearcoat. This fallback perturbs the resolved shading normal with a
+// bounded, deterministic orientation rather than painting an emissive dot. A future UV normal map can replace this
+// function without changing the clearcoat or Fresnel code below.
+vec3 AutomotiveApplyTriCoatFlakeNormal(vec3 normal, vec3 position, float density, float scale, float jitter)
 {
-    float h0 = abs(float(sin(dot(position, vec3(12.9898, 78.233, 37.719)) * scale + jitter * 17.17)));
-    float h1 = abs(float(sin(dot(position, vec3(39.3468, 11.135, 83.155)) * (scale * 1.731) + jitter * 29.31)));
-    float mask = smoothstep(1.0 - density * 0.56, 0.995, h0) * (0.35 + 0.65 * h1);
+    float signal = AutomotiveFlakeSignal(position, normal, density, scale, jitter);
     vec3 helper = abs(normal.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
     vec3 tangent = normalize(cross(helper, normal));
     vec3 bitangent = cross(normal, tangent);
-    vec3 tilt = tangent * (h0 * 2.0 - 1.0) + bitangent * (h1 * 2.0 - 1.0);
-    return normalize(normal + tilt * mask * 0.18);
+    float tx = float(sin(dot(position, vec3(73.17, 19.31, 41.77)) * scale + jitter * 13.0));
+    float ty = float(sin(dot(position, vec3(17.23, 61.91, 29.41)) * (scale * 1.37) + jitter * 23.0));
+    float tilt = signal * 0.22;
+    return normalize(normal + tangent * (tx * tilt) + bitangent * (ty * tilt));
 }
 
 // Apply the automotive paint's analytic detail after the material record has been resolved. The caller supplies the
@@ -105,15 +105,14 @@ ShadingRecord AutomotiveApplyTriCoatFlakes(ShadingRecord M, vec3 position, vec3 
     M.BaseColor = AutomotiveFlopColor(M.BaseColor, edgeColor, mu);
     float signal = AutomotiveFlakeSignal(position, normal, density, scale, jitter);
     // The flake is a bright microfacet population, not an emissive decal: it raises the shared metallic F82 tint and
-    // locally narrows the roughness so a direct-light sample produces a visible sparkle at finite preview spp.
-    M.BaseColor = mix(M.BaseColor, vec3(0.92, 0.98, 1.0), signal * 0.78);
-    M.SpecularColor = mix(M.SpecularColor, vec3(1.0), signal * 0.94);
-    M.SpecularRoughness = mix(M.SpecularRoughness, max(0.018, M.SpecularRoughness * 0.28), signal * 0.86);
-    // A tiny sheen/fuzz population supplies the bright pin-point response of aluminium flakes while retaining the
-    // same exact shared lobe evaluator. It is weighted by the procedural mask, so the surrounding clearcoat remains.
-    M.FuzzWeight = max(M.FuzzWeight, signal * 0.68);
-    M.FuzzColor = mix(M.FuzzColor, vec3(0.82, 0.92, 1.0), signal);
-    M.FuzzRoughness = mix(M.FuzzRoughness, 0.22, signal);
+    // locally narrows both the base and clearcoat roughness so a direct-light sample produces visible silver/blue
+    // sparkle at finite preview spp. Mixing toward the flake colour makes the effect readable at the review distance,
+    // while the underlying clearcoat still carries the broad reflection.
+    vec3 flakeColor = mix(edgeColor, vec3(1.0), 0.55);
+    M.BaseColor = mix(M.BaseColor, flakeColor, signal * 0.74);
+    M.SpecularColor = mix(M.SpecularColor, vec3(1.0), signal * 0.92);
+    M.SpecularRoughness = mix(M.SpecularRoughness, max(0.012, M.SpecularRoughness * 0.20), signal * 0.92);
+    M.CoatRoughness = mix(M.CoatRoughness, max(0.012, M.CoatRoughness * 0.45), signal * 0.35);
     return M;
 }
 

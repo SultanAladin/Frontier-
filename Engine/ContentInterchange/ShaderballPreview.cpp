@@ -603,23 +603,24 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R)
             Ns = normalize(T.Na * (1.0f - H.U - H.V) + T.Nb * H.U + T.Nc * H.V);
         else
             Ns = Ng;
+#ifdef FRONTIER_AUTOMOTIVE_PREVIEW
+        // The standalone paint preview uses the same shared procedural fallback as its material record: flakes are
+        // microfacets under the coat, so their bounded normal variation is applied before the shading frame is built.
+        if (g_Mats[T.Mat].Metalness > 0.8f && g_Mats[T.Mat].CoatWeight > 0.0f)
+            Ns = AutomotiveApplyTriCoatFlakeNormal(Ns, P, 0.38f, 24.0f, 0.37f);
+#endif
         if (dot(Ns, D) > 0.0f) Ns = -Ns;
+        vec3 Tt, Bt;
+        ShadingFrame(Ns, Tt, Bt);
+        vec3 wo(dot(-D, Tt), dot(-D, Bt), dot(-D, Ns));
         ShadingRecord m = g_Mats[T.Mat];   // local copy: the v1 nested fallback below may zero transmission
 #ifdef FRONTIER_AUTOMOTIVE_PREVIEW
         // The standalone automotive scene opts into the shared analytic flake/flop profile. The hook is compile-time
         // isolated from the ordinary shaderball exhibit and Project-Zero; the material math itself lives in the
         // included AutomotiveMaterialProfiles.slang, which is also visible to the GPU Slang evaluator.
         if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
-        {
-            // Perturb the actual shading frame before the lobe is evaluated; otherwise the flakes would only change
-            // F0 and could never create the pin-point facet highlights that make automotive paint read as metallic.
-            Ns = AutomotiveFlakeNormal(P, Ns, 0.78f, 48.0f, 0.37f);
-            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.08f, 0.24f, 0.88f), 0.78f, 48.0f, 0.37f);
-        }
+            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f), 0.38f, 24.0f, 0.37f);
 #endif
-        vec3 Tt, Bt;
-        ShadingFrame(Ns, Tt, Bt);
-        vec3 wo(dot(-D, Tt), dot(-D, Bt), dot(-D, Ns));
         bool solidHit = g_SolidBall && T.Mat == 0 && m.TransmissionWeight > 0.0f;
         bool fromInside = Inside && T.Mat == EntryMat;
         if (Inside && T.Mat != EntryMat && m.TransmissionWeight > 0.0f)

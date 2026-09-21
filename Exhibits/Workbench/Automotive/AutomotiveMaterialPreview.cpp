@@ -153,6 +153,20 @@ void FinaliseScene()
     BuildBvh(0, 0, static_cast<int>(g_Tris.size()));
 }
 
+void AddInvisibleSoftbox(const vec3& Center, const vec3& ToSubject, const vec3& UpHint,
+                         float HalfU, float HalfV, const vec3& Radiance)
+{
+    vec3 N = normalize(ToSubject);
+    vec3 U = normalize(cross(UpHint, N)) * HalfU;
+    vec3 V = normalize(cross(N, U)) * HalfV;
+    QuadLight L;
+    L.Center = Center; L.U = U; L.V = V; L.N = N; L.Radiance = Radiance;
+    L.Area = 4.0f * HalfU * HalfV;
+    // This is a review-scene source, intentionally omitted from the BVH so the camera sees the paint, not a row of
+    // light cards. It still participates in the shipped NEE/MIS path exactly like a sampled area luminaire.
+    g_Lights.push_back(L);
+}
+
 void AddStudioRig(const vec3& Subject)
 {
     AddSoftbox(vec3(-4.5f, -3.0f, 5.8f), Subject - vec3(-4.5f, -3.0f, 5.8f),
@@ -165,6 +179,20 @@ void AddStudioRig(const vec3& Subject)
     // Small high-intensity source: real direct light for the flake lobe, not an emissive paint cheat.
     AddSoftbox(vec3(-1.8f, -4.5f, 3.4f), Subject - vec3(-1.8f, -4.5f, 3.4f),
                vec3(0.0f, 0.0f, 1.0f), 0.10f, 0.10f, vec3(70.0f, 72.0f, 78.0f), 7);
+    // A bank of invisible pin lights approximates the many small sky/sun facets that make automotive flakes readable
+    // in a macro photograph. They are sampled by the same NEE/MIS code; omitting their triangles keeps the sheet clean.
+    const float FlakeX[15] = { -1.55f, -0.30f, 1.25f, -0.80f, 0.55f, 1.80f, -1.10f, 0.10f,
+                               -1.75f, 0.90f, -0.45f, 1.55f, -1.30f, 0.38f, -0.02f };
+    const float FlakeZ[15] = {  2.20f,  3.00f, 2.55f,  3.55f, 2.10f, 3.40f,  2.90f, 2.35f,
+                                3.75f, 2.80f,  3.25f, 2.45f,  3.05f, 3.70f, 2.75f };
+    for (int I = 0; I < 15; ++I)
+    {
+        vec3 P = vec3(FlakeX[I], -4.8f + 0.04f * static_cast<float>((I * 7) % 5), FlakeZ[I]);
+        AddInvisibleSoftbox(P, Subject - P, vec3(0.0f, 0.0f, 1.0f),
+                            0.045f, 0.045f, vec3(28.0f + (I % 3) * 2.0f,
+                                                   31.0f + (I % 4) * 2.0f,
+                                                   39.0f + (I % 5) * 2.0f));
+    }
 }
 
 void BuildSuiteScene()
@@ -200,8 +228,7 @@ void BuildSuiteScene()
 void BuildPaintScene()
 {
     ClearScene();
-    // Silver-blue paint keeps the flakes readable against the reference's cool automotive clearcoat.
-    g_Mats[0] = AutomotiveTriCoat(vec3(0.24f, 0.42f, 0.66f), 0.11f, 0.045f, 1.58f);
+    g_Mats[0] = AutomotiveTriCoat(vec3(0.42f, 0.008f, 0.018f), 0.11f, 0.045f, 1.58f);
     g_Mats[1] = GroundMaterial();
     for (int I = 2; I < 8; ++I) g_Mats[I] = GroundMaterial();
     AddQuad(vec3(-6.0f, -4.0f, 0.0f), vec3(6.0f, -4.0f, 0.0f),

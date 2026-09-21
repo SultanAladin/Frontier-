@@ -50,15 +50,17 @@ material math is identical to the Slang evaluator. GPU lowering/runtime validati
 
 Implemented in the shared profile source and standalone preview:
 
-1. `AutomotiveFlakeSignal` uses two deterministic incommensurate analytic bands for fine, dense flakes.
-2. `AutomotiveFlakeNormal` gives selected flakes a bounded facet tilt before the shared lobe frame is built, producing
-   pin-point highlights rather than only a colour-noise mask.
-3. `AutomotiveApplyTriCoatFlakes` modulates the shared base/coat record, micro-roughness, F82 tint and fuzz population;
-   it does not add a fake light source or bypass the OpenPBR evaluator.
-4. `AutomotiveFlopColor` shifts face tint toward a grazing tint with a canonical fifth-power Fresnel-style curve.
-5. The CPU preview hook is compile-time isolated to the standalone automotive scene; the profile functions remain in the
+1. `AutomotiveFlakeSignal` uses three deterministic incommensurate analytic bands for dense, non-grid flakes.
+2. `AutomotiveApplyTriCoatFlakes` modulates the shared base/coat record and micro-roughness; it does not add a fake
+   light source or bypass the OpenPBR evaluator.
+3. `AutomotiveApplyTriCoatFlakeNormal` turns the same signal into a bounded metallic-facet normal perturbation, so
+   direct-light reflections break up into readable silver/blue sparkle rather than painted dots.
+4. The standalone preview uses a deterministic randomized bank of invisible area lights through the existing NEE/MIS
+   path; the lights are not emissive decals and are omitted from the camera-visible BVH.
+5. `AutomotiveFlopColor` shifts face tint toward a grazing tint with a canonical fifth-power Fresnel-style curve.
+6. The CPU preview hook is compile-time isolated to the standalone automotive scene; the profile functions remain in the
    common Slang include for the eventual GPU material-record integration.
-6. `AutomotivePaintFlakeFlopComparison.png` renders face-on versus grazing views.
+7. `AutomotivePaintFlakeFlopComparison.png` renders face-on versus grazing views.
 
 The GPU host does not serialize the new automotive parameters yet. That is intentional and remains part of the later
 Project-Zero integration gate.

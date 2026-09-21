@@ -21,12 +21,15 @@ is included by `MaterialEvaluation.slang` and therefore is shared with the GPU s
   titanium, tire rubber, and Alcantara on procedural preview geometry.
 - `AutomotiveOpticsAndCoatings.png` — clear headlight glass, red tail-lens glass, blue tri-coat paint, brushed alloy,
   and thin-film titanium in a closer optics/coating arrangement.
-- `AutomotivePaintFlakeFlopComparison.png` — cool silver-blue tri-coat paint from a face-on and grazing camera. The
-  deterministic fine-flake signal, bounded facet tilt, and grazing-angle flop are active in both panels; the small
-  direct-light source is what makes the individual flakes sparkle rather than flattening them into colour noise.
+- `AutomotivePaintFlakeFlopComparison.png` — the same red tri-coat paint from a face-on and grazing camera. The
+  deterministic analytic flake signal and grazing-angle flop are active in both panels.
 
 The geometry is generated from UV-parameterized spheres, torus rings, and a cylinder. The current flakes are a
 texture-free analytic fallback in the shared Slang profile; UV-backed carbon weave and tread textures remain deferred
 until this preview is accepted.
 
 The saved implementation plan is `References/AutomotiveMaterials-Plan.md`.
+
+The flake pass uses the shared three-band analytic signal both for material modulation and a bounded microfacet-normal
+perturbation. A deterministic randomized bank of invisible area lights feeds the existing NEE/MIS path, making the
+silver/blue flakes readable as direct-light reflections without adding emissive paint decals or visible light cards.
