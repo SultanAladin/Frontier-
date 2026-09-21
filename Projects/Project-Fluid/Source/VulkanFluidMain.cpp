@@ -67,8 +67,11 @@ struct alignas(16) Parameters {
     float AbsorptionB{0.12f};
     float OpticalPadding{};
 };
-struct alignas(16) GpuParticle { float X{},Y{},Z{},Padding{}; };
-static_assert(sizeof(Parameters) == 80 && sizeof(GpuParticle) == 16);
+struct alignas(16) GpuParticle {
+    float X{},Y{},Z{},Padding{};
+    float VelocityX{},VelocityY{},VelocityZ{},VelocityPadding{};
+};
+static_assert(sizeof(Parameters) == 80 && sizeof(GpuParticle) == 32);
 
 class FluidApplication final {
 public:
@@ -382,8 +385,10 @@ private:
 
     void UploadParticles() {
         const auto& positions = Fluid_.Positions();
+        const auto& velocities = Fluid_.Velocities();
         for (std::size_t i = 0; i < positions.size(); ++i)
-            GpuParticles_[i] = {positions[i].x, positions[i].y, positions[i].z, 0.0f};
+            GpuParticles_[i] = {positions[i].x, positions[i].y, positions[i].z, 0.0f,
+                                velocities[i].x, velocities[i].y, velocities[i].z, 0.0f};
         std::memcpy(ParticleBuffer_.Mapped, GpuParticles_.data(), positions.size() * sizeof(GpuParticle));
         Params_.ParticleCount = static_cast<std::uint32_t>(positions.size());
         Params_.Time = Fluid_.Time();

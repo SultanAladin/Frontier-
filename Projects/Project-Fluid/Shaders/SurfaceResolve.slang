@@ -10,16 +10,16 @@ layout(std430,binding=4) readonly buffer Thickness{uint thickness[];};
 uint bgra(vec3 c){c=pow(clamp(c,0.0,1.0),vec3(1.0/2.2));uvec3 q=uvec3(c*255.0+0.5);return 0xff000000u|(q.r<<16)|(q.g<<8)|q.b;}
 vec3 background(vec2 pixel){float v=pixel.y/float(p.counts.z);return mix(vec3(.055,.075,.105),vec3(.22,.25,.27),v);}
 float rawDepth(ivec2 q){q=clamp(q,ivec2(0),ivec2(p.counts.yz)-1);uint d=depths[uint(q.y)*p.counts.y+uint(q.x)];return d==0xffffffffu?1e20:float(d)*1e-6;}
-float filteredDepth(ivec2 q){float centre=rawDepth(q),sum=0.0,weight=0.0;for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){float d=rawDepth(q+ivec2(x,y));if(d>1e10)continue;float spatial=exp(-float(x*x+y*y)*.28);float range=centre>1e10?1.0:exp(-abs(d-centre)*8.0);sum+=d*spatial*range;weight+=spatial*range;}return weight>0.0?sum/weight:1e20;}
+float filteredDepth(ivec2 q){float centre=rawDepth(q),sum=0.0,weight=0.0;for(int y=-4;y<=4;y++)for(int x=-4;x<=4;x++){float d=rawDepth(q+ivec2(x,y));if(d>1e10)continue;float spatial=exp(-float(x*x+y*y)*.12);float range=centre>1e10?1.0:exp(-abs(d-centre));sum+=d*spatial*range;weight+=spatial*range;}return weight>0.0?sum/weight:1e20;}
 float filteredThickness(ivec2 q){float sum=0.0,weight=0.0;for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){ivec2 s=clamp(q+ivec2(x,y),ivec2(0),ivec2(p.counts.yz)-1);float w=exp(-float(x*x+y*y)*.25);sum+=float(thickness[uint(s.y)*p.counts.y+uint(s.x)])*1e-6*w;weight+=w;}return sum/weight;}
 vec2 projectPoint(vec3 point){vec3 camera=vec3(4.4,3.0,5.2),f=normalize(vec3(0,.9,0)-camera),right=normalize(cross(f,vec3(0,1,0))),up=normalize(cross(right,f)),rel=point-camera;float focal=(float(p.counts.z)*.5)/tan(radians(26.0)),z=dot(rel,f);return vec2(float(p.counts.y)*.5+dot(rel,right)*focal/z,float(p.counts.z)*.5-dot(rel,up)*focal/z);}
 float segmentDistance(vec2 point,vec2 a,vec2 b){vec2 ab=b-a;float t=clamp(dot(point-a,ab)/dot(ab,ab),0.0,1.0);return length(point-(a+t*ab));}
 void main(){
     ivec2 q=ivec2(gl_GlobalInvocationID.xy);if(q.x>=int(p.counts.y)||q.y>=int(p.counts.z))return;uint at=uint(q.y)*p.counts.y+uint(q.x);
-    float depth=filteredDepth(q);float fluidDepth=depth;
+    float depth=filteredDepth(q),thick=filteredThickness(q);if(thick<.040)depth=1e20;float fluidDepth=depth;
     if(depth<1e10){
         float dl=filteredDepth(q-ivec2(3,0)),dr=filteredDepth(q+ivec2(3,0)),dt=filteredDepth(q-ivec2(0,3)),db=filteredDepth(q+ivec2(0,3));dl=dl>1e10?depth:dl;dr=dr>1e10?depth:dr;dt=dt>1e10?depth:dt;db=db>1e10?depth:db;float dx=dr-dl,dy=db-dt;
-        vec3 normal=normalize(vec3(-dx*7.0,dy*7.0,1.0));float thick=filteredThickness(q);
+        vec3 normal=normalize(vec3(-dx*3.0,dy*3.0,1.0));
         vec3 light=normalize(vec3(-.4,.8,.3)),halfVector=normalize(light+vec3(0,0,1));float diffuse=max(0.0,dot(normal,light));
         float f0=pow((p.optical.z-1.0)/(p.optical.z+1.0),2.0);float fresnel=f0+(1.0-f0)*pow(1.0-normal.z,5.0);
         float specular=pow(max(0.0,dot(normal,halfVector)),110.0*(1.0-p.optical.y)+14.0)*(1.0-p.optical.y*.55);

@@ -19,9 +19,9 @@ tension, wetting and shear thinning alter the corresponding simulation state.
 
 These are C++ CPU-mirror execution outputs, not generated artwork or captures
 from the removed ocean project. The proof executes the same scene and same
-front-depth/thickness surface algorithm as the Vulkan `.slang` path: overlapping
-particle kernels build continuous front depth and optical thickness, depth and
-thickness are filtered, and a resolve reconstructs normals and applies
+front-depth/thickness surface algorithm as the Vulkan `.slang` path: velocity-aligned anisotropic
+kernels build continuous front depth and optical thickness, then broad depth and
+thickness filters remove particle-frequency lobes, and a resolve reconstructs normals and applies
 refraction, Beer–Lambert attenuation, Fresnel response and rough highlights.
 Individual simulation particles are not directly drawn in the default proof.
 
@@ -54,9 +54,9 @@ python3 Tools/PpmToPng.py /tmp/flux.ppm \
 Checksums:
 
 ```text
-928cf073cf30e01444ee7c383ed9628c3bc7f2040020c480f7adbed8defef368  ProjectFluid_Flux_PBF_Bounds_Collision.png
-f19c6d2e3415b4dea06aa35a80b2e9c07aefe699f8e0af2098b46a8ceda3cf8a  ProjectFluid_Flux_PBF_Collision.gif
-c356f4b1c71c1af45cae899b2eda78988ebcf5ea155fe8098db1418fbd0e8136  ProjectFluid_Flux_Surface_Material_Comparison.png
+923075059850a165c3b45a79ec4d8ac2b63289322ee18eea2985c9eca098e5d8  ProjectFluid_Flux_PBF_Bounds_Collision.png
+976d394a161e8bc8c3790d6d4896dbb29df918cc3648cafa0539f19d01617bf6  ProjectFluid_Flux_PBF_Collision.gif
+6f3781ac93481ccf7fa31d22cc0732841945da38c9e663650f7a4542cda79c5f  ProjectFluid_Flux_Surface_Material_Comparison.png
 ```
 
 The GIF samples twelve independently reproduced fixed-step states. The

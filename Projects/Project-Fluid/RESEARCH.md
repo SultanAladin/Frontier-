@@ -28,8 +28,11 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 - The default native presentation is a continuous screen-space liquid surface,
   not one rendered sphere per simulation particle. A first compute/CPU-mirror
   pass accumulates nearest front depth and additive optical thickness from
-  overlapping kernels. Repeated bilateral depth and Gaussian thickness filters
-  close the sampled sheet; depth gradients reconstruct the shading normal.
+  velocity-aligned anisotropic kernels. The major axis stretches along projected
+  flow while preserving a smaller depth axis, closing gaps in jets without
+  exposing a chain of spheres. Repeated broad bilateral depth and Gaussian
+  thickness filters close the sampled sheet; depth gradients reconstruct a
+  low-frequency shading normal.
 - Vulkan kernels use Frontier's `.slang` file convention and lower to SPIR-V.
   CPU and Vulkan resolves consume the source commit's base colour,
   Beer–Lambert absorption, opacity, roughness and IOR values for all four
