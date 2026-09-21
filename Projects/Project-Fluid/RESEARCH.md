@@ -25,14 +25,21 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
   than the TypeScript version's pre-sampled pseudo-mass cloud. Collision geometry
   is exact; this density-support substitution is documented rather than claimed
   as a byte-for-byte paper reproduction.
-- The native proof uses particle spheres to make individual simulation samples,
-  the full orange bounds and sphere collisions auditable. The Vulkan compute
-  renderer uses the same positions and scene geometry.
+- The default native presentation is a continuous screen-space liquid surface,
+  not one rendered sphere per simulation particle. A first compute/CPU-mirror
+  pass accumulates nearest front depth and additive optical thickness from
+  overlapping kernels. Repeated bilateral depth and Gaussian thickness filters
+  close the sampled sheet; depth gradients reconstruct the shading normal.
 - Vulkan kernels use Frontier's `.slang` file convention and lower to SPIR-V.
-  CPU and Vulkan presentation consume the source commit's base colour,
-  Beer-Lambert absorption, opacity, roughness and IOR values for all four
-  materials. This remains particle-surface preview shading, not the removed
-  WebGL anisotropic reconstruction or a claim of calibrated measured optics.
+  CPU and Vulkan resolves consume the source commit's base colour,
+  Beer–Lambert absorption, opacity, roughness and IOR values for all four
+  materials, with refraction, Fresnel and rough highlights. The explicit orange
+  basin and opaque striped sphere remain visible and depth-tested so bounds and
+  collision behavior remain auditable.
+- This is honestly a depth/thickness screen-space reconstruction, not a claim
+  that the source's CPU covariance ellipsoids, complete Yu–Turk implicit field,
+  or Marching Cubes were ported. It retains the known overlap, thin-sheet and
+  silhouette limits recorded in the original research below.
 - The WebGL anisotropic screen-space reconstruction is not falsely relabeled as
   ReSTIR. Future ReSTIR integration consumes an immutable particle/surface
   snapshot after the fixed step, writes fluid motion vectors, and rejects

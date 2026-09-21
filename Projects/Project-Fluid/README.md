@@ -15,10 +15,13 @@ which has been removed.
 - pairwise surface response, viscosity and shear-thinning material response
 - water, milk, honey and chocolate presets
 - pouring, stirring, pause and deterministic reset
-- Vulkan compute particle splatting into a depth/pixel buffer and swapchain
+- Vulkan compute screen-space surface reconstruction: particle front-depth and
+  thickness splats, filtered resolve, reconstructed normals and swapchain copy
 - Frontier `.slang` shader sources lowered to Vulkan SPIR-V
 - source optical presets: base colour, absorption, opacity, roughness and IOR
-- native CPU proof renderer using the same positions, bounds, obstacle and optics
+- continuous refraction, Beer–Lambert attenuation, Fresnel and rough highlights
+- native CPU mirror of the same depth/thickness reconstruction, scene and optics
+- particle points are simulation data only; they are not the default presentation
 
 ## Build
 
@@ -34,7 +37,7 @@ and are lowered to SPIR-V by the same staged build pattern as Project Zero. With
 
 ```bash
 cmake --build build --target Project-Fluid-CPU -j
-./build/Projects/Project-Fluid/Project-Fluid-CPU proof.ppm 18
+./build/Projects/Project-Fluid/Project-Fluid-CPU proof.ppm 90 water
 ```
 
 ## Interactive controls
@@ -44,7 +47,7 @@ cmake --build build --target Project-Fluid-CPU -j
 | Space | Pause/resume fixed-step simulation |
 | R | Deterministic basin reset |
 | S | Stir the actual particle velocities |
-| Hold P | Pour particles until the 2,800 capacity |
+| P | Toggle the initially enabled pour until the 2,800 capacity |
 | 1 / 2 / 3 / 4 | Water / milk / honey / chocolate |
 | Escape | Exit |
 

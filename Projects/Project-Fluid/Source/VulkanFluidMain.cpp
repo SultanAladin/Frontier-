@@ -109,15 +109,19 @@ private:
     VkDescriptorPool DescriptorPool_{VK_NULL_HANDLE};
     VkDescriptorSet ClearSet_{VK_NULL_HANDLE};
     VkDescriptorSet SplatSet_{VK_NULL_HANDLE};
+    VkDescriptorSet ResolveSet_{VK_NULL_HANDLE};
     VkPipelineLayout ClearLayout_{VK_NULL_HANDLE};
     VkPipelineLayout SplatLayout_{VK_NULL_HANDLE};
+    VkPipelineLayout ResolveLayout_{VK_NULL_HANDLE};
     VkPipeline ClearPipeline_{VK_NULL_HANDLE};
     VkPipeline SplatPipeline_{VK_NULL_HANDLE};
+    VkPipeline ResolvePipeline_{VK_NULL_HANDLE};
     VkSemaphore Acquired_{VK_NULL_HANDLE};
     VkSemaphore Rendered_{VK_NULL_HANDLE};
     VkFence FrameFence_{VK_NULL_HANDLE};
     Buffer ParticleBuffer_;
     Buffer DepthBuffer_;
+    Buffer ThicknessBuffer_;
     Buffer PixelBuffer_;
     Buffer UniformBuffer_;
     PF::PbfFluid Fluid_;
@@ -127,6 +131,8 @@ private:
     bool PauseLatch_{false};
     bool ResetLatch_{false};
     bool StirLatch_{false};
+    bool PourLatch_{false};
+    bool Pouring_{true};
     std::uint64_t FrameNumber_{};
 
     std::uint32_t FindMemory(std::uint32_t mask, VkMemoryPropertyFlags wanted) const {
@@ -197,7 +203,7 @@ private:
         Params_.ObstacleEnabled = 1;
         GpuParticles_.resize(PF::PbfFluid::MaxParticles);
         UploadParticles();
-        std::cout << "Project Fluid / Flux controls: Space pause, R reset, S stir, P pour, 1-4 materials, Esc quit\n";
+        std::cout << "Project Fluid / Flux controls: Space pause, R reset, S stir, P toggle pour, 1-4 materials, Esc quit\n";
     }
 
     void PickDevice() {
@@ -298,14 +304,16 @@ private:
         ParticleBuffer_ = MakeBuffer(PF::PbfFluid::MaxParticles * sizeof(GpuParticle), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true);
         const VkDeviceSize pixelBytes = static_cast<VkDeviceSize>(Extent_.width) * Extent_.height * 4;
         DepthBuffer_ = MakeBuffer(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+        ThicknessBuffer_ = MakeBuffer(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
         PixelBuffer_ = MakeBuffer(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, false);
         UniformBuffer_ = MakeBuffer(sizeof(Parameters), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true);
 
-        std::array<VkDescriptorSetLayoutBinding, 4> bindings{};
+        std::array<VkDescriptorSetLayoutBinding, 5> bindings{};
         bindings[0] = {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
         bindings[1] = {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
         bindings[2] = {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
         bindings[3] = {3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
+        bindings[4] = {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
         VkDescriptorSetLayoutCreateInfo setInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
         setInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
         setInfo.pBindings = bindings.data();
@@ -315,31 +323,28 @@ private:
         surfaceLayout.setLayoutCount = 1;
         surfaceLayout.pSetLayouts = &SetLayout_;
         VkCheck(vkCreatePipelineLayout(Device_, &surfaceLayout, nullptr, &ClearLayout_), "vkCreatePipelineLayout");
-        VkPushConstantRange push{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(std::uint32_t) * 2};
-        VkPipelineLayoutCreateInfo presentLayout = surfaceLayout;
-        presentLayout.pushConstantRangeCount = 1;
-        presentLayout.pPushConstantRanges = &push;
-        VkCheck(vkCreatePipelineLayout(Device_, &presentLayout, nullptr, &SplatLayout_), "vkCreatePipelineLayout");
+        VkCheck(vkCreatePipelineLayout(Device_, &surfaceLayout, nullptr, &SplatLayout_), "vkCreatePipelineLayout");
+        VkCheck(vkCreatePipelineLayout(Device_, &surfaceLayout, nullptr, &ResolveLayout_), "vkCreatePipelineLayout");
         ClearPipeline_ = MakePipeline(PROJECT_FLUID_CLEAR_SPV, ClearLayout_);
         SplatPipeline_ = MakePipeline(PROJECT_FLUID_SPLAT_SPV, SplatLayout_);
+        ResolvePipeline_ = MakePipeline(PROJECT_FLUID_RESOLVE_SPV, ResolveLayout_);
 
         std::array<VkDescriptorPoolSize, 2> sizes{{
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6}, {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2}}};
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 12}, {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3}}};
         VkDescriptorPoolCreateInfo pool{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        pool.maxSets = 2;
+        pool.maxSets = 3;
         pool.poolSizeCount = static_cast<std::uint32_t>(sizes.size());
         pool.pPoolSizes = sizes.data();
         VkCheck(vkCreateDescriptorPool(Device_, &pool, nullptr, &DescriptorPool_), "vkCreateDescriptorPool");
-        std::array<VkDescriptorSetLayout, 2> layouts{SetLayout_, SetLayout_};
+        std::array<VkDescriptorSetLayout, 3> layouts{SetLayout_, SetLayout_, SetLayout_};
         VkDescriptorSetAllocateInfo allocate{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
         allocate.descriptorPool = DescriptorPool_;
-        allocate.descriptorSetCount = 2;
+        allocate.descriptorSetCount = static_cast<std::uint32_t>(layouts.size());
         allocate.pSetLayouts = layouts.data();
-        std::array<VkDescriptorSet, 2> sets{};
+        std::array<VkDescriptorSet, 3> sets{};
         VkCheck(vkAllocateDescriptorSets(Device_, &allocate, sets.data()), "vkAllocateDescriptorSets");
-        ClearSet_ = sets[0]; SplatSet_ = sets[1];
-        WriteSet(ClearSet_);
-        WriteSet(SplatSet_);
+        ClearSet_ = sets[0]; SplatSet_ = sets[1]; ResolveSet_ = sets[2];
+        WriteSet(ClearSet_); WriteSet(SplatSet_); WriteSet(ResolveSet_);
 
         VkCommandPoolCreateInfo commandPool{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
         commandPool.queueFamilyIndex = QueueFamily_;
@@ -363,8 +368,9 @@ private:
         VkDescriptorBufferInfo pixels{PixelBuffer_.Handle, 0, PixelBuffer_.Size};
         VkDescriptorBufferInfo depths{DepthBuffer_.Handle, 0, DepthBuffer_.Size};
         VkDescriptorBufferInfo uniform{UniformBuffer_.Handle, 0, UniformBuffer_.Size};
-        std::array<VkDescriptorBufferInfo*, 4> infos{&particles, &pixels, &depths, &uniform};
-        std::array<VkWriteDescriptorSet, 4> writes{};
+        VkDescriptorBufferInfo thickness{ThicknessBuffer_.Handle, 0, ThicknessBuffer_.Size};
+        std::array<VkDescriptorBufferInfo*, 5> infos{&particles, &pixels, &depths, &uniform, &thickness};
+        std::array<VkWriteDescriptorSet, 5> writes{};
         for (std::uint32_t i = 0; i < writes.size(); ++i) {
             writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             writes[i].dstSet = set; writes[i].dstBinding = i; writes[i].descriptorCount = 1;
@@ -401,6 +407,7 @@ private:
         if (Pressed(GLFW_KEY_SPACE, PauseLatch_)) Params_.Paused ^= 1u;
         if (Pressed(GLFW_KEY_R, ResetLatch_)) Fluid_.Reset();
         if (Pressed(GLFW_KEY_S, StirLatch_)) Fluid_.Stir();
+        if (Pressed(GLFW_KEY_P, PourLatch_)) Pouring_ = !Pouring_;
         if (glfwGetKey(Window_, GLFW_KEY_1) == GLFW_PRESS) Fluid_.SetMaterial(PF::Material::Water);
         if (glfwGetKey(Window_, GLFW_KEY_2) == GLFW_PRESS) Fluid_.SetMaterial(PF::Material::Milk);
         if (glfwGetKey(Window_, GLFW_KEY_3) == GLFW_PRESS) Fluid_.SetMaterial(PF::Material::Honey);
@@ -410,7 +417,7 @@ private:
             StepAccumulator_ = std::min(StepAccumulator_ + dt, fixedDelta * 2.0f);
             int steps = 0;
             while (StepAccumulator_ >= fixedDelta && steps++ < 2) {
-                if (glfwGetKey(Window_, GLFW_KEY_P) == GLFW_PRESS) Fluid_.Pour(fixedDelta);
+                if (Pouring_) Fluid_.Pour(fixedDelta);
                 Fluid_.Step(fixedDelta);
                 StepAccumulator_ -= fixedDelta;
             }
@@ -420,7 +427,7 @@ private:
         const auto& d = Fluid_.Diagnostics();
         std::string title = "Project Fluid | Flux PBF | " + std::string(Fluid_.ActiveMaterial().Name) +
             " | particles " + std::to_string(Fluid_.Positions().size()) +
-            " | contacts " + std::to_string(d.SphereContacts) + (Params_.Paused ? " | PAUSED" : "");
+            " | contacts " + std::to_string(d.SphereContacts) + (Pouring_ ? " | POUR" : " | FLOW PAUSED") + (Params_.Paused ? " | PAUSED" : "");
         glfwSetWindowTitle(Window_, title.c_str());
     }
 
@@ -443,7 +450,15 @@ private:
                              1, &computeBarrier, 0, nullptr, 0, nullptr);
         vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, SplatPipeline_);
         vkCmdBindDescriptorSets(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, SplatLayout_, 0, 1, &SplatSet_, 0, nullptr);
-        vkCmdDispatch(Command_, (Params_.ParticleCount + 1u + 63u) / 64u, 1, 1);
+        vkCmdDispatch(Command_, (Params_.ParticleCount + 63u) / 64u, 1, 1);
+        VkMemoryBarrier splatBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+        splatBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        splatBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(Command_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+                             1, &splatBarrier, 0, nullptr, 0, nullptr);
+        vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ResolvePipeline_);
+        vkCmdBindDescriptorSets(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ResolveLayout_, 0, 1, &ResolveSet_, 0, nullptr);
+        vkCmdDispatch(Command_, (Extent_.width + 15) / 16, (Extent_.height + 15) / 16, 1);
         VkBufferMemoryBarrier pixelBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
         pixelBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
         pixelBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -508,11 +523,13 @@ private:
             if (CommandPool_) vkDestroyCommandPool(Device_, CommandPool_, nullptr);
             if (ClearPipeline_) vkDestroyPipeline(Device_, ClearPipeline_, nullptr);
             if (SplatPipeline_) vkDestroyPipeline(Device_, SplatPipeline_, nullptr);
+            if (ResolvePipeline_) vkDestroyPipeline(Device_, ResolvePipeline_, nullptr);
             if (ClearLayout_) vkDestroyPipelineLayout(Device_, ClearLayout_, nullptr);
             if (SplatLayout_) vkDestroyPipelineLayout(Device_, SplatLayout_, nullptr);
+            if (ResolveLayout_) vkDestroyPipelineLayout(Device_, ResolveLayout_, nullptr);
             if (DescriptorPool_) vkDestroyDescriptorPool(Device_, DescriptorPool_, nullptr);
             if (SetLayout_) vkDestroyDescriptorSetLayout(Device_, SetLayout_, nullptr);
-            DestroyBuffer(ParticleBuffer_); DestroyBuffer(DepthBuffer_); DestroyBuffer(PixelBuffer_); DestroyBuffer(UniformBuffer_);
+            DestroyBuffer(ParticleBuffer_); DestroyBuffer(DepthBuffer_); DestroyBuffer(ThicknessBuffer_); DestroyBuffer(PixelBuffer_); DestroyBuffer(UniformBuffer_);
             if (Swapchain_) vkDestroySwapchainKHR(Device_, Swapchain_, nullptr);
             vkDestroyDevice(Device_, nullptr);
         }

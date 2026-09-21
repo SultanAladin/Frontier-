@@ -46,7 +46,49 @@ public:
         }
     }
 
-    void Bounds(){PF::Vec3 lo=PF::PbfFluid::BoundsMin(),hi=PF::PbfFluid::BoundsMax();Pixel c{1.0f,.32f,.05f};std::array<PF::Vec3,8> p{{{lo.x,lo.y,lo.z},{hi.x,lo.y,lo.z},{hi.x,lo.y,hi.z},{lo.x,lo.y,hi.z},{lo.x,hi.y,lo.z},{hi.x,hi.y,lo.z},{hi.x,hi.y,hi.z},{lo.x,hi.y,hi.z}}};int e[][2]={{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}};for(auto& q:e)Line(p[q[0]],p[q[1]],c,1);for(float x=-1.5f;x<=1.5f;x+=.5f)Line({x,lo.y,lo.z},{x,lo.y,hi.z},{.23f,.27f,.29f},0);for(float z=-1;z<=1;z+=.5f)Line({lo.x,lo.y,z},{hi.x,lo.y,z},{.23f,.27f,.29f},0);}
+    void FluidSurface(const std::vector<PF::Vec3>& positions,const PF::FluidMaterial& material){
+        const std::size_t count=static_cast<std::size_t>(W)*H;
+        std::vector<float> front(count,std::numeric_limits<float>::max()),thickness(count,0.0f),scratch(count,std::numeric_limits<float>::max());
+        constexpr float surfaceRadius=.180f;
+        for(const PF::Vec3& centre:positions){
+            Screen s=Project(centre);if(!s.visible)continue;int radius=std::clamp(static_cast<int>(Focal*surfaceRadius/s.z),1,48);
+            for(int oy=-radius;oy<=radius;++oy)for(int ox=-radius;ox<=radius;++ox){
+                float nx=static_cast<float>(ox)/radius,ny=static_cast<float>(oy)/radius,d2=nx*nx+ny*ny;if(d2>1.0f)continue;
+                int x=static_cast<int>(s.x)+ox,y=static_cast<int>(s.y)+oy;if(x<0||y<0||x>=(int)W||y>=(int)H)continue;
+                float nz=std::sqrt(1.0f-d2);std::size_t at=static_cast<std::size_t>(y)*W+x;
+                front[at]=std::min(front[at],s.z-surfaceRadius*nz);thickness[at]+=2.0f*surfaceRadius*nz;
+            }
+        }
+        // Six edge-aware depth/thickness passes mirror the source renderer's
+        // bilateral reconstruction and close sub-pixel gaps between samples.
+        for(int pass=0;pass<6;++pass){
+            for(std::uint32_t y=1;y+1<H;++y)for(std::uint32_t x=1;x+1<W;++x){
+                std::size_t at=static_cast<std::size_t>(y)*W+x;float centre=front[at],sum=0,weight=0;
+                for(int oy=-1;oy<=1;++oy)for(int ox=-1;ox<=1;++ox){float sample=front[(y+oy)*W+x+ox];if(!std::isfinite(sample))continue;float spatial=(ox==0&&oy==0)?2.0f:1.0f;float range=std::isfinite(centre)?std::exp(-std::abs(sample-centre)*8.0f):1.0f;sum+=sample*spatial*range;weight+=spatial*range;}
+                scratch[at]=weight>0?sum/weight:std::numeric_limits<float>::max();
+            }
+            front.swap(scratch);std::fill(scratch.begin(),scratch.end(),std::numeric_limits<float>::max());
+        }
+        std::fill(scratch.begin(),scratch.end(),0.0f);
+        for(int pass=0;pass<3;++pass){
+            for(std::uint32_t y=1;y+1<H;++y)for(std::uint32_t x=1;x+1<W;++x){std::size_t at=static_cast<std::size_t>(y)*W+x;scratch[at]=(thickness[at]*4.0f+thickness[at-1]+thickness[at+1]+thickness[at-W]+thickness[at+W])/8.0f;}
+            thickness.swap(scratch);std::fill(scratch.begin(),scratch.end(),0.0f);
+        }
+        const std::vector<Pixel> backdrop=Colour;PF::Vec3 light=PF::Normalized({-.4f,.8f,.3f});PF::Vec3 halfVector=PF::Normalized(light+PF::Vec3{0,0,1});
+        for(std::uint32_t y=3;y+3<H;++y)for(std::uint32_t x=3;x+3<W;++x){
+            std::size_t at=static_cast<std::size_t>(y)*W+x;if(!std::isfinite(front[at])||thickness[at]<.002f)continue;
+            float left=front[at-3],right=front[at+3],top=front[at-3*W],bottom=front[at+3*W];if(!std::isfinite(left)||!std::isfinite(right)||!std::isfinite(top)||!std::isfinite(bottom))continue;
+            PF::Vec3 normal=PF::Normalized({-(right-left)*7.0f,(bottom-top)*7.0f,1.0f});float diffuse=std::max(0.0f,PF::Dot(normal,light));
+            float f0=std::pow((material.Ior-1.0f)/(material.Ior+1.0f),2.0f);float fresnel=f0+(1.0f-f0)*std::pow(1.0f-normal.z,5.0f);
+            float specular=std::pow(std::max(0.0f,PF::Dot(normal,halfVector)),110.0f*(1.0f-material.Roughness)+14.0f)*(1.0f-material.Roughness*.55f);
+            int rx=std::clamp(static_cast<int>(x-normal.x*thickness[at]*38.0f),0,static_cast<int>(W)-1),ry=std::clamp(static_cast<int>(y+normal.y*thickness[at]*38.0f),0,static_cast<int>(H)-1);Pixel behind=backdrop[static_cast<std::size_t>(ry)*W+rx];
+            Pixel transmit{behind.r*std::exp(-material.Absorption.x*thickness[at]*2.8f)+material.Colour.x*.12f,behind.g*std::exp(-material.Absorption.y*thickness[at]*2.8f)+material.Colour.y*.12f,behind.b*std::exp(-material.Absorption.z*thickness[at]*2.8f)+material.Colour.z*.12f};
+            Pixel base{material.Colour.x*(.18f+.65f*diffuse),material.Colour.y*(.18f+.65f*diffuse),material.Colour.z*(.18f+.65f*diffuse)};
+            Pixel c=Mix(transmit,base,material.Opacity);c.r+=specular+fresnel*.38f;c.g+=specular*.95f+fresnel*.42f;c.b+=specular*.84f+fresnel*.50f;
+            Colour[at]=c;Depth[at]=front[at];
+        }
+    }
+    void Bounds(bool drawFloorGrid=true){PF::Vec3 lo=PF::PbfFluid::BoundsMin(),hi=PF::PbfFluid::BoundsMax();Pixel c{1.0f,.32f,.05f};std::array<PF::Vec3,8> p{{{lo.x,lo.y,lo.z},{hi.x,lo.y,lo.z},{hi.x,lo.y,hi.z},{lo.x,lo.y,hi.z},{lo.x,hi.y,lo.z},{hi.x,hi.y,lo.z},{hi.x,hi.y,hi.z},{lo.x,hi.y,hi.z}}};int e[][2]={{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}};for(auto& q:e)Line(p[q[0]],p[q[1]],c,1);if(drawFloorGrid){for(float x=-1.5f;x<=1.5f;x+=.5f)Line({x,lo.y,lo.z},{x,lo.y,hi.z},{.23f,.27f,.29f},0);for(float z=-1;z<=1;z+=.5f)Line({lo.x,lo.y,z},{hi.x,lo.y,z},{.23f,.27f,.29f},0);}}
     bool Save(const std::string& path){std::ofstream f(path,std::ios::binary);if(!f)return false;f<<"P6\n"<<W<<' '<<H<<"\n255\n";for(auto c:Colour){for(float v:{c.r,c.g,c.b}){unsigned char q=static_cast<unsigned char>(std::pow(std::clamp(v,0.0f,1.0f),1.0f/2.2f)*255+.5f);f.write(reinterpret_cast<char*>(&q),1);}}return(bool)f;}
 private:
     std::uint32_t W,H;std::vector<Pixel>Colour;std::vector<float>Depth;PF::Vec3 Camera,Forward,Right,Up;float Focal{};
@@ -58,7 +100,7 @@ int main(int argc,char**argv){
     if(argc>3){const std::string material=argv[3];if(material=="milk")fluid.SetMaterial(PF::Material::Milk);else if(material=="honey")fluid.SetMaterial(PF::Material::Honey);else if(material=="chocolate")fluid.SetMaterial(PF::Material::Chocolate);}
     fluid.Stir(1.7f);
     int steps=argc>2?std::max(0,std::stoi(argv[2])):18;
-    for(int i=0;i<steps;++i)fluid.Step(1.0f/60.0f);
+    for(int i=0;i<steps;++i){fluid.Pour(1.0f/60.0f);fluid.Step(1.0f/60.0f);}
     const auto& d=fluid.Diagnostics();
     const PF::Vec3 lo=PF::PbfFluid::BoundsMin(),hi=PF::PbfFluid::BoundsMax(),centre=PF::PbfFluid::ObstacleCentre();
     float minimumObstacleDistance=1e9f;
@@ -70,6 +112,6 @@ int main(int argc,char**argv){
     std::cout<<std::fixed<<std::setprecision(5)<<"Flux PBF C++ mirror | material "<<fluid.ActiveMaterial().Name<<" | particles "<<fluid.Positions().size()<<" | t "<<fluid.Time()<<" s\n"
              <<"bounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts "<<d.SphereContacts<<" | wall contacts "<<d.WallContacts<<" | min sphere distance "<<minimumObstacleDistance<<" m\n"
              <<"pressure passes "<<d.PressureIterations<<" | mean/peak compression "<<d.MeanCompression<<" / "<<d.PeakCompression<<"\n";
-    if(argc>1){ProofRenderer renderer(1280,720);renderer.Bounds();const auto& material=fluid.ActiveMaterial();for(const auto&p:fluid.Positions())renderer.Sphere(p,.079f,{material.Colour.x,material.Colour.y,material.Colour.z},false,material.Roughness,material.Opacity,material.Ior,material.Absorption);renderer.Sphere(PF::PbfFluid::ObstacleCentre(),PF::PbfFluid::ObstacleRadius(),{.16f,.18f,.20f},true,.25f,1.0f,1.45f);renderer.Bounds();if(!renderer.Save(argv[1]))return 2;std::cout<<"proof frame: "<<argv[1]<<'\n';}
+    if(argc>1){ProofRenderer renderer(1280,720);renderer.Bounds();const auto& material=fluid.ActiveMaterial();renderer.FluidSurface(fluid.Positions(),material);renderer.Sphere(PF::PbfFluid::ObstacleCentre(),PF::PbfFluid::ObstacleRadius(),{.16f,.18f,.20f},true,.25f,1.0f,1.45f);renderer.Bounds(false);if(!renderer.Save(argv[1]))return 2;std::cout<<"proof frame: "<<argv[1]<<'\n';}
     return std::isfinite(d.PeakCompression)?0:1;
 }
