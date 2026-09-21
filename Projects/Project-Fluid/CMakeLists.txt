@@ -1,11 +1,15 @@
 add_library(ProjectFluidCore STATIC
     Source/PbfFluid.cpp Source/PbfFluid.h
-    Source/SurfaceReconstruction.cpp Source/SurfaceReconstruction.h)
+    Source/SurfaceReconstruction.cpp Source/SurfaceReconstruction.h
+    Source/AnisotropicSurfaceMesh.cpp Source/AnisotropicSurfaceMesh.h
+    Source/MarchingCubesTables.h)
 target_include_directories(ProjectFluidCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_features(ProjectFluidCore PUBLIC cxx_std_20)
 
 add_executable(Project-Fluid-CPU Source/CpuProofMain.cpp)
 target_link_libraries(Project-Fluid-CPU PRIVATE ProjectFluidCore)
+add_executable(Project-Fluid-Surface-Test Source/SurfaceMeshTest.cpp)
+target_link_libraries(Project-Fluid-Surface-Test PRIVATE ProjectFluidCore)
 
 option(FRONTIER_BUILD_PROJECT_FLUID_VULKAN "Build the interactive Vulkan Flux window" ON)
 if(FRONTIER_BUILD_PROJECT_FLUID_VULKAN)
@@ -72,4 +76,5 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
     add_test(NAME ProjectFluidCpuPbf COMMAND Project-Fluid-CPU)
+    add_test(NAME ProjectFluidWatertightSurface COMMAND Project-Fluid-Surface-Test)
 endif()

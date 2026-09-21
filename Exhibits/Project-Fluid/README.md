@@ -17,13 +17,18 @@ simulation budget with pouring enabled. They use the requested source commit's
 base colour, absorption, opacity, roughness and IOR, while viscosity, surface
 tension, wetting and shear thinning alter the corresponding simulation state.
 
-These are C++ CPU-mirror execution outputs, not generated artwork or captures
-from the removed ocean project. The proof executes the same scene and same
-front-depth/thickness surface algorithm as the Vulkan `.slang` path: weighted-covariance/PCA ellipsoids with smoothed render centers build continuous
-front depth and optical thickness, then broad depth and thickness filters remove
-particle-frequency lobes, and a resolve reconstructs normals and applies
-refraction, Beer–Lambert attenuation, Fresnel response and rough highlights.
-Individual simulation particles are not directly drawn in the default proof.
+These are native C++ execution outputs, not generated artwork or captures from
+the removed ocean project. Weighted-covariance/PCA kernels are summed on a 3D
+sparse-brick field, and the `0.075` isosurface is extracted with indexed Marching
+Cubes. Vertices are welded by their global grid edge, producing zero open and
+zero non-manifold edges in the recorded run. Normals come from the density-field
+gradient. A mild Taubin pass is followed by exact global volume restoration.
+
+The CPU proof rasterizes that actual mesh with front/back thickness, refraction,
+Beer–Lambert attenuation, Fresnel response, and rough highlights. The OBJ beside
+these images contains the same watertight surface. The Vulkan screen-space path
+remains an explicitly documented interactive fallback until its mesh/RT upload
+stage is completed.
 
 The orange box is the real solver domain. The striped sphere is the source
 scene's stationary obstacle and is depth-tested against the liquid. The visible
@@ -38,6 +43,8 @@ bounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m
 sphere contacts 0 | wall contacts 0 | minimum sphere distance 0.46668 m
 pressure passes 3 | mean/peak compression 0.00245 / 0.02244
 viscosity PCG iterations 1 | relative residual 0.00000
+surface mesh: 15952 vertices | 32984 triangles
+open/nonmanifold edges 0/0 | dirty bricks 288 initial / 0 unchanged
 ```
 
 Build and reproduce:
@@ -45,9 +52,12 @@ Build and reproduce:
 ```bash
 g++ -std=c++20 -O3 -Wall -Wextra -Werror -Wpedantic \
   Projects/Project-Fluid/Source/PbfFluid.cpp \
+  Projects/Project-Fluid/Source/SurfaceReconstruction.cpp \
+  Projects/Project-Fluid/Source/AnisotropicSurfaceMesh.cpp \
   Projects/Project-Fluid/Source/CpuProofMain.cpp \
   -o /tmp/flux-proof
-/tmp/flux-proof /tmp/flux.ppm 90 water
+/tmp/flux-proof /tmp/flux.ppm 90 water \
+  Exhibits/Project-Fluid/ProjectFluid_Flux_Surface_Mesh.obj
 python3 Tools/PpmToPng.py /tmp/flux.ppm \
   Exhibits/Project-Fluid/ProjectFluid_Flux_PBF_Bounds_Collision.png
 ```
@@ -55,9 +65,10 @@ python3 Tools/PpmToPng.py /tmp/flux.ppm \
 Checksums:
 
 ```text
-c9188fd017912aa2048d60a01781fbb1e048bdbbea9b9f982716f185c8d91880  ProjectFluid_Flux_PBF_Bounds_Collision.png
-0417a3eff2dc4627b1a902a80889ae7766a9f3729e0c426e57c3bb3d07ab679a  ProjectFluid_Flux_PBF_Collision.gif
-8f35342e5610d8d2435c2ff644fea7a46320223948925a64f7e35995a3eb94c3  ProjectFluid_Flux_Surface_Material_Comparison.png
+82158dc9101d2e8641394c1ac7b27e6cb7160652641c7d97dc278e1457906f9c  ProjectFluid_Flux_PBF_Bounds_Collision.png
+aa3527fd03cda4abe83debad72eccea9139f5c55f9c91aea72340fba67d8686a  ProjectFluid_Flux_PBF_Collision.gif
+7ea103715540f278f0808a6d6f34592cc5d402c2d9d275e166d585256c3e172a  ProjectFluid_Flux_Surface_Material_Comparison.png
+d6723b89e22a6ece93a2cfe19e68019f00ff78100735b31f819134c14e50f81a  ProjectFluid_Flux_Surface_Mesh.obj
 ```
 
 The GIF samples twelve independently reproduced fixed-step states. The

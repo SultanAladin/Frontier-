@@ -27,14 +27,12 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
   `Psi_b = rho0 / sum_k W(x_b-x_k)`. Samples contribute density, pressure
   gradients, adhesion, and stationary-boundary viscosity; analytic constraints
   remain only as a non-penetration safety net.
-- The default native presentation is a continuous screen-space liquid surface,
-  not one rendered sphere per simulation particle. A first compute/CPU-mirror
-  pass accumulates nearest front depth and additive optical thickness from
-  weighted-covariance/PCA ellipsoids. Dense neighborhoods use bounded 3:1,
-  volume-normalized principal axes and Laplacian-smoothed render centers; sparse
-  spray remains mass-volume spherical. Repeated broad bilateral depth and
-  Gaussian thickness filters close the sampled sheet; depth gradients
-  reconstruct a low-frequency shading normal.
+- The authoritative CPU proof now evaluates the sum of all bounded,
+  volume-normalized PCA kernels on a 3D field. Only dirty 8³-cell bricks are
+  reevaluated. Indexed Marching Cubes chunks are rebuilt for those bricks and
+  welded by global grid-edge identity. Recorded proof meshes have zero open and
+  zero non-manifold edges. The previous depth/thickness projection remains only
+  as the interactive Vulkan fallback.
 - Vulkan kernels use Frontier's `.slang` file convention and lower to SPIR-V.
   CPU and Vulkan resolves consume the source commit's base colour,
   Beer–Lambert absorption, opacity, roughness and IOR values for all four
@@ -50,11 +48,12 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 - Native capillarity now evaluates the complete Flux/Akinci pair model: weighted
   color-field normals, the piecewise cohesion kernel, equal/opposite pair
   scattering, density-deficiency correction, and sampled-solid adhesion.
-- Weighted covariance/PCA, smoothed centers, and bounded ellipsoids are now
-  shared by the CPU and Vulkan paths. The resolve is still honestly a
-  depth/thickness screen-space reconstruction—not yet the complete Yu–Turk
-  summed implicit field or Marching Cubes extraction. It therefore retains the
-  known overlap and thin-sheet limits recorded in the original research below.
+- Mesh normals are finite differences of the summed density field, not
+  screen-space depth gradients. One positive and one negative Laplacian pass
+  provide mild Taubin smoothing; the mesh is then uniformly rescaled around its
+  centroid to restore its exact pre-smoothing signed volume. The OBJ exporter
+  writes this same indexed surface. This implements the requested Yu–Turk field
+  and mesh stage but does not claim the paper's exact parameter calibration.
 - The WebGL anisotropic screen-space reconstruction is not falsely relabeled as
   ReSTIR. Future ReSTIR integration consumes an immutable particle/surface
   snapshot after the fixed step, writes fluid motion vectors, and rejects

@@ -15,10 +15,13 @@ which has been removed.
 - pairwise surface response, viscosity and shear-thinning material response
 - water, milk, honey and chocolate presets
 - pouring, stirring, pause and deterministic reset
-- shared CPU/Vulkan Yu–Turk weighted covariance/PCA reconstruction with
-  smoothed centers and bounded, volume-normalized ellipsoid kernels
-- Vulkan front-depth/thickness projection, wide filtered resolve, reconstructed
-  normals and swapchain copy
+- shared CPU/Vulkan Yu–Turk weighted covariance/PCA kernels with smoothed
+  centers and bounded, volume-normalized principal axes
+- authoritative CPU summed anisotropic field on dirty 8³-cell bricks
+- indexed, watertight Marching Cubes mesh with gradient normals, mild Taubin
+  smoothing, exact global volume restoration, and OBJ export
+- Vulkan front-depth/thickness projection remains the interactive fallback until
+  the extracted mesh is connected to the planned Vulkan RT BLAS/TLAS path
 - Frontier `.slang` shader sources lowered to Vulkan SPIR-V
 - source optical presets: base colour, absorption, opacity, roughness and IOR
 - continuous refraction, Beer–Lambert attenuation, Fresnel and rough highlights
@@ -55,6 +58,8 @@ cmake --build build --target Project-Fluid-CPU -j
 
 The window title reports particle and collision counts. Every 180 frames the
 console reports pressure passes, measured compression, and sphere/wall contacts.
+`Project-Fluid-Surface-Test` reconstructs a deterministic surface and fails on
+empty geometry, invalid indices, open/non-manifold edges, or a dirty-cache miss.
 
 ## Proof and research
 

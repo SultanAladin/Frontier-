@@ -31,8 +31,11 @@ Primary PDFs and adaptation notes are indexed in `RESEARCH.md`.
 - [ ] Published-SI material conversion with explicit scene-unit scaling and validation benchmarks
 - [ ] Dynamic rigid sphere inertia, angular momentum, and equal/opposite hydrodynamic forces
 - [x] Yu–Turk weighted covariance/PCA, bounded volume-normalized ellipsoids, and smoothed render centers in native C++
-- [ ] Summed anisotropic implicit density field
-- [ ] Marching Cubes mesh extraction with topology/volume validation
+- [x] Summed anisotropic implicit density field on sparse dirty bricks
+- [x] Indexed Marching Cubes extraction with topology/volume validation
+- [x] Density-gradient vertex normals
+- [x] Mild Taubin smoothing followed by global volume restoration
+- [x] Dirty-brick field and mesh rebuild with unchanged-frame zero-work validation
 - [ ] Vulkan BLAS/TLAS construction for the extracted fluid mesh
 - [ ] `VK_KHR_ray_tracing_pipeline` closest-hit/any-hit/miss integration
 - [ ] Two-interface dielectric transport
