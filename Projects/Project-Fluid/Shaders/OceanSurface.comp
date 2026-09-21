@@ -1,0 +1,47 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+struct OceanMode {
+    vec4 waveAmplitudeOmega; // kx, kz, amplitude, omega
+    vec4 phaseDirection;     // phase, direction x/z, padding
+};
+layout(std430, binding = 0) readonly buffer Modes { OceanMode modes[]; };
+layout(std430, binding = 1) writeonly buffer Surface { vec4 field[]; };
+layout(std140, binding = 2) uniform Simulation {
+    uint resolution;
+    uint modeCount;
+    float domainMetres;
+    float seconds;
+    float choppiness;
+    float windSpeed;
+    float cameraX;
+    float cameraZ;
+    float cameraZoom;
+    float sun;
+    uint paused;
+    uint debugCpu;
+} sim;
+
+void main() {
+    uvec2 id = gl_GlobalInvocationID.xy;
+    if (any(greaterThanEqual(id, uvec2(sim.resolution)))) return;
+    vec2 world = (vec2(id) / float(sim.resolution - 1u) - 0.5) * sim.domainMetres;
+    float h = 0.0, sx = 0.0, sz = 0.0;
+    float dxx = 0.0, dzz = 0.0, dxz = 0.0;
+    for (uint i = 0u; i < sim.modeCount; ++i) {
+        OceanMode m = modes[i];
+        float theta = dot(m.waveAmplitudeOmega.xy, world) + m.waveAmplitudeOmega.w * sim.seconds + m.phaseDirection.x;
+        float sn = sin(theta), cs = cos(theta);
+        float a = m.waveAmplitudeOmega.z;
+        h += a * cs;
+        sx -= a * m.waveAmplitudeOmega.x * sn;
+        sz -= a * m.waveAmplitudeOmega.y * sn;
+        float fold = sim.choppiness * a * cs;
+        dxx -= fold * m.phaseDirection.y * m.waveAmplitudeOmega.x;
+        dzz -= fold * m.phaseDirection.z * m.waveAmplitudeOmega.y;
+        dxz -= fold * m.phaseDirection.y * m.waveAmplitudeOmega.y;
+    }
+    float jacobian = (1.0 + dxx) * (1.0 + dzz) - dxz * dxz;
+    field[id.y * sim.resolution + id.x] = vec4(h, sx, sz, clamp(1.0 - jacobian, 0.0, 1.0));
+}

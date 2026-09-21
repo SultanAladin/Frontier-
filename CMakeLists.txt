@@ -147,3 +147,6 @@ target_include_directories(Project-Zero PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CM
 if(NOT MSVC)
     target_link_libraries(Project-Zero PRIVATE pthread)
 endif()
+
+# Interactive Vulkan spectral-fluid demonstration plus deterministic CPU mirror.
+add_subdirectory(Projects/Project-Fluid)
