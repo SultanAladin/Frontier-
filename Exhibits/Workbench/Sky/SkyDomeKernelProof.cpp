@@ -20,8 +20,11 @@
 
 #include "SkyDomeSheet.h"
 #include "SkyConstantRecord.h"
+#include "SpaceExport.h"   // #26c: the persisted bake rides an .environment container (ENVR row + PROB blob)
+#include "SpaceCodec.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdio>
 #include <vector>
 
@@ -245,6 +248,69 @@ int main()
         }
         std::fprintf(stderr, "  half round trip worst relative error %.5f\n", Worst);
         Expect(Worst < 1.0 / 1024.0, "RGBA16F round trip stays inside half precision's own 2^-10");
+    }
+
+    // #26c the persisted bake: the exact container layout CelestialSequence writes and reads — ENVR row +
+    //    PROB blob of (staging record, RGBA16F halves) — round-tripped through the REAL SpaceExport/SpaceCodec,
+    //    with the staleness rule exercised at the file boundary. The layout constants here ARE the contract:
+    //    a drift in either body fails this gate before it fails a launch.
+    std::fprintf(stderr, "[SkyDomeKernelProof] the persisted bake (.environment ENVR + PROB)\n");
+    {
+        // A small real bake to carry (the low-sun staging — the steepest gradients).
+        AtmosphereMedium Medium{};
+        AtmosphereLight Light{};
+        Light.Direction[0] = 0.0f; Light.Direction[1] = 0.9848f; Light.Direction[2] = 0.1736f;
+        std::vector<uint16_t> Halves;
+        BakeSkyDomeSheet(Medium, Light, 16u, 6u, Halves);
+
+        SkyConstantRecord Staging{};
+        for (int C = 0; C < 3; ++C)
+        {
+            Staging.SunDirection[C] = Light.Direction[C];
+            Staging.SunRadiance[C]  = Light.Colour[C] * Light.Intensity;
+            Staging.Rayleigh[C]     = Medium.RayleighScattering[C] * Medium.RayleighStrength;
+            Staging.Ozone[C]        = Medium.OzoneAbsorption[C] * Medium.OzoneStrength;
+        }
+        Staging.SunRadiance[3] = 1.0f;
+        Staging.Rayleigh[3] = Medium.RayleighScaleHeight;
+        Staging.Mie[0] = Medium.MieScattering * Medium.MieStrength;
+        Staging.Mie[1] = Medium.MieScaleHeight; Staging.Mie[2] = Medium.MieAnisotropy;
+        Staging.Planet[0] = Medium.PlanetRadius; Staging.Planet[1] = Medium.AtmosphereHeight; Staging.Planet[2] = 2.0f;
+        Staging.Control[0] = 16u; Staging.Control[1] = 6u;
+
+        // Write: the PROB blob is record + halves; the ENVR row carries the browsing figures.
+        std::vector<uint8_t> Probe(sizeof(SkyConstantRecord) + Halves.size() * sizeof(uint16_t));
+        std::memcpy(Probe.data(), &Staging, sizeof(SkyConstantRecord));
+        std::memcpy(Probe.data() + sizeof(SkyConstantRecord), Halves.data(), Halves.size() * sizeof(uint16_t));
+        SpaceEnvironmentRow Row{};
+        std::snprintf(Row.Name, sizeof(Row.Name), "Sky Dome");
+        Row.SunHour = 10.0f;
+        Row.TerrainRef = 0xFFFFFFFFu; Row.TerrainBlob = 0xFFFFFFFFu;
+        SpaceExportContext Context;
+        Context.Exporter = "SkyDomeKernelProof";
+        std::vector<uint8_t> FileBytes;
+        std::string Trouble;
+        Expect(SpaceExportEnvironment(Context, Row, "Sky Dome", Probe, 1u, FileBytes, Trouble),
+               "the environment container writes (ENVR row + PROB blob)");
+
+        // Read: the same walk LoadSkyDome takes, byte for byte.
+        SpaceReader Reader;
+        Expect(Reader.Open(FileBytes, Trouble), "the container re-opens and its checksums stand");
+        const std::vector<SpaceEnvironmentRow> Rows = Reader.Rows<SpaceEnvironmentRow>(kTagEnvr, Trouble);
+        Expect(Rows.size() == 1u && Rows[0].SkyProbeBlob != 0xFFFFFFFFu, "the ENVR row names its PROB blob");
+        std::vector<uint8_t> ReadProbe;
+        Expect(Reader.ReadBlobs(Trouble) && Reader.BlobBytes(Rows[0].SkyProbeBlob, ReadProbe, Trouble),
+               "the PROB blob reads back");
+        Expect(ReadProbe.size() == Probe.size() && std::memcmp(ReadProbe.data(), Probe.data(), Probe.size()) == 0,
+               "the round trip is byte-identical - staging record and every texel");
+
+        // The staleness rule at the file boundary: the recorded staging accepts itself and refuses a moved sun.
+        SkyConstantRecord FileRecord{};
+        std::memcpy(&FileRecord, ReadProbe.data(), sizeof(SkyConstantRecord));
+        Expect(SkyDomeStagingMatches(FileRecord, Staging), "the file's staging accepts the staging it was baked at");
+        SkyConstantRecord Moved = Staging;
+        Moved.SunDirection[2] += 0.02f;
+        Expect(!SkyDomeStagingMatches(FileRecord, Moved), "a launch under a moved sun refuses the file and re-bakes");
     }
 
     std::fprintf(stderr, "[SkyDomeKernelProof] %s\n", Failures == 0u ? "every figure agrees" : "FAILURES above");

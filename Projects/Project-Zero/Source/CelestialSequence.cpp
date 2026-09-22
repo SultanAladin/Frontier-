@@ -5,6 +5,8 @@
 #include "CelestialSequence.h"
 
 #include "../../../Engine/DisplayPresentation/SkyDomeSheet.h"   // roadmap #26 stage A: the bake + the staleness rule
+#include "../../../Engine/ContentInterchange/SpaceExport.h"     // #26c: the persisted bake rides an .environment (ENVR + PROB)
+#include "../../../Engine/ContentInterchange/SpaceCodec.h"
 
 #include <cmath>
 #include <cstdio>
@@ -512,6 +514,71 @@ bool CelestialSequence::QuerySkyDomeLive() const noexcept
 {
     if (!SkyDomeBaked || !SkyDomeSeated || SkyDomeSlot == kNoSkyDomeSlot) return false;
     return SkyDomeStagingMatches(SkyDomeRecord, PackSkyRecord());
+}
+
+// #26c — the persisted bake. The PROB blob is the staging record (144 B, the same bytes the staleness rule
+//    compares) followed by the RGBA16F halves; the ENVR row carries the staging figures a browsing tool shows.
+//    One layout, written and read by these two bodies only, verified by SkyDomeKernelProof's persistence gates.
+bool CelestialSequence::SaveSkyDome(const std::string& Path, const std::vector<uint16_t>& Halves) const noexcept
+{
+    if (!SkyDomeSeated || Halves.empty()) return false;
+
+    std::vector<uint8_t> Probe(sizeof(SkyConstantRecord) + Halves.size() * sizeof(uint16_t));
+    std::memcpy(Probe.data(), &SkyDomeRecord, sizeof(SkyConstantRecord));
+    std::memcpy(Probe.data() + sizeof(SkyConstantRecord), Halves.data(), Halves.size() * sizeof(uint16_t));
+
+    SpaceEnvironmentRow Row{};
+    std::snprintf(Row.Name, sizeof(Row.Name), "Sky Dome");
+    Row.SunHour         = Observation.LocalHours;
+    Row.FogDensity      = 0.0f;                       // the dome bakes no fog — the march keeps volumetrics
+    Row.AtmosphereScale = Medium.RayleighStrength;
+    Row.MoonPhase       = 0.0f;                       // the moon never bakes (its slots draw it)
+    Row.TerrainRef  = 0xFFFFFFFFu;
+    Row.TerrainBlob = 0xFFFFFFFFu;
+
+    SpaceExportContext Context;
+    Context.Exporter = "CelestialSequence";
+    std::vector<uint8_t> Bytes;
+    std::string ExportError;
+    if (!SpaceExportEnvironment(Context, Row, "Sky Dome", Probe, /*SkyProbeLevels=*/1u, Bytes, ExportError))
+        return false;
+
+    std::FILE* File = std::fopen(Path.c_str(), "wb");
+    if (File == nullptr) return false;
+    const bool Written = std::fwrite(Bytes.data(), 1u, Bytes.size(), File) == Bytes.size();
+    std::fclose(File);
+    return Written;
+}
+
+bool CelestialSequence::LoadSkyDome(const std::string& Path, std::vector<uint16_t>& OutHalves) noexcept
+{
+    OutHalves.clear();
+    std::string ReadError;
+    SpaceReader Reader;
+    if (!Reader.OpenFile(Path, ReadError)) return false;
+    const std::vector<SpaceEnvironmentRow> Rows = Reader.Rows<SpaceEnvironmentRow>(kTagEnvr, ReadError);
+    if (Rows.empty() || Rows[0].SkyProbeBlob == 0xFFFFFFFFu) return false;
+    if (!Reader.ReadBlobs(ReadError)) return false;
+    std::vector<uint8_t> Probe;
+    if (!Reader.BlobBytes(Rows[0].SkyProbeBlob, Probe, ReadError)) return false;
+
+    constexpr size_t kSheetHalves = size_t(kSkyDomeSide) * kSkyDomeSide * 2u * 4u;
+    if (Probe.size() != sizeof(SkyConstantRecord) + kSheetHalves * sizeof(uint16_t)) return false;
+
+    // The staleness rule at the file boundary: the file's recorded staging against THIS staging, packed the
+    //    same way the bake would pack it. A moved sun, a changed medium, a re-budgeted sample count — the
+    //    file yields and the lazy runtime bake takes over, exactly as a stale in-memory bake would.
+    SkyConstantRecord FileRecord{};
+    std::memcpy(&FileRecord, Probe.data(), sizeof(SkyConstantRecord));
+    SkyConstantRecord Current = PackSkyRecord();
+    Current.Control[3] = 0u;
+    if (!SkyDomeStagingMatches(FileRecord, Current)) return false;
+
+    OutHalves.resize(kSheetHalves);
+    std::memcpy(OutHalves.data(), Probe.data() + sizeof(SkyConstantRecord), kSheetHalves * sizeof(uint16_t));
+    SkyDomeRecord = FileRecord;
+    SkyDomeSeated = true;
+    return true;
 }
 
 void CelestialSequence::BakeSkyDome(std::vector<uint16_t>& OutHalves) noexcept

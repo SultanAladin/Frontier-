@@ -2395,8 +2395,24 @@ int main(int argc, char** argv)
             //    pre-bake build.
             if (Celestial.QuerySkyDomeBaked() && !Celestial.QuerySkyDomeLive() && SkyDomeQuietTicks == 30u)
             {
+                // #26c the persisted bake is tried FIRST: LoadSkyDome hands back the file's halves only when
+                //    its recorded staging still matches this staging (the staleness rule at the file
+                //    boundary), so a hit skips the ~2 s bake entirely and a stale or absent file falls
+                //    through to the bake — which then re-writes the file for the next launch. The path is
+                //    Build/Space (gitignored, the regenerable-artifact convention): 1.3 MB of bytes any
+                //    machine can re-derive never enters the repository; PackProject.sh ships them.
+                const char* DomePath = "Projects/Project-Zero/Build/Space/SkyDome.environment";
                 std::vector<uint16_t> DomeHalves;
-                Celestial.BakeSkyDome(DomeHalves);
+                const bool FromFile = Celestial.LoadSkyDome(DomePath, DomeHalves);
+                if (!FromFile)
+                {
+                    Celestial.BakeSkyDome(DomeHalves);
+                    std::error_code DirectoryTrouble;
+                    std::filesystem::create_directories("Projects/Project-Zero/Build/Space", DirectoryTrouble);
+                    if (!Celestial.SaveSkyDome(DomePath, DomeHalves))
+                        Logger.RecordMessage(Frontier::DiagnosticSeverity::Warning, "Sky",
+                                             "The baked dome could not be persisted - next launch pays the bake again.");
+                }
                 const uint32_t DomeSlot = Textures.RegisterHalves("SkyDomeSheet", DomeHalves.data(),
                                                                   Frontier::kSkyDomeSide, Frontier::kSkyDomeSide * 2u);
                 if (DomeSlot != 0xFFFFFFFFu)
@@ -2404,7 +2420,8 @@ int main(int argc, char** argv)
                     Surface.UploadTextures(Textures);
                     Celestial.AssignSkyDomeSlot(DomeSlot);
                     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Sky",
-                                         "Baked dome resident: 256x512 RGBA16F in the bindless table - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
+                                         FromFile ? "Baked dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."
+                                                  : "Baked dome resident: 256x512 RGBA16F in the bindless table (persisted for the next launch) - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
                 }
             }
 

@@ -39,6 +39,7 @@
 #include "../../../Engine/SpatialInterface/VolumeMarker.h"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace Frontier::ProjectZero {
@@ -136,6 +137,13 @@ public:
     // Bakes the dome for the CURRENT staging into RGBA16F halves (256 x 512 x 4) and remembers that staging as
     //    the bake's own. The caller owns residency: seat the halves into a texture, then AssignSkyDomeSlot.
     void BakeSkyDome(std::vector<uint16_t>& OutHalves) noexcept;
+    // #26c the persisted bake: the dome ships as an `.environment` container (ENVR row + PROB blob carrying
+    //    the staging record and the halves), so a project loads the sheet instead of paying the ~2 s bake.
+    //    Save writes the CURRENT resident bake; Load seats the file's bake ONLY when its recorded staging
+    //    still matches this staging (SkyDomeStagingMatches — the same rule the per-frame pack applies), so a
+    //    stale file quietly yields to the lazy runtime bake rather than rendering yesterday's air.
+    [[nodiscard]] bool SaveSkyDome(const std::string& Path, const std::vector<uint16_t>& Halves) const noexcept;
+    [[nodiscard]] bool LoadSkyDome(const std::string& Path, std::vector<uint16_t>& OutHalves) noexcept;
 
     // Cloud-shadow staging for the GPU path (CloudShadow.slang). The level owner calls this once at load:
     //    showcase stages kCloudShadowShowcaseDiorama, everything else the panel kilometre deck. Time is FROZEN
