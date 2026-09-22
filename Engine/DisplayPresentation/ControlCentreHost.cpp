@@ -1510,7 +1510,7 @@ float ControlCentreHost::ConstructRenderPageLayout(PixelSpace& Surface, const Pl
     }
 
     // Section 2: Ray Tracing & Bounces
-    const float Section2H = ControlKit::SectionPadding * 2.0f + HeadingH + RowH * 3.0f + RowGap * 2.0f;
+    const float Section2H = ControlKit::SectionPadding * 2.0f + HeadingH + RowH * 4.0f + RowGap * 3.0f;
     const PlaneExtent Card2 = Spanning(X, Y + SectionH + 20.0f, W, Section2H);
     const PlaneExtent Content2 = ControlKit::SectionCard(Surface, Card2, Radius, Opacity);
     ControlKit::SectionHeading(Surface, Content2.MinimumX, Content2.MinimumY, Content2.Width(),
@@ -1559,6 +1559,21 @@ float ControlCentreHost::ConstructRenderPageLayout(PixelSpace& Surface, const Pl
         if (ControlKit::PillButton(Surface, BtnExt, Btn, Inner, Opacity).Clicked)
         {
             Settings.SkyAmbient = !Settings.SkyAmbient;
+            ++Settings.Revision;
+        }
+        Row2Y += RowH + RowGap;
+    }
+    {
+        // #27B the sky-light reuse row — the dome rides the DI reservoir so sky-facing gloss and glass settle
+        //    instead of shimmering. Optional and ON by default; a Render-page row on purpose, never a quick tile.
+        const PlaneExtent Ctl = ControlKit::ControlRow(Surface, Content2.MinimumX, Row2Y, Content2.Width(), "Sky Light Reuse",
+                                                       ControlKit::Palette().TextDim, Opacity);
+        ButtonStructure Btn{}; Btn.Label = Settings.SkyReservoir ? "Enabled" : "Disabled";
+        Btn.Tone = Settings.SkyReservoir ? ButtonToneCategory::Primary : ButtonToneCategory::Ghost; Btn.Height = RowH;
+        const PlaneExtent BtnExt = Spanning(Ctl.MinimumX, Row2Y, std::min(Ctl.Width(), 160.0f), RowH);
+        if (ControlKit::PillButton(Surface, BtnExt, Btn, Inner, Opacity).Clicked)
+        {
+            Settings.SkyReservoir = !Settings.SkyReservoir;
             ++Settings.Revision;
         }
     }

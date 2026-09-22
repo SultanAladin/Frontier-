@@ -51,6 +51,9 @@ struct ReSTIRIntegratorConfiguration
     uint32_t    MaxReflectionBounces = 3u;  // [-]   max specular reflection bounces (0 = off, 1, 2, 3, 4)
     uint32_t    MaxGiBounces         = 2u;  // [-]   max diffuse GI bounces (0 = off, 1, 2, 3, 4)
     bool        SkyAmbientEnabled    = true; // [-]   physical atmospheric sky dome ambient direct illumination
+    bool        SkyReservoir         = true; // [-]   #27B: the sky as a DI reservoir candidate (kSkyLightIndex) — sky
+                                             //       visibility reuses through the temporal/spatial merges. ON by
+                                             //       default; off restores the single-sample cosine fill (the A/B)
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -137,6 +140,7 @@ public:
     void AssignMaxReflectionBounces(uint32_t Bounces) noexcept { if (ActiveConfiguration.MaxReflectionBounces != Bounces) { ActiveConfiguration.MaxReflectionBounces = Bounces; ResetAccumulation(); } }
     void AssignMaxGiBounces(uint32_t Bounces) noexcept { if (ActiveConfiguration.MaxGiBounces != Bounces) { ActiveConfiguration.MaxGiBounces = Bounces; ResetAccumulation(); } }
     void AssignSkyAmbient(bool On) noexcept { if (ActiveConfiguration.SkyAmbientEnabled != On) { ActiveConfiguration.SkyAmbientEnabled = On; ResetAccumulation(); } }
+    void AssignSkyReservoir(bool On) noexcept { if (ActiveConfiguration.SkyReservoir != On) { ActiveConfiguration.SkyReservoir = On; ResetAccumulation(); } }
 
     // ⚠️ THE INCREMENT MUST NOT SWALLOW THE RESET. The frame loop reads the index for the dispatch,
     //    the §8 record comparisons reset it when the sky changes, and the loop unconditionally increments it

@@ -509,6 +509,13 @@ const uint kFeatureGiReuse            = 256u; // bit 8: the indirect half's pool
 //    ⚠️ Off by default, and byte-identical when off: with the bit clear the resolve reads, validates and stores exactly
 //    what it did before this existed, which is what makes the exhibit's A/B a comparison rather than a rewrite.
 const uint kFeatureTemporalIdentity   = 512u; // bit 9: D10 — identity-based validation of the reprojected history
+const uint kFeatureSkyReservoir       = 1024u; // bit 10: #27 stage B — the sky as a DI reservoir candidate species
+                                              //     beside the sun and the lamps (kSkyLightIndex). Sky-visibility
+                                              //     variance then reuses through the temporal and spatial merges
+                                              //     like every other light — the fix for the measured 4.45x sky
+                                              //     excess and the glass/specular sky shimmer (report §14.6). ON
+                                              //     by default; off restores the single-sample cosine sky fill
+                                              //     below bit-for-bit (the A/B identity).
                                               //    vertex's NEE stratum, temporally and over the same kSpatialTapCount cross.
                                               //    ON by default (the host sets it); clearing the bit restores the
                                               //    single-sample NEE arm, which is the A/B the CPU mirror measures.
@@ -835,7 +842,18 @@ float SunPickChance()
     return SunPickProbability > 0.0 ? SunPickProbability : kSunPickProbability;
 }
 const uint  kSunLightIndex      = 0xFFFFFFFFu;   // SelectedLight sentinel: the sample is a sun direction, not a triangle
+const uint  kSkyLightIndex      = 0xFFFFFFFEu;   // #27B sentinel: the sample is a SKY direction — the dome as a light
 const float kSunShadowDistance  = 1.0e4;   // [m] the far point sun samples are stored as — past any scene, inside float range
+
+// True for both distant species: their stored point is a far shadow-ray target, never a surface — the mesh
+//    path's 1e-3 pull-back and its d² are meaningless for them. One predicate, so the five sites that used to
+//    ask "== kSunLightIndex" cannot drift apart over which species are distant.
+bool IsDistantLight(uint light) { return light >= kSkyLightIndex; }
+
+// #27B the sky species' pick share within the non-sun branch when lamps exist. Fixed — a host-computed
+//    power split can replace it later exactly as SunPickProbability replaced the sun's 0.5 coin; RIS is
+//    unbiased for any positive share, so this dials noise, never energy.
+const float kSkyPickChance = 0.3;
 
 // Indirect-contribution bound. Applied to every term the BOUNCE adds to the image (its NEE arms and the GI pool's
 //    shade), never to the primary hit's direct lighting — clamping direct light would visibly darken a surface that
@@ -879,6 +897,31 @@ vec3 SampleSunDirection(vec3 sunDir, float u1, float u2)
 vec3 SunEmission()
 {
     return SkySunDirect.xyz / SunSolidAngle();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                #27B THE SKY AS A LIGHT — the dome joins the reservoir
+//------------------------------------------------------------------------------------------------------------------------
+// Before this, the sky was only what an escaped ray happened to see: a glossy surface reflecting sky was
+//    estimated by BSDF sampling alone, with NO reuse — the measured 4.45x sky excess and the glass shimmer
+//    (report §14.6). Here the sky becomes a third candidate species: cosine-sampled about the surface normal
+//    (pdf cos/π — the dome is smooth, so the surface's own weighting is the better importance), p̂ from ONE
+//    SkyAlong evaluation (a probe fetch when the baked dome is resident — #26A is what makes this affordable),
+//    validated by the same far shadow ray the sun uses, and reused through every merge unchanged: a sky
+//    sample's direction is shift-invariant, so a neighbour re-evaluates only p̂, exactly as it does for the sun.
+//
+//    Double-count rule: with kFeatureSkyReservoir ON, the old single-sample cosine sky fill (its exact
+//    predecessor, below at "Physical Sky Dome Ambient") stays OFF at the primary hit — the reservoir now owns
+//    that stratum. The bounce hits keep the simple fill: reservoirs live per PIXEL, not per path vertex.
+
+// Sky target: f·L·cos — the dome is at infinity, like the sun. L is the sky along the sampled direction.
+float PHatSky(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 skyEmit, vec3 skyDir)
+{
+    float cosT = max(0.0, dot(F.Geometric, skyDir));
+    if (cosT <= 0.0) return 0.0;
+    vec3 wi = ToLocal(F, skyDir);
+    if (wi.z <= 0.0) return 0.0;
+    return max(dot(EvaluateBsdf(m, L, wo, wi), skyEmit), 0.0) * cosT;
 }
 
 // R6 row 3: light-triangle pick. Alias ON (F5, default): one Walker-alias probe — col uniform, accept on
@@ -947,15 +990,31 @@ float PHatSun(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 s
     return max(dot(EvaluateBsdf(m, L, wo, wi), sunEmit), 0.0) * cosT;
 }
 
-// p̂ of a STORED sample — the one question every merge asks, answered for both light kinds. A sun sample's
-//    direction is rebuilt from its far point, exactly: the point is 1e4 m out, so the rebuild differs from the
-//    sampled direction by ~1e-4 rad — inside the disc, where the pdf is still 1/Ω.
+// #27B the dome's radiance as an EMITTER: SkyAlong (one probe fetch when the baked dome is resident), with
+//    the solar disc's cone handed to the sun species — both species can sample a near-sun direction, and
+//    without this exclusion the disc would be counted by two estimators at once. The aureole outside the
+//    cone is the sky's own. Zero when the species is off, so a stale stored sky sample dies at its p̂.
+vec3 SkyReservoirEmission(vec3 skyDir)
+{
+    if ((FeatureFlags & kFeatureSkyReservoir) == 0u) return vec3(0.0);
+    if (dot(skyDir, SkySunDirection.xyz) > cos(kSunAngularRadius)) return vec3(0.0);
+    return SkyAlong(skyDir);
+}
+
+// p̂ of a STORED sample — the one question every merge asks, answered for all THREE species. A distant
+//    sample's direction is rebuilt from its far point, exactly: the point is 1e4 m out, so the rebuild
+//    differs from the sampled direction by ~1e-4 rad — inside the disc, where the pdf is still 1/Ω.
 float PHatSelected(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, uint light, vec3 toLight, vec3 hitPos)
 {
     if (light == kSunLightIndex)
     {
         vec3 sunDir = normalize(toLight);
         return PHatSun(F, m, L, wo, SunEmission() * CloudShadowTransmittance(hitPos, sunDir), sunDir);
+    }
+    if (light == kSkyLightIndex)
+    {
+        vec3 skyDir = normalize(toLight);
+        return PHatSky(F, m, L, wo, SkyReservoirEmission(skyDir), skyDir);
     }
     return PHatFull(F, m, L, wo, LightEmission(light), toLight, dot(toLight, toLight), LightNormal(light));
 }
@@ -991,9 +1050,12 @@ void ResampleCandidate(inout Reservoir res, vec3 point, uint light, vec2 uv, flo
 //    the corrected scale against quadrature. HitPos anchors the sun's far point; SunUp (any direct radiance)
 //    decides whether the coin is flipped at all.
 void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 hitPos, bool sunUp,
-                         out vec3 point, out uint light, out vec2 uv, out float weight, inout uint seed)
+                         bool skyOn, out vec3 point, out uint light, out vec2 uv, out float weight, inout uint seed)
 {
-    bool sun = sunUp && (LightTriangleCount == 0u || RandFloat(seed) < SunPickChance());
+    // #27B with skyOn false this function consumes EXACTLY the pre-sky random sequence — the OFF path is the
+    //    bit-for-bit A/B identity. With it true the sun's coin now also flips when the sky is the only
+    //    alternative, and a second coin splits the non-sun draw between the sky and the lamps.
+    bool sun = sunUp && ((LightTriangleCount == 0u && !skyOn) || RandFloat(seed) < SunPickChance());
     if (sun)
     {
         float u1 = RandFloat(seed);
@@ -1003,10 +1065,30 @@ void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3
         light  = kSunLightIndex;
         uv     = vec2(u1, u2);
         float pHat = PHatSun(F, m, L, wo, SunEmission() * CloudShadowTransmittance(hitPos, sunDir), sunDir);
-        float pPick = LightTriangleCount > 0u ? SunPickChance() : 1.0;
+        float pPick = (LightTriangleCount > 0u || skyOn) ? SunPickChance() : 1.0;
         weight = pHat * SunSolidAngle() / pPick;
+        return;
     }
-    else
+    bool sky = skyOn && (LightTriangleCount == 0u || RandFloat(seed) < kSkyPickChance);
+    if (sky)
+    {
+        // The dome, cosine-sampled about the surface normal (pdf cos/π): the dome is smooth, so the surface's
+        //    own weighting is the better importance — and it is the exact sampler the single-sample fill this
+        //    stratum replaces used, so the two estimators integrate the same quantity.
+        float u1 = RandFloat(seed);
+        float u2 = RandFloat(seed);
+        vec3 skyDir = SampleCosineHemisphere(F.Geometric, u1, u2);
+        point  = hitPos + skyDir * kSunShadowDistance;
+        light  = kSkyLightIndex;
+        uv     = vec2(u1, u2);
+        float pHat = PHatSky(F, m, L, wo, SkyReservoirEmission(skyDir), skyDir);
+        float cosT  = max(dot(F.Geometric, skyDir), 0.0);
+        float pDir  = cosT / 3.14159265358979323846;   // the cosine sampler's own pdf
+        float pPick = (sunUp ? 1.0 - SunPickChance() : 1.0)
+                    * (LightTriangleCount > 0u ? kSkyPickChance : 1.0);
+        weight = pDir > 1e-6 ? pHat / (pDir * pPick) : 0.0;
+        return;
+    }
     {
         float  pSource;
         uint   li = PickClusteredLight(hitPos, seed, pSource);
@@ -1017,7 +1099,8 @@ void DrawDirectCandidate(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3
         uv    = vec2(u1, u2);
         vec3 toLight = point - hitPos;
         float pHat = PHatFull(F, m, L, wo, LightEmission(li), toLight, dot(toLight, toLight), LightNormal(li));
-        float pPick = sunUp ? 1.0 - SunPickChance() : 1.0;
+        float pPick = (sunUp ? 1.0 - SunPickChance() : 1.0)
+                    * (skyOn ? 1.0 - kSkyPickChance : 1.0);   // the sky coin's survival — 1 exactly when the species is off
         weight = pHat * Luminaires[li].Area / (max(pSource, 1e-8) * pPick);
     }
 }
@@ -1257,10 +1340,12 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
 
     // 1. Candidates at the vertex. Same drawer, same pdfs — the light-pick coin, the sun's cone sample and the
     //    triangle-uniform point are the ones the shading estimate divides by (shade and target must agree).
+    //    #27B the sky species stays OFF here: the bounce that reached this vertex escapes to the sky through
+    //    its own BSDF sample (the path-trace arm), so a sky candidate at the vertex would count the dome twice.
     for (uint s = 0u; s < SamplesPerPixel; ++s)
     {
         vec3  lp; uint li; vec2 uv; float w;
-        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, lp, li, uv, w, seed);
+        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, /*skyOn=*/false, lp, li, uv, w, seed);
         ResampleCandidate(ris, lp, li, uv, w, seed);
     }
     // The tier's extra same-pixel candidates count for the indirect pool too: it is the same dial, and leaving them to
@@ -1268,7 +1353,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
     for (uint e = 0u; e < ExtraCandidateCount; ++e)
     {
         vec3  lp; uint li; vec2 uv; float w;
-        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, lp, li, uv, w, seed);
+        DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, /*skyOn=*/false, lp, li, uv, w, seed);
         ResampleCandidate(ris, lp, li, uv, w, seed);
     }
 
@@ -1382,7 +1467,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
 
     // 4. Visibility re-traced at the vertex for whichever sample the merges selected — an occluded selection
     //    contributes nothing this frame (the direct pool's rule at the primary).
-    bool blocked = ris.SelectedLight == kSunLightIndex
+    bool blocked = IsDistantLight(ris.SelectedLight)
         ? TraceShadow(hitPos + F.Geometric * kEps, ris.SelectedPoint)
         : TraceShadow(hitPos + F.Geometric * kEps, ris.SelectedPoint - normalize(ris.SelectedPoint - hitPos) * 1e-3);
     if (blocked || ris.SampleCount == 0u) return vec3(0.0);
@@ -1394,6 +1479,8 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
     vec3 f = wiLocal.z > 0.0 ? EvaluateBsdf(m, L, wo, wiLocal) : vec3(0.0);
     if (ris.SelectedLight == kSunLightIndex)
         return f * SunEmission() * shadeCos * ris.UnbiasedWeight;
+    if (ris.SelectedLight == kSkyLightIndex)
+        return f * SkyReservoirEmission(shadeDir) * shadeCos * ris.UnbiasedWeight;
     vec3 chosenEmit = LightEmission(ris.SelectedLight);
     float shadeCosL = max(0.0, dot(LightNormal(ris.SelectedLight), -shadeDir));
     float dist2 = dot(ris.SelectedPoint - hitPos, ris.SelectedPoint - hitPos);
@@ -1514,6 +1601,12 @@ void main()
     //    used to skip it entirely and shade with skylight alone). The sun switch is the record's direct row, so
     //    night, a hidden sun and a disabled sky all take the lamps-only path with no flag to flip.
     bool sunUp = dot(SkySunDirect.xyz, vec3(1.0)) > 0.0;
+    // #27B the sky species at the PRIMARY hit: the dome joins the reservoir when the feature bit is on, the
+    //    sky exists (SunRadiance.w carries the enable), and the old cosine fill would have run — the exact
+    //    stratum this replaces, so the two can never both shade. A moonless night sky still carries stars
+    //    and twilight, but their p̂ rounds to zero against any lamp; the sunUp gate keeps the pre-sky rule.
+    bool skyReservoir = (FeatureFlags & kFeatureSkyReservoir) != 0u && SkySunRadiance.w > 0.0
+                     && sunUp && (SkyAmbientEnabled != 0u);
     if (sunUp || LightTriangleCount > 0u)
     {
         // Initial reservoir from M = SamplesPerPixel candidates
@@ -1529,7 +1622,7 @@ void main()
         for (uint s = 0u; s < SamplesPerPixel; ++s)
         {
             vec3  lp; uint li; vec2 luv; float w;
-            DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, lp, li, luv, w, seed);
+            DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, skyReservoir, lp, li, luv, w, seed);
             ResampleCandidate(res, lp, li, luv, w, seed);
         }
 
@@ -1560,7 +1653,7 @@ void main()
             for (uint sp = 0u; sp < effectiveExtraCandidates; ++sp)
             {
                 vec3  nlp; uint nli; vec2 nuv; float nW;
-                DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, nlp, nli, nuv, nW, seed);
+                DrawDirectCandidate(frame, shading, layers, woLocal, hitPos, sunUp, skyReservoir, nlp, nli, nuv, nW, seed);
                 ResampleCandidate(res, nlp, nli, nuv, nW, seed);
             }
             // W for the final selection (the selected point may have changed in the loop above). This is the one
@@ -1627,7 +1720,7 @@ void main()
             //    honest weight, and the two passes are two dispatches — the spatial pass cannot validate a value it
             //    is not allowed to write back. The spatial pass re-traces for whichever sample it ends up shading.
             {
-                bool histBlocked = res.SelectedLight == kSunLightIndex
+                bool histBlocked = IsDistantLight(res.SelectedLight)
                     ? TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint)
                     : TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint - normalize(res.SelectedPoint - hitPos) * 1e-3);
                 res.Visible = histBlocked ? 0u : 1u;
@@ -1721,7 +1814,7 @@ void main()
             //    temporal reservoir, which is the non-feedback rule that keeps temporal M bounded.
             if (spatialWinnerNeedsCurrentPixelVisibility && res.Visible == 1u)
             {
-                bool spatialBlocked = res.SelectedLight == kSunLightIndex
+                bool spatialBlocked = IsDistantLight(res.SelectedLight)
                     ? TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint)
                     : TraceShadow(hitPos + hitNormal * kEps, res.SelectedPoint - normalize(res.SelectedPoint - hitPos) * 1e-3);
                 res.Visible = spatialBlocked ? 0u : 1u;
@@ -1759,6 +1852,8 @@ void main()
                 vec3  f = wiLocal.z > 0.0 ? EvaluateBsdf(shading, layers, woLocal, wiLocal) : vec3(0.0);   // R4b: full lobe stack
                 if (res.SelectedLight == kSunLightIndex)
                     accumulatedRadiance += f * SunEmission() * shadeCos * res.UnbiasedWeight;
+                else if (res.SelectedLight == kSkyLightIndex)
+                    accumulatedRadiance += f * SkyReservoirEmission(shadeDir) * shadeCos * res.UnbiasedWeight;
                 else
                 {
                     vec3 chosenEmit = LightEmission(res.SelectedLight);
@@ -1818,8 +1913,12 @@ void main()
 
     //------------------------------------------------------------------------------------------------------------------
     // Physical Sky Dome Ambient Direct Fill (illuminates shadowed geometry facing the sky)
+    //
+    //    #27B with kFeatureSkyReservoir ON this stratum belongs to the reservoir above (kSkyLightIndex draws
+    //    the same cosine sampler, pays the same pdf, and REUSES through the merges) — running both would count
+    //    the dome twice. The bit off restores this single-sample fill bit-for-bit: the A/B identity.
     //------------------------------------------------------------------------------------------------------------------
-    if (sunUp && (SkyAmbientEnabled != 0u))
+    if (sunUp && (SkyAmbientEnabled != 0u) && !skyReservoir)
     {
         vec3 skyDir = SampleCosineHemisphere(hitNormal, RandFloat(seed), RandFloat(seed));
         float skyCos = max(0.0, dot(hitNormal, skyDir));

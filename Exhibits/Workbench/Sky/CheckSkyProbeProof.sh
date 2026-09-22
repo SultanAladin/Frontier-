@@ -45,6 +45,26 @@ else
 fi
 rm -f "$Binary2"
 
+# #27B the sky as a reservoir species: identity (off = the pre-sky drawer), energy (unbiased against
+#    quadrature), and noise x cost in the interactive regime; the accumulation trade is recorded inside.
+Binary3="$(mktemp -u /tmp/SkyReservoirProof.XXXXXX)"
+if ! g++ -std=c++20 -O2 -Wall -Wextra \
+     Exhibits/Workbench/Sky/SkyReservoirProof.cpp \
+     -o "$Binary3" 2>/tmp/SkyReservoirProof.build; then
+    echo "  COMPILE FAILED (SkyReservoirProof)"; sed 's/^/    /' /tmp/SkyReservoirProof.build | head -25; Fail=1
+else
+    "$Binary3" || Fail=1
+fi
+rm -f "$Binary3"
+
+# The species' own pins: the sentinel, the double-count handoff, and the host seat must all stand.
+grep -q "kSkyLightIndex" Engine/Shaders/ReSTIRViewport.slang || { echo "  kernel lost kSkyLightIndex - the sky species is gone"; Fail=1; }
+grep -q "kFeatureSkyReservoir" Engine/Shaders/ReSTIRViewport.slang || { echo "  kernel lost kFeatureSkyReservoir - the toggle bit is gone"; Fail=1; }
+grep -q '&& !skyReservoir' Engine/Shaders/ReSTIRViewport.slang || { echo "  the cosine fill lost its !skyReservoir gate - the dome would be counted twice"; Fail=1; }
+grep -q "DispatchFeatureSkyReservoir" Engine/DisplayPresentation/ReSTIRIntegrator.cpp || { echo "  the host never packs DispatchFeatureSkyReservoir"; Fail=1; }
+grep -q "sky_reservoir" Engine/DisplayPresentation/ConfigurationRegistry.cpp || { echo "  the [render] sky_reservoir seat is gone"; Fail=1; }
+grep -q "Sky Light Reuse" Engine/DisplayPresentation/ControlCentreHost.cpp || { echo "  the Render page lost its Sky Light Reuse row"; Fail=1; }
+
 # The two copies of the split's constants — SkyDomeSheet.h (host) and SkyRecords.slang (kernel) — pinned
 #    against each other, the kAureole precedent: a drifted copy is two skies.
 for Pin in "kSkyDomeSide.*256" "kSkyDomeHorizonSine.*0.02618" "kSkyDomeSunConeCos.*0.99756"; do

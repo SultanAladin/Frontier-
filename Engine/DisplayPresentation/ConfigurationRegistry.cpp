@@ -134,6 +134,7 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "reflection_bounces",  static_cast<int64_t>(P.Render.ReflectionBounces) },
         { "gi_bounces",          static_cast<int64_t>(P.Render.GiBounces) },
         { "sky_ambient",         P.Render.SkyAmbient },
+        { "sky_reservoir",       P.Render.SkyReservoir },        // #27B sky-light reuse (the dome rides the DI reservoir); on by default
         { "anti_aliasing",       P.Render.AntiAliasing },
         { "frame_rate_overlay",  P.Render.FrameRateOverlay },
         { "notifications",       P.Render.Notifications },
@@ -233,6 +234,7 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         S.Get("reflection_bounces",  Out.Render.ReflectionBounces);   Out.Render.ReflectionBounces = std::clamp(Out.Render.ReflectionBounces, 0u, 4u);
         S.Get("gi_bounces",          Out.Render.GiBounces);           Out.Render.GiBounces         = std::clamp(Out.Render.GiBounces, 0u, 4u);
         S.Get("sky_ambient",         Out.Render.SkyAmbient);
+        S.Get("sky_reservoir",       Out.Render.SkyReservoir);
         S.Get("anti_aliasing",       Out.Render.AntiAliasing);
         S.Get("frame_rate_overlay",  Out.Render.FrameRateOverlay);
         S.Get("notifications",       Out.Render.Notifications);

@@ -990,6 +990,7 @@ int main(int argc, char** argv)
         Integrator.AssignMaxReflectionBounces(S.ReflectionBounces);
         Integrator.AssignMaxGiBounces(S.GlobalIllumination ? S.GiBounces : 0u);
         Integrator.AssignSkyAmbient(S.SkyAmbient);
+        Integrator.AssignSkyReservoir(S.SkyReservoir);   // #27B: sky-light reuse rides the same settings gesture
         Integrator.AssignAntiAliasing(S.AntiAliasing);
         Notifications.AssignEnabled(S.Notifications);
 

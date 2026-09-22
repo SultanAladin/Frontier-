@@ -117,7 +117,10 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
                                    | (ActiveConfiguration.GlobalIlluminationReuse ? DispatchFeatureGiReuse        : 0u)
                                    | (ActiveConfiguration.AliasPick          ? DispatchFeatureAliasPick          : 0u)
                                    | (ActiveConfiguration.TemporalReprojection ? DispatchFeatureTemporalReprojection : 0u)
-                                   | (ActiveConfiguration.Denoise            ? DispatchFeatureDenoise            : 0u);
+                                   | (ActiveConfiguration.Denoise            ? DispatchFeatureDenoise            : 0u)
+                                   // #27B ON by default (the configuration's initialiser): the sky rides the reservoir
+                                   //    unless something turns it off — off is the bit-for-bit pre-sky estimator.
+                                   | (ActiveConfiguration.SkyReservoir       ? DispatchFeatureSkyReservoir       : 0u);
 
     // The power-proportional sun coin (0 = the kernel's legacy fixed 0.5); see AssignSunPickProbability.
     Dispatch.SunPickProbability    = SunPickProbability;

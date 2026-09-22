@@ -188,6 +188,12 @@ enum DispatchFeature : uint32_t
     DispatchFeatureGiReuse            = 1u << 8,   // the indirect half's pool: ReSTIR GI-style reuse of the first-bounce
                                                    //     vertex's NEE stratum (temporal + the spatial cross). ON by
                                                    //     default — see ReSTIRIntegratorConfiguration::GlobalIlluminationReuse.
+    DispatchFeatureSkyReservoir       = 1u << 10,  // #27B: the sky as a DI reservoir candidate species (kSkyLightIndex) —
+                                                   //     sky-visibility variance reuses through the merges like every
+                                                   //     other light. ON by default; off restores the single-sample
+                                                   //     cosine sky fill bit-for-bit. Mirrors kFeatureSkyReservoir
+                                                   //     (bit 9 is the kernel-internal D10 identity bit — skipped here
+                                                   //     so the two lists cannot collide if a host ever packs it).
 };
 
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.

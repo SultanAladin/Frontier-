@@ -129,6 +129,9 @@ struct ControlCentreSettings
     uint32_t         ReflectionBounces  = 3u;       // [-] 0 = Off, 1, 2, 3, 4
     uint32_t         GiBounces          = 2u;       // [-] 0 = Off, 1, 2, 3, 4
     bool             SkyAmbient         = true;     // [-] Physical sky ambient illumination
+    bool             SkyReservoir       = true;     // [-] #27B: sky-light reuse — the dome rides the DI reservoir
+                                                    //     (less shimmer on glass/gloss facing sky). Render page row,
+                                                    //     deliberately NOT a quick tile.
     uint32_t         Revision           = 0u;       // [-] bumps on every change; projects compare to react
 };
 
