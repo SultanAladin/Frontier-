@@ -244,6 +244,72 @@ void RayThroughWorld(const Frontier::ProjectZero::FlyThroughSolver& Camera, cons
     Toward[0] = Lx / L; Toward[1] = Ly / L; Toward[2] = Lz / L;
 }
 
+// The demand as one world-space affine about the gizmo's origin — the same arithmetic GameExecution applies
+//    to the seized instance's world when a drag advances (move offsets, turn is Rodrigues about the demand's
+//    axis through the origin, scale stretches along the seized local axis).
+void ComposeDemandWorld(const Frontier::GizmoDemand& Demand, const Frontier::GizmoPose& Pose, float M[16])
+{
+    for (int E = 0; E < 16; ++E) M[E] = 0.0f;
+    M[0] = M[5] = M[10] = M[15] = 1.0f;
+    const uint32_t Family = static_cast<uint32_t>(Demand.Grip);
+    if (Family >= 1u && Family <= 6u)
+    {
+        M[12] = Demand.Move[0]; M[13] = Demand.Move[1]; M[14] = Demand.Move[2];
+        return;
+    }
+    float L[9];
+    if (Family >= 10u)
+    {
+        const float C = std::cos(Demand.TurnAngle), S = std::sin(Demand.TurnAngle);
+        const float X = Demand.TurnAxis[0], Y = Demand.TurnAxis[1], Z = Demand.TurnAxis[2];
+        const float T = 1.0f - C;
+        L[0] = C + X * X * T;     L[3] = X * Y * T - Z * S; L[6] = X * Z * T + Y * S;
+        L[1] = Y * X * T + Z * S; L[4] = C + Y * Y * T;     L[7] = Y * Z * T - X * S;
+        L[2] = Z * X * T - Y * S; L[5] = Z * Y * T + X * S; L[8] = C + Z * Z * T;
+    }
+    else
+    {
+        const float* Axis = Demand.ScaleAxis == 0.0f ? Pose.AxisX
+                          : Demand.ScaleAxis == 1.0f ? Pose.AxisY : Pose.AxisZ;
+        const float Grow = Demand.ScaleFactor - 1.0f;
+        L[0] = 1.0f + Grow * Axis[0] * Axis[0]; L[3] = Grow * Axis[0] * Axis[1];        L[6] = Grow * Axis[0] * Axis[2];
+        L[1] = Grow * Axis[1] * Axis[0];        L[4] = 1.0f + Grow * Axis[1] * Axis[1]; L[7] = Grow * Axis[1] * Axis[2];
+        L[2] = Grow * Axis[2] * Axis[0];        L[5] = Grow * Axis[2] * Axis[1];        L[8] = 1.0f + Grow * Axis[2] * Axis[2];
+    }
+    // T(origin) · L · T(−origin): the linear columns, then the translation that recentres the pivot.
+    M[0] = L[0]; M[1] = L[1]; M[2]  = L[2];
+    M[4] = L[3]; M[5] = L[4]; M[6]  = L[5];
+    M[8] = L[6]; M[9] = L[7]; M[10] = L[8];
+    M[12] = Pose.Origin[0] - (L[0] * Pose.Origin[0] + L[3] * Pose.Origin[1] + L[6] * Pose.Origin[2]);
+    M[13] = Pose.Origin[1] - (L[1] * Pose.Origin[0] + L[4] * Pose.Origin[1] + L[7] * Pose.Origin[2]);
+    M[14] = Pose.Origin[2] - (L[2] * Pose.Origin[0] + L[5] * Pose.Origin[1] + L[8] * Pose.Origin[2]);
+}
+
+// The picked span's world bounds and centroid — the independent yardstick the applied drags are measured
+//    against (the outcome on the triangles, not the matrix that produced it).
+void MeasureSpan(const Frontier::ProjectZero::RayTracingSolver& Scene, uint32_t Span,
+                 float Lo[3], float Hi[3], float Centre[3])
+{
+    const auto& Spans = Scene.QuerySpans();
+    const auto& Tris  = Scene.QueryTriangles();
+    Lo[0] = Lo[1] = Lo[2] = 1e9f; Hi[0] = Hi[1] = Hi[2] = -1e9f;
+    double Cx = 0.0, Cy = 0.0, Cz = 0.0; uint32_t Figures = 0u;
+    for (uint32_t T = Spans[Span].FirstTriangle; T < Spans[Span].FirstTriangle + Spans[Span].TriangleCount; ++T)
+    {
+        const Frontier::Vector3 V[3] = { Tris[T].VertexAlpha, Tris[T].VertexBeta, Tris[T].VertexGamma };
+        for (int K = 0; K < 3; ++K)
+        {
+            Lo[0] = std::fmin(Lo[0], V[K].x); Hi[0] = std::fmax(Hi[0], V[K].x);
+            Lo[1] = std::fmin(Lo[1], V[K].y); Hi[1] = std::fmax(Hi[1], V[K].y);
+            Lo[2] = std::fmin(Lo[2], V[K].z); Hi[2] = std::fmax(Hi[2], V[K].z);
+            Cx += V[K].x; Cy += V[K].y; Cz += V[K].z; ++Figures;
+        }
+    }
+    Centre[0] = static_cast<float>(Cx / Figures);
+    Centre[1] = static_cast<float>(Cy / Figures);
+    Centre[2] = static_cast<float>(Cz / Figures);
+}
+
 } // namespace
 
 int main()
@@ -400,19 +466,24 @@ int main()
         std::vector<unsigned char> ModeSheetRgba = Sheet.Mode == Frontier::GizmoMode::Translate ? PickSheet : Traced;
         RasteriseGizmo(Triangles.data(), TriangleSeated, Strokes.data(), StrokeSeated, ViewClip, Eye, ModeSheetRgba.data());
 
-        // Each axis tint must land on the sheet — the reference's red, green and blue grips, and the white ring.
+        // Each axis tint must land — censused on the gizmo's OWN texels (rasterised over black), so the count
+        //    is deterministic and never swings with the trace's frame noise; the visual sheet above stays
+        //    blended over the trace exactly as the engine build composites it.
+        std::vector<unsigned char> TintSheet(static_cast<size_t>(kViewW) * kViewH * 4u, 0u);
+        RasteriseGizmo(Triangles.data(), TriangleSeated, Strokes.data(), StrokeSeated, ViewClip, Eye, TintSheet.data());
         uint32_t RedSeen = 0u, GreenSeen = 0u, BlueSeen = 0u, WhiteSeen = 0u;
         for (size_t I = 0u; I < static_cast<size_t>(kViewW) * kViewH; ++I)
         {
-            const unsigned char* P = ModeSheetRgba.data() + I * 4u;
+            const unsigned char* P = TintSheet.data() + I * 4u;
             if (P[0] > 150u && P[1] < 90u && P[2] < 90u) ++RedSeen;
             if (P[1] > 150u && P[0] < 90u && P[2] < 90u) ++GreenSeen;
-            if (P[2] > 150u && P[0] < 110u && P[1] < 130u) ++BlueSeen;
+            if (P[2] > 140u && P[2] > P[0] + 60u && P[2] > P[1] + 40u) ++BlueSeen;
             if (P[0] > 200u && P[1] > 200u && P[2] > 200u) ++WhiteSeen;
         }
         std::snprintf(Caption, sizeof(Caption), "mode %u shows the red, green and blue grips and the white ring (%u/%u/%u/%u px)",
                       static_cast<uint32_t>(Sheet.Mode), RedSeen, GreenSeen, BlueSeen, WhiteSeen);
-        Expect(RedSeen > 20u && GreenSeen > 20u && BlueSeen > 20u && WhiteSeen > 5u, Caption);
+        // The Z pieces ride the XY plane, nearly edge-on from this camera, so blue's honest count is small.
+        Expect(RedSeen > 5u && GreenSeen > 5u && BlueSeen > 2u && WhiteSeen > 20u, Caption);
 
         // WritePng speaks RGB; the working sheets ride RGBA for the blend arithmetic.
         std::vector<unsigned char> Rgb(static_cast<size_t>(kViewW) * kViewH * 3u);
@@ -482,6 +553,134 @@ int main()
         RayThroughWorld(Camera, Crowded, Origin2, Toward2);
         Expect(Frontier::AdvanceGizmoDrag(Stretch, Pose, Origin2, Toward2, false, &Demand) && Demand.ScaleFactor >= 0.05f,
                "the scale clamps at 0.05, never zero or negative");
+    }
+
+    // ── APPLIED drags: the Short Box is moved, rotated and scaled FOR REAL and each result re-rendered ─────
+    // Every step is a full drag through the gizmo (press on the grip, pointer travel, demand, world applied to
+    //    the object's triangles), then the scene is re-traced and the sheet written — the before/after pair is
+    //    the visual proof that the gizmo transforms the object, not just draws over it.
+    std::fprintf(stderr, "[SelectionProof] applied drags: the Short Box moved, rotated and scaled, re-rendered each time\n");
+    {
+        uint32_t PickedShort[16] = { ShortBox };
+        float Lo[3], Hi[3], CentreBefore[3];
+        MeasureSpan(Scene, ShortBox, Lo, Hi, CentreBefore);
+        const float WidthBefore = Hi[0] - Lo[0];
+
+        Frontier::GizmoPose BoxPose;
+        BoxPose.Origin[0] = CentreBefore[0]; BoxPose.Origin[1] = CentreBefore[1]; BoxPose.Origin[2] = CentreBefore[2];
+        {
+            const Frontier::Vector3 O = Camera.QuerySpatialLocation();
+            const float Dx = BoxPose.Origin[0] - O.x, Dy = BoxPose.Origin[1] - O.y, Dz = BoxPose.Origin[2] - O.z;
+            BoxPose.Reach = std::fmax(0.2f, std::sqrt(Dx * Dx + Dy * Dy + Dz * Dz)
+                                              * std::tan(Camera.QueryFieldOfViewRadians() * 0.5f) * 0.35f);
+        }
+
+        struct AppliedStep
+        {
+            Frontier::GizmoMode Mode;       // drawn on the sheet: the mode the drag belongs to
+            Frontier::GizmoGrip Grip;       // the grip the press seizes
+            float PressAt[3];               // world point the press ray aims at
+            float DragTo[3];                // world point the pointer travels to
+            const char* Png;
+        };
+        const float TipX  = Frontier::kGizmoTipReach * BoxPose.Reach;
+        const float ArcXY = Frontier::kGizmoArcRadius * BoxPose.Reach * 0.7071f;
+        const float GripX = (Frontier::kGizmoTipReach - Frontier::kGizmoCylinderInset) * BoxPose.Reach;
+        const AppliedStep Steps[3] = {
+            { Frontier::GizmoMode::Translate, Frontier::GizmoGrip::MoveX,
+              { BoxPose.Origin[0] + TipX, BoxPose.Origin[1], BoxPose.Origin[2] },
+              { BoxPose.Origin[0] + TipX - 0.8f, BoxPose.Origin[1], BoxPose.Origin[2] },
+              "Exhibits/Gallery/Editor/EditorSelectionProof_Moved.png" },
+            { Frontier::GizmoMode::Rotate, Frontier::GizmoGrip::TurnZ,
+              { BoxPose.Origin[0] + ArcXY, BoxPose.Origin[1] + ArcXY, BoxPose.Origin[2] },
+              { BoxPose.Origin[0] + ArcXY * 0.4f, BoxPose.Origin[1] + ArcXY * 1.35f, BoxPose.Origin[2] },
+              "Exhibits/Gallery/Editor/EditorSelectionProof_Rotated.png" },
+            { Frontier::GizmoMode::Scale, Frontier::GizmoGrip::ScaleX,
+              { BoxPose.Origin[0] + GripX, BoxPose.Origin[1], BoxPose.Origin[2] },
+              { BoxPose.Origin[0] + GripX + 0.55f * BoxPose.Reach, BoxPose.Origin[1], BoxPose.Origin[2] },
+              "Exhibits/Gallery/Editor/EditorSelectionProof_Scaled.png" },
+        };
+
+        float AppliedMove = 0.0f, AppliedTurn = 0.0f, AppliedScale = 1.0f;
+        for (const AppliedStep& Step : Steps)
+        {
+            // The press, the travel, the demand — the exact sequence GameExecution runs on a held button.
+            float Origin[3], Toward[3], Origin2[3], Toward2[3];
+            RayThroughWorld(Camera, Step.PressAt, Origin, Toward);
+            Frontier::GizmoDrag Drag{};
+            char Caption[128];
+            std::snprintf(Caption, sizeof(Caption), "the press seizes grip %u on the Short Box",
+                          static_cast<uint32_t>(Step.Grip));
+            Expect(Frontier::BeginGizmoDrag(Step.Grip, BoxPose, Origin, Toward, &Drag), Caption);
+            RayThroughWorld(Camera, Step.DragTo, Origin2, Toward2);
+            Frontier::GizmoDemand Demand{};
+            Expect(Frontier::AdvanceGizmoDrag(Drag, BoxPose, Origin2, Toward2, false, &Demand), "the drag advances");
+            std::fprintf(stderr, "    readout: %s\n", Demand.Readout);
+
+            // The demand LANDS: the world applies to the object's triangles, exactly as the engine build
+            //    rewrites the seized instance's world and refreshes the traced structure.
+            float World[16];
+            ComposeDemandWorld(Demand, BoxPose, World);
+            Scene.TransformSpan(ShortBox, World);
+            if (Step.Grip == Frontier::GizmoGrip::MoveX)  AppliedMove  = Demand.Move[0];
+            if (Step.Grip == Frontier::GizmoGrip::TurnZ)  AppliedTurn  = Demand.TurnAngle;
+            if (Step.Grip == Frontier::GizmoGrip::ScaleX) AppliedScale = Demand.ScaleFactor;
+
+            // Re-render: fresh trace, fresh id image, outline on the MOVED silhouette, the mode's gizmo at the
+            //    moved centroid — the sheet shows the object where the drag put it.
+            std::vector<unsigned char> AfterSheet(static_cast<size_t>(kViewW) * kViewH * 4u);
+            CpuReSTIR::Render(Scene, Camera, kViewW, kViewH, Frames, 8u, 1.05f, AfterSheet.data());
+            FillVisibilityIds(Scene, Camera, Ids);
+            StrokeOutline(Ids, 1u, PickedShort, AfterSheet.data());
+
+            float MovedLo[3], MovedHi[3], MovedCentre[3];
+            MeasureSpan(Scene, ShortBox, MovedLo, MovedHi, MovedCentre);
+            BoxPose.Origin[0] = MovedCentre[0]; BoxPose.Origin[1] = MovedCentre[1]; BoxPose.Origin[2] = MovedCentre[2];
+
+            uint32_t StrokeSeated = 0u;
+            const uint32_t TriangleSeated = Frontier::ComposeGizmoVertices(
+                Step.Mode, BoxPose, Step.Grip, EyeRight, EyeUp,
+                Triangles.data(), static_cast<uint32_t>(Triangles.size()),
+                Strokes.data(), static_cast<uint32_t>(Strokes.size()), &StrokeSeated);
+            RasteriseGizmo(Triangles.data(), TriangleSeated, Strokes.data(), StrokeSeated, ViewClip, Eye, AfterSheet.data());
+
+            std::vector<unsigned char> Rgb(static_cast<size_t>(kViewW) * kViewH * 3u);
+            for (size_t I = 0u; I < static_cast<size_t>(kViewW) * kViewH; ++I)
+            {
+                Rgb[I * 3u]      = AfterSheet[I * 4u];
+                Rgb[I * 3u + 1u] = AfterSheet[I * 4u + 1u];
+                Rgb[I * 3u + 2u] = AfterSheet[I * 4u + 2u];
+            }
+            if (PngWriteCounterpart::WritePng(Step.Png, static_cast<int>(kViewW), static_cast<int>(kViewH), 3,
+                                              Rgb.data(), static_cast<int>(kViewW) * 3) == 0)
+            {
+                std::fprintf(stderr, "  FAIL could not write %s\n", Step.Png);
+                ++Failures;
+            }
+            else
+                std::fprintf(stderr, "  wrote %s\n", Step.Png);
+        }
+
+        // The outcome measured on the TRIANGLES, not the matrices: the centroid travelled the move's X offset,
+        //    the box turned about Z (its top edge headings changed while the height stood), and the X width
+        //    stretched by the scale factor. Each figure is compared against the drag's own demand.
+        float FinalLo[3], FinalHi[3], FinalCentre[3];
+        MeasureSpan(Scene, ShortBox, FinalLo, FinalHi, FinalCentre);
+        Expect(std::fabs(AppliedMove) > 0.3f, "the move drag demanded a visible X offset");
+        Expect(std::fabs(AppliedTurn) > 0.15f, "the turn drag demanded a visible Z angle");
+        Expect(AppliedScale > 1.2f, "the scale drag demanded a visible X stretch");
+        char Caption[160];
+        std::snprintf(Caption, sizeof(Caption),
+                      "the centroid moved %.3f in X (demand %.3f) - the object went where the drag pulled",
+                      static_cast<double>(FinalCentre[0] - CentreBefore[0]), static_cast<double>(AppliedMove));
+        Expect(std::fabs((FinalCentre[0] - CentreBefore[0]) - AppliedMove) < 0.02f, Caption);
+        const float WidthAfter = FinalHi[0] - FinalLo[0];
+        std::snprintf(Caption, sizeof(Caption),
+                      "the X extent grew (%.3f -> %.3f) under the turn then the %.3fx scale",
+                      static_cast<double>(WidthBefore), static_cast<double>(WidthAfter), static_cast<double>(AppliedScale));
+        Expect(WidthAfter > WidthBefore * 1.05f, Caption);
+        Expect(std::fabs((FinalHi[2] - FinalLo[2]) - 0.9f) < 0.01f,
+               "the height stood at 0.9 - the Z turn and the X scale never touched it");
     }
 
     std::fprintf(stderr, "[SelectionProof] %s\n", Failures == 0 ? "every figure agrees" : "FAILURES above");

@@ -104,6 +104,11 @@ public:
     [[nodiscard]] SpanScope                              OpenSpan(const char* Name, bool Dynamic = false) noexcept;
     [[nodiscard]] const std::vector<TriangleSpanRecord>& QuerySpans() const noexcept { return Spans; }
 
+    // Applies a column-major 4×4 world transform to one span's triangles and re-derives their normals — the
+    //    CPU mirror of what the engine build does when the gizmo rewrites an instance's world and the frame
+    //    refreshes the drawn rows and the traced structure. The editor proof drags through this.
+    void                                                 TransformSpan(uint32_t Span, const float M[16]) noexcept;
+
     // Single unified conversion operator for total triangle count
     template<typename TargetType>
     [[nodiscard]] TargetType Convert() const noexcept;

@@ -284,7 +284,7 @@ if [[ -n "$GizmoBad" ]]; then
     echo "  forbidden words in the gizmo figures:"; echo "$GizmoBad" | sed 's/^/    /'; Fail=1
 fi
 
-for Sheet in Pick Rotate Scale; do
+for Sheet in Pick Rotate Scale Moved Rotated Scaled; do
     if [[ ! -s Exhibits/Gallery/Editor/EditorSelectionProof_$Sheet.png ]]; then
         echo "  MISSING Exhibits/Gallery/Editor/EditorSelectionProof_$Sheet.png"; Fail=1
     else

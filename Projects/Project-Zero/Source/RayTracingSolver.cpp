@@ -191,6 +191,32 @@ void RayTracingSolver::AppendTriangle(const Vector3& v0, const Vector3& v1, cons
     Triangles.push_back(Tri);
 }
 
+void RayTracingSolver::TransformSpan(uint32_t Span, const float M[16]) noexcept
+{
+    if (Span >= Spans.size())
+        return;
+    const auto Apply = [&](const Vector3& P) noexcept
+    {
+        return Vector3{ M[0] * P.x + M[4] * P.y + M[8]  * P.z + M[12],
+                        M[1] * P.x + M[5] * P.y + M[9]  * P.z + M[13],
+                        M[2] * P.x + M[6] * P.y + M[10] * P.z + M[14] };
+    };
+    const TriangleSpanRecord& Moved = Spans[Span];
+    for (uint32_t T = Moved.FirstTriangle; T < Moved.FirstTriangle + Moved.TriangleCount && T < Triangles.size(); ++T)
+    {
+        TriangleGeometry& Tri = Triangles[T];
+        Tri.VertexAlpha = Apply(Tri.VertexAlpha);
+        Tri.VertexBeta  = Apply(Tri.VertexBeta);
+        Tri.VertexGamma = Apply(Tri.VertexGamma);
+        Tri.SurfaceNormal = OrientationClassifier::CrossProduct(Tri.VertexBeta - Tri.VertexAlpha,
+                                                                Tri.VertexGamma - Tri.VertexAlpha).Normalized();
+    }
+    // The BVH (when one exists) describes the pre-move triangles; rebuild it so the trace follows the move,
+    //    exactly as the engine build refreshes its top level after the gizmo lands.
+    if (!Bvh.empty())
+        BuildBvh();
+}
+
 void RayTracingSolver::AppendQuad(const Vector3& v0, const Vector3& v1, const Vector3& v2, const Vector3& v3, uint32_t MaterialIdx) noexcept
 {
     // Quad formed of two triangles with CCW outward normal
