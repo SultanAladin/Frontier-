@@ -1518,10 +1518,19 @@ struct LuminancePushRecord { uint32_t Width, Height, Stride, Padding; };
 uint32_t SwapchainExchange::QueryPickedVisibility() const noexcept
 {
     if (!Vulkan) return kNoVisibilityPick;
-    // Read the slot the GPU has FINISHED with, exactly as the luminance readback below does: no fence, no stall,
-    //    one-two frames stale — a click cannot see the lag.
-    const uint32_t Slot = (Vulkan->ActiveSlot + 1u) % kCycleSlotCount;
-    return Visibility.QueryPickedVisibility(Slot);
+    // Only a slot whose fence has SIGNALLED since the copy was recorded may answer. The first cut read the
+    //    "other" slot with no fence check, and at 30-45 ms GPU frames the CPU won that race every time: the
+    //    mapped buffer still held the PREVIOUS tap's texel, so clicking object 2 highlighted object 1 — the
+    //    desk-observed one-click lag. vkGetFenceStatus never stalls; a fresh tap retires every recorded slot
+    //    (AssignPickTap), so whichever recorded slot has finished carries THIS tap's answer and no other.
+    for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
+    {
+        if (!Vulkan->CycleFences[Slot]) continue;
+        if (vkGetFenceStatus(Vulkan->Device, Vulkan->CycleFences[Slot]) != VK_SUCCESS) continue;
+        const uint32_t Packed = Visibility.QueryPickedVisibility(Slot);
+        if (Packed != kNoVisibilityPick) return Packed;
+    }
+    return kNoVisibilityPick;
 }
 
 void SwapchainExchange::AssignSelectionOutline(const uint32_t* PickedInstances, uint32_t PickedCount) noexcept
@@ -3756,6 +3765,13 @@ void SwapchainExchange::OnKey(GLFWwindow* Window, int Key, int, int Action, int)
     MapKey(GLFW_KEY_LEFT_SHIFT,  VirtualKeyCategory::KeyLeftShift);
     MapKey(GLFW_KEY_RIGHT_SHIFT, VirtualKeyCategory::KeyRightShift);
     MapKey(GLFW_KEY_ESCAPE,      VirtualKeyCategory::KeyEscape);
+    // The editor's transform-mode letters and the snap modifier. G and R reach InputExchange ONLY here — the
+    //    WASD map above happens to carry S, which is why Scale once locked forever: the first S switched the
+    //    mode and no other letter could ever arrive to switch it back.
+    MapKey(GLFW_KEY_G,             VirtualKeyCategory::KeyG);
+    MapKey(GLFW_KEY_R,             VirtualKeyCategory::KeyR);
+    MapKey(GLFW_KEY_LEFT_CONTROL,  VirtualKeyCategory::KeyLeftControl);
+    MapKey(GLFW_KEY_RIGHT_CONTROL, VirtualKeyCategory::KeyRightControl);
 
     // Edit keys are queued as a STREAM for whichever overlay owns the keyboard. They produce no character, so the
     //    character callback never sees them, and a held arrow must repeat — which a per-frame state sample cannot

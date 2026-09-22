@@ -1848,7 +1848,43 @@ int main(int argc, char** argv)
             if (GizmoShown && !GizmoDragging)
             {
                 const float* W = AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance].World;
-                GizmoPoseNow.Origin[0] = W[12]; GizmoPoseNow.Origin[1] = W[13]; GizmoPoseNow.Origin[2] = W[14];
+                // The origin is the object's WORLD centre, not the World matrix's translation column: the
+                //    showcase seats its geometry in the vertices with near-identity instance worlds, so the
+                //    translation column is ~(0,0,0) — the scene centre — and the gizmo drew there. Every
+                //    instance carries its clusters' object-space bounding spheres; their world-space bounds
+                //    centre is the same figure Blender's median point shows for one object.
+                {
+                    const auto& LevelClusters = Level.QueryClusters();
+                    float Lo[3] = { 1e30f, 1e30f, 1e30f }, Hi[3] = { -1e30f, -1e30f, -1e30f };
+                    bool CentreSeated = false;
+                    for (uint32_t I = 0u; I < RosterSpans[PrimaryRow].InstanceCount; ++I)
+                    {
+                        const auto& Inst = AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance + I];
+                        for (uint32_t C = 0u; C < Inst.ClusterCount; ++C)
+                        {
+                            if (Inst.ClusterOffset + C >= LevelClusters.size()) break;
+                            const auto& Sphere = LevelClusters[Inst.ClusterOffset + C];
+                            const float* M = Inst.World;
+                            const float Cx = M[0] * Sphere.CenterX + M[4] * Sphere.CenterY + M[8]  * Sphere.CenterZ + M[12];
+                            const float Cy = M[1] * Sphere.CenterX + M[5] * Sphere.CenterY + M[9]  * Sphere.CenterZ + M[13];
+                            const float Cz = M[2] * Sphere.CenterX + M[6] * Sphere.CenterY + M[10] * Sphere.CenterZ + M[14];
+                            Lo[0] = std::min(Lo[0], Cx - Sphere.Radius); Hi[0] = std::max(Hi[0], Cx + Sphere.Radius);
+                            Lo[1] = std::min(Lo[1], Cy - Sphere.Radius); Hi[1] = std::max(Hi[1], Cy + Sphere.Radius);
+                            Lo[2] = std::min(Lo[2], Cz - Sphere.Radius); Hi[2] = std::max(Hi[2], Cz + Sphere.Radius);
+                            CentreSeated = true;
+                        }
+                    }
+                    if (CentreSeated)
+                    {
+                        GizmoPoseNow.Origin[0] = 0.5f * (Lo[0] + Hi[0]);
+                        GizmoPoseNow.Origin[1] = 0.5f * (Lo[1] + Hi[1]);
+                        GizmoPoseNow.Origin[2] = 0.5f * (Lo[2] + Hi[2]);
+                    }
+                    else
+                    {
+                        GizmoPoseNow.Origin[0] = W[12]; GizmoPoseNow.Origin[1] = W[13]; GizmoPoseNow.Origin[2] = W[14];
+                    }
+                }
                 const auto SeatAxis = [&](float Axis[3], uint32_t Column)
                 {
                     const float X = W[Column * 4u], Y = W[Column * 4u + 1u], Z = W[Column * 4u + 2u];

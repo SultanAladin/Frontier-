@@ -683,6 +683,71 @@ int main()
                "the height stood at 0.9 - the Z turn and the X scale never touched it");
     }
 
+    // ── The pick readback race: the desk-observed one-click lag, reproduced and refused ────────────────────
+    // The first device run (GTX 1650 SUPER, 2026-09-22) showed picking answering one click late: select
+    //    object 2, object 1 highlights. Cause: the readback slot was trusted with no fence check, so at
+    //    30-45 ms GPU frames the CPU read the mapped buffer BEFORE the copy landed — the previous tap's
+    //    texel. This section drives a Counterpart of the cycle's exact decision arithmetic through that
+    //    desk scenario: the old rule must reproduce the bug, the shipped rule must refuse it.
+    std::fprintf(stderr, "[SelectionProof] pick readback race: the one-click lag reproduced and refused\n");
+    {
+        constexpr uint32_t kNoPick = 0xFFFFFFFFu;
+        struct PickCycleCounterpart
+        {
+            // The four figures the device path keeps per slot, named as the Vulkan half names them.
+            uint32_t Mapped[2]   = { kNoPick, kNoPick };   // PickReadback[..].Mapped — what the GPU last copied
+            bool     Recorded[2] = { false, false };       // PickRecorded — a copy was recorded into this slot
+            bool     FenceDone[2]= { true,  true  };       // CycleFences — signalled since that record
+            uint32_t Active      = 0u;                     // ActiveSlot at query time
+
+            void Tap()                          { Recorded[0] = Recorded[1] = false; }          // AssignPickTap retires every older answer
+            void RecordCopy(uint32_t Slot)      { Recorded[Slot] = true; FenceDone[Slot] = false; }
+            void GpuFinishes(uint32_t Slot, uint32_t Answer) { Mapped[Slot] = Answer; FenceDone[Slot] = true; }
+
+            // The rule that shipped first: read the "other" slot, no fence check — the desk bug.
+            [[nodiscard]] uint32_t QueryOldRule() const
+            {
+                const uint32_t Slot = (Active + 1u) % 2u;
+                return Recorded[Slot] ? Mapped[Slot] : kNoPick;
+            }
+            // The shipped fix: only a recorded slot whose fence has signalled since the record may answer.
+            [[nodiscard]] uint32_t QueryFixedRule() const
+            {
+                for (uint32_t Slot = 0u; Slot < 2u; ++Slot)
+                {
+                    if (!Recorded[Slot] || !FenceDone[Slot]) continue;
+                    if (Mapped[Slot] != kNoPick) return Mapped[Slot];
+                }
+                return kNoPick;
+            }
+        };
+
+        constexpr uint32_t kFirstObject = 0x11111111u, kSecondObject = 0x22222222u;
+        PickCycleCounterpart Cycle;
+
+        // Click 1 lands on the first object and its copy completes — both rules agree once the GPU is done.
+        Cycle.Tap(); Cycle.RecordCopy(0u); Cycle.GpuFinishes(0u, kFirstObject); Cycle.Active = 1u;
+        Expect(Cycle.QueryFixedRule() == kFirstObject, "the finished copy answers the first tap");
+
+        // Click 2 lands on the second object. The copy is RECORDED but the GPU (30-45 ms behind) has not
+        //    finished it: the mapped buffer still holds the first object's texel. This is the exact instant
+        //    the desk saw the wrong highlight.
+        Cycle.Tap(); Cycle.RecordCopy(1u); Cycle.Mapped[1] = kFirstObject; Cycle.Active = 0u;
+        Expect(Cycle.QueryOldRule() == kFirstObject,
+               "the old rule reproduces the desk bug - tapping object 2 answers object 1");
+        Expect(Cycle.QueryFixedRule() == kNoPick,
+               "the fixed rule refuses the stale texel while the fence is unsignalled");
+
+        // The GPU catches up: the copy lands, the fence signals, and only NOW does the answer change.
+        Cycle.GpuFinishes(1u, kSecondObject);
+        Expect(Cycle.QueryFixedRule() == kSecondObject, "the signalled fence hands back the second object");
+
+        // A tap onto empty sky: the fresh tap retires every recorded slot, so no finished OLD answer can
+        //    masquerade as this tap's hit while the new copy flies.
+        Cycle.Tap();
+        Expect(Cycle.QueryFixedRule() == kNoPick, "a fresh tap retires every older answer - sky stays empty");
+    }
+
     std::fprintf(stderr, "[SelectionProof] %s\n", Failures == 0 ? "every figure agrees" : "FAILURES above");
     return Failures == 0 ? 0 : 1;
 }

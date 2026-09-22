@@ -284,6 +284,19 @@ if [[ -n "$GizmoBad" ]]; then
     echo "  forbidden words in the gizmo figures:"; echo "$GizmoBad" | sed 's/^/    /'; Fail=1
 fi
 
+# The key map gate — the desk found the windowed build stuck on Scale because OnKey never forwarded G or R
+#    (only the WASD letters reached InputExchange, and S rode that map). The transform letters and the snap
+#    modifier must stay mapped, or the G/R/S modes and Ctrl snapping silently die in the windowed build again.
+for Pair in "GLFW_KEY_G:KeyG" "GLFW_KEY_R:KeyR" "GLFW_KEY_LEFT_CONTROL:KeyLeftControl" "GLFW_KEY_RIGHT_CONTROL:KeyRightControl"; do
+    GlfwName="${Pair%%:*}"; EngineName="${Pair##*:}"
+    if ! grep -q "MapKey($GlfwName,[[:space:]]*VirtualKeyCategory::$EngineName)" Engine/DeviceExchange/SwapchainExchange.cpp; then
+        echo "  KEY MAP MISSING - OnKey does not forward $GlfwName as $EngineName (the stuck-on-S bug)"; Fail=1
+    fi
+done
+if ! grep -q "vkGetFenceStatus" Engine/DeviceExchange/SwapchainExchange.cpp; then
+    echo "  PICK FENCE CHECK MISSING - QueryPickedVisibility reads the readback without a fence status test (the one-click-lag bug)"; Fail=1
+fi
+
 for Sheet in Pick Rotate Scale Moved Rotated Scaled; do
     if [[ ! -s Exhibits/Gallery/Editor/EditorSelectionProof_$Sheet.png ]]; then
         echo "  MISSING Exhibits/Gallery/Editor/EditorSelectionProof_$Sheet.png"; Fail=1
