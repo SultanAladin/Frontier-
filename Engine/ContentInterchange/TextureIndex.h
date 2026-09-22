@@ -55,6 +55,10 @@ public:
     uint32_t RegisterPath(const std::string& Path, bool Linear) noexcept;
     // Register an in-memory encoded image (PNG/JPEG bytes — GLB buffer view). Copied.
     uint32_t RegisterEncoded(const std::string& Name, const uint8_t* Bytes, size_t ByteCount, bool Linear) noexcept;
+    // Register raw RGBA16F texels, already linear (the baked sky dome; any host-computed sheet). Copied; the mip
+    //    chain is built immediately, so no Decode is owed. The same Name replaces the slot IN PLACE — the texels
+    //    move, the slot stays, exactly what a re-bake wants (descriptors name slots, never heaps).
+    uint32_t RegisterHalves(const std::string& Name, const uint16_t* Halves, uint32_t Width, uint32_t Height) noexcept;
 
     // Decode everything registered and not yet decoded. Returns the number of failures (placeholders created).
     //    `Report` receives one line per failure and the final summary. MaximumEdge caps the level-0 size (0 = no cap).

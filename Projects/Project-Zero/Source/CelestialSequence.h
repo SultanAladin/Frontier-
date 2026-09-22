@@ -39,6 +39,7 @@
 #include "../../../Engine/SpatialInterface/VolumeMarker.h"
 
 #include <cstdint>
+#include <vector>
 
 namespace Frontier::ProjectZero {
 
@@ -119,6 +120,22 @@ public:
     //    mirrors ApplyTo — the solved direction, the tint and brightness on the radiance, a hidden sun as night —
     //    so the GI-on and GI-off skies cannot be handed different suns. One call, so a caller cannot pack half of it.
     [[nodiscard]] SkyConstantRecord PackSkyRecord() const noexcept;
+
+    // The baked sky dome (roadmap #26 stage A) — the boolean and its guardrails. AssignSkyDomeSlot names the
+    //    bindless slot whose RGBA16F sheet carries the pre-integrated dome (radiance over transmittance,
+    //    SkyDomeSheet.h's own layout); AssignSkyDomeBaked flips the boolean. PackSkyRecord seats the slot into
+    //    SkyControl.w ONLY while three things hold at once: the boolean is on, a slot is assigned, and the
+    //    CURRENT packed staging still matches the staging the bake was taken from (SkyDomeStagingMatches) —
+    //    so a re-staged sun quietly falls back to the analytic march rather than rendering yesterday's air.
+    //    The editor stays analytic always (the owner's rule): the boolean defaults OFF and nothing in the
+    //    development build flips it except the deliberate A/B toggle.
+    void AssignSkyDomeSlot(uint32_t BindlessSlot) noexcept;
+    void AssignSkyDomeBaked(bool Baked) noexcept { SkyDomeBaked = Baked; }
+    [[nodiscard]] bool  QuerySkyDomeBaked() const noexcept { return SkyDomeBaked; }
+    [[nodiscard]] bool  QuerySkyDomeLive()  const noexcept;   // true only when the slot will actually pack this frame
+    // Bakes the dome for the CURRENT staging into RGBA16F halves (256 x 512 x 4) and remembers that staging as
+    //    the bake's own. The caller owns residency: seat the halves into a texture, then AssignSkyDomeSlot.
+    void BakeSkyDome(std::vector<uint16_t>& OutHalves) noexcept;
 
     // Cloud-shadow staging for the GPU path (CloudShadow.slang). The level owner calls this once at load:
     //    showcase stages kCloudShadowShowcaseDiorama, everything else the panel kilometre deck. Time is FROZEN
@@ -214,6 +231,15 @@ public:
     // What the active quality tier granted. Set by the project from CelestialTier::BudgetFor so the inspector
     //    can show the budget the frame is actually spending rather than a default.
     CelestialBudget Budget{};
+
+    // The baked sky dome's seat (roadmap #26 stage A). The slot is a bindless sampler2D[] index; the record is
+    //    the staging the bake was taken from, compared by PackSkyRecord every pack so a re-staged sun falls
+    //    back to the march. kNoSkyDomeSlot = nothing resident.
+    static constexpr uint32_t kNoSkyDomeSlot = 0xFFFFFFFFu;
+    uint32_t          SkyDomeSlot   = kNoSkyDomeSlot;
+    bool              SkyDomeBaked  = false;   // the boolean: OFF = analytic march (the editor's resting rule)
+    SkyConstantRecord SkyDomeRecord{};         // the staging the resident bake belongs to
+    bool              SkyDomeSeated = false;   // a bake has run and SkyDomeRecord is meaningful
 
     [[nodiscard]] const CelestialFrame& Frame() const noexcept { return Solved; }
     [[nodiscard]] const PrecipitationSystem& Weather() const noexcept { return Rain; }

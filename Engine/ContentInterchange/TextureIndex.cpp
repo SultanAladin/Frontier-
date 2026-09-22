@@ -143,6 +143,34 @@ uint32_t TextureIndex::RegisterEncoded(const std::string& Name, const uint8_t* B
     return static_cast<uint32_t>(Textures.size() - 1u);
 }
 
+uint32_t TextureIndex::RegisterHalves(const std::string& Name, const uint16_t* Halves, uint32_t Width, uint32_t Height) noexcept
+{
+    if (Halves == nullptr || Width == 0u || Height == 0u) return 0xFFFFFFFFu;
+    // A repeated Name re-seats the SAME slot: the caller's descriptors keep their index and only the texels
+    //    change — the re-bake path. A fresh Name appends, as the other registrations do.
+    uint32_t Slot = 0xFFFFFFFFu;
+    for (uint32_t I = 0u; I < Textures.size(); ++I)
+        if (Textures[I].Path.empty() && Textures[I].Name == Name && Textures[I].Encoding == TextureEncoding::LinearHalf)
+        { Slot = I; break; }
+    if (Slot == 0xFFFFFFFFu)
+    {
+        Textures.emplace_back();
+        Sources.emplace_back();
+        Slot = static_cast<uint32_t>(Textures.size() - 1u);
+    }
+    TextureDescriptor& T = Textures[Slot];
+    T.Name = Name; T.Path.clear();
+    T.Linear = true; T.Encoding = TextureEncoding::LinearHalf;
+    T.Width = Width; T.Height = Height;
+    T.Placeholder = false;
+    const size_t Bytes = static_cast<size_t>(Width) * Height * 8u;   // RGBA16F: 8 B/texel
+    T.Texels.assign(reinterpret_cast<const uint8_t*>(Halves), reinterpret_cast<const uint8_t*>(Halves) + Bytes);
+    ConstructLevels(T);                    // full chain now — nothing deferred, no Decode owed
+    Sources[Slot].Decoded = true;          // Decode() must never touch this slot
+    Metrics.Count = static_cast<uint32_t>(Textures.size());
+    return Slot;
+}
+
 //------------------------------------------------------------------------------------------------------------------------
 //                                                          DECODE
 //------------------------------------------------------------------------------------------------------------------------

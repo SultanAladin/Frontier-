@@ -26,6 +26,7 @@ struct RenderBackendConfiguration
     DebugViewSelection            DebugView      = DebugViewSelection::Off;               // [render] debug_view
     bool                          OcclusionCulling = true;                                // [render] occlusion_culling (HiZ)
     bool                          AliasPick = true;                                       // [render] alias_pick (R6 row 3 Walker-alias light pick; false = uniform R0 identity, F5)
+    bool                          SkyDomeBaked = false;                                   // [render] sky_dome_baked (#26A: escaped rays fetch the baked dome sheet; false = analytic march — the editor's resting rule)
     uint32_t                      SlabLimit        = 1u;                                  // [render] slab_limit (R4a: Tier A 1, Tier B/C 4, ceiling 8)
     uint32_t                      TextureEdgeLimit = 2048u;                               // [render] texture_edge_limit (largest texture edge kept resident; 0 = unlimited)
     [[nodiscard]] bool operator==(const RenderBackendConfiguration&) const noexcept = default;

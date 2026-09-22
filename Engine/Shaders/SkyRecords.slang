@@ -33,7 +33,7 @@ layout(std140, binding = 21) uniform SkyConstants
     vec4 SkyMie;             // x = beta_M x strength [1/m], y = Mie scale height [m], z = anisotropy g, w = shadow base [m]
     vec4 SkyOzone;           // xyz = beta_O x strength [1/m]; w = shadow thickness [m]
     vec4 SkyPlanet;          // x = planet radius [m], y = atmosphere height [m], z = camera height [m], w = shadow scale [-]
-    uvec4 SkyControl;        // x = view samples, y = light samples, z = twilight flags, w = unused
+    uvec4 SkyControl;        // x = view samples, y = light samples, z = twilight flags, w = baked dome slot + 1 (0 = march)
     vec4 SkyTwilight;        // x = glow intensity, y = line intensity, z = 1 when the line is civil-only, w = shadow enabled 0/1
     vec4 SkySunDirect;       // xyz = panel direct-sun factor 0.11·gain·colour·T (kernel: ÷Ω, ×Ω back); w = unused
 };
@@ -43,6 +43,49 @@ layout(std140, binding = 21) uniform SkyConstants
 //    that disagree on the sun's size would be two suns. (Was the disc's private literal; same value, now
 //    shared. SkyConstantRecord.h's kSunAngularRadius is the host's copy of this same body.)
 const float kSunAngularRadius = 0.53 * (3.14159265358979323846 / 180.0) * 0.5;
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                  THE BAKED DOME
+//------------------------------------------------------------------------------------------------------------------------
+// Roadmap #26 stage A. The smooth single-scatter dome — the integral below and NOTHING else — may arrive
+//    pre-integrated as one RGBA16F sheet of two stacked octahedral squares (radiance over transmittance),
+//    riding the bindless Textures[] table at the slot SkyControl.w-1 names (0 = no bake, always march).
+//
+//    The rule that keeps the bake honest (measured in Exhibits/Workbench/Sky/SkyProbeProof.cpp — mean error
+//    0.014-0.123 %, panel RMSE ≤ 0.13 of 255, fetch 67-135x the march, six times of day):
+//      · the fetch answers ONLY for the smooth dome; the sun's disc/aureole, the stars, the moons, the
+//        twilight and the cloud layer all stay analytic on top, exactly as SkyAlong composes them;
+//      · inside the solar cone (4 deg) and the horizon band (±1.5 deg) the pixel MARCHES — the disc's
+//        gradient and the planet-edge discontinuity (1.2e-7 vs 3.4e-4 half a degree apart at night) are
+//        exactly what a texel sheet cannot hold;
+//      · the host bakes with the sun's cone inpainted from its boundary, so no disc energy ever smears
+//        into the bilinear neighbourhood.
+//
+//    These three constants are the kernel's copies of SkyDomeSheet.h's kSkyDomeSide / kSkyDomeHorizonSine /
+//    kSkyDomeSunConeCos — pairwise-pinned by the sky proofs, the kAureole precedent.
+const float kSkyDomeSide        = 256.0;
+const float kSkyDomeHorizonSine = 0.02618;    // sin(1.5 deg)
+const float kSkyDomeSunConeCos  = 0.99756;    // cos(4 deg)
+
+// The octahedral fold, Z-up — the exact transcription of SkyDomeSheet.h's SkyDomeOctFromDirection.
+vec2 SkyDomeOct(vec3 Direction)
+{
+    float Den = abs(Direction.x) + abs(Direction.y) + abs(Direction.z);
+    vec2 P = Direction.xy / Den;
+    if (Direction.z < 0.0)
+        P = (vec2(1.0) - abs(P.yx)) * vec2(P.x >= 0.0 ? 1.0 : -1.0, P.y >= 0.0 ? 1.0 : -1.0);
+    return P * 0.5 + vec2(0.5);
+}
+
+// True when the baked dome may answer for this direction: a bake is resident, the ray is off the sun and off
+//    the horizon band. The caller falls through to the march on false — the analytic path is never deleted.
+bool SkyDomeCovers(vec3 Direction)
+{
+    if (SkyControl.w == 0u) return false;
+    if (abs(Direction.z) < kSkyDomeHorizonSine) return false;
+    if (dot(Direction, SkySunDirection.xyz) > kSkyDomeSunConeCos) return false;
+    return true;
+}
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    THE INTEGRAL
@@ -71,6 +114,23 @@ vec3 SkyRadiance(vec3 Direction, out vec3 OutTransmittance, out bool OutHitGroun
     OutTransmittance = vec3(1.0);
     OutHitGround = false;
     if (SkySunRadiance.w <= 0.0) return vec3(0.0);
+
+    // The baked dome (roadmap #26 stage A): one bilinear fetch of the pre-integrated sheet stands in for the
+    //    whole march when the rule above says it may. Radiance rides the top square, transmittance the bottom,
+    //    and the texel coordinate clamps half a texel inside each square so the bilinear neighbourhood can
+    //    never blend radiance into transmittance or wrap the REPEAT sampler across the atlas edge. Ground is
+    //    a geometric fact from 2 m up once the horizon band is excluded: below the band the ray hit the planet.
+    if (SkyDomeCovers(Direction))
+    {
+        vec2  Oct  = SkyDomeOct(Direction);
+        float FetchU   = clamp(Oct.x * kSkyDomeSide, 0.5, kSkyDomeSide - 0.5) / kSkyDomeSide;
+        float FetchRow = clamp(Oct.y * kSkyDomeSide, 0.5, kSkyDomeSide - 0.5);
+        int   Slot = int(SkyControl.w - 1u);
+        vec3 Fetched     = textureLod(Textures[nonuniformEXT(Slot)], vec2(FetchU, FetchRow / (2.0 * kSkyDomeSide)), 0.0).rgb;
+        OutTransmittance = textureLod(Textures[nonuniformEXT(Slot)], vec2(FetchU, (FetchRow + kSkyDomeSide) / (2.0 * kSkyDomeSide)), 0.0).rgb;
+        OutHitGround = Direction.z < 0.0;
+        return Fetched;
+    }
 
     float PlanetRadius = SkyPlanet.x;
     float TopRadius    = PlanetRadius + SkyPlanet.y;

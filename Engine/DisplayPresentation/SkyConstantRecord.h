@@ -60,7 +60,7 @@ struct SkyConstantRecord
     float    Mie[4];            // x = beta_M x strength, y = Mie scale height [m], z = anisotropy g, w = shadow slab base [m]
     float    Ozone[4];          // xyz = beta_O x strength [1/m]; w = shadow slab thickness [m]
     float    Planet[4];         // x = planet radius [m], y = shell height [m], z = camera height [m], w = shadow feature scale [-]
-    uint32_t Control[4];        // x = view samples, y = light samples, z/w = unused
+    uint32_t Control[4];        // x = view samples, y = light samples, z = unused, w = baked dome slot + 1 (0 = march; SkyDomeSheet.h)
     float    Twilight[4];       // x = glow, y = line, z = 1 when the line is civil-only, w = shadow enabled 0/1
     float    SunDirect[4];      // xyz = panel direct-sun factor 0.11·gain·colour·T (kernel: ÷Ω, ×Ω back); w = unused
 };

@@ -4,6 +4,8 @@
 
 #include "CelestialSequence.h"
 
+#include "../../../Engine/DisplayPresentation/SkyDomeSheet.h"   // roadmap #26 stage A: the bake + the staleness rule
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -487,9 +489,49 @@ SkyConstantRecord CelestialSequence::PackSkyRecord() const noexcept
 
     float ShadowDriftX = 0.0f, ShadowDriftY = 0.0f;
     FoldShadowDrift(ShadowStaging, ShadowTimeSeconds, ShadowDriftX, ShadowDriftY);
-    return PackSkyConstants(Medium, Effective, Twilight, Solved.Sun.Elevation, /*CameraHeightMetres=*/2.0f,
-                            Budget.AtmosphereSamples, Budget.AtmosphereLightSamples, Enabled, SunDirect,
-                            ShadowStaging, ShadowDriftX, ShadowDriftY);
+    SkyConstantRecord Record = PackSkyConstants(Medium, Effective, Twilight, Solved.Sun.Elevation, /*CameraHeightMetres=*/2.0f,
+                                                Budget.AtmosphereSamples, Budget.AtmosphereLightSamples, Enabled, SunDirect,
+                                                ShadowStaging, ShadowDriftX, ShadowDriftY);
+    // The baked dome (roadmap #26 stage A): SkyControl.w carries the bindless slot + 1 — but ONLY while the
+    //    boolean is on, a sheet is resident, and the staging the bake was taken from still matches the record
+    //    just packed. A scrubbed sun, a changed medium or a re-budgeted sample count silently drops the frame
+    //    back to the analytic march; nothing ever renders against yesterday's air. Control[3] is otherwise 0,
+    //    so the OFF path packs bytes identical to the pre-bake build (the A/B's identity).
+    if (SkyDomeBaked && SkyDomeSeated && SkyDomeSlot != kNoSkyDomeSlot
+        && SkyDomeStagingMatches(SkyDomeRecord, Record))
+        Record.Control[3] = SkyDomeSlot + 1u;
+    return Record;
+}
+
+void CelestialSequence::AssignSkyDomeSlot(uint32_t BindlessSlot) noexcept
+{
+    SkyDomeSlot = BindlessSlot;
+}
+
+bool CelestialSequence::QuerySkyDomeLive() const noexcept
+{
+    if (!SkyDomeBaked || !SkyDomeSeated || SkyDomeSlot == kNoSkyDomeSlot) return false;
+    return SkyDomeStagingMatches(SkyDomeRecord, PackSkyRecord());
+}
+
+void CelestialSequence::BakeSkyDome(std::vector<uint16_t>& OutHalves) noexcept
+{
+    // The bake integrates the SAME effective light PackSkyRecord packs (solved direction, tint and brightness
+    //    on the radiance, a hidden sun as night), at the SAME budget — so the staging-match compare below is
+    //    against exactly the arithmetic that filled the sheet.
+    AtmosphereLight Effective = Light;
+    for (int C = 0; C < 3; ++C) Effective.Direction[C] = Solved.Sun.Direction[C];
+    Effective.Intensity *= SkyBrightness;
+    for (int C = 0; C < 3; ++C) Effective.Colour[C] *= SkyTint[C];
+    if (!Shown[static_cast<uint32_t>(CelestialEntity::Sun)])
+        Effective.Intensity = 0.0f;
+    BakeSkyDomeSheet(Medium, Effective, Budget.AtmosphereSamples == 0u ? 1u : Budget.AtmosphereSamples,
+                     Budget.AtmosphereLightSamples == 0u ? 1u : Budget.AtmosphereLightSamples, OutHalves);
+    // Remember the staging WITHOUT the dome lane: the compare runs against freshly packed records whose
+    //    Control[3] is still 0 at compare time (the lane is seated after the match).
+    SkyDomeRecord = PackSkyRecord();
+    SkyDomeRecord.Control[3] = 0u;
+    SkyDomeSeated = true;
 }
 
 void CelestialSequence::AssignMoonAtlas(const uint32_t Slots[kMoonAtlasCount], const TextureIndex& Textures) noexcept
@@ -910,6 +952,15 @@ void CelestialSequence::BuildSheet(CelestialEntity Entity, EditorSheet& Sheet) c
         Push(Look, MakeSlider("Sky Brightness", 0.0f, 3.0f, SkyBrightness, 2, "x"));
         EditorPropertyGroup& Below = OpenGroup(Sheet, "Ground");
         Push(Below, MakeColour("Ground Albedo", GroundAlbedo));
+        // The baked dome (roadmap #26 stage A). The switch is the boolean; the readouts say what the frame is
+        //    actually doing — "fetch" only while a resident bake still matches the live staging, "march"
+        //    otherwise (scrubbed sun, changed medium, no sheet). The split is measured in
+        //    Exhibits/Gallery/Sky/: mean error 0.014-0.123 %, fetch 67-135x the march.
+        EditorPropertyGroup& Dome = OpenGroup(Sheet, "Baked Dome");
+        Push(Dome, MakeSwitch("Fetch Baked Dome", SkyDomeBaked));
+        Push(Dome, MakeReadout("Dome Path", QuerySkyDomeLive() ? "fetch (256^2 RGBA16F)" : "march (analytic)"));
+        Push(Dome, MakeReadout("Sheet", SkyDomeSlot == kNoSkyDomeSlot ? "none resident"
+                                        : (SkyDomeSeated ? "resident, staged" : "slot only")));
         break;
     }
     case CelestialEntity::Stars:
@@ -1171,6 +1222,7 @@ void CelestialSequence::ApplySheet(CelestialEntity Entity, const EditorSheet& Sh
         SkyBrightness = ReadSlider(Sheet, "Sky Brightness", SkyBrightness);
         const EditorProperty* Ground = Find(Sheet, "Ground Albedo");
         if (Ground != nullptr) for (int C = 0; C < 3; ++C) GroundAlbedo[C] = Ground->ColourTint[C];
+        SkyDomeBaked = ReadSwitch(Sheet, "Fetch Baked Dome", SkyDomeBaked);
         break;
     }
     case CelestialEntity::Stars:

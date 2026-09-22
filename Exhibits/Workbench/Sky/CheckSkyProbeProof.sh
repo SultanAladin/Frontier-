@@ -32,5 +32,29 @@ for Sheet in 06h00 09h00 12h00 15h00 17h56 21h00; do
     fi
 done
 
+# The engine half (roadmap #26 stage A wiring): SkyDomeSheet.h's bake against AtmosphereModel's march, read
+#    through the kernel's own fetch arithmetic, plus the boolean's guardrails and the staleness rule.
+Binary2="$(mktemp -u /tmp/SkyDomeKernelProof.XXXXXX)"
+if ! g++ -std=c++20 -O2 -Wall -Wextra \
+     -I Engine/DisplayPresentation \
+     Exhibits/Workbench/Sky/SkyDomeKernelProof.cpp \
+     -o "$Binary2" 2>/tmp/SkyDomeKernelProof.build; then
+    echo "  COMPILE FAILED (SkyDomeKernelProof)"; sed 's/^/    /' /tmp/SkyDomeKernelProof.build | head -25; Fail=1
+else
+    "$Binary2" || Fail=1
+fi
+rm -f "$Binary2"
+
+# The two copies of the split's constants — SkyDomeSheet.h (host) and SkyRecords.slang (kernel) — pinned
+#    against each other, the kAureole precedent: a drifted copy is two skies.
+for Pin in "kSkyDomeSide.*256" "kSkyDomeHorizonSine.*0.02618" "kSkyDomeSunConeCos.*0.99756"; do
+    grep -qE "$Pin" Engine/DisplayPresentation/SkyDomeSheet.h || { echo "  PIN MISSING in SkyDomeSheet.h: $Pin"; Fail=1; }
+    grep -qE "$Pin" Engine/Shaders/SkyRecords.slang           || { echo "  PIN MISSING in SkyRecords.slang: $Pin"; Fail=1; }
+done
+# The kernel's refusals and the host's boolean, present by name: the fetch may never run without them.
+grep -q "SkyDomeCovers" Engine/Shaders/SkyRecords.slang || { echo "  SkyRecords.slang lost SkyDomeCovers - the fetch would answer for the sun cone and the horizon"; Fail=1; }
+grep -q "SkyDomeStagingMatches" Projects/Project-Zero/Source/CelestialSequence.cpp || { echo "  CelestialSequence lost the staleness compare - a scrubbed sun could render yesterday's air"; Fail=1; }
+grep -q "sky_dome_baked" Engine/DisplayPresentation/ConfigurationRegistry.cpp || { echo "  the [render] sky_dome_baked seat is gone"; Fail=1; }
+
 if (( Fail )); then echo "  >>> SKY PROBE PROOF FAILED"; exit 1; fi
 echo "  >>> the probe agrees with the march"

@@ -49,6 +49,7 @@
 #include "../../../Engine/SpatialInterface/InterfaceSequence.h"
 #include "../../../Engine/SpatialInterface/InterfacePointerProjection.h"
 #include "../../../Engine/GeometricRaster/ClipProjection.h"
+#include "../../../Engine/DisplayPresentation/SkyDomeSheet.h"   // #26A: kSkyDomeSide for the lazy bake in ④d
 #include "InterfaceTrialSequence.h"
 #include "InstanceMotionSequence.h"
 #include "PerformanceTelemetrySequence.h"
@@ -837,6 +838,12 @@ int main(int argc, char** argv)
     // The sky, the weather and everything that carries them. Prepared once; ticked with the frame.
     Frontier::ProjectZero::CelestialSequence Celestial;
     Celestial.Prepare();
+    // #26A the baked-dome boolean, seeded from [render] sky_dome_baked. OFF by default — the analytic march is
+    //    the resting rule (the editor's own), and identical bytes to the pre-bake build. When ON, ④d below
+    //    bakes lazily once the packed sky has stood still, seats the sheet into the bindless table and the
+    //    slot into SkyControl.w; the staleness compare in PackSkyRecord drops any scrubbed frame back to the
+    //    march on its own. The Sky inspector sheet carries the same switch live.
+    Celestial.AssignSkyDomeBaked(Configuration.Query().Backend.SkyDomeBaked);
     // Cloud-shadow weather by level, once at load: the 60 m showcase diorama stages the FIN3 diorama deck
     //    (visible broken shadow on its 46 m of ground), every other level the panel kilometre deck. Both
     //    instants are single-sourced in CloudShadowStaging.h; time stays frozen for accumulation parity.
@@ -954,6 +961,7 @@ int main(int argc, char** argv)
     uint32_t AppliedMaterialsCommit    = 0u;   // M7b: commit generation (Apply ran Finalise inside)
     uint32_t AppliedMaterialsPreview   = 0u;   // M7b: preview-toggle generation ([material] preview)
     Frontier::SkyConstantRecord  LastSky{};    // last sky bytes pushed (④d); a change restarts the accumulation
+    uint32_t SkyDomeQuietTicks         = 0u;   // #26A: ticks the packed sky stood still — the settled re-bake gate (④d)
     Frontier::MoonConstantRecord LastMoons{};  // last moon bytes pushed (④e); a change restarts the accumulation
     Frontier::PostConstantRecord LastPost{};   // last post bytes pushed (④f); a change restarts the accumulation
     bool     BakeAnnounced             = false;  // "Baking Complete" = temporal accumulation reached BakeFrameCount
@@ -2372,6 +2380,31 @@ int main(int argc, char** argv)
             {
                 LastSky = Sky;
                 Integrator.ResetAccumulation();
+                SkyDomeQuietTicks = 0u;   // #26A a moving sky is never worth baking — wait for it to settle
+            }
+            else if (SkyDomeQuietTicks < 0xFFFFFFFFu)
+                ++SkyDomeQuietTicks;
+
+            // #26A the lazy bake: the boolean is on, no live bake covers the CURRENT staging, and the sky has
+            //    stood still for a second — so the ~2 s CPU bake runs once per settled staging, never per
+            //    scrub tick. The sheet re-seats its SLOT in place (RegisterHalves), the bindless table
+            //    re-uploads (one deliberate hitch, device-idle inside), and the very next PackSkyRecord seats
+            //    SkyControl.w — which changes the packed bytes, so the compare above restarts the accumulation
+            //    on its own. A toggled-off boolean packs 0 and the kernel marches — bytes identical to the
+            //    pre-bake build.
+            if (Celestial.QuerySkyDomeBaked() && !Celestial.QuerySkyDomeLive() && SkyDomeQuietTicks == 30u)
+            {
+                std::vector<uint16_t> DomeHalves;
+                Celestial.BakeSkyDome(DomeHalves);
+                const uint32_t DomeSlot = Textures.RegisterHalves("SkyDomeSheet", DomeHalves.data(),
+                                                                  Frontier::kSkyDomeSide, Frontier::kSkyDomeSide * 2u);
+                if (DomeSlot != 0xFFFFFFFFu)
+                {
+                    Surface.UploadTextures(Textures);
+                    Celestial.AssignSkyDomeSlot(DomeSlot);
+                    Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Sky",
+                                         "Baked dome resident: 256x512 RGBA16F in the bindless table - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
+                }
             }
 
             // The sun-vs-lamps pick probability, POWER-PROPORTIONAL (2026-09-19). The kernel's coin was a fixed
