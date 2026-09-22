@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "../../../GeometricRaster/CameraProjection.h"
-#include "../../../DeviceExchange/InputExchange.h"
+#include "../../../Engine/GeometricRaster/CameraProjection.h"
+#include "../../../Engine/DeviceExchange/InputExchange.h"
 
 namespace Frontier::ProjectZero {
 
@@ -20,6 +20,7 @@ struct FlyThroughConfiguration
     float                   MouseSensitivity;                   // [rad/px] rotational sensitivity per mouse pixel
     float                   ScrollSpeedIncrement;               // [m/s] speed delta per scroll wheel step
     float                   AccelerationDamping;                // [0..1] momentum smoothing coefficient
+    bool                    InvertPitch = false;                // [bool] Control Centre › Input › "Invert Y-Axis"
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -37,6 +38,8 @@ public:
     void                    AdvanceProjection(float Δτ) noexcept override;
 
     void                    AssignFlightSpeed(float SpeedMetersPerSec) noexcept;
+    void                    AssignConfiguration(const FlyThroughConfiguration& NewConfig) noexcept { Config = NewConfig; }
+    [[nodiscard]] const FlyThroughConfiguration& QueryConfiguration() const noexcept { return Config; }
 
     [[nodiscard]] float     QueryFlightSpeed() const noexcept { return CurrentFlightSpeed; }
     [[nodiscard]] bool      IsSteeringActive() const noexcept { return SteeringActive; }

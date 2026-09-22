@@ -17,7 +17,7 @@ FlyThroughSolver::FlyThroughSolver() noexcept
     , Config{
         2.5f,                   // Base flight speed 2.5 m/s
         3.0f,                   // 3x speed boost when holding Shift
-        0.0025f,                // Mouse sensitivity 0.0025 rad/px
+        0.00125f,               // Mouse sensitivity 0.00125 rad/px (≈ 0.07°/px, Unreal-like default)
         0.5f,                   // Scroll speed increment 0.5 m/s per click
         12.0f                   // Acceleration damping rate
     }
@@ -60,24 +60,27 @@ void FlyThroughSolver::AdvanceLocomotion(const InputExchange& Input, float Δτ)
     {
         Vector3 CursorDelta = Input.QueryCursorDelta();
         float NewYaw   = YawRadians + CursorDelta.x * Config.MouseSensitivity;
-        float NewPitch = PitchRadians - CursorDelta.y * Config.MouseSensitivity;
+        float NewPitch = PitchRadians - CursorDelta.y * Config.MouseSensitivity * (Config.InvertPitch ? -1.0f : 1.0f);
         AssignOrientationEuler(NewPitch, NewYaw, 0.0f);
     }
 
-    // 3. 6-DOF Directional Flight (WASD + Q/E)
+    // 3. 6-DOF Directional Flight (WASD + Q/E) — engaged when RMB steering is held
     Vector3 DesiredDirection{ 0.0f, 0.0f, 0.0f };
 
-    // Forward / Backward
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyW)) DesiredDirection += ForwardVector;
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyS)) DesiredDirection -= ForwardVector;
+    if (SteeringActive)
+    {
+        // Forward / Backward
+        if (Input.IsKeyPressed(VirtualKeyCategory::KeyW)) DesiredDirection += ForwardVector;
+        if (Input.IsKeyPressed(VirtualKeyCategory::KeyS)) DesiredDirection -= ForwardVector;
 
-    // Strafe Right / Left
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyD)) DesiredDirection += RightVector;
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyA)) DesiredDirection -= RightVector;
+        // Strafe Right / Left
+        if (Input.IsKeyPressed(VirtualKeyCategory::KeyD)) DesiredDirection += RightVector;
+        if (Input.IsKeyPressed(VirtualKeyCategory::KeyA)) DesiredDirection -= RightVector;
 
-    // Vertical Up (E) / Down (Q) — Strict +Z Up Axis
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyE)) DesiredDirection += Vector3{ 0.0f, 0.0f, 1.0f };
-    if (Input.IsKeyPressed(VirtualKeyCategory::KeyQ)) DesiredDirection -= Vector3{ 0.0f, 0.0f, 1.0f };
+        // Vertical Up (E) / Down (Q) — Strict +Z Up Axis
+        if (Input.IsKeyPressed(VirtualKeyCategory::KeyE)) DesiredDirection += Vector3{ 0.0f, 0.0f, 1.0f };
+        if (Input.IsKeyPressed(VirtualKeyCategory::KeyQ)) DesiredDirection -= Vector3{ 0.0f, 0.0f, 1.0f };
+    }
 
     float LengthSq = DesiredDirection.LengthSquared();
     if (LengthSq > 1e-6f)
