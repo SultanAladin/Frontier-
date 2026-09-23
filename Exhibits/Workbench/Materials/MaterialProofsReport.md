@@ -1291,5 +1291,30 @@ subject, which is half of why the first sheet looked unchanged. Both sheets now 
 Kept sheets: `Exhibits/Gallery/Materials/GlintRowSheet.png` (row A/B) and **`FlakePigmentSheet.png`** (the
 three-pigment close-up strip — the clean render of the automotive flake material).
 
+#### 15b.1 One flake model, repo-wide (the loose end)
+
+The preview is where the flake rule was first proven, and it was **still running the sine field** after the
+engine moved on — so the automotive paint exhibit, the very thing the desk was testing car flakes with, still
+rendered speckle noise. Two flake models in one repository is exactly what
+`AutomotiveMaterialProfiles.slang` exists to prevent, so `AutomotiveApplyTriCoatFlakes` and the
+`ShaderballPreview` hook now call the same `SlateFlakeSample` / `SlateFlakeNormal` the kernel does. The flop
+term is untouched — it is a property of the paint, not of the flakes.
+
+Two numbers had to be **measured against that scene rather than inherited**, and both are recorded at the
+call site because both were wrong first:
+
+| Knob | Inherited | Measured for the preview | Why |
+|---|---|---|---|
+| frequency | 70–190 cells/m | **34 cells/m** | the paint ball is r = 1.38 m, **5×** a showcase sphere → the showcase value puts **0.4 px** on a chip and renders as salt again |
+| coverage | 0.78 | **0.34** | at high coverage every cell fires and a regular lattice reads as a woven **grid**; sparsity is what makes a lattice look random |
+
+That second row is the general lesson of the whole milestone: `uv_scale` is a frequency in **world units**, so
+it is not portable between scenes of different scale — a flake is only a flake when its chip is a few pixels
+wide in the shot that is actually being rendered.
+
+Scope is proven by the kept sheets' hashes: of the six automotive sheets, only the **three containing
+tri-coat paint** changed; `AutomotiveUvSurfaceDetail`, `AutomotiveDispersionAndTir` and
+`AutomotiveLightingOptics` came back **byte-identical**.
+
 Still deferred from §13's list, unchanged: M4c dispersion hero sampling, geometric displacement (ch20),
 Tier-B in-kernel multi-slab.

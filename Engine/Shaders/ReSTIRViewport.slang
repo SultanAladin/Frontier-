@@ -400,13 +400,11 @@ ShadingRecord ResolveMaterial(GpuMaterial mat, GpuInstance instance, uint primit
         }
 
         // M6 glints — slate_glint_density / slate_glint_uv_scale (P14.xy), stored since R4a and READ from here
-        //    on. The automotive precedent's exact rule: flakes are tiny metallic facets, so they are a bounded
-        //    deterministic normal perturbation (the SHARED AutomotiveApplyTriCoatFlakeNormal — the same body
-        //    the preview and the CPU port run), never a painted dot and never a light source. Density maps to
-        //    the signal's coverage through a saturating 1 − exp(−D/4), so the library's 1 → 8 row spans sparse
-        //    sparkle to dense metallic salt; uv_scale × 3 brackets the preview's own frequency (24) across the
-        //    row's 4 → 12. Applied AFTER the normal map (flakes ride the mapped surface) and BEFORE the coat
-        //    frame derives (the coat follows the base surface, flakes included — the preview's own order).
+        //    on. Flakes are tiny metallic facets under the coat: a bounded deterministic perturbation of the
+        //    shading normal plus a bounded modulation of channels that already exist — never a painted dot and
+        //    never a light source. Density maps to the lattice's cell coverage through a saturating 1 − exp(−D/4).
+        //    Applied AFTER the normal map (flakes ride the mapped surface) and BEFORE the coat frame derives (the
+        //    coat follows the base surface, flakes included).
         //
         //    M6b — THE FLAKES ARE SIZED AND COLOURED. The first cut ran the sine-field signal, whose features are
         //    sub-pixel at this row's frequencies: measurable, invisible. The lattice (SlateFlakeSample) gives each

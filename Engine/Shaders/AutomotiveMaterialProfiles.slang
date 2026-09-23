@@ -77,45 +77,21 @@ float AutomotiveCauchyIor(float iorD, float cauchyB, float cauchyC, float wavele
                cauchyC / (lambdaUm * lambdaUm * lambdaUm * lambdaUm));
 }
 
-// Deterministic, texture-free microflake signal. Three incommensurate bands avoid a visible grid while remaining
-// identical in the CPU port and the GPU shader. The signal is deliberately a material-detail term, not a light
-// source: it only modulates the shared coat/base lobes and their resolved microfacet normal.
-float AutomotiveFlakeSignal(vec3 position, vec3 normal, float density, float scale, float jitter)
-{
-    float h0 = abs(float(sin(dot(position, vec3(12.9898, 78.233, 37.719)) * scale + jitter * 17.17)));
-    float h1 = abs(float(sin(dot(position, vec3(39.3468, 11.135, 83.155)) * (scale * 1.731) + jitter * 29.31)));
-    float h2 = abs(float(sin(dot(position, vec3(91.17, 17.31, 43.77)) * (scale * 0.617) + jitter * 47.03)));
-    float sparkle = smoothstep(1.0 - density, 1.0 - density + 0.13, h0)
-                  * smoothstep(1.0 - density * 0.70, 1.0 - density * 0.70 + 0.14, h1);
-    sparkle = max(sparkle, smoothstep(0.91, 0.995, h2) * 0.72);
-    float grazing = 1.0 - clamp(dot(normalize(normal), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
-    return clamp(sparkle * (0.65 + 0.35 * grazing), 0.0, 1.0);
-}
-
-// The flakes are tiny metallic facets under the clearcoat. This fallback perturbs the resolved shading normal with a
-// bounded, deterministic orientation rather than painting an emissive dot. A future UV normal map can replace this
-// function without changing the clearcoat or Fresnel code below.
-vec3 AutomotiveApplyTriCoatFlakeNormal(vec3 normal, vec3 position, float density, float scale, float jitter)
-{
-    float signal = AutomotiveFlakeSignal(position, normal, density, scale, jitter);
-    vec3 helper = abs(normal.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-    vec3 tangent = normalize(cross(helper, normal));
-    vec3 bitangent = cross(normal, tangent);
-    float tx = float(sin(dot(position, vec3(73.17, 19.31, 41.77)) * scale + jitter * 13.0));
-    float ty = float(sin(dot(position, vec3(17.23, 61.91, 29.41)) * (scale * 1.37) + jitter * 23.0));
-    float tilt = signal * 0.22;
-    return normalize(normal + tangent * (tx * tilt) + bitangent * (ty * tilt));
-}
+// ⚠️ RETIRED (M6b): AutomotiveFlakeSignal and AutomotiveApplyTriCoatFlakeNormal lived here — a sum of three
+//    incommensurate sines, thresholded into a sparkle. They are DELETED rather than deprecated, because a second
+//    flake model is the one thing this file exists to prevent: the preview kept running the sine field for a
+//    milestone after the kernel had moved on, and the automotive paint exhibit rendered speckle noise the whole
+//    time. Every caller now uses the lattice below. The reasoning that replaced them is its banner comment.
 
 //============================================================================================================================================
 //                                     M6b — THE FLAKE LATTICE (sized, coloured, shared)
 //============================================================================================================================================
-// ⚠️ WHY A LATTICE AND NOT THE SINE SIGNAL ABOVE. AutomotiveFlakeSignal is a sum of three incommensurate sines: its
-//    "flakes" are whatever happens to cross a threshold, so their SIZE is set by the frequency and cannot be authored,
-//    and at the library's uv_scale (4 → 12, × 3) every feature lands far below a pixel. Rendered, that reads as a
-//    faint salt — measurable (the M6 gate saw 4.5 % RMSE) but not visible as flakes. A real flake has three authorable
-//    properties the sine field cannot express: a POSITION, a RADIUS, and one CONSTANT orientation and colour across
-//    its whole face (it is a flat chip of pigment, not a noise field).
+// ⚠️ WHY A LATTICE AND NOT A SINE FIELD (the retired AutomotiveFlakeSignal, see the note above). That was a sum of
+//    three incommensurate sines, so its "flakes" were whatever happened to cross a threshold: their SIZE is set by
+//    the frequency and cannot be authored, and at the library's uv_scale every feature landed far below a pixel.
+//    Rendered, that reads as a faint salt — measurable (the M6 gate saw 4.5 % RMSE) but not visible as flakes. A
+//    real flake has three authorable properties a noise field cannot express: a POSITION, a RADIUS, and one
+//    CONSTANT orientation and colour across its whole face (it is a flat chip of pigment, not a field).
 //
 //    So: quantise the surface point into cells of 1/cellsPerMetre metres; each cell hosts at most one flake, seeded
 //    from the cell's own hash. `flakeSize` is the flake's radius as a fraction of the cell (0.02 → 0.5 — 0.5 is a
