@@ -1182,3 +1182,23 @@ So #6 closes the way #5 did — **a negative result, recorded as one**:
   visibility is observed. It costs a second stored candidate per reservoir (record layout) and a second shadow ray
   on the 12–25 % failure cases, and it is NOT built: the residual it addresses is bounded by those same
   percentages, and §14.4 already says accuracy past the clamp is dials, not estimator surgery.
+
+### 14.8 The sun coin's limb-darkening question — the flat cone is the right estimator (2026-09-23, roadmap #6b)
+
+The other half of §14.3's "sun-coin variance" residual: the kernel DRAWS a limb-darkened disc (SkyRecords.slang,
+1.0 at centre → 0.55 at the rim) but the NEE estimator shades every cone sample with CONSTANT radiance
+(SunEmission() = Q/Ω over a uniform cone). Suspicion: the flatness costs variance. Measurement
+(`Exhibits/Workbench/Sky/SunLimbProof.cpp`, gated in `CheckSkyProbeProof.sh`): it is the other way round.
+
+- **Variance**: with constant L every cone sample returns the same value, so the flat form has EXACTLY ZERO
+  variance from the disc's radiance — it is the optimal estimator for the disc's total flux. Weighting samples
+  by the true profile at the same uniform pdf would ADD per-sample relative deviation of **18.7 %** (the
+  kernel's own drawn profile) or **17.7 %** (the physical linear limb, u = 0.6) — on every sun-lit pixel.
+- **Penumbra shape** (the one place flatness shows): sweeping a straight occluder across the disc, the flat
+  ramp differs from the limb-darkened one by at most **2.34 %** of the sun term (kernel profile; 1.97 %
+  physical), confined to the penumbra band, zero at both ends — a SHAPE error inside one solar diameter of
+  shadow travel, never an energy error (the host packs Q from the atmosphere march either way).
+
+So the "fix" would trade a <2.4 % shape bias confined to penumbra bands for ~18 % per-sample noise everywhere
+the sun shines. **#6b closes as a measured negative: the flat coin stays**, and with it #6 closes whole —
+both halves (occluded-weight §14.7, sun-coin here) measured, refused, and pinned by gates.

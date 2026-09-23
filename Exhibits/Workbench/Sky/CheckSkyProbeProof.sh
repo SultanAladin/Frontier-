@@ -63,6 +63,19 @@ else
 fi
 rm -f "$Binary3"
 
+# #6b the sun coin's limb-darkening question, measured and closed: the flat cone estimator is the
+#    zero-variance form for the disc's flux; the weighted alternative would add ~18 % per-sample noise on
+#    every sun-lit pixel to remove a <2.4 % penumbra-band shape error. The gate keeps the numbers honest.
+Binary4="$(mktemp -u /tmp/SunLimbProof.XXXXXX)"
+if ! g++ -std=c++20 -O2 -Wall -Wextra \
+     Exhibits/Workbench/Sky/SunLimbProof.cpp \
+     -o "$Binary4" 2>/tmp/SunLimbProof.build; then
+    echo "  COMPILE FAILED (SunLimbProof)"; sed 's/^/    /' /tmp/SunLimbProof.build | head -25; Fail=1
+else
+    "$Binary4" || Fail=1
+fi
+rm -f "$Binary4"
+
 # The species' own pins: the sentinel, the double-count handoff, and the host seat must all stand.
 grep -q "kSkyLightIndex" Engine/Shaders/ReSTIRViewport.slang || { echo "  kernel lost kSkyLightIndex - the sky species is gone"; Fail=1; }
 grep -q "kFeatureSkyReservoir" Engine/Shaders/ReSTIRViewport.slang || { echo "  kernel lost kFeatureSkyReservoir - the toggle bit is gone"; Fail=1; }
