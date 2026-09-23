@@ -251,24 +251,38 @@ ShadingRecord AutomotiveApplyTireUvDetail(ShadingRecord M, vec2 uv)
 }
 
 // Apply the automotive paint's analytic detail after the material record has been resolved. The caller supplies the
-// view direction for the flop term. A later host integration can replace position with UV-backed flakes while keeping
-// this exact fallback and the same lobe fields.
+// view direction for the flop term.
+//
+// ⚠️ M6b — THIS NOW RUNS THE LATTICE, NOT THE SINE FIELD. The preview is where the flake rule was first proven, and
+//    it was still running AutomotiveFlakeSignal after the engine had moved on: the paint read as speckle NOISE
+//    rather than flakes (a sine field's features have no size, so they alias to salt at any review distance). It
+//    now calls the SAME SlateFlakeSample / SlateFlakeNormal the kernel and the CPU mirror call, so there is exactly
+//    one flake model in the repository again — which is the property this file exists to guarantee.
+//
+//    `density` keeps its old meaning (coverage of the lattice's cells), `scale` is now the lattice frequency in
+//    cells per metre, and the two new authored properties arrive as arguments: `flakeSize` (radius within the cell)
+//    and `colourSpread` (per-flake pigment). The flop term is untouched — it is a view-dependent property of the
+//    paint, not of the flakes.
 ShadingRecord AutomotiveApplyTriCoatFlakes(ShadingRecord M, vec3 position, vec3 normal, vec3 viewDirection,
-                                           vec3 edgeColor, float density, float scale, float jitter)
+                                           vec3 edgeColor, float density, float scale, float jitter,
+                                           float flakeSize, float colourSpread)
 {
     if (M.Metalness <= 0.0 || M.CoatWeight <= 0.0) return M;
     float mu = clamp(dot(normalize(normal), normalize(viewDirection)), 0.0, 1.0);
     M.BaseColor = AutomotiveFlopColor(M.BaseColor, edgeColor, mu);
-    float signal = AutomotiveFlakeSignal(position, normal, density, scale, jitter);
-    // The flake is a bright microfacet population, not an emissive decal: it raises the shared metallic F82 tint and
-    // locally narrows both the base and clearcoat roughness so a direct-light sample produces visible silver/blue
-    // sparkle at finite preview spp. Mixing toward the flake colour makes the effect readable at the review distance,
-    // while the underlying clearcoat still carries the broad reflection.
-    vec3 flakeColor = mix(edgeColor, vec3(1.0), 0.55);
-    M.BaseColor = mix(M.BaseColor, flakeColor, signal * 0.74);
-    M.SpecularColor = mix(M.SpecularColor, vec3(1.0), signal * 0.92);
-    M.SpecularRoughness = mix(M.SpecularRoughness, max(0.012, M.SpecularRoughness * 0.20), signal * 0.92);
-    M.CoatRoughness = mix(M.CoatRoughness, max(0.012, M.CoatRoughness * 0.45), signal * 0.35);
+
+    vec4 flake = SlateFlakeSample(position, scale, density, flakeSize, colourSpread);
+    if (flake.x <= 0.0) return M;
+    // The chip REPLACES the basecoat where it sits (the M6b correction: multiplying a pigment in is what a filter
+    // does, and it renders every flake DARKER than the paint around it). A tinted chip carries its own pigment; an
+    // untinted one is the bright aluminium the preview always drew, biased toward the edge colour so the tri-coat
+    // still reads as a tri-coat.
+    vec3 flakeTint = vec3(flake.y, flake.z, flake.w);   // (the CPU shim has no .yzw swizzle on vec4)
+    vec3 flakeColor = mix(mix(edgeColor, vec3(1.0), 0.55), flakeTint, colourSpread);
+    M.BaseColor = mix(M.BaseColor, flakeColor, flake.x);
+    M.SpecularColor = mix(M.SpecularColor, vec3(1.0), flake.x * 0.92);
+    M.SpecularRoughness = mix(M.SpecularRoughness, max(0.05, M.SpecularRoughness * 0.30), flake.x);
+    M.CoatRoughness = mix(M.CoatRoughness, max(0.012, M.CoatRoughness * 0.45), flake.x * 0.35);
     return M;
 }
 

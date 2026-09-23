@@ -652,10 +652,19 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R, float SpectralWavelengthNm = 0.0f)
             m = AutomotiveApplyTireUvDetail(m, Uv);
             Ns = AutomotiveUvFrameNormal(Ns, Uv, 1.0f, 0.055f);
         }
-        // The standalone paint preview uses the same shared procedural fallback as its material record: flakes are
-        // microfacets under the coat, so their bounded normal variation is applied before the shading frame is built.
+        // M6b: the paint preview runs the SHARED FLAKE LATTICE (SlateFlakeNormal), the same body the kernel and the
+        // CPU mirror run — flakes are microfacets under the coat, so the facet is applied before the frame is built.
+        // ⚠️ The frequency is sized to THIS scene's geometry, which is the whole lesson of M6b. The paint ball is
+        // r = 1.38 m (5x a showcase sphere), so the showcase's 70-190 cells/m would put 0.4 px on a chip and render
+        // as salt again - the exact fault this work set out to fix. 34 cells/m is ~94 chips across the ball, ~1.8 px
+        // each in the kept sheet: a flake you can actually see. Coverage is 0.34, NOT the showcase row's 0.78: at
+        // high coverage every cell fires and a regular lattice reads as a woven GRID rather than scattered flake -
+        // sparsity is what makes a lattice look random. (Measured by eye on the kept sheet, both arms.)
         if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
-            Ns = AutomotiveApplyTriCoatFlakeNormal(Ns, P, 0.38f, 24.0f, 0.37f);
+        {
+            const float FlakeMask = SlateFlakeSample(P, 34.0f, 0.34f, 0.30f, 0.85f).x;
+            Ns = SlateFlakeNormal(Ns, P, 34.0f, FlakeMask, 0.30f);
+        }
 #endif
         if (dot(Ns, D) > 0.0f) Ns = -Ns;
         vec3 Tt, Bt;
@@ -666,7 +675,8 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R, float SpectralWavelengthNm = 0.0f)
         // isolated from the ordinary shaderball exhibit and Project-Zero; the material math itself lives in the
         // included AutomotiveMaterialProfiles.slang, which is also visible to the GPU Slang evaluator.
         if (m.Metalness > 0.8f && m.CoatWeight > 0.0f)
-            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f), 0.38f, 24.0f, 0.37f);
+            m = AutomotiveApplyTriCoatFlakes(m, P, Ns, -D, vec3(0.025f, 0.14f, 0.72f),
+                                             0.34f, 34.0f, 0.37f, 0.30f, 0.85f);   // M6b: coverage, cells/m, jitter, size, pigment spread
 #endif
         bool solidHit = g_SolidBall && m.TransmissionWeight > 0.0f;
         bool fromInside = Inside && T.Mat == EntryMat;
