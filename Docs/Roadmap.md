@@ -23,7 +23,7 @@ the report keeps the evidence, this file keeps the queue. Percentages are engine
 | 7 | Independent reference (second seed stream) for the RMSE floor | ✅ | 100 % | `--seed-stream N` (0 = the identity, verified byte-identical against the pre-change binary). The floor is measured, not shared: the plain arm moves 0 → **1 181.57** and ReSTIR 6 123.37 → **5 991.04**, so §14.3's headline is **5.1×** rather than 7.8× — and the flattery is per-arm (21.6 % for plain, −2.2 % for ReSTIR), not the ~15 % the variance algebra predicted. The convergence sheet prints both columns (`⑨ THE FLOOR`), so the table cannot drift from the evidence |
 | 8 | Quality dials (render scale, candidates, extra, taps slider, GI toggle) | ✅ | 100 % | Exposed and documented |
 | 9 | Materials M1–M10 + kernel K0–K5 | ✅ | 96 % | GPU pixels for the triptych, M10 level, denoiser A/B |
-| 10 | Deferred material work (M4c dispersion, glints, displacement ch20, Tier-B multi-slab) | ❌ | 0 % | Queued, unscheduled |
+| 10 | Deferred material work (M4c dispersion, glints, displacement ch20, Tier-B multi-slab) | ⚠️ | 25 % | **Glints DONE** (§15, 2026-09-23): `slate_glint_*` read in kernel + mirror through the shared automotive flake body; row-12 sheet gated (`RunGlintSheet.sh` — arms differ 4.5 %, energy within 1.5 %). Left: M4c dispersion (spectral seam), displacement ch20 (tessellation), Tier-B multi-slab |
 
 ## B. GPU verification — ≈ 5 % (no GPU, no SPIR-V compiler in the sandbox)
 

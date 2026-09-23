@@ -399,6 +399,22 @@ ShadingRecord ResolveMaterial(GpuMaterial mat, GpuInstance instance, uint primit
             t = normalize(t - n * dot(n, t)); b = cross(n, t) * handed;
         }
 
+        // M6 glints — slate_glint_density / slate_glint_uv_scale (P14.xy), stored since R4a and READ from here
+        //    on. The automotive precedent's exact rule: flakes are tiny metallic facets, so they are a bounded
+        //    deterministic normal perturbation (the SHARED AutomotiveApplyTriCoatFlakeNormal — the same body
+        //    the preview and the CPU port run), never a painted dot and never a light source. Density maps to
+        //    the signal's coverage through a saturating 1 − exp(−D/4), so the library's 1 → 8 row spans sparse
+        //    sparkle to dense metallic salt; uv_scale × 3 brackets the preview's own frequency (24) across the
+        //    row's 4 → 12. Applied AFTER the normal map (flakes ride the mapped surface) and BEFORE the coat
+        //    frame derives (the coat follows the base surface, flakes included — the preview's own order).
+        if (P14.x > 0.0)
+        {
+            float glintCoverage = 1.0 - exp(-P14.x * 0.25);
+            vec3 gn = AutomotiveApplyTriCoatFlakeNormal(n, hitPos, glintCoverage, P14.y * 3.0, 0.37);
+            if (dot(gn, ng) > 0.0) n = gn;                         // the same below-surface rejection the map obeys
+            t = normalize(t - n * dot(n, t)); b = cross(n, t) * handed;
+        }
+
         // M2: independent coat frame (clearcoat_normal_texture), derived from the POST-normal-map base frame — the coat
         // follows the base surface plus its own perturbation — then expressed in local (base-frame) coords for the lobes.
         if (ReflectanceConsumes(selection, kChannelCoatNormal) && SlabTexture(S, kChannelCoatNormal) != 0xFFFFu)

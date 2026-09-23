@@ -171,6 +171,11 @@ std::vector<ShadingRecord>     g_Mat;
 std::vector<uint32_t>          g_MatFlags;
 std::vector<float>             g_MatCutoff;
 std::vector<bool>              g_MatCutAway;   // [-] the material's constant opacity fails its cutoff: never hit
+// M6 glints — the slab's slate_glint pair, seated beside the record exactly as the kernel reads P14.xy from the
+//    slab (ShadingRecord carries no glint fields on either side; the perturbation happens before the frame builds).
+std::vector<float>             g_MatGlintDensity;
+std::vector<float>             g_MatGlintUvScale;
+bool g_MatGlintsOff = false;   // [-] DIAGNOSTIC (--no-glints): the pre-M6 surface, the A/B arm for the glint sheets
 
 Frontier::ProjectZero::SkyFogIntegrator g_Sky;
 vec3  g_SunDirRender(0.0f, 0.0f, 1.0f);   // [-] unit vector toward the sun, render frame (Y-up)
@@ -327,6 +332,7 @@ Viewpoint ShowcaseViewpointFor(const std::string& Name)
     if (Name == "glass")  return { Frontier::Vector3{ -1.0f, -3.90f, 1.60f },  -6.0f,  0.0f, 50.0f };  // row 1: the IOR ramp
     if (Name == "wide")   return { Frontier::Vector3{  0.0f, -22.0f, 11.0f }, -18.0f,  0.0f, 62.0f };  // 15×15 grid + scattered ring
     if (Name == "panel")  return { Frontier::Vector3{ 2.35f, -5.60f, 1.35f },  -4.0f,  8.0f, 42.0f };  // the interface panel, close
+    if (Name == "glints") return { Frontier::Vector3{ -1.0f, 12.70f, 1.60f },  -7.0f,  0.0f, 50.0f };  // M6: row 12 (Y +16.2), density 1 → 8 x uv_scale 4 → 12
     return { Frontier::Vector3{ 0.0f, -15.0f, 8.00f }, -21.0f, 0.0f, 55.0f };                          // the product's entry shot (r4)
 }
 
@@ -1712,6 +1718,15 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R, int Bounces, bool SkipPrimaryDirect = fals
         if (dot(Ng, D) > 0.0f) Ng = -Ng;
         vec3 Ns = normalize(T.N0 * (1.0f - H.U - H.V) + T.N1 * H.U + T.N2 * H.V);
         if (dot(Ns, D) > 0.0f) Ns = -Ns;
+        // M6 glints — the same perturbation the primary surface takes; a bounce that lands on a glinting
+        //    material must see the same microsurface or the two paths shade two different materials.
+        if (!g_MatGlintsOff && g_MatGlintDensity[T.Material] > 0.0f)
+        {
+            const float GlintCoverage = 1.0f - expf(-g_MatGlintDensity[T.Material] * 0.25f);
+            const vec3 Gn = AutomotiveApplyTriCoatFlakeNormal(Ns, O + D * H.T, GlintCoverage,
+                                                              g_MatGlintUvScale[T.Material] * 3.0f, 0.37f);
+            if (dot(Gn, Ng) > 0.0f) Ns = Gn;
+        }
         vec3 Tt, Bt;
         ShadingFrame(Ns, Tt, Bt);
         vec3 wo(dot(-D, Tt), dot(-D, Bt), dot(-D, Ns));
@@ -1914,6 +1929,8 @@ bool BuildInterfacePanel(uint16_t ObjectId)
         g_MatFlags.push_back(R.Flags);
         g_MatCutoff.push_back(R.AlphaCutoff);
         g_MatCutAway.push_back(false);
+        g_MatGlintDensity.push_back(S.SlateGlintDensity);   // M6: the kernel's P14.xy pair
+        g_MatGlintUvScale.push_back(S.SlateGlintUvScale);
     }
 
     for (const Frontier::TriangleIndex& F : Flats)
@@ -2280,6 +2297,15 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                     if (dot(Surf.Ng, D) > 0.0f) Surf.Ng = -Surf.Ng;
                     Surf.Ns = normalize(Tri.N0 * (1.0f - H.U - H.V) + Tri.N1 * H.U + Tri.N2 * H.V);
                     if (dot(Surf.Ns, D) > 0.0f) Surf.Ns = -Surf.Ns;
+                    // M6 glints — the kernel's rule, line for line: coverage 1 - exp(-D/4), frequency x3,
+                    //    jitter 0.37, applied before the frame builds, below-surface rejected against Ng.
+                    if (!g_MatGlintsOff && g_MatGlintDensity[Tri.Material] > 0.0f)
+                    {
+                        const float GlintCoverage = 1.0f - expf(-g_MatGlintDensity[Tri.Material] * 0.25f);
+                        const vec3 Gn = AutomotiveApplyTriCoatFlakeNormal(Surf.Ns, Surf.P, GlintCoverage,
+                                                                          g_MatGlintUvScale[Tri.Material] * 3.0f, 0.37f);
+                        if (dot(Gn, Surf.Ng) > 0.0f) Surf.Ns = Gn;
+                    }
                     ShadingFrame(Surf.Ns, Surf.T, Surf.B);
                     Surf.Wo = vec3(dot(-D, Surf.T), dot(-D, Surf.B), dot(-D, Surf.Ns));
                     Surf.Mat = g_Mat[Tri.Material];
@@ -2990,6 +3016,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--restir-no-history-split") g_RestirHistorySplit = false;
         else if (A == "--restir-no-gi-reuse")      g_RestirGiReuse = false;
         else if (A == "--restir-final-visibility") g_RestirFinalVisibility = true;   // the pre-reuse arm: re-trace the merged selection
+        else if (A == "--no-glints") g_MatGlintsOff = true;   // M6's A/B: the pre-glint surface
         else if (A == "--restir-dead-skip") g_RestirDeadSkip = true;   // #6's refused arm (adaptive-M bias, +9 % RMSE): kept for re-measurement
         else if (A == "--restir-no-identity")      g_RestirIdentity = false;
         else if (A == "--drift")        g_RestirDrift = static_cast<float>(std::atof(Next("--drift")));

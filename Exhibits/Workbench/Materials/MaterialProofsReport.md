@@ -1202,3 +1202,29 @@ The other half of §14.3's "sun-coin variance" residual: the kernel DRAWS a limb
 So the "fix" would trade a <2.4 % shape bias confined to penumbra bands for ~18 % per-sample noise everywhere
 the sun shines. **#6b closes as a measured negative: the flat coin stays**, and with it #6 closes whole —
 both halves (occluded-weight §14.7, sun-coin here) measured, refused, and pinned by gates.
+
+### 15. M6 glints — slate_glint_* read at last (2026-09-23, roadmap #10 first slice)
+
+`slate_glint_density` / `slate_glint_uv_scale` have ridden every slab since R4a (P14.xy, MaterialCodec parses
+them, the library's row 12 sweeps density 1 → 8 × uv_scale 4 → 12) and were read by NOTHING — §13's
+"stored-unread". Now both halves read them, through the SHARED flake body the automotive preview already
+proved (`AutomotiveApplyTriCoatFlakeNormal` — flakes are tiny metallic facets under the coat: a bounded,
+deterministic normal perturbation, never a painted dot, never a light source):
+
+- **kernel** (`ReSTIRViewport.slang`, ResolveMaterial): applied AFTER the normal map (flakes ride the mapped
+  surface) and BEFORE the coat frame derives (the coat follows the base surface, flakes included — the
+  preview's own order), with the same below-surface rejection the normal map obeys. Density maps to coverage
+  through 1 − exp(−D/4) so the row spans sparse sparkle → dense metallic salt; uv_scale × 3 brackets the
+  preview's own frequency.
+- **mirror** (`MaterialLevelViewport.cpp`): the same lines at both surface builds (the reservoir's primary
+  and the path trace's bounce — a bounce landing on a glinting material must see the same microsurface).
+  `--no-glints` is the A/B arm.
+
+Sheet + gates: `RunGlintSheet.sh` renders showcase row 12 close (the new `glints` viewpoint) both ways —
+the arms must differ (RMSE 0.045 normalised ≫ the 0.02 floor: the pair is READ) and the film means must
+agree within 2 % (measured 0.1336 vs 0.1317: a normal perturbation redistributes light, it created none).
+Kept sheet: `Exhibits/Gallery/Materials/GlintRowSheet.png`.
+
+Still deferred from §13's list, in order: M4c dispersion hero sampling (needs a spectral-throughput seam in
+both halves), geometric displacement (channel 20 — a tessellation question, not a shading one), Tier-B
+in-kernel multi-slab (post-M9 revisit).
