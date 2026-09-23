@@ -583,6 +583,19 @@ bool g_RestirGiReuse = true;
 //    measured with before the kernel port, and the counter below says how many rays the reuse saved.
 bool g_RestirFinalVisibility = false;
 std::atomic<long> g_VisibilityReuseSaved{0};   // [rays] spatial-pass shadow rays NOT traced because reuse answered
+// #6 — the dead-entry skip, MEASURED AND REFUSED (2026-09-23). The hypothesis: a blocked selection publishes
+//    W = 0 yet its M still joins every merge's denominator, shrinking whatever DID win — §14.3's "weight loss
+//    from dropped occluded selections" — so skipping dead entries should help. The measurement said the
+//    opposite: refusing an entry because its OBSERVED W is 0 conditions the merge on the sample's own outcome
+//    (adaptive-M bias — the estimator brightens where occlusion is common, because the denominator forgets
+//    the failures). 240x135, 4 cand x 128 frames, showcase, independent stream: RMSE 5 685 (dead entries
+//    merge) vs 6 221 (skipped) — 9 % WORSE — with the mean +1.3 % over the reference and 458k direct + 43k GI
+//    merges refused. The M a dead entry carries is real information: those candidates were CONSIDERED, and
+//    the set's estimator must count them. OFF by default, kept under `--restir-dead-skip` so the negative
+//    result stays re-measurable; the counters below say how often each pool WOULD have refused an entry.
+bool g_RestirDeadSkip = false;
+std::atomic<long> g_DeadSkipDirect{0};   // [merges] direct-pool entries refused for W = 0 (temporal + spatial)
+std::atomic<long> g_DeadSkipGi{0};       // [merges] GI-pool entries refused for W = 0 (temporal + spatial)
 // Roadmap #5, step 1: WHY a pixel has no pool coverage, as a per-pixel image rather than a counter. §14.5's counters say
 //    what share of the frame falls in each case; they cannot say whether those pixels are where the ERROR is, and that
 //    is the question that decides whether the 16 → 100 % fix (replay + shift mapping) is worth its bias risk. Writing
@@ -1044,7 +1057,10 @@ CpuReservoir RestirTemporalReservoir(const RestirSurface& Surface, int Candidate
                     && fabsf(Surface.Depth - Prev.Depth) / max(Surface.Depth, 1.0e-3f) < kRestirDepthTol;
                 const bool IdentityDiffers = Prev.Identity != Surface.Identity;
                 const bool IdentityOk = !g_RestirIdentity || !IdentityDiffers;
-                const bool Valid = PrevM > 0u && GeometryOk && IdentityOk;
+                // #6 the dead-entry rule (see g_RestirDeadSkip): a blocked history carries W = 0 and only its M.
+                const bool DeadOk = !g_RestirDeadSkip || Prev.UnbiasedWeight > 0.0f;
+                if (PrevM > 0u && GeometryOk && IdentityOk && !DeadOk) ++g_DeadSkipDirect;
+                const bool Valid = PrevM > 0u && GeometryOk && IdentityOk && DeadOk;
                 // D10: a temporal merge that the geometry test alone would have allowed and the identity refuses. With
                 //    the rule off this is the count of light samples the pixel inherited from ANOTHER surface.
                 // D10: the case the rule exists for — a merge the GEOMETRY test allowed and the identity refuses. Off
@@ -1136,6 +1152,7 @@ vec3 RestirSpatialShade(const CpuReservoir& Temporal, const RestirSurface& Surfa
             if (NX < 0 || NY < 0 || NX >= Width || NY >= Height) continue;
             const CpuReservoir& Neigh = State.Temporal[static_cast<size_t>(NY) * Width + NX];
             const uint32_t NeighM = Neigh.SampleCount;
+            if (g_RestirDeadSkip && NeighM > 0u && Neigh.UnbiasedWeight <= 0.0f) { ++g_DeadSkipDirect; continue; }   // #6
             const bool NValid = NeighM > 0u
                 && Neigh.StrideWidth == static_cast<float>(Width)
                 && dot(Ng, Neigh.Normal) > kRestirNormalCos
@@ -1389,7 +1406,10 @@ CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candi
                     && fabsf(Surface.Depth - Prev.Depth) / max(Surface.Depth, 1.0e-3f) < kRestirDepthTol;
                 const bool IdentityDiffers = Prev.Identity != Surface.Identity;
                 const bool IdentityOk = !g_RestirIdentity || !IdentityDiffers;
-                const bool Valid = Prev.SampleCount > 0u && GeometryOk && IdentityOk;
+                // #6 the dead-entry rule (see g_RestirDeadSkip): an occluded pool entry carries W = 0 and only its M.
+                const bool DeadOk = !g_RestirDeadSkip || Prev.UnbiasedWeight > 0.0f;
+                if (Prev.SampleCount > 0u && GeometryOk && IdentityOk && !DeadOk) ++g_DeadSkipGi;
+                const bool Valid = Prev.SampleCount > 0u && GeometryOk && IdentityOk && DeadOk;
                 if (Prev.SampleCount > 0u)
                 {
                     ++g_GiTemporalTried;
@@ -1470,6 +1490,7 @@ vec3 RestirGiSpatialShade(const CpuGiReservoir& Temporal, const RestirSurface& S
             if (NX < 0 || NY < 0 || NX >= Width || NY >= Height) continue;
             const CpuGiReservoir& Neigh = State.GiTemporal[static_cast<size_t>(NY) * Width + NX];
             const RestirVertex& NV = State.Vertex[static_cast<size_t>(NY) * Width + NX];
+            if (g_RestirDeadSkip && Neigh.SampleCount > 0u && Neigh.UnbiasedWeight <= 0.0f) { ++g_DeadSkipGi; continue; }   // #6
             const bool NValid = Neigh.SampleCount > 0u && NV.Valid
                 && Neigh.StrideWidth == static_cast<float>(Width)
                 && dot(Surface.Ng, Neigh.Normal) > kRestirNormalCos
@@ -2969,6 +2990,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--restir-no-history-split") g_RestirHistorySplit = false;
         else if (A == "--restir-no-gi-reuse")      g_RestirGiReuse = false;
         else if (A == "--restir-final-visibility") g_RestirFinalVisibility = true;   // the pre-reuse arm: re-trace the merged selection
+        else if (A == "--restir-dead-skip") g_RestirDeadSkip = true;   // #6's refused arm (adaptive-M bias, +9 % RMSE): kept for re-measurement
         else if (A == "--restir-no-identity")      g_RestirIdentity = false;
         else if (A == "--drift")        g_RestirDrift = static_cast<float>(std::atof(Next("--drift")));
         else if (A == "--drift-material") g_RestirDriftMaterial = std::atoi(Next("--drift-material"));
@@ -3113,6 +3135,10 @@ int main(int ArgumentCount, char** ArgumentValues)
         std::printf("[material-level] visibility reuse: %ld spatial-pass shadow rays skipped (the winner's stored "
                     "test answered) — the A/B arm is --restir-final-visibility\n",
                     g_VisibilityReuseSaved.load());
+    if (UseRestir && g_RestirDeadSkip)
+        std::printf("[material-level] dead-entry skip (#6, the REFUSED arm): %ld direct + %ld GI merges refused a "
+                    "W = 0 entry — measured +9 %% RMSE over the honest rule (adaptive-M bias)\n",
+                    g_DeadSkipDirect.load(), g_DeadSkipGi.load());
 
     // Presentation: the engine's own transfer, at the engine's own manual exposure.
     ColourTransfer Transfer;

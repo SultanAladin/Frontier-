@@ -1150,3 +1150,35 @@ escape on two framings) and `ReportGiClassError.sh` (§14.6, `[fast|full]`, GREE
 Harness: `Exhibits/Workbench/Materials/ReportGiCoverage.sh [frames]` re-runs both configurations and prints exactly the
 two tables above (≈ 1 min). The shares are config-robust — at 128×72 the same run reads escape 68.9 %, covered
 11.9 %, unusable 4.5 %, emitter 2.8 % — so the gap is a property of the estimator, not of the viewpoint.
+
+### 14.7 The occluded-selection "weight loss" is not recoverable by skipping dead entries (2026-09-23, roadmap #6)
+
+§14.3 named "weight loss from dropped occluded selections" as an open residual: 12–25 % of committed selections are
+occluded, publish W = 0, and yet their M still joins every later merge's denominator — so the receiving pixel's honest
+candidates shade at a fraction of their weight. The obvious fix is to skip dead (W = 0) entries at the merge gates,
+and it was built at all four of them (DI temporal, DI spatial, GI temporal, GI spatial), in the kernel and the mirror.
+
+**The measurement refused it.** 240×135, 4 candidates × 128 frames, 2 taps, the showcase level, an independent seed
+stream (`--seed-stream 1`), against the 512-spp reference:
+
+| arm | RMSE vs ① | image mean |
+|---|---|---|
+| dead entries MERGE (the shipped rule) | **5 684.83** | 0.6407 (ref 0.6366) |
+| dead entries SKIPPED (the hypothesis) | 6 221.24 — **+9 %** | 0.6487 — **+1.3 % bright** |
+
+458 060 direct + 43 269 GI merges refused a dead entry over the run, and every refusal was a small act of
+**adaptive-M bias**: refusing an entry because its OBSERVED W is 0 conditions the merge on the sample's own outcome.
+The M a dead reservoir carries is real information — those candidates were considered, and the set's estimator must
+count them; forgetting the failures precisely where occlusion is common is why the skipped arm brightens. (This is
+the same family of error as adapting sample counts to observed values, and the reservoir algebra offers no MIS
+weight to repair it cheaply.)
+
+So #6 closes the way #5 did — **a negative result, recorded as one**:
+- the kernel keeps the honest rule, with the finding pinned in a comment at the DI temporal gate;
+- the mirror keeps the refused arm under `--restir-dead-skip` (default OFF) with counters, so the result stays
+  re-measurable if the estimator ever changes shape;
+- what would actually recover the loss, if it is ever worth its complexity: shading the reservoir's RUNNER-UP when
+  the winner fails visibility — that keeps the denominator honest because the fallback is chosen before any
+  visibility is observed. It costs a second stored candidate per reservoir (record layout) and a second shadow ray
+  on the 12–25 % failure cases, and it is NOT built: the residual it addresses is bounded by those same
+  percentages, and §14.4 already says accuracy past the clamp is dials, not estimator surgery.

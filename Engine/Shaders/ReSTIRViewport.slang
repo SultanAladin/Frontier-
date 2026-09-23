@@ -1681,6 +1681,14 @@ void main()
                     uint prevM = prev.Counts.x;
                     bool valid = prevM > 0u
                         && prev.Normal.w == float(ViewportWidth)   // stride guard (render-scale change)
+                        // #6 ⚠️ a dead (W = 0, occluded) entry MERGES ANYWAY, M and all — measured, not assumed.
+                        //    Skipping it looks like the fix for §14.3's "weight loss from dropped occluded
+                        //    selections", and it is exactly wrong: RIS's normalisation counts every candidate
+                        //    CONSIDERED, and refusing an entry because its observed W is 0 conditions the merge
+                        //    on the sample's own outcome — the classic adaptive-M bias. The CPU mirror measured
+                        //    it (240x135, 4 cand x 128 frames, showcase, independent stream): RMSE 5 685 → 6 221
+                        //    (9 % WORSE) and the mean brightened +1.3 % over the reference. The mirror keeps the
+                        //    arm under --restir-dead-skip for re-measurement; the kernel keeps the honest rule.
                         && dot(hitNormal, prev.Normal.xyz) > kTemporalNormalCos
                         && abs(primaryT - prev.UvDepth.w) / max(primaryT, 1e-3) < kTemporalDepthTol
                         // D10: and the same surface. Two objects exchanging places pass the normal and the depth test
@@ -1773,6 +1781,8 @@ void main()
                     uint neighM = neigh.Counts.x;
                     bool nValid = neighM > 0u
                         && neigh.Normal.w == float(ViewportWidth)   // stride guard (render-scale change)
+                        // #6 a dead neighbour merges anyway — see the temporal merge's note: skipping on W = 0
+                        //    is adaptive-M bias, measured 9 % worse in the mirror.
                         && dot(hitNormal, neigh.Normal.xyz) > kTemporalNormalCos
                         && abs(primaryT - neigh.UvDepth.w) / max(primaryT, 1e-3) < kTemporalDepthTol;
                     if (!nValid) continue;

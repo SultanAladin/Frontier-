@@ -52,7 +52,16 @@ struct vec3
 struct vec4
 {
     float x, y, z, w;
-    struct Read3 { const float* a; const float* b; const float* c; operator vec3() const { return vec3(*a, *b, *c); } };
+    // The three-lane view reads as a vec3 and now also writes (the atrous firefly clamp's `TapColour.rgb *= s`):
+    //    the pointers are non-const, the write forms mirror GLSL's swizzle-assign, and reading is unchanged.
+    struct Read3
+    {
+        float* a; float* b; float* c;
+        operator vec3() const { return vec3(*a, *b, *c); }
+        Read3& operator*=(float s) { *a *= s; *b *= s; *c *= s; return *this; }
+        Read3& operator=(const vec3& v) { *a = v.x; *b = v.y; *c = v.z; return *this; }
+        Read3& operator+=(const vec3& v) { *a += v.x; *b += v.y; *c += v.z; return *this; }
+    };
     struct Read1 { const float* a; operator float() const { return *a; } };   // M9: the atrous filter's TapColour.a
     Read3 xyz, rgb;
     Read1 r, g, b, a;
