@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=fourth-study-r2">
+    <link rel="stylesheet" href="styles.css?v=fifth-study-r1">
 </head>
 <body>
     <div class="publication-shell">
@@ -23,9 +23,10 @@
                 <a href="#dead-weight" data-page="dead-weight">Dead Weight</a>
                 <a href="#breaker-wave" data-page="breaker-wave">Breaker Wave</a>
                 <a href="#beltline" data-page="beltline">Beltline</a>
+                <a href="#beachhead" data-page="beachhead">Beachhead</a>
             </nav>
 
-            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—04</p>
+            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—05</p>
         </header>
 
         <main>
@@ -33,7 +34,7 @@
                 <div class="index-intro">
                     <p class="section-kicker">Field mechanics / Volume 01</p>
                     <h1 id="index-title">Index</h1>
-                    <p class="index-deck">Four focused studies for systemic course mechanics.</p>
+                    <p class="index-deck">Five focused studies for systemic course mechanics.</p>
                 </div>
 
                 <a class="chapter-entry" href="#iron-tide" data-page="iron-tide" aria-label="Open Iron Tide study">
@@ -170,6 +171,39 @@
                             <g class="preview-belt-car" transform="translate(358 208)"><rect x="-31" y="-17" width="62" height="34" rx="9"/><circle cx="-18" cy="18" r="7"/><circle cx="18" cy="18" r="7"/></g>
                         </svg>
                         <span class="diagram-caption">Straight transfer-line study</span>
+                    </div>
+                </a>
+
+                <a class="chapter-entry chapter-entry-beach" href="#beachhead" data-page="beachhead" aria-label="Open Beachhead study">
+                    <div class="entry-copy">
+                        <p class="entry-number">05</p>
+                        <div>
+                            <p class="entry-label">Fictional coastal-siege study</p>
+                            <h2>Beachhead</h2>
+                            <p>Autonomous vehicle emplacements sweep a fictional coast with crossing tracers and telegraphed impacts while a configurable rover uses channels and smoke to reach the inland exit.</p>
+                        </div>
+                        <span class="entry-link">Open study <b aria-hidden="true">↗</b></span>
+                    </div>
+
+                    <div class="index-diagram beach-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 760 440" role="img">
+                            <path class="preview-shore" d="M0 335c118-35 187 14 306-21 134-39 242 17 454-32v158H0z"/>
+                            <path class="preview-beach-lanes" d="M112 350 258 76M334 350 382 76M558 350 508 76"/>
+                            <g class="preview-barricades">
+                                <path d="m180 276 86-28M471 260l92 27M279 183l81 2M407 141l84-24"/>
+                            </g>
+                            <g class="preview-tracers">
+                                <path d="M70 84 565 335M690 104 211 344M139 70l77 302"/>
+                            </g>
+                            <g class="preview-impact">
+                                <circle cx="410" cy="249" r="40"/><circle cx="410" cy="249" r="22"/>
+                            </g>
+                            <g class="preview-smoke">
+                                <circle cx="319" cy="306" r="30"/><circle cx="352" cy="294" r="38"/><circle cx="384" cy="310" r="27"/>
+                            </g>
+                            <g class="preview-siege-car" transform="translate(350 337)"><rect x="-25" y="-36" width="50" height="72" rx="12"/><path d="M-15-20h30v31h-30zM0-31v15"/></g>
+                        </svg>
+                        <span class="diagram-caption">Original vehicle-only coastal field</span>
                     </div>
                 </a>
             </section>
@@ -590,7 +624,7 @@
                         <p class="section-kicker">04 / Conveyor dynamics mechanic</p>
                         <h1 id="beltline-title">Beltline</h1>
                     </div>
-                    <p>A straight transfer course where conveyor velocity, wheel speed and surface construction determine motion while upper and lower feeders push industrial freight across the vehicle’s line.</p>
+                    <p>A straight transfer course where conveyor velocity, wheel speed and surface construction determine motion while upper, lower, front and back feeders push industrial freight through the vehicle’s line.</p>
                 </header>
 
                 <div class="study-layout">
@@ -681,7 +715,7 @@
                             <li><strong>Every surface transfers motion differently.</strong> Ribbed rubber grips hard and can launch the carrier, wet steel saturates early and produces long slides, while free rollers transfer almost no belt speed.</li>
                             <li><strong>Sections change suddenly and independently.</strong> The live zones take turns reversing against their commanded direction while a run is active—the green rubber section can abruptly run backward while the other two continue forward.</li>
                             <li><strong>Steering still needs grip.</strong> The steering-line input requests a lane, but lateral acceleration is limited by the current surface. A carrier sliding on wet steel cannot instantly reach the selected line.</li>
-                            <li><strong>Feeders cross the course.</strong> Upper and lower transfer chutes release crates, drums and beams. Their mass, cross-feed velocity and collision shape alter the carrier rather than acting as visual obstacles.</li>
+                            <li><strong>Feeders enter from every axis.</strong> Upper and lower transfer chutes cross the course, while front and back feeds send freight with and against the running line. Mass, velocity and collision shape alter the carrier rather than acting as visual obstacles.</li>
                             <li><strong>Outcomes remain physical.</strong> Excess slip, a high-grip launch, freight impacts, departure over either edge and crossing the finish are all consequences of the same motion model.</li>
                         </ol>
                     </article>
@@ -694,7 +728,7 @@
                             <li>Independent driven-wheel velocity</li>
                             <li>Visible autonomous reversals cycling through every section</li>
                             <li>Ribbed rubber, wet steel and free-roller zones</li>
-                            <li>Upper and lower cross-feed machinery</li>
+                            <li>Upper, lower, front and back freight feeders</li>
                             <li>Crates, drums and long steel beams</li>
                             <li>Live lane steering with grip-limited response</li>
                             <li>Freight-to-vehicle collision impulses</li>
@@ -717,11 +751,139 @@
                     </article>
                 </section>
             </section>
+
+            <section class="page beachhead-page" id="beachhead" aria-labelledby="beachhead-title" hidden>
+                <header class="chapter-heading">
+                    <div>
+                        <p class="section-kicker">05 / Fictional coastal-siege mechanic</p>
+                        <h1 id="beachhead-title">Beachhead</h1>
+                    </div>
+                    <p>An original vehicle-only coastal field. Automated emplacements create readable tracer and impact patterns while a light or heavy rover navigates barricade channels and deploys smoke to reach the inland extraction gate.</p>
+                </header>
+
+                <div class="study-layout">
+                    <article class="simulation-card" aria-labelledby="beachhead-simulation-title">
+                        <header class="card-heading">
+                            <div>
+                                <p class="card-eyebrow">Live coastal field</p>
+                                <h2 id="beachhead-simulation-title">Automated siege corridor</h2>
+                            </div>
+                            <div class="action-cluster">
+                                <button class="ride-button smoke-button" id="beach-smoke" type="button">Deploy smoke</button>
+                                <button class="ride-button" id="beach-start" type="button">Start run</button>
+                            </div>
+                        </header>
+
+                        <div class="simulation-surface beachhead-surface">
+                            <canvas id="beachhead-canvas" aria-label="Top-down fictional vehicle-only coastal siege simulation with tracers, smoke and barricades"></canvas>
+                            <div class="surface-readout beachhead-readout" aria-hidden="true">
+                                <div><span>Rover</span><strong id="beach-phase-readout">Ready</strong></div>
+                                <div><span>Integrity</span><strong id="beach-health-readout">100%</strong></div>
+                                <div><span>Pattern</span><strong id="beach-pattern-readout">Lane burst</strong></div>
+                            </div>
+                            <div class="surface-legend" aria-hidden="true">
+                                <span><i class="legend-tracer"></i>Tracer sweep</span>
+                                <span><i class="legend-warning"></i>Impact warning</span>
+                                <span><i class="legend-crater"></i>Persistent crater</span>
+                                <span><i class="legend-smoke"></i>Smoke cover</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <aside class="parameter-card" aria-labelledby="beachhead-parameter-title">
+                        <header class="parameter-heading">
+                            <p class="card-eyebrow">Vehicle and field inputs</p>
+                            <h2 id="beachhead-parameter-title">Siege setup</h2>
+                            <p>Choose a physical rover configuration, set an approach line and deploy smoke only when the automated pattern demands it.</p>
+                            <div class="configuration-switch" role="group" aria-label="Vehicle configuration">
+                                <button id="beach-light" class="is-active" type="button">Light / agile</button>
+                                <button id="beach-heavy" type="button">Heavy / armoured</button>
+                            </div>
+                        </header>
+
+                        <div class="parameter-list beachhead-parameters">
+                            <label class="parameter-row" for="beach-speed">
+                                <span class="parameter-name">Wheel speed</span>
+                                <output id="beach-speed-output" for="beach-speed">48 km/h</output>
+                                <input id="beach-speed" type="range" min="24" max="90" value="48" step="1">
+                                <span class="range-ends"><small>24</small><small>90 km/h</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beach-lane">
+                                <span class="parameter-name">Approach lane</span>
+                                <output id="beach-lane-output" for="beach-lane">Centre</output>
+                                <input id="beach-lane" type="range" min="-100" max="100" value="0" step="1">
+                                <span class="range-ends"><small>West</small><small>East</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beach-sweep">
+                                <span class="parameter-name">Tracer sweep rate</span>
+                                <output id="beach-sweep-output" for="beach-sweep">60%</output>
+                                <input id="beach-sweep" type="range" min="20" max="100" value="60" step="1">
+                                <span class="range-ends"><small>Sparse</small><small>Saturated</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beach-warning">
+                                <span class="parameter-name">Impact warning</span>
+                                <output id="beach-warning-output" for="beach-warning">1.4 s</output>
+                                <input id="beach-warning" type="range" min="6" max="25" value="14" step="1">
+                                <span class="range-ends"><small>0.6 s</small><small>2.5 s</small></span>
+                            </label>
+                        </div>
+                    </aside>
+                </div>
+
+                <section class="study-notes" aria-label="Beachhead concept notes">
+                    <article>
+                        <p class="note-number">01</p>
+                        <h2>Mechanics</h2>
+                        <ol>
+                            <li><strong>Automated systems own the field.</strong> Uncrewed mechanical emplacements sweep the coast without depicting soldiers, human targets or a historical battle.</li>
+                            <li><strong>Fire patterns are readable systems.</strong> Lane bursts concentrate tracers into one approach channel; crossing fire draws opposing diagonal paths. Mechanical sweep motion telegraphs where each pattern moves next.</li>
+                            <li><strong>Impacts warn before they land.</strong> Contracting circles show location and remaining time. Detonation damages nearby vehicles and leaves a crater that persists for the rest of the run.</li>
+                            <li><strong>Barricades create channels.</strong> Concrete and steel obstacles form a slalom rather than decoration. Contact deflects the rover, reduces integrity and can push it into an active fire lane.</li>
+                            <li><strong>Smoke is a timed physical resource.</strong> A deployed cloud expands from the rover, obscures automated tracer acquisition and displaces predicted impact targeting until it disperses.</li>
+                            <li><strong>Configuration changes the solution.</strong> The light rover turns and accelerates quickly but has less integrity; the heavy rover absorbs impacts and crosses crater rims but changes lanes slowly.</li>
+                        </ol>
+                    </article>
+
+                    <article>
+                        <p class="note-number">02</p>
+                        <h2>Features</h2>
+                        <ul>
+                            <li>Original fictional setting with no historical recreation</li>
+                            <li>Vehicle-only conflict with no human targets</li>
+                            <li>Automated tracer sweep geometry</li>
+                            <li>Alternating burst-lane and crossing-fire patterns</li>
+                            <li>Concrete barricade approach channels</li>
+                            <li>Contracting explosive warning circles</li>
+                            <li>Persistent run-specific craters</li>
+                            <li>User-deployable expanding smoke</li>
+                            <li>Light and heavy rover configurations</li>
+                            <li>Integrity, extraction and recovery states</li>
+                        </ul>
+                    </article>
+
+                    <article>
+                        <p class="note-number">03</p>
+                        <h2>Ideas</h2>
+                        <ul>
+                            <li><strong>Pattern composition.</strong> Later fields can layer a slow mechanical sweep over short lane bursts, creating moving safe pockets rather than random unavoidable damage.</li>
+                            <li><strong>Crater routing.</strong> Heavy vehicles can use shallow crater rims as cover while light vehicles must route around the traction loss inside them.</li>
+                            <li><strong>Smoke interaction.</strong> Crosswind can push smoke into a neighbouring channel, protecting a later vehicle while exposing the rover that deployed it.</li>
+                            <li><strong>False telegraphs.</strong> Damaged automated emplacements can paint warning circles that fail to detonate, testing whether the player trusts the machinery.</li>
+                            <li><strong>Freight consequences.</strong> Beltline beams can become barricades and Iron Tide scrap can alter armour mass without introducing infantry or historical iconography.</li>
+                            <li><strong>Multiple extraction gates.</strong> Exit integrity and configuration can route the rover toward repair, cargo transfer or a faster inland conveyor.</li>
+                        </ul>
+                    </article>
+                </section>
+            </section>
         </main>
     </div>
 
     <script src="breaker.js?v=breaker-wave-r4"></script>
-    <script src="beltline.js?v=beltline-r2"></script>
-    <script src="app.js?v=fourth-study-r1"></script>
+    <script src="beltline.js?v=beltline-r3"></script>
+    <script src="beachhead.js?v=beachhead-r1"></script>
+    <script src="app.js?v=fifth-study-r1"></script>
 </body>
 </html>

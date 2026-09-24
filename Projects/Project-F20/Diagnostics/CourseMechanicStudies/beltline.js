@@ -124,10 +124,12 @@
     ];
 
     const feeders = [
-        { x: 0.19, side: -1, next: 0.35, index: 0 },
-        { x: 0.405, side: 1, next: 1.15, index: 1 },
-        { x: 0.59, side: -1, next: 1.75, index: 2 },
-        { x: 0.805, side: 1, next: 0.8, index: 3 }
+        { kind: "cross", x: 0.19, side: -1, next: 0.35, index: 0 },
+        { kind: "cross", x: 0.405, side: 1, next: 1.15, index: 1 },
+        { kind: "cross", x: 0.59, side: -1, next: 1.75, index: 2 },
+        { kind: "cross", x: 0.805, side: 1, next: 0.8, index: 3 },
+        { kind: "end", x: -0.055, y: -0.43, direction: 1, next: 0.65, index: 4 },
+        { kind: "end", x: 1.055, y: 0.44, direction: -1, next: 1.45, index: 5 }
     ];
 
     const vehicle = {
@@ -203,7 +205,13 @@
     controls.forEach((control) => control.update());
 
     function sectionFor(position) {
-        return sections.find((section) => position >= section.start && position < section.end) || sections[sections.length - 1];
+        if (position < 0) {
+            return sections[0];
+        }
+        if (position >= 1) {
+            return sections[sections.length - 1];
+        }
+        return sections.find((section) => position >= section.start && position < section.end) || sections[0];
     }
 
     function objectTemplate(type) {
@@ -306,6 +314,15 @@
     function spawnFromFeeder(feeder) {
         const types = ["crate", "drum", "beam"];
         const type = types[(feeder.index + Math.floor(random() * 3)) % types.length];
+        if (feeder.kind === "end") {
+            const object = createObject(type, feeder.x, feeder.y, (random() - 0.5) * 0.08, (random() - 0.5) * 0.35);
+            object.vx = feeder.direction * (95 + random() * 55);
+            object.spin += feeder.direction * 0.7;
+            world.objects.push(object);
+            feeder.next = 2.1 + random() * 2.8;
+            return;
+        }
+
         const speed = 0.3 + random() * 0.19;
         const y = feeder.side * 1.2;
         const vy = -feeder.side * speed;
@@ -575,6 +592,36 @@
     function drawFeeders(ctx, frame) {
         feeders.forEach((feeder) => {
             const x = screenX(feeder.x, frame);
+            if (feeder.kind === "end") {
+                const y = screenY(feeder.y, frame);
+                const fromFront = feeder.direction > 0;
+                const edge = fromFront ? frame.left : frame.right;
+                const outer = fromFront ? frame.left - 64 : frame.right + 64;
+                ctx.fillStyle = "#232725";
+                ctx.strokeStyle = "rgba(235,236,229,0.15)";
+                roundedRectangle(ctx, Math.min(edge, outer), y - 22, Math.abs(outer - edge), 44, 7);
+                ctx.fill();
+                ctx.stroke();
+                ctx.strokeStyle = "rgba(182,189,50,0.5)";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(outer + (fromFront ? -4 : 4), y);
+                ctx.lineTo(edge + (fromFront ? 13 : -13), y);
+                ctx.stroke();
+                ctx.fillStyle = "#b6bd32";
+                ctx.beginPath();
+                ctx.moveTo(edge + (fromFront ? 13 : -13), y);
+                ctx.lineTo(edge + (fromFront ? 3 : -3), y - 5);
+                ctx.lineTo(edge + (fromFront ? 3 : -3), y + 5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = "rgba(238,239,233,0.38)";
+                ctx.font = "500 7px 'General Sans', sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(fromFront ? "FRONT FEED" : "BACK FEED", (edge + outer) * 0.5, y - 29);
+                return;
+            }
+
             const upper = feeder.side < 0;
             const edge = upper ? frame.top : frame.bottom;
             const outer = upper ? frame.top - 74 : frame.bottom + 74;
