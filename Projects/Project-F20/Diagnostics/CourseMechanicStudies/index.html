@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=third-study-r10">
+    <link rel="stylesheet" href="styles.css?v=third-study-r11">
 </head>
 <body>
     <div class="publication-shell">
@@ -116,7 +116,7 @@
                         <div>
                             <p class="entry-label">Three-dimensional surface mechanic</p>
                             <h2>Breaker Wave</h2>
-                            <p>A vehicle on water-running tyres rides inside a moving barrel wave and must clear the closing section before it is enveloped.</p>
+                            <p>A one-sided barrel narrows as its break travels across the water. The vehicle must hold a diagonal escape line or be swallowed by the moving lip.</p>
                         </div>
                         <span class="entry-link">Open study <b aria-hidden="true">↗</b></span>
                     </div>
@@ -132,9 +132,10 @@
                             <path class="preview-wave-body" d="M92 330C99 135 244 53 411 66c145 11 251 108 258 237-78-96-173-133-276-124-99 8-159 69-163 151z"/>
                             <path class="preview-wave-lip" d="M411 66c145 11 251 108 258 237-63-68-133-108-211-121"/>
                             <path class="preview-wave-foam" d="M415 67c34 7 60 17 86 31M503 99l20 14M540 122l25 17M575 151l20 20"/>
-                            <g class="preview-wave-car" transform="translate(327 310)"><rect x="-30" y="-14" width="60" height="25" rx="8"/><circle cx="-19" cy="13" r="8"/><circle cx="19" cy="13" r="8"/></g>
+                            <path class="preview-wave-line" d="M327 310 603 181"/>
+                            <g class="preview-wave-car" transform="translate(327 310) rotate(-24)"><rect x="-30" y="-14" width="60" height="25" rx="8"/><circle cx="-19" cy="13" r="8"/><circle cx="19" cy="13" r="8"/></g>
                         </svg>
-                        <span class="diagram-caption">Real-time 3D barrel study</span>
+                        <span class="diagram-caption">Tapered moving-break study</span>
                     </div>
                 </a>
             </section>
@@ -421,7 +422,7 @@
                         <p class="section-kicker">03 / Travelling surface mechanic</p>
                         <h1 id="breaker-title">Breaker Wave</h1>
                     </div>
-                    <p>A real-time three-dimensional barrel wave. The vehicle rides inside the moving C-shaped surface on water-running tyres and must leave the section before the lip closes.</p>
+                    <p>A real-time three-dimensional barrel wave tapered toward one side. Its break sweeps across the water, so the vehicle must hold a diagonal escape line instead of travelling straight into the closing lip.</p>
                 </header>
 
                 <div class="study-layout">
@@ -435,10 +436,10 @@
                         </header>
 
                         <div class="simulation-surface breaker-surface">
-                            <canvas id="breaker-canvas" aria-label="Real-time three-dimensional C-shaped barrel wave with a vehicle positioned inside"></canvas>
+                            <canvas id="breaker-canvas" aria-label="Real-time three-dimensional tapered barrel wave with a vehicle positioned inside on a diagonal escape line"></canvas>
                             <div class="surface-readout" aria-hidden="true">
                                 <div><span>Ride</span><strong id="breaker-phase-readout">Ready</strong></div>
-                                <div><span>Vehicle</span><strong id="breaker-speed-readout">74</strong></div>
+                                <div><span>Line</span><strong id="breaker-angle-readout">32°</strong></div>
                                 <div><span>Closure</span><strong id="breaker-closure-readout">58%</strong></div>
                             </div>
                             <div class="surface-legend" aria-hidden="true">
@@ -453,7 +454,7 @@
                         <header class="parameter-heading">
                             <p class="card-eyebrow">Simulation input</p>
                             <h2 id="breaker-parameter-title">Parameters</h2>
-                            <p>The wave remains live while its geometry, closure and tyre response change.</p>
+                            <p>Set a diagonal traverse angle, then test whether speed and tyre support can outrun the moving break.</p>
                         </header>
 
                         <div class="parameter-list">
@@ -491,6 +492,13 @@
                                 <input id="breaker-speed" type="range" min="40" max="120" value="74" step="1">
                                 <span class="range-ends"><small>40</small><small>120 km/h</small></span>
                             </label>
+
+                            <label class="parameter-row" for="breaker-angle">
+                                <span class="parameter-name">Traverse angle</span>
+                                <output id="breaker-angle-output" for="breaker-angle">32°</output>
+                                <input id="breaker-angle" type="range" min="8" max="58" value="32" step="1">
+                                <span class="range-ends"><small>Straight</small><small>Across face</small></span>
+                            </label>
                         </div>
                     </aside>
                 </div>
@@ -500,11 +508,12 @@
                         <p class="note-number">01</p>
                         <h2>Mechanics</h2>
                         <ol>
-                            <li><strong>A travelling C-shaped surface.</strong> The wave is a three-dimensional mesh with a hollow barrel, an open exit and a breaking lip. It moves along its length instead of behaving like a static tunnel.</li>
-                            <li><strong>The vehicle begins inside.</strong> Before the ride starts, the vehicle is already held against the lower inside face so the intended relationship between tyres and water is immediately clear.</li>
-                            <li><strong>Water-running tyres.</strong> Buoyant tyre vanes generate support only while relative speed is high enough. More grip lets the vehicle climb the wall; too little speed makes it slide toward the trough.</li>
-                            <li><strong>Closure creates the deadline.</strong> The lip advances as the section travels. The driver must keep enough forward speed to reach the opening before the barrel closes around the route.</li>
-                            <li><strong>Failure returns to a checkpoint.</strong> Losing tyre support or remaining inside after closure resets the vehicle to the ready position inside the next wave section.</li>
+                            <li><strong>A moving, one-sided taper.</strong> The C-shaped mesh is broad at the entry but its open side narrows down the face. Travelling deformation and a sweeping foam edge make the break advance rather than read as a static tunnel.</li>
+                            <li><strong>The vehicle begins inside.</strong> Before the ride starts, the vehicle is already held against the lower inside face so the relationship between tyres, water and the escape line is immediately clear.</li>
+                            <li><strong>The route must be diagonal.</strong> The vehicle needs enough traverse angle to move across the wave face toward the open shoulder. A straight line remains inside the moving closure and is swallowed; an excessively steep line loses forward support.</li>
+                            <li><strong>Water-running tyres.</strong> Buoyant tyre vanes generate support only while relative speed is high enough. Grip and speed determine whether the vehicle can hold its selected angle while climbing the face.</li>
+                            <li><strong>Closure creates the deadline.</strong> The lip sweeps from the wide side toward the taper. The vehicle must reach the shoulder before that moving break intersects its line.</li>
+                            <li><strong>Failure returns to a checkpoint.</strong> Lost tyre support or a swallowed line is identified in the live readout, then the ride can restart inside the following wave section.</li>
                         </ol>
                     </article>
 
@@ -513,13 +522,14 @@
                         <h2>Features</h2>
                         <ul>
                             <li>Raw WebGL three-dimensional wave geometry</li>
-                            <li>Large C-shaped barrel with a readable opening</li>
-                            <li>Longitudinal travelling-wave motion</li>
+                            <li>Asymmetrical barrel that visibly tapers on its open side</li>
+                            <li>Longitudinal motion and a break sweeping across the wave face</li>
                             <li>Multi-frequency surface noise and turbulence</li>
-                            <li>Animated foam concentrated along the breaking lip</li>
+                            <li>Animated foam tracing the moving lip</li>
                             <li>Vehicle held inside the wave before starting</li>
-                            <li>Water-running tyre grip and speed relationship</li>
-                            <li>Ride timer, closure failure and checkpoint reset</li>
+                            <li>Selectable diagonal traverse line</li>
+                            <li>Water-running tyre grip, speed and angle relationship</li>
+                            <li>Distinct clear, swallowed and lost-support states</li>
                             <li>User-triggered low-frequency water roar</li>
                         </ul>
                     </article>
@@ -528,7 +538,7 @@
                         <p class="note-number">03</p>
                         <h2>Ideas</h2>
                         <ul>
-                            <li><strong>Vertical route choice.</strong> Climbing higher inside the barrel shortens the line but reduces tyre loading and leaves less room below the closing lip.</li>
+                            <li><strong>Angle trade-off.</strong> A steeper traverse reaches the open shoulder sooner but sheds forward water speed; a shallow traverse preserves support while giving the sweeping lip more time to catch the vehicle.</li>
                             <li><strong>Surface-reading challenge.</strong> Dark bands, foam and reflected factory lights can reveal fast water, dead patches and turbulence before the tyres reach them.</li>
                             <li><strong>Variable exits.</strong> Some wave sections can open toward a dry ramp, others into a second barrel, and others onto a temporary floating service deck.</li>
                             <li><strong>Carry consequences forward.</strong> Heavy steel cargo from Iron Tide improves stability in crosswind but requires more speed to remain on the water surface.</li>
@@ -541,7 +551,7 @@
         </main>
     </div>
 
-    <script src="breaker.js?v=breaker-wave-r2"></script>
+    <script src="breaker.js?v=breaker-wave-r3"></script>
     <script src="app.js?v=third-study-r10"></script>
 </body>
 </html>

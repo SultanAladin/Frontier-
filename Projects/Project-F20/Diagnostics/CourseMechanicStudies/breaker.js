@@ -10,7 +10,7 @@
     const surface = canvas.parentElement;
     const startButton = document.getElementById("breaker-start");
     const phaseReadout = document.getElementById("breaker-phase-readout");
-    const speedReadout = document.getElementById("breaker-speed-readout");
+    const angleReadout = document.getElementById("breaker-angle-readout");
     const closureReadout = document.getElementById("breaker-closure-readout");
 
     const settings = {
@@ -18,7 +18,8 @@
         closure: 0.58,
         noise: 0.42,
         grip: 0.75,
-        speed: 74
+        speed: 74,
+        angle: 32
     };
 
     const controls = [
@@ -51,6 +52,12 @@
             output: document.getElementById("breaker-speed-output"),
             apply: (number) => { settings.speed = number; },
             format: (number) => `${number} km/h`
+        },
+        {
+            input: document.getElementById("breaker-angle"),
+            output: document.getElementById("breaker-angle-output"),
+            apply: (number) => { settings.angle = number; },
+            format: (number) => `${number}°`
         }
     ];
 
@@ -276,6 +283,7 @@
         progress: 0,
         closureProgress: 0,
         resultTimer: 0,
+        failureReason: "",
         worldTime: 0
     };
 
@@ -346,6 +354,7 @@
             ride.time = 0;
             ride.progress = 0;
             ride.closureProgress = 0;
+            ride.failureReason = "";
             startButton.textContent = "Start ride";
             return;
         }
@@ -354,29 +363,43 @@
         ride.progress = 0;
         ride.closureProgress = 0;
         ride.resultTimer = 0;
+        ride.failureReason = "";
         startButton.textContent = "Reset ride";
     }
 
     startButton.addEventListener("click", startRide);
 
+    function requiredTraverseAngle() {
+        return 18 + settings.closure * 20 + settings.noise * 5;
+    }
+
     function updateRide(delta) {
         ride.worldTime += delta;
         if (ride.phase === "riding") {
             ride.time += delta;
-            const support = (settings.speed / 74) * (0.52 + settings.grip * 0.62);
-            ride.progress += delta * 0.058 * support;
+            const targetAngle = requiredTraverseAngle();
+            const angleError = Math.abs(settings.angle - targetAngle);
+            const lineEfficiency = Math.max(0.18, 1 - angleError / 28);
+            const hydroSupport = (settings.speed / 74) * (0.52 + settings.grip * 0.62);
+            const support = hydroSupport * (0.68 + lineEfficiency * 0.32);
+            const shallowExposure = Math.max(0, targetAngle - settings.angle) / 38;
+            const capture = ride.closureProgress + shallowExposure;
+
+            ride.progress += delta * 0.058 * support * (0.82 + lineEfficiency * 0.18);
             ride.closureProgress += delta * (0.039 + settings.closure * 0.018);
 
-            if (support < 0.63 && ride.time > 2.2) {
+            if ((hydroSupport < 0.63 || (settings.angle > targetAngle + 18 && lineEfficiency < 0.4)) && ride.time > 2.2) {
                 ride.phase = "failed";
+                ride.failureReason = "No support";
                 ride.resultTimer = 0;
                 startButton.textContent = "Restart ride";
             } else if (ride.progress >= 1) {
                 ride.phase = "clear";
                 ride.resultTimer = 0;
                 startButton.textContent = "Ride again";
-            } else if (ride.closureProgress >= 1) {
+            } else if (capture >= 1 || ride.closureProgress >= 1) {
                 ride.phase = "failed";
+                ride.failureReason = "Swallowed";
                 ride.resultTimer = 0;
                 startButton.textContent = "Restart ride";
             }
@@ -390,8 +413,8 @@
             ? "Ready"
             : ride.phase === "riding"
                 ? "Riding"
-                : ride.phase === "clear" ? "Clear" : "Reset";
-        speedReadout.textContent = String(settings.speed);
+                : ride.phase === "clear" ? "Clear" : ride.failureReason;
+        angleReadout.textContent = `${settings.angle}°`;
         const closure = Math.min(100, Math.round((settings.closure + ride.closureProgress * (1 - settings.closure)) * 100));
         closureReadout.textContent = `${closure}%`;
     }
@@ -404,25 +427,41 @@
         const foam = [];
         const radius = 2.75 + settings.height * 1.65;
         const dynamicClosure = Math.min(0.98, settings.closure * 0.72 + ride.closureProgress * 0.32);
-        const opening = 1.05 - dynamicClosure * 0.7;
-        const thetaStart = opening;
-        const thetaEnd = Math.PI * 2 - opening;
+        const baseOpening = 1.05 - dynamicClosure * 0.7;
         const travel = ride.worldTime * (1.25 + settings.speed / 110);
+
+        function sectionAt(lengthRatio, z) {
+            // The left wall keeps its full extent while the open/right side
+            // pulls inward. This makes the barrel a one-sided wedge rather
+            // than a uniformly scaled tube.
+            const taper = 1 - lengthRatio * 0.42;
+            const sectionRadius = radius * taper;
+            const travellingOffset = Math.sin(travel * 0.7 - lengthRatio * 4.2) * 0.09;
+            const centerX = radius * (taper - 1) + travellingOffset;
+            const lipSweep = Math.sin(z * 0.48 + travel * 1.25) * (0.035 + settings.noise * 0.045);
+            return {
+                radius: sectionRadius,
+                centerX,
+                thetaStart: baseOpening + lipSweep,
+                thetaEnd: Math.PI * 2 - baseOpening + lipSweep
+            };
+        }
 
         for (let lengthIndex = 0; lengthIndex <= lengthSegments; lengthIndex += 1) {
             const lengthRatio = lengthIndex / lengthSegments;
             const z = 2.6 - lengthRatio * 23;
+            const section = sectionAt(lengthRatio, z);
             const travellingBand = Math.sin(z * 0.64 + travel * 1.8) * 0.1;
             for (let radialIndex = 0; radialIndex <= radialSegments; radialIndex += 1) {
                 const radialRatio = radialIndex / radialSegments;
-                const theta = thetaStart + (thetaEnd - thetaStart) * radialRatio;
+                const theta = section.thetaStart + (section.thetaEnd - section.thetaStart) * radialRatio;
                 const noise = settings.noise * (
                     Math.sin(theta * 5 + z * 1.25 - travel * 2.3) * 0.12
                     + Math.sin(theta * 11 - z * 2.7 + travel * 3.1) * 0.045
                 );
-                const localRadius = radius * (1 + travellingBand * 0.12) + noise;
+                const localRadius = section.radius * (1 + travellingBand * 0.12) + noise;
                 const xShift = Math.sin(z * 0.33 - travel * 0.8) * settings.noise * 0.16;
-                const x = Math.cos(theta) * localRadius + xShift;
+                const x = section.centerX + Math.cos(theta) * localRadius + xShift;
                 const y = Math.sin(theta) * localRadius;
                 const normalX = -Math.cos(theta);
                 const normalY = -Math.sin(theta);
@@ -450,14 +489,15 @@
         for (let lengthIndex = 0; lengthIndex <= lengthSegments; lengthIndex += 1) {
             const lengthRatio = lengthIndex / lengthSegments;
             const z = 2.6 - lengthRatio * 23;
-            for (const theta of [thetaStart, thetaEnd]) {
+            const section = sectionAt(lengthRatio, z);
+            for (const theta of [section.thetaStart, section.thetaEnd]) {
                 for (let particle = 0; particle < 3; particle += 1) {
                     const phase = lengthIndex * 1.73 + particle * 2.11 + ride.worldTime * 4;
                     const jitter = settings.noise * 0.18;
-                    const r = radius + 0.05 + Math.sin(phase) * jitter;
+                    const foamRadius = section.radius + 0.05 + Math.sin(phase) * jitter;
                     foam.push(
-                        Math.cos(theta) * r + Math.sin(phase * 1.3) * jitter,
-                        Math.sin(theta) * r + Math.cos(phase) * jitter,
+                        section.centerX + Math.cos(theta) * foamRadius + Math.sin(phase * 1.3) * jitter,
+                        Math.sin(theta) * foamRadius + Math.cos(phase) * jitter,
                         z + Math.sin(phase * 0.7) * 0.14,
                         -Math.cos(theta), -Math.sin(theta), 0,
                         0.82, 0.91, 0.88
@@ -489,16 +529,25 @@
     function drawCar(radius) {
         const activeProgress = ride.phase === "ready" ? 0 : Math.min(1, ride.progress);
         const climbEfficiency = Math.min(1, 0.34 + settings.grip * 0.92);
+        const selectedLine = Math.min(1.45, settings.angle / requiredTraverseAngle());
         const turbulenceSlip = ride.phase === "riding"
             ? Math.sin(ride.time * 1.8) * settings.noise * 0.035
             : 0;
-        // The vehicle starts in the trough and follows the inner C toward its
-        // opening. Grip controls how much of the intended wall climb it holds.
-        const theta = -Math.PI * 0.5 + activeProgress * 1.28 * climbEfficiency + turbulenceSlip;
-        const trackRadius = radius - 0.3;
-        const x = Math.cos(theta) * trackRadius;
+        // The vehicle starts in the trough, moves longitudinally down the
+        // taper and traverses the inner C. A shallow selected line visibly
+        // remains below the opening while the break moves over it.
+        const theta = -Math.PI * 0.5
+            + activeProgress * 1.28 * climbEfficiency * selectedLine
+            + turbulenceSlip;
+        const z = 0.4 - activeProgress * 7.2;
+        const lengthRatio = Math.max(0, Math.min(1, (2.6 - z) / 23));
+        const taper = 1 - lengthRatio * 0.42;
+        const sectionRadius = radius * taper;
+        const travel = ride.worldTime * (1.25 + settings.speed / 110);
+        const centerX = radius * (taper - 1) + Math.sin(travel * 0.7 - lengthRatio * 4.2) * 0.09;
+        const trackRadius = sectionRadius - 0.3;
+        const x = centerX + Math.cos(theta) * trackRadius;
         const y = Math.sin(theta) * trackRadius;
-        const z = 0.4 - activeProgress * 3.2;
         const rotation = theta + Math.PI * 0.5;
         const cosine = Math.cos(rotation);
         const sine = Math.sin(rotation);
