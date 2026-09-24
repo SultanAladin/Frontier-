@@ -100,8 +100,10 @@ void SurfelGlobalIllumination::Integrate(const VisibilityProjection& Visibility,
                 if (Settings.RayTracedShadows && ShadowQuery &&
                     !ShadowQuery(dst.Position + dst.Normal * 0.002f, src.Position)) continue;
 
+                // Irradiance arrives at the source, then its diffuse albedo determines
+                // the outgoing bounced radiance. This avoids treating every mesh as white.
                 float weight = receiverCos * sourceCos / (distanceSquared + 0.01f);
-                gathered += src.Irradiance * (weight);
+                gathered += (src.Irradiance * src.Albedo) * weight;
                 totalWeight += weight;
             }
             if (totalWeight > 0.0f)
@@ -118,17 +120,34 @@ void SurfelGlobalIllumination::Integrate(const VisibilityProjection& Visibility,
         {
             SurfaceAttributeRecord surface = Codec.DecodePixel(x, y, Visibility, Geometry);
             if (!surface.ValidCondition) continue;
-            float best = Settings.GatherRadius * Settings.GatherRadius;
-            const SurfelRecord* nearest = nullptr;
+            // Weighted multi-surfel reprojection is much sharper than selecting the
+            // single nearest cache point, while still filling sub-pixel gaps.
+            struct ReprojectionCandidate { const SurfelRecord* Surfel; float Weight; };
+            std::vector<ReprojectionCandidate> candidates;
+            candidates.reserve(Surfels.size());
+            const float radiusSquared = Settings.GatherRadius * Settings.GatherRadius;
             for (const SurfelRecord& surfel : Surfels)
             {
-                float distance = (surfel.Position - surface.WorldPosition).LengthSquared();
-                if (distance < best && OrientationClassifier::DotProduct(surfel.Normal, surface.SurfaceNormal) > 0.0f)
-                { best = distance; nearest = &surfel; }
+                float distanceSquared = (surfel.Position - surface.WorldPosition).LengthSquared();
+                float normal = OrientationClassifier::DotProduct(surfel.Normal, surface.SurfaceNormal);
+                if (distanceSquared <= radiusSquared && normal > 0.5f)
+                {
+                    float weight = (normal * normal) / (distanceSquared + 0.0025f);
+                    candidates.push_back(ReprojectionCandidate{ &surfel, weight });
+                }
             }
-            if (nearest)
+            std::sort(candidates.begin(), candidates.end(), [](const auto& lhs, const auto& rhs) { return lhs.Weight > rhs.Weight; });
+            const size_t sampleCount = std::min(static_cast<size_t>(std::max(1u, Settings.ReprojectionSamples)), candidates.size());
+            Vector3 indirect{};
+            float totalWeight = 0.0f;
+            for (size_t sample = 0; sample < sampleCount; ++sample)
             {
-                Vector3 indirect = nearest->Irradiance * nearest->Albedo;
+                indirect += candidates[sample].Surfel->Irradiance * candidates[sample].Surfel->Albedo * candidates[sample].Weight;
+                totalWeight += candidates[sample].Weight;
+            }
+            if (totalWeight > 0.0f)
+            {
+                indirect = indirect / totalWeight;
                 Vector4& pixel = RadianceField[static_cast<size_t>(y) * Width + x];
                 pixel.x += indirect.x; pixel.y += indirect.y; pixel.z += indirect.z;
             }

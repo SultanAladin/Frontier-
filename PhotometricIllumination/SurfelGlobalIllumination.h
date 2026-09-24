@@ -23,11 +23,12 @@ struct SurfelRecord
 
 struct SurfelGISettings
 {
-    uint32_t SurfelStride = 4;             // one source surfel every N visible pixels
+    uint32_t SurfelStride = 2;              // denser cache for less blur and fewer holes
     uint32_t BounceCount = 1;               // shared with reflection/path bounce setting
-    float GatherRadius = 1.5f;              // world-space interpolation radius
-    float NormalThreshold = 0.25f;          // reject back-facing surfels
-    bool RayTracedShadows = true;            // visibility is evaluated against mesh triangles
+    float GatherRadius = 1.0f;              // world-space interpolation radius
+    float NormalThreshold = 0.35f;          // reject back-facing surfels
+    uint32_t ReprojectionSamples = 12;      // weighted surfels used per output pixel
+    bool RayTracedShadows = true;           // visibility is evaluated against mesh triangles
 };
 
 // The callback is deliberately supplied by the renderer: a hardware ray query, a CPU BVH,

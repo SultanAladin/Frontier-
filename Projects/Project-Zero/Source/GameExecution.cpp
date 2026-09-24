@@ -9,11 +9,13 @@
 #include <iostream>
 #include <chrono>
 #include <cstdlib>
+#include <algorithm>
 
 int main(int ArgumentCount, char** ArgumentValues)
 {
-    (void)ArgumentCount;
-    (void)ArgumentValues;
+    int ViewIndex = 0;
+    if (ArgumentCount > 1 && ArgumentValues[1] != nullptr)
+        ViewIndex = std::max(0, std::min(4, std::atoi(ArgumentValues[1])));
 
     std::cout << "================================================================================\n";
     std::cout << "                 PROJECT-ZERO — RESTIR PHOTOMETRIC TEST GROUND                  \n";
@@ -78,18 +80,30 @@ int main(int ArgumentCount, char** ArgumentValues)
     std::cout << "[Project-Zero] Scene: Cornell Box with analytical triangle geometry & emissive ceiling luminaire.\n";
     std::cout << "[Project-Zero] Executing ReSTIR DI + ReSTIR GI from navigated camera viewpoint...\n";
 
+    // Select one of five deterministic exhibit cameras. The navigation simulation above
+    // remains in the log, but exhibits reset to controlled, reproducible viewpoints.
+    const Frontier::Vector3 ExhibitLocations[5] = {
+        { 0.0f, -1.95f, 1.0f }, { -0.72f, -1.72f, 0.92f }, { 0.72f, -1.72f, 0.82f },
+        { 0.0f, 0.05f, 1.25f }, { -0.15f, -0.85f, 1.68f }
+    };
+    const float ExhibitYaw[5] = { 0.0f, 0.20f, -0.20f, 3.14159f, 0.06f };
+    const float ExhibitPitch[5] = { 0.0f, 0.03f, -0.03f, 0.0f, -0.12f };
+    Camera.AssignSpatialLocation(ExhibitLocations[ViewIndex]);
+    Camera.AssignOrientationEuler(ExhibitPitch[ViewIndex], ExhibitYaw[ViewIndex], 0.0f);
+
     auto StartTime = std::chrono::high_resolution_clock::now();
 
     Frontier::ProjectZero::RendererHost Renderer(ViewportWidth, ViewportHeight);
-    Renderer.RenderReSTIRFrame(Camera, 2); // 2 spatial resampling passes
+    Renderer.RenderReSTIRFrame(Camera, 4); // 4 spatial resampling passes for cleaner exhibits
 
     auto EndTime = std::chrono::high_resolution_clock::now();
     double DurationMs = std::chrono::duration<double, std::milli>(EndTime - StartTime).count();
 
     std::cout << "[Project-Zero] ReSTIR render completed in " << DurationMs << " ms.\n";
 
-    std::string PpmPath = "Diagnostics/ProjectZero_ReSTIR_GI.ppm";
-    std::string PngPath = "Diagnostics/ProjectZero_ReSTIR_GI.png";
+    std::string ViewTag = "View" + std::to_string(ViewIndex + 1);
+    std::string PpmPath = "Exhibits/SurfelGI_CornellBox_" + ViewTag + ".ppm";
+    std::string PngPath = "Exhibits/SurfelGI_CornellBox_" + ViewTag + ".png";
 
     if (Renderer.ExportPpmImage(PpmPath))
     {

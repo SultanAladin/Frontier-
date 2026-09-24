@@ -162,7 +162,7 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
         }
     }
 
-    // Phase 3: ReSTIR GI Initial Candidate Bounce Ray Tracing (8 samples)
+    // Phase 3: ReSTIR GI Initial Candidate Bounce Ray Tracing (32 samples for exhibit quality)
     for (uint32_t y = 0; y < Height; ++y)
     {
         for (uint32_t x = 0; x < Width; ++x)
@@ -177,7 +177,7 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
                 continue;
             }
 
-            for (uint32_t s = 0; s < 8; ++s)
+            for (uint32_t s = 0; s < 32; ++s)
             {
                 Vector3 BounceDir = SampleCosineHemisphere(Hit.SurfaceNormal, Dist(Rng), Dist(Rng));
                 RayRecord BounceRay{ Hit.HitLocation + Hit.SurfaceNormal * 0.001f, BounceDir, 0.001f, 50.0f };
