@@ -47,7 +47,8 @@ int main(int ArgumentCount, char** ArgumentValues)
         12.0f                   // damping
     };
     Frontier::ProjectZero::FlyThroughSolver Camera(CameraConfig);
-    Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, 1.0f, -1.95f });
+    // Camera looks down +Y; Z is the scene's vertical axis.
+    Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -1.95f, 1.0f });
     Camera.AssignOrientationEuler(0.0f, 0.0f, 0.0f);
     Camera.AssignFieldOfView(55.0f);
     Camera.AssignAspectRatio(static_cast<float>(ViewportWidth) / static_cast<float>(ViewportHeight));
