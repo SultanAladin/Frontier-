@@ -117,6 +117,78 @@
         { x: 0.36, y: 0.82, width: 0.46, height: 0.035, angle: 0.1 }
     ];
 
+    const fortifiedChannels = [
+        [
+            [-1.03, 0.78], [-0.82, 0.81], [-0.68, 0.87], [-0.48, 0.85],
+            [-0.31, 0.91], [-0.12, 0.88], [0.05, 0.94], [0.24, 0.9],
+            [0.43, 0.95], [0.62, 0.9], [0.82, 0.93], [1.03, 0.88]
+        ],
+        [
+            [-1.02, 0.58], [-0.87, 0.61], [-0.76, 0.66], [-0.61, 0.63],
+            [-0.49, 0.69], [-0.34, 0.66]
+        ],
+        [
+            [1.02, 0.48], [0.88, 0.51], [0.78, 0.57], [0.64, 0.54],
+            [0.55, 0.61], [0.42, 0.59]
+        ]
+    ];
+
+    function createTerrainDetails() {
+        let seed = 73491;
+        const next = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+        const details = { shrubs: [], stones: [], puddles: [], debris: [], scars: [] };
+        for (let index = 0; index < 64; index += 1) {
+            const topCluster = index % 4 === 0;
+            const side = next() > 0.5 ? 1 : -1;
+            details.shrubs.push({
+                x: topCluster ? (next() * 1.9 - 0.95) : side * (0.73 + next() * 0.25),
+                y: topCluster ? 0.83 + next() * 0.16 : 0.24 + next() * 0.72,
+                radius: 0.018 + next() * 0.052,
+                tone: next()
+            });
+        }
+        for (let index = 0; index < 115; index += 1) {
+            details.stones.push({
+                x: next() * 1.9 - 0.95,
+                y: 0.19 + next() * 0.76,
+                radius: 0.002 + next() * 0.009,
+                tone: next()
+            });
+        }
+        for (let index = 0; index < 13; index += 1) {
+            details.puddles.push({
+                x: next() * 1.7 - 0.85,
+                y: 0.28 + next() * 0.58,
+                width: 0.035 + next() * 0.095,
+                height: 0.012 + next() * 0.032,
+                angle: (next() - 0.5) * 1.2
+            });
+        }
+        for (let index = 0; index < 28; index += 1) {
+            details.debris.push({
+                x: next() * 1.78 - 0.89,
+                y: 0.2 + next() * 0.72,
+                length: 0.018 + next() * 0.055,
+                angle: next() * Math.PI,
+                tone: next()
+            });
+        }
+        for (let index = 0; index < 16; index += 1) {
+            details.scars.push({
+                x: next() * 1.76 - 0.88,
+                y: 0.3 + next() * 0.6,
+                radius: 0.018 + next() * 0.045,
+                seed: next() * 900
+            });
+        }
+        return details;
+    }
+
+    const terrainDetails = createTerrainDetails();
+
     const world = {
         width: 1000,
         height: 650,
@@ -352,7 +424,7 @@
                 if (impact.timer <= 0) {
                     impact.detonated = true;
                     impact.blast = 0.42;
-                    world.craters.push({ x: impact.x, y: impact.y, radius: impact.radius * 0.78 });
+                    world.craters.push({ x: impact.x, y: impact.y, radius: impact.radius * 0.78, seed: random() * 900 });
                     const distance = Math.hypot((impact.x - vehicle.x) * 0.75, impact.y - vehicle.y);
                     if (distance < impact.radius * 1.28) {
                         damageVehicle(32, "Blast impact");
@@ -480,68 +552,300 @@
         return frame.bottom - value * frame.height;
     }
 
+    function shorelineAt(normalizedX) {
+        return 0.185
+            + Math.sin(normalizedX * 4.2 + 0.7) * 0.014
+            + Math.sin(normalizedX * 11.7 - 0.4) * 0.006;
+    }
+
+    function organicPath(ctx, x, y, radiusX, radiusY, seed, points = 18) {
+        ctx.beginPath();
+        for (let index = 0; index <= points; index += 1) {
+            const angle = index / points * Math.PI * 2;
+            const variation = 0.86
+                + Math.sin(seed + index * 2.17) * 0.08
+                + Math.sin(seed * 0.37 + index * 5.31) * 0.05;
+            const px = x + Math.cos(angle) * radiusX * variation;
+            const py = y + Math.sin(angle) * radiusY * variation;
+            if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+    }
+
+    function drawShrub(ctx, shrub, frame) {
+        const x = screenX(shrub.x, frame);
+        const y = screenY(shrub.y, frame);
+        const radius = shrub.radius * frame.width * 0.46;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.fillStyle = "rgba(23,30,19,0.22)";
+        ctx.beginPath();
+        ctx.ellipse(radius * 0.2, radius * 0.35, radius * 1.08, radius * 0.76, 0.34, 0, Math.PI * 2);
+        ctx.fill();
+        const lobes = 8;
+        for (let index = 0; index < lobes; index += 1) {
+            const angle = index / lobes * Math.PI * 2 + shrub.tone;
+            const distance = radius * (0.32 + (index % 3) * 0.06);
+            const lobeRadius = radius * (0.34 + ((index * 7) % 4) * 0.04);
+            ctx.fillStyle = index % 2
+                ? `rgba(72,101,49,${0.76 + shrub.tone * 0.14})`
+                : `rgba(94,123,64,${0.72 + shrub.tone * 0.12})`;
+            ctx.strokeStyle = "rgba(26,43,24,0.7)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, lobeRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(32,57,28,0.92)";
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
     function drawTerrain(ctx, frame) {
         const sand = ctx.createLinearGradient(0, frame.top, 0, frame.bottom);
-        sand.addColorStop(0, "#393a32");
-        sand.addColorStop(0.72, "#6a6652");
-        sand.addColorStop(1, "#31565a");
+        sand.addColorStop(0, "#4a493a");
+        sand.addColorStop(0.24, "#69634d");
+        sand.addColorStop(0.72, "#9b8e6e");
+        sand.addColorStop(1, "#4c7777");
         ctx.fillStyle = sand;
         ctx.fillRect(0, 0, world.width, world.height);
 
-        ctx.fillStyle = "#1c2929";
-        ctx.fillRect(0, frame.top - 26, world.width, 72);
-        ctx.fillStyle = "rgba(207,209,194,0.1)";
-        for (let index = 0; index < 34; index += 1) {
-            const x = ((index * 137) % 997) / 997 * world.width;
-            const y = frame.top + ((index * 71) % 430) / 430 * frame.height;
-            ctx.fillRect(x, y, 2 + index % 4, 1);
-        }
-
-        const shorelineY = screenY(0.14, frame);
-        const water = ctx.createLinearGradient(0, shorelineY, 0, frame.bottom);
-        water.addColorStop(0, "rgba(48,98,101,0.74)");
-        water.addColorStop(1, "#193c41");
-        ctx.fillStyle = water;
-        ctx.fillRect(0, shorelineY, world.width, frame.bottom - shorelineY + 46);
-        ctx.strokeStyle = "rgba(208,224,215,0.34)";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        for (let x = 0; x <= world.width; x += 18) {
-            const y = shorelineY + Math.sin(x * 0.031 + world.time * 1.7) * 5;
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        ctx.strokeStyle = "rgba(232,232,220,0.12)";
-        ctx.setLineDash([8, 11]);
-        for (const lane of [-0.55, 0, 0.55]) {
+        // Layered dry-soil washes create the hand-painted contour variation.
+        for (let band = 0; band < 9; band += 1) {
+            const y = frame.top + 24 + band * frame.height * 0.095;
+            ctx.strokeStyle = band % 2 ? "rgba(54,49,37,0.1)" : "rgba(225,214,180,0.055)";
+            ctx.lineWidth = 14 + band % 3 * 7;
             ctx.beginPath();
-            ctx.moveTo(screenX(lane, frame), frame.bottom);
-            ctx.lineTo(screenX(lane, frame), frame.top);
+            ctx.moveTo(0, y);
+            ctx.bezierCurveTo(
+                world.width * 0.24, y + Math.sin(band) * 29,
+                world.width * 0.7, y - Math.cos(band * 1.7) * 34,
+                world.width, y + Math.sin(band * 0.6) * 21
+            );
+            ctx.stroke();
+        }
+
+        // Wet sand follows an irregular shoreline rather than a straight band.
+        ctx.fillStyle = "#b7aa91";
+        ctx.beginPath();
+        ctx.moveTo(0, world.height);
+        for (let x = 0; x <= world.width; x += 14) {
+            const normalizedX = clamp((x - world.width * 0.5) / (frame.width * 0.46), -1.25, 1.25);
+            ctx.lineTo(x, screenY(shorelineAt(normalizedX) + 0.075, frame));
+        }
+        ctx.lineTo(world.width, world.height);
+        ctx.closePath();
+        ctx.fill();
+
+        const water = ctx.createLinearGradient(0, frame.top, 0, frame.bottom);
+        water.addColorStop(0, "#58a8a6");
+        water.addColorStop(0.52, "#347e82");
+        water.addColorStop(1, "#14515a");
+        ctx.fillStyle = water;
+        ctx.beginPath();
+        ctx.moveTo(0, world.height);
+        for (let x = 0; x <= world.width; x += 12) {
+            const normalizedX = clamp((x - world.width * 0.5) / (frame.width * 0.46), -1.25, 1.25);
+            const wave = Math.sin(x * 0.041 + world.time * 1.35) * 0.004;
+            ctx.lineTo(x, screenY(shorelineAt(normalizedX) + wave, frame));
+        }
+        ctx.lineTo(world.width, world.height);
+        ctx.closePath();
+        ctx.fill();
+
+        // Water caustics and parallel foam traces are animated but subdued.
+        ctx.strokeStyle = "rgba(190,230,220,0.16)";
+        ctx.lineWidth = 1;
+        for (let index = 0; index < 42; index += 1) {
+            const x = ((index * 83) % 997) / 997 * world.width;
+            const y = screenY(0.025 + ((index * 47) % 140) / 1000, frame);
+            const width = 16 + index % 6 * 8;
+            ctx.beginPath();
+            ctx.ellipse(x, y, width, 4 + index % 3 * 2, (index % 5 - 2) * 0.18, 0, Math.PI * 1.55);
+            ctx.stroke();
+        }
+        for (let foamLine = 0; foamLine < 3; foamLine += 1) {
+            ctx.strokeStyle = `rgba(226,235,219,${0.46 - foamLine * 0.12})`;
+            ctx.lineWidth = 3 - foamLine * 0.55;
+            ctx.beginPath();
+            for (let x = 0; x <= world.width; x += 10) {
+                const normalizedX = clamp((x - world.width * 0.5) / (frame.width * 0.46), -1.25, 1.25);
+                const y = screenY(
+                    shorelineAt(normalizedX) + foamLine * 0.012
+                    + Math.sin(x * 0.052 + world.time * (1.7 - foamLine * 0.2)) * 0.004,
+                    frame
+                );
+                if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        // Faint paired vehicle tracks curve between the physical channels.
+        ctx.strokeStyle = "rgba(56,52,39,0.16)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 7]);
+        for (const offset of [-8, 8]) {
+            ctx.beginPath();
+            ctx.moveTo(screenX(0, frame) + offset, screenY(0.18, frame));
+            ctx.bezierCurveTo(
+                screenX(-0.24, frame) + offset, screenY(0.42, frame),
+                screenX(0.3, frame) + offset, screenY(0.65, frame),
+                screenX(0.05, frame) + offset, screenY(0.96, frame)
+            );
             ctx.stroke();
         }
         ctx.setLineDash([]);
+
+        // Puddles, embedded stones, wreckage and old impact scars build a dense map texture.
+        terrainDetails.puddles.forEach((puddle) => {
+            const x = screenX(puddle.x, frame);
+            const y = screenY(puddle.y, frame);
+            const width = puddle.width * frame.width * 0.46;
+            const height = puddle.height * frame.height;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(puddle.angle);
+            ctx.fillStyle = "rgba(39,67,66,0.5)";
+            ctx.strokeStyle = "rgba(28,43,40,0.48)";
+            ctx.beginPath();
+            ctx.ellipse(0, 0, width, height, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.strokeStyle = "rgba(191,211,198,0.18)";
+            ctx.beginPath();
+            ctx.arc(-width * 0.2, -height * 0.14, Math.max(2, height * 0.32), Math.PI, Math.PI * 1.8);
+            ctx.stroke();
+            ctx.restore();
+        });
+
+        terrainDetails.scars.forEach((scar) => {
+            const x = screenX(scar.x, frame);
+            const y = screenY(scar.y, frame);
+            const radius = scar.radius * frame.width * 0.46;
+            ctx.fillStyle = "rgba(46,42,31,0.34)";
+            organicPath(ctx, x, y, radius, radius * 0.68, scar.seed, 15);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(28,27,22,0.28)";
+            ctx.stroke();
+        });
+
+        terrainDetails.stones.forEach((stone) => {
+            const x = screenX(stone.x, frame);
+            const y = screenY(stone.y, frame);
+            const radius = stone.radius * frame.width * 0.46;
+            ctx.fillStyle = stone.tone > 0.5 ? "rgba(74,69,54,0.58)" : "rgba(116,106,80,0.5)";
+            ctx.beginPath();
+            ctx.ellipse(x, y, radius * 1.3, radius, stone.tone * 2.4, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        terrainDetails.debris.forEach((debris) => {
+            const x = screenX(debris.x, frame);
+            const y = screenY(debris.y, frame);
+            const length = debris.length * frame.width * 0.46;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(debris.angle);
+            ctx.strokeStyle = debris.tone > 0.55 ? "rgba(42,43,38,0.68)" : "rgba(89,63,42,0.62)";
+            ctx.lineWidth = 2 + debris.tone * 2;
+            ctx.beginPath();
+            ctx.moveTo(-length * 0.5, 0);
+            ctx.lineTo(length * 0.5, 0);
+            ctx.stroke();
+            ctx.restore();
+        });
+
+        terrainDetails.shrubs.forEach((shrub) => drawShrub(ctx, shrub, frame));
+    }
+
+    function drawFortifiedChannels(ctx, frame) {
+        fortifiedChannels.forEach((channel) => {
+            const screenPoints = channel.map(([x, y]) => [screenX(x, frame), screenY(y, frame)]);
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.strokeStyle = "rgba(31,29,23,0.72)";
+            ctx.lineWidth = 40;
+            ctx.beginPath();
+            screenPoints.forEach((point, index) => {
+                if (index === 0) ctx.moveTo(point[0], point[1]); else ctx.lineTo(point[0], point[1]);
+            });
+            ctx.stroke();
+            ctx.strokeStyle = "rgba(77,66,47,0.92)";
+            ctx.lineWidth = 27;
+            ctx.stroke();
+            ctx.strokeStyle = "rgba(45,39,29,0.88)";
+            ctx.lineWidth = 11;
+            ctx.stroke();
+
+            for (let segment = 0; segment < screenPoints.length - 1; segment += 1) {
+                const start = screenPoints[segment];
+                const end = screenPoints[segment + 1];
+                const dx = end[0] - start[0];
+                const dy = end[1] - start[1];
+                const length = Math.hypot(dx, dy) || 1;
+                const normalX = -dy / length;
+                const normalY = dx / length;
+                const bags = Math.max(2, Math.floor(length / 12));
+                for (let bag = 0; bag <= bags; bag += 1) {
+                    const ratio = bag / bags;
+                    const x = start[0] + dx * ratio;
+                    const y = start[1] + dy * ratio;
+                    for (const side of [-1, 1]) {
+                        ctx.save();
+                        ctx.translate(x + normalX * 15 * side, y + normalY * 15 * side);
+                        ctx.rotate(Math.atan2(dy, dx));
+                        ctx.fillStyle = side > 0 ? "#a69a7a" : "#8e846a";
+                        ctx.strokeStyle = "rgba(48,43,33,0.72)";
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, 7, 4.6, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+            }
+        });
+        ctx.lineCap = "butt";
+        ctx.lineJoin = "miter";
     }
 
     function drawBarricades(ctx, frame) {
-        barricades.forEach((barricade) => {
+        barricades.forEach((barricade, barricadeIndex) => {
             const x = screenX(barricade.x, frame);
             const y = screenY(barricade.y, frame);
             const width = barricade.width * frame.width * 0.46;
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(barricade.angle);
-            ctx.fillStyle = "rgba(0,0,0,0.28)";
-            roundedRectangle(ctx, -width * 0.5 + 4, -9 + 4, width, 18, 4);
+            ctx.fillStyle = "rgba(34,31,24,0.72)";
+            roundedRectangle(ctx, -width * 0.5 - 7, -15, width + 14, 30, 10);
             ctx.fill();
-            ctx.fillStyle = "#77756a";
-            roundedRectangle(ctx, -width * 0.5, -9, width, 18, 4);
+            ctx.fillStyle = "rgba(77,65,47,0.8)";
+            roundedRectangle(ctx, -width * 0.5, -10, width, 20, 6);
             ctx.fill();
-            ctx.strokeStyle = "rgba(237,236,225,0.29)";
-            ctx.stroke();
-            ctx.fillStyle = "rgba(182,106,69,0.62)";
-            for (let mark = -width * 0.36; mark < width * 0.42; mark += 24) {
-                ctx.fillRect(mark, -2, 13, 4);
+
+            // Uneven timber floor and two sandbag lips give each obstacle real construction.
+            for (let plank = -width * 0.42; plank < width * 0.44; plank += 14) {
+                ctx.fillStyle = plank % 3 ? "#66513b" : "#735c42";
+                ctx.fillRect(plank, -7, 10, 14);
+                ctx.strokeStyle = "rgba(32,26,20,0.54)";
+                ctx.strokeRect(plank, -7, 10, 14);
+            }
+            const bags = Math.max(4, Math.floor(width / 13));
+            for (let bag = 0; bag <= bags; bag += 1) {
+                const bagX = -width * 0.5 + bag / bags * width;
+                for (const side of [-1, 1]) {
+                    ctx.fillStyle = (bag + side + barricadeIndex) % 2 ? "#aaa080" : "#91866b";
+                    ctx.strokeStyle = "rgba(45,40,31,0.72)";
+                    ctx.beginPath();
+                    ctx.ellipse(bagX, side * 10, 7.2, 4.5, bag % 2 ? 0.12 : -0.1, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
             }
             ctx.restore();
         });
@@ -552,16 +856,23 @@
             const x = screenX(crater.x, frame);
             const y = screenY(crater.y, frame);
             const radius = crater.radius * frame.width * 0.46;
-            const gradient = ctx.createRadialGradient(x, y, 2, x, y, radius);
-            gradient.addColorStop(0, "rgba(20,20,18,0.85)");
-            gradient.addColorStop(0.68, "rgba(39,36,29,0.72)");
-            gradient.addColorStop(1, "rgba(91,83,62,0.18)");
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.ellipse(x, y, radius, radius * 0.62, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(28,27,22,0.42)";
+            organicPath(ctx, x + 3, y + 5, radius * 1.18, radius * 0.82, crater.seed + 3, 18);
             ctx.fill();
-            ctx.strokeStyle = "rgba(18,18,16,0.44)";
+            const gradient = ctx.createRadialGradient(x, y, 2, x, y, radius);
+            gradient.addColorStop(0, "rgba(23,24,21,0.95)");
+            gradient.addColorStop(0.58, "rgba(48,43,32,0.88)");
+            gradient.addColorStop(0.8, "rgba(117,101,69,0.82)");
+            gradient.addColorStop(1, "rgba(164,143,99,0.2)");
+            ctx.fillStyle = gradient;
+            organicPath(ctx, x, y, radius, radius * 0.7, crater.seed, 20);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(30,28,22,0.62)";
+            ctx.lineWidth = 2;
             ctx.stroke();
+            ctx.fillStyle = "rgba(24,23,20,0.72)";
+            organicPath(ctx, x, y + radius * 0.04, radius * 0.52, radius * 0.34, crater.seed + 8, 14);
+            ctx.fill();
         });
     }
 
@@ -723,6 +1034,7 @@
         ctx.setTransform(world.dpr, 0, 0, world.dpr, 0, 0);
         ctx.clearRect(0, 0, world.width, world.height);
         drawTerrain(ctx, frame);
+        drawFortifiedChannels(ctx, frame);
         drawCraters(ctx, frame);
         drawBarricades(ctx, frame);
         drawImpacts(ctx, frame);

@@ -1437,6 +1437,7 @@ a {
 }
 
 .beachhead-surface {
+    min-height: clamp(680px, 68vw, 900px);
     background: #303128;
 }
 
