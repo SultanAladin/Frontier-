@@ -23,6 +23,10 @@ FidelityCriteria FidelityClassifier::ConstructCriteria(FidelityCategory Category
 {
     FidelityCriteria Criteria{};
     Criteria.Category = Category;
+    // Surfel GI is the mesh-only fallback for machines that cannot afford a full ray GI pass.
+    Criteria.GIBackend = (Category == FidelityCategory::EconomicFidelity || Category == FidelityCategory::StandardFidelity)
+        ? GlobalIlluminationMode::Surfel : GlobalIlluminationMode::RayTraced;
+    Criteria.RayLighting = RayLightingSettings{ 1u, 1u };
 
     switch (Category)
     {

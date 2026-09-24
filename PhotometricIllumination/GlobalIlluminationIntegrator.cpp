@@ -16,6 +16,7 @@ GlobalIlluminationIntegrator::GlobalIlluminationIntegrator(uint32_t ExtentWidth,
     : Width(ExtentWidth)
     , Height(ExtentHeight)
     , Reservoirs(ExtentWidth * ExtentHeight, IndirectPathReservoir{ Vector3{ 0.0f, 0.0f, 0.0f }, Vector3{ 0.0f, 0.0f, 0.0f }, Vector3{ 0.0f, 1.0f, 0.0f }, 0.0f, 0, 0.0f })
+    , SurfelIntegrator(ExtentWidth, ExtentHeight)
 {
 }
 
@@ -85,6 +86,17 @@ void GlobalIlluminationIntegrator::IntegrateGlobalIllumination(
             RadianceField[idx].z += IndirectLight.z * Surface.AlbedoColor.z;
         }
     }
+}
+
+void GlobalIlluminationIntegrator::IntegrateSurfelGlobalIllumination(
+    const VisibilityProjection& Visibility,
+    const GeometryStructure& Geometry,
+    const MaterialCodec& Codec,
+    std::vector<Vector4>& RadianceField,
+    const SurfelGISettings& Settings,
+    const SurfelShadowQuery& ShadowQuery) noexcept
+{
+    SurfelIntegrator.Integrate(Visibility, Geometry, Codec, RadianceField, Settings, ShadowQuery);
 }
 
 } // namespace Frontier

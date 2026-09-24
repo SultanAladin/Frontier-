@@ -21,6 +21,22 @@ enum class FidelityCategory : uint32_t
 };
 
 //------------------------------------------------------------------------------------------------------------------------
+//                                             GI / RAY SETTINGS
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class GlobalIlluminationMode : uint32_t
+{
+    RayTraced                           = 0,
+    Surfel                              = 1
+};
+
+struct RayLightingSettings
+{
+    uint32_t                ReflectionBounceCount = 1;
+    uint32_t                ShadowRayCount = 1;
+};
+
+//------------------------------------------------------------------------------------------------------------------------
 //                                                FIDELITY CRITERIA
 //------------------------------------------------------------------------------------------------------------------------
 
@@ -32,8 +48,10 @@ struct FidelityCriteria
     uint32_t                AtmosphereRaymarchStepCount;        // [steps] volumetric media sample count
     uint32_t                FluidVoxelGridResolution;           // [cells] 3D fluid domain resolution
     uint32_t                ParticleSimulationCapacity;         // [count] maximum active compute particles
-    bool                    GlobalIlluminationEnabled;          // [bool] indirect radiosity ReSTIR GI
+    bool                    GlobalIlluminationEnabled;          // [bool] indirect radiosity GI
     bool                    HardwareRayQueryEnabled;            // [bool] hardware ray tracing acceleration
+    GlobalIlluminationMode  GIBackend;                          // [mode] ray traced or mesh surfel cache
+    RayLightingSettings     RayLighting;                        // [settings] shared reflections/GI bounces
 };
 
 //------------------------------------------------------------------------------------------------------------------------

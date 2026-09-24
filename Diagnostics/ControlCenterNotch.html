@@ -721,6 +721,10 @@ input[type=range].slider:active::-webkit-slider-thumb {
               <div class="quick-btn-circle"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></div>
               <span class="quick-btn-label">Import</span>
             </div>
+            <div class="quick-btn-col" id="surfel-gi-quick-toggle" onclick="toggleSurfelGI(this)" title="Use mesh surfels instead of ray-traced GI">
+              <div class="quick-btn-circle"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="9" cy="18" r="2"/><circle cx="18" cy="17" r="2"/><path d="m7.7 7.1 8.6-0.9M7.2 7.7l.7 8.2m3.1 1.1 5.2.1m0-9.2-5.3 8"/></svg></div>
+              <span class="quick-btn-label">Surfel GI</span>
+            </div>
           </div>
 
           <!-- Render Scale Slider -->
@@ -1835,6 +1839,13 @@ function selectWeight(el) {
 function toggleQuickButton(el) {
   const circle = el.querySelector('.quick-btn-circle');
   circle.classList.toggle('active');
+}
+
+function toggleSurfelGI(el) {
+  const circle = el.querySelector('.quick-btn-circle');
+  const enabled = circle.classList.toggle('active');
+  document.documentElement.dataset.giBackend = enabled ? 'surfel' : 'raytraced';
+  localStorage.setItem('frontier.giBackend', document.documentElement.dataset.giBackend);
 }
 
 function dragRenderScale(e, el) {

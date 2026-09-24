@@ -5,6 +5,7 @@
 #pragma once
 
 #include "../GeometricRaster/MaterialCodec.h"
+#include "SurfelGlobalIllumination.h"
 #include <vector>
 
 namespace Frontier {
@@ -42,6 +43,16 @@ public:
                                 const MaterialCodec& Codec,
                                 std::vector<Vector4>& RadianceField) noexcept;
 
+    // Mesh-only alternative to the ray-traced GI path. Reflection/GI bounce count is
+    // supplied by the caller so both features keep one shared quality setting.
+    void                    IntegrateSurfelGlobalIllumination(
+                                const VisibilityProjection& Visibility,
+                                const GeometryStructure& Geometry,
+                                const MaterialCodec& Codec,
+                                std::vector<Vector4>& RadianceField,
+                                const SurfelGISettings& Settings,
+                                const SurfelShadowQuery& ShadowQuery = {}) noexcept;
+
     // Single unified conversion operator for pixel count
     template<typename TargetType>
     [[nodiscard]] TargetType Convert() const noexcept;
@@ -52,6 +63,7 @@ private:
     uint32_t                Width;                              // [px] viewport width
     uint32_t                Height;                             // [px] viewport height
     std::vector<IndirectPathReservoir> Reservoirs;              // [reservoirs] indirect path reservoirs
+    SurfelGlobalIllumination  SurfelIntegrator;                 // [cache] mesh-only GI backend
 };
 
 template<>
