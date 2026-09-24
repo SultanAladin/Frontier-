@@ -526,7 +526,8 @@ a {
 
 #iron-canvas,
 #dead-canvas,
-#breaker-canvas {
+#breaker-canvas,
+#beltline-canvas {
     display: block;
     width: 100%;
     height: 100%;
@@ -782,6 +783,26 @@ a {
     font-weight: 400;
 }
 
+@media (max-width: 1100px) {
+    .publication-header {
+        grid-template-columns: 1fr auto;
+    }
+
+    .publication-nav {
+        grid-row: 2;
+        grid-column: 1 / -1;
+        justify-self: stretch;
+    }
+
+    .publication-nav a {
+        flex: 1;
+    }
+
+    .edition-mark {
+        grid-column: 2;
+    }
+}
+
 @media (max-width: 1180px) {
     .study-layout {
         grid-template-columns: 1fr;
@@ -898,7 +919,8 @@ a {
         border-bottom: 0;
     }
 
-    .breaker-page .parameter-row:last-child {
+    .breaker-page .parameter-row:last-child,
+    .beltline-page .parameter-row:last-child {
         grid-column: auto;
     }
 }
@@ -935,6 +957,10 @@ a {
         min-width: 0;
         padding-right: 12px;
         padding-left: 12px;
+    }
+
+    .publication-nav a:last-child {
+        flex-basis: 100%;
     }
 
     .index-intro h1,
@@ -1319,10 +1345,111 @@ a {
     transform: skewX(-14deg);
 }
 
+.belt-diagram {
+    background: #0d1010;
+}
+
+.preview-belt-frame {
+    fill: #171a19;
+    stroke: rgba(239, 240, 234, 0.15);
+    stroke-width: 2;
+}
+
+.preview-belt-edge {
+    fill: none;
+    stroke: rgba(182, 189, 50, 0.54);
+    stroke-width: 4;
+}
+
+.preview-belt-ribs {
+    fill: none;
+    stroke: rgba(211, 217, 207, 0.09);
+    stroke-width: 5;
+}
+
+.preview-wet {
+    fill: rgba(91, 113, 116, 0.22);
+    stroke: rgba(183, 207, 207, 0.13);
+}
+
+.preview-feeders path {
+    fill: none;
+    stroke: rgba(225, 227, 220, 0.34);
+    stroke-width: 5;
+}
+
+.preview-belt-loads {
+    fill: #8a6842;
+    stroke: rgba(239, 235, 221, 0.42);
+    stroke-width: 2;
+}
+
+.preview-line {
+    fill: none;
+    stroke: rgba(182, 189, 50, 0.68);
+    stroke-dasharray: 9 11;
+    stroke-width: 3;
+}
+
+.preview-belt-car rect {
+    fill: #d8dad3;
+}
+
+.preview-belt-car circle {
+    fill: #090a0a;
+}
+
+.beltline-surface {
+    background: #0b0d0d;
+}
+
+#beltline-canvas {
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.legend-rubber {
+    border-radius: 2px;
+    background: #3c4b40;
+}
+
+.legend-steel {
+    border: 1px solid rgba(210, 226, 225, 0.48);
+    border-radius: 2px;
+    background: #526163;
+}
+
+.legend-rollers {
+    background: repeating-linear-gradient(90deg, #646b67 0 2px, #222625 2px 4px);
+}
+
+.legend-freight {
+    border-radius: 2px;
+    background: #9a7144;
+    transform: rotate(15deg);
+}
+
+.beltline-readout strong {
+    white-space: nowrap;
+}
+
+@media (max-width: 670px) {
+    .beltline-page .surface-legend {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        max-width: calc(100% - 20px);
+        border-radius: 16px;
+    }
+}
+
 @media (min-width: 901px) and (max-width: 1180px) {
     .dead-page .parameter-list,
     .breaker-page .parameter-list {
         grid-template-columns: repeat(3, 1fr);
+    }
+
+    .beltline-page .parameter-list {
+        grid-template-columns: repeat(4, 1fr);
     }
 
     .dead-page .parameter-row:nth-child(2) {

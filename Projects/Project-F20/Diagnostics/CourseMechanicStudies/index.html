@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=third-study-r11">
+    <link rel="stylesheet" href="styles.css?v=fourth-study-r1">
 </head>
 <body>
     <div class="publication-shell">
@@ -22,9 +22,10 @@
                 <a href="#iron-tide" data-page="iron-tide">Iron Tide</a>
                 <a href="#dead-weight" data-page="dead-weight">Dead Weight</a>
                 <a href="#breaker-wave" data-page="breaker-wave">Breaker Wave</a>
+                <a href="#beltline" data-page="beltline">Beltline</a>
             </nav>
 
-            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—03</p>
+            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—04</p>
         </header>
 
         <main>
@@ -32,7 +33,7 @@
                 <div class="index-intro">
                     <p class="section-kicker">Field mechanics / Volume 01</p>
                     <h1 id="index-title">Index</h1>
-                    <p class="index-deck">Three focused studies for systemic course mechanics.</p>
+                    <p class="index-deck">Four focused studies for systemic course mechanics.</p>
                 </div>
 
                 <a class="chapter-entry" href="#iron-tide" data-page="iron-tide" aria-label="Open Iron Tide study">
@@ -136,6 +137,39 @@
                             <g class="preview-wave-car" transform="translate(327 310) rotate(-24)"><rect x="-30" y="-14" width="60" height="25" rx="8"/><circle cx="-19" cy="13" r="8"/><circle cx="19" cy="13" r="8"/></g>
                         </svg>
                         <span class="diagram-caption">Tapered moving-break study</span>
+                    </div>
+                </a>
+
+                <a class="chapter-entry chapter-entry-belt" href="#beltline" data-page="beltline" aria-label="Open Beltline study">
+                    <div class="entry-copy">
+                        <p class="entry-number">04</p>
+                        <div>
+                            <p class="entry-label">Conveyor dynamics study</p>
+                            <h2>Beltline</h2>
+                            <p>A straight industrial conveyor course couples belt velocity, driven wheel speed, surface friction and crossing freight into one physical line.</p>
+                        </div>
+                        <span class="entry-link">Open study <b aria-hidden="true">↗</b></span>
+                    </div>
+
+                    <div class="index-diagram belt-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 760 440" role="img">
+                            <rect class="preview-belt-frame" x="42" y="118" width="676" height="204" rx="22"/>
+                            <path class="preview-belt-edge" d="M64 140h632M64 300h632"/>
+                            <path class="preview-belt-ribs" d="M96 142v156m34-156v156m34-156v156m34-156v156m34-156v156m34-156v156M514 142v156m34-156v156m34-156v156m34-156v156m34-156v156"/>
+                            <rect class="preview-wet" x="268" y="141" width="236" height="158"/>
+                            <g class="preview-feeders">
+                                <path d="M208 48v91M208 301v91M557 48v91M557 301v91"/>
+                                <path d="m199 124 9 15 9-15M199 316l9-15 9 15M548 124l9 15 9-15M548 316l9-15 9 15"/>
+                            </g>
+                            <g class="preview-belt-loads">
+                                <rect x="197" y="169" width="26" height="30" rx="3"/>
+                                <circle cx="557" cy="251" r="16"/>
+                                <rect x="416" y="192" width="62" height="12" rx="3" transform="rotate(17 447 198)"/>
+                            </g>
+                            <path class="preview-line" d="M84 237c159 0 202-52 330-36 102 13 163 47 265 8"/>
+                            <g class="preview-belt-car" transform="translate(358 208)"><rect x="-31" y="-17" width="62" height="34" rx="9"/><circle cx="-18" cy="18" r="7"/><circle cx="18" cy="18" r="7"/></g>
+                        </svg>
+                        <span class="diagram-caption">Straight transfer-line study</span>
                     </div>
                 </a>
             </section>
@@ -548,10 +582,131 @@
                     </article>
                 </section>
             </section>
+
+            <section class="page beltline-page" id="beltline" aria-labelledby="beltline-title" hidden>
+                <header class="chapter-heading">
+                    <div>
+                        <p class="section-kicker">04 / Conveyor dynamics mechanic</p>
+                        <h1 id="beltline-title">Beltline</h1>
+                    </div>
+                    <p>A straight transfer course where conveyor velocity, wheel speed and surface construction determine motion while upper and lower feeders push industrial freight across the vehicle’s line.</p>
+                </header>
+
+                <div class="study-layout">
+                    <article class="simulation-card" aria-labelledby="beltline-simulation-title">
+                        <header class="card-heading">
+                            <div>
+                                <p class="card-eyebrow">Live conveyor course</p>
+                                <h2 id="beltline-simulation-title">Three-surface transfer line</h2>
+                            </div>
+                            <button class="ride-button" id="beltline-start" type="button">Start run</button>
+                        </header>
+
+                        <div class="simulation-surface beltline-surface">
+                            <canvas id="beltline-canvas" aria-label="Interactive straight conveyor course with crossing crates, drums and beams"></canvas>
+                            <div class="surface-readout beltline-readout" aria-hidden="true">
+                                <div><span>Run</span><strong id="beltline-phase-readout">Ready</strong></div>
+                                <div><span>Ground</span><strong id="beltline-speed-readout">0</strong></div>
+                                <div><span>Surface</span><strong id="beltline-surface-readout">Rubber</strong></div>
+                            </div>
+                            <div class="surface-legend" aria-hidden="true">
+                                <span><i class="legend-rubber"></i>Ribbed rubber</span>
+                                <span><i class="legend-steel"></i>Wet steel</span>
+                                <span><i class="legend-rollers"></i>Free rollers</span>
+                                <span><i class="legend-freight"></i>Cross-feed freight</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <aside class="parameter-card" aria-labelledby="beltline-parameter-title">
+                        <header class="parameter-heading">
+                            <p class="card-eyebrow">Physical inputs</p>
+                            <h2 id="beltline-parameter-title">Drive setup</h2>
+                            <p>Set the belt and wheel velocities, then move the steering line while the carrier is running.</p>
+                        </header>
+
+                        <div class="parameter-list beltline-parameters">
+                            <label class="parameter-row" for="beltline-belt-speed">
+                                <span class="parameter-name">Belt speed</span>
+                                <output id="beltline-belt-speed-output" for="beltline-belt-speed">70 km/h</output>
+                                <input id="beltline-belt-speed" type="range" min="-80" max="180" value="70" step="1">
+                                <span class="range-ends"><small>80 reverse</small><small>180 km/h</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beltline-wheel-speed">
+                                <span class="parameter-name">Wheel speed</span>
+                                <output id="beltline-wheel-speed-output" for="beltline-wheel-speed">95 km/h</output>
+                                <input id="beltline-wheel-speed" type="range" min="-40" max="220" value="95" step="1">
+                                <span class="range-ends"><small>40 reverse</small><small>220 km/h</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beltline-speed-step">
+                                <span class="parameter-name">Section speed step</span>
+                                <output id="beltline-speed-step-output" for="beltline-speed-step">45 km/h</output>
+                                <input id="beltline-speed-step" type="range" min="0" max="120" value="45" step="1">
+                                <span class="range-ends"><small>Uniform</small><small>120 km/h</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beltline-steering">
+                                <span class="parameter-name">Steering line</span>
+                                <output id="beltline-steering-output" for="beltline-steering">Centre</output>
+                                <input id="beltline-steering" type="range" min="-100" max="100" value="0" step="1">
+                                <span class="range-ends"><small>Upper</small><small>Lower</small></span>
+                            </label>
+                        </div>
+                    </aside>
+                </div>
+
+                <section class="study-notes" aria-label="Beltline concept notes">
+                    <article>
+                        <p class="note-number">01</p>
+                        <h2>Mechanics</h2>
+                        <ol>
+                            <li><strong>Belt speed and wheel speed are independent.</strong> Ground velocity is the physical result of the moving conveyor, driven wheels and available friction rather than a direct speed command.</li>
+                            <li><strong>Every surface transfers motion differently.</strong> Ribbed rubber grips hard and can launch the carrier, wet steel saturates early and produces long slides, while free rollers transfer almost no belt speed.</li>
+                            <li><strong>Sections change suddenly.</strong> Each conveyor zone steps above or below the base belt velocity while a run is active. Crossing a seam can reverse slip direction or remove support without warning.</li>
+                            <li><strong>Steering still needs grip.</strong> The steering-line input requests a lane, but lateral acceleration is limited by the current surface. A carrier sliding on wet steel cannot instantly reach the selected line.</li>
+                            <li><strong>Feeders cross the course.</strong> Upper and lower transfer chutes release crates, drums and beams. Their mass, cross-feed velocity and collision shape alter the carrier rather than acting as visual obstacles.</li>
+                            <li><strong>Outcomes remain physical.</strong> Excess slip, a high-grip launch, freight impacts, departure over either edge and crossing the finish are all consequences of the same motion model.</li>
+                        </ol>
+                    </article>
+
+                    <article>
+                        <p class="note-number">02</p>
+                        <h2>Features</h2>
+                        <ul>
+                            <li>Reverse-to-180 km/h conveyor input</li>
+                            <li>Independent driven-wheel velocity</li>
+                            <li>Autonomous abrupt section-speed changes</li>
+                            <li>Ribbed rubber, wet steel and free-roller zones</li>
+                            <li>Upper and lower cross-feed machinery</li>
+                            <li>Crates, drums and long steel beams</li>
+                            <li>Live lane steering with grip-limited response</li>
+                            <li>Freight-to-vehicle collision impulses</li>
+                            <li>Sliding, launch, impact, edge-departure and finish states</li>
+                            <li>Run and checkpoint reset control</li>
+                        </ul>
+                    </article>
+
+                    <article>
+                        <p class="note-number">03</p>
+                        <h2>Ideas</h2>
+                        <ul>
+                            <li><strong>Read the seams.</strong> Surface labels and belt streaks telegraph the next transfer law, but the exact speed step is only revealed when that section changes.</li>
+                            <li><strong>Use reverse belts defensively.</strong> A reversed zone can hold the carrier away from crossing freight, then become a launch pad when wheel speed overcomes it.</li>
+                            <li><strong>Move freight deliberately.</strong> A glancing impact can push a crate into another lane or rotate a beam until it bridges two surface sections.</li>
+                            <li><strong>Chain the studies.</strong> Iron Tide cranes can determine feeder loads, while Dead Weight cargo mass can change Beltline impact resistance and launch behaviour.</li>
+                            <li><strong>Damage the transfer line.</strong> Heavy beam strikes could jam free rollers or strip rubber ribs, permanently changing friction for following vehicles.</li>
+                            <li><strong>Branch at the finish.</strong> Successful exit velocity can determine which elevated conveyor, loading bay or service floor the carrier reaches next.</li>
+                        </ul>
+                    </article>
+                </section>
+            </section>
         </main>
     </div>
 
     <script src="breaker.js?v=breaker-wave-r3"></script>
-    <script src="app.js?v=third-study-r10"></script>
+    <script src="beltline.js?v=beltline-r1"></script>
+    <script src="app.js?v=fourth-study-r1"></script>
 </body>
 </html>
