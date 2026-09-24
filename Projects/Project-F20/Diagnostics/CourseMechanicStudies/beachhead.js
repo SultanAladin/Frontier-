@@ -41,7 +41,7 @@
             name: "Heavy",
             integrity: 165,
             acceleration: 0.76,
-            turnRate: 1.72,
+            turnRate: 2.15,
             damageScale: 0.5,
             craterDrag: 0.78,
             size: 0.071,
@@ -116,6 +116,74 @@
         { x: -0.6, y: 0.73, width: 0.48, height: 0.035, angle: -0.08 },
         { x: 0.36, y: 0.82, width: 0.46, height: 0.035, angle: 0.1 }
     ];
+
+    const walls = [
+        { x: -0.88, y: 0.39, width: 0.16, height: 0.18, angle: -0.08 },
+        { x: 0.86, y: 0.48, width: 0.17, height: 0.2, angle: 0.07 },
+        { x: -0.87, y: 0.6, width: 0.18, height: 0.2, angle: 0.05 },
+        { x: 0.87, y: 0.72, width: 0.17, height: 0.19, angle: -0.06 },
+        { x: -0.84, y: 0.86, width: 0.2, height: 0.14, angle: 0.08 }
+    ];
+
+    const routeWaypoints = [
+        { x: 0, y: 0.04 },
+        { x: 0.18, y: 0.27 },
+        { x: -0.24, y: 0.37 },
+        { x: 0.24, y: 0.5 },
+        { x: -0.24, y: 0.62 },
+        { x: 0.24, y: 0.74 },
+        { x: -0.24, y: 0.83 },
+        { x: 0, y: 0.97 }
+    ];
+
+    function routeXAt(progress) {
+        for (let index = 0; index < routeWaypoints.length - 1; index += 1) {
+            const start = routeWaypoints[index];
+            const end = routeWaypoints[index + 1];
+            if (progress <= end.y) {
+                const ratio = clamp((progress - start.y) / (end.y - start.y), 0, 1);
+                const eased = ratio * ratio * (3 - 2 * ratio);
+                return start.x + (end.x - start.x) * eased;
+            }
+        }
+        return routeWaypoints[routeWaypoints.length - 1].x;
+    }
+
+    function createMinefield() {
+        const mines = [];
+        const rows = [0.215, 0.315, 0.425, 0.545, 0.665, 0.775, 0.875];
+        let seed = 4119;
+        const next = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+        rows.forEach((y, rowIndex) => {
+            const safeX = routeXAt(y);
+            for (let column = 0; column < 9; column += 1) {
+                const x = -0.86 + column * 0.215 + (next() - 0.5) * 0.035;
+                if (Math.abs(x - safeX) < 0.34) {
+                    continue;
+                }
+                mines.push({
+                    x,
+                    y: y + (next() - 0.5) * 0.035,
+                    radius: 0.024 + next() * 0.008,
+                    rotation: next() * Math.PI,
+                    detonated: false,
+                    flash: 0
+                });
+            }
+            // A second offset mine on alternating rows makes the field dense
+            // while preserving one readable anti-vehicle corridor.
+            if (rowIndex % 2 === 0) {
+                const sideX = safeX > 0 ? safeX - 0.44 : safeX + 0.44;
+                mines.push({ x: sideX, y: y + 0.028, radius: 0.028, rotation: next() * Math.PI, detonated: false, flash: 0 });
+            }
+        });
+        return mines;
+    }
+
+    const antiVehicleMines = createMinefield();
 
     const fortifiedChannels = [
         [
@@ -283,6 +351,10 @@
         world.impacts = [];
         world.craters = [];
         world.smoke = [];
+        antiVehicleMines.forEach((mine) => {
+            mine.detonated = false;
+            mine.flash = 0;
+        });
         world.randomState = 92317;
         startButton.textContent = ready ? "Start run" : "Reset run";
         smokeButton.textContent = `Deploy smoke · ${vehicle.smokeCharges}`;
@@ -359,7 +431,11 @@
 
     function spawnImpact() {
         const covered = smokeCovers(vehicle.x, vehicle.y);
-        const prediction = settings.lane / 100 * 0.78;
+        const prediction = clamp(
+            routeXAt(Math.min(0.96, vehicle.y + 0.18)) + settings.lane / 100 * 0.3,
+            -0.82,
+            0.82
+        );
         const error = covered ? (random() - 0.5) * 1.1 : (random() - 0.5) * 0.36;
         world.impacts.push({
             x: clamp(prediction + error, -0.86, 0.86),
@@ -448,7 +524,7 @@
         world.smoke = world.smoke.filter((cloud) => cloud.life > 0);
     }
 
-    function updateBarricadeCollisions(delta) {
+    function updateFieldCollisions(delta) {
         vehicle.collisionCooldown = Math.max(0, vehicle.collisionCooldown - delta);
         if (vehicle.collisionCooldown > 0) {
             return;
@@ -464,6 +540,41 @@
                 vehicle.forwardVelocity *= 0.42;
                 vehicle.collisionCooldown = 0.52;
                 damageVehicle(9, "Barricade strike");
+            }
+        });
+
+        walls.forEach((wall) => {
+            const dx = vehicle.x - wall.x;
+            const dy = vehicle.y - wall.y;
+            if (Math.abs(dx) < wall.width * 0.5 + configuration.size && Math.abs(dy) < wall.height * 0.5 + 0.02) {
+                const side = Math.sign(dx || vehicle.lateralVelocity || 1);
+                vehicle.x += side * 0.07;
+                vehicle.lateralVelocity += side * 0.28;
+                vehicle.forwardVelocity *= 0.28;
+                vehicle.collisionCooldown = 0.62;
+                damageVehicle(13, "Wall strike");
+            }
+        });
+
+        antiVehicleMines.forEach((mine) => {
+            if (mine.detonated || vehicle.phase !== "running") {
+                return;
+            }
+            const distance = Math.hypot((mine.x - vehicle.x) * 0.78, mine.y - vehicle.y);
+            if (distance < mine.radius + configuration.size * 0.72) {
+                mine.detonated = true;
+                mine.flash = 0.42;
+                world.craters.push({
+                    x: mine.x,
+                    y: mine.y,
+                    radius: mine.radius * 2.35,
+                    seed: random() * 900
+                });
+                const push = Math.sign(vehicle.x - mine.x || 1);
+                vehicle.lateralVelocity += push * 0.46;
+                vehicle.forwardVelocity *= 0.34;
+                vehicle.collisionCooldown = 0.7;
+                damageVehicle(68, "Anti-vehicle mine");
             }
         });
     }
@@ -482,7 +593,12 @@
         vehicle.forwardVelocity = moveToward(vehicle.forwardVelocity, targetForward * craterMultiplier, delta * 0.12);
         vehicle.y += vehicle.forwardVelocity * delta;
 
-        const targetX = settings.lane / 100 * 0.79;
+        // The rover follows the physical gaps between alternating walls and
+        // mine rows. The approach-lane input biases that route instead of
+        // reducing the run to a straight centre-line drive.
+        const routeTarget = routeXAt(Math.min(0.98, vehicle.y + 0.055));
+        const laneBias = settings.lane / 100 * 0.3;
+        const targetX = clamp(routeTarget + laneBias, -0.84, 0.84);
         const desiredLateralVelocity = (targetX - vehicle.x) * configuration.turnRate;
         vehicle.lateralVelocity = moveToward(vehicle.lateralVelocity, desiredLateralVelocity, delta * configuration.turnRate * 1.55);
         vehicle.lateralVelocity *= Math.exp(-delta * 0.52);
@@ -491,7 +607,7 @@
         vehicle.hitFlash = Math.max(0, vehicle.hitFlash - delta);
         vehicle.statusTimer = Math.max(0, vehicle.statusTimer - delta);
 
-        updateBarricadeCollisions(delta);
+        updateFieldCollisions(delta);
         if (vehicle.phase !== "running") {
             return;
         }
@@ -813,6 +929,111 @@
         ctx.lineJoin = "miter";
     }
 
+    function drawMinefields(ctx, frame) {
+        // Wire/stake boundaries make the grouped anti-vehicle mine rows read
+        // as actual minefields rather than isolated decorative dots.
+        const rowValues = [0.215, 0.315, 0.425, 0.545, 0.665, 0.775, 0.875];
+        rowValues.forEach((row, index) => {
+            const y = screenY(row, frame);
+            ctx.strokeStyle = "rgba(60,57,43,0.34)";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 8]);
+            ctx.beginPath();
+            ctx.moveTo(screenX(-0.94, frame), y);
+            ctx.lineTo(screenX(0.94, frame), y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            if (index === 0 || index === 3 || index === 6) {
+                const signX = screenX(index % 2 ? 0.9 : -0.9, frame);
+                ctx.save();
+                ctx.translate(signX, y - 10);
+                ctx.rotate(index % 2 ? 0.08 : -0.08);
+                ctx.fillStyle = "#a99463";
+                ctx.strokeStyle = "rgba(46,40,29,0.78)";
+                ctx.lineWidth = 1;
+                ctx.fillRect(-22, -8, 44, 16);
+                ctx.strokeRect(-22, -8, 44, 16);
+                ctx.fillStyle = "#3b3529";
+                ctx.font = "600 6px 'General Sans', sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("A-V MINEFIELD", 0, 2);
+                ctx.restore();
+            }
+        });
+
+        antiVehicleMines.forEach((mine) => {
+            if (mine.detonated) {
+                return;
+            }
+            const x = screenX(mine.x, frame);
+            const y = screenY(mine.y, frame);
+            const radius = Math.max(6, mine.radius * frame.width * 0.46);
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(mine.rotation);
+            ctx.fillStyle = "rgba(22,22,18,0.32)";
+            ctx.beginPath();
+            ctx.ellipse(3, 4, radius * 1.08, radius * 0.72, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#4b5142";
+            ctx.strokeStyle = "rgba(20,24,20,0.88)";
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, radius, radius * 0.72, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = "#69705b";
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.43, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(204,197,163,0.34)";
+            ctx.lineWidth = 1;
+            for (let prong = 0; prong < 3; prong += 1) {
+                const angle = prong / 3 * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angle) * radius * 0.28, Math.sin(angle) * radius * 0.28);
+                ctx.lineTo(Math.cos(angle) * radius * 0.78, Math.sin(angle) * radius * 0.56);
+                ctx.stroke();
+            }
+            ctx.restore();
+        });
+    }
+
+    function drawWalls(ctx, frame) {
+        walls.forEach((wall, wallIndex) => {
+            const x = screenX(wall.x, frame);
+            const y = screenY(wall.y, frame);
+            const width = wall.width * frame.width * 0.46;
+            const height = wall.height * frame.height;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(wall.angle);
+            ctx.fillStyle = "rgba(24,24,21,0.34)";
+            roundedRectangle(ctx, -width * 0.5 + 5, -height * 0.5 + 6, width, height, 5);
+            ctx.fill();
+            ctx.fillStyle = wallIndex % 2 ? "#76766c" : "#858377";
+            ctx.strokeStyle = "rgba(43,42,36,0.86)";
+            ctx.lineWidth = 2;
+            roundedRectangle(ctx, -width * 0.5, -height * 0.5, width, height, 5);
+            ctx.fill();
+            ctx.stroke();
+            const blocks = Math.max(2, Math.floor(height / 18));
+            for (let block = 1; block < blocks; block += 1) {
+                const blockY = -height * 0.5 + block / blocks * height;
+                ctx.strokeStyle = "rgba(42,41,36,0.42)";
+                ctx.beginPath();
+                ctx.moveTo(-width * 0.5, blockY);
+                ctx.lineTo(width * 0.5, blockY);
+                ctx.stroke();
+            }
+            ctx.fillStyle = "rgba(182,106,69,0.58)";
+            for (let mark = -height * 0.34; mark < height * 0.38; mark += 23) {
+                ctx.fillRect(-width * 0.5 + 3, mark, width - 6, 5);
+            }
+            ctx.restore();
+        });
+    }
+
     function drawBarricades(ctx, frame) {
         barricades.forEach((barricade, barricadeIndex) => {
             const x = screenX(barricade.x, frame);
@@ -1036,6 +1257,8 @@
         drawTerrain(ctx, frame);
         drawFortifiedChannels(ctx, frame);
         drawCraters(ctx, frame);
+        drawMinefields(ctx, frame);
+        drawWalls(ctx, frame);
         drawBarricades(ctx, frame);
         drawImpacts(ctx, frame);
         drawEmplacements(ctx, frame);
