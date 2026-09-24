@@ -109,7 +109,7 @@
         void main() {
             vec4 world = uModel * vec4(aPosition, 1.0);
             vec3 normal = normalize(mat3(uModel) * aNormal);
-            vLight = 0.24 + max(dot(normal, normalize(uLight)), 0.0) * 0.76;
+            vLight = 0.42 + max(dot(normal, normalize(uLight)), 0.0) * 0.58;
             vColor = aColor * uTint;
             vec4 viewPosition = uView * world;
             vDepth = max(0.0, -viewPosition.z);
@@ -129,9 +129,12 @@
                 vec2 p = gl_PointCoord - vec2(0.5);
                 if (dot(p, p) > 0.25) discard;
             }
-            float fog = clamp((vDepth - 5.0) / 23.0, 0.0, 0.82);
-            vec3 lit = vColor * vLight;
-            vec3 fogColor = vec3(0.025, 0.055, 0.058);
+            float fog = clamp((vDepth - 8.0) / 26.0, 0.0, 0.64);
+            vec3 lit = vColor * vLight + vec3(0.015, 0.055, 0.06) * vLight * vLight;
+            if (uPointMode > 0.5) {
+                lit = mix(lit, vColor, 0.72);
+            }
+            vec3 fogColor = vec3(0.025, 0.09, 0.095);
             gl_FragColor = vec4(mix(lit, fogColor, fog), 1.0);
         }
     `;
@@ -266,13 +269,15 @@
         ]);
     }
 
-    function boxModel(x, y, z, sx, sy, sz, rotationZ = 0) {
-        const c = Math.cos(rotationZ);
-        const s = Math.sin(rotationZ);
+    function boxModel(x, y, z, scaleX, scaleY, scaleZ, rotationZ = 0, rotationY = 0) {
+        const cosineZ = Math.cos(rotationZ);
+        const sineZ = Math.sin(rotationZ);
+        const cosineY = Math.cos(rotationY);
+        const sineY = Math.sin(rotationY);
         return new Float32Array([
-            c*sx, s*sx, 0, 0,
-            -s*sy, c*sy, 0, 0,
-            0, 0, sz, 0,
+            cosineZ * cosineY * scaleX, sineZ * cosineY * scaleX, -sineY * scaleX, 0,
+            -sineZ * scaleY, cosineZ * scaleY, 0, 0,
+            cosineZ * sineY * scaleZ, sineZ * sineY * scaleZ, cosineY * scaleZ, 0,
             x, y, z, 1
         ]);
     }
@@ -420,8 +425,10 @@
     }
 
     function buildWaveGeometry() {
-        const radialSegments = 42;
-        const lengthSegments = 54;
+        const radialSegments = 48;
+        const lengthSegments = 58;
+        const floorSegments = 12;
+        const lipSegments = 7;
         const vertices = [];
         const indices = [];
         const foam = [];
@@ -430,10 +437,14 @@
         const baseOpening = 1.05 - dynamicClosure * 0.7;
         const travel = ride.worldTime * (1.25 + settings.speed / 110);
 
+        function smoothStep(edge0, edge1, value) {
+            const ratio = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)));
+            return ratio * ratio * (3 - 2 * ratio);
+        }
+
         function sectionAt(lengthRatio, z) {
-            // The left wall keeps its full extent while the open/right side
-            // pulls inward. This makes the barrel a one-sided wedge rather
-            // than a uniformly scaled tube.
+            // The standing wall remains broad while the open shoulder narrows
+            // down-course, matching the asymmetric wedge of a breaking wave.
             const taper = 1 - lengthRatio * 0.42;
             const sectionRadius = radius * taper;
             const travellingOffset = Math.sin(travel * 0.7 - lengthRatio * 4.2) * 0.09;
@@ -442,11 +453,15 @@
             return {
                 radius: sectionRadius,
                 centerX,
+                floorY: -sectionRadius * 0.96 + Math.sin(z * 0.58 - travel * 1.1) * settings.noise * 0.045,
                 thetaStart: baseOpening + lipSweep,
-                thetaEnd: Math.PI * 2 - baseOpening + lipSweep
+                thetaEnd: Math.PI * 2 - baseOpening * 0.72 + lipSweep
             };
         }
 
+        // Main inner face: a tall standing wall and curled roof transition into
+        // a nearly horizontal water floor instead of completing a circular tube.
+        const faceRow = radialSegments + 1;
         for (let lengthIndex = 0; lengthIndex <= lengthSegments; lengthIndex += 1) {
             const lengthRatio = lengthIndex / lengthSegments;
             const z = 2.6 - lengthRatio * 23;
@@ -462,47 +477,120 @@
                 const localRadius = section.radius * (1 + travellingBand * 0.12) + noise;
                 const xShift = Math.sin(z * 0.33 - travel * 0.8) * settings.noise * 0.16;
                 const x = section.centerX + Math.cos(theta) * localRadius + xShift;
-                const y = Math.sin(theta) * localRadius;
-                const normalX = -Math.cos(theta);
-                const normalY = -Math.sin(theta);
-                const depthShade = 0.72 + lengthRatio * 0.18;
-                const lipGlow = Math.min(radialRatio, 1 - radialRatio) < 0.055 ? 0.16 : 0;
+                const circularY = Math.sin(theta) * localRadius;
+                const floorBlend = smoothStep(4.18, section.thetaEnd, theta);
+                const y = circularY * (1 - floorBlend) + section.floorY * floorBlend;
+                const circularNormalX = -Math.cos(theta);
+                const circularNormalY = -Math.sin(theta);
+                const normalX = circularNormalX * (1 - floorBlend);
+                const normalY = circularNormalY * (1 - floorBlend) + floorBlend;
+                const depthShade = 0.96 - lengthRatio * 0.18;
+                const lipGlow = radialRatio < 0.075 ? 0.2 : 0;
+                const movingHighlight = (Math.sin(theta * 7 - z * 1.8 + travel * 2.4) * 0.5 + 0.5) * 0.055;
                 vertices.push(
                     x, y, z,
-                    normalX, normalY, 0.08 * Math.sin(z - travel),
-                    (0.07 + lipGlow) * depthShade,
-                    (0.27 + lipGlow) * depthShade,
-                    (0.3 + lipGlow * 0.8) * depthShade
+                    normalX, normalY, 0.07 * Math.sin(z - travel),
+                    (0.035 + lipGlow * 0.35 + movingHighlight * 0.35) * depthShade,
+                    (0.38 + lipGlow + movingHighlight) * depthShade,
+                    (0.43 + lipGlow * 0.92 + movingHighlight * 1.2) * depthShade
                 );
             }
         }
-
-        const row = radialSegments + 1;
         for (let lengthIndex = 0; lengthIndex < lengthSegments; lengthIndex += 1) {
             for (let radialIndex = 0; radialIndex < radialSegments; radialIndex += 1) {
-                const current = lengthIndex * row + radialIndex;
-                const next = current + row;
+                const current = lengthIndex * faceRow + radialIndex;
+                const next = current + faceRow;
                 indices.push(current, next, current + 1, current + 1, next, next + 1);
             }
         }
 
+        // A broad ocean plane continues out of the hollow barrel. Its ripples
+        // make the wave read as a breaking ocean surface rather than a tunnel.
+        const floorOffset = vertices.length / 9;
+        const floorRow = floorSegments + 1;
         for (let lengthIndex = 0; lengthIndex <= lengthSegments; lengthIndex += 1) {
             const lengthRatio = lengthIndex / lengthSegments;
             const z = 2.6 - lengthRatio * 23;
             const section = sectionAt(lengthRatio, z);
-            for (const theta of [section.thetaStart, section.thetaEnd]) {
-                for (let particle = 0; particle < 3; particle += 1) {
-                    const phase = lengthIndex * 1.73 + particle * 2.11 + ride.worldTime * 4;
-                    const jitter = settings.noise * 0.18;
-                    const foamRadius = section.radius + 0.05 + Math.sin(phase) * jitter;
-                    foam.push(
-                        section.centerX + Math.cos(theta) * foamRadius + Math.sin(phase * 1.3) * jitter,
-                        Math.sin(theta) * foamRadius + Math.cos(phase) * jitter,
-                        z + Math.sin(phase * 0.7) * 0.14,
-                        -Math.cos(theta), -Math.sin(theta), 0,
-                        0.82, 0.91, 0.88
-                    );
-                }
+            const edgeX = section.centerX + Math.cos(section.thetaEnd) * section.radius;
+            const outerX = edgeX + radius * (1.2 - lengthRatio * 0.34);
+            for (let floorIndex = 0; floorIndex <= floorSegments; floorIndex += 1) {
+                const floorRatio = floorIndex / floorSegments;
+                const x = edgeX + (outerX - edgeX) * floorRatio;
+                const ripple = Math.sin(x * 1.8 + z * 0.72 - travel * 2.1) * settings.noise * 0.035
+                    + Math.sin(x * 4.1 - z * 0.9 + travel) * 0.012;
+                const y = section.floorY + ripple * floorRatio;
+                const reflection = Math.pow(Math.max(0, Math.sin(x * 1.3 - z * 0.4 + travel)), 4) * 0.11;
+                vertices.push(
+                    x, y, z,
+                    0, 1, 0.025 * Math.sin(z + travel),
+                    0.035 + reflection * 0.25,
+                    0.34 + reflection,
+                    0.38 + reflection * 1.15
+                );
+            }
+        }
+        for (let lengthIndex = 0; lengthIndex < lengthSegments; lengthIndex += 1) {
+            for (let floorIndex = 0; floorIndex < floorSegments; floorIndex += 1) {
+                const current = floorOffset + lengthIndex * floorRow + floorIndex;
+                const next = current + floorRow;
+                indices.push(current, next, current + 1, current + 1, next, next + 1);
+            }
+        }
+
+        // The crest has real thickness and curls down toward the opening. This
+        // overhanging sheet creates the hooked lip visible in a barrel wave.
+        const lipOffset = vertices.length / 9;
+        const lipRow = lipSegments + 1;
+        for (let lengthIndex = 0; lengthIndex <= lengthSegments; lengthIndex += 1) {
+            const lengthRatio = lengthIndex / lengthSegments;
+            const z = 2.6 - lengthRatio * 23;
+            const section = sectionAt(lengthRatio, z);
+            const thickness = 0.62 + settings.height * 0.62 + settings.closure * 0.24;
+            for (let lipIndex = 0; lipIndex <= lipSegments; lipIndex += 1) {
+                const lipRatio = lipIndex / lipSegments;
+                const theta = section.thetaStart - lipRatio * (0.28 + settings.closure * 0.2);
+                const lipRadius = section.radius + thickness * lipRatio;
+                const chop = Math.sin(z * 1.1 - travel * 2.5 + lipRatio * 4) * settings.noise * 0.075;
+                const x = section.centerX + Math.cos(theta) * lipRadius + chop;
+                const y = Math.sin(theta) * lipRadius + chop * 0.35;
+                const foamMix = Math.pow(lipRatio, 1.7);
+                vertices.push(
+                    x, y, z,
+                    -Math.cos(theta), -Math.sin(theta), -0.06,
+                    0.055 + foamMix * 0.62,
+                    0.42 + foamMix * 0.48,
+                    0.46 + foamMix * 0.45
+                );
+            }
+        }
+        for (let lengthIndex = 0; lengthIndex < lengthSegments; lengthIndex += 1) {
+            for (let lipIndex = 0; lipIndex < lipSegments; lipIndex += 1) {
+                const current = lipOffset + lengthIndex * lipRow + lipIndex;
+                const next = current + lipRow;
+                indices.push(current, next, current + 1, current + 1, next, next + 1);
+            }
+        }
+
+        // Dense spray tracks only the breaking crest; the lower opening remains
+        // a clean, readable water floor like the supplied barrel-wave reference.
+        for (let lengthIndex = 0; lengthIndex <= lengthSegments; lengthIndex += 1) {
+            const lengthRatio = lengthIndex / lengthSegments;
+            const z = 2.6 - lengthRatio * 23;
+            const section = sectionAt(lengthRatio, z);
+            const thickness = 0.62 + settings.height * 0.62 + settings.closure * 0.24;
+            const tipTheta = section.thetaStart - (0.28 + settings.closure * 0.2);
+            const tipRadius = section.radius + thickness;
+            for (let particle = 0; particle < 7; particle += 1) {
+                const phase = lengthIndex * 1.73 + particle * 1.37 + ride.worldTime * 4.4;
+                const spray = 0.08 + particle * 0.035 + settings.noise * 0.16;
+                foam.push(
+                    section.centerX + Math.cos(tipTheta) * tipRadius + Math.sin(phase * 1.3) * spray,
+                    Math.sin(tipTheta) * tipRadius + Math.abs(Math.sin(phase * 0.77)) * spray * 1.8,
+                    z + Math.cos(phase * 0.91) * spray * 1.35,
+                    0, 1, 0,
+                    0.82 + particle * 0.018, 0.94, 0.92
+                );
             }
         }
 
@@ -528,67 +616,66 @@
 
     function drawCar(radius) {
         const activeProgress = ride.phase === "ready" ? 0 : Math.min(1, ride.progress);
-        const climbEfficiency = Math.min(1, 0.34 + settings.grip * 0.92);
-        const selectedLine = Math.min(1.45, settings.angle / requiredTraverseAngle());
-        const turbulenceSlip = ride.phase === "riding"
-            ? Math.sin(ride.time * 1.8) * settings.noise * 0.035
-            : 0;
-        // The vehicle starts in the trough, moves longitudinally down the
-        // taper and traverses the inner C. A shallow selected line visibly
-        // remains below the opening while the break moves over it.
-        const theta = -Math.PI * 0.5
-            + activeProgress * 1.28 * climbEfficiency * selectedLine
-            + turbulenceSlip;
+        const gripHold = Math.min(1, 0.34 + settings.grip * 0.92);
+        const selectedLine = Math.min(1.35, settings.angle / requiredTraverseAngle());
         const z = 0.4 - activeProgress * 7.2;
         const lengthRatio = Math.max(0, Math.min(1, (2.6 - z) / 23));
         const taper = 1 - lengthRatio * 0.42;
         const sectionRadius = radius * taper;
         const travel = ride.worldTime * (1.25 + settings.speed / 110);
         const centerX = radius * (taper - 1) + Math.sin(travel * 0.7 - lengthRatio * 4.2) * 0.09;
-        const trackRadius = sectionRadius - 0.3;
-        const x = centerX + Math.cos(theta) * trackRadius;
-        const y = Math.sin(theta) * trackRadius;
-        const rotation = theta + Math.PI * 0.5;
-        const cosine = Math.cos(rotation);
-        const sine = Math.sin(rotation);
+        const floorY = -sectionRadius * 0.96 + Math.sin(z * 0.58 - travel * 1.1) * settings.noise * 0.045;
+        const turbulenceSlip = ride.phase === "riding"
+            ? Math.sin(ride.time * 1.8) * settings.noise * 0.09
+            : 0;
+        // The carrier now runs across the flat water floor of the cavity. Its
+        // selected traverse angle is visible as yaw in the horizontal x/z
+        // plane, while grip decides how closely the path holds that line.
+        const x = centerX + sectionRadius * (0.12 + activeProgress * 0.72 * selectedLine * gripHold)
+            + turbulenceSlip;
+        const y = floorY + 0.3;
+        const yaw = -settings.angle * Math.PI / 180;
+        const cosine = Math.cos(yaw);
+        const sine = Math.sin(yaw);
 
-        function localPoint(localX, localY) {
+        function localPoint(localX, localY, localZ) {
             return [
-                x + localX * cosine - localY * sine,
-                y + localX * sine + localY * cosine
+                x + localX * cosine + localZ * sine,
+                y + localY,
+                z - localX * sine + localZ * cosine
             ];
         }
 
-        drawCube(boxModel(x, y, z, 0.58, 0.18, 0.95, rotation), new Float32Array([0.78, 0.8, 0.76]));
-        const cabin = localPoint(0, 0.28);
-        drawCube(boxModel(cabin[0], cabin[1], z - 0.08, 0.34, 0.13, 0.48, rotation), new Float32Array([0.22, 0.25, 0.24]));
+        drawCube(boxModel(x, y, z, 0.58, 0.18, 0.95, 0, yaw), new Float32Array([0.78, 0.8, 0.76]));
+        const cabin = localPoint(0, 0.28, -0.08);
+        drawCube(boxModel(cabin[0], cabin[1], cabin[2], 0.34, 0.13, 0.48, 0, yaw), new Float32Array([0.22, 0.25, 0.24]));
         const wheelTint = new Float32Array([0.08, 0.1, 0.09]);
         const tyreGlow = new Float32Array([0.55, 0.62, 0.18]);
         for (const side of [-1, 1]) {
-            const wheel = localPoint(side * 0.64, -0.12);
             for (const end of [-1, 1]) {
-                drawCube(boxModel(wheel[0], wheel[1], z + end * 0.62, 0.11, 0.16, 0.22, rotation), wheelTint);
+                const wheel = localPoint(side * 0.64, -0.12, end * 0.62);
+                drawCube(boxModel(wheel[0], wheel[1], wheel[2], 0.11, 0.16, 0.22, 0, yaw), wheelTint);
             }
         }
-        const marker = localPoint(0, -0.02);
-        drawCube(boxModel(marker[0], marker[1], z + 0.93, 0.38, 0.06, 0.08, rotation), tyreGlow);
+        const marker = localPoint(0, -0.02, 0.93);
+        drawCube(boxModel(marker[0], marker[1], marker[2], 0.38, 0.06, 0.08, 0, yaw), tyreGlow);
     }
 
     function render() {
         const radius = buildWaveGeometry();
         gl.enable(gl.DEPTH_TEST);
         gl.disable(gl.CULL_FACE);
-        gl.clearColor(0.018, 0.038, 0.041, 1);
+        gl.clearColor(0.018, 0.075, 0.08, 1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.useProgram(program);
 
-        const projection = perspective(Math.PI / 3.15, Math.max(0.2, width / height), 0.1, 80);
-        const cameraSway = Math.sin(ride.worldTime * 0.35) * 0.18;
-        const view = lookAt([6.2 + cameraSway, 2.7, 9.4], [0, -0.35, -6.5], [0, 1, 0]);
+        const projection = perspective(Math.PI / 3.28, Math.max(0.2, width / height), 0.1, 80);
+        const cameraSway = Math.sin(ride.worldTime * 0.35) * 0.16;
+        const view = lookAt([7.1 + cameraSway, 1.8, 9.2], [-0.55, -0.7, -5.8], [0, 1, 0]);
         gl.uniformMatrix4fv(locations.projection, false, projection);
         gl.uniformMatrix4fv(locations.view, false, view);
         gl.uniformMatrix4fv(locations.model, false, identity);
-        gl.uniform3fv(locations.light, new Float32Array([-0.35, 0.8, 0.5]));
+        gl.uniform3fv(locations.light, new Float32Array([0.18, 0.9, 0.55]));
         gl.uniform3fv(locations.tint, new Float32Array([1, 1, 1]));
         gl.uniform1f(locations.pointMode, 0);
         gl.uniform1f(locations.pointSize, 1);
@@ -601,7 +688,7 @@
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         bindInterleaved(foamBuffer);
         gl.uniform1f(locations.pointMode, 1);
-        gl.uniform1f(locations.pointSize, Math.max(2.5, 4.2 * dpr));
+        gl.uniform1f(locations.pointSize, Math.max(3, 5.2 * dpr));
         gl.drawArrays(gl.POINTS, 0, foamCount);
         gl.disable(gl.BLEND);
 
