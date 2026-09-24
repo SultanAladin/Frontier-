@@ -1772,6 +1772,71 @@ a {
     overflow: visible;
 }
 
+.tide-dry-basin rect {
+    fill: url(#tide-concrete-pattern);
+    stroke: rgba(183, 186, 177, 0.13);
+    stroke-width: 2;
+}
+
+.tide-dry-basin path {
+    fill: none;
+    stroke: rgba(201, 199, 184, 0.13);
+    stroke-dasharray: 5 9;
+    stroke-width: 2;
+}
+
+.tide-water-fill,
+.tide-water-ripples {
+    transition: y 160ms linear, height 160ms linear, filter 180ms linear;
+}
+
+.tide-water-ripples {
+    opacity: 0.9;
+    mix-blend-mode: screen;
+}
+
+.tide-waterline {
+    fill: none;
+    stroke: rgba(229, 242, 236, 0.9);
+    stroke-dasharray: 8 7;
+    stroke-linecap: round;
+    stroke-width: 5;
+    filter: url(#tide-soft-glow);
+    animation: tide-waterline-travel 1.1s linear infinite;
+}
+
+@keyframes tide-waterline-travel {
+    to { stroke-dashoffset: -30; }
+}
+
+.tide-gate-flow {
+    pointer-events: none;
+    transition: opacity 130ms linear;
+}
+
+.tide-gate-jet {
+    fill: none;
+    stroke: rgba(196, 232, 225, 0.92);
+    stroke-dasharray: 13 10;
+    stroke-linecap: round;
+    stroke-width: 11;
+    filter: url(#tide-soft-glow);
+    animation: tide-gate-transfer 0.62s linear infinite;
+}
+
+.tide-gate-foam {
+    fill: none;
+    stroke: rgba(242, 247, 238, 0.86);
+    stroke-dasharray: 6 9;
+    stroke-linecap: round;
+    stroke-width: 5;
+    animation: tide-gate-transfer 0.82s linear infinite reverse;
+}
+
+@keyframes tide-gate-transfer {
+    to { stroke-dashoffset: -46; }
+}
+
 .tide-pipe-bank path,
 .tide-pipe-bank circle,
 .tide-pipe-bank rect {
@@ -1958,6 +2023,20 @@ a {
     font-size: 9px;
 }
 
+.tide-chamber-labels rect {
+    fill: rgba(13, 17, 16, 0.76);
+    stroke: rgba(221, 230, 222, 0.22);
+    stroke-width: 1.5;
+}
+
+.tide-chamber-labels text {
+    fill: #dfe7e1;
+    font-family: "General Sans", sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+}
+
 .tide-drains rect {
     fill: #1d2422;
     stroke: #67716d;
@@ -2138,6 +2217,10 @@ a {
     position: relative;
     overflow: hidden;
     min-width: 112px;
+}
+
+.tidelock-readout strong {
+    white-space: nowrap;
 }
 
 .tidelock-readout div::after {

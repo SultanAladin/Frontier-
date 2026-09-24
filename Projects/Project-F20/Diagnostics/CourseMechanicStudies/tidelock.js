@@ -16,10 +16,31 @@
     const phaseReadout = document.getElementById("tide-phase-readout");
     const delayReadout = document.getElementById("tide-delay-readout");
     const gateReadout = document.getElementById("tide-gate-readout");
+    const waterReadout = document.getElementById("tide-water-readout");
+    const ripplePattern = document.getElementById("tide-ripple-pattern");
     const waterGraphics = [
         document.getElementById("tide-water-a"),
         document.getElementById("tide-water-b"),
         document.getElementById("tide-water-c")
+    ];
+    const rippleGraphics = [
+        document.getElementById("tide-ripples-a"),
+        document.getElementById("tide-ripples-b"),
+        document.getElementById("tide-ripples-c")
+    ];
+    const waterClipGraphics = [
+        document.getElementById("tide-water-clip-a-rect"),
+        document.getElementById("tide-water-clip-b-rect"),
+        document.getElementById("tide-water-clip-c-rect")
+    ];
+    const waterlineGraphics = [
+        document.getElementById("tide-waterline-a"),
+        document.getElementById("tide-waterline-b"),
+        document.getElementById("tide-waterline-c")
+    ];
+    const gateFlowGraphics = [
+        document.getElementById("tide-gate-a-flow"),
+        document.getElementById("tide-gate-b-flow")
     ];
     const depthReadouts = [
         document.getElementById("tide-depth-a"),
@@ -81,6 +102,8 @@
         lastTime: performance.now(),
         gateA: 0,
         gateB: 0,
+        chamberDepths: [1.7, 0.9, 0.5],
+        gateTransfers: [0, 0],
         freight: [],
         randomSeed: 987631,
         wasVisible: false
@@ -108,8 +131,8 @@
         {
             input: document.getElementById("tide-water-depth"),
             output: document.getElementById("tide-water-depth-output"),
-            apply: (number) => { settings.waterDepth = number / 10; updateWaterDisplay(); },
-            format: (number) => `${(number / 10).toFixed(1)} m`
+            apply: (number) => { settings.waterDepth = number / 10; },
+            format: (number) => `${(number / 10).toFixed(1)} m head`
         },
         {
             input: document.getElementById("tide-ballast"),
@@ -175,17 +198,85 @@
         definition.input.addEventListener("input", definition.update);
     });
 
+    const chamberGeometry = [
+        { x: 100, width: 284 },
+        { x: 400, width: 301 },
+        { x: 717, width: 283 }
+    ];
+
     function updateWaterDisplay() {
-        const depths = [settings.waterDepth * 0.78, settings.waterDepth, settings.waterDepth * 0.64];
-        depths.forEach((depth, index) => {
-            if (depthReadouts[index]) {
-                depthReadouts[index].textContent = `${depth.toFixed(1)} M`;
-            }
-            if (waterGraphics[index]) {
-                waterGraphics[index].style.opacity = `${clamp(0.58 + depth * 0.13, 0.62, 0.96)}`;
-                waterGraphics[index].style.filter = `saturate(${(0.78 + depth * 0.13).toFixed(2)}) brightness(${(1.08 - depth * 0.08).toFixed(2)})`;
-            }
+        const shorelines = [];
+        world.chamberDepths.forEach((depth, index) => {
+            const geometry = chamberGeometry[index];
+            const coverage = clamp(0.08 + depth / 2.8 * 0.9, 0.08, 0.98);
+            const waterHeight = 476 * coverage;
+            const shoreline = 614 - waterHeight;
+            shorelines[index] = shoreline;
+            const wave = 5 + Math.abs(settings.pumpBias) * 7;
+            const phase = world.time * (1.4 + Math.abs(settings.pumpBias) * 1.8) + index * 1.7;
+            const first = Math.sin(phase) * wave;
+            const second = Math.sin(phase + 1.9) * wave;
+            const third = Math.sin(phase + 3.6) * wave;
+
+            depthReadouts[index].textContent = `${depth.toFixed(1)} M`;
+            [waterGraphics[index], rippleGraphics[index], waterClipGraphics[index]].forEach((graphic) => {
+                graphic.setAttribute("y", shoreline.toFixed(1));
+                graphic.setAttribute("height", waterHeight.toFixed(1));
+            });
+            waterGraphics[index].style.opacity = `${clamp(0.56 + depth * 0.15, 0.58, 0.97)}`;
+            waterGraphics[index].style.filter = `saturate(${(0.84 + depth * 0.16).toFixed(2)}) brightness(${(1.12 - depth * 0.09).toFixed(2)})`;
+            waterlineGraphics[index].setAttribute(
+                "d",
+                `M${geometry.x} ${shoreline.toFixed(1)} Q${(geometry.x + geometry.width * 0.125).toFixed(1)} ${(shoreline + first).toFixed(1)} ${(geometry.x + geometry.width * 0.25).toFixed(1)} ${shoreline.toFixed(1)} T${(geometry.x + geometry.width * 0.5).toFixed(1)} ${shoreline.toFixed(1)} T${(geometry.x + geometry.width * 0.75).toFixed(1)} ${(shoreline + second).toFixed(1)} T${(geometry.x + geometry.width).toFixed(1)} ${(shoreline + third * 0.35).toFixed(1)}`
+            );
         });
+
+        const textureX = modular(world.time * (10 + Math.abs(settings.pumpBias) * 18), 76);
+        const textureY = modular(world.time * settings.pumpBias * 26, 44);
+        ripplePattern.setAttribute("patternTransform", `translate(${textureX.toFixed(1)} ${textureY.toFixed(1)})`);
+
+        world.gateTransfers.forEach((transfer, index) => {
+            const graphic = gateFlowGraphics[index];
+            const gateOpen = index === 0 ? world.gateA : world.gateB;
+            const adjacentShore = index === 0
+                ? Math.max(shorelines[0], shorelines[1])
+                : Math.max(shorelines[1], shorelines[2]);
+            const verticalShift = clamp(adjacentShore + 28 - 364, 0, 185);
+            graphic.style.opacity = `${clamp(Math.abs(transfer) * 2.8 + gateOpen * 0.08, 0, 0.92)}`;
+            const pivot = index === 0 ? 784 : 1418;
+            const reflection = transfer < 0 ? ` translate(${pivot} 0) scale(-1 1)` : "";
+            graphic.setAttribute("transform", `translate(0 ${verticalShift.toFixed(1)})${reflection}`);
+        });
+
+        const strongest = Math.abs(world.gateTransfers[0]) >= Math.abs(world.gateTransfers[1]) ? 0 : 1;
+        const transfer = world.gateTransfers[strongest];
+        if (Math.abs(transfer) < 0.025) {
+            waterReadout.textContent = "Levels holding";
+        } else {
+            const labels = strongest === 0
+                ? (transfer > 0 ? "01 → 02" : "02 → 01")
+                : (transfer > 0 ? "02 → 03" : "03 → 02");
+            waterReadout.textContent = `${labels} ${Math.abs(transfer).toFixed(2)} m/s`;
+        }
+    }
+
+    function updateHydraulics(delta) {
+        const depths = world.chamberDepths;
+        const inletRecovery = (settings.waterDepth - depths[0]) * 0.32;
+        const outletTarget = clamp(settings.waterDepth * 0.18, 0.08, 0.55);
+        const outletDrain = Math.max(0, depths[2] - outletTarget) * 0.09;
+        const transferA = (depths[0] - depths[1]) * world.gateA * 0.5;
+        const transferB = (depths[1] - depths[2]) * world.gateB * 0.5;
+
+        depths[0] += (inletRecovery - transferA) * delta;
+        depths[1] += (transferA * 0.96 - transferB) * delta;
+        depths[2] += (transferB * 0.96 - outletDrain) * delta;
+        for (let index = 0; index < depths.length; index += 1) {
+            depths[index] = clamp(depths[index], 0.04, 2.8);
+        }
+        world.gateTransfers[0] = transferA;
+        world.gateTransfers[1] = transferB;
+        updateWaterDisplay();
     }
 
     function freightTemplate(index) {
@@ -300,20 +391,27 @@
         svg.style.setProperty("--tide-gate-b-open", world.gateB.toFixed(3));
     }
 
+    function waterShoreline(depth) {
+        const coverage = clamp(0.08 + depth / 2.8 * 0.9, 0.08, 0.98);
+        return 614 - 476 * coverage;
+    }
+
     function freightBounds(piece) {
+        const waterTop = Math.min(540, waterShoreline(world.chamberDepths[piece.chamber]));
         if (piece.chamber === 0) {
-            return { left: 116, right: 369, top: 155, bottom: 594 };
+            return { left: 116, right: 369, top: Math.max(155, waterTop), bottom: 594 };
         }
         if (piece.chamber === 1) {
-            return { left: 417, right: 683, top: 155, bottom: 594 };
+            return { left: 417, right: 683, top: Math.max(155, waterTop), bottom: 594 };
         }
-        return { left: 734, right: 983, top: 155, bottom: 594 };
+        return { left: 734, right: 983, top: Math.max(155, waterTop), bottom: 594 };
     }
 
     function updateFreight(delta) {
-        const currentAcceleration = settings.pumpBias * (16 + settings.waterDepth * 9);
         world.freight.forEach((piece, index) => {
             const bounds = freightBounds(piece);
+            const localDepth = world.chamberDepths[piece.chamber];
+            const currentAcceleration = settings.pumpBias * (8 + localDepth * 13);
             const eddy = Math.sin(world.time * 0.8 + index * 1.71) * 4.5;
             piece.velocityY += (currentAcceleration + eddy) * delta;
             piece.velocityX += Math.cos(world.time * 0.58 + index * 2.3) * 2.2 * delta;
@@ -376,8 +474,17 @@
         }
     }
 
-    function carrierPhysics() {
-        const buoyancy = clamp((settings.waterDepth * 1.25 - settings.ballast * 0.55) / 2.2, 0, 0.88);
+    function depthAtPosition(x, y) {
+        if (x < 100 || x > 1000 || y < 138 || y > 614) {
+            return 0;
+        }
+        const chamber = x < 392 ? 0 : x < 709 ? 1 : 2;
+        const depth = world.chamberDepths[chamber];
+        return y >= waterShoreline(depth) ? depth : 0;
+    }
+
+    function carrierPhysics(depth) {
+        const buoyancy = clamp((depth * 1.25 - settings.ballast * 0.55) / 2.2, 0, 0.88);
         const tyreLoad = clamp(1 - buoyancy, 0.12, 1);
         return { buoyancy, tyreLoad };
     }
@@ -452,18 +559,21 @@
             return;
         }
 
-        const physics = carrierPhysics();
-        const currentForce = settings.pumpBias * 90 * (settings.waterDepth / 2.8) * (1.15 - physics.tyreLoad);
-        const correctionForce = carrier.offset * (0.45 + physics.tyreLoad * 2.1);
+        let point = routePosition(carrier.progress);
+        const localDepth = depthAtPosition(point.x, point.y + carrier.offset);
+        const flooded = localDepth > 0.08;
+        const physics = carrierPhysics(localDepth);
+        const currentForce = flooded
+            ? settings.pumpBias * 260 * (localDepth / 2.8) * (1.15 - physics.tyreLoad)
+            : 0;
+        const correctionForce = carrier.offset * (flooded ? 0.45 + physics.tyreLoad * 2.1 : 3.4);
         carrier.offsetVelocity += (currentForce - correctionForce) * delta;
-        carrier.offsetVelocity *= Math.pow(0.94, delta * 60);
+        carrier.offsetVelocity *= Math.pow(flooded ? 0.94 : 0.86, delta * 60);
         carrier.offset += carrier.offsetVelocity * delta;
         carrier.collisionTimer = Math.max(0, carrier.collisionTimer - delta);
         carrier.impactFlash = Math.max(0, carrier.impactFlash - delta * 2.2);
 
-        let point = routePosition(carrier.progress);
         const heldBy = carrierGateHold(point);
-        const flooded = carrier.progress > 0.07 && carrier.progress < 0.93;
         const ballastDrag = clamp((settings.ballast - 0.8) / 5.3, 0, 0.22);
         let targetSpeed = 0.047 * (1 - ballastDrag);
         if (flooded) {
@@ -498,7 +608,7 @@
 
         strikeFreight(delta);
 
-        if (Math.abs(carrier.offset) > 124 || carrier.y < 145 || carrier.y > 606) {
+        if (flooded && (Math.abs(carrier.offset) > 124 || carrier.y < 145 || carrier.y > 606)) {
             finishRun("swept", "Swept into pump cage");
         } else if (carrier.delay >= detentionTarget) {
             finishRun("detained", "Carrier detained");
@@ -514,7 +624,8 @@
         const transform = `translate(${carrier.x.toFixed(1)} ${carrier.y.toFixed(1)}) rotate(${carrier.angle.toFixed(1)})`;
         carrierGraphic.setAttribute("transform", transform);
         wakeGraphic.setAttribute("transform", transform);
-        wakeGraphic.style.opacity = carrier.progress > 0.06 && carrier.progress < 0.94 ? `${clamp(carrier.speed * 21, 0.1, 0.84)}` : "0";
+        const displayedDepth = depthAtPosition(carrier.x, carrier.y);
+        wakeGraphic.style.opacity = displayedDepth > 0.08 ? `${clamp(carrier.speed * 21, 0.1, 0.84)}` : "0";
 
         impactGraphic.setAttribute("transform", `translate(${carrier.x.toFixed(1)} ${carrier.y.toFixed(1)})`);
         impactGraphic.style.opacity = `${carrier.impactFlash}`;
@@ -550,6 +661,11 @@
         svg.dataset.result = "running";
         phaseReadout.parentElement?.classList.remove("is-success", "is-failure");
         resetButton.textContent = "Reset carrier";
+        world.chamberDepths[0] = clamp(settings.waterDepth * 0.94, 0.08, 2.8);
+        world.chamberDepths[1] = clamp(settings.waterDepth * 0.48, 0.08, 2.8);
+        world.chamberDepths[2] = clamp(settings.waterDepth * 0.26, 0.08, 2.8);
+        world.gateTransfers[0] = 0;
+        world.gateTransfers[1] = 0;
         world.randomSeed = 987631;
         world.freight.forEach((piece, index) => {
             const replacement = freightTemplate(index);
@@ -562,6 +678,7 @@
             piece.spin = replacement.spin;
             piece.hit = 0;
         });
+        updateWaterDisplay();
         updateGraphics();
     }
 
@@ -585,6 +702,7 @@
             world.wasVisible = true;
             world.time += delta;
             updateGates();
+            updateHydraulics(delta);
             updateFreight(delta);
             updateCarrier(delta);
             updateGraphics();

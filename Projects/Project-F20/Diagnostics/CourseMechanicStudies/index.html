@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=tidelock-r1">
+    <link rel="stylesheet" href="styles.css?v=tidelock-r2">
 </head>
 <body>
     <div class="publication-shell">
@@ -1014,6 +1014,9 @@
                                     <marker id="tide-arrowhead" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                                         <path d="M1 1 11 6 1 11Z" fill="#c7dfd8" opacity=".72"/>
                                     </marker>
+                                    <clipPath id="tide-water-clip-a"><rect id="tide-water-clip-a-rect" x="100" y="276" width="284" height="338"/></clipPath>
+                                    <clipPath id="tide-water-clip-b"><rect id="tide-water-clip-b-rect" x="400" y="410" width="301" height="204"/></clipPath>
+                                    <clipPath id="tide-water-clip-c"><rect id="tide-water-clip-c-rect" x="717" y="482" width="283" height="132"/></clipPath>
                                     <symbol id="tide-crate-symbol" viewBox="-22 -17 44 34">
                                         <rect x="-21" y="-16" width="42" height="32" rx="3" fill="#9b6c3e" stroke="#34271d" stroke-width="3"/>
                                         <path d="M-14-16v32M14-16v32M-21-7h42M-21 8h42" fill="none" stroke="#d09a5a" stroke-width="2" opacity=".72"/>
@@ -1039,13 +1042,28 @@
                                 </g>
 
                                 <rect x="88" y="126" width="924" height="500" rx="14" fill="#171b1a" stroke="#0a0c0c" stroke-width="12"/>
-                                <g id="tide-water-layer">
-                                    <rect id="tide-water-a" x="100" y="138" width="284" height="476" rx="6" fill="url(#tide-water-gradient)"/>
-                                    <rect id="tide-water-b" x="400" y="138" width="301" height="476" fill="url(#tide-water-gradient)"/>
-                                    <rect id="tide-water-c" x="717" y="138" width="283" height="476" rx="6" fill="url(#tide-water-gradient)"/>
-                                    <rect x="100" y="138" width="284" height="476" rx="6" fill="url(#tide-ripple-pattern)"/>
-                                    <rect x="400" y="138" width="301" height="476" fill="url(#tide-ripple-pattern)"/>
-                                    <rect x="717" y="138" width="283" height="476" rx="6" fill="url(#tide-ripple-pattern)"/>
+                                <g class="tide-dry-basin" aria-hidden="true">
+                                    <rect x="100" y="138" width="284" height="476" rx="6"/>
+                                    <rect x="400" y="138" width="301" height="476"/>
+                                    <rect x="717" y="138" width="283" height="476" rx="6"/>
+                                    <path d="M100 218h284M100 298h284M100 378h284M100 458h284M100 538h284M400 218h301M400 298h301M400 378h301M400 458h301M400 538h301M717 218h283M717 298h283M717 378h283M717 458h283M717 538h283"/>
+                                </g>
+                                <g id="tide-water-layer" aria-label="Live rising and draining chamber water">
+                                    <g id="tide-water-group-a">
+                                        <rect id="tide-water-a" class="tide-water-fill" x="100" y="276" width="284" height="338" rx="6" fill="url(#tide-water-gradient)"/>
+                                        <rect id="tide-ripples-a" class="tide-water-ripples" x="100" y="276" width="284" height="338" rx="6" fill="url(#tide-ripple-pattern)"/>
+                                        <path id="tide-waterline-a" class="tide-waterline" d="M100 276q35-8 71 0t71 0 71 0 71 0"/>
+                                    </g>
+                                    <g id="tide-water-group-b">
+                                        <rect id="tide-water-b" class="tide-water-fill" x="400" y="410" width="301" height="204" fill="url(#tide-water-gradient)"/>
+                                        <rect id="tide-ripples-b" class="tide-water-ripples" x="400" y="410" width="301" height="204" fill="url(#tide-ripple-pattern)"/>
+                                        <path id="tide-waterline-b" class="tide-waterline" d="M400 410q38-8 75 0t75 0 75 0 76 0"/>
+                                    </g>
+                                    <g id="tide-water-group-c">
+                                        <rect id="tide-water-c" class="tide-water-fill" x="717" y="482" width="283" height="132" rx="6" fill="url(#tide-water-gradient)"/>
+                                        <rect id="tide-ripples-c" class="tide-water-ripples" x="717" y="482" width="283" height="132" rx="6" fill="url(#tide-ripple-pattern)"/>
+                                        <path id="tide-waterline-c" class="tide-waterline" d="M717 482q35-8 71 0t71 0 71 0 70 0"/>
+                                    </g>
                                 </g>
 
                                 <g class="tide-submerged-floor" aria-hidden="true">
@@ -1105,12 +1123,26 @@
                                 </g>
 
                                 <g id="tide-current-arrows" class="tide-current-arrows" aria-hidden="true">
-                                    <path d="M242 232c34 32 37 77 5 109"/>
-                                    <path d="M286 218c39 43 41 102 2 145"/>
-                                    <path d="M448 432c38-42 43-101 6-145"/>
-                                    <path d="M503 455c48-57 49-130 3-183"/>
-                                    <path d="M751 216c39 42 43 96 8 137"/>
-                                    <path d="M809 196c50 57 54 133 9 187"/>
+                                    <g clip-path="url(#tide-water-clip-a)">
+                                        <path d="M242 232c34 32 37 77 5 109"/>
+                                        <path d="M286 218c39 43 41 102 2 145"/>
+                                    </g>
+                                    <g clip-path="url(#tide-water-clip-b)">
+                                        <path d="M448 432c38-42 43-101 6-145"/>
+                                        <path d="M503 455c48-57 49-130 3-183"/>
+                                    </g>
+                                    <g clip-path="url(#tide-water-clip-c)">
+                                        <path d="M751 216c39 42 43 96 8 137"/>
+                                        <path d="M809 196c50 57 54 133 9 187"/>
+                                    </g>
+                                </g>
+                                <g id="tide-gate-a-flow" class="tide-gate-flow" aria-label="Water transferring through Gate A">
+                                    <path class="tide-gate-jet" d="M350 364c28-24 59-24 88 0s58 24 83 0"/>
+                                    <path class="tide-gate-foam" d="M354 346q18 16 37 0t38 0M354 382q18-16 37 0t38 0"/>
+                                </g>
+                                <g id="tide-gate-b-flow" class="tide-gate-flow" aria-label="Water transferring through Gate B">
+                                    <path class="tide-gate-jet" d="M667 366c28-24 59-24 88 0s58 24 83 0"/>
+                                    <path class="tide-gate-foam" d="M671 348q18 16 37 0t38 0M671 384q18-16 37 0t38 0"/>
                                 </g>
 
                                 <g class="tide-gate-assembly" aria-label="Inlet gate A">
@@ -1146,9 +1178,14 @@
                                 <g id="tide-freight-layer" aria-label="Floating freight obstacles"></g>
 
                                 <g class="tide-depth-gauges" aria-hidden="true">
-                                    <g transform="translate(244 597)"><rect x="-58" y="-13" width="116" height="26" rx="13"/><text text-anchor="middle" y="5">CHAMBER 01 · <tspan id="tide-depth-a">1.4 M</tspan></text></g>
-                                    <g transform="translate(552 597)"><rect x="-58" y="-13" width="116" height="26" rx="13"/><text text-anchor="middle" y="5">CHAMBER 02 · <tspan id="tide-depth-b">1.8 M</tspan></text></g>
-                                    <g transform="translate(854 597)"><rect x="-58" y="-13" width="116" height="26" rx="13"/><text text-anchor="middle" y="5">CHAMBER 03 · <tspan id="tide-depth-c">1.1 M</tspan></text></g>
+                                    <g transform="translate(244 597)"><rect x="-58" y="-13" width="116" height="26" rx="13"/><text text-anchor="middle" y="5">CHAMBER 01 · <tspan id="tide-depth-a">1.7 M</tspan></text></g>
+                                    <g transform="translate(552 597)"><rect x="-58" y="-13" width="116" height="26" rx="13"/><text text-anchor="middle" y="5">CHAMBER 02 · <tspan id="tide-depth-b">0.9 M</tspan></text></g>
+                                    <g transform="translate(854 597)"><rect x="-58" y="-13" width="116" height="26" rx="13"/><text text-anchor="middle" y="5">CHAMBER 03 · <tspan id="tide-depth-c">0.5 M</tspan></text></g>
+                                </g>
+                                <g class="tide-chamber-labels" aria-hidden="true">
+                                    <g transform="translate(244 282)"><rect x="-55" y="-14" width="110" height="28" rx="14"/><text y="5" text-anchor="middle">01 · INLET / FILL</text></g>
+                                    <g transform="translate(552 485)"><rect x="-55" y="-14" width="110" height="28" rx="14"/><text y="5" text-anchor="middle">02 · TRAP LOCK</text></g>
+                                    <g transform="translate(854 505)"><rect x="-55" y="-14" width="110" height="28" rx="14"/><text y="5" text-anchor="middle">03 · DRAIN / EXIT</text></g>
                                 </g>
 
                                 <g class="tide-drains" aria-hidden="true">
@@ -1185,14 +1222,15 @@
                             </svg>
 
                             <div class="tide-objective" aria-hidden="true">
-                                <span>Objective</span>
-                                <strong>Hold the autonomous carrier for 8 seconds</strong>
-                                <small>No steering — tune the lock while it runs</small>
+                                <span>How to stop it</span>
+                                <strong>Admit through A → trap behind B → use deep moving water to remove tyre grip</strong>
+                                <small>The waterline rises and drains in every chamber. Hold the carrier for 8 seconds.</small>
                             </div>
                             <div class="surface-readout tidelock-readout" aria-live="polite">
                                 <div><span>Carrier</span><strong id="tide-phase-readout">Entering</strong></div>
                                 <div><span>Delay</span><strong id="tide-delay-readout">0.0 / 8 s</strong></div>
                                 <div><span>Gates</span><strong id="tide-gate-readout">A shut · B open</strong></div>
+                                <div><span>Water transfer</span><strong id="tide-water-readout">A → B</strong></div>
                             </div>
                             <div class="surface-legend" aria-hidden="true">
                                 <span><i class="legend-tide-carrier"></i>Autonomous carrier</span>
@@ -1207,7 +1245,7 @@
                         <header class="parameter-heading">
                             <p class="card-eyebrow">Environmental inputs only</p>
                             <h2 id="tidelock-parameter-title">Lock parameters</h2>
-                            <p>The carrier drives itself. Every control changes a visible hydraulic or physical condition intended to delay it.</p>
+                            <p>The carrier drives itself. Gate A transfers water into the trap chamber; Gate B drains it toward the finish. Change the live water head and timing to stop the crossing.</p>
                         </header>
 
                         <div class="parameter-list tidelock-parameters">
@@ -1220,8 +1258,8 @@
 
                             <label class="parameter-row" for="tide-gate-offset">
                                 <span class="parameter-name">Outlet gate offset</span>
-                                <output id="tide-gate-offset-output" for="tide-gate-offset">2.0 s</output>
-                                <input id="tide-gate-offset" type="range" min="0" max="100" value="20" step="1">
+                                <output id="tide-gate-offset-output" for="tide-gate-offset">3.5 s</output>
+                                <input id="tide-gate-offset" type="range" min="0" max="100" value="35" step="1">
                                 <span class="range-ends"><small>Together</small><small>Opposed</small></span>
                             </label>
 
@@ -1233,8 +1271,8 @@
                             </label>
 
                             <label class="parameter-row" for="tide-water-depth">
-                                <span class="parameter-name">Flood depth</span>
-                                <output id="tide-water-depth-output" for="tide-water-depth">1.8 m</output>
+                                <span class="parameter-name">Inlet water head</span>
+                                <output id="tide-water-depth-output" for="tide-water-depth">1.8 m head</output>
                                 <input id="tide-water-depth" type="range" min="4" max="28" value="18" step="1">
                                 <span class="range-ends"><small>0.4 m</small><small>2.8 m</small></span>
                             </label>
@@ -1263,8 +1301,9 @@
                         <ol>
                             <li><strong>The player controls the lock, not the carrier.</strong> The industrial carrier follows the highlighted winding service route automatically. There are no steering inputs; the game is entirely about creating hydraulic delay before it reaches the finish.</li>
                             <li><strong>Two doors create a timing trap.</strong> Gate A and Gate B run on one cycle with an adjustable phase offset. Opening them together creates a dangerous clear run; opposing their phases admits the carrier and then seals the next chamber.</li>
-                            <li><strong>Depth changes contact.</strong> Flood depth and carrier ballast determine effective tyre loading. A planted heavy carrier resists current but accelerates slowly, while a buoyant carrier loses steering authority and drifts toward pump cages.</li>
-                            <li><strong>Pumps apply lateral force.</strong> Pump bias visibly reverses the current arrows and pushes the carrier north or south across its intended route. Route correction is limited by the remaining tyre load rather than being guaranteed.</li>
+                            <li><strong>Water actually transfers.</strong> The inlet head continually fills Chamber 01. Opening Gate A sends that head into the trap chamber; opening Gate B drains it into the outlet. Each animated waterline, foam jet and depth gauge follows the same live volume calculation.</li>
+                            <li><strong>Depth changes contact.</strong> The carrier reads the depth of the chamber beneath it. A planted heavy carrier resists current but accelerates slowly, while a buoyant carrier loses tyre loading and drifts toward pump cages.</li>
+                            <li><strong>Pumps apply lateral force.</strong> Pump bias visibly reverses moving ripples and current arrows, pushing the carrier and floating freight north or south. Route correction is limited by remaining tyre load rather than being guaranteed.</li>
                             <li><strong>Freight is physical obstruction.</strong> Crates and drums float with the current, strike the carrier and one another, jam gate throats and can briefly wedge a door before being pulled free.</li>
                             <li><strong>Winning means preventing progress.</strong> Closed doors, current drift and freight impacts add real stationary time to the delay meter. Hold the carrier for eight seconds or sweep it into a pump cage to complete the interception.</li>
                         </ol>
@@ -1278,8 +1317,9 @@
                             <li>Readable autonomous S-route instead of a straight run</li>
                             <li>Four individually rendered rotating gate leaves</li>
                             <li>Top-view carrier with wheels, cab, deck, cargo and wake</li>
-                            <li>Three visually separate flood chambers</li>
-                            <li>Animated pumps, water currents and depth readouts</li>
+                            <li>Three independently rising and draining flood chambers</li>
+                            <li>Moving water textures, animated waterlines, gate jets, foam and pump currents</li>
+                            <li>Live chamber-to-chamber hydraulic transfer and depth readouts</li>
                             <li>Floating SVG crates and drums with collisions</li>
                             <li>Buoyancy, ballast, tyre load and cross-current relationship</li>
                             <li>Live gate status and detention timer</li>
@@ -1307,7 +1347,7 @@
     <script src="breaker.js?v=breaker-wave-r4"></script>
     <script src="beltline.js?v=beltline-r3"></script>
     <script src="beachhead.js?v=beachhead-r4"></script>
-    <script src="tidelock.js?v=tidelock-r1"></script>
+    <script src="tidelock.js?v=tidelock-r2"></script>
     <script src="app.js?v=tidelock-r1"></script>
 </body>
 </html>
