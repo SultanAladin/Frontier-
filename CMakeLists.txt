@@ -72,6 +72,8 @@ set(FRONTIER_ENGINE_SOURCES
     PhotometricIllumination/GlobalIlluminationIntegrator.cpp
     PhotometricIllumination/SurfelGlobalIllumination.h
     PhotometricIllumination/SurfelGlobalIllumination.cpp
+    PhotometricIllumination/AutomotiveFlakeMaterial.h
+    PhotometricIllumination/AutomotiveFlakeMaterial.cpp
     PhotometricIllumination/AtmosphereIntegrator.h
     PhotometricIllumination/AtmosphereIntegrator.cpp
 
