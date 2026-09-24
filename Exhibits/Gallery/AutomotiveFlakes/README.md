@@ -17,3 +17,7 @@ This is a live shader, not a PNG slideshow. Use **Move light**, drag the swatch 
 - The new material is a standalone review implementation. Production Project-Zero bindings, sampling/PDF integration, Vulkan and Windows certification are not delivered here.
 
 Details, measured stack and limitations: `Docs/AutomotiveFlakePaint.md`.
+
+## Engine C++ proof
+
+`EngineCppProof.png` is rendered from the new `PhotometricIllumination/AutomotiveFlakeMaterial` C++ implementation, using a 4× RGB palette, blue pigment, tinted clearcoat, deterministic material-space flake IDs, and a directional studio light. It is separate from the pre-existing shared C++/GLSL gallery proof and verifies the new Frontier engine material path visually.
