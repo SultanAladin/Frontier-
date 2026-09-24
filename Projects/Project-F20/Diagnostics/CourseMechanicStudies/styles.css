@@ -1449,18 +1449,20 @@ a {
     }
 
     .beltline-page .parameter-list {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
     }
 
     .dead-page .parameter-row:nth-child(2) {
         border-right: 1px solid var(--rule);
     }
 
-    .breaker-page .parameter-row:nth-child(-n + 3) {
+    .breaker-page .parameter-row:nth-child(-n + 3),
+    .beltline-page .parameter-row:nth-child(-n + 3) {
         border-bottom: 1px solid var(--rule);
     }
 
-    .breaker-page .parameter-row:nth-child(3) {
+    .breaker-page .parameter-row:nth-child(3),
+    .beltline-page .parameter-row:nth-child(3) {
         border-right: 0;
     }
 }

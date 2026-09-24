@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=fourth-study-r1">
+    <link rel="stylesheet" href="styles.css?v=fourth-study-r2">
 </head>
 <body>
     <div class="publication-shell">
@@ -623,14 +623,28 @@
                         <header class="parameter-heading">
                             <p class="card-eyebrow">Physical inputs</p>
                             <h2 id="beltline-parameter-title">Drive setup</h2>
-                            <p>Set the belt and wheel velocities, then move the steering line while the carrier is running.</p>
+                            <p>Set each section independently, then steer while autonomous reversals and cross-feed freight alter the running line.</p>
                         </header>
 
                         <div class="parameter-list beltline-parameters">
-                            <label class="parameter-row" for="beltline-belt-speed">
-                                <span class="parameter-name">Belt speed</span>
-                                <output id="beltline-belt-speed-output" for="beltline-belt-speed">70 km/h</output>
-                                <input id="beltline-belt-speed" type="range" min="-80" max="180" value="70" step="1">
+                            <label class="parameter-row" for="beltline-rubber-speed">
+                                <span class="parameter-name">Rubber section</span>
+                                <output id="beltline-rubber-speed-output" for="beltline-rubber-speed">70 km/h</output>
+                                <input id="beltline-rubber-speed" type="range" min="-80" max="180" value="70" step="1">
+                                <span class="range-ends"><small>80 reverse</small><small>180 km/h</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beltline-steel-speed">
+                                <span class="parameter-name">Wet-steel section</span>
+                                <output id="beltline-steel-speed-output" for="beltline-steel-speed">105 km/h</output>
+                                <input id="beltline-steel-speed" type="range" min="-80" max="180" value="105" step="1">
+                                <span class="range-ends"><small>80 reverse</small><small>180 km/h</small></span>
+                            </label>
+
+                            <label class="parameter-row" for="beltline-roller-speed">
+                                <span class="parameter-name">Free-roller section</span>
+                                <output id="beltline-roller-speed-output" for="beltline-roller-speed">35 km/h</output>
+                                <input id="beltline-roller-speed" type="range" min="-80" max="180" value="35" step="1">
                                 <span class="range-ends"><small>80 reverse</small><small>180 km/h</small></span>
                             </label>
 
@@ -642,10 +656,10 @@
                             </label>
 
                             <label class="parameter-row" for="beltline-speed-step">
-                                <span class="parameter-name">Section speed step</span>
+                                <span class="parameter-name">Sudden reversal force</span>
                                 <output id="beltline-speed-step-output" for="beltline-speed-step">45 km/h</output>
                                 <input id="beltline-speed-step" type="range" min="0" max="120" value="45" step="1">
-                                <span class="range-ends"><small>Uniform</small><small>120 km/h</small></span>
+                                <span class="range-ends"><small>Disabled</small><small>120 km/h</small></span>
                             </label>
 
                             <label class="parameter-row" for="beltline-steering">
@@ -663,9 +677,9 @@
                         <p class="note-number">01</p>
                         <h2>Mechanics</h2>
                         <ol>
-                            <li><strong>Belt speed and wheel speed are independent.</strong> Ground velocity is the physical result of the moving conveyor, driven wheels and available friction rather than a direct speed command.</li>
+                            <li><strong>All three sections and the wheels are independent.</strong> Ribbed rubber, wet steel and free rollers each have their own commanded velocity from reverse to 180 km/h. Ground speed is the physical result of the active section, driven wheels and available friction.</li>
                             <li><strong>Every surface transfers motion differently.</strong> Ribbed rubber grips hard and can launch the carrier, wet steel saturates early and produces long slides, while free rollers transfer almost no belt speed.</li>
-                            <li><strong>Sections change suddenly.</strong> Each conveyor zone steps above or below the base belt velocity while a run is active. Crossing a seam can reverse slip direction or remove support without warning.</li>
+                            <li><strong>Sections change suddenly and independently.</strong> The live zones take turns reversing against their commanded direction while a run is active—the green rubber section can abruptly run backward while the other two continue forward.</li>
                             <li><strong>Steering still needs grip.</strong> The steering-line input requests a lane, but lateral acceleration is limited by the current surface. A carrier sliding on wet steel cannot instantly reach the selected line.</li>
                             <li><strong>Feeders cross the course.</strong> Upper and lower transfer chutes release crates, drums and beams. Their mass, cross-feed velocity and collision shape alter the carrier rather than acting as visual obstacles.</li>
                             <li><strong>Outcomes remain physical.</strong> Excess slip, a high-grip launch, freight impacts, departure over either edge and crossing the finish are all consequences of the same motion model.</li>
@@ -676,9 +690,9 @@
                         <p class="note-number">02</p>
                         <h2>Features</h2>
                         <ul>
-                            <li>Reverse-to-180 km/h conveyor input</li>
+                            <li>Three independent reverse-to-180 km/h section inputs</li>
                             <li>Independent driven-wheel velocity</li>
-                            <li>Autonomous abrupt section-speed changes</li>
+                            <li>Visible autonomous reversals cycling through every section</li>
                             <li>Ribbed rubber, wet steel and free-roller zones</li>
                             <li>Upper and lower cross-feed machinery</li>
                             <li>Crates, drums and long steel beams</li>
@@ -707,7 +721,7 @@
     </div>
 
     <script src="breaker.js?v=breaker-wave-r4"></script>
-    <script src="beltline.js?v=beltline-r1"></script>
+    <script src="beltline.js?v=beltline-r2"></script>
     <script src="app.js?v=fourth-study-r1"></script>
 </body>
 </html>

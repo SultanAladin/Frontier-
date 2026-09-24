@@ -15,7 +15,9 @@
     const surfaceReadout = document.getElementById("beltline-surface-readout");
 
     const settings = {
-        beltSpeed: 70,
+        rubberSpeed: 70,
+        steelSpeed: 105,
+        rollerSpeed: 35,
         wheelSpeed: 95,
         speedStep: 45,
         steering: 0
@@ -23,9 +25,21 @@
 
     const controls = [
         {
-            input: document.getElementById("beltline-belt-speed"),
-            output: document.getElementById("beltline-belt-speed-output"),
-            apply: (number) => { settings.beltSpeed = number; updateSectionSpeeds(); },
+            input: document.getElementById("beltline-rubber-speed"),
+            output: document.getElementById("beltline-rubber-speed-output"),
+            apply: (number) => { settings.rubberSpeed = number; sections[0].overrideSpeed = null; updateSectionSpeeds(); },
+            format: (number) => `${number} km/h`
+        },
+        {
+            input: document.getElementById("beltline-steel-speed"),
+            output: document.getElementById("beltline-steel-speed-output"),
+            apply: (number) => { settings.steelSpeed = number; sections[1].overrideSpeed = null; updateSectionSpeeds(); },
+            format: (number) => `${number} km/h`
+        },
+        {
+            input: document.getElementById("beltline-roller-speed"),
+            output: document.getElementById("beltline-roller-speed-output"),
+            apply: (number) => { settings.rollerSpeed = number; sections[2].overrideSpeed = null; updateSectionSpeeds(); },
             format: (number) => `${number} km/h`
         },
         {
@@ -67,6 +81,7 @@
     const sections = [
         {
             key: "rubber",
+            settingKey: "rubberSpeed",
             name: "Ribbed rubber",
             shortName: "Rubber",
             start: 0,
@@ -74,12 +89,13 @@
             friction: 0.94,
             beltTransfer: 1,
             wheelTransfer: 1,
-            offsetFactor: 0,
+            overrideSpeed: null,
             speed: 70,
             travel: 0
         },
         {
             key: "steel",
+            settingKey: "steelSpeed",
             name: "Wet steel",
             shortName: "Wet steel",
             start: 0.335,
@@ -87,12 +103,13 @@
             friction: 0.24,
             beltTransfer: 1,
             wheelTransfer: 1,
-            offsetFactor: 1,
-            speed: 115,
+            overrideSpeed: null,
+            speed: 105,
             travel: 0
         },
         {
             key: "rollers",
+            settingKey: "rollerSpeed",
             name: "Free rollers",
             shortName: "Rollers",
             start: 0.665,
@@ -100,8 +117,8 @@
             friction: 0.08,
             beltTransfer: 0.08,
             wheelTransfer: 0.18,
-            offsetFactor: -0.65,
-            speed: 41,
+            overrideSpeed: null,
+            speed: 35,
             travel: 0
         }
     ];
@@ -135,6 +152,7 @@
         sectionTimer: 2.4,
         speedFlash: 0,
         changedSection: 0,
+        stepCount: 0,
         objects: [],
         randomState: 4817
     };
@@ -175,7 +193,10 @@
 
     function updateSectionSpeeds() {
         sections.forEach((section) => {
-            section.speed = clamp(settings.beltSpeed + section.offsetFactor * settings.speedStep, -120, 180);
+            const commandedSpeed = settings[section.settingKey];
+            section.speed = section.overrideSpeed === null
+                ? commandedSpeed
+                : clamp(section.overrideSpeed, -120, 180);
         });
     }
 
@@ -230,12 +251,12 @@
         vehicle.finishTime = 0;
         world.sectionTimer = 2.4;
         world.speedFlash = 0;
+        world.changedSection = 0;
+        world.stepCount = 0;
         world.randomState = 4817;
-        world.objects = initialObjects();
-        sections[0].offsetFactor = 0;
-        sections[1].offsetFactor = 1;
-        sections[2].offsetFactor = -0.65;
+        sections.forEach((section) => { section.overrideSpeed = null; });
         updateSectionSpeeds();
+        world.objects = initialObjects();
         feeders.forEach((feeder, index) => {
             feeder.next = 0.35 + index * 0.48;
             feeder.index = index;
@@ -252,21 +273,34 @@
     }
 
     startButton.addEventListener("click", startRun);
-    resetRun(true);
+    // Beltline is live on arrival: the carrier and cross-feed freight move
+    // immediately, while the same button remains a real reset/checkpoint control.
+    resetRun(false);
 
     function stepSectionSpeeds() {
-        world.changedSection = Math.floor(random() * sections.length);
-        sections.forEach((section, index) => {
-            if (index === world.changedSection) {
-                const direction = random() > 0.5 ? 1 : -1;
-                section.offsetFactor = direction * (0.55 + random() * 0.45);
-            } else if (random() > 0.55) {
-                section.offsetFactor = (random() * 1.6) - 0.8;
-            }
-        });
+        sections.forEach((section) => { section.overrideSpeed = null; });
+        if (settings.speedStep <= 0) {
+            updateSectionSpeeds();
+            world.sectionTimer = 2.8;
+            return;
+        }
+
+        // Cycle through all sections so every zone visibly changes. The active
+        // zone reverses against its own command; the other two keep their
+        // independent velocities. The first event always reverses green rubber.
+        world.changedSection = world.stepCount % sections.length;
+        world.stepCount += 1;
+        const section = sections[world.changedSection];
+        const commandedSpeed = settings[section.settingKey];
+        const reversalMagnitude = clamp(
+            Math.abs(commandedSpeed) * 0.35 + settings.speedStep * 0.8,
+            18,
+            120
+        );
+        section.overrideSpeed = commandedSpeed >= 0 ? -reversalMagnitude : reversalMagnitude;
         updateSectionSpeeds();
-        world.speedFlash = 1.2;
-        world.sectionTimer = 2.7 + random() * 1.8;
+        world.speedFlash = 1.35;
+        world.sectionTimer = 2.8;
     }
 
     function spawnFromFeeder(feeder) {
@@ -710,7 +744,7 @@
             ctx.fillStyle = "#e07870";
             ctx.font = "500 9px 'General Sans', sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("SUDDEN SPEED STEP", (x0 + x1) * 0.5, frame.bottom - 16);
+            ctx.fillText("SECTION REVERSED", (x0 + x1) * 0.5, frame.bottom - 16);
         }
 
         if (vehicle.phase === "failed" || vehicle.phase === "finished") {
@@ -766,7 +800,7 @@
         const bounds = canvas.getBoundingClientRect();
         const localY = (event.clientY - bounds.top) * (world.height / bounds.height);
         const normalized = clamp((localY - frame.centreY) / (frame.depth * 0.5), -1, 1);
-        const control = controls[3];
+        const control = controls[5];
         control.input.value = String(Math.round(normalized / 0.76 * 100));
         control.update();
     }
