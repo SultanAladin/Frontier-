@@ -21,3 +21,9 @@ Details, measured stack and limitations: `Docs/AutomotiveFlakePaint.md`.
 ## Engine C++ proof
 
 `EngineCppProof.png` is rendered from the new `PhotometricIllumination/AutomotiveFlakeMaterial` C++ implementation, using a 4× RGB palette, blue pigment, tinted clearcoat, deterministic material-space flake IDs, and a directional studio light. It is separate from the pre-existing shared C++/GLSL gallery proof and verifies the new Frontier engine material path visually.
+
+## ReSTIR metallic-clearcoat grid proof
+
+`ReSTIR_MetallicFlakeGrid.png` is rendered by `RestirFlakeGridProof.cpp`. It uses a ReSTIR-style direct-light reservoir with 32 studio-light candidates and eight temporal samples per pixel, then evaluates the coloured flake BRDF and clearcoat. The 3×4 grid shows red, blue/iridescent, green RGB, and yellow/multicolour metallic finishes at three densities.
+
+The physical choices follow automotive paint behaviour: metallic paint uses opaque aluminium-like reflective flakes in a pigmented basecoat, the flakes are preferentially oriented parallel to the substrate, and a separate clearcoat supplies the final gloss and protection. Pearlescent/iridescent colour travel is treated separately from opaque metallic reflection.
