@@ -1,7 +1,7 @@
 "use strict";
 
 (() => {
-    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "tidelock"];
+    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt"];
     const pages = new Map(pageNames.map((name) => [name, document.getElementById(name)]));
     const pageLinks = Array.from(document.querySelectorAll("[data-page]"));
     let currentPage = "index";
@@ -38,8 +38,8 @@
                         ? "Beltline — Frontier Field Studies"
                         : nextPage === "beachhead"
                             ? "Beachhead — Frontier Field Studies"
-                            : nextPage === "tidelock"
-                                ? "Tidelock — Frontier Field Studies"
+                            : nextPage === "shunt"
+                                ? "Shunt — Frontier Field Studies"
                                 : "Index — Frontier Field Studies";
 
         window.scrollTo({ top: 0, behavior: "auto" });
@@ -53,8 +53,8 @@
             requestAnimationFrame(() => window.beltline?.resize());
         } else if (nextPage === "beachhead") {
             requestAnimationFrame(() => window.beachhead?.resize());
-        } else if (nextPage === "tidelock") {
-            requestAnimationFrame(() => window.tidelock?.resize());
+        } else if (nextPage === "shunt") {
+            requestAnimationFrame(() => window.shunt?.resize());
         }
     }
 
