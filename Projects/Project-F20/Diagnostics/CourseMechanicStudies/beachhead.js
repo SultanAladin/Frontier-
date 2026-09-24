@@ -7,6 +7,11 @@
     }
 
     const context = canvas.getContext("2d", { alpha: false });
+    const illustratedMap = typeof Image !== "undefined" ? new Image() : null;
+    if (illustratedMap) {
+        illustratedMap.decoding = "async";
+        illustratedMap.src = "assets/beachhead/illustrated-coastal-field.jpg?v=beach-map-r1";
+    }
     const page = document.getElementById("beachhead");
     const surface = canvas.parentElement;
     const startButton = document.getElementById("beach-start");
@@ -720,7 +725,64 @@
         ctx.restore();
     }
 
+    function drawIllustratedMap(ctx, frame) {
+        if (!illustratedMap || !illustratedMap.complete || illustratedMap.naturalWidth < 10) {
+            return false;
+        }
+        const imageRatio = illustratedMap.naturalWidth / illustratedMap.naturalHeight;
+        const canvasRatio = world.width / world.height;
+        if (canvasRatio < 0.9) {
+            // Preserve every obstacle on narrow screens; slight horizontal
+            // compression is preferable to cropping away the minefields.
+            ctx.drawImage(illustratedMap, 0, 0, world.width, world.height);
+        } else if (canvasRatio > imageRatio) {
+            const sourceHeight = illustratedMap.naturalWidth / canvasRatio;
+            const sourceY = (illustratedMap.naturalHeight - sourceHeight) * 0.5;
+            ctx.drawImage(
+                illustratedMap,
+                0, sourceY, illustratedMap.naturalWidth, sourceHeight,
+                0, 0, world.width, world.height
+            );
+        } else {
+            const sourceWidth = illustratedMap.naturalHeight * canvasRatio;
+            const sourceX = (illustratedMap.naturalWidth - sourceWidth) * 0.5;
+            ctx.drawImage(
+                illustratedMap,
+                sourceX, 0, sourceWidth, illustratedMap.naturalHeight,
+                0, 0, world.width, world.height
+            );
+        }
+
+        // Integrate the live water with the painted map instead of placing a
+        // static photograph under unrelated effects.
+        const shorelineY = screenY(0.185, frame);
+        const waterSheen = ctx.createLinearGradient(0, shorelineY, 0, world.height);
+        waterSheen.addColorStop(0, "rgba(75,174,169,0)");
+        waterSheen.addColorStop(1, "rgba(20,92,100,0.18)");
+        ctx.fillStyle = waterSheen;
+        ctx.fillRect(0, shorelineY, world.width, world.height - shorelineY);
+        for (let foamLine = 0; foamLine < 2; foamLine += 1) {
+            ctx.strokeStyle = `rgba(238,242,224,${0.4 - foamLine * 0.13})`;
+            ctx.lineWidth = 2.4 - foamLine * 0.5;
+            ctx.beginPath();
+            for (let x = 0; x <= world.width; x += 9) {
+                const normalizedX = clamp((x - world.width * 0.5) / (frame.width * 0.46), -1.25, 1.25);
+                const y = screenY(
+                    shorelineAt(normalizedX) + foamLine * 0.011
+                    + Math.sin(x * 0.05 + world.time * 1.6) * 0.004,
+                    frame
+                );
+                if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+        return true;
+    }
+
     function drawTerrain(ctx, frame) {
+        if (drawIllustratedMap(ctx, frame)) {
+            return;
+        }
         const sand = ctx.createLinearGradient(0, frame.top, 0, frame.bottom);
         sand.addColorStop(0, "#4a493a");
         sand.addColorStop(0.24, "#69634d");

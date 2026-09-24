@@ -1344,7 +1344,16 @@ a {
 }
 
 .beach-diagram {
-    background: #171914;
+    background-color: #171914;
+    background-image:
+        linear-gradient(90deg, rgba(12, 14, 12, 0.08), rgba(12, 14, 12, 0.3)),
+        url("assets/beachhead/illustrated-coastal-field.jpg?v=beach-map-r1");
+    background-position: center;
+    background-size: cover;
+}
+
+.beach-diagram svg {
+    opacity: 0.64;
 }
 
 .preview-shore {
