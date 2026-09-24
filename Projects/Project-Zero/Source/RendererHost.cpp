@@ -162,6 +162,93 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
         }
     }
 
+    // Mesh-surface surfel GI path. Surfels are sampled from actual triangle hits,
+    // seeded with the direct material response, and gathered with exact triangle
+    // visibility. This replaces noisy random bounce candidates for the exhibit path.
+    struct RenderSurfel { Vector3 Position; Vector3 Normal; Vector3 Direct; };
+    constexpr uint32_t SurfelStride = 8;
+    constexpr float SurfelRadius = 1.35f;
+    const uint32_t SurfelGridWidth = (Width + SurfelStride - 1) / SurfelStride;
+    std::vector<RenderSurfel> MeshSurfels;
+    std::vector<int32_t> SurfelGrid(static_cast<size_t>(SurfelGridWidth) * ((Height + SurfelStride - 1) / SurfelStride), -1);
+    for (uint32_t y = 0; y < Height; y += SurfelStride)
+    {
+        for (uint32_t x = 0; x < Width; x += SurfelStride)
+        {
+            const auto& hit = PrimaryHits[static_cast<size_t>(y) * Width + x];
+            if (hit.ValidCondition && hit.MaterialIndex != 3)
+            {
+                SurfelGrid[static_cast<size_t>(y / SurfelStride) * SurfelGridWidth + x / SurfelStride] = static_cast<int32_t>(MeshSurfels.size());
+                MeshSurfels.push_back(RenderSurfel{ hit.HitLocation, hit.SurfaceNormal, DirectBuffer[static_cast<size_t>(y) * Width + x] });
+            }
+        }
+    }
+
+    std::vector<Vector3> SurfelIndirectBuffer(Width * Height, Vector3{ 0.0f, 0.0f, 0.0f });
+    std::vector<Vector3> SurfelBounce(MeshSurfels.size(), Vector3{ 0.0f, 0.0f, 0.0f });
+    for (size_t receiver = 0; receiver < MeshSurfels.size(); ++receiver)
+    {
+        const auto& dst = MeshSurfels[receiver];
+        Vector3 gathered{};
+        float totalWeight = 0.0f;
+        for (size_t source = 0; source < MeshSurfels.size(); ++source)
+        {
+            if (receiver == source) continue;
+            const auto& src = MeshSurfels[source];
+            Vector3 delta = src.Position - dst.Position;
+            float distanceSquared = delta.LengthSquared();
+            if (distanceSquared < 1e-5f || distanceSquared > SurfelRadius * SurfelRadius) continue;
+            float distance = std::sqrt(distanceSquared);
+            Vector3 direction = delta / distance;
+            float receiverCos = std::max(0.0f, OrientationClassifier::DotProduct(dst.Normal, direction));
+            float sourceCos = std::max(0.0f, OrientationClassifier::DotProduct(src.Normal, direction * -1.0f));
+            if (receiverCos < 0.2f || sourceCos < 0.2f) continue;
+            if (Scene.EvaluateOcclusion(dst.Position + dst.Normal * 0.002f, src.Position)) continue;
+            float weight = receiverCos * sourceCos / (distanceSquared + 0.02f);
+            gathered += src.Direct * weight;
+            totalWeight += weight;
+        }
+        if (totalWeight > 0.0f) SurfelBounce[receiver] = gathered / totalWeight;
+    }
+
+    // Reproject from a small screen-space neighbourhood. Unlike a broad blur this
+    // rejects different surfaces by normal and ray depth, preserving hard edges.
+    for (uint32_t y = 0; y < Height; ++y)
+    {
+        for (uint32_t x = 0; x < Width; ++x)
+        {
+            const auto& hit = PrimaryHits[static_cast<size_t>(y) * Width + x];
+            if (!hit.ValidCondition || hit.MaterialIndex == 3) continue;
+            Vector3 value{};
+            float total = 0.0f;
+            uint32_t minX = (x / SurfelStride > 1) ? x - SurfelStride : 0;
+            uint32_t minY = (y / SurfelStride > 1) ? y - SurfelStride : 0;
+            uint32_t maxX = std::min(Width - 1, x + SurfelStride);
+            uint32_t maxY = std::min(Height - 1, y + SurfelStride);
+            for (uint32_t sy = minY; sy <= maxY; sy += SurfelStride)
+            {
+                for (uint32_t sx = minX; sx <= maxX; sx += SurfelStride)
+                {
+                    const auto& sourceHit = PrimaryHits[static_cast<size_t>(sy) * Width + sx];
+                    if (!sourceHit.ValidCondition || sourceHit.MaterialIndex == 3) continue;
+                    if (OrientationClassifier::DotProduct(hit.SurfaceNormal, sourceHit.SurfaceNormal) < 0.92f) continue;
+                    if (std::abs(hit.RayDistance - sourceHit.RayDistance) > 0.08f) continue;
+                    int32_t surfelIndex = SurfelGrid[static_cast<size_t>(sy / SurfelStride) * SurfelGridWidth + sx / SurfelStride];
+                    if (surfelIndex < 0 || static_cast<size_t>(surfelIndex) >= SurfelBounce.size()) continue;
+                    float weight = 1.0f / (1.0f + static_cast<float>((sx - x) * (sx - x) + (sy - y) * (sy - y)));
+                    value += SurfelBounce[static_cast<size_t>(surfelIndex)] * weight;
+                    total += weight;
+                }
+            }
+            // Keep a stable low-frequency irradiance floor where the sparse mesh
+            // cache has no valid neighbour. This prevents black holes without blurring edges.
+            if (total > 0.0f && value.LengthSquared() > 1e-8f)
+                SurfelIndirectBuffer[static_cast<size_t>(y) * Width + x] = value / total;
+            else
+                SurfelIndirectBuffer[static_cast<size_t>(y) * Width + x] = Vector3{ 0.06f, 0.06f, 0.07f };
+        }
+    }
+
     // Phase 3: ReSTIR GI Initial Candidate Bounce Ray Tracing (32 samples for exhibit quality)
     for (uint32_t y = 0; y < Height; ++y)
     {
@@ -350,6 +437,7 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
     }
 
     // Phase 6: Radiance Composition
+    FilteredIndirectBuffer = SurfelIndirectBuffer;
     for (uint32_t y = 0; y < Height; ++y)
     {
         for (uint32_t x = 0; x < Width; ++x)
@@ -373,8 +461,11 @@ void RendererHost::RenderReSTIRFrame(const Frontier::CameraProjection& ActiveCam
             }
 
             Vector3 DirectRad = DirectBuffer[idx];
-            Vector3 IndirectRad = Mat.AlbedoColor * (FilteredIndirectBuffer[idx] * 0.40f);
-            Vector3 AmbientRad = Mat.AlbedoColor * 0.015f;
+            Vector3 IndirectSource = FilteredIndirectBuffer[idx];
+            if (IndirectSource.LengthSquared() < 1e-8f)
+                IndirectSource = Vector3{ 0.06f, 0.06f, 0.07f };
+            Vector3 IndirectRad = Mat.AlbedoColor * (IndirectSource * 0.40f);
+            Vector3 AmbientRad = Mat.AlbedoColor * 0.12f;
 
             AccumulatedBuffer[idx] = DirectRad + IndirectRad + AmbientRad;
         }
