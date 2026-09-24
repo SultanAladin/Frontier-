@@ -28,16 +28,6 @@
         document.getElementById("tide-ripples-b"),
         document.getElementById("tide-ripples-c")
     ];
-    const waterClipGraphics = [
-        document.getElementById("tide-water-clip-a-rect"),
-        document.getElementById("tide-water-clip-b-rect"),
-        document.getElementById("tide-water-clip-c-rect")
-    ];
-    const waterlineGraphics = [
-        document.getElementById("tide-waterline-a"),
-        document.getElementById("tide-waterline-b"),
-        document.getElementById("tide-waterline-c")
-    ];
     const gateFlowGraphics = [
         document.getElementById("tide-gate-a-flow"),
         document.getElementById("tide-gate-b-flow")
@@ -198,54 +188,25 @@
         definition.input.addEventListener("input", definition.update);
     });
 
-    const chamberGeometry = [
-        { x: 100, width: 284 },
-        { x: 400, width: 301 },
-        { x: 717, width: 283 }
-    ];
-
     function updateWaterDisplay() {
-        const shorelines = [];
         world.chamberDepths.forEach((depth, index) => {
-            const geometry = chamberGeometry[index];
-            const coverage = clamp(0.08 + depth / 2.8 * 0.9, 0.08, 0.98);
-            const waterHeight = 476 * coverage;
-            const shoreline = 614 - waterHeight;
-            shorelines[index] = shoreline;
-            const wave = 5 + Math.abs(settings.pumpBias) * 7;
-            const phase = world.time * (1.4 + Math.abs(settings.pumpBias) * 1.8) + index * 1.7;
-            const first = Math.sin(phase) * wave;
-            const second = Math.sin(phase + 1.9) * wave;
-            const third = Math.sin(phase + 3.6) * wave;
-
             depthReadouts[index].textContent = `${depth.toFixed(1)} M`;
-            [waterGraphics[index], rippleGraphics[index], waterClipGraphics[index]].forEach((graphic) => {
-                graphic.setAttribute("y", shoreline.toFixed(1));
-                graphic.setAttribute("height", waterHeight.toFixed(1));
-            });
-            waterGraphics[index].style.opacity = `${clamp(0.56 + depth * 0.15, 0.58, 0.97)}`;
-            waterGraphics[index].style.filter = `saturate(${(0.84 + depth * 0.16).toFixed(2)}) brightness(${(1.12 - depth * 0.09).toFixed(2)})`;
-            waterlineGraphics[index].setAttribute(
-                "d",
-                `M${geometry.x} ${shoreline.toFixed(1)} Q${(geometry.x + geometry.width * 0.125).toFixed(1)} ${(shoreline + first).toFixed(1)} ${(geometry.x + geometry.width * 0.25).toFixed(1)} ${shoreline.toFixed(1)} T${(geometry.x + geometry.width * 0.5).toFixed(1)} ${shoreline.toFixed(1)} T${(geometry.x + geometry.width * 0.75).toFixed(1)} ${(shoreline + second).toFixed(1)} T${(geometry.x + geometry.width).toFixed(1)} ${(shoreline + third * 0.35).toFixed(1)}`
-            );
+            waterGraphics[index].style.opacity = `${clamp(0.6 + depth * 0.12, 0.62, 0.95)}`;
+            waterGraphics[index].style.filter = `saturate(${(0.82 + depth * 0.22).toFixed(2)}) brightness(${(1.2 - depth * 0.12).toFixed(2)})`;
+            rippleGraphics[index].style.opacity = `${clamp(0.42 + depth * 0.18, 0.45, 0.9)}`;
         });
 
-        const textureX = modular(world.time * (10 + Math.abs(settings.pumpBias) * 18), 76);
-        const textureY = modular(world.time * settings.pumpBias * 26, 44);
+        const textureX = modular(world.time * (12 + Math.abs(settings.pumpBias) * 24), 76);
+        const textureY = modular(world.time * settings.pumpBias * 30, 44);
         ripplePattern.setAttribute("patternTransform", `translate(${textureX.toFixed(1)} ${textureY.toFixed(1)})`);
+        svg.style.setProperty("--tide-stream-speed", `${Math.max(0.7, 2.4 - Math.abs(settings.pumpBias) * 1.45).toFixed(2)}s`);
 
         world.gateTransfers.forEach((transfer, index) => {
             const graphic = gateFlowGraphics[index];
             const gateOpen = index === 0 ? world.gateA : world.gateB;
-            const adjacentShore = index === 0
-                ? Math.max(shorelines[0], shorelines[1])
-                : Math.max(shorelines[1], shorelines[2]);
-            const verticalShift = clamp(adjacentShore + 28 - 364, 0, 185);
             graphic.style.opacity = `${clamp(Math.abs(transfer) * 2.8 + gateOpen * 0.08, 0, 0.92)}`;
             const pivot = index === 0 ? 784 : 1418;
-            const reflection = transfer < 0 ? ` translate(${pivot} 0) scale(-1 1)` : "";
-            graphic.setAttribute("transform", `translate(0 ${verticalShift.toFixed(1)})${reflection}`);
+            graphic.setAttribute("transform", transfer < 0 ? `translate(${pivot} 0) scale(-1 1)` : "");
         });
 
         const strongest = Math.abs(world.gateTransfers[0]) >= Math.abs(world.gateTransfers[1]) ? 0 : 1;
@@ -391,20 +352,14 @@
         svg.style.setProperty("--tide-gate-b-open", world.gateB.toFixed(3));
     }
 
-    function waterShoreline(depth) {
-        const coverage = clamp(0.08 + depth / 2.8 * 0.9, 0.08, 0.98);
-        return 614 - 476 * coverage;
-    }
-
     function freightBounds(piece) {
-        const waterTop = Math.min(540, waterShoreline(world.chamberDepths[piece.chamber]));
         if (piece.chamber === 0) {
-            return { left: 116, right: 369, top: Math.max(155, waterTop), bottom: 594 };
+            return { left: 116, right: 369, top: 155, bottom: 594 };
         }
         if (piece.chamber === 1) {
-            return { left: 417, right: 683, top: Math.max(155, waterTop), bottom: 594 };
+            return { left: 417, right: 683, top: 155, bottom: 594 };
         }
-        return { left: 734, right: 983, top: Math.max(155, waterTop), bottom: 594 };
+        return { left: 734, right: 983, top: 155, bottom: 594 };
     }
 
     function updateFreight(delta) {
@@ -479,8 +434,7 @@
             return 0;
         }
         const chamber = x < 392 ? 0 : x < 709 ? 1 : 2;
-        const depth = world.chamberDepths[chamber];
-        return y >= waterShoreline(depth) ? depth : 0;
+        return world.chamberDepths[chamber];
     }
 
     function carrierPhysics(depth) {
