@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=shunt-r1">
+    <link rel="stylesheet" href="styles.css?v=shunt-r2">
 </head>
 <body>
     <div class="publication-shell">
@@ -936,296 +936,376 @@
             <section class="page shunt-page" id="shunt" aria-labelledby="shunt-title" hidden>
                 <header class="chapter-heading">
                     <div>
-                        <p class="section-kicker">06 / Rail-transfer dynamics mechanic</p>
+                        <p class="section-kicker">06 / Autonomous heavy-industry prototype</p>
                         <h1 id="shunt-title">Shunt</h1>
                     </div>
-                    <p>An autonomous carrier must cross two lateral transfer decks and one rotating rail table. You never steer it: tune mass, torque, braking, machinery speed and timing so retained momentum does not send it across an open seam or into the wrong spur.</p>
+                    <p>A loaded carrier crosses a working transfer depot while the permanent way moves beneath it. There is no steering input: wheel torque, mass, brake pressure and machine timing determine whether twelve tonnes of freight clears the yard or leaves the rails.</p>
                 </header>
 
-                <div class="study-layout">
-                    <article class="simulation-card" aria-labelledby="shunt-simulation-title">
-                        <header class="card-heading">
+                <div class="study-layout shunt-study-layout">
+                    <article class="simulation-card shunt-simulation-card" aria-labelledby="shunt-simulation-title">
+                        <header class="card-heading shunt-card-heading">
                             <div>
-                                <p class="card-eyebrow">Live top-view SVG yard</p>
-                                <h2 id="shunt-simulation-title">Three-machine transfer sequence</h2>
+                                <p class="card-eyebrow">Live systems view · Kestrel Intermodal Depot / Sector 04</p>
+                                <h2 id="shunt-simulation-title">Heavy transfer hall</h2>
                             </div>
-                            <button class="ride-button" id="shunt-reset" type="button">Reset carrier</button>
+                            <div class="shunt-card-actions">
+                                <p class="live-marker"><span></span> Yard systems live</p>
+                                <button class="ride-button" id="shunt-reset" type="button">Reset carrier</button>
+                            </div>
                         </header>
 
                         <div class="simulation-surface shunt-surface">
-                            <svg id="shunt-svg" viewBox="0 0 1100 720" role="img" aria-labelledby="shunt-svg-title shunt-svg-description" preserveAspectRatio="xMidYMid meet">
-                                <title id="shunt-svg-title">Top-down autonomous rail-transfer yard simulation</title>
-                                <desc id="shunt-svg-description">An industrial rail carrier crosses two laterally moving transfer platforms and a rotating table while other yard vehicles create congestion.</desc>
+                            <svg id="shunt-svg" viewBox="0 0 1400 860" role="img" aria-labelledby="shunt-svg-title shunt-svg-description" preserveAspectRatio="xMidYMid meet">
+                                <title id="shunt-svg-title">Top-down autonomous heavy rail-transfer depot simulation</title>
+                                <desc id="shunt-svg-description">A detailed industrial depot with workshops, service pipes, ballast rails, two laterally moving transfer platforms, a rotating rail bridge, maintenance spurs and autonomous freight traffic.</desc>
                                 <defs>
                                     <linearGradient id="shunt-yard-gradient" x1="0" y1="0" x2="1" y2="1">
-                                        <stop offset="0" stop-color="#323532"/>
-                                        <stop offset="0.55" stop-color="#222624"/>
-                                        <stop offset="1" stop-color="#171b1a"/>
+                                        <stop offset="0" stop-color="#30332f"/>
+                                        <stop offset="0.48" stop-color="#202421"/>
+                                        <stop offset="1" stop-color="#121614"/>
                                     </linearGradient>
                                     <linearGradient id="shunt-deck-gradient" x1="0" y1="0" x2="1" y2="1">
-                                        <stop offset="0" stop-color="#626a65"/>
-                                        <stop offset="0.45" stop-color="#343a37"/>
-                                        <stop offset="1" stop-color="#202523"/>
+                                        <stop offset="0" stop-color="#717873"/>
+                                        <stop offset="0.18" stop-color="#444b47"/>
+                                        <stop offset="0.66" stop-color="#2a302d"/>
+                                        <stop offset="1" stop-color="#171c19"/>
                                     </linearGradient>
                                     <linearGradient id="shunt-car-gradient" x1="0" y1="0" x2="1" y2="1">
-                                        <stop offset="0" stop-color="#e0e1d9"/>
-                                        <stop offset="0.55" stop-color="#a4aaa2"/>
-                                        <stop offset="1" stop-color="#68716c"/>
+                                        <stop offset="0" stop-color="#dfe1d9"/>
+                                        <stop offset="0.38" stop-color="#a9afa8"/>
+                                        <stop offset="0.72" stop-color="#737d77"/>
+                                        <stop offset="1" stop-color="#444d48"/>
                                     </linearGradient>
-                                    <pattern id="shunt-concrete-pattern" width="70" height="70" patternUnits="userSpaceOnUse">
-                                        <rect width="70" height="70" fill="#292d2b"/>
-                                        <path d="M0 69.5h70M69.5 0v70" stroke="#484b45" stroke-width="1" opacity=".55"/>
-                                        <path d="m7 16 17-4m20 41 16-5M29 65l11-3" stroke="#151917" stroke-width="2" opacity=".48"/>
-                                        <circle cx="16" cy="46" r="2" fill="#665c4e" opacity=".32"/>
+                                    <linearGradient id="shunt-roof-gradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0" stop-color="#484d48"/>
+                                        <stop offset="0.12" stop-color="#333834"/>
+                                        <stop offset="1" stop-color="#202522"/>
+                                    </linearGradient>
+                                    <radialGradient id="shunt-oil-stain">
+                                        <stop offset="0" stop-color="#080b0a" stop-opacity=".62"/>
+                                        <stop offset=".55" stop-color="#15130e" stop-opacity=".35"/>
+                                        <stop offset="1" stop-color="#15130e" stop-opacity="0"/>
+                                    </radialGradient>
+                                    <pattern id="shunt-concrete-pattern" width="116" height="116" patternUnits="userSpaceOnUse">
+                                        <rect width="116" height="116" fill="#2a2e2b"/>
+                                        <path d="M0 115.5h116M115.5 0v116" stroke="#51534c" stroke-width="1" opacity=".52"/>
+                                        <path d="m8 23 26-6m27 71 33-8M19 107l19-3m45-84 19 4M52 48l8 9-4 12" stroke="#111512" stroke-width="1.8" opacity=".48"/>
+                                        <g fill="#77736a" opacity=".2"><circle cx="18" cy="65" r="1.5"/><circle cx="79" cy="40" r="1"/><circle cx="99" cy="99" r="2"/><circle cx="43" cy="91" r="1"/></g>
                                     </pattern>
-                                    <pattern id="shunt-hazard-pattern" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                                        <rect width="10" height="20" fill="#c9a843"/>
-                                        <rect x="10" width="10" height="20" fill="#242621"/>
+                                    <pattern id="shunt-roof-pattern" width="18" height="18" patternUnits="userSpaceOnUse">
+                                        <rect width="18" height="18" fill="url(#shunt-roof-gradient)"/>
+                                        <path d="M2 0v18M9 0v18M16 0v18" stroke="#59605a" stroke-width="1" opacity=".3"/>
                                     </pattern>
-                                    <filter id="shunt-shadow" x="-60%" y="-60%" width="220%" height="220%">
-                                        <feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#060807" flood-opacity=".65"/>
+                                    <pattern id="shunt-grate-pattern" width="10" height="10" patternUnits="userSpaceOnUse">
+                                        <rect width="10" height="10" fill="#181c1a"/>
+                                        <path d="M0 2h10M2 0v10" stroke="#646a64" stroke-width="1" opacity=".65"/>
+                                    </pattern>
+                                    <pattern id="shunt-hazard-pattern" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                                        <rect width="9" height="18" fill="#be9a35"/>
+                                        <rect x="9" width="9" height="18" fill="#262721"/>
+                                    </pattern>
+                                    <pattern id="shunt-fence-pattern" width="14" height="14" patternUnits="userSpaceOnUse">
+                                        <path d="M-3 3 3-3M0 14 14 0M11 17 17 11" stroke="#777d76" stroke-width="1" opacity=".58"/>
+                                    </pattern>
+                                    <filter id="shunt-shadow" x="-60%" y="-60%" width="220%" height="240%">
+                                        <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#020403" flood-opacity=".82"/>
                                     </filter>
-                                    <filter id="shunt-glow" x="-80%" y="-80%" width="260%" height="260%">
+                                    <filter id="shunt-building-shadow" x="-30%" y="-30%" width="180%" height="190%">
+                                        <feDropShadow dx="0" dy="11" stdDeviation="8" flood-color="#050706" flood-opacity=".68"/>
+                                    </filter>
+                                    <filter id="shunt-glow" x="-100%" y="-100%" width="300%" height="300%">
                                         <feGaussianBlur stdDeviation="4" result="blur"/>
                                         <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                                     </filter>
+                                    <filter id="shunt-surface-grain" x="-10%" y="-10%" width="120%" height="120%">
+                                        <feTurbulence type="fractalNoise" baseFrequency=".55" numOctaves="3" seed="19" result="noise"/>
+                                        <feColorMatrix in="noise" type="saturate" values="0" result="mono"/>
+                                        <feComponentTransfer in="mono" result="faint"><feFuncA type="table" tableValues="0 .095"/></feComponentTransfer>
+                                        <feBlend in="SourceGraphic" in2="faint" mode="soft-light"/>
+                                    </filter>
                                     <marker id="shunt-arrowhead" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="7" markerHeight="7" orient="auto">
-                                        <path d="M1 1 11 6 1 11Z" fill="#d1d94d"/>
+                                        <path d="M1 1 11 6 1 11Z" fill="#c1a83b"/>
                                     </marker>
+                                    <symbol id="shunt-roller" viewBox="-9 -9 18 18">
+                                        <circle r="7" fill="#151917" stroke="#858c84" stroke-width="2"/>
+                                        <circle r="2.5" fill="#050706"/>
+                                        <path d="M-5-4 5 4M-5 4 5-4" stroke="#434a45" stroke-width="1"/>
+                                    </symbol>
+                                    <symbol id="shunt-bollard" viewBox="-7 -7 14 14">
+                                        <circle r="6" fill="#262b28" stroke="#9d8639" stroke-width="2"/>
+                                        <circle r="2" fill="#0a0d0b"/>
+                                    </symbol>
+                                    <symbol id="shunt-crate" viewBox="0 0 44 30">
+                                        <rect x="1" y="1" width="42" height="28" fill="#72583f" stroke="#b28a5e" stroke-width="2"/>
+                                        <path d="M5 4h34v22H5zM5 4l34 22M39 4 5 26" fill="none" stroke="#3b3024" stroke-width="2"/>
+                                    </symbol>
                                 </defs>
 
-                                <rect width="1100" height="720" fill="#111513"/>
-                                <rect x="18" y="18" width="1064" height="684" rx="28" fill="url(#shunt-yard-gradient)" stroke="#50534d" stroke-width="2"/>
-                                <path d="M38 80h1024M38 640h1024M78 38v644M1022 38v644" fill="none" stroke="#8a8b81" stroke-width="2" opacity=".18"/>
-                                <g class="shunt-yard-slabs" aria-hidden="true">
-                                    <rect x="36" y="98" width="1028" height="518" rx="16"/>
-                                    <path d="M36 184h1028M36 270h1028M36 356h1028M36 442h1028M36 528h1028M208 98v518M380 98v518M552 98v518M724 98v518M896 98v518"/>
+                                <rect width="1400" height="860" fill="#0b0e0c"/>
+                                <rect x="12" y="12" width="1376" height="836" fill="url(#shunt-yard-gradient)" stroke="#5a5d55" stroke-width="2"/>
+                                <g class="shunt-yard-floor" filter="url(#shunt-surface-grain)" aria-hidden="true">
+                                    <rect x="28" y="28" width="1344" height="804" fill="url(#shunt-concrete-pattern)"/>
+                                    <path d="M28 262h1344M28 610h1344M226 28v804M474 28v804M722 28v804M970 28v804M1218 28v804"/>
+                                    <path class="shunt-floor-crack" d="M50 462c64-14 98 22 151 4s85-7 121 19m539 172 23-18 39 9 21-23 42 12m252-383-31 25 17 29-27 32"/>
+                                    <ellipse cx="562" cy="327" rx="93" ry="39" fill="url(#shunt-oil-stain)" transform="rotate(-12 562 327)"/>
+                                    <ellipse cx="1151" cy="548" rx="106" ry="44" fill="url(#shunt-oil-stain)" transform="rotate(8 1151 548)"/>
+                                    <ellipse cx="278" cy="716" rx="70" ry="27" fill="url(#shunt-oil-stain)"/>
+                                </g>
+
+                                <g class="shunt-perimeter" aria-hidden="true">
+                                    <path class="shunt-fence-fill" d="M24 24h1352v812H24zM34 34v792h1332V34z" fill-rule="evenodd"/>
+                                    <path class="shunt-fence-rail" d="M30 30h1340v800H30z"/>
+                                    <g class="shunt-fence-posts">
+                                        <path d="M50 24v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18M50 818v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18m80-18v18"/>
+                                    </g>
+                                </g>
+
+                                <g class="shunt-facilities" aria-hidden="true">
+                                    <g class="shunt-building shunt-admin-block" filter="url(#shunt-building-shadow)">
+                                        <rect x="48" y="47" width="312" height="86" fill="url(#shunt-roof-pattern)"/>
+                                        <path class="shunt-roof-seam" d="M48 67h312M48 112h312M91 47v86M183 47v86M275 47v86"/>
+                                        <g class="shunt-roof-unit" transform="translate(82 74)"><rect width="58" height="34"/><path d="M7 7h44M7 14h44M7 21h44M7 28h44"/></g>
+                                        <g class="shunt-roof-unit" transform="translate(282 67)"><rect width="43" height="43"/><circle cx="21.5" cy="21.5" r="14"/><path d="M21.5 8v27M8 21.5h27"/></g>
+                                        <text x="174" y="93" text-anchor="middle">OPERATIONS / 04</text>
+                                    </g>
+                                    <g class="shunt-building shunt-workshop" filter="url(#shunt-building-shadow)">
+                                        <rect x="1068" y="45" width="292" height="132" fill="url(#shunt-roof-pattern)"/>
+                                        <path class="shunt-roof-seam" d="M1068 70h292M1068 150h292M1138 45v132M1213 45v132M1288 45v132"/>
+                                        <rect class="shunt-skylight" x="1091" y="82" width="245" height="26"/>
+                                        <g class="shunt-roof-unit" transform="translate(1094 121)"><rect width="52" height="30"/><path d="M7 7h38M7 15h38M7 23h38"/></g>
+                                        <g class="shunt-roof-unit" transform="translate(1270 117)"><rect width="54" height="34"/><circle cx="27" cy="17" r="11"/></g>
+                                        <text x="1214" y="140" text-anchor="middle">MOTION SYSTEMS WORKSHOP</text>
+                                    </g>
+                                    <g class="shunt-pipe-rack">
+                                        <path class="shunt-pipe shunt-pipe-one" d="M393 59h170v44h307V61h64"/>
+                                        <path class="shunt-pipe shunt-pipe-two" d="M393 73h151v45h349V76h41"/>
+                                        <path class="shunt-pipe-shadow" d="M393 87h136v46h478"/>
+                                        <g class="shunt-valves"><circle cx="486" cy="59" r="8"/><path d="m480 53 12 12m0-12-12 12"/><circle cx="870" cy="103" r="8"/><path d="m864 97 12 12m0-12-12 12"/></g>
+                                        <path class="shunt-pipe-support" d="M417 48v55m120-55v87m116-78v76m116-76v76m116-85v71m116-71v72"/>
+                                    </g>
+                                    <g class="shunt-electrical-yard" transform="translate(39 770)">
+                                        <rect width="184" height="48"/>
+                                        <g transform="translate(15 8)"><circle cx="16" cy="16" r="14"/><path d="M16 2v28M2 16h28"/></g>
+                                        <g transform="translate(60 8)"><rect width="45" height="31"/><path d="M8 5v21M18 5v21M28 5v21M38 5v21"/></g>
+                                        <g transform="translate(119 8)"><rect width="50" height="31"/><circle cx="14" cy="15" r="6"/><circle cx="35" cy="15" r="6"/></g>
+                                    </g>
+                                    <g class="shunt-tank-farm" transform="translate(1192 664)">
+                                        <circle cx="42" cy="42" r="38"/><circle cx="42" cy="42" r="26"/><circle cx="42" cy="42" r="6"/>
+                                        <circle cx="126" cy="42" r="38"/><circle cx="126" cy="42" r="26"/><circle cx="126" cy="42" r="6"/>
+                                        <path d="M5 93h159M42 80v13m84-13v13"/>
+                                    </g>
+                                    <g class="shunt-drainage">
+                                        <path d="M34 232h1332M34 631h1130"/>
+                                        <path class="shunt-drain-slots" d="M46 232h1108M1190 232h164M46 631h1106"/>
+                                    </g>
+                                </g>
+
+                                <g class="shunt-yard-props" aria-hidden="true">
+                                    <g class="shunt-cargo-stack" transform="translate(408 686)"><use href="#shunt-crate"/><use href="#shunt-crate" x="47"/><use href="#shunt-crate" y="34"/><use href="#shunt-crate" x="47" y="34"/></g>
+                                    <g class="shunt-cargo-stack shunt-cargo-stack-two" transform="translate(1007 757)"><use href="#shunt-crate"/><use href="#shunt-crate" x="47"/><use href="#shunt-crate" x="94"/><use href="#shunt-crate" x="47" y="34"/></g>
+                                    <g class="shunt-cable-reels" transform="translate(286 784)"><circle cx="0" cy="0" r="23"/><circle cx="0" cy="0" r="11"/><circle cx="58" cy="0" r="23"/><circle cx="58" cy="0" r="11"/><path d="M-19 0h38M39 0h38"/></g>
+                                    <g class="shunt-safety-bollards"><use href="#shunt-bollard" x="474" y="273"/><use href="#shunt-bollard" x="474" y="579"/><use href="#shunt-bollard" x="956" y="273"/><use href="#shunt-bollard" x="956" y="579"/><use href="#shunt-bollard" x="600" y="424"/><use href="#shunt-bollard" x="860" y="424"/></g>
+                                    <g class="shunt-parked-carrier" transform="translate(875 774)">
+                                        <rect class="shunt-yard-body" x="-45" y="-20" width="90" height="40"/><path class="shunt-yard-load" d="M-32-14h27v28h-27zM5-14h27v28H5z"/><path class="shunt-yard-wheel" d="M-34-25h19v8h-19zm49 0h19v8H15zM-34 17h19v8h-19zm49 0h19v8H15z"/>
+                                    </g>
+                                    <g class="shunt-maintenance-rack" transform="translate(1285 270)"><rect x="-63" y="-28" width="126" height="56"/><path d="M-54-18h108M-54-6h108M-54 6h108M-54 18h108"/><circle cx="-42" cy="0" r="17"/><circle cx="3" cy="0" r="17"/><circle cx="44" cy="0" r="17"/></g>
                                 </g>
 
                                 <g class="shunt-fixed-tracks" aria-hidden="true">
-                                    <g class="shunt-track shunt-entry-track"><path class="shunt-ballast" d="M42 360H205"/><path class="shunt-sleepers" d="M42 360H205"/><path class="shunt-rail" d="M42 350H205M42 370H205"/></g>
-                                    <g class="shunt-track shunt-upper-track-a"><path class="shunt-ballast" d="M355 210H522"/><path class="shunt-sleepers" d="M355 210H522"/><path class="shunt-rail" d="M355 200H522M355 220H522"/></g>
-                                    <g class="shunt-track shunt-upper-track-b"><path class="shunt-ballast" d="M698 210H765"/><path class="shunt-sleepers" d="M698 210H765"/><path class="shunt-rail" d="M698 200H765M698 220H765"/></g>
-                                    <g class="shunt-track shunt-exit-track"><path class="shunt-ballast" d="M915 360H1057"/><path class="shunt-sleepers" d="M915 360H1057"/><path class="shunt-rail" d="M915 350H1057M915 370H1057"/></g>
-                                    <g class="shunt-track shunt-lower-track"><path class="shunt-ballast" d="M40 545H1060"/><path class="shunt-sleepers" d="M40 545H1060"/><path class="shunt-rail" d="M40 535H1060M40 555H1060"/></g>
-                                    <g class="shunt-track shunt-storage-track"><path class="shunt-ballast" d="M42 115H500"/><path class="shunt-sleepers" d="M42 115H500"/><path class="shunt-rail" d="M42 105H500M42 125H500"/></g>
+                                    <g class="shunt-track shunt-storage-track"><path class="shunt-ballast" d="M42 175H650"/><path class="shunt-sleepers" d="M42 175H650"/><path class="shunt-rail" d="M42 163H650M42 187H650"/><path class="shunt-rail-shine" d="M42 163H650"/></g>
+                                    <g class="shunt-track shunt-entry-track"><path class="shunt-ballast" d="M42 535H250"/><path class="shunt-sleepers" d="M42 535H250"/><path class="shunt-rail" d="M42 523H250M42 547H250"/><path class="shunt-rail-shine" d="M42 523H250"/></g>
+                                    <g class="shunt-track shunt-upper-track-a"><path class="shunt-ballast" d="M450 315H610"/><path class="shunt-sleepers" d="M450 315H610"/><path class="shunt-rail" d="M450 303H610M450 327H610"/><path class="shunt-rail-shine" d="M450 303H610"/></g>
+                                    <g class="shunt-track shunt-upper-track-b"><path class="shunt-ballast" d="M850 315H990"/><path class="shunt-sleepers" d="M850 315H990"/><path class="shunt-rail" d="M850 303H990M850 327H990"/><path class="shunt-rail-shine" d="M850 303H990"/></g>
+                                    <g class="shunt-track shunt-exit-track"><path class="shunt-ballast" d="M1190 535H1360"/><path class="shunt-sleepers" d="M1190 535H1360"/><path class="shunt-rail" d="M1190 523H1360M1190 547H1360"/><path class="shunt-rail-shine" d="M1190 523H1360"/></g>
+                                    <g class="shunt-track shunt-lower-track"><path class="shunt-ballast" d="M42 735H1166"/><path class="shunt-sleepers" d="M42 735H1166"/><path class="shunt-rail" d="M42 723H1166M42 747H1166"/><path class="shunt-rail-shine" d="M42 723H1166"/></g>
                                 </g>
 
                                 <g class="shunt-spur-tracks" aria-hidden="true">
-                                    <path class="shunt-spur-bed" d="M610 210C683 258 724 329 798 422"/>
-                                    <path class="shunt-spur-sleepers" d="M610 210C683 258 724 329 798 422"/>
-                                    <path class="shunt-spur-rail" d="M603 218C674 266 716 337 790 430M617 202C692 249 733 321 806 414"/>
-                                    <path class="shunt-spur-bed" d="M610 210C674 170 728 112 790 68"/>
-                                    <path class="shunt-spur-sleepers" d="M610 210C674 170 728 112 790 68"/>
-                                    <path class="shunt-spur-rail" d="M604 202C667 162 721 104 784 60M616 218C681 178 735 120 796 76"/>
-                                    <g class="shunt-dead-end" transform="translate(803 423) rotate(49)"><path d="M-24-20v40M-13-20v40M0-20v40"/></g>
-                                    <g class="shunt-dead-end" transform="translate(793 67) rotate(-35)"><path d="M-24-20v40M-13-20v40M0-20v40"/></g>
+                                    <path class="shunt-spur-bed" d="M730 315C812 262 876 179 963 118"/>
+                                    <path class="shunt-spur-sleepers" d="M730 315C812 262 876 179 963 118"/>
+                                    <path class="shunt-spur-rail" d="M722 305C802 251 868 168 955 108M738 325C822 273 886 191 971 128"/>
+                                    <path class="shunt-spur-bed" d="M730 315C798 368 846 457 925 557"/>
+                                    <path class="shunt-spur-sleepers" d="M730 315C798 368 846 457 925 557"/>
+                                    <path class="shunt-spur-rail" d="M722 325C788 378 836 467 915 567M738 305C808 358 856 447 935 547"/>
+                                    <g class="shunt-dead-end" transform="translate(969 116) rotate(-35)"><path d="M-29-23v46M-16-23v46M0-23v46"/></g>
+                                    <g class="shunt-dead-end" transform="translate(929 559) rotate(51)"><path d="M-29-23v46M-16-23v46M0-23v46"/></g>
+                                    <g class="shunt-switch-motor" transform="translate(781 269) rotate(-34)"><rect x="-18" y="-12" width="36" height="24"/><circle r="6"/><path d="M18 0h22"/></g>
+                                    <g class="shunt-switch-motor" transform="translate(793 371) rotate(42)"><rect x="-18" y="-12" width="36" height="24"/><circle r="6"/><path d="M18 0h22"/></g>
                                 </g>
 
-                                <g class="shunt-transfer-pit" aria-hidden="true">
-                                    <rect x="196" y="157" width="168" height="256" rx="13"/>
-                                    <path d="M214 170v230M346 170v230"/>
-                                    <path class="shunt-pit-hazard" d="M196 157h168v12H196zM196 401h168v12H196z"/>
-                                    <circle cx="215" cy="188" r="8"/><circle cx="345" cy="188" r="8"/><circle cx="215" cy="382" r="8"/><circle cx="345" cy="382" r="8"/>
+                                <g class="shunt-transfer-pit shunt-transfer-pit-a" aria-hidden="true">
+                                    <rect class="shunt-pit-depth" x="238" y="252" width="224" height="338"/>
+                                    <rect class="shunt-pit-inner" x="253" y="268" width="194" height="306"/>
+                                    <path class="shunt-pit-guide" d="M276 278v286M424 278v286"/>
+                                    <path class="shunt-pit-rack" d="M290 278v286M410 278v286"/>
+                                    <path class="shunt-pit-hazard" d="M238 252h224v14H238zM238 576h224v14H238z"/>
+                                    <path class="shunt-cable-chain" d="M261 551c38 0 38-23 76-23s38 23 76 23 20-15 34-15"/>
+                                    <g class="shunt-pit-rollers"><use href="#shunt-roller" x="266" y="286" width="18" height="18"/><use href="#shunt-roller" x="266" y="352" width="18" height="18"/><use href="#shunt-roller" x="266" y="418" width="18" height="18"/><use href="#shunt-roller" x="266" y="484" width="18" height="18"/><use href="#shunt-roller" x="416" y="286" width="18" height="18"/><use href="#shunt-roller" x="416" y="352" width="18" height="18"/><use href="#shunt-roller" x="416" y="418" width="18" height="18"/><use href="#shunt-roller" x="416" y="484" width="18" height="18"/></g>
+                                    <g class="shunt-drive-motor" transform="translate(350 618)"><rect x="-43" y="-20" width="86" height="40"/><circle cx="-22" r="13"/><circle cx="19" r="13"/><path d="M-9 0H6"/></g>
                                 </g>
-                                <g class="shunt-transfer-pit" aria-hidden="true">
-                                    <rect x="756" y="157" width="168" height="256" rx="13"/>
-                                    <path d="M774 170v230M906 170v230"/>
-                                    <path class="shunt-pit-hazard" d="M756 157h168v12H756zM756 401h168v12H756z"/>
-                                    <circle cx="775" cy="188" r="8"/><circle cx="905" cy="188" r="8"/><circle cx="775" cy="382" r="8"/><circle cx="905" cy="382" r="8"/>
+                                <g class="shunt-transfer-pit shunt-transfer-pit-b" aria-hidden="true">
+                                    <rect class="shunt-pit-depth" x="978" y="252" width="224" height="338"/>
+                                    <rect class="shunt-pit-inner" x="993" y="268" width="194" height="306"/>
+                                    <path class="shunt-pit-guide" d="M1016 278v286M1164 278v286"/>
+                                    <path class="shunt-pit-rack" d="M1030 278v286M1150 278v286"/>
+                                    <path class="shunt-pit-hazard" d="M978 252h224v14H978zM978 576h224v14H978z"/>
+                                    <path class="shunt-cable-chain" d="M1001 551c38 0 38-23 76-23s38 23 76 23 20-15 34-15"/>
+                                    <g class="shunt-pit-rollers"><use href="#shunt-roller" x="1006" y="286" width="18" height="18"/><use href="#shunt-roller" x="1006" y="352" width="18" height="18"/><use href="#shunt-roller" x="1006" y="418" width="18" height="18"/><use href="#shunt-roller" x="1006" y="484" width="18" height="18"/><use href="#shunt-roller" x="1156" y="286" width="18" height="18"/><use href="#shunt-roller" x="1156" y="352" width="18" height="18"/><use href="#shunt-roller" x="1156" y="418" width="18" height="18"/><use href="#shunt-roller" x="1156" y="484" width="18" height="18"/></g>
+                                    <g class="shunt-drive-motor" transform="translate(1090 618)"><rect x="-43" y="-20" width="86" height="40"/><circle cx="-22" r="13"/><circle cx="19" r="13"/><path d="M-9 0H6"/></g>
                                 </g>
 
                                 <g class="shunt-position-ruler" aria-hidden="true">
-                                    <path d="M182 210v150M181 210h13M181 360h13"/>
-                                    <text x="174" y="214" text-anchor="end">UPPER</text><text x="174" y="364" text-anchor="end">ENTRY</text>
-                                    <path d="M938 210v150M925 210h13M925 360h13"/>
-                                    <text x="946" y="214">UPPER</text><text x="946" y="364">EXIT</text>
+                                    <path d="M215 315v220M214 315h17M214 535h17"/><text x="205" y="319" text-anchor="end">UPPER / 315</text><text x="205" y="539" text-anchor="end">INFEED / 535</text>
+                                    <path d="M1225 315v220M1208 315h17M1208 535h17"/><text x="1235" y="319">UPPER / 315</text><text x="1235" y="539">OUTFEED / 535</text>
                                 </g>
 
                                 <g id="shunt-platform-a" class="shunt-platform" aria-label="Lateral transfer platform A" filter="url(#shunt-shadow)">
-                                    <rect class="shunt-platform-deck" x="-75" y="-46" width="150" height="92" rx="10"/>
-                                    <path class="shunt-platform-ribs" d="M-57-42v84M-30-42v84M0-42v84M30-42v84M57-42v84"/>
-                                    <path class="shunt-platform-rail" d="M-70-10H70M-70 10H70"/>
-                                    <path class="shunt-platform-edge" d="M-72-39H72M-72 39H72"/>
-                                    <circle cx="-60" cy="-32" r="7"/><circle cx="60" cy="-32" r="7"/><circle cx="-60" cy="32" r="7"/><circle cx="60" cy="32" r="7"/>
-                                    <path class="shunt-platform-arrow" d="M0-29v58m0-58-9 12m9-12 9 12m-9 46-9-12m9 12 9-12"/>
+                                    <rect class="shunt-platform-deck" x="-100" y="-55" width="200" height="110"/>
+                                    <path class="shunt-platform-ribs" d="M-82-51v102M-54-51v102M-26-51v102M2-51v102M30-51v102M58-51v102M86-51v102"/>
+                                    <path class="shunt-platform-grate" d="M-93-46h186v92H-93z"/>
+                                    <path class="shunt-platform-rail" d="M-96-12H96M-96 12H96"/>
+                                    <path class="shunt-platform-rail-shine" d="M-96-12H96"/>
+                                    <path class="shunt-platform-edge" d="M-98-50H98M-98 50H98"/>
+                                    <g class="shunt-platform-bogies"><rect x="-87" y="-45" width="30" height="16"/><rect x="57" y="-45" width="30" height="16"/><rect x="-87" y="29" width="30" height="16"/><rect x="57" y="29" width="30" height="16"/><circle cx="-77" cy="-37" r="5"/><circle cx="67" cy="-37" r="5"/><circle cx="-77" cy="37" r="5"/><circle cx="67" cy="37" r="5"/></g>
+                                    <path class="shunt-platform-arrow" d="M0-38v76m0-76-10 14m10-14 10 14M0 38-10 24M0 38l10-14"/>
+                                    <text class="shunt-deck-stencil" x="0" y="4" text-anchor="middle">TT–A / 80T</text>
                                 </g>
 
                                 <g class="shunt-turntable-pit" aria-hidden="true">
-                                    <circle cx="610" cy="210" r="91"/>
-                                    <circle cx="610" cy="210" r="78"/>
-                                    <path d="M610 119v182M519 210h182"/>
+                                    <circle class="shunt-turntable-depth" cx="730" cy="315" r="134"/>
+                                    <circle class="shunt-turntable-ring" cx="730" cy="315" r="119"/>
+                                    <circle class="shunt-turntable-teeth" cx="730" cy="315" r="103"/>
+                                    <path class="shunt-turntable-axis" d="M730 181v268M596 315h268"/>
+                                    <g class="shunt-turntable-rollers"><use href="#shunt-roller" x="721" y="190" width="18" height="18"/><use href="#shunt-roller" x="721" y="422" width="18" height="18"/><use href="#shunt-roller" x="605" y="306" width="18" height="18"/><use href="#shunt-roller" x="837" y="306" width="18" height="18"/><use href="#shunt-roller" x="639" y="224" width="18" height="18"/><use href="#shunt-roller" x="803" y="388" width="18" height="18"/><use href="#shunt-roller" x="803" y="224" width="18" height="18"/><use href="#shunt-roller" x="639" y="388" width="18" height="18"/></g>
                                 </g>
-                                <g id="shunt-turntable" class="shunt-turntable" aria-label="Rotating rail table" filter="url(#shunt-shadow)">
-                                    <rect class="shunt-turntable-deck" x="-88" y="-31" width="176" height="62" rx="9"/>
-                                    <path class="shunt-turntable-rail" d="M-82-10H82M-82 10H82"/>
-                                    <path class="shunt-turntable-ribs" d="M-62-27v54M-31-27v54M0-27v54M31-27v54M62-27v54"/>
-                                    <circle r="13"/><path class="shunt-turntable-arrow" d="M-46 0h92m-92 0 12-9m-12 9 12 9m80-9-12-9m12 9-12 9"/>
+                                <g id="shunt-turntable" class="shunt-turntable" aria-label="Rotating rail bridge" filter="url(#shunt-shadow)">
+                                    <rect class="shunt-turntable-deck" x="-120" y="-37" width="240" height="74"/>
+                                    <path class="shunt-turntable-ribs" d="M-98-33v66M-65-33v66M-32-33v66M0-33v66M32-33v66M65-33v66M98-33v66"/>
+                                    <path class="shunt-turntable-grate" d="M-112-29h224v58h-224z"/>
+                                    <path class="shunt-turntable-rail" d="M-116-12H116M-116 12H116"/>
+                                    <path class="shunt-turntable-rail-shine" d="M-116-12H116"/>
+                                    <circle class="shunt-turntable-hub" r="16"/><circle class="shunt-turntable-hub" r="7"/>
+                                    <path class="shunt-turntable-arrow" d="M-60 0h120m-120 0 14-10m-14 10 14 10m106-10-14-10m14 10-14 10"/>
+                                    <text class="shunt-deck-stencil" x="0" y="29" text-anchor="middle">RB–02 / INDEXED DRIVE</text>
                                 </g>
 
                                 <g id="shunt-platform-b" class="shunt-platform" aria-label="Lateral transfer platform B" filter="url(#shunt-shadow)">
-                                    <rect class="shunt-platform-deck" x="-75" y="-46" width="150" height="92" rx="10"/>
-                                    <path class="shunt-platform-ribs" d="M-57-42v84M-30-42v84M0-42v84M30-42v84M57-42v84"/>
-                                    <path class="shunt-platform-rail" d="M-70-10H70M-70 10H70"/>
-                                    <path class="shunt-platform-edge" d="M-72-39H72M-72 39H72"/>
-                                    <circle cx="-60" cy="-32" r="7"/><circle cx="60" cy="-32" r="7"/><circle cx="-60" cy="32" r="7"/><circle cx="60" cy="32" r="7"/>
-                                    <path class="shunt-platform-arrow" d="M0-29v58m0-58-9 12m9-12 9 12m-9 46-9-12m9 12 9-12"/>
+                                    <rect class="shunt-platform-deck" x="-100" y="-55" width="200" height="110"/>
+                                    <path class="shunt-platform-ribs" d="M-82-51v102M-54-51v102M-26-51v102M2-51v102M30-51v102M58-51v102M86-51v102"/>
+                                    <path class="shunt-platform-grate" d="M-93-46h186v92H-93z"/>
+                                    <path class="shunt-platform-rail" d="M-96-12H96M-96 12H96"/>
+                                    <path class="shunt-platform-rail-shine" d="M-96-12H96"/>
+                                    <path class="shunt-platform-edge" d="M-98-50H98M-98 50H98"/>
+                                    <g class="shunt-platform-bogies"><rect x="-87" y="-45" width="30" height="16"/><rect x="57" y="-45" width="30" height="16"/><rect x="-87" y="29" width="30" height="16"/><rect x="57" y="29" width="30" height="16"/><circle cx="-77" cy="-37" r="5"/><circle cx="67" cy="-37" r="5"/><circle cx="-77" cy="37" r="5"/><circle cx="67" cy="37" r="5"/></g>
+                                    <path class="shunt-platform-arrow" d="M0-38v76m0-76-10 14m10-14 10 14M0 38-10 24M0 38l10-14"/>
+                                    <text class="shunt-deck-stencil" x="0" y="4" text-anchor="middle">TT–B / 80T</text>
                                 </g>
 
-                                <path class="shunt-route-guide" d="M48 360H280V210H840V360H1050" marker-end="url(#shunt-arrowhead)"/>
+                                <path class="shunt-route-guide" d="M49 535H350V315H730H1090V535H1352" marker-end="url(#shunt-arrowhead)"/>
                                 <g class="shunt-machine-labels" aria-hidden="true">
-                                    <g transform="translate(280 446)"><rect x="-73" y="-15" width="146" height="30" rx="15"/><text y="5" text-anchor="middle">01 · LATERAL TABLE A</text></g>
-                                    <g transform="translate(610 326)"><rect x="-68" y="-15" width="136" height="30" rx="15"/><text y="5" text-anchor="middle">02 · ROTARY TABLE</text></g>
-                                    <g transform="translate(840 446)"><rect x="-73" y="-15" width="146" height="30" rx="15"/><text y="5" text-anchor="middle">03 · LATERAL TABLE B</text></g>
+                                    <g transform="translate(238 658)"><path d="M0 0h224"/><text x="0" y="19">TRANSFER TABLE A · 01</text><text x="224" y="19" text-anchor="end">TRAVEL 2200 MM</text></g>
+                                    <g transform="translate(610 477)"><path d="M0 0h240"/><text x="0" y="19">ROTARY BRIDGE · 02</text><text x="240" y="19" text-anchor="end">0° / 42° INDEX</text></g>
+                                    <g transform="translate(978 658)"><path d="M0 0h224"/><text x="0" y="19">TRANSFER TABLE B · 03</text><text x="224" y="19" text-anchor="end">TRAVEL 2200 MM</text></g>
                                 </g>
 
-                                <g id="shunt-signal-a" class="shunt-signal" transform="translate(184 330)" aria-hidden="true"><rect x="-12" y="-22" width="24" height="44" rx="6"/><circle class="shunt-signal-red" cy="-10" r="6"/><circle class="shunt-signal-green" cy="10" r="6"/></g>
-                                <g id="shunt-signal-turn" class="shunt-signal" transform="translate(498 181)" aria-hidden="true"><rect x="-12" y="-22" width="24" height="44" rx="6"/><circle class="shunt-signal-red" cy="-10" r="6"/><circle class="shunt-signal-green" cy="10" r="6"/></g>
-                                <g id="shunt-signal-b" class="shunt-signal" transform="translate(742 181)" aria-hidden="true"><rect x="-12" y="-22" width="24" height="44" rx="6"/><circle class="shunt-signal-red" cy="-10" r="6"/><circle class="shunt-signal-green" cy="10" r="6"/></g>
+                                <g id="shunt-signal-a" class="shunt-signal" transform="translate(221 494)" aria-hidden="true"><path class="shunt-signal-mount" d="M0 0v-36h21"/><rect x="5" y="-67" width="31" height="52"/><circle class="shunt-signal-red" cx="20.5" cy="-53" r="7"/><circle class="shunt-signal-green" cx="20.5" cy="-30" r="7"/><path class="shunt-signal-hood" d="M10-62h21M10-39h21"/></g>
+                                <g id="shunt-signal-turn" class="shunt-signal" transform="translate(578 273)" aria-hidden="true"><path class="shunt-signal-mount" d="M0 0v-36h21"/><rect x="5" y="-67" width="31" height="52"/><circle class="shunt-signal-red" cx="20.5" cy="-53" r="7"/><circle class="shunt-signal-green" cx="20.5" cy="-30" r="7"/><path class="shunt-signal-hood" d="M10-62h21M10-39h21"/></g>
+                                <g id="shunt-signal-b" class="shunt-signal" transform="translate(948 273)" aria-hidden="true"><path class="shunt-signal-mount" d="M0 0v-36h21"/><rect x="5" y="-67" width="31" height="52"/><circle class="shunt-signal-red" cx="20.5" cy="-53" r="7"/><circle class="shunt-signal-green" cx="20.5" cy="-30" r="7"/><path class="shunt-signal-hood" d="M10-62h21M10-39h21"/></g>
 
-                                <g id="shunt-traffic-one" class="shunt-yard-car shunt-yard-car-rust" aria-label="Autonomous lower-yard freight cart">
-                                    <rect class="shunt-yard-wheel" x="-27" y="-19" width="14" height="7" rx="2"/><rect class="shunt-yard-wheel" x="13" y="-19" width="14" height="7" rx="2"/>
-                                    <rect class="shunt-yard-wheel" x="-27" y="12" width="14" height="7" rx="2"/><rect class="shunt-yard-wheel" x="13" y="12" width="14" height="7" rx="2"/>
-                                    <path class="shunt-yard-body" d="M-31-13h62v26h-62z"/><path class="shunt-yard-load" d="M-20-9h17v18h-17zM3-9h17v18H3z"/>
+                                <g id="shunt-traffic-one" class="shunt-yard-car shunt-yard-car-rust" aria-label="Autonomous lower-yard slab carrier">
+                                    <path class="shunt-yard-wheel" d="M-43-27h22v9h-22zm64 0h22v9H21zM-43 18h22v9h-22zm64 0h22v9H21z"/>
+                                    <path class="shunt-yard-body" d="M-49-18h98v36h-98z"/><path class="shunt-yard-frame" d="M-40-12h80v24h-80zM-31-12v24M0-12v24M31-12v24"/>
+                                    <path class="shunt-yard-load" d="M-34-10h26v20h-26zM8-10h26v20H8z"/><circle class="shunt-yard-beacon" cx="40" cy="-12" r="4"/>
                                 </g>
-                                <g id="shunt-traffic-two" class="shunt-yard-car" aria-label="Autonomous storage-line carrier">
-                                    <rect class="shunt-yard-wheel" x="-27" y="-19" width="14" height="7" rx="2"/><rect class="shunt-yard-wheel" x="13" y="-19" width="14" height="7" rx="2"/>
-                                    <rect class="shunt-yard-wheel" x="-27" y="12" width="14" height="7" rx="2"/><rect class="shunt-yard-wheel" x="13" y="12" width="14" height="7" rx="2"/>
-                                    <path class="shunt-yard-body" d="M-31-13h62v26h-62z"/><path class="shunt-yard-load" d="M-20-9h40v18h-40z"/>
+                                <g id="shunt-traffic-two" class="shunt-yard-car" aria-label="Autonomous storage-line battery locomotive">
+                                    <path class="shunt-yard-wheel" d="M-41-26h20v9h-20zm62 0h20v9H21zM-41 17h20v9h-20zm62 0h20v9H21z"/>
+                                    <path class="shunt-yard-body" d="M-47-18h94v36h-94z"/><path class="shunt-yard-frame" d="M-37-12h74v24h-74zM-16-12v24M16-12v24"/>
+                                    <path class="shunt-yard-load" d="M-8-10h37v20H-8z"/><path class="shunt-yard-glass" d="M-35-10h19v20h-19z"/><circle class="shunt-yard-beacon" cx="38" cy="-12" r="4"/>
                                 </g>
-                                <g id="shunt-traffic-three" class="shunt-yard-car shunt-yard-car-dark" aria-label="Autonomous maintenance-spur carrier">
-                                    <rect class="shunt-yard-wheel" x="-27" y="-19" width="14" height="7" rx="2"/><rect class="shunt-yard-wheel" x="13" y="-19" width="14" height="7" rx="2"/>
-                                    <rect class="shunt-yard-wheel" x="-27" y="12" width="14" height="7" rx="2"/><rect class="shunt-yard-wheel" x="13" y="12" width="14" height="7" rx="2"/>
-                                    <path class="shunt-yard-body" d="M-31-13h62v26h-62z"/><circle class="shunt-yard-load" r="9"/>
+                                <g id="shunt-traffic-three" class="shunt-yard-car shunt-yard-car-dark" aria-label="Autonomous maintenance-spur service carrier">
+                                    <path class="shunt-yard-wheel" d="M-40-25h20v8h-20zm60 0h20v8H20zM-40 17h20v8h-20zm60 0h20v8H20z"/>
+                                    <path class="shunt-yard-body" d="M-46-17h92v34h-92z"/><path class="shunt-yard-frame" d="M-35-11h70v22h-70z"/><circle class="shunt-yard-load" r="11"/><path class="shunt-service-arm" d="M4 0h30m-8-8 8 8-8 8"/><circle class="shunt-yard-beacon" cx="37" cy="-11" r="4"/>
                                 </g>
 
-                                <g class="shunt-entry-sign" transform="translate(68 316)" aria-hidden="true"><path d="M0 0v-40h68"/><rect x="8" y="-69" width="96" height="30" rx="5"/><text x="56" y="-49" text-anchor="middle">ENTRY · 01</text></g>
-                                <g class="shunt-exit-sign" transform="translate(1026 316)" aria-hidden="true"><path d="M0 0v-40h-68"/><rect x="-105" y="-69" width="96" height="30" rx="5"/><text x="-57" y="-49" text-anchor="middle">EXIT · 02</text></g>
+                                <g class="shunt-entry-sign" transform="translate(66 485)" aria-hidden="true"><path d="M0 0v-45h86"/><rect x="8" y="-78" width="132" height="32"/><text x="74" y="-57" text-anchor="middle">INFEED · BAY 01</text></g>
+                                <g class="shunt-exit-sign" transform="translate(1338 485)" aria-hidden="true"><path d="M0 0v-45h-86"/><rect x="-141" y="-78" width="132" height="32"/><text x="-75" y="-57" text-anchor="middle">OUTFEED · BAY 02</text></g>
+                                <g class="shunt-warning-stencils" aria-hidden="true"><text x="473" y="583" transform="rotate(-90 473 583)">KEEP CLEAR · MOVING STRUCTURE</text><text x="1213" y="583" transform="rotate(-90 1213 583)">KEEP CLEAR · MOVING STRUCTURE</text><text x="723" y="526" text-anchor="middle">ROTARY ENVELOPE — NO ACCESS</text></g>
 
                                 <g id="shunt-skid-trails" class="shunt-skid-trails" aria-hidden="true"><path/><path/></g>
-                                <g id="shunt-carrier" class="shunt-carrier" aria-label="Autonomous rail carrier" filter="url(#shunt-shadow)">
-                                    <rect class="shunt-carrier-wheel" x="-34" y="-27" width="19" height="10" rx="3"/><rect class="shunt-carrier-wheel" x="15" y="-27" width="19" height="10" rx="3"/>
-                                    <rect class="shunt-carrier-wheel" x="-34" y="17" width="19" height="10" rx="3"/><rect class="shunt-carrier-wheel" x="15" y="17" width="19" height="10" rx="3"/>
-                                    <path class="shunt-carrier-body" d="M-38-17-26-25H18l20 12v26L18 25h-44l-12-8Z"/>
-                                    <path class="shunt-carrier-bumper" d="M-41-14v28M41-14v28"/>
-                                    <rect class="shunt-carrier-deck" x="-16" y="-18" width="32" height="36" rx="5"/>
-                                    <path class="shunt-carrier-glass" d="M-11-13H10l5 8H-16Z"/>
-                                    <path class="shunt-carrier-load" d="M-24 2h11v18h-11zM-9 2H2v18H-9zM6 2h11v18H6z"/>
-                                    <circle class="shunt-carrier-beacon" cx="23" cy="-8" r="4"/>
-                                    <path class="shunt-carrier-chevron" d="M-30-8-20 0-30 8"/>
+                                <g id="shunt-carrier" class="shunt-carrier" aria-label="Autonomous heavy rail carrier" filter="url(#shunt-shadow)">
+                                    <path class="shunt-carrier-wheel" d="M-47-34h25v11h-25zm69 0h25v11H22zM-47 23h25v11h-25zm69 0h25v11H22z"/>
+                                    <path class="shunt-carrier-body" d="M-53-23-38-31H24l29 15v32L24 31h-62l-15-8Z"/>
+                                    <path class="shunt-carrier-underframe" d="M-43-18h81v36h-81zM-33-18v36M26-18v36"/>
+                                    <path class="shunt-carrier-bumper" d="M-57-18v36M57-18v36"/>
+                                    <rect class="shunt-carrier-deck" x="-14" y="-22" width="43" height="44"/>
+                                    <path class="shunt-carrier-glass" d="M-8-16h29l8 11H-16Z"/>
+                                    <path class="shunt-carrier-load" d="M-36-13h16v26h-16zM-16 2H0v18h-16zM4 2h16v18H4z"/>
+                                    <path class="shunt-carrier-cooling" d="M33-10h11M33-4h11M33 2h11M33 8h11"/>
+                                    <circle class="shunt-carrier-beacon" cx="35" cy="-13" r="5"/>
+                                    <path class="shunt-carrier-chevron" d="M-42-11-29 0-42 11"/>
+                                    <text class="shunt-carrier-mark" x="2" y="-4" text-anchor="middle">A7</text>
                                 </g>
-                                <g id="shunt-impact-ring" class="shunt-impact-ring" aria-hidden="true"><circle r="39"/><circle r="27"/></g>
+                                <g id="shunt-impact-ring" class="shunt-impact-ring" aria-hidden="true"><circle r="55"/><circle r="39"/><path d="M-72 0H72M0-72V72"/></g>
                             </svg>
 
                             <div class="shunt-objective" aria-hidden="true">
-                                <span>Transfer sequence</span>
-                                <strong>Ride A to the upper rail → cross the rotary table at 0° → ride B to Exit 02</strong>
-                                <small>No steering. Braking must overcome mass and retained deck momentum.</small>
+                                <span>Dispatch order / SH–2049</span>
+                                <strong>Infeed 01 → Table A → Rotary 0° → Table B → Outfeed 02</strong>
+                                <small>The carrier is autonomous. Moving steel, not steering input, defines its route.</small>
                             </div>
                             <div class="surface-readout shunt-readout" aria-live="polite">
-                                <div><span>Carrier</span><strong id="shunt-phase-readout">Approaching A</strong></div>
-                                <div><span>Table A</span><strong id="shunt-a-readout">Entry</strong></div>
-                                <div><span>Rotary</span><strong id="shunt-turn-readout">0°</strong></div>
-                                <div><span>Result</span><strong id="shunt-result-readout">Running</strong></div>
+                                <div><span>Unit A7</span><strong id="shunt-phase-readout">Approaching A</strong></div>
+                                <div><span>Table A</span><strong id="shunt-a-readout">Infeed</strong></div>
+                                <div><span>Bridge</span><strong id="shunt-turn-readout">0°</strong></div>
+                                <div><span>Run state</span><strong id="shunt-result-readout">Running</strong></div>
                             </div>
                             <div class="surface-legend" aria-hidden="true">
-                                <span><i class="legend-shunt-carrier"></i>Test carrier</span>
-                                <span><i class="legend-shunt-platform"></i>Moving deck</span>
-                                <span><i class="legend-shunt-route"></i>Required alignment</span>
-                                <span><i class="legend-shunt-traffic"></i>Yard traffic</span>
+                                <span><i class="legend-shunt-carrier"></i>Unit A7</span>
+                                <span><i class="legend-shunt-platform"></i>Powered deck</span>
+                                <span><i class="legend-shunt-route"></i>Dispatch path</span>
+                                <span><i class="legend-shunt-traffic"></i>Live traffic</span>
                             </div>
                         </div>
                     </article>
 
-                    <aside class="parameter-card" aria-labelledby="shunt-parameter-title">
+                    <aside class="parameter-card shunt-parameter-card" aria-labelledby="shunt-parameter-title">
                         <header class="parameter-heading">
                             <p class="card-eyebrow">Physical inputs only</p>
-                            <h2 id="shunt-parameter-title">Transfer setup</h2>
-                            <p>The carrier drives itself. Change machinery and vehicle physics, then watch whether its momentum can be arrested before each moving seam.</p>
+                            <h2 id="shunt-parameter-title">Transfer configuration</h2>
+                            <p>Unit A7 controls its own traction. Configure machinery speed, brake pressure and vehicle physics; the yard then executes the dispatch without direct steering.</p>
                         </header>
 
                         <div class="parameter-list shunt-parameters">
-                            <label class="parameter-row" for="shunt-table-speed">
-                                <span class="parameter-name">Transfer-table speed</span>
-                                <output id="shunt-table-speed-output" for="shunt-table-speed">1.1 m/s</output>
-                                <input id="shunt-table-speed" type="range" min="2" max="20" value="11" step="1">
-                                <span class="range-ends"><small>0.2 m/s</small><small>2.0 m/s</small></span>
-                            </label>
-
-                            <label class="parameter-row" for="shunt-braking">
-                                <span class="parameter-name">Platform braking</span>
-                                <output id="shunt-braking-output" for="shunt-braking">68%</output>
-                                <input id="shunt-braking" type="range" min="10" max="100" value="68" step="1">
-                                <span class="range-ends"><small>Coast</small><small>Locked</small></span>
-                            </label>
-
-                            <label class="parameter-row" for="shunt-mass">
-                                <span class="parameter-name">Vehicle mass</span>
-                                <output id="shunt-mass-output" for="shunt-mass">5.5 t</output>
-                                <input id="shunt-mass" type="range" min="15" max="120" value="55" step="1">
-                                <span class="range-ends"><small>1.5 t</small><small>12 t</small></span>
-                            </label>
-
-                            <label class="parameter-row" for="shunt-torque">
-                                <span class="parameter-name">Wheel torque</span>
-                                <output id="shunt-torque-output" for="shunt-torque">64%</output>
-                                <input id="shunt-torque" type="range" min="10" max="100" value="64" step="1">
-                                <span class="range-ends"><small>Low drive</small><small>High drive</small></span>
-                            </label>
-
-                            <label class="parameter-row" for="shunt-offset">
-                                <span class="parameter-name">Switch timing offset</span>
-                                <output id="shunt-offset-output" for="shunt-offset">+1.2 s</output>
-                                <input id="shunt-offset" type="range" min="-40" max="40" value="12" step="1">
-                                <span class="range-ends"><small>4 s early</small><small>4 s late</small></span>
-                            </label>
+                            <label class="parameter-row" for="shunt-table-speed"><span class="parameter-name">Transfer-table speed</span><output id="shunt-table-speed-output" for="shunt-table-speed">1.1 m/s</output><input id="shunt-table-speed" type="range" min="2" max="20" value="11" step="1"><span class="range-ends"><small>0.2 m/s</small><small>2.0 m/s</small></span></label>
+                            <label class="parameter-row" for="shunt-braking"><span class="parameter-name">Platform braking</span><output id="shunt-braking-output" for="shunt-braking">68%</output><input id="shunt-braking" type="range" min="10" max="100" value="68" step="1"><span class="range-ends"><small>Coast</small><small>Locked</small></span></label>
+                            <label class="parameter-row" for="shunt-mass"><span class="parameter-name">Vehicle mass</span><output id="shunt-mass-output" for="shunt-mass">5.5 t</output><input id="shunt-mass" type="range" min="15" max="120" value="55" step="1"><span class="range-ends"><small>1.5 t</small><small>12 t</small></span></label>
+                            <label class="parameter-row" for="shunt-torque"><span class="parameter-name">Wheel torque</span><output id="shunt-torque-output" for="shunt-torque">64%</output><input id="shunt-torque" type="range" min="10" max="100" value="64" step="1"><span class="range-ends"><small>Low drive</small><small>High drive</small></span></label>
+                            <label class="parameter-row" for="shunt-offset"><span class="parameter-name">Switch timing offset</span><output id="shunt-offset-output" for="shunt-offset">+1.2 s</output><input id="shunt-offset" type="range" min="-40" max="40" value="12" step="1"><span class="range-ends"><small>4 s early</small><small>4 s late</small></span></label>
                         </div>
                     </aside>
                 </div>
 
                 <section class="study-notes" aria-label="Shunt concept notes">
-                    <article>
-                        <p class="note-number">01</p>
-                        <h2>Mechanics</h2>
-                        <ol>
-                            <li><strong>The ground changes route.</strong> The carrier remains autonomous and follows rail geometry. Lateral Table A lifts the occupied rail segment to the upper line; Table B returns it to the exit line.</li>
-                            <li><strong>Momentum survives transfer.</strong> A carrier keeps its longitudinal velocity while the deck moves sideways. Platform braking must dissipate mass-dependent momentum before the vehicle reaches an unaligned edge.</li>
-                            <li><strong>The rotary table is a physical switch.</strong> At 0° its bridge joins the upper main line. At a branch angle it directs the same carrier into a maintenance spur; between alignments it presents an open seam.</li>
-                            <li><strong>Timing creates route failure.</strong> Switch offset changes the phase of Table B, the rotating bridge and crossing yard traffic. The same vehicle build can pass, wait, take the wrong spur or collide under different timing.</li>
-                            <li><strong>Traffic occupies real space.</strong> Storage-line, lower-yard and maintenance carriers continue moving independently. The test carrier brakes for congestion only when its mass and available braking permit it.</li>
-                            <li><strong>Outcomes remain physical.</strong> Aligned transfer, seam side-slip, wrong-spur routing, vehicle collision and successful yard exit all come from position, velocity, orientation and contact—not arbitrary lane selection.</li>
-                        </ol>
-                    </article>
-
-                    <article>
-                        <p class="note-number">02</p>
-                        <h2>Features</h2>
-                        <ul>
-                            <li>Single consistent top-down SVG projection</li>
-                            <li>Two independently phased lateral transfer decks</li>
-                            <li>Rotating rail bridge with main and maintenance alignments</li>
-                            <li>Detailed rails, sleepers, ballast, pits, rollers and signals</li>
-                            <li>Top-view carrier with wheels, cab, cargo and braking trails</li>
-                            <li>Three autonomous congestion vehicles</li>
-                            <li>Mass-dependent braking distance</li>
-                            <li>Wheel-torque acceleration and retained platform momentum</li>
-                            <li>Live deck position, turn angle and route outcome readouts</li>
-                            <li>Aligned, side-slip, wrong-spur, collision and exit states</li>
-                        </ul>
-                    </article>
-
-                    <article>
-                        <p class="note-number">03</p>
-                        <h2>Ideas</h2>
-                        <ul>
-                            <li><strong>Queue pressure.</strong> A second loaded carrier can arrive behind the test vehicle, reducing the time available to wait for the next safe platform cycle.</li>
-                            <li><strong>Brake heat.</strong> Repeated heavy stops can fade platform brakes, turning an initially safe setup into a seam overrun later in the yard.</li>
-                            <li><strong>Asymmetric cargo.</strong> An offset load can lower wheel contact on one side as a transfer deck accelerates laterally, increasing side-slip without changing total mass.</li>
-                            <li><strong>Platform damage.</strong> A collision can bend one rail end and leave a persistent alignment error for following vehicles.</li>
-                            <li><strong>Destination contracts.</strong> Some runs can intentionally require the upper maintenance spur, turning “wrong route” into the correct solution for a different cargo manifest.</li>
-                            <li><strong>Connected freight.</strong> Beltline cargo and Iron Tide steel can set the carrier’s mass and braking demand before it enters the yard.</li>
-                        </ul>
-                    </article>
+                    <article><p class="note-number">01</p><h2>Mechanics</h2><ol>
+                        <li><strong>The permanent way is the controller.</strong> Unit A7 remains autonomous; powered decks physically lift occupied rail segments between the infeed, upper transfer line and outfeed.</li>
+                        <li><strong>Momentum survives transfer.</strong> Longitudinal velocity remains on a laterally accelerating deck. Brake pressure must dissipate mass-dependent momentum before wheels reach an open seam.</li>
+                        <li><strong>The rotary bridge is a physical switch.</strong> At 0° it completes the upper main line. At 42° it feeds a maintenance spur. Between index points, the next rail simply is not there.</li>
+                        <li><strong>Timing determines traffic.</strong> Offset changes Table B, rotary indexing and the service carrier’s phase. A safe vehicle can wait, enter a wrong spur or meet crossing traffic after one timing change.</li>
+                        <li><strong>Congestion occupies space.</strong> Slab, battery and service carriers operate continuously. A7 yields only while its available braking distance remains greater than its current stopping distance.</li>
+                        <li><strong>Every result is physical.</strong> Aligned transfer, seam side-slip, wrong-spur routing, platform collision and successful exit follow from position, velocity, orientation and contact.</li>
+                    </ol></article>
+                    <article><p class="note-number">02</p><h2>Features</h2><ul>
+                        <li>Expanded full-width heavy-industry scene</li><li>Single consistent detailed top-down projection</li><li>Two 80-ton lateral transfer structures</li><li>Indexed rotating rail bridge and two dead-end service spurs</li><li>Guide racks, rollers, cable chains, drive motors and deck bogies</li><li>Workshops, pipe racks, drainage, fencing and freight storage</li><li>Three autonomous congestion vehicles</li><li>Mass-dependent stopping distance and visible braking trails</li><li>Live signals, machinery state and dispatch outcome</li><li>Aligned, side-slip, wrong-spur, collision and exit states</li>
+                    </ul></article>
+                    <article><p class="note-number">03</p><h2>Ideas</h2><ul>
+                        <li><strong>Queue pressure.</strong> A second loaded carrier can arrive behind A7 and remove the option to wait indefinitely for the next deck cycle.</li>
+                        <li><strong>Brake heat.</strong> Repeated heavy stops can fade platform brakes, making a previously safe setup fail deeper in the hall.</li>
+                        <li><strong>Asymmetric freight.</strong> Offset cargo can unload one rail as the deck accelerates sideways, creating flange climb without changing total mass.</li>
+                        <li><strong>Persistent damage.</strong> A collision can bend a rail nose and leave a measurable alignment error for every following carrier.</li>
+                        <li><strong>Destination contracts.</strong> A maintenance-spur dispatch can make the apparent wrong route the required delivery for specialist cargo.</li>
+                        <li><strong>Connected freight.</strong> Beltline cargo and Iron Tide steel can set A7’s mass and braking demand before depot entry.</li>
+                    </ul></article>
                 </section>
             </section>
         </main>
@@ -1234,7 +1314,7 @@
     <script src="breaker.js?v=breaker-wave-r4"></script>
     <script src="beltline.js?v=beltline-r3"></script>
     <script src="beachhead.js?v=beachhead-r4"></script>
-    <script src="shunt.js?v=shunt-r1"></script>
-    <script src="app.js?v=shunt-r1"></script>
+    <script src="shunt.js?v=shunt-r2"></script>
+    <script src="app.js?v=shunt-r2"></script>
 </body>
 </html>

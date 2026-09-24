@@ -37,23 +37,42 @@
         offset: 1.2
     };
 
+    const layout = {
+        upperY: 315,
+        transferY: 535,
+        platformTravel: 220,
+        platformA: 350,
+        platformB: 1090,
+        platformHalf: 100,
+        turnX: 730,
+        turnY: 315,
+        turnHalf: 120,
+        entrySeam: 250,
+        upperAStart: 450,
+        turnEntry: 610,
+        turnExit: 850,
+        upperBEnd: 990,
+        exitStart: 1190,
+        finish: 1350
+    };
+
     const world = {
         time: 0,
         lastTime: performance.now(),
         wasVisible: false,
-        platformA: { y: 360, velocity: 0, position: "entry" },
-        platformB: { y: 210, velocity: 0, position: "upper" },
+        platformA: { y: layout.transferY, velocity: 0, position: "entry" },
+        platformB: { y: layout.upperY, velocity: 0, position: "upper" },
         turnAngle: 0,
         traffic: [
-            { x: 100, y: 545, angle: 0 },
-            { x: 470, y: 115, angle: 180 },
-            { x: 798, y: 422, angle: -131 }
+            { x: 110, y: 735, angle: 0 },
+            { x: 590, y: 175, angle: 180 },
+            { x: 925, y: 557, angle: -129 }
         ]
     };
 
     const carrier = {
         x: 54,
-        y: 360,
+        y: layout.transferY,
         angle: 0,
         velocity: 0,
         lateralVelocity: 0,
@@ -61,6 +80,7 @@
         stage: "approach-a",
         status: "Approaching Table A",
         result: "running",
+        spurProgress: 0,
         collisionFlash: 0,
         skid: 0,
         trail: []
@@ -148,8 +168,8 @@
 
     function platformMotion(time, invert = false) {
         const pixelsPerSecond = 28 + settings.tableSpeed * 48;
-        const travelTime = 150 / pixelsPerSecond;
-        const dwell = 1.85;
+        const travelTime = layout.platformTravel / pixelsPerSecond;
+        const dwell = 2.25;
         const duration = dwell * 2 + travelTime * 2;
         const phase = modular(time, duration);
         let ratio;
@@ -174,25 +194,25 @@
             label = invert ? "moving to upper" : "moving to entry";
         }
 
-        const normalY = 360 - ratio * 150;
-        const y = invert ? 210 + ratio * 150 : normalY;
+        const normalY = layout.transferY - ratio * layout.platformTravel;
+        const y = invert ? layout.upperY + ratio * layout.platformTravel : normalY;
         return { y, velocity, label, phase, duration };
     }
 
     function turntableMotion(time) {
-        const phase = modular(time + settings.offset, 11.5);
-        if (phase < 2.5) {
+        const phase = modular(time + settings.offset, 13.5);
+        if (phase < 3.5) {
             return { angle: 0, label: "Main aligned" };
         }
-        if (phase < 4) {
-            const ratio = smoothstep((phase - 2.5) / 1.5);
+        if (phase < 5) {
+            const ratio = smoothstep((phase - 3.5) / 1.5);
             return { angle: ratio * 42, label: "Rotating" };
         }
-        if (phase < 7) {
+        if (phase < 8) {
             return { angle: 42, label: "Spur aligned" };
         }
-        if (phase < 8.5) {
-            const ratio = smoothstep((phase - 7) / 1.5);
+        if (phase < 9.5) {
+            const ratio = smoothstep((phase - 8) / 1.5);
             return { angle: (1 - ratio) * 42, label: "Rotating" };
         }
         return { angle: 0, label: "Main aligned" };
@@ -204,9 +224,9 @@
         const rotary = turntableMotion(world.time);
         world.turnAngle = rotary.angle;
 
-        platformAGraphic.setAttribute("transform", `translate(280 ${world.platformA.y.toFixed(2)})`);
-        platformBGraphic.setAttribute("transform", `translate(840 ${world.platformB.y.toFixed(2)})`);
-        turntableGraphic.setAttribute("transform", `translate(610 210) rotate(${world.turnAngle.toFixed(2)})`);
+        platformAGraphic.setAttribute("transform", `translate(${layout.platformA} ${world.platformA.y.toFixed(2)})`);
+        platformBGraphic.setAttribute("transform", `translate(${layout.platformB} ${world.platformB.y.toFixed(2)})`);
+        turntableGraphic.setAttribute("transform", `translate(${layout.turnX} ${layout.turnY}) rotate(${world.turnAngle.toFixed(2)})`);
 
         platformAReadout.textContent = world.platformA.label.replace(/^./, (letter) => letter.toUpperCase());
         turnReadout.textContent = `${Math.round(world.turnAngle)}°`;
@@ -219,20 +239,20 @@
     }
 
     function updateTraffic() {
-        const lowerProgress = modular(world.time * 0.055 + 0.08, 1);
-        world.traffic[0].x = 45 + lowerProgress * 1010;
-        world.traffic[0].y = 545;
+        const lowerProgress = modular(world.time * 0.045 + 0.08, 1);
+        world.traffic[0].x = 48 + lowerProgress * 1110;
+        world.traffic[0].y = 735;
         world.traffic[0].angle = 0;
 
-        const storageProgress = modular(world.time * 0.047 + 0.31, 1);
-        world.traffic[1].x = 495 - storageProgress * 445;
-        world.traffic[1].y = 115;
+        const storageProgress = modular(world.time * 0.039 + 0.31, 1);
+        world.traffic[1].x = 642 - storageProgress * 594;
+        world.traffic[1].y = 175;
         world.traffic[1].angle = 180;
 
-        const branchProgress = pingPong(world.time * 0.115 + settings.offset * 0.07 + 0.17);
-        world.traffic[2].x = 798 + (626 - 798) * branchProgress;
-        world.traffic[2].y = 422 + (228 - 422) * branchProgress;
-        world.traffic[2].angle = -131;
+        const branchProgress = pingPong(world.time * 0.102 + settings.offset * 0.07 + 0.17);
+        world.traffic[2].x = 925 + (750 - 925) * branchProgress;
+        world.traffic[2].y = 557 + (338 - 557) * branchProgress;
+        world.traffic[2].angle = -129;
 
         world.traffic.forEach((vehicle, index) => {
             trafficGraphics[index].setAttribute("transform", `translate(${vehicle.x.toFixed(1)} ${vehicle.y.toFixed(1)}) rotate(${vehicle.angle})`);
@@ -240,13 +260,13 @@
     }
 
     function platformAligned(platform, target) {
-        const targetY = target === "upper" ? 210 : 360;
-        return Math.abs(platform.y - targetY) < 6 && Math.abs(platform.velocity) < 18;
+        const targetY = target === "upper" ? layout.upperY : layout.transferY;
+        return Math.abs(platform.y - targetY) < 7 && Math.abs(platform.velocity) < 18;
     }
 
     function trafficAtTurntable() {
         const traffic = world.traffic[2];
-        return Math.hypot(traffic.x - 610, traffic.y - 210) < 104;
+        return Math.hypot(traffic.x - layout.turnX, traffic.y - layout.turnY) < 132;
     }
 
     function updateVelocity(target, delta) {
@@ -270,12 +290,8 @@
         carrier.velocity = 0;
         carrier.collisionFlash = result === "collision" ? 1 : 0.35;
         if (result === "side-slip") {
-            carrier.y += carrier.stage.includes("b") ? 52 : -52;
+            carrier.y += carrier.stage.includes("b") ? 72 : -72;
             carrier.angle = carrier.stage.includes("b") ? 15 : -15;
-        } else if (result === "wrong-spur") {
-            carrier.x = 741;
-            carrier.y = 356;
-            carrier.angle = 49;
         }
         svg.dataset.result = result;
         resultReadout.textContent = result === "side-slip"
@@ -291,47 +307,47 @@
     function updateApproachA(delta) {
         const physics = drivePhysics();
         const aligned = platformAligned(world.platformA, "entry");
-        const distance = 205 - carrier.x;
+        const distance = layout.entrySeam - carrier.x;
         const stoppingDistance = carrier.velocity * carrier.velocity / Math.max(1, 2 * physics.brakingAcceleration);
-        const target = !aligned && distance < stoppingDistance + 28 ? 0 : physics.targetSpeed;
+        const target = !aligned && distance < stoppingDistance + 36 ? 0 : physics.targetSpeed;
         updateVelocity(target, delta);
         carrier.x += carrier.velocity * delta;
-        carrier.y = 360;
+        carrier.y = layout.transferY;
         carrier.angle = 0;
-        carrier.status = aligned ? "Boarding Table A" : "Waiting for Table A";
+        carrier.status = aligned ? "Boarding transfer table A" : "Holding at infeed signal";
 
-        if (carrier.x >= 205) {
+        if (carrier.x >= layout.entrySeam) {
             if (!aligned) {
-                fail("side-slip", "Side-slip at Table A seam");
+                fail("side-slip", "Wheel flange crossed the open Table A seam");
                 return;
             }
             carrier.stage = "table-a";
-            carrier.localX = -75;
-            carrier.x = 205;
+            carrier.localX = -layout.platformHalf;
+            carrier.x = layout.entrySeam;
             carrier.y = world.platformA.y;
-            carrier.status = "Riding Table A";
+            carrier.status = "Loaded on transfer table A";
         }
     }
 
     function updateOnPlatformA(delta) {
         const physics = drivePhysics();
         const alignedUpper = platformAligned(world.platformA, "upper");
-        const target = alignedUpper ? physics.targetSpeed : carrier.localX < -14 ? Math.min(22, physics.targetSpeed) : 0;
+        const target = alignedUpper ? physics.targetSpeed : carrier.localX < -18 ? Math.min(22, physics.targetSpeed) : 0;
         updateVelocity(target, delta);
         carrier.localX += carrier.velocity * delta;
-        carrier.x = 280 + carrier.localX;
+        carrier.x = layout.platformA + carrier.localX;
         carrier.y = world.platformA.y;
         carrier.angle = 0;
-        carrier.status = alignedUpper ? "Table A aligned — departing" : "Momentum held on moving deck";
+        carrier.status = alignedUpper ? "Table A indexed — releasing brakes" : "Longitudinal momentum retained on moving deck";
 
-        if (!alignedUpper && carrier.localX > 70) {
-            fail("side-slip", "Retained momentum crossed Table A seam");
-        } else if (alignedUpper && carrier.localX >= 76) {
+        if (!alignedUpper && carrier.localX > layout.platformHalf - 7) {
+            fail("side-slip", "Retained momentum carried A7 across the Table A seam");
+        } else if (alignedUpper && carrier.localX >= layout.platformHalf + 1) {
             carrier.stage = "upper-a";
-            carrier.x = 356;
-            carrier.y = 210;
+            carrier.x = layout.upperAStart + 1;
+            carrier.y = layout.upperY;
             carrier.localX = 0;
-            carrier.status = "Upper transfer rail";
+            carrier.status = "Running upper transfer rail";
         }
     }
 
@@ -339,101 +355,129 @@
         const physics = drivePhysics();
         const mainAligned = Math.abs(world.turnAngle) < 5;
         const blocked = trafficAtTurntable();
-        const distance = 522 - carrier.x;
+        const distance = layout.turnEntry - carrier.x;
         const stoppingDistance = carrier.velocity * carrier.velocity / Math.max(1, 2 * physics.brakingAcceleration);
-        const target = (!mainAligned || blocked) && distance < stoppingDistance + 34 ? 0 : physics.targetSpeed;
+        const target = (!mainAligned || blocked) && distance < stoppingDistance + 44 ? 0 : physics.targetSpeed;
         updateVelocity(target, delta);
         carrier.x += carrier.velocity * delta;
-        carrier.y = 210;
+        carrier.y = layout.upperY;
         carrier.angle = 0;
-        carrier.status = blocked ? "Yielding to yard traffic" : mainAligned ? "Approaching rotary table" : "Waiting for 0° alignment";
+        carrier.status = blocked ? "Yielding to service traffic" : mainAligned ? "Approaching rotary bridge" : "Holding for 0° bridge index";
 
-        if (carrier.x >= 522) {
+        if (carrier.x >= layout.turnEntry) {
             if (blocked) {
-                fail("collision", "Platform collision at rotary table");
+                fail("collision", "Platform collision at rotary bridge throat");
             } else if (Math.abs(world.turnAngle) < 7) {
                 carrier.stage = "turntable";
-                carrier.localX = -88;
-                carrier.x = 522;
-                carrier.status = "Crossing rotary table";
-            } else if (Math.abs(world.turnAngle - 42) < 9) {
-                fail("wrong-spur", "Routed into maintenance spur");
+                carrier.localX = -layout.turnHalf;
+                carrier.x = layout.turnEntry;
+                carrier.status = "Crossing indexed rotary bridge";
             } else {
-                fail("side-slip", "Rotary-table seam not aligned");
+                fail("side-slip", "Rotary bridge rail ends were outside tolerance");
             }
+        }
+    }
+
+    function beginWrongSpur() {
+        carrier.stage = "wrong-spur-run";
+        carrier.spurProgress = 0.47;
+        carrier.velocity = Math.max(31, carrier.velocity);
+        carrier.status = "Committed to maintenance spur M–17";
+    }
+
+    function updateWrongSpur(delta) {
+        const physics = drivePhysics();
+        updateVelocity(Math.min(physics.targetSpeed, 58), delta);
+        carrier.spurProgress = Math.min(1, carrier.spurProgress + carrier.velocity * delta / 300);
+        const progress = carrier.spurProgress;
+        const inverse = 1 - progress;
+        const start = { x: layout.turnX, y: layout.turnY };
+        const control = { x: 810, y: 372 };
+        const end = { x: 925, y: 557 };
+        carrier.x = inverse * inverse * start.x + 2 * inverse * progress * control.x + progress * progress * end.x;
+        carrier.y = inverse * inverse * start.y + 2 * inverse * progress * control.y + progress * progress * end.y;
+        const tangentX = 2 * inverse * (control.x - start.x) + 2 * progress * (end.x - control.x);
+        const tangentY = 2 * inverse * (control.y - start.y) + 2 * progress * (end.y - control.y);
+        carrier.angle = Math.atan2(tangentY, tangentX) * 180 / Math.PI;
+        carrier.status = "Running maintenance spur M–17";
+        if (progress >= 0.99) {
+            fail("wrong-spur", "A7 reached dead-end maintenance bay M–17");
         }
     }
 
     function updateTurntable(delta) {
         const physics = drivePhysics();
-        const aligned = Math.abs(world.turnAngle) < 6;
-        const target = aligned ? physics.targetSpeed * 0.78 : 0;
+        const mainAligned = Math.abs(world.turnAngle) < 6;
+        const branchAligned = Math.abs(world.turnAngle - 42) < 6;
+        const target = mainAligned || branchAligned ? physics.targetSpeed : 0;
         updateVelocity(target, delta);
         carrier.localX += carrier.velocity * delta;
-        carrier.x = 610 + carrier.localX * Math.cos(world.turnAngle * Math.PI / 180);
-        carrier.y = 210 + carrier.localX * Math.sin(world.turnAngle * Math.PI / 180);
+        carrier.x = layout.turnX + carrier.localX * Math.cos(world.turnAngle * Math.PI / 180);
+        carrier.y = layout.turnY + carrier.localX * Math.sin(world.turnAngle * Math.PI / 180);
         carrier.angle = world.turnAngle;
-        carrier.status = aligned ? "Crossing at 0°" : "Braking on rotating bridge";
+        carrier.status = mainAligned
+            ? "Crossing rotary bridge at 0°"
+            : branchAligned
+                ? "Bridge indexed to maintenance spur"
+                : "Braking on moving bridge structure";
 
-        if (!aligned && carrier.localX > 72) {
-            if (Math.abs(world.turnAngle - 42) < 9) {
-                fail("wrong-spur", "Rotary table changed to maintenance spur");
-            } else {
-                fail("side-slip", "Departed rotating bridge between rails");
-            }
-        } else if (aligned && carrier.localX >= 89) {
+        if (branchAligned && carrier.localX > layout.turnHalf - 8) {
+            beginWrongSpur();
+        } else if (!mainAligned && !branchAligned && carrier.localX > layout.turnHalf - 8) {
+            fail("side-slip", "A7 departed between rotary bridge index points");
+        } else if (mainAligned && carrier.localX >= layout.turnHalf + 1) {
             carrier.stage = "upper-b";
-            carrier.x = 699;
-            carrier.y = 210;
+            carrier.x = layout.turnExit + 1;
+            carrier.y = layout.upperY;
             carrier.angle = 0;
-            carrier.status = "Approaching Table B";
+            carrier.status = "Approaching transfer table B";
         }
     }
 
     function updateUpperB(delta) {
         const physics = drivePhysics();
         const aligned = platformAligned(world.platformB, "upper");
-        const distance = 765 - carrier.x;
+        const distance = layout.upperBEnd - carrier.x;
         const stoppingDistance = carrier.velocity * carrier.velocity / Math.max(1, 2 * physics.brakingAcceleration);
-        const target = !aligned && distance < stoppingDistance + 28 ? 0 : physics.targetSpeed;
+        const target = !aligned && distance < stoppingDistance + 36 ? 0 : physics.targetSpeed;
         updateVelocity(target, delta);
         carrier.x += carrier.velocity * delta;
-        carrier.y = 210;
+        carrier.y = layout.upperY;
         carrier.angle = 0;
-        carrier.status = aligned ? "Boarding Table B" : "Waiting for Table B";
+        carrier.status = aligned ? "Boarding transfer table B" : "Holding at Table B signal";
 
-        if (carrier.x >= 765) {
+        if (carrier.x >= layout.upperBEnd) {
             if (!aligned) {
-                fail("side-slip", "Side-slip at Table B seam");
+                fail("side-slip", "Wheel flange crossed the open Table B seam");
                 return;
             }
             carrier.stage = "table-b";
-            carrier.localX = -75;
-            carrier.x = 765;
+            carrier.localX = -layout.platformHalf;
+            carrier.x = layout.upperBEnd;
             carrier.y = world.platformB.y;
-            carrier.status = "Riding Table B";
+            carrier.status = "Loaded on transfer table B";
         }
     }
 
     function updateOnPlatformB(delta) {
         const physics = drivePhysics();
         const alignedExit = platformAligned(world.platformB, "exit");
-        const target = alignedExit ? physics.targetSpeed : carrier.localX < -14 ? Math.min(22, physics.targetSpeed) : 0;
+        const target = alignedExit ? physics.targetSpeed : carrier.localX < -18 ? Math.min(22, physics.targetSpeed) : 0;
         updateVelocity(target, delta);
         carrier.localX += carrier.velocity * delta;
-        carrier.x = 840 + carrier.localX;
+        carrier.x = layout.platformB + carrier.localX;
         carrier.y = world.platformB.y;
         carrier.angle = 0;
-        carrier.status = alignedExit ? "Table B aligned — departing" : "Momentum held on moving deck";
+        carrier.status = alignedExit ? "Table B indexed — releasing brakes" : "Longitudinal momentum retained on moving deck";
 
-        if (!alignedExit && carrier.localX > 70) {
-            fail("side-slip", "Retained momentum crossed Table B seam");
-        } else if (alignedExit && carrier.localX >= 76) {
+        if (!alignedExit && carrier.localX > layout.platformHalf - 7) {
+            fail("side-slip", "Retained momentum carried A7 across the Table B seam");
+        } else if (alignedExit && carrier.localX >= layout.platformHalf + 1) {
             carrier.stage = "exit";
-            carrier.x = 916;
-            carrier.y = 360;
+            carrier.x = layout.exitStart + 1;
+            carrier.y = layout.transferY;
             carrier.localX = 0;
-            carrier.status = "Exit rail aligned";
+            carrier.status = "Outfeed rail aligned";
         }
     }
 
@@ -441,12 +485,12 @@
         const physics = drivePhysics();
         updateVelocity(physics.targetSpeed, delta);
         carrier.x += carrier.velocity * delta;
-        carrier.y = 360;
+        carrier.y = layout.transferY;
         carrier.angle = 0;
-        carrier.status = "Running to Exit 02";
-        if (carrier.x >= 1045) {
-            carrier.x = 1045;
-            fail("finished", "Successful yard exit");
+        carrier.status = "Clearing Outfeed Bay 02";
+        if (carrier.x >= layout.finish) {
+            carrier.x = layout.finish;
+            fail("finished", "Dispatch complete — A7 cleared the transfer hall");
         }
     }
 
@@ -468,13 +512,15 @@
             updateUpperB(delta);
         } else if (carrier.stage === "table-b") {
             updateOnPlatformB(delta);
+        } else if (carrier.stage === "wrong-spur-run") {
+            updateWrongSpur(delta);
         } else if (carrier.stage === "exit") {
             updateExit(delta);
         }
 
         const crossingTraffic = world.traffic[2];
-        if (carrier.result === "running" && Math.hypot(carrier.x - crossingTraffic.x, carrier.y - crossingTraffic.y) < 47) {
-            fail("collision", "Platform collision with maintenance carrier");
+        if (carrier.result === "running" && carrier.stage !== "wrong-spur-run" && Math.hypot(carrier.x - crossingTraffic.x, carrier.y - crossingTraffic.y) < 61) {
+            fail("collision", "A7 collided with the maintenance service carrier");
         }
 
         carrier.trail.push({ x: carrier.x, y: carrier.y, angle: carrier.angle, skid: carrier.skid });
@@ -500,10 +546,10 @@
         carrierGraphic.setAttribute("transform", `translate(${carrier.x.toFixed(1)} ${carrier.y.toFixed(1)}) rotate(${carrier.angle.toFixed(1)})`);
         const skidPaths = skidGraphic.querySelectorAll ? skidGraphic.querySelectorAll("path") : skidGraphic.children;
         if (skidPaths[0]) {
-            skidPaths[0].setAttribute("d", trailPath(-18));
+            skidPaths[0].setAttribute("d", trailPath(-24));
         }
         if (skidPaths[1]) {
-            skidPaths[1].setAttribute("d", trailPath(18));
+            skidPaths[1].setAttribute("d", trailPath(24));
         }
         impactGraphic.setAttribute("transform", `translate(${carrier.x.toFixed(1)} ${carrier.y.toFixed(1)})`);
         impactGraphic.style.opacity = `${carrier.collisionFlash}`;
@@ -523,7 +569,7 @@
 
     function resetRun() {
         carrier.x = 54;
-        carrier.y = 360;
+        carrier.y = layout.transferY;
         carrier.angle = 0;
         carrier.velocity = 0;
         carrier.lateralVelocity = 0;
@@ -531,6 +577,7 @@
         carrier.stage = "approach-a";
         carrier.status = "Approaching Table A";
         carrier.result = "running";
+        carrier.spurProgress = 0;
         carrier.collisionFlash = 0;
         carrier.skid = 0;
         carrier.trail.length = 0;

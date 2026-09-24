@@ -1750,209 +1750,486 @@ a {
     to { offset-distance: 100%; }
 }
 
+.shunt-page {
+    padding-top: clamp(38px, 6vh, 72px);
+}
+
+.shunt-study-layout {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.shunt-simulation-card {
+    border-color: rgba(224, 226, 217, 0.14);
+    background: #101310;
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.28);
+}
+
+.shunt-card-heading {
+    min-height: 116px;
+    background: linear-gradient(90deg, #171a18, #121513);
+}
+
+.shunt-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
 .shunt-surface {
-    min-height: clamp(680px, 67vw, 900px);
-    background: #101311;
+    min-height: clamp(780px, 60vw, 1040px);
+    background: #0b0e0c;
 }
 
 #shunt-svg {
-    min-width: 760px;
+    min-width: 1100px;
     overflow: visible;
 }
 
-.shunt-yard-slabs rect {
-    fill: url(#shunt-concrete-pattern);
-    stroke: #111513;
+.shunt-yard-floor > path:first-of-type {
+    fill: none;
+    stroke: rgba(220, 221, 211, 0.075);
+    stroke-width: 1.5;
+}
+
+.shunt-floor-crack {
+    fill: none;
+    stroke: rgba(5, 8, 6, 0.52);
+    stroke-width: 3;
+}
+
+.shunt-fence-fill {
+    fill: url(#shunt-fence-pattern);
+    opacity: 0.72;
+}
+
+.shunt-fence-rail,
+.shunt-fence-posts path {
+    fill: none;
+    stroke: #717770;
+    stroke-width: 2;
+}
+
+.shunt-fence-posts path {
     stroke-width: 4;
 }
 
-.shunt-yard-slabs path {
-    fill: none;
-    stroke: rgba(211, 211, 200, 0.08);
+.shunt-building > rect:first-child {
+    stroke: #6e746d;
     stroke-width: 2;
+}
+
+.shunt-roof-seam {
+    fill: none;
+    stroke: rgba(215, 218, 208, 0.12);
+    stroke-width: 2;
+}
+
+.shunt-building text,
+.shunt-warning-stencils text,
+.shunt-deck-stencil,
+.shunt-position-ruler text,
+.shunt-machine-labels text,
+.shunt-entry-sign text,
+.shunt-exit-sign text {
+    fill: #d9dcd4;
+    font-family: "General Sans", sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+}
+
+.shunt-building text {
+    fill: rgba(228, 230, 221, 0.6);
+    font-size: 9px;
+}
+
+.shunt-roof-unit rect {
+    fill: #242a26;
+    stroke: #798079;
+    stroke-width: 1.5;
+}
+
+.shunt-roof-unit path,
+.shunt-roof-unit circle {
+    fill: none;
+    stroke: #6a716a;
+    stroke-width: 2;
+}
+
+.shunt-skylight {
+    fill: #243638;
+    stroke: #758386;
+    stroke-width: 2;
+    opacity: 0.82;
+}
+
+.shunt-pipe {
+    fill: none;
+    stroke-linecap: square;
+    stroke-linejoin: bevel;
+    stroke-width: 8;
+}
+
+.shunt-pipe-one {
+    stroke: #777e77;
+}
+
+.shunt-pipe-two {
+    stroke: #735e49;
+}
+
+.shunt-pipe-shadow {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.44);
+    stroke-width: 8;
+    transform: translateY(6px);
+}
+
+.shunt-valves circle,
+.shunt-valves path {
+    fill: #2a302d;
+    stroke: #aa8d45;
+    stroke-width: 2;
+}
+
+.shunt-pipe-support {
+    fill: none;
+    stroke: #414741;
+    stroke-width: 4;
+}
+
+.shunt-electrical-yard > rect,
+.shunt-maintenance-rack > rect {
+    fill: #1b211e;
+    stroke: #636a63;
+    stroke-width: 2;
+}
+
+.shunt-electrical-yard circle,
+.shunt-electrical-yard g > rect,
+.shunt-tank-farm circle {
+    fill: #303632;
+    stroke: #7c837b;
+    stroke-width: 2;
+}
+
+.shunt-electrical-yard path,
+.shunt-tank-farm path,
+.shunt-maintenance-rack path,
+.shunt-maintenance-rack circle {
+    fill: none;
+    stroke: #737a73;
+    stroke-width: 2;
+}
+
+.shunt-tank-farm > circle:nth-child(1),
+.shunt-tank-farm > circle:nth-child(4) {
+    filter: drop-shadow(0 7px 5px rgba(0, 0, 0, 0.55));
+}
+
+.shunt-drainage > path:first-child,
+.shunt-drainage > path:nth-child(2) {
+    fill: none;
+    stroke: #111613;
+    stroke-width: 13;
+}
+
+.shunt-drain-slots {
+    stroke: #687069 !important;
+    stroke-dasharray: 3 8;
+    stroke-width: 8px !important;
+}
+
+.shunt-cargo-stack {
+    filter: drop-shadow(0 7px 4px rgba(0, 0, 0, 0.58));
+}
+
+.shunt-cargo-stack-two {
+    opacity: 0.82;
+}
+
+.shunt-cable-reels circle {
+    fill: #493c2e;
+    stroke: #a07c50;
+    stroke-width: 3;
+}
+
+.shunt-cable-reels path {
+    stroke: #1b1813;
+    stroke-width: 4;
+}
+
+.shunt-parked-carrier {
+    opacity: 0.72;
+}
+
+.shunt-maintenance-rack {
+    filter: drop-shadow(0 7px 4px rgba(0, 0, 0, 0.5));
 }
 
 .shunt-ballast,
 .shunt-spur-bed {
     fill: none;
-    stroke: #373d39;
+    stroke: #313733;
     stroke-linecap: butt;
-    stroke-width: 40;
+    stroke-width: 47;
+    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.48));
+}
+
+.shunt-ballast {
+    stroke-dasharray: 3 2 8 2;
 }
 
 .shunt-sleepers,
 .shunt-spur-sleepers {
     fill: none;
     stroke: #77766c;
-    stroke-dasharray: 3 11;
+    stroke-dasharray: 4 12;
     stroke-linecap: butt;
-    stroke-width: 31;
+    stroke-width: 38;
 }
 
 .shunt-rail,
 .shunt-spur-rail {
     fill: none;
-    stroke: #afb2ac;
-    stroke-linecap: round;
-    stroke-width: 4;
+    stroke: #9da39d;
+    stroke-linecap: butt;
+    stroke-width: 5;
+    filter: drop-shadow(0 3px 1px rgba(0, 0, 0, 0.7));
 }
 
-.shunt-rail {
-    filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.52));
+.shunt-rail-shine {
+    fill: none;
+    stroke: rgba(228, 231, 223, 0.43);
+    stroke-width: 1.5;
 }
 
 .shunt-spur-tracks {
-    opacity: 0.78;
+    opacity: 0.82;
 }
 
 .shunt-dead-end path {
     fill: none;
-    stroke: #9e5e43;
-    stroke-width: 7;
+    stroke: #9a654b;
+    stroke-width: 8;
 }
 
-.shunt-transfer-pit > rect:first-child {
-    fill: #111715;
-    stroke: #070a09;
-    stroke-width: 7;
+.shunt-switch-motor rect {
+    fill: #242a27;
+    stroke: #7d837d;
+    stroke-width: 2;
 }
 
-.shunt-transfer-pit > path:not(.shunt-pit-hazard) {
+.shunt-switch-motor circle,
+.shunt-switch-motor path {
     fill: none;
-    stroke: #525b56;
-    stroke-dasharray: 8 10;
-    stroke-width: 6;
+    stroke: #b29548;
+    stroke-width: 3;
+}
+
+.shunt-pit-depth,
+.shunt-turntable-depth {
+    fill: #090d0b;
+    stroke: #050705;
+    stroke-width: 8;
+}
+
+.shunt-pit-inner {
+    fill: url(#shunt-grate-pattern);
+    stroke: #4d544f;
+    stroke-width: 2;
+}
+
+.shunt-pit-guide {
+    fill: none;
+    stroke: #606861;
+    stroke-width: 7;
+}
+
+.shunt-pit-rack {
+    fill: none;
+    stroke: #977d3d;
+    stroke-dasharray: 3 7;
+    stroke-width: 5;
 }
 
 .shunt-pit-hazard {
     fill: url(#shunt-hazard-pattern);
 }
 
-.shunt-transfer-pit circle {
-    fill: #202522;
-    stroke: #798078;
+.shunt-cable-chain {
+    fill: none;
+    stroke: #0c100e;
+    stroke-dasharray: 7 4;
+    stroke-width: 8;
+}
+
+.shunt-drive-motor rect {
+    fill: #2c322f;
+    stroke: #7c837c;
+    stroke-width: 2;
+}
+
+.shunt-drive-motor circle {
+    fill: #171c19;
+    stroke: #656d66;
+    stroke-width: 3;
+}
+
+.shunt-drive-motor path {
+    stroke: #a6883e;
     stroke-width: 4;
 }
 
 .shunt-position-ruler path {
     fill: none;
-    stroke: rgba(220, 221, 212, 0.42);
+    stroke: rgba(220, 223, 214, 0.4);
     stroke-width: 2;
 }
 
-.shunt-position-ruler text,
-.shunt-machine-labels text,
-.shunt-entry-sign text,
-.shunt-exit-sign text {
-    fill: #e3e5dd;
-    font-family: "General Sans", sans-serif;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
+.shunt-position-ruler text {
+    fill: rgba(221, 224, 215, 0.52);
+    font-size: 9px;
 }
 
 .shunt-platform-deck,
 .shunt-turntable-deck {
     fill: url(#shunt-deck-gradient);
-    stroke: #a0a69f;
+    stroke: #9aa19a;
     stroke-width: 3;
+}
+
+.shunt-platform-grate,
+.shunt-turntable-grate {
+    fill: url(#shunt-grate-pattern);
+    opacity: 0.33;
 }
 
 .shunt-platform-ribs,
 .shunt-turntable-ribs {
     fill: none;
-    stroke: rgba(211, 217, 208, 0.16);
+    stroke: rgba(225, 228, 219, 0.15);
     stroke-width: 4;
 }
 
 .shunt-platform-rail,
 .shunt-turntable-rail {
     fill: none;
-    stroke: #d0d3cc;
-    stroke-width: 4;
+    stroke: #c5cbc4;
+    stroke-width: 5;
+}
+
+.shunt-platform-rail-shine,
+.shunt-turntable-rail-shine {
+    fill: none;
+    stroke: #f1f2ec;
+    stroke-width: 1.5;
 }
 
 .shunt-platform-edge {
     fill: none;
-    stroke: #c4a346;
-    stroke-dasharray: 7 6;
-    stroke-width: 4;
+    stroke: #b59836;
+    stroke-dasharray: 12 7;
+    stroke-width: 5;
 }
 
-.shunt-platform circle {
-    fill: #171b19;
-    stroke: #848b84;
-    stroke-width: 3;
+.shunt-platform-bogies rect {
+    fill: #171c19;
+    stroke: #69716a;
+    stroke-width: 2;
+}
+
+.shunt-platform-bogies circle {
+    fill: #090c0a;
+    stroke: #838b83;
+    stroke-width: 2;
 }
 
 .shunt-platform-arrow,
 .shunt-turntable-arrow {
     fill: none;
-    stroke: rgba(210, 218, 76, 0.73);
+    stroke: rgba(195, 164, 61, 0.74);
     stroke-width: 3;
 }
 
-.shunt-turntable-pit > circle:first-child {
-    fill: #101513;
-    stroke: #080b0a;
-    stroke-width: 7;
+.shunt-deck-stencil {
+    fill: rgba(225, 227, 218, 0.34);
+    font-size: 8px;
+    letter-spacing: 0.11em;
 }
 
-.shunt-turntable-pit > circle:nth-child(2) {
+.shunt-turntable-ring {
     fill: none;
-    stroke: #666c67;
-    stroke-dasharray: 6 8;
+    stroke: #666d66;
+    stroke-width: 12;
+}
+
+.shunt-turntable-teeth {
+    fill: none;
+    stroke: #9a803d;
+    stroke-dasharray: 5 8;
     stroke-width: 8;
 }
 
-.shunt-turntable-pit path {
+.shunt-turntable-axis {
     fill: none;
-    stroke: rgba(207, 210, 201, 0.17);
-    stroke-dasharray: 4 9;
+    stroke: rgba(196, 201, 193, 0.16);
+    stroke-dasharray: 5 9;
     stroke-width: 3;
 }
 
-.shunt-turntable > circle {
-    fill: #141917;
-    stroke: #a0a69e;
-    stroke-width: 4;
+.shunt-turntable-hub {
+    fill: #171c19;
+    stroke: #a4aaa3;
+    stroke-width: 3;
+}
+
+.shunt-turntable-hub + .shunt-turntable-hub {
+    fill: #070a08;
+    stroke: #b09343;
+    stroke-width: 2;
 }
 
 .shunt-route-guide {
     fill: none;
-    stroke: rgba(207, 216, 74, 0.62);
-    stroke-dasharray: 9 12;
+    stroke: rgba(196, 166, 59, 0.5);
+    stroke-dasharray: 5 15;
     stroke-linecap: round;
-    stroke-width: 4;
-    animation: shunt-route-travel 1.4s linear infinite;
+    stroke-width: 3;
+    animation: shunt-route-travel 1.6s linear infinite;
 }
 
 @keyframes shunt-route-travel {
-    to { stroke-dashoffset: -42; }
+    to { stroke-dashoffset: -40; }
 }
 
-.shunt-machine-labels rect {
-    fill: rgba(15, 18, 17, 0.84);
-    stroke: rgba(229, 230, 222, 0.21);
-    stroke-width: 1.5;
+.shunt-machine-labels path {
+    fill: none;
+    stroke: rgba(226, 228, 219, 0.24);
+    stroke-width: 1;
+}
+
+.shunt-machine-labels text {
+    fill: rgba(224, 227, 217, 0.5);
+    font-size: 8px;
 }
 
 .shunt-signal rect {
-    fill: #171b19;
-    stroke: #7b817a;
+    fill: #171c19;
+    stroke: #858c84;
     stroke-width: 2;
 }
 
 .shunt-signal circle {
-    opacity: 0.24;
+    opacity: 0.2;
 }
 
 .shunt-signal-red {
-    fill: #dd554e;
+    fill: #d04b43;
 }
 
 .shunt-signal-green {
-    fill: #67cc6e;
+    fill: #63bf68;
 }
 
 .shunt-signal:not(.is-clear) .shunt-signal-red,
@@ -1961,138 +2238,207 @@ a {
     filter: url(#shunt-glow);
 }
 
+.shunt-signal-mount,
+.shunt-signal-hood {
+    fill: none;
+    stroke: #626962;
+    stroke-width: 3;
+}
+
 .shunt-yard-wheel,
 .shunt-carrier-wheel {
-    fill: #080a09;
-    stroke: #515750;
+    fill: #060806;
+    stroke: #565e57;
     stroke-width: 2;
 }
 
 .shunt-yard-body {
-    fill: #929991;
-    stroke: #d2d5cd;
+    fill: #7c857e;
+    stroke: #c6cbc4;
     stroke-width: 2;
 }
 
+.shunt-yard-frame {
+    fill: none;
+    stroke: #272e2a;
+    stroke-width: 3;
+}
+
 .shunt-yard-load {
-    fill: #675b48;
-    stroke: #a99368;
+    fill: #6c533d;
+    stroke: #ae855b;
+    stroke-width: 2;
+}
+
+.shunt-yard-glass {
+    fill: #233a3b;
+    stroke: #839796;
     stroke-width: 2;
 }
 
 .shunt-yard-car-rust .shunt-yard-body {
-    fill: #845a43;
-    stroke: #bd8a69;
+    fill: #76533f;
+    stroke: #b58365;
 }
 
 .shunt-yard-car-dark .shunt-yard-body {
-    fill: #454d49;
+    fill: #3c4641;
+    stroke: #89928b;
+}
+
+.shunt-yard-beacon {
+    fill: #d4a342;
+    stroke: #ffe19a;
+    stroke-width: 1.5;
+    animation: shunt-beacon 0.9s steps(2, end) infinite;
+}
+
+.shunt-service-arm {
+    fill: none;
+    stroke: #a88b45;
+    stroke-width: 3;
 }
 
 .shunt-carrier-body {
     fill: url(#shunt-car-gradient);
-    stroke: #f0f1e9;
-    stroke-width: 2.4;
+    stroke: #eff1e9;
+    stroke-width: 2.5;
+}
+
+.shunt-carrier-underframe {
+    fill: none;
+    stroke: #222a26;
+    stroke-width: 3;
 }
 
 .shunt-carrier-bumper {
     fill: none;
-    stroke: #d4b149;
-    stroke-width: 5;
+    stroke: #c5a13c;
+    stroke-width: 6;
 }
 
 .shunt-carrier-deck {
-    fill: #39433f;
-    stroke: #171d1b;
+    fill: #303c37;
+    stroke: #131916;
     stroke-width: 3;
 }
 
 .shunt-carrier-glass {
-    fill: #183237;
-    stroke: #a9c4bc;
+    fill: #19383a;
+    stroke: #9db5b2;
     stroke-width: 2;
 }
 
 .shunt-carrier-load {
-    fill: #896447;
-    stroke: #d1a477;
+    fill: #805f45;
+    stroke: #c69767;
     stroke-width: 1.5;
 }
 
+.shunt-carrier-cooling {
+    fill: none;
+    stroke: #252d29;
+    stroke-width: 2;
+}
+
 .shunt-carrier-beacon {
-    fill: #e8b24c;
-    stroke: #fff0aa;
+    fill: #e0ab42;
+    stroke: #ffeda6;
     stroke-width: 1.5;
-    animation: shunt-beacon 0.8s steps(2, end) infinite;
+    animation: shunt-beacon 0.72s steps(2, end) infinite;
 }
 
 .shunt-carrier-chevron {
     fill: none;
-    stroke: #cfd94b;
-    stroke-width: 3;
+    stroke: #b79c3d;
+    stroke-width: 4;
+}
+
+.shunt-carrier-mark {
+    fill: #dfe2da;
+    font-family: "General Sans", sans-serif;
+    font-size: 8px;
+    font-weight: 500;
 }
 
 @keyframes shunt-beacon {
-    50% { opacity: 0.22; }
+    50% { opacity: 0.16; }
+}
+
+.shunt-entry-sign path,
+.shunt-exit-sign path {
+    fill: none;
+    stroke: #8d938c;
+    stroke-width: 4;
+}
+
+.shunt-entry-sign rect,
+.shunt-exit-sign rect {
+    fill: #181d1a;
+    stroke: #8d938c;
+    stroke-width: 2;
+}
+
+.shunt-warning-stencils text {
+    fill: rgba(191, 157, 52, 0.54);
+    font-size: 8px;
 }
 
 .shunt-skid-trails path {
     fill: none;
-    stroke: rgba(12, 14, 13, 0.72);
+    stroke: rgba(5, 7, 6, 0.82);
     stroke-linecap: round;
-    stroke-width: 4;
+    stroke-width: 5;
 }
 
-.shunt-impact-ring circle {
+.shunt-impact-ring circle,
+.shunt-impact-ring path {
     fill: none;
-    stroke: #e07955;
+    stroke: #dc694d;
     stroke-width: 4;
 }
 
-.shunt-impact-ring circle:last-child {
-    stroke-dasharray: 6 8;
+.shunt-impact-ring circle:nth-child(2) {
+    stroke-dasharray: 7 9;
 }
 
 #shunt-svg[data-result="finished"] .shunt-carrier-body {
-    stroke: #d0d94b;
+    stroke: #bec540;
     filter: url(#shunt-glow);
 }
 
 #shunt-svg[data-result="side-slip"] .shunt-carrier-body,
 #shunt-svg[data-result="wrong-spur"] .shunt-carrier-body,
 #shunt-svg[data-result="collision"] .shunt-carrier-body {
-    stroke: #e06357;
-}
-
-.shunt-entry-sign path,
-.shunt-exit-sign path {
-    fill: none;
-    stroke: #a9aca3;
-    stroke-width: 4;
-}
-
-.shunt-entry-sign rect,
-.shunt-exit-sign rect {
-    fill: #191d1b;
-    stroke: #a9aca3;
-    stroke-width: 2;
+    stroke: #df5e50;
 }
 
 .shunt-objective {
     position: absolute;
-    top: 22px;
-    right: 22px;
+    top: 24px;
+    right: 24px;
     display: grid;
-    width: min(350px, calc(100% - 44px));
-    padding: 14px 17px 15px;
-    border: 1px solid rgba(230, 231, 222, 0.13);
-    border-radius: 15px;
-    background: rgba(13, 16, 15, 0.88);
-    backdrop-filter: blur(12px);
+    width: min(390px, calc(100% - 48px));
+    padding: 15px 18px 16px;
+    border: 1px solid rgba(230, 232, 223, 0.16);
+    border-radius: 3px;
+    background: rgba(10, 14, 11, 0.9);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(14px);
+}
+
+.shunt-objective::before {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 34px;
+    height: 3px;
+    background: #b49a3b;
+    content: "";
 }
 
 .shunt-objective span {
-    color: var(--lime);
+    color: #c1a642;
     font-size: 8px;
     font-weight: 500;
     letter-spacing: 0.16em;
@@ -2100,7 +2446,7 @@ a {
 }
 
 .shunt-objective strong {
-    margin-top: 5px;
+    margin-top: 6px;
     color: var(--text);
     font-size: 13px;
     font-weight: 400;
@@ -2108,72 +2454,149 @@ a {
 }
 
 .shunt-objective small {
-    margin-top: 4px;
+    margin-top: 5px;
     color: var(--text-faint);
     font-size: 9px;
 }
 
 .shunt-readout {
-    top: 22px;
-    left: 22px;
+    top: 24px;
+    left: 24px;
+    border-radius: 3px;
+    background: rgba(10, 14, 11, 0.9);
 }
 
 .shunt-readout div {
-    min-width: 100px;
+    min-width: 124px;
+    padding: 12px 15px 11px;
 }
 
 .shunt-readout strong {
+    font-size: 17px;
     white-space: nowrap;
 }
 
+.shunt-page .surface-legend {
+    border: 1px solid rgba(230, 232, 223, 0.1);
+    border-radius: 3px;
+    background: rgba(10, 14, 11, 0.86);
+}
+
 .legend-shunt-carrier {
-    border-radius: 2px;
-    background: #c7cbc3;
+    border-radius: 1px;
+    background: #bfc4bc;
     box-shadow: inset 0 0 0 1px #f0f1e9;
 }
 
 .legend-shunt-platform {
-    border: 1px solid #949a93;
-    border-radius: 2px;
-    background: #424844;
+    border: 1px solid #8f9690;
+    border-radius: 1px;
+    background: #3e4541;
 }
 
 .legend-shunt-route {
-    border-top: 2px dashed #cfd84a;
+    border-top: 2px dashed #b79a37;
 }
 
 .legend-shunt-traffic {
-    border-radius: 2px;
-    background: #855b44;
+    border-radius: 1px;
+    background: #76533f;
 }
 
-@media (min-width: 901px) and (max-width: 1180px) {
-    .shunt-page .parameter-list {
-        grid-template-columns: repeat(5, 1fr);
+.shunt-parameter-card {
+    display: grid;
+    grid-template-columns: minmax(270px, 0.7fr) minmax(0, 2.3fr);
+}
+
+.shunt-parameter-card .parameter-heading {
+    border-right: 1px solid var(--rule);
+    border-bottom: 0;
+}
+
+.shunt-parameters {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.shunt-parameters .parameter-row {
+    min-height: 188px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 0;
+    padding: 25px 20px 20px;
+}
+
+.shunt-parameters .parameter-row:last-child {
+    border-right: 0;
+}
+
+.shunt-parameters .parameter-row output {
+    grid-column: 1 / -1;
+    margin-top: 16px;
+    font-size: 28px;
+}
+
+@media (max-width: 1180px) {
+    .shunt-parameter-card {
+        grid-template-columns: 1fr;
     }
-}
 
-@media (max-width: 900px) {
+    .shunt-parameter-card .parameter-heading {
+        border-right: 0;
+        border-bottom: 1px solid var(--rule);
+    }
+
     .shunt-surface {
+        min-height: 780px;
         overflow-x: auto;
         overflow-y: hidden;
     }
 
     #shunt-svg {
-        width: 920px;
+        width: 1260px;
+    }
+}
+
+@media (max-width: 900px) {
+    .shunt-card-actions .live-marker {
+        display: none;
+    }
+
+    .shunt-parameters {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .shunt-parameters .parameter-row:nth-child(-n + 3) {
+        border-bottom: 1px solid var(--rule);
+    }
+
+    .shunt-parameters .parameter-row:nth-child(3) {
+        border-right: 0;
     }
 }
 
 @media (max-width: 670px) {
+    .shunt-card-heading {
+        align-items: flex-start;
+    }
+
+    .shunt-card-actions {
+        align-self: center;
+    }
+
     .shunt-surface {
-        min-height: 610px;
+        min-height: 660px;
+    }
+
+    #shunt-svg {
+        width: 1080px;
+        min-width: 1080px;
     }
 
     .shunt-objective {
-        top: 91px;
+        top: 90px;
         right: auto;
         left: 12px;
-        width: 315px;
+        width: 340px;
     }
 
     .shunt-readout {
@@ -2182,14 +2605,29 @@ a {
     }
 
     .shunt-readout div {
-        min-width: 88px;
+        min-width: 96px;
+        padding: 10px;
+    }
+
+    .shunt-readout strong {
+        font-size: 15px;
     }
 
     .shunt-page .surface-legend {
         flex-wrap: wrap;
         justify-content: flex-end;
-        max-width: 340px;
-        border-radius: 16px;
+        max-width: 355px;
+    }
+
+    .shunt-parameters {
+        grid-template-columns: 1fr;
+    }
+
+    .shunt-parameters .parameter-row,
+    .shunt-parameters .parameter-row:nth-child(-n + 3) {
+        min-height: 142px;
+        border-right: 0;
+        border-bottom: 1px solid var(--rule);
     }
 }
 
