@@ -1,0 +1,14 @@
+{
+  "name": "frontier-trex-realistic",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Realistic articulated Tyrannosaurus rex skeleton (FMNH PR 2081 \"Sue\") \u2014 CFC3 skeleton look + CF3D procedural gait/hunt mechanics, refined idle & bite, no sci-fi hardware.",
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "test": "node tests/run-tests.mjs"
+  },
+  "devDependencies": {
+    "three": "0.169.0"
+  }
+}
