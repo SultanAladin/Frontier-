@@ -528,7 +528,8 @@ a {
 #dead-canvas,
 #breaker-canvas,
 #beltline-canvas,
-#beachhead-canvas {
+#beachhead-canvas,
+#tidelock-svg {
     display: block;
     width: 100%;
     height: 100%;
@@ -922,7 +923,8 @@ a {
 
     .breaker-page .parameter-row:last-child,
     .beltline-page .parameter-row:last-child,
-    .beachhead-page .parameter-row:last-child {
+    .beachhead-page .parameter-row:last-child,
+    .tidelock-page .parameter-row:last-child {
         grid-column: auto;
     }
 }
@@ -1619,6 +1621,618 @@ a {
     .breaker-page .parameter-row:nth-child(3),
     .beltline-page .parameter-row:nth-child(3) {
         border-right: 0;
+    }
+}
+
+/* Tidelock */
+
+.tide-diagram {
+    background:
+        radial-gradient(circle at 22% 38%, rgba(67, 110, 111, 0.14), transparent 32%),
+        #0c1010;
+}
+
+.preview-tide-yard {
+    fill: #292c2a;
+    stroke: rgba(232, 232, 223, 0.16);
+    stroke-width: 2;
+}
+
+.preview-tide-water {
+    fill: url(#tide-water-preview);
+    stroke: rgba(194, 223, 218, 0.22);
+    stroke-width: 2;
+}
+
+.preview-tide-ripples {
+    fill: url(#tide-ripple-preview);
+    opacity: 0.72;
+}
+
+#tide-ripple-preview path {
+    fill: none;
+    stroke: rgba(218, 235, 229, 0.26);
+    stroke-width: 2;
+}
+
+.preview-tide-wall {
+    fill: none;
+    stroke: #75766f;
+    stroke-width: 13;
+}
+
+.preview-tide-pumps > g > circle:first-child {
+    fill: #282b29;
+    stroke: #898b82;
+    stroke-width: 5;
+}
+
+.preview-tide-pumps > g > circle:nth-child(2) {
+    fill: #111313;
+}
+
+.preview-tide-pumps path {
+    fill: #59605c;
+    animation: tide-preview-rotor 4s linear infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.preview-tide-gate rect {
+    fill: #7e5a44;
+    stroke: #b18361;
+    stroke-width: 2;
+    transform-box: fill-box;
+    transform-origin: top center;
+}
+
+.preview-tide-gate-a rect:first-child,
+.preview-tide-gate-b rect:first-child {
+    animation: tide-preview-gate 7s ease-in-out infinite;
+}
+
+.preview-tide-gate-a rect:last-child,
+.preview-tide-gate-b rect:last-child {
+    animation: tide-preview-gate-reverse 7s ease-in-out infinite;
+    transform-origin: bottom center;
+}
+
+.preview-tide-gate-b rect {
+    animation-delay: -3.5s !important;
+}
+
+.preview-tide-route {
+    fill: none;
+    stroke: rgba(210, 217, 91, 0.78);
+    stroke-dasharray: 8 11;
+    stroke-linecap: round;
+    stroke-width: 3;
+}
+
+.preview-tide-freight {
+    fill: #9a6a3d;
+    stroke: rgba(244, 222, 184, 0.55);
+    stroke-width: 2;
+}
+
+.preview-tide-car {
+    offset-path: path("M37 326C151 337 171 255 253 241S340 120 439 152s75 137 132 136 104-128 156-146");
+    animation: tide-preview-car 10s linear infinite;
+}
+
+.preview-tide-shadow {
+    fill: rgba(0, 0, 0, 0.45);
+    transform: translate(3px, 5px);
+}
+
+.preview-tide-wheel {
+    fill: #090b0b;
+}
+
+.preview-tide-body {
+    fill: #c3c7bf;
+    stroke: #e6e9e1;
+    stroke-width: 1.5;
+}
+
+.preview-tide-cab {
+    fill: #394442;
+    stroke: #a9b8b3;
+    stroke-width: 1.5;
+}
+
+@keyframes tide-preview-rotor {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes tide-preview-gate {
+    0%, 28%, 100% { transform: rotate(0); }
+    42%, 67% { transform: rotate(-67deg); }
+}
+
+@keyframes tide-preview-gate-reverse {
+    0%, 28%, 100% { transform: rotate(0); }
+    42%, 67% { transform: rotate(67deg); }
+}
+
+@keyframes tide-preview-car {
+    from { offset-distance: 0%; }
+    to { offset-distance: 100%; }
+}
+
+.tidelock-surface {
+    min-height: clamp(680px, 67vw, 900px);
+    background:
+        radial-gradient(circle at 50% 40%, rgba(70, 110, 109, 0.1), transparent 48%),
+        #101413;
+}
+
+#tidelock-svg {
+    min-width: 760px;
+    overflow: visible;
+}
+
+.tide-pipe-bank path,
+.tide-pipe-bank circle,
+.tide-pipe-bank rect {
+    fill: none;
+    stroke: #676d68;
+    stroke-width: 7;
+}
+
+.tide-pipe-bank path:nth-child(2),
+.tide-pipe-bank circle {
+    stroke: #987059;
+    stroke-width: 3;
+}
+
+.tide-submerged-floor path {
+    fill: none;
+    stroke: rgba(198, 218, 210, 0.13);
+    stroke-width: 3;
+}
+
+.tide-submerged-floor path:first-child {
+    stroke-dasharray: 7 11;
+    stroke-width: 2;
+}
+
+.tide-concrete-islands path {
+    fill: url(#tide-concrete-pattern);
+    stroke: #111514;
+    stroke-width: 7;
+}
+
+.tide-basin-walls path {
+    fill: none;
+    stroke: #797b73;
+    stroke-linecap: square;
+    stroke-width: 19;
+}
+
+.tide-basin-walls path::before {
+    stroke: #151817;
+}
+
+.tide-hazard-edges rect {
+    fill: url(#tide-hazard-pattern);
+    opacity: 0.76;
+}
+
+.tide-railings path {
+    fill: none;
+    stroke: #9b9d94;
+    stroke-linecap: round;
+    stroke-width: 2.2;
+    opacity: 0.76;
+}
+
+.tide-pump > rect {
+    fill: #2a2e2c;
+    stroke: #8c8e84;
+    stroke-width: 4;
+}
+
+.tide-pump-ring {
+    fill: #17201f;
+    stroke: #66716c;
+    stroke-width: 6;
+}
+
+.tide-pump-rotor {
+    animation: tide-pump-spin var(--tide-pump-speed, 1.4s) linear infinite;
+}
+
+.tide-pump-rotor-reverse {
+    animation-direction: reverse;
+}
+
+.tide-pump-rotor path {
+    fill: #68807a;
+    stroke: #b5c7c0;
+    stroke-width: 2;
+}
+
+.tide-pump-rotor circle {
+    fill: #111514;
+    stroke: #939b95;
+    stroke-width: 2;
+}
+
+.tide-pump-pipe {
+    fill: none;
+    stroke: #66716c;
+    stroke-width: 17;
+}
+
+@keyframes tide-pump-spin {
+    to { transform: rotate(360deg); }
+}
+
+.tide-route-line {
+    fill: none;
+    stroke: rgba(207, 216, 74, 0.64);
+    stroke-dasharray: 10 13;
+    stroke-linecap: round;
+    stroke-width: 4;
+}
+
+.tide-route-markers circle {
+    fill: #cad34b;
+    stroke: #1e231e;
+    stroke-width: 3;
+}
+
+.tide-current-arrows path {
+    fill: none;
+    stroke: rgba(208, 231, 224, 0.72);
+    stroke-dasharray: 12 14;
+    stroke-linecap: round;
+    marker-end: url(#tide-arrowhead);
+    animation: tide-current-travel var(--tide-current-speed, 1.3s) linear infinite;
+}
+
+.tide-current-arrows path:nth-child(2n) {
+    animation-delay: -0.62s;
+}
+
+@keyframes tide-current-travel {
+    to { stroke-dashoffset: -52; }
+}
+
+.tide-gate-assembly > circle {
+    fill: #252825;
+    stroke: #b58766;
+    stroke-width: 5;
+}
+
+.tide-gate-leaf {
+    transition: filter 130ms linear;
+}
+
+.tide-gate-leaf > rect {
+    fill: url(#tide-gate-gradient);
+    stroke: #1a1715;
+    stroke-width: 4;
+    filter: url(#tide-shadow);
+}
+
+.tide-gate-leaf > path:not(.tide-hydraulic-arm) {
+    fill: none;
+    stroke: #cca080;
+    stroke-width: 5;
+    opacity: 0.72;
+}
+
+.tide-hydraulic-arm {
+    fill: none;
+    stroke: #c3c7bf;
+    stroke-width: 7;
+}
+
+.tide-gate-label rect {
+    fill: #151817;
+    stroke: rgba(229, 230, 219, 0.25);
+    stroke-width: 2;
+}
+
+.tide-gate-label text,
+.tide-depth-gauges text,
+.tide-entry-sign text,
+.tide-finish text {
+    fill: #e7e8e1;
+    font-family: "General Sans", sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+}
+
+.tide-depth-gauges rect {
+    fill: rgba(16, 20, 19, 0.84);
+    stroke: rgba(218, 224, 214, 0.2);
+    stroke-width: 1.5;
+}
+
+.tide-depth-gauges text {
+    fill: #c7d6d1;
+    font-size: 9px;
+}
+
+.tide-drains rect {
+    fill: #1d2422;
+    stroke: #67716d;
+    stroke-width: 3;
+}
+
+.tide-drains path {
+    fill: none;
+    stroke: #78817c;
+    stroke-width: 2;
+}
+
+.tide-entry-sign path {
+    fill: none;
+    stroke: #a8aaa0;
+    stroke-width: 4;
+}
+
+.tide-entry-sign rect {
+    fill: #1a1d1c;
+    stroke: #a8aaa0;
+    stroke-width: 2;
+}
+
+.tide-finish > circle:nth-child(2) {
+    fill: #17201b;
+    stroke: #c5cf43;
+    stroke-width: 4;
+}
+
+.tide-finish > path {
+    fill: #d3dc4b;
+}
+
+.tide-finish-pulse {
+    fill: none;
+    stroke: rgba(199, 211, 68, 0.6);
+    stroke-width: 3;
+    animation: tide-finish-pulse 2s ease-out infinite;
+    transform-origin: center;
+}
+
+@keyframes tide-finish-pulse {
+    0% { opacity: 0.7; transform: scale(0.65); }
+    100% { opacity: 0; transform: scale(1.35); }
+}
+
+.tide-freight {
+    filter: url(#tide-shadow);
+    transition: opacity 160ms ease;
+}
+
+.tide-freight-drum {
+    filter: url(#tide-shadow) saturate(0.9);
+}
+
+.tide-wake path {
+    fill: none;
+    stroke: rgba(221, 237, 231, 0.72);
+    stroke-linecap: round;
+    stroke-width: 4;
+}
+
+.tide-carrier-wheel {
+    fill: #090b0b;
+    stroke: #545954;
+    stroke-width: 2;
+}
+
+.tide-carrier-body {
+    fill: url(#tide-car-gradient);
+    stroke: #eff0e8;
+    stroke-width: 2.2;
+}
+
+.tide-carrier-bumper {
+    fill: none;
+    stroke: #d4b04c;
+    stroke-width: 5;
+}
+
+.tide-carrier-deck {
+    fill: #394441;
+    stroke: #1a211f;
+    stroke-width: 3;
+}
+
+.tide-carrier-glass {
+    fill: #193337;
+    stroke: #a7c5bf;
+    stroke-width: 2;
+}
+
+.tide-carrier-load {
+    fill: #8a6446;
+    stroke: #d1a477;
+    stroke-width: 1.5;
+}
+
+.tide-carrier-beacon {
+    fill: #e9b24f;
+    stroke: #fff0ae;
+    stroke-width: 1.5;
+    animation: tide-beacon 0.8s steps(2, end) infinite;
+}
+
+.tide-carrier-chevron {
+    fill: none;
+    stroke: #cfda49;
+    stroke-width: 3;
+}
+
+@keyframes tide-beacon {
+    50% { opacity: 0.24; }
+}
+
+.tide-impact-ring circle {
+    fill: none;
+    stroke: #e2a15c;
+    stroke-width: 4;
+}
+
+.tide-impact-ring circle:last-child {
+    stroke-dasharray: 5 7;
+}
+
+#tidelock-svg[data-result="detained"] .tide-carrier-body,
+#tidelock-svg[data-result="swept"] .tide-carrier-body {
+    stroke: #ced94c;
+    filter: url(#tide-soft-glow);
+}
+
+#tidelock-svg[data-result="escaped"] .tide-carrier-body {
+    stroke: #e26357;
+}
+
+.tide-objective {
+    position: absolute;
+    top: 22px;
+    right: 22px;
+    display: grid;
+    width: min(290px, calc(100% - 44px));
+    padding: 14px 17px 15px;
+    border: 1px solid rgba(230, 231, 222, 0.13);
+    border-radius: 15px;
+    background: rgba(13, 16, 15, 0.87);
+    backdrop-filter: blur(12px);
+}
+
+.tide-objective span {
+    color: var(--lime);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.tide-objective strong {
+    margin-top: 5px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+.tide-objective small {
+    margin-top: 4px;
+    color: var(--text-faint);
+    font-size: 9px;
+}
+
+.tidelock-readout {
+    top: 22px;
+    left: 22px;
+}
+
+.tidelock-readout div {
+    position: relative;
+    overflow: hidden;
+    min-width: 112px;
+}
+
+.tidelock-readout div::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--lime) 0 var(--tide-delay, 0%), transparent var(--tide-delay, 0%));
+    content: "";
+}
+
+.tidelock-readout div.is-success {
+    background: rgba(182, 189, 50, 0.12);
+}
+
+.tidelock-readout div.is-failure {
+    background: rgba(226, 78, 73, 0.12);
+}
+
+.legend-tide-carrier {
+    border-radius: 2px;
+    background: #c5c9c0;
+    box-shadow: inset 0 0 0 1px #eff0e8;
+}
+
+.legend-tide-gate {
+    background: #8a654d;
+    transform: rotate(35deg);
+}
+
+.legend-tide-current {
+    border-top: 2px solid #bad7d0;
+    border-right: 2px solid #bad7d0;
+    transform: rotate(45deg);
+}
+
+.legend-tide-freight {
+    border: 1px solid #d2a06a;
+    border-radius: 2px;
+    background: #91633b;
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+    .tidelock-page .parameter-list {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .tidelock-page .parameter-row:nth-child(-n + 3) {
+        border-bottom: 1px solid var(--rule);
+    }
+
+    .tidelock-page .parameter-row:nth-child(3),
+    .tidelock-page .parameter-row:nth-child(6) {
+        border-right: 0;
+    }
+}
+
+@media (max-width: 900px) {
+    .tidelock-surface {
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    #tidelock-svg {
+        width: 920px;
+    }
+}
+
+@media (max-width: 670px) {
+    .tidelock-surface {
+        min-height: 610px;
+    }
+
+    .tide-objective {
+        top: 91px;
+        right: auto;
+        left: 12px;
+        width: 270px;
+    }
+
+    .tidelock-readout {
+        top: 12px;
+        left: 12px;
+    }
+
+    .tidelock-readout div {
+        min-width: 92px;
+    }
+
+    .tidelock-page .surface-legend {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        max-width: 340px;
+        border-radius: 16px;
     }
 }
 
