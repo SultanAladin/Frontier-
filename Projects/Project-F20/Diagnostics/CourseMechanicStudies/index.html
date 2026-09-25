@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=ringfall-r1">
+    <link rel="stylesheet" href="styles.css?v=dead-signal-r1">
 </head>
 <body>
     <div class="publication-shell">
@@ -26,9 +26,10 @@
                 <a href="#beachhead" data-page="beachhead">Beachhead</a>
                 <a href="#shunt" data-page="shunt">Shunt</a>
                 <a href="#ringfall" data-page="ringfall">Ringfall</a>
+                <a href="#dead-signal" data-page="dead-signal">Dead Signal</a>
             </nav>
 
-            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—07</p>
+            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—08</p>
         </header>
 
         <main>
@@ -36,7 +37,7 @@
                 <div class="index-intro">
                     <p class="section-kicker">Field mechanics / Volume 01</p>
                     <h1 id="index-title">Index</h1>
-                    <p class="index-deck">Seven focused studies for systemic course mechanics.</p>
+                    <p class="index-deck">Eight focused studies for systemic course mechanics.</p>
                 </div>
 
                 <a class="chapter-entry" href="#iron-tide" data-page="iron-tide" aria-label="Open Iron Tide study">
@@ -294,6 +295,35 @@
                             <path class="preview-ringfall-finish" d="M395 194v52M369 220h52"/>
                         </svg>
                         <span class="diagram-caption">Twenty-four-car collapse race</span>
+                    </div>
+                </a>
+
+                <a class="chapter-entry chapter-entry-dead-signal" href="#dead-signal" data-page="dead-signal" aria-label="Open Dead Signal study">
+                    <div class="entry-copy">
+                        <p class="entry-number">08</p>
+                        <div>
+                            <p class="entry-label">Momentum-elimination race study</p>
+                            <h2>Dead Signal</h2>
+                            <p>Twenty-four racers sprint between mandatory stop phases. A descending scan curtain reads remaining wheel movement while late braking and rear impacts eliminate cars before the finish.</p>
+                        </div>
+                        <span class="entry-link">Open study <b aria-hidden="true">↗</b></span>
+                    </div>
+
+                    <div class="index-diagram dead-signal-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 760 440" role="img">
+                            <defs><linearGradient id="dead-signal-road-preview" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b4e48"/><stop offset="1" stop-color="#242824"/></linearGradient></defs>
+                            <path class="preview-dead-signal-void" d="M0 0h760v440H0z"/>
+                            <path class="preview-dead-signal-road" d="M172-30h416l82 500H90z"/>
+                            <path class="preview-dead-signal-lanes" d="M276-20 244 450M380-20v470M484-20l32 470"/>
+                            <g class="preview-dead-signal-arch"><path d="M163 91h434M178 91v77M582 91v77"/><rect x="337" y="66" width="86" height="50"/><circle cx="359" cy="91" r="9"/><circle cx="401" cy="91" r="9"/></g>
+                            <path class="preview-dead-signal-scan" d="M127 278h506"/>
+                            <g class="preview-dead-signal-cars">
+                                <g transform="translate(259 338)"><rect x="-19" y="-31" width="38" height="62"/></g><g transform="translate(337 352)"><rect x="-19" y="-31" width="38" height="62"/></g><g transform="translate(424 319)"><rect x="-19" y="-31" width="38" height="62"/></g><g transform="translate(512 363)"><rect x="-19" y="-31" width="38" height="62"/></g><g transform="translate(300 231)"><rect x="-17" y="-28" width="34" height="56"/></g><g transform="translate(454 217)"><rect x="-17" y="-28" width="34" height="56"/></g>
+                                <g class="preview-dead-signal-player" transform="translate(381 264)"><rect x="-21" y="-34" width="42" height="68"/></g>
+                            </g>
+                            <path class="preview-dead-signal-finish" d="M204 25h352"/>
+                        </svg>
+                        <span class="diagram-caption">Stop before the scan reaches you</span>
                     </div>
                 </a>
             </section>
@@ -1474,6 +1504,131 @@
                     </article>
                 </section>
             </section>
+            <section class="page dead-signal-page" id="dead-signal" aria-labelledby="dead-signal-title" hidden>
+                <header class="chapter-heading">
+                    <div>
+                        <p class="section-kicker">08 / Stop-phase elimination race</p>
+                        <h1 id="dead-signal-title">Dead Signal</h1>
+                    </div>
+                    <p>Twenty-four drivers race a monumental causeway where speed is only legal during the open signal. When the warning sounds, every vehicle must arrest its real momentum before the descending scan curtain reaches it.</p>
+                </header>
+
+                <div class="study-layout dead-signal-study-layout">
+                    <article class="simulation-card dead-signal-simulation-card" aria-labelledby="dead-signal-simulation-title">
+                        <header class="card-heading dead-signal-card-heading">
+                            <div>
+                                <p class="card-eyebrow">Live race · The Pale Causeway / Selection Heat 08</p>
+                                <h2 id="dead-signal-simulation-title">Momentum judgement straight</h2>
+                            </div>
+                            <div class="dead-signal-card-actions">
+                                <p class="live-marker"><span></span> Twenty-four starters</p>
+                                <button class="ride-button" id="dead-signal-reset" type="button">Restart heat</button>
+                            </div>
+                        </header>
+
+                        <div class="simulation-surface dead-signal-surface">
+                            <canvas id="dead-signal-canvas" aria-label="Directly controlled race where vehicles must stop before recurring scan curtains detect remaining movement"></canvas>
+
+                            <div class="dead-signal-objective" aria-hidden="true">
+                                <span>Heat rule / 08</span>
+                                <strong>Race on OPEN. Brake on WARNING. Be completely stationary when the scan reaches your vehicle.</strong>
+                                <small>Wheel movement, collision momentum and downhill coast all count.</small>
+                            </div>
+
+                            <div class="surface-readout dead-signal-readout" aria-live="polite">
+                                <div><span>Position</span><strong id="dead-signal-position-readout">24 / 24</strong></div>
+                                <div><span>Signal</span><strong id="dead-signal-phase-readout">Open</strong></div>
+                                <div><span>Road speed</span><strong id="dead-signal-speed-readout">0 km/h</strong></div>
+                                <div><span>Brake condition</span><strong id="dead-signal-brake-readout">Cold</strong></div>
+                                <div><span>Heat status</span><strong id="dead-signal-result-readout">Racing</strong></div>
+                            </div>
+
+                            <div class="dead-signal-judgement" aria-hidden="true">
+                                <span>Scan arrival</span>
+                                <strong id="dead-signal-scan-arrival">—</strong>
+                                <i><b id="dead-signal-stop-bar"></b></i>
+                                <small id="dead-signal-judgement-copy">Movement permitted</small>
+                            </div>
+
+                            <div class="dead-signal-drive-controls" aria-label="Vehicle controls">
+                                <button type="button" data-dead-signal-control="left" aria-label="Steer left">←</button>
+                                <button type="button" data-dead-signal-control="throttle" aria-label="Accelerate">Accelerate</button>
+                                <button type="button" data-dead-signal-control="brake" aria-label="Brake or reverse">Brake</button>
+                                <button type="button" data-dead-signal-control="right" aria-label="Steer right">→</button>
+                                <small>W / ↑ accelerate&nbsp;&nbsp; S / ↓ brake&nbsp;&nbsp; A D / ← → steer</small>
+                            </div>
+
+                            <div class="surface-legend" aria-hidden="true">
+                                <span><i class="legend-dead-signal-player"></i>Player</span>
+                                <span><i class="legend-dead-signal-rival"></i>Rivals</span>
+                                <span><i class="legend-dead-signal-scan"></i>Scan curtain</span>
+                                <span><i class="legend-dead-signal-plate"></i>Release plate</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <aside class="parameter-card dead-signal-parameter-card" aria-labelledby="dead-signal-parameter-title">
+                        <header class="parameter-heading">
+                            <p class="card-eyebrow">Vehicle and signal physics</p>
+                            <h2 id="dead-signal-parameter-title">Heat configuration</h2>
+                            <p>Drive directly. Mass, torque, braking and grip determine how much momentum remains when the warning expires.</p>
+                        </header>
+
+                        <div class="parameter-list dead-signal-parameters">
+                            <label class="parameter-row" for="dead-signal-mass"><span class="parameter-name">Vehicle mass</span><output id="dead-signal-mass-output" for="dead-signal-mass">1,550 kg</output><input id="dead-signal-mass" type="range" min="850" max="2800" value="1550" step="50"><span class="range-ends"><small>Light</small><small>Heavy</small></span></label>
+                            <label class="parameter-row" for="dead-signal-torque"><span class="parameter-name">Engine torque</span><output id="dead-signal-torque-output" for="dead-signal-torque">78%</output><input id="dead-signal-torque" type="range" min="35" max="100" value="78" step="1"><span class="range-ends"><small>Controlled</small><small>Maximum</small></span></label>
+                            <label class="parameter-row" for="dead-signal-brakes"><span class="parameter-name">Brake pressure</span><output id="dead-signal-brakes-output" for="dead-signal-brakes">72%</output><input id="dead-signal-brakes" type="range" min="25" max="100" value="72" step="1"><span class="range-ends"><small>Long stop</small><small>Race brake</small></span></label>
+                            <label class="parameter-row" for="dead-signal-grip"><span class="parameter-name">Tyre grip</span><output id="dead-signal-grip-output" for="dead-signal-grip">0.88 µ</output><input id="dead-signal-grip" type="range" min="45" max="120" value="88" step="1"><span class="range-ends"><small>Slide</small><small>Loaded</small></span></label>
+                            <label class="parameter-row" for="dead-signal-warning"><span class="parameter-name">Warning duration</span><output id="dead-signal-warning-output" for="dead-signal-warning">1.4 s</output><input id="dead-signal-warning" type="range" min="6" max="28" value="14" step="1"><span class="range-ends"><small>0.6 s</small><small>2.8 s</small></span></label>
+                        </div>
+                    </aside>
+                </div>
+
+                <section class="study-notes" aria-label="Dead Signal concept notes">
+                    <article>
+                        <p class="note-number">01</p>
+                        <h2>Mechanics</h2>
+                        <ol>
+                            <li><strong>The player races directly.</strong> Throttle, steering and braking remain fully controllable. The finish is always forward; every mandatory stop costs real race position.</li>
+                            <li><strong>The warning tests stopping distance.</strong> Mass, road speed, tyre grip, brake pressure and accumulated heat determine whether the vehicle can become stationary before judgement.</li>
+                            <li><strong>The scanner reads motion, not input.</strong> Releasing the throttle is insufficient. Wheel speed, downhill coast, lateral sliding and collision impulse are all measured when the curtain crosses the car.</li>
+                            <li><strong>Other racers remain physical.</strong> A stopped vehicle can be rear-ended and pushed back above the motion threshold. Drivers must consider where they stop as well as when.</li>
+                            <li><strong>Elimination changes the road.</strong> A detected vehicle's support plate unlocks and tilts it out of the heat, leaving a temporary opening and debris for racers behind.</li>
+                            <li><strong>Brakes retain heat.</strong> Repeated emergency stops reduce available pressure. A setup that survives the first signal may require earlier braking during the final sector.</li>
+                        </ol>
+                    </article>
+
+                    <article>
+                        <p class="note-number">02</p>
+                        <h2>Features</h2>
+                        <ul>
+                            <li>Direct keyboard and pointer driving</li>
+                            <li>Twenty-four simultaneous race vehicles</li>
+                            <li>Large camera-followed monumental causeway</li>
+                            <li>Open, warning, scan and release signal phases</li>
+                            <li>Descending physical scan curtain</li>
+                            <li>Momentum-based movement judgement</li>
+                            <li>Rival reaction times and braking failures</li>
+                            <li>Rear impacts during mandatory stops</li>
+                            <li>Brake temperature and fade</li>
+                            <li>Tilting road-plate eliminations</li>
+                        </ul>
+                    </article>
+
+                    <article>
+                        <p class="note-number">03</p>
+                        <h2>Ideas</h2>
+                        <ul>
+                            <li><strong>False warning.</strong> Some signals can begin an amber phase and return to open, punishing drivers who surrender speed too early.</li>
+                            <li><strong>Multiple curtains.</strong> Later heats can scan front-to-back and back-to-front simultaneously, leaving a narrow moving safe region.</li>
+                            <li><strong>Draft pressure.</strong> Slipstreaming improves acceleration but gives the following driver less visibility and braking distance.</li>
+                            <li><strong>Damaged brakes.</strong> Contact with lane walls or release plates can permanently bias braking to one side.</li>
+                            <li><strong>Signal camouflage.</strong> Dust and eliminated vehicles can obscure low-mounted warning lamps without hiding the primary overhead signal.</li>
+                            <li><strong>Final judgement.</strong> The last scan can begin with the finish already visible, forcing leaders to choose between stopping safely and attempting to finish before the curtain arrives.</li>
+                        </ul>
+                    </article>
+                </section>
+            </section>
         </main>
     </div>
 
@@ -1482,6 +1637,7 @@
     <script src="beachhead.js?v=beachhead-r4"></script>
     <script src="shunt.js?v=shunt-r2"></script>
     <script src="ringfall.js?v=ringfall-r1"></script>
-    <script src="app.js?v=ringfall-r1"></script>
+    <script src="dead-signal.js?v=dead-signal-r1"></script>
+    <script src="app.js?v=dead-signal-r1"></script>
 </body>
 </html>
