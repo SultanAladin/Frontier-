@@ -535,7 +535,8 @@ a {
 #compression-run-canvas,
 #blind-monument-canvas,
 #demolition-canvas,
-#longwall-canvas {
+#longwall-canvas,
+#crop-sea-canvas {
     display: block;
     width: 100%;
     height: 100%;
@@ -4468,3 +4469,54 @@ a {
 @media (max-width:1180px){.demolition-surface,.longwall-surface{min-height:860px}.demolition-card-actions .live-marker,.longwall-card-actions .live-marker{display:none}}
 @media (max-width:900px){.demolition-readout div:nth-child(n+4),.longwall-readout div:nth-child(n+4){display:none}.demolition-system-band,.longwall-system-band{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:670px){.demolition-card-heading,.longwall-card-heading{align-items:flex-start}.demolition-card-actions,.longwall-card-actions{flex-wrap:wrap;justify-content:flex-end}.demolition-card-actions #demolition-overview,.longwall-card-actions #longwall-overview{display:none}.demolition-surface,.longwall-surface{min-height:720px}.demolition-objective,.longwall-objective{top:90px;right:auto;left:12px;width:calc(100% - 24px)}.demolition-readout,.longwall-readout{top:12px;left:12px}.demolition-readout div,.longwall-readout div{min-width:82px;padding:10px}.demolition-integrity,.longwall-charge-panel{display:none}.demolition-drive-controls,.longwall-drive-controls{left:12px;bottom:12px;transform:none}.demolition-run-page .surface-legend,.longwall-page .surface-legend{display:none}.demolition-system-band,.longwall-system-band{grid-template-columns:1fr}.demolition-system-band article,.longwall-system-band article{min-height:148px}}
+
+/* Chapter 13 — The Crop Sea */
+.crop-sea-study-layout { display:grid; gap:0; }
+.crop-sea-simulation-card { overflow:hidden; border:1px solid var(--rule); background:#10120e; }
+.crop-sea-card-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:23px 24px; border-bottom:1px solid var(--rule); }
+.crop-sea-card-actions { display:flex; align-items:center; gap:8px; }
+.crop-sea-surface { position:relative; min-height:940px; overflow:hidden; background:#171a12; }
+.crop-sea-objective { position:absolute; z-index:3; top:24px; right:24px; width:min(340px,35%); padding:15px 17px 14px; border:1px solid rgba(233,226,202,.15); border-radius:3px; background:rgba(12,14,9,.91); backdrop-filter:blur(12px); }
+.crop-sea-objective span,.crop-sea-objective strong,.crop-sea-objective small { display:block; }
+.crop-sea-objective span { color:#c29f4c; font-size:8px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; }
+.crop-sea-objective strong { margin-top:7px; color:var(--text-soft); font-size:11px; font-weight:450; line-height:1.46; }
+.crop-sea-objective small { margin-top:6px; color:var(--text-faint); font-size:9px; line-height:1.45; }
+.crop-sea-readout { z-index:3; top:24px; left:24px; border-radius:3px; background:rgba(9,11,7,.92); }
+.crop-sea-readout div { min-width:105px; padding:12px 14px 11px; }
+.crop-sea-readout strong { font-size:15px; white-space:nowrap; }
+.crop-sea-intake { position:absolute; z-index:3; bottom:24px; left:24px; width:278px; padding:13px 15px 12px; border:1px solid rgba(232,226,211,.14); border-radius:3px; background:rgba(8,10,7,.91); backdrop-filter:blur(12px); }
+.crop-sea-intake > span,.crop-sea-intake > strong,.crop-sea-intake > small { display:block; }
+.crop-sea-intake > span { color:var(--text-faint); font-size:8px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; }
+.crop-sea-intake > strong { margin-top:4px; color:var(--text-soft); font-size:18px; font-weight:400; }
+.crop-sea-intake > i { display:block; height:4px; margin:10px 0 8px; overflow:hidden; background:rgba(230,227,216,.1); }
+.crop-sea-intake b { display:block; width:0; height:100%; background:#b49a48; transition:width 80ms linear; }
+.crop-sea-intake > small { color:var(--text-faint); font-size:7px; letter-spacing:.07em; text-transform:uppercase; }
+.crop-sea-drive-controls { position:absolute; z-index:5; bottom:23px; left:50%; display:grid; grid-template-columns:46px 86px 68px 46px; gap:6px; padding:9px; border:1px solid rgba(232,227,214,.13); border-radius:3px; background:rgba(8,10,7,.91); transform:translateX(-50%); backdrop-filter:blur(12px); }
+.crop-sea-drive-controls button { min-height:35px; padding:7px 8px; border:1px solid rgba(235,231,220,.13); border-radius:2px; background:#1a1d14; color:var(--text-soft); font-size:9px; cursor:pointer; user-select:none; touch-action:none; }
+.crop-sea-drive-controls button:hover,.crop-sea-drive-controls button.is-pressed { border-color:rgba(194,159,76,.8); background:#33301d; color:#eadba7; }
+.crop-sea-drive-controls small { grid-column:1/-1; color:var(--text-faint); font-size:7px; text-align:center; white-space:nowrap; }
+.crop-sea-page .surface-legend { z-index:3; border:1px solid rgba(231,226,213,.11); border-radius:3px; background:rgba(8,10,7,.88); }
+.legend-crop-player { border:1px solid #efda9a; background:#c7a54a; }
+.legend-crop-cut { background:#705b2f; }
+.legend-crop-machine { border:1px solid #d1b55e; background:#a4812e; }
+.legend-crop-grain { border-radius:50%; background:#a78b4d; }
+.crop-sea-system-band { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--rule); border-left:1px solid var(--rule); }
+.crop-sea-system-band article { min-height:182px; padding:25px 24px 24px; border-right:1px solid var(--rule); border-bottom:1px solid var(--rule); background:#11130e; }
+.crop-sea-system-band article:nth-child(even) { background:#10120e; }
+.crop-sea-system-band span { display:block; color:#af943e; font-size:8px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; }
+.crop-sea-system-band strong { display:block; min-height:2.3em; margin:12px 0 10px; color:var(--text); font-family:"Clash Display",sans-serif; font-size:20px; font-weight:400; line-height:1.15; }
+.crop-sea-system-band p { color:var(--text-faint); font-size:10px; line-height:1.55; }
+.crop-sea-diagram { background:#34351b; }
+.preview-crop-field { fill:#69672e; }
+.preview-crop-rows { fill:none; stroke:#4a4a20; stroke-width:11; }
+.preview-crop-cut { fill:none; stroke:#9a7f45; stroke-width:96; opacity:.92; }
+.preview-crop-harvesters rect { fill:#a4812e; stroke:#d4ba64; stroke-width:4; filter:drop-shadow(6px 8px 4px rgba(0,0,0,.45)); }
+.preview-crop-harvesters path { fill:none; stroke:#d4ba64; stroke-width:7; }
+.preview-crop-pivot { fill:none; stroke:#a9aa9b; stroke-width:9; stroke-linecap:round; transform-origin:381px 221px; animation:preview-crop-pivot 13s linear infinite; }
+.preview-crop-cars rect { fill:#737a71; stroke:#c1c5b8; stroke-width:2; }
+.preview-crop-cars .preview-crop-player { fill:#bea047; stroke:#eddda8; stroke-width:3; animation:preview-crop-car 3s ease-in-out infinite alternate; }
+@keyframes preview-crop-pivot { to { transform:rotate(360deg); } }
+@keyframes preview-crop-car { to { transform:translate(12px,-24px); } }
+@media (max-width:1180px){.crop-sea-surface{min-height:860px}.crop-sea-card-actions .live-marker{display:none}}
+@media (max-width:900px){.crop-sea-readout div:nth-child(n+4){display:none}.crop-sea-system-band{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:670px){.crop-sea-card-heading{align-items:flex-start}.crop-sea-card-actions{flex-wrap:wrap;justify-content:flex-end}.crop-sea-card-actions #crop-sea-overview{display:none}.crop-sea-surface{min-height:720px}.crop-sea-objective{top:90px;right:auto;left:12px;width:calc(100% - 24px)}.crop-sea-readout{top:12px;left:12px}.crop-sea-readout div{min-width:82px;padding:10px}.crop-sea-intake{display:none}.crop-sea-drive-controls{left:12px;bottom:12px;transform:none}.crop-sea-page .surface-legend{display:none}.crop-sea-system-band{grid-template-columns:1fr}.crop-sea-system-band article{min-height:148px}}
