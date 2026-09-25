@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=dead-signal-r1">
+    <link rel="stylesheet" href="styles.css?v=compression-run-r1">
 </head>
 <body>
     <div class="publication-shell">
@@ -27,9 +27,10 @@
                 <a href="#shunt" data-page="shunt">Shunt</a>
                 <a href="#ringfall" data-page="ringfall">Ringfall</a>
                 <a href="#dead-signal" data-page="dead-signal">Dead Signal</a>
+                <a href="#compression-run" data-page="compression-run">Compression Run</a>
             </nav>
 
-            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—08</p>
+            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—09</p>
         </header>
 
         <main>
@@ -37,7 +38,7 @@
                 <div class="index-intro">
                     <p class="section-kicker">Field mechanics / Volume 01</p>
                     <h1 id="index-title">Index</h1>
-                    <p class="index-deck">Eight focused studies for systemic course mechanics.</p>
+                    <p class="index-deck">Nine focused studies for systemic course mechanics.</p>
                 </div>
 
                 <a class="chapter-entry" href="#iron-tide" data-page="iron-tide" aria-label="Open Iron Tide study">
@@ -324,6 +325,36 @@
                             <path class="preview-dead-signal-finish" d="M204 25h352"/>
                         </svg>
                         <span class="diagram-caption">Stop before the scan reaches you</span>
+                    </div>
+                </a>
+
+                <a class="chapter-entry chapter-entry-compression" href="#compression-run" data-page="compression-run" aria-label="Open Compression Run study">
+                    <div class="entry-copy">
+                        <p class="entry-number">09</p>
+                        <div>
+                            <p class="entry-label">Pack-shaped elimination race study</p>
+                            <h2>Compression Run</h2>
+                            <p>Eight lanes contract toward one. At every checkpoint, the pack's least-occupied lane peels away while moving sidewalls force the surviving field into an increasingly narrow race.</p>
+                        </div>
+                        <span class="entry-link">Open study <b aria-hidden="true">↗</b></span>
+                    </div>
+
+                    <div class="index-diagram compression-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 760 440" role="img">
+                            <defs><linearGradient id="compression-road-preview" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#5e625c"/><stop offset="1" stop-color="#292e2a"/></linearGradient></defs>
+                            <rect class="preview-compression-void" width="760" height="440"/>
+                            <path class="preview-compression-road" d="M73 462h614L474-25H286z"/>
+                            <g class="preview-compression-lanes"><path d="M150 450 314-20M227 450 331-20M304 450 348-20M381 450 365-20M458 450 382-20M535 450 399-20M612 450 416-20"/></g>
+                            <path class="preview-compression-wall preview-compression-wall-left" d="M45 454 266-26"/>
+                            <path class="preview-compression-wall preview-compression-wall-right" d="M715 454 494-26"/>
+                            <path class="preview-compression-peel" d="M535 450 399-20 416-20 612 450z"/>
+                            <g class="preview-compression-cars">
+                                <g transform="translate(176 370)"><rect x="-15" y="-26" width="30" height="52"/></g><g transform="translate(258 392)"><rect x="-15" y="-26" width="30" height="52"/></g><g transform="translate(340 350)"><rect x="-15" y="-26" width="30" height="52"/></g><g transform="translate(423 384)"><rect x="-15" y="-26" width="30" height="52"/></g><g transform="translate(503 342)"><rect x="-15" y="-26" width="30" height="52"/></g><g transform="translate(570 401)"><rect x="-15" y="-26" width="30" height="52"/></g><g transform="translate(322 257)"><rect x="-13" y="-23" width="26" height="46"/></g><g transform="translate(401 231)"><rect x="-13" y="-23" width="26" height="46"/></g>
+                                <g class="preview-compression-player" transform="translate(380 301)"><rect x="-17" y="-29" width="34" height="58"/></g>
+                            </g>
+                            <path class="preview-compression-finish" d="M297 26h166"/>
+                        </svg>
+                        <span class="diagram-caption">The pack decides which lane survives</span>
                     </div>
                 </a>
             </section>
@@ -1629,6 +1660,139 @@
                     </article>
                 </section>
             </section>
+            <section class="page compression-run-page" id="compression-run" aria-labelledby="compression-run-title" hidden>
+                <header class="chapter-heading">
+                    <div>
+                        <p class="section-kicker">09 / Pack-shaped elimination race</p>
+                        <h1 id="compression-run-title">Compression Run</h1>
+                    </div>
+                    <p>Twenty-four drivers begin across eight parallel lanes. Every checkpoint removes the lane the pack occupies least, while colossal sidewalls close the surviving road toward a one-lane final sprint.</p>
+                </header>
+
+                <div class="study-layout compression-run-study-layout">
+                    <article class="simulation-card compression-run-simulation-card" aria-labelledby="compression-run-simulation-title">
+                        <header class="card-heading compression-run-card-heading">
+                            <div>
+                                <p class="card-eyebrow">Live race · The Closing Mile / Selection Heat 09</p>
+                                <h2 id="compression-run-simulation-title">Pack-defined compression course</h2>
+                            </div>
+                            <div class="compression-run-card-actions">
+                                <p class="live-marker"><span></span> Twenty-four starters</p>
+                                <button class="ride-button" id="compression-run-reset" type="button">Restart heat</button>
+                            </div>
+                        </header>
+
+                        <div class="simulation-surface compression-run-surface">
+                            <canvas id="compression-run-canvas" aria-label="Directly controlled race where moving sidewalls compress eight lanes toward one and the least occupied lane peels away"></canvas>
+
+                            <div class="compression-run-objective" aria-hidden="true">
+                                <span>Heat rule / 09</span>
+                                <strong>Occupy a lane to protect it. Leave the least-used strip before it peels away. Survive every merge and reach the finish.</strong>
+                                <small>The census reads the physical position of all remaining cars.</small>
+                            </div>
+
+                            <div class="surface-readout compression-run-readout" aria-live="polite">
+                                <div><span>Position</span><strong id="compression-run-position-readout">24 / 24</strong></div>
+                                <div><span>Lanes live</span><strong id="compression-run-lanes-readout">08</strong></div>
+                                <div><span>Compression</span><strong id="compression-run-chamber-readout">Approach 01</strong></div>
+                                <div><span>Road speed</span><strong id="compression-run-speed-readout">0 km/h</strong></div>
+                                <div><span>Heat status</span><strong id="compression-run-result-readout">Racing</strong></div>
+                            </div>
+
+                            <div class="compression-run-census" aria-hidden="true">
+                                <div class="compression-run-census-heading"><span>Live lane census</span><strong id="compression-run-selection-readout">No lane selected</strong></div>
+                                <div class="compression-run-census-bars" id="compression-run-census-bars">
+                                    <i data-lane="1"><b></b><small>1</small></i><i data-lane="2"><b></b><small>2</small></i><i data-lane="3"><b></b><small>3</small></i><i data-lane="4"><b></b><small>4</small></i><i data-lane="5"><b></b><small>5</small></i><i data-lane="6"><b></b><small>6</small></i><i data-lane="7"><b></b><small>7</small></i><i data-lane="8"><b></b><small>8</small></i>
+                                </div>
+                                <p id="compression-run-census-copy">The first checkpoint is reading the pack.</p>
+                            </div>
+
+                            <div class="compression-run-clearance" aria-hidden="true">
+                                <span>Nearest wall</span>
+                                <strong id="compression-run-clearance-readout">432 cm</strong>
+                                <i><b id="compression-run-clearance-bar"></b></i>
+                                <small id="compression-run-clearance-copy">Full road width</small>
+                            </div>
+
+                            <div class="compression-run-drive-controls" aria-label="Vehicle controls">
+                                <button type="button" data-compression-run-control="left" aria-label="Steer left">←</button>
+                                <button type="button" data-compression-run-control="throttle" aria-label="Accelerate">Accelerate</button>
+                                <button type="button" data-compression-run-control="brake" aria-label="Brake or reverse">Brake</button>
+                                <button type="button" data-compression-run-control="right" aria-label="Steer right">→</button>
+                                <small>W / ↑ accelerate&nbsp;&nbsp; S / ↓ brake&nbsp;&nbsp; A D / ← → steer</small>
+                            </div>
+
+                            <div class="surface-legend" aria-hidden="true">
+                                <span><i class="legend-compression-player"></i>Player</span>
+                                <span><i class="legend-compression-rival"></i>Pack</span>
+                                <span><i class="legend-compression-wall"></i>Closing wall</span>
+                                <span><i class="legend-compression-peel"></i>Selected lane</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <aside class="parameter-card compression-run-parameter-card" aria-labelledby="compression-run-parameter-title">
+                        <header class="parameter-heading">
+                            <p class="card-eyebrow">Vehicle and course physics</p>
+                            <h2 id="compression-run-parameter-title">Compression configuration</h2>
+                            <p>Drive directly. Vehicle setup determines whether the car can change lanes under load, absorb contact and escape a moving wall.</p>
+                        </header>
+
+                        <div class="parameter-list compression-run-parameters">
+                            <label class="parameter-row" for="compression-run-mass"><span class="parameter-name">Vehicle mass</span><output id="compression-run-mass-output" for="compression-run-mass">1,600 kg</output><input id="compression-run-mass" type="range" min="900" max="2800" value="1600" step="50"><span class="range-ends"><small>Agile</small><small>Forceful</small></span></label>
+                            <label class="parameter-row" for="compression-run-torque"><span class="parameter-name">Engine torque</span><output id="compression-run-torque-output" for="compression-run-torque">76%</output><input id="compression-run-torque" type="range" min="35" max="100" value="76" step="1"><span class="range-ends"><small>Controlled</small><small>Maximum</small></span></label>
+                            <label class="parameter-row" for="compression-run-brakes"><span class="parameter-name">Brake pressure</span><output id="compression-run-brakes-output" for="compression-run-brakes">70%</output><input id="compression-run-brakes" type="range" min="25" max="100" value="70" step="1"><span class="range-ends"><small>Long stop</small><small>Race brake</small></span></label>
+                            <label class="parameter-row" for="compression-run-grip"><span class="parameter-name">Tyre grip</span><output id="compression-run-grip-output" for="compression-run-grip">0.90 µ</output><input id="compression-run-grip" type="range" min="45" max="120" value="90" step="1"><span class="range-ends"><small>Side-slip</small><small>Loaded</small></span></label>
+                            <label class="parameter-row" for="compression-run-wall-speed"><span class="parameter-name">Wall speed</span><output id="compression-run-wall-speed-output" for="compression-run-wall-speed">1.0×</output><input id="compression-run-wall-speed" type="range" min="65" max="150" value="100" step="5"><span class="range-ends"><small>Measured</small><small>Severe</small></span></label>
+                        </div>
+                    </aside>
+                </div>
+
+                <section class="study-notes" aria-label="Compression Run concept notes">
+                    <article>
+                        <p class="note-number">01</p>
+                        <h2>Mechanics</h2>
+                        <ol>
+                            <li><strong>The player drives the entire race.</strong> Throttle, braking and steering remain available from the eight-lane launch to the single-lane finish.</li>
+                            <li><strong>The pack defines safety.</strong> A checkpoint census counts the physical lane position of every active vehicle. The least-occupied lane is selected for removal rather than chosen arbitrarily.</li>
+                            <li><strong>Selection creates a warning window.</strong> Edge lamps and surface markings identify the losing strip before its locks release, giving drivers a brief chance to merge.</li>
+                            <li><strong>Sidewalls perform the merge.</strong> Both boundaries move inward through each chamber. Cars can be pushed, pinned against rivals or carried toward the opening left by the peeled lane.</li>
+                            <li><strong>Occupancy is strategic.</strong> Entering an unpopular lane may save it during the census. Leaving immediately afterward can condemn isolated rivals without sacrificing the player's route.</li>
+                            <li><strong>The road remembers every checkpoint.</strong> One lane is permanently removed after each chamber. Seven physical compressions reduce the course from eight lanes to one before the finish.</li>
+                        </ol>
+                    </article>
+
+                    <article>
+                        <p class="note-number">02</p>
+                        <h2>Features</h2>
+                        <ul>
+                            <li>Direct keyboard and pointer driving</li>
+                            <li>Twenty-four physical race vehicles</li>
+                            <li>Seven pack-counted compression checkpoints</li>
+                            <li>Eight-to-one persistent course narrowing</li>
+                            <li>Live occupancy display for every lane</li>
+                            <li>Visible warning, release and peel phases</li>
+                            <li>Moving concrete sidewalls with physical contact</li>
+                            <li>Rival blocking, pushing and forced merges</li>
+                            <li>Camera-followed monumental straight</li>
+                            <li>Final single-lane sprint and finish order</li>
+                        </ul>
+                    </article>
+
+                    <article>
+                        <p class="note-number">03</p>
+                        <h2>Ideas</h2>
+                        <ul>
+                            <li><strong>Deliberate overcrowding.</strong> Coordinated racers can flood one lane during the census, then abandon it and force another part of the pack into a late merge.</li>
+                            <li><strong>Damaged wall rollers.</strong> Heavy impacts can make one boundary close unevenly, shifting the eventual single lane away from the course centre.</li>
+                            <li><strong>Split census.</strong> A later variant can count front and rear halves of the pack separately, selecting different lanes to peel within the same chamber.</li>
+                            <li><strong>Vehicle-width variation.</strong> Wider vehicles provide stronger blocking and greater census influence but become difficult to place once only two lanes remain.</li>
+                            <li><strong>False security.</strong> A lane can appear crowded on the approach, then become the least occupied when its leaders cross the counting line before the rest of the field.</li>
+                            <li><strong>Final commitment.</strong> The last checkpoint can remove either remaining lane, forcing every survivor to read the pack before choosing the final approach.</li>
+                        </ul>
+                    </article>
+                </section>
+            </section>
         </main>
     </div>
 
@@ -1638,6 +1802,7 @@
     <script src="shunt.js?v=shunt-r2"></script>
     <script src="ringfall.js?v=ringfall-r1"></script>
     <script src="dead-signal.js?v=dead-signal-r1"></script>
-    <script src="app.js?v=dead-signal-r1"></script>
+    <script src="compression-run.js?v=compression-run-r1"></script>
+    <script src="app.js?v=compression-run-r1"></script>
 </body>
 </html>
