@@ -1,0 +1,32 @@
+--- a/Engine/Shaders/AtrousDenoise.slang
++++ b/Engine/Shaders/AtrousDenoise.slang
+@@ -121,6 +121,7 @@
+     vec3  CentreNormal    = CentreSurface.xyz;
+     float CentreDepth     = CentreSurface.w;
+     float CentreLuminance = Luminance(Centre.rgb);
++    float CentreLogLum    = log(1.0 + CentreLuminance);   // V4: the edge-stop compares in log(1+L)
+ 
+     // The luminance denominator uses a 3×3 pre-filtered variance so a single bright fireflier cannot declare itself
+     //    an edge and survive every level. ε keeps a fully converged (zero-variance) region from dividing by zero.
+@@ -179,7 +180,10 @@
+         return;
+     }
+ 
+-    float LuminanceDenominator = LuminanceScale * sqrt(LocalVariance) + 1.0e-4;
++    // V4: the variance estimate is linear-luma-squared; d log(1+L) / dL = 1 / (1+L) converts its sigma so
++    //    the SAME LuminanceScale keeps its meaning. Linear space made bright regions never filter (their
++    //    absolute deltas dwarf sigma) and shadows over-filter; log space treats both alike.
++    float LuminanceDenominator = LuminanceScale * sqrt(LocalVariance) / (1.0 + CentreLuminance) + 1.0e-4;
+ 
+     vec3  ColourSum   = vec3(0.0);
+     float VarianceOut = 0.0;
+@@ -219,7 +223,8 @@
+             float DepthWeight = exp(-DepthDelta / DepthSpan);
+ 
+             // ③ Luminance, relative to the noise level.
+-            float LuminanceDelta  = abs(CentreLuminance - Luminance(TapColour.rgb));
++            float TapLogLum       = log(1.0 + Luminance(TapColour.rgb));   // V4
++            float LuminanceDelta  = abs(CentreLogLum - TapLogLum);          // V4
+             float LuminanceWeight = exp(-LuminanceDelta / LuminanceDenominator);
+ 
+             float Weight = Base * NormalWeight * DepthWeight * LuminanceWeight;

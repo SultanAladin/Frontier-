@@ -1,0 +1,42 @@
+--- a/Engine/Shaders/AtrousDenoise.slang
++++ b/Engine/Shaders/AtrousDenoise.slang
+@@ -179,6 +179,26 @@
+         return;
+     }
+ 
++    // V6: the screen-space depth gradient, from the immediate neighbours (4 extra surface loads per pixel against
++    //    the main loop's 50 — ~8% bandwidth). |grad z . offset| predicts how much depth SHOULD change along a tap
++    //    offset on this same surface; only the residual beyond that is an edge. The two one-sided differences are
++    //    combined by MIN MAGNITUDE, not averaged: at a genuine depth edge one side crosses the step and reads huge,
++    //    and averaging it in would inflate the tolerance exactly where it must stay tight.
++    float DepthGradX = 0.0;
++    float DepthGradY = 0.0;
++    {
++        int Xp = min(Pixel.x + 1, int(Extent.x) - 1), Xm = max(Pixel.x - 1, 0);
++        int Yp = min(Pixel.y + 1, int(Extent.y) - 1), Ym = max(Pixel.y - 1, 0);
++        float Zxp = imageLoad(SurfaceImage, ivec2(Xp, Pixel.y)).w, Zxm = imageLoad(SurfaceImage, ivec2(Xm, Pixel.y)).w;
++        float Zyp = imageLoad(SurfaceImage, ivec2(Pixel.x, Yp)).w, Zym = imageLoad(SurfaceImage, ivec2(Pixel.x, Ym)).w;
++        float GxF = (Zxp > 0.0 && Xp > Pixel.x) ? (Zxp - CentreDepth) : 0.0;
++        float GxB = (Zxm > 0.0 && Pixel.x > Xm) ? (CentreDepth - Zxm) : 0.0;
++        float GyF = (Zyp > 0.0 && Yp > Pixel.y) ? (Zyp - CentreDepth) : 0.0;
++        float GyB = (Zym > 0.0 && Pixel.y > Ym) ? (CentreDepth - Zym) : 0.0;
++        DepthGradX = abs(GxF) < abs(GxB) ? GxF : GxB;
++        DepthGradY = abs(GyF) < abs(GyB) ? GyF : GyB;
++    }
++
+     float LuminanceDenominator = LuminanceScale * sqrt(LocalVariance) + 1.0e-4;
+ 
+     vec3  ColourSum   = vec3(0.0);
+@@ -215,7 +235,11 @@
+             // ② Depth. Scaled by the centre depth so the tolerance is relative — a 5 cm step matters at 1 m and
+             //    is irrelevant at 100 m — and by the tap distance, standing in for the depth gradient.
+             float DepthDelta  = abs(CentreDepth - TapSurface.w);
+-            float DepthSpan   = DepthScale * CentreDepth * float(max(abs(X), abs(Y)) * Step) + 1.0e-3;
++            // V6: tolerance = 2x the change predicted by the local gradient along this offset, plus a tenth of the
++            //    old relative allowance as a floor for quantised depth. The old rule was tolerant in proportion to
++            //    z * distance whatever the surface did — it could not tell a slope from a step of the same size.
++            float Predicted   = abs(DepthGradX * float(Offset.x)) + abs(DepthGradY * float(Offset.y));
++            float DepthSpan   = 2.0 * Predicted + DepthScale * 0.1 * CentreDepth * float(max(abs(X), abs(Y)) * Step) + 1.0e-3;
+             float DepthWeight = exp(-DepthDelta / DepthSpan);
+ 
+             // ③ Luminance, relative to the noise level.

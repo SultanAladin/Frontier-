@@ -1,0 +1,14 @@
+--- a/Engine/Shaders/AtrousDenoise.slang
++++ b/Engine/Shaders/AtrousDenoise.slang
+@@ -203,7 +203,10 @@
+ 
+             vec4  TapColour = imageLoad(SourceImage, Tap);
+             float TapLum    = Luminance(TapColour.rgb);
+-            if (TapLum > MaxAllowedLum && TapLum > 1.0e-4)
++            // V1: clamp only STATISTICALLY UNCERTAIN brightness. A tap whose variance-of-the-mean says its value
++            //    is known to better than ~15% relative is a converged bright feature (a glint) — fireflies are always
++            //    high-variance because they are one huge sample amortised over a short history.
++            if (TapLum > MaxAllowedLum && TapLum > 1.0e-4 && TapColour.a > 0.0225 * TapLum * TapLum)
+             {
+                 TapColour.rgb *= (MaxAllowedLum / TapLum);
+             }
