@@ -530,7 +530,7 @@ a {
 #beltline-canvas,
 #beachhead-canvas,
 #shunt-svg,
-#lodestone-canvas {
+#ringfall-canvas {
     display: block;
     width: 100%;
     height: 100%;
@@ -926,7 +926,7 @@ a {
     .beltline-page .parameter-row:last-child,
     .beachhead-page .parameter-row:last-child,
     .shunt-page .parameter-row:last-child,
-    .lodestone-page .parameter-row:last-child {
+    .ringfall-page .parameter-row:last-child {
         grid-column: auto;
     }
 }
@@ -2633,200 +2633,138 @@ a {
     }
 }
 
-/* Lodestone */
+/* Ringfall */
 
-.lodestone-diagram {
+.ringfall-diagram {
     background:
-        radial-gradient(circle at 54% 53%, rgba(174, 132, 61, 0.1), transparent 30%),
-        #0c100e;
+        radial-gradient(circle at 52% 50%, rgba(176, 143, 62, 0.1), transparent 24%),
+        #090b09;
 }
 
-.preview-lodestone-floor {
-    fill: #292c28;
-    stroke: rgba(228, 228, 218, 0.18);
-    stroke-width: 2;
+.preview-ringfall-abyss {
+    fill: url(#ringfall-abyss-preview);
 }
 
-.preview-lodestone-grid {
-    fill: url(#lodestone-floor-preview);
-    stroke: none;
-}
-
-#lodestone-floor-preview path {
+.preview-ringfall-arena > circle:not(.preview-ringfall-core) {
     fill: none;
-    stroke: rgba(224, 225, 216, 0.055);
-    stroke-width: 1;
+    stroke: #444942;
+    stroke-width: 26;
+    filter: drop-shadow(0 7px 5px rgba(0, 0, 0, 0.6));
 }
 
-.preview-lodestone-buildings path:first-child {
-    fill: #363b37;
-    stroke: #697069;
+.preview-ringfall-arena > circle:nth-child(2) {
+    stroke: #51564f;
+    stroke-width: 23;
+}
+
+.preview-ringfall-arena > circle:nth-child(3) {
+    stroke: #3c423d;
+    stroke-width: 21;
+}
+
+.preview-ringfall-arena > circle:nth-child(4) {
+    stroke: #555a52;
+    stroke-width: 19;
+}
+
+.preview-ringfall-crossing {
+    fill: #575b54;
+    stroke: #858a81;
     stroke-width: 2;
 }
 
-.preview-lodestone-buildings path:last-child {
-    fill: none;
-    stroke: rgba(218, 221, 211, 0.2);
-    stroke-width: 2;
-}
-
-.preview-lodestone-trench rect {
-    fill: #090d0b;
-    stroke: #735e3f;
+.preview-ringfall-core {
+    fill: #272d28;
+    stroke: #a88b46;
     stroke-width: 6;
 }
 
-.preview-lodestone-trench path {
+.preview-ringfall-collapse {
     fill: none;
-    stroke: #435c5b;
-    stroke-dasharray: 7 8;
-    stroke-width: 3;
+    stroke: #171a17;
+    stroke-width: 31;
+    stroke-dasharray: 13 8;
+    animation: ringfall-preview-collapse 4.6s linear infinite;
+    transform-origin: center;
 }
 
-.preview-lodestone-route {
-    fill: none;
-    stroke: rgba(196, 165, 65, 0.56);
-    stroke-dasharray: 6 11;
-    stroke-width: 3;
-}
-
-.preview-lodestone-plate {
-    transform: translate(430px, 268px) rotate(-5deg);
-    animation: lodestone-preview-plate 7s ease-in-out infinite;
-}
-
-.preview-lodestone-plate path:first-child {
-    fill: url(#lodestone-plate-preview);
-    stroke: #c0b39e;
-    stroke-width: 2;
-}
-
-.preview-lodestone-plate path:nth-child(2) {
-    fill: none;
-    stroke: rgba(28, 27, 24, 0.7);
-    stroke-width: 4;
-}
-
-.preview-lodestone-plate circle {
-    fill: #8e6f3d;
-    stroke: #d0b46d;
-    stroke-width: 2;
-}
-
-.preview-lodestone-crane path:first-child {
-    fill: #303733;
-    stroke: #7c837b;
-    stroke-width: 2;
-}
-
-.preview-lodestone-crane path:not(:first-child) {
-    fill: none;
-    stroke: #7c837b;
-    stroke-width: 2;
-}
-
-.preview-lodestone-crane circle:first-of-type {
-    fill: #191f1b;
-    stroke: #a38644;
-    stroke-width: 8;
-}
-
-.preview-lodestone-crane circle:nth-of-type(2) {
-    fill: #101512;
-    stroke: #686f68;
-    stroke-width: 3;
-}
-
-.preview-lodestone-crane-a {
-    transform: translate(430px, 206px);
-    animation: lodestone-preview-crane-a 7s ease-in-out infinite;
-}
-
-.preview-lodestone-crane-b {
-    transform: translate(615px, 343px);
-    animation: lodestone-preview-crane-b 8s -2s ease-in-out infinite;
-}
-
-.preview-lodestone-hauler {
-    offset-path: path("M43 308c150 28 239-4 390-42 116-29 178-8 283-104");
-    animation: lodestone-preview-hauler 11s linear infinite;
-}
-
-.preview-lodestone-hauler path:first-child {
-    fill: #c2c7bf;
-    stroke: #eef0e8;
-    stroke-width: 2;
-}
-
-.preview-lodestone-hauler path:last-child {
-    fill: #564a3c;
-    stroke: #9c7953;
+.preview-ringfall-cars rect {
+    fill: #8b9189;
+    stroke: #d6d9d0;
     stroke-width: 1.5;
 }
 
-.preview-lodestone-scrap path {
-    fill: #665b4d;
-    stroke: #958675;
+.preview-ringfall-player rect {
+    fill: #c4a33f;
+    stroke: #fff1ad;
     stroke-width: 2;
 }
 
-@keyframes lodestone-preview-plate {
-    0%, 15% { transform: translate(300px, 208px) rotate(-12deg); }
-    58%, 78% { transform: translate(435px, 268px) rotate(-3deg); }
-    100% { transform: translate(300px, 208px) rotate(-12deg); }
+.preview-ringfall-cars > g {
+    animation: ringfall-preview-cars 6s linear infinite;
+    transform-box: fill-box;
+    transform-origin: 395px 220px;
 }
 
-@keyframes lodestone-preview-crane-a {
-    0%, 12% { transform: translate(302px, 168px); }
-    60%, 80% { transform: translate(438px, 238px); }
-    100% { transform: translate(302px, 168px); }
+.preview-ringfall-pursuer {
+    fill: none;
+    stroke: rgba(188, 97, 63, 0.75);
+    stroke-dasharray: 5 8;
+    stroke-width: 8;
 }
 
-@keyframes lodestone-preview-crane-b {
-    0%, 100% { transform: translate(598px, 342px); }
-    50% { transform: translate(655px, 265px); }
+.preview-ringfall-finish {
+    fill: none;
+    stroke: #d1b059;
+    stroke-width: 5;
+    filter: drop-shadow(0 0 5px rgba(209, 176, 89, 0.35));
 }
 
-@keyframes lodestone-preview-hauler {
-    from { offset-distance: 0%; }
-    to { offset-distance: 100%; }
+@keyframes ringfall-preview-collapse {
+    to { transform: rotate(360deg); }
 }
 
-.lodestone-page {
+@keyframes ringfall-preview-cars {
+    to { transform: rotate(360deg); }
+}
+
+.ringfall-page {
     padding-top: clamp(38px, 6vh, 72px);
 }
 
-.lodestone-study-layout {
+.ringfall-study-layout {
     grid-template-columns: minmax(0, 1fr);
 }
 
-.lodestone-simulation-card {
-    border-color: rgba(225, 227, 217, 0.14);
-    background: #0d110e;
-    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.3);
+.ringfall-simulation-card {
+    border-color: rgba(225, 227, 217, 0.15);
+    background: #0c0e0c;
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.32);
 }
 
-.lodestone-card-heading {
+.ringfall-card-heading {
     min-height: 116px;
-    background: linear-gradient(90deg, #171a17, #111411);
+    background: linear-gradient(90deg, #171917, #101210);
 }
 
-.lodestone-card-actions {
+.ringfall-card-actions {
     display: flex;
     align-items: center;
     gap: 24px;
 }
 
-.lodestone-surface {
-    min-height: clamp(780px, 60vw, 1040px);
-    background: #0a0e0b;
+.ringfall-surface {
+    min-height: clamp(820px, 64vw, 1080px);
+    background: #080a08;
 }
 
-#lodestone-canvas {
+#ringfall-canvas {
     min-width: 1100px;
+    cursor: crosshair;
+    touch-action: none;
 }
 
-.lodestone-objective {
+.ringfall-objective {
     position: absolute;
     top: 24px;
     right: 24px;
@@ -2835,30 +2773,30 @@ a {
     padding: 15px 18px 16px;
     border: 1px solid rgba(232, 232, 222, 0.16);
     border-radius: 3px;
-    background: rgba(9, 13, 10, 0.9);
-    box-shadow: 0 15px 36px rgba(0, 0, 0, 0.34);
+    background: rgba(8, 11, 8, 0.9);
+    box-shadow: 0 15px 36px rgba(0, 0, 0, 0.36);
     backdrop-filter: blur(14px);
 }
 
-.lodestone-objective::before {
+.ringfall-objective::before {
     position: absolute;
     top: -1px;
     right: -1px;
     width: 42px;
     height: 3px;
-    background: #a9803d;
+    background: #b09142;
     content: "";
 }
 
-.lodestone-objective span {
-    color: #bd9854;
+.ringfall-objective span {
+    color: #c0a250;
     font-size: 8px;
     font-weight: 500;
     letter-spacing: 0.16em;
     text-transform: uppercase;
 }
 
-.lodestone-objective strong {
+.ringfall-objective strong {
     margin-top: 6px;
     color: var(--text);
     font-size: 13px;
@@ -2866,240 +2804,311 @@ a {
     line-height: 1.35;
 }
 
-.lodestone-objective small {
+.ringfall-objective small {
     margin-top: 5px;
     color: var(--text-faint);
     font-size: 9px;
 }
 
-.lodestone-readout {
+.ringfall-readout {
     top: 24px;
     left: 24px;
     border-radius: 3px;
-    background: rgba(9, 13, 10, 0.9);
+    background: rgba(8, 11, 8, 0.91);
 }
 
-.lodestone-readout div {
-    min-width: 112px;
+.ringfall-readout div {
+    min-width: 104px;
     padding: 12px 14px 11px;
 }
 
-.lodestone-readout div:first-child {
-    min-width: 185px;
-}
-
-.lodestone-readout strong {
+.ringfall-readout strong {
     font-size: 16px;
     white-space: nowrap;
 }
 
-.lodestone-load-panel {
+.ringfall-structure-panel {
     position: absolute;
-    bottom: 23px;
+    bottom: 24px;
     left: 24px;
-    width: 292px;
+    width: 278px;
     padding: 13px 15px 12px;
-    border: 1px solid rgba(231, 232, 222, 0.12);
+    border: 1px solid rgba(232, 233, 223, 0.13);
     border-radius: 3px;
-    background: rgba(9, 13, 10, 0.87);
+    background: rgba(8, 11, 8, 0.88);
     backdrop-filter: blur(12px);
 }
 
-.lodestone-load-panel div {
-    display: grid;
-    grid-template-columns: 1fr 88px;
-    align-items: center;
-    gap: 11px;
-    margin-bottom: 8px;
+.ringfall-structure-panel > span,
+.ringfall-structure-panel > strong,
+.ringfall-structure-panel > small {
+    display: block;
 }
 
-.lodestone-load-panel span,
-.lodestone-load-panel small {
+.ringfall-structure-panel > span {
     color: var(--text-faint);
     font-size: 8px;
-    letter-spacing: 0.08em;
+    font-weight: 500;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
 }
 
-.lodestone-load-panel i {
-    display: block;
-    height: 3px;
-    overflow: hidden;
-    background: rgba(234, 235, 225, 0.12);
+.ringfall-structure-panel > strong {
+    margin-top: 4px;
+    color: var(--text-soft);
+    font-size: 11px;
+    font-weight: 400;
 }
 
-.lodestone-load-panel b {
+.ringfall-structure-panel > i {
+    position: relative;
     display: block;
-    width: 64%;
+    height: 4px;
+    margin: 11px 0 8px;
+    overflow: hidden;
+    background: rgba(230, 232, 221, 0.1);
+}
+
+.ringfall-structure-panel b,
+.ringfall-structure-panel em {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 0;
     height: 100%;
-    background: #aa8440;
     transition: width 100ms linear;
 }
 
-.lodestone-load-panel small {
-    display: block;
-    padding-top: 2px;
-    border-top: 1px solid rgba(234, 235, 225, 0.08);
+.ringfall-structure-panel b {
+    background: #c0a144;
 }
 
-.lodestone-page .surface-legend {
+.ringfall-structure-panel em {
+    background: rgba(188, 79, 60, 0.75);
+    mix-blend-mode: screen;
+}
+
+.ringfall-structure-panel > small {
+    color: var(--text-faint);
+    font-size: 7px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.ringfall-structure-panel mark {
+    display: inline-block;
+    width: 7px;
+    height: 2px;
+    margin-right: 3px;
+    background: #c0a144;
+}
+
+.ringfall-structure-panel mark:nth-of-type(2) {
+    background: #bc4f3c;
+}
+
+.ringfall-drive-controls {
+    position: absolute;
+    bottom: 23px;
+    left: 50%;
+    display: grid;
+    grid-template-columns: 46px 82px 68px 46px;
+    gap: 6px;
+    padding: 9px;
+    border: 1px solid rgba(232, 233, 223, 0.13);
+    border-radius: 3px;
+    background: rgba(8, 11, 8, 0.89);
+    transform: translateX(-50%);
+    backdrop-filter: blur(12px);
+}
+
+.ringfall-drive-controls button {
+    min-height: 35px;
+    padding: 7px 8px;
+    border: 1px solid rgba(235, 236, 226, 0.13);
+    border-radius: 2px;
+    background: #1b1e1b;
+    color: var(--text-soft);
+    font-size: 9px;
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
+}
+
+.ringfall-drive-controls button:hover,
+.ringfall-drive-controls button.is-pressed {
+    border-color: rgba(201, 171, 81, 0.68);
+    background: #2b2d27;
+    color: #e6d69a;
+}
+
+.ringfall-drive-controls small {
+    grid-column: 1 / -1;
+    color: var(--text-faint);
+    font-size: 7px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.ringfall-page .surface-legend {
     border: 1px solid rgba(231, 232, 222, 0.1);
     border-radius: 3px;
-    background: rgba(9, 13, 10, 0.86);
+    background: rgba(8, 11, 8, 0.86);
 }
 
-.legend-lodestone-hauler {
-    border: 1px solid #eceee7;
-    background: #b8bdb5;
+.legend-ringfall-player {
+    border: 1px solid #f0dda2;
+    background: #c1a141;
 }
 
-.legend-lodestone-plate {
-    border: 1px solid #af9e88;
-    background: #665d51;
+.legend-ringfall-rival {
+    border: 1px solid #c4c8c0;
+    background: #737b74;
 }
 
-.legend-lodestone-magnet {
-    border: 2px solid #ac8743;
-    border-radius: 50%;
-    background: #171d19;
+.legend-ringfall-load {
+    background: linear-gradient(90deg, #4e514a 0 45%, #b14e3d 45% 60%, #4e514a 60%);
 }
 
-.legend-lodestone-trench {
-    border: 1px solid #4d6362;
-    background: #08100f;
+.legend-ringfall-collapse {
+    border-top: 3px dashed #a9583f;
 }
 
-.lodestone-parameter-card {
+.ringfall-parameter-card {
     display: grid;
     grid-template-columns: minmax(270px, 0.7fr) minmax(0, 2.3fr);
 }
 
-.lodestone-parameter-card .parameter-heading {
+.ringfall-parameter-card .parameter-heading {
     border-right: 1px solid var(--rule);
     border-bottom: 0;
 }
 
-.lodestone-parameters {
+.ringfall-parameters {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-.lodestone-parameters .parameter-row {
+.ringfall-parameters .parameter-row {
     min-height: 188px;
     padding: 25px 20px 20px;
     border-right: 1px solid var(--rule);
     border-bottom: 0;
 }
 
-.lodestone-parameters .parameter-row:last-child {
+.ringfall-parameters .parameter-row:last-child {
     border-right: 0;
 }
 
-.lodestone-parameters .parameter-row output {
+.ringfall-parameters .parameter-row output {
     grid-column: 1 / -1;
     margin-top: 16px;
     font-size: 28px;
 }
 
 @media (max-width: 1180px) {
-    .lodestone-parameter-card {
+    .ringfall-parameter-card {
         grid-template-columns: 1fr;
     }
 
-    .lodestone-parameter-card .parameter-heading {
+    .ringfall-parameter-card .parameter-heading {
         border-right: 0;
         border-bottom: 1px solid var(--rule);
     }
 
-    .lodestone-surface {
-        min-height: 780px;
+    .ringfall-surface {
+        min-height: 820px;
         overflow-x: auto;
         overflow-y: hidden;
     }
 
-    #lodestone-canvas {
+    #ringfall-canvas {
         width: 1260px;
     }
 }
 
 @media (max-width: 900px) {
-    .lodestone-card-actions .live-marker {
+    .ringfall-card-actions .live-marker {
         display: none;
     }
 
-    .lodestone-parameters {
+    .ringfall-parameters {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .lodestone-parameters .parameter-row:nth-child(-n + 3) {
+    .ringfall-parameters .parameter-row:nth-child(-n + 3) {
         border-bottom: 1px solid var(--rule);
     }
 
-    .lodestone-parameters .parameter-row:nth-child(3) {
+    .ringfall-parameters .parameter-row:nth-child(3) {
         border-right: 0;
+    }
+
+    .ringfall-readout div:nth-child(4) {
+        display: none;
     }
 }
 
 @media (max-width: 670px) {
-    .lodestone-card-heading {
+    .ringfall-card-heading {
         align-items: flex-start;
     }
 
-    .lodestone-card-actions {
+    .ringfall-card-actions {
         align-self: center;
     }
 
-    .lodestone-surface {
-        min-height: 660px;
+    .ringfall-surface {
+        min-height: 700px;
     }
 
-    #lodestone-canvas {
+    #ringfall-canvas {
         width: 1080px;
         min-width: 1080px;
     }
 
-    .lodestone-objective {
+    .ringfall-objective {
         top: 90px;
         right: auto;
         left: 12px;
         width: 350px;
     }
 
-    .lodestone-readout {
+    .ringfall-readout {
         top: 12px;
         left: 12px;
     }
 
-    .lodestone-readout div {
-        min-width: 92px;
+    .ringfall-readout div {
+        min-width: 82px;
         padding: 10px;
     }
 
-    .lodestone-readout div:first-child {
-        min-width: 145px;
-    }
-
-    .lodestone-readout strong {
+    .ringfall-readout strong {
         font-size: 14px;
     }
 
-    .lodestone-load-panel {
-        bottom: 68px;
+    .ringfall-structure-panel {
+        display: none;
+    }
+
+    .ringfall-drive-controls {
         left: 12px;
+        bottom: 12px;
+        transform: none;
     }
 
-    .lodestone-page .surface-legend {
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        max-width: 365px;
+    .ringfall-page .surface-legend {
+        display: none;
     }
 
-    .lodestone-parameters {
+    .ringfall-parameters {
         grid-template-columns: 1fr;
     }
 
-    .lodestone-parameters .parameter-row,
-    .lodestone-parameters .parameter-row:nth-child(-n + 3) {
+    .ringfall-parameters .parameter-row,
+    .ringfall-parameters .parameter-row:nth-child(-n + 3) {
         min-height: 142px;
         border-right: 0;
         border-bottom: 1px solid var(--rule);
