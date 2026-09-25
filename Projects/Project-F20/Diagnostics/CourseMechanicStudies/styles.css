@@ -533,7 +533,9 @@ a {
 #ringfall-canvas,
 #dead-signal-canvas,
 #compression-run-canvas,
-#blind-monument-canvas {
+#blind-monument-canvas,
+#demolition-canvas,
+#longwall-canvas {
     display: block;
     width: 100%;
     height: 100%;
@@ -4357,3 +4359,112 @@ a {
     .blind-monument-system-band { grid-template-columns: 1fr; }
     .blind-monument-system-band article { min-height: 150px; }
 }
+
+/* ———————————————————————————————
+   CHAPTERS 11 + 12 — DEMOLITION RUN / LONGWALL
+   ——————————————————————————————— */
+
+.demolition-run-page { --sector-accent: #b6543f; --sector-warn: #d0a04b; background: #0b0c0b; }
+.longwall-page { --sector-accent: #a95a3e; --sector-warn: #c89a49; background: #090b09; }
+
+.demolition-simulation-card,
+.longwall-simulation-card { border-color: rgba(232,226,211,.15); background:#0b0d0b; box-shadow:0 28px 95px rgba(0,0,0,.38); }
+.demolition-card-heading,
+.longwall-card-heading { min-height:116px; background:linear-gradient(90deg,#191815,#101210); }
+.demolition-card-actions,
+.longwall-card-actions { display:flex; align-items:center; gap:12px; }
+.demolition-card-actions .live-marker,
+.longwall-card-actions .live-marker { margin-right:10px; }
+.demolition-surface,
+.longwall-surface { min-height:clamp(860px,68vw,1100px); background:#0c0f0c; }
+#demolition-canvas,
+#longwall-canvas { min-width:0; cursor:crosshair; touch-action:none; }
+
+.demolition-objective,
+.longwall-objective { position:absolute; z-index:3; top:24px; right:24px; display:grid; width:min(435px,calc(100% - 48px)); padding:15px 18px 16px; border:1px solid rgba(232,226,211,.17); border-radius:3px; background:rgba(8,10,8,.91); box-shadow:0 15px 38px rgba(0,0,0,.38); backdrop-filter:blur(14px); }
+.demolition-objective::before,
+.longwall-objective::before { position:absolute; top:-1px; right:-1px; width:44px; height:3px; background:var(--sector-accent); content:""; }
+.demolition-objective span,
+.longwall-objective span { color:#c56a50; font-size:8px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; }
+.demolition-objective strong,
+.longwall-objective strong { margin-top:6px; color:var(--text); font-size:13px; font-weight:400; line-height:1.4; }
+.demolition-objective small,
+.longwall-objective small { margin-top:5px; color:var(--text-faint); font-size:9px; }
+
+.demolition-readout,
+.longwall-readout { z-index:3; top:24px; left:24px; border-radius:3px; background:rgba(8,10,8,.92); }
+.demolition-readout div,
+.longwall-readout div { min-width:105px; padding:12px 14px 11px; }
+.demolition-readout strong,
+.longwall-readout strong { font-size:15px; white-space:nowrap; }
+
+.demolition-integrity,
+.longwall-charge-panel { position:absolute; z-index:3; bottom:24px; left:24px; width:278px; padding:13px 15px 12px; border:1px solid rgba(232,226,211,.14); border-radius:3px; background:rgba(8,10,8,.91); backdrop-filter:blur(12px); }
+.demolition-integrity > span,.demolition-integrity > strong,.demolition-integrity > small,
+.longwall-charge-panel > span,.longwall-charge-panel > strong,.longwall-charge-panel > small { display:block; }
+.demolition-integrity > span,
+.longwall-charge-panel > span { color:var(--text-faint); font-size:8px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; }
+.demolition-integrity > strong,
+.longwall-charge-panel > strong { margin-top:4px; color:var(--text-soft); font-size:18px; font-weight:400; }
+.demolition-integrity > i,
+.longwall-charge-panel > i { display:block; height:4px; margin:10px 0 8px; overflow:hidden; background:rgba(230,227,216,.1); }
+.demolition-integrity b,
+.longwall-charge-panel b { display:block; width:0; height:100%; background:var(--sector-warn); transition:width 80ms linear; }
+.demolition-integrity > small,
+.longwall-charge-panel > small { color:var(--text-faint); font-size:7px; letter-spacing:.07em; text-transform:uppercase; }
+
+.demolition-drive-controls,
+.longwall-drive-controls { position:absolute; z-index:5; bottom:23px; left:50%; display:grid; grid-template-columns:46px 86px 68px 46px; gap:6px; padding:9px; border:1px solid rgba(232,227,214,.13); border-radius:3px; background:rgba(8,10,8,.91); transform:translateX(-50%); backdrop-filter:blur(12px); }
+.demolition-drive-controls button,
+.longwall-drive-controls button { min-height:35px; padding:7px 8px; border:1px solid rgba(235,231,220,.13); border-radius:2px; background:#1b1d1a; color:var(--text-soft); font-size:9px; cursor:pointer; user-select:none; touch-action:none; }
+.demolition-drive-controls button:hover,.demolition-drive-controls button.is-pressed,
+.longwall-drive-controls button:hover,.longwall-drive-controls button.is-pressed { border-color:rgba(190,88,64,.78); background:#30231e; color:#edc7b7; }
+.demolition-drive-controls small,
+.longwall-drive-controls small { grid-column:1/-1; color:var(--text-faint); font-size:7px; text-align:center; white-space:nowrap; }
+.demolition-run-page .surface-legend,
+.longwall-page .surface-legend { z-index:3; border:1px solid rgba(231,226,213,.11); border-radius:3px; background:rgba(8,10,8,.88); }
+.legend-demolition-player,.legend-longwall-player { border:1px solid #efda9a; background:#c7a54a; }
+.legend-demolition-charge,.legend-longwall-charge { border-top:3px solid #d0a04b; }
+.legend-demolition-fall { border:1px solid #b6543f; background:repeating-linear-gradient(135deg,#29231f 0 3px,#a64e3b 3px 5px); }
+.legend-demolition-rubble { border-radius:50%; background:#666258; }
+.legend-longwall-shield { border:1px solid #aaa18a; background:#787468; }
+.legend-longwall-collapse { border-top:3px dashed #b6543f; }
+
+.demolition-system-band,
+.longwall-system-band { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--rule); border-left:1px solid var(--rule); }
+.demolition-system-band article,
+.longwall-system-band article { min-height:182px; padding:25px 24px 24px; border-right:1px solid var(--rule); border-bottom:1px solid var(--rule); background:#111311; }
+.demolition-system-band article:nth-child(even),
+.longwall-system-band article:nth-child(even) { background:#101210; }
+.demolition-system-band span,
+.longwall-system-band span { display:block; color:#b65b45; font-size:8px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; }
+.demolition-system-band strong,
+.longwall-system-band strong { display:block; min-height:2.3em; margin:12px 0 10px; color:var(--text); font-family:"Clash Display",sans-serif; font-size:20px; font-weight:400; line-height:1.15; }
+.demolition-system-band p,
+.longwall-system-band p { color:var(--text-faint); font-size:10px; line-height:1.55; }
+
+/* Index plates */
+.demolition-diagram { background:#141513; }
+.preview-demolition-sky { fill:#20231f; }
+.preview-demolition-building { fill:#696b65; stroke:#a19b88; stroke-width:4; filter:drop-shadow(8px 10px 6px rgba(0,0,0,.45)); }
+.preview-demolition-building path:last-child { fill:none; stroke:#343833; stroke-width:8; }
+.preview-demolition-fall { fill:none; stroke:#bd5741; stroke-width:12; stroke-dasharray:25 14; animation:preview-demolition-pulse 4s linear infinite; }
+.preview-demolition-rubble { fill:#504e47; stroke:#8b8472; stroke-width:3; }
+.preview-demolition-cars rect { fill:#777d75; stroke:#c0c1b6; stroke-width:2; }
+.preview-demolition-cars .preview-demolition-player { fill:#bea047; stroke:#eddda8; stroke-width:3; }
+.preview-demolition-blasts circle { fill:#c99a48; stroke:#e7c87f; stroke-width:3; animation:preview-demolition-blast 2.7s ease-out infinite; }
+.longwall-diagram { background:#0c0e0c; }
+.preview-longwall-rock { fill:#292b26; }
+.preview-longwall-tunnels { fill:none; stroke:#706c5f; stroke-width:33; filter:drop-shadow(6px 7px 4px rgba(0,0,0,.5)); }
+.preview-longwall-tunnels path:last-child { stroke:#8a816c; stroke-width:22; }
+.preview-longwall-collapse { fill:none; stroke:#b2523d; stroke-width:17; stroke-dasharray:20 10; }
+.preview-longwall-shields { fill:none; stroke:#aaa087; stroke-width:15; }
+.preview-longwall-cars rect { fill:#767d74; stroke:#bfc1b5; stroke-width:2; }
+.preview-longwall-cars .preview-longwall-player { fill:#bea047; stroke:#eddda8; stroke-width:3; }
+.preview-longwall-charges circle { fill:#c99a48; stroke:#e5c77c; stroke-width:3; animation:preview-demolition-blast 3s ease-out infinite; }
+@keyframes preview-demolition-pulse { from { stroke-dashoffset:80; } to { stroke-dashoffset:0; } }
+@keyframes preview-demolition-blast { 0%,45%{opacity:.35;transform:scale(.75)} 70%{opacity:1;transform:scale(1.3)} 100%{opacity:.2;transform:scale(1)} }
+
+@media (max-width:1180px){.demolition-surface,.longwall-surface{min-height:860px}.demolition-card-actions .live-marker,.longwall-card-actions .live-marker{display:none}}
+@media (max-width:900px){.demolition-readout div:nth-child(n+4),.longwall-readout div:nth-child(n+4){display:none}.demolition-system-band,.longwall-system-band{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:670px){.demolition-card-heading,.longwall-card-heading{align-items:flex-start}.demolition-card-actions,.longwall-card-actions{flex-wrap:wrap;justify-content:flex-end}.demolition-card-actions #demolition-overview,.longwall-card-actions #longwall-overview{display:none}.demolition-surface,.longwall-surface{min-height:720px}.demolition-objective,.longwall-objective{top:90px;right:auto;left:12px;width:calc(100% - 24px)}.demolition-readout,.longwall-readout{top:12px;left:12px}.demolition-readout div,.longwall-readout div{min-width:82px;padding:10px}.demolition-integrity,.longwall-charge-panel{display:none}.demolition-drive-controls,.longwall-drive-controls{left:12px;bottom:12px;transform:none}.demolition-run-page .surface-legend,.longwall-page .surface-legend{display:none}.demolition-system-band,.longwall-system-band{grid-template-columns:1fr}.demolition-system-band article,.longwall-system-band article{min-height:148px}}
