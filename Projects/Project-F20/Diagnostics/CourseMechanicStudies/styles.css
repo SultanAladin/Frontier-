@@ -532,7 +532,8 @@ a {
 #shunt-svg,
 #ringfall-canvas,
 #dead-signal-canvas,
-#compression-run-canvas {
+#compression-run-canvas,
+#blind-monument-canvas {
     display: block;
     width: 100%;
     height: 100%;
@@ -3971,4 +3972,388 @@ a {
         border-right: 0;
         border-bottom: 1px solid var(--rule);
     }
+}
+
+/* ———————————————————————————————
+   CHAPTER 10 — BLIND MONUMENT
+   ——————————————————————————————— */
+
+.blind-monument-page {
+    --monument-ivory: #eee8d8;
+    --monument-concrete: #77766d;
+    --monument-oxide: #b5533e;
+    --monument-amber: #c89b4a;
+    --monument-open: #72977b;
+    background: radial-gradient(ellipse at 50% -6%, rgba(133, 121, 91, 0.1), transparent 42rem), #0a0c0a;
+}
+
+.blind-monument-simulation-card {
+    border-color: rgba(231, 226, 211, 0.16);
+    background: #0b0d0b;
+    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.4);
+}
+
+.blind-monument-card-heading {
+    min-height: 118px;
+    background: linear-gradient(90deg, #191916, #101210);
+}
+
+.blind-monument-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.blind-monument-card-actions .live-marker { margin-right: 10px; }
+
+.blind-monument-surface {
+    min-height: clamp(900px, 71vw, 1160px);
+    background: #101410;
+}
+
+#blind-monument-canvas {
+    min-width: 0;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.blind-monument-objective {
+    position: absolute;
+    z-index: 3;
+    top: 24px;
+    right: 24px;
+    display: grid;
+    width: min(445px, calc(100% - 48px));
+    padding: 15px 18px 16px;
+    border: 1px solid rgba(231, 226, 211, 0.17);
+    border-radius: 3px;
+    background: rgba(8, 10, 8, 0.91);
+    box-shadow: 0 15px 38px rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(14px);
+}
+
+.blind-monument-objective::before {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 44px;
+    height: 3px;
+    background: var(--monument-oxide);
+    content: "";
+}
+
+.blind-monument-objective span {
+    color: #c56850;
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.blind-monument-objective strong {
+    margin-top: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.4;
+}
+
+.blind-monument-objective small {
+    margin-top: 5px;
+    color: var(--text-faint);
+    font-size: 9px;
+}
+
+.blind-monument-readout {
+    z-index: 3;
+    top: 24px;
+    left: 24px;
+    border-radius: 3px;
+    background: rgba(8, 10, 8, 0.92);
+}
+
+.blind-monument-readout div {
+    min-width: 106px;
+    padding: 12px 14px 11px;
+}
+
+.blind-monument-readout strong {
+    font-size: 15px;
+    white-space: nowrap;
+}
+
+.blind-monument-map {
+    position: absolute;
+    z-index: 4;
+    bottom: 24px;
+    left: 24px;
+    width: 310px;
+    padding: 12px 14px 11px;
+    border: 1px solid rgba(232, 226, 212, 0.15);
+    border-radius: 3px;
+    background: rgba(8, 10, 8, 0.92);
+    backdrop-filter: blur(13px);
+}
+
+.blind-monument-map > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 9px;
+}
+
+.blind-monument-map span {
+    color: var(--text-faint);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.blind-monument-map strong {
+    color: var(--monument-open);
+    font-size: 10px;
+    font-weight: 500;
+}
+
+#blind-monument-map-canvas {
+    display: block;
+    width: 100%;
+    height: 190px;
+    border: 1px solid rgba(232, 226, 212, 0.09);
+    background: #10130f;
+}
+
+.blind-monument-map small {
+    display: block;
+    margin-top: 8px;
+    color: var(--text-faint);
+    font-size: 7px;
+    letter-spacing: 0.06em;
+    line-height: 1.35;
+    text-transform: uppercase;
+}
+
+.blind-monument-drive-controls {
+    position: absolute;
+    z-index: 5;
+    bottom: 23px;
+    left: 50%;
+    display: grid;
+    grid-template-columns: 46px 86px 68px 46px;
+    gap: 6px;
+    padding: 9px;
+    border: 1px solid rgba(232, 227, 214, 0.13);
+    border-radius: 3px;
+    background: rgba(8, 10, 8, 0.91);
+    transform: translateX(-50%);
+    backdrop-filter: blur(12px);
+}
+
+.blind-monument-drive-controls button {
+    min-height: 35px;
+    padding: 7px 8px;
+    border: 1px solid rgba(235, 231, 220, 0.13);
+    border-radius: 2px;
+    background: #1b1d1a;
+    color: var(--text-soft);
+    font-size: 9px;
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
+}
+
+.blind-monument-drive-controls button:hover,
+.blind-monument-drive-controls button.is-pressed {
+    border-color: rgba(190, 88, 64, 0.78);
+    background: #30231e;
+    color: #edc7b7;
+}
+
+.blind-monument-drive-controls small {
+    grid-column: 1 / -1;
+    color: var(--text-faint);
+    font-size: 7px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.blind-monument-page .surface-legend {
+    z-index: 3;
+    border: 1px solid rgba(231, 226, 213, 0.11);
+    border-radius: 3px;
+    background: rgba(8, 10, 8, 0.88);
+}
+
+.legend-monument-player {
+    border: 1px solid #f0da9a;
+    background: #c7a64a;
+}
+
+.legend-monument-wall {
+    border: 1px solid #aaa38e;
+    background: #73736b;
+}
+
+.legend-monument-moving {
+    border-left: 3px solid #bd5842;
+    background: #858175;
+}
+
+.legend-monument-exit {
+    border: 1px solid #8fb197;
+    background: #72977b;
+}
+
+.blind-monument-system-band {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--rule);
+    border-left: 1px solid var(--rule);
+}
+
+.blind-monument-system-band article {
+    min-height: 190px;
+    padding: 25px 24px 24px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    background: #111311;
+}
+
+.blind-monument-system-band article:nth-child(2n) { background: #101210; }
+
+.blind-monument-system-band span {
+    display: block;
+    color: #b45b45;
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.blind-monument-system-band strong {
+    display: block;
+    min-height: 2.4em;
+    margin: 12px 0 10px;
+    color: var(--text);
+    font-family: "Clash Display", sans-serif;
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 1.15;
+}
+
+.blind-monument-system-band p {
+    color: var(--text-faint);
+    font-size: 10px;
+    line-height: 1.55;
+}
+
+/* Blind Monument index plate */
+.blind-monument-diagram { background: #10130f; }
+.preview-monument-ground { fill: #181c18; }
+
+.preview-monument-walls {
+    fill: #6f7069;
+    stroke: #9e9988;
+    stroke-width: 2;
+    filter: drop-shadow(7px 9px 6px rgba(0, 0, 0, 0.5));
+}
+
+.preview-monument-shear {
+    fill: none;
+    stroke: #b75a43;
+    stroke-width: 19;
+    stroke-dasharray: 64 28 54 28;
+    animation: monument-preview-shear 4.8s ease-in-out infinite;
+}
+
+.preview-monument-rollers circle {
+    fill: #77786f;
+    stroke: #b1aa95;
+    stroke-width: 3;
+}
+
+.preview-monument-rollers path {
+    fill: none;
+    stroke: #3b3e38;
+    stroke-width: 3;
+}
+
+.preview-monument-exchange {
+    fill: none;
+    stroke: #959080;
+    stroke-width: 17;
+    animation: monument-preview-exchange 5.8s ease-in-out infinite alternate;
+}
+
+.preview-monument-dust {
+    fill: none;
+    stroke: rgba(192, 178, 143, 0.38);
+    stroke-width: 24;
+    stroke-linecap: round;
+    stroke-dasharray: 3 18;
+}
+
+.preview-monument-cars rect {
+    fill: #777e76;
+    stroke: #bdc0b5;
+    stroke-width: 2;
+}
+
+.preview-monument-player rect {
+    fill: #bd9d46;
+    stroke: #ebdca8;
+    stroke-width: 3;
+}
+
+.preview-monument-exits path {
+    fill: none;
+    stroke: #799b80;
+    stroke-width: 7;
+}
+
+.preview-monument-exits circle {
+    fill: #80a789;
+    stroke: #c9d4c8;
+    stroke-width: 2;
+}
+
+@keyframes monument-preview-shear {
+    0%, 18% { transform: translateX(-55px); }
+    72%, 100% { transform: translateX(58px); }
+}
+
+@keyframes monument-preview-exchange {
+    from { transform: translateX(-18px); }
+    to { transform: translateX(18px); }
+}
+
+@media (max-width: 1180px) {
+    .blind-monument-surface { min-height: 900px; }
+    .blind-monument-system-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .blind-monument-card-actions .live-marker { display: none; }
+}
+
+@media (max-width: 900px) {
+    .blind-monument-readout div:nth-child(n + 4) { display: none; }
+    .blind-monument-map { width: 260px; }
+    #blind-monument-map-canvas { height: 160px; }
+    .blind-monument-objective { width: 390px; }
+}
+
+@media (max-width: 670px) {
+    .blind-monument-card-heading { align-items: flex-start; }
+    .blind-monument-card-actions { flex-wrap: wrap; justify-content: flex-end; }
+    .blind-monument-card-actions #blind-monument-overview { display: none; }
+    .blind-monument-surface { min-height: 740px; }
+    .blind-monument-objective { top: 90px; right: auto; left: 12px; width: calc(100% - 24px); }
+    .blind-monument-readout { top: 12px; left: 12px; }
+    .blind-monument-readout div { min-width: 82px; padding: 10px; }
+    .blind-monument-readout strong { font-size: 14px; }
+    .blind-monument-map { display: none; }
+    .blind-monument-drive-controls { left: 12px; bottom: 12px; transform: none; }
+    .blind-monument-page .surface-legend { display: none; }
+    .blind-monument-system-band { grid-template-columns: 1fr; }
+    .blind-monument-system-band article { min-height: 150px; }
 }

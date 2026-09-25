@@ -1,7 +1,7 @@
 "use strict";
 
 (() => {
-    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run"];
+    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run", "blind-monument"];
     const pages = new Map(pageNames.map((name) => [name, document.getElementById(name)]));
     const pageLinks = Array.from(document.querySelectorAll("[data-page]"));
     let currentPage = "index";
@@ -46,7 +46,9 @@
                                         ? "Dead Signal — Frontier Field Studies"
                                         : nextPage === "compression-run"
                                             ? "Compression Run — Frontier Field Studies"
-                                            : "Index — Frontier Field Studies";
+                                            : nextPage === "blind-monument"
+                                                ? "Blind Monument — Frontier Field Studies"
+                                                : "Index — Frontier Field Studies";
 
         window.scrollTo({ top: 0, behavior: "auto" });
         if (nextPage === "iron-tide") {
@@ -67,6 +69,8 @@
             requestAnimationFrame(() => window.deadSignal?.resize());
         } else if (nextPage === "compression-run") {
             requestAnimationFrame(() => window.compressionRun?.resize());
+        } else if (nextPage === "blind-monument") {
+            requestAnimationFrame(() => window.blindMonument?.resize());
         }
     }
 

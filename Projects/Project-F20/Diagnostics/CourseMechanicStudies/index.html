@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090a0a">
     <title>Frontier Field Studies — Iron Tide</title>
-    <link rel="stylesheet" href="styles.css?v=compression-run-r1">
+    <link rel="stylesheet" href="styles.css?v=blind-monument-r1">
 </head>
 <body>
     <div class="publication-shell">
@@ -28,9 +28,10 @@
                 <a href="#ringfall" data-page="ringfall">Ringfall</a>
                 <a href="#dead-signal" data-page="dead-signal">Dead Signal</a>
                 <a href="#compression-run" data-page="compression-run">Compression Run</a>
+                <a href="#blind-monument" data-page="blind-monument">Blind Monument</a>
             </nav>
 
-            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—09</p>
+            <p class="edition-mark">Concept studies&nbsp;&nbsp;01—10</p>
         </header>
 
         <main>
@@ -38,7 +39,7 @@
                 <div class="index-intro">
                     <p class="section-kicker">Field mechanics / Volume 01</p>
                     <h1 id="index-title">Index</h1>
-                    <p class="index-deck">Nine focused studies for systemic course mechanics.</p>
+                    <p class="index-deck">Ten focused studies for systemic course mechanics.</p>
                 </div>
 
                 <a class="chapter-entry" href="#iron-tide" data-page="iron-tide" aria-label="Open Iron Tide study">
@@ -355,6 +356,35 @@
                             <path class="preview-compression-finish" d="M297 26h166"/>
                         </svg>
                         <span class="diagram-caption">The pack decides which lane survives</span>
+                    </div>
+                </a>
+
+                <a class="chapter-entry chapter-entry-blind-monument" href="#blind-monument" data-page="blind-monument" aria-label="Open Blind Monument study">
+                    <div class="entry-copy">
+                        <p class="entry-number">10</p>
+                        <div>
+                            <p class="entry-label">Reconfiguring concrete-maze race</p>
+                            <h2>Blind Monument</h2>
+                            <p>Twenty-four cars navigate a gigantic moving labyrinth where shear doors, temporary dead ends, exchange corridors, rolling barriers, dust trails and closing exits continuously rewrite the route.</p>
+                        </div>
+                        <span class="entry-link">Open study <b aria-hidden="true">↗</b></span>
+                    </div>
+
+                    <div class="index-diagram blind-monument-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 760 440" role="img">
+                            <rect class="preview-monument-ground" width="760" height="440"/>
+                            <g class="preview-monument-walls">
+                                <path d="M38 28h238v48H86v82h134v45H38zM330 28h158v48H378v79h128v48H330zM542 28h180v175h-48V76h-132zM38 253h107v-52h48v98H86v109H38zM248 248h190v46H296v114h-48zM492 248h230v48H540v52h71v60H492zM659 342h63v66h-63z"/>
+                                <path d="M151 111h48v48h-48zM255 111h48v92h-48zM441 111h48v92h-48zM556 111h48v92h-48zM151 344h48v64h-48zM386 344h48v64h-48z"/>
+                            </g>
+                            <path class="preview-monument-shear" d="M76 222h286M228 222v-22M294 222v-22"/>
+                            <g class="preview-monument-rollers"><circle cx="570" cy="321" r="25"/><path d="M553 306l34 30M548 317l30 27M562 301l28 25"/></g>
+                            <path class="preview-monument-exchange" d="m340 225 105 94M445 225l-105 94"/>
+                            <path class="preview-monument-dust" d="M192 319c66-45 95 12 143-33s74-24 111-5"/>
+                            <g class="preview-monument-cars"><g transform="translate(206 327)"><rect x="-11" y="-19" width="22" height="38"/></g><g transform="translate(256 309)"><rect x="-11" y="-19" width="22" height="38"/></g><g transform="translate(453 281)"><rect x="-11" y="-19" width="22" height="38"/></g><g transform="translate(540 369)"><rect x="-11" y="-19" width="22" height="38"/></g><g class="preview-monument-player" transform="translate(370 265)"><rect x="-13" y="-22" width="26" height="44"/></g></g>
+                            <g class="preview-monument-exits"><path d="M105 28V5M407 28V5M625 28V5"/><circle cx="105" cy="8" r="6"/><circle cx="407" cy="8" r="6"/><circle cx="625" cy="8" r="6"/></g>
+                        </svg>
+                        <span class="diagram-caption">Four exits · one changing labyrinth</span>
                     </div>
                 </a>
             </section>
@@ -1793,6 +1823,129 @@
                     </article>
                 </section>
             </section>
+            <section class="page blind-monument-page" id="blind-monument" aria-labelledby="blind-monument-title" hidden>
+                <header class="chapter-heading">
+                    <div>
+                        <p class="section-kicker">10 / Reconfiguring concrete-maze race</p>
+                        <h1 id="blind-monument-title">Blind Monument</h1>
+                    </div>
+                    <p>Twenty-four drivers race through a gigantic concrete labyrinth. Whole walls shear across intersections, dead ends retract, corridors exchange destinations, rollers clear passages, dust preserves false trails and every used exit begins to close.</p>
+                </header>
+
+                <div class="study-layout blind-monument-study-layout">
+                    <article class="simulation-card blind-monument-simulation-card" aria-labelledby="blind-monument-simulation-title">
+                        <header class="card-heading blind-monument-card-heading">
+                            <div>
+                                <p class="card-eyebrow">Live race · Monument 10 / Full labyrinth</p>
+                                <h2 id="blind-monument-simulation-title">The moving concrete maze</h2>
+                            </div>
+                            <div class="blind-monument-card-actions">
+                                <p class="live-marker"><span></span> Twenty-four starters</p>
+                                <button class="ride-button" id="blind-monument-overview" type="button">Survey maze</button>
+                                <button class="ride-button" id="blind-monument-reset" type="button">Restart heat</button>
+                            </div>
+                        </header>
+
+                        <div class="simulation-surface blind-monument-surface">
+                            <canvas id="blind-monument-canvas" aria-label="Directly controlled vehicle race through a large reconfiguring concrete maze with four closing exits"></canvas>
+
+                            <div class="blind-monument-objective" aria-hidden="true">
+                                <span>Heat rule / 10</span>
+                                <strong>Find any open exit. Read the moving architecture, use tunnels and preserve momentum—the first vehicle through each outlet starts its permanent closure.</strong>
+                                <small>The finish beacons do not move. The corridors between them do.</small>
+                            </div>
+
+                            <div class="surface-readout blind-monument-readout" aria-live="polite">
+                                <div><span>Position</span><strong id="blind-monument-position-readout">24 / 24</strong></div>
+                                <div><span>Nearest exit</span><strong id="blind-monument-exit-readout">North 02</strong></div>
+                                <div><span>Local system</span><strong id="blind-monument-system-readout">Launch court</strong></div>
+                                <div><span>Road speed</span><strong id="blind-monument-speed-readout">0 km/h</strong></div>
+                                <div><span>Heat status</span><strong id="blind-monument-result-readout">Racing</strong></div>
+                            </div>
+
+                            <div class="blind-monument-map" aria-hidden="true">
+                                <div><span>Structural survey</span><strong id="blind-monument-open-exits">04 exits open</strong></div>
+                                <canvas id="blind-monument-map-canvas" width="280" height="190"></canvas>
+                                <small id="blind-monument-map-copy">Finish outlets are marked above the north wall.</small>
+                            </div>
+
+                            <div class="blind-monument-drive-controls" aria-label="Vehicle controls">
+                                <button type="button" data-blind-monument-control="left" aria-label="Steer left">←</button>
+                                <button type="button" data-blind-monument-control="throttle" aria-label="Accelerate">Accelerate</button>
+                                <button type="button" data-blind-monument-control="brake" aria-label="Brake or reverse">Brake</button>
+                                <button type="button" data-blind-monument-control="right" aria-label="Steer right">→</button>
+                                <small>W / ↑ accelerate&nbsp;&nbsp; S / ↓ brake&nbsp;&nbsp; A D / ← → steer</small>
+                            </div>
+
+                            <div class="surface-legend" aria-hidden="true">
+                                <span><i class="legend-monument-player"></i>Player</span>
+                                <span><i class="legend-monument-wall"></i>Monolith</span>
+                                <span><i class="legend-monument-moving"></i>Moving structure</span>
+                                <span><i class="legend-monument-exit"></i>Open exit</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <section class="blind-monument-system-band" aria-label="Live maze mechanisms">
+                        <article><span>01 / Shear doors</span><strong id="blind-monument-shear-status">Two apertures cycling</strong><p>Moving wall sections drag contacted cars across the junction instead of simply destroying them.</p></article>
+                        <article><span>02 / Shifting ends</span><strong id="blind-monument-dead-end-status">03 shortcuts cycling</strong><p>Retracting blocks periodically convert sealed dead ends into direct finish routes.</p></article>
+                        <article><span>03 / Corridor exchange</span><strong id="blind-monument-exchange-status">Routes crossing</strong><p>Diagonal end blocks swap the destinations of two parallel central corridors.</p></article>
+                        <article><span>04 / Rolling barriers</span><strong id="blind-monument-roller-status">03 rollers moving</strong><p>Concrete cylinders sweep corridors, push debris and leave a temporary clear wake.</p></article>
+                        <article><span>05 / Compactors + tunnels</span><strong id="blind-monument-compactor-status">Bypasses open</strong><p>Closing wall chambers can be avoided through vehicle-width passages cut into nearby monoliths.</p></article>
+                        <article><span>06 / Dust memory</span><strong id="blind-monument-dust-status">Tracks recording</strong><p>Tyre marks persist through dust, revealing routes while allowing deliberate false trails.</p></article>
+                        <article><span>07 / Broken terrain</span><strong id="blind-monument-terrain-status">Mud + floor breaks live</strong><p>Deep slurry, open floor pits and collapsed edges punish blind commitment through secondary corridors.</p></article>
+                        <article><span>08 / Cut-off exits</span><strong id="blind-monument-exit-status">04 outlets available</strong><p>The first finisher through an outlet starts a visible countdown before that route seals permanently.</p></article>
+                    </section>
+                </div>
+
+                <section class="study-notes" aria-label="Blind Monument concept notes">
+                    <article>
+                        <p class="note-number">01</p>
+                        <h2>Mechanics</h2>
+                        <ol>
+                            <li><strong>The maze is the race course.</strong> The player directly drives through a large connected concrete plan. Four northern outlets are valid finishes, and race position follows actual completion order.</li>
+                            <li><strong>Shear doors preserve contact.</strong> Their openings move with the wall. A mistimed car is dragged laterally, turned into another corridor or pinned until it can reverse free.</li>
+                            <li><strong>Dead ends operate on visible cycles.</strong> Retracting monoliths create temporary shortcuts. Arriving early costs time; arriving late leaves a solid wall and a forced return journey.</li>
+                            <li><strong>The central exchange changes destination.</strong> Two diagonal structures slide through a shared court, redirecting northbound cars into the neighbouring corridor while preserving velocity and collisions.</li>
+                            <li><strong>Rollers and compactors create moving shelter.</strong> Recesses, wall passages and narrow bypass tunnels allow cars to avoid the mechanism, follow behind it or use its movement against rivals.</li>
+                            <li><strong>Exits are consumable opportunities.</strong> The first finisher through an outlet begins its closure. Following cars may race the descending block or navigate toward another beacon.</li>
+                            <li><strong>The maze remembers movement.</strong> Persistent tyre traces remain visible beneath volumetric dust. They can reveal a successful route or record a deliberate diversion into a dead end.</li>
+                        </ol>
+                    </article>
+
+                    <article>
+                        <p class="note-number">02</p>
+                        <h2>Features</h2>
+                        <ul>
+                            <li>Large camera-followed concrete labyrinth</li>
+                            <li>Direct keyboard and pointer driving</li>
+                            <li>Twenty-four colliding race vehicles</li>
+                            <li>Four independent cut-off finish outlets</li>
+                            <li>Two moving shear-door complexes</li>
+                            <li>Three periodically retracting dead ends</li>
+                            <li>Central corridor-exchange court</li>
+                            <li>Three physical rolling barriers</li>
+                            <li>Two compacting-wall chambers</li>
+                            <li>Vehicle-width tunnels and wall passages</li>
+                            <li>Persistent tyre trails and suspended dust</li>
+                            <li>Full-maze survey view and live structural map</li>
+                        </ul>
+                    </article>
+
+                    <article>
+                        <p class="note-number">03</p>
+                        <h2>Ideas</h2>
+                        <ul>
+                            <li><strong>Dust deception.</strong> A driver can enter a false branch at speed, reverse through a wall passage and leave a convincing trail for the following pack.</li>
+                            <li><strong>Roller wake racing.</strong> Rubble or disabled vehicles can make the protected wake behind a roller faster than the apparently clear neighbouring corridor.</li>
+                            <li><strong>Exit feints.</strong> A leader can approach one finish beacon, draw rivals into its branch, then use a late exchange corridor toward a less crowded outlet.</li>
+                            <li><strong>Persistent wall damage.</strong> Repeated shear-door contact can chip an aperture and make its usable opening slightly wider for later racers.</li>
+                            <li><strong>Nested tunnels.</strong> A later maze can place narrow passages inside moving wall sections, allowing an expert driver to travel with the architecture.</li>
+                            <li><strong>Unknown monument.</strong> Competitive heats can rearrange the same authored block set before launch while retaining readable mechanism landmarks and exit positions.</li>
+                        </ul>
+                    </article>
+                </section>
+            </section>
         </main>
     </div>
 
@@ -1803,6 +1956,7 @@
     <script src="ringfall.js?v=ringfall-r1"></script>
     <script src="dead-signal.js?v=dead-signal-r1"></script>
     <script src="compression-run.js?v=compression-run-r1"></script>
-    <script src="app.js?v=compression-run-r1"></script>
+    <script src="blind-monument.js?v=blind-monument-r1"></script>
+    <script src="app.js?v=blind-monument-r1"></script>
 </body>
 </html>
