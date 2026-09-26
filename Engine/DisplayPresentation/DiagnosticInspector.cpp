@@ -22,6 +22,7 @@ bool DiagnosticInspector::AdvanceInteraction(const InputExchange& Input) noexcep
     const bool F3     = Input.IsKeyPressed(VirtualKeyCategory::KeyF3);
     const bool F4     = Input.IsKeyPressed(VirtualKeyCategory::KeyF4);
     const bool F5     = Input.IsKeyPressed(VirtualKeyCategory::KeyF5);
+    const bool F6     = Input.IsKeyPressed(VirtualKeyCategory::KeyF6);
     const bool Escape = Input.IsKeyPressed(VirtualKeyCategory::KeyEscape);
     const bool Shift  = Input.IsKeyPressed(VirtualKeyCategory::KeyLeftShift) || Input.IsKeyPressed(VirtualKeyCategory::KeyRightShift);
     bool Changed = false;
@@ -39,8 +40,17 @@ bool DiagnosticInspector::AdvanceInteraction(const InputExchange& Input) noexcep
     }
     if (F4 && !F4Held_) { Occlusion_ = !Occlusion_; Changed = true; }
     if (F5 && !F5Held_) { AliasPick_ = !AliasPick_; Changed = true; }   // R6 row 3: alias pick vs uniform identity
+    // The patch preview's screen-error tolerance. Changing it changes which alternative every opaque patch
+    //    selects THIS frame, so it is reported as a change like every other key here: the caller persists it and
+    //    restarts the accumulation (a debug view does not accumulate, but returning to shaded rendering must not
+    //    inherit a history shaded through a different mesh).
+    if (F6 && !F6Held_)
+    {
+        PatchErrorPixels_ = PatchErrorPixels_ >= 8.0f ? 1.0f : PatchErrorPixels_ * 2.0f;
+        Changed = true;
+    }
     if (Escape && !EscapeHeld_ && Open_) { Open_ = false; }
-    F3Held_ = F3; F4Held_ = F4; F5Held_ = F5; EscapeHeld_ = Escape;
+    F3Held_ = F3; F4Held_ = F4; F5Held_ = F5; F6Held_ = F6; EscapeHeld_ = Escape;
     return Changed;
 }
 
@@ -94,7 +104,10 @@ void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float To
     char Rows[9][160];
     std::snprintf(Rows[0], sizeof(Rows[0]), "clusters   %s  \xE2\x86\x92  frustum %s  \xE2\x86\x92  cone %s  \xE2\x86\x92  visible %s", Total, Frustum, Cone, Visible);
     std::snprintf(Rows[1], sizeof(Rows[1]), "drawn      phase 1  %s   +   phase 2  %s   (%s triangles)", One, Two, Tris);
-    std::snprintf(Rows[2], sizeof(Rows[2]), "indirect   %s   |   HiZ occlusion %s   |   rays: CWBVH (Tier A)", DrawIndirectCount ? "1 draw/phase" : "fixed-count", Occlusion_ ? "on" : "OFF");
+    std::snprintf(Rows[2], sizeof(Rows[2]), "indirect   %s   |   HiZ occlusion %s   |   patch error %g px%s   |   rays: CWBVH (Tier A)",
+                  DrawIndirectCount ? "1 draw/phase" : "fixed-count", Occlusion_ ? "on" : "OFF",
+                  static_cast<double>(PatchErrorPixels_),
+                  (View_ == DebugViewCategory::PatchTiles || View_ == DebugViewCategory::PatchWire) ? "" : " (preview only)");
     // The shadow figure is only meaningful when the GI-off stage ran, so it is shown as a dash rather than 0.00
     //    otherwise — a zero would read as "shadows are free" instead of "shadows did not run this frame".
     // A stage that did not run this frame prints as an en dash, not 0.00: a zero would read as "free" rather
@@ -132,7 +145,7 @@ void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float To
         std::snprintf(Rows[7], sizeof(Rows[7]), "material   %s", MaterialSummary);
         RowCount = 9u;
     }
-    std::snprintf(Rows[RowCount - 1u], sizeof(Rows[RowCount - 1u]), "F3 next  \xC2\xB7  Shift+F3 previous  \xC2\xB7  F4 HiZ on/off  \xC2\xB7  F5 alias pick  \xC2\xB7  Esc close");
+    std::snprintf(Rows[RowCount - 1u], sizeof(Rows[RowCount - 1u]), "F3 next  \xC2\xB7  Shift+F3 previous  \xC2\xB7  F4 HiZ on/off  \xC2\xB7  F5 alias pick  \xC2\xB7  F6 patch error  \xC2\xB7  Esc close");
 
     const PlanePoint TitleSizePx = Surface.MeasureText(Title, TitleSize);
     float ContentWidth = std::max(Width - Padding * 2.0f, TitleSizePx.X);

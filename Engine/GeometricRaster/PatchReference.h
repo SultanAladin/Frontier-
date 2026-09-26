@@ -9,7 +9,7 @@ namespace Frontier::PatchGeometry {
 // a camera-selected mesh into the ray scene. Material inputs are the CURRENT records.
 inline bool Select(const ClusterRecord& c,const InstanceRecord& i,const MaterialRecord& m,
                    const MaterialSlabRecord* s,const CameraClipConfiguration& camera,
-                   uint32_t height,bool preview=true)
+                   uint32_t height,bool preview=true,float tolerancePixels=1.0f)
 {
     if(!preview||!s||!c.CoarseTriangleCount||m.SlabCount!=1)return false;
     bool textures=(s->TextureSlots[4]&65535u)!=65535u||(s->TextureSlots[4]>>16)!=65535u||(s->TextureSlots[3]>>16)!=65535u;
@@ -26,6 +26,6 @@ inline bool Select(const ClusterRecord& c,const InstanceRecord& i,const Material
     bool away=false;
     if(similarity&&c.Cutoff<1&&distance>radius)
         away=Dot(TransformDirection(world,{c.AxisX,c.AxisY,c.AxisZ}).Normalized(),v/distance)>c.Cutoff+radius/distance;
-    return PatchChooseCoarse(true,opaque,true,away,c.CoarseError,scale,depth,radius,lateral,float(height)/(2*camera.TanHalfFieldOfView),camera.NearDistance);
+    return PatchChooseCoarse(true,opaque,true,away,c.CoarseError,scale,depth,radius,lateral,float(height)/(2*camera.TanHalfFieldOfView),camera.NearDistance,tolerancePixels);
 }
 }

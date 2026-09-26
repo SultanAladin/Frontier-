@@ -50,7 +50,7 @@ void ReSTIRIntegrator::ObserveCamera(const ProjectZero::FlyThroughSolver& Camera
         HistoryForward = Forward;
         HistoryWidth   = ViewportWidth;
         HistoryHeight  = ViewportHeight;
-        ResetAccumulation();
+        ResetAccumulation(Resized ? "viewport resize" : (Moved ? "camera move" : "camera turn"));
     }
 }
 

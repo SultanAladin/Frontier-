@@ -300,7 +300,10 @@ void main()
     // global frame age: resets/disocclusions immediately regain full filtering.
     // Blend the current demodulated input, NOT clean HistoryImage.rgb: the input
     // includes weather, whereas history deliberately excludes it.
-    float Strength = ProgressiveDenoiseStrength(imageLoad(HistoryImage, Pixel).a);
+    // The fade is keyed to THIS level's tap spacing as well as the age: a step-16
+    // level throws away far more real detail per unit of blend than a step-1 level,
+    // so it is retired first (ProgressiveDenoise.shared.h records the reasoning).
+    float Strength = ProgressiveDenoiseStrength(imageLoad(HistoryImage, Pixel).a, StepSize);
     if (Strength < 1.0)
     {
         // The centre and filtered estimate are correlated. A convex blend of

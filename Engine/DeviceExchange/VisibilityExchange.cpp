@@ -1087,6 +1087,9 @@ void VisibilityExchange::WriteFrameConstants(uint32_t Slot, uint32_t Phase, cons
     R.Control[0] = Phase; R.Control[1] = Frame.FrameIndex; R.Control[2] = static_cast<uint32_t>(Frame.DebugView);
     R.Control[3] = (Frame.OcclusionCulling && PreviousValid ? 1u : 0u) | (Frame.ConeCulling ? 2u : 0u) | (Vulkan->BorrowedSlabs ? 4u : 0u);
     R.Projection[0] = ViewClip.Columns[0][0]; R.Projection[1] = std::fabs(ViewClip.Columns[1][1]);
+    // z: the patch preview's screen-error tolerance in pixels, read by PatchSelection.slang in BOTH cull phases
+    //    and in the vertex shader — one value per frame, so the three selectors cannot disagree.
+    R.Projection[2] = Frame.PatchErrorPixels > 0.0f ? Frame.PatchErrorPixels : 1.0f;
     if (Vulkan->FrameConstants[Slot][Phase - 1u].Mapped) std::memcpy(Vulkan->FrameConstants[Slot][Phase - 1u].Mapped, &R, sizeof(R));
     if (Phase == 2u) { PreviousViewClip = ViewClip; PreviousValid = true; }
 }
