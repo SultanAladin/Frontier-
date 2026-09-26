@@ -1,5 +1,10 @@
 # Continued refinement and Patch Geometry topology
 
+> **Superseded in part (2026-09-26).** The fade below is now applied PER LEVEL, the patch error is MEASURED
+> rather than summed, and a per-frame accumulation restart (the star twinkle clock) has been removed. See
+> `Docs/RefinementAndPatchResponse.md` for the diagnosis, the measurements and the F6 tolerance dial; this
+> file keeps the earlier record.
+
 ## Rendering
 
 The 256-frame notification never stopped sampling: the integrator increments beyond
@@ -9,7 +14,8 @@ it and `ResolveSurface` continues updating the unfiltered mean. The message now 
 Variance edge stops alone did not guarantee the five-stage spatial filter would
 become an identity operation. Every stage now fades its contribution using the
 **current pixel's valid sample count**: full strength through 33 samples, then
-`33 / count`. This is a presentation policy, not a measured convergence criterion.
+`33 / count` — since 2026-09-26 raised to the power `1 + log2(step)`, so the wide
+levels (which cost the most detail) retire first. This is a presentation policy, not a measured convergence criterion.
 33 corresponds to the reprojection bound of 32 previous samples plus one new sample.
 Newly exposed/reset pixels retain strong filtering even after a long stationary hold.
 Long holds progressively reveal more of the raw mean, including its remaining noise;
@@ -53,6 +59,8 @@ unchanged. Small meshes and heavily seamed patches may have no safe reduction.
   / 562 far triangles**, while production retains 960. Existing boundary, cache,
   material protection, instance splitting and ray-range tests remain covered.
   Far test distance is 1000 m, near 1.7 m; not a claim about an ordinary dolly distance.
+  (2026-09-26: with the measured error the sphere's switch is at 21.6 m, and the gate now
+  bounds the switch distance and its monotonicity directly.)
 - `python3 Tools/Tests/TestDenoiseSafety.py`: descriptor/barrier/source guards and
   existing history snapshot, telemetry, dither and concurrency-model checks.
 - Existing material denoise CPU suite: 97/97 (default young-history fixture).

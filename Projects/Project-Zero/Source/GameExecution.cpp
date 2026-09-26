@@ -979,6 +979,7 @@ int main(int argc, char** argv)
     Frontier::DiagnosticInspector Diagnostics;
     Diagnostics.Seed(static_cast<Frontier::DebugViewCategory>(Configuration.Query().Backend.DebugView), Configuration.Query().Backend.OcclusionCulling,
                      Configuration.Query().Backend.AliasPick);
+    Diagnostics.SeedPatchErrorPixels(Configuration.Query().Backend.PatchErrorPixels);
     Integrator.AssignAliasPick(Configuration.Query().Backend.AliasPick);   // R6 row 3: persisted F5 state applies from the first frame
 
     // Dashboard-driven engine services: quality ladder, toasts, frame telemetry
@@ -1436,9 +1437,10 @@ int main(int argc, char** argv)
             Configuration.Access().Backend.DebugView        = static_cast<Frontier::DebugViewSelection>(Diagnostics.QueryView());
             Configuration.Access().Backend.OcclusionCulling = Diagnostics.QueryOcclusion();
             Configuration.Access().Backend.AliasPick        = Diagnostics.QueryAliasPick();
+            Configuration.Access().Backend.PatchErrorPixels = Diagnostics.QueryPatchErrorPixels();
             Configuration.MarkDirty();
             Integrator.AssignAliasPick(Diagnostics.QueryAliasPick());   // R6 row 3: F5 flips the kernel's pick live
-            Integrator.ResetAccumulation();
+            Integrator.ResetAccumulation("debug popup");
         }
 
         // ①c Dashboard settings → renderer (only when something changed)
@@ -1575,7 +1577,7 @@ int main(int argc, char** argv)
                 // deliberately conservative (not a per-frame fast path); it also refreshes emitters.
                 Level.Finalise(std::max(1u, Level.QueryMaterials().QueryMetrics().SlabLimit));
                 Surface.UploadScene(Level, Traversal, &Textures);
-                Integrator.ResetAccumulation();   // committed constants change the shading - restart like any look change
+                Integrator.ResetAccumulation("material apply");   // committed constants change the shading - restart like any look change
                 if (ControlCentre.QueryNotifications().QueryApplied().RenderFinished)
                 {
                     char Body[128];
@@ -1767,7 +1769,7 @@ int main(int argc, char** argv)
 
 #ifdef FRONTIER_DEVELOPMENT
         // ②d The tint write-back: a folder tint edited in the sheet lands back on its row.
-        if(InspectorSession.TakeProjectionChanged())Integrator.ResetAccumulation();
+        if(InspectorSession.TakeProjectionChanged())Integrator.ResetAccumulation("camera projection");
         // ②f The view write-back: a fresh orbit revision poses the fly camera (the eye off the orbit's
         //    figures), so the views menu and the gizmo steer the rendered view when explicitly changed.
         const Frontier::ViewportOrbit& Orbit = Panel.QueryViewportOrbit();
@@ -1805,9 +1807,13 @@ int main(int argc, char** argv)
         Integrator.ObserveCamera(Camera, RenderWidth, RenderHeight);
         if (Telemetry.QueryRows().ShowScene)
         {
-            char Line[96];
-            std::snprintf(Line, sizeof(Line), "%s  |  %u tris  |  %u luminaire tris  |  %ux%u  |  frame %u  |  %s",
+            // The accumulated sample count AND what last restarted it. "frame 1" every frame is the signature of
+            //    a scene source that wiggles every tick; without the reason the reader cannot tell that apart
+            //    from a camera that is simply being flown.
+            char Line[160];
+            std::snprintf(Line, sizeof(Line), "%s  |  %u tris  |  %u luminaire tris  |  %ux%u  |  frame %u (restart: %s)  |  %s",
                           Level.QueryName().c_str(), Level.QueryTriangleCount(), LuminaireCount, RenderWidth, RenderHeight, Integrator.QueryAccumulationIndex(),
+                          Integrator.QueryRestartReason(),
                           Frontier::RayTracingCapabilitySet::TierName(Surface.QueryRayTracingTier()));
             Frontier::TelemetryRowStructure Rows = Telemetry.QueryRows(); Rows.SceneLine = Line; Telemetry.AssignRows(Rows);
         }
@@ -1840,6 +1846,8 @@ int main(int argc, char** argv)
             Frame.DebugView        = ControlCentre.QuerySettings().PatchDebug == 1u ? Frontier::DebugViewCategory::PatchTiles : ControlCentre.QuerySettings().PatchDebug == 2u ? Frontier::DebugViewCategory::PatchWire : Diagnostics.QueryView();
             Frame.OcclusionCulling = Diagnostics.QueryOcclusion();
             Frame.ConeCulling      = false;   // the kernel shades both faces; cone culling would remove back-facing walls seen from outside
+            // The patch preview's error tolerance, handed to the cull phases and the vertex shader as one value.
+            Frame.PatchErrorPixels = Diagnostics.QueryPatchErrorPixels();
             Surface.AssignVisibilityFrame(Frame);
         }
 
@@ -2093,7 +2101,7 @@ int main(int argc, char** argv)
                     if (RowsComposed && InstanceStructure.UpdateTopLevel(InstanceRows))
                         (void)Surface.RefreshInstanceTraversal(InstanceStructure);
                 }
-                Integrator.ResetAccumulation();
+                Integrator.ResetAccumulation("instance motion");
             }
 
             // The outline, every tick: the picked rows' spans become instance ordinals, and the compute stroke
@@ -2407,7 +2415,7 @@ int main(int argc, char** argv)
             if (std::memcmp(&Sky, &LastSky, sizeof(Sky)) != 0)
             {
                 LastSky = Sky;
-                Integrator.ResetAccumulation();
+                Integrator.ResetAccumulation("sky record");
                 SkyDomeQuietTicks = 0u;   // #26A a moving sky is never worth baking — wait for it to settle
             }
             else if (SkyDomeQuietTicks < 0xFFFFFFFFu)
@@ -2534,7 +2542,7 @@ int main(int argc, char** argv)
             if (std::memcmp(&Moons, &LastMoons, sizeof(Moons)) != 0)
             {
                 LastMoons = Moons;
-                Integrator.ResetAccumulation();
+                Integrator.ResetAccumulation("moon record");
             }
         }
 
@@ -2567,10 +2575,32 @@ int main(int argc, char** argv)
             (void)Surface.RefreshPost(&Post, sizeof(Post));
             CpuWeatherPostPackUploadMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-WeatherPackStart).count();
             // Weather composites after clean lighting history; wind must not reset GI.
-            if (std::memcmp(&Post, &LastPost, offsetof(Frontier::PostConstantRecord, Weather)) != 0)
+            //
+            // ⚠️ The star twinkle CLOCK is excluded for the same reason, and it is the one that used to stop the
+            //    image from ever converging. PostStarEffects.w is seconds, advanced every single tick whenever
+            //    stars are visible (`StarTwinkle` defaults on), so a byte compare of the whole head restarted the
+            //    accumulation on EVERY frame of every night-time scene: sample count pinned at 1, the denoiser
+            //    pinned at full strength, an image that stays as noisy-then-blurred as its first frame no matter
+            //    how long the camera is held still. The twinkle is a per-frame modulation of an analytic star
+            //    (PostRecords.slang: Flux from sin(T), T from PostStarEffects.w) applied to the SAMPLE, exactly
+            //    like the lens flare — so leaving the history alone does not corrupt it, it converges it: a held
+            //    camera settles on the mean twinkle instead of trading the whole frame's convergence for it.
+            //    Every other field in the head — brightness, depth, rate, and every non-star row — still restarts.
+            constexpr size_t kStarTimeOffset = offsetof(Frontier::PostConstantRecord, PostStarEffects) + 3u * sizeof(float);
+            constexpr size_t kAfterStarTime  = kStarTimeOffset + sizeof(float);
+            constexpr size_t kHeadEnd        = offsetof(Frontier::PostConstantRecord, Weather);
+            static_assert(kAfterStarTime <= kHeadEnd, "star time must sit inside the compared head");
+            const auto* Bytes     = reinterpret_cast<const unsigned char*>(&Post);
+            const auto* LastBytes = reinterpret_cast<const unsigned char*>(&LastPost);
+            if (std::memcmp(Bytes, LastBytes, kStarTimeOffset) != 0 ||
+                std::memcmp(Bytes + kAfterStarTime, LastBytes + kAfterStarTime, kHeadEnd - kAfterStarTime) != 0)
             {
                 LastPost = Post;
-                Integrator.ResetAccumulation();
+                Integrator.ResetAccumulation("post record");
+            }
+            else
+            {
+                LastPost = Post;   // keep the clock current so a later comparison is against THIS frame
             }
         }
 

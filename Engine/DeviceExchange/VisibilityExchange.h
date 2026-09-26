@@ -77,6 +77,7 @@ struct VisibilityFrameConfiguration
     DebugViewCategory       DebugView;          // [-]  ≠ Off → the resolve writes the presentation image, kernel skipped
     bool                    OcclusionCulling;   // [-]  HiZ test on (off = frustum + cone only; proof 4 toggles this)
     bool                    ConeCulling;        // [-]  normal-cone test (default off: the kernel shades both faces)
+    float                   PatchErrorPixels = 1.0f;   // [px] patch-preview screen-error tolerance (F6 cycles 1/2/4/8)
 };
 
 //------------------------------------------------------------------------------------------------------------------------

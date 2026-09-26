@@ -90,7 +90,7 @@ for shader in ['ReSTIRViewport','AtrousDenoise','ShadowResolve']:
 # and all levels must receive binding 4 with kernel-write -> filter-read ordering.
 f=(R/'Engine/Shaders/AtrousDenoise.slang').read_text()
 assert 'layout(set = 0, binding = 4, rgba32f) uniform readonly image2D HistoryImage;' in f
-assert 'ProgressiveDenoiseStrength(imageLoad(HistoryImage, Pixel).a)' in f
+assert 'ProgressiveDenoiseStrength(imageLoad(HistoryImage, Pixel).a, StepSize)' in f
 assert 'imageLoad(HistoryImage, Pixel).rgb' not in f
 layout=h[h.index('bool SwapchainExchange::BringDenoisePipeline()'):h.index('bool SwapchainExchange::BringDenoisePipeline()')+3500]
 assert 'LayoutInfo.bindingCount = 5u' in layout

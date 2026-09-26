@@ -1,0 +1,231 @@
+# Why the image stopped getting crisper, and why the patches stopped moving
+
+Written 2026-09-26, in answer to three reports from the owner's machine (Windows, GTX 1650 SUPER,
+NVIDIA 576.40):
+
+1. “before it used to render after it converged — it would still render, giving more crisp results; now it doesn’t”
+2. “the clusters we added don’t seem to change when I move closer / further”
+3. “geometry patches aren’t updating”
+
+This file is the diagnosis and the measurements. `Docs/ProgressiveRefinement.md` and `Docs/PatchGeometry.md`
+describe the systems themselves; both are updated to match.
+
+⚠️ **Nothing here has been executed on a GPU.** Everything below is CPU evidence from the shipped shader text
+(the mechanical C++ port), the shared C++/GLSL policy headers and the real registration path, plus a full
+SPIR-V lowering of all 22 shaders. The executable **and the shaders** must be rebuilt together.
+
+---
+
+## ① “It stops getting crisper”
+
+Two independent causes, both real, both fixed.
+
+### 1a. The à-trous fade was one weight for five very different levels
+
+The filter is five à-trous levels with tap spacings 1, 2, 4, 8, 16 px. Since the previous change each level
+faded with the pixel's own valid sample count, `33 / count`, and the same weight was used for **every** level.
+That converges to an identity in the limit, but slowly and uniformly — and the levels do not cost the same
+amount of detail. Level 0 mixes the neighbours one pixel away; level 4 mixes neighbours **thirty-two** pixels
+away. At 256 samples the old policy still blended 13 % of a 32-pixel-wide blur into the presented image, and
+that is what a held frame looks like when a reviewer calls it “blurry”.
+
+The fade is now keyed to the level's own tap spacing as well as the age:
+
+```
+Strength(count, step) = (33 / count) ^ (1 + log2(step))      for count > 33
+                      = 1                                     otherwise
+```
+
+The wide levels retire first — the same ordering SVGF derivatives use when they drop levels as history grows,
+expressed as a continuous weight so nothing pops on the frame a level would have been dropped. Below the
+bound every level is at full strength, so young and freshly disoccluded pixels are filtered **bit-identically**
+to before (the gate asserts this).
+
+Measured with the shipped shader's C++ port on a new fixture carrying detail at five spatial scales
+(1/2/4/8/16 px bands), mean absolute detail bias, lower is crisper:
+
+| valid samples | 1 px band | 2 px | 4 px | 8 px | 16 px | all |
+|---|---|---|---|---|---|---|
+| ≤ 33 (unchanged) | 0.00989 | 0.00988 | 0.00979 | 0.00958 | 0.00922 | 0.00968 |
+| 64 — before | 0.00684 | 0.00830 | 0.00844 | 0.00806 | 0.00730 | 0.00780 |
+| 64 — after | 0.00539 | 0.00575 | 0.00464 | 0.00331 | 0.00200 | **0.00425** |
+| 256 — before | 0.00221 | 0.00323 | 0.00340 | 0.00313 | 0.00259 | 0.00292 |
+| 256 — after | 0.00128 | 0.00110 | 0.00063 | 0.00035 | 0.00017 | **0.00071** |
+| 8192 — after | 0.00004 | 0.00003 | 0.00002 | 0.00001 | 0.000004 | 0.00002 |
+
+At 256 samples the frame keeps **4.1×** more of its detail overall and **15.6×** more of the 16 px detail.
+The detail amplitude in the fixture is 0.02, so “0.00292” is 15 % of the feature gone and “0.00071” is 3.5 %.
+
+### 1b. A twinkling star restarted the whole accumulation, every frame
+
+The frame loop restarts the accumulation whenever the packed post record changes, comparing the bytes before
+`Weather` (weather is deliberately excluded — it composites after clean lighting history, so wind must not
+reset GI). `PostStarEffects.w` sits inside that compared head and is **seconds**: `CelestialSequence::Tick`
+advances it every tick whenever stars are visible, and `StarTwinkle` defaults on.
+
+So in any scene with visible stars the record differed on every single frame:
+
+* accumulation index pinned at 1 → `count` never grew,
+* `ProgressiveDenoiseStrength` therefore pinned at 1.0 → the filter never faded,
+* the image could not converge no matter how still the camera was held.
+
+The twinkle is now excluded from the compare exactly as weather is. It is a per-frame modulation applied to
+the **sample** (`PostRecords.slang`: `Flux` from `sin(T)`, `T` from `PostStarEffects.w`), like the lens flare —
+so leaving history alone does not corrupt the mean, it converges it. A held camera settles on the mean twinkle
+instead of trading the entire frame's convergence for it. Every other field in the head still restarts.
+
+### 1c. Every restart now names itself
+
+A progressive integrator that never converges looks exactly like a broken one, and the difference is a fact
+the frame loop already knew and threw away: **which** comparison restarted the history.
+`ReSTIRIntegrator::ResetAccumulation` now takes a string literal, and both readouts show it:
+
+* the scene telemetry line — `… | frame 412 (restart: camera move) | …`
+* the render panel — `Frame 412 accumulated` / `Restart camera move (57 total)`
+
+A still camera on a settled scene must leave the reason and the total **alone** while the frame count climbs.
+If they climb together, the name on screen is the subsystem to look at — no guessing, no instrumented build.
+Named sources: camera move / camera turn / viewport resize / camera projection / sky record / moon record /
+post record / material apply / instance motion / debug popup / exposure / and one per quality dial.
+
+### What was ruled out (measured, not assumed)
+
+* **A 256-frame cap.** There is none. `BakeFrameCount` only raises the “Initial accumulation ready — refinement
+  continues” notification; the integrator keeps incrementing and `ResolveSurface` keeps updating the mean.
+* **The SVGF moving-history clamp pinning a still frame at 32 samples.** `kMovingHistoryBound` applies only when
+  `prevPx != pixel`. Motion vectors are built from **unjittered** current and previous clip positions
+  (`VisibilityRaster.vert/frag`), so a still camera yields exactly zero motion and `prevPx == pixel` — the count
+  stays unbounded. AA jitter is applied to `gl_Position` only, after the motion attributes are written.
+* **History ping-pong / denoise binding 4 format.** Checked by `Tools/Tests/TestDenoiseSafety.py`; unchanged.
+* **Cloud-shadow drift as a per-frame reset source.** `FoldShadowDrift` uses `ShadowTimeSeconds`, a frozen slider
+  value, not a clock.
+* **An animating sun.** `CelestialClock::Animate` defaults **false**; with the defaults a six-tick CPU run shows
+  the sky, moon and post records byte-identical every tick.
+
+---
+
+## ② / ③ The patches were not broken — their error number was ~10× too big
+
+The preview selects a patch's coarse alternative when its projected geometric error is within tolerance:
+
+```
+projected = focal · (error · scale) · (1 + (lateral + radius)/nearest) / nearest        ≤ tolerance (px)
+```
+
+`error` is the patch's object-space deviation, produced by the bake. v1 computed it as
+
+```
+radius[a] = max(radius[a], radius[b] + |ab|)         // the full edge length, summed along the collapse chain
+```
+
+which is a chain **sum of edge lengths**, not a deviation. On the native 960-triangle sphere it reported
+0.19–0.47 object-space units for patches whose surface actually moves by a few hundredths. The selector divides
+the camera distance by exactly that number, so a 10× over-statement is a 10× further switch: nothing changed
+until the camera was hundreds of metres from a 2 m ball. That is report ② and ③ — not “not wired”, but
+“wired to a number that never fires at a distance a person would dolly”.
+
+The bake now **measures** the deviation: the one-sided distance from the original patch surface to the
+simplified one, sampled at every fine vertex, every fine edge midpoint and every fine triangle centroid
+(6 samples per fine triangle, ≤ 768 per patch), each closed against every simplified triangle with the exact
+point-in-Voronoi-region closest-point test. It is a **sampled** Hausdorff estimate, not a certified bound —
+the true maximum can sit between samples — and for a ≤128-triangle patch the sampling is dense against the
+triangles that remain.
+
+Measured, native sphere (radius ~1, 8 patches, 960 triangles):
+
+| | patch errors | first distance where detail drops |
+|---|---|---|
+| v1 chain sum | 0.194 – 0.468 | ≈ 300 m |
+| measured (v2) | 0.018 – 0.041 | **21.6 m** |
+
+Torus: 0.014 – 0.037, switch at **17.8 m**.
+
+The patch cache moves to **v2** (`.frontier/cache/patch-geometry-v2/`, version word 2) so no v1 entry can keep
+the old distance alive. `FRONTIER_PATCH_CACHE` still overrides the location.
+
+### The tolerance is now a dial — F6
+
+One alternative at a strict one-pixel bound is, correctly, a rare event: one pixel of geometric error is a
+tight budget. To watch the transition at a normal viewing distance — and to confirm from the screen that the
+selector is live — **F6 in the debug popup (F3) cycles the preview's screen-error tolerance 1 → 2 → 4 → 8 px**.
+It is shown in the popup (`patch error 4 px`), persisted as `[render] patch_error_pixels`, and written once per
+frame into `Projection.z`, so both cull phases and the vertex shader cannot disagree about it.
+
+First distance at which the selection drops, 720 p, 60° vertical field of view:
+
+| tolerance | sphere | torus |
+|---|---|---|
+| 1 px (default) | 21.6 m | 17.8 m |
+| 2 px | 12.8 m | 9.7 m |
+| 4 px | 7.3 m | 5.6 m |
+| 8 px | 4.5 m | 3.6 m |
+
+Triangle counts for the sphere (960 fine → 550 fully coarse), by camera distance:
+
+| | 1.7 m | 3 m | 5 m | 8 m | 12 m | 20 m | 35 m | 60 m |
+|---|---|---|---|---|---|---|---|---|
+| 1 px | 960 | 960 | 960 | 960 | 960 | 960 | 800 | 550 |
+| 2 px | 960 | 960 | 960 | 960 | 914 | 800 | 550 | 550 |
+| 4 px | 960 | 960 | 960 | 914 | 574 | 550 | 550 | 550 |
+| 8 px | 960 | 960 | 914 | 550 | 550 | 550 | 550 | 550 |
+
+### What did NOT change, deliberately
+
+* Selection is still **preview-only**: `Control.z ∈ {14, 15}`, i.e. the quick tile must read **Patch Tiles** or
+  **Tiles + Wireframe**. Normal shaded rendering, ray traversal, shadows and luminaire sampling always use the
+  fine triangles. Primary/secondary surface correspondence is not implemented, and a coarse raster against a
+  fine ray scene is a self-shadowing mismatch, not an optimisation.
+* Still **one** alternative per patch (≈ half the triangles). This is not an adaptive hierarchy: past the switch
+  distance nothing further happens. Patch tile **colours are stable by design** — in `Patch Tiles` the tiles will
+  look identical near and far, and the triangle change is only visible in **Tiles + Wireframe**, or in the
+  triangle counter in the F3 popup, which drops as the alternative is taken.
+* Protected materials (glass, transmission, subsurface, emissive, layered, uncertain textures, thin slabs) never
+  take an alternative, at any tolerance or distance. The gate re-checks this at 1000 distances.
+
+---
+
+## Which “clusters”? — the HTML lab is a different thing, and it is fine
+
+`Experimental/FrontierEditor/cluster-lod.html` (the Nanite-style cluster-LOD lab, `Docs/ClusterLodLab.md`) is an
+HTML/Canvas demo with no engine integration. It was checked here and it does respond to distance — same scene,
+`buildMesh` triangle count by eye distance: 18 240 (2.2) · 11 248 (4) · 4 928 (8) · 2 784 (16) · 1 552 (24).
+If “the clusters don't change” was about the lab, that is not reproducible; the report matches the **engine**
+patch preview, which is what ② and ③ above fix. The two systems share a name and nothing else.
+
+---
+
+## Validation run here
+
+| gate | result |
+|---|---|
+| `bash Tools/Build/CheckPatchGeometry.sh` | PASS, **83 322** CPU checks — new: switch-distance bounds (> 3 m at 1 px, < 150 m at 1 px, < 15 m at 8 px), monotonicity in distance at every tolerance, measured deviation < ¼ of the patch radius |
+| `bash Tools/Build/CheckProgressiveDenoise.sh` | PASS — five-scale detail table above, per-band improvement, young-history identity, disabled-filter identity, integrator past 8192 |
+| `python3 Tools/Tests/TestDenoiseSafety.py` | PASS — 102 429 arithmetic checks + descriptor/barrier/source guards |
+| `bash Tools/Build/CheckShaders.sh` | **GREEN — 22/22 shaders lowered to SPIR-V** (glslang built from source here via `Tools/Build/BuildGlslang.sh`; previous runs of this gate reported SKIPPED) |
+| `bash Tools/Build/CheckShaderTableParity.sh`, `CheckBuildSourceList.sh` | GREEN |
+| `bash Tools/Build/CheckDriverProgress.sh`, `CheckPipelineCache.sh`, `CheckPerformanceTelemetry.sh` | PASS / GREEN |
+| `bash Tools/Build/CheckTelemetryProbe.sh` | **RED before and after this change** — `SyntheticGpu` in the gate has no `HistorySnapshotMilliseconds`; verified identical on the untouched tree, so it is pre-existing and not part of this work |
+| C++20 syntax check with real dependency headers | `GameExecution.cpp`, `VisibilityExchange.cpp`, `ReSTIRIntegrator.cpp`, `DiagnosticInspector.cpp`, `ConfigurationRegistry.cpp`, `SceneStructure.cpp` |
+
+The cold-load cost of measuring the deviation is pruned rather than paid: a fine triangle that survives into
+the alternative is skipped (it is part of the simplified surface), and a candidate triangle whose bounding
+sphere is already further than the incumbent is skipped. Identical errors, 4.3× faster — the sphere's eight
+patches measure in 2.04 ms, 15 % of their cold bake. It is cached (`.pgeom`) after the first load either way.
+
+The whole change is ONE commit on top of the imported engine tree, so it lands on
+`streamlinkinbox/Frontier@arena/01a0c77d-frontier` as a single conflict-free cherry-pick — the import commit's
+tree is byte-identical to `ceee3d2`'s, and the cherry-picked result's tree hash matches this branch's exactly.
+
+## How to confirm it on the machine that has the GPU
+
+1. Rebuild **executable and shaders together** (the patch cache rebakes itself; v1 entries are ignored).
+2. Shaded view, native resolution, hold the camera still past the “Initial accumulation ready” notification.
+   The scene line must show `frame N (restart: …)` with **N climbing** and the restart total steady. If N sticks
+   at 1, the reason printed next to it is the subsystem that is still wiggling — that is the whole point of it
+   being on screen.
+3. Compare a fine texture or a specular edge at ~30 s of hold against the same frame at one second. The first
+   second is unchanged by design; the difference is everything after it.
+4. Patches: F3 to open the popup, quick tile to **Tiles + Wireframe**, F6 until it reads `patch error 8 px`,
+   then dolly an opaque smooth mesh between 3 m and 10 m. The wireframe inside the tiles must thin out, the tile
+   colours must not change, and the popup's triangle count must drop. Glass and emissive objects must keep their
+   full wireframe at every distance.

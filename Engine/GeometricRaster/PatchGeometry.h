@@ -13,9 +13,14 @@
 #include <chrono>
 #include <array>
 #include <iterator>
+#include <limits>
 #include <stdexcept>
 
 namespace Frontier::PatchGeometry {
+// v2: the coarse error is a measured surface deviation, not v1's summed collapse chain. A v1 entry decodes to a
+//    ~30x larger error and would keep the old several-hundred-metre switch distance alive, so the version word
+//    (and the directory) move together and every stale entry rebakes.
+constexpr uint32_t kPatchCacheVersion = 2u;
 struct Baked { std::vector<uint32_t> Indices; float Error=0; bool CacheHit=false; };
 inline float Length(Vector3 v){return std::sqrt(v.x*v.x+v.y*v.y+v.z*v.z);}
 inline float Dot(Vector3 a,Vector3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
@@ -27,6 +32,78 @@ inline uint64_t Key(const std::vector<VertexRecord>& v,const std::vector<uint32_
   for(float x:{p.SpatialLocation.x,p.SpatialLocation.y,p.SpatialLocation.z,p.NormalDirection.x,p.NormalDirection.y,p.NormalDirection.z,p.TextureCoordinateU,p.TextureCoordinateV,p.TangentDirection.x,p.TangentDirection.y,p.TangentDirection.z,p.TangentDirection.w})h=Mix(h,std::bit_cast<uint32_t>(x));
  }return h;
 }
+// Closest point on a triangle to p (Ericson, Real-Time Collision Detection §5.1.5 — the Voronoi-region form).
+// Exact for degenerate inputs because every region test is a sign comparison, and the final clamp keeps the
+//    barycentric pair inside the face even when the triangle has near-zero area.
+inline Vector3 ClosestOnTriangle(Vector3 p,Vector3 a,Vector3 b,Vector3 c){
+ const Vector3 ab=b-a,ac=c-a,ap=p-a;
+ const float d1=Dot(ab,ap),d2=Dot(ac,ap);
+ if(d1<=0&&d2<=0)return a;
+ const Vector3 bp=p-b;const float d3=Dot(ab,bp),d4=Dot(ac,bp);
+ if(d3>=0&&d4<=d3)return b;
+ const float vc=d1*d4-d3*d2;
+ if(vc<=0&&d1>=0&&d3<=0){const float t=d1-d3!=0?d1/(d1-d3):0.f;return a+ab*t;}
+ const Vector3 cp=p-c;const float d5=Dot(ab,cp),d6=Dot(ac,cp);
+ if(d6>=0&&d5<=d6)return c;
+ const float vb=d5*d2-d1*d6;
+ if(vb<=0&&d2>=0&&d6<=0){const float t=d2-d6!=0?d2/(d2-d6):0.f;return a+ac*t;}
+ const float va=d3*d6-d5*d4;
+ if(va<=0&&(d4-d3)>=0&&(d5-d6)>=0){const float den=(d4-d3)+(d5-d6);const float t=den!=0?(d4-d3)/den:0.f;return b+(c-b)*t;}
+ const float den=va+vb+vc;if(den==0)return a;
+ return a+ab*(vb/den)+ac*(vc/den);
+}
+
+// ⚠️ THE SELECTION DISTANCE IS THIS NUMBER. `CoarseError` is multiplied by the focal length and divided by the
+//    view depth, so whatever it over-states, the camera has to travel that same factor further before the
+//    alternative is allowed. v1 accumulated `radius[a] = max(radius[a], radius[b] + |ab|)` — the full edge length
+//    of every collapse, summed along the collapse chain. On the native 960-triangle sphere that reported 0.19 to
+//    0.47 object-space units for patches whose surface actually moves by a few millimetres: a ~30x over-estimate,
+//    which is why nothing changed detail until the camera was several hundred metres away.
+//
+// This measures the deviation instead of bounding it by a chain sum: the one-sided distance from the ORIGINAL
+//    patch surface to the simplified one, sampled at every fine vertex, every fine edge midpoint and every fine
+//    triangle centroid (6 samples per fine triangle, ≤ 768 per patch), each closed against every simplified
+//    triangle. It is a SAMPLED Hausdorff estimate, not a certified bound — the true maximum can sit between
+//    samples — and for a 128-triangle patch the sampling is dense relative to the triangles that remain.
+//    Measured once on the final index set: the collapse loop stops on the triangle target, never on the error,
+//    so a running value would change nothing except the cost.
+inline float MeasureDeviation(const std::vector<VertexRecord>& v,const std::vector<uint32_t>& fine,
+                              const std::vector<uint32_t>& coarse){
+ if(coarse.empty()||coarse.size()>=fine.size())return 0.f;
+ // Two exact prunings, because this runs on the cold-load path: a SURVIVING fine triangle contributes distance
+ //    zero at all seven of its samples (it IS part of the simplified surface), and a candidate triangle whose
+ //    bounding sphere is already further than the best distance found so far cannot improve it.
+ std::set<std::array<uint32_t,3>> kept;
+ std::vector<Vector3> centre(coarse.size()/3);std::vector<float> reach(coarse.size()/3);
+ for(size_t t=0,k=0;t+2<coarse.size();t+=3,++k){
+  std::array<uint32_t,3> face{coarse[t],coarse[t+1],coarse[t+2]};std::sort(face.begin(),face.end());kept.insert(face);
+  const Vector3 a=v[coarse[t]].SpatialLocation,b=v[coarse[t+1]].SpatialLocation,c=v[coarse[t+2]].SpatialLocation;
+  centre[k]=(a+b+c)*(1.f/3.f);
+  reach[k]=std::max({Length(a-centre[k]),Length(b-centre[k]),Length(c-centre[k])});
+ }
+ float worst=0.f;
+ const auto Sample=[&](Vector3 p){
+  float best=std::numeric_limits<float>::max();
+  for(size_t t=0,k=0;t+2<coarse.size();t+=3,++k){
+   if(Length(p-centre[k])-reach[k]>=best)continue;                       // cannot beat the incumbent
+   best=std::min(best,Length(p-ClosestOnTriangle(p,v[coarse[t]].SpatialLocation,
+                                                   v[coarse[t+1]].SpatialLocation,
+                                                   v[coarse[t+2]].SpatialLocation)));
+   if(best<=worst)return;                                                // cannot raise the maximum either
+  }
+  if(best<std::numeric_limits<float>::max())worst=std::max(worst,best);
+ };
+ for(size_t t=0;t+2<fine.size();t+=3){
+  std::array<uint32_t,3> face{fine[t],fine[t+1],fine[t+2]};std::sort(face.begin(),face.end());
+  if(kept.count(face))continue;                                          // unchanged triangle, deviation zero
+  const Vector3 a=v[fine[t]].SpatialLocation,b=v[fine[t+1]].SpatialLocation,c=v[fine[t+2]].SpatialLocation;
+  Sample(a);Sample(b);Sample(c);
+  Sample((a+b)*.5f);Sample((b+c)*.5f);Sample((c+a)*.5f);
+  Sample((a+b+c)*(1.f/3.f));
+ }
+ return std::isfinite(worst)&&worst>0.f?worst:0.f;
+}
+
 inline Baked Bake(const std::vector<VertexRecord>& v,const std::vector<uint32_t>& fine){
  Baked out{fine};if(fine.empty()||fine.size()>384||fine.size()%3)return out;
  for(auto i:fine)if(i>=v.size())return out;
@@ -34,7 +111,7 @@ inline Baked Bake(const std::vector<VertexRecord>& v,const std::vector<uint32_t>
  auto edge=[](uint32_t a,uint32_t b){return Edge{std::min(a,b),std::max(a,b)};};
  std::map<Edge,unsigned> counts;
  for(size_t t=0;t<fine.size();t+=3)for(int j=0;j<3;++j)++counts[edge(fine[t+j],fine[t+(j+1)%3])];
- std::set<uint32_t> locked;std::map<uint32_t,float> radius;
+ std::set<uint32_t> locked;
  for(auto [e,n]:counts){if(n!=2){locked.insert(e.first);locked.insert(e.second);}}
  const size_t target=std::max<size_t>(6,fine.size()/2/3*3);
  while(out.Indices.size()>target){
@@ -68,11 +145,12 @@ inline Baked Bake(const std::vector<VertexRecord>& v,const std::vector<uint32_t>
     next.insert(next.end(),n,n+3);
    }
    if(!valid||next.size()<target)continue;
-   radius[a]=std::max(radius[a],radius[b]+distance);out.Error=std::max(out.Error,radius[a]);
+   (void)distance;   // v1 summed this; the deviation is measured against the final surface instead (see below)
    out.Indices=std::move(next);collapsed=true;break;
   }
   if(!collapsed)break;
  }
+ out.Error=MeasureDeviation(v,fine,out.Indices);
  return out;
 }
 // Explicit little-endian words, magic/version/key/count/error/payload/checksum; no native structs on disk.
@@ -80,10 +158,10 @@ inline void Word(std::ostream& s,uint32_t x){for(int i=0;i<4;++i)s.put(char((x>>
 inline uint32_t Word(std::istream& s){uint32_t x=0;for(int i=0;i<4;++i){int c=s.get();if(c<0)throw std::runtime_error("truncated patch cache");x|=uint32_t(c)<<(8*i);}return x;}
 inline Baked LoadOrBake(const std::vector<VertexRecord>& v,const std::vector<uint32_t>& fine){
  Baked out;uint64_t key=Key(v,fine);const char* env=std::getenv("FRONTIER_PATCH_CACHE");
- const auto root=std::filesystem::path(env?env:".frontier/cache/patch-geometry-v1");
+ const auto root=std::filesystem::path(env?env:".frontier/cache/patch-geometry-v2");
  const auto path=root/(std::to_string(key)+".pgeom");
  try{std::ifstream f(path,std::ios::binary);if(f){
-  if(Word(f)!=0x31475046u||Word(f)!=1||Word(f)!=uint32_t(key)||Word(f)!=uint32_t(key>>32))throw std::runtime_error("patch cache version/key");
+  if(Word(f)!=0x31475046u||Word(f)!=kPatchCacheVersion||Word(f)!=uint32_t(key)||Word(f)!=uint32_t(key>>32))throw std::runtime_error("patch cache version/key");
   uint32_t n=Word(f),bits=Word(f);if(n>fine.size()||n%3||n<3)throw std::runtime_error("patch cache size");
   out.Error=std::bit_cast<float>(bits);if(!std::isfinite(out.Error)||out.Error<0)throw std::runtime_error("patch cache error");
   uint64_t check=Mix(key,bits);std::set<uint32_t> allowed(fine.begin(),fine.end());
@@ -94,7 +172,7 @@ inline Baked LoadOrBake(const std::vector<VertexRecord>& v,const std::vector<uin
  out=Bake(v,fine);
  try{std::filesystem::create_directories(root);auto tmp=path;tmp+=std::string(".")+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".tmp";
   std::ofstream f(tmp,std::ios::binary|std::ios::trunc);auto bits=std::bit_cast<uint32_t>(out.Error);uint64_t check=Mix(key,bits);
-  Word(f,0x31475046u);Word(f,1u);Word(f,uint32_t(key));Word(f,uint32_t(key>>32));Word(f,uint32_t(out.Indices.size()));Word(f,bits);
+  Word(f,0x31475046u);Word(f,kPatchCacheVersion);Word(f,uint32_t(key));Word(f,uint32_t(key>>32));Word(f,uint32_t(out.Indices.size()));Word(f,bits);
   for(auto q:out.Indices){Word(f,q);check=Mix(check,q);}Word(f,uint32_t(check));Word(f,uint32_t(check>>32));f.close();
   if(f) {std::error_code ec;std::filesystem::rename(tmp,path,ec);if(ec)std::filesystem::remove(tmp,ec);}
  }catch(...){} // unwritable cache never prevents source geometry from loading

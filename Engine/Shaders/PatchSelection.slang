@@ -26,5 +26,6 @@ bool SelectPatchCoarse(ClusterRecord C, InstanceRecord I)
     if(Similarity && C.Cone.w<1.0 && Distance>Radius)
         Away=dot(normalize(mat3(I.World)*C.Cone.xyz),V/Distance)>C.Cone.w+Radius/Distance;
     float Focal=float(Extent.y)/(2.0*CameraForward.w);
-    return PatchChooseCoarse(true,Opaque,true,Away,C.CoarseError,Scale,Depth,Radius,Lateral,Focal,CameraOrigin.w);
+    // Projection.z is the preview's screen-error tolerance in pixels (F6 in the debug popup); zero keeps 1 px.
+    return PatchChooseCoarse(true,Opaque,true,Away,C.CoarseError,Scale,Depth,Radius,Lateral,Focal,CameraOrigin.w,Projection.z);
 }

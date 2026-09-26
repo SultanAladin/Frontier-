@@ -1,5 +1,10 @@
 # Patch Geometry — native preview, first implementation
 
+> **Updated 2026-09-26.** The coarse error is now MEASURED (a sampled one-sided deviation), not accumulated as a
+> chain of edge lengths; the cache is **v2**; and the preview's screen-error tolerance is a dial (**F6**, 1/2/4/8 px).
+> The old error was ~10x too large, which is why nothing changed detail until the camera was hundreds of metres
+> away. Diagnosis, tables and the switch distances: `Docs/RefinementAndPatchResponse.md`.
+
 ## Status and limits
 
 This is **native C++ / Vulkan shader integration**, not another HTML-only demo. It is deliberately a **debug-preview tier**, not production shaded LOD yet.
@@ -11,7 +16,7 @@ This is **native C++ / Vulkan shader integration**, not another HTML-only demo. 
 
 ### Separate opaque and transparent policies
 
-**Opaque:** in patch preview, conservatively confirmed back-facing patches select the coarse alternative. Other patches must satisfy a one-pixel projected displacement bound. A near-plane guard retains fine geometry. Nonuniform, mirrored or sheared transforms do not take the backface shortcut; projected error uses a conservative Frobenius scale bound.
+**Opaque:** in patch preview, conservatively confirmed back-facing patches select the coarse alternative. Other patches must satisfy a projected displacement bound — **one pixel by default**, raised to 2, 4 or 8 px by F6 in the debug popup (`[render] patch_error_pixels`, delivered to both cull phases and the vertex shader as `Projection.z`, so the three selectors always agree). A near-plane guard retains fine geometry. Nonuniform, mirrored or sheared transforms do not take the backface shortcut; projected error uses a conservative Frobenius scale bound.
 
 **Transparent:** transmission, alpha flags, opacity below one, thin surfaces, subsurface, uncertain transmission/subsurface/opacity textures, layered materials and emitters stay full-detail. Missing slab bindings also fail closed. Classification reads the current material/slab buffers, not a baked opaque/glass label. Material Apply now re-finalises and uploads the scene at an idle authoring boundary, so the visibility guard and shading receive the committed values; this is intentionally not an optimized incremental upload.
 
@@ -26,14 +31,14 @@ Production shaded LOD remains disabled because an approximate raster surface com
 1. Lock all patch boundaries and non-manifold edges. Never move a shared boundary or generate replacement vertex attributes.
 2. Consider short interior endpoint collapses with similar normals, nearby UV coordinates and matching tangent handedness.
 3. Require the edge link condition, retained triangle orientation/area and no duplicate faces. Stop when no safe collapse remains or the roughly half-size target is reached.
-4. Accumulate an object-space endpoint displacement bound. It is conservative geometry error, not a shading/normal-map error bound.
+4. **Measure** the object-space deviation of the result: the one-sided distance from the original patch surface to the simplified one, sampled at every fine vertex, edge midpoint and triangle centroid against every simplified triangle. It is a sampled Hausdorff estimate — dense for a ≤128-triangle patch, but not a certified bound — and it is geometry error only, not a shading/normal-map error bound. (Before 2026-09-26 this was the SUM of the collapsed edge lengths along each collapse chain, ~10x larger: native sphere patches reported 0.19–0.47 where the surface moves 0.018–0.041.)
 5. Append alternate indices **after all fine indices of the owning instance**. Fine counts and ranges are unchanged. Public triangle counts sum the fine instance counts, not the enlarged index buffer.
 
 Instances now reserve half the 14-bit primitive namespace: at most **8,192 fine triangles**, with room for alternatives below token 16,384. The runtime CPU/GPU cluster record is **64 bytes**, with alternate index/count/primitive/error fields at offsets 48/52/56/60. Full rebuild of the native binary **and shaders** is required. Both CMake and PowerShell track the new shader includes.
 
-### `.pgeom` cache v1
+### `.pgeom` cache v2
 
-Default location: `.frontier/cache/patch-geometry-v1/` relative to the application working directory. Set `FRONTIER_PATCH_CACHE` to redirect it. This directory is ignored by Git.
+Default location: `.frontier/cache/patch-geometry-v2/` relative to the application working directory. Set `FRONTIER_PATCH_CACHE` to redirect it. This directory is ignored by Git.
 
 First registration bakes synchronously; subsequent registrations load the derived cache. No separately installed offline baker is required for this tier. Large first-load scenes may pause; this is not an asynchronous production content pipeline.
 
@@ -42,7 +47,7 @@ Files contain explicit little-endian words, not native C++ structs:
 | Offset | Field |
 |---|---|
 | 0 | `FPG1` magic |
-| 4 | version, currently 1 |
+| 4 | version, currently 2 (v1 entries are rejected and rebaked: their error field means something else) |
 | 8 | 64-bit source/algorithm key |
 | 16 | alternate index count |
 | 20 | IEEE float error bits |
@@ -56,7 +61,9 @@ The source key includes ordered fine indices and referenced vertex position/norm
 
 Every registered indexed mesh enters the common patch path. Native Construct sphere and torus now use shared interior vertices and proper parametric UVs, with duplicated UV seams retained. Their former triangle-local UVs made every edge a boundary and prevented safe simplification. New Construct UV layout therefore changes; it does not rewrite imported assets.
 
-Measured by the **actual native Construct/SceneStructure CPU code**, with the shared selector at a distant camera:
+Measured by the **actual native Construct/SceneStructure CPU code**, with the shared selector at a distant camera
+(1000 m — the fully-coarse limit; for the distance at which each mesh FIRST changes detail, see the switch-distance
+table in `Docs/RefinementAndPatchResponse.md`: 21.6 m for the sphere at 1 px, 4.5 m at 8 px):
 
 | Mesh | Fine triangles | Coarse preview triangles | Patches |
 |---|---:|---:|---:|
@@ -83,7 +90,8 @@ bash Tools/Build/CheckPerformanceTelemetry.sh
 
 Results in this environment:
 
-- **73,537 CPU assertions passed under ASan/UBSan**: boundaries, manifold edges, duplicate faces, attributes/index membership, cache cold/warm/corruption, projected policy, material edits, fine ray counts and 14-bit addressing.
+- **83,322 CPU assertions passed** (2026-09-26; 73,537 before the switch-distance, tolerance-monotonicity and
+  measured-deviation checks were added): boundaries, manifold edges, duplicate faces, attributes/index membership, cache cold/warm/corruption, projected policy, material edits, fine ray counts and 14-bit addressing.
 - **22/22 shaders lowered to SPIR-V.** Six cluster-consuming modules independently inspected for 64-byte array stride and member offsets.
 - **8 native translation units syntax-checked against real headers**, plus warning-clean checks of the bake, primitive builder and gate.
 - Existing native Construct test: **nine entities, 1,936 original triangles**, placements/camera/emission/normals checks passed.

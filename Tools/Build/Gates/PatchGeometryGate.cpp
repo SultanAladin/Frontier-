@@ -12,9 +12,9 @@ void Check(bool b,const char* message){++Checks;if(!b)throw std::runtime_error(m
 using Edge=std::pair<uint32_t,uint32_t>;
 std::map<Edge,int> Edges(const std::vector<uint32_t>& ix){std::map<Edge,int> e;for(size_t t=0;t<ix.size();t+=3)for(int j=0;j<3;++j){auto a=ix[t+j],b=ix[t+(j+1)%3];++e[{std::min(a,b),std::max(a,b)}];}return e;}
 CameraClipConfiguration Camera(float distance){return {{0,-distance,0},{0,1,0},{1,0,0},{0,0,1},.57735f,1,.01f};}
-uint32_t Selected(const SceneStructure& scene,float distance,bool preview=true){uint32_t n=0;auto cam=Camera(distance);for(auto& c:scene.QueryClusters()){
+uint32_t Selected(const SceneStructure& scene,float distance,bool preview=true,float tolerance=1.f){uint32_t n=0;auto cam=Camera(distance);for(auto& c:scene.QueryClusters()){
  auto& i=scene.QueryInstances()[c.InstanceIndex];auto& m=scene.QueryMaterials().QueryRecords()[i.MaterialIndex];auto& s=scene.QueryMaterials().QuerySlabRecords()[m.SlabOffset];
- n+=Select(c,i,m,&s,cam,720,preview)?c.CoarseTriangleCount:c.TriangleCount;
+ n+=Select(c,i,m,&s,cam,720,preview,tolerance)?c.CoarseTriangleCount:c.TriangleCount;
 }return n;}
 void Validate(const SceneStructure& s){uint32_t fineTotal=0;for(auto&i:s.QueryInstances()){
  fineTotal+=i.TriangleCount;Check(i.TriangleCount<=8192,"instance budget");
@@ -95,10 +95,36 @@ int main(int argc,char**argv){try{
  desc.Slabs[0].TransmissionWeight=0;desc.Slabs[0].GeometryOpacity=.5f;sphere.Finalise();Check(Selected(sphere,1000)==fine,"opacity edit protected");
  for(int flags:{2,4,16,32})Check(!PatchOpaque(1,flags,0,0,1,false,false,false),"material flags protected");
  Check(!PatchOpaque(2,0,0,0,1,false,false,false),"layers protected");Check(!PatchOpaque(1,0,0,1,1,false,false,false),"SSS protected");Check(!PatchOpaque(1,0,0,0,1,true,false,false),"uncertain textures protected");Check(!PatchOpaque(1,0,0,0,1,false,false,true),"thin slab protected");
- for(int distance=2;distance<1002;++distance){bool chosen=PatchChooseCoarse(true,true,true,false,.01f,1,float(distance),.5f,0,600,.01f);
-  if(chosen)Check(PatchChooseCoarse(true,true,true,false,.01f,1,float(distance+1),.5f,0,600,.01f),"distance monotonic");
-  Check(!PatchChooseCoarse(true,false,true,true,.01f,1,float(distance),.5f,0,600,.01f),"glass never collapses even backfacing");}
- Check(PatchChooseCoarse(true,true,true,true,.1f,1,5,.5f,0,600,.01f),"opaque backfacing uses coarse");Check(!PatchChooseCoarse(true,true,true,true,.1f,1,.2f,.5f,0,600,.01f),"near-plane guard");Check(!PatchChooseCoarse(true,true,true,true,std::numeric_limits<float>::quiet_NaN(),1,5,.5f,0,600,.01f),"NaN fail closed");
+ for(int distance=2;distance<1002;++distance){bool chosen=PatchChooseCoarse(true,true,true,false,.01f,1,float(distance),.5f,0,600,.01f,1.f);
+  if(chosen)Check(PatchChooseCoarse(true,true,true,false,.01f,1,float(distance+1),.5f,0,600,.01f,1.f),"distance monotonic");
+  Check(!PatchChooseCoarse(true,false,true,true,.01f,1,float(distance),.5f,0,600,.01f,1.f),"glass never collapses even backfacing");}
+ Check(PatchChooseCoarse(true,true,true,true,.1f,1,5,.5f,0,600,.01f,1.f),"opaque backfacing uses coarse");Check(!PatchChooseCoarse(true,true,true,true,.1f,1,.2f,.5f,0,600,.01f,1.f),"near-plane guard");Check(!PatchChooseCoarse(true,true,true,true,std::numeric_limits<float>::quiet_NaN(),1,5,.5f,0,600,.01f,1.f),"NaN fail closed");
+ // ⚠️ THE REGRESSION THIS GATE EXISTS FOR (owner report, 2026-09-26: "the clusters don't seem to change when I
+ // move closer/further"). v1 reported the SUM of every collapsed edge length as the patch's error, ~10x the
+ // deviation the surface actually shows, and the selector divides the camera distance by exactly that number —
+ // so the native sphere kept all 960 triangles until the camera was ~300 m away from a 2 m ball and no dolly a
+ // reviewer would perform changed anything. These bound the switch to a distance a person can walk.
+ {
+  const auto Switch=[&](const SceneStructure& scene,float tolerance){   // first distance whose selection drops
+   for(float d=1.f;d<2000.f;d*=1.05f)if(Selected(scene,d,true,tolerance)<uint32_t(scene.QueryFlatTriangles().size()))return d;
+   return 1.e9f;};
+  for(auto kind:{ConstructKind::Sphere,ConstructKind::Torus}){
+   SceneStructure scene;ConstructRequest r;r.Kind=kind;Check(bool(ConstructEntity(scene,r)),"switch-distance entity");
+   float strict=Switch(scene,1.f);
+   Check(strict>3.f,"a 1 px tolerance still keeps full detail at conversational range");
+   Check(strict<150.f,"one pixel of error must be reached at a dolly distance, not across a field");
+   // The tolerance dial (F6) is the reviewer's lever: more allowed error must move the switch NEARER, never further.
+   float previous=strict;
+   for(float tolerance:{2.f,4.f,8.f}){float now=Switch(scene,tolerance);Check(now<previous,"a larger tolerance switches nearer");previous=now;}
+   Check(previous<15.f,"8 px reaches an ordinary viewing distance");
+   // Monotone in distance at every tolerance: no oscillation while dollying.
+   for(float tolerance:{1.f,8.f}){uint32_t last=~0u;for(float d=1.f;d<600.f;d*=1.15f){uint32_t now=Selected(scene,d,true,tolerance);Check(now<=last,"selection never gains triangles with distance");last=now;}}
+   // Every patch's measured deviation must be small against its own bounding sphere; v1's chain sum was not.
+   for(auto& cluster:scene.QueryClusters())
+    if(cluster.CoarseTriangleCount)Check(cluster.CoarseError<cluster.Radius*.25f,"measured deviation is a fraction of the patch, not a chain sum");
+   std::cout<<ConstructName(kind)<<": switch at "<<strict<<" m (1 px) -> "<<previous<<" m (8 px)\n";
+  }
+ }
  auto& c=sphere.QueryClusters()[0];std::vector<uint32_t> ix(sphere.QueryIndices().begin()+c.FirstIndex,sphere.QueryIndices().begin()+c.FirstIndex+c.TriangleCount*3);
  auto key=Key(sphere.QueryVertices(),ix);auto path=std::filesystem::path(std::getenv("FRONTIER_PATCH_CACHE"))/(std::to_string(key)+".pgeom");std::filesystem::remove(path);
  auto cold=LoadOrBake(sphere.QueryVertices(),ix),warm=LoadOrBake(sphere.QueryVertices(),ix);Check(!cold.CacheHit&&warm.CacheHit&&cold.Indices==warm.Indices&&cold.Error==warm.Error,"cold/warm cache roundtrip");
@@ -107,7 +133,7 @@ int main(int argc,char**argv){try{
  {std::ofstream f(path,std::ios::binary|std::ios::trunc);f<<"FPG";}
  Check(!LoadOrBake(sphere.QueryVertices(),ix).CacheHit,"truncated cache fallback");
  // Header corruption is bounded and never trusted as an allocation/index count.
- for(auto field:std::vector<std::pair<int,uint32_t>>{{4,99},{8,0},{16,0xffffffffu},{20,0x7f800000u}}){
+ for(auto field:std::vector<std::pair<int,uint32_t>>{{4,kPatchCacheVersion+1u},{8,0},{16,0xffffffffu},{20,0x7f800000u}}){
   {std::fstream f(path,std::ios::binary|std::ios::in|std::ios::out);f.seekp(field.first);Word(f,field.second);}
   Check(!LoadOrBake(sphere.QueryVertices(),ix).CacheHit,"invalid version/key/count/error fallback");
  }

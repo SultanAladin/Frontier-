@@ -353,7 +353,12 @@ void RenderScheduler::SectionReSTIR(
         Integrator.AssignAliasPick(Alias);
 
     ImGui::Spacing();
-    ImGui::Text("Frame      %u", Integrator.QueryAccumulationIndex());
+    // "Frame" is the accumulated sample count, and on its own it cannot tell "converging" from "restarting every
+    //    frame" — both read as a small number. The restart source and the running restart total make that visible:
+    //    a held camera on a settled scene leaves BOTH alone while the frame count climbs.
+    ImGui::Text("Frame      %u accumulated", Integrator.QueryAccumulationIndex());
+    ImGui::Text("Restart    %s (%llu total)", Integrator.QueryRestartReason(),
+                static_cast<unsigned long long>(Integrator.QueryRestartCount()));
     ImGui::Text("Viewport   %u × %u px", ViewportWidth, ViewportHeight);
 }
 

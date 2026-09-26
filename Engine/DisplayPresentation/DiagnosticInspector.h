@@ -37,6 +37,7 @@ public:
 
     // Seeds from the persisted configuration; the popup starts closed even if a debug view is persisted.
     void Seed(DebugViewCategory View, bool OcclusionCulling, bool AliasPick) noexcept { View_ = View; Occlusion_ = OcclusionCulling; AliasPick_ = AliasPick; }
+    void SeedPatchErrorPixels(float Pixels) noexcept { PatchErrorPixels_ = NormalisePatchError(Pixels); }
 
     // Edge-detects F3 / Shift+F3 / F4 / F5 / Escape. Returns true when something changed (caller persists + restarts accumulation).
     bool AdvanceInteraction(const InputExchange& Input) noexcept;
@@ -53,6 +54,11 @@ public:
     [[nodiscard]] DebugViewCategory QueryView()      const noexcept { return View_; }
     [[nodiscard]] bool              QueryOcclusion() const noexcept { return Occlusion_; }
     [[nodiscard]] bool              QueryAliasPick() const noexcept { return AliasPick_; }
+    // How much projected geometric error the PATCH PREVIEW may show, in pixels. F6 cycles 1 → 2 → 4 → 8 → 1.
+    //    One pixel is the strict default and the value every earlier build used implicitly; the larger steps exist
+    //    because one alternative at one pixel only changes detail when the object is already far away, and a
+    //    reviewer needs to watch the transition happen at a dolly distance to believe it is wired at all.
+    [[nodiscard]] float             QueryPatchErrorPixels() const noexcept { return PatchErrorPixels_; }
     [[nodiscard]] bool              IsOpen()         const noexcept { return Open_; }
 
 private:
@@ -63,6 +69,15 @@ private:
     bool              F3Held_     = false;
     bool              F4Held_     = false;
     bool              F5Held_     = false;
+    bool              F6Held_     = false;
+    float             PatchErrorPixels_ = 1.0f;   // [px] patch-preview screen-error tolerance (F6)
+
+    static float NormalisePatchError(float Pixels) noexcept
+    {
+        // Only the four cycle steps are representable, so a corrupt configuration value cannot dial the preview
+        //    to an arbitrary tolerance; anything else falls back to the strict default.
+        return Pixels == 2.0f || Pixels == 4.0f || Pixels == 8.0f ? Pixels : 1.0f;
+    }
     bool              EscapeHeld_ = false;
 };
 

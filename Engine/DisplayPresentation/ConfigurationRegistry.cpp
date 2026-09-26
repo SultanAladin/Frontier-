@@ -145,6 +145,7 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "debug_view",          NameOf(P.Backend.DebugView) },        // Off | Depth | Visibility | Motion | Cluster | HiZ | Albedo | Normal | Roughness | Metalness | ShadingNormal | ReservoirM | ReservoirW | ReservoirAge (F3 popup)
         { "occlusion_culling",   P.Backend.OcclusionCulling },         // HiZ two-phase cull; off = frustum only (proof 4 A/B)
         { "alias_pick",          P.Backend.AliasPick },                // R6 row 3 Walker-alias light pick; off = uniform R0 identity (F5 popup)
+        { "patch_error_pixels",  P.Backend.PatchErrorPixels },         // patch-preview screen-error tolerance in pixels (F6 popup: 1 | 2 | 4 | 8)
         { "sky_dome_baked",      P.Backend.SkyDomeBaked },             // #26A escaped rays fetch the baked dome sheet; off = analytic march (the editor's resting rule)
         { "slab_limit",          static_cast<int64_t>(P.Backend.SlabLimit) },          // R4a material slabs kept per material (1 Tier A, 4 Tier B/C, ≤ 8)
         { "texture_edge_limit",  static_cast<int64_t>(P.Backend.TextureEdgeLimit) },   // R4a largest texture edge kept resident (0 = unlimited)
@@ -246,6 +247,7 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         S.GetEnum("debug_view",          Out.Backend.DebugView);
         S.Get("occlusion_culling",       Out.Backend.OcclusionCulling);
         S.Get("alias_pick",              Out.Backend.AliasPick);
+        S.Get("patch_error_pixels",      Out.Backend.PatchErrorPixels);
         S.Get("sky_dome_baked",          Out.Backend.SkyDomeBaked);
         S.Get("slab_limit",              Out.Backend.SlabLimit);        Out.Backend.SlabLimit        = std::clamp(Out.Backend.SlabLimit, 1u, 8u);
         S.Get("texture_edge_limit",      Out.Backend.TextureEdgeLimit); Out.Backend.TextureEdgeLimit = std::min(Out.Backend.TextureEdgeLimit, 16384u);

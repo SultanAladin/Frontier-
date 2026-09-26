@@ -90,7 +90,7 @@ public:
 
     // Mutable configuration — updated live by RenderScheduler
     // Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
-    void AssignCandidatesPerPixel(uint32_t Count) noexcept { if (ActiveConfiguration.CandidatesPerPixel != Count) { ActiveConfiguration.CandidatesPerPixel = Count; ResetAccumulation(); } }
+    void AssignCandidatesPerPixel(uint32_t Count) noexcept { if (ActiveConfiguration.CandidatesPerPixel != Count) { ActiveConfiguration.CandidatesPerPixel = Count; ResetAccumulation("candidates"); } }
     // The sun-vs-lamps pick probability, power-proportional. Computed by the PROJECT (it alone knows both the sun's
     //    packed direct term and the level's total lamp power) and pushed here whenever the sky changes. Clamped to
     //    [0.05, 0.95] so neither source is starved of discovery samples — RIS stays unbiased for any probability,
@@ -105,9 +105,9 @@ public:
                            : Probability > 0.95f ? 0.95f
                            : Probability;
     }
-    void AssignExtraCandidateCount  (uint32_t Count) noexcept { if (ActiveConfiguration.ExtraCandidateCount   != Count) { ActiveConfiguration.ExtraCandidateCount   = Count; ResetAccumulation(); } }
-    void AssignSpatialTapCount      (uint32_t Count) noexcept { if (ActiveConfiguration.SpatialTapCount       != Count) { ActiveConfiguration.SpatialTapCount       = Count; ResetAccumulation(); } }
-    void AssignDenoiseLevelCount    (uint32_t Count) noexcept { if (ActiveConfiguration.DenoiseLevelCount     != Count) { ActiveConfiguration.DenoiseLevelCount     = Count; ResetAccumulation(); } }
+    void AssignExtraCandidateCount  (uint32_t Count) noexcept { if (ActiveConfiguration.ExtraCandidateCount   != Count) { ActiveConfiguration.ExtraCandidateCount   = Count; ResetAccumulation("extra candidates"); } }
+    void AssignSpatialTapCount      (uint32_t Count) noexcept { if (ActiveConfiguration.SpatialTapCount       != Count) { ActiveConfiguration.SpatialTapCount       = Count; ResetAccumulation("spatial taps"); } }
+    void AssignDenoiseLevelCount    (uint32_t Count) noexcept { if (ActiveConfiguration.DenoiseLevelCount     != Count) { ActiveConfiguration.DenoiseLevelCount     = Count; ResetAccumulation("denoise levels"); } }
     // A6b ⚠️ The slider writes BOTH the configuration and the exposure integrator's manual value. Keeping two
     //    copies and hoping they agree is exactly how a control ends up doing nothing in one mode.
     void AssignExposure          (float    Value) noexcept
@@ -118,29 +118,29 @@ public:
             ExposureConfiguration Adapt = Adaptation.QueryConfiguration();
             Adapt.ManualExposure = Value;
             Adaptation.AssignConfiguration(Adapt);
-            ResetAccumulation();
+            ResetAccumulation("exposure");
         }
     }
-    void AssignGlobalIllumination(bool     On)    noexcept { if (ActiveConfiguration.GlobalIllumination  != On)    { ActiveConfiguration.GlobalIllumination  = On;    ResetAccumulation(); } }
-    void AssignAntiAliasing      (bool     On)    noexcept { if (ActiveConfiguration.AntiAliasing        != On)    { ActiveConfiguration.AntiAliasing        = On;    ResetAccumulation(); } }
-    void AssignTemporalReuse     (bool     On)    noexcept { if (ActiveConfiguration.TemporalReuse       != On)    { ActiveConfiguration.TemporalReuse       = On;    ResetAccumulation(); } }
-    void AssignSpatialReuse      (bool     On)    noexcept { if (ActiveConfiguration.SpatialReuse        != On)    { ActiveConfiguration.SpatialReuse        = On;    ResetAccumulation(); } }
+    void AssignGlobalIllumination(bool     On)    noexcept { if (ActiveConfiguration.GlobalIllumination  != On)    { ActiveConfiguration.GlobalIllumination  = On;    ResetAccumulation("global illumination"); } }
+    void AssignAntiAliasing      (bool     On)    noexcept { if (ActiveConfiguration.AntiAliasing        != On)    { ActiveConfiguration.AntiAliasing        = On;    ResetAccumulation("anti-aliasing"); } }
+    void AssignTemporalReuse     (bool     On)    noexcept { if (ActiveConfiguration.TemporalReuse       != On)    { ActiveConfiguration.TemporalReuse       = On;    ResetAccumulation("temporal reuse"); } }
+    void AssignSpatialReuse      (bool     On)    noexcept { if (ActiveConfiguration.SpatialReuse        != On)    { ActiveConfiguration.SpatialReuse        = On;    ResetAccumulation("spatial reuse"); } }
     // The indirect pool changes what is SAMPLED at the first-bounce vertex (a reservoir instead of one light sample),
     //    so it resets accumulation like every other sampling switch — an A/B with a stale history would compare two
     //    different histories rather than two estimators.
-    void AssignGlobalIlluminationReuse(bool On)    noexcept { if (ActiveConfiguration.GlobalIlluminationReuse != On) { ActiveConfiguration.GlobalIlluminationReuse = On; ResetAccumulation(); } }
-    void AssignAliasPick         (bool     On)    noexcept { if (ActiveConfiguration.AliasPick           != On)    { ActiveConfiguration.AliasPick           = On;    ResetAccumulation(); } }
+    void AssignGlobalIlluminationReuse(bool On)    noexcept { if (ActiveConfiguration.GlobalIlluminationReuse != On) { ActiveConfiguration.GlobalIlluminationReuse = On; ResetAccumulation("GI pool"); } }
+    void AssignAliasPick         (bool     On)    noexcept { if (ActiveConfiguration.AliasPick           != On)    { ActiveConfiguration.AliasPick           = On;    ResetAccumulation("alias pick"); } }
     // R7. Toggling the filter does not change what is SAMPLED, only how the accumulated image is presented, so it
     //    deliberately does NOT reset accumulation — restarting would throw away a converged history to change a
     //    post-process, and the A/B comparison the switch exists for would be impossible.
     void AssignDenoise           (bool     On)    noexcept { ActiveConfiguration.Denoise = On; }
     // R7a. Reprojection changes what is SAMPLED (which history texel feeds the mean), so unlike the denoise toggle
     //    it resets accumulation — the same rule as every other sampling change.
-    void AssignTemporalReprojection(bool On)    noexcept { if (ActiveConfiguration.TemporalReprojection != On) { ActiveConfiguration.TemporalReprojection = On; ResetAccumulation(); } }
-    void AssignMaxReflectionBounces(uint32_t Bounces) noexcept { if (ActiveConfiguration.MaxReflectionBounces != Bounces) { ActiveConfiguration.MaxReflectionBounces = Bounces; ResetAccumulation(); } }
-    void AssignMaxGiBounces(uint32_t Bounces) noexcept { if (ActiveConfiguration.MaxGiBounces != Bounces) { ActiveConfiguration.MaxGiBounces = Bounces; ResetAccumulation(); } }
-    void AssignSkyAmbient(bool On) noexcept { if (ActiveConfiguration.SkyAmbientEnabled != On) { ActiveConfiguration.SkyAmbientEnabled = On; ResetAccumulation(); } }
-    void AssignSkyReservoir(bool On) noexcept { if (ActiveConfiguration.SkyReservoir != On) { ActiveConfiguration.SkyReservoir = On; ResetAccumulation(); } }
+    void AssignTemporalReprojection(bool On)    noexcept { if (ActiveConfiguration.TemporalReprojection != On) { ActiveConfiguration.TemporalReprojection = On; ResetAccumulation("reprojection"); } }
+    void AssignMaxReflectionBounces(uint32_t Bounces) noexcept { if (ActiveConfiguration.MaxReflectionBounces != Bounces) { ActiveConfiguration.MaxReflectionBounces = Bounces; ResetAccumulation("reflection bounces"); } }
+    void AssignMaxGiBounces(uint32_t Bounces) noexcept { if (ActiveConfiguration.MaxGiBounces != Bounces) { ActiveConfiguration.MaxGiBounces = Bounces; ResetAccumulation("GI bounces"); } }
+    void AssignSkyAmbient(bool On) noexcept { if (ActiveConfiguration.SkyAmbientEnabled != On) { ActiveConfiguration.SkyAmbientEnabled = On; ResetAccumulation("sky ambient"); } }
+    void AssignSkyReservoir(bool On) noexcept { if (ActiveConfiguration.SkyReservoir != On) { ActiveConfiguration.SkyReservoir = On; ResetAccumulation("sky reservoir"); } }
 
     // ⚠️ THE INCREMENT MUST NOT SWALLOW THE RESET. The frame loop reads the index for the dispatch,
     //    the §8 record comparisons reset it when the sky changes, and the loop unconditionally increments it
@@ -148,7 +148,25 @@ public:
     //    read it — every slider reset dispatched with FrameIndex ≥ 1, the kernel kept blending at 1/n, and
     //    panel edits only became visible when a camera move failed reprojection geometrically. The flag spends
     //    one increment, so the frame after a reset dispatches with FrameIndex 0 and starts genuinely fresh.
-    void ResetAccumulation() noexcept { AccumulationIndex = 0u; ResetPending = true; }
+    // ⚠️ EVERY restart names itself. A progressive integrator that never converges looks exactly like a broken
+    //    one, and the difference is a single fact the frame loop already knows and used to throw away: WHICH
+    //    comparison restarted the history. One frame-loop source that wiggles every tick (an animating sun, a
+    //    twinkle time in a compared record, a camera that never quite settles) pins the sample count at 1
+    //    forever, so the image stays as noisy as its first frame and the denoiser stays at full strength — the
+    //    "it never gets crisp" report. The reason is a string literal, stored by pointer: no allocation, no
+    //    lifetime question, and the telemetry line can print it every frame for free.
+    void ResetAccumulation(const char* Reason = "parameter") noexcept
+    {
+        AccumulationIndex = 0u;
+        ResetPending      = true;
+        RestartReason     = Reason ? Reason : "parameter";
+        ++RestartCount;
+    }
+
+    // The source of the most recent restart, and how many restarts have happened in total. A still camera on a
+    //    settled scene must leave the count alone; a count that climbs once per frame is the diagnosis.
+    [[nodiscard]] const char* QueryRestartReason() const noexcept { return RestartReason; }
+    [[nodiscard]] uint64_t    QueryRestartCount()  const noexcept { return RestartCount; }
 
     // A6b. Adaptive exposure. Held here because BuildDispatch is what fills the Exposure push constant, so the
     //    measured value and the value the shader receives cannot drift apart.
@@ -186,6 +204,8 @@ private:
     float                         SunPickProbability = 0.0f;    // [-]  power-proportional sun-vs-lamps pick; 0 = the
                                                           //       kernel's legacy fixed 0.5 coin (see AssignSunPickProbability)
     bool                          ResetPending = false; // [-]  a reset landed after the dispatch read the index
+    const char*                   RestartReason = "none";  // [-]  string literal naming the last restart's source
+    uint64_t                      RestartCount  = 0u;      // [cnt] total restarts since start-up
 
     Vector3                       HistoryOrigin;        // [m]   camera position the history was accumulated from
     Vector3                       HistoryForward;       // [-]   camera forward the history was accumulated from
