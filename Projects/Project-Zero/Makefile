@@ -1,69 +1,40 @@
-CXX := g++
-CXXFLAGS := -std=c++20 -O3 -Wall -Wextra -Werror -pedantic -DFRONTIER_DEVELOPMENT -pthread
-INCLUDES := -I../.. -I.
+# Project-Zero headless CPU reference (sandbox stand-in; the product renderer is the
+# Vulkan + Slang stack built by Build/ToolchainSequence.ps1). Explicit file list:
+# never glob Source/ — GameExecution.cpp (the Vulkan entry point) lives there.
+CXX      := g++
+CXXFLAGS := -std=c++20 -O2 -Wall -Wextra
+TARGET   := bin/Project-Zero-CpuReference
+OBJDIR   := build/cpu
 
-GAME_SRCS := $(wildcard Source/*.cpp)
-GAME_OBJS := $(GAME_SRCS:.cpp=.o)
+SRCS := \
+	Source/CpuReferenceMain.cpp \
+	Source/RendererHost.cpp \
+	Source/RayTracingSolver.cpp \
+	Source/SkyFogIntegrator.cpp \
+	../../Engine/GeometricRaster/CameraProjection.cpp \
+	../../Engine/DeviceExchange/OrientationClassifier.cpp \
+	../../Engine/DeviceExchange/DiagnosticMetrics.cpp
 
-ENGINE_DIR := ../..
-ENGINE_OBJS := \
-	$(ENGINE_DIR)/DeviceExchange/VulkanExchange.o \
-	$(ENGINE_DIR)/DeviceExchange/ByteSpace.o \
-	$(ENGINE_DIR)/DeviceExchange/TaskScheduler.o \
-	$(ENGINE_DIR)/DeviceExchange/ExecutionQueue.o \
-	$(ENGINE_DIR)/DeviceExchange/VendorClassifier.o \
-	$(ENGINE_DIR)/DeviceExchange/OrientationClassifier.o \
-	$(ENGINE_DIR)/DeviceExchange/WindowExchange.o \
-	$(ENGINE_DIR)/DeviceExchange/InputExchange.o \
-	$(ENGINE_DIR)/DeviceExchange/RenderTargetExchange.o \
-	$(ENGINE_DIR)/DeviceExchange/DiagnosticMetrics.o \
-	$(ENGINE_DIR)/PhysicalDynamics/RigidBodySolver.o \
-	$(ENGINE_DIR)/PhysicalDynamics/DeformableSolver.o \
-	$(ENGINE_DIR)/PhysicalDynamics/LocomotionSolver.o \
-	$(ENGINE_DIR)/PhysicalDynamics/WorldSpace.o \
-	$(ENGINE_DIR)/VolumetricDynamics/LevelSetSpace.o \
-	$(ENGINE_DIR)/VolumetricDynamics/FluidSolver.o \
-	$(ENGINE_DIR)/VolumetricDynamics/ParticleIntegrator.o \
-	$(ENGINE_DIR)/GeometricRaster/GeometryStructure.o \
-	$(ENGINE_DIR)/GeometricRaster/CameraProjection.o \
-	$(ENGINE_DIR)/GeometricRaster/VisibilityProjection.o \
-	$(ENGINE_DIR)/GeometricRaster/RasterSequence.o \
-	$(ENGINE_DIR)/GeometricRaster/MaterialCodec.o \
-	$(ENGINE_DIR)/PhotometricIllumination/ClusteredSpace.o \
-	$(ENGINE_DIR)/PhotometricIllumination/DirectIlluminationIntegrator.o \
-	$(ENGINE_DIR)/PhotometricIllumination/GlobalIlluminationIntegrator.o \
-	$(ENGINE_DIR)/PhotometricIllumination/AtmosphereIntegrator.o \
-	$(ENGINE_DIR)/PlatformInterchange/AcousticStructure.o \
-	$(ENGINE_DIR)/PlatformInterchange/AcousticIntegrator.o \
-	$(ENGINE_DIR)/PlatformInterchange/VoiceExchange.o \
-	$(ENGINE_DIR)/PlatformInterchange/OnlineInterchange.o \
-	$(ENGINE_DIR)/DisplayPresentation/ThemeStructure.o \
-	$(ENGINE_DIR)/DisplayPresentation/VectorCodec.o \
-	$(ENGINE_DIR)/DisplayPresentation/FontCodec.o \
-	$(ENGINE_DIR)/DisplayPresentation/ControlCentrePanel.o \
-	$(ENGINE_DIR)/DisplayPresentation/WorkspacePanel.o \
-	$(ENGINE_DIR)/DisplayPresentation/CycleScheduler.o \
-	$(ENGINE_DIR)/DisplayPresentation/FidelityClassifier.o \
-	$(ENGINE_DIR)/DisplayPresentation/FrontierHost.o
+OBJS := $(addprefix $(OBJDIR)/,$(notdir $(SRCS:.cpp=.o)))
 
-TARGET := bin/Project-Zero
+vpath %.cpp Source ../../Engine/GeometricRaster ../../Engine/DeviceExchange
 
 .PHONY: all clean run
 
 all: $(TARGET)
 
-$(TARGET): $(ENGINE_OBJS) $(GAME_OBJS)
+$(TARGET): $(OBJS)
 	@mkdir -p bin
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+$(OBJDIR)/%.o: %.cpp | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(ENGINE_DIR)/%.o: $(ENGINE_DIR)/%.cpp
-	$(MAKE) -C $(ENGINE_DIR)
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
 
 run: $(TARGET)
 	./$(TARGET)
 
 clean:
-	rm -rf $(GAME_OBJS) bin/Project-Zero
+	rm -rf $(OBJDIR) $(TARGET)

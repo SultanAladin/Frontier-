@@ -1,6 +1,0 @@
-[Archive]
-Name = "HypergridMono"
-Category = "Font"
-GlyphRanges = "BasicLatin, LatinExtended, MathematicalOperators"
-RenderMode = "MultiChannelSignedDistanceField"
-TextureExtent = 1024
