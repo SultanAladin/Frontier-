@@ -74,6 +74,21 @@ void RenderScheduler::Present(
     EditorSheet*                         PickedSheet,
     const OverlayHook&                   Overlay) noexcept
 {
+    // ⚠️ POINTER OWNERSHIP, decided before ImGui reads a single event. GLFW puts the cursor in disabled mode
+    //    while the right button steers the camera, which means the pointer is no longer where the user left it:
+    //    it travels with the look, so ImGui sees it sweep across the outliner (rows lighting up under a cursor
+    //    that is not drawn) and across the dock's add control. NoMouse makes ImGui discard the position and the
+    //    buttons for the frame — hover, clicks, drags and WantCaptureMouse all go quiet — and the editor host
+    //    drops its keyboard shortcuts for the same reason (Shift+A is the Construct menu AND boost-strafe-left).
+    //    Nothing about the flight itself reads through ImGui, so the camera is unaffected.
+    const bool Steering = Camera.IsSteeringActive();
+    ImGuiIO& PointerIo = ImGui::GetIO();
+    if (Steering) PointerIo.ConfigFlags |=  ImGuiConfigFlags_NoMouse;
+    else          PointerIo.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+#ifdef FRONTIER_DEVELOPMENT
+    Editor_.AssignCameraSteering(Steering);
+#endif
+
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -95,7 +110,7 @@ void RenderScheduler::Present(
     //    SectionCamera / SectionReSTIR / SectionScene are retained but unreferenced by design: they are the
     //    fallback if the editor has to be disabled, and deleting them would make that a rewrite rather than a
     //    one-line change.
-    (void)Integrator; (void)Camera; (void)Scene; (void)ViewportWidth; (void)ViewportHeight;
+    (void)Integrator; (void)Scene; (void)ViewportWidth; (void)ViewportHeight;
 
     if (Overlay) Overlay();
 

@@ -74,6 +74,14 @@ public:
     //    QueryPickedInstance).
     void Record(EditorInstance* Instances, uint32_t InstanceCount, EditorSheet* PickedSheet) noexcept;
 
+    // ⚠️ THE CAMERA OWNS EVERYTHING WHILE IT FLIES. Held-button navigation (right mouse + WASD/QE, Shift to
+    //    boost) is a MODE, and while it runs the editor must not read a single pointer or shortcut: the cursor
+    //    is warped out from under the pointer by GLFW's disabled mode, so every panel it passes over lights up,
+    //    and Shift+A — the Construct menu's shortcut — is also "boost + strafe left", which opened the menu on
+    //    every leftward boost. Set this from whatever knows the camera is steering.
+    void AssignCameraSteering(bool Steering) noexcept { Steering_ = Steering; }
+    [[nodiscard]] bool QueryCameraSteering() const noexcept { return Steering_; }
+
     // Seats the viewport's scene view (see ViewportPanel::AssignView) and reads back the view rect.
     void AssignView(const unsigned char* Rgba, uint32_t Width, uint32_t Height) noexcept;
     // The engine build's route: the resolved scene image as an ImGui texture (the Vulkan backend's descriptor
@@ -156,6 +164,8 @@ private:
 
     // Polls the add control and draws its menu.
     void RecordTabAdd() noexcept;
+
+    bool Steering_ = false;   // the camera is flying: no pointer, no shortcuts
 
     ControlPanel      Controls_;          // first: the panels borrow it
     OutlinerPanel  Outliner_;

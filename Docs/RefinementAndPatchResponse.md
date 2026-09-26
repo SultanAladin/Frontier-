@@ -322,3 +322,35 @@ checks of every touched translation unit against real headers. `CheckEditorVisua
 after — its source list has drifted (22 undefined references) and the icon path needs thorvg, which is not
 installed here; `CheckTelemetryProbe.sh` likewise. Neither was disturbed by this work, and **none of this ran on
 a GPU**.
+
+---
+
+# Third pass — the pointer while flying, 2026-09-26
+
+**Report:** flying the scene (right mouse held + WASD) ends up hovering rows in the outliner and opening the
+Construct menu, which is then not visible.
+
+Two separate causes, both fixed.
+
+* **Shift+A is the Construct menu AND “boost + strafe left”.** `EditorHost::RecordTabAdd` opened Construct on
+  `Shift + A` with no regard for what the camera was doing, so every boosted leftward strafe opened it — behind
+  the viewport, where you would not see it. The shortcut is now refused while the camera steers.
+* **GLFW puts the cursor in disabled mode while the right button is held**, which means the pointer no longer
+  sits where you left it: it travels with the look. ImGui kept receiving those positions, so rows lit up under a
+  cursor that is not drawn, and a click landed wherever the look had carried it. `RenderScheduler::Present` now
+  raises `ImGuiConfigFlags_NoMouse` for any frame in which the camera is steering: ImGui discards the position
+  and the buttons for that frame — hover, clicks, drags and `WantCaptureMouse` all go quiet — and lowers it again
+  on release. Flight itself reads nothing through ImGui, so the camera is untouched.
+
+One flag decides both (`EditorHost::AssignCameraSteering`, set from `FlyThroughSolver::IsSteeringActive()`), so the
+pointer and the shortcuts can never disagree about who owns the input.
+
+If the Construct menu is still invisible when you open it **deliberately** (the dock's + or Shift+A while not
+flying), that is a separate defect in where the panel places itself — say so and it gets its own pass.
+
+## Viewport header
+
+`Docs/Design/ViewportHeader.html` is the redesign proposal: today's rail annotated with what is wrong with it,
+then three options drawn with the engine's own tokens, live (the modes and toggles click), plus every state of the
+recommended option, the narrow-rail behaviour, and a table of what each piece costs in `ViewportPanel.cpp`.
+Nothing is implemented yet — it is a mockup waiting on a choice.
