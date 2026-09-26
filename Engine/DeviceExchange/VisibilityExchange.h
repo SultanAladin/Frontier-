@@ -94,6 +94,8 @@ struct VisibilityTelemetry
     uint32_t PhaseOneDraws     = 0u;    // [cnt] clusters re-drawn from last frame's set
     uint32_t PhaseTwoDraws     = 0u;    // [cnt] newly visible clusters
     uint32_t TrianglesDrawn    = 0u;    // [cnt] both phases
+    uint32_t CoarsePatches     = 0u;    // [cnt] clusters drawn through their coarse alternative (patch preview only)
+    uint32_t TrianglesFine     = 0u;    // [cnt] what the same draws would have cost at full detail
     float    FrameMilliseconds=0.0f; // timestamp 0..11: visibility through trailing compute, excludes UI/present
     float    CullMilliseconds     = 0.0f;
     float    RasterMilliseconds   = 0.0f;

@@ -103,7 +103,18 @@ void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float To
     //    until they were derived.
     char Rows[9][160];
     std::snprintf(Rows[0], sizeof(Rows[0]), "clusters   %s  \xE2\x86\x92  frustum %s  \xE2\x86\x92  cone %s  \xE2\x86\x92  visible %s", Total, Frustum, Cone, Visible);
-    std::snprintf(Rows[1], sizeof(Rows[1]), "drawn      phase 1  %s   +   phase 2  %s   (%s triangles)", One, Two, Tris);
+    // The patch line: how many of the drawn clusters took their coarse alternative, and what that saved. A
+    //    reviewer dollying in and out watches these two figures move; if they do not move, the preview really
+    //    is not selecting anything and the number says so instead of the tiles keeping the secret.
+    char Fine[16];
+    Thousands(Fine, sizeof(Fine), T.TrianglesFine);
+    const uint32_t DrawnClusters = T.PhaseOneDraws + T.PhaseTwoDraws;
+    const double Saved = T.TrianglesFine > 0u
+                       ? 100.0 * (1.0 - static_cast<double>(T.TrianglesDrawn) / static_cast<double>(T.TrianglesFine))
+                       : 0.0;
+    std::snprintf(Rows[1], sizeof(Rows[1]),
+                  "drawn      phase 1  %s   +   phase 2  %s   (%s triangles)   |   patch coarse %u/%u  \xE2\x86\x92  %s fine, -%.1f%%",
+                  One, Two, Tris, T.CoarsePatches, DrawnClusters, Fine, Saved);
     std::snprintf(Rows[2], sizeof(Rows[2]), "indirect   %s   |   HiZ occlusion %s   |   patch error %g px%s   |   rays: CWBVH (Tier A)",
                   DrawIndirectCount ? "1 draw/phase" : "fixed-count", Occlusion_ ? "on" : "OFF",
                   static_cast<double>(PatchErrorPixels_),

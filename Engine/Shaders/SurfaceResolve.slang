@@ -83,6 +83,7 @@ void main()
     uint  Material   = 0u;
     float WireDistance = 1e20;
     uint  ClusterId  = 0u;
+    bool  CoarseHit  = false;   // this pixel's triangle came from the patch's coarse alternative
     vec3  ShadingNormal = vec3(0.0, 0.0, 1.0);
 
     if (Visibility != kVisibilityInvalid)
@@ -96,6 +97,8 @@ void main()
         vec3 C = (Instance.World * vec4(Vertices[Indices[Base + 2u] + Instance.VertexOffset].Position.xyz, 1.0)).xyz;
         Material  = Instance.MaterialIndex;
         ClusterId = Instance.ClusterOffset + Primitive / 128u;
+        // A primitive past the instance's fine range IS an alternative: the patch preview says so on screen.
+        CoarseHit = Primitive >= Instance.TriangleCount;
         if (Primitive >= Instance.TriangleCount) {
             for(uint q=0u;q<Instance.ClusterCount;++q) {
                 ClusterRecord P=Clusters[Instance.ClusterOffset+q];
@@ -162,7 +165,14 @@ void main()
         Colour = Hit ? vec3(1.0 - exp(-Linear * 0.1)) : vec3(0.0);
     }
     else if (View == kDebugVisibility) Colour = Hit ? HashColour(Visibility) : vec3(0.0);
-    else if (View == kDebugCluster || View == 14u || View == 15u)    Colour = Hit ? HashColour(ClusterId * 2654435761u) : vec3(0.0);
+    else if (View == kDebugCluster || View == 14u || View == 15u)
+    {
+        // Patch identity stays in the HUE (a patch that changes detail must not look like a different patch);
+        //    the alternative announces itself in the VALUE. Dolly out and the tiles darken one at a time as
+        //    each patch crosses its error bound — which is the whole claim, visible without a wireframe.
+        Colour = Hit ? HashColour(ClusterId * 2654435761u) : vec3(0.0);
+        if (Hit && CoarseHit && (View == 14u || View == 15u)) Colour *= 0.34;
+    }
     else if (View == kDebugMotion)
     {
         vec2 Motion = texelFetch(MotionImage, ivec2(Pixel), 0).rg * vec2(Extent.xy);   // pixels

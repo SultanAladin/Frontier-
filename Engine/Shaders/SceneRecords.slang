@@ -149,7 +149,12 @@ const uint kCounterHiZPassed     = 4u;
 const uint kCounterTriangleDrawn = 5u;
 const uint kCounterPhaseOneDrawn = 6u;
 const uint kCounterDrawCountPhaseTwo = 7u;   // draw count of the phase-2 list (vkCmdDrawIndexedIndirectCount reads it at byte 28)
-const uint kCounterCount         = 8u;
+// The patch preview's own two figures. Without them "the patches are not updating" is unfalsifiable from the
+//    screen: the tiles keep their colours by design, so nothing in the image says whether an alternative was
+//    taken. These count the clusters that took one, and what the frame WOULD have drawn at full detail.
+const uint kCounterCoarseDrawn   = 8u;
+const uint kCounterTriangleFine  = 9u;
+const uint kCounterCount         = 10u;
 
 const uint kInstanceFlagDoubleSided = 1u;
 const uint kInstanceFlagEmissive    = 2u;

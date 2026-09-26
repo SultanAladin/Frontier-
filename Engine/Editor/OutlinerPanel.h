@@ -72,7 +72,10 @@ private:
     void RecordSearch() noexcept;
     void RecordChips() noexcept;
     uint32_t RecordOutline(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
-    void RecordRow(EditorInstance* Instances, uint32_t InstanceCount, uint32_t Index, bool HasKids) noexcept;
+    // `Squeeze` is the row's share of its ancestors' open animation: 1 draws the row at full height, 0 is fully
+    //    collapsed. It scales the row's height and its ink, which is what makes a folder fold instead of blink.
+    void RecordRow(EditorInstance* Instances, uint32_t InstanceCount, uint32_t Index, bool HasKids,
+                   float Squeeze = 1.0f) noexcept;
     void RecordEmpty(float Width) noexcept;
     void RecordFooter() noexcept;
     [[nodiscard]] uint32_t QueryFilterCount() const noexcept;
@@ -104,6 +107,15 @@ private:
     uint32_t Revealed_    = kNoEditorInstance;   // the pick last scrolled into view (the page's scrollIntoView on select)
     uint32_t Anchor_      = kNoEditorInstance;
     bool     Shut_[kMaxEditorInstances] = {};                                  // false reads open
+    // ── Micro-animation state ────────────────────────────────────────────────────────────────────────────────
+    // One open phase per row: 1 = the subtree stands at full height, 0 = fully folded away. It chases Shut_ at a
+    //    fixed time constant, so a fold is a movement rather than a jump, and a row whose INDEX changed (the
+    //    roster is rebuilt every tick) snaps instead of animating from a stranger's phase.
+    float    Phase_[kMaxEditorInstances] = {};
+    float    ScrollNow_    = 0.0f;   // [px] the scroll the tree is drawn at this tick
+    float    ScrollTarget_ = 0.0f;   // [px] where the wheel/reveal asked it to be
+    bool     ScrollSeated_ = false;  // false until the first tick seats both from the live scroll
+    bool     Revealing_    = false;  // a pick scrolled itself into view this tick; the glide stands aside
     uint64_t RosterKeys_[kMaxEditorInstances] = {};
     uint32_t RosterCount_=0;
     bool ExplicitPick_=false;
