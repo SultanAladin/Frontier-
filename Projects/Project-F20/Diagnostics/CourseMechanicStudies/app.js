@@ -1,7 +1,7 @@
 "use strict";
 
 (() => {
-    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run", "blind-monument", "demolition-run", "longwall", "crop-sea", "listening-field", "rootwater"];
+    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run", "blind-monument", "demolition-run", "longwall", "crop-sea", "listening-field", "rootwater", "eye-of-plain"];
     const pages = new Map(pageNames.map((name) => [name, document.getElementById(name)]));
     const pageLinks = Array.from(document.querySelectorAll("[data-page]"));
     let currentPage = "index";
@@ -58,7 +58,9 @@
                                                                 ? "Listening Field — Frontier Field Studies"
                                                                 : nextPage === "rootwater"
                                                                     ? "Rootwater — Frontier Field Studies"
-                                                                    : "Index — Frontier Field Studies";
+                                                                    : nextPage === "eye-of-plain"
+                                                                        ? "Eye of the Plain — Frontier Field Studies"
+                                                                        : "Index — Frontier Field Studies";
 
         window.scrollTo({ top: 0, behavior: "auto" });
         if (nextPage === "iron-tide") {
@@ -91,6 +93,8 @@
             requestAnimationFrame(() => window.listeningField?.resize());
         } else if (nextPage === "rootwater") {
             requestAnimationFrame(() => window.rootwater?.resize());
+        } else if (nextPage === "eye-of-plain") {
+            requestAnimationFrame(() => window.eyeOfPlain?.resize());
         }
     }
 
