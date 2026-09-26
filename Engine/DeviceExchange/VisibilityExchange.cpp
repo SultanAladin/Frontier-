@@ -36,7 +36,7 @@ static constexpr uint32_t kMaximumCycleSlots = 3u;
 //    added without its own span silently borrows another's time.
 // 20..29: five denoise levels; 30/31: immutable history snapshot copy.
 static constexpr uint32_t kTimestampCount    = 32u;
-static constexpr uint32_t kCounterCount      = 8u;    // SceneRecords.slang kCounterCount
+static constexpr uint32_t kCounterCount      = 10u;   // SceneRecords.slang kCounterCount
 static constexpr uint32_t kCounterDrawPhaseTwoByte = 7u * 4u;
 
 // Frame constants — std140 mirror of FrameConstants in Shaders/SceneRecords.slang.
@@ -1111,6 +1111,8 @@ void VisibilityExchange::ReadTelemetry(uint32_t Slot) noexcept
         Telemetry.OcclusionPassed = Counters[4];
         Telemetry.TrianglesDrawn  = Counters[5];
         Telemetry.PhaseTwoDraws   = Counters[7];
+        Telemetry.CoarsePatches   = Counters[8];
+        Telemetry.TrianglesFine   = Counters[9];
     }
     // WITH_AVAILABILITY, and two words per query: the shadow pair is only written on frames the shadow stage
     //    actually recorded (GI off, shadow frame valid). A reset-but-never-written query returns UNDEFINED data,

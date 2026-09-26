@@ -168,5 +168,7 @@ void main()
     Draws[Base + Slot] = Draw;
 
     atomicAdd(Counters[kCounterTriangleDrawn], TriangleCount);
+    atomicAdd(Counters[kCounterTriangleFine], Cluster.TriangleCount);
+    if (Coarse) atomicAdd(Counters[kCounterCoarseDrawn], 1u);
     if (Phase == 1u) { atomicAdd(Counters[kCounterPhaseOneDrawn], 1u); atomicOr(IsVisible[Word], Bit); }
 }

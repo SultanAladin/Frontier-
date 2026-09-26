@@ -229,3 +229,96 @@ tree is byte-identical to `ceee3d2`'s, and the cherry-picked result's tree hash 
    then dolly an opaque smooth mesh between 3 m and 10 m. The wireframe inside the tiles must thin out, the tile
    colours must not change, and the popup's triangle count must drop. Glass and emissive objects must keep their
    full wireframe at every distance.
+
+---
+
+# Second pass — 2026-09-26 evening, from the owner's screenshots
+
+Five items came back from the running build. What each one was, and what changed.
+
+## ① "The clusters are there but don't seem to update"
+
+The screenshots are `Patch Tiles` at ~10 m over the showcase grid. **Nothing in that image can tell you whether a
+patch swapped**, because the preview was built to keep a patch's colour *stable* across a detail change — that was
+a deliberate choice (identity must not flicker) and it made the feature invisible without the wireframe.
+
+Two additions, so the answer is on screen either way:
+
+* **The alternative now shades itself.** In `Patch Tiles` and `Tiles + Wireframe` a patch drawn through its coarse
+  alternative keeps its hue and drops to 34 % value. Dolly out and the tiles darken one at a time as each patch
+  crosses its error bound; dolly in and they light back up. Identity still never changes hue.
+* **The F3 popup counts them**: `patch coarse 312/1240 → 52 100 fine, -25.3%` — how many drawn clusters took the
+  alternative, what the frame would have cost at full detail, and the saving. Two new GPU counters
+  (`kCounterCoarseDrawn`, `kCounterTriangleFine`) written by the cull, read back with the existing funnel.
+
+With the measured error from the first pass, a 1 m sphere switches at ~10 m at the strict 1 px bound, so in that
+exact screenshot most of the grid should already be dark; **F6** raises the tolerance (1 → 2 → 4 → 8 px) and pulls
+the transition into arm's reach.
+
+## ② "Are those fireflies? I wanted to see the flakes"
+
+They are **sampling noise, not flakes** — and the sphere in the inspector (`grid_r10_c19`) has no flakes to see.
+The showcase grid is one material study per row, and glints live on **row 12** (`ShowcaseStructure.cpp`, case 12:
+Deliot–Belcour flake density 1 → 8 across the columns over 0.8-metalness hue-tinted metal). Row 10 is the
+dielectric → metal morph: metalness sweep, roughness 0.22, no `slate_glint_*` at all. Fly to `grid_r12_c00` …
+`grid_r12_c19` and the flakes are the thing that changes along the row.
+
+The speckle itself is the path tracer at a low sample count — roughness 0.22 at metalness 1.0 is the classic
+firefly material, and every one of those frames was taken with the camera moving, which restarts the history by
+design. Hold still: with the first pass's fixes the frame count climbs, the speckle averages out and the image
+sharpens instead of stopping at "blurred". If it does NOT settle, the scene line now prints the reason
+(`frame 1 (restart: …)`) and that name is the bug.
+
+Rain is not the answer here: precipitation at 12 mm/h is simulation state feeding the media, and nothing in
+`Engine/Shaders` draws drops.
+
+## ③ The disc shelf over the viewport is gone
+
+Twelve editor proxies for sky, sun, stars, moons, flare, wind, the cloud deck, precipitation and the two global
+fogs were laid out as a camera-facing shelf across the top of the render — markers for entities that have no
+position. They are removed. The **local cloud and local fog keep their markers**, because those are real
+world-space centres, they are how the volume is grabbed, and the gizmo now follows them (⑤). Global systems stay
+where they belong, in the outliner.
+
+## ④ The outliner moves now
+
+* **Folding is a movement.** Each row carries an open phase that chases its collapsed state with a ~90 ms time
+  constant; a folder's children draw at that phase — full height at 1, nothing at 0, every height between — with
+  their ink fading as the square of it and a clip rect so nothing spills. Nested folders multiply, so a
+  grandchild folds with its grandparent. A subtree whose phase reaches 0 is skipped exactly as before, so a
+  closed tree still costs nothing.
+* **The chevron sweeps** its quarter turn with that same phase instead of snapping (the two end poses are the
+  float-identical ones it drew before).
+* **The wheel glides.** The tree takes the wheel itself (`NoScrollWithMouse`) and eases toward the target
+  (frame-rate independent, stops dead under a pixel so a resting list is bit-stable). A pick that scrolls itself
+  into view still wins its frame; the glide adopts the new position on the next one.
+
+## ⑤ Local volumetric fog and clouds move with the gizmo
+
+Selecting the local cloud or the local fog — in the outliner or by its viewport marker — now seats the transform
+gizmo on the volume's centre and drags it. Translate only, on purpose: a centre has no orientation and no scale,
+and the extent is the inspector's own figure. Escape restores the centre from the press, exactly as it restores
+an instance's world, and the release commits. The move restarts the accumulation (`restart: volume move`),
+because the lighting in the history was gathered through the volume where it used to be.
+
+One shared answer decides all of it — `EditorInspectorSequence::VolumeCentre` — so the marker, the gizmo and the
+drag cannot disagree about which entities are movable.
+
+## Also worth knowing, from the log you sent
+
+* `SceneDecode` took **95.8 s**. That is the patch bake running COLD: the v1 → v2 cache bump invalidated every
+  entry, so every one of the 3 590 clusters rebaked on that launch. It is cached afterwards
+  (`.frontier/cache/patch-geometry-v2/`) — the second launch should be back to a few seconds. The measurement
+  itself is ~15 % of that; the greedy collapse loop is the rest.
+* The freeze after `CpuAnimationMirrorCapacity` is not something this change can explain from here — the line
+  after it is the first frame's work. If it happens again, the startup CSV
+  (`Build/Diagnostics/startup-*.csv`) plus the last `[GPU startup]` line is what identifies the stage.
+
+## Gates for this pass
+
+`CheckShaders.sh` **22/22 to SPIR-V** (ClusterCull, SurfaceResolve and the rest, with a glslang built here),
+`CheckPatchGeometry.sh` 83 322 checks, `CheckProgressiveDenoise.sh`, `TestDenoiseSafety.py`, and C++20 syntax
+checks of every touched translation unit against real headers. `CheckEditorVisualProofs.sh` is RED before and
+after — its source list has drifted (22 undefined references) and the icon path needs thorvg, which is not
+installed here; `CheckTelemetryProbe.sh` likewise. Neither was disturbed by this work, and **none of this ran on
+a GPU**.

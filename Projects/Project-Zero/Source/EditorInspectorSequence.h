@@ -66,8 +66,13 @@ struct EditorInspectorSequence {
  static EditorSheet* Exchange(uint32_t Pick,bool Commit,void* Context) noexcept {
   return static_cast<EditorInspectorSequence*>(Context)->Update(Pick,Commit);
  }
- // Global entities have no physical centre. Keep their explicitly labelled editor proxies in a
- // camera-facing shelf; local volumes instead project their real, editable world-space centres.
+ // ⚠️ ONLY the volumes that HAVE a physical centre get a viewport marker. Global systems (sky, sun, stars,
+ // moons, flare, wind, the global cloud deck, precipitation, the two global fogs) used to be laid out as a
+ // camera-facing shelf of discs across the top of the view — twelve editor proxies pinned over the render,
+ // standing in front of the scene at every camera angle, for entities whose position is not a thing that
+ // exists. They are reachable in the outliner, which is where a global system belongs. The local cloud and
+ // the local fog keep their markers: those ARE world-space centres, they are how you grab the volume, and
+ // the transform gizmo now follows them (GameExecution ⑤, the volume branch).
  static uint32_t Billboards(EditorBillboard* Out,uint32_t Capacity,EditorBillboardCamera& C,void* Context) noexcept {
   auto& S=*static_cast<EditorInspectorSequence*>(Context);S.Synchronize();
   const auto E=S.Camera.QuerySpatialLocation(),F=S.Camera.QueryForwardVector(),R=S.Camera.QueryRightVector(),U=S.Camera.QueryUpwardVector();
@@ -76,23 +81,34 @@ struct EditorInspectorSequence {
   std::memcpy(C.Right,Basis[2],sizeof(C.Right));std::memcpy(C.Up,Basis[3],sizeof(C.Up));
   C.Fov=S.Camera.QueryFieldOfViewRadians();C.Aspect=S.Camera.QueryAspectRatio();C.Near=S.Camera.QueryNearPlaneDistance();
   if(!Out||C.ViewWidth<40||C.ViewHeight<40)return 0;
-  unsigned N=0,Global=0;const unsigned Columns=std::max(1u,static_cast<unsigned>((C.ViewWidth-24)/44));
+  unsigned N=0;
   for(unsigned I=0;I<S.Count&&N<Capacity;++I){
    const auto Key=S.Rows[I].InspectorKey;
    if((Key>>32)!=2||uint32_t(Key)==0||uint32_t(Key)>kCelestialEntityCount||!S.Effective(I))continue;
-   const auto Entity=static_cast<CelestialEntity>(uint32_t(Key)-1);
-   auto& M=Out[N++];M={};M.Key=Key;M.Artwork=S.Rows[I].Artwork;
+   const float* Centre=VolumeCentre(S.Celestial,static_cast<CelestialEntity>(uint32_t(Key)-1));
+   if(!Centre)continue;                       // a global system has no centre to mark
+   auto& M=Out[N++];M={};M.Key=Key;M.Artwork=S.Rows[I].Artwork;M.Global=false;
    std::snprintf(M.Label,sizeof(M.Label),"%s",S.Rows[I].Label);
-   const float* Centre=Entity==CelestialEntity::LocalCloud?S.Celestial.LocalCloud.Centre:Entity==CelestialEntity::LocalFog?S.Celestial.LocalFog.Centre:nullptr;
-   M.Global=Centre==nullptr;
-   if(Centre)std::memcpy(M.World,Centre,sizeof(M.World));
-   else {
-    const float X=30+44*float(Global%Columns),Y=30+44*float(Global/Columns);++Global;
-    const float Depth=std::max(10.f,C.Near*2),Half=Depth*std::tan(C.Fov*.5f);
-    for(unsigned A=0;A<3;++A)M.World[A]=C.Eye[A]+C.Forward[A]*Depth+C.Right[A]*(2*X/C.ViewWidth-1)*Half*C.Aspect+C.Up[A]*(1-2*Y/C.ViewHeight)*Half;
-   }
+   std::memcpy(M.World,Centre,sizeof(M.World));
   }
   return N;
+ }
+ // The one place that answers "does this celestial entity live somewhere?" — the marker, the gizmo and the
+ //    drag all ask it, so they cannot disagree about which entities are movable.
+ static const float* VolumeCentre(CelestialSequence& Celestial,CelestialEntity Entity) noexcept {
+  if(Entity==CelestialEntity::LocalCloud)return Celestial.LocalCloud.Centre;
+  if(Entity==CelestialEntity::LocalFog)return Celestial.LocalFog.Centre;
+  return nullptr;
+ }
+ // The picked row's movable volume, or none. Used by the frame loop to seat the transform gizmo.
+ const float* PickedVolumeCentre(uint32_t Pick,CelestialEntity* OutEntity=nullptr) const noexcept {
+  if(Pick>=Count)return nullptr;
+  const auto Key=Rows[Pick].InspectorKey;
+  if((Key>>32)!=2||uint32_t(Key)==0||uint32_t(Key)>kCelestialEntityCount)return nullptr;
+  const auto Entity=static_cast<CelestialEntity>(uint32_t(Key)-1);
+  const float* Centre=VolumeCentre(Celestial,Entity);
+  if(Centre&&OutEntity)*OutEntity=Entity;
+  return Centre;
  }
  bool TakeProjectionChanged() noexcept {const bool Result=ProjectionChanged;ProjectionChanged=false;return Result;}
 };

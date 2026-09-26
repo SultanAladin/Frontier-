@@ -1153,6 +1153,13 @@ int main(int argc, char** argv)
     Frontier::GizmoDemand GizmoDemandNow{};
     Frontier::GizmoPose   GizmoPoseNow{};           // seated from the picked placement every tick
     std::vector<float>    GizmoSeized;              // the seized span's worlds at the press, 16 floats each
+    // The local volumes (local cloud, local fog) are the celestial entities that DO have a world-space centre.
+    //    They are not instances — no triangles, no roster span — so the gizmo seats itself from the centre and
+    //    the drag writes the centre back. Translate only: a fog's extent is its own inspector figure, and a
+    //    turn or a stretch of a centre point means nothing.
+    bool     GizmoVolumeLive = false;
+    Frontier::ProjectZero::CelestialEntity GizmoVolumeEntity{};
+    float    GizmoVolumeSeized[3] = { 0.0f, 0.0f, 0.0f };
     bool     GizmoKeyGHeld = false, GizmoKeyRHeld = false, GizmoKeySHeld = false;
     // The vertex staging the CPU composes into and the GPU draws from. The heaviest mode is scale: three
     //    cylinders (96 triangles each) plus the billboarded ring (48 × 12 × 2 = 1152 triangles) — 1440
@@ -1877,13 +1884,30 @@ int main(int argc, char** argv)
             const uint32_t PrimaryRow = Panel.QueryPickedInstance();
             const bool RowSpanLive = PrimaryRow < RosterSpanCount && RosterSpans[PrimaryRow].InstanceCount > 0u
                                    && RosterSpans[PrimaryRow].FirstInstance < AnimatedInstances.size();
-            GizmoShown = RowSpanLive && GizmoReady;
+            // A picked local volume gets the same gizmo. Geometry wins if a row somehow claims both.
+            const float* VolumeCentre = RowSpanLive ? nullptr
+                                                    : InspectorSession.PickedVolumeCentre(PrimaryRow, &GizmoVolumeEntity);
+            GizmoVolumeLive = VolumeCentre != nullptr;
+            if (GizmoVolumeLive) GizmoModeNow = Frontier::GizmoMode::Translate;   // a centre only moves
+            GizmoShown = (RowSpanLive || GizmoVolumeLive) && GizmoReady;
+
+            if (GizmoVolumeLive && !GizmoDragging)
+            {
+                GizmoPoseNow.Origin[0] = VolumeCentre[0];
+                GizmoPoseNow.Origin[1] = VolumeCentre[1];
+                GizmoPoseNow.Origin[2] = VolumeCentre[2];
+                GizmoPoseNow.AxisX[0] = 1.0f; GizmoPoseNow.AxisX[1] = 0.0f; GizmoPoseNow.AxisX[2] = 0.0f;
+                GizmoPoseNow.AxisY[0] = 0.0f; GizmoPoseNow.AxisY[1] = 1.0f; GizmoPoseNow.AxisY[2] = 0.0f;
+                GizmoPoseNow.AxisZ[0] = 0.0f; GizmoPoseNow.AxisZ[1] = 0.0f; GizmoPoseNow.AxisZ[2] = 1.0f;
+                const float Vx = GizmoPoseNow.Origin[0] - Eye.x, Vy = GizmoPoseNow.Origin[1] - Eye.y, Vz = GizmoPoseNow.Origin[2] - Eye.z;
+                GizmoPoseNow.Reach = std::max(0.2f, std::sqrt(Vx * Vx + Vy * Vy + Vz * Vz) * Dispatch.FieldOfViewTanHalf * 0.35f);
+            }
 
             // Seat the pose from the seized instance's live placement: origin off the translation column, axes
             //    off the normalised orientation columns (the reference copies its target's quaternion the same
             //    way), and the reach follows the eye so the grips keep Blender's steady screen size while the
             //    proportions stay the reference's exactly.
-            if (GizmoShown && !GizmoDragging)
+            if (GizmoShown && RowSpanLive && !GizmoDragging)
             {
                 const float* W = AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance].World;
                 // The origin is the object's WORLD centre, not the World matrix's translation column: the
@@ -1990,10 +2014,19 @@ int main(int argc, char** argv)
                     //    from the press (Blender's rule) and Escape can put everything back.
                     GizmoDragging = true;
                     GizmoHot      = Pressed;
-                    GizmoSeized.assign(static_cast<size_t>(RosterSpans[PrimaryRow].InstanceCount) * 16u, 0.0f);
-                    for (uint32_t I = 0u; I < RosterSpans[PrimaryRow].InstanceCount; ++I)
-                        std::memcpy(GizmoSeized.data() + static_cast<size_t>(I) * 16u,
-                                    AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance + I].World, 16u * sizeof(float));
+                    if (GizmoVolumeLive)
+                    {
+                        GizmoVolumeSeized[0] = GizmoPoseNow.Origin[0];
+                        GizmoVolumeSeized[1] = GizmoPoseNow.Origin[1];
+                        GizmoVolumeSeized[2] = GizmoPoseNow.Origin[2];
+                    }
+                    else
+                    {
+                        GizmoSeized.assign(static_cast<size_t>(RosterSpans[PrimaryRow].InstanceCount) * 16u, 0.0f);
+                        for (uint32_t I = 0u; I < RosterSpans[PrimaryRow].InstanceCount; ++I)
+                            std::memcpy(GizmoSeized.data() + static_cast<size_t>(I) * 16u,
+                                        AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance + I].World, 16u * sizeof(float));
+                    }
                 }
                 else
                 {
@@ -2041,16 +2074,25 @@ int main(int argc, char** argv)
             //    the seized worlds back. The demand rewrites the span's instances; the raster, the tracer and
             //    the outline all follow the same rows.
             bool GizmoMovedNow = false;
+            bool VolumeMovedNow = false;   // a local volume's centre moved: the records repack, the history restarts
             if (GizmoDragging)
             {
                 const bool StillHeld = Input.IsMouseButtonPressed(Frontier::MouseButtonCategory::ButtonLeft);
                 const bool Cancelled = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyEscape);
                 if (Cancelled)
                 {
-                    for (uint32_t I = 0u; I < RosterSpans[PrimaryRow].InstanceCount; ++I)
-                        std::memcpy(AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance + I].World,
-                                    GizmoSeized.data() + static_cast<size_t>(I) * 16u, 16u * sizeof(float));
-                    GizmoMovedNow = true;
+                    if (GizmoVolumeLive)
+                    {
+                        Celestial.MoveMarker(static_cast<uint32_t>(GizmoVolumeEntity), GizmoVolumeSeized);
+                        VolumeMovedNow = true;
+                    }
+                    else
+                    {
+                        for (uint32_t I = 0u; I < RosterSpans[PrimaryRow].InstanceCount; ++I)
+                            std::memcpy(AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance + I].World,
+                                        GizmoSeized.data() + static_cast<size_t>(I) * 16u, 16u * sizeof(float));
+                        GizmoMovedNow = true;
+                    }
                     GizmoDragging = false;
                     GizmoDemandNow = Frontier::GizmoDemand{};
                 }
@@ -2065,13 +2107,29 @@ int main(int argc, char** argv)
                                        || Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyRightControl);
                     if (Frontier::AdvanceGizmoDrag(GizmoDragNow, GizmoPoseNow, AimOrigin, AimToward, Snapping, &GizmoDemandNow))
                     {
-                        for (uint32_t I = 0u; I < RosterSpans[PrimaryRow].InstanceCount; ++I)
+                        if (GizmoVolumeLive)
                         {
-                            const float* Press = GizmoSeized.data() + static_cast<size_t>(I) * 16u;
-                            float* Live = AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance + I].World;
-                            ApplyGizmoDemand(GizmoDemandNow, GizmoPoseNow, Press, Live);
+                            // Only the move family reaches a centre; the mode is pinned to Translate above, and
+                            //    the demand's Move is measured from the press exactly like an instance's is.
+                            const float Moved[3] = { GizmoVolumeSeized[0] + GizmoDemandNow.Move[0],
+                                                     GizmoVolumeSeized[1] + GizmoDemandNow.Move[1],
+                                                     GizmoVolumeSeized[2] + GizmoDemandNow.Move[2] };
+                            Celestial.MoveMarker(static_cast<uint32_t>(GizmoVolumeEntity), Moved);
+                            GizmoPoseNow.Origin[0] = Moved[0];
+                            GizmoPoseNow.Origin[1] = Moved[1];
+                            GizmoPoseNow.Origin[2] = Moved[2];
+                            VolumeMovedNow = true;
                         }
-                        GizmoMovedNow = true;
+                        else
+                        {
+                            for (uint32_t I = 0u; I < RosterSpans[PrimaryRow].InstanceCount; ++I)
+                            {
+                                const float* Press = GizmoSeized.data() + static_cast<size_t>(I) * 16u;
+                                float* Live = AnimatedInstances[RosterSpans[PrimaryRow].FirstInstance + I].World;
+                                ApplyGizmoDemand(GizmoDemandNow, GizmoPoseNow, Press, Live);
+                            }
+                            GizmoMovedNow = true;
+                        }
                     }
                 }
             }
@@ -2103,6 +2161,10 @@ int main(int argc, char** argv)
                 }
                 Integrator.ResetAccumulation("instance motion");
             }
+            // A volume has no instance to re-upload: the post/weather records are packed from the live centre
+            //    further down this same tick. The history still has to go, because the lighting it accumulated
+            //    was gathered through the volume where it used to be.
+            if (VolumeMovedNow) Integrator.ResetAccumulation("volume move");
 
             // The outline, every tick: the picked rows' spans become instance ordinals, and the compute stroke
             //    (SelectionOutline.slang) draws the green silhouette around exactly those ids' pixels.

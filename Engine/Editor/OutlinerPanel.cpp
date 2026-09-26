@@ -443,9 +443,14 @@ void DrawIcon(ImDrawList* Draw, OutlinerIconCategory Icon, const ImVec2& Origin,
     }
 }
 
-// Rotated chevron: the page turns the same glyph 90° when a row stands open.
-void DrawChevron(ImDrawList* Draw, const ImVec2& Centre, float Size, ImU32 Tint, bool Open) noexcept
+// Rotated chevron: the page turns the same glyph 90° when a row stands open. `Turn` carries the row's open
+//    phase, so the glyph SWEEPS through the quarter turn with the fold instead of snapping at the click; 0 and 1
+//    reproduce the two poses the discrete version drew, to the float.
+void DrawChevron(ImDrawList* Draw, const ImVec2& Centre, float Size, ImU32 Tint, float Turn) noexcept
 {
+    const float Sweep = Turn < 0.0f ? 0.0f : (Turn > 1.0f ? 1.0f : Turn);
+    const float Angle = Sweep * 1.57079633f;
+    const float Cos = std::cos(Angle), Sin = std::sin(Angle);
     const FlatGlyph& Flat = FlatOf(OutlinerIconCategory::Chevron);
     const float Scale = Size / 24.0f;
     const float Thick = 1.6f * Scale;
@@ -458,7 +463,7 @@ void DrawChevron(ImDrawList* Draw, const ImVec2& Centre, float Size, ImU32 Tint,
         {
             const float Lx = (Contour.Points[i].x - 12.0f) * Scale;
             const float Ly = (Contour.Points[i].y - 12.0f) * Scale;
-            Points[i] = Open ? ImVec2(Centre.x - Ly, Centre.y + Lx) : ImVec2(Centre.x + Lx, Centre.y + Ly);
+            Points[i] = ImVec2(Centre.x + Lx * Cos - Ly * Sin, Centre.y + Lx * Sin + Ly * Cos);
         }
         if (Contour.Count >= 2u)
         {
@@ -1066,7 +1071,22 @@ void OutlinerPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) no
     ExplicitPick_=false;
     // Collapse pose belongs to the row, not its transient array index. It survives
     // component insertion/removal, reparenting and renames with the row itself.
-    for (uint32_t i=0;i<InstanceCount;++i){Shut_[i]=Instances[i].Shut;}
+    // Collapse pose in, and the open phase advanced toward it. The time constant is ~90 ms to 95 % — long enough
+    //    to read as a movement, short enough that a reviewer clicking through folders never waits for it. A row
+    //    whose INDEX now holds a different identity snaps to its target instead of animating from the stranger's
+    //    phase, which is the same rule the pick relocation above follows.
+    {
+        const float Step = 1.0f - std::exp(-ImGui::GetIO().DeltaTime * 30.0f);
+        for (uint32_t i = 0u; i < InstanceCount; ++i)
+        {
+            Shut_[i] = Instances[i].Shut;
+            const float Want = Shut_[i] ? 0.0f : 1.0f;
+            const bool  Same = i < RosterCount_ && RosterKeys_[i] == Instances[i].InspectorKey;
+            if (!Same || !std::isfinite(Phase_[i])) { Phase_[i] = Want; continue; }
+            Phase_[i] += (Want - Phase_[i]) * Step;
+            if (std::fabs(Want - Phase_[i]) < 0.002f) Phase_[i] = Want;
+        }
+    }
 
     // The page's keys: Tab compacts (outside a text field), Ctrl+Shift+F lands in the search.
     ImGuiIO& IO = ImGui::GetIO();
@@ -1483,15 +1503,43 @@ uint32_t OutlinerPanel::RecordOutline(EditorInstance* Instances, uint32_t Instan
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 0.0f);
+    // NoScrollWithMouse: the wheel is taken here instead, so the list can GLIDE to where the notch asked rather
+    //    than teleporting a fixed number of pixels per click.
     ImGui::BeginChild("##tree", ImVec2(Width, Avail > 0.0f ? Avail : 1.0f), ImGuiChildFlags_None,
-        ImGuiWindowFlags_NoScrollbar);
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     TreeHovered_ = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    {
+        // Re-seat on any scroll this panel did not perform itself — a reveal (SetScrollHereY), a resize, a
+        //    rebuilt list. Without this the glide would fight whoever moved the view.
+        const float Live = ImGui::GetScrollY();
+        if (!ScrollSeated_ || std::fabs(Live - ScrollNow_) > 1.5f)
+        {
+            ScrollNow_ = ScrollTarget_ = Live;
+            ScrollSeated_ = true;
+        }
+        const float Wheel = ImGui::GetIO().MouseWheel;
+        if (Wheel != 0.0f && TreeHovered_ && !ImGui::IsAnyItemActive())
+            ScrollTarget_ -= Wheel * (Compact_ ? kRowHCompact : kRowH) * 1.5f;
+    }
+    Revealing_ = false;
     ImGui::Dummy(ImVec2(Width, 2.0f));
 
     uint32_t Drawn = 0u;
     uint32_t i = 0u;
+    // The fold, as a movement. Each folder's children are drawn at its open phase: full height at 1, nothing at
+    //    0, and every height between while the phase travels. The stack carries the product down the tree so a
+    //    grandchild folds with its grandparent, and a subtree whose phase has reached 0 is skipped outright —
+    //    which is exactly what the old `Shut_ → jump to End` did, only now it is the END of the movement.
+    struct FoldFrame { uint32_t End; float Squeeze; };
+    FoldFrame Fold[16];
+    uint32_t  FoldDepth = 0u;
+    float     Squeeze   = 1.0f;
     while (i < InstanceCount)
     {
+        while (FoldDepth > 0u && i >= Fold[FoldDepth - 1u].End)
+        {
+            Squeeze = Fold[--FoldDepth].Squeeze;
+        }
         if (!Shown_[i])
         {
             ++i;
@@ -1508,13 +1556,22 @@ uint32_t OutlinerPanel::RecordOutline(EditorInstance* Instances, uint32_t Instan
             }
         }
         HasKids = HasKids || (End > i + 1u);
-        RecordRow(Instances, InstanceCount, i, End > i + 1u);
+        RecordRow(Instances, InstanceCount, i, End > i + 1u, Squeeze);
         ++Drawn;
-        if (Shut_[i] && !Searching)
+        const float Open = Searching ? 1.0f : Phase_[i];
+        if (End > i + 1u && Open < 0.999f)
         {
-            i = End;
+            if (Open <= 0.002f)
+            {
+                i = End;                       // folded away: the subtree costs nothing, as before
+                continue;
+            }
+            if (FoldDepth < 16u)               // mid-fold: the children draw squeezed
+            {
+                Fold[FoldDepth++] = { End, Squeeze };
+                Squeeze *= Open;
+            }
         }
-        else
         {
             ++i;
         }
@@ -1544,6 +1601,20 @@ uint32_t OutlinerPanel::RecordOutline(EditorInstance* Instances, uint32_t Instan
             DragLifted_ = kNoEditorInstance;
         }
     }
+    // The glide itself, after the rows have measured the content: clamp the target to what exists, ease a fifth
+    //    of the way per 60 Hz tick (frame-rate independent), and stop dead once the gap is sub-pixel so a resting
+    //    list is bit-stable. A reveal owns the frame it fires on; the re-seat above adopts it on the next.
+    {
+        const float Limit = ImGui::GetScrollMaxY();
+        ScrollTarget_ = ScrollTarget_ < 0.0f ? 0.0f : (ScrollTarget_ > Limit ? Limit : ScrollTarget_);
+        if (!Revealing_)
+        {
+            const float Step = 1.0f - std::exp(-ImGui::GetIO().DeltaTime * 18.0f);
+            ScrollNow_ += (ScrollTarget_ - ScrollNow_) * Step;
+            if (std::fabs(ScrollTarget_ - ScrollNow_) < 0.4f) ScrollNow_ = ScrollTarget_;
+            if (std::fabs(ScrollNow_ - ImGui::GetScrollY()) > 0.01f) ImGui::SetScrollY(ScrollNow_);
+        }
+    }
     ImGui::EndChild();
     ImGui::PopStyleVar(3);
     ImGui::PopStyleColor();
@@ -1569,13 +1640,15 @@ void OutlinerPanel::RecordEmpty(float Width) noexcept
 //    nname 13 px (folder: 11 px uppercase, .1em tracking, t3) + 9 px tag pill · nmeta 11 px t3 tabular · nstat
 //    16 px round · eye 24 px round, t3, only on hover / sel / off (off = red, eyeoff glyph). Pinned rows have no eye.
 
-void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount, uint32_t Index, bool HasKids) noexcept
+void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount, uint32_t Index, bool HasKids,
+                              float Squeeze) noexcept
 {
     EditorInstance& Row = Instances[Index];
     ImDrawList* Draw = ImGui::GetWindowDrawList();
     ImFont*     Ui   = Controls_->QueryUi();
     ImFont*     Mono = Controls_->QueryMono();
-    const float RowH = Compact_ ? kRowHCompact : kRowH;
+    const float Fold = Squeeze < 0.0f ? 0.0f : (Squeeze > 1.0f ? 1.0f : Squeeze);
+    const float RowH = (Compact_ ? kRowHCompact : kRowH) * Fold;
     const float Width = ImGui::GetContentRegionAvail().x;
 
     const ImVec2 Origin = ImGui::GetCursorScreenPos();
@@ -1595,10 +1668,10 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     {
         Revealed_ = Index;
         ImGui::SetScrollHereY(0.5f);
+        Revealing_ = true;   // this frame's scroll belongs to the reveal; the glide adopts it next frame
     }
     const bool Folder  = Row.Category == EditorInstanceCategory::Folder;
     const bool Dim     = !Row.Visible && !Folder;
-    const bool IsOpen  = !Shut_[Index];
     const ImU32 Accent = RowTint(Row);
 
     // Drag: the page's HTML5 drag. A press that travels starts one; pinned folders never do.
@@ -1645,8 +1718,12 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     {
         Draw->AddRectFilled(ImVec2(Min.x + 12.0f, Min.y - 1.0f), ImVec2(Max.x - 12.0f, Min.y + 1.0f), kWhite, 2.0f);
     }
-    const float Fade = Dragging ? 0.35f : 1.0f;
+    // A folding row loses its ink as it loses its height, and is clipped to the band it still owns so its glyph
+    //    and name cannot spill over the neighbour it is sliding behind.
+    const float Fade = (Dragging ? 0.35f : 1.0f) * (Fold * Fold);
     const float DimF = Dim ? 0.4f : 1.0f;
+    const bool  Folding = Fold < 0.999f;
+    if (Folding) Draw->PushClipRect(ImVec2(Min.x - 4.0f, Min.y), ImVec2(Max.x + 4.0f, Max.y), true);
     const ImU32 Ink  = ScaleAlpha((Hot || Picked) ? kText : kT2, Fade);
 
     // Columns, left to right.
@@ -1664,7 +1741,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
             {
                 Shut_[Index] = !Shut_[Index];
             }
-            DrawChevron(Draw, ImVec2(X + kChevBox * 0.5f, Cy), 11.0f, ScaleAlpha(kT3, Fade), IsOpen);
+            DrawChevron(Draw, ImVec2(X + kChevBox * 0.5f, Cy), 11.0f, ScaleAlpha(kT3, Fade), Phase_[Index]);
         }
         X += kChevBox + kRowGap;
     }
@@ -1807,6 +1884,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     {
         Shut_[Index] = !Shut_[Index];
     }
+    if (Folding) Draw->PopClipRect();
 }
 
 //------------------------------------------------------------------------------------------------------------------------
