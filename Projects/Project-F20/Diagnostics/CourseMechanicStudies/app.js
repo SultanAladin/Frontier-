@@ -1,7 +1,7 @@
 "use strict";
 
 (() => {
-    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run", "blind-monument", "demolition-run", "longwall", "crop-sea", "listening-field", "rootwater", "eye-of-plain", "paper-coast"];
+    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run", "blind-monument", "demolition-run", "longwall", "crop-sea", "listening-field", "rootwater", "eye-of-plain", "paper-coast", "empty-city"];
     const pages = new Map(pageNames.map((name) => [name, document.getElementById(name)]));
     const pageLinks = Array.from(document.querySelectorAll("[data-page]"));
     let currentPage = "index";
@@ -62,7 +62,9 @@
                                                                         ? "Eye of the Plain — Frontier Field Studies"
                                                                         : nextPage === "paper-coast"
                                                                             ? "Paper Coast — Frontier Field Studies"
-                                                                            : "Index — Frontier Field Studies";
+                                                                            : nextPage === "empty-city"
+                                                                                ? "The Empty City — Frontier Field Studies"
+                                                                                : "Index — Frontier Field Studies";
 
         window.scrollTo({ top: 0, behavior: "auto" });
         if (nextPage === "iron-tide") {
@@ -99,6 +101,8 @@
             requestAnimationFrame(() => window.eyeOfPlain?.resize());
         } else if (nextPage === "paper-coast") {
             requestAnimationFrame(() => window.paperCoast?.resize());
+        } else if (nextPage === "empty-city") {
+            requestAnimationFrame(() => window.emptyCity?.resize());
         }
     }
 
