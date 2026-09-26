@@ -108,7 +108,10 @@ void EditorHost::RecordTabAdd() noexcept
 {
 #ifdef FRONTIER_DEVELOPMENT
     if(ImGui::DockNodeConsumeAddRequest(LeftColumn_))Construct_.Open();
-    if(!ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_A))Construct_.Open();
+    // Shift+A opens Construct — and Shift+A is ALSO "boost + strafe left" in flight. While the camera steers
+    //    the letter belongs to the camera, so the menu no longer opens itself behind the viewport every time
+    //    the pilot boosts to the left.
+    if(!Steering_ && !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_A))Construct_.Open();
 #endif
 }
 
