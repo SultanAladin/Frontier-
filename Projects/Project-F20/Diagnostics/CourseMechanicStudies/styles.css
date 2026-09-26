@@ -541,7 +541,8 @@ a {
 #rootwater-canvas,
 #eye-of-plain-canvas,
 #paper-coast-canvas,
-#empty-city-canvas {
+#empty-city-canvas,
+#driftline-canvas {
     display: block;
     width: 100%;
     height: 100%;
@@ -4790,3 +4791,55 @@ a {
 @media (max-width:1180px){.empty-city-surface{min-height:860px}.empty-city-card-actions .live-marker{display:none}}
 @media (max-width:900px){.empty-city-readout div:nth-child(n+4){display:none}.empty-city-system-band{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:670px){.empty-city-card-heading{align-items:flex-start}.empty-city-card-actions{flex-wrap:wrap;justify-content:flex-end}.empty-city-card-actions #empty-city-overview{display:none}.empty-city-surface{min-height:720px}.empty-city-objective{top:90px;right:auto;left:12px;width:calc(100% - 24px)}.empty-city-readout{top:12px;left:12px}.empty-city-readout div{min-width:82px;padding:10px}.empty-city-depth{display:none}.empty-city-drive-controls{left:12px;bottom:12px;transform:none}.empty-city-page .surface-legend{display:none}.empty-city-system-band{grid-template-columns:1fr}.empty-city-system-band article{min-height:148px}}
+
+/* Chapter 19 — Driftline */
+.driftline-study-layout { display:grid; gap:0; }
+.driftline-simulation-card { overflow:hidden; border:1px solid var(--rule); background:#0b1113; }
+.driftline-card-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:23px 24px; border-bottom:1px solid var(--rule); }
+.driftline-card-actions { display:flex; align-items:center; gap:8px; }
+.driftline-surface { position:relative; min-height:940px; overflow:hidden; background:#0c1316; }
+.driftline-objective { position:absolute; z-index:3; top:24px; right:24px; width:min(360px,37%); padding:15px 17px 14px; border:1px solid rgba(225,232,229,.16); border-radius:3px; background:rgba(5,9,11,.93); backdrop-filter:blur(12px); }
+.driftline-objective span,.driftline-objective strong,.driftline-objective small { display:block; }
+.driftline-objective span { color:#80aeb6; font-size:8px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; }
+.driftline-objective strong { margin-top:7px; color:var(--text-soft); font-size:11px; font-weight:450; line-height:1.46; }
+.driftline-objective small { margin-top:6px; color:var(--text-faint); font-size:9px; line-height:1.45; }
+.driftline-readout { z-index:3; top:24px; left:24px; border-radius:3px; background:rgba(5,9,11,.93); }
+.driftline-readout div { min-width:108px; padding:12px 14px 11px; }
+.driftline-readout strong { font-size:15px; white-space:nowrap; }
+.driftline-separation { position:absolute; z-index:3; bottom:24px; left:24px; width:294px; padding:13px 15px 12px; border:1px solid rgba(225,232,229,.14); border-radius:3px; background:rgba(5,9,11,.93); backdrop-filter:blur(12px); }
+.driftline-separation > span,.driftline-separation > strong,.driftline-separation > small { display:block; }
+.driftline-separation > span { color:var(--text-faint); font-size:8px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; }
+.driftline-separation > strong { margin-top:4px; color:var(--text-soft); font-size:18px; font-weight:400; }
+.driftline-separation > i { display:block; height:4px; margin:10px 0 8px; overflow:hidden; background:rgba(230,237,234,.1); }
+.driftline-separation b { display:block; width:0; height:100%; background:#6ca3ad; transition:width 80ms linear; }
+.driftline-separation > small { color:var(--text-faint); font-size:7px; letter-spacing:.07em; text-transform:uppercase; }
+.driftline-drive-controls { position:absolute; z-index:5; bottom:23px; left:50%; display:grid; grid-template-columns:46px 86px 68px 46px; gap:6px; padding:9px; border:1px solid rgba(226,232,229,.13); border-radius:3px; background:rgba(5,9,11,.93); transform:translateX(-50%); backdrop-filter:blur(12px); }
+.driftline-drive-controls button { min-height:35px; padding:7px 8px; border:1px solid rgba(229,234,231,.13); border-radius:2px; background:#152024; color:var(--text-soft); font-size:9px; cursor:pointer; user-select:none; touch-action:none; }
+.driftline-drive-controls button:hover,.driftline-drive-controls button.is-pressed { border-color:rgba(106,164,174,.84); background:#1b3035; color:#c4e0e3; }
+.driftline-drive-controls small { grid-column:1/-1; color:var(--text-faint); font-size:7px; text-align:center; white-space:nowrap; }
+.driftline-page .surface-legend { z-index:3; border:1px solid rgba(226,232,229,.11); border-radius:3px; background:rgba(5,9,11,.9); }
+.legend-drift-player { border:1px solid #efdda2; background:#c5a64f; }
+.legend-drift-stable { background:#b5c5c6; }
+.legend-drift-crack { border-top:3px solid #e7f0ed; }
+.legend-drift-water { background:#17313a; }
+.driftline-system-band { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--rule); border-left:1px solid var(--rule); }
+.driftline-system-band article { min-height:182px; padding:25px 24px 24px; border-right:1px solid var(--rule); border-bottom:1px solid var(--rule); background:#0d1214; }
+.driftline-system-band article:nth-child(even) { background:#0c1113; }
+.driftline-system-band span { display:block; color:#719da6; font-size:8px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; }
+.driftline-system-band strong { display:block; min-height:2.3em; margin:12px 0 10px; color:var(--text); font-family:"Clash Display",sans-serif; font-size:20px; font-weight:400; line-height:1.15; }
+.driftline-system-band p { color:var(--text-faint); font-size:10px; line-height:1.55; }
+.driftline-diagram { background:#17313a; }
+.preview-drift-water { fill:#17313a; }
+.preview-drift-floes path { fill:#aebfc1; stroke:#dce7e4; stroke-width:5; filter:drop-shadow(7px 8px 4px rgba(0,0,0,.4)); }
+.preview-drift-floes path:nth-child(2),.preview-drift-floes path:nth-child(5) { animation:preview-drift-plate-a 5.4s ease-in-out infinite alternate; transform-origin:center; }
+.preview-drift-floes path:nth-child(3),.preview-drift-floes path:nth-child(6) { animation:preview-drift-plate-b 6s ease-in-out infinite alternate; transform-origin:center; }
+.preview-drift-cracks path { fill:none; stroke:#edf4f1; stroke-width:6; stroke-linejoin:round; stroke-dasharray:18 10; animation:preview-drift-crack 3s linear infinite; }
+.preview-drift-cars rect { fill:#727c7b; stroke:#c9d1ce; stroke-width:2; }
+.preview-drift-cars .preview-drift-player { fill:#bfa04a; stroke:#efdda4; stroke-width:3; animation:preview-drift-car 2.8s ease-in-out infinite alternate; }
+@keyframes preview-drift-plate-a { to { transform:translate(13px,-8px) rotate(3deg); } }
+@keyframes preview-drift-plate-b { to { transform:translate(-16px,10px) rotate(-4deg); } }
+@keyframes preview-drift-crack { to { stroke-dashoffset:-84; } }
+@keyframes preview-drift-car { to { transform:translate(25px,-31px) rotate(-3deg); } }
+@media (max-width:1180px){.driftline-surface{min-height:860px}.driftline-card-actions .live-marker{display:none}}
+@media (max-width:900px){.driftline-readout div:nth-child(n+4){display:none}.driftline-system-band{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:670px){.driftline-card-heading{align-items:flex-start}.driftline-card-actions{flex-wrap:wrap;justify-content:flex-end}.driftline-card-actions #driftline-overview{display:none}.driftline-surface{min-height:720px}.driftline-objective{top:90px;right:auto;left:12px;width:calc(100% - 24px)}.driftline-readout{top:12px;left:12px}.driftline-readout div{min-width:82px;padding:10px}.driftline-separation{display:none}.driftline-drive-controls{left:12px;bottom:12px;transform:none}.driftline-page .surface-legend{display:none}.driftline-system-band{grid-template-columns:1fr}.driftline-system-band article{min-height:148px}}

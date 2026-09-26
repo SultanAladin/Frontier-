@@ -1,7 +1,7 @@
 "use strict";
 
 (() => {
-    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run", "blind-monument", "demolition-run", "longwall", "crop-sea", "listening-field", "rootwater", "eye-of-plain", "paper-coast", "empty-city"];
+    const pageNames = ["index", "iron-tide", "dead-weight", "breaker-wave", "beltline", "beachhead", "shunt", "ringfall", "dead-signal", "compression-run", "blind-monument", "demolition-run", "longwall", "crop-sea", "listening-field", "rootwater", "eye-of-plain", "paper-coast", "empty-city", "driftline"];
     const pages = new Map(pageNames.map((name) => [name, document.getElementById(name)]));
     const pageLinks = Array.from(document.querySelectorAll("[data-page]"));
     let currentPage = "index";
@@ -64,7 +64,9 @@
                                                                             ? "Paper Coast — Frontier Field Studies"
                                                                             : nextPage === "empty-city"
                                                                                 ? "The Empty City — Frontier Field Studies"
-                                                                                : "Index — Frontier Field Studies";
+                                                                                : nextPage === "driftline"
+                                                                                    ? "Driftline — Frontier Field Studies"
+                                                                                    : "Index — Frontier Field Studies";
 
         window.scrollTo({ top: 0, behavior: "auto" });
         if (nextPage === "iron-tide") {
@@ -103,6 +105,8 @@
             requestAnimationFrame(() => window.paperCoast?.resize());
         } else if (nextPage === "empty-city") {
             requestAnimationFrame(() => window.emptyCity?.resize());
+        } else if (nextPage === "driftline") {
+            requestAnimationFrame(() => window.driftline?.resize());
         }
     }
 
