@@ -1,0 +1,18 @@
+{
+  "name": "motorball-racer",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Browser-based 3D prototype: an Alita: Battle Angel motorball arena redesigned as a drivable racecar circuit, with a low-poly Nissan Sentra-style racecar.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}

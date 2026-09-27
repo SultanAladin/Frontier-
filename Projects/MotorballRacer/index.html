@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motorball Speedway — Racecar Redesign</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #05070a;
+        font-family: "Segoe UI", Arial, sans-serif;
+        color: #eef2f5;
+      }
+      #app { position: fixed; inset: 0; }
+      canvas { display: block; }
+
+      #hud {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        z-index: 10;
+        background: rgba(10, 12, 16, 0.55);
+        border: 1px solid rgba(255, 184, 28, 0.45);
+        border-radius: 10px;
+        padding: 10px 16px;
+        backdrop-filter: blur(4px);
+        min-width: 210px;
+        pointer-events: none;
+      }
+      #hud h1 {
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 0 0 6px 0;
+        color: #ffb81c;
+      }
+      #hud .row { display: flex; justify-content: space-between; font-size: 13px; margin: 2px 0; }
+      #hud .row span:first-child { color: #9aa4ad; margin-right: 14px; }
+      #hud .big { font-size: 26px; font-weight: 700; color: #fff; }
+
+      #help {
+        position: fixed;
+        bottom: 14px;
+        left: 14px;
+        z-index: 10;
+        background: rgba(10, 12, 16, 0.55);
+        border: 1px solid rgba(255, 184, 28, 0.3);
+        border-radius: 10px;
+        padding: 8px 14px;
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: #cfd6dc;
+        pointer-events: none;
+      }
+      #help b { color: #ffb81c; }
+
+      #title {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 10;
+        text-align: right;
+        background: rgba(10, 12, 16, 0.55);
+        border: 1px solid rgba(255, 184, 28, 0.3);
+        border-radius: 10px;
+        padding: 8px 14px;
+        max-width: 300px;
+        font-size: 12px;
+        color: #b9c1c8;
+        pointer-events: none;
+      }
+      #title strong { display: block; color: #ffb81c; font-size: 14px; margin-bottom: 2px; }
+
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 10px;
+        background: #05070a;
+        z-index: 100;
+        transition: opacity 0.5s ease;
+      }
+      #boot .spinner {
+        width: 46px; height: 46px;
+        border-radius: 50%;
+        border: 4px solid rgba(255,184,28,0.15);
+        border-top-color: #ffb81c;
+        animation: spin 0.9s linear infinite;
+      }
+      #boot .label { color: #ffb81c; letter-spacing: 0.15em; font-size: 12px; text-transform: uppercase; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="boot">
+      <div class="spinner"></div>
+      <div class="label">Spooling Motorball Speedway…</div>
+    </div>
+
+    <div id="hud">
+      <h1>Motorball Speedway</h1>
+      <div class="row big"><span id="speed">0</span><span>km/h</span></div>
+      <div class="row"><span>Lap</span><span id="lap">1 / 3</span></div>
+      <div class="row"><span>Lap Time</span><span id="laptime">00:00.0</span></div>
+      <div class="row"><span>Best Lap</span><span id="best">--:--.-</span></div>
+      <div class="row"><span>Gear</span><span id="gear">D</span></div>
+    </div>
+
+    <div id="title">
+      <strong>Iron City GT — Racecar Cut</strong>
+      Motorball arena redesigned for wheeled racecars: banked speedway ovals,
+      a jump gap over the pit chasm and a sunken tunnel section, low-poly
+      compact sedan chassis.
+    </div>
+
+    <div id="help">
+      <b>W / ↑</b> throttle &nbsp; <b>S / ↓</b> brake-reverse &nbsp;
+      <b>A D / ← →</b> steer &nbsp; <b>Space</b> handbrake &nbsp;
+      <b>C</b> camera &nbsp; <b>R</b> reset on track
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
