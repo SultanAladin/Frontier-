@@ -35,7 +35,11 @@ inline WeatherConstantRecord PackWeatherConstants(const CloudLayerSettings& C,
     bool Moving=false;
     for(int I=0;I<3;++I){const auto& Source=MediaWinds?MediaWinds[I]:Wind;
         if(Follow[I]&&Source.Speed!=0){Moving=true;W[18+I][0]=Source.Speed;W[18+I][1]=Source.Bearing;W[18+I][2]=Source.Shear;W[18+I][3]=Source.Veer;}}
-    if(Moving)W[3][0]=Time;
+    // The clock rides whenever a volume exists, not only when something drifts: the field EVOLVES with it
+    //    (WeatherEvolve / VolumetricMedia::EvolutionRate) even on a still day, and a still day was exactly
+    //    when the sky used to be a frozen photograph.
+    if(Volumes)W[3][0]=Time;
+    (void)Moving;
     return R;
 }
 }

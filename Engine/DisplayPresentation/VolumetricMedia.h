@@ -201,12 +201,15 @@ public:
             DriftX = Drift[0] * (Time * 0.8f);
             DriftY = Drift[1] * (Time * 0.8f);
         }
-        return CloudDensityCore(Cloud, DriftX, DriftY, Position);
+        // The field also EVOLVES, not merely slides: Time × EvolutionRate walks each octave through the noise
+        //    at its own rate. Wind is both the wind and the stirring, which is why the rate reads it.
+        const float Evolve = Time * EvolutionRate(Cloud.FollowWind ? Wind.Speed : 0.0f);
+        return CloudDensityCore(Cloud, DriftX, DriftY, Evolve, Position);
     }
 
     // The density field with the drift passed in. Contract: the caller guarantees Position.z is inside
     //    the slab (both callers — CloudDensity above and SunTransmittanceAt below — establish it before calling).
-    static float CloudDensityCore(const CloudLayerSettings& Cloud, float DriftX, float DriftY,
+    static float CloudDensityCore(const CloudLayerSettings& Cloud, float DriftX, float DriftY, float Evolve,
                                   const float Position[3]) noexcept
     {
         float Base = 0.0f, Top = 0.0f;
@@ -220,18 +223,23 @@ public:
                              (Position[1] + DriftY) * Inverse,
                              Position[2] * Inverse };
 
-        // Three octaves, not four: the march steps at ~143 m and the fourth octave's 38 m features alias
-        //    into long moire streaks (measured — the 11h layer smeared horizontally with hard smoothstepped
-        //    edges). What the steps cannot resolve must not be in the field; the lost detail lives below the
-        //    sampling floor anyway.
-        float Shape = Noise(S[0], S[1], S[2]) * 0.5f
-                    + Noise(S[0] * 2.02f + 3.1f, S[1] * 2.02f + 1.7f, S[2] * 2.02f + 9.2f) * 0.25f
-                    + Noise(S[0] * 4.10f + 7.7f, S[1] * 4.10f + 2.2f, S[2] * 4.10f + 1.1f) * 0.125f;
+        // Three octaves, each rotated off the previous one's axes so the fbm hides the lattice instead of
+        //    restating it, and each walked through the noise by Evolve (seconds × EvolutionRate) so the field
+        //    boils as well as drifts. The fourth octave is still refused in the SHAPE — the march cannot
+        //    resolve 38 m features and they smear into moire, which is the measurement the old comment here
+        //    recorded — and appears below only as an edge erosion, where the march never has to resolve it.
+        float T1[3], T2[3];
+        Turn1(S, T1); Turn2(S, T2);
+        float Shape = Noise(S[0], S[1], S[2] + Evolve) * 0.5f
+                    + Noise(T1[0] * 2.02f + 3.1f, T1[1] * 2.02f + 1.7f, T1[2] * 2.02f + 9.2f + Evolve * 1.7f) * 0.25f
+                    + Noise(T2[0] * 4.10f + 7.7f, T2[1] * 4.10f + 2.2f, T2[2] * 4.10f + 1.1f + Evolve * 2.6f) * 0.125f;
         Shape /= 0.875f;
         Shape = Shape * 0.5f + 0.5f;
 
         const float Threshold = 1.0f - Clamp(Cloud.Coverage, 0.0f, 1.0f);
-        const float Raw = Clamp((Shape - Threshold) / std::fmax(1.0f - Threshold, 1e-3f), 0.0f, 1.0f);
+        float Raw = Clamp((Shape - Threshold) / std::fmax(1.0f - Threshold, 1e-3f), 0.0f, 1.0f);
+        const float Detail = Noise(T1[0] * 8.30f + 11.3f, T1[1] * 8.30f + 4.9f, T1[2] * 8.30f + 2.7f + Evolve * 4.1f) * 0.5f + 0.5f;
+        Raw = Clamp(Raw - (1.0f - Raw) * Detail * 0.35f, 0.0f, 1.0f);
         // Sharpened, not linear: the fbm piles samples in the middle of its range, so a linear body paints
         //    every threshold crossing as a broad translucent veil — measured, coverage 0.52 gave 1 clear column
         //    in 81 with almost no opaque core anywhere (a white sky, not broken cloud). The smoothstep keeps
@@ -269,7 +277,8 @@ public:
             const float Q[3] = { Position[0] + SunDirection[0] * T,
                                  Position[1] + SunDirection[1] * T,
                                  Position[2] + SunDirection[2] * T };
-            OpticalDepth += CloudDensityCore(Cloud, DriftX, DriftY, Q) * Step * 0.01f;
+            // Evolve = 0, matching CloudShadowTransmittance: the staged shadow field is frozen by design.
+            OpticalDepth += CloudDensityCore(Cloud, DriftX, DriftY, 0.0f, Q) * Step * 0.01f;
             if (OpticalDepth > 4.0f) break;
         }
         return std::exp(-OpticalDepth);
@@ -335,9 +344,13 @@ public:
                              (Position[1] + Drift[1]) * Inverse,
                              Position[2] * Inverse };
         // Two octaves: the box marches at half its feature scale, which resolves the first two and aliases
-        //    the third (a puff is smooth-walled anyway — the lost octave is sub-step ripple).
-        float Shape = Noise(S[0], S[1], S[2]) * 0.5f
-                    + Noise(S[0] * 2.02f + 3.1f, S[1] * 2.02f + 1.7f, S[2] * 2.02f + 9.2f) * 0.25f;
+        //    the third (a puff is smooth-walled anyway — the lost octave is sub-step ripple). The second is
+        //    rotated off the first's axes, and both walk with the clock — a puff that only slides is a decal.
+        const float Evolve = Time * EvolutionRate(Volume.FollowWind ? Wind.Speed : 0.0f);
+        float T1[3];
+        Turn1(S, T1);
+        float Shape = Noise(S[0], S[1], S[2] + Evolve) * 0.5f
+                    + Noise(T1[0] * 2.02f + 3.1f, T1[1] * 2.02f + 1.7f, T1[2] * 2.02f + 9.2f + Evolve * 1.7f) * 0.25f;
         Shape /= 0.75f;
         Shape = Shape * 0.5f + 0.5f;
 
@@ -597,19 +610,49 @@ private:
         return std::exp(-OpticalDepth);
     }
 
+    // ⚠️ The sine hash is gone, and the reason is in Engine/Shaders/CloudShadow.slang beside its twin: at the
+    //    lattice coordinates a kilometres-deep slab actually reaches, float32 sin() has no fraction left, the
+    //    cells stop being independent along the axes that feed the dot product, and the field turns into
+    //    axis-aligned slabs. This is uint32 arithmetic, so the shader and this mirror agree to the bit.
     static float Hash(float X, float Y, float Z) noexcept
     {
-        float S = std::sin(X * 127.1f + Y * 311.7f + Z * 74.7f) * 43758.5453f;
-        return S - std::floor(S);
+        const uint32_t Hx = static_cast<uint32_t>(static_cast<int32_t>(X)) * 1597334677u;
+        const uint32_t Hy = static_cast<uint32_t>(static_cast<int32_t>(Y)) * 3812015801u;
+        const uint32_t Hz = static_cast<uint32_t>(static_cast<int32_t>(Z)) * 2654435761u;
+        uint32_t H = Hx ^ (Hy + 2654435769u + (Hx << 6) + (Hx >> 2)) ^ (Hz + 374761393u + (Hy << 5) + (Hy >> 3));
+        H ^= H >> 15; H *= 2246822519u;
+        H ^= H >> 13; H *= 3266489917u;
+        H ^= H >> 16;
+        return static_cast<float>(H) * 2.3283064365386963e-10f;
+    }
+
+    // The per-octave rotations (CloudShadowTurn1/2 in the shader). Same literals, same order of operations.
+    static void Turn1(const float P[3], float Out[3]) noexcept
+    {
+        Out[0] =  0.798636f * P[0] - 0.601815f * P[1];
+        Out[1] =  0.526359f * P[0] + 0.698502f * P[1] - 0.484810f * P[2];
+        Out[2] =  0.291766f * P[0] + 0.387186f * P[1] + 0.874620f * P[2];
+    }
+    static void Turn2(const float P[3], float Out[3]) noexcept
+    {
+        Out[0] =  0.484810f * P[0] + 0.874620f * P[1];
+        Out[1] = -0.526359f * P[0] + 0.291766f * P[1] - 0.798636f * P[2];
+        Out[2] = -0.698502f * P[0] + 0.387186f * P[1] + 0.601815f * P[2];
+    }
+
+    // Cells per second the field walks through its own noise. Shared with the shader (CloudEvolutionRate).
+    static float EvolutionRate(float WindSpeed) noexcept
+    {
+        return 0.010f + 0.0015f * std::fmax(WindSpeed, 0.0f);
     }
 
     static float Noise(float X, float Y, float Z) noexcept
     {
         const float Ix = std::floor(X), Iy = std::floor(Y), Iz = std::floor(Z);
         const float Fx = X - Ix, Fy = Y - Iy, Fz = Z - Iz;
-        const float Ux = Fx * Fx * (3.0f - 2.0f * Fx);
-        const float Uy = Fy * Fy * (3.0f - 2.0f * Fy);
-        const float Uz = Fz * Fz * (3.0f - 2.0f * Fz);
+        const float Ux = Fx * Fx * Fx * (Fx * (Fx * 6.0f - 15.0f) + 10.0f);
+        const float Uy = Fy * Fy * Fy * (Fy * (Fy * 6.0f - 15.0f) + 10.0f);
+        const float Uz = Fz * Fz * Fz * (Fz * (Fz * 6.0f - 15.0f) + 10.0f);
         const float N000 = Hash(Ix, Iy, Iz),         N100 = Hash(Ix + 1, Iy, Iz);
         const float N010 = Hash(Ix, Iy + 1, Iz),     N110 = Hash(Ix + 1, Iy + 1, Iz);
         const float N001 = Hash(Ix, Iy, Iz + 1),     N101 = Hash(Ix + 1, Iy, Iz + 1);

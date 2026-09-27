@@ -446,3 +446,82 @@ could not be done from this sandbox, and what was already open in `Docs/Roadmap.
    than a diagnostic, C1 is the gate and C2 is the shape; if it stays a diagnostic, close them as “won't do”.
 3. **B2**, so the editor panels get a rendered proof again — the rail, the outliner fold and the gizmo would all
    be regression-tested by pixels instead of by compilation.
+
+---
+
+# Fifth pass — the clouds
+
+**Report:** “this is what clouds render — even at ultra it renders this blocky clouds — fix that first, then make
+it dynamic.”
+
+## What was actually wrong
+
+Measured before touching anything, because three plausible causes needed separating.
+
+| Suspect | Measurement | Verdict |
+|---|---|---|
+| The hash (`fract(sin(127.1x+311.7y+74.7z)*43758)`) | neighbour correlation over a 64³ lattice: **0.013** at the origin, **0.014** at offset 3000 | **Not the cause.** Replaced anyway (below) for a different, real reason. |
+| The fbm's octaves | all three share one lattice orientation — ×2.02 and ×4.10 of the SAME axes | **Cause.** An fbm that never rotates does not hide its lattice, it restates it three times. |
+| The interpolation | cubic smoothstep: C¹, so the second derivative jumps at every cell wall | **Cause.** Measured as a step ratio across the wall vs mid-cell of **0.671** (1.0 = invisible lattice). |
+| The march | fixed step, first sample at the midpoint, no per-pixel offset | **Cause.** The error against a 4096-step reference is **86.5 % structured** — parallel sample planes, which is the corduroy, and it slides with the camera. |
+
+So: the field was a three-octave value noise on one axis-aligned lattice, joined with a C¹ fade, sampled by a
+march whose error is a standing wave. At Feature Scale 1.93 one cell is 1737 m, and from a camera 15 m under a
+100 m cloud base you are looking at two or three cells across the whole sky — which is exactly the picture.
+
+## What changed
+
+* **Every octave is rotated** off the previous one (37°/29°, −61°/53°, fixed literals so the CPU mirror
+  reproduces them to the bit). Anisotropy of the field measured as axis-aligned vs diagonal gradient:
+  **0.978 → 1.010** (1.0 = isotropic).
+* **Quintic fade** (6t⁵−15t⁴+10t³, Perlin's own correction) instead of cubic smoothstep. Cell-wall step ratio
+  **0.671 → 0.896**.
+* **Edge erosion** — a fourth octave subtracted at the coverage edge only, weighted by (1 − density), so the
+  wisps get their cauliflower without putting high frequency in the opaque core where the march cannot resolve
+  it. (The old comment refusing the fourth octave was right about the body; it is still refused there.)
+* **A jittered march.** Every ray's first sample is offset by a hash of the pixel *and* the accumulation index.
+  Structured error **0.865 → 0.311** in a single frame, and averaged over 64 frames the error against the
+  reference falls **3×** — the banding becomes noise, and noise is what the accumulator already removes.
+* **The hash is an integer bit-mix**, not a sine. Not because of the correlation (0.013 is small) but because
+  the sine's argument grows with the lattice coordinate — 127.1 × 3000 ≈ 381 000 rad, where float32 has ~0.03
+  rad left — so the field's quality depended on where in the world it was sampled. Now it does not:
+  correlation **0.0000 / 0.0002 / 0.0047** at offsets 0 / 300 / 3000.
+
+## And now it is dynamic
+
+Drift already existed — the whole field slid with the wind. Sliding is not weather; it is wallpaper going past.
+The field now also **evolves**: each octave walks through the noise on its own axis at
+`Time × (0.010 + 0.0015 × windspeed)` cells per second — about a cell a minute in a 7 m/s wind. Measured at a
+fixed point in space, the density field's correlation with itself is **−0.04 after 60 s** and **−0.17 after
+600 s**; it was 1.000 forever on a still day, because on a still day the clock was not even packed
+(`if(Moving)` — now `if(Volumes)`).
+
+Cost: nothing new per sample. The evolution is an offset added to coordinates the shader already computes.
+
+## The pictures
+
+CPU renders of the actual shipped field (`Docs/CloudEvidence/CloudFieldRender.cpp`, the owner's own settings:
+base 100 m, thickness 1100 m, coverage 60 %, density 2.40, feature scale 1.93, wind 7 m/s):
+
+| | |
+|---|---|
+| [before](CloudEvidence/cloud-before.png) | flat veil, banding stripes along the horizon |
+| [after, one frame](CloudEvidence/cloud-after-one-frame.png) | structure and erosion; the jitter's own noise is visible, as intended |
+| [after, 16 frames accumulated](CloudEvidence/cloud-after-accumulated.png) | what the viewport shows once the accumulator has a moment |
+| [after, 240 s later](CloudEvidence/cloud-after-240s.png) | a different sky — drifted *and* evolved |
+
+⚠️ These are CPU renders of the density field with a simple single-scatter, not Vulkan captures: they prove the
+FIELD, not the frame. The engine's own lighting, phase function and tone map are not in them.
+
+## Gates
+
+`RunShaderMirror.py` **281 checks PASS** — the CPU mirror and the shader text still agree on the density model to
+within 0.003 after every change above, which is the check that matters here: the two must not drift.
+`CheckShaders.sh` **22/22 to SPIR-V**. `CheckCelestialShadow.sh` and `CheckCelestialContent.sh` **GREEN**.
+
+## Known gap, on purpose
+
+The ground's cloud **shadow** field is staged from a frozen time (`ShadowTimeSeconds`, a slider, not a clock) and
+its drift is folded on the CPU from that same frozen value, so it is passed `Evolve = 0`: boiling the shadow
+while its drift stands still would be the worse inconsistency. Carrying the staged time into the post record
+needs a spare float the 544-byte record does not have. Backlog.

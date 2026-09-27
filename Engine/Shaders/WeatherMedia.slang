@@ -9,6 +9,13 @@ vec2 WeatherDrift(int medium, float z, float factor)
     float a=radians(wind.y+wind.w*km);
     return vec2(sin(a),cos(a))*wind.x*(1.0+wind.z*km)*(Weather[3].x*factor);
 }
+// Seconds the weather clock has run, and how far that has walked each medium through its noise. Weather[3].x
+//    is the clock (packed whenever any volume is enabled, not only when something drifts), and the rate is the
+//    shared one so the shader and the CPU mirror boil at the same speed.
+float WeatherEvolve(int medium)
+{
+    return Weather[3].x * CloudEvolutionRate(Weather[18+medium].x);
+}
 float WeatherDensity(int medium, vec3 p)
 {
     if(medium==0){
@@ -16,7 +23,7 @@ float WeatherDensity(int medium, vec3 p)
         float base,top;
         if(!CloudShadowExtent(Weather[0].x,Weather[0].y,Weather[1].z,base,top)||p.z<base||p.z>top)return 0.0;
         vec2 drift=Weather[3].y>0.0?WeatherDrift(0,p.z,.8):vec2(0);
-        return max(0.0,CloudShadowDensity(uint(Weather[1].w),base,top,Weather[0].z,Weather[0].w,Weather[1].x,Weather[1].y,drift.x,drift.y,p));
+        return max(0.0,CloudShadowDensity(uint(Weather[1].w),base,top,Weather[0].z,Weather[0].w,Weather[1].x,Weather[1].y,drift.x,drift.y,WeatherEvolve(0),p));
     }
     int b=medium==1?4:9;
     if(Weather[b].w==0.0)return 0.0;
@@ -24,7 +31,11 @@ float WeatherDensity(int medium, vec3 p)
     if(r>=1.0)return 0.0;
     vec2 drift=Weather[b+4].x>0.0?WeatherDrift(medium,p.z,.6):vec2(0);
     vec3 s=(p+vec3(drift,0))/max(Weather[b+1].w,1.0);
-    float shape=(CloudShadowNoise(s.x,s.y,s.z)*.5+CloudShadowNoise(s.x*2.02+3.1,s.y*2.02+1.7,s.z*2.02+9.2)*.25)/.75;
+    // Same two octaves as before, but the second is rotated off the first's axes and both walk with the clock:
+    //    a local puff that only slides is a decal, and its lattice was as visible as the layer's.
+    float evolve=WeatherEvolve(medium);
+    vec3 o1=CloudShadowTurn1(s)*2.02+vec3(3.1,1.7,9.2+evolve*1.7);
+    float shape=(CloudShadowNoise(s.x,s.y,s.z+evolve)*.5+CloudShadowNoise(o1.x,o1.y,o1.z)*.25)/.75;
     float threshold=1.0-clamp(Weather[b+2].y,0.0,1.0);
     float raw=clamp((shape*.5+.5-threshold)/max(1.0-threshold,.001),0.0,1.0);
     return smoothstep(0.0,1.0,raw)*(1.0-smoothstep(.55,1.0,r))*max(Weather[b+2].x,0.0);
@@ -46,11 +57,11 @@ bool WeatherBox(int b,vec3 origin,vec3 direction,float maximum,out float lo,out 
     }
     return hi>lo;
 }
-float WeatherShadow(vec3 p,float stepSize)
+float WeatherShadow(vec3 p,float stepSize,float jitter)
 {
     float optical=0.0;
     for(int i=1;i<=int(Weather[17].z);++i){
-        vec3 q=p+SkySunDirection.xyz*(stepSize*float(i)*.5);
+        vec3 q=p+SkySunDirection.xyz*(stepSize*(float(i)-1.0+jitter)*.5);
         optical+=(WeatherDensity(0,q)+WeatherDensity(1,q)+WeatherDensity(2,q))*stepSize*.005;
         if(optical>4.0)break;
     }
@@ -63,7 +74,13 @@ float WeatherColumn(float z0,float z1,float distance,float height)
     if(abs(rise)<.001)return exp(-z0/height)*distance;
     return max(0.0,height*(exp(-z0/height)-exp(-z1/height))*distance/rise);
 }
-vec3 ApplyWeather(vec3 origin,vec3 direction,float maximum,vec3 background)
+// ⚠️ `jitter` in [0,1) offsets the first sample of every march by a fraction of a step. Without it a fixed
+//    step size draws its own aliasing into the image: the sample planes are parallel surfaces in the volume, so
+//    the frame shows evenly spaced bands wherever the medium is thick (the corduroy in the owner's captures)
+//    and the banding MOVES WITH THE CAMERA, which no amount of accumulation removes. Offsetting each pixel's
+//    ray by a hashed fraction turns that structure into per-pixel noise, and per-pixel noise is exactly what
+//    the accumulator and the denoiser were built to remove. Cost: one extra multiply-add per march.
+vec3 ApplyWeather(vec3 origin,vec3 direction,float maximum,vec3 background,float jitter)
 {
     if(Weather[17].w==0.0)return background;
     maximum=clamp(maximum,0.0,100000.0);
@@ -97,11 +114,11 @@ vec3 ApplyWeather(vec3 origin,vec3 direction,float maximum,vec3 background)
         int count=int(clamp(ceil((hi-lo)/spacing),1.0,float(min(cap,512))));
         float ds=(hi-lo)/float(count);
         for(int i=0;i<count;++i){
-            vec3 p=origin+direction*(lo+(float(i)+.5)*ds);
+            vec3 p=origin+direction*(lo+(float(i)+jitter)*ds);
             vec3 density=vec3(WeatherDensity(0,p),WeatherDensity(1,p),WeatherDensity(2,p));
             float total=density.x+density.y+density.z;
             if(total<=1e-5)continue;
-            float shadow=WeatherShadow(p,ds);
+            float shadow=WeatherShadow(p,ds,jitter);
             vec3 source=density.x*Weather[2].xyz*(ambient+sunlight*shadow*WeatherPhase(cosine,Weather[2].w));
             source+=density.y*Weather[7].xyz*(ambient+sunlight*shadow*WeatherPhase(cosine,Weather[6].z));
             source+=density.z*vec3(.88)*(ambient+sunlight*shadow*WeatherPhase(cosine,Weather[11].z));
