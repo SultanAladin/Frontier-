@@ -390,3 +390,59 @@ headers, `GameExecution.cpp` still compiles, `CheckPatchGeometry.sh` 83 322 chec
 `CheckProgressiveDenoise.sh` still pass. The editor's own visual proof cannot link here (it needs thorvg, and
 its source list has drifted) — that is the pre-existing RED noted above, so **the first sight of this rail is on
 your machine**.
+
+---
+
+# Open after this session — the backlog
+
+Ordered by who is blocked, not by size. Nothing here is lost work; it is what was deliberately not done, what
+could not be done from this sandbox, and what was already open in `Docs/Roadmap.md` before any of this started.
+
+## A · Blocked on your machine (I cannot move these)
+
+| # | Item | What closes it |
+|---|---|---|
+| A1 | **Every change in these four passes is GPU-unseen.** Patch tiles darkening, the denoiser fade, the new rail, the outliner fold, the volume gizmo, the flight pointer lock. | Rebuild exe + shaders, run, report. Steps are in “How to confirm it on the machine that has the GPU”, above. |
+| A2 | **The freeze after `CpuAnimationMirrorCapacity`** on the launch you logged. Not reproducible or explicable from here. | If it recurs: `Build/Diagnostics/startup-*.csv` + the last `[GPU startup]` line. |
+| A3 | **Construct menu invisible when opened deliberately** (dock + or Shift+A while not flying). The accidental opening is fixed; whether the panel draws where you can see it is untested. | Open it on purpose and say what you see. |
+| A4 | **First-launch cold bake ≈ 96 s** on the showcase (3 590 patches, one thread, synchronous). Cached afterwards. | Decide whether it is worth parallelising the bake or moving it off the load path. |
+| A5 | Roadmap **B#11 / B#12** — the standing GPU render verification and the owner's blur + fireflies report. | The same run as A1, with the F3 ReSTIR row open. |
+
+## B · Red before I arrived (pre-existing, untouched)
+
+| # | Gate | Why it is red |
+|---|---|---|
+| B1 | `Tools/Build/CheckTelemetryProbe.sh` | The gate's `SyntheticGpu` fixture has no `HistorySnapshotMilliseconds`; the probe header does. Verified red on the untouched tree. |
+| B2 | `Tools/Build/CheckEditorVisualProofs.sh` | Its source list has drifted (22 undefined references) **and** `IconArt.cpp` needs thorvg, which is not installed in this sandbox. I got it down to the thorvg wall and reverted rather than half-fix it. This is why the new rail has no rendered proof. |
+
+## C · Deferred by design in this session (with the reason)
+
+| # | Item | Reason, and what it would take |
+|---|---|---|
+| C1 | **Patch LOD stays preview-only** (`Control.z ∈ {14,15}`). Shaded rendering, rays, shadows and luminaires always use fine triangles. | A coarse raster against a fine ray scene self-shadows. Needs primary/secondary surface correspondence first — a real piece of work, not a flag. |
+| C2 | **One alternative per patch.** Past the switch distance nothing further happens. | A hierarchy needs more than the 64-byte cluster record's four alternate fields; six shader modules read that stride. |
+| C3 | **No hysteresis on the switch.** A camera parked exactly at the threshold can flicker between levels. | A few lines once C2's shape is decided — worth doing together. |
+| C4 | **Volume gizmo is translate-only**, and only for the local cloud and the local fog. | A centre has no orientation; the extent is an inspector figure. Scaling the volume from the gizmo is a separate decision. |
+| C5 | **The global celestial markers are gone with no way back.** | You asked for them gone. If you ever want them, the honest form is a “Global proxies” item in the Markers control, not the old shelf. |
+| C6 | **Header options B and C not built.** | You picked A. They stay in `Docs/Design/ViewportHeader.html` as the alternatives that were weighed. |
+| C7 | **The hairline's 256 is duplicated** — `RenderScheduler.cpp` mirrors `GameExecution`'s `BakeFrameCount`. | One shared constant when something else needs it; not worth a header today. |
+| C8 | **Precipitation draws nothing.** Rain at 12 mm/h is simulation state feeding the media; no drops are rendered anywhere in `Engine/Shaders`. | A screen-space or volumetric rain pass is a feature, not a fix. Say if you want it scoped. |
+| C9 | **Flakes exist only on showcase row 12.** | By design of the material study. Nothing to fix; know where to look. |
+
+## D · Already on the engine's own roadmap (`Docs/Roadmap.md`, unchanged by me)
+
+1. **A#5 indirect coverage 16 % → 100 %** (replay + shift mapping) — the largest measured residual, and the only
+   item the roadmap says moves the headline.
+2. **A#10 deferred materials** — M4c dispersion, displacement ch20, Tier-B multi-slab.
+3. **#26 / #27 environment lighting** — bake the sky probe, then sky as a reservoir candidate (“the smallest
+   version that pays”).
+4. **C#14–18 dynamic geometry** — built and CPU-gated; each is waiting on one device run.
+5. **#28** — the `main` designation, an owner's merge click.
+
+## My recommended next three
+
+1. **Run it** (A1 + A5 together): one session on your card closes more open questions than anything I can do here.
+2. **Then whichever of C1/C2 you actually want** — if patch LOD is meant to become a performance feature rather
+   than a diagnostic, C1 is the gate and C2 is the shape; if it stays a diagnostic, close them as “won't do”.
+3. **B2**, so the editor panels get a rendered proof again — the rail, the outliner fold and the gizmo would all
+   be regression-tested by pixels instead of by compilation.
