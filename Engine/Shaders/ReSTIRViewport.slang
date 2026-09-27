@@ -1333,7 +1333,12 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
         vec3 direction=normalize(CameraForward+CameraRight*(ndc.x*FieldOfViewTanHalf*extent.x/extent.y)-CameraUp*(ndc.y*FieldOfViewTanHalf));
         float distance=100000.0;
         if(surfaceHit){vec3 delta=weatherSurface.xyz-CameraOrigin;distance=length(delta);direction=delta/max(distance,1e-6);}
-        mean=ApplyWeather(CameraOrigin,direction,distance,max(mean-lensRadiance,vec3(0)))+lensRadiance;
+        // The march's sub-step offset: hashed from the pixel AND the accumulation index, so a held camera
+        //    keeps re-sampling different planes and the banding averages away instead of standing still.
+        uint weatherSeed=(uint(pixel.x)*73856093u)^(uint(pixel.y)*19349663u)^(FrameIndex*83492791u);
+        weatherSeed^=weatherSeed>>13; weatherSeed*=2246822519u; weatherSeed^=weatherSeed>>16;
+        float weatherJitter=float(weatherSeed)*2.3283064365386963e-10;
+        mean=ApplyWeather(CameraOrigin,direction,distance,max(mean-lensRadiance,vec3(0)),weatherJitter)+lensRadiance;
     }
 
     // With the denoiser on, the filter owns the tone map: it needs LINEAR radiance, and tone mapping before a blur
