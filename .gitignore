@@ -33,3 +33,6 @@ Projects/Project-Zero/Host/.staged-denoise/
 # Keep the current small native billboard evidence with the consolidated source.
 Exhibits/Gallery/*
 !Exhibits/Gallery/NativeBillboards/
+# Blender drops a .blend1 beside every .blend on each save. That is the previous version of an asset
+#    already in the tree, not distinct content, so it is regenerable noise (134 MB across GeometryArchives).
+*.blend1
