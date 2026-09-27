@@ -354,3 +354,39 @@ flying), that is a separate defect in where the panel places itself — say so a
 then three options drawn with the engine's own tokens, live (the modes and toggles click), plus every state of the
 recommended option, the narrow-rail behaviour, and a table of what each piece costs in `ViewportPanel.cpp`.
 Nothing is implemented yet — it is a mockup waiting on a choice.
+
+---
+
+# Fourth pass — the viewport rail, option A
+
+Built in `Engine/Editor/ViewportPanel.cpp::RecordBar`, to the mockup:
+
+* **Three zones.** Left the scene (brand · the two dock toggles as one segmented pair · Add), centre the run,
+  right the view (projection · markers · status · settings). The centre is centred in the row and clamped so it
+  can never collide with either side.
+* **The mode pill is the state.** `Edit | Simulate | Play` over the existing `Transport_` / `Paused_` — no new
+  state was invented. The running segment carries the tint (indigo simulate, green play) and reads **Paused** in
+  amber when held, which is what the separate Edit/Play/Paused chip used to say.
+* **Pause / step / stop arrive when they mean something.** They ease in over 180 ms whenever the world runs and
+  ease out when it stops; a half-arrived button refuses clicks. Their rules are untouched — step waits on pause,
+  stop waits on a run.
+* **One status, not two.** `Live / Static / Held / Running` + the accumulated sample count, tabular, in the mono
+  face. Clicking it toggles realtime (what the old Realtime pill did); hovering names the last restart, so the
+  question “why is this not converging?” is answered on the rail instead of in the F3 popup.
+* **A 2 px convergence hairline** under the rail: teal as the first 256 samples fill, blue once past them and
+  only refining. It is also the rail's bottom rule, so it costs no height.
+* **It narrows properly.** Labels retire in one order — markers, then add, then the projection (to `Persp`), then
+  the two inactive modes (to their play/simulate glyphs). Below 560 px the rail still holds its height and rests,
+  exactly as before.
+
+Fourteen controls became nine at rest. The add menu and the views menu are the same popups, byte for byte,
+re-anchored under their new pills.
+
+`ViewportPanel::AssignRenderStatus(samples, target, reason, fovDegrees)` is the only new input; `EditorHost`
+passes it through and `RenderScheduler::Present` seats it each frame from the integrator and the camera.
+
+Gates: `ViewportPanel.cpp` and `RenderScheduler.cpp` compile warning-clean under `-Wall -Wextra` with real
+headers, `GameExecution.cpp` still compiles, `CheckPatchGeometry.sh` 83 322 checks and
+`CheckProgressiveDenoise.sh` still pass. The editor's own visual proof cannot link here (it needs thorvg, and
+its source list has drifted) — that is the pre-existing RED noted above, so **the first sight of this rail is on
+your machine**.

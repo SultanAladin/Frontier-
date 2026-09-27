@@ -110,10 +110,14 @@
 <body>
 <div class="wrap">
 
-  <h1>Viewport header — redesign proposal</h1>
+  <h1>Viewport header — redesign</h1>
+  <p style="border-left:2px solid #2f6b52;background:#101a15;padding:10px 14px;border-radius:0 8px 8px 0;color:#bfe6d2">
+     <b>Option A is shipped.</b> Built in <code>Engine/Editor/ViewportPanel.cpp::RecordBar</code> — three zones, the
+     mode pill over the existing transport state, pause/step/stop eased in only while something runs, the status
+     readout (Live / Static / Held + accumulated samples, hover for the restart reason) and the 2 px convergence
+     hairline. B and C are kept below as the alternatives that were weighed.</p>
   <p>Three options drawn with the engine's own tokens (<code>ViewportPanel.cpp</code> colours, 26 px controls,
-     13 px radius, 10.5 px tracked caps). Everything below is <b>live</b> — click the modes and the toggles.
-     Nothing is implemented in the engine yet: pick one (or mix) and I'll build it.</p>
+     13 px radius, 10.5 px tracked caps). Everything below is <b>live</b> — click the modes and the toggles.</p>
 
   <!-- ══════════════════════════════════════════════════════════════════ TODAY -->
   <h2>Today</h2>
@@ -354,11 +358,15 @@
     <tr><td>Removed</td><td>Two dock glyphs merge into one segmented pair; the separate “Edit/Play/Paused” chip and
         the standalone Realtime pill both disappear.</td></tr>
   </table>
-  <div class="warnline">Not built yet — this file is the proposal. Say “A”, “B”, “C”, or a mix, and it goes into
-      <code>Engine/Editor/ViewportPanel.cpp</code> with the same tokens.</div>
+  <div class="warnline"><b>Built.</b> Every row of the table above landed in
+      <code>Engine/Editor/ViewportPanel.cpp</code>; the status and the hairline read
+      <code>QueryAccumulationIndex()</code> / <code>QueryRestartReason()</code> through
+      <code>ViewportPanel::AssignRenderStatus</code>, seated each frame by <code>RenderScheduler::Present</code>.
+      Not yet seen on a GPU here — it compiles warning-clean and the panel's own proof cannot link in this
+      sandbox (it needs thorvg), so the first look is on your machine.</div>
 
   <div class="pickrow">
-    <div class="pick"><b>A</b> — three zones, transport on demand</div>
+    <div class="pick" style="border-color:#2f6b52;background:#101a15"><b>A</b> — three zones, transport on demand · <span style="color:#7ee7a5">shipped</span></div>
     <div class="pick"><b>B</b> — one primary action + overflow</div>
     <div class="pick"><b>C</b> — split rails, HUD capsule over the view</div>
   </div>
