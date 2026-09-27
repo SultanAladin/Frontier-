@@ -36,3 +36,8 @@ Exhibits/Gallery/*
 # Blender drops a .blend1 beside every .blend on each save. That is the previous version of an asset
 #    already in the tree, not distinct content, so it is regenerable noise (134 MB across GeometryArchives).
 *.blend1
+!EngineContent/GeometryArchives/ControlVehicle.blend1
+# The Refined variants (18 .blend, 252 MB) are deliberately not published: they are alternate takes of the
+#    same creatures rather than additional content, and three of them exceed GitHub's 50 MB recommendation.
+#    They stay on disk, untracked.
+EngineContent/GeometryArchives/CreaturesVault/Refined/
