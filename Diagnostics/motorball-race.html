@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IRON CITY // Motorball Circuit</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+:root{--ink:#edf3f5;--muted:#8b9aa2;--acid:#d9ff4f;--cyan:#4eeaff;--orange:#ff724d;--panel:rgba(8,13,17,.82);--line:rgba(176,202,205,.22)}
+*{box-sizing:border-box} html,body{margin:0;height:100%;overflow:hidden;background:#05090c;color:var(--ink);font-family:'Barlow Condensed',sans-serif} canvas{display:block}
+#ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:26px 32px 24px}
+.top{display:flex;justify-content:space-between;align-items:flex-start}.eyebrow{font:700 11px 'Space Mono';letter-spacing:.22em;color:var(--acid);margin-bottom:7px}.title{font-size:clamp(25px,3.4vw,48px);font-weight:700;letter-spacing:.02em;line-height:.9;text-transform:uppercase}.title span{color:var(--muted);font-weight:400}.badge{border:1px solid var(--line);background:rgba(5,10,13,.65);padding:10px 14px;font:10px 'Space Mono';letter-spacing:.12em;color:var(--muted);text-align:right}.badge b{color:var(--cyan);display:block;margin-top:4px;font-size:12px}
+.bottom{display:flex;justify-content:space-between;align-items:end;gap:20px}.card{background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px);padding:13px 16px;min-width:255px}.card h4{margin:0 0 10px;font:10px 'Space Mono';letter-spacing:.18em;color:var(--muted)}.controls{display:flex;gap:10px;color:#cbd5d8;font:11px 'Space Mono'}.key{border:1px solid #53636a;padding:3px 6px;color:var(--acid);margin-right:3px}.telemetry{min-width:280px}.telemetry .row{display:flex;justify-content:space-between;font:10px 'Space Mono';color:var(--muted);margin:6px 0}.telemetry strong{color:var(--ink);font-size:13px}.bar{height:3px;background:#223039;margin-top:5px}.bar i{display:block;background:var(--acid);height:100%;width:72%}.status{color:var(--acid)!important}.reticle{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%);border:1px solid rgba(217,255,79,.45);border-radius:50%}.reticle:after,.reticle:before{content:'';position:absolute;background:rgba(217,255,79,.6)}.reticle:after{height:1px;left:-9px;right:-9px;top:12px}.reticle:before{width:1px;top:-9px;bottom:-9px;left:12px}.hint{position:absolute;left:50%;top:56%;transform:translateX(-50%);font:10px 'Space Mono';letter-spacing:.15em;color:rgba(255,255,255,.45);transition:opacity .5s}.toast{position:fixed;left:50%;top:18%;transform:translateX(-50%);font:700 13px 'Space Mono';color:var(--orange);letter-spacing:.1em;text-shadow:0 0 18px var(--orange);opacity:0;transition:opacity .25s}.toast.on{opacity:1}
+@media(max-width:650px){#ui{padding:18px}.badge{display:none}.bottom{align-items:stretch}.card{min-width:0;flex:1}.controls{flex-wrap:wrap}.telemetry{display:none}.title{font-size:28px}}
+</style>
+</head>
+<body>
+<div id="ui"><div class="top"><div><div class="eyebrow">IRON CITY / SECTOR 07</div><div class="title">Motorball <span>Grand Circuit</span></div></div><div class="badge">LIVE CIRCUIT <b>● HAZARDS ARMED</b></div></div><div class="reticle"></div><div class="hint" id="hint">W A S D / ARROWS TO DRIVE &nbsp; • &nbsp; SPACE: BOOST</div><div class="toast" id="toast">TRACK EVENT</div><div class="bottom"><div class="card"><h4>DRIVER INPUT</h4><div class="controls"><span><i class="key">W</i>ACCEL</span><span><i class="key">A</i><i class="key">D</i>STEER</span><span><i class="key">SPACE</i>BOOST</span></div></div><div class="card telemetry"><div class="row"><span>VELOCITY</span><strong id="speed">000 KM/H</strong></div><div class="bar"><i id="speedbar"></i></div><div class="row"><span>LAP / SECTOR</span><strong>01 / <span id="sector">03</span></strong></div><div class="row"><span>CIRCUIT STATUS</span><strong class="status" id="status">CLEAR</strong></div></div></div></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x05090c); scene.fog=new THREE.FogExp2(0x071015,.014);
+const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,500); camera.position.set(0,18,29);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.25; document.body.prepend(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement); controls.enabled=false;
+scene.add(new THREE.HemisphereLight(0x9ac4d3,0x071015,1.5)); const key=new THREE.DirectionalLight(0xdceeff,2.8); key.position.set(-20,40,12); key.castShadow=true; scene.add(key); const cyanLight=new THREE.PointLight(0x26dfff,22,80); cyanLight.position.set(0,7,0); scene.add(cyanLight); const redLight=new THREE.PointLight(0xff3b24,18,60); redLight.position.set(25,6,-10); scene.add(redLight);
+const mat=(color,rough=.7,metal=0)=>new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal}); const asphalt=mat(0x202b2e,.92); const rubber=mat(0x0a0d0e); const steel=mat(0x66767a,.34,.8); const railMat=mat(0x9baeb2,.25,.9); const cyan=mat(0x49e8ff,.25,.35); cyan.emissive.set(0x26b5cc); cyan.emissiveIntensity=3; const acid=mat(0xd9ff4f,.3,.2); acid.emissive.set(0x799e00); acid.emissiveIntensity=1.7; const hazard=mat(0xff593f,.3,.35); hazard.emissive.set(0x9c1409); hazard.emissiveIntensity=2;
+function box(n,s,m,p,r={}){let o=new THREE.Mesh(new THREE.BoxGeometry(...s),m);o.name=n;o.position.set(...p);o.rotation.set(r.x||0,r.y||0,r.z||0);o.castShadow=o.receiveShadow=true;scene.add(o);return o}
+// oval track, deliberately banked like a wall-ride arena
+const track=new THREE.Mesh(new THREE.RingGeometry(18,34,128,5),asphalt); track.rotation.x=-Math.PI/2; track.position.y=.0; track.scale.y=.72; track.receiveShadow=true; scene.add(track);
+const inner=new THREE.Mesh(new THREE.RingGeometry(16.7,18.1,128,1),rubber);inner.rotation.x=-Math.PI/2;inner.scale.y=.72;inner.position.y=.12;scene.add(inner);
+const outerWall=new THREE.Mesh(new THREE.TorusGeometry(25,1.8,8,128),mat(0x26383d,.75,.5));outerWall.scale.y=.72;outerWall.position.y=1.8;outerWall.rotation.x=Math.PI/2;scene.add(outerWall);
+// lane dashes and neon circuit accents
+for(let i=0;i<64;i++){let a=i/64*Math.PI*2; for(const r of [21.5,27.2,32]){let x=Math.cos(a)*r,z=Math.sin(a)*r*.72;let d=box('lane marker',[.7,.035,.12],i%8===0?acid:mat(0x77868a),[x,.15,z],{y:-a});d.rotation.y=-a;}}
+function railRing(r,y,material=railMat){let ring=new THREE.Mesh(new THREE.TorusGeometry(r,.17,6,128),material);ring.scale.y=.72;ring.rotation.x=Math.PI/2;ring.position.y=y;scene.add(ring);return ring} railRing(18.3,1.1);railRing(18.9,2.05);railRing(31.8,2.0);railRing(32.4,2.8);
+// support pylons and audience scaffold
+for(let i=0;i<24;i++){let a=i/24*Math.PI*2,x=Math.cos(a)*33,z=Math.sin(a)*33*.72;box('scaffold',[.35,8,.35],steel,[x,4,z],{y:-a}); if(i%2===0){let glow=box('cyan beacon',[.12,1.2,.12],cyan,[x,7.3,z]);glow.rotation.y=-a}}
+// spikes around inner edge
+function spike(a,r=17.1){let x=Math.cos(a)*r,z=Math.sin(a)*r*.72;let s=new THREE.Mesh(new THREE.ConeGeometry(.48,2.9,4),hazard);s.position.set(x,1.7,z);s.rotation.z=Math.PI/2; s.rotation.y=-a; s.castShadow=true;scene.add(s);return s}
+const spikes=[]; for(let i=0;i<18;i++)spikes.push(spike(i/18*Math.PI*2));
+// moving trap platforms: black holes with retracting orange teeth
+const traps=[]; function trap(a){let x=Math.cos(a)*25.2,z=Math.sin(a)*25.2*.72;let g=new THREE.Group();g.position.set(x,.19,z);g.rotation.y=-a;let hole=new THREE.Mesh(new THREE.BoxGeometry(5.4,.07,3.7),rubber);g.add(hole);for(let i=-2;i<=2;i++){let tooth=new THREE.Mesh(new THREE.ConeGeometry(.22,.9,4),hazard);tooth.position.set(i*.9,.5,1.3);tooth.rotation.x=Math.PI;g.add(tooth);let tooth2=tooth.clone();tooth2.position.z=-1.3;g.add(tooth2)} scene.add(g);traps.push({g,phase:a});} [0.7,2.85,4.95].forEach(trap);
+// start gantry
+box('gantry',[.7,7,.7],steel,[-2,4,-32*.72]);box('gantry',[.7,7,.7],steel,[2,4,-32*.72]);box('START',[5.5,.45,.5],hazard,[0,7,-32*.72]);
+// low poly Nissan-Sentra-inspired silhouette: wedge body, cabin, wheels, cyan underglow
+const car=new THREE.Group(); car.position.set(0,.65,-27*.72); scene.add(car); const carRed=mat(0xb9342e,.32,.6);const carDark=mat(0x111a1d,.28,.8);const glass=mat(0x3b6970,.12,.5); 
+function cmesh(geo,m,p){let o=new THREE.Mesh(geo,m);o.position.set(...p);o.castShadow=true;car.add(o);return o}
+cmesh(new THREE.BoxGeometry(3.25,.6,6.3),carRed,[0,.35,0]); cmesh(new THREE.BoxGeometry(3.0,.28,5.4),carDark,[0,.7,.1]);
+const cabin=cmesh(new THREE.CylinderGeometry(1.12,1.42,2.7,6),glass,[0,1.02,.15]); cabin.rotation.z=Math.PI/2; cabin.scale.z=.83;
+cmesh(new THREE.BoxGeometry(2.8,.12,1.4),acid,[0,.7,-2.6]);cmesh(new THREE.BoxGeometry(2.7,.12,1.25),hazard,[0,.72,2.65]);
+for(let x of [-1.72,1.72])for(let z of [-2.05,2.05]){let w=cmesh(new THREE.CylinderGeometry(.56,.56,.38,10),rubber,[x,.18,z]);w.rotation.z=Math.PI/2;let hub=cmesh(new THREE.CylinderGeometry(.23,.23,.4,8),steel,[x,.18,z]);hub.rotation.z=Math.PI/2}
+for(let x of [-1.15,1.15]){let l=cmesh(new THREE.BoxGeometry(.7,.18,.08),cyan,[x,.65,-3.17]);l.material=cyan}
+const nitro=new THREE.PointLight(0x46ecff,4,7); nitro.position.set(0,0,3.2); car.add(nitro);
+// decorative center reactor
+const core=new THREE.Mesh(new THREE.CylinderGeometry(7,7,1.2,12),mat(0x101a1d));core.position.y=-.8;scene.add(core);const coreRing=new THREE.Mesh(new THREE.TorusGeometry(7.3,.13,6,64),cyan);coreRing.rotation.x=Math.PI/2;coreRing.position.y=.1;scene.add(coreRing);
+const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.code==='Space')keys.space=true;if(e.key.toLowerCase()==='r')reset()});addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;if(e.code==='Space')keys.space=false});
+let speed=0,angle=-Math.PI/2,lapAngle=angle,last=performance.now(),eventTimer=0;function reset(){speed=0;angle=-Math.PI/2;car.position.set(0,.65,-27*.72);document.querySelector('#status').textContent='CLEAR'}
+function toast(t){let el=document.querySelector('#toast');el.textContent=t;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),1000)}
+function animate(now){requestAnimationFrame(animate);let dt=Math.min((now-last)/1000,.04);last=now;let throttle=keys.w||keys.arrowup, brake=keys.s||keys.arrowdown, steer=(keys.a||keys.arrowleft?-1:0)+(keys.d||keys.arrowright?1:0),boost=keys.space; speed+= (throttle?19:0)-(brake?28:5)*dt; if(throttle)speed+=19*dt; if(brake)speed-=25*dt; speed=Math.max(0,Math.min(boost?39:27,speed)); angle+=steer*dt*(.8+speed*.035);let radius=27; car.position.x=Math.cos(angle)*radius;car.position.z=Math.sin(angle)*radius*.72;car.rotation.y=-angle+Math.PI/2;car.position.y=.7+Math.sin(now*.006)*.05;nitro.intensity=boost?15:4;
+ traps.forEach((t,i)=>{let open=(Math.sin(now*.002+i*2.2)>0.45);t.g.position.y=open?-1.3:.19;if(open&&Math.abs(angle-t.phase)<.035&&speed>18){speed*=.35;toast('TRAP DEPLOYED // SPEED LOST')}}); spikes.forEach((s,i)=>s.position.y=1.7+Math.sin(now*.003+i)*.12);coreRing.rotation.z=now*.0004; cyanLight.intensity=18+Math.sin(now*.003)*5;
+ const forward=new THREE.Vector3(-Math.sin(angle),0,Math.cos(angle)*.72);let desired=car.position.clone().add(forward.clone().multiplyScalar(-11)).add(new THREE.Vector3(0,6,0));camera.position.lerp(desired,1-Math.pow(.0001,dt));camera.lookAt(car.position.clone().add(new THREE.Vector3(0,.7,0)));document.querySelector('#speed').textContent=String(Math.round(speed*8)).padStart(3,'0')+' KM/H';document.querySelector('#speedbar').style.width=(speed/(boost?39:27)*100)+'%';document.querySelector('#status').textContent=boost?'BOOST ACTIVE':speed>25?'HAZARDS LIVE':'CLEAR';document.querySelector('#hint').style.opacity=now>5000?'0':'1';renderer.render(scene,camera)}
+animate(performance.now());addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script></body></html>
