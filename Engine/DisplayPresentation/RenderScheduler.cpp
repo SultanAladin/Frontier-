@@ -87,6 +87,12 @@ void RenderScheduler::Present(
     else          PointerIo.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
 #ifdef FRONTIER_DEVELOPMENT
     Editor_.AssignCameraSteering(Steering);
+    // The rail's status and its convergence hairline. 256 is the count the "initial accumulation ready"
+    //    notification uses (GameExecution's BakeFrameCount); past it the hairline turns blue and the frame is
+    //    refining rather than filling. The restart reason rides along so a frame that never converges can say
+    //    why without the reader opening the F3 popup.
+    Editor_.AssignRenderStatus(Integrator.QueryAccumulationIndex(), 256u, Integrator.QueryRestartReason(),
+                               Camera.QueryFieldOfViewRadians() * 57.2957795f);
 #endif
 
     ImGui_ImplVulkan_NewFrame();
@@ -110,7 +116,10 @@ void RenderScheduler::Present(
     //    SectionCamera / SectionReSTIR / SectionScene are retained but unreferenced by design: they are the
     //    fallback if the editor has to be disabled, and deleting them would make that a rewrite rather than a
     //    one-line change.
-    (void)Integrator; (void)Scene; (void)ViewportWidth; (void)ViewportHeight;
+#ifndef FRONTIER_DEVELOPMENT
+    (void)Integrator; (void)Camera;
+#endif
+    (void)Scene; (void)ViewportWidth; (void)ViewportHeight;
 
     if (Overlay) Overlay();
 

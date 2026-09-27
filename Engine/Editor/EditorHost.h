@@ -80,6 +80,11 @@ public:
     //    and Shift+A — the Construct menu's shortcut — is also "boost + strafe left", which opened the menu on
     //    every leftward boost. Set this from whatever knows the camera is steering.
     void AssignCameraSteering(bool Steering) noexcept { Steering_ = Steering; }
+
+    // The viewport rail's status readout: accumulated samples, the initial-accumulation target the hairline
+    //    fills toward, what last restarted the accumulation, and the camera's field of view.
+    void AssignRenderStatus(uint32_t Samples, uint32_t Target, const char* Reason, float FieldOfViewDegrees) noexcept
+    { Viewport_.AssignRenderStatus(Samples, Target, Reason, FieldOfViewDegrees); }
     [[nodiscard]] bool QueryCameraSteering() const noexcept { return Steering_; }
 
     // Seats the viewport's scene view (see ViewportPanel::AssignView) and reads back the view rect.

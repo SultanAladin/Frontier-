@@ -64,6 +64,18 @@ public:
     // Shares the Control Centre shade's open figure with the bar's gear.
     void AssignShadeOpen(bool* Open) noexcept { ShadeOpen_ = Open; }
 
+    // The rail's status readout and the hairline under it: how many samples the frame has accumulated, the
+    //    count at which the initial accumulation is announced, what last restarted it (shown on hover, so a
+    //    frame that never converges names its own cause), and the camera's field of view for the projection
+    //    pill. `Reason` must be a string literal or otherwise outlive the frame — it is stored by pointer.
+    void AssignRenderStatus(uint32_t Samples, uint32_t Target, const char* Reason, float FieldOfViewDegrees) noexcept
+    {
+        RenderSamples_ = Samples;
+        RenderTarget_  = Target;
+        RenderRestart_ = Reason ? Reason : "none";
+        FieldOfView_   = FieldOfViewDegrees;
+    }
+
     // The foot strip's live figures (triangle total); without a readout the strip prints its resting dash.
     void AssignReadout(const EditorReadout* Readout) noexcept;
 
@@ -126,6 +138,12 @@ private:
     float AimU_        = 0.0f;
     float AimV_        = 0.0f;
     bool*                ShadeOpen_ = nullptr;  // the Control Centre shade's open figure, shared with the host
+
+    uint32_t RenderSamples_ = 0u;          // [cnt] accumulated samples, from the integrator
+    uint32_t RenderTarget_  = 256u;         // [cnt] the initial-accumulation announcement, for the hairline
+    const char* RenderRestart_ = "none";    // [-]   what last restarted the accumulation (literal, by pointer)
+    float    FieldOfView_   = 0.0f;         // [deg] vertical field of view, shown beside the projection
+    float    TransportOpen_ = 0.0f;         // [0..1] pause/step/stop arrival while something runs
 
     uint32_t Transport_ = 0u;   // 0 edit, 1 play, 2 simulate — the reference's three runs
     bool     Paused_    = false;
