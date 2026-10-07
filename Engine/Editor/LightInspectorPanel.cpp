@@ -1,204 +1,50 @@
-//============================================================================================================================================
+//==============================================================================================================================================
 //                                                          LIGHTINSPECTORPANEL.CPP
-//============================================================================================================================================
-// 📦 Native scene-emitter inspector: the approved Point, Spot, Area, Tube and LED Strip cards drawn 1:1 from the browser reference.
+//==============================================================================================================================================
+// 📦 Native light inspector converted from InspectorDepot/panels/lights.js and panels/advancedLights.js — hero, rail, duo, photometry and aim.
 
 #include "LightInspectorPanel.h"
-#include "ControlPanel.h"
-#include "EditorInstance.h"
-#include <imgui.h>
-#include <imgui_internal.h>
-#include <algorithm>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <initializer_list>
+#include "LightDepotSurface.h"
 
 namespace Frontier
 {
+using namespace Depot;
+
 namespace
 {
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                      REFERENCE PALETTE
+//                                                       EMITTER KINDS
 //------------------------------------------------------------------------------------------------------------------------
-// Values transcribed from Experimental/FrontierEditor/style.css so the native panel and the browser
-// reference resolve to the same pixels rather than to a similar-looking approximation.
+// world.js names five lighting types. The engine's Type selector offers six; Directional has no counterpart
+//    in the reference, so it reads out through the isotropic branch that fits it, and Strip is a tube run.
 
-constexpr ImU32 Ink        = IM_COL32(223, 223, 223, 255);   // [-] .metric colour
-constexpr ImU32 Heading    = IM_COL32(201, 201, 201, 255);   // [-] .card-heading
-constexpr ImU32 Muted      = IM_COL32(125, 125, 125, 255);   // [-] .muted
-constexpr ImU32 Faint      = IM_COL32(114, 114, 114, 255);   // [-] .range-labels
-constexpr ImU32 PillInk    = IM_COL32(163, 163, 163, 255);   // [-] .small-pill text
-constexpr ImU32 PillFill   = IM_COL32(47, 47, 47, 255);      // [-] .small-pill background
-constexpr ImU32 PillEdge   = IM_COL32(59, 59, 59, 255);      // [-] .small-pill border
-constexpr ImU32 CardTop    = IM_COL32(34, 34, 34, 255);      // [-] .card gradient start
-constexpr ImU32 CardFoot   = IM_COL32(31, 31, 31, 255);      // [-] .card gradient end
-constexpr ImU32 CardEdge   = IM_COL32(47, 47, 47, 255);      // [-] .card border
-constexpr ImU32 Backdrop   = IM_COL32(16, 16, 16, 255);      // [-] body background
-constexpr ImU32 Track      = IM_COL32(68, 68, 68, 255);      // [-] input[type=range] unfilled rail #444
-constexpr ImU32 Filled     = IM_COL32(197, 197, 197, 255);   // [-] input[type=range] filled rail #c5c5c5
-constexpr ImU32 Knob       = IM_COL32(229, 229, 229, 255);   // [-] ::-webkit-slider-thumb #e5e5e5
-constexpr float TrackHigh  = 3;                              // [px] input[type=range] height
-constexpr float KnobRadius = 5.5f;                           // [px] 11 px thumb
-constexpr float KnobRing   = 4;                              // [px] box-shadow 0 0 0 4px #222
-constexpr ImU32 FieldFill  = IM_COL32(26, 26, 30, 255);      // [-] numeric field
-constexpr ImU32 FieldEdge  = IM_COL32(55, 55, 61, 255);      // [-] numeric field border
-constexpr ImU32 Lit        = IM_COL32(126, 198, 148, 255);   // [-] .status-chip.is-on
-constexpr ImU32 Unlit      = IM_COL32(205, 123, 110, 255);   // [-] .status-chip.is-off
-constexpr ImU32 Amber      = IM_COL32(233, 198, 123, 255);   // [-] lighting accent
+constexpr const char* DEG = "\u00b0";   // the reference writes angles with a degree sign, not the word
 
-constexpr float CardRadius = 18;   // [px] .card border-radius
-constexpr float CardPadX   = 23;   // [px] .card horizontal padding
-constexpr float CardPadY   = 22;   // [px] .card vertical padding
-constexpr float CardGap    = 14;   // [px] .cards grid gap
+enum class EmitterKind : unsigned { Point = 0, Spot, Ies, Area, Tube };
 
-//------------------------------------------------------------------------------------------------------------------------
-//                                                     EMITTER DESCRIPTION
-//------------------------------------------------------------------------------------------------------------------------
-
-struct EmitterDescription
+struct EmitterSpecification
 {
-    const char* Title;        // [-] outliner and header name
-    const char* Eyebrow;      // [-] uppercase kicker above the title
-    const char* Lineage;      // [-] right-hand breadcrumb
-    const char* OutputNote;   // [-] sentence under the flux metric
-    ImU32       Accent;       // [-] card icon tint
+    const char* Label;       // [-] world.js label
+    float       Tint[3];     // [-] the type's default emission colour
 };
 
-const EmitterDescription& Describe(unsigned Kind)
+const EmitterSpecification& Describe(EmitterKind Kind)
 {
-    static const EmitterDescription Table[] =
-    {
-        {"Point Light", "OMNIDIRECTIONAL EMITTER", "Lighting / Punctual \xC2\xB7 output, reach & response",
-         "Flux radiated uniformly in every direction.", IM_COL32(233, 198, 123, 255)},
-        {"Spot Light", "CONE EMITTER", "Lighting / Punctual \xC2\xB7 output, cone & response",
-         "Flux concentrated into the outer cone.", IM_COL32(232, 187, 134, 255)},
-        {"Area Light", "RECTANGULAR EMITTER", "Lighting / Surface \xC2\xB7 output, panel & response",
-         "Flux emitted from the panel into the forward hemisphere.", IM_COL32(223, 192, 143, 255)},
-        {"Tube Light", "TUBULAR EMITTER", "Lighting / Surface \xC2\xB7 output, tube & response",
-         "Flux emitted from the panel into the forward hemisphere.", IM_COL32(217, 196, 155, 255)},
-        {"LED Strip", "LINEAR EMITTER", "Lighting / Linear \xC2\xB7 output per metre, run & response",
-         "Total flux is the authored output per metre across the run.", IM_COL32(226, 207, 154, 255)},
+    static const EmitterSpecification Family[] = {
+        {"Point Light",      {1.000f, 0.851f, 0.627f}},   // #ffd9a0
+        {"Spot Light",       {0.910f, 0.941f, 1.000f}},   // #e8f0ff
+        {"IES / Automotive", {1.000f, 0.949f, 0.812f}},   // #fff2cf
+        {"Rect Area Light",  {1.000f, 0.945f, 0.839f}},   // #fff1d6
+        {"Tube Light",       {0.910f, 0.949f, 1.000f}},   // #e8f2ff
     };
-    return Table[Kind < 5 ? Kind : 0];
+    return Family[static_cast<unsigned>(Kind)];
 }
 
-// Card accent colours, keyed in the same order the cards are drawn.
-constexpr ImU32 AccentOutput       = IM_COL32(233, 198, 123, 255);
-constexpr ImU32 AccentTemperature  = IM_COL32(230, 156, 121, 255);
-constexpr ImU32 AccentReach        = IM_COL32(159, 183, 212, 255);
-constexpr ImU32 AccentBeam         = IM_COL32(240, 189, 114, 255);
-constexpr ImU32 AccentEmitter      = IM_COL32(223, 192, 143, 255);
-constexpr ImU32 AccentTransform    = IM_COL32(181, 196, 223, 255);
-constexpr ImU32 AccentResponse     = IM_COL32(192, 168, 212, 255);
-constexpr ImU32 AccentDistribution = IM_COL32(212, 185, 112, 255);
-constexpr ImU32 AccentSupport      = IM_COL32(142, 142, 142, 255);
-
-//------------------------------------------------------------------------------------------------------------------------
-//                                                        CARD GLYPHS
-//------------------------------------------------------------------------------------------------------------------------
-// The browser cards head each panel with a lucide glyph at 16 px. These redraw the same geometry on the
-// 24-unit lucide grid with the same 2-unit stroke, so the native heading carries the icon rather than a swatch.
-
-enum class CardGlyph
+// lights.js — luxAt(I, d, decay) = I / max(1, d) ^ decay
+float LuxAt(float Intensity, float Distance, float Decay)
 {
-    Lightbulb, Flashlight, Rectangle, Minus, Layers, Thermometer,
-    Gauge, Cone, Ruler, Move3d, Contrast, Projector, CircleDot
-};
-
-void StrokeGlyph(ImDrawList* Draw, ImVec2 Origin, float Extent, CardGlyph Glyph, ImU32 Colour)
-{
-    const float Unit   = Extent / 24.0f;
-    const float Weight = std::max(1.0f, 1.9f * Unit);
-    auto Point = [&](float X, float Y) { return ImVec2{Origin.x + X * Unit, Origin.y + Y * Unit}; };
-    auto Line  = [&](float X1, float Y1, float X2, float Y2) { Draw->AddLine(Point(X1, Y1), Point(X2, Y2), Colour, Weight); };
-    auto Ring  = [&](float X, float Y, float R) { Draw->AddCircle(Point(X, Y), R * Unit, Colour, 28, Weight); };
-    auto Dot   = [&](float X, float Y, float R) { Draw->AddCircleFilled(Point(X, Y), R * Unit, Colour, 16); };
-    auto Chain = [&](std::initializer_list<ImVec2> Points, bool Closed)
-    {
-        ImVec2 Path[12];
-        int    Count = 0;
-        for (const ImVec2& Node : Points)
-        {
-            Path[Count++] = Point(Node.x, Node.y);
-        }
-        Draw->AddPolyline(Path, Count, Colour, Closed ? ImDrawFlags_Closed : ImDrawFlags_None, Weight);
-    };
-
-    switch (Glyph)
-    {
-    case CardGlyph::Lightbulb:
-        Draw->PathArcTo(Point(12, 8), 6 * Unit, 3.34f, 6.08f, 24);
-        Draw->PathStroke(Colour, ImDrawFlags_None, Weight);
-        Line(8.4f, 12.6f, 9, 14);
-        Line(15.6f, 12.6f, 15, 14);
-        Line(9, 18, 15, 18);
-        Line(10, 21.4f, 14, 21.4f);
-        break;
-    case CardGlyph::Flashlight:
-        Chain({{6, 2}, {18, 2}, {18, 6}, {16, 10}, {16, 21}, {8, 21}, {8, 10}, {6, 6}}, true);
-        Line(6, 6.4f, 18, 6.4f);
-        Dot(12, 12.5f, 1.1f);
-        break;
-    case CardGlyph::Rectangle:
-        Draw->AddRect(Point(2, 6), Point(22, 18), Colour, 2 * Unit, 0, Weight);
-        break;
-    case CardGlyph::Minus:
-        Line(5, 12, 19, 12);
-        break;
-    case CardGlyph::Layers:
-        // Stacked sheets: the lead rhombus plus the two trailing chevrons.
-        Chain({{12, 2.2f}, {21.7f, 6.9f}, {12, 11.6f}, {2.3f, 6.9f}}, true);
-        Chain({{2.2f, 12.6f}, {12, 17.2f}, {21.8f, 12.6f}}, false);
-        Chain({{2.2f, 17.4f}, {12, 22}, {21.8f, 17.4f}}, false);
-        break;
-    case CardGlyph::Thermometer:
-        Chain({{14, 14.6f}, {14, 4}, {13.1f, 2.2f}, {10.9f, 2.2f}, {10, 4}, {10, 14.6f}}, false);
-        Ring(12, 18, 4);
-        break;
-    case CardGlyph::Gauge:
-        Draw->PathArcTo(Point(12, 14), 9 * Unit, 3.40f, 6.02f, 28);
-        Draw->PathStroke(Colour, ImDrawFlags_None, Weight);
-        Line(12, 14, 16, 10);
-        break;
-    case CardGlyph::Cone:
-        Chain({{3.1f, 18.6f}, {12, 2.6f}, {20.9f, 18.6f}}, false);
-        Draw->AddEllipse(Point(12, 18.6f), {9 * Unit, 3 * Unit}, Colour, 0, 32, Weight);
-        break;
-    case CardGlyph::Ruler:
-        Draw->AddRect(Point(2.5f, 8), Point(21.5f, 16), Colour, 2 * Unit, 0, Weight);
-        Line(7, 8, 7, 11.5f);
-        Line(11, 8, 11, 12.5f);
-        Line(15, 8, 15, 11.5f);
-        Line(19, 8, 19, 12.5f);
-        break;
-    case CardGlyph::Move3d:
-        Chain({{5, 3}, {5, 19}, {21, 19}}, false);
-        Chain({{2.6f, 5.4f}, {5, 3}, {7.4f, 5.4f}}, false);
-        Chain({{18.6f, 16.6f}, {21, 19}, {18.6f, 21.4f}}, false);
-        Line(5, 19, 11.5f, 12.5f);
-        break;
-    case CardGlyph::Contrast:
-        Ring(12, 12, 10);
-        Draw->PathArcTo(Point(12, 12), 6 * Unit, -1.5708f, 1.5708f, 20);
-        Draw->PathLineTo(Point(12, 6));
-        Draw->PathFillConvex(Colour);
-        break;
-    case CardGlyph::Projector:
-        Draw->AddRect(Point(2, 12), Point(22, 20), Colour, 2 * Unit, 0, Weight);
-        Ring(9, 16, 3);
-        Dot(16.5f, 15, 0.9f);
-        Dot(16.5f, 18.4f, 0.9f);
-        Line(9, 6, 9, 3);
-        Line(4.6f, 7.2f, 3, 5.6f);
-        Line(13.4f, 7.2f, 15, 5.6f);
-        break;
-    case CardGlyph::CircleDot:
-        Ring(12, 12, 10);
-        Dot(12, 12, 1.6f);
-        break;
-    }
+    return Intensity / std::pow(std::max(1.0f, Distance), Decay);
 }
 
 EditorProperty* Find(EditorSheet& Sheet, const char* Name)
@@ -216,813 +62,1100 @@ EditorProperty* Find(EditorSheet& Sheet, const char* Name)
     return nullptr;
 }
 
-// Grouped thousands, matching the browser's toLocaleString('en-US').
-void Grouped(char* Out, size_t Size, double Value)
-{
-    const long long Whole = static_cast<long long>(std::llround(Value));
-    if (std::llabs(Whole) >= 1000)
-    {
-        std::snprintf(Out, Size, "%lld,%03lld", Whole / 1000, std::llabs(Whole % 1000));
-    }
-    else
-    {
-        std::snprintf(Out, Size, "%lld", Whole);
-    }
-}
-
-const char* TemperatureName(float Kelvin)
-{
-    return Kelvin < 2700 ? "Candle warmth"
-         : Kelvin < 3500 ? "Warm white"
-         : Kelvin < 5000 ? "Neutral white"
-         : Kelvin < 6500 ? "Cool white"
-                         : "Daylight";
-}
-
-ImU32 TemperatureChip(float Kelvin)
-{
-    return Kelvin < 3000 ? IM_COL32(240, 207, 160, 255)
-         : Kelvin < 4500 ? IM_COL32(239, 217, 180, 255)
-         : Kelvin > 6500 ? IM_COL32(196, 216, 243, 255)
-                         : IM_COL32(239, 233, 220, 255);
-}
-
 //------------------------------------------------------------------------------------------------------------------------
-//                                                       DRAWING SURFACE
+//                                                       PANEL SURFACE
 //------------------------------------------------------------------------------------------------------------------------
+// One cursor walks down the column. Every emitter mirrors a DOM element from the reference and advances the
+//    cursor by that element's box: .mpanel adds a 10 px gap, and a .pcard adds its own 10 px bottom margin.
 
-struct LightPanel
+struct DepotPanel
 {
     ControlPanel& Controls;
     EditorSheet&  Sheet;
     ImDrawList*   Draw;
     ImVec2        Origin;
+    float         Wide;
     ImFont*       Face;
     ImFont*       Display;
+    float         Walk = 0;
 
     ImVec2 At(float X, float Y) const { return {Origin.x + X, Origin.y + Y}; }
 
-    void Write(float X, float Y, const char* Body, float Size = 12, ImU32 Colour = Ink) const
+    void Advance(float High, bool Card) { Walk += High + StackGap + (Card ? CardSkirt : 0.0f); }
+
+    //  Text ---------------------------------------------------------------------------------------------
+
+    void Plain(float X, float Top, const char* Body, float Size, ImU32 Colour) const
     {
-        Draw->AddText(Face, Size, At(X, Y), Colour, Body);
+        Draw->AddText(Face, Size, At(X, Top), Colour, Body);
     }
 
-    float Measure(const char* Body, float Size) const
+    float PlainWide(const char* Body, float Size) const
     {
         return Face->CalcTextSizeA(Size, 10000, 0, Body).x;
     }
 
-    void WriteRight(float Right, float Y, const char* Body, float Size, ImU32 Colour) const
+    void Caps(float X, float Top, const char* Body, float Size, ImU32 Colour, float Tracking) const
     {
-        Write(Right - Measure(Body, Size), Y, Body, Size, Colour);
+        TrackedText(Draw, Face, Size, At(X, Top), Colour, Body, Tracking, true);
     }
 
-    void Wrap(float X, float Y, float Width, const char* Body, float Size = 10, ImU32 Colour = Muted) const
+    float CapsWide(const char* Body, float Size, float Tracking) const
     {
-        Draw->AddText(Face, Size, At(X, Y), Colour, Body, nullptr, Width);
+        return TrackedWide(Face, Size, Body, Tracking, true);
     }
 
-    // .card — 125 degree gradient, hairline border, 18 px corners.
-    void Card(float X, float Y, float Width, float Height, const char* Title, ImU32 Accent, CardGlyph Glyph) const
+    // canvas fillText anchors on the baseline; ImGui anchors on the line-box top.
+    void Baseline(float X, float Base, const char* Body, float Size, ImU32 Colour) const
     {
-        const int First = Draw->VtxBuffer.Size;
-        Draw->AddRectFilled(At(X, Y), At(X + Width, Y + Height), IM_COL32_WHITE, CardRadius);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(
-            Draw, First, Draw->VtxBuffer.Size, At(X, Y), At(X + Width * 0.42f, Y + Height), CardTop, CardFoot);
-        Draw->AddRect(At(X, Y), At(X + Width, Y + Height), CardEdge, CardRadius);
-        if (Title && Title[0])
+        Draw->AddText(Face, Size, At(X, Base - Size * BaselineShare), Colour, Body);
+    }
+
+    void BaselineMid(float Centre, float Base, const char* Body, float Size, ImU32 Colour) const
+    {
+        Baseline(Centre - PlainWide(Body, Size) * 0.5f, Base, Body, Size, Colour);
+    }
+
+    void BaselineRight(float Right, float Base, const char* Body, float Size, ImU32 Colour) const
+    {
+        Baseline(Right - PlainWide(Body, Size), Base, Body, Size, Colour);
+    }
+
+    //  Boxes --------------------------------------------------------------------------------------------
+
+    // .pcard — --inset ground, 18 px corners, 12/14/14 padding. Returns the content left edge.
+    float Pcard(float High) const
+    {
+        Draw->AddRectFilled(At(0, Walk), At(Wide, Walk + High), InsetFill, InsetRadius);
+        return CardPadX;
+    }
+
+    // .mp-hero — the one card with its own ground and a real border, clipped to its corners.
+    void Hero(float High) const
+    {
+        Draw->AddRectFilled(At(0, Walk), At(Wide, Walk + High), HeroFill, InsetRadius);
+        Draw->AddRect(At(0, Walk), At(Wide, Walk + High), StrokeStrong, InsetRadius);
+    }
+
+    // .mp-cap — the caption band, gradient-backed, pinned to the foot of a hero.
+    void HeroCaption(float High, const char* Title, const char* Sub, const char* Right, bool SubCaps) const
+    {
+        const float Foot = Walk + High;
+        const float Band = 48;
+        const int   First = Draw->VtxBuffer.Size;
+        Draw->AddRectFilled(At(0, Foot - Band), At(Wide, Foot), IM_COL32_WHITE);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(Draw, First, Draw->VtxBuffer.Size,
+                                                      At(0, Foot - Band), At(0, Foot),
+                                                      Blend(HeroFill, 0.0f), Blend(HeroFill, 0.88f));
+        Plain(12, Foot - 40, Title, 15, Text);
+        if (SubCaps)
         {
-            StrokeGlyph(Draw, At(X + CardPadX, Y + CardPadY - 1), 16, Glyph, Accent);
-            Write(X + CardPadX + 24, Y + CardPadY + 1, Title, 12, Heading);
+            Caps(12, Foot - 20, Sub, 9, TextFaint, 1.3f);
+        }
+        else
+        {
+            Plain(12, Foot - 20, Sub, 9, TextFaint);
+        }
+        if (Right && Right[0])
+        {
+            const float Span = CapsWide(Right, 9.5f, 0.7f);
+            Caps(Wide - 12 - Span, Foot - 20, Right, 9.5f, TextDim, 0.7f);
         }
     }
 
-    // .metric — 45 px light numeral with a 16 px unit on the baseline.
-    void Metric(float X, float Y, const char* Figure, const char* Unit) const
+    //  Rail and duo -------------------------------------------------------------------------------------
+
+    // .mp-rail — three 1fr pills and one 1.25fr pill, 5 px gaps, capsule corners.
+    static constexpr float RailHigh = 44;
+
+    void Rail(const char* const Keys[4], const char* const Figures[4], const char* const Units[4]) const
     {
-        Draw->AddText(Display, 45, At(X, Y), Ink, Figure);
-        if (Unit && Unit[0])
+        const float Unit = (Wide - 15) / 4.25f;
+        float Left = 0;
+        for (int Slot = 0; Slot < 4; ++Slot)
         {
-            const float Advance = Display->CalcTextSizeA(45, 10000, 0, Figure).x;
-            Draw->AddText(Face, 16, At(X + Advance + 6, Y + 26), IM_COL32(125, 125, 125, 255), Unit);
+            const float Span = Slot == 3 ? Unit * 1.25f : Unit;
+            Draw->AddRectFilled(At(Left, Walk), At(Left + Span, Walk + RailHigh), PanelFill, RailHigh * 0.5f);
+            Draw->AddRect(At(Left, Walk), At(Left + Span, Walk + RailHigh), Stroke, RailHigh * 0.5f);
+            Plain(Left + 9, Walk + 7, Figures[Slot], 14, Text);
+            if (Units[Slot] && Units[Slot][0])
+            {
+                const float Advance = PlainWide(Figures[Slot], 14);
+                TrackedText(Draw, Face, 9.5f, At(Left + 9 + Advance + 2, Walk + 13), TextDim, Units[Slot], 0.4f, false);
+            }
+            Caps(Left + 9, Walk + 25, Keys[Slot], 9, TextFaint, 1.1f);
+            Left += Span + 5;
         }
     }
 
-    // .small-pill — 9 px capsule on the heading line.
-    void Pill(float Right, float Y, const char* Body) const
-    {
-        const float Width = Measure(Body, 9) + 18;
-        Draw->AddRectFilled(At(Right - Width, Y), At(Right, Y + 21), PillFill, 11);
-        Draw->AddRect(At(Right - Width, Y), At(Right, Y + 21), PillEdge, 11);
-        Write(Right - Width + 9, Y + 6, Body, 9, PillInk);
-    }
+    // .mp-duo — two .pcard.mp-stat tiles: a status chip, a sentence, and a right-set numeral.
+    static constexpr float DuoHigh = 71;
 
-    // .range-labels — 9 px caption pair under a track.
-    void Range(float X, float Y, float Width, const char* Low, const char* High) const
+    void Duo(const char* LeftLabel, const char* LeftFigure, const char* LeftUnit,
+             const char* RightLabel, const char* RightFigure, const char* RightUnit) const
     {
-        Write(X, Y, Low, 9, Faint);
-        WriteRight(X + Width, Y, High, 9, Faint);
-    }
-
-    // A bound slider. Returns the live figure so derived readouts cannot drift from the control.
-    float Slider(float X, float Y, float Width, const char* Name, bool Bare = false, float Fallback = 0) const
-    {
-        EditorProperty* Bound = Find(Sheet, Name);
-        if (!Bound)
+        const float Span = (Wide - 10) * 0.5f;
+        const char* Labels[2]  = {LeftLabel, RightLabel};
+        const char* Figures[2] = {LeftFigure, RightFigure};
+        const char* Units[2]   = {LeftUnit, RightUnit};
+        for (int Slot = 0; Slot < 2; ++Slot)
         {
-            return Fallback;
+            const float Left = Slot * (Span + 10);
+            Draw->AddRectFilled(At(Left, Walk), At(Left + Span, Walk + DuoHigh), InsetFill, InsetRadius);
+            Draw->AddRectFilled(At(Left + 13, Walk + 11), At(Left + 32, Walk + 30), Blend(Ok, 0.13f), 7);
+            Draw->AddCircleFilled(At(Left + 22.5f, Walk + 20.5f), 3.2f, Ok, 16);
+            Plain(Left + 13, Walk + 47, Labels[Slot], 11, TextDim);
+            const float UnitWide = Units[Slot] && Units[Slot][0] ? PlainWide(Units[Slot], 11) + 2 : 0;
+            const float Right    = Left + Span - 13;
+            Plain(Right - UnitWide - PlainWide(Figures[Slot], 25), Walk + 36, Figures[Slot], 25, Text);
+            if (UnitWide > 0)
+            {
+                Plain(Right - UnitWide + 2, Walk + 48, Units[Slot], 11, TextDim);
+            }
         }
-        ImGui::PushID(Name);
-        ImGui::SetCursorScreenPos(At(X, Y - 9));
-        ImGui::InvisibleButton("##rail", {std::max(12.0f, Width), 20});
-        if (ImGui::IsItemActive())
+    }
+
+    //  Card internals -----------------------------------------------------------------------------------
+
+    // .mp-chead — a 15 px title over a 9.5 px tracked kicker, 8 px of air beneath.
+    static constexpr float CheadHigh = 30 + 8;
+
+    void Chead(float Y, const char* Title, const char* Sub) const
+    {
+        Plain(CardPadX, Y, Title, 15, Text);
+        Caps(CardPadX, Y + 19, Sub, 9.5f, TextFaint, 0.9f);
+    }
+
+    // .mp-num — the big light numeral with its decimals dropped back a shade and its unit as a footnote.
+    static constexpr float NumHigh = 2 + 46 + 6;
+
+    void Numeral(float Y, const char* Whole, const char* Decimal, const char* Unit) const
+    {
+        Draw->AddText(Display, 46, At(CardPadX, Y + 2), Text, Whole);
+        float Pen = CardPadX + Display->CalcTextSizeA(46, 10000, 0, Whole).x;
+        if (Decimal && Decimal[0])
         {
-            const float Local = ImGui::GetIO().MousePos.x - At(X, Y).x;
-            const float Share = std::clamp(Local / std::max(1.0f, Width), 0.0f, 1.0f);
-            Bound->Figure = std::clamp(Bound->Minimum + (Bound->Maximum - Bound->Minimum) * Share,
-                                       Bound->Minimum, Bound->Maximum);
+            Draw->AddText(Display, 46, At(Pen, Y + 2), TextFaint, Decimal);
+            Pen += Display->CalcTextSizeA(46, 10000, 0, Decimal).x;
         }
-        ImGui::PopID();
-        const float Span  = std::max(0.00001f, Bound->Maximum - Bound->Minimum);
-        const float Share = std::clamp((Bound->Figure - Bound->Minimum) / Span, 0.0f, 1.0f);
-        const float HandleX = X + Share * Width;
-        if (!Bare)
+        Plain(Pen + 7, Y + 32, Unit, 12, TextDim);
+    }
+
+    // .mp-k.mp-target — a tracked caption with a sentence-case value beside it.
+    static constexpr float TargetHigh = 13;
+
+    void Target(float Y, const char* Key, const char* Value) const
+    {
+        Caps(CardPadX, Y, Key, 9.5f, TextFaint, 1.3f);
+        Plain(CardPadX + CapsWide(Key, 9.5f, 1.3f) + 6, Y - 1, Value, 11, TextDim);
+    }
+
+    // .mp-note — the card note: 10 px, faint, sentence case, 2 px of air above it.
+    static constexpr float NoteHigh = 14;
+
+    void Note(float Y, const char* Body) const
+    {
+        Draw->AddText(Face, 10, At(CardPadX + 2, Y + 2), TextFaint, Body, nullptr, Wide - CardPadX * 2 - 4);
+    }
+
+    // .mp-subhead — the 9 px tracked divider between vector blocks.
+    static constexpr float SubheadHigh = 10 + 11 + 4;
+
+    void Subhead(float Y, const char* Key) const
+    {
+        Caps(CardPadX, Y + 10, Key, 9, TextFaint, 1.3f);
+    }
+
+    //  Controls -----------------------------------------------------------------------------------------
+
+    // .step — a 20 px nudge either side of a black type-in field.
+    void Stepper(float Right, float Top, const char* Figure, const char* Unit, float FieldWide) const
+    {
+        const float Inked = PlainWide(Figure, 12.5f) + (Unit && Unit[0] ? PlainWide(Unit, 9) + 3 : 0);
+        const float Pad   = std::clamp((FieldWide - Inked) * 0.5f, 3.0f, 8.0f);
+        const float FieldLeft = Right - 20 - 4 - FieldWide;
+        Draw->AddRectFilled(At(FieldLeft - 4 - 20, Top), At(FieldLeft - 4, Top + 20), RaisedFill, 7);
+        Draw->AddRect(At(FieldLeft - 4 - 20, Top), At(FieldLeft - 4, Top + 20), Stroke, 7);
+        Plain(FieldLeft - 4 - 13, Top + 4, "-", 12, TextDim);
+        Draw->AddRectFilled(At(FieldLeft, Top), At(FieldLeft + FieldWide, Top + 20), FieldFill, 9);
+        Draw->AddRect(At(FieldLeft, Top), At(FieldLeft + FieldWide, Top + 20), Stroke, 9);
+        const float UnitWide = Unit && Unit[0] ? PlainWide(Unit, 9) + 3 : 0;
+        Draw->PushClipRect(At(FieldLeft + 2, Top), At(FieldLeft + FieldWide - 2, Top + 20), true);
+        Plain(FieldLeft + FieldWide - Pad - UnitWide - PlainWide(Figure, 12.5f), Top + 3, Figure, 12.5f, Text);
+        if (UnitWide > 0)
         {
-            // 3 px rail with a 10 px radius, filled to the handle, exactly as the stylesheet declares.
-            Draw->AddRectFilled(At(X, Y - TrackHigh * 0.5f), At(X + Width, Y + TrackHigh * 0.5f), Track, TrackHigh * 0.5f);
-            Draw->AddRectFilled(At(X, Y - TrackHigh * 0.5f), At(HandleX, Y + TrackHigh * 0.5f), Filled, TrackHigh * 0.5f);
+            Plain(FieldLeft + FieldWide - Pad - UnitWide + 3, Top + 6, Unit, 9, TextDim);
         }
-        // The thumb carries a 4 px ring of card background, so the rail does not run under it.
-        Draw->AddCircleFilled(At(HandleX, Y), KnobRadius + KnobRing, CardTop, 28);
-        Draw->AddCircleFilled(At(HandleX, Y), KnobRadius, Knob, 24);
-        return Bound->Figure;
+        Draw->PopClipRect();
+        Draw->AddRectFilled(At(Right - 20, Top), At(Right, Top + 20), RaisedFill, 7);
+        Draw->AddRect(At(Right - 20, Top), At(Right, Top + 20), Stroke, 7);
+        Plain(Right - 13, Top + 4, "+", 12, TextDim);
     }
 
-    float Value(const char* Name, float Fallback) const
+    // controls.js tape — a ruler with the range written on it, ticks you can count, and a marker on the value.
+    //    Forty-one ticks, long every tenth, lit up to the value. 8 px pad, the baseline 11 px off the foot.
+    static constexpr float TapeHigh = 10 + 12 + 1 + 30 + 12;
+
+    float Tape(float Y, const char* Label, EditorProperty* Bound, float Fallback, float Low, float High,
+               int Decimals, const char* Unit, const char* const Marks[3], const float MarkAt[3], int MarkCount) const
     {
-        const EditorProperty* Bound = Find(const_cast<EditorSheet&>(Sheet), Name);
-        return Bound ? Bound->Figure : Fallback;
+        const float Left = CardPadX, Span = Wide - CardPadX * 2;
+        float Figure = Bound ? Bound->Figure : Fallback;
+        const float Floor = Bound ? Bound->Minimum : Low, Ceiling = Bound ? Bound->Maximum : High;
+
+        if (Bound)
+        {
+            ImGui::PushID(Label);
+            ImGui::SetCursorScreenPos(At(Left, Y + 23));
+            ImGui::InvisibleButton("##tape", {std::max(12.0f, Span), 30});
+            if (ImGui::IsItemActive())
+            {
+                const float Local = ImGui::GetIO().MousePos.x - At(Left + 8, 0).x;
+                const float Share = std::clamp(Local / std::max(1.0f, Span - 16), 0.0f, 1.0f);
+                Bound->Figure = Floor + Share * (Ceiling - Floor);
+                Figure = Bound->Figure;
+            }
+            ImGui::PopID();
+        }
+
+        Caps(Left, Y + 10, Label, 9.5f, TextFaint, 1.3f);
+        char Reading[32];
+        Fixed(Reading, sizeof(Reading), Figure, Decimals);
+        Stepper(Left + Span, Y + 7, Reading, Unit, 58);
+
+        const float Top  = Y + 23;
+        const float Pad  = 8, Ruler = Span - Pad * 2, Base = Top + 30 - 11;
+        const float Share = std::clamp((Figure - Floor) / std::max(0.00001f, Ceiling - Floor), 0.0f, 1.0f);
+        for (int Tick = 0; Tick <= 40; ++Tick)
+        {
+            const float Stop  = static_cast<float>(Tick) / 40.0f;
+            const bool  Major = Tick % 10 == 0;
+            const bool  Lit   = Stop <= Share;
+            const ImU32 Ink   = Major ? IM_COL32(255, 255, 255, 77)
+                                      : IM_COL32(255, 255, 255, Lit ? 56 : 23);
+            const float Long  = Major ? 9.0f : (Tick % 5 == 0 ? 6.0f : 4.0f);
+            const float X     = Left + Pad + Stop * Ruler;
+            Draw->AddLine(At(X, Base - Long), At(X, Base), Ink, 1);
+        }
+        Draw->AddLine(At(Left + Pad, Base + 0.5f), At(Left + Pad + Ruler, Base + 0.5f), IM_COL32(255, 255, 255, 26), 1);
+
+        // A tape with no named marks still writes its range on itself, at both ends.
+        char LowLabel[24], HighLabel[24];
+        Fixed(LowLabel, sizeof(LowLabel), Floor, Decimals);
+        Fixed(HighLabel, sizeof(HighLabel), Ceiling, Decimals);
+        const char* const Ends[2] = {LowLabel, HighLabel};
+        const float       EndAt[2] = {0.0f, 1.0f};
+        const char* const* Written = MarkCount > 0 ? Marks : Ends;
+        const float*       WrittenAt = MarkCount > 0 ? MarkAt : EndAt;
+        const int          WrittenCount = MarkCount > 0 ? MarkCount : 2;
+        for (int Slot = 0; Slot < WrittenCount; ++Slot)
+        {
+            const float X = Left + Pad + WrittenAt[Slot] * Ruler;
+            const float Measure = PlainWide(Written[Slot], 8);
+            const float Anchor = WrittenAt[Slot] <= 0 ? X : WrittenAt[Slot] >= 1 ? X - Measure : X - Measure * 0.5f;
+            Baseline(Anchor, Top + 30 - 1, Written[Slot], 8, IM_COL32(255, 255, 255, 71));
+        }
+
+        const float Mark = Left + Pad + Share * Ruler;
+        Draw->AddTriangleFilled(At(Mark, Base - 13), At(Mark + 4, Base - 19), At(Mark - 4, Base - 19), IM_COL32_WHITE);
+        Draw->AddLine(At(Mark, Base - 12), At(Mark, Base), IM_COL32(255, 255, 255, 217), 1.4f);
+        return Figure;
     }
 
-    // .volume-subheading — uppercase kicker with a right-aligned qualifier.
-    void Subheading(float X, float Y, float Width, const char* Kicker, const char* Note) const
+    // .li-steppers / .al-steppers — three axis cells across, each a black capsule with its letter above.
+    static constexpr float AxisHigh = 6 + 10 + 4 + 20 + 6 + 8;
+
+    void AxisRow(float Y, EditorProperty* Bound, const float Fallback[3], const char* Unit) const
     {
-        Write(X, Y, Kicker, 9, IM_COL32(150, 150, 150, 255));
-        WriteRight(X + Width, Y, Note, 9, Faint);
+        const float Span = (Wide - CardPadX * 2 - 10) / 3.0f;
+        for (int Axis = 0; Axis < 3; ++Axis)
+        {
+            const float Left = CardPadX + Axis * (Span + 5);
+            Draw->AddRectFilled(At(Left, Y), At(Left + Span, Y + AxisHigh - 8), FieldFill, 11);
+            Draw->AddRect(At(Left, Y), At(Left + Span, Y + AxisHigh - 8), Stroke, 11);
+            Caps(Left + 6, Y + 6, Axis == 0 ? "X" : Axis == 1 ? "Y" : "Z", 8, TextFaint, 1.0f);
+            char Reading[32];
+            Fixed(Reading, sizeof(Reading), Bound ? Bound->Axes[Axis] : Fallback[Axis], 2);
+            Stepper(Left + Span - 6, Y + 20, Reading, Axis == 0 ? Unit : "", Span - 12 - 48);
+        }
     }
 
-    // A labelled numeric field from .volume-fields.
-    void Field(float X, float Y, float Width, const char* Label, const char* Body, const char* Unit) const
+    // .mp-tags — state pills: a 7 px dot that goes green when the state is on, and a tracked word.
+    static constexpr float TagsHigh = 8 + 20 + 2;
+
+    void Tags(float Y, const char* const Labels[], const bool States[], int Count) const
     {
-        Write(X, Y, Label, 10, Muted);
-        Draw->AddRectFilled(At(X, Y + 17), At(X + Width, Y + 45), FieldFill, 6);
-        Draw->AddRect(At(X, Y + 17), At(X + Width, Y + 45), FieldEdge, 6);
-        Write(X + 10, Y + 26, Body, 10, IM_COL32(214, 214, 214, 255));
-        WriteRight(X + Width - 10, Y + 26, Unit, 9, Faint);
+        float Left = CardPadX;
+        for (int Slot = 0; Slot < Count; ++Slot)
+        {
+            const float Body = CapsWide(Labels[Slot], 8.5f, 1.2f);
+            const float Span = 9 + 7 + 5 + Body + 9;
+            if (Left + Span > Wide - CardPadX && Left > CardPadX)
+            {
+                Left = CardPadX;
+                Y += 25;
+            }
+            Draw->AddRectFilled(At(Left, Y + 8), At(Left + Span, Y + 28), States[Slot] ? InsetFill : IM_COL32(0, 0, 0, 0), 10);
+            Draw->AddRect(At(Left, Y + 8), At(Left + Span, Y + 28), States[Slot] ? StrokeStrong : Stroke, 10);
+            if (States[Slot])
+            {
+                Draw->AddCircleFilled(At(Left + 12.5f, Y + 18), 5.5f, Blend(Ok, 0.35f), 18);
+            }
+            Draw->AddCircleFilled(At(Left + 12.5f, Y + 18), 3.5f, States[Slot] ? Ok : TextFaint, 14);
+            Caps(Left + 21, Y + 13, Labels[Slot], 8.5f, States[Slot] ? Text : TextFaint, 1.2f);
+            Left += Span + 5;
+        }
     }
 
-    // A paired slider with a bold inline readout and an italic caption, from .light-cone-controls.
-    void CaptionedSlider(float X, float Y, float Width, const char* Label, const char* Readout,
-                         const char* Caption, const char* Bound) const
+    // .mp-meter — a black instrument well with a tracked heading and a canvas under it.
+    void Meter(float Y, float CanvasHigh, const char* Head) const
     {
-        Write(X, Y, Label, 10, Muted);
-        WriteRight(X + Width, Y, Readout, 11, Ink);
-        Slider(X, Y + 28, Width, Bound);
-        Write(X, Y + 40, Caption, 9, Faint);
-    }
-
-    // .light-support-row — a status dot and a sentence that names the real standing.
-    void StatusRow(float X, float Y, float Width, bool Supported, const char* Body) const
-    {
-        Draw->AddCircleFilled(At(X + 4, Y + 5), 4, Supported ? Lit : Unlit, 16);
-        Wrap(X + 16, Y, Width - 16, Body, 10, IM_COL32(178, 178, 178, 255));
+        const float Left = CardPadX, Span = Wide - CardPadX * 2;
+        const float High = 2 + 19 + CanvasHigh;
+        Draw->AddRectFilled(At(Left, Y + 2), At(Left + Span, Y + 2 + High), FieldFill, InsetRadius);
+        Draw->AddRect(At(Left, Y + 2), At(Left + Span, Y + 2 + High), Stroke, InsetRadius);
+        Caps(Left + 9, Y + 10, Head, 8.5f, TextFaint, 1.1f);
     }
 };
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                     PHOTOMETRIC POLAR
+//                                                      PHOTOMETRIC HERO
 //------------------------------------------------------------------------------------------------------------------------
-// Luminous-intensity distribution. A point source fills the sphere, a spot shows the cone with a soft
-// shoulder between the inner and outer angle, and the surface emitters show the Lambertian cosine lobe.
+// lights.js paintHero. A point source lays concentric falloff discs with reach rings over them; a spot lays
+//    the lit wedge with a dashed inner cone at angle * (1 - penumbra). Both carry the glow and corner readouts.
 
-void PhotometricPolar(const LightPanel& Panel, float X, float Y, float Width, unsigned Kind, float Inner, float Outer)
+void HeroSurface(const DepotPanel& Panel, float Top, float High, bool Spot,
+                 const float Tint[3], float Intensity, float Reach, float Angle, float Penumbra, float Decay)
 {
-    const float CentreX = X + Width * 0.5f;
-    const float CentreY = Y + 102;
-    const float Radius  = 90;
+    ImDrawList* Draw = Panel.Draw;
+    const float Wide = Panel.Wide;
+    Draw->PushClipRect(Panel.At(0, Top), Panel.At(Wide, Top + High), true);
+    Draw->AddRectFilled(Panel.At(0, Top), Panel.At(Wide, Top + High), PlotFill);
 
-    for (int Ring = 1; Ring <= 4; ++Ring)
+    const float CentreX = Spot ? Wide * 0.22f : Wide * 0.5f;
+    const float CentreY = Top + (Spot ? High * 0.5f : High * 0.47f);
+
+    if (Spot)
     {
-        Panel.Draw->AddCircle(Panel.At(CentreX, CentreY), Radius * Ring / 4.0f, IM_COL32(255, 255, 255, 11), 72, 1);
-    }
-    for (int Spoke = 0; Spoke < 12; ++Spoke)
-    {
-        const float Angle = Spoke * 3.14159265f / 6.0f;
-        Panel.Draw->AddLine(Panel.At(CentreX, CentreY),
-                            Panel.At(CentreX + std::sin(Angle) * Radius, CentreY + std::cos(Angle) * Radius),
-                            IM_COL32(255, 255, 255, 9), 1);
-    }
-
-    // Sample the authored distribution; 0 degrees points down the beam axis, as in the reference.
-    ImVec2 Lobe[129];
-    int    Samples = 0;
-    for (int Step = 0; Step <= 128; ++Step)
-    {
-        const float Degrees = -180.0f + Step * 360.0f / 128.0f;
-        const float Away    = std::fabs(Degrees);
-        float       Gain    = 0;
-        if (Kind == 0)
-        {
-            Gain = 1;
-        }
-        else if (Kind == 1)
-        {
-            const float Half  = Outer * 0.5f;
-            const float Core  = Inner * 0.5f;
-            Gain = Away <= Core ? 1.0f
-                 : Away >= Half ? 0.0f
-                 : 1.0f - (Away - Core) / std::max(0.001f, Half - Core);
-        }
-        else
-        {
-            Gain = Away <= 90.0f ? std::cos(Away * 3.14159265f / 180.0f) : 0.0f;
-        }
-        if (Gain <= 0.0f)
-        {
-            continue;
-        }
-        const float Angle = Degrees * 3.14159265f / 180.0f;
-        Lobe[Samples++] = Panel.At(CentreX + std::sin(Angle) * Radius * Gain,
-                                   CentreY + std::cos(Angle) * Radius * Gain);
-    }
-    if (Samples >= 3)
-    {
-        Panel.Draw->AddConvexPolyFilled(Lobe, Samples, IM_COL32(233, 198, 123, 28));
-        Panel.Draw->AddPolyline(Lobe, Samples, Amber, Kind == 0 ? ImDrawFlags_Closed : ImDrawFlags_None, 1.4f);
-    }
-    if (Kind != 0)
-    {
-        Panel.Draw->AddLine(Panel.At(CentreX, CentreY), Panel.At(Lobe[0].x - Panel.Origin.x, Lobe[0].y - Panel.Origin.y),
-                            IM_COL32(233, 198, 123, 90), 1.2f);
-        Panel.Draw->AddLine(Panel.At(CentreX, CentreY),
-                            Panel.At(Lobe[Samples - 1].x - Panel.Origin.x, Lobe[Samples - 1].y - Panel.Origin.y),
-                            IM_COL32(233, 198, 123, 90), 1.2f);
-    }
-    Panel.Draw->AddCircleFilled(Panel.At(CentreX, CentreY), 3, Amber, 16);
-    Panel.Write(CentreX - Radius - 32, CentreY - 5, "90\xC2\xB0", 10, Faint);
-    Panel.Write(CentreX + Radius + 14, CentreY - 5, "90\xC2\xB0", 10, Faint);
-    Panel.Write(CentreX - 7, CentreY + Radius + 10, "0\xC2\xB0", 10, Faint);
-}
-
-//------------------------------------------------------------------------------------------------------------------------
-//                                                        FALLOFF CURVE
-//------------------------------------------------------------------------------------------------------------------------
-// Inverse-square attenuation across the authored reach, marking the half-illuminance distance.
-
-void FalloffCurve(const LightPanel& Panel, float X, float Y, float Width, float Reach)
-{
-    const float Left = X + 34, Right = X + Width - 14, Top = Y + 6, Bottom = Y + 82;
-    for (int Row = 0; Row <= 2; ++Row)
-    {
-        const float Line = Top + Row * (Bottom - Top) / 2.0f;
-        for (float Dash = Left; Dash < Right; Dash += 7)
-        {
-            Panel.Draw->AddLine(Panel.At(Dash, Line), Panel.At(std::min(Dash + 2, Right), Line),
-                                IM_COL32(255, 255, 255, 14), 1);
-        }
-    }
-    ImVec2 Curve[97];
-    for (int Step = 0; Step <= 96; ++Step)
-    {
-        const float Distance    = 0.6f + Reach * Step / 96.0f;
-        const float Attenuation = std::min(1.0f, 1.0f / std::max(0.36f, Distance * Distance));
-        Curve[Step] = Panel.At(Left + (Right - Left) * Step / 96.0f, Bottom - Attenuation * (Bottom - Top));
-    }
-    Panel.Draw->AddPolyline(Curve, 97, IM_COL32(159, 183, 212, 235), ImDrawFlags_None, 1.6f);
-
-    const float Half = 1.41421f;
-    if (Half <= Reach)
-    {
-        const float Marker = Left + (Right - Left) * (Half - 0.6f) / std::max(0.001f, Reach);
-        for (float Dash = Top; Dash < Bottom; Dash += 6)
-        {
-            Panel.Draw->AddLine(Panel.At(Marker, Dash), Panel.At(Marker, std::min(Dash + 3, Bottom)),
-                                IM_COL32(159, 183, 212, 110), 1);
-        }
-        Panel.Write(Marker + 6, Top + 2, "50 % at 1.41 m", 9, Faint);
-    }
-    char Far[32];
-    std::snprintf(Far, sizeof(Far), "%.0f m", double(Reach));
-    Panel.Write(Left, Bottom + 6, "0 m", 9, Faint);
-    Panel.WriteRight(Right, Bottom + 6, Far, 9, Faint);
-}
-
-//------------------------------------------------------------------------------------------------------------------------
-//                                                          BEAM CONE
-//------------------------------------------------------------------------------------------------------------------------
-// Side elevation of the cone against a floor plane, with the lit pool drawn at the authored reach.
-
-void BeamCone(const LightPanel& Panel, float X, float Y, float Width, float Inner, float Outer, float Reach)
-{
-    const float Apex   = X + Width * 0.5f;
-    const float Top    = Y + 18;
-    const float Floor  = Y + 150;
-    const float Depth  = Floor - Top;
-    const float Spread = std::tan(std::min(84.0f, Outer * 0.5f) * 3.14159265f / 180.0f) * Depth;
-    const float Core   = std::tan(std::min(84.0f, Inner * 0.5f) * 3.14159265f / 180.0f) * Depth;
-
-    Panel.Draw->AddRectFilled(Panel.At(Apex - 13, Top - 13), Panel.At(Apex + 13, Top - 2),
-                              IM_COL32(60, 60, 60, 255), 3);
-    const ImVec2 Outside[3] = {Panel.At(Apex, Top), Panel.At(Apex - Spread, Floor), Panel.At(Apex + Spread, Floor)};
-    Panel.Draw->AddConvexPolyFilled(Outside, 3, IM_COL32(233, 198, 123, 26));
-    Panel.Draw->AddLine(Outside[0], Outside[1], Amber, 1.4f);
-    Panel.Draw->AddLine(Outside[0], Outside[2], Amber, 1.4f);
-    const ImVec2 Inside[3] = {Panel.At(Apex, Top), Panel.At(Apex - Core, Floor), Panel.At(Apex + Core, Floor)};
-    Panel.Draw->AddConvexPolyFilled(Inside, 3, IM_COL32(233, 198, 123, 34));
-    for (float Dash = Top; Dash < Floor; Dash += 7)
-    {
-        Panel.Draw->AddLine(Panel.At(Apex, Dash), Panel.At(Apex, std::min(Dash + 3, Floor)),
-                            IM_COL32(233, 198, 123, 120), 1);
-    }
-    Panel.Draw->AddLine(Panel.At(X + 10, Floor), Panel.At(X + Width - 10, Floor), IM_COL32(255, 255, 255, 26), 1);
-    Panel.Draw->AddEllipse(Panel.At(Apex, Floor), {Spread, 11}, IM_COL32(233, 198, 123, 90), 0, 48, 1.2f);
-    Panel.Draw->AddCircleFilled(Panel.At(Apex, Top), 3.5f, Amber, 16);
-
-    char Span[40];
-    std::snprintf(Span, sizeof(Span), "%.0f m reach", double(Reach));
-    Panel.Write(X + 14, Floor + 10, "floor plane", 9, Faint);
-    Panel.WriteRight(X + Width - 14, Floor + 10, Span, 9, Faint);
-}
-
-//------------------------------------------------------------------------------------------------------------------------
-//                                                       EMITTER FIGURE
-//------------------------------------------------------------------------------------------------------------------------
-// Dimensioned schematic of the emitting surface for the rectangle, tube and strip.
-
-void EmitterFigure(const LightPanel& Panel, float X, float Y, float Width, unsigned Kind,
-                   float PanelWidth, float PanelHeight, float Length, float Radius)
-{
-    const float CentreX = X + Width * 0.5f;
-    const float CentreY = Y + 52;
-    char Caption[64];
-
-    if (Kind == 2)
-    {
-        const float Scale = std::min(150.0f / std::max(0.05f, PanelWidth), 72.0f / std::max(0.05f, PanelHeight));
-        const float HalfW = std::max(12.0f, PanelWidth * Scale * 0.5f);
-        const float HalfH = std::max(8.0f, PanelHeight * Scale * 0.5f);
-        Panel.Draw->AddRectFilled(Panel.At(CentreX - HalfW, CentreY - HalfH), Panel.At(CentreX + HalfW, CentreY + HalfH),
-                                  IM_COL32(233, 198, 123, 36), 4);
-        Panel.Draw->AddRect(Panel.At(CentreX - HalfW, CentreY - HalfH), Panel.At(CentreX + HalfW, CentreY + HalfH),
-                            Amber, 4, 0, 1.4f);
-        std::snprintf(Caption, sizeof(Caption), "%.2f m \xC3\x97 %.2f m", double(PanelWidth), double(PanelHeight));
-    }
-    else if (Kind == 3)
-    {
-        const float Half = std::max(18.0f, std::min(150.0f, Length * 48.0f) * 0.5f);
-        const float Thick = std::max(4.0f, std::min(26.0f, Radius * 220.0f));
-        Panel.Draw->AddRectFilled(Panel.At(CentreX - Half, CentreY - Thick), Panel.At(CentreX + Half, CentreY + Thick),
-                                  IM_COL32(233, 198, 123, 36), Thick);
-        Panel.Draw->AddRect(Panel.At(CentreX - Half, CentreY - Thick), Panel.At(CentreX + Half, CentreY + Thick),
-                            Amber, Thick, 0, 1.4f);
-        std::snprintf(Caption, sizeof(Caption), "%.2f m long \xC2\xB7 %.3f m radius", double(Length), double(Radius));
+        const float Half = Angle * Pi / 360.0f;
+        const float Reachable = Wide * 0.65f;
+        const float Rise = std::tan(Half) * Reachable;
+        // The lit wedge: a linear wash from the apex out to the rim, capped by a quadratic bulge.
+        const int First = Draw->VtxBuffer.Size;
+        Draw->PathLineTo(Panel.At(CentreX, CentreY));
+        Draw->PathLineTo(Panel.At(Wide - 10, CentreY - Rise));
+        Draw->PathBezierQuadraticCurveTo(Panel.At(Wide - 3, CentreY), Panel.At(Wide - 10, CentreY + Rise), 18);
+        Draw->PathFillConvex(IM_COL32_WHITE);
+        ShadeAcross(Draw, First, Draw->VtxBuffer.Size, Panel.At(CentreX, 0).x, Panel.At(Wide, 0).x,
+                    FromBytes(Tint, 0.65f), FromBytes(Tint, 0.03f));
+        const float Inner = Half * (1 - Penumbra);
+        const float InnerRise = std::tan(Inner) * Reachable;
+        DashedLine(Draw, Panel.At(CentreX, CentreY), Panel.At(Wide - 10, CentreY - InnerRise), IM_COL32(255, 255, 255, 71), 3, 3);
+        DashedLine(Draw, Panel.At(CentreX, CentreY), Panel.At(Wide - 10, CentreY + InnerRise), IM_COL32(255, 255, 255, 71), 3, 3);
+        Draw->AddLine(Panel.At(CentreX, CentreY), Panel.At(Wide - 10, CentreY - Rise), IM_COL32(255, 255, 255, 166), 1);
+        Draw->AddLine(Panel.At(CentreX, CentreY), Panel.At(Wide - 10, CentreY + Rise), IM_COL32(255, 255, 255, 166), 1);
     }
     else
     {
-        const float Half     = std::max(24.0f, std::min(160.0f, 52.0f + Length * 17.0f) * 0.5f);
-        const int   Segments = std::max(4, std::min(26, int(std::lround(Length * 4))));
-        Panel.Draw->AddRectFilled(Panel.At(CentreX - Half, CentreY - 9), Panel.At(CentreX + Half, CentreY + 9),
-                                  IM_COL32(233, 198, 123, 26), 4);
-        Panel.Draw->AddRect(Panel.At(CentreX - Half, CentreY - 9), Panel.At(CentreX + Half, CentreY + 9),
-                            Amber, 4, 0, 1.3f);
-        for (int Slot = 0; Slot < Segments; ++Slot)
+        for (float Ring = 70; Ring > 4; Ring -= 3)
         {
-            const float Step = CentreX - Half + 7 + (Half * 2 - 14) * (Slot + 0.5f) / Segments;
-            Panel.Draw->AddRectFilled(Panel.At(Step - 2.6f, CentreY - 4.5f), Panel.At(Step + 2.6f, CentreY + 4.5f),
-                                      IM_COL32(243, 219, 162, 235), 1.5f);
+            const float Distance = Ring / 70.0f * Reach;
+            const float Alpha = std::clamp(LuxAt(Intensity, Distance, Decay) / std::max(1.0f, Intensity), 0.0f, 1.0f) * 0.35f;
+            Draw->AddCircleFilled(Panel.At(CentreX, CentreY), Ring, FromBytes(Tint, Alpha), 64);
         }
-        std::snprintf(Caption, sizeof(Caption), "%.2f m \xC2\xB7 %d drawn segments", double(Length), Segments);
+        const float Fractions[] = {0.25f, 0.5f, 0.75f, 1.0f};
+        for (float Share : Fractions)
+        {
+            Draw->AddCircle(Panel.At(CentreX, CentreY), 70 * Share, IM_COL32(255, 255, 255, 28), 64, 1.0f);
+            if (Share == 0.5f || Share == 1.0f)
+            {
+                char Legend[24];
+                std::snprintf(Legend, sizeof(Legend), "%d m", static_cast<int>(std::lround(Reach * Share)));
+                Panel.Baseline(CentreX + 70 * Share + 3, CentreY - 4, Legend, 8, IM_COL32(255, 255, 255, 77));
+            }
+        }
     }
-    Panel.Draw->AddLine(Panel.At(CentreX - 60, CentreY + 32), Panel.At(CentreX + 60, CentreY + 32),
-                        IM_COL32(255, 255, 255, 22), 1);
-    Panel.Write(CentreX - Panel.Measure(Caption, 9) * 0.5f, CentreY + 40, Caption, 9, Faint);
+
+    GlowWash(Draw, Panel.At(CentreX, CentreY), 16, FromBytes(Tint, 0.9f));
+
+    char Reading[32];
+    std::snprintf(Reading, sizeof(Reading), "%.*f cd", Spot ? 0 : 1, Intensity);
+    Panel.Baseline(8, Top + 13, Spot ? "0° AXIS" : "ISOTROPIC 360°", 8, IM_COL32(255, 255, 255, 82));
+    Panel.BaselineRight(Wide - 8, Top + 13, Reading, 8, IM_COL32(255, 255, 255, 82));
+    Draw->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                      PHOTOMETRY CURVE
+//------------------------------------------------------------------------------------------------------------------------
+// lights.js paintCurve. Illuminance against distance on a log vertical, the area under it washed in the
+//    emission colour, quartile rules dashed behind, and a white dot marking the five-metre reading.
+
+void PhotometryCurve(const DepotPanel& Panel, float Left, float Top, float Wide, float High,
+                     const float Tint[3], float Intensity, float Reach, float Decay, bool Spot)
+{
+    ImDrawList* Draw = Panel.Draw;
+    Draw->PushClipRect(Panel.At(Left, Top), Panel.At(Left + Wide, Top + High), true);
+    const float Pad = 8, Rim = 31, Head = 8, Foot = 17;
+    const float Ceiling = std::max(1.0f, Intensity);
+    const float Furthest = Spot ? 30.0f : Reach;
+    auto AtX = [&](float Distance) { return Left + Pad + Distance / std::max(Furthest, 10.0f) * (Wide - Pad - Rim); };
+    auto AtY = [&](float Lux)
+    {
+        const float Share = std::clamp(std::log10(Lux + 0.01f) / std::log10(Ceiling + 0.01f), 0.0f, 1.0f);
+        return Top + Head + (1 - Share) * (High - Head - Foot);
+    };
+
+    const float Quartiles[] = {0.25f, 0.5f, 0.75f, 1.0f};
+    for (float Share : Quartiles)
+    {
+        const float Y = Top + Head + (1 - Share) * (High - Head - Foot);
+        DashedLine(Draw, Panel.At(Left + Pad, Y), Panel.At(Left + Wide - Rim, Y), IM_COL32(255, 255, 255, 18), 2, 5);
+    }
+
+    const float Step = 0.3f;
+    Draw->PathClear();
+    for (float Distance = 1; Distance <= Furthest; Distance += Step)
+    {
+        Draw->PathLineTo(Panel.At(AtX(Distance), AtY(LuxAt(Intensity, Distance, Decay))));
+    }
+    Draw->PathLineTo(Panel.At(AtX(Furthest), Top + High - Foot));
+    Draw->PathLineTo(Panel.At(AtX(1), Top + High - Foot));
+    Draw->PathFillConcave(FromBytes(Tint, 0.22f));
+
+    Draw->PathClear();
+    for (float Distance = 1; Distance <= Furthest; Distance += Step)
+    {
+        Draw->PathLineTo(Panel.At(AtX(Distance), AtY(LuxAt(Intensity, Distance, Decay))));
+    }
+    Draw->PathStroke(IM_COL32(255, 255, 255, 230), 1.0f);
+
+    const float Stops[] = {1, 5, 10, Furthest};
+    for (int Slot = 0; Slot < 4; ++Slot)
+    {
+        char Legend[24];
+        if (Slot == 3)
+        {
+            std::snprintf(Legend, sizeof(Legend), "%.0f m", Stops[3]);
+            Panel.BaselineRight(AtX(Stops[3]), Top + High - 3, Legend, 8, IM_COL32(255, 255, 255, 71));
+        }
+        else
+        {
+            std::snprintf(Legend, sizeof(Legend), "%.0f", Stops[Slot]);
+            if (Slot == 0)
+            {
+                Panel.Baseline(AtX(Stops[0]), Top + High - 3, Legend, 8, IM_COL32(255, 255, 255, 71));
+            }
+            else
+            {
+                Panel.BaselineMid(AtX(Stops[Slot]), Top + High - 3, Legend, 8, IM_COL32(255, 255, 255, 71));
+            }
+        }
+    }
+    Draw->AddCircleFilled(Panel.At(AtX(5), AtY(LuxAt(Intensity, 5, Decay))), 3, IM_COL32_WHITE, 20);
+    Draw->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                         AIM PLAN
+//------------------------------------------------------------------------------------------------------------------------
+// lights.js paintAim. A twenty-metre world plan: an eight-by-eight grid with the centre lines brighter, the
+//    source as a filled dot in its emission colour, and for a spot the throw line out to the target.
+
+void AimPlan(const DepotPanel& Panel, float Left, float Top, float Wide, float High,
+             const float Tint[3], const float Source[3], const float Target[3], bool Spot)
+{
+    ImDrawList* Draw = Panel.Draw;
+    Draw->PushClipRect(Panel.At(Left, Top), Panel.At(Left + Wide, Top + High), true);
+    Draw->AddRectFilled(Panel.At(Left, Top), Panel.At(Left + Wide, Top + High), PlotFill);
+    const float CentreX = Left + Wide * 0.5f, CentreY = Top + High * 0.5f;
+    const float Span = std::min(Wide, High) - 20;
+    for (int Step = -4; Step <= 4; ++Step)
+    {
+        const ImU32 Ink = Step ? IM_COL32(255, 255, 255, 15) : IM_COL32(255, 255, 255, 46);
+        Draw->AddLine(Panel.At(CentreX + Step * Span / 8, Top + 10),
+                      Panel.At(CentreX + Step * Span / 8, Top + High - 10), Ink, 1);
+        Draw->AddLine(Panel.At(CentreX - Span / 2, CentreY + Step * Span / 8),
+                      Panel.At(CentreX + Span / 2, CentreY + Step * Span / 8), Ink, 1);
+    }
+    auto Plot = [&](const float World[3])
+    {
+        return ImVec2{CentreX + std::clamp(World[0] / 20.0f, -1.0f, 1.0f) * Span / 2,
+                      CentreY + std::clamp(World[2] / 20.0f, -1.0f, 1.0f) * Span / 2};
+    };
+    const ImVec2 Here = Plot(Source), There = Plot(Target);
+    if (Spot)
+    {
+        Draw->AddLine(Panel.At(Here.x, Here.y), Panel.At(There.x, There.y), FromBytes(Tint, 0.75f), 1);
+        Draw->AddCircleFilled(Panel.At(There.x, There.y), 4, IM_COL32_WHITE, 20);
+    }
+    Draw->AddCircleFilled(Panel.At(Here.x, Here.y), 6, FromBytes(Tint, 1.0f), 24);
+    Draw->AddCircle(Panel.At(Here.x, Here.y), 9, IM_COL32_WHITE, 28, 1.0f);
+    Draw->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                     SHAPED EMITTER HERO
+//------------------------------------------------------------------------------------------------------------------------
+// advancedLights.js paintHero. An area light draws its aperture with floor ellipses under it; a tube draws a
+//    bloomed capsule; an IES lamp rasters its candela field over the H-V plane with the profile shaping it.
+
+void EmitterHero(const DepotPanel& Panel, float Top, float High, EmitterKind Kind, const float Tint[3],
+                 float Width, float Height, float Length, float Radius, float Cone, float Cutoff,
+                 float Multiplier, unsigned Profile)
+{
+    ImDrawList* Draw = Panel.Draw;
+    const float Wide = Panel.Wide;
+    Draw->PushClipRect(Panel.At(0, Top), Panel.At(Wide, Top + High), true);
+    Draw->AddRectFilled(Panel.At(0, Top), Panel.At(Wide, Top + High), EmitterFill);
+    const float CentreX = Wide * 0.5f, CentreY = Top + High * 0.44f;
+
+    if (Kind == EmitterKind::Ies)
+    {
+        const float Half = Cone * Pi / 360.0f, Pitch = Cutoff * Pi / 180.0f;
+        const bool  Low  = Profile == 0 || Profile == 1;
+        for (float Y = Top + 8; Y < Top + High - 25; Y += 3)
+        {
+            for (float X = 4; X < Wide - 4; X += 3)
+            {
+                const float Nx = (X - CentreX) / (Wide * 0.47f), Ny = (Y - CentreY) / (High * 0.42f);
+                const float Bearing = std::atan2(Ny, Nx), Reach = std::sqrt(Nx * Nx + Ny * Ny);
+                float Beam = std::fabs(Bearing - Pitch) < Half
+                           ? std::exp(-Reach * Reach * (Profile == 2 ? 6.0f : 2.2f)) : 0.0f;
+                if (Low && Ny < -0.04f) { Beam *= 0.06f; }
+                if (Profile == 3)       { Beam *= std::exp(-Ny * Ny * 18.0f); }
+                if (Profile == 4)       { Beam = 0.18f * std::exp(-Reach * Reach * 1.3f); }
+                if (Beam > 0.004f)
+                {
+                    Draw->AddRectFilled(Panel.At(X, Y), Panel.At(X + 3.2f, Y + 3.2f), FromBytes(Tint, Beam * 0.58f * Multiplier));
+                }
+            }
+        }
+        Draw->AddLine(Panel.At(CentreX, CentreY), Panel.At(Wide - 8, CentreY - std::tan(Half - Pitch) * (Wide * 0.47f)),
+                      IM_COL32(255, 255, 255, 140), 1);
+        Draw->AddLine(Panel.At(CentreX, CentreY), Panel.At(Wide - 8, CentreY + std::tan(Half + Pitch) * (Wide * 0.47f)),
+                      IM_COL32(255, 255, 255, 140), 1);
+        DashedLine(Draw, Panel.At(8, CentreY), Panel.At(Wide - 8, CentreY), IM_COL32(255, 255, 255, 64), 3, 3);
+        Panel.Baseline(8, Top + 13, "H-V PHOTOMETRIC PLANE", 8, IM_COL32(255, 255, 255, 97));
+    }
+    else if (Kind == EmitterKind::Area)
+    {
+        const float Across = std::clamp(Width / 20.0f, 0.0f, 1.0f) * (Wide * 0.65f) + 25;
+        const float Down   = std::clamp(Height / 20.0f, 0.0f, 1.0f) * (High * 0.55f) + 14;
+        const float Left = CentreX - Across / 2, Head = CentreY - Down / 2;
+        Draw->PushClipRect(Panel.At(Left, Head), Panel.At(Left + Across, Head + Down), true);
+        RadialWash(Draw, Panel.At(CentreX, CentreY), std::max(Across, Down), FromBytes(Tint, 0.95f), FromBytes(Tint, 0.22f), 30);
+        Draw->PopClipRect();
+        Draw->AddRect(Panel.At(Left + 0.5f, Head + 0.5f), Panel.At(Left + Across - 0.5f, Head + Down - 0.5f), IM_COL32_WHITE, 0.0f, 1.0f);
+        for (int Hoop = 1; Hoop < 4; ++Hoop)
+        {
+            Draw->AddEllipse(Panel.At(CentreX, CentreY + Down / 2), {Across * 0.3f * Hoop, Down * 0.16f * Hoop},
+                             IM_COL32(255, 255, 255, 31), 0.0f, 48, 1.0f);
+        }
+    }
+    else
+    {
+        const float Run = std::clamp(Length / 20.0f, 0.0f, 1.0f) * (Wide * 0.72f) + 30;
+        const float Thick = std::clamp(Radius, 0.01f, 1.0f) * 12 + 2;
+        const float Left = CentreX - Run / 2;
+        // shadowBlur 22 around the capsule, laid in as widening translucent skirts.
+        for (int Skirt = 6; Skirt >= 1; --Skirt)
+        {
+            const float Grow = Skirt * 3.6f;
+            Draw->AddRectFilled(Panel.At(Left - Grow, CentreY - Thick - Grow), Panel.At(Left + Run + Grow, CentreY + Thick + Grow),
+                                FromBytes(Tint, 0.07f), Thick + Grow);
+        }
+        const int First = Draw->VtxBuffer.Size;
+        Draw->AddRectFilled(Panel.At(Left, CentreY - Thick), Panel.At(Left + Run, CentreY + Thick), IM_COL32_WHITE);
+        ShadeAcross(Draw, First, Draw->VtxBuffer.Size, Panel.At(Left, 0).x, Panel.At(Left + Run * 0.15f, 0).x,
+                    FromBytes(Tint, 0.25f), FromBytes(Tint, 0.95f));
+        Draw->AddRect(Panel.At(Left, CentreY - Thick), Panel.At(Left + Run, CentreY + Thick), IM_COL32(255, 255, 255, 204), 0.0f, 1.0f);
+    }
+    Draw->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                     DISTRIBUTION SURFACE
+//------------------------------------------------------------------------------------------------------------------------
+// advancedLights.js paintDist. An IES lamp sweeps its candela fan from -80 to +80 degrees over three range
+//    rings; an area or tube emitter states its aperture as an aspect bar with the ratio written under it.
+
+void DistributionSurface(const DepotPanel& Panel, float Left, float Top, float Wide, float High,
+                         EmitterKind Kind, const float Tint[3], float Width, float Height, float Length,
+                         float Radius, float Multiplier, unsigned Profile)
+{
+    ImDrawList* Draw = Panel.Draw;
+    Draw->PushClipRect(Panel.At(Left, Top), Panel.At(Left + Wide, Top + High), true);
+    Draw->AddRectFilled(Panel.At(Left, Top), Panel.At(Left + Wide, Top + High), PlotFill);
+    const float CentreX = Left + Wide * 0.5f, CentreY = Top + High * 0.5f;
+
+    if (Kind == EmitterKind::Ies)
+    {
+        const bool Low = Profile == 0 || Profile == 1;
+        for (float Bearing = -80; Bearing <= 80; Bearing += 2)
+        {
+            const float Peak = Low
+                ? std::exp(-std::pow((Bearing - 8) / 25.0f, 2.0f)) * (Bearing > -2 ? 1.0f : 0.16f)
+                : std::exp(-std::pow(Bearing / (Profile == 2 ? 12.0f : 35.0f), 2.0f));
+            const float Reach = 8 + Peak * 45 * Multiplier;
+            const float Theta = (Bearing - 90) * Pi / 180.0f;
+            Draw->AddLine(Panel.At(CentreX, CentreY),
+                          Panel.At(CentreX + std::cos(Theta) * Reach, CentreY + std::sin(Theta) * Reach),
+                          FromBytes(Tint, 0.18f + Peak * 0.65f), 1);
+        }
+        const float Rings[] = {15, 30, 45};
+        for (float Ring : Rings)
+        {
+            Draw->AddCircle(Panel.At(CentreX, CentreY), Ring, IM_COL32(255, 255, 255, 38), 48, 1.0f);
+        }
+        Panel.Baseline(Left + 6, CentreY, "LEFT", 8, IM_COL32(255, 255, 255, 77));
+        Panel.BaselineRight(Left + Wide - 6, CentreY, "RIGHT", 8, IM_COL32(255, 255, 255, 77));
+    }
+    else
+    {
+        const float Aspect = Kind == EmitterKind::Area ? Width / std::max(0.0001f, Height)
+                                                       : Length / std::max(0.02f, Radius * 2);
+        const float Held = std::clamp(Aspect, 1.0f, 12.0f);
+        Draw->AddRectFilled(Panel.At(CentreX - Held * 8, CentreY - 9), Panel.At(CentreX + Held * 8, CentreY + 9),
+                            FromBytes(Tint, 0.5f));
+        Draw->AddRect(Panel.At(CentreX - Held * 8, CentreY - 9), Panel.At(CentreX + Held * 8, CentreY + 9),
+                      IM_COL32_WHITE, 0.0f, 1.0f);
+        char Legend[32];
+        std::snprintf(Legend, sizeof(Legend), "%.1f : 1 ASPECT", Aspect);
+        Panel.BaselineMid(CentreX, Top + High - 7, Legend, 8, IM_COL32(255, 255, 255, 77));
+    }
+    Draw->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                      PROPERTY BINDING
+//------------------------------------------------------------------------------------------------------------------------
+// The panel asks for the reference's own property names. Where the feed has not published one yet the
+//    reference default stands in, so a card always reads as the browser draws it rather than as a blank.
+
+struct Reading
+{
+    EditorProperty* Bound = nullptr;
+    float           Figure = 0;
+};
+
+Reading Pick(EditorSheet& Sheet, const char* Name, float Fallback)
+{
+    EditorProperty* Bound = Find(Sheet, Name);
+    return {Bound, Bound ? Bound->Figure : Fallback};
+}
+
+bool Flag(EditorSheet& Sheet, const char* Name, bool Fallback)
+{
+    const EditorProperty* Bound = Find(Sheet, Name);
+    return Bound ? Bound->On : Fallback;
+}
+
+void Vector(EditorSheet& Sheet, const char* Name, const float Fallback[3], float Out[3])
+{
+    const EditorProperty* Bound = Find(Sheet, Name);
+    for (int Axis = 0; Axis < 3; ++Axis)
+    {
+        Out[Axis] = Bound ? Bound->Axes[Axis] : Fallback[Axis];
+    }
 }
 
 } // namespace
 
-//------------------------------------------------------------------------------------------------------------------------
-//                                                     SCENE EMITTER SHEET
-//------------------------------------------------------------------------------------------------------------------------
+//==============================================================================================================================================
+//                                                           LIGHT INSPECTOR
+//==============================================================================================================================================
 
 void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& Sheet)
 {
-    EditorProperty* Type     = Find(Sheet, "Type");
-    EditorProperty* Position = Find(Sheet, "Position");
-    if (!Type || !Position)
+    ImDrawList* Draw = ImGui::GetWindowDrawList();
+    const ImVec2 Origin = ImGui::GetCursorScreenPos();
+    const float  Wide   = std::max(240.0f, ImGui::GetContentRegionAvail().x);
+    ImFont* Face    = Controls.QueryUi();
+    ImFont* Display = Controls.QueryDisplay() ? Controls.QueryDisplay() : Face;
+    if (!Face)
     {
-        ImGui::TextUnformatted("Light component unavailable");
         return;
     }
 
-    // Directional stays with the Sun inspector, so the scene-emitter family starts at Point.
-    const unsigned Category = Type->Picked == 0 ? 1u : std::min(Type->Picked, 5u);
-    const unsigned Kind     = Category - 1;
-    const bool     Spot     = Kind == 1;
-    const bool     Surface  = Kind >= 2;
-    const bool     Strip    = Kind == 4;
+    DepotPanel Panel{Controls, Sheet, Draw, Origin, Wide, Face, Display, 0.0f};
 
-    ImGuiWindow* Current = ImGui::GetCurrentWindow();
-    if (Current && Current->ParentWindow)
+    //  Which of the reference's five emitters this sheet is ------------------------------------------------
+    const EditorProperty* Type = Find(Sheet, "Type");
+    const EditorProperty* Shape = Find(Sheet, "Distribution");
+    const unsigned Category = Type ? Type->Picked : 1u;
+    EmitterKind Kind = EmitterKind::Point;
+    switch (Category)
     {
-        ImGuiWindow* Parent = Current->ParentWindow;
-        Parent->DrawList->AddRectFilled(Parent->Pos,
-                                        {Parent->Pos.x + Parent->Size.x, Parent->Pos.y + Parent->Size.y}, Backdrop);
+    case 2:  Kind = (Shape && Shape->Picked > 0) ? EmitterKind::Ies : EmitterKind::Spot; break;
+    case 3:  Kind = EmitterKind::Area; break;
+    case 4:
+    case 5:  Kind = EmitterKind::Tube; break;
+    default: Kind = EmitterKind::Point; break;
     }
-    ImDrawList* Background = ImGui::GetWindowDrawList();
-    const ImVec2 WindowMin = ImGui::GetWindowPos();
-    Background->AddRectFilled(WindowMin, {WindowMin.x + ImGui::GetWindowSize().x, WindowMin.y + ImGui::GetWindowSize().y},
-                              Backdrop);
+    const bool Spot     = Kind == EmitterKind::Spot;
+    const bool Advanced = Kind == EmitterKind::Ies || Kind == EmitterKind::Area || Kind == EmitterKind::Tube;
+    const EmitterSpecification& Spec = Describe(Kind);
 
-    ImFont* Face = ImGui::GetFont();
-    for (ImFont* Candidate : ImGui::GetIO().Fonts->Fonts)
+    float Tint[3] = {Spec.Tint[0], Spec.Tint[1], Spec.Tint[2]};
+    if (const EditorProperty* Colour = Find(Sheet, "Emission colour"))
     {
-        if (!std::strcmp(Candidate->GetDebugName(), "Sun reference / regular"))
+        Tint[0] = Colour->ColourTint[0];
+        Tint[1] = Colour->ColourTint[1];
+        Tint[2] = Colour->ColourTint[2];
+    }
+
+    char Line[64], Alt[64], Third[64];
+
+    if (!Advanced)
+    {
+        //  lights.js --------------------------------------------------------------------------------------
+        const Reading Intensity = Pick(Sheet, "Intensity", Spot ? 62.0f : 14.0f);
+        const Reading Reach     = Pick(Sheet, "Reach", 26.0f);
+        const Reading Angle     = Pick(Sheet, "Cone angle", 26.0f);
+        const Reading Penumbra  = Pick(Sheet, "Penumbra", 0.42f);
+        const Reading Decay     = Pick(Sheet, "Decay exponent", 2.0f);
+        const float   Falloff   = Spot ? 2.0f : Decay.Figure;
+        const float   SourceDefault[3] = {0, Spot ? 6.0f : 2.0f, 0};
+        const float   TargetDefault[3] = {0, 0, 0};
+        float Source[3], Target[3];
+        Vector(Sheet, "Position", SourceDefault, Source);
+        Vector(Sheet, "Target", TargetDefault, Target);
+        const float Exposure = LuxAt(Intensity.Figure, 5, Falloff);
+
+        //  hero
+        const float HeroHigh = 172;
+        Panel.Hero(HeroHigh);
+        HeroSurface(Panel, Panel.Walk, HeroHigh, Spot, Tint, Intensity.Figure, Reach.Figure,
+                    Angle.Figure, Penumbra.Figure, Decay.Figure);
+        std::snprintf(Line, sizeof(Line), Spot ? "%.1f° cone" : "%.0f m reach", Spot ? Angle.Figure : Reach.Figure);
+        Panel.HeroCaption(HeroHigh, Spec.Label, "Photometric distribution", Line, true);
+        Panel.Advance(HeroHigh, true);
+
+        //  rail
+        char RailOne[24], RailTwo[24], RailThree[24], RailFour[24];
+        Fixed(RailOne, sizeof(RailOne), Intensity.Figure, Spot ? 0 : 1);
+        Fixed(RailTwo, sizeof(RailTwo), Intensity.Figure, 0);
+        Fixed(RailThree, sizeof(RailThree), LuxAt(Intensity.Figure, 10, Falloff), 2);
+        Fixed(RailFour, sizeof(RailFour), Spot ? Angle.Figure : Decay.Figure, 1);
+        const char* RailKeys[4]    = {"Intensity", "At 1 m", "At 10 m", Spot ? "Cone" : "Decay"};
+        const char* RailFigures[4] = {RailOne, RailTwo, RailThree, RailFour};
+        const char* RailUnits[4]   = {"cd", "lx", "lx", Spot ? DEG : "n"};
+        Panel.Rail(RailKeys, RailFigures, RailUnits);
+        Panel.Advance(DepotPanel::RailHigh, false);
+
+        //  duo
+        Fixed(Line, sizeof(Line), Exposure, 2);
+        Fixed(Alt, sizeof(Alt), Spot ? 2 * 5 * std::tan(Angle.Figure * Pi / 360.0f) : Reach.Figure, Spot ? 1 : 0);
+        Panel.Duo("Exposure at 5 m", Line, "lx", Spot ? "Pool at 5 m" : "Reach limit", Alt, "m");
+        Panel.Advance(DepotPanel::DuoHigh, true);
+
+        //  photometry
         {
-            Face = Candidate;
+            const float ChartHigh = 112;
+            const float High = CardPadTop + DepotPanel::CheadHigh + DepotPanel::NumHigh + DepotPanel::TargetHigh
+                             + 2 + ChartHigh + CardPadFoot;
+            Panel.Pcard(High);
+            float Y = Panel.Walk + CardPadTop;
+            Panel.Chead(Y, "Photometry", "Illuminance over distance");
+            Y += DepotPanel::CheadHigh;
+            const int Whole = static_cast<int>(std::floor(Exposure));
+            std::snprintf(Line, sizeof(Line), "%d", Whole);
+            std::snprintf(Alt, sizeof(Alt), ".%d", static_cast<int>(std::lround(Exposure * 10)) % 10);
+            Panel.Numeral(Y, Line, Alt, "lx");
+            Y += DepotPanel::NumHigh;
+            Panel.Target(Y, "At five metres", "inverse power law");
+            Y += DepotPanel::TargetHigh + 2;
+            PhotometryCurve(Panel, CardPadX - 4, Y, Wide - CardPadX * 2 + 8, ChartHigh,
+                            Tint, Intensity.Figure, Reach.Figure, Falloff, Spot);
+            Panel.Advance(High, true);
         }
-    }
-    ImGui::PushFont(Face, 14);
 
-    ImVec2 Anchor = ImGui::GetCursorScreenPos();
-    Anchor.x += 28;
-    Anchor.y += 10;
-    const float Width = std::max(320.0f, ImGui::GetContentRegionAvail().x - 56);
-    LightPanel Panel{Controls, Sheet, ImGui::GetWindowDrawList(), Anchor, Face, Controls.QueryDisplay()};
-
-    const EmitterDescription& Emitter = Describe(Kind);
-    char Text[192];
-
-    //----------------------------------------------------------------------------------------------------------------
-    // Header
-    //----------------------------------------------------------------------------------------------------------------
-    Panel.Write(0, 0, Emitter.Eyebrow, 9, Faint);
-    Panel.Draw->AddText(Panel.Display, 30, Panel.At(0, 14), IM_COL32(238, 238, 238, 255), Emitter.Title);
-
-    EditorProperty* Enabled = Find(Sheet, "Enabled");
-    const bool      Live    = !Enabled || Enabled->On;
-    Panel.WriteRight(Width - 92, 16, "Reset", 10, Muted);
-    const float PillLeft = Width - 78;
-    Panel.Draw->AddRectFilled(Panel.At(PillLeft, 8), Panel.At(Width, 32), IM_COL32(38, 38, 38, 255), 12);
-    Panel.Draw->AddRect(Panel.At(PillLeft, 8), Panel.At(Width, 32), IM_COL32(58, 58, 58, 255), 12);
-    Panel.Draw->AddCircleFilled(Panel.At(PillLeft + 13, 20), 3.5f, Live ? Lit : Unlit, 12);
-    Panel.Write(PillLeft + 22, 14, Live ? "Enabled" : "Disabled", 10, IM_COL32(205, 205, 205, 255));
-    ImGui::SetCursorScreenPos(Panel.At(PillLeft, 8));
-    if (ImGui::InvisibleButton("##enabled", {78, 24}) && Enabled)
-    {
-        Enabled->On = !Enabled->On;
-    }
-
-    Panel.Write(0, 56, "PROPERTIES", 9, Faint);
-    Panel.WriteRight(Width, 56, Emitter.Lineage, 9, Faint);
-
-    //----------------------------------------------------------------------------------------------------------------
-    // Property switches
-    //----------------------------------------------------------------------------------------------------------------
-    struct SwitchTile { const char* Bound; const char* Caption; };
-    SwitchTile Tiles[4];
-    unsigned   TileCount = 0;
-    Tiles[TileCount++] = {"Enabled", "Emission"};
-    if (Spot)
-    {
-        Tiles[TileCount++] = {"Beam shape", "Beam"};
-    }
-    Tiles[TileCount++] = {"Cast Shadows", "Shadows"};
-    if (!Surface)
-    {
-        Tiles[TileCount++] = {"Specular response", "Specular"};
-    }
-
-    float Cursor = 76;
-    for (unsigned Slot = 0; Slot < TileCount; ++Slot)
-    {
-        const float TileX = Slot * 98.0f;
-        EditorProperty* Bound = Find(Sheet, Tiles[Slot].Bound);
-        const bool      On    = !Bound || Bound->On || Bound->Figure > 0;
-        Panel.Draw->AddRectFilled(Panel.At(TileX, Cursor), Panel.At(TileX + 88, Cursor + 62), IM_COL32(32, 32, 32, 255), 13);
-        Panel.Draw->AddRect(Panel.At(TileX, Cursor), Panel.At(TileX + 88, Cursor + 62), IM_COL32(52, 52, 52, 255), 13);
-        const ImU32 Mark = On ? Lit : Unlit;
-        Panel.Draw->AddCircle(Panel.At(TileX + 44, Cursor + 19), 10, Mark, 24, 1.4f);
-        Panel.Draw->AddCircleFilled(Panel.At(TileX + 44, Cursor + 19), 4, Mark, 16);
-        Panel.Write(TileX + 44 - Panel.Measure(Tiles[Slot].Caption, 10) * 0.5f, Cursor + 34, Tiles[Slot].Caption, 10,
-                    IM_COL32(198, 198, 198, 255));
-        Panel.Write(TileX + 44 - Panel.Measure(On ? "ON" : "OFF", 8) * 0.5f, Cursor + 48, On ? "ON" : "OFF", 8, Faint);
-        ImGui::SetCursorScreenPos(Panel.At(TileX, Cursor));
-        ImGui::PushID(int(Slot));
-        if (ImGui::InvisibleButton("##tile", {88, 62}) && Bound && Bound->Category == EditorPropertyCategory::Switch)
+        //  output
         {
-            Bound->On = !Bound->On;
+            const float High = CardPadTop + DepotPanel::CheadHigh + DepotPanel::TapeHigh * 3
+                             + DepotPanel::SubheadHigh + DepotPanel::TagsHigh + CardPadFoot;
+            Panel.Pcard(High);
+            float Y = Panel.Walk + CardPadTop;
+            Panel.Chead(Y, "Output", "Distribution · attenuation");
+            Y += DepotPanel::CheadHigh;
+
+            const char* IntensityMarks[3] = {"OFF", Spot ? "KEY 62" : "POINT 14", Spot ? "200 cd" : "60 cd"};
+            const float IntensityAt[3] = {0.0f, Spot ? 0.31f : 0.233f, 1.0f};
+            Panel.Tape(Y, "Intensity", Intensity.Bound, Intensity.Figure, 0, Spot ? 200.0f : 60.0f,
+                       Spot ? 0 : 1, "cd", IntensityMarks, IntensityAt, 3);
+            Y += DepotPanel::TapeHigh;
+
+            if (Spot)
+            {
+                const char* ConeMarks[3] = {"PIN 2°", "SPOT 26°", "FLOOD 80°"};
+                const float ConeAt[3] = {0.0f, 0.308f, 1.0f};
+                Panel.Tape(Y, "Cone angle", Angle.Bound, Angle.Figure, 2, 80, 1, DEG, ConeMarks, ConeAt, 3);
+                Y += DepotPanel::TapeHigh;
+                const char* SoftMarks[3] = {"HARD", "SOFT .42", "FEATHER"};
+                const float SoftAt[3] = {0.0f, 0.42f, 1.0f};
+                Panel.Tape(Y, "Penumbra", Penumbra.Bound, Penumbra.Figure, 0, 1, 2, "", SoftMarks, SoftAt, 3);
+            }
+            else
+            {
+                const char* ReachMarks[3] = {"1 m", "26 m", "120 m"};
+                const float ReachAt[3] = {0.0f, 0.21f, 1.0f};
+                Panel.Tape(Y, "Reach", Reach.Bound, Reach.Figure, 1, 120, 0, "m", ReachMarks, ReachAt, 3);
+                Y += DepotPanel::TapeHigh;
+                const char* DecayMarks[3] = {"NONE", "PHYSICAL 2", "4"};
+                const float DecayAt[3] = {0.0f, 0.5f, 1.0f};
+                Panel.Tape(Y, "Decay exponent", Decay.Bound, Decay.Figure, 0, 4, 2, "", DecayMarks, DecayAt, 3);
+            }
+            Y += DepotPanel::TapeHigh;
+
+            Panel.Subhead(Y, "emission colour");
+            Draw->AddRectFilled(Panel.At(Wide - CardPadX - 34, Y + 7), Panel.At(Wide - CardPadX, Y + 25),
+                                FromBytes(Tint, 1.0f), 9);
+            Draw->AddRect(Panel.At(Wide - CardPadX - 34, Y + 7), Panel.At(Wide - CardPadX, Y + 25), Stroke, 9);
+            Y += DepotPanel::SubheadHigh;
+
+            const char* TagLabels[2] = {"CAST SHADOWS", Spot ? "DRAW CONE" : "SHOW GLOW"};
+            const bool  TagStates[2] = {Flag(Sheet, "Cast Shadows", Spot),
+                                        Flag(Sheet, Spot ? "Draw cone" : "Show glow", true)};
+            Panel.Tags(Y, TagLabels, TagStates, 2);
+            Panel.Advance(High, true);
         }
-        ImGui::PopID();
-    }
-    Cursor += 84;
 
-    //----------------------------------------------------------------------------------------------------------------
-    // Photometry. Flux is authored; everything else is derived so the readouts cannot drift from the slider.
-    //----------------------------------------------------------------------------------------------------------------
-    const float Half       = (Width - CardGap) * 0.5f;
-    const float Inner      = Panel.Value("Inner Cone", 30);
-    const float Outer      = std::max(Inner, Panel.Value("Outer Cone", 55));
-    const float Length     = Panel.Value("Width", 1.5f);
-    const float PanelWidth = Panel.Value("Width", 1.2f);
-    const float PanelHigh  = Panel.Value("Height", 0.6f);
-    const float TubeRadius = Panel.Value("Height", 0.04f);
-    const float Reach      = Panel.Value("Range", 12);
-    const float Flux       = Panel.Value("Luminous flux", 1500);
-    const float SolidAngle = Spot ? 2 * 3.14159265f * (1 - std::cos(Outer * 0.5f * 3.14159265f / 180.0f))
-                                  : 4 * 3.14159265f;
-    const float Candela     = Surface ? Flux / 3.14159265f : Flux / std::max(0.0001f, SolidAngle);
-    const float Illuminance = Candela / std::max(0.0001f, Reach * Reach);
-    const float PoolAcross  = 2 * Reach * std::tan(std::min(84.0f, Outer * 0.5f) * 3.14159265f / 180.0f);
-    const float EmitterArea = Kind == 2 ? PanelWidth * PanelHigh
-                            : Kind == 3 ? 2 * 3.14159265f * TubeRadius * Length
-                                        : 0.0f;
-
-    //----------------------------------------------------------------------------------------------------------------
-    // Luminous output
-    //----------------------------------------------------------------------------------------------------------------
-    const float OutputHeight = 440;
-    Panel.Card(0, Cursor, Width, OutputHeight, "Luminous output", AccentOutput,
-               Strip ? CardGlyph::Layers : Spot ? CardGlyph::Flashlight : CardGlyph::Lightbulb);
-    char Figure[48], Pill[48];
-    Grouped(Figure, sizeof(Figure), double(Flux));
-    Grouped(Pill, sizeof(Pill), double(Candela));
-    std::snprintf(Text, sizeof(Text), "%s cd", Pill);
-    Panel.Metric(CardPadX, Cursor + 48, Figure, "lm");
-    Panel.Pill(Width - CardPadX, Cursor + 52, Text);
-    Panel.Wrap(CardPadX, Cursor + 106, Width - CardPadX * 2, Emitter.OutputNote);
-    PhotometricPolar(Panel, CardPadX, Cursor + 124, Width - CardPadX * 2, Kind, Inner, Outer);
-    const float OutputTrack = Cursor + 348;
-    Panel.Slider(CardPadX, OutputTrack, Width - CardPadX * 2, Strip ? "Flux per metre" : "Luminous flux");
-    Panel.Range(CardPadX, OutputTrack + 12, Width - CardPadX * 2,
-                Strip ? "100 lm/m" : "0 lm", Strip ? "3,000 lm/m" : "20,000 lm");
-
-    const float DerivedY = Cursor + OutputHeight - 54;
-    Panel.Write(CardPadX, DerivedY, "Intensity", 9, Faint);
-    std::snprintf(Text, sizeof(Text), "%s cd", Pill);
-    Panel.Write(CardPadX, DerivedY + 14, Text, 14, IM_COL32(222, 222, 222, 255));
-    std::snprintf(Text, sizeof(Text), "At %.0f m", double(Reach));
-    Panel.Write(CardPadX + (Width - CardPadX * 2) * 0.34f, DerivedY, Text, 9, Faint);
-    if (Illuminance < 10)
-    {
-        std::snprintf(Text, sizeof(Text), "%.2f lx", double(Illuminance));
+        //  placement and aim
+        {
+            const float PlanHigh = 118;
+            const float VectorHigh = DepotPanel::SubheadHigh + DepotPanel::AxisHigh;
+            const float High = CardPadTop + DepotPanel::CheadHigh + 2 + 19 + PlanHigh + 10
+                             + VectorHigh * (Spot ? 2 : 1) + CardPadFoot;
+            Panel.Pcard(High);
+            float Y = Panel.Walk + CardPadTop;
+            Panel.Chead(Y, Spot ? "Aim" : "Placement",
+                        Spot ? "World coordinates · source to target" : "World coordinates");
+            Y += DepotPanel::CheadHigh;
+            Panel.Meter(Y, PlanHigh, "world plan · ±20 m");
+            AimPlan(Panel, CardPadX, Y + 21, Wide - CardPadX * 2, PlanHigh, Tint, Source, Target, Spot);
+            Y += 2 + 19 + PlanHigh + 10;
+            Panel.Subhead(Y, "position");
+            Panel.AxisRow(Y + DepotPanel::SubheadHigh, Find(Sheet, "Position"), SourceDefault, "m");
+            Y += VectorHigh;
+            if (Spot)
+            {
+                Panel.Subhead(Y, "target");
+                Panel.AxisRow(Y + DepotPanel::SubheadHigh, Find(Sheet, "Target"), TargetDefault, "m");
+            }
+            Panel.Advance(High, true);
+        }
     }
     else
     {
-        char Rounded[32];
-        Grouped(Rounded, sizeof(Rounded), double(Illuminance));
-        std::snprintf(Text, sizeof(Text), "%s lx", Rounded);
-    }
-    Panel.Write(CardPadX + (Width - CardPadX * 2) * 0.34f, DerivedY + 14, Text, 14, IM_COL32(222, 222, 222, 255));
-    if (EmitterArea > 0)
-    {
-        char Nit[32];
-        Grouped(Nit, sizeof(Nit), double(Flux / (3.14159265f * std::max(0.0001f, EmitterArea))));
-        Panel.Write(CardPadX + (Width - CardPadX * 2) * 0.68f, DerivedY, "Luminance", 9, Faint);
-        std::snprintf(Text, sizeof(Text), "%s nit", Nit);
-        Panel.Write(CardPadX + (Width - CardPadX * 2) * 0.68f, DerivedY + 14, Text, 14, IM_COL32(222, 222, 222, 255));
-    }
-    Cursor += OutputHeight + CardGap;
+        //  advancedLights.js ------------------------------------------------------------------------------
+        const bool Ies = Kind == EmitterKind::Ies, Area = Kind == EmitterKind::Area;
+        const Reading Flux   = Pick(Sheet, "Luminous flux", Ies ? 1650.0f : Area ? 2400.0f : 1800.0f);
+        const Reading Width  = Pick(Sheet, "Width", 2.0f);
+        const Reading Height = Pick(Sheet, "Height", 1.0f);
+        const Reading Length = Pick(Sheet, "Length", 1.5f);
+        const Reading Radius = Pick(Sheet, "Tube radius", 0.04f);
+        const Reading Spread = Pick(Sheet, "Beam spread", 120.0f);
+        const Reading Cone   = Pick(Sheet, "Field angle", 58.0f);
+        const Reading Cutoff = Pick(Sheet, "Cut-off pitch", -1.0f);
+        const Reading Boost  = Pick(Sheet, "Profile multiplier", 1.0f);
+        const Reading Span   = Pick(Sheet, "Photometric range", 120.0f);
+        const Reading Throw  = Pick(Sheet, "Reach", 24.0f);
+        const Reading Kelvin = Pick(Sheet, "Colour temperature", Ies ? 4300.0f : 5600.0f);
+        const float   Range  = Ies ? Span.Figure : Area ? 80.0f : Throw.Figure;
+        const EditorProperty* ProfileBound = Find(Sheet, "Distribution");
+        const unsigned Profile = ProfileBound && ProfileBound->Picked > 0 ? ProfileBound->Picked - 1 : 0;
+        static const char* ProfileNames[6] = {"ECE Low Beam", "SAE Low Beam", "High Beam",
+                                              "Fog Lamp", "Parking Lamp", "Custom .IES"};
+        const float SourceDefault[3] = {0, Ies ? 1.0f : 3.0f, 0};
+        const float AimDefault[3]    = {0, Ies ? 0.6f : 0.0f, Ies ? -12.0f : 0.0f};
+        float Source[3], Aim[3];
+        Vector(Sheet, "Position", SourceDefault, Source);
+        Vector(Sheet, Kind == EmitterKind::Tube ? "Rotation" : "Target", AimDefault, Aim);
 
-    //----------------------------------------------------------------------------------------------------------------
-    // Colour temperature and Reach & falloff share a row
-    //----------------------------------------------------------------------------------------------------------------
-    const float PairHeight = 272;
-    const float Kelvin     = Panel.Value("Colour temperature", 3000);
-    Panel.Card(0, Cursor, Half, PairHeight, "Colour temperature", AccentTemperature, CardGlyph::Thermometer);
-    Grouped(Figure, sizeof(Figure), double(Kelvin));
-    Panel.Metric(CardPadX, Cursor + 48, Figure, "K");
-    const float KelvinTrack = Cursor + 126;
-    const float KelvinWidth = Half - CardPadX * 2;
-    for (int Band = 0; Band < 64; ++Band)
-    {
-        const float Share = Band / 63.0f;
-        const ImU32 Warm  = IM_COL32(int(224 - Share * 70), int(150 + Share * 60), int(96 + Share * 140), 255);
-        Panel.Draw->AddRectFilled(Panel.At(CardPadX + KelvinWidth * Band / 64.0f, KelvinTrack - 5),
-                                  Panel.At(CardPadX + KelvinWidth * (Band + 1) / 64.0f, KelvinTrack + 5), Warm);
-    }
-    Panel.Slider(CardPadX, KelvinTrack, KelvinWidth, "Colour temperature", true);
-    Panel.Range(CardPadX, KelvinTrack + 14, KelvinWidth, "Warm", "Cool");
-    Panel.Draw->AddRectFilled(Panel.At(CardPadX, Cursor + 176), Panel.At(CardPadX + 12, Cursor + 188),
-                              TemperatureChip(Kelvin), 3);
-    Panel.Write(CardPadX + 20, Cursor + 177, TemperatureName(Kelvin), 10, IM_COL32(186, 186, 186, 255));
+        const float Peak = Ies ? Flux.Figure * Boost.Figure * 1.8f
+                               : Flux.Figure / (Area ? std::max(0.1f, Width.Figure * Height.Figure)
+                                                     : std::max(0.1f, Length.Figure)) * 0.45f;
 
-    const float ReachX = Half + CardGap;
-    Panel.Card(ReachX, Cursor, Half, PairHeight, "Reach & falloff", AccentReach, CardGlyph::Gauge);
-    std::snprintf(Figure, sizeof(Figure), "%.0f", double(Reach));
-    Panel.Metric(ReachX + CardPadX, Cursor + 48, Figure, "m");
-    Panel.Pill(ReachX + Half - CardPadX, Cursor + 52, "Inverse square");
-    Panel.Wrap(ReachX + CardPadX, Cursor + 106, Half - CardPadX * 2, "Distance at which the emitter stops being evaluated");
-    FalloffCurve(Panel, ReachX + CardPadX, Cursor + 122, Half - CardPadX * 2, Reach);
-    Panel.Slider(ReachX + CardPadX, Cursor + 234, Half - CardPadX * 2, "Range");
-    Panel.Range(ReachX + CardPadX, Cursor + 246, Half - CardPadX * 2, "1 m", "80 m");
-    Cursor += PairHeight + CardGap;
-
-    //----------------------------------------------------------------------------------------------------------------
-    // Beam shape — cone emitters only
-    //----------------------------------------------------------------------------------------------------------------
-    if (Spot)
-    {
-        const float BeamHeight = 388;
-        Panel.Card(0, Cursor, Width, BeamHeight, "Beam shape", AccentBeam, CardGlyph::Cone);
-        std::snprintf(Figure, sizeof(Figure), "%.0f", double(Outer));
-        Panel.Metric(CardPadX, Cursor + 48, Figure, "\xC2\xB0");
-        std::snprintf(Text, sizeof(Text), "%.0f\xC2\xB0 hot core", double(Inner));
-        Panel.Pill(Width - CardPadX, Cursor + 52, Text);
-        BeamCone(Panel, CardPadX, Cursor + 96, Width - CardPadX * 2, Inner, Outer, Reach);
-        const float ConeY = Cursor + 288;
-        const float ConeW = (Width - CardPadX * 2 - 28) * 0.5f;
-        std::snprintf(Text, sizeof(Text), "%.0f\xC2\xB0", double(Inner));
-        Panel.CaptionedSlider(CardPadX, ConeY, ConeW, "Inner cone", Text, "Fully lit core", "Inner Cone");
-        std::snprintf(Text, sizeof(Text), "%.0f\xC2\xB0", double(Outer));
-        Panel.CaptionedSlider(CardPadX + ConeW + 28, ConeY, ConeW, "Outer cone", Text, "Edge of any light", "Outer Cone");
-        std::snprintf(Text, sizeof(Text), "Pool at %.0f m", double(Reach));
-        Panel.Write(CardPadX, Cursor + BeamHeight - 26, Text, 10, Muted);
-        std::snprintf(Text, sizeof(Text), "%.1f m across", double(PoolAcross));
-        Panel.WriteRight(Width - CardPadX, Cursor + BeamHeight - 26, Text, 10, IM_COL32(216, 216, 216, 255));
-        Cursor += BeamHeight + CardGap;
-    }
-
-    //----------------------------------------------------------------------------------------------------------------
-    // Emitter dimensions — surface emitters only
-    //----------------------------------------------------------------------------------------------------------------
-    if (Surface)
-    {
-        const float EmitterHeight = 268;
-        Panel.Card(0, Cursor, Width, EmitterHeight, "Emitter dimensions", AccentEmitter, CardGlyph::Ruler);
-        EmitterFigure(Panel, CardPadX, Cursor + 60, Width - CardPadX * 2, Kind, PanelWidth, PanelHigh, Length, TubeRadius);
-        Panel.Subheading(CardPadX, Cursor + 170, Width - CardPadX * 2, "DIMENSIONS", "Metres \xC2\xB7 emitting surface");
-        const float FieldW = (Width - CardPadX * 2 - 14) * 0.5f;
-        char Left[32], Right[32];
-        if (Kind == 2)
+        //  hero
+        const float HeroHigh = 174;
+        Panel.Hero(HeroHigh);
+        EmitterHero(Panel, Panel.Walk, HeroHigh, Kind, Tint, Width.Figure, Height.Figure, Length.Figure,
+                    Radius.Figure, Cone.Figure, Cutoff.Figure, Boost.Figure, Profile);
+        if (Ies)
         {
-            std::snprintf(Left, sizeof(Left), "%.2f", double(PanelWidth));
-            std::snprintf(Right, sizeof(Right), "%.2f", double(PanelHigh));
-            Panel.Field(CardPadX, Cursor + 190, FieldW, "Width", Left, "m");
-            Panel.Field(CardPadX + FieldW + 14, Cursor + 190, FieldW, "Height", Right, "m");
+            std::snprintf(Alt, sizeof(Alt), "%s · %.0f K", ProfileNames[Profile], Kelvin.Figure);
         }
-        else if (Kind == 3)
+        else if (Area)
         {
-            std::snprintf(Left, sizeof(Left), "%.2f", double(Length));
-            std::snprintf(Right, sizeof(Right), "%.3f", double(TubeRadius));
-            Panel.Field(CardPadX, Cursor + 190, FieldW, "Length", Left, "m");
-            Panel.Field(CardPadX + FieldW + 14, Cursor + 190, FieldW, "Radius", Right, "m");
+            std::snprintf(Alt, sizeof(Alt), "%.1f × %.1f m emitter", Width.Figure, Height.Figure);
         }
         else
         {
-            std::snprintf(Left, sizeof(Left), "%.2f", double(Length));
-            std::snprintf(Right, sizeof(Right), "%.0f", double(Panel.Value("Flux per metre", 900)));
-            Panel.Field(CardPadX, Cursor + 190, FieldW, "Run length", Left, "m");
-            Panel.Field(CardPadX + FieldW + 14, Cursor + 190, FieldW, "Output", Right, "lm/m");
+            std::snprintf(Alt, sizeof(Alt), "%.2f m luminous tube", Length.Figure);
         }
-        if (Strip)
-        {
-            Panel.Wrap(CardPadX, Cursor + 244, Width - CardPadX * 2,
-                       "Total flux is the output per metre multiplied by the run length.");
-        }
-        else
-        {
-            std::snprintf(Text, sizeof(Text), "Emitting area %.3f m\xC2\xB2.", double(EmitterArea));
-            Panel.Wrap(CardPadX, Cursor + 244, Width - CardPadX * 2, Text);
-        }
-        Cursor += EmitterHeight + CardGap;
-    }
+        std::snprintf(Line, sizeof(Line), "%.0f lm", Flux.Figure);
+        Panel.HeroCaption(HeroHigh, Spec.Label, Alt, Line, false);
+        Panel.Advance(HeroHigh, true);
 
-    //----------------------------------------------------------------------------------------------------------------
-    // Placement
-    //----------------------------------------------------------------------------------------------------------------
-    const float TransformHeight = Spot ? 330.0f : 266.0f;
-    Panel.Card(0, Cursor, Width, TransformHeight, "Transform", AccentTransform, CardGlyph::Move3d);
-    const float AxisW = (Width - CardPadX * 2 - 28) / 3.0f;
-    const char* AxisName[3] = {"X", "Y", "Z"};
-    EditorProperty* Rotation = Find(Sheet, "Rotation");
-    EditorProperty* Scale    = Find(Sheet, "Scale");
+        //  rail
+        char RailOne[24], RailTwo[24], RailThree[24], RailFour[24];
+        Fixed(RailOne, sizeof(RailOne), Flux.Figure, 0);
+        Fixed(RailTwo, sizeof(RailTwo), Peak, 0);
+        Fixed(RailThree, sizeof(RailThree), std::min(160.0f, 70 + (Area ? 4300.0f : Kelvin.Figure) / 100.0f), 0);
+        Fixed(RailFour, sizeof(RailFour), Range, 0);
+        const char* RailKeys[4]    = {"Flux", "Peak cd", "Efficacy", "Range"};
+        const char* RailFigures[4] = {RailOne, RailTwo, RailThree, RailFour};
+        const char* RailUnits[4]   = {"lm", "cd", "", "m"};
+        Panel.Rail(RailKeys, RailFigures, RailUnits);
+        Panel.Advance(DepotPanel::RailHigh, false);
 
-    // One grid row per transform channel, each three columns wide, matching .volume-fields.
-    struct TransformRow { const char* Kicker; const char* Note; EditorProperty* Bound; const char* Unit; int Digits; };
-    const TransformRow Rows[3] = {
-        {"POSITION", "World-space centre \xC2\xB7 metres", Position, "m", 2},
-        {"ROTATION", "Local orientation \xC2\xB7 degrees", Rotation, "\xC2\xB0", 0},
-        {"SCALE",    "Emitter proportions \xC2\xB7 multiplier", Scale, "\xC3\x97", 2},
-    };
-    for (int Row = 0; Row < 3; ++Row)
-    {
-        const float RowY = Cursor + 58 + Row * 68.0f;
-        Panel.Subheading(CardPadX, RowY, Width - CardPadX * 2, Rows[Row].Kicker, Rows[Row].Note);
-        for (int Axis = 0; Axis < 3; ++Axis)
+        //  distribution
         {
-            const float AxisX = CardPadX + Axis * (AxisW + 14);
-            char Reading[32];
-            const float Figure = Rows[Row].Bound ? Rows[Row].Bound->Axes[Axis] : (Row == 2 ? 1.0f : 0.0f);
-            std::snprintf(Reading, sizeof(Reading), "%.*f", Rows[Row].Digits, double(Figure));
-            Panel.Field(AxisX, RowY + 20, AxisW, AxisName[Axis], Reading, Rows[Row].Unit);
-            if (!Rows[Row].Bound)
+            const float ChartHigh = 118;
+            const float TagRows = Ies ? 2 * 25.0f + 10 : 0.0f;
+            const float High = CardPadTop + DepotPanel::CheadHigh + DepotPanel::NumHigh + DepotPanel::TargetHigh
+                             + 2 + ChartHigh + TagRows + CardPadFoot;
+            Panel.Pcard(High);
+            float Y = Panel.Walk + CardPadTop;
+            Panel.Chead(Y, Ies ? "IES distribution" : "Emitter geometry",
+                        Ies ? "Candela map · homologation view" : "Luminous aperture · projected solid angle");
+            Y += DepotPanel::CheadHigh;
+            std::snprintf(Line, sizeof(Line), "%d", static_cast<int>(std::floor(Flux.Figure)));
+            Panel.Numeral(Y, Line, "", "lm");
+            Y += DepotPanel::NumHigh;
+            if (Ies)
             {
-                continue;
+                std::snprintf(Third, sizeof(Third), "%s · %.2f×", ProfileNames[Profile], Boost.Figure);
             }
-            ImGui::SetCursorScreenPos(Panel.At(AxisX, RowY + 37));
-            ImGui::PushID(400 + Row * 3 + Axis);
-            ImGui::InvisibleButton("##axis", {AxisW, 28});
-            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+            else if (Area)
             {
-                const float Step = Rows[Row].Bound->AxisStep > 0 ? Rows[Row].Bound->AxisStep : 0.05f;
-                Rows[Row].Bound->Axes[Axis] += ImGui::GetIO().MouseDelta.x * Step;
+                std::snprintf(Third, sizeof(Third), "%.2f × %.2f m aperture", Width.Figure, Height.Figure);
             }
-            ImGui::PopID();
+            else
+            {
+                std::snprintf(Third, sizeof(Third), "%.2f m line source", Length.Figure);
+            }
+            Panel.Target(Y, "Luminous flux", Third);
+            Y += DepotPanel::TargetHigh + 2;
+            DistributionSurface(Panel, CardPadX - 4, Y, Wide - CardPadX * 2 + 8, ChartHigh, Kind, Tint,
+                                Width.Figure, Height.Figure, Length.Figure, Radius.Figure, Boost.Figure, Profile);
+            Y += ChartHigh;
+            if (Ies)
+            {
+                bool Chosen[6];
+                for (int Slot = 0; Slot < 6; ++Slot)
+                {
+                    Chosen[Slot] = static_cast<unsigned>(Slot) == Profile;
+                }
+                Panel.Tags(Y, ProfileNames, Chosen, 6);
+            }
+            Panel.Advance(High, true);
         }
-    }
-    if (Spot)
-    {
-        Panel.Subheading(CardPadX, Cursor + 262, Width - CardPadX * 2, "AIM", "Beam axis \xC2\xB7 degrees");
-        const EditorProperty* Azimuth   = Find(Sheet, "Aim azimuth");
-        const EditorProperty* Elevation = Find(Sheet, "Aim elevation");
-        const float           AimW      = (Width - CardPadX * 2 - 28) * 0.5f;
-        Panel.Write(CardPadX, Cursor + 286, "Azimuth", 10, Muted);
-        Panel.WriteRight(CardPadX + AimW, Cursor + 286, Azimuth ? Azimuth->Text : "--", 11, Ink);
-        Panel.Write(CardPadX, Cursor + 304, "Clockwise from north \xC2\xB7 owned by the placement transform", 9, Faint);
-        Panel.Write(CardPadX + AimW + 28, Cursor + 286, "Elevation", 10, Muted);
-        Panel.WriteRight(Width - CardPadX, Cursor + 286, Elevation ? Elevation->Text : "--", 11, Ink);
-        Panel.Write(CardPadX + AimW + 28, Cursor + 304, "Negative aims at the floor", 9, Faint);
-    }
-    Cursor += TransformHeight + CardGap;
 
-    //----------------------------------------------------------------------------------------------------------------
-    // Shadows & response
-    //----------------------------------------------------------------------------------------------------------------
-    const float ResponseHeight = 250;
-    Panel.Card(0, Cursor, Width, ResponseHeight, "Shadows & response", AccentResponse, CardGlyph::Contrast);
-    const float Softness = Panel.Value("Shadow softness", 28);
-    std::snprintf(Figure, sizeof(Figure), "%.0f", double(Softness));
-    Panel.Metric(CardPadX, Cursor + 48, Figure, "%");
-    Panel.Pill(Width - CardPadX, Cursor + 52, "Penumbra width");
-    Panel.Wrap(CardPadX, Cursor + 106, Width - CardPadX * 2, "Softness of the shadow edge cast by this emitter");
-    Panel.Slider(CardPadX, Cursor + 136, Width - CardPadX * 2, "Shadow softness");
-    Panel.Range(CardPadX, Cursor + 148, Width - CardPadX * 2, "Hard edge", "Soft gradient");
-    const float ResponseY = Cursor + 182;
-    const float ResponseW = (Width - CardPadX * 2 - 28) * 0.5f;
-    std::snprintf(Text, sizeof(Text), "%.0f%%", double(Panel.Value("Diffuse response", 100)));
-    Panel.CaptionedSlider(CardPadX, ResponseY, ResponseW, "Diffuse", Text, "Matte surface contribution",
-                          "Diffuse response");
-    std::snprintf(Text, sizeof(Text), "%.0f%%", double(Panel.Value("Specular response", 100)));
-    Panel.CaptionedSlider(CardPadX + ResponseW + 28, ResponseY, ResponseW, "Specular", Text, "Highlight contribution",
-                          "Specular response");
-    Cursor += ResponseHeight + CardGap;
-
-    //----------------------------------------------------------------------------------------------------------------
-    // Luminous distribution — punctual emitters only — and the renderer support terminal card
-    //----------------------------------------------------------------------------------------------------------------
-    const float SupportHeight = 168;
-    const float SupportWidth  = Surface ? Width : Half;
-    float       SupportX      = 0;
-    if (!Surface)
-    {
-        Panel.Card(0, Cursor, Half, SupportHeight, "Luminous distribution", AccentDistribution, CardGlyph::Projector);
-        Panel.Wrap(CardPadX, Cursor + 54, Half - CardPadX * 2, "How intensity is shaped across the emitted solid angle");
-        Panel.Write(CardPadX, Cursor + 92, "Distribution", 10, Muted);
-        EditorProperty* Distribution = Find(Sheet, "Distribution");
-        const float     SelectX      = Half - CardPadX - 132;
-        Panel.Draw->AddRectFilled(Panel.At(SelectX, Cursor + 84), Panel.At(Half - CardPadX, Cursor + 112),
-                                  IM_COL32(32, 32, 36, 255), 6);
-        Panel.Draw->AddRect(Panel.At(SelectX, Cursor + 84), Panel.At(Half - CardPadX, Cursor + 112), FieldEdge, 6);
-        const char* Shapes[3] = {"Uniform", "IES profile", "Automotive low beam"};
-        const unsigned Picked = Distribution ? std::min(Distribution->Picked, 2u) : 0u;
-        Panel.Write(SelectX + 10, Cursor + 92, Shapes[Picked], 10, IM_COL32(214, 214, 214, 255));
-        ImGui::SetCursorScreenPos(Panel.At(SelectX, Cursor + 84));
-        if (ImGui::InvisibleButton("##distribution", {132, 28}) && Distribution)
+        //  photometric output
         {
-            Distribution->Picked = (Picked + 1) % 3;
+            const int   TapeCount = 1 + (Ies ? 4 : 3) + (Area ? 0 : 1);
+            const float TagRows   = Area ? 25.0f : 0.0f;
+            const float High = CardPadTop + DepotPanel::CheadHigh + DepotPanel::TapeHigh * TapeCount
+                             + DepotPanel::SubheadHigh + DepotPanel::TagsHigh + TagRows + CardPadFoot;
+            Panel.Pcard(High);
+            float Y = Panel.Walk + CardPadTop;
+            Panel.Chead(Y, "Photometric output", "Calibrated source values");
+            Y += DepotPanel::CheadHigh;
+
+            const char* FluxMarks[3] = {"OFF", Ies ? "ECE 1 650" : "NOMINAL", "MAX"};
+            const float FluxAt[3] = {0.0f, Ies ? 0.206f : Area ? 0.12f : 0.15f, 1.0f};
+            Panel.Tape(Y, "Luminous flux", Flux.Bound, Flux.Figure, 0, Ies ? 8000.0f : Area ? 20000.0f : 12000.0f,
+                       0, "lm", FluxMarks, FluxAt, 3);
+            Y += DepotPanel::TapeHigh;
+
+            if (Ies)
+            {
+                const char* BoostMarks[3] = {"OFF", "1×", "4×"};
+                const float BoostAt[3] = {0.0f, 0.25f, 1.0f};
+                Panel.Tape(Y, "Profile multiplier", Boost.Bound, Boost.Figure, 0, 4, 2, "×", BoostMarks, BoostAt, 3);
+                Y += DepotPanel::TapeHigh;
+                const char* SpanMarks[3] = {"1 m", "120 m", "250 m"};
+                const float SpanAt[3] = {0.0f, 0.48f, 1.0f};
+                Panel.Tape(Y, "Photometric range", Span.Bound, Span.Figure, 1, 250, 0, "m", SpanMarks, SpanAt, 3);
+                Y += DepotPanel::TapeHigh;
+                const char* FieldMarks[3] = {"5°", "58°", "100°"};
+                const float FieldAt[3] = {0.0f, 0.558f, 1.0f};
+                Panel.Tape(Y, "Field angle", Cone.Bound, Cone.Figure, 5, 100, 1, DEG, FieldMarks, FieldAt, 3);
+                Y += DepotPanel::TapeHigh;
+                const char* PitchMarks[3] = {"−5°", "ECE −1°", "+5°"};
+                const float PitchAt[3] = {0.0f, 0.4f, 1.0f};
+                Panel.Tape(Y, "Cut-off pitch", Cutoff.Bound, Cutoff.Figure, -5, 5, 1, DEG, PitchMarks, PitchAt, 3);
+                Y += DepotPanel::TapeHigh;
+            }
+            else if (Area)
+            {
+                Panel.Tape(Y, "Width", Width.Bound, Width.Figure, 0.1f, 20, 2, "m", nullptr, nullptr, 0);
+                Y += DepotPanel::TapeHigh;
+                Panel.Tape(Y, "Height", Height.Bound, Height.Figure, 0.1f, 20, 2, "m", nullptr, nullptr, 0);
+                Y += DepotPanel::TapeHigh;
+                const char* SpreadMarks[3] = {"1°", "120°", "180°"};
+                const float SpreadAt[3] = {0.0f, 0.665f, 1.0f};
+                Panel.Tape(Y, "Beam spread", Spread.Bound, Spread.Figure, 1, 180, 0, DEG, SpreadMarks, SpreadAt, 3);
+                Y += DepotPanel::TapeHigh;
+            }
+            else
+            {
+                Panel.Tape(Y, "Length", Length.Bound, Length.Figure, 0.1f, 20, 2, "m", nullptr, nullptr, 0);
+                Y += DepotPanel::TapeHigh;
+                Panel.Tape(Y, "Tube radius", Radius.Bound, Radius.Figure, 0.01f, 1, 2, "m", nullptr, nullptr, 0);
+                Y += DepotPanel::TapeHigh;
+                Panel.Tape(Y, "Reach", Throw.Bound, Throw.Figure, 1, 120, 0, "m", nullptr, nullptr, 0);
+                Y += DepotPanel::TapeHigh;
+            }
+
+            if (!Area)
+            {
+                const char* KelvinMarks[3] = {"1800 K", "4300 K", "12000 K"};
+                const float KelvinAt[3] = {0.0f, 0.245f, 1.0f};
+                Panel.Tape(Y, "Colour temperature", Kelvin.Bound, Kelvin.Figure, 1800, 12000, 0, "K",
+                           KelvinMarks, KelvinAt, 3);
+                Y += DepotPanel::TapeHigh;
+            }
+
+            Panel.Subhead(Y, "emission colour");
+            Draw->AddRectFilled(Panel.At(Wide - CardPadX - 34, Y + 7), Panel.At(Wide - CardPadX, Y + 25),
+                                FromBytes(Tint, 1.0f), 9);
+            Draw->AddRect(Panel.At(Wide - CardPadX - 34, Y + 7), Panel.At(Wide - CardPadX, Y + 25), Stroke, 9);
+            Y += DepotPanel::SubheadHigh;
+
+            const char* TagLabels[3] = {"CAST SHADOWS", Ies ? "DRAW DISTRIBUTION" : "DRAW EMITTER", "TWO SIDED"};
+            const bool  TagStates[3] = {Flag(Sheet, "Cast Shadows", !Area),
+                                        Flag(Sheet, Ies ? "Draw distribution" : "Draw emitter", true),
+                                        Flag(Sheet, "Two sided", false)};
+            Panel.Tags(Y, TagLabels, TagStates, Area ? 3 : 2);
+            Panel.Advance(High, true);
         }
-        const char* Note = Picked == 0 ? "Even intensity across the cone."
-                         : Picked == 1 ? "Measured photometric web \xE2\x80\x94 requires an imported IES file."
-                                       : "Asymmetric cut-off shaped for road lighting.";
-        Panel.Wrap(CardPadX, Cursor + 128, Half - CardPadX * 2, Note, 10, IM_COL32(176, 176, 176, 255));
-        SupportX = Half + CardGap;
+
+        //  mounting
+        {
+            const float VectorHigh = DepotPanel::SubheadHigh + DepotPanel::AxisHigh;
+            const float High = CardPadTop + DepotPanel::CheadHigh + VectorHigh * 2 + CardPadFoot;
+            Panel.Pcard(High);
+            float Y = Panel.Walk + CardPadTop;
+            Panel.Chead(Y, "Mounting", "World transform · optical axis");
+            Y += DepotPanel::CheadHigh;
+            Panel.Subhead(Y, "position");
+            Panel.AxisRow(Y + DepotPanel::SubheadHigh, Find(Sheet, "Position"), SourceDefault, "m");
+            Y += VectorHigh;
+            const bool Tube = Kind == EmitterKind::Tube;
+            Panel.Subhead(Y, Tube ? "rotation" : "target");
+            Panel.AxisRow(Y + DepotPanel::SubheadHigh, Find(Sheet, Tube ? "Rotation" : "Target"), AimDefault,
+                          Tube ? "" : "m");
+            Panel.Advance(High, true);
+        }
     }
 
-    Panel.Card(SupportX, Cursor, SupportWidth, SupportHeight, "Renderer support", AccentSupport, CardGlyph::CircleDot);
-    const float RowX = SupportX + CardPadX;
-    const float RowW = SupportWidth - CardPadX * 2;
-    Panel.StatusRow(RowX, Cursor + 56, RowW, true, "Scene record \xC2\xB7 position, output, colour and reach persist");
-    Panel.StatusRow(RowX, Cursor + 78, RowW, !Surface,
-                    Surface ? "Extended emitter \xE2\x80\x94 not consumed by the raster lighting kernel"
-                            : "Punctual source \xE2\x80\x94 consumed by the lighting kernel");
-    Panel.StatusRow(RowX, Cursor + 100, RowW, false, "No lightmap bake path exists; baked contribution is unavailable");
-    Panel.Wrap(RowX, Cursor + 128, RowW,
-               "Reported from the authored record. Unsupported states are labelled rather than drawn as if they worked.");
-    Cursor += SupportHeight + 24;
-
-    ImGui::SetCursorScreenPos(Panel.At(0, Cursor));
-    ImGui::Dummy({Width, 1});
-    ImGui::PopFont();
+    // Every tape parks an InvisibleButton at its own screen position, so the cursor has wandered. Put it
+    //    back before claiming the column, or the panel reserves its height twice over.
+    ImGui::SetCursorScreenPos(Origin);
+    ImGui::Dummy({Wide, Panel.Walk});
 }
 
 } // namespace Frontier

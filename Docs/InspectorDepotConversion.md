@@ -52,18 +52,64 @@ Profiles: ECE Low Beam, SAE Low Beam, High Beam, Fog Lamp, Parking Lamp, Custom 
 Peak candela: IES `flux · multiplier · 1.8`; area `flux / (width·height) · 0.45`; tube `flux / length · 0.45`.
 Efficacy: `min(160, 70 + temperature/100)`.
 
-## Still to convert
+## Conversion status
 
-| Item                        | Source                                   | Status      |
-| --------------------------- | ---------------------------------------- | ----------- |
-| Point and spot light panel  | `panels/lights.js`                       | Not started |
-| IES / area / tube panel     | `panels/advancedLights.js`               | Not started |
-| Fog cards                   | `panels/fog.js`                          | Not started |
-| Card note                   | `mp-note`, used in fog, folder, sun, wind, moon | Not started |
-| Transform grid              | `TransformPanel.jsx` — Position m, Rotation deg, Scale × | Not started |
+| Item                        | Source                                   | Status                                   |
+| --------------------------- | ---------------------------------------- | ---------------------------------------- |
+| Point and spot light panel  | `panels/lights.js`                       | Converted — `LightInspectorPanel.cpp`    |
+| IES / area / tube panel     | `panels/advancedLights.js`               | Converted — `LightInspectorPanel.cpp`    |
+| Tape, stepper, state pill   | `panels/controls.js`                     | Converted — `LightDepotSurface.h`        |
+| pcard, hero, rail, duo, note | `inspector.js`, `styles.css`            | Converted — `LightDepotSurface.h`        |
+| Fog cards                   | `panels/fog.js`                          | Not started                              |
+| Transform grid              | `TransformPanel.jsx`                     | Not started                              |
 
-`Engine/Editor/LightInspectorPanel.cpp` currently draws the FrontierEditor card set and does not match any of
-the above. It is to be rebuilt against `lights.js` and `advancedLights.js`.
+### What the native panel now draws
+
+`Engine/Editor/LightInspectorPanel.cpp` is a rewrite, not an edit: the card set it drew before came from the
+wrong editor and none of it survived. It now walks one cursor down the column and emits the same elements the
+reference does, in the same order, with the geometry read off `styles.css`:
+
+- the photometric hero at 172 px for point and spot and 174 px for the shaped emitters, with the caption band,
+  the cone wedge and its dashed inner cone, the concentric falloff discs and reach rings, the IES candela
+  raster, the area aperture with its floor ellipses, and the bloomed tube capsule;
+- the four-pill rail, the two stat tiles, the log-scale photometry chart with its five-metre marker, the
+  polar candela fan and the aspect bar;
+- the tape — forty-one ticks, long every tenth, lit up to the value, a triangle marker on a 1.4 px stem, and
+  the range written on the strip — with its stepper, and the state pills with their 7 px status dot;
+- the axis cells, the colour chip, and the collapsible card heads.
+
+Three things the browser does that needed building rather than borrowing. CSS letter-spacing and
+`text-transform` have no ImGui equivalent, so every tracked small-cap label is laid out a glyph at a time,
+walking UTF-8 so the reference's degree, middot, multiplication and minus signs survive. ImGui only ships
+`ShadeVertsLinearColorGradientKeepAlpha`, which is useless for a wedge that fades from .65 to .03, so the full
+RGBA is interpolated across the span by hand. `createRadialGradient` has no counterpart at all, so the hero
+glow is laid in as concentric discs through its three stops.
+
+Routing: the engine's six-way Type selector folds onto the reference's five emitters. Point and Spot map
+straight across; Rectangle / Area and Tube map to the shaped panel; Strip is a tube run; a Spot whose
+`Distribution` names a photometric profile is the IES lamp. Directional has no counterpart in the reference
+and reads out through the isotropic branch.
+
+The property set is `world.js`, name for name and default for default — `Intensity`, `Reach`,
+`Decay exponent`, `Cone angle`, `Penumbra`, `Luminous flux`, `Profile multiplier`, `Photometric range`,
+`Field angle`, `Cut-off pitch`, `Width`, `Height`, `Length`, `Tube radius`, `Beam spread`,
+`Colour temperature`, `Emission colour`, `Position`, `Target`, `Rotation` — so the cards bind to the
+reference's own controls instead of to engine-side lookalikes. Where the feed has not published one yet the
+reference default stands in, so a card always reads as the browser draws it.
+
+### Proof
+
+`python3 Exhibits/Workbench/Lighting/RunNativeEmitterCards.py` compiles the panel against ImGui, runs it, and
+writes twelve captures to `Exhibits/Gallery/LightingNative` from real draw commands — six emitters at the two
+column widths an inspector sidebar actually gets. The run asserts 27 checks, including the arithmetic the
+cards print, taken from the reference: a 14 cd point reads 0.56 lx at five metres and 0.14 lx at ten, a 62 cd
+key spot reads 2.48 lx and pools 2.3 m across at five metres, an ECE low beam peaks at 2970 cd, a 2 x 1 m
+softbox and a 1.5 m tube both peak at 540 cd, and efficacy is `min(160, 70 + K / 100)`.
+
+The narrow capture is 318 px because the reference is an inspector column — its canvases fall back to 290 px
+when unmeasured. At that width the axis fields clip their leading digit, which is what the browser does too:
+`.step .f` carries `min-width:0`, so flexbox shrinks the field past its 38 px basis and the input clips. The
+420 px capture shows them whole.
 
 ## Correction history
 

@@ -1,2 +1,2 @@
-PASS 19 checks: native scene-emitter cards for Point, Spot, Area, Tube and LED Strip at two widths.
+PASS 27 checks: native light inspector for Point, Spot, IES, Area, Tube and Strip at two column widths.
 Exit: 0
