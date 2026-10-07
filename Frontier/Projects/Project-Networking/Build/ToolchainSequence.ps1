@@ -33,10 +33,20 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Frontier project DLL compilation/link failed.' }
     Copy-Item $Runtime (Join-Path $Output 'EOSSDK-Win64-Shipping.dll') -Force
     $GuiBuild = Join-Path $Output 'WindowBuild'
-    & cmake -S (Join-Path $PSScriptRoot 'WindowHost') -B $GuiBuild -A x64 "-DEOS_SDK_ROOT=$SdkRoot" "-DGUI_ROOT=$GuiRoot"
-    if ($LASTEXITCODE -ne 0) { throw 'GLFW/ImGui window configuration failed.' }
-    & cmake --build $GuiBuild --config Release --parallel 4
-    if ($LASTEXITCODE -ne 0) { throw 'GLFW/ImGui window build failed.' }
+    $ConfigureOutput = & cmake -S (Join-Path $PSScriptRoot 'WindowHost') -B $GuiBuild -A x64 "-DEOS_SDK_ROOT=$SdkRoot" "-DGUI_ROOT=$GuiRoot"
+    $ConfigureCode = $LASTEXITCODE
+    $ConfigureOutput | Write-Host
+    if ($ConfigureCode -ne 0) {
+        $ConfigureOutput | Select-Object -Last 30 | ForEach-Object { Write-Host "::error::$_" }
+        throw 'GLFW/ImGui window configuration failed.'
+    }
+    $BuildOutput = & cmake --build $GuiBuild --config Release --parallel 4
+    $BuildCode = $LASTEXITCODE
+    $BuildOutput | Write-Host
+    if ($BuildCode -ne 0) {
+        $BuildOutput | Select-Object -Last 30 | ForEach-Object { Write-Host "::error::$_" }
+        throw 'GLFW/ImGui window build failed.'
+    }
     $Revision = & git -C $SlateRoot rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Unable to record Slate revision.' }
     @{
