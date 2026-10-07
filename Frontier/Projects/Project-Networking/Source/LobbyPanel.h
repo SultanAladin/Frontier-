@@ -84,7 +84,7 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
         ImGui::PushID(I);
         ImGui::BeginChild("metric", ImVec2(MetricWidth, 96), ImGuiChildFlags_Borders);
         ImGui::TextColored(Dim, "%s", I == 0 ? "READINESS" : I == 1 ? "LIVE SESSION" : "RECENT COMPLETED TESTS");
-        ImGui::SetWindowFontScale(1.4f);
+        ImGui::SetWindowFontScale(1.8f);
         if (I == 0) ImGui::Text("%u / %u", Ready, static_cast<unsigned>(R.Players.size()));
         else if (I == 1) ImGui::TextUnformatted(R.Phase == RoomPhase::Running ? DurationReading(std::time(nullptr) - R.StartedAt).c_str() : "Not running");
         else ImGui::Text("%u", Completed);
@@ -95,7 +95,8 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
     const float Height = ImGui::GetContentRegionAvail().y - 27;
     ImGui::BeginChild("Squad panel", ImVec2((Width - 12) * .60f, Height), ImGuiChildFlags_Borders);
     ImGui::TextUnformatted("The room"); ImGui::SameLine();
-    ImGui::TextColored(Dim, "   %u EOS member%s  /  %u local test players", Real, Real == 1 ? "" : "s", Dummy);
+    if (Preview) ImGui::TextColored(Dim, "   Layout fixture - not an EOS roster");
+    else ImGui::TextColored(Dim, "   %u EOS member%s  /  %u local test players", Real, Real == 1 ? "" : "s", Dummy);
     ImGui::Spacing();
     const float RosterHeight = std::max(130.0f, ImGui::GetContentRegionAvail().y - 185.0f);
     ImGui::BeginChild("Scrollable roster", ImVec2(0, RosterHeight));
@@ -109,7 +110,10 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 12));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
         ImGui::BeginChild("player", ImVec2(CardWidth, 132), ImGuiChildFlags_Borders);
-        ImGui::TextColored(Player.Dummy ? Amber : Blue, "%s", Player.Dummy ? "LOCAL DUMMY" : Player.Local ? "YOU / EPIC ACCOUNT" : "EOS MEMBER");
+        const ImVec2 Avatar(ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 32, ImGui::GetCursorScreenPos().y + 14);
+        ImGui::GetWindowDrawList()->AddCircleFilled(Avatar, 16, Player.Dummy ? IM_COL32(62, 51, 31, 255) : IM_COL32(34, 52, 106, 255), 32);
+        ImGui::GetWindowDrawList()->AddText(ImVec2(Avatar.x - 5, Avatar.y - 9), ImGui::GetColorU32(Player.Dummy ? Amber : Blue), Player.Dummy ? "T" : "E");
+        ImGui::TextColored(Player.Dummy ? Amber : Blue, "%s", Player.Dummy ? "LOCAL DUMMY" : Preview ? "PREVIEW ACCOUNT" : Player.Local ? "YOU / EPIC ACCOUNT" : "EOS MEMBER");
         ImGui::TextWrapped("%s", Player.Name.c_str());
         ImGui::TextColored(Player.Ready ? Green : Dim, "%s", Player.Ready ? "*  Ready" : "o  Not ready");
         if (Player.Dummy)

@@ -216,12 +216,19 @@ jobs:
         run: |
           $Tag = "networking-test-$env:GITHUB_RUN_ID"
           $Zip = '_AgentScratch/Project-Networking-Windows-x64.zip'
-          gh release view $Tag --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $Tag $Zip "$Zip.sha256" --clobber --repo $env:GITHUB_REPOSITORY
-          } else {
-            gh release create $Tag $Zip "$Zip.sha256" --repo $env:GITHUB_REPOSITORY `
-              --target $env:GITHUB_SHA --prerelease --title 'Project-Networking - ImGui Windows login app' `
-              --notes 'Native Frontier-inspired lobby UI with real EOS lobby, host-managed session lifecycle, muted-by-default RTC voice, and Player Data Storage history. Local dummy players are explicitly labelled and never registered as EOS users. Copy log replaces Save log. Extract and open Charge.exe. EOS and Microsoft XAudio2 runtimes are included. A PRIVATE Charge.local.ini is needed for portable credentials and a consistent cross-PC data key; it is intentionally excluded from this public download. Requires lobby/session/voice/player-data client-policy permissions. CI checks build, deterministic state/data logic, real SDK/platform startup and native UI rendering. CI does not authenticate a player or prove live lobby, voice, session or cloud success. Gameplay replication and authoritative competitive stats are not implemented.'
+          $Published = $false
+          for ($Attempt = 0; $Attempt -lt 3; $Attempt++) {
+            $Existing = & gh release view $Tag --repo $env:GITHUB_REPOSITORY 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              $Create = & gh release create $Tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'Frontier - EOS Lobby Lab' --notes-file 'Frontier/Projects/Project-Networking/Build/ReleaseNotes.txt' 2>&1
+              $Create | Write-Host
+            }
+            $Upload = & gh release upload $Tag $Zip "$Zip.sha256" --clobber --repo $env:GITHUB_REPOSITORY 2>&1
+            $Code = $LASTEXITCODE
+            $Upload | Write-Host
+            if ($Code -eq 0) { $Published = $true; break }
+            $Detail = (($Upload | Select-Object -Last 12) -join "`n").Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::warning::Release upload attempt failed: $Detail"
+            if ($Attempt -lt 2) { Start-Sleep -Seconds 5 }
           }
-          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
+          if (-not $Published) { throw 'Release publication failed; the checked ZIP remains available as the workflow artifact' }

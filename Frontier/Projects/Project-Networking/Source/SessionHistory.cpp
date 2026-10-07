@@ -51,8 +51,9 @@ void Cache(const std::string& Name, const std::string& Text, bool Pending)
     std::filesystem::create_directories(AccountDirectory, Error);
     if (Error) { History.Status = "Local history cache unavailable"; return; }
     const auto Target = AccountDirectory / Name;
-    if (!Pending && std::filesystem::exists(Target.string() + ".pending", Error)) return;
-    const auto Temporary = Target.string() + ".tmp";
+    auto MarkerPath = Target; MarkerPath += ".pending";
+    if (!Pending && std::filesystem::exists(MarkerPath, Error)) return;
+    auto Temporary = Target; Temporary += ".tmp";
     std::ofstream File(Temporary, std::ios::binary | std::ios::trunc);
     File.write(Text.data(), static_cast<std::streamsize>(Text.size())); File.close();
     if (!File) { History.Status = "Local history write failed"; return; }
@@ -63,7 +64,7 @@ void Cache(const std::string& Name, const std::string& Text, bool Pending)
     std::filesystem::rename(Temporary, Target, Error);
     if (Error) { History.Status = "Could not finalize local history cache"; return; }
 #endif
-    if (Pending) { std::ofstream Marker(Target.string() + ".pending"); Marker << "retry\n"; }
+    if (Pending) { std::ofstream Marker(MarkerPath); Marker << "retry\n"; }
 }
 EOS_PlayerDataStorage_EReadResult EOS_CALL ReadChunk(const EOS_PlayerDataStorage_ReadFileDataCallbackInfo* C)
 {

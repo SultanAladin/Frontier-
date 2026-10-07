@@ -130,6 +130,7 @@ void Refresh()
     if (!Room.Owner)
     {
         std::string RemoteState;
+        const auto PreviousSession = Room.SessionId;
         for (const char* KeyName : {"session_id", "match_state"})
         {
             EOS_LobbyDetails_CopyAttributeByKeyOptions A{}; A.ApiVersion = EOS_LOBBYDETAILS_COPYATTRIBUTEBYKEY_API_LATEST; A.AttrKey = KeyName;
@@ -144,6 +145,8 @@ void Refresh()
                 EOS_Lobby_Attribute_Release(V);
             }
         }
+        if (PreviousSession != Room.SessionId && RemoteState == "waiting")
+        { ReadyDesired = false; AttributesDirty = true; }
         if (!WantLeave && RemoteState == "running" && Room.Phase != RoomPhase::Running)
         {
             OwnerAttributesDirty = true;

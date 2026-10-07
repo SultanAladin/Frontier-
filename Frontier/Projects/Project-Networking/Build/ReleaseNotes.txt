@@ -1,0 +1,10 @@
+Frontier-inspired native lobby UI with real EOS lobby, host-managed session lifecycle, muted-by-default RTC voice, and Player Data Storage history.
+
+- Local dummy players are explicitly labelled. They are not EOS accounts, session registrations or voice peers.
+- Copy log replaces Save log. Existing real Auth/Connect/profile integration is retained.
+- Extract into a fresh folder and open Charge.exe. EOS runtime and Microsoft XAudio2 x64 runtime are included.
+- PRIVATE Charge.local.ini carries portable credentials and a stable cross-PC data-encryption key. It is intentionally excluded from this public download. Keep it private.
+- The client policy must allow the relevant lobby, sessions, voice and player-data operations. Do not grant admin/trusted-server policies just to bypass errors.
+- Up to 64 recent client-written history records are displayed. This is not an authoritative leaderboard or competitive-stat service.
+
+CI checks build, local readiness/data/config logic, real SDK/platform startup, and extracted native UI rendering. LobbyProof.bmp is a synthetic layout preview clearly labelled as not authenticated. CI does NOT authenticate a player or prove live lobby creation, RTC transmission, match-service or cloud success. Gameplay transport/replication is not implemented.

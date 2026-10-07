@@ -731,8 +731,8 @@ int RunWindow(bool Smoke)
             Networking::RoomReading Preview;
             Preview.Phase = Networking::RoomPhase::Waiting;
             Preview.Status = "UI preview only - no EOS lobby, voice or match was created";
-            Preview.Players = {{"Layout test A", false, true, false}, {"Layout test B", true, true, false},
-                {"Layout test C", false, true, false}, {"Layout test D", true, true, false}};
+            Preview.Players = {{"Preview - not signed in", false, false, true}, {"Test player 1", true, true, false},
+                {"Test player 2", false, true, false}, {"Test player 3", true, true, false}};
             Networking::RenderLobbyPanel(TitleFont, Diagnostics, CopyDiagnostics, RequestDisconnect, &Preview);
         }
         else if (Verified)
