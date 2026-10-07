@@ -60,7 +60,7 @@ const select = async name => {
 const headings = () => page.$$eval('.card-heading > span:first-child', nodes => nodes.map(node => node.textContent.trim()));
 
 for (const width of [1600, 1120]) {
-  await page.setViewport({width, height: 1000, deviceScaleFactor: 2});
+  await page.setViewport({width, height: 1000, deviceScaleFactor: 1});
   await page.goto(origin, {waitUntil: 'networkidle0', timeout: 60000});
   await page.evaluate(() => localStorage.removeItem('frontier-project'));
   await page.reload({waitUntil: 'networkidle0'});
@@ -97,7 +97,7 @@ for (const width of [1600, 1120]) {
 }
 
 // The whole editor, so the new Lighting folder is visible in the hierarchy.
-await page.setViewport({width: 1600, height: 1100, deviceScaleFactor: 2});
+await page.setViewport({width: 1600, height: 1100, deviceScaleFactor: 1});
 await page.goto(origin, {waitUntil: 'networkidle0'});
 await select('Spot Light');
 await page.screenshot({path: path.join(gallery, 'EditorWithLighting.png')});
