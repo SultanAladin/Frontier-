@@ -37,6 +37,24 @@ int main()
     Expired.Refuse();
     Expired.AcceptConnect(true);
     Require(Expired.Progress == LoginProgress::Refused, "late completion cannot reverse timeout/refusal");
+    LoginSequence Consent;
+    Require(!Consent.ApproveCreation(), "creation cannot bypass Auth or explicit consent state");
+    Consent.AcceptAuth(true);
+    Consent.RequestCreationConsent();
+    Consent.AcceptConnect(true);
+    Require(Consent.Progress == LoginProgress::WaitingForCreationConsent && !Consent.Finished(),
+        "missing product user waits for consent without restarting Auth or claiming success");
+    Require(Consent.ApproveCreation(), "explicit consent resumes the existing Connect flow");
+    Require(!Consent.ApproveCreation(), "duplicate creation approval is rejected");
+    Consent.AcceptConnect(true);
+    Consent.AcceptAuth(true);
+    Consent.RequestCreationConsent();
+    Require(Consent.Progress == LoginProgress::Connected, "verified login stays connected without another Auth flow");
+    LoginSequence CancelledConsent;
+    CancelledConsent.AcceptAuth(true);
+    CancelledConsent.RequestCreationConsent();
+    CancelledConsent.Refuse();
+    Require(!CancelledConsent.ApproveCreation(), "cancelled or timed-out consent cannot create a product user");
     std::puts("Scope: synthetic acceptance ordering only. LIVE EOS AUTHENTICATION NOT RUN.");
     return Failures ? 1 : 0;
 }

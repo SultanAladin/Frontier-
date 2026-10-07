@@ -1,3 +1,36 @@
+## Country permission and signed-in profile
+
+The user's screenshots now demonstrate actual Epic Account Portal rendering and
+consent UI. They also show Epic's **Missing Permissions** screen: Country was
+required by Charge but not requested. A later `EOS_Canceled` result is not an
+Auth/Connect success. Earlier saved-credential/platform-creation blockers have
+been passed in the newer screenshot.
+
+The authorization request now includes Basic Profile, Friends List, Presence and
+Country, matching Charge's configured required permissions. Setup's optional
+friends control now controls **loading friends after login**, not omission of a
+required consent scope. No email or friend-management scope is requested.
+
+After Auth AND Connect succeed, the app queries EOS UserInfo for the selected
+account, using the local authenticated account as the query caller. The signed-in
+card displays Epic's display name, country and preferred language where available,
+and separate Auth/Connect verification. Missing fields say unavailable; nothing is
+inferred from location metadata or invented. Profile values remain in memory,
+are cleared on disconnect/session retirement, and are never written to the log or
+credential vault. Refreshing the profile does not launch Auth; a profile query
+failure does not log the user out.
+
+If Auth succeeds but Connect needs a NEW Dev product user, the app now retains
+the platform/continuance token and presents an explicit **Create NEW Dev profile &
+continue** action. Decline/cancel if an existing game identity needs linking.
+Approval continues Connect without opening Account Portal again. No profile is
+created without this action or the existing explicit advanced opt-in. The consent
+wait expires after 180 seconds; cancellations and failures never auto-retry Auth.
+
+The unreviewed-brand notice is controlled by Epic's application review and is not
+bypassed by these changes. A real completed Auth/Connect session and returned
+profile values remain unverified until the user completes the new flow.
+
 ## Platform-refusal diagnostic update
 
 **Latest download:** [Windows ZIP](https://github.com/c7egoist/Frontier/releases/download/networking-test-37596249555/Project-Networking-Windows-x64.zip).

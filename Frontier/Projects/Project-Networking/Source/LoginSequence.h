@@ -11,6 +11,7 @@ enum class LoginProgress
 {
     WaitingForAuth,
     WaitingForConnect,
+    WaitingForCreationConsent,
     Connected,
     Refused
 };
@@ -24,6 +25,19 @@ struct LoginSequence
         if (Progress != LoginProgress::WaitingForAuth)
             return;
         Progress = ValidAccount ? LoginProgress::WaitingForConnect : LoginProgress::Refused;
+    }
+
+    void RequestCreationConsent() noexcept
+    {
+        if (Progress == LoginProgress::WaitingForConnect)
+            Progress = LoginProgress::WaitingForCreationConsent;
+    }
+
+    bool ApproveCreation() noexcept
+    {
+        if (Progress != LoginProgress::WaitingForCreationConsent) return false;
+        Progress = LoginProgress::WaitingForConnect;
+        return true;
     }
 
     void AcceptConnect(bool ValidProductUser) noexcept

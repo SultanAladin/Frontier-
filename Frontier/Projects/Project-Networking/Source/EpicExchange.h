@@ -26,6 +26,17 @@ bool VerifyEpicPlatform(DiagnosticReception Reception) noexcept;
 bool VerifyEpicRuntime(DiagnosticReception Reception) noexcept;
 bool ConstructEpic(DiagnosticReception Reception) noexcept;
 bool ShutdownEpic(DiagnosticReception Reception = nullptr) noexcept;
+struct AccountProfile
+{
+    char DisplayName[256]{};
+    char Country[128]{};
+    char Language[64]{};
+    bool Pending = false;
+    bool Available = false;
+};
+const AccountProfile& InspectEpicProfile() noexcept;
+bool QueryEpicProfile() noexcept;
+bool ApproveEpicUserCreation() noexcept;
 bool QueryEpicFriends() noexcept;
 bool ShowEpicFriends() noexcept;
 bool HideEpicFriends() noexcept;

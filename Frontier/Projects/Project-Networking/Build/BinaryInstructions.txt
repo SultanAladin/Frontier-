@@ -40,3 +40,12 @@ checked and click Apply / Save & log in to replace the old saved value. The app
 never truncates credentials or sends invalid input to EOS. If it still fails,
 Save log now includes redacted platform-error categories; attach that log, never
 your secret. Saving successfully does not mean Epic has accepted the credential.
+
+COUNTRY PERMISSION / ACCOUNT CARD
+Charge now requests all four permissions required by its Epic application:
+Basic Profile, Friends List, Presence and Country. Review Epic's consent prompt.
+After Auth + Connect succeed, the account card shows your real Epic display name,
+country and language when Epic provides them. Profile details are not saved to logs.
+If asked to create a NEW Dev profile, approve only for a new test product user;
+this continues Connect without another login. Cancel if you need identity linking.
+The yellow unreviewed-brand banner is an Epic portal/review setting, not bypassed.

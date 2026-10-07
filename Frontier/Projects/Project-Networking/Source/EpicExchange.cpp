@@ -4,6 +4,7 @@
 // 📦 Authenticates through Epic Account Portal and exchanges the identity token for a product user.
 
 #include "EpicExchange.h"
+#include "AuthPolicy.h"
 #include "PlatformDiagnostics.h"
 #include <eos_logging.h>
 #include <atomic>
@@ -43,6 +44,9 @@ EOS_HUI SocialOverlay = nullptr;
 EOS_HUserInfo UserInformation = nullptr;
 EOS_EpicAccountId LocalAccount = nullptr;
 EOS_ProductUserId LocalProductUser = nullptr;
+EOS_EpicAccountId ProfileAccount = nullptr;
+EOS_ContinuanceToken PendingCreation = nullptr;
+AccountProfile Profile;
 constexpr int FriendCapacity = 128;
 struct FriendReading
 {
@@ -292,6 +296,37 @@ void ReleaseToken() noexcept
     IdentityToken = nullptr;
 }
 
+void EOS_CALL ReceiveOwnProfile(const EOS_UserInfo_QueryUserInfoCallbackInfo* Completion)
+{
+    if (Releasing || !UserInformation || Login.Progress != LoginProgress::Connected ||
+        Completion->LocalUserId != LocalAccount || Completion->TargetUserId != ProfileAccount ||
+        EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
+        return;
+    Profile.Pending = false;
+    if (Completion->ResultCode != EOS_EResult::EOS_Success)
+    {
+        Report("profile_query", Completion->ResultCode);
+        return; // Profile lookup failure must never restart Auth or undo Connect.
+    }
+    EOS_UserInfo_CopyUserInfoOptions Options{};
+    Options.ApiVersion = EOS_USERINFO_COPYUSERINFO_API_LATEST;
+    Options.LocalUserId = LocalAccount;
+    Options.TargetUserId = ProfileAccount;
+    EOS_UserInfo* Information = nullptr;
+    const auto Result = EOS_UserInfo_CopyUserInfo(UserInformation, &Options, &Information);
+    if (Result == EOS_EResult::EOS_Success && Information)
+    {
+        const char* Name = Information->DisplayNameSanitized ? Information->DisplayNameSanitized : Information->DisplayName;
+        std::snprintf(Profile.DisplayName, sizeof(Profile.DisplayName), "%s", Name ? Name : "");
+        std::snprintf(Profile.Country, sizeof(Profile.Country), "%s", Information->Country ? Information->Country : "");
+        std::snprintf(Profile.Language, sizeof(Profile.Language), "%s", Information->PreferredLanguage ? Information->PreferredLanguage : "");
+        Profile.Available = true;
+        Emit("profile=loaded; personal details are displayed only in the account card, not saved to logs");
+    }
+    else Report("profile_copy", Result);
+    if (Information) EOS_UserInfo_Release(Information);
+}
+
 void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
 {
     const bool Valid = EOS_ProductUserId_IsValid(ProductUser) == EOS_TRUE;
@@ -301,8 +336,9 @@ void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
     if (Login.Progress == LoginProgress::Connected)
     {
         Emit("LOGIN_VERIFIED auth=success connect=success");
+        QueryEpicProfile();
         if (!SocialEnabled)
-            std::snprintf(FriendsReading, sizeof(FriendsReading), "Friends permission was not requested; enable it and sign in again.");
+            std::snprintf(FriendsReading, sizeof(FriendsReading), "Automatic friends loading is disabled. Enable it in Setup before signing in.");
     }
 }
 
@@ -327,8 +363,10 @@ void EOS_CALL ReceiveConnect(const EOS_Connect_LoginCallbackInfo* Completion)
     {
         if (!AllowCreation)
         {
-            Emit("connect=account_creation_required consent=missing; set EOS_ALLOW_CREATE_USER=1 only for a new test account");
-            Login.Refuse();
+            PendingCreation = Completion->ContinuanceToken;
+            Login.RequestCreationConsent();
+            Started = std::chrono::steady_clock::now();
+            Emit("connect=account_creation_required; Epic sign-in succeeded. Explicitly create a NEW Dev product user to continue, or cancel. No second login is required.");
             return;
         }
         EOS_Connect_CreateUserOptions Options{};
@@ -351,6 +389,8 @@ void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
         return;
     if (Completion->ResultCode != EOS_EResult::EOS_Success)
     {
+        if (Completion->ResultCode == EOS_EResult::EOS_Canceled)
+            Emit("Epic sign-in was cancelled or interrupted. No automatic login retry was started.");
         Refuse("auth_login", Completion->ResultCode);
         return;
     }
@@ -362,6 +402,7 @@ void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
         return;
     }
     LocalAccount = Completion->LocalUserId;
+    ProfileAccount = Completion->SelectedAccountId;
     Emit("auth=success epic_account_id_valid=1");
     EOS_Auth_CopyIdTokenOptions Copy{};
     Copy.ApiVersion = EOS_AUTH_COPYIDTOKEN_API_LATEST;
@@ -531,12 +572,8 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
     EOS_Auth_LoginOptions LoginOptions{};
     LoginOptions.ApiVersion = EOS_AUTH_LOGIN_API_LATEST;
     LoginOptions.Credentials = &Credentials;
-    LoginOptions.ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_BasicProfile;
-    if (SocialEnabled)
-        LoginOptions.ScopeFlags = static_cast<EOS_EAuthScopeFlags>(
-            static_cast<int>(LoginOptions.ScopeFlags) |
-            static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_FriendsList) |
-            static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_Presence));
+    LoginOptions.ScopeFlags = ChargeAuthScopes();
+    Emit("auth_scopes=basic_profile,friends_list,presence,country; matches Charge required permissions");
     Started = std::chrono::steady_clock::now();
     Emit(Developer ? "auth=waiting method=developer timeout_seconds=180" :
                      "auth=waiting method=account_portal timeout_seconds=180");
@@ -582,6 +619,9 @@ void RetireEpic() noexcept
     UserInformation = nullptr;
     LocalAccount = nullptr;
     LocalProductUser = nullptr;
+    ProfileAccount = nullptr;
+    PendingCreation = nullptr;
+    Profile = {};
     ReleaseToken();
     FriendCount = 0;
     NamesPending = 0;
@@ -610,6 +650,34 @@ bool ShutdownEpic(DiagnosticReception ActiveReception) noexcept
         ActiveReception("sdk_shutdown_once=1");
     }
     return Result == EOS_EResult::EOS_Success;
+}
+
+const AccountProfile& InspectEpicProfile() noexcept { return Profile; }
+
+bool QueryEpicProfile() noexcept
+{
+    if (!UserInformation || Login.Progress != LoginProgress::Connected || !ProfileAccount || Profile.Pending)
+        return false;
+    Profile.Pending = true;
+    EOS_UserInfo_QueryUserInfoOptions Options{};
+    Options.ApiVersion = EOS_USERINFO_QUERYUSERINFO_API_LATEST;
+    Options.LocalUserId = LocalAccount;
+    Options.TargetUserId = ProfileAccount;
+    EOS_UserInfo_QueryUserInfo(UserInformation, &Options, nullptr, ReceiveOwnProfile);
+    return true;
+}
+
+bool ApproveEpicUserCreation() noexcept
+{
+    if (!Connect || !PendingCreation || !Login.ApproveCreation()) return false;
+    EOS_Connect_CreateUserOptions Options{};
+    Options.ApiVersion = EOS_CONNECT_CREATEUSER_API_LATEST;
+    Options.ContinuanceToken = PendingCreation;
+    PendingCreation = nullptr;
+    Started = std::chrono::steady_clock::now();
+    Emit("connect_create_user=waiting; explicit new Dev product-user consent received");
+    EOS_Connect_CreateUser(Connect, &Options, nullptr, ReceiveCreation);
+    return true;
 }
 
 bool QueryEpicFriends() noexcept

@@ -1,5 +1,5 @@
 Project-Networking real SDK checks
-utc=2026-10-07T08:49:57.463935+00:00
+utc=2026-10-07T09:04:24.743422+00:00
 authentication=NOT_ATTEMPTED; no client secret supplied
 Shutdown handler: initialize.
 EOS_Success
@@ -31,6 +31,7 @@ sdk_shutdown_once=1
 Shutdown handler: cleanup.
 exit=0
 Shutdown handler: initialize.
+PASS Charge required scopes include Country, Basic Profile, Friends List and Presence
 PASS credential bounds and SDK diagnostic redaction
 EOS_Success
 sdk_initialized_once=1
@@ -44,6 +45,7 @@ configuration=refused missing_EOS_CLIENT_SECRET; use a rotated credential locall
 scope=sdk_runtime_only authentication=NOT_ATTEMPTED
 1.19.2.1-58105819
 sdk=ready; kept initialized for login and retries
+PASS signed-out profile/creation guards and cleared profile state
 EOS_Success
 sdk_shutdown_once=1
 sdk=retired; restart the application before using EOS again
@@ -68,6 +70,12 @@ PASS ordered valid completions finish login
 PASS invalid Epic account cannot authenticate
 PASS invalid PUID cannot authenticate
 PASS late completion cannot reverse timeout/refusal
+PASS creation cannot bypass Auth or explicit consent state
+PASS missing product user waits for consent without restarting Auth or claiming success
+PASS explicit consent resumes the existing Connect flow
+PASS duplicate creation approval is rejected
+PASS verified login stays connected without another Auth flow
+PASS cancelled or timed-out consent cannot create a product user
 Scope: synthetic acceptance ordering only. LIVE EOS AUTHENTICATION NOT RUN.
 exit=0
 exit=0

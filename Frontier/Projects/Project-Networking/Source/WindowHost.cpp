@@ -96,7 +96,7 @@ void ReceiveDiagnostic(const char* Text)
     std::transform(Lower.begin(), Lower.end(), Lower.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
     const auto Has = [&Lower](const char* Word) { return Lower.find(Word) != std::string::npos; };
     Reading.Severity = Has("failed") || Has("error") || Has("refused") || Has("could not") ? 3 :
-        Has("too long") || Has("whitespace") || Has("missing") || Has("not ready") || Has("empty") || Has("cancelled") || Has("not bootstrapped") ? 2 :
+        Has("too long") || Has("whitespace") || Has("missing") || Has("not ready") || Has("empty") || Has("cancelled") || Has("canceled") || Has("not bootstrapped") ? 2 :
         Has("=success") || Has("eos_success") || Has("sdk_initialized_once=1") ? 1 : 0;
     ScrollPending = true;
 }
@@ -344,7 +344,8 @@ void PresentSetup()
             ImGui::InputText("Saved developer credential", Credential, sizeof(Credential));
             ImGui::TextWrapped("Keep Epic's Developer Auth Tool running on localhost:6547.");
         }
-        ImGui::Checkbox("Request friends permissions", &EnableSocial);
+        ImGui::TextWrapped("Charge requires Basic Profile, Friends List, Presence and Country permissions. Epic will ask for consent.");
+        ImGui::Checkbox("Load friends after login", &EnableSocial);
         ImGui::Checkbox("Allow NEW Dev product-user creation", &AllowCreation);
         if (AllowCreation)
             ImGui::TextWrapped("This allows a real new PUID to be created. Do not use it to bypass identity linking.");
@@ -418,6 +419,7 @@ void PresentLogin()
     ImGui::Spacing();
     ImGui::Spacing();
 
+    const bool CreationConsent = Networking::InspectLogin() == Networking::LoginProgress::WaitingForCreationConsent;
     const float Available = ImGui::GetContentRegionAvail().x;
     const float Height = ImGui::GetContentRegionAvail().y - 37;
     ImGui::BeginChild("Login card", ImVec2(Available * 0.455f, Height), ImGuiChildFlags_Borders);
@@ -430,24 +432,40 @@ void PresentLogin()
     Ink->AddLine(ImVec2(Centre.x + 6, Centre.y - 19), ImVec2(Centre.x - 10, Centre.y + 3), IM_COL32(201, 221, 181, 255), 4);
     Ink->AddLine(ImVec2(Centre.x - 10, Centre.y + 3), ImVec2(Centre.x + 9, Centre.y + 3), IM_COL32(201, 221, 181, 255), 4);
     Ink->AddLine(ImVec2(Centre.x + 9, Centre.y + 3), ImVec2(Centre.x - 6, Centre.y + 22), IM_COL32(201, 221, 181, 255), 4);
-    ImGui::Dummy(ImVec2(0, 117));
+    ImGui::Dummy(ImVec2(0, Verified || CreationConsent ? 90 : 117));
     ImGui::TextColored(Muted, "YOUR SPACE. YOUR NEXT CHAPTER.");
     ImGui::Spacing();
     if (TitleFont) ImGui::PushFont(TitleFont);
-    ImGui::TextUnformatted(Verified ? "You're in." : "Welcome\nback.");
+    ImGui::TextUnformatted(Verified ? "You're in." : CreationConsent ? "One last step." : "Welcome\nback.");
     if (TitleFont) ImGui::PopFont();
     ImGui::Spacing();
     ImGui::TextColored(Muted, "%s", Verified ? "Your Epic identity is connected." : "Log in to access your content.");
-    ImGui::TextColored(Muted, "Secure sign-in with your Epic account.");
+    if (CreationConsent)
+        ImGui::TextWrapped("Epic sign-in succeeded. This account has no product user in this Dev deployment. Create a NEW Dev profile only if you do not need to link an existing game identity. Cancel otherwise.");
+    else if (Verified)
+    {
+        const auto& Profile = Networking::InspectEpicProfile();
+        ImGui::TextWrapped("%s", Profile.DisplayName[0] ? Profile.DisplayName :
+            Profile.Pending ? "Loading your Epic profile..." : "Display name unavailable");
+        ImGui::TextColored(SuccessColour, "Epic Auth verified  /  EOS Connect verified");
+        ImGui::TextWrapped("Country: %s", Profile.Country[0] ? Profile.Country : "Not provided by Epic");
+        ImGui::TextWrapped("Language: %s", Profile.Language[0] ? Profile.Language : "Not provided by Epic");
+        ImGui::BeginDisabled(Profile.Pending);
+        if (ImGui::SmallButton("Refresh profile")) Networking::QueryEpicProfile();
+        ImGui::EndDisabled();
+    }
+    else ImGui::TextColored(Muted, "Secure sign-in with your Epic account.");
     ImGui::Dummy(ImVec2(0, 25));
     ImGui::PushStyleColor(ImGuiCol_Button, Accent);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.86f, 0.93f, 0.79f, 1));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.68f, 0.77f, 0.59f, 1));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.10f, 0.15f, 0.085f, 1));
-    ImGui::BeginDisabled(Busy);
-    if (ImGui::Button(Verified ? "Open Epic friends" : "Log in with Epic    ->", ImVec2(-1, 54)))
+    ImGui::BeginDisabled(Busy && !CreationConsent);
+    if (ImGui::Button(Verified ? "Open Epic friends" : CreationConsent ? "Create NEW Dev profile & continue" : Busy ? "Waiting for Epic..." : "Log in with Epic    ->", ImVec2(-1, 54)))
     {
-        if (Verified)
+        if (CreationConsent)
+            Networking::ApproveEpicUserCreation();
+        else if (Verified)
             Networking::ShowEpicFriends();
         else
         {
@@ -487,7 +505,7 @@ void PresentLogin()
         ImGui::TextWrapped("Only friends authorized for this app may be listed.");
     }
     ImGui::Spacing();
-    const char* Status = Busy ? "Waiting for Epic..." : Verified ? "Auth + Connect verified" :
+    const char* Status = CreationConsent ? "Waiting for your consent - no login retry" : Busy ? "Waiting for Epic..." : Verified ? "Auth + Connect verified" :
         Cancelled ? "Cancelled" : Attempted ? "Not signed in - check the activity log" : "Ready when you are";
     ImGui::TextColored(Verified ? SuccessColour : Attempted && !Busy ? WarningColour : Muted, "%s", Status);
     ImGui::Dummy(ImVec2(0, 16));

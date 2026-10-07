@@ -4,6 +4,7 @@
 // 📦 Runs the real EOS login from a console without creating a game window.
 
 #include "EpicExchange.h"
+#include "AuthPolicy.h"
 #include "PlatformDiagnostics.h"
 #include <chrono>
 #include <cstdio>
@@ -35,6 +36,12 @@ int main(int ArgumentCount, char** Arguments)
     }
     if (ArgumentCount == 2 && std::strcmp(Arguments[1], "--lifecycle-check") == 0)
     {
+        constexpr int Scopes = static_cast<int>(Networking::ChargeAuthScopes());
+        static_assert((Scopes & static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_Country)) != 0);
+        static_assert((Scopes & static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_BasicProfile)) != 0);
+        static_assert((Scopes & static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_FriendsList)) != 0);
+        static_assert((Scopes & static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_Presence)) != 0);
+        PrintDiagnostic("PASS Charge required scopes include Country, Basic Profile, Friends List and Presence");
         char Oversized[81]{};
         std::memset(Oversized, 'A', 80);
         char Boundary[65]{};
@@ -58,7 +65,11 @@ int main(int ArgumentCount, char** Arguments)
         Accepted = Networking::VerifyEpicRuntime(PrintDiagnostic) && Accepted;
         Accepted = !Networking::QueryEpicFriends() && !Networking::ShowEpicFriends() &&
             !Networking::HideEpicFriends() && !Networking::EpicOverlayOwnsInput() && Accepted;
-        Accepted = Networking::InspectFriendCount() == 0 && Accepted;
+        const auto& Profile = Networking::InspectEpicProfile();
+        Accepted = !Networking::QueryEpicProfile() && !Networking::ApproveEpicUserCreation() &&
+            !Profile.Available && !Profile.Pending && !Profile.DisplayName[0] && !Profile.Country[0] &&
+            !Profile.Language[0] && Networking::InspectFriendCount() == 0 && Accepted;
+        PrintDiagnostic(Accepted ? "PASS signed-out profile/creation guards and cleared profile state" : "FAIL profile/creation guards");
         Accepted = Networking::ShutdownEpic(PrintDiagnostic) && Accepted;
         Accepted = Networking::ShutdownEpic(PrintDiagnostic) && Accepted;
         Accepted = !Networking::VerifyEpicRuntime(PrintDiagnostic) && Accepted;
