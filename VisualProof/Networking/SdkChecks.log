@@ -1,0 +1,51 @@
+Project-Networking real SDK checks
+utc=2026-10-07T06:28:59.975823+00:00
+authentication=NOT_ATTEMPTED; no client secret supplied
+Shutdown handler: initialize.
+scope=sdk_runtime_only authentication=NOT_ATTEMPTED
+1.19.2.1-58105819
+EOS_Success
+EOS_Success
+Shutdown handler: cleanup.
+exit=0
+Shutdown handler: initialize.
+scope=sdk_runtime_only authentication=NOT_ATTEMPTED
+1.19.2.1-58105819
+EOS_Success
+EOS_Success
+Shutdown handler: cleanup.
+exit=0
+Shutdown handler: initialize.
+Project-Networking: REAL EOS login; no simulated provider
+configuration=refused missing_EOS_CLIENT_SECRET; use a rotated credential locally
+Shutdown handler: cleanup.
+exit=2
+PASS real executable refuses missing credentials without authentication
+Shutdown handler: initialize.
+Usage: LoginHost [--sdk-check]
+Shutdown handler: cleanup.
+exit=2
+exit=0
+PASS initial login is not success
+PASS Connect cannot bypass Auth
+PASS Auth alone does not finish login
+PASS ordered valid completions finish login
+PASS invalid Epic account cannot authenticate
+PASS invalid PUID cannot authenticate
+PASS late completion cannot reverse timeout/refusal
+Scope: synthetic acceptance ordering only. LIVE EOS AUTHENTICATION NOT RUN.
+exit=0
+exit=0
+Shutdown handler: initialize.
+PASS reject wrong ABI revision
+PASS reject wrong ABI fingerprint
+PASS reject null delivery
+PASS load real EOS-linked project entry points
+PASS reject malformed launch
+PASS missing secret refuses real project construction
+PASS repeat refused construction safely
+PASS reject inactive project tick
+Shutdown handler: cleanup.
+scope=real_library_loading_and_refusal authentication=NOT_ATTEMPTED
+exit=0
+PASS all checks; LIVE EOS AUTHENTICATION NOT RUN; WINDOWS MSVC NOT RUN

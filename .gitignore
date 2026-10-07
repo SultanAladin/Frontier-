@@ -1,0 +1,13 @@
+_AgentScratch/
+**/Build/Output/
+**/ThirdParty/
+*.local.*
+.env
+*.obj
+*.pdb
+*.exe
+*.dll
+*.lib
+__pycache__/
+
+/google_drive/

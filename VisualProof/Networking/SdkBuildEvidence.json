@@ -1,0 +1,22 @@
+{
+  "compiler": "g++ (Debian 12.2.0-14+deb12u1) 12.2.0",
+  "sdk_runtime_sha256": "05c88b7adb10bfe3dc89d133af7318422838ab6909c06dcd3e74bd2af4ac2309",
+  "interchange_header_sha256": "2999eb7e28a537e93b12476617514e9abb303d15a0f48065ce3ddc76ba204c48",
+  "sources": {
+    "EpicExchange.cpp": "10d0f2fd34618ffbb5bac6ff98892e40868080676c9d12c8f5cef3dff53f5246",
+    "EpicExchange.h": "4b9145d14129368f217c118d95aa0d2e7a22559e51462f617f9ce85500c8011d",
+    "LoginHost.cpp": "609e1ccff9d6a45e423b7d9594f44f71886a9e8366dd11c1566df82caf2e6eb3",
+    "LoginSequence.h": "4b8a13d1aa2e5e45a29e17c75e2cf16856c2f356d29aaccef1cf93bb18ddfb05",
+    "NetworkingInterchange.cpp": "0e35e33f52cc91304a5a6c7639729f6dcbbcb5b35308638aa8520702f3c5a79a"
+  },
+  "artifacts": {
+    "LoginHost": "aafdab798dc7f8094317cfef4f31aac9f274c3cbd7d72ad6c2a6fda93ca39f2d",
+    "ProjectNetworking.so": "32f00e21057e351bd32d1533f051a17e91fd072faa4354a830f1674ba6869b47"
+  },
+  "authentication": "NOT_ATTEMPTED",
+  "check_sources": {
+    "InterchangeChecks.cpp": "e8814cf04f0580e9d3d254401fc38f459b14f700b70092097def46270d8e6f60",
+    "LoginSequenceChecks.cpp": "189a656c9fe56db17850497989070f5d991aa26074eb7fe924fbd5ab869d6bac",
+    "RunChecks.py": "9aea59c78a011502c5253200c917576aa0de6a7974e1e9405da9b5105a3c530e"
+  }
+}

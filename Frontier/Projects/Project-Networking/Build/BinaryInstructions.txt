@@ -1,0 +1,32 @@
+PROJECT-NETWORKING - WINDOWS X64 LOGIN TEST
+
+This package contains the actual MSVC-built LoginHost.exe and ProjectNetworking.dll.
+It does NOT contain the full Frontier engine, proprietary SDK files, or credentials.
+WindowsChecks.log records real SDK startup checks, NOT a player login.
+
+1. Extract the whole ZIP. Do not run the EXE from inside the ZIP viewer.
+2. From your EOS Flattened Drive folder, copy Bin/EOSSDK-Win64-Shipping.dll into
+   this package's Build/Output folder, beside LoginHost.exe. Use the x64 DLL,
+   not the arm64 DLL. The build used SDK 1.19.2.1.
+3. Install Microsoft Visual C++ 2015-2022 Redistributable (x64) if Windows reports
+   missing VCRUNTIME140/MSVCP140 libraries. Never fetch individual DLLs from DLL sites.
+4. Start Epic's Developer Authentication Tool from your original Epic SDK/tools download.
+   Use port 6547, sign in to an authorized development account, and save the credential
+   with a name such as PlayerOne. Keep the tool running on this same PC.
+5. Double-click RunLogin.cmd. Enter the saved credential NAME, then your ROTATED EOS
+   client secret at the hidden prompt. Never paste secrets in chat.
+6. A new Dev player may need PUID creation. Only after confirming this is a NEW test
+   account, run in PowerShell from this package folder:
+     & .\Build\LoginSequence.ps1 -DeveloperCredential PlayerOne -AllowCreateUser
+
+If the whole EOS client was replaced, set EOS_CLIENT_ID to its replacement ID before
+launching. Rotating only the secret does not require changing the ID.
+
+SUCCESS: exit code 0 AND a line reading
+  LOGIN_VERIFIED auth=success connect=success
+Failure produces a nonzero exit code. Upload the redacted Build/Output/Login-*.log
+and BuildEvidence.json for diagnosis. No actual account login was performed in CI.
+
+The project DLL is for opening ProjectNetworking.frontier with your existing Frontier.exe.
+The console is the simplest first test and does not require the renderer or full engine.
+See INSTRUCTIONS.md for Account Portal prerequisites and detailed setup.
