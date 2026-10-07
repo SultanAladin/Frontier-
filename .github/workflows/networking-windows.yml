@@ -140,6 +140,20 @@ jobs:
           } finally {
             Stop-Transcript
           }
+      - name: Publish synthetic lobby layout proof for visual inspection
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $Image = [System.Drawing.Image]::FromFile((Resolve-Path 'Frontier/Projects/Project-Networking/Build/Output/LobbyProof.bmp'))
+          $Stream = [System.IO.MemoryStream]::new()
+          $Image.Save($Stream, [System.Drawing.Imaging.ImageFormat]::Png)
+          $Data = [Convert]::ToBase64String($Stream.ToArray())
+          $Image.Dispose(); $Stream.Dispose()
+          $Parts = [Math]::Ceiling($Data.Length / 32000)
+          for ($I = 0; $I -lt $Parts; $I++) {
+            $Chunk = $Data.Substring($I * 32000, [Math]::Min(32000, $Data.Length - $I * 32000))
+            Write-Host "::notice title=LobbyPreviewPNG-$I-of-$Parts::$Chunk"
+          }
       - name: Package binaries with EOS runtime, without credentials
         shell: pwsh
         run: |

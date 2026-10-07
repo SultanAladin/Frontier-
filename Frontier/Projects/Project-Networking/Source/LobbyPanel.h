@@ -75,6 +75,8 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
         if (Record.Kind != "login" && !LastMatch) LastMatch = &Record;
     }
     const float Width = ImGui::GetContentRegionAvail().x;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(18, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12, 8));
     const float MetricWidth = (Width - 24) / 3;
     for (int I = 0; I < 3; ++I)
     {
@@ -88,12 +90,15 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
         else ImGui::Text("%u", Completed);
         ImGui::SetWindowFontScale(1); ImGui::EndChild(); ImGui::PopID();
     }
+    ImGui::PopStyleVar(2);
     ImGui::Spacing();
     const float Height = ImGui::GetContentRegionAvail().y - 27;
     ImGui::BeginChild("Squad panel", ImVec2((Width - 12) * .60f, Height), ImGuiChildFlags_Borders);
     ImGui::TextUnformatted("The room"); ImGui::SameLine();
     ImGui::TextColored(Dim, "   %u EOS member%s  /  %u local test players", Real, Real == 1 ? "" : "s", Dummy);
     ImGui::Spacing();
+    const float RosterHeight = std::max(130.0f, ImGui::GetContentRegionAvail().y - 185.0f);
+    ImGui::BeginChild("Scrollable roster", ImVec2(0, RosterHeight));
     const float CardWidth = (ImGui::GetContentRegionAvail().x - 12) / 2;
     for (size_t I = 0; I < R.Players.size(); ++I)
     {
@@ -101,7 +106,9 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
         if (I % 2) ImGui::SameLine();
         ImGui::PushID(static_cast<int>(I));
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(.105f,.109f,.12f,1));
-        ImGui::BeginChild("player", ImVec2(CardWidth, 155), ImGuiChildFlags_Borders);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 12));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
+        ImGui::BeginChild("player", ImVec2(CardWidth, 132), ImGuiChildFlags_Borders);
         ImGui::TextColored(Player.Dummy ? Amber : Blue, "%s", Player.Dummy ? "LOCAL DUMMY" : Player.Local ? "YOU / EPIC ACCOUNT" : "EOS MEMBER");
         ImGui::TextWrapped("%s", Player.Name.c_str());
         ImGui::TextColored(Player.Ready ? Green : Dim, "%s", Player.Ready ? "*  Ready" : "o  Not ready");
@@ -113,9 +120,11 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
             if (ImGui::Checkbox("Test ready", &Value)) SetDummyReady(Index, Value);
             ImGui::EndDisabled();
         }
-        ImGui::EndChild(); ImGui::PopStyleColor(); ImGui::PopID();
+        ImGui::EndChild(); ImGui::PopStyleVar(2); ImGui::PopStyleColor(); ImGui::PopID();
     }
     if (R.Players.empty()) ImGui::TextWrapped("%s", R.Status.c_str());
+    ImGui::EndChild();
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
     ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
     ImGui::TextUnformatted("Voice room");
     ImGui::TextColored(R.VoiceConnected ? Green : Dim, "%s", R.VoiceConnected ? "*  Connected to EOS RTC" : "o  RTC not connected");
@@ -135,6 +144,7 @@ inline void RenderLobbyPanel(ImFont* Heading, const char* Diagnostics, void (*Co
         ImGui::EndDisabled();
         ImGui::TextWrapped("Dummies only exercise local readiness. They are not Epic accounts, session registrations or RTC peers.");
     }
+    ImGui::PopStyleVar();
     ImGui::EndChild();
     ImGui::SameLine();
     ImGui::BeginChild("Match panel", ImVec2(0, Height), ImGuiChildFlags_Borders);

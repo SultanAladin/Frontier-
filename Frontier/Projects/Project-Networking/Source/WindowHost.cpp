@@ -314,7 +314,7 @@ void ConfigureAppearance()
 {
     ImGui::StyleColorsDark();
     ImGuiStyle& Style = ImGui::GetStyle();
-    Style.WindowPadding = ImVec2(30, 28);
+    Style.WindowPadding = ImVec2(24, 20);
     Style.FramePadding = ImVec2(14, 11);
     Style.ItemSpacing = ImVec2(12, 14);
     Style.WindowRounding = 18;
@@ -646,7 +646,7 @@ int RunWindow(bool Smoke)
     });
     if (!glfwInit())
         return 2;
-    GLFWwindow* Window = glfwCreateWindow(1080, 800, "Charge | Project-Networking", nullptr, nullptr);
+    GLFWwindow* Window = glfwCreateWindow(1180, 760, "Charge | Project-Networking", nullptr, nullptr);
     if (!Window)
     {
         glfwTerminate();
@@ -663,7 +663,7 @@ int RunWindow(bool Smoke)
     Io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 #if defined(_WIN32)
     Io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 17.0f);
-    TitleFont = Io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 52.0f);
+    TitleFont = Io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 42.0f);
 #endif
     ConfigureAppearance();
     if (!ImGui_ImplGlfw_InitForOpenGL(Window, true) || !ImGui_ImplOpenGL2_Init())

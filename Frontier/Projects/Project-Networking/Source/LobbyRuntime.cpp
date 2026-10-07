@@ -287,7 +287,7 @@ void EOS_CALL Ended(const EOS_Sessions_EndSessionCallbackInfo* C)
 {
     if (!Current(C->ClientData)) return;
     Operation = false;
-    if (!Success("session_end", C->ResultCode)) { Room.Phase = RoomPhase::Running; AutoArmed = false; return; }
+    if (!Success("session_end", C->ResultCode)) { Room.Phase = RoomPhase::Running; AutoArmed = false; WantLeave = false; return; }
     SaveMatch(WantLeave ? "abandoned" : "completed");
     OwnerAttributesDirty = true;
     Room.Phase = RoomPhase::Complete; Room.Status = "Match ended • history queued for EOS cloud sync";
@@ -297,7 +297,7 @@ void EOS_CALL DestroyedSession(const EOS_Sessions_DestroySessionCallbackInfo* C)
 {
     if (!Current(C->ClientData)) return;
     Operation = false;
-    if (!Success("session_destroy", C->ResultCode)) { Room.Phase = RoomPhase::Failed; return; }
+    if (!Success("session_destroy", C->ResultCode)) { Room.Phase = RoomPhase::Failed; WantLeave = false; return; }
     SessionExists = false; Room.SessionId.clear(); Registered.clear(); Room.StartedAt = 0;
     if (!WantLeave) { ResetDummyReadiness(); AutoArmed = true; Prepare(); }
 }

@@ -1,5 +1,6 @@
 #include "RoomRuntime.h"
 #include "HistoryFormat.h"
+#include "LocalConfiguration.h"
 #include <eos_playerdatastorage.h>
 #include <algorithm>
 #include <chrono>
@@ -50,9 +51,18 @@ void Cache(const std::string& Name, const std::string& Text, bool Pending)
     std::filesystem::create_directories(AccountDirectory, Error);
     if (Error) { History.Status = "Local history cache unavailable"; return; }
     const auto Target = AccountDirectory / Name;
-    std::ofstream File(Target, std::ios::binary | std::ios::trunc);
+    if (!Pending && std::filesystem::exists(Target.string() + ".pending", Error)) return;
+    const auto Temporary = Target.string() + ".tmp";
+    std::ofstream File(Temporary, std::ios::binary | std::ios::trunc);
     File.write(Text.data(), static_cast<std::streamsize>(Text.size())); File.close();
     if (!File) { History.Status = "Local history write failed"; return; }
+#if defined(_WIN32)
+    if (!MoveFileExW(std::filesystem::path(Temporary).c_str(), Target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    { History.Status = "Could not finalize local history cache"; return; }
+#else
+    std::filesystem::rename(Temporary, Target, Error);
+    if (Error) { History.Status = "Could not finalize local history cache"; return; }
+#endif
     if (Pending) { std::ofstream Marker(Target.string() + ".pending"); Marker << "retry\n"; }
 }
 EOS_PlayerDataStorage_EReadResult EOS_CALL ReadChunk(const EOS_PlayerDataStorage_ReadFileDataCallbackInfo* C)
