@@ -1,12 +1,14 @@
 param(
     [Parameter(Mandatory = $true)][string]$SdkRoot,
-    [Parameter(Mandatory = $true)][string]$SlateRoot
+    [Parameter(Mandatory = $true)][string]$SlateRoot,
+    [Parameter(Mandatory = $true)][string]$GuiRoot
 )
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 $Output = Join-Path $PSScriptRoot 'Output'
 $SdkRoot = (Resolve-Path $SdkRoot).Path
 $SlateRoot = (Resolve-Path $SlateRoot).Path
+$GuiRoot = (Resolve-Path $GuiRoot).Path
 $Include = Join-Path $SdkRoot 'Include'
 $Library = Join-Path $SdkRoot 'Lib/EOSSDK-Win64-Shipping.lib'
 $Runtime = Join-Path $SdkRoot 'Bin/EOSSDK-Win64-Shipping.dll'
@@ -30,10 +32,18 @@ try {
     & cl.exe @Flags /LD $Exchange (Join-Path $ProjectRoot 'Source/NetworkingInterchange.cpp') '/Fe:ProjectNetworking.dll' /link $Library
     if ($LASTEXITCODE -ne 0) { throw 'Frontier project DLL compilation/link failed.' }
     Copy-Item $Runtime (Join-Path $Output 'EOSSDK-Win64-Shipping.dll') -Force
+    $GuiBuild = Join-Path $Output 'WindowBuild'
+    & cmake -S (Join-Path $PSScriptRoot 'WindowHost') -B $GuiBuild -A x64 "-DEOS_SDK_ROOT=$SdkRoot" "-DGUI_ROOT=$GuiRoot"
+    if ($LASTEXITCODE -ne 0) { throw 'GLFW/ImGui window configuration failed.' }
+    & cmake --build $GuiBuild --config Release --parallel 4
+    if ($LASTEXITCODE -ne 0) { throw 'GLFW/ImGui window build failed.' }
     $Revision = & git -C $SlateRoot rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Unable to record Slate revision.' }
     @{
         slate_revision = $Revision
+        gui_glfw_revision = (& git -C (Join-Path $GuiRoot 'glfw') rev-parse HEAD)
+        gui_imgui_revision = (& git -C (Join-Path $GuiRoot 'imgui') rev-parse HEAD)
+        window_sha256 = (Get-FileHash (Join-Path $Output 'NetworkingLogin.exe') -Algorithm SHA256).Hash
         built_utc = [DateTime]::UtcNow.ToString('o')
         eos_runtime_sha256 = (Get-FileHash $Runtime -Algorithm SHA256).Hash
         sources = @(Get-ChildItem (Join-Path $ProjectRoot 'Source') -File | ForEach-Object {
@@ -43,4 +53,4 @@ try {
 } finally {
     Pop-Location
 }
-Write-Host "Built console and project DLL in $Output. Authentication has NOT been executed."
+Write-Host "Built GLFW/ImGui window, console diagnostic and project DLL in $Output. Authentication has NOT been executed."

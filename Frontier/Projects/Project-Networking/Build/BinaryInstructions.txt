@@ -1,32 +1,40 @@
-PROJECT-NETWORKING - WINDOWS X64 LOGIN TEST
+PROJECT-NETWORKING - NATIVE WINDOWS LOGIN APP
 
-This package contains the actual MSVC-built LoginHost.exe and ProjectNetworking.dll.
-The EOS 1.19.2.1 Windows x64 runtime is already included beside the EXE.
-It does NOT contain the full Frontier engine, SDK headers/import libraries, or credentials.
-WindowsChecks.log records real SDK startup checks, NOT a player login.
+1. Extract the whole ZIP.
+2. Double-click NetworkingLogin.exe in the top-level folder.
+   This opens a Dear ImGui + GLFW window. No console, commands, or launcher script.
+   Leave the included EOSSDK-Win64-Shipping.dll beside it.
+3. For development login, start Epic's Developer Authentication Tool on port 6547,
+   sign in with an authorized development account, and save its credential as PlayerOne.
+   Keep the tool running. It is separate from the included EOS runtime.
+4. In the app, choose Developer Auth Tool, enter the saved credential NAME and your
+   rotated EOS client secret in the masked field, then click Log in with Epic.
+   The secret is not written to the activity log or saved by the UI.
+5. Watch the connection status. Save log opens a native Save dialog for redacted evidence.
+   Cancel login stops a pending attempt. You must re-enter the secret to retry.
 
-1. Extract the whole ZIP. Do not run the EXE from inside the ZIP viewer.
-2. Leave the included EOSSDK-Win64-Shipping.dll in Build/Output beside LoginHost.exe.
-   No separate SDK download or manual DLL copy is needed.
-3. Install Microsoft Visual C++ 2015-2022 Redistributable (x64) if Windows reports
-   missing VCRUNTIME140/MSVCP140 libraries. Never fetch individual DLLs from DLL sites.
-4. Start Epic's Developer Authentication Tool from your original Epic SDK/tools download.
-   Use port 6547, sign in to an authorized development account, and save the credential
-   with a name such as PlayerOne. Keep the tool running on this same PC.
-5. Double-click RunLogin.cmd. Enter the saved credential NAME, then your ROTATED EOS
-   client secret at the hidden prompt. Never paste secrets in chat.
-6. A new Dev player may need PUID creation. Only after confirming this is a NEW test
-   account, run in PowerShell from this package folder:
-     & .\Build\LoginSequence.ps1 -DeveloperCredential PlayerOne -AllowCreateUser
+If Connect reports account_creation_required, confirm this is a genuinely NEW Dev
+player before selecting Allow NEW Dev product-user creation and retrying. This permits
+a real PUID creation; it is not a workaround for identity linking.
 
-If the whole EOS client was replaced, set EOS_CLIENT_ID to its replacement ID before
-launching. Rotating only the secret does not require changing the ID.
+Client configuration allows overriding the Client ID if you replaced the entire client.
+Rotating only its secret does not require changing the Client ID.
 
-SUCCESS: exit code 0 AND a line reading
+Epic Account Portal is also selectable, but on Windows it requires the EOS redistributable
+and launch through EOS Bootstrapper. The app reports readiness errors rather than pretending
+to log in. Developer Authentication Tool is the simplest first development test.
+
+SUCCESS requires the green Auth + Connect verified status and the actual activity entry:
   LOGIN_VERIFIED auth=success connect=success
-Failure produces a nonzero exit code. Upload the redacted Build/Output/Login-*.log
-and BuildEvidence.json for diagnosis. No actual account login was performed in CI.
+A successful SDK check is NOT a player login.
 
-The project DLL is for opening ProjectNetworking.frontier with your existing Frontier.exe.
-The console is the simplest first test and does not require the renderer or full engine.
-See INSTRUCTIONS.md for Account Portal prerequisites and detailed setup.
+WindowsChecks.log, WindowChecks.log and WindowProof.bmp are CI evidence for SDK startup,
+window rendering, and missing-credential rejection. No player authentication occurred in CI.
+The app remains a one-shot diagnostic, not a persistent multiplayer session.
+
+If Windows reports missing VCRUNTIME140/MSVCP140 libraries, install Microsoft's official
+Visual C++ 2015-2022 Redistributable (x64). Never download individual DLLs from DLL sites.
+
+The optional project DLL in Build/Output is for your existing Frontier.exe. This package
+is not a complete engine build. The old console diagnostic remains a CI-only source target
+and is not included in this GUI package. See INSTRUCTIONS.md for developer build details.

@@ -1,4 +1,26 @@
-# Project-Networking login test
+# Project-Networking login app
+
+## Windowed release
+
+Extract the release ZIP and double-click **NetworkingLogin.exe** at its root. It is a native
+Dear ImGui + GLFW window, linked with the Windows GUI subsystem, so it does not open a console.
+The EOS runtime is included beside it. No CMD or PowerShell launcher is needed.
+
+The panel accepts a masked client secret, developer credential name, login method, and optional Client ID override.
+It uses explicit in-memory configuration, not process environment variables. ImGui settings/log persistence is
+disabled. The client secret is cleared after submission and on exit and is never emitted to diagnostics.
+Login/Cancel, SDK checks, activity details, and a native Save Log dialog are available.
+Developer Authentication Tool or Account Portal prerequisites below still apply; a GUI does not remove them.
+
+The standalone window is a diagnostic requested by the user, not a second game host. Frontier.exe remains the
+engine host; the project DLL remains independently usable. The console executable is retained only for CI checks
+and is no longer included in the end-user ZIP. The fixed-function ImGui OpenGL backend is used for this small
+diagnostic window so software OpenGL on Windows CI can render it without a game GPU.
+
+Pinned ImGui/GLFW revisions are in `Build/GuiDependencies.json`. CI captures the rendered window in
+`WindowProof.bmp`, tests missing-input rejection, and repeats the GUI smoke test from the extracted release ZIP.
+Neither that image nor SDK startup is proof of player authentication.
+
 
 ## What is delivered
 
@@ -60,15 +82,21 @@ Use x64 Visual Studio developer PowerShell at this Frontier checkout's root:
 $Project = (Resolve-Path '.\Frontier\Projects\Project-Networking').Path
 & "$Project\Build\ToolchainSequence.ps1" `
     -SdkRoot 'C:\Dependencies\EOS Flattened' `
-    -SlateRoot 'C:\Source\Slate'
+    -SlateRoot 'C:\Source\Slate' `
+    -GuiRoot 'C:\Dependencies\NetworkingGui'
 ```
+
+For manual builds, clone GLFW and ImGui at the revisions in `Build/GuiDependencies.json` into
+`NetworkingGui/glfw` and `NetworkingGui/imgui`, respectively. CMake 3.24+ builds the standalone window and its
+static GUI libraries; this does not replace Slate's direct MSVC engine build. The `/MD` setting is retained.
+The Linux helper optionally accepts `--gui-root` for the same GUI source when OpenGL/window-system headers exist.
 
 Required SDK files include `Include/eos_sdk.h`, `Lib/EOSSDK-Win64-Shipping.lib`, and
 `Bin/EOSSDK-Win64-Shipping.dll`. The script uses C++20 and `/MD` for both targets and stages the runtime next
 to the console. Both build targets compile the same exchange; no shared-engine source batch needs changing.
 Output and build evidence are in `Build/Output`, ignored by Git.
 
-## First real player login: Developer Authentication Tool
+## First real player login: Developer Authentication Tool (GUI or developer console)
 
 For local development, use Epic's Developer Authentication Tool rather than bypassing Account Portal readiness:
 
@@ -77,7 +105,8 @@ For local development, use Epic's Developer Authentication Tool rather than bypa
 3. Sign in through the tool with an Epic account permitted to access your development application.
 4. Save that credential in the tool with a name such as `PlayerOne`.
 5. Keep the tool running. The project contacts `localhost:6547` on the SAME PC, not this sandbox.
-6. Run the following in the x64 developer PowerShell session used to build:
+6. In the window, enter `PlayerOne`, the rotated secret, then click **Log in with Epic**.
+   The commands below are only for developers running the retained console diagnostic from a source build:
 
 ```powershell
 # Only set this if you replaced the entire client, not just its secret:
@@ -163,7 +192,8 @@ The runner fetches the latest Slate branch for its ABI header and records the re
 existing user-shared Drive links; the workflow does not change their permissions or receive any client secret.
 It runs real SDK initialization/shutdown, missing-secret refusal, and the login-order checks before packaging.
 
-The artifact contains the console EXE, project DLL, launcher, project specification, scene, evidence, and instructions.
+The current artifact contains the windowed EXE, project DLL, GUI library licenses, project specification, scene,
+evidence, and instructions. Older console releases remain historical.
 It is NOT a full Frontier engine build. SDK headers and import libraries are excluded from the downloadable package. At the user's request, the Windows
 x64 EOS runtime is now included beside the EXE; no manual copy is required. No credentials are baked in.
 Actions artifacts expire after 14 days; the workflow also publishes a prerelease with a persistent, signed-out

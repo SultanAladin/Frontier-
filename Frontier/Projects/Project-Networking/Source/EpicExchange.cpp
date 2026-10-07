@@ -162,22 +162,31 @@ bool VerifyEpicRuntime(DiagnosticReception ActiveReception) noexcept
 
 bool ConstructEpic(DiagnosticReception ActiveReception) noexcept
 {
+    const char* Consent = std::getenv("EOS_ALLOW_CREATE_USER");
+    const LoginSpecification Specification{
+        std::getenv("EOS_CLIENT_SECRET"), std::getenv("EOS_CLIENT_ID"),
+        std::getenv("EOS_LOGIN_METHOD"), std::getenv("EOS_DEVELOPER_CREDENTIAL"),
+        Consent && std::strcmp(Consent, "1") == 0};
+    return ConstructEpic(Specification, ActiveReception);
+}
+
+bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception ActiveReception) noexcept
+{
     if (Platform || OwnsInitialization)
         return false;
     Reception = ActiveReception;
     Login = {};
-    const char* Secret = std::getenv("EOS_CLIENT_SECRET");
+    const char* Secret = Specification.Secret;
     if (!Secret || !*Secret)
     {
         Emit("configuration=refused missing_EOS_CLIENT_SECRET; use a rotated credential locally");
         Login.Refuse();
         return false;
     }
-    const char* ClientId = std::getenv("EOS_CLIENT_ID");
+    const char* ClientId = Specification.ClientId;
     if (!ClientId || !*ClientId)
         ClientId = "xyza7891AKjtZj8wTzcmI5F3oc1zLU4s";
-    const char* Consent = std::getenv("EOS_ALLOW_CREATE_USER");
-    AllowCreation = Consent && std::strcmp(Consent, "1") == 0;
+    AllowCreation = Specification.AllowCreation;
     EOS_InitializeOptions Initialize{};
     Initialize.ApiVersion = EOS_INITIALIZE_API_LATEST;
     Initialize.ProductName = "Charge";
@@ -215,7 +224,7 @@ bool ConstructEpic(DiagnosticReception ActiveReception) noexcept
         RetireEpic();
         return false;
     }
-    const char* Method = std::getenv("EOS_LOGIN_METHOD");
+    const char* Method = Specification.Method;
     const bool Developer = Method && std::strcmp(Method, "developer") == 0;
     if (Method && *Method && !Developer && std::strcmp(Method, "accountportal") != 0)
     {
@@ -229,7 +238,7 @@ bool ConstructEpic(DiagnosticReception ActiveReception) noexcept
     Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_AccountPortal;
     if (Developer)
     {
-        const char* Credential = std::getenv("EOS_DEVELOPER_CREDENTIAL");
+        const char* Credential = Specification.DeveloperCredential;
         if (!Credential || !*Credential)
         {
             Emit("configuration=refused missing_developer_credential_name");

@@ -3,15 +3,16 @@
   "sdk_runtime_sha256": "05c88b7adb10bfe3dc89d133af7318422838ab6909c06dcd3e74bd2af4ac2309",
   "interchange_header_sha256": "2999eb7e28a537e93b12476617514e9abb303d15a0f48065ce3ddc76ba204c48",
   "sources": {
-    "EpicExchange.cpp": "10d0f2fd34618ffbb5bac6ff98892e40868080676c9d12c8f5cef3dff53f5246",
-    "EpicExchange.h": "4b9145d14129368f217c118d95aa0d2e7a22559e51462f617f9ce85500c8011d",
+    "EpicExchange.cpp": "5a16fb49daf122d6142eb38656009ddcfe67ea2e0195d7757b34a9e4c789188f",
+    "EpicExchange.h": "7cd662ac0a9473c5a810b71835ca70c6116722b310a2dc396a368b6df2ad5958",
     "LoginHost.cpp": "609e1ccff9d6a45e423b7d9594f44f71886a9e8366dd11c1566df82caf2e6eb3",
     "LoginSequence.h": "4b8a13d1aa2e5e45a29e17c75e2cf16856c2f356d29aaccef1cf93bb18ddfb05",
-    "NetworkingInterchange.cpp": "0e35e33f52cc91304a5a6c7639729f6dcbbcb5b35308638aa8520702f3c5a79a"
+    "NetworkingInterchange.cpp": "0e35e33f52cc91304a5a6c7639729f6dcbbcb5b35308638aa8520702f3c5a79a",
+    "WindowHost.cpp": "4a35342b65f8b953acf821d41d959f1685ebfc65a24b1c1f587261210a569d95"
   },
   "artifacts": {
-    "LoginHost": "aafdab798dc7f8094317cfef4f31aac9f274c3cbd7d72ad6c2a6fda93ca39f2d",
-    "ProjectNetworking.so": "32f00e21057e351bd32d1533f051a17e91fd072faa4354a830f1674ba6869b47"
+    "LoginHost": "647f043a4f315ec2bbbf8c3304d1e58850bd203fc132b198543a5da4a04bc4c1",
+    "ProjectNetworking.so": "af4ea5372139403a6cbaa10a384326978ae5a61e5f8fe6944a023c0650d506ce"
   },
   "authentication": "NOT_ATTEMPTED",
   "check_sources": {

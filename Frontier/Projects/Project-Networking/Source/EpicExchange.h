@@ -10,6 +10,16 @@ namespace Networking
 {
 using DiagnosticReception = void (*)(const char*);
 
+struct LoginSpecification
+{
+    const char* Secret;
+    const char* ClientId;
+    const char* Method;
+    const char* DeveloperCredential;
+    bool AllowCreation;
+};
+
+bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception Reception) noexcept;
 bool VerifyEpicRuntime(DiagnosticReception Reception) noexcept;
 bool ConstructEpic(DiagnosticReception Reception) noexcept;
 void AdvanceEpic() noexcept;

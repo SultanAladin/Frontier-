@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--sdk-root', required=True, type=pathlib.Path)
     parser.add_argument('--slate-root', required=True, type=pathlib.Path,
                         help='Checkout containing Frontier/Engine/ProjectInterchange')
+    parser.add_argument('--gui-root', type=pathlib.Path, help='Optional folder with pinned glfw and imgui sources')
     args = parser.parse_args()
     if not sys.platform.startswith('linux'):
         parser.error('Windows builds use ToolchainSequence.ps1 (MSVC /MD).')
@@ -42,6 +43,12 @@ def main():
     ]
     for command in commands:
         subprocess.run(command, check=True)
+    if args.gui_root:
+        gui_build = output / 'WindowBuild'
+        subprocess.run(['cmake', '-S', str(project / 'Build/WindowHost'), '-B', str(gui_build),
+                        '-DCMAKE_BUILD_TYPE=Release', '-DEOS_SDK_ROOT=' + str(sdk),
+                        '-DGUI_ROOT=' + str(args.gui_root.resolve())], check=True)
+        subprocess.run(['cmake', '--build', str(gui_build), '--parallel', '4'], check=True)
     evidence = {
         'compiler': subprocess.check_output(['g++', '--version'], text=True).splitlines()[0],
         'sdk_runtime_sha256': digest(runtime),
