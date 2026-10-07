@@ -23,8 +23,8 @@ dashboard Epic provider `clientid=xyza7891AKjtZj8wTzcmI5F3oc1zLU4s`,
 
 ## Lobby build
 
-**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37649286520/Project-Networking-Windows-x64.zip)
-(run [37649286520](https://github.com/c7egoist/Frontier/actions/runs/37649286520), source `f2f5a680c456f6b2f1fc26d5d1bcd71a7522e11b`, 20,179,272 bytes with `.sha256` sidecar).
+**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37681973746/Project-Networking-Windows-x64.zip)
+(run [37681973746](https://github.com/c7egoist/Frontier/actions/runs/37681973746), source `474b274fab5d96f1af6af8975560977c4968b149`, 20,187,634 bytes with `.sha256` sidecar).
 
 Extract into a fresh folder and open **Charge.exe**. Put the **private**
 `Charge.local.ini` next to it for portable login and a stable cross-PC EOS cloud
