@@ -18,9 +18,6 @@ import flare from './custom-icons/lens-flare.svg?url';
 import rainbow from './custom-icons/rainbow.svg?url';
 import collection from './custom-icons/collection-bracketed-objects.svg?url';
 import earth from './custom-icons/earth.svg?url';
-import pointLight from './custom-icons/editor-point-light.svg?url';
-import spotLight from './custom-icons/editor-spotlight.svg?url';
-import areaLight from './custom-icons/editor-area-light.svg?url';
 import environmentFolder from './ui-icons/folder-environment.svg?url';
 import waterFolder from './ui-icons/folder-water.svg?url';
 import genericFolder from './ui-icons/folder-generic.svg?url';
@@ -32,7 +29,7 @@ import materialFolder from './custom-icons/asset-folder-materials.svg?raw';
 // sizes or item counts from the standalone gallery as if they were live data.
 const compactFolder=svg=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g,'').replace(/<title\b[^>]*>[\s\S]*?<\/title>/g,'').replace(/\saria-labelledby="[^"]*"/g,''));
 const folders={Environment:environmentFolder,'Water bodies':waterFolder,Scene:compactFolder(sceneFolder),World:compactFolder(modelFolder),Materials:compactFolder(materialFolder)};
-const assets={'local-cloud':localCloud,'local-fog':localFog,'point-light':pointLight,'spot-light':spotLight,'area-light':areaLight,sun,moon,stars,sky,cloud:clouds,air:wind,forest,terrain,liquid,cube:mesh,material,camera,flare,rainbow,collection,project:earth};
+const assets={'local-cloud':localCloud,'local-fog':localFog,sun,moon,stars,sky,cloud:clouds,air:wind,forest,terrain,liquid,cube:mesh,material,camera,flare,rainbow,collection,project:earth};
 export function outlinerIconSource(object,values={}){
  const kind=object.base||object.id;
  if(kind==='folder'){

@@ -33,13 +33,9 @@ Projects/Project-Zero/Host/.staged-denoise/
 # Keep the current small native billboard evidence with the consolidated source.
 Exhibits/Gallery/*
 !Exhibits/Gallery/NativeBillboards/
-# Scene-emitter evidence is published for review and is small once losslessly re-encoded
-#    (877 KB native, well under the billboard bundle). Both runners rebuild it from source.
-!Exhibits/Gallery/Lighting/
+# Scene-emitter evidence is published for review and is small once losslessly re-encoded.
+#    The runner rebuilds it from source.
 !Exhibits/Gallery/LightingNative/
-# Built static copy of the browser editor so the emitter cards can be opened from the
-#    repository without a dev server. Rebuild: npx vite build in Experimental/FrontierEditor.
-!Exhibits/Gallery/LightingPreview/
 # Blender drops a .blend1 beside every .blend on each save. That is the previous version of an asset
 #    already in the tree, not distinct content, so it is regenerable noise (134 MB across GeometryArchives).
 *.blend1
