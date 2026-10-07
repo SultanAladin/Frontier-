@@ -1,4 +1,4 @@
-# Xsolla Store + Premium + Nitron Economy Plan
+# Xsolla Store + Premium + AutoCoin Economy Plan
 
 Status: research report, no code. Written 2026-10-07 after the Photon link slice.
 Project: Charge — Xsolla project ID `317410` (Free-to-Play PC account).
@@ -13,7 +13,7 @@ Read this first, then answer the open decisions at the bottom.
 - **Subscriptions: yes, Xsolla has them** (subscription management + recurring
   billing), alongside one-time purchases.
 - **Crypto: players can PAY with crypto** (Crypto.com Pay in Pay Station), but
-  Xsolla does not issue your own on-chain token. Nitron starts as a
+  Xsolla does not issue your own on-chain token. AutoCoin starts as a
   game-controlled virtual currency; a real blockchain token is a separate,
   much bigger project (see below).
 - **Cost: 5% revenue share, no upfront cost.** Xsolla is Merchant of Record
@@ -31,7 +31,7 @@ Read this first, then answer the open decisions at the bottom.
    monetization = in-game store + subscriptions, engine custom/native.
    Note the **project ID** next to the project name — everything references it.
 3. **Build the catalog** (Store → Items): create the SKUs below (premium pass,
-   subscription plan, Nitron currency packs, cosmetic currencies). Prices in
+   subscription plan, AutoCoin currency packs, cosmetic currencies). Prices in
    USD + ZAR at minimum; Xsolla handles regional pricing.
 4. **Configure Pay Station**: theme, redirect/return URL, webhook URL
    (your backend endpoint; HTTPS). Enable the payment methods you want,
@@ -79,7 +79,7 @@ Notes:
   tiny: one HTTPS endpoint + one table.
 - Xsolla Login (their auth product) is **not needed** — Epic remains the login.
 
-## 3. Currency economy: Nitro, Nitron, cosmetics
+## 3. Currency economy: Nitro, AutoCoin, cosmetics
 
 Recommendation: three tiers. Everything server-authoritative; the client only
 displays balances the server sends.
@@ -87,41 +87,41 @@ displays balances the server sends.
 | Currency | Symbol | Source | Spend on |
 |---|---|---|---|
 | NITRO (soft, earned) | ⚡-like bolt | Race rewards, daily/weekly goals, events | Race entry fees, exchange → cosmetics |
-| NITRON (hard, premium) | Hex-coin icon (see `Content/Icons/nitron.png`) | Bought in Nitron packs via Xsolla; small drip from premium sub | Premium races entry, exchange → anything at better rates, exclusive cosmetics |
-| MATTER (cosmetic) | — | Exchange from Nitro/Nitron, direct micro-packs | Material unlocks (visual only) |
-| PAINT (cosmetic) | — | Exchange from Nitro/Nitron, direct micro-packs | Paints/liveries (visual only) |
+| AUTOCOIN (hard, premium) | Hex-badge icon (see `Content/Icons/autocoin.png`) | Bought in AutoCoin packs via Xsolla; small drip from premium sub | Premium races entry, exchange → anything at better rates, exclusive cosmetics |
+| MATTER (cosmetic) | — | Exchange from Nitro/AutoCoin, direct micro-packs | Material unlocks (visual only) |
+| PAINT (cosmetic) | — | Exchange from Nitro/AutoCoin, direct micro-packs | Paints/liveries (visual only) |
 
 Design rules:
 
 - **Cosmetics never affect performance.** Matter/paint buy looks only. Say so
   in every store description — it kills pay-to-win complaints before they start.
-- **Race entry is the main sink.** Every race costs Nitro (standard) or Nitron
+- **Race entry is the main sink.** Every race costs Nitro (standard) or AutoCoin
   (premium/high-stakes); entry fees are deducted server-side when the lobby
   locks, refunded automatically if the race never starts.
-- **Nitron packs** (Xsolla virtual-currency items): e.g. Stack 100 / Vault 550
+- **AutoCoin packs** (Xsolla virtual-currency items): e.g. Stack 100 / Vault 550
   (+10% bonus) / Reserve 1200 (+20% bonus). Bonus tiers are the standard
   conversion driver.
-- **Premium subscribers** get a monthly Nitron drip (e.g. 300) — retention hook.
+- **Premium subscribers** get a monthly AutoCoin drip (e.g. 300) — retention hook.
 
 ## 4. Exchange (Nitro → other currencies)
 
-Run the exchange **in-game, server-side**, not in Xsolla. Xsolla sells Nitron
+Run the exchange **in-game, server-side**, not in Xsolla. Xsolla sells AutoCoin
 for real money; everything after that is your economy:
 
-- Direction is one-way by default: Nitro/Nitron → Matter/Paint. No cash-out,
+- Direction is one-way by default: Nitro/AutoCoin → Matter/Paint. No cash-out,
   no reverse exchange — this keeps you out of money-transmitter territory.
 - Publish fixed rates with a small exchange fee (the fee is a hidden sink that
-  fights inflation), e.g. 100 Nitro → 90 Matter after a 10% fee; Nitron
-  converts at a flat 1 Nitron = 10 Matter / 10 Paint, no fee (premium perk).
+  fights inflation), e.g. 100 Nitro → 90 Matter after a 10% fee; AutoCoin
+  converts at a flat 1 AutoCoin = 10 Matter / 10 Paint, no fee (premium perk).
 - Rate changes are server config, never a client patch. Log every conversion
   (who, what, rate, timestamp) for support and balancing.
 - Show a preview ("you get X") before confirm; confirmations are idempotent.
 
-## 5. Nitron "crypto" reality check
+## 5. AutoCoin "crypto" reality check
 
 Two very different things share the name "crypto":
 
-1. **Crypto-flavored virtual currency (do this now).** Nitron lives in your
+1. **Crypto-flavored virtual currency (do this now).** AutoCoin lives in your
    database + Xsolla inventory, has a coin icon, exchange rates, the works.
    No blockchain, no gas fees, no wallet support tickets, no securities law.
    Players get the fantasy; you keep full control (anti-cheat, chargebacks,
@@ -130,7 +130,7 @@ Two very different things share the name "crypto":
    contracts, wallet integration, liquidity, tax/legal opinions per country,
    and makes every economy rebalance a governance event. It also invites bots
    farming cash-outable currency. Nothing in phases 1–3 requires it, and
-   nothing precludes adding it later as a Nitron withdrawal bridge.
+   nothing precludes adding it later as a AutoCoin withdrawal bridge.
 
 Verdict: ship (1), revisit (2) only if the game demands withdrawals.
 
@@ -145,7 +145,7 @@ Verdict: ship (1), revisit (2) only if the game demands withdrawals.
 ## 7. Roadmap (phases)
 
 - **Phase 0 — accounts (you, ~1 day):** Publisher Account, project, sandbox.
-- **Phase 1 — catalog + sandbox:** premium SKUs, Nitron packs, test purchase
+- **Phase 1 — catalog + sandbox:** premium SKUs, AutoCoin packs, test purchase
   end-to-end in sandbox, no game changes.
 - **Phase 2 — backend stub:** webhook receiver + entitlement table + premium
   query endpoint; wire `ResolvePremiumAccess()` to it; keep toggle as fallback.
@@ -158,8 +158,8 @@ Verdict: ship (1), revisit (2) only if the game demands withdrawals.
 ## 8. Open decisions (your call)
 
 1. Premium model: lifetime pass, subscription, or both? Suggested prices?
-2. Nitron pack sizes and bonus tiers?
-3. Monthly Nitron drip amount for subscribers?
+2. AutoCoin pack sizes and bonus tiers?
+3. Monthly AutoCoin drip amount for subscribers?
 4. Exchange rates + fee?
 5. Race entry fees (standard vs premium races)?
 6. Real on-chain token ever, or virtual-only forever?
