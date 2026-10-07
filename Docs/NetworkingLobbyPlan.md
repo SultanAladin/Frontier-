@@ -42,5 +42,31 @@ Latest previously used Slate branch was checked through GitHub:
   handling. Source change only; Windows build not run yet this turn.
 - Located and copied the exact visual reference with its simulation caveat.
 
+## Implemented this turn
+- Real EOS lobby creation with RTC room enabled and local audio input muted, plus
+  host-owned session preparation, registration of only real members, start, end
+  and destroy. Automatic start requires real and dummy readiness, and is checked
+  against membership changes after registration.
+- Host publishes session_id/match_state lobby attributes; members cannot start or
+  end the session, and re-read their readiness when the host prepares a new match.
+- Native Frontier-inspired lobby UI: metric cards, bounded player-card roster,
+  voice controls kept outside the scroll area, match panel and join-by-ID.
+  Voice status is acknowledged only from SDK callbacks, never on button click.
+- EOS Player Data Storage history: immutable per-event files, strict parser,
+  bounded local cache, explicit pending markers, retry, and no claim of cloud
+  success on failure. Records contain login UTC, session IDs, duration and
+  explicit dummy counts, never invented gameplay metrics.
+- Private portable `Charge.local.ini` (client id, secret, 64-hex data key) read
+  from beside the executable, with strict parsing, no truncation, buffer wiping,
+  Git-ignored local archive, and a tracked-source scan for private values.
+
+## Verified vs unverified
+Deterministic local logic (readiness, history parsing/bounds, portable config) is
+covered by VisualProof/Networking/LobbyChecks.cpp. Windows builds, real SDK
+platform startup, and extracted native UI rendering passed in CI.
+**Not verified:** authenticated lobby creation, RTC audio transmission, session
+start/end with a real second player, and actual cloud read/write. Gameplay
+transport/replication and authoritative competitive statistics are not implemented.
+
 No EOS lobby/session/RTC/data-storage success is claimed by this document.
 No secret has been embedded in source, reference files or a public artifact.

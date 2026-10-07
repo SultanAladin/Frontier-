@@ -1,3 +1,18 @@
+## Lobby build (current)
+
+**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37622785764/Project-Networking-Windows-x64.zip)
+(run [37622785764](https://github.com/c7egoist/Frontier/actions/runs/37622785764), source `a5ae28015a8190186ea9d499d24d7d7ef26b5c94`, 19,621,259 bytes with `.sha256` sidecar).
+
+Extract into a fresh folder and open **Charge.exe**. Put the **private**
+`Charge.local.ini` next to it for portable login and a stable cross-PC EOS cloud
+data key. That file is intentionally excluded from the public download.
+
+Full lobby, voice, session and history notes: `Docs/NetworkingLobbyPlan.md` and
+`Frontier/Projects/Project-Networking/Build/BinaryInstructions.txt`.
+CI proves the build, deterministic local logic, real SDK/platform startup and
+native UI rendering. It does not authenticate a player or prove live lobby,
+voice, session or cloud success.
+
 ## Country permission and signed-in profile
 
 **Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37598078437/Project-Networking-Windows-x64.zip).
