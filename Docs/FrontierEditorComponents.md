@@ -170,15 +170,26 @@ Three defects were reported against the first conversion. All three are fixed an
 `PunctualLuminaireRecord` placement now publishes `Rotation` and `Scale`, recovered from the placement basis
 by normalising each column, so the grid edits the same matrix the gizmo does rather than a parallel copy.
 
-### Still outstanding — the redesigned reference is not reachable
+## 2026-10-07 — Retracted: the reference editor was the wrong one
 
-Two requested items cannot be started: changes to the **Fog cards** and the **redesigned card note** carried by
-every card. Checked against `unassignedinbox/Slate@arena/01a0fd48-slate`, commit `bf0bdd5`:
+An earlier revision of this file claimed the redesigned cards — the Fog set, the card note and the
+Transform grid — were "not reachable in any published ref". That was wrong, and so was everything built on
+it. The search only ever covered `Experimental/FrontierEditor`. All of it lives in
+`Experimental/ProjectZeroEditor/InspectorDepot`, which is the editor that actually carries the light family:
+`panels/lights.js` for point and spot, `panels/advancedLights.js` for IES, area and tube, `panels/fog.js`
+for the Fog cards and the `mp-note` card note, and `TransformPanel.jsx` for the Position/Rotation/Scale grid.
 
-- `card()` is `(title, Icon, body, cls='')` — there is no note parameter
-- Every `note` class is a one-off (`disc-note`, `focus-footnote`, `moon-rotation-note`); none is universal
-- `Transform` appears zero times in `src.jsx` and `local-volumes.jsx`
-- `main` is older and contains no editor; the newer `arena/*-slate` branches have no `card-note`
+Consequences, all settled with the author:
 
-The Transform grid above was therefore built on the reference's existing `.volume-fields` three-column
-primitive. It needs confirming against the redesign once that is published.
+- The scene emitters added to `Experimental/FrontierEditor` were invented rather than converted, because that
+  editor has no lights to convert. They have been reverted; `src.jsx`, `organization.jsx`, `outliner-icons.jsx`
+  and `style.css` are byte-identical to the upstream originals again, and `light-inspectors.jsx`,
+  `light-graphics.jsx`, the browser capture driver and the static preview built from it are gone.
+- `Engine/Editor/LightInspectorPanel.cpp` was converted from those invented cards, so it matches no reference.
+  It is to be rebuilt against `panels/lights.js` and `panels/advancedLights.js`.
+- The `Statistics` and LED-strip electrical cards deleted as "approximations" had in fact been built from
+  this reference and were correct. They are not being restored for now, by the author's choice.
+
+The card-by-card inventory taken from the real reference, and the list of what remains to convert, are in
+`Docs/InspectorDepotConversion.md`. Entries above this section that describe the browser editor's emitters
+describe reverted work and are kept only as history.
