@@ -162,6 +162,11 @@ struct PunctualLuminaireRecord
     float                     Temperature = 4000.0f;    // [K]
     float                     EmittersPerMetre = 60.0f; // [/m]
     float                     SupplyVoltage = 24.0f;    // [V]
+    // Shadow and response authoring shared by every emitter category, mirroring the accepted
+    // "Shadows & response" card rather than being inferred from intensity.
+    float                     ShadowSoftness = 28.0f;   // [%] penumbra width at the shadow edge
+    float                     DiffuseResponse = 100.0f; // [%] matte surface contribution
+    float                     SpecularResponse = 100.0f;// [%] highlight contribution
     bool                      Diffuser = true;
     bool                      DrawEmitter = true;
     bool                      Enabled = true;

@@ -11,8 +11,8 @@ but presentation, order or content differs; **Browser only** = no dedicated nati
 
 | Browser component                   | Inspector family            | Native C++ route                                   | Status       |
 | ----------------------------------- | --------------------------- | -------------------------------------------------- | ------------ |
-| `light-inspectors.jsx`              | Point / Spot / Area / Tube / Strip | `Engine/Editor/LightInspectorPanel.cpp`      | Partial      |
-| `light-graphics.jsx`                | Emitter instruments         | Pending — polar, cone, falloff and emitter figures  | Browser only |
+| `light-inspectors.jsx`              | Point / Spot / Area / Tube / Strip | `Engine/Editor/LightInspectorPanel.cpp`      | Native       |
+| `light-graphics.jsx`                | Emitter instruments         | `LightInspectorPanel.cpp` — polar, cone, falloff, figure | Native   |
 | `celestial-controls.jsx`            | Sun / Stars                 | `SunInspectorPanel.cpp`, `StarsInspectorPanel.cpp`  | Native       |
 | `moon-controls.jsx`                 | Moon                        | `MoonInspectorPanel.cpp`                            | Native       |
 | `flare-inspector.jsx`               | Lens flare                  | `LensFlareInspectorPanel.cpp`                       | Native       |
@@ -105,3 +105,54 @@ unreachable Google Fonts CDN are the two allowed network exceptions and are name
 This is the browser reference. It is not a renderer change, and no native C++ was modified by this entry — the
 native `LightInspectorPanel.cpp` still draws the earlier card set. The emitter instruments are authoring
 diagnostics computed from the authored record, not scene-camera imagery.
+
+## 2026-10-07 — Scene emitters converted to native C++
+
+`Engine/Editor/LightInspectorPanel.cpp` was rewritten as a redraw of the browser cards rather than a second
+design. The previous contents were built against `ProjectZeroEditor` and drew a different card set
+(`Main light visual / data`, `Statistics`, `Quick controls`, `Source & response`, plus a separate LED-strip
+electrical panel). Those cards no longer exist in the reference, so they were removed.
+
+### What now matches exactly
+
+Card order, headings, body sentences, pill text, range captions and status wording are transcribed from
+`light-inspectors.jsx`. The palette constants at the top of the file are transcribed from `style.css`
+(`.card` gradient `#222222 → #1f1f1f`, border `#2f2f2f`, radius 18, padding 22/23; `.metric` 45 px weight 300
+`#dfdfdf`; `.small-pill`; `.muted`; `.range-labels`; grid gap 14). The four instruments are reimplemented on
+`ImDrawList`: the photometric polar, the beam cone, the falloff curve and the emitter figure.
+
+Derived photometry uses the same expressions as the browser, so both produce identical readouts:
+
+| Emitter   | Flux     | Intensity | At 12 m  | Extra                      |
+| --------- | -------- | --------- | -------- | -------------------------- |
+| Point     | 1,500 lm | 119 cd    | 0.83 lx  | —                          |
+| Spot      | 1,500 lm | 2,113 cd  | 15 lx    | pool 12.5 m across         |
+| Area      | 1,500 lm | 477 cd    | 3.32 lx  | 663 nit, 0.720 m²          |
+| Tube      | 1,500 lm | 477 cd    | 3.32 lx  | luminance from 2πrl        |
+| LED Strip | 1,350 lm | 430 cd    | 2.98 lx  | 900 lm/m × 1.5 m           |
+
+### Supporting changes
+
+- `PunctualLuminaireRecord` gained `ShadowSoftness`, `DiffuseResponse` and `SpecularResponse`. The
+  "Shadows & response" card is authored in the reference, so it needed real persistent storage rather than
+  values inferred from intensity.
+- `EditorFeedSequence.cpp` publishes an `Emission` group carrying `Luminous flux`, `Colour temperature`,
+  `Shadow softness`, `Diffuse response` and `Specular response`.
+
+### One deliberate difference
+
+The browser authors **Aim** with azimuth and elevation sliders. Natively the beam axis is owned by the
+placement transform, so the native card reports azimuth and elevation as readouts derived from that transform
+and says so in the caption. Adding a second authority that writes back into the transform would have been a
+behaviour change, not a conversion. This is the only place the two differ, and it is visible in the capture.
+
+### Executed verification
+
+```sh
+python3 Exhibits/Workbench/Lighting/RunNativeEmitterCards.py
+```
+
+Compiles ImGui, `ControlPanel.cpp`, `LightInspectorPanel.cpp` and the proof, runs it, and rasterises the real
+draw commands through the CPU rasteriser. Result on 2026-10-07: **19 checks passed**, 10 captures in
+`Exhibits/Gallery/LightingNative/` — each emitter at 1180 px and at 760 px. The derived photometry is asserted
+against the browser figures in the proof itself, so the two cannot drift apart silently.

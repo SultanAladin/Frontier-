@@ -538,6 +538,22 @@ EditorProperty* EditorFeedSequence::BuildSheet(uint32_t Index, EditorInstance* I
                 auto& Distribution=OpenProp(Shape,"Distribution",EditorPropertyCategory::Select);Distribution.OptionCount=3;Distribution.Picked=static_cast<uint32_t>(L.Distribution);const char* Distributions[]={"Uniform","IES profile","ECE low beam"};for(unsigned I=0;I<3;++I)std::snprintf(Distribution.Options[I],sizeof(Distribution.Options[I]),"%s",Distributions[I]);
                 auto Slider=[&](const char* Name,float Value,float Min,float Max,const char* Unit){auto& Q=OpenProp(Shape,Name,EditorPropertyCategory::Slider);Q.Minimum=Min;Q.Maximum=Max;Q.Figure=Value;Q.Decimals=2;std::snprintf(Q.Unit,sizeof(Q.Unit),"%s",Unit);};
                 Slider("Inner Cone",L.InnerConeAngle*kRadToDeg,0,89,"deg");Slider("Outer Cone",L.OuterConeAngle*kRadToDeg,1,90,"deg");Slider("Width",L.Size[0],.01f,100,"m");Slider("Height",L.Size[1],.01f,100,"m");
+                // Emitter flux, colour temperature and the shadow/response trio drive the approved
+                // Luminous output, Colour temperature and Shadows & response cards for every category.
+                EditorPropertyGroup& Emission=OpenGroup(Sheet,"Emission");
+                auto Measure=[&](EditorPropertyGroup& Group,const char* Name,float Value,float Min,float Max,uint32_t Decimals,const char* Unit){auto& Q=OpenProp(Group,Name,EditorPropertyCategory::Slider);Q.Minimum=Min;Q.Maximum=Max;Q.Figure=Value;Q.Decimals=Decimals;std::snprintf(Q.Unit,sizeof(Q.Unit),"%s",Unit);};
+                const bool Linear=L.Category==PunctualLuminaireCategory::Strip;
+                Measure(Emission,"Luminous flux",Linear?L.LumensPerMetre*L.Size[0]*L.Dimmer:L.Intensity,0,20000,0,"lm");
+                Measure(Emission,"Colour temperature",L.Temperature,1800,12000,0,"K");
+                Measure(Emission,"Shadow softness",L.ShadowSoftness,0,100,0,"%");
+                Measure(Emission,"Diffuse response",L.DiffuseResponse,0,200,0,"%");
+                Measure(Emission,"Specular response",L.SpecularResponse,0,200,0,"%");
+                // Aim is owned by the placement transform, so it is reported rather than re-authored here.
+                auto& Azimuth=OpenProp(Emission,"Aim azimuth",EditorPropertyCategory::Readout);
+                auto& Elevation=OpenProp(Emission,"Aim elevation",EditorPropertyCategory::Readout);
+                const float Forward[3]={-P.WorldTransform[8],-P.WorldTransform[9],-P.WorldTransform[10]};
+                std::snprintf(Azimuth.Text,sizeof(Azimuth.Text),"%.0f deg",double(std::atan2(Forward[0],-Forward[2])*kRadToDeg));
+                std::snprintf(Elevation.Text,sizeof(Elevation.Text),"%.0f deg",double(std::asin(std::clamp(Forward[1],-1.f,1.f))*kRadToDeg));
                 if(L.Category==PunctualLuminaireCategory::Strip){
                     EditorPropertyGroup& Output=OpenGroup(Sheet,"Output per metre");
                     auto StripSlider=[&](EditorPropertyGroup& Group,const char* Name,float Value,float Min,float Max,uint32_t Decimals,const char* Unit){auto& Q=OpenProp(Group,Name,EditorPropertyCategory::Slider);Q.Minimum=Min;Q.Maximum=Max;Q.Figure=Value;Q.Decimals=Decimals;std::snprintf(Q.Unit,sizeof(Q.Unit),"%s",Unit);};
