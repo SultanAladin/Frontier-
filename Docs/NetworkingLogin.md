@@ -264,3 +264,14 @@ cannot be verified in credential-free CI. Windows CI tests the UI, SDK lifetime 
 
 Disconnect closes this local platform, not a global Epic-account sign-out. Long-lived token refresh is not yet
 implemented; an expired session must sign in again. Never use this client's status as a premium entitlement check.
+
+### Friends/lifetime-fix release result
+
+Actions run `37590703228` passed for source commit `1ea2afbe168e4651b2fd13819674b2c8f4364ddd`.
+It includes a same-process SDK initialization/retry/final-shutdown regression, unauthenticated social guards,
+real Windows GUI rendering with CI-only Mesa, and launch checks from the extracted ZIP.
+`VisualProof/Networking/SocialActions.json` records the successful job results.
+Actual player login, friends retrieval and Epic overlay display are still not verified by CI.
+
+Latest download:
+https://github.com/c7egoist/Frontier/releases/download/networking-test-37590703228/Project-Networking-Windows-x64.zip
