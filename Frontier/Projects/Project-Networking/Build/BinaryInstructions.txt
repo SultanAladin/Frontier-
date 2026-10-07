@@ -15,8 +15,26 @@ Verified Auth + Connect -> automatic EOS lobby/RTC room and prepared match sessi
 -> mark yourself ready -> mark local dummy players ready -> start EOS match session
 -> End test match -> cache and queue a completed test record to EOS Player Data Storage.
 The host can disable auto-start. Prepare next match recreates the ended session.
-Joining another real lobby by ID is available under Join a friend. The host manages
-session registration. There is no actual game transport or gameplay replication yet.
+Use the Browse tab to search lobbies and match sessions, or join a lobby by ID.
+Members join the host match session explicitly from the Lobby tab. Leaving the
+lobby always ends, unregisters and destroys the match session first. The host
+manages session registration. There is no actual game transport or gameplay
+replication yet.
+
+SETTINGS
+The Settings tab edits lobby properties (bucket, members, permission, presence,
+invites, voice, migration, join-by-ID, rejoin rule, map/mode/region/note) and
+match-session properties (name, bucket, players, permission, join-in-progress,
+presence, map/mode). Lobby edits apply to new lobbies and live for the host;
+session edits apply when the host prepares the next session. Invalid values are
+rejected with no EOS call.
+
+SESSION POLICY
+If the log shows session_register_real_players result=EOS_ClientPolicyMissingAction,
+open the Epic Dev Portal for this client and grant the Sessions actions used by
+this lab (create/update, register/unregister, start/end, destroy, search, join).
+Use minimal client permissions, not admin or trusted-server policies. Until then
+the host can still run a lifecycle-only match without registration.
 
 DUMMY PLAYERS
 The default three LOCAL DUMMY cards are only readiness controls for testing alone.

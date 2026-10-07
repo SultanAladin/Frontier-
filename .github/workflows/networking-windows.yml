@@ -1,12 +1,13 @@
 name: Project-Networking Windows binary
 on:
   push:
-    branches: [arena/78cde81c-frontier]
+    branches: ['arena/**']
     paths:
       - '.github/workflows/networking-windows.yml'
       - 'Frontier/Projects/Project-Networking/**'
       - 'VisualProof/Networking/**'
       - 'Docs/NetworkingLogin.md'
+      - 'Docs/NetworkingLobbyPlan.md'
   workflow_dispatch:
 permissions:
   contents: write

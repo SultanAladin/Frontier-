@@ -63,11 +63,11 @@ ImFont* TitleFont = nullptr;
 struct LogReading { char Text[2048]{}; char Time[16]{}; int Severity = 0; };
 LogReading LogReadings[128]{};
 int LogCount = 0;
-const ImVec4 SuccessColour(0.68f, 0.83f, 0.57f, 1);
-const ImVec4 WarningColour(0.91f, 0.73f, 0.43f, 1);
+const ImVec4 SuccessColour(0.48f, 0.85f, 0.52f, 1);
+const ImVec4 WarningColour(0.91f, 0.72f, 0.39f, 1);
 const ImVec4 ErrorColour(0.96f, 0.51f, 0.47f, 1);
-const ImVec4 Muted(0.53f, 0.58f, 0.53f, 1.0f);
-const ImVec4 Accent(0.30f, 0.49f, 1.0f, 1.0f);
+const ImVec4 Muted(0.54f, 0.54f, 0.56f, 1.0f);
+const ImVec4 Accent(0.12f, 0.37f, 1.0f, 1.0f);
 
 void WipeClipboard() noexcept
 {
@@ -315,29 +315,33 @@ void ConfigureAppearance()
     ImGui::StyleColorsDark();
     ImGuiStyle& Style = ImGui::GetStyle();
     Style.WindowPadding = ImVec2(24, 20);
-    Style.FramePadding = ImVec2(14, 11);
-    Style.ItemSpacing = ImVec2(12, 14);
-    Style.WindowRounding = 18;
-    Style.ChildRounding = 26;
-    Style.FrameRounding = 12;
-    Style.PopupRounding = 18;
+    Style.FramePadding = ImVec2(12, 8);
+    Style.ItemSpacing = ImVec2(10, 8);
+    Style.WindowRounding = 0;
+    Style.ChildRounding = 12;
+    Style.FrameRounding = 16;
+    Style.PopupRounding = 12;
     Style.ScrollbarSize = 7;
     Style.ScrollbarRounding = 8;
     Style.ChildBorderSize = 1;
-    Style.Colors[ImGuiCol_WindowBg] = ImVec4(0.039f, 0.039f, 0.044f, 1);
-    Style.Colors[ImGuiCol_ChildBg] = ImVec4(0.070f, 0.072f, 0.079f, 1);
-    Style.Colors[ImGuiCol_PopupBg] = ImVec4(0.08f, 0.09f, 0.082f, 1);
-    Style.Colors[ImGuiCol_FrameBg] = ImVec4(0.11f, 0.115f, 0.13f, 1);
-    Style.Colors[ImGuiCol_Border] = ImVec4(0.17f, 0.19f, 0.175f, 0.7f);
-    Style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.97f, 1);
+    Style.FrameBorderSize = 1;
+    Style.Colors[ImGuiCol_WindowBg] = ImVec4(0.039f, 0.039f, 0.039f, 1); // #0A0A0A
+    Style.Colors[ImGuiCol_ChildBg] = ImVec4(0.070f, 0.070f, 0.070f, 1);  // #121212
+    Style.Colors[ImGuiCol_PopupBg] = ImVec4(0.070f, 0.070f, 0.070f, 1);
+    Style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 1);
+    Style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.08f, 0.08f, 0.08f, 1);
+    Style.Colors[ImGuiCol_Border] = ImVec4(1.0f, 1.0f, 1.0f, 0.06f);
+    Style.Colors[ImGuiCol_Text] = ImVec4(1.0f, 1.0f, 1.0f, 1);
     Style.Colors[ImGuiCol_TextDisabled] = Muted;
-    Style.Colors[ImGuiCol_Button] = ImVec4(0.15f, 0.17f, 0.155f, 1);
-    Style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.22f, 0.25f, 0.22f, 1);
-    Style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.27f, 0.31f, 0.26f, 1);
+    Style.Colors[ImGuiCol_Button] = ImVec4(0.10f, 0.10f, 0.10f, 1);
+    Style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.13f, 0.13f, 0.13f, 1);
+    Style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.16f, 0.16f, 0.16f, 1);
     Style.Colors[ImGuiCol_Header] = Style.Colors[ImGuiCol_Button];
     Style.Colors[ImGuiCol_HeaderHovered] = Style.Colors[ImGuiCol_ButtonHovered];
     Style.Colors[ImGuiCol_HeaderActive] = Style.Colors[ImGuiCol_ButtonActive];
-    Style.Colors[ImGuiCol_CheckMark] = Accent;
+    Style.Colors[ImGuiCol_CheckMark] = ImVec4(0.30f, 0.50f, 1.0f, 1);
+    Style.Colors[ImGuiCol_SliderGrab] = ImVec4(0.30f, 0.50f, 1.0f, 1);
+    Style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.12f, 0.37f, 1.0f, 1);
 }
 
 void PresentSetup()
@@ -444,9 +448,9 @@ void PresentLogin()
     ImGui::Begin("Charge", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoSavedSettings);
     ImGui::BeginDisabled(Networking::EpicOverlayOwnsInput());
-    ImGui::TextColored(Accent, "C  /  CHARGE");
+    ImGui::TextColored(ImVec4(0.30f, 0.50f, 1.0f, 1.0f), "FRONTIER");
     ImGui::SameLine();
-    ImGui::TextColored(Muted, "     ONLINE ACCESS");
+    ImGui::TextColored(Muted, "CHARGE  /  ONLINE ACCESS");
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 66);
     ImGui::BeginDisabled(Busy || Verified);
     if (ImGui::SmallButton("Setup"))
@@ -731,8 +735,11 @@ int RunWindow(bool Smoke)
             Networking::RoomReading Preview;
             Preview.Phase = Networking::RoomPhase::Waiting;
             Preview.Status = "UI preview only - no EOS lobby, voice or match was created";
+            Preview.SessionStatus = "Preview match session - not created";
             Preview.Players = {{"Preview - not signed in", false, false, true}, {"Test player 1", true, true, false},
                 {"Test player 2", false, true, false}, {"Test player 3", true, true, false}};
+            Preview.Search.LobbyStatus = "Preview only - search not executed";
+            Preview.Search.SessionStatus = "Preview only - search not executed";
             Networking::RenderLobbyPanel(TitleFont, Diagnostics, CopyDiagnostics, RequestDisconnect, &Preview);
         }
         else if (Verified)
@@ -742,7 +749,7 @@ int RunWindow(bool Smoke)
         int Width = 0, Height = 0;
         glfwGetFramebufferSize(Window, &Width, &Height);
         glViewport(0, 0, Width, Height);
-        glClearColor(0.055f, 0.071f, 0.10f, 1);
+        glClearColor(0.039f, 0.039f, 0.039f, 1);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
         if (Smoke && ++Cycles == 12)

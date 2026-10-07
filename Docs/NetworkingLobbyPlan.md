@@ -27,14 +27,25 @@ Latest previously used Slate branch was checked through GitHub:
    membership changes and clear readiness as appropriate.
 4. Host creates/registers/starts a real EOS match session only after readiness and
    successful callbacks. Serialize operations to prevent duplicate create/start.
+   The match session is a separate EOS Sessions object, not the lobby itself.
+   Members join it explicitly to get a local session; the lobby only carries
+   session_id/match_state hints.
 5. EOS lobby RTC audio, initially muted; explicit microphone control, real RTC
    connection state and errors. Dummy players cannot prove voice transmission.
-6. End/destroy session and leave/destroy lobby cleanly; stop microphone and detach
-   notifications before releasing the platform.
-7. Persist last successful login UTC, last lobby/session ID, session start/end UTC,
+6. Leaving the lobby always closes the match session first: host ends,
+   unregisters and destroys; members destroy their local joined session, then
+   the lobby is left/destroyed. Kicks and disconnects trigger the same cascade.
+7. Browse both EOS lobbies and EOS match sessions with text filters, join by
+   list or by lobby ID. Session search results keep their details handles for
+   Join; lobby joins use Join-by-ID.
+8. Host-editable lobby settings (bucket, max members, permission, presence,
+   invites, RTC, host migration, join-by-ID, rejoin rule, map/mode/region/note)
+   applied on create and live; plus match-session settings (name, bucket, max
+   players, permission, join-in-progress, presence, map/mode) used on prepare.
+9. Persist last successful login UTC, last lobby/session ID, session start/end UTC,
    duration and completed/abandoned test matches. Never persist access tokens or
    fabricate gameplay metrics, scores or kills when no gameplay occurred.
-8. Storage scope (local or cross-PC EOS cloud) and portable credential format need
+10. Storage scope (local or cross-PC EOS cloud) and portable credential format need
    confirmation. Client-written records are not authoritative competitive stats.
 
 ## Changes already made this turn
@@ -47,11 +58,22 @@ Latest previously used Slate branch was checked through GitHub:
   host-owned session preparation, registration of only real members, start, end
   and destroy. Automatic start requires real and dummy readiness, and is checked
   against membership changes after registration.
-- Host publishes session_id/match_state lobby attributes; members cannot start or
-  end the session, and re-read their readiness when the host prepares a new match.
-- Native Frontier-inspired lobby UI: metric cards, bounded player-card roster,
-  voice controls kept outside the scroll area, match panel and join-by-ID.
-  Voice status is acknowledged only from SDK callbacks, never on button click.
+- True match-session split: the Sessions object is created/registered/started/
+  ended/destroyed separately from the lobby. Members explicitly join the host
+  session by backend session ID to get a local session; RegisterPlayers policy
+  failures (EOS_ClientPolicyMissingAction) are surfaced with Dev Portal guidance
+  and allow a lifecycle-only start without registration.
+- Lobby-exit cascade: leaving always ends (host), unregisters, and destroys the
+  match session before leaving/destroying the lobby. Kicks, closes and disconnects
+  trigger the same path. Stale registrations are pruned when members depart.
+- Lobby + session browsers with client-side filters, join-by-list and join-by-ID.
+  Host-editable lobby settings (bucket, members, permission, presence, invites,
+  RTC, migration, join-by-ID, rejoin rule, map/mode/region/note) applied on create
+  and live; session settings (name, bucket, players, permission, join-in-progress,
+  presence, map/mode) used on prepare. All validated deterministically.
+- Clean tabbed UI (Lobby / Browse / Settings / History) in the reference blue,
+  black, white and dark-grey palette. Voice status is acknowledged only from SDK
+  callbacks, never on button click.
 - EOS Player Data Storage history: immutable per-event files, strict parser,
   bounded local cache, explicit pending markers, retry, and no claim of cloud
   success on failure. Records contain login UTC, session IDs, duration and
@@ -61,12 +83,14 @@ Latest previously used Slate branch was checked through GitHub:
   Git-ignored local archive, and a tracked-source scan for private values.
 
 ## Verified vs unverified
-Deterministic local logic (readiness, history parsing/bounds, portable config) is
-covered by VisualProof/Networking/LobbyChecks.cpp. Windows builds, real SDK
-platform startup, and extracted native UI rendering passed in CI.
-**Not verified:** authenticated lobby creation, RTC audio transmission, session
-start/end with a real second player, and actual cloud read/write. Gameplay
-transport/replication and authoritative competitive statistics are not implemented.
+Deterministic local logic (readiness, history parsing/bounds, portable config,
+lobby/session settings validation, search filters) is covered by
+VisualProof/Networking/LobbyChecks.cpp. Windows builds, real SDK platform
+startup, and extracted native UI rendering passed in CI.
+**Not verified:** authenticated lobby creation, lobby/session search results,
+member session joins, RTC audio transmission, session start/end with a real
+second player, and actual cloud read/write. Gameplay transport/replication and
+authoritative competitive statistics are not implemented.
 
 No EOS lobby/session/RTC/data-storage success is claimed by this document.
 No secret has been embedded in source, reference files or a public artifact.

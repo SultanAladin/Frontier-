@@ -47,6 +47,33 @@ int main()
     Check(!ParsePortableSettings("version=1\nclient_id=x\nclient_secret=" + std::string(65, 'x') + "\nstorage_key=" + std::string(64, 'a'), Settings),
         "oversized portable secret rejected, never truncated");
     Check(!ValidStorageKey(std::string(64, 'z')), "invalid encryption key rejected");
+    LobbyCreationSettings LobbyDefaults;
+    MatchSessionSettings SessionDefaults;
+    Check(ValidBucketId(LobbyDefaults.BucketId) && ValidBucketId(SessionDefaults.BucketId), "default buckets accepted");
+    Check(ValidSessionName(SessionDefaults.SessionName), "default session name accepted");
+    Check(!ValidBucketId("") && !ValidBucketId(std::string(65, 'a')) && !ValidBucketId("bad bucket!"),
+        "empty, oversized and spaced bucket rejected");
+    Check(ValidBucketId("GameMode:Region.Map-1_2"), "bucket allows : . - _");
+    Check(!ValidSessionName("") && !ValidSessionName(std::string(33, 'a')) && !ValidSessionName("bad name!"),
+        "empty, oversized and spaced session name rejected");
+    Check(ValidLobbyAttribute("dev-arena") && ValidLobbyAttribute("") && !ValidLobbyAttribute(std::string(65, 'a')),
+        "lobby attributes bounded at 64 chars");
+    Check(!ValidLobbyAttribute(std::string("bad\nvalue")), "control characters rejected from attributes");
+    Check(std::string(LobbyPermissionLabel(LobbyPermission::PublicAdvertised)).size() > 0 &&
+        std::string(SessionPermissionLabel(SessionPermission::InviteOnly)).size() > 0,
+        "permission labels present");
+    Check(MatchesFilter("ChargeMatch", "") && MatchesFilter("ChargeMatch", "charge") && MatchesFilter("AbC", "aBc") &&
+        !MatchesFilter("abc", "abcd") && !MatchesFilter("lobby", "session"),
+        "case-insensitive substring filter");
+    LobbySearchResult Lr; Lr.LobbyId = "lobby-1"; Lr.BucketId = "charge-dev-v1"; Lr.MapName = "dev-arena"; Lr.ModeName = "lab";
+    Check(LobbyMatchesFilter(Lr, "") && LobbyMatchesFilter(Lr, "ARENA") && !LobbyMatchesFilter(Lr, "other"),
+        "lobby results filter by id, bucket, map and mode");
+    SessionSearchResult Sr; Sr.SessionId = "session-9"; Sr.BucketId = "charge-dev-v1"; Sr.MapName = "dev-arena";
+    Check(SessionMatchesFilter(Sr, "session") && !SessionMatchesFilter(Sr, "missing"),
+        "session results filter by id, bucket and map");
+    RoomReading Fresh;
+    Check(!Fresh.SessionExists && !Fresh.SessionJoined && !Fresh.SessionOwner && !Fresh.SessionWithoutRegistration,
+        "fresh room has no match session attached");
     std::puts("Scope: deterministic local logic only. EOS lobby, RTC and cloud integration are not exercised here.");
     return Failures ? 1 : 0;
 }
