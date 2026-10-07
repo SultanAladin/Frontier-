@@ -5,6 +5,7 @@
 
 #include "EpicExchange.h"
 #include "RoomRuntime.h"
+#include "TransportRouter.h"
 #include "LocalConfiguration.h"
 #if defined(_WIN32)
 #include <Windows/eos_Windows.h>
@@ -367,6 +368,7 @@ void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
         Emit("LOGIN_VERIFIED auth=success connect=success");
         BindRoomRuntime(Platform, LocalProductUser, Reception, UserCacheRoot(), CloudEnabled);
         QueryEpicProfile();
+        StartMultiplayerTransport(Reception);
         if (!SocialEnabled)
             std::snprintf(FriendsReading, sizeof(FriendsReading), "Automatic friends loading is disabled. Enable it in Setup before signing in.");
     }
@@ -680,6 +682,7 @@ void AdvanceEpic() noexcept
         return;
     EOS_Platform_Tick(Platform);
     TickRoomRuntime();
+    TickMultiplayerTransport();
     if (Login.Progress == LoginProgress::Connected &&
         (EOS_Auth_GetLoginStatus(Auth, LocalAccount) != EOS_ELoginStatus::EOS_LS_LoggedIn ||
          EOS_Connect_GetLoginStatus(Connect, LocalProductUser) != EOS_ELoginStatus::EOS_LS_LoggedIn))
@@ -698,6 +701,7 @@ void RetireEpic() noexcept
 {
     Releasing = true;
     DetachRoomRuntime();
+    StopMultiplayerTransport();
     Login.Progress = LoginProgress::Refused;
     if (SocialOverlay && OverlayNotification != EOS_INVALID_NOTIFICATIONID)
         EOS_UI_RemoveNotifyDisplaySettingsUpdated(SocialOverlay, OverlayNotification);
@@ -845,4 +849,30 @@ LoginProgress InspectLogin() noexcept
 {
     return Login.Progress;
 }
+
+bool CopyEpicIdentityToken(char* Out, std::size_t Capacity) noexcept
+{
+    if (!Out || Capacity == 0 || !Auth || !LocalAccount || Login.Progress != LoginProgress::Connected)
+        return false;
+    EOS_Auth_CopyIdTokenOptions Copy{};
+    Copy.ApiVersion = EOS_AUTH_COPYIDTOKEN_API_LATEST;
+    Copy.AccountId = LocalAccount;
+    EOS_Auth_IdToken* Fresh = nullptr;
+    if (EOS_Auth_CopyIdToken(Auth, &Copy, &Fresh) != EOS_EResult::EOS_Success || !Fresh ||
+        !Fresh->JsonWebToken || !*Fresh->JsonWebToken)
+    {
+        if (Fresh)
+            EOS_Auth_IdToken_Release(Fresh);
+        return false;
+    }
+    std::snprintf(Out, Capacity, "%s", Fresh->JsonWebToken);
+    const bool Copied = Out[0] != 0 && std::strlen(Fresh->JsonWebToken) < Capacity;
+    if (!Copied)
+        Out[0] = 0;
+    EOS_Auth_IdToken_Release(Fresh);
+    return Copied;
+}
+
+void* InspectEpicPlatformHandle() noexcept { return Platform; }
+void* InspectEpicAccountHandle() noexcept { return LocalAccount; }
 }

@@ -295,6 +295,11 @@
       "drive_id": "1ztJPfHMo5rYm2vX7xZIgT02vs9nyzTx4",
       "bytes": 7902,
       "sha256": "dd25a1db0fb84f13fa7909c339bde4d9ffc4ca1ee7d9c891ff35c749e41f6a22"
+    },
+    "Include/eos_ecom.h": {
+      "drive_id": "1Yq3D8obqfoqsOq77SvszDyl_8YWMNcp0",
+      "bytes": 29908,
+      "sha256": "c9618117fc47e6f5e903d1cfa9fe75dfa0e3640f900b265eb17644c29d3c4bb9"
     }
   }
 }

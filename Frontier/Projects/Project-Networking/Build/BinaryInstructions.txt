@@ -10,9 +10,9 @@ START
 3. Click Log in. The existing Windows vault route also works, but cloud history
    needs the data key from the private file (or Setup > Advanced).
 4. Optional: Setup offers auto-login (uses the Epic token saved on this PC, no
-   browser on later runs), forget-auto-login (revokes that token), and the app
-   UI language (English / Simplified Chinese, applied instantly). Logs stay in
-   English.
+   browser on later runs), forget-auto-login (revokes that token), the app
+   UI language (English / Simplified Chinese, applied instantly), and the manual
+   Premium multiplayer (Photon) switch. Logs stay in English.
 
 FLOW
 Verified Auth + Connect -> automatic EOS lobby/RTC room and prepared match session
@@ -23,8 +23,20 @@ Use the Browse tab to search lobbies by tags (style, language, map, mode on the
 server; open / in-match / full and public / presence / invite locally) or join
 a lobby by ID from the collapsed section. Members join the host match session
 explicitly from the Lobby tab. Leaving the lobby always ends, unregisters and
-destroys the match session first. The host manages session registration. There
-is no actual game transport or gameplay replication yet.
+destroys the match session first. The host manages session registration.
+
+TRANSPORT
+After login the app picks a multiplayer transport and shows it on the account
+card. Standard accounts stay on the EOS direct path (lobby and voice; no packet
+relay yet). Turning on Premium multiplayer (Photon) in Setup routes match
+traffic over Photon Realtime with Epic authentication: the app joins (or creates)
+the FrontierDevRoom room and sends a first handshake packet, then carries engine
+replication packets. Photon failures fall back to EOS automatically.
+This build compiles the Photon transport but does not link the official SDK libs
+yet, so it reports Photon unavailable and stays on EOS. Developers: PHOTON_APP_ID,
+PHOTON_ROOM and PHOTON_APP_VERSION override the built-ins; EOS_CATALOG_ITEM_IDS
+(comma-separated) enables the Ecom ownership-token check; the dashboard currently
+checks no catalog items. No tokens are written to logs.
 
 SETTINGS
 The Settings tab edits lobby properties (bucket, members, permission, presence,

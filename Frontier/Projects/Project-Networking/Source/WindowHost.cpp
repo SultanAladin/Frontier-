@@ -15,6 +15,9 @@
 #include "LocalConfiguration.h"
 #include "AppSettings.h"
 #include "Localization.h"
+#include "TransportRouter.h"
+#include "TransportCodec.h"
+#include "PhotonTransport.h"
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
@@ -22,6 +25,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -60,6 +64,7 @@ int Method = 1;
 bool RememberCredential = false;
 bool AutoLoginEnabled = false;
 bool PendingForget = false;
+bool PremiumMultiplayer = false;
 int LangIndex = 0;
 bool AutoStarted = false;
 bool ContinueAfterSetup = false;
@@ -237,6 +242,7 @@ void PersistAppSettings()
     Settings.Language = Networking::CurrentLanguage;
     Settings.AutoLogin = AutoLoginEnabled;
     Settings.ForgetPersistent = PendingForget;
+    Settings.PremiumMultiplayer = PremiumMultiplayer;
     if (!Networking::SaveAppSettings(Settings))
         ReceiveDiagnostic("Could not save app settings on this PC.");
 }
@@ -396,6 +402,13 @@ void PresentSetup()
         Networking::SetAppLanguage(LangIndex == 1 ? Networking::AppLanguage::ChineseSimplified : Networking::AppLanguage::English);
         PersistAppSettings();
     }
+    if (ImGui::Checkbox(Networking::T("Premium multiplayer (Photon)"), &PremiumMultiplayer))
+    {
+        Networking::SetPremiumMultiplayer(PremiumMultiplayer);
+        PersistAppSettings();
+    }
+    ImGui::TextColored(Muted, "%s", Networking::T("Route match traffic over Photon after login. Off stays on EOS only."));
+    ImGui::TextColored(Muted, "%s", Networking::T("Premium is a manual switch for now. Xsolla will decide it later."));
     if (ImGui::CollapsingHeader(Networking::T("Advanced")))
     {
         ImGui::TextWrapped("%s", Networking::T("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same data key between PCs."));
@@ -525,6 +538,7 @@ void PresentLogin()
         ImGui::TextWrapped("%s", Profile.DisplayName[0] ? Profile.DisplayName :
             Profile.Pending ? Networking::T("Loading your Epic profile...") : Networking::T("Display name unavailable"));
         ImGui::TextColored(SuccessColour, "%s", Networking::T("Epic Auth verified  /  EOS Connect verified"));
+        ImGui::TextWrapped(Networking::T("Transport: %s"), Networking::T(Networking::InspectTransportDisplayName()));
         ImGui::TextWrapped(Networking::T("Country: %s"), Profile.Country[0] ? Profile.Country : Networking::T("Not provided by Epic"));
         ImGui::TextWrapped(Networking::T("Language: %s"), Profile.Language[0] ? Profile.Language : Networking::T("Not provided by Epic"));
         ImGui::BeginDisabled(Profile.Pending);
@@ -669,6 +683,37 @@ bool CaptureWindow(int Width, int Height, const char* Filename = "WindowProof.bm
     return static_cast<bool>(File);
 }
 
+bool CheckTransportSelfTest()
+{
+    using namespace Networking;
+    std::vector<std::uint8_t> Frame;
+    static constexpr char Tag[] = "smoke";
+    if (!PacketCodec::Encode(ReplicationKind::Probe,
+            reinterpret_cast<const std::uint8_t*>(Tag), sizeof(Tag) - 1, Frame))
+        return false;
+    ReplicationKind Kind = ReplicationKind::Input;
+    const std::uint8_t* Payload = nullptr;
+    std::size_t PayloadLength = 0;
+    if (!PacketCodec::Decode(Frame.data(), Frame.size(), Kind, Payload, PayloadLength))
+        return false;
+    if (Kind != ReplicationKind::Probe || PayloadLength != sizeof(Tag) - 1)
+        return false;
+    if (SelectTransportKind(true, true) != TransportKind::Photon)
+        return false;
+    if (SelectTransportKind(false, true) != TransportKind::Eos)
+        return false;
+    if (SelectTransportKind(true, false) != TransportKind::Eos)
+        return false;
+    const std::vector<std::uint8_t> Oversized(PacketCodec::MaxPayload + 1, 0);
+    if (PacketCodec::Encode(ReplicationKind::Snapshot, Oversized.data(), Oversized.size(), Frame))
+        return false;
+    Frame[0] = 'X';
+    if (PacketCodec::Decode(Frame.data(), Frame.size(), Kind, Payload, PayloadLength))
+        return false;
+    const char* Display = InspectTransportDisplayName();
+    return Display && *Display;
+}
+
 int RunWindow(bool Smoke)
 {
     glfwSetErrorCallback([](int Number, const char* Description)
@@ -695,6 +740,8 @@ int RunWindow(bool Smoke)
     Networking::SetAppLanguage(Startup.Language);
     AutoLoginEnabled = Startup.AutoLogin;
     PendingForget = Startup.ForgetPersistent;
+    PremiumMultiplayer = Startup.PremiumMultiplayer;
+    Networking::SetPremiumMultiplayer(PremiumMultiplayer);
     LangIndex = Startup.Language == Networking::AppLanguage::ChineseSimplified ? 1 : 0;
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -835,13 +882,16 @@ int RunWindow(bool Smoke)
             const bool Reused = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
             const bool PlatformReady = Networking::VerifyEpicPlatform(ReceiveDiagnostic);
             const bool Guarded = !Networking::QueryEpicFriends() && !Networking::ShowEpicFriends();
-            Result = Captured && SdkReady && Refused && Reused && PlatformReady && Guarded ? 0 : 3;
+            const bool TransportOk = CheckTransportSelfTest();
+            Result = Captured && SdkReady && Refused && Reused && PlatformReady && Guarded && TransportOk ? 0 : 3;
             std::ofstream Proof("WindowChecks.log");
             Proof << "glfw_imgui_rendered=" << Captured << "\nsdk_check=" << SdkReady
                   << "\nmissing_credentials_refused=" << Refused
                   << "\nsdk_reused_same_process=" << Reused
                   << "\nplatform_created_without_auth=" << PlatformReady
                   << "\nsocial_requires_login=" << Guarded
+                  << "\ntransport_selftest=" << TransportOk
+                  << "\nphoton_linked=" << (Networking::PhotonLinkAvailable() ? 1 : 0)
                   << "\nauthentication=NOT_ATTEMPTED\n" << Diagnostics;
             if (!Proof)
                 Result = 3;

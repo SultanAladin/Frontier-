@@ -1,4 +1,29 @@
-## Lobby build (current)
+## Photon transport slice (current)
+
+After EOS login the app now selects a multiplayer transport and shows it on the
+account card. Standard accounts stay on the **EOS direct path** (lobby + voice).
+The manual **Premium multiplayer (Photon)** switch in Setup routes match traffic
+over **Photon Realtime Core C++** (never Fusion): Epic-auth connect with the EOS
+ID token, join-or-create `FrontierDevRoom`, first handshake packet, then engine
+replication packets. Photon failures fall back to EOS automatically; Ecom
+catalog-ownership tokens stay dormant until `EOS_CATALOG_ITEM_IDS` is set. No
+tokens are written to logs. Premium is a manual toggle for now; Xsolla
+entitlement will drive it later through `ResolvePremiumAccess()`.
+
+Build status: CI compiles the real Photon transport against pinned headers
+(`defold/extension-photon-realtime @ 8dad867470f2eb75aeae0c437e10ee723d8d1ccf`,
+SDK 5.0.14.3) and links a stub until the official **/MD x64** static libs land.
+To complete linking, upload the SDK's `windows_md_x64` `Common-cpp`, `Photon-cpp`
+and `LoadBalancing-cpp` `.lib` files to Drive; their hashes go in
+`Build/WindowsPhotonManifest.json` and the next CI run links them (partial sets
+fail the build loudly). The mirror's own Win64 libs are `/MT`-only and can never
+link into this `/MD` build. Realtime AppId `08ec2e74-b472-42d4-942e-27894128e8fb`;
+dashboard Epic provider `clientid=xyza7891AKjtZj8wTzcmI5F3oc1zLU4s`,
+`catalogitemids=none` (no ownership check yet). Developer overrides:
+`PHOTON_APP_ID`, `PHOTON_ROOM`, `PHOTON_APP_VERSION`,
+`FRONTIER_PREMIUM_MULTIPLAYER=1`.
+
+## Lobby build
 
 **Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37640531244/Project-Networking-Windows-x64.zip)
 (run [37640531244](https://github.com/c7egoist/Frontier/actions/runs/37640531244), source `114a1000830870603b7907e049ef96955cac81c8`, 19,648,042 bytes with `.sha256` sidecar).

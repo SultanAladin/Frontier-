@@ -1,0 +1,5 @@
+{
+  "version": "5.0.14.3-md-x64-pending",
+  "notes": "Official Photon Realtime Core C++ SDK /MD x64 static libs (Common, Photon, LoadBalancing) land here once the SDK zip is shared via Drive. Empty files{} keeps CI green: the transport compiles against pinned GitHub headers now and links when these entries appear. Header pin: defold/extension-photon-realtime @ 8dad867470f2eb75aeae0c437e10ee723d8d1ccf (SDK 5.0.14.3).",
+  "files": {}
+}

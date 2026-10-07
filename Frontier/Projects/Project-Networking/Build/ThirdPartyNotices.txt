@@ -29,3 +29,13 @@ Lobby visual layout adapted at the owner's request from streamlinkinbox/Frontier
 app/lobby.html at 1f2126870aee94c57c32631ccd8ad0cefa461de1. The HTML prototype's
 simulated EOS success messages and fake voice/match operations are NOT used as
 native SDK integration results. See Reference/README.md in the source repository.
+
+Photon Realtime Core C++ SDK 5.0.14.3 (headers; link libs pending)
+Copyright Exit Games GmbH. All Rights Reserved. Use requires an Exit Games account
+and the owner's Photon Realtime AppId, and remains subject to Exit Games' Photon
+license terms (see PHOTON-LICENSE.txt in this package and
+https://dashboard.photonengine.com/account/licenseterms). Headers are compiled
+from the pinned mirror defold/extension-photon-realtime @ 8dad867470f2eb75aeae0c437e10ee723d8d1ccf.
+The Photon transport links only against the official /MD x64 static libs; until the
+owner supplies them this build links a stub that honestly reports Photon as
+unavailable and keeps all traffic on the EOS path. Photon Fusion is not used.

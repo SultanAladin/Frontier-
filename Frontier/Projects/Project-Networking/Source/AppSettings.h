@@ -15,6 +15,7 @@ struct AppSettings
     AppLanguage Language = AppLanguage::English;
     bool AutoLogin = false;
     bool ForgetPersistent = false;
+    bool PremiumMultiplayer = false;
 };
 
 inline bool ParseAppSettings(std::string_view Text, AppSettings& Out) noexcept
@@ -48,14 +49,15 @@ inline bool ParseAppSettings(std::string_view Text, AppSettings& Out) noexcept
             else if (Value == "zh") Candidate.Language = AppLanguage::ChineseSimplified;
             else { Valid = false; break; }
         }
-        else if (Key == "auto_login" || Key == "forget_persistent")
+        else if (Key == "auto_login" || Key == "forget_persistent" || Key == "premium_multiplayer")
         {
-            const unsigned Bit = (Key == "auto_login") ? 4u : 8u;
+            const unsigned Bit = (Key == "auto_login") ? 4u : (Key == "forget_persistent" ? 8u : 16u);
             if (Seen & Bit) { Valid = false; break; }
             Seen |= Bit;
             if (Value != "0" && Value != "1") { Valid = false; break; }
             if (Bit == 4u) Candidate.AutoLogin = (Value == "1");
-            else Candidate.ForgetPersistent = (Value == "1");
+            else if (Bit == 8u) Candidate.ForgetPersistent = (Value == "1");
+            else Candidate.PremiumMultiplayer = (Value == "1");
         }
         else { Valid = false; break; }
     }
@@ -74,6 +76,8 @@ inline std::string EncodeAppSettings(const AppSettings& In)
     Out += In.AutoLogin ? "1" : "0";
     Out += "\nforget_persistent=";
     Out += In.ForgetPersistent ? "1" : "0";
+    Out += "\npremium_multiplayer=";
+    Out += In.PremiumMultiplayer ? "1" : "0";
     Out += "\n";
     return Out;
 }

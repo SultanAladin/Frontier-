@@ -6,10 +6,16 @@
 #include "EpicExchange.h"
 #include "AuthPolicy.h"
 #include "PlatformDiagnostics.h"
+#include "TransportRouter.h"
+#include "TransportCodec.h"
+#include "PhotonTransport.h"
+#include "EcomOwnership.h"
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <thread>
+#include <vector>
 
 namespace
 {
@@ -76,9 +82,41 @@ int main(int ArgumentCount, char** Arguments)
         std::puts(Accepted ? "PASS same-process SDK reuse, retry, social guards and terminal shutdown" : "FAIL SDK lifecycle");
         return Accepted ? 0 : 2;
     }
+    if (ArgumentCount == 2 && std::strcmp(Arguments[1], "--transport-check") == 0)
+    {
+        // No network, no login: codec, selection rules, signed-out guards, redaction.
+        using namespace Networking;
+        bool Accepted = true;
+        std::vector<std::uint8_t> Frame;
+        static constexpr char Tag[] = "frontier-photon-v1";
+        Accepted = PacketCodec::Encode(ReplicationKind::Probe,
+            reinterpret_cast<const std::uint8_t*>(Tag), sizeof(Tag) - 1, Frame) && Accepted;
+        ReplicationKind Kind = ReplicationKind::Input;
+        const std::uint8_t* Payload = nullptr;
+        std::size_t PayloadLength = 0;
+        Accepted = PacketCodec::Decode(Frame.data(), Frame.size(), Kind, Payload, PayloadLength) &&
+            Kind == ReplicationKind::Probe && Accepted;
+        Frame[Frame.size() - 1] ^= 0xFF;
+        Accepted = !PacketCodec::Decode(Frame.data(), Frame.size() - 1, Kind, Payload, PayloadLength) && Accepted;
+        Accepted = SelectTransportKind(true, true) == TransportKind::Photon &&
+            SelectTransportKind(true, false) == TransportKind::Eos &&
+            SelectTransportKind(false, true) == TransportKind::Eos && Accepted;
+        char Token[64]{};
+        Accepted = !CopyEpicIdentityToken(Token, sizeof(Token)) && Token[0] == 0 && Accepted;
+        Accepted = !CopyOwnershipToken(Token, sizeof(Token)) && Token[0] == 0 && Accepted;
+        Accepted = !SendPhotonPacket(Frame.data(), Frame.size(), true) && Accepted;
+        const TransportStatus Status = InspectTransportStatus();
+        const PhotonStatus Photon = InspectPhotonStatus();
+        Accepted = Status.Active == TransportKind::None && Status.Reading[0] != 0 &&
+            Photon.Reading[0] != 0 && std::strstr(Status.Reading, "token=") == nullptr &&
+            std::strstr(Photon.Reading, "token=") == nullptr && Accepted;
+        StopMultiplayerTransport();
+        std::puts(Accepted ? "PASS transport codec, selection, guards and redaction" : "FAIL transport checks");
+        return Accepted ? 0 : 2;
+    }
     if (ArgumentCount != 1)
     {
-        std::puts("Usage: LoginHost [--sdk-check | --lifecycle-check | --platform-check]");
+        std::puts("Usage: LoginHost [--sdk-check | --lifecycle-check | --platform-check | --transport-check]");
         return 2;
     }
     std::puts("Project-Networking: REAL EOS login; no simulated provider");

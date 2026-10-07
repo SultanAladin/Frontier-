@@ -50,7 +50,7 @@ def main():
             raise RuntimeError('Credential refusal did not fail closed')
         lines.append('PASS real executable refuses missing credentials without authentication')
         run([output / 'LoginHost', '--invalid'], expected=2)
-        for source in ('LoginSequenceChecks', 'LobbyChecks', 'InterchangeChecks'):
+        for source in ('LoginSequenceChecks', 'LobbyChecks', 'TransportChecks', 'InterchangeChecks'):
             executable = output / source
             run(['g++', '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I' + str(include),
                  proof / (source + '.cpp'), '-ldl', '-o', executable])

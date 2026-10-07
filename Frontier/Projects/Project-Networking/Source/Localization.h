@@ -205,6 +205,15 @@ inline const char* TranslateToChinese(const char* English)
         {"no map", "无地图"},
         {"voice", "语音"},
         {"EOS LOBBY + MATCH SESSION + RTC  /  Leaving the lobby closes the session first", "EOS 大厅 + 比赛对局 + RTC / 离开大厅前先关闭对局"},
+        {"Premium multiplayer (Photon)", "高级多人联机（Photon）"},
+        {"Route match traffic over Photon after login. Off stays on EOS only.", "登录后通过 Photon 传输对局流量，关闭则仅使用 EOS。"},
+        {"Premium is a manual switch for now. Xsolla will decide it later.", "高级联机目前为手动开关，之后将由 Xsolla 决定。"},
+        {"Transport: %s", "传输：%s"},
+        {"Photon", "Photon"},
+        {"Photon connecting", "Photon 连接中"},
+        {"Photon unavailable", "Photon 不可用"},
+        {"EOS only", "仅 EOS"},
+        {"Starting...", "启动中..."},
     };
     for (const auto& Entry : Table)
         if (std::strcmp(Entry.En, English) == 0) return Entry.Zh;

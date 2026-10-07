@@ -41,6 +41,17 @@ jobs:
           ref: f5befd2d29e66809cd1110a152e375a7f1981f06
           path: _AgentScratch/Gui/imgui
           persist-credentials: false
+      - name: Fetch pinned Photon Realtime headers (compile now, link later)
+        uses: actions/checkout@v4
+        with:
+          repository: defold/extension-photon-realtime
+          ref: 8dad867470f2eb75aeae0c437e10ee723d8d1ccf
+          path: _AgentScratch/Photon
+          sparse-checkout: |
+            realtime/include
+            realtime/license.txt
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -53,6 +64,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'SDK fetch or hash verification failed' }
           python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Frontier/Projects/Project-Networking/Build/BootstrapperManifest.json
           if ($LASTEXITCODE -ne 0) { throw 'Bootstrapper fetch or hash verification failed' }
+          python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Frontier/Projects/Project-Networking/Build/WindowsPhotonManifest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Photon lib fetch or hash verification failed' }
       - name: Fetch hash-pinned Microsoft XAudio2 redistributable for EOS voice
         shell: pwsh
         run: |
@@ -91,7 +104,7 @@ jobs:
             if ($_ -match '^([^=]+)=(.*)$') { Set-Item "Env:$($Matches[1])" $Matches[2] }
           }
           $Project = Join-Path $env:GITHUB_WORKSPACE 'Frontier/Projects/Project-Networking'
-          & "$Project/Build/ToolchainSequence.ps1" -SdkRoot "$env:RUNNER_TEMP/EOS" -SlateRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Slate" -GuiRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Gui"
+          & "$Project/Build/ToolchainSequence.ps1" -SdkRoot "$env:RUNNER_TEMP/EOS" -SlateRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Slate" -GuiRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Gui" -PhotonRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Photon"
           $Output = "$Project/Build/Output"
           Start-Transcript -Path "$Output/WindowsChecks.log"
           try {
@@ -120,6 +133,12 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Lobby/history checks compilation failed' }
             & "$Output/LobbyChecks.exe"
             if ($LASTEXITCODE -ne 0) { throw 'Lobby/history checks failed' }
+            & cl.exe /nologo /std:c++20 /MD /EHsc /W4 /utf-8 "$env:GITHUB_WORKSPACE/VisualProof/Networking/TransportChecks.cpp" "/Fe:$Output/TransportChecks.exe" "/Fo:$Output/TransportChecks.obj"
+            if ($LASTEXITCODE -ne 0) { throw 'Transport checks compilation failed' }
+            & "$Output/TransportChecks.exe"
+            if ($LASTEXITCODE -ne 0) { throw 'Transport checks failed' }
+            & "$Output/LoginHost.exe" --transport-check
+            if ($LASTEXITCODE -ne 0) { throw 'Linked transport self-test failed' }
             # Hosted runner has no hardware OpenGL ICD. These DLLs are NOT shipped.
             Copy-Item "$env:RUNNER_TEMP/Mesa/x64/*.dll" $Output -Force
             $env:GALLIUM_DRIVER = 'llvmpipe'
@@ -183,6 +202,7 @@ jobs:
           if (Get-ChildItem $Package -Recurse -File | Where-Object { $_.Name -match '\.local\.|\.pending$' }) { throw 'Private/local file found in release staging' }
           Copy-Item '_AgentScratch/Gui/glfw/LICENSE.md' "$Package/GLFW-LICENSE.md"
           Copy-Item '_AgentScratch/Gui/imgui/LICENSE.txt' "$Package/IMGUI-LICENSE.txt"
+          Copy-Item '_AgentScratch/Photon/realtime/license.txt' "$Package/PHOTON-LICENSE.txt"
           Copy-Item "$Project/ProjectNetworking.frontier" "$Package/"
           Copy-Item "$Project/Content/Scenes/Networking.gltf" "$Package/Content/Scenes/"
           Copy-Item Docs/NetworkingLogin.md "$Package/INSTRUCTIONS.md"
