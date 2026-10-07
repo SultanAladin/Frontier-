@@ -1,6 +1,8 @@
 # Xsolla Store + Premium + Nitron Economy Plan
 
 Status: research report, no code. Written 2026-10-07 after the Photon link slice.
+Project: Charge — Xsolla project ID `317410` (Free-to-Play PC account).
+Owner holds the API key privately; it never enters the repo or chat.
 Read this first, then answer the open decisions at the bottom.
 
 ## TL;DR answers
