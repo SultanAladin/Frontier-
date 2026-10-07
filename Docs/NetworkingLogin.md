@@ -1,7 +1,7 @@
 ## Lobby build (current)
 
-**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37634132017/Project-Networking-Windows-x64.zip)
-(run [37634132017](https://github.com/c7egoist/Frontier/actions/runs/37634132017), source `ad552086bf226f4b7b930dec71d9d56ee54df0bc`, 19,627,618 bytes with `.sha256` sidecar).
+**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37640531244/Project-Networking-Windows-x64.zip)
+(run [37640531244](https://github.com/c7egoist/Frontier/actions/runs/37640531244), source `114a1000830870603b7907e049ef96955cac81c8`, 19,648,042 bytes with `.sha256` sidecar).
 
 Extract into a fresh folder and open **Charge.exe**. Put the **private**
 `Charge.local.ini` next to it for portable login and a stable cross-PC EOS cloud
@@ -13,7 +13,9 @@ host-editable lobby/session settings, and replaces the UI with clean
 Lobby/Browse/Settings/History tabs. If the log shows
 `session_register_real_players result=EOS_ClientPolicyMissingAction`, grant the
 Sessions actions to the Dev client policy in the Epic portal; an unregistered
-lifecycle-only start remains available.
+lifecycle-only start remains available. This build also adds Epic auto-login
+(saved token, portal fallback), an English / Simplified-Chinese UI toggle, and
+tag-based lobby discovery (style, language, status, visibility).
 
 Full lobby, voice, session and history notes: `Docs/NetworkingLobbyPlan.md` and
 `Frontier/Projects/Project-Networking/Build/BinaryInstructions.txt`.
