@@ -20,11 +20,11 @@ const origin = process.env.FRONTIER_EDITOR_ORIGIN || 'http://127.0.0.1:5173/';
 const executablePath = process.env.FRONTIER_CHROMIUM || '/tmp/chromium';
 
 const emitters = [
-  {name: 'Point Light',  file: 'PointLight',  cards: ['Luminous output', 'Colour temperature', 'Reach & falloff', 'Placement', 'Shadows & response', 'Luminous distribution', 'Renderer support']},
-  {name: 'Spot Light',   file: 'SpotLight',   cards: ['Luminous output', 'Colour temperature', 'Beam shape', 'Reach & falloff', 'Placement', 'Shadows & response', 'Luminous distribution', 'Renderer support']},
-  {name: 'Area Light',   file: 'AreaLight',   cards: ['Luminous output', 'Colour temperature', 'Emitter dimensions', 'Reach & falloff', 'Placement', 'Shadows & response', 'Renderer support']},
-  {name: 'Tube Light',   file: 'TubeLight',   cards: ['Luminous output', 'Colour temperature', 'Emitter dimensions', 'Reach & falloff', 'Placement', 'Shadows & response', 'Renderer support']},
-  {name: 'LED Strip',    file: 'StripLight',  cards: ['Luminous output', 'Colour temperature', 'Emitter dimensions', 'Reach & falloff', 'Placement', 'Shadows & response', 'Renderer support']},
+  {name: 'Point Light',  file: 'PointLight',  cards: ['Luminous output', 'Colour temperature', 'Reach & falloff', 'Transform', 'Shadows & response', 'Luminous distribution', 'Renderer support']},
+  {name: 'Spot Light',   file: 'SpotLight',   cards: ['Luminous output', 'Colour temperature', 'Beam shape', 'Reach & falloff', 'Transform', 'Shadows & response', 'Luminous distribution', 'Renderer support']},
+  {name: 'Area Light',   file: 'AreaLight',   cards: ['Luminous output', 'Colour temperature', 'Emitter dimensions', 'Reach & falloff', 'Transform', 'Shadows & response', 'Renderer support']},
+  {name: 'Tube Light',   file: 'TubeLight',   cards: ['Luminous output', 'Colour temperature', 'Emitter dimensions', 'Reach & falloff', 'Transform', 'Shadows & response', 'Renderer support']},
+  {name: 'LED Strip',    file: 'StripLight',  cards: ['Luminous output', 'Colour temperature', 'Emitter dimensions', 'Reach & falloff', 'Transform', 'Shadows & response', 'Renderer support']},
 ];
 
 let checks = 0;

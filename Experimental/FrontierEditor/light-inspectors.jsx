@@ -19,6 +19,7 @@ export const lightDefaults={
  emitterWidth:1.2,emitterHeight:.6,emitterLength:1.5,emitterRadius:.04,
  lumensPerMetre:900,
  lightX:0,lightY:3,lightZ:0,aimAzimuth:180,aimElevation:-55,
+ rotX:0,rotY:0,rotZ:0,scaleX:1,scaleY:1,scaleZ:1,
  shadowSoftness:28,diffuseResponse:100,specularResponse:100,
  distribution:'Uniform',
 };
@@ -38,8 +39,8 @@ export const lightDescriptions={
 };
 export const lightCardColors={
  'Luminous output':'#e9c67b','Colour temperature':'#e69c79','Beam shape':'#f0bd72',
- 'Emitter dimensions':'#dfc08f','Reach & falloff':'#9fb7d4','Placement':'#b5c4df',
- 'Shadows & response':'#c0a8d4','Luminous distribution':'#d4b970','Renderer support':'#8e8e8e',
+ 'Emitter dimensions':'#dfc08f','Reach & falloff':'#9fb7d4',
+ 'Transform':'#b5c4df','Shadows & response':'#c0a8d4','Luminous distribution':'#d4b970','Renderer support':'#8e8e8e',
 };
 
 const surfaceKinds=['area-light','tube-light','strip-light'];
@@ -117,9 +118,13 @@ export default function LightInspector({kind,card,v,set,slider,num,featureOn,act
   <p className="muted">{strip?'Total flux is the output per metre multiplied by the run length.':`Emitting area ${emitterArea.toFixed(3)} m².`}</p>
  </>,'wide-card emitter-card')}
 
- {card('Placement',Move3d,<>
+ {card('Transform',Move3d,<>
   <div className="volume-subheading">POSITION <span>World-space centre · metres</span></div>
-  <div className="volume-fields">{number('lightX','Centre X','m')}{number('lightY','Centre Y','m')}{number('lightZ','Centre Z','m')}</div>
+  <div className="volume-fields">{number('lightX','X','m')}{number('lightY','Y','m')}{number('lightZ','Z','m')}</div>
+  <div className="volume-subheading">ROTATION <span>Local orientation · degrees</span></div>
+  <div className="volume-fields">{number('rotX','X','°')}{number('rotY','Y','°')}{number('rotZ','Z','°')}</div>
+  <div className="volume-subheading">SCALE <span>Emitter proportions · multiplier</span></div>
+  <div className="volume-fields">{number('scaleX','X','×',.01,'.01')}{number('scaleY','Y','×',.01,'.01')}{number('scaleZ','Z','×',.01,'.01')}</div>
   {spot&&<>
    <div className="volume-subheading">AIM <span>Beam axis · degrees</span></div>
    <div className="light-cone-controls">
@@ -127,7 +132,7 @@ export default function LightInspector({kind,card,v,set,slider,num,featureOn,act
     <label><span>Elevation <strong>{v('aimElevation')>0?'+':''}{v('aimElevation')}°</strong></span>{slider('aimElevation',-90,90)}<em>Negative aims at the floor</em></label>
    </div>
   </>}
- </>,'wide-card placement-card')}
+ </>,'wide-card transform-card')}
 
  {card('Shadows & response',Contrast,<>
   <div className="scattering-top"><div className="metric">{num('shadowSoftness','%')}</div><span className="small-pill">Penumbra width</span></div>

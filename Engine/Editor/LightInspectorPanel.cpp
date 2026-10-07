@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
 namespace Frontier
 {
@@ -35,8 +36,12 @@ constexpr ImU32 CardTop    = IM_COL32(34, 34, 34, 255);      // [-] .card gradie
 constexpr ImU32 CardFoot   = IM_COL32(31, 31, 31, 255);      // [-] .card gradient end
 constexpr ImU32 CardEdge   = IM_COL32(47, 47, 47, 255);      // [-] .card border
 constexpr ImU32 Backdrop   = IM_COL32(16, 16, 16, 255);      // [-] body background
-constexpr ImU32 Track      = IM_COL32(58, 58, 58, 255);      // [-] slider rail
-constexpr ImU32 Knob       = IM_COL32(232, 232, 232, 255);   // [-] slider handle
+constexpr ImU32 Track      = IM_COL32(68, 68, 68, 255);      // [-] input[type=range] unfilled rail #444
+constexpr ImU32 Filled     = IM_COL32(197, 197, 197, 255);   // [-] input[type=range] filled rail #c5c5c5
+constexpr ImU32 Knob       = IM_COL32(229, 229, 229, 255);   // [-] ::-webkit-slider-thumb #e5e5e5
+constexpr float TrackHigh  = 3;                              // [px] input[type=range] height
+constexpr float KnobRadius = 5.5f;                           // [px] 11 px thumb
+constexpr float KnobRing   = 4;                              // [px] box-shadow 0 0 0 4px #222
 constexpr ImU32 FieldFill  = IM_COL32(26, 26, 30, 255);      // [-] numeric field
 constexpr ImU32 FieldEdge  = IM_COL32(55, 55, 61, 255);      // [-] numeric field border
 constexpr ImU32 Lit        = IM_COL32(126, 198, 148, 255);   // [-] .status-chip.is-on
@@ -85,10 +90,116 @@ constexpr ImU32 AccentTemperature  = IM_COL32(230, 156, 121, 255);
 constexpr ImU32 AccentReach        = IM_COL32(159, 183, 212, 255);
 constexpr ImU32 AccentBeam         = IM_COL32(240, 189, 114, 255);
 constexpr ImU32 AccentEmitter      = IM_COL32(223, 192, 143, 255);
-constexpr ImU32 AccentPlacement    = IM_COL32(181, 196, 223, 255);
+constexpr ImU32 AccentTransform    = IM_COL32(181, 196, 223, 255);
 constexpr ImU32 AccentResponse     = IM_COL32(192, 168, 212, 255);
 constexpr ImU32 AccentDistribution = IM_COL32(212, 185, 112, 255);
 constexpr ImU32 AccentSupport      = IM_COL32(142, 142, 142, 255);
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                        CARD GLYPHS
+//------------------------------------------------------------------------------------------------------------------------
+// The browser cards head each panel with a lucide glyph at 16 px. These redraw the same geometry on the
+// 24-unit lucide grid with the same 2-unit stroke, so the native heading carries the icon rather than a swatch.
+
+enum class CardGlyph
+{
+    Lightbulb, Flashlight, Rectangle, Minus, Layers, Thermometer,
+    Gauge, Cone, Ruler, Move3d, Contrast, Projector, CircleDot
+};
+
+void StrokeGlyph(ImDrawList* Draw, ImVec2 Origin, float Extent, CardGlyph Glyph, ImU32 Colour)
+{
+    const float Unit   = Extent / 24.0f;
+    const float Weight = std::max(1.0f, 1.9f * Unit);
+    auto Point = [&](float X, float Y) { return ImVec2{Origin.x + X * Unit, Origin.y + Y * Unit}; };
+    auto Line  = [&](float X1, float Y1, float X2, float Y2) { Draw->AddLine(Point(X1, Y1), Point(X2, Y2), Colour, Weight); };
+    auto Ring  = [&](float X, float Y, float R) { Draw->AddCircle(Point(X, Y), R * Unit, Colour, 28, Weight); };
+    auto Dot   = [&](float X, float Y, float R) { Draw->AddCircleFilled(Point(X, Y), R * Unit, Colour, 16); };
+    auto Chain = [&](std::initializer_list<ImVec2> Points, bool Closed)
+    {
+        ImVec2 Path[12];
+        int    Count = 0;
+        for (const ImVec2& Node : Points)
+        {
+            Path[Count++] = Point(Node.x, Node.y);
+        }
+        Draw->AddPolyline(Path, Count, Colour, Closed ? ImDrawFlags_Closed : ImDrawFlags_None, Weight);
+    };
+
+    switch (Glyph)
+    {
+    case CardGlyph::Lightbulb:
+        Draw->PathArcTo(Point(12, 8), 6 * Unit, 3.34f, 6.08f, 24);
+        Draw->PathStroke(Colour, ImDrawFlags_None, Weight);
+        Line(8.4f, 12.6f, 9, 14);
+        Line(15.6f, 12.6f, 15, 14);
+        Line(9, 18, 15, 18);
+        Line(10, 21.4f, 14, 21.4f);
+        break;
+    case CardGlyph::Flashlight:
+        Chain({{6, 2}, {18, 2}, {18, 6}, {16, 10}, {16, 21}, {8, 21}, {8, 10}, {6, 6}}, true);
+        Line(6, 6.4f, 18, 6.4f);
+        Dot(12, 12.5f, 1.1f);
+        break;
+    case CardGlyph::Rectangle:
+        Draw->AddRect(Point(2, 6), Point(22, 18), Colour, 2 * Unit, 0, Weight);
+        break;
+    case CardGlyph::Minus:
+        Line(5, 12, 19, 12);
+        break;
+    case CardGlyph::Layers:
+        // Stacked sheets: the lead rhombus plus the two trailing chevrons.
+        Chain({{12, 2.2f}, {21.7f, 6.9f}, {12, 11.6f}, {2.3f, 6.9f}}, true);
+        Chain({{2.2f, 12.6f}, {12, 17.2f}, {21.8f, 12.6f}}, false);
+        Chain({{2.2f, 17.4f}, {12, 22}, {21.8f, 17.4f}}, false);
+        break;
+    case CardGlyph::Thermometer:
+        Chain({{14, 14.6f}, {14, 4}, {13.1f, 2.2f}, {10.9f, 2.2f}, {10, 4}, {10, 14.6f}}, false);
+        Ring(12, 18, 4);
+        break;
+    case CardGlyph::Gauge:
+        Draw->PathArcTo(Point(12, 14), 9 * Unit, 3.40f, 6.02f, 28);
+        Draw->PathStroke(Colour, ImDrawFlags_None, Weight);
+        Line(12, 14, 16, 10);
+        break;
+    case CardGlyph::Cone:
+        Chain({{3.1f, 18.6f}, {12, 2.6f}, {20.9f, 18.6f}}, false);
+        Draw->AddEllipse(Point(12, 18.6f), {9 * Unit, 3 * Unit}, Colour, 0, 32, Weight);
+        break;
+    case CardGlyph::Ruler:
+        Draw->AddRect(Point(2.5f, 8), Point(21.5f, 16), Colour, 2 * Unit, 0, Weight);
+        Line(7, 8, 7, 11.5f);
+        Line(11, 8, 11, 12.5f);
+        Line(15, 8, 15, 11.5f);
+        Line(19, 8, 19, 12.5f);
+        break;
+    case CardGlyph::Move3d:
+        Chain({{5, 3}, {5, 19}, {21, 19}}, false);
+        Chain({{2.6f, 5.4f}, {5, 3}, {7.4f, 5.4f}}, false);
+        Chain({{18.6f, 16.6f}, {21, 19}, {18.6f, 21.4f}}, false);
+        Line(5, 19, 11.5f, 12.5f);
+        break;
+    case CardGlyph::Contrast:
+        Ring(12, 12, 10);
+        Draw->PathArcTo(Point(12, 12), 6 * Unit, -1.5708f, 1.5708f, 20);
+        Draw->PathLineTo(Point(12, 6));
+        Draw->PathFillConvex(Colour);
+        break;
+    case CardGlyph::Projector:
+        Draw->AddRect(Point(2, 12), Point(22, 20), Colour, 2 * Unit, 0, Weight);
+        Ring(9, 16, 3);
+        Dot(16.5f, 15, 0.9f);
+        Dot(16.5f, 18.4f, 0.9f);
+        Line(9, 6, 9, 3);
+        Line(4.6f, 7.2f, 3, 5.6f);
+        Line(13.4f, 7.2f, 15, 5.6f);
+        break;
+    case CardGlyph::CircleDot:
+        Ring(12, 12, 10);
+        Dot(12, 12, 1.6f);
+        break;
+    }
+}
 
 EditorProperty* Find(EditorSheet& Sheet, const char* Name)
 {
@@ -172,7 +283,7 @@ struct LightPanel
     }
 
     // .card — 125 degree gradient, hairline border, 18 px corners.
-    void Card(float X, float Y, float Width, float Height, const char* Title, ImU32 Accent) const
+    void Card(float X, float Y, float Width, float Height, const char* Title, ImU32 Accent, CardGlyph Glyph) const
     {
         const int First = Draw->VtxBuffer.Size;
         Draw->AddRectFilled(At(X, Y), At(X + Width, Y + Height), IM_COL32_WHITE, CardRadius);
@@ -181,9 +292,8 @@ struct LightPanel
         Draw->AddRect(At(X, Y), At(X + Width, Y + Height), CardEdge, CardRadius);
         if (Title && Title[0])
         {
-            // The lucide glyph is represented by its accent swatch; the heading keeps the reference wording.
-            Draw->AddRectFilled(At(X + CardPadX, Y + CardPadY + 1), At(X + CardPadX + 11, Y + CardPadY + 12), Accent, 3);
-            Write(X + CardPadX + 18, Y + CardPadY + 1, Title, 12, Heading);
+            StrokeGlyph(Draw, At(X + CardPadX, Y + CardPadY - 1), 16, Glyph, Accent);
+            Write(X + CardPadX + 24, Y + CardPadY + 1, Title, 12, Heading);
         }
     }
 
@@ -238,10 +348,13 @@ struct LightPanel
         const float HandleX = X + Share * Width;
         if (!Bare)
         {
-            Draw->AddLine(At(X, Y), At(X + Width, Y), Track, 3);
-            Draw->AddLine(At(X, Y), At(HandleX, Y), IM_COL32(220, 220, 220, 255), 3);
+            // 3 px rail with a 10 px radius, filled to the handle, exactly as the stylesheet declares.
+            Draw->AddRectFilled(At(X, Y - TrackHigh * 0.5f), At(X + Width, Y + TrackHigh * 0.5f), Track, TrackHigh * 0.5f);
+            Draw->AddRectFilled(At(X, Y - TrackHigh * 0.5f), At(HandleX, Y + TrackHigh * 0.5f), Filled, TrackHigh * 0.5f);
         }
-        Draw->AddCircleFilled(At(HandleX, Y), 6.5f, Knob, 24);
+        // The thumb carries a 4 px ring of card background, so the rail does not run under it.
+        Draw->AddCircleFilled(At(HandleX, Y), KnobRadius + KnobRing, CardTop, 28);
+        Draw->AddCircleFilled(At(HandleX, Y), KnobRadius, Knob, 24);
         return Bound->Figure;
     }
 
@@ -638,7 +751,8 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
     // Luminous output
     //----------------------------------------------------------------------------------------------------------------
     const float OutputHeight = 440;
-    Panel.Card(0, Cursor, Width, OutputHeight, "Luminous output", AccentOutput);
+    Panel.Card(0, Cursor, Width, OutputHeight, "Luminous output", AccentOutput,
+               Strip ? CardGlyph::Layers : Spot ? CardGlyph::Flashlight : CardGlyph::Lightbulb);
     char Figure[48], Pill[48];
     Grouped(Figure, sizeof(Figure), double(Flux));
     Grouped(Pill, sizeof(Pill), double(Candela));
@@ -684,7 +798,7 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
     //----------------------------------------------------------------------------------------------------------------
     const float PairHeight = 272;
     const float Kelvin     = Panel.Value("Colour temperature", 3000);
-    Panel.Card(0, Cursor, Half, PairHeight, "Colour temperature", AccentTemperature);
+    Panel.Card(0, Cursor, Half, PairHeight, "Colour temperature", AccentTemperature, CardGlyph::Thermometer);
     Grouped(Figure, sizeof(Figure), double(Kelvin));
     Panel.Metric(CardPadX, Cursor + 48, Figure, "K");
     const float KelvinTrack = Cursor + 126;
@@ -703,7 +817,7 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
     Panel.Write(CardPadX + 20, Cursor + 177, TemperatureName(Kelvin), 10, IM_COL32(186, 186, 186, 255));
 
     const float ReachX = Half + CardGap;
-    Panel.Card(ReachX, Cursor, Half, PairHeight, "Reach & falloff", AccentReach);
+    Panel.Card(ReachX, Cursor, Half, PairHeight, "Reach & falloff", AccentReach, CardGlyph::Gauge);
     std::snprintf(Figure, sizeof(Figure), "%.0f", double(Reach));
     Panel.Metric(ReachX + CardPadX, Cursor + 48, Figure, "m");
     Panel.Pill(ReachX + Half - CardPadX, Cursor + 52, "Inverse square");
@@ -719,7 +833,7 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
     if (Spot)
     {
         const float BeamHeight = 388;
-        Panel.Card(0, Cursor, Width, BeamHeight, "Beam shape", AccentBeam);
+        Panel.Card(0, Cursor, Width, BeamHeight, "Beam shape", AccentBeam, CardGlyph::Cone);
         std::snprintf(Figure, sizeof(Figure), "%.0f", double(Outer));
         Panel.Metric(CardPadX, Cursor + 48, Figure, "\xC2\xB0");
         std::snprintf(Text, sizeof(Text), "%.0f\xC2\xB0 hot core", double(Inner));
@@ -744,7 +858,7 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
     if (Surface)
     {
         const float EmitterHeight = 268;
-        Panel.Card(0, Cursor, Width, EmitterHeight, "Emitter dimensions", AccentEmitter);
+        Panel.Card(0, Cursor, Width, EmitterHeight, "Emitter dimensions", AccentEmitter, CardGlyph::Ruler);
         EmitterFigure(Panel, CardPadX, Cursor + 60, Width - CardPadX * 2, Kind, PanelWidth, PanelHigh, Length, TubeRadius);
         Panel.Subheading(CardPadX, Cursor + 170, Width - CardPadX * 2, "DIMENSIONS", "Metres \xC2\xB7 emitting surface");
         const float FieldW = (Width - CardPadX * 2 - 14) * 0.5f;
@@ -786,46 +900,66 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
     //----------------------------------------------------------------------------------------------------------------
     // Placement
     //----------------------------------------------------------------------------------------------------------------
-    const float PlacementHeight = Spot ? 240.0f : 148.0f;
-    Panel.Card(0, Cursor, Width, PlacementHeight, "Placement", AccentPlacement);
-    Panel.Subheading(CardPadX, Cursor + 58, Width - CardPadX * 2, "POSITION", "World-space centre \xC2\xB7 metres");
+    const float TransformHeight = Spot ? 330.0f : 266.0f;
+    Panel.Card(0, Cursor, Width, TransformHeight, "Transform", AccentTransform, CardGlyph::Move3d);
     const float AxisW = (Width - CardPadX * 2 - 28) / 3.0f;
-    const char* AxisLabel[3] = {"Centre X", "Centre Y", "Centre Z"};
-    for (int Axis = 0; Axis < 3; ++Axis)
+    const char* AxisName[3] = {"X", "Y", "Z"};
+    EditorProperty* Rotation = Find(Sheet, "Rotation");
+    EditorProperty* Scale    = Find(Sheet, "Scale");
+
+    // One grid row per transform channel, each three columns wide, matching .volume-fields.
+    struct TransformRow { const char* Kicker; const char* Note; EditorProperty* Bound; const char* Unit; int Digits; };
+    const TransformRow Rows[3] = {
+        {"POSITION", "World-space centre \xC2\xB7 metres", Position, "m", 2},
+        {"ROTATION", "Local orientation \xC2\xB7 degrees", Rotation, "\xC2\xB0", 0},
+        {"SCALE",    "Emitter proportions \xC2\xB7 multiplier", Scale, "\xC3\x97", 2},
+    };
+    for (int Row = 0; Row < 3; ++Row)
     {
-        char Reading[32];
-        std::snprintf(Reading, sizeof(Reading), "%.2f", double(Position->Axes[Axis]));
-        const float AxisX = CardPadX + Axis * (AxisW + 14);
-        Panel.Field(AxisX, Cursor + 78, AxisW, AxisLabel[Axis], Reading, "m");
-        ImGui::SetCursorScreenPos(Panel.At(AxisX, Cursor + 95));
-        ImGui::PushID(Axis + 400);
-        ImGui::InvisibleButton("##axis", {AxisW, 28});
-        if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        const float RowY = Cursor + 58 + Row * 68.0f;
+        Panel.Subheading(CardPadX, RowY, Width - CardPadX * 2, Rows[Row].Kicker, Rows[Row].Note);
+        for (int Axis = 0; Axis < 3; ++Axis)
         {
-            Position->Axes[Axis] += ImGui::GetIO().MouseDelta.x * Position->AxisStep;
+            const float AxisX = CardPadX + Axis * (AxisW + 14);
+            char Reading[32];
+            const float Figure = Rows[Row].Bound ? Rows[Row].Bound->Axes[Axis] : (Row == 2 ? 1.0f : 0.0f);
+            std::snprintf(Reading, sizeof(Reading), "%.*f", Rows[Row].Digits, double(Figure));
+            Panel.Field(AxisX, RowY + 20, AxisW, AxisName[Axis], Reading, Rows[Row].Unit);
+            if (!Rows[Row].Bound)
+            {
+                continue;
+            }
+            ImGui::SetCursorScreenPos(Panel.At(AxisX, RowY + 37));
+            ImGui::PushID(400 + Row * 3 + Axis);
+            ImGui::InvisibleButton("##axis", {AxisW, 28});
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+            {
+                const float Step = Rows[Row].Bound->AxisStep > 0 ? Rows[Row].Bound->AxisStep : 0.05f;
+                Rows[Row].Bound->Axes[Axis] += ImGui::GetIO().MouseDelta.x * Step;
+            }
+            ImGui::PopID();
         }
-        ImGui::PopID();
     }
     if (Spot)
     {
-        Panel.Subheading(CardPadX, Cursor + 146, Width - CardPadX * 2, "AIM", "Beam axis \xC2\xB7 degrees");
+        Panel.Subheading(CardPadX, Cursor + 262, Width - CardPadX * 2, "AIM", "Beam axis \xC2\xB7 degrees");
         const EditorProperty* Azimuth   = Find(Sheet, "Aim azimuth");
         const EditorProperty* Elevation = Find(Sheet, "Aim elevation");
         const float           AimW      = (Width - CardPadX * 2 - 28) * 0.5f;
-        Panel.Write(CardPadX, Cursor + 170, "Azimuth", 10, Muted);
-        Panel.WriteRight(CardPadX + AimW, Cursor + 170, Azimuth ? Azimuth->Text : "--", 11, Ink);
-        Panel.Write(CardPadX, Cursor + 192, "Clockwise from north \xC2\xB7 owned by the placement transform", 9, Faint);
-        Panel.Write(CardPadX + AimW + 28, Cursor + 170, "Elevation", 10, Muted);
-        Panel.WriteRight(Width - CardPadX, Cursor + 170, Elevation ? Elevation->Text : "--", 11, Ink);
-        Panel.Write(CardPadX + AimW + 28, Cursor + 192, "Negative aims at the floor", 9, Faint);
+        Panel.Write(CardPadX, Cursor + 286, "Azimuth", 10, Muted);
+        Panel.WriteRight(CardPadX + AimW, Cursor + 286, Azimuth ? Azimuth->Text : "--", 11, Ink);
+        Panel.Write(CardPadX, Cursor + 304, "Clockwise from north \xC2\xB7 owned by the placement transform", 9, Faint);
+        Panel.Write(CardPadX + AimW + 28, Cursor + 286, "Elevation", 10, Muted);
+        Panel.WriteRight(Width - CardPadX, Cursor + 286, Elevation ? Elevation->Text : "--", 11, Ink);
+        Panel.Write(CardPadX + AimW + 28, Cursor + 304, "Negative aims at the floor", 9, Faint);
     }
-    Cursor += PlacementHeight + CardGap;
+    Cursor += TransformHeight + CardGap;
 
     //----------------------------------------------------------------------------------------------------------------
     // Shadows & response
     //----------------------------------------------------------------------------------------------------------------
     const float ResponseHeight = 250;
-    Panel.Card(0, Cursor, Width, ResponseHeight, "Shadows & response", AccentResponse);
+    Panel.Card(0, Cursor, Width, ResponseHeight, "Shadows & response", AccentResponse, CardGlyph::Contrast);
     const float Softness = Panel.Value("Shadow softness", 28);
     std::snprintf(Figure, sizeof(Figure), "%.0f", double(Softness));
     Panel.Metric(CardPadX, Cursor + 48, Figure, "%");
@@ -851,7 +985,7 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
     float       SupportX      = 0;
     if (!Surface)
     {
-        Panel.Card(0, Cursor, Half, SupportHeight, "Luminous distribution", AccentDistribution);
+        Panel.Card(0, Cursor, Half, SupportHeight, "Luminous distribution", AccentDistribution, CardGlyph::Projector);
         Panel.Wrap(CardPadX, Cursor + 54, Half - CardPadX * 2, "How intensity is shaped across the emitted solid angle");
         Panel.Write(CardPadX, Cursor + 92, "Distribution", 10, Muted);
         EditorProperty* Distribution = Find(Sheet, "Distribution");
@@ -874,7 +1008,7 @@ void RecordLightInspector(ControlPanel& Controls, EditorInstance&, EditorSheet& 
         SupportX = Half + CardGap;
     }
 
-    Panel.Card(SupportX, Cursor, SupportWidth, SupportHeight, "Renderer support", AccentSupport);
+    Panel.Card(SupportX, Cursor, SupportWidth, SupportHeight, "Renderer support", AccentSupport, CardGlyph::CircleDot);
     const float RowX = SupportX + CardPadX;
     const float RowW = SupportWidth - CardPadX * 2;
     Panel.StatusRow(RowX, Cursor + 56, RowW, true, "Scene record \xC2\xB7 position, output, colour and reach persist");

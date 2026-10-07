@@ -82,6 +82,16 @@ EditorSheet SheetFor(unsigned Category)
     Position.Axes[2] = 0;
     Position.AxisStep = 0.05f;
     Position.Editable = true;
+    EditorProperty& Rotation = Open(Transform, "Rotation", EditorPropertyCategory::AxisVec3);
+    Rotation.Axes[0] = Category == 2 ? -55.0f : 0.0f;
+    Rotation.Axes[1] = Category == 2 ? 180.0f : 0.0f;
+    Rotation.Axes[2] = 0.0f;
+    Rotation.AxisStep = 1.0f;
+    Rotation.Editable = true;
+    EditorProperty& Scale = Open(Transform, "Scale", EditorPropertyCategory::AxisVec3);
+    Scale.Axes[0] = Scale.Axes[1] = Scale.Axes[2] = 1.0f;
+    Scale.AxisStep = 0.01f;
+    Scale.Editable = true;
 
     EditorPropertyGroup& Shape = Sheet.Groups[Sheet.GroupCount++];
     std::snprintf(Shape.Title, sizeof(Shape.Title), "Distribution");
@@ -176,11 +186,11 @@ int main()
 
     struct Emitter { unsigned Category; const char* File; int Tall; };
     const Emitter Family[] = {
-        {1, "PointLight", 1760},
-        {2, "SpotLight", 2170},
-        {3, "AreaLight", 2000},
-        {4, "TubeLight", 2000},
-        {5, "StripLight", 2000},
+        {1, "PointLight", 1900},
+        {2, "SpotLight", 2360},
+        {3, "AreaLight", 2140},
+        {4, "TubeLight", 2140},
+        {5, "StripLight", 2140},
     };
 
     for (const Emitter& Entry : Family)

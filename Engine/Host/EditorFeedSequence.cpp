@@ -533,6 +533,19 @@ EditorProperty* EditorFeedSequence::BuildSheet(uint32_t Index, EditorInstance* I
                 auto& Range=OpenProp(Source,"Range",EditorPropertyCategory::Slider);Range.Minimum=0;Range.Maximum=1000;Range.Figure=L.Range;Range.Decimals=1;std::snprintf(Range.Unit,sizeof(Range.Unit),"m");
                 EditorPropertyGroup& Transform=OpenGroup(Sheet,"Transform");
                 auto& Position=OpenProp(Transform,"Position",EditorPropertyCategory::AxisVec3);for(int I=0;I<3;++I)Position.Axes[I]=P.WorldTransform[12+I];Position.AxisStep=.05f;Position.Editable=true;
+                // Rotation and scale are recovered from the placement basis so the Transform grid edits
+                // the same matrix the gizmo does rather than a parallel copy.
+                auto& Turn=OpenProp(Transform,"Rotation",EditorPropertyCategory::AxisVec3);Turn.AxisStep=1;Turn.Editable=true;
+                auto& Size=OpenProp(Transform,"Scale",EditorPropertyCategory::AxisVec3);Size.AxisStep=.01f;Size.Editable=true;
+                {
+                    const float* M=P.WorldTransform;
+                    float Basis[3][3];for(int C=0;C<3;++C)for(int R=0;R<3;++R)Basis[C][R]=M[C*4+R];
+                    for(int C=0;C<3;++C){Size.Axes[C]=std::sqrt(Basis[C][0]*Basis[C][0]+Basis[C][1]*Basis[C][1]+Basis[C][2]*Basis[C][2]);
+                        const float Length=Size.Axes[C]>1e-6f?Size.Axes[C]:1.f;for(int R=0;R<3;++R)Basis[C][R]/=Length;}
+                    Turn.Axes[1]=std::atan2(-Basis[2][0],Basis[2][2])*kRadToDeg;
+                    Turn.Axes[0]=std::asin(std::clamp(Basis[2][1],-1.f,1.f))*kRadToDeg;
+                    Turn.Axes[2]=std::atan2(-Basis[0][1],Basis[1][1])*kRadToDeg;
+                }
                 auto& Direction=OpenProp(Transform,"Direction",EditorPropertyCategory::Readout);const float Down[3]={-P.WorldTransform[8],-P.WorldTransform[9],-P.WorldTransform[10]};FormatDirection(Direction.Text,Down);
                 EditorPropertyGroup& Shape=OpenGroup(Sheet,"Distribution");
                 auto& Distribution=OpenProp(Shape,"Distribution",EditorPropertyCategory::Select);Distribution.OptionCount=3;Distribution.Picked=static_cast<uint32_t>(L.Distribution);const char* Distributions[]={"Uniform","IES profile","ECE low beam"};for(unsigned I=0;I<3;++I)std::snprintf(Distribution.Options[I],sizeof(Distribution.Options[I]),"%s",Distributions[I]);
