@@ -55,9 +55,9 @@ Catalog SKUs for premium:
 
 | SKU | Type | Meaning |
 |---|---|---|
-| `premium_pass_lifetime` | Durable virtual item, limit 1 per user | Owns premium forever |
-| `premium_monthly` | Subscription, monthly recurring | Premium while subscribed |
-| `premium_yearly` | Subscription, yearly (discounted) | Premium while subscribed |
+| `premium_pass` | Durable virtual item, limit 1 per user, $19.99 | Owns premium forever (LIVE in catalog) |
+| `premium_monthly` | Subscription, monthly recurring | Premium while subscribed (later) |
+| `premium_yearly` | Subscription, yearly (discounted) | Premium while subscribed (later) |
 
 Grant flow (all server-to-server; the game client never decides):
 
