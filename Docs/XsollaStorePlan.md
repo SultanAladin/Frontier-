@@ -110,6 +110,22 @@ Design rules:
   to us.
 - **Premium subscribers** get a monthly AutoCoin drip (e.g. 300) — retention hook.
 
+### Pay-per-match (arcade) pricing
+
+Same concept as the race-entry sink: ranked/premium races are coin-operated,
+like an arcade cabinet. Casual races stay free (or cost earned Nitro); only
+ranked costs real-money currency.
+
+- Ranked entry: **25 AutoCoin** (≈5 ZAR / $0.28 at 100 coins = $0.99).
+- Session math: one race with lobby ≈ 5–10 min. Casuals play 3–5 races/day,
+  regulars 5–10, grinders 15+.
+- An engaged ranked player pays for ≈2–5 entries/day → R10–25/day.
+- Example: 100 daily ranked players × R15 ≈ R1,500/day ≈ R45,000/month
+  gross; Xsolla takes ~5% + channel costs (≈7–10% total).
+- Winners are paid in Nitro (free currency) + cosmetics, never cash.
+  No cash-out, ever. Entry deducted at lobby lock, refunded if the race
+  never starts.
+
 ## 4. Exchange (Nitro → other currencies)
 
 Run the exchange **in-game, server-side**, not in Xsolla. Xsolla sells AutoCoin
