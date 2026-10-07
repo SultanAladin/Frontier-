@@ -98,9 +98,12 @@ Design rules:
 - **Race entry is the main sink.** Every race costs Nitro (standard) or AutoCoin
   (premium/high-stakes); entry fees are deducted server-side when the lobby
   locks, refunded automatically if the race never starts.
-- **AutoCoin packs** (Xsolla virtual-currency items): e.g. Stack 100 / Vault 550
-  (+10% bonus) / Reserve 1200 (+20% bonus). Bonus tiers are the standard
-  conversion driver.
+- **AutoCoin packs** (Xsolla virtual-currency packages, separate items; unit
+  price $0.01/coin as the anchor): Pit Stop 100 @ $0.99, Pole Position 550 @
+  $4.99 (+10% bonus), Victory Lap 1200 @ $9.99 (+20% bonus). Bonus tiers are
+  the standard conversion driver. Player always pays exactly the listed price;
+  Xsolla's 5% (+ channel costs) comes out of our share, so $1 ≈ $0.90–0.93
+  to us.
 - **Premium subscribers** get a monthly AutoCoin drip (e.g. 300) — retention hook.
 
 ## 4. Exchange (Nitro → other currencies)
