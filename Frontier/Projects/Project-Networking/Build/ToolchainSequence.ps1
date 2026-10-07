@@ -45,7 +45,8 @@ $Flags = @('/nologo', '/std:c++20', '/MD', '/EHsc', '/W4', '/utf-8', '/D_CRT_SEC
 $Exchange = @('EpicExchange.cpp', 'LobbyRuntime.cpp', 'SessionHistory.cpp', 'TransportRouter.cpp', 'EcomOwnership.cpp', 'EosTransport.cpp') | ForEach-Object { Join-Path $ProjectRoot "Source/$_" }
 if ($PhotonLinked) {
     $Exchange += Join-Path $ProjectRoot 'Source/PhotonTransport.cpp'
-    $LinkLibs = @($Library) + @($PhotonLibs | ForEach-Object { $_.FullName })
+    # Photon archives need these OS libs named explicitly (no #pragma comment in headers).
+    $LinkLibs = @($Library) + @($PhotonLibs | ForEach-Object { $_.FullName }) + @('winhttp.lib', 'Bcrypt.lib', 'ws2_32.lib', 'winmm.lib')
 } else {
     $Exchange += Join-Path $ProjectRoot 'Source/PhotonLinkStub.cpp'
     $LinkLibs = @($Library)

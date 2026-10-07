@@ -59,6 +59,8 @@ target_include_directories(NetworkingLogin PRIVATE "${EOS_SDK_ROOT}/Include" "${
 target_link_libraries(NetworkingLogin PRIVATE LoginImGui)
 if(PHOTON_LINKED)
     target_link_libraries(NetworkingLogin PRIVATE ${PHOTON_LIBS})
+    # Photon archives need these OS libs named explicitly (no #pragma comment in headers).
+    target_link_libraries(NetworkingLogin PRIVATE winhttp Bcrypt ws2_32 winmm)
 endif()
 # Compile-now guarantee: the real transport always type-checks against the pinned headers.
 add_library(PhotonCompileCheck OBJECT "${SOURCE}/PhotonTransport.cpp")
