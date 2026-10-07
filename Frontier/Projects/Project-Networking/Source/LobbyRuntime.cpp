@@ -248,7 +248,8 @@ void PublishAttributes()
         if (Result == EOS_EResult::EOS_Success) Result = EOS_LobbyModification_AddAttribute(Modification, &Pub);
         const auto& S = Room.LobbySettings;
         const std::pair<const char*, const std::string*> Custom[] = {
-            {"map", &S.MapName}, {"mode", &S.ModeName}, {"region", &S.Region}, {"note", &S.Note}};
+            {"map", &S.MapName}, {"mode", &S.ModeName}, {"region", &S.Region}, {"note", &S.Note},
+            {"style", &S.Style}, {"language", &S.LanguageTag}};
         for (const auto& [Key, Value] : Custom)
         {
             if (Result != EOS_EResult::EOS_Success || Value->empty()) continue;
@@ -510,17 +511,17 @@ void ParseLobbyDetails(EOS_HLobbyDetails Details, LobbySearchResult& Out)
         Out.RtcEnabled = Info->bRTCRoomEnabled == EOS_TRUE;
         EOS_LobbyDetails_Info_Release(Info);
     }
-    for (const char* Key : {"map", "mode"})
+    const std::pair<const char*, std::string*> Keys[] = {
+        {"map", &Out.MapName}, {"mode", &Out.ModeName}, {"region", &Out.Region},
+        {"style", &Out.Style}, {"language", &Out.Language}, {"match_state", &Out.MatchState}};
+    for (const auto& [Key, Value] : Keys)
     {
         EOS_LobbyDetails_CopyAttributeByKeyOptions A{}; A.ApiVersion = EOS_LOBBYDETAILS_COPYATTRIBUTEBYKEY_API_LATEST; A.AttrKey = Key;
         EOS_Lobby_Attribute* V = nullptr;
         if (EOS_LobbyDetails_CopyAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
         {
             if (V->Data && V->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
-            {
-                if (std::strcmp(Key, "map") == 0) Out.MapName = V->Data->Value.AsUtf8;
-                else Out.ModeName = V->Data->Value.AsUtf8;
-            }
+                *Value = V->Data->Value.AsUtf8;
             EOS_Lobby_Attribute_Release(V);
         }
     }
@@ -670,7 +671,8 @@ bool CreateRoom()
     const auto& S = Room.LobbySettings;
     if (!ValidBucketId(S.BucketId) || S.MaxMembers < 2 || S.MaxMembers > 16 ||
         !ValidLobbyAttribute(S.MapName) || !ValidLobbyAttribute(S.ModeName) ||
-        !ValidLobbyAttribute(S.Region) || !ValidLobbyAttribute(S.Note))
+        !ValidLobbyAttribute(S.Region) || !ValidLobbyAttribute(S.Note) ||
+        !ValidLobbyAttribute(S.Style) || !ValidLobbyAttribute(S.LanguageTag))
     {
         Room.Phase = RoomPhase::Failed; Room.Status = "Lobby settings invalid. Check bucket and attributes.";
         return false;
@@ -761,7 +763,8 @@ bool ApplyLobbySettings(const LobbyCreationSettings& Settings)
 {
     if (!ValidBucketId(Settings.BucketId) || Settings.MaxMembers < 2 || Settings.MaxMembers > 16 ||
         !ValidLobbyAttribute(Settings.MapName) || !ValidLobbyAttribute(Settings.ModeName) ||
-        !ValidLobbyAttribute(Settings.Region) || !ValidLobbyAttribute(Settings.Note)) return false;
+        !ValidLobbyAttribute(Settings.Region) || !ValidLobbyAttribute(Settings.Note) ||
+        !ValidLobbyAttribute(Settings.Style) || !ValidLobbyAttribute(Settings.LanguageTag)) return false;
     PendingLobbySettings = Settings; Room.LobbySettings = Settings;
     if (!Room.LobbyId.empty() && Room.Owner) { OwnerAttributesDirty = true; LiveSettingsDirty = true; }
     Dirty = true; return true;
@@ -779,15 +782,35 @@ bool UpdateLobbyLiveSettings()
     if (!Lobby || Room.LobbyId.empty() || !Room.Owner || WantLeave) return false;
     OwnerAttributesDirty = true; LiveSettingsDirty = true; PublishAttributes(); return true;
 }
-bool RefreshLobbySearch(const char* Filter)
+bool RefreshLobbySearch(const LobbyTagFilter& Tags, const char* TextFilter)
 {
     if (!Lobby || !User || Room.Search.LobbyBusy) return false;
     if (LobbySearchHandle) { EOS_LobbySearch_Release(LobbySearchHandle); LobbySearchHandle = nullptr; }
-    Room.Search.LobbyFilter = Filter ? Filter : "";
+    Room.Search.LobbyFilter = TextFilter ? TextFilter : "";
+    Room.Search.ActiveTags = Tags; // owns tag strings for the async Find below
     Room.Search.Lobbies.clear();
     EOS_Lobby_CreateLobbySearchOptions O{}; O.ApiVersion = EOS_LOBBY_CREATELOBBYSEARCH_API_LATEST; O.MaxResults = 20;
     if (EOS_Lobby_CreateLobbySearch(Lobby, &O, &LobbySearchHandle) != EOS_EResult::EOS_Success || !LobbySearchHandle)
     { Room.Search.LobbyStatus = "Could not create lobby search."; return false; }
+    const std::pair<const char*, const std::string*> Params[] = {
+        {"style", &Room.Search.ActiveTags.Style}, {"language", &Room.Search.ActiveTags.Language},
+        {"map", &Room.Search.ActiveTags.Map}, {"mode", &Room.Search.ActiveTags.Mode}};
+    for (const auto& [Key, Value] : Params)
+    {
+        if (Value->empty()) continue;
+        EOS_Lobby_AttributeData Data{};
+        Data.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST;
+        Data.Key = Key;
+        Data.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING;
+        Data.Value.AsUtf8 = Value->c_str();
+        EOS_LobbySearch_SetParameterOptions P{};
+        P.ApiVersion = EOS_LOBBYSEARCH_SETPARAMETER_API_LATEST;
+        P.Parameter = &Data;
+        P.ComparisonOp = EOS_EComparisonOp::EOS_CO_EQUAL;
+        const EOS_EResult ParamResult = EOS_LobbySearch_SetParameter(LobbySearchHandle, &P);
+        if (ParamResult != EOS_EResult::EOS_Success)
+            Report("lobby_search_param", ParamResult);
+    }
     Room.Search.LobbyBusy = true; Room.Search.LobbyStatus = "Searching lobbies...";
     EOS_LobbySearch_FindOptions F{}; F.ApiVersion = EOS_LOBBYSEARCH_FIND_API_LATEST; F.LocalUserId = User;
     EOS_LobbySearch_Find(LobbySearchHandle, &F, Cookie(), LobbySearchDone); return true;

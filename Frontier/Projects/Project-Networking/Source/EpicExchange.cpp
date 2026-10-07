@@ -67,6 +67,10 @@ bool QueryPending = false;
 char FriendsReading[256] = "Sign in to load friends.";
 char OverlayReading[256] = "Overlay readiness is checked when a platform is created.";
 bool AllowCreation = false;
+bool DeveloperMode = false;
+bool WantAutoLogin = false;
+bool UsingPersistent = false;
+const char* DevCredentialName = "";
 std::chrono::steady_clock::time_point Started;
 
 std::atomic<bool> CapturePlatformDiagnostics{false};
@@ -409,10 +413,61 @@ void EOS_CALL ReceiveConnect(const EOS_Connect_LoginCallbackInfo* Completion)
     AcceptProductUser(Completion->LocalUserId);
 }
 
+void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion);
+void IssueAuthLogin() noexcept
+{
+    EOS_Auth_Credentials Credentials{};
+    Credentials.ApiVersion = EOS_AUTH_CREDENTIALS_API_LATEST;
+    Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_AccountPortal;
+    const char* Method = "account_portal";
+    if (UsingPersistent)
+    {
+        // Desktop PersistentAuth: Id/Token stay NULL; the SDK reads the token
+        // the last AccountPortal login stored on this device.
+        Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_PersistentAuth;
+        Method = "persistent";
+    }
+    else if (DeveloperMode)
+    {
+        Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_Developer;
+        Credentials.Id = "localhost:6547";
+        Credentials.Token = DevCredentialName;
+        Method = "developer";
+    }
+    EOS_Auth_LoginOptions LoginOptions{};
+    LoginOptions.ApiVersion = EOS_AUTH_LOGIN_API_LATEST;
+    LoginOptions.Credentials = &Credentials;
+    LoginOptions.ScopeFlags = ChargeAuthScopes();
+    Started = std::chrono::steady_clock::now();
+    char Line[128]{};
+    std::snprintf(Line, sizeof(Line), "auth=waiting method=%s timeout_seconds=180", Method);
+    Emit(Line);
+    EOS_Auth_Login(Auth, &LoginOptions, nullptr, ReceiveAuth);
+}
+
 void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
 {
     if (Releasing || Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
+    if (Completion->ResultCode != EOS_EResult::EOS_Success && UsingPersistent)
+    {
+        // Saved-token login failed (first run, revoked, expired): fall back to
+        // the Epic Account Portal once instead of refusing the whole login.
+        UsingPersistent = false;
+        Report("persistent_auth", Completion->ResultCode);
+#if defined(_WIN32)
+        if (!RefreshOverlayReadiness())
+        {
+            Emit(OverlayReading);
+            Emit("Account Portal requires Epic's Bootstrapper and EOS redistributable. The shipped SDK DLL alone is not enough.");
+            Login.Refuse();
+            return;
+        }
+#endif
+        Emit("persistent_auth=failed; falling back to Epic Account Portal");
+        IssueAuthLogin();
+        return;
+    }
     if (Completion->ResultCode != EOS_EResult::EOS_Success)
     {
         if (Completion->ResultCode == EOS_EResult::EOS_Canceled)
@@ -430,6 +485,9 @@ void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
     LocalAccount = Completion->LocalUserId;
     ProfileAccount = Completion->SelectedAccountId;
     Emit("auth=success epic_account_id_valid=1");
+    Emit(UsingPersistent ? "auth_method=persistent_token; the browser was skipped" :
+         (DeveloperMode ? "auth_method=developer" :
+                          "auth_method=account_portal; a persistent token was stored for auto-login"));
     EOS_Auth_CopyIdTokenOptions Copy{};
     Copy.ApiVersion = EOS_AUTH_COPYIDTOKEN_API_LATEST;
     Copy.AccountId = Completion->SelectedAccountId;
@@ -497,10 +555,12 @@ bool VerifyEpicPlatform(DiagnosticReception ActiveReception) noexcept
 bool ConstructEpic(DiagnosticReception ActiveReception) noexcept
 {
     const char* Consent = std::getenv("EOS_ALLOW_CREATE_USER");
+    const char* Auto = std::getenv("EOS_AUTO_LOGIN");
     const LoginSpecification Specification{
         std::getenv("EOS_CLIENT_SECRET"), std::getenv("EOS_CLIENT_ID"),
         std::getenv("EOS_LOGIN_METHOD"), std::getenv("EOS_DEVELOPER_CREDENTIAL"),
-        Consent && std::strcmp(Consent, "1") == 0};
+        Consent && std::strcmp(Consent, "1") == 0, true, nullptr,
+        Auto && std::strcmp(Auto, "1") == 0};
     return ConstructEpic(Specification, ActiveReception);
 }
 
@@ -560,33 +620,27 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
         return false;
     }
     const char* Method = Specification.Method;
-    const bool Developer = Method && std::strcmp(Method, "developer") == 0;
-    if (Method && *Method && !Developer && std::strcmp(Method, "accountportal") != 0)
+    DeveloperMode = Method && std::strcmp(Method, "developer") == 0;
+    if (Method && *Method && !DeveloperMode && std::strcmp(Method, "accountportal") != 0)
     {
         Emit("configuration=refused unknown_login_method");
         Login.Refuse();
         RetireEpic();
         return false;
     }
-    EOS_Auth_Credentials Credentials{};
-    Credentials.ApiVersion = EOS_AUTH_CREDENTIALS_API_LATEST;
-    Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_AccountPortal;
-    if (Developer)
+    DevCredentialName = Specification.DeveloperCredential ? Specification.DeveloperCredential : "";
+    if (DeveloperMode && !*DevCredentialName)
     {
-        const char* Credential = Specification.DeveloperCredential;
-        if (!Credential || !*Credential)
-        {
-            Emit("configuration=refused missing_developer_credential_name");
-            Login.Refuse();
-            RetireEpic();
-            return false;
-        }
-        Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_Developer;
-        Credentials.Id = "localhost:6547";
-        Credentials.Token = Credential;
+        Emit("configuration=refused missing_developer_credential_name");
+        Login.Refuse();
+        RetireEpic();
+        return false;
     }
+    WantAutoLogin = Specification.AutoLogin;
+    UsingPersistent = WantAutoLogin && !DeveloperMode;
 #if defined(_WIN32)
-    else if (!RefreshOverlayReadiness())
+    // The saved-token attempt needs no overlay; the portal fallback checks it.
+    if (!DeveloperMode && !UsingPersistent && !RefreshOverlayReadiness())
     {
         Emit(OverlayReading);
         Emit("Account Portal requires Epic's Bootstrapper and EOS redistributable. The shipped SDK DLL alone is not enough.");
@@ -595,15 +649,28 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
         return false;
     }
 #endif
-    EOS_Auth_LoginOptions LoginOptions{};
-    LoginOptions.ApiVersion = EOS_AUTH_LOGIN_API_LATEST;
-    LoginOptions.Credentials = &Credentials;
-    LoginOptions.ScopeFlags = ChargeAuthScopes();
     Emit("auth_scopes=basic_profile,friends_list,presence,country; matches Charge required permissions");
-    Started = std::chrono::steady_clock::now();
-    Emit(Developer ? "auth=waiting method=developer timeout_seconds=180" :
-                     "auth=waiting method=account_portal timeout_seconds=180");
-    EOS_Auth_Login(Auth, &LoginOptions, nullptr, ReceiveAuth);
+    IssueAuthLogin();
+    return true;
+}
+
+void EOS_CALL ReceiveDeletePersistent(const EOS_Auth_DeletePersistentAuthCallbackInfo* Completion)
+{
+    if (Releasing || !Completion ||
+        EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
+        return;
+    Report("persistent_auth_delete", Completion->ResultCode);
+}
+
+bool RevokeEpicPersistentAuth() noexcept
+{
+    if (!Auth || Releasing || !Platform)
+        return false;
+    EOS_Auth_DeletePersistentAuthOptions Options{};
+    Options.ApiVersion = EOS_AUTH_DELETEPERSISTENTAUTH_API_LATEST;
+    Options.RefreshToken = nullptr; // Desktop/mobile: the SDK picks the stored token.
+    EOS_Auth_DeletePersistentAuth(Auth, &Options, nullptr, ReceiveDeletePersistent);
+    Emit("persistent_auth_delete=requested; the saved Epic token on this PC will be revoked");
     return true;
 }
 
@@ -650,6 +717,10 @@ void RetireEpic() noexcept
     ProfileAccount = nullptr;
     PendingCreation = nullptr;
     Profile = {};
+    DeveloperMode = false;
+    WantAutoLogin = false;
+    UsingPersistent = false;
+    DevCredentialName = "";
     ReleaseToken();
     FriendCount = 0;
     NamesPending = 0;

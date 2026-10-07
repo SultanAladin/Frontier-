@@ -29,6 +29,10 @@ struct LobbyCreationSettings
     std::string ModeName = "lobby-lab";
     std::string Region = "auto";
     std::string Note;
+    // Discovery tags, published as public attributes: play style
+    // ("ranked"/"casual") and lobby language ("en"/"zh"/...).
+    std::string Style = "casual";
+    std::string LanguageTag = "en";
 };
 
 struct MatchSessionSettings
@@ -53,10 +57,27 @@ struct LobbySearchResult
     std::string MapName;
     std::string ModeName;
     std::string OwnerLabel; // never a raw PUID; display-safe only
+    std::string Style;
+    std::string Language;
+    std::string Region;
+    std::string MatchState; // waiting/running/complete, published by the host
     unsigned Members = 0;
     unsigned MaxMembers = 0;
     int Permission = 1;
     bool RtcEnabled = false;
+};
+
+// Tag discovery: style/language/map/mode go to the server as search
+// parameters; status/visibility filter client-side so lobbies whose hosts
+// run older builds (no tags) still appear instead of vanishing.
+struct LobbyTagFilter
+{
+    std::string Style;
+    std::string Language;
+    std::string Map;
+    std::string Mode;
+    int Status = 0;     // 0 any, 1 open, 2 in-match, 3 full
+    int Visibility = 0; // 0 any, 1 public, 2 presence, 3 invite-only
 };
 
 struct SessionSearchResult
@@ -79,6 +100,7 @@ struct SearchReading
     std::string SessionStatus = "No session search yet.";
     std::string LobbyFilter;
     std::string SessionFilter;
+    LobbyTagFilter ActiveTags; // server parameters of the running/last search
     bool LobbyBusy = false;
     bool SessionBusy = false;
 };
@@ -206,6 +228,31 @@ inline bool SessionMatchesFilter(const SessionSearchResult& R, const std::string
     return MatchesFilter(R.SessionId, Filter) || MatchesFilter(R.BucketId, Filter) ||
         MatchesFilter(R.MapName, Filter) || MatchesFilter(R.ModeName, Filter);
 }
+// 1 open (joinable now), 2 in-match, 3 full. A lobby that is both full and
+// running reports full, since no seat is available either way.
+inline int LobbyStatusOf(const LobbySearchResult& R) noexcept
+{
+    if (R.MaxMembers > 0 && R.Members >= R.MaxMembers) return 3;
+    if (R.MatchState == "running") return 2;
+    return 1;
+}
+// 1 public advertised, 2 join via presence, 3 invite only.
+inline int LobbyVisibilityOf(const LobbySearchResult& R) noexcept
+{
+    if (R.Permission <= 0) return 1;
+    if (R.Permission >= 2) return 3;
+    return 2;
+}
+inline bool LobbyMatchesTags(const LobbySearchResult& R, const LobbyTagFilter& F)
+{
+    if (!MatchesFilter(R.Style, F.Style)) return false;
+    if (!MatchesFilter(R.Language, F.Language)) return false;
+    if (!MatchesFilter(R.MapName, F.Map)) return false;
+    if (!MatchesFilter(R.ModeName, F.Mode)) return false;
+    if (F.Status != 0 && LobbyStatusOf(R) != F.Status) return false;
+    if (F.Visibility != 0 && LobbyVisibilityOf(R) != F.Visibility) return false;
+    return true;
+}
 const RoomReading& InspectRoom() noexcept;
 const HistoryReading& InspectHistory() noexcept;
 bool CreateRoom();
@@ -225,7 +272,7 @@ void LeaveRoom();
 bool ApplyLobbySettings(const LobbyCreationSettings& Settings);
 bool ApplySessionSettings(const MatchSessionSettings& Settings);
 bool UpdateLobbyLiveSettings();
-bool RefreshLobbySearch(const char* Filter);
+bool RefreshLobbySearch(const LobbyTagFilter& Tags, const char* TextFilter);
 bool RefreshSessionSearch(const char* Filter);
 bool JoinLobbyResult(size_t Index);
 bool JoinSessionResult(size_t Index);

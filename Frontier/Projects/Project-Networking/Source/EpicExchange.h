@@ -19,6 +19,9 @@ struct LoginSpecification
     bool AllowCreation;
     bool EnableSocial = true;
     const char* StorageKey = nullptr;
+    // PersistentAuth first (desktop saved Epic token, no browser), then the
+    // normal method as fallback. Ignored for developer logins.
+    bool AutoLogin = false;
 };
 
 const char* ValidateEpicCredentials(const char* Secret, const char* ClientId) noexcept;
@@ -48,6 +51,10 @@ const char* InspectFriendship(int Index) noexcept;
 const char* InspectFriendsReading() noexcept;
 bool FriendsQueryPending() noexcept;
 const char* InspectOverlayReading() noexcept;
+// Revokes the desktop persistent token (DeletePersistentAuth). Needs a live
+// platform (call while logged in, or right after the next login). Async; the
+// result lands in the diagnostic feed.
+bool RevokeEpicPersistentAuth() noexcept;
 void AdvanceEpic() noexcept;
 void RetireEpic() noexcept;
 LoginProgress InspectLogin() noexcept;

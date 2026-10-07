@@ -1,5 +1,7 @@
 #include "../../Frontier/Projects/Project-Networking/Source/HistoryFormat.h"
 #include "../../Frontier/Projects/Project-Networking/Source/LocalConfiguration.h"
+#include "../../Frontier/Projects/Project-Networking/Source/AppSettings.h"
+#include "../../Frontier/Projects/Project-Networking/Source/Localization.h"
 #include <cstdio>
 #include <string>
 int main()
@@ -74,6 +76,46 @@ int main()
     RoomReading Fresh;
     Check(!Fresh.SessionExists && !Fresh.SessionJoined && !Fresh.SessionOwner && !Fresh.SessionWithoutRegistration,
         "fresh room has no match session attached");
+    Check(ValidLobbyAttribute(LobbyDefaults.Style) && ValidLobbyAttribute(LobbyDefaults.LanguageTag),
+        "default discovery tags accepted");
+    LobbySearchResult Tagged; Tagged.Style = "ranked"; Tagged.Language = "en";
+    Tagged.MapName = "dev-arena"; Tagged.ModeName = "lab"; Tagged.Members = 1; Tagged.MaxMembers = 8;
+    Tagged.Permission = 0; Tagged.MatchState = "running";
+    Check(LobbyStatusOf(Tagged) == 2 && LobbyVisibilityOf(Tagged) == 1,
+        "running public lobby reports in-match/public");
+    Tagged.MatchState = "waiting";
+    Check(LobbyStatusOf(Tagged) == 1, "waiting lobby reports open");
+    Tagged.Members = 8;
+    Check(LobbyStatusOf(Tagged) == 3, "full lobby reports full");
+    Tagged.Members = 1; Tagged.Permission = 2;
+    Check(LobbyVisibilityOf(Tagged) == 3, "invite-only lobby reports invite visibility");
+    LobbyTagFilter Any;
+    Check(LobbyMatchesTags(Tagged, Any), "empty tag filter matches everything");
+    LobbyTagFilter Ranked; Ranked.Style = "ranked"; Ranked.Status = 1;
+    Check(LobbyMatchesTags(Tagged, Ranked), "ranked/open tags match a ranked waiting lobby");
+    Ranked.Status = 2;
+    Check(!LobbyMatchesTags(Tagged, Ranked), "in-match tag excludes a waiting lobby");
+    Ranked.Status = 0; Ranked.Language = "zh";
+    Check(!LobbyMatchesTags(Tagged, Ranked), "language tag excludes other languages");
+    AppSettings Prefs;
+    Check(ParseAppSettings("version=1\nlanguage=zh\nauto_login=1\nforget_persistent=0\n", Prefs) &&
+        Prefs.Language == AppLanguage::ChineseSimplified && Prefs.AutoLogin && !Prefs.ForgetPersistent,
+        "app settings parse language and auto-login");
+    Check(EncodeAppSettings(Prefs) == "version=1\nlanguage=zh\nauto_login=1\nforget_persistent=0\n",
+        "app settings encode round trip");
+    Check(!ParseAppSettings("version=1\nlanguage=xx\nauto_login=1\n", Prefs), "unknown language rejected");
+    Check(!ParseAppSettings("version=1\nlanguage=en\nauto_login=1\nauto_login=0\n", Prefs),
+        "duplicate app setting rejected");
+    Check(!ParseAppSettings("version=2\nlanguage=en\nauto_login=1\n", Prefs),
+        "unknown app settings version rejected");
+    SetAppLanguage(AppLanguage::English);
+    Check(std::string(T("Setup")) == "Setup", "english UI returns source strings");
+    SetAppLanguage(AppLanguage::ChineseSimplified);
+    Check(std::string(T("Setup")) == "设置", "chinese UI translates chrome");
+    Check(std::string(T("untranslated key")) == "untranslated key",
+        "missing translation falls back to english");
+    Check(std::string(PermissionComboItems()).size() > 0, "permission combo has entries");
+    SetAppLanguage(AppLanguage::English);
     std::puts("Scope: deterministic local logic only. EOS lobby, RTC and cloud integration are not exercised here.");
     return Failures ? 1 : 0;
 }

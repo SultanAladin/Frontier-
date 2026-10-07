@@ -13,6 +13,8 @@
 #include "EpicExchange.h"
 #include "LobbyPanel.h"
 #include "LocalConfiguration.h"
+#include "AppSettings.h"
+#include "Localization.h"
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
@@ -56,6 +58,10 @@ bool SdkReady = false;
 bool ScrollPending = false;
 int Method = 1;
 bool RememberCredential = false;
+bool AutoLoginEnabled = false;
+bool PendingForget = false;
+int LangIndex = 0;
+bool AutoStarted = false;
 bool ContinueAfterSetup = false;
 bool SetupRequested = false;
 const char* SetupError = "";
@@ -225,6 +231,16 @@ bool LoadPortableConfiguration()
     return true;
 }
 
+void PersistAppSettings()
+{
+    Networking::AppSettings Settings;
+    Settings.Language = Networking::CurrentLanguage;
+    Settings.AutoLogin = AutoLoginEnabled;
+    Settings.ForgetPersistent = PendingForget;
+    if (!Networking::SaveAppSettings(Settings))
+        ReceiveDiagnostic("Could not save app settings on this PC.");
+}
+
 void BeginLogin()
 {
     if (Busy || Verified)
@@ -252,7 +268,7 @@ void BeginLogin()
     }
     Networking::RetireEpic();
     const Networking::LoginSpecification Specification{
-        Secret, ClientId, Method == 0 ? "developer" : "accountportal", Credential, AllowCreation, EnableSocial, StorageKey};
+        Secret, ClientId, Method == 0 ? "developer" : "accountportal", Credential, AllowCreation, EnableSocial, StorageKey, AutoLoginEnabled};
     Busy = Networking::ConstructEpic(Specification, ReceiveDiagnostic);
     WipeSecret();
     WipeClipboard();
@@ -350,20 +366,19 @@ void PresentSetup()
     ImGui::SetNextWindowPos(ImVec2(Viewport->WorkPos.x + Viewport->WorkSize.x * 0.5f,
         Viewport->WorkPos.y + Viewport->WorkSize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(std::min(550.0f, Viewport->WorkSize.x - 32),
-        std::min(660.0f, Viewport->WorkSize.y - 32)), ImGuiCond_Always);
-    if (!ImGui::BeginPopupModal("One-time setup", nullptr, ImGuiWindowFlags_NoResize))
+        std::min(730.0f, Viewport->WorkSize.y - 32)), ImGuiCond_Always);
+    if (!ImGui::BeginPopupModal(Networking::T("One-time setup"), nullptr, ImGuiWindowFlags_NoResize))
         return;
     ImGui::BeginChild("Setup fields", ImVec2(0, -140));
-    ImGui::TextWrapped("Install EpicOnlineServicesInstaller.exe once, then open Charge.exe (the included Epic launcher). "
-        "The app can then ask Epic to display its login UI.");
+    ImGui::TextWrapped("%s", Networking::T("Install EpicOnlineServicesInstaller.exe once, then open Charge.exe (the included Epic launcher). The app can then ask Epic to display its login UI."));
     ImGui::Spacing();
-    ImGui::TextUnformatted("Application credential");
-    ImGui::TextColored(Muted, "Not your Epic account password. Use a rotated secret.");
+    ImGui::TextUnformatted(Networking::T("Application credential"));
+    ImGui::TextColored(Muted, "%s", Networking::T("Not your Epic account password. Use a rotated secret."));
     ImGui::SetNextItemWidth(-1);
-    ImGui::InputTextWithHint("##secret", "EOS client secret", Secret, sizeof(Secret),
+    ImGui::InputTextWithHint("##secret", Networking::T("EOS client secret"), Secret, sizeof(Secret),
         ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo | ImGuiInputTextFlags_AutoSelectAll);
 #if defined(_WIN32)
-    if (ImGui::SmallButton("Paste secret"))
+    if (ImGui::SmallButton(Networking::T("Paste secret")))
     {
         const char* Text = ReadUnicodeClipboard(nullptr);
         if (std::strlen(Text) < sizeof(Secret))
@@ -372,12 +387,19 @@ void PresentSetup()
             ReceiveDiagnostic("Clipboard text too long; copy only the client secret.");
         WipeClipboard();
     }
-    ImGui::Checkbox("Remember on this PC (Windows Credential Manager)", &RememberCredential);
+    ImGui::Checkbox(Networking::T("Remember on this PC (Windows Credential Manager)"), &RememberCredential);
 #endif
-    if (ImGui::CollapsingHeader("Advanced"))
+    if (ImGui::Checkbox(Networking::T("Auto-login on this PC (saved Epic token)"), &AutoLoginEnabled)) PersistAppSettings();
+    ImGui::TextColored(Muted, "%s", Networking::T("Auto-login signs you in on startup when credentials are saved."));
+    if (ImGui::Combo(Networking::T("App language"), &LangIndex, Networking::LanguageComboItems()))
     {
-        ImGui::TextWrapped("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same data key between PCs.");
-        ImGui::TextUnformatted("Cloud storage encryption key (64 hex characters)");
+        Networking::SetAppLanguage(LangIndex == 1 ? Networking::AppLanguage::ChineseSimplified : Networking::AppLanguage::English);
+        PersistAppSettings();
+    }
+    if (ImGui::CollapsingHeader(Networking::T("Advanced")))
+    {
+        ImGui::TextWrapped("%s", Networking::T("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same data key between PCs."));
+        ImGui::TextUnformatted(Networking::T("Cloud storage encryption key (64 hex characters)"));
         ImGui::SetNextItemWidth(-1);
         ImGui::InputText("##storage-key", StorageKey, sizeof(StorageKey), ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo | ImGuiInputTextFlags_AutoSelectAll);
         ImGui::TextUnformatted("EOS client ID");
@@ -388,26 +410,34 @@ void PresentSetup()
         if (Method == 0)
         {
             ImGui::SetNextItemWidth(-1);
-            ImGui::InputText("Saved developer credential", Credential, sizeof(Credential));
-            ImGui::TextWrapped("Keep Epic's Developer Auth Tool running on localhost:6547.");
+            ImGui::InputText(Networking::T("Saved developer credential"), Credential, sizeof(Credential));
+            ImGui::TextWrapped("%s", Networking::T("Keep Epic's Developer Auth Tool running on localhost:6547."));
         }
-        ImGui::TextWrapped("Charge requires Basic Profile, Friends List, Presence and Country permissions. Epic will ask for consent.");
-        ImGui::Checkbox("Load friends after login", &EnableSocial);
-        ImGui::Checkbox("Allow NEW Dev product-user creation", &AllowCreation);
+        ImGui::TextWrapped("%s", Networking::T("Charge requires Basic Profile, Friends List, Presence and Country permissions. Epic will ask for consent."));
+        ImGui::Checkbox(Networking::T("Load friends after login"), &EnableSocial);
+        ImGui::Checkbox(Networking::T("Allow NEW Dev product-user creation"), &AllowCreation);
         if (AllowCreation)
-            ImGui::TextWrapped("This allows a real new PUID to be created. Do not use it to bypass identity linking.");
-        if (ImGui::SmallButton("Check SDK"))
+            ImGui::TextWrapped("%s", Networking::T("This allows a real new PUID to be created. Do not use it to bypass identity linking."));
+        if (ImGui::SmallButton(Networking::T("Check SDK")))
             SdkReady = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
 #if defined(_WIN32)
         ImGui::SameLine();
-        if (ImGui::SmallButton("Forget saved credential"))
+        if (ImGui::SmallButton(Networking::T("Forget saved credential")))
             ForgetCredential();
 #endif
+        ImGui::SameLine();
+        if (ImGui::SmallButton(Networking::T("Forget auto-login")))
+        {
+            AutoLoginEnabled = false;
+            PendingForget = true;
+            PersistAppSettings();
+            ReceiveDiagnostic("Auto-login disabled. The saved Epic token will be revoked on the next login.");
+        }
         ImGui::TextWrapped("%s", Networking::InspectOverlayReading());
     }
     ImGui::Spacing();
     ImGui::EndChild();
-    if (ImGui::Button(ContinueAfterSetup ? "Save & log in" : "Apply setup", ImVec2(220, 42)))
+    if (ImGui::Button(ContinueAfterSetup ? Networking::T("Save & log in") : Networking::T("Apply setup"), ImVec2(220, 42)))
     {
         if (const char* Error = Networking::ValidateEpicCredentials(Secret, ClientId))
             SetupError = Error;
@@ -429,7 +459,7 @@ void PresentSetup()
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel", ImVec2(110, 42)))
+    if (ImGui::Button(Networking::T("Cancel"), ImVec2(110, 42)))
     {
         WipeSecret();
         WipeClipboard();
@@ -453,14 +483,14 @@ void PresentLogin()
     ImGui::TextColored(Muted, "CHARGE  /  ONLINE ACCESS");
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 66);
     ImGui::BeginDisabled(Busy || Verified);
-    if (ImGui::SmallButton("Setup"))
+    if (ImGui::SmallButton(Networking::T("Setup")))
     {
 #if defined(_WIN32)
         if (!Secret[0] && !LoadPortableConfiguration()) LoadCredential();
 #endif
         ContinueAfterSetup = false;
         SetupError = "";
-        ImGui::OpenPopup("One-time setup");
+        ImGui::OpenPopup(Networking::T("One-time setup"));
     }
     ImGui::EndDisabled();
     ImGui::Spacing();
@@ -480,35 +510,35 @@ void PresentLogin()
     Ink->AddLine(ImVec2(Centre.x - 10, Centre.y + 3), ImVec2(Centre.x + 9, Centre.y + 3), IM_COL32(201, 221, 181, 255), 4);
     Ink->AddLine(ImVec2(Centre.x + 9, Centre.y + 3), ImVec2(Centre.x - 6, Centre.y + 22), IM_COL32(201, 221, 181, 255), 4);
     ImGui::Dummy(ImVec2(0, Verified || CreationConsent ? 90 : 117));
-    ImGui::TextColored(Muted, "YOUR SPACE. YOUR NEXT CHAPTER.");
+    ImGui::TextColored(Muted, "%s", Networking::T("YOUR SPACE. YOUR NEXT CHAPTER."));
     ImGui::Spacing();
     if (TitleFont) ImGui::PushFont(TitleFont);
-    ImGui::TextUnformatted(Verified ? "You're in." : CreationConsent ? "One last step." : "Welcome\nback.");
+    ImGui::TextUnformatted(Verified ? Networking::T("You're in.") : CreationConsent ? Networking::T("One last step.") : Networking::T("Welcome\nback."));
     if (TitleFont) ImGui::PopFont();
     ImGui::Spacing();
-    ImGui::TextColored(Muted, "%s", Verified ? "Your Epic identity is connected." : "Log in to access your content.");
+    ImGui::TextColored(Muted, "%s", Verified ? Networking::T("Your Epic identity is connected.") : Networking::T("Log in to access your content."));
     if (CreationConsent)
-        ImGui::TextWrapped("Epic sign-in succeeded. This account has no product user in this Dev deployment. Create a NEW Dev profile only if you do not need to link an existing game identity. Cancel otherwise.");
+        ImGui::TextWrapped("%s", Networking::T("Epic sign-in succeeded. This account has no product user in this Dev deployment. Create a NEW Dev profile only if you do not need to link an existing game identity. Cancel otherwise."));
     else if (Verified)
     {
         const auto& Profile = Networking::InspectEpicProfile();
         ImGui::TextWrapped("%s", Profile.DisplayName[0] ? Profile.DisplayName :
-            Profile.Pending ? "Loading your Epic profile..." : "Display name unavailable");
-        ImGui::TextColored(SuccessColour, "Epic Auth verified  /  EOS Connect verified");
-        ImGui::TextWrapped("Country: %s", Profile.Country[0] ? Profile.Country : "Not provided by Epic");
-        ImGui::TextWrapped("Language: %s", Profile.Language[0] ? Profile.Language : "Not provided by Epic");
+            Profile.Pending ? Networking::T("Loading your Epic profile...") : Networking::T("Display name unavailable"));
+        ImGui::TextColored(SuccessColour, "%s", Networking::T("Epic Auth verified  /  EOS Connect verified"));
+        ImGui::TextWrapped(Networking::T("Country: %s"), Profile.Country[0] ? Profile.Country : Networking::T("Not provided by Epic"));
+        ImGui::TextWrapped(Networking::T("Language: %s"), Profile.Language[0] ? Profile.Language : Networking::T("Not provided by Epic"));
         ImGui::BeginDisabled(Profile.Pending);
-        if (ImGui::SmallButton("Refresh profile")) Networking::QueryEpicProfile();
+        if (ImGui::SmallButton(Networking::T("Refresh profile"))) Networking::QueryEpicProfile();
         ImGui::EndDisabled();
     }
-    else ImGui::TextColored(Muted, "Secure sign-in with your Epic account.");
+    else ImGui::TextColored(Muted, "%s", Networking::T("Secure sign-in with your Epic account."));
     ImGui::Dummy(ImVec2(0, 25));
     ImGui::PushStyleColor(ImGuiCol_Button, Accent);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.39f,.57f,1,1));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.17f,.35f,.86f,1));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
     ImGui::BeginDisabled(Busy && !CreationConsent);
-    if (ImGui::Button(Verified ? "Open Epic friends" : CreationConsent ? "Create NEW Dev profile & continue" : Busy ? "Waiting for Epic..." : "Log in with Epic    ->", ImVec2(-1, 54)))
+    if (ImGui::Button(Verified ? Networking::T("Open Epic friends") : CreationConsent ? Networking::T("Create NEW Dev profile & continue") : Busy ? Networking::T("Waiting for Epic...") : Networking::T("Log in with Epic    ->"), ImVec2(-1, 54)))
     {
         if (CreationConsent)
             Networking::ApproveEpicUserCreation();
@@ -527,20 +557,20 @@ void PresentLogin()
     }
     ImGui::EndDisabled();
     ImGui::PopStyleColor(4);
-    if (Busy && ImGui::Button("Cancel", ImVec2(-1, 38)))
+    if (Busy && ImGui::Button(Networking::T("Cancel"), ImVec2(-1, 38)))
         CancelLogin();
-    if (Verified && ImGui::SmallButton("Disconnect"))
+    if (Verified && ImGui::SmallButton(Networking::T("Disconnect")))
     {
         Networking::RetireEpic();
         Verified = false;
         Attempted = false;
         ReceiveDiagnostic("Disconnected locally. Ready for another login.");
     }
-    if (Verified && ImGui::CollapsingHeader("Friends"))
+    if (Verified && ImGui::CollapsingHeader(Networking::T("Friends")))
     {
         ImGui::TextWrapped("%s", Networking::InspectFriendsReading());
         ImGui::BeginDisabled(Networking::FriendsQueryPending());
-        if (ImGui::SmallButton("Refresh friends")) Networking::QueryEpicFriends();
+        if (ImGui::SmallButton(Networking::T("Refresh friends"))) Networking::QueryEpicFriends();
         ImGui::EndDisabled();
         ImGui::BeginChild("Friend names", ImVec2(0, 100));
         for (int Index = 0; Index < Networking::InspectFriendCount(); ++Index)
@@ -549,22 +579,22 @@ void PresentLogin()
             ImGui::TextColored(Muted, "%s", Networking::InspectFriendship(Index));
         }
         ImGui::EndChild();
-        ImGui::TextWrapped("Only friends authorized for this app may be listed.");
+        ImGui::TextWrapped("%s", Networking::T("Only friends authorized for this app may be listed."));
     }
     ImGui::Spacing();
-    const char* Status = CreationConsent ? "Waiting for your consent - no login retry" : Busy ? "Waiting for Epic..." : Verified ? "Auth + Connect verified" :
-        Cancelled ? "Cancelled" : Attempted ? "Not signed in - check the activity log" : "Ready when you are";
+    const char* Status = CreationConsent ? Networking::T("Waiting for your consent - no login retry") : Busy ? Networking::T("Waiting for Epic...") : Verified ? Networking::T("Auth + Connect verified") :
+        Cancelled ? Networking::T("Cancelled") : Attempted ? Networking::T("Not signed in - check the activity log") : Networking::T("Ready when you are");
     ImGui::TextColored(Verified ? SuccessColour : Attempted && !Busy ? WarningColour : Muted, "%s", Status);
     ImGui::Dummy(ImVec2(0, 16));
     ImGui::TextColored(Muted, "DEV SANDBOX   /   EPIC ONLINE SERVICES");
     ImGui::EndChild();
     ImGui::SameLine();
     ImGui::BeginChild("Activity card", ImVec2(0, Height), ImGuiChildFlags_Borders);
-    ImGui::TextUnformatted("Activity");
+    ImGui::TextUnformatted(Networking::T("Activity"));
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 82);
-    if (ImGui::SmallButton("Copy log"))
+    if (ImGui::SmallButton(Networking::T("Copy log")))
         CopyDiagnostics();
-    ImGui::TextColored(Muted, "Live events. No secrets or tokens.");
+    ImGui::TextColored(Muted, "%s", Networking::T("Live events. No secrets or tokens."));
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
@@ -591,16 +621,16 @@ void PresentLogin()
         ScrollPending = false;
     }
     ImGui::EndChild();
-    ImGui::TextColored(SdkReady ? SuccessColour : WarningColour, "%s", SdkReady ? "*  SDK ready" : "*  SDK unavailable");
+    ImGui::TextColored(SdkReady ? SuccessColour : WarningColour, "%s", SdkReady ? Networking::T("*  SDK ready") : Networking::T("*  SDK unavailable"));
     ImGui::SameLine();
-    ImGui::TextColored(Muted, "    Player login is verified separately.");
+    ImGui::TextColored(Muted, "    %s", Networking::T("Player login is verified separately."));
     ImGui::EndChild();
-    ImGui::TextColored(Muted, "Project-Networking                                               Private credentials. Clear feedback.");
+    ImGui::TextColored(Muted, "Project-Networking                                               %s", Networking::T("Private credentials. Clear feedback."));
     if (SetupRequested)
     {
         SetupRequested = false;
         ContinueAfterSetup = true;
-        ImGui::OpenPopup("One-time setup");
+        ImGui::OpenPopup(Networking::T("One-time setup"));
     }
     PresentSetup();
     ImGui::EndDisabled();
@@ -659,6 +689,13 @@ int RunWindow(bool Smoke)
     glfwSetWindowSizeLimits(Window, 960, 720, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwMakeContextCurrent(Window);
     glfwSwapInterval(1);
+    Networking::AppSettings Startup;
+    if (!Networking::LoadAppSettings(Startup))
+        ReceiveDiagnostic("Saved app settings were invalid; defaults were restored.");
+    Networking::SetAppLanguage(Startup.Language);
+    AutoLoginEnabled = Startup.AutoLogin;
+    PendingForget = Startup.ForgetPersistent;
+    LangIndex = Startup.Language == Networking::AppLanguage::ChineseSimplified ? 1 : 0;
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& Io = ImGui::GetIO();
@@ -668,6 +705,14 @@ int RunWindow(bool Smoke)
 #if defined(_WIN32)
     Io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 17.0f);
     TitleFont = Io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 42.0f);
+    ImFontConfig Merge{}; Merge.MergeMode = true; Merge.FontNo = 0;
+    ImFont* BodyCjk = Io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/msyh.ttc", 17.0f, &Merge,
+        Io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+    ImFontConfig MergeTitle = Merge; MergeTitle.DstFont = TitleFont;
+    ImFont* TitleCjk = Io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/msyh.ttc", 42.0f, &MergeTitle,
+        Io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+    if (!BodyCjk || !TitleCjk)
+        ReceiveDiagnostic("CJK font (msyh.ttc) unavailable; Chinese text may show as boxes.");
 #endif
     ConfigureAppearance();
     if (!ImGui_ImplGlfw_InitForOpenGL(Window, true) || !ImGui_ImplOpenGL2_Init())
@@ -689,6 +734,7 @@ int RunWindow(bool Smoke)
     SdkReady = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
     int Result = 0;
     int Cycles = 0;
+    const auto AppStart = std::chrono::steady_clock::now();
     while (true)
     {
         glfwPollEvents();
@@ -699,6 +745,24 @@ int RunWindow(bool Smoke)
             CloseAfterDisconnect = true; RequestDisconnect();
         }
         Networking::AdvanceEpic();
+        if (!Smoke && !AutoStarted && std::chrono::steady_clock::now() - AppStart > std::chrono::milliseconds(1500))
+        {
+            AutoStarted = true;
+            if (AutoLoginEnabled && !Busy && !Verified && !Attempted)
+            {
+#if defined(_WIN32)
+                if (!Secret[0] && !LoadPortableConfiguration()) LoadCredential();
+#else
+                if (!Secret[0]) LoadPortableConfiguration();
+#endif
+                if (Secret[0])
+                {
+                    ReceiveDiagnostic("auto_login=starting; saved credentials found");
+                    BeginLogin();
+                }
+                else ReceiveDiagnostic("auto_login=skipped; no saved credentials. Open Setup to sign in.");
+            }
+        }
         if (DisconnectRequested)
         {
             const bool TimedOut = std::chrono::steady_clock::now() - DisconnectStarted > std::chrono::seconds(8);
@@ -718,6 +782,15 @@ int RunWindow(bool Smoke)
                 Busy = false;
                 if (Verified && EnableSocial)
                     Networking::QueryEpicFriends();
+                if (Verified && PendingForget)
+                {
+                    PendingForget = false;
+                    PersistAppSettings();
+                    if (Networking::RevokeEpicPersistentAuth())
+                        ReceiveDiagnostic("Saved Epic token revoked as requested.");
+                    else
+                        ReceiveDiagnostic("persistent_auth_delete=unavailable right after login.");
+                }
                 if (!Verified)
                     Networking::RetireEpic();
             }

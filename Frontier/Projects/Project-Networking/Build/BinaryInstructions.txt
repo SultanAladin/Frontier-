@@ -9,25 +9,30 @@ START
    It is deliberately NOT in this public ZIP. Never commit or share it.
 3. Click Log in. The existing Windows vault route also works, but cloud history
    needs the data key from the private file (or Setup > Advanced).
+4. Optional: Setup offers auto-login (uses the Epic token saved on this PC, no
+   browser on later runs), forget-auto-login (revokes that token), and the app
+   UI language (English / Simplified Chinese, applied instantly). Logs stay in
+   English.
 
 FLOW
 Verified Auth + Connect -> automatic EOS lobby/RTC room and prepared match session
 -> mark yourself ready -> mark local dummy players ready -> start EOS match session
 -> End test match -> cache and queue a completed test record to EOS Player Data Storage.
 The host can disable auto-start. Prepare next match recreates the ended session.
-Use the Browse tab to search lobbies and match sessions, or join a lobby by ID.
-Members join the host match session explicitly from the Lobby tab. Leaving the
-lobby always ends, unregisters and destroys the match session first. The host
-manages session registration. There is no actual game transport or gameplay
-replication yet.
+Use the Browse tab to search lobbies by tags (style, language, map, mode on the
+server; open / in-match / full and public / presence / invite locally) or join
+a lobby by ID from the collapsed section. Members join the host match session
+explicitly from the Lobby tab. Leaving the lobby always ends, unregisters and
+destroys the match session first. The host manages session registration. There
+is no actual game transport or gameplay replication yet.
 
 SETTINGS
 The Settings tab edits lobby properties (bucket, members, permission, presence,
-invites, voice, migration, join-by-ID, rejoin rule, map/mode/region/note) and
-match-session properties (name, bucket, players, permission, join-in-progress,
-presence, map/mode). Lobby edits apply to new lobbies and live for the host;
-session edits apply when the host prepares the next session. Invalid values are
-rejected with no EOS call.
+invites, voice, migration, join-by-ID, rejoin rule, map/mode/region/note, style,
+language) and match-session properties (name, bucket, players, permission,
+join-in-progress, presence, map/mode). Lobby edits apply to new lobbies and live
+for the host; session edits apply when the host prepares the next session.
+Invalid values are rejected with no EOS call.
 
 SESSION POLICY
 If the log shows session_register_real_players result=EOS_ClientPolicyMissingAction,

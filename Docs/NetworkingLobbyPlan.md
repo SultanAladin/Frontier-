@@ -81,10 +81,41 @@ Latest previously used Slate branch was checked through GitHub:
 - Private portable `Charge.local.ini` (client id, secret, 64-hex data key) read
   from beside the executable, with strict parsing, no truncation, buffer wiping,
   Git-ignored local archive, and a tracked-source scan for private values.
+- Epic auto-login: desktop PersistentAuth is tried first (no browser), with a
+  one-time Account Portal fallback. The portal login stores the token the next
+  auto-login uses. Setup offers an auto-login toggle, a persisted app preference
+  file, and forget/revoke support (revoked immediately when logged in, otherwise
+  on the next login).
+- App UI language: English plus Simplified Chinese, switchable live in Setup
+  (CJK glyphs are merged into the UI font at startup, no restart needed).
+  Diagnostics and logs intentionally stay English for support.
+- Tag discovery: lobbies publish style (ranked/casual) and language tags plus
+  map/mode/region/match-state. The Browse tab filters server-side by tag and
+  client-side by status (open / in-match / full) and visibility (public /
+  presence / invite). Join-by-ID remains as a collapsed fallback.
+## Full multiplayer: remaining EOS work
+Lobby, session and voice-room plumbing exist, but no game is networked yet.
+Roughly, in dependency order:
+1. Gameplay transport: EOS P2P (NAT punch-through/relay, connection requests,
+   packet send/receive) or custom sockets seeded from the session host address.
+   Nothing moves game state today.
+2. Replication: host-authoritative snapshots, client interpolation, ownership
+   and input messages on top of the transport.
+3. Invites and presence joins: lobby/session SendInvite, invite notifications,
+   and join-via-presence handling.
+4. Session depth: join-in-progress policy per game mode, host migration (or
+   explicit host transfer), backfill, and ranked bucket queues.
+5. Stats, leaderboards, achievements: EOS Stats/Leaderboards/Achievements for
+   anything the ranked tag promises.
+6. Anti-cheat for public ranked: EOS AntiCheatClient/Server integration.
+7. Compliance and safety: Sanctions, age gates (KWS), player reports.
+8. Dedicated servers (optional): session registration/management from a server
+   build instead of a player host.
 
 ## Verified vs unverified
 Deterministic local logic (readiness, history parsing/bounds, portable config,
-lobby/session settings validation, search filters) is covered by
+lobby/session settings validation, search filters, tag derivation/matching,
+app-settings parsing, UI translation fallback) is covered by
 VisualProof/Networking/LobbyChecks.cpp. Windows builds, real SDK platform
 startup, and extracted native UI rendering passed in CI.
 **Not verified:** authenticated lobby creation, lobby/session search results,
