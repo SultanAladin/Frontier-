@@ -15,7 +15,9 @@ Developer Authentication Tool or Account Portal prerequisites below still apply;
 The standalone window is a diagnostic requested by the user, not a second game host. Frontier.exe remains the
 engine host; the project DLL remains independently usable. The console executable is retained only for CI checks
 and is no longer included in the end-user ZIP. The fixed-function ImGui OpenGL backend is used for this small
-diagnostic window so software OpenGL on Windows CI can render it without a game GPU.
+diagnostic window. Windows CI uses a hash-pinned Mesa software OpenGL driver because hosted runners
+have no hardware OpenGL ICD. Mesa is injected only into CI verification directories, not shipped in the ZIP.
+The released app uses the user's installed Windows graphics driver.
 
 Pinned ImGui/GLFW revisions are in `Build/GuiDependencies.json`. CI captures the rendered window in
 `WindowProof.bmp`, tests missing-input rejection, and repeats the GUI smoke test from the extracted release ZIP.

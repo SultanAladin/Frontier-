@@ -268,6 +268,9 @@ bool CaptureWindow(int Width, int Height)
     std::vector<unsigned char> Pixels(static_cast<size_t>(RowBytes) * Height);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
     glReadPixels(0, 0, Width, Height, GL_RGB, GL_UNSIGNED_BYTE, Pixels.data());
+    const auto Range = std::minmax_element(Pixels.begin(), Pixels.end());
+    if (*Range.first == *Range.second)
+        return false;
     if (glGetError() != GL_NO_ERROR)
         return false;
     for (int Y = 0; Y < Height; ++Y)
@@ -291,6 +294,13 @@ bool CaptureWindow(int Width, int Height)
 
 int RunWindow(bool Smoke)
 {
+    glfwSetErrorCallback([](int Number, const char* Description)
+    {
+        char Text[1024]{};
+        std::snprintf(Text, sizeof(Text), "GLFW error %d: %s", Number, Description);
+        ReceiveDiagnostic(Text);
+        std::ofstream("WindowChecks.log") << Diagnostics;
+    });
     if (!glfwInit())
         return 2;
     GLFWwindow* Window = glfwCreateWindow(1080, 800, "Charge | Project-Networking", nullptr, nullptr);
@@ -320,6 +330,11 @@ int RunWindow(bool Smoke)
         return 2;
     }
     ReceiveDiagnostic("Ready. Credentials remain on this PC; no player login has been attempted.");
+    if (Smoke)
+    {
+        ReceiveDiagnostic("CI rendering check; authentication NOT attempted.");
+        ReceiveDiagnostic(reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
+    }
     SdkReady = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
     int Result = 0;
     int Cycles = 0;

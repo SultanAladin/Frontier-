@@ -50,6 +50,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
           python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS"
           if ($LASTEXITCODE -ne 0) { throw 'SDK fetch or hash verification failed' }
+      - name: Prepare software OpenGL for headless CI only
+        shell: pwsh
+        run: |
+          $Archive = "$env:RUNNER_TEMP/mesa.7z"
+          Invoke-WebRequest 'https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z' -OutFile $Archive
+          if ((Get-FileHash $Archive -Algorithm SHA256).Hash -ne '351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695') {
+            throw 'Mesa hash mismatch'
+          }
+          & 7z x $Archive "-o$env:RUNNER_TEMP/Mesa" -y
+          if ($LASTEXITCODE -ne 0) { throw 'Mesa extraction failed' }
       - name: Build with MSVC x64 C++20 MD and run real SDK smoke checks
         shell: pwsh
         run: |
@@ -76,12 +86,21 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Login checks compilation failed' }
             & "$Output/LoginSequenceChecks.exe"
             if ($LASTEXITCODE -ne 0) { throw 'Login checks failed' }
+            # Hosted runner has no hardware OpenGL ICD. These DLLs are NOT shipped.
+            Copy-Item "$env:RUNNER_TEMP/Mesa/x64/*.dll" $Output -Force
+            $env:GALLIUM_DRIVER = 'llvmpipe'
             $Window = Start-Process -FilePath "$Output/NetworkingLogin.exe" -ArgumentList '--ui-smoke' -WorkingDirectory $Output -PassThru
             if (-not $Window.WaitForExit(60000)) {
               $Window.Kill()
               throw 'Window smoke check timed out'
             }
-            if ($Window.ExitCode -ne 0) { throw "GLFW/ImGui window check failed: $($Window.ExitCode)" }
+            if ($Window.ExitCode -ne 0) {
+              if (Test-Path "$Output/WindowChecks.log") {
+                $Detail = (Get-Content "$Output/WindowChecks.log" -Raw).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+                Write-Host "::error::$Detail"
+              }
+              throw "GLFW/ImGui window check failed: $($Window.ExitCode)"
+            }
             if (-not (Test-Path "$Output/WindowProof.bmp")) { throw 'Window screenshot missing' }
             Get-Content "$Output/WindowChecks.log"
             Write-Host 'PASS Windows build and SDK smoke checks. PLAYER AUTHENTICATION NOT ATTEMPTED.'
@@ -115,6 +134,9 @@ jobs:
             Set-Content '_AgentScratch/Project-Networking-Windows-x64.zip.sha256'
           Expand-Archive $Zip '_AgentScratch/VerifyPackage'
           $Extracted = (Resolve-Path '_AgentScratch/VerifyPackage/Project-Networking').Path
+          # Inject software GL only into the verification directory, never the ZIP.
+          Copy-Item "$env:RUNNER_TEMP/Mesa/x64/*.dll" $Extracted -Force
+          $env:GALLIUM_DRIVER = 'llvmpipe'
           $Window = Start-Process -FilePath "$Extracted/NetworkingLogin.exe" -ArgumentList '--ui-smoke' -WorkingDirectory $Extracted -PassThru
           if (-not $Window.WaitForExit(60000)) { $Window.Kill(); throw 'Extracted GUI timed out' }
           if ($Window.ExitCode -ne 0) { throw 'Extracted package failed GUI/EOS startup' }
@@ -138,6 +160,6 @@ jobs:
           } else {
             gh release create $Tag $Zip "$Zip.sha256" --repo $env:GITHUB_REPOSITORY `
               --target $env:GITHUB_SHA --prerelease --title 'Project-Networking - ImGui Windows login app' `
-              --notes 'Native Dear ImGui + GLFW window, Windows subsystem (no console). Extract and double-click NetworkingLogin.exe. EOS runtime is included. Window rendering and SDK startup were checked in CI; see included WindowProof.bmp and START-HERE.txt. Developer Authentication Tool and your rotated local client secret are still required. SDK startup checks passed; player authentication was not attempted in CI. This is the networking test project, not the complete Frontier engine.'
+              --notes 'Native Dear ImGui + GLFW window, Windows subsystem (no console). Extract and double-click NetworkingLogin.exe. EOS runtime is included. Window rendering (Mesa software OpenGL) and SDK startup were checked in CI; see included WindowProof.bmp and START-HERE.txt. Developer Authentication Tool and your rotated local client secret are still required. SDK startup checks passed; player authentication was not attempted in CI. This is the networking test project, not the complete Frontier engine.'
           }
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
