@@ -101,8 +101,10 @@ int main()
     Check(ParseAppSettings("version=1\nlanguage=zh\nauto_login=1\nforget_persistent=0\n", Prefs) &&
         Prefs.Language == AppLanguage::ChineseSimplified && Prefs.AutoLogin && !Prefs.ForgetPersistent,
         "app settings parse language and auto-login");
-    Check(EncodeAppSettings(Prefs) == "version=1\nlanguage=zh\nauto_login=1\nforget_persistent=0\n",
+    Check(EncodeAppSettings(Prefs) == "version=1\nlanguage=zh\nauto_login=1\nforget_persistent=0\npremium_multiplayer=0\n",
         "app settings encode round trip");
+    Check(ParseAppSettings(EncodeAppSettings(Prefs), Prefs) && !Prefs.PremiumMultiplayer,
+        "legacy premium default survives encode round trip");
     Check(!ParseAppSettings("version=1\nlanguage=xx\nauto_login=1\n", Prefs), "unknown language rejected");
     Check(!ParseAppSettings("version=1\nlanguage=en\nauto_login=1\nauto_login=0\n", Prefs),
         "duplicate app setting rejected");
