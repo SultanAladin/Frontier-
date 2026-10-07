@@ -36,10 +36,12 @@ Read this first, then answer the open decisions at the bottom.
 4. **Configure Pay Station**: theme, redirect/return URL, webhook URL
    (your backend endpoint; HTTPS). Enable the payment methods you want,
    including crypto (Crypto.com Pay) if desired.
-5. **Test in sandbox**: pass `settings.mode: sandbox` when creating the
-   payment token, open `https://sandbox-secure.xsolla.com/paystation4/?token=…`,
-   pay with Xsolla's test cards. No real money moves; sandbox works before
-   you sign anything.
+5. **Test in sandbox**: pass `"sandbox": true` when creating the payment
+   token, open `https://sandbox-secure.xsolla.com/paystation4/?token=…`,
+   pay with test Visa `4111111111111111` exp `12/40` any CVV ZIP `12345`.
+   No real money moves; sandbox works before you sign anything.
+   Helper: `Tools/XsollaSandboxToken.ps1 -ApiKey …` prints and opens the
+   sandbox URL for any SKU (default `entry_tokens`).
 6. **Sign the licensing agreement** to unlock production payments, then flip
    the token mode to live.
 
