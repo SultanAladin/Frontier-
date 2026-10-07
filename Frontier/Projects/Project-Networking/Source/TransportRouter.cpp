@@ -3,10 +3,11 @@
 //============================================================================================================================================
 // 📦 Selects EOS vs Photon after login and ticks the active transport. Photon failures fall back
 // to EOS so login never breaks. Premium is a manual toggle (Setup switch, persisted) with a
-// FRONTIER_PREMIUM_MULTIPLAYER env override; the Xsolla entitlement check plugs into
-// ResolvePremiumAccess when that integration lands.
+// FRONTIER_PREMIUM_MULTIPLAYER env override; the backend verdict (Charge.backend.ini +
+// Epic id) wins when a lookup succeeds, otherwise the toggle decides.
 
 #include "TransportRouter.h"
+#include "BackendClient.h"
 #include "EcomOwnership.h"
 #include "EosTransport.h"
 #include "PhotonTransport.h"
@@ -21,6 +22,7 @@ namespace
 {
 DiagnosticReception Reception = nullptr;
 bool PremiumToggle = false;
+BackendVerdict LastVerdict{};
 TransportKind Wanted = TransportKind::None;
 TransportKind Active = TransportKind::None;
 TransportPhase Phase = TransportPhase::Idle;
@@ -135,6 +137,8 @@ bool ResolvePremiumAccess() noexcept
         if (std::strcmp(Env, "0") == 0)
             return false;
     }
+    if (LastVerdict.Queried)
+        return LastVerdict.Premium;
     return PremiumToggle;
 }
 
@@ -145,6 +149,8 @@ bool StartMultiplayerTransport(DiagnosticReception ActiveReception) noexcept
     StopMultiplayerTransport();
     Reception = ActiveReception;
     FellBack = false;
+    LastVerdict = BackendVerdict{};
+    LastVerdict = QueryBackendPremium(ActiveReception);
     Wanted = SelectTransportKind(ResolvePremiumAccess(), PhotonLinkAvailable());
     Active = TransportKind::None;
     if (Wanted == TransportKind::Photon)

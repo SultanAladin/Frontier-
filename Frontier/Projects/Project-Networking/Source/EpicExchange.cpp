@@ -6,6 +6,7 @@
 #include "EpicExchange.h"
 #include "RoomRuntime.h"
 #include "TransportRouter.h"
+#include "BackendClient.h"
 #include "LocalConfiguration.h"
 #if defined(_WIN32)
 #include <Windows/eos_Windows.h>
@@ -368,6 +369,9 @@ void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
         Emit("LOGIN_VERIFIED auth=success connect=success");
         BindRoomRuntime(Platform, LocalProductUser, Reception, UserCacheRoot(), CloudEnabled);
         QueryEpicProfile();
+        char EpicId[64]{};
+        if (CopyLocalEpicAccountId(EpicId, sizeof(EpicId)))
+            SetBackendIdentity(EpicId);
         StartMultiplayerTransport(Reception);
         if (!SocialEnabled)
             std::snprintf(FriendsReading, sizeof(FriendsReading), "Automatic friends loading is disabled. Enable it in Setup before signing in.");
@@ -848,6 +852,20 @@ const char* InspectOverlayReading() noexcept { return OverlayReading; }
 LoginProgress InspectLogin() noexcept
 {
     return Login.Progress;
+}
+
+bool CopyLocalEpicAccountId(char* Out, std::size_t Capacity) noexcept
+{
+    if (!Out || Capacity == 0 || !LocalAccount || Login.Progress != LoginProgress::Connected)
+        return false;
+    int32_t Length = static_cast<int32_t>(Capacity);
+    if (EOS_EpicAccountId_ToString(LocalAccount, Out, &Length) != EOS_EResult::EOS_Success ||
+        Out[0] == 0)
+    {
+        Out[0] = 0;
+        return false;
+    }
+    return true;
 }
 
 bool CopyEpicIdentityToken(char* Out, std::size_t Capacity) noexcept

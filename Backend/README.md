@@ -53,6 +53,25 @@ python3 -m unittest discover -s Backend -p 'test_*.py' -v
 
 `/v1/*` requires header `X-Charge-Key` when `CHARGE_API_KEY` is set.
 
+## Game integration (Charge.backend.ini)
+
+At transport start the game reads `Charge.backend.ini` from the same
+folders as `Charge.local.ini` and calls `GET /v1/premium`:
+
+```ini
+version=1
+backend_url=http://127.0.0.1:8080
+backend_key=<same value as CHARGE_API_KEY>
+```
+
+`premium=true` routes to Photon; anything missing or failing falls back
+to the manual Setup toggle and login never breaks. Watch the redacted
+log for `backend=ok host=... premium=1 coins=N`.
+
+Local test: run this server on your PC, point the ini at it, log in,
+then fire the Publisher Account webhook tester (or a real sandbox
+purchase) and confirm the next login reports premium.
+
 ## Hosting notes
 
 - Needs a public HTTPS address Xsolla can reach 24/7 (any cheap VPS with

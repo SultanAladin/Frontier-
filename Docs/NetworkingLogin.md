@@ -39,9 +39,10 @@ Sessions actions to the Dev client policy in the Epic portal; an unregistered
 lifecycle-only start remains available. This build also adds Epic auto-login
 (saved token, portal fallback), an English / Simplified-Chinese UI toggle, and
 tag-based lobby discovery (style, language, status, visibility). It adds the
-Photon transport slice: EOS/Photon routing after login with a manual premium
-switch, Epic-auth Photon transport linked against Realtime Core 6.0.0.347 /MD
-x64 libs, dormant Ecom ownership, and redacted transport diagnostics (see above).
+Photon transport slice: EOS/Photon routing after login with backend-driven
+premium (manual switch fallback), Epic-auth Photon transport linked against
+Realtime Core 6.0.0.347 /MD x64 libs, dormant Ecom ownership, and redacted
+transport diagnostics (see above).
 
 Full lobby, voice, session and history notes: `Docs/NetworkingLobbyPlan.md` and
 `Frontier/Projects/Project-Networking/Build/BinaryInstructions.txt`.
@@ -449,3 +450,4 @@ Actual player login, friends retrieval and Epic overlay display are still not ve
 
 Latest download:
 https://github.com/c7egoist/Frontier/releases/download/networking-test-37590703228/Project-Networking-Windows-x64.zip
+oject-Networking-Windows-x64.zip

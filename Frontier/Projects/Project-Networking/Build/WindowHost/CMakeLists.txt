@@ -47,7 +47,7 @@ add_library(LoginImGui STATIC
 target_include_directories(LoginImGui PUBLIC "${IMGUI}" "${IMGUI}/backends")
 target_link_libraries(LoginImGui PUBLIC glfw OpenGL::GL)
 set(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../../Source")
-set(NETWORKING_SOURCES "${SOURCE}/EpicExchange.cpp" "${SOURCE}/LobbyRuntime.cpp" "${SOURCE}/SessionHistory.cpp"
+set(NETWORKING_SOURCES "${SOURCE}/EpicExchange.cpp" "${SOURCE}/BackendClient.cpp" "${SOURCE}/LobbyRuntime.cpp" "${SOURCE}/SessionHistory.cpp"
     "${SOURCE}/TransportRouter.cpp" "${SOURCE}/EcomOwnership.cpp" "${SOURCE}/EosTransport.cpp")
 if(PHOTON_LINKED)
     list(APPEND NETWORKING_SOURCES "${SOURCE}/PhotonTransport.cpp")
@@ -57,6 +57,8 @@ endif()
 add_executable(NetworkingLogin WIN32 "${SOURCE}/WindowHost.cpp" ${NETWORKING_SOURCES})
 target_include_directories(NetworkingLogin PRIVATE "${EOS_SDK_ROOT}/Include" "${PHOTON_INCLUDE}")
 target_link_libraries(NetworkingLogin PRIVATE LoginImGui)
+# winhttp stays unconditional: the backend premium client needs it in every build.
+target_link_libraries(NetworkingLogin PRIVATE winhttp)
 if(PHOTON_LINKED)
     target_link_libraries(NetworkingLogin PRIVATE ${PHOTON_LIBS})
     # Photon archives need these OS libs named explicitly (no #pragma comment in headers).

@@ -189,9 +189,9 @@ Verdict: ship (1), revisit (2) only if the game demands withdrawals.
 - **Phase 1 — catalog + sandbox:** premium SKUs, AutoCoin packs, test purchase
   end-to-end in sandbox, no game changes.
 - **Phase 2 — backend stub:** webhook receiver + entitlement table + premium
-  query endpoint (DONE in `Backend/`, 25 tests green); still to do: host it
-  with a public HTTPS URL, then wire `ResolvePremiumAccess()` to it; keep
-  the manual toggle as fallback until then.
+  query endpoint (DONE in `Backend/`, 25 tests green); game wired
+  (`QueryBackendPremium` in `Source/BackendClient.cpp`, localhost-ready,
+  toggle fallback); still to do: host it with a public HTTPS URL.
 - **Phase 3 — currencies in-game:** balances display, Nitro earn/spend, race
   entry fees, Matter/Paint exchange UI (reuse the lobby-panel patterns).
 - **Phase 4 — production:** sign agreement, go live, monitor webhooks.

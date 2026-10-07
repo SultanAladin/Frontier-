@@ -62,6 +62,8 @@ LoginProgress InspectLogin() noexcept;
 // Multiplayer transport support. The identity token is copied for Photon's Epic
 // authentication and must never be logged; the opaque handles back the Ecom query.
 bool CopyEpicIdentityToken(char* Out, std::size_t Capacity) noexcept;
+// Epic Account ID string for the backend premium lookup (an identifier, never a token).
+bool CopyLocalEpicAccountId(char* Out, std::size_t Capacity) noexcept;
 void* InspectEpicPlatformHandle() noexcept;
 void* InspectEpicAccountHandle() noexcept;
 }

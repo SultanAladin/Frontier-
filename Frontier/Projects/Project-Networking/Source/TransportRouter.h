@@ -40,7 +40,8 @@ inline TransportKind SelectTransportKind(bool PremiumAccess, bool PhotonLinked) 
     return (PremiumAccess && PhotonLinked) ? TransportKind::Photon : TransportKind::Eos;
 }
 
-// Manual toggle today (Setup switch + FRONTIER_PREMIUM_MULTIPLAYER env override); Xsolla later.
+// Backend verdict first (Charge.backend.ini + Epic id), manual toggle fallback;
+// FRONTIER_PREMIUM_MULTIPLAYER env override wins over both.
 bool ResolvePremiumAccess() noexcept;
 void SetPremiumMultiplayer(bool Enabled) noexcept;
 
