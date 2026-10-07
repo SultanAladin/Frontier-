@@ -212,3 +212,16 @@ Download: https://github.com/c7egoist/Frontier/actions/runs/37583886172/artifact
 
 The sandbox could not mirror the artifact from GitHub's Azure download host. The artifact itself was uploaded
 successfully and is available through the GitHub link (sign-in may be required).
+
+### GUI release result
+
+Actions run `37587675861` passed for source commit `87186b4cd69433d351e661ce591de4ad4cf29e98`.
+The native GLFW/ImGui window rendered on the Windows runner using CI-only Mesa software OpenGL. Its screenshot,
+SDK startup results, and missing-input refusal evidence are included in the ZIP under `Build/Output`.
+The extracted ZIP was also launched successfully. Player authentication was not attempted.
+`VisualProof/Networking/WindowActions.json` records the successful job and steps.
+
+Current GUI download:
+https://github.com/c7egoist/Frontier/releases/download/networking-test-37587675861/Project-Networking-Windows-x64.zip
+
+Extract and open `NetworkingLogin.exe` at the package root. Older console-only releases are superseded.
