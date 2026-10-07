@@ -1,17 +1,25 @@
 ## Lobby build (current)
 
-**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37622785764/Project-Networking-Windows-x64.zip)
-(run [37622785764](https://github.com/c7egoist/Frontier/actions/runs/37622785764), source `a5ae28015a8190186ea9d499d24d7d7ef26b5c94`, 19,621,259 bytes with `.sha256` sidecar).
+**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37634132017/Project-Networking-Windows-x64.zip)
+(run [37634132017](https://github.com/c7egoist/Frontier/actions/runs/37634132017), source `ad552086bf226f4b7b930dec71d9d56ee54df0bc`, 19,627,618 bytes with `.sha256` sidecar).
 
 Extract into a fresh folder and open **Charge.exe**. Put the **private**
 `Charge.local.ini` next to it for portable login and a stable cross-PC EOS cloud
 data key. That file is intentionally excluded from the public download.
 
+This build splits the match session from the lobby (members join it explicitly),
+closes the session before leaving the lobby, adds lobby + session browsers and
+host-editable lobby/session settings, and replaces the UI with clean
+Lobby/Browse/Settings/History tabs. If the log shows
+`session_register_real_players result=EOS_ClientPolicyMissingAction`, grant the
+Sessions actions to the Dev client policy in the Epic portal; an unregistered
+lifecycle-only start remains available.
+
 Full lobby, voice, session and history notes: `Docs/NetworkingLobbyPlan.md` and
 `Frontier/Projects/Project-Networking/Build/BinaryInstructions.txt`.
 CI proves the build, deterministic local logic, real SDK/platform startup and
 native UI rendering. It does not authenticate a player or prove live lobby,
-voice, session or cloud success.
+search, session joins, voice, or cloud success.
 
 ## Country permission and signed-in profile
 
