@@ -1,59 +1,34 @@
-PROJECT-NETWORKING - NATIVE WINDOWS LOGIN APP
+CHARGE / ONLINE ACCESS
+======================
+1. Extract this ZIP into a NEW folder (do not mix with earlier versions).
+2. Install EpicOnlineServicesInstaller.exe once if needed. This is the official
+   installer already in your EOS SDK Tools folder / shared Drive. Installation
+   may ask for Windows permission; the app never runs it silently.
+   https://drive.google.com/file/d/1JPhKa2DsiEQza6dFzyf48g5NAGPPYvUW/view
+3. Open Charge.exe. This is Epic's configured, unmodified Bootstrapper, NOT the
+   older direct NetworkingLogin.exe entry point. Keep its config alongside it.
+4. Click Log in with Epic. The first time, Setup asks for the ROTATED application
+   client secret (not your Epic password). Application IDs are prefilled.
+5. Optionally enable Remember on this PC to store the client ID and secret in
+   Windows Credential Manager for your Windows user. Otherwise they remain only
+   in process memory, are wiped after submission, and must be re-entered.
 
-1. Extract the whole ZIP.
-2. Double-click NetworkingLogin.exe in the top-level folder.
-   This opens a Dear ImGui + GLFW window. No console, commands, or launcher script.
-   Leave the included EOSSDK-Win64-Shipping.dll beside it.
-3. For development login, start Epic's Developer Authentication Tool on port 6547,
-   sign in with an authorized development account, and save its credential as PlayerOne.
-   Keep the tool running. It is separate from the included EOS runtime.
-4. In the app, choose Developer Auth Tool, enter the saved credential NAME and your
-   rotated EOS client secret in the masked field, then click Log in with Epic.
-   The secret is not written to the activity log or saved by the UI.
-5. Watch the connection status. Save log opens a native Save dialog for redacted evidence.
-   Cancel login stops a pending attempt. You must re-enter the secret to retry.
+Settings live under Setup. Advanced contains the Developer Auth Tool route,
+permissions, SDK check, and Forget saved credential. To remove saved credentials
+outside the app: Windows Credential Manager > Windows Credentials >
+Frontier/Charge/Dev/EOSClient. Windows user credentials are not protection against
+malware running as that user. No Epic player password or token is stored there.
 
-If Connect reports account_creation_required, confirm this is a genuinely NEW Dev
-player before selecting Allow NEW Dev product-user creation and retrying. This permits
-a real PUID creation; it is not a workaround for identity linking.
+Epic owns the Account Portal presentation. There is no invented browser OAuth
+fallback, and no bypass of the service, app permissions, or Epic approval rules.
+Status 1 means the application was not launched through the Bootstrapper;
+status 2 means the EOS service is missing. Use Charge.exe, not App/*.exe.
 
-Client configuration allows overriding the Client ID if you replaced the entire client.
-Rotating only its secret does not require changing the Client ID.
+The console colours informational, successful, warning and failed events.
+SDK ready is NOT proof of login. Only successful EOS Auth AND Connect set the
+verified state. Account permissions/consent and test-user eligibility still apply.
 
-Epic Account Portal is also selectable, but on Windows it requires the EOS redistributable
-and launch through EOS Bootstrapper. The app reports readiness errors rather than pretending
-to log in. Developer Authentication Tool is the simplest first development test.
-
-SUCCESS requires the green Auth + Connect verified status and the actual activity entry:
-  LOGIN_VERIFIED auth=success connect=success
-A successful SDK check is NOT a player login.
-
-WindowsChecks.log, WindowChecks.log and WindowProof.bmp are CI evidence for SDK startup,
-window rendering, and missing-credential rejection. No player authentication occurred in CI.
-The app keeps the authenticated platform alive for social features, but is not a production multiplayer session.
-
-If Windows reports missing VCRUNTIME140/MSVCP140 libraries, install Microsoft's official
-Visual C++ 2015-2022 Redistributable (x64). Never download individual DLLs from DLL sites.
-
-The optional project DLL in Build/Output is for your existing Frontier.exe. This package
-is not a complete engine build. The old console diagnostic remains a CI-only source target
-and is not included in this GUI package. See INSTRUCTIONS.md for developer build details.
-
-FRIENDS AND OVERLAYS
-
-Enable Request Friends + Presence permissions before logging in; configure the same
-permissions on the linked Epic Account Services application. After successful Auth +
-Connect, Refresh friends loads the real application-visible list. Names are not logged.
-Open Epic overlay launches EOS's Social Overlay; use it for friend invitations.
-The default Epic overlay shortcut is Shift+F3.
-
-Epic login overlay (Account Portal) and the Social Overlay require Epic's EOS
-redistributable and a properly configured Bootstrapper launch. The SDK DLL in this
-ZIP does not install these tools. They were not in the supplied flattened SDK.
-The app now describes the exact readiness failure instead of only a numeric status.
-
-FIXED: startup Check SDK no longer shuts EOS down before login. The runtime remains
-initialized across checks, retry and disconnect, and shuts down once at final exit.
-Paste secret uses safe Unicode clipboard reading. An empty secret after submission
-is intentional: enter the rotated secret again to retry. Never paste the replacement
-in chat, and do not copy the portal's displayed asterisks instead of the real secret.
+The runtime DLL is included. Do not copy files manually. This is a standalone
+networking test project, not the complete Frontier engine. The project DLL stays
+under Build/Output. CI checks rendering, SDK lifetime and extracted-package
+startup; it does NOT claim a real account login, overlay, or service-start test.

@@ -11,8 +11,9 @@ import gdown
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('destination', type=pathlib.Path)
+    parser.add_argument("--manifest", type=pathlib.Path, default=pathlib.Path(__file__).with_name("WindowsSdkManifest.json"))
     args = parser.parse_args()
-    manifest = json.loads(pathlib.Path(__file__).with_name('WindowsSdkManifest.json').read_text())
+    manifest = json.loads(args.manifest.read_text())
     for relative, entry in manifest['files'].items():
         destination = args.destination / relative
         destination.parent.mkdir(parents=True, exist_ok=True)

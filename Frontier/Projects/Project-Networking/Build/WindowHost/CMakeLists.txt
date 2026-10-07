@@ -31,7 +31,7 @@ add_executable(NetworkingLogin WIN32 "${SOURCE}/WindowHost.cpp" "${SOURCE}/EpicE
 target_include_directories(NetworkingLogin PRIVATE "${EOS_SDK_ROOT}/Include")
 target_link_libraries(NetworkingLogin PRIVATE LoginImGui)
 if(WIN32)
-    target_link_libraries(NetworkingLogin PRIVATE "${EOS_SDK_ROOT}/Lib/EOSSDK-Win64-Shipping.lib" comdlg32)
+    target_link_libraries(NetworkingLogin PRIVATE "${EOS_SDK_ROOT}/Lib/EOSSDK-Win64-Shipping.lib" comdlg32 advapi32)
     target_compile_options(NetworkingLogin PRIVATE /W4 /utf-8)
     target_compile_definitions(NetworkingLogin PRIVATE _CRT_SECURE_NO_WARNINGS)
     set(EOS_RUNTIME "${EOS_SDK_ROOT}/Bin/EOSSDK-Win64-Shipping.dll")

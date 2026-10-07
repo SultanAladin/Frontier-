@@ -50,6 +50,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
           python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS"
           if ($LASTEXITCODE -ne 0) { throw 'SDK fetch or hash verification failed' }
+          python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Frontier/Projects/Project-Networking/Build/BootstrapperManifest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Bootstrapper fetch or hash verification failed' }
       - name: Prepare software OpenGL for headless CI only
         shell: pwsh
         run: |
@@ -118,12 +120,23 @@ jobs:
         run: |
           $Project = 'Frontier/Projects/Project-Networking'
           $Package = '_AgentScratch/Package/Project-Networking'
-          New-Item -ItemType Directory -Force "$Package/Build/Output", "$Package/Content/Scenes" | Out-Null
+          New-Item -ItemType Directory -Force "$Package/Build/Output", "$Package/Content/Scenes", "$Package/App" | Out-Null
           foreach ($Name in @('NetworkingLogin.exe', 'ProjectNetworking.dll', 'EOSSDK-Win64-Shipping.dll', 'BuildEvidence.json', 'WindowsChecks.log', 'WindowChecks.log', 'WindowProof.bmp')) {
             Copy-Item "$Project/Build/Output/$Name" "$Package/Build/Output/"
           }
-          Move-Item "$Package/Build/Output/NetworkingLogin.exe" "$Package/NetworkingLogin.exe"
-          Copy-Item "$Package/Build/Output/EOSSDK-Win64-Shipping.dll" "$Package/EOSSDK-Win64-Shipping.dll"
+          Move-Item "$Package/Build/Output/NetworkingLogin.exe" "$Package/App/NetworkingLogin.exe"
+          Copy-Item "$Package/Build/Output/EOSSDK-Win64-Shipping.dll" "$Package/App/EOSSDK-Win64-Shipping.dll"
+          # Epic's tool generates the real signed launcher AND its matching configuration.
+          & "$env:RUNNER_TEMP/EOS/Tools/EOSBootstrapperTool.exe" --help
+          & "$env:RUNNER_TEMP/EOS/Tools/EOSBootstrapperTool.exe" --output-path "$Package/Charge.exe" --app-path 'App/NetworkingLogin.exe' --working-dir 'App'
+          if ($LASTEXITCODE -ne 0) { throw 'Official Bootstrapper configuration failed' }
+          $Expected = (Get-FileHash "$env:RUNNER_TEMP/EOS/Tools/EOSBootstrapper.exe" -Algorithm SHA256).Hash
+          if ((Get-FileHash "$Package/Charge.exe" -Algorithm SHA256).Hash -ne $Expected) { throw 'Generated launcher differs from pinned vendor Bootstrapper' }
+          $Config = @(Get-ChildItem "$Package/Charge*" -File | Where-Object Extension -ne '.exe')
+          if ($Config.Count -ne 1) { throw 'Expected one vendor-generated Bootstrapper config' }
+          $Config | Get-Content | Tee-Object -FilePath "$Package/Build/Output/BootstrapperChecks.log"
+          if ((Get-Content $Config[0].FullName -Raw) -notmatch 'ApplicationPath.*App[/\\]NetworkingLogin.exe') { throw 'Unexpected launcher target' }
+          # Never install/start the service or simulate an account login on CI.
           Copy-Item '_AgentScratch/Gui/glfw/LICENSE.md' "$Package/GLFW-LICENSE.md"
           Copy-Item '_AgentScratch/Gui/imgui/LICENSE.txt' "$Package/IMGUI-LICENSE.txt"
           Copy-Item "$Project/ProjectNetworking.frontier" "$Package/"
@@ -141,9 +154,9 @@ jobs:
           Expand-Archive $Zip '_AgentScratch/VerifyPackage'
           $Extracted = (Resolve-Path '_AgentScratch/VerifyPackage/Project-Networking').Path
           # Inject software GL only into the verification directory, never the ZIP.
-          Copy-Item "$env:RUNNER_TEMP/Mesa/x64/*.dll" $Extracted -Force
+          Copy-Item "$env:RUNNER_TEMP/Mesa/x64/*.dll" "$Extracted/App" -Force
           $env:GALLIUM_DRIVER = 'llvmpipe'
-          $Window = Start-Process -FilePath "$Extracted/NetworkingLogin.exe" -ArgumentList '--ui-smoke' -WorkingDirectory $Extracted -PassThru
+          $Window = Start-Process -FilePath "$Extracted/App/NetworkingLogin.exe" -ArgumentList '--ui-smoke' -WorkingDirectory "$Extracted/App" -PassThru
           if (-not $Window.WaitForExit(60000)) { $Window.Kill(); throw 'Extracted GUI timed out' }
           if ($Window.ExitCode -ne 0) { throw 'Extracted package failed GUI/EOS startup' }
       - name: Upload Windows test package
@@ -166,6 +179,6 @@ jobs:
           } else {
             gh release create $Tag $Zip "$Zip.sha256" --repo $env:GITHUB_REPOSITORY `
               --target $env:GITHUB_SHA --prerelease --title 'Project-Networking - ImGui Windows login app' `
-              --notes 'ImGui + GLFW login/friends app. Fixes EOS SDK reinitialization after startup. Adds real friends queries and Epic overlay controls; overlays require official Bootstrapper and redistributable setup. No console. Extract and double-click NetworkingLogin.exe. EOS runtime is included. Window rendering (Mesa software OpenGL) and SDK startup were checked in CI; see included WindowProof.bmp and START-HERE.txt. Developer Authentication Tool and your rotated local client secret are still required. SDK startup checks passed; player authentication was not attempted in CI. This is the networking test project, not the complete Frontier engine.'
+              --notes 'Minimal dark login card and coloured activity log. Extract into a fresh folder and open Charge.exe, the configured official Epic Bootstrapper. EOS runtime is included under App. First install EpicOnlineServicesInstaller.exe from your EOS Tools folder if the EOS service is missing. Setup holds application credentials; optional Windows Credential Manager storage enables repeat one-click login. Account Portal is the default; Developer Auth remains under Advanced. CI tests rendering, SDK lifetime and packaging, NOT real player login or service startup. No claim of authenticated content access.'
           }
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
