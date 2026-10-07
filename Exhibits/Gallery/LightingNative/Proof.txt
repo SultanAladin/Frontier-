@@ -1,0 +1,2 @@
+PASS 19 checks: native scene-emitter cards for Point, Spot, Area, Tube and LED Strip at two widths.
+Exit: 0

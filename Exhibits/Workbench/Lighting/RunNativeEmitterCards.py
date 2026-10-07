@@ -9,6 +9,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 Root = Path(__file__).resolve().parents[3]
@@ -49,6 +50,25 @@ Result = subprocess.run([str(Build / 'EmitterProof')], cwd=Root, text=True,
 print(Result.stdout, end='')
 (Gallery / 'Proof.txt').write_text(Result.stdout + f'Exit: {Result.returncode}\n')
 assert Result.returncode == 0, 'native emitter proof failed'
+
+# Lossless PNG re-encoding, no retouching of native draw output. stb writes a barely-compressed
+# stream; these are flat-colour UI captures, so zlib level 9 shrinks them by roughly 50x.
+for Capture in sorted(Gallery.glob('*.png')):
+    Blob = Capture.read_bytes()
+    Chunks, Cursor = [], 8
+    while Cursor < len(Blob):
+        Size = int.from_bytes(Blob[Cursor:Cursor + 4], 'big')
+        Chunks.append((Blob[Cursor + 4:Cursor + 8], Blob[Cursor + 8:Cursor + 8 + Size]))
+        Cursor += Size + 12
+    Packed = zlib.compress(zlib.decompress(b''.join(Body for Tag, Body in Chunks if Tag == b'IDAT')), 9)
+    Rebuilt, Written = bytearray(Blob[:8]), False
+    for Tag, Body in Chunks:
+        if Tag == b'IDAT':
+            if Written:
+                continue
+            Body, Written = Packed, True
+        Rebuilt += len(Body).to_bytes(4, 'big') + Tag + Body + (zlib.crc32(Tag + Body) & 0xffffffff).to_bytes(4, 'big')
+    Capture.write_bytes(Rebuilt)
 
 Tracked = [Root / 'Engine/Editor/LightInspectorPanel.cpp',
            Root / 'Engine/Host/EditorFeedSequence.cpp',

@@ -1,0 +1,17 @@
+{
+  "Engine/Editor/LightInspectorPanel.cpp": "54602c606826200729ebeb05a872fb70e113d1d6b0ddb10014317b7e97cd455f",
+  "Engine/Host/EditorFeedSequence.cpp": "d64efe13cfdd974627732b6875b26f90e5cf33bf6cf1d8b71c9664d29ba1e551",
+  "Engine/GeometricRaster/SceneStructure.h": "a9a066b0ec620ae9be4b2efe3043030480756d46d625a05500eaa64e0fe1511a",
+  "Exhibits/Workbench/Lighting/NativeEmitterCards.cpp": "a5b1b392dba47a8ca05197438c745f232ab1de5fc817c7e11b3ee029d8301809",
+  "Exhibits/Workbench/Lighting/RunNativeEmitterCards.py": "80c4494a8dc02a789bf57b09e3057aed29ff2cac83a81ea1964f65b668f06559",
+  "Exhibits/Gallery/LightingNative/AreaLight-Narrow.png": "a9fe71547de4b1c56290576f089e5c1299382f3387de6d5395ed03e9753f5c0b",
+  "Exhibits/Gallery/LightingNative/AreaLight.png": "9e438cc32a50020ede9929bfe5ddf281fd56ad0d8d7d40c5589f3b4ff8b3caca",
+  "Exhibits/Gallery/LightingNative/PointLight-Narrow.png": "f2474b7e6174c6b60b855c9431d55093b9877a1050ed95206e7b3d8ba697fd89",
+  "Exhibits/Gallery/LightingNative/PointLight.png": "93eb2fecc6035483b190b3d2d0113c8394fbabef13cf400dd0af05b53caf63f1",
+  "Exhibits/Gallery/LightingNative/SpotLight-Narrow.png": "b19f3c4083a13b61c735cc1d034880f66447c7a4fb3cd11425199341a38e1789",
+  "Exhibits/Gallery/LightingNative/SpotLight.png": "689d9bfbc39274e211c098d504d8241ae96e1c3317cfe1dd24899cec7695b590",
+  "Exhibits/Gallery/LightingNative/StripLight-Narrow.png": "8ae83437691e39a6ff55b9fc791d9164ee34fe8772fbda2574ecdd10436a08a8",
+  "Exhibits/Gallery/LightingNative/StripLight.png": "f468740e237d871dc0991c7bb4e7e7a13b8764460518e3348c8b3ffb8844ec6e",
+  "Exhibits/Gallery/LightingNative/TubeLight-Narrow.png": "52e6c98380e9fd89084703173167661911f894834071af862cb021a0d93b4ad5",
+  "Exhibits/Gallery/LightingNative/TubeLight.png": "17401d6733ed1740e19c75edab16eace03dd6bfbc8d39e7df186d9c99b073759"
+}
