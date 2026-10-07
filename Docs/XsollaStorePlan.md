@@ -149,6 +149,24 @@ Verdict: ship (1), revisit (2) only if the game demands withdrawals.
 - `order_canceled` revokes premium and claws back undelivered currency.
 - Rate-limit exchange + entry endpoints; log everything.
 
+### Why this stops the classic cheats
+
+- **Fake premium license:** no local license exists to forge. Premium is a
+  server row keyed by Epic account, written only from signed Xsolla webhooks.
+  The client's premium flag is display-only; flipping it unlocks nothing.
+- **Premium Photon without paying:** Photon Custom Authentication calls our
+  server on every connect; our server verifies Epic identity + the premium
+  row before Photon lets them in. Interim: unguessable per-session room
+  names issued only to premium players; host kicks unverified joiners.
+- **Infinite money via memory editors:** balances are database rows. Every
+  spend is an atomic server transaction (check + deduct); client numbers
+  are display echoes. Cheat Engine can repaint the screen, not the database.
+- **Fake race wins:** rewards are computed server-side from corroborated
+  results (host + peers agree, times physically sane, earnings
+  rate-limited). A lone client claim pays nothing.
+- **Secrets:** the Xsolla API key + webhook secret live on the server only,
+  never in the game build or repo.
+
 ## 7. Roadmap (phases)
 
 - **Phase 0 — accounts (you, ~1 day):** Publisher Account, project, sandbox.
