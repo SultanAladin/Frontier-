@@ -36,8 +36,9 @@ struct HistoryReading
 inline bool EveryoneReady(const RoomReading& Room)
 {
     if (Room.Players.empty()) return false;
-    for (const auto& Player : Room.Players) if (!Player.Ready) return false;
-    return true;
+    bool Real = false;
+    for (const auto& Player : Room.Players) { if (!Player.Ready) return false; Real |= !Player.Dummy; }
+    return Real;
 }
 const RoomReading& InspectRoom() noexcept;
 const HistoryReading& InspectHistory() noexcept;

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <ctime>
 
 namespace Networking
 {
@@ -23,7 +24,9 @@ bool Current(void* C) { return User && C == Cookie(); }
 std::vector<EOS_ProductUserId> RealMembers, Registered;
 std::array<bool, 3> DummyReady{};
 unsigned Dummies = 3;
+bool OwnerAttributesDirty = false;
 bool Dirty = true, Operation = false, SessionExists = false, WantLeave = false, LobbyLeaveSent = false;
+bool PendingMicrophone = false, PendingListening = true;
 bool ReadyDesired = false, AttributesDirty = false, AutoArmed = true, MatchRecorded = false;
 std::string Name = "You", VoiceRoom, JoinAfterLeave;
 std::chrono::steady_clock::time_point LastRefresh{}, MatchClock{};
@@ -88,7 +91,8 @@ void Refresh()
     EOS_Lobby_CopyLobbyDetailsHandleOptions O{};
     O.ApiVersion = EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST; O.LobbyId = Room.LobbyId.c_str(); O.LocalUserId = User;
     EOS_HLobbyDetails Details = nullptr;
-    if (EOS_Lobby_CopyLobbyDetailsHandle(Lobby, &O, &Details) != EOS_EResult::EOS_Success) return;
+    if (EOS_Lobby_CopyLobbyDetailsHandle(Lobby, &O, &Details) != EOS_EResult::EOS_Success)
+    { Room.Players.clear(); RealMembers.clear(); Room.LocalReady = false; return; }
     EOS_LobbyDetails_GetLobbyOwnerOptions Owner{}; Owner.ApiVersion = EOS_LOBBYDETAILS_GETLOBBYOWNER_API_LATEST;
     Room.Owner = EOS_LobbyDetails_GetLobbyOwner(Details, &Owner) == User;
     EOS_LobbyDetails_GetMemberCountOptions Count{}; Count.ApiVersion = EOS_LOBBYDETAILS_GETMEMBERCOUNT_API_LATEST;
@@ -123,6 +127,35 @@ void Refresh()
         if (Player.Local) Room.LocalReady = Player.Ready;
         Room.Players.push_back(Player);
     }
+    if (!Room.Owner)
+    {
+        std::string RemoteState;
+        for (const char* KeyName : {"session_id", "match_state"})
+        {
+            EOS_LobbyDetails_CopyAttributeByKeyOptions A{}; A.ApiVersion = EOS_LOBBYDETAILS_COPYATTRIBUTEBYKEY_API_LATEST; A.AttrKey = KeyName;
+            EOS_Lobby_Attribute* V = nullptr;
+            if (EOS_LobbyDetails_CopyAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
+            {
+                if (V->Data && V->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
+                {
+                    if (std::strcmp(KeyName, "session_id") == 0) Room.SessionId = V->Data->Value.AsUtf8;
+                    else RemoteState = V->Data->Value.AsUtf8;
+                }
+                EOS_Lobby_Attribute_Release(V);
+            }
+        }
+        if (!WantLeave && RemoteState == "running" && Room.Phase != RoomPhase::Running)
+        {
+            OwnerAttributesDirty = true;
+    Room.Phase = RoomPhase::Running; MatchClock = std::chrono::steady_clock::now();
+            Room.StartedAt = std::time(nullptr); MatchRecorded = false;
+            Room.Status = "Host match in progress • session membership managed by host";
+        }
+        else if (RemoteState == "complete" && Room.Phase == RoomPhase::Running)
+        { SaveMatch("completed"); Room.Phase = RoomPhase::Complete; Room.Status = "Host ended the match"; }
+        else if (RemoteState == "waiting" && Room.Phase == RoomPhase::Complete)
+        { Room.Phase = RoomPhase::Waiting; Room.StartedAt = 0; ReadyDesired = false; AttributesDirty = true; }
+    }
     EOS_LobbyDetails_Release(Details);
     for (unsigned I = 0; I < Dummies; ++I)
         Room.Players.push_back({"Test player " + std::to_string(I + 1), DummyReady[I], true, false});
@@ -142,7 +175,7 @@ void EOS_CALL AttributesDone(const EOS_Lobby_UpdateLobbyCallbackInfo* C)
 }
 void PublishAttributes()
 {
-    if (!Lobby || Room.LobbyId.empty() || Room.ReadyPending || !AttributesDirty || WantLeave) return;
+    if (!Lobby || Room.LobbyId.empty() || Room.ReadyPending || (!AttributesDirty && !OwnerAttributesDirty) || WantLeave) return;
     EOS_Lobby_UpdateLobbyModificationOptions O{};
     O.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST; O.LocalUserId = User; O.LobbyId = Room.LobbyId.c_str();
     EOS_HLobbyModification Modification = nullptr;
@@ -157,7 +190,16 @@ void PublishAttributes()
         D.Key = "display_name"; D.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING; D.Value.AsUtf8 = Name.c_str();
         Result = EOS_LobbyModification_AddMemberAttribute(Modification, &A);
     }
-    AttributesDirty = false;
+    if (Result == EOS_EResult::EOS_Success && Room.Owner && OwnerAttributesDirty)
+    {
+        EOS_LobbyModification_AddAttributeOptions A{}; A.ApiVersion = EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST;
+        A.Attribute = &D; A.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
+        D.Key = "session_id"; D.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING; D.Value.AsUtf8 = Room.SessionId.c_str();
+        Result = EOS_LobbyModification_AddAttribute(Modification, &A);
+        D.Key = "match_state"; D.Value.AsUtf8 = Room.Phase == RoomPhase::Running ? "running" : Room.Phase == RoomPhase::Complete ? "complete" : "waiting";
+        if (Result == EOS_EResult::EOS_Success) Result = EOS_LobbyModification_AddAttribute(Modification, &A);
+    }
+    AttributesDirty = false; OwnerAttributesDirty = false;
     if (Success("lobby_attributes", Result))
     {
         EOS_Lobby_UpdateLobbyOptions U{}; U.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST; U.LobbyModificationHandle = Modification;
@@ -170,8 +212,10 @@ void EOS_CALL Prepared(const EOS_Sessions_UpdateSessionCallbackInfo* C)
     if (!Current(C->ClientData)) return;
     Operation = false;
     if (!Success("session_create", C->ResultCode)) { Room.Phase = RoomPhase::Failed; AutoArmed = false; return; }
+    OwnerAttributesDirty = true;
     SessionExists = true; Room.SessionId = C->SessionId ? C->SessionId : "";
     Room.Phase = RoomPhase::Waiting; Room.Status = "Lobby open • match session prepared";
+    RecordHistory("session", Room);
 }
 void Prepare()
 {
@@ -220,7 +264,8 @@ void EOS_CALL Started(const EOS_Sessions_StartSessionCallbackInfo* C)
 {
     if (!Current(C->ClientData)) return;
     Operation = false;
-    if (!Success("session_start", C->ResultCode)) { Room.Phase = RoomPhase::Waiting; AutoArmed = false; return; }
+    if (!Success("session_start", C->ResultCode)) { Room.Phase = RoomPhase::Failed; AutoArmed = false; return; }
+    OwnerAttributesDirty = true;
     Room.Phase = RoomPhase::Running; MatchClock = std::chrono::steady_clock::now();
     Room.StartedAt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()); MatchRecorded = false;
     Room.Status = "EOS match session in progress • lifecycle test, no gameplay simulation";
@@ -231,10 +276,10 @@ void EOS_CALL RegisteredPlayers(const EOS_Sessions_RegisterPlayersCallbackInfo* 
 {
     if (!Current(C->ClientData)) return;
     Operation = false;
-    if (!Success("session_register_real_players", C->ResultCode)) { Room.Phase = RoomPhase::Waiting; AutoArmed = false; return; }
+    if (!Success("session_register_real_players", C->ResultCode)) { Room.Phase = RoomPhase::Failed; AutoArmed = false; return; }
     Refresh();
     if (WantLeave || !EveryoneReady(Room) || RealMembers != Registered)
-    { Room.Phase = RoomPhase::Waiting; AutoArmed = false; Room.Status = "Readiness or membership changed. Start cancelled."; return; }
+    { Room.Phase = RoomPhase::Failed; AutoArmed = false; Room.Status = "Readiness or membership changed. Start cancelled."; return; }
     EOS_Sessions_StartSessionOptions O{}; O.ApiVersion = EOS_SESSIONS_STARTSESSION_API_LATEST; O.SessionName = SessionName;
     Operation = true; EOS_Sessions_StartSession(Sessions, &O, Cookie(), Started);
 }
@@ -244,6 +289,7 @@ void EOS_CALL Ended(const EOS_Sessions_EndSessionCallbackInfo* C)
     Operation = false;
     if (!Success("session_end", C->ResultCode)) { Room.Phase = RoomPhase::Running; AutoArmed = false; return; }
     SaveMatch(WantLeave ? "abandoned" : "completed");
+    OwnerAttributesDirty = true;
     Room.Phase = RoomPhase::Complete; Room.Status = "Match ended • history queued for EOS cloud sync";
     ResetDummyReadiness();
 }
@@ -272,14 +318,15 @@ void EOS_CALL Sending(const EOS_RTCAudio_UpdateSendingCallbackInfo* C)
     if (!Current(C->ClientData)) return;
     Room.VoicePending = false;
     const bool Ok = Success("rtc_sending", C->ResultCode);
-    if (!Ok) Room.Microphone = false;
+    if (Ok) Room.Microphone = PendingMicrophone;
     Room.VoiceStatus = Ok ? (Room.Microphone ? "Microphone on • EOS RTC" : "Microphone muted • EOS RTC") : "Microphone update failed";
 }
 void EOS_CALL Receiving(const EOS_RTCAudio_UpdateReceivingCallbackInfo* C)
 {
     if (!Current(C->ClientData)) return;
     Room.VoicePending = false;
-    if (!Success("rtc_receiving", C->ResultCode)) Room.VoiceStatus = "Speaker update failed";
+    if (Success("rtc_receiving", C->ResultCode)) Room.Listening = PendingListening;
+    else Room.VoiceStatus = "Speaker update failed; previous state retained";
 }
 }
 const RoomReading& InspectRoom() noexcept { return Room; }
@@ -340,7 +387,7 @@ bool StartRoomMatch()
 }
 bool EndRoomMatch()
 {
-    if (!Sessions || Operation || Room.Phase != RoomPhase::Running) return false;
+    if (!Sessions || !Room.Owner || !SessionExists || Operation || Room.Phase != RoomPhase::Running) return false;
     Room.Phase = RoomPhase::Ending; Operation = true;
     EOS_Sessions_EndSessionOptions O{}; O.ApiVersion = EOS_SESSIONS_ENDSESSION_API_LATEST; O.SessionName = SessionName;
     EOS_Sessions_EndSession(Sessions, &O, Cookie(), Ended); return true;
@@ -358,14 +405,14 @@ bool SetRoomMicrophone(bool Enabled)
     EOS_RTCAudio_UpdateSendingOptions O{}; O.ApiVersion = EOS_RTCAUDIO_UPDATESENDING_API_LATEST;
     O.LocalUserId = User; O.RoomName = VoiceRoom.c_str();
     O.AudioStatus = Enabled ? EOS_ERTCAudioStatus::EOS_RTCAS_Enabled : EOS_ERTCAudioStatus::EOS_RTCAS_Disabled;
-    Room.Microphone = Enabled; Room.VoicePending = true; EOS_RTCAudio_UpdateSending(Audio, &O, Cookie(), Sending); return true;
+    PendingMicrophone = Enabled; Room.VoicePending = true; EOS_RTCAudio_UpdateSending(Audio, &O, Cookie(), Sending); return true;
 }
 bool SetRoomListening(bool Enabled)
 {
     if (!Audio || !Room.VoiceConnected || VoiceRoom.empty() || Room.VoicePending || WantLeave) return false;
     EOS_RTCAudio_UpdateReceivingOptions O{}; O.ApiVersion = EOS_RTCAUDIO_UPDATERECEIVING_API_LATEST;
     O.LocalUserId = User; O.RoomName = VoiceRoom.c_str(); O.bAudioEnabled = Enabled ? EOS_TRUE : EOS_FALSE;
-    Room.Listening = Enabled; Room.VoicePending = true; EOS_RTCAudio_UpdateReceiving(Audio, &O, Cookie(), Receiving); return true;
+    PendingListening = Enabled; Room.VoicePending = true; EOS_RTCAudio_UpdateReceiving(Audio, &O, Cookie(), Receiving); return true;
 }
 void LeaveRoom() { if (!User) return; WantLeave = true; AutoArmed = false; }
 void TickRoomRuntime()
@@ -375,7 +422,8 @@ void TickRoomRuntime()
     if (Dirty || std::chrono::steady_clock::now() - LastRefresh > std::chrono::seconds(1)) Refresh();
     if (WantLeave && !Operation && !Room.ReadyPending)
     {
-        if (Room.Phase == RoomPhase::Running) { EndRoomMatch(); return; }
+        if (Room.Phase == RoomPhase::Running && Room.Owner && SessionExists) { EndRoomMatch(); return; }
+        if (Room.Phase == RoomPhase::Running) SaveMatch("abandoned");
         if (SessionExists)
         {
             SaveMatch("abandoned"); Room.Phase = RoomPhase::Leaving;
@@ -398,9 +446,9 @@ void TickRoomRuntime()
             return;
         }
     }
+    if (!WantLeave) PublishAttributes();
     if (!WantLeave && Room.Phase == RoomPhase::Waiting)
     {
-        PublishAttributes();
         if (Room.AutoStart && AutoArmed && Room.Owner && !Room.ReadyPending && !AttributesDirty && EveryoneReady(Room)) StartRoomMatch();
     }
 }
@@ -416,6 +464,7 @@ void DetachRoomRuntime()
     MemberUpdate = MemberStatus = RoomConnection = EOS_INVALID_NOTIFICATIONID;
     DetachHistory(); Room = {}; Lobby = nullptr; Sessions = nullptr; Audio = nullptr; User = nullptr; Log = nullptr;
     RealMembers.clear(); Registered.clear(); VoiceRoom.clear(); JoinAfterLeave.clear(); Name = "You";
+    OwnerAttributesDirty = false;
     Dirty = true; Operation = SessionExists = WantLeave = LobbyLeaveSent = false;
     ReadyDesired = AttributesDirty = MatchRecorded = false; AutoArmed = true; Dummies = 3; DummyReady.fill(false);
 }

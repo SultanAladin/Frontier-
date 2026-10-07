@@ -11,6 +11,8 @@
 #include <wincred.h>
 #endif
 #include "EpicExchange.h"
+#include "LobbyPanel.h"
+#include "LocalConfiguration.h"
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
@@ -28,6 +30,17 @@
 namespace
 {
 char Secret[512]{};
+char StorageKey[65]{};
+bool DisconnectRequested = false;
+bool CloseAfterDisconnect = false;
+std::chrono::steady_clock::time_point DisconnectStarted;
+void RequestDisconnect()
+{
+    if (DisconnectRequested) return;
+    DisconnectRequested = true;
+    DisconnectStarted = std::chrono::steady_clock::now();
+    Networking::LeaveRoom();
+}
 char ClientId[256] = "xyza7891AKjtZj8wTzcmI5F3oc1zLU4s";
 char Credential[128] = "PlayerOne";
 char Diagnostics[32768]{};
@@ -54,7 +67,7 @@ const ImVec4 SuccessColour(0.68f, 0.83f, 0.57f, 1);
 const ImVec4 WarningColour(0.91f, 0.73f, 0.43f, 1);
 const ImVec4 ErrorColour(0.96f, 0.51f, 0.47f, 1);
 const ImVec4 Muted(0.53f, 0.58f, 0.53f, 1.0f);
-const ImVec4 Accent(0.79f, 0.87f, 0.71f, 1.0f);
+const ImVec4 Accent(0.30f, 0.49f, 1.0f, 1.0f);
 
 void WipeClipboard() noexcept
 {
@@ -200,6 +213,18 @@ bool ForgetCredential(bool WipeInput = true)
 }
 #endif
 
+bool LoadPortableConfiguration()
+{
+    Networking::PortableSettings Settings;
+    if (!Networking::ReadPortableSettings(Settings)) return false;
+    std::snprintf(Secret, sizeof(Secret), "%s", Settings.Secret.c_str());
+    std::snprintf(ClientId, sizeof(ClientId), "%s", Settings.ClientId.c_str());
+    std::snprintf(StorageKey, sizeof(StorageKey), "%s", Settings.StorageKey.c_str());
+    Networking::WipeSettings(Settings);
+    ReceiveDiagnostic("Private portable configuration loaded. Keep that file private; it contains readable credentials and the data key.");
+    return true;
+}
+
 void BeginLogin()
 {
     if (Busy || Verified)
@@ -227,7 +252,7 @@ void BeginLogin()
     }
     Networking::RetireEpic();
     const Networking::LoginSpecification Specification{
-        Secret, ClientId, Method == 0 ? "developer" : "accountportal", Credential, AllowCreation, EnableSocial};
+        Secret, ClientId, Method == 0 ? "developer" : "accountportal", Credential, AllowCreation, EnableSocial, StorageKey};
     Busy = Networking::ConstructEpic(Specification, ReceiveDiagnostic);
     WipeSecret();
     WipeClipboard();
@@ -299,12 +324,12 @@ void ConfigureAppearance()
     Style.ScrollbarSize = 7;
     Style.ScrollbarRounding = 8;
     Style.ChildBorderSize = 1;
-    Style.Colors[ImGuiCol_WindowBg] = ImVec4(0.055f, 0.061f, 0.057f, 1);
-    Style.Colors[ImGuiCol_ChildBg] = ImVec4(0.085f, 0.094f, 0.087f, 1);
+    Style.Colors[ImGuiCol_WindowBg] = ImVec4(0.039f, 0.039f, 0.044f, 1);
+    Style.Colors[ImGuiCol_ChildBg] = ImVec4(0.070f, 0.072f, 0.079f, 1);
     Style.Colors[ImGuiCol_PopupBg] = ImVec4(0.08f, 0.09f, 0.082f, 1);
-    Style.Colors[ImGuiCol_FrameBg] = ImVec4(0.13f, 0.145f, 0.132f, 1);
+    Style.Colors[ImGuiCol_FrameBg] = ImVec4(0.11f, 0.115f, 0.13f, 1);
     Style.Colors[ImGuiCol_Border] = ImVec4(0.17f, 0.19f, 0.175f, 0.7f);
-    Style.Colors[ImGuiCol_Text] = ImVec4(0.90f, 0.92f, 0.88f, 1);
+    Style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.97f, 1);
     Style.Colors[ImGuiCol_TextDisabled] = Muted;
     Style.Colors[ImGuiCol_Button] = ImVec4(0.15f, 0.17f, 0.155f, 1);
     Style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.22f, 0.25f, 0.22f, 1);
@@ -347,6 +372,10 @@ void PresentSetup()
 #endif
     if (ImGui::CollapsingHeader("Advanced"))
     {
+        ImGui::TextWrapped("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same data key between PCs.");
+        ImGui::TextUnformatted("Cloud storage encryption key (64 hex characters)");
+        ImGui::SetNextItemWidth(-1);
+        ImGui::InputText("##storage-key", StorageKey, sizeof(StorageKey), ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo | ImGuiInputTextFlags_AutoSelectAll);
         ImGui::TextUnformatted("EOS client ID");
         ImGui::SetNextItemWidth(-1);
         ImGui::InputText("##client", ClientId, sizeof(ClientId), ImGuiInputTextFlags_AutoSelectAll);
@@ -423,7 +452,7 @@ void PresentLogin()
     if (ImGui::SmallButton("Setup"))
     {
 #if defined(_WIN32)
-        if (!Secret[0]) LoadCredential();
+        if (!Secret[0] && !LoadPortableConfiguration()) LoadCredential();
 #endif
         ContinueAfterSetup = false;
         SetupError = "";
@@ -471,9 +500,9 @@ void PresentLogin()
     else ImGui::TextColored(Muted, "Secure sign-in with your Epic account.");
     ImGui::Dummy(ImVec2(0, 25));
     ImGui::PushStyleColor(ImGuiCol_Button, Accent);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.86f, 0.93f, 0.79f, 1));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.68f, 0.77f, 0.59f, 1));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.10f, 0.15f, 0.085f, 1));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.39f,.57f,1,1));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.17f,.35f,.86f,1));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
     ImGui::BeginDisabled(Busy && !CreationConsent);
     if (ImGui::Button(Verified ? "Open Epic friends" : CreationConsent ? "Create NEW Dev profile & continue" : Busy ? "Waiting for Epic..." : "Log in with Epic    ->", ImVec2(-1, 54)))
     {
@@ -484,7 +513,7 @@ void PresentLogin()
         else
         {
 #if defined(_WIN32)
-            if (!Secret[0]) LoadCredential();
+            if (!Secret[0] && !LoadPortableConfiguration()) LoadCredential();
 #endif
             if (!Secret[0])
                 SetupRequested = true;
@@ -574,7 +603,7 @@ void PresentLogin()
     ImGui::End();
 }
 
-bool CaptureWindow(int Width, int Height)
+bool CaptureWindow(int Width, int Height, const char* Filename = "WindowProof.bmp")
 {
     if (Width <= 0 || Height <= 0)
         return false;
@@ -599,7 +628,7 @@ bool CaptureWindow(int Width, int Height)
     Header[0] = 'B'; Header[1] = 'M'; Header[26] = 1; Header[28] = 24;
     Encode(2, 54 + static_cast<unsigned>(Pixels.size()));
     Encode(10, 54); Encode(14, 40); Encode(18, Width); Encode(22, Height);
-    std::ofstream File("WindowProof.bmp", std::ios::binary);
+    std::ofstream File(Filename, std::ios::binary);
     File.write(reinterpret_cast<const char*>(Header), sizeof(Header));
     File.write(reinterpret_cast<const char*>(Pixels.data()), static_cast<std::streamsize>(Pixels.size()));
     File.close();
@@ -656,10 +685,26 @@ int RunWindow(bool Smoke)
     SdkReady = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
     int Result = 0;
     int Cycles = 0;
-    while (!glfwWindowShouldClose(Window))
+    while (true)
     {
         glfwPollEvents();
+        if (glfwWindowShouldClose(Window))
+        {
+            if (Smoke || !Verified) break;
+            glfwSetWindowShouldClose(Window, GLFW_FALSE);
+            CloseAfterDisconnect = true; RequestDisconnect();
+        }
         Networking::AdvanceEpic();
+        if (DisconnectRequested)
+        {
+            const bool TimedOut = std::chrono::steady_clock::now() - DisconnectStarted > std::chrono::seconds(8);
+            if ((Networking::RoomIsClosed() && !Networking::InspectHistory().Busy) || TimedOut)
+            {
+                if (TimedOut) ReceiveDiagnostic("Cleanup timed out; remote cleanup is not confirmed. Unsynced history remains in the local cache.");
+                Networking::RetireEpic(); Verified = false; Busy = false; Attempted = false; DisconnectRequested = false;
+                if (CloseAfterDisconnect) break;
+            }
+        }
         if (Busy)
         {
             const auto Progress = Networking::InspectLogin();
@@ -681,7 +726,18 @@ int RunWindow(bool Smoke)
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        PresentLogin();
+        if (Smoke && Cycles >= 12)
+        {
+            Networking::RoomReading Preview;
+            Preview.Phase = Networking::RoomPhase::Waiting;
+            Preview.Status = "UI preview only - no EOS lobby, voice or match was created";
+            Preview.Players = {{"Layout test A", false, true, false}, {"Layout test B", true, true, false},
+                {"Layout test C", false, true, false}, {"Layout test D", true, true, false}};
+            Networking::RenderLobbyPanel(TitleFont, Diagnostics, CopyDiagnostics, RequestDisconnect, &Preview);
+        }
+        else if (Verified)
+            Networking::RenderLobbyPanel(TitleFont, Diagnostics, CopyDiagnostics, RequestDisconnect);
+        else PresentLogin();
         ImGui::Render();
         int Width = 0, Height = 0;
         glfwGetFramebufferSize(Window, &Width, &Height);
@@ -709,6 +765,14 @@ int RunWindow(bool Smoke)
                   << "\nauthentication=NOT_ATTEMPTED\n" << Diagnostics;
             if (!Proof)
                 Result = 3;
+        }
+        if (Smoke && Cycles == 24)
+        {
+            glFinish();
+            const bool LobbyCaptured = CaptureWindow(Width, Height, "LobbyProof.bmp");
+            std::ofstream("WindowChecks.log", std::ios::app) << "lobby_ui_preview_rendered=" << LobbyCaptured
+                << "\nlobby_ui_scope=layout_only authentication=NOT_ATTEMPTED\n";
+            if (!LobbyCaptured) Result = 3;
             glfwSetWindowShouldClose(Window, GLFW_TRUE);
         }
         glfwSwapBuffers(Window);

@@ -1,51 +1,59 @@
-CHARGE / ONLINE ACCESS
-======================
-1. Extract this ZIP into a NEW folder (do not mix with earlier versions).
-2. Install EpicOnlineServicesInstaller.exe once if needed. This is the official
-   installer already in your EOS SDK Tools folder / shared Drive. Installation
-   may ask for Windows permission; the app never runs it silently.
-   https://drive.google.com/file/d/1JPhKa2DsiEQza6dFzyf48g5NAGPPYvUW/view
-3. Open Charge.exe. This is Epic's configured, unmodified Bootstrapper, NOT the
-   older direct NetworkingLogin.exe entry point. Keep its config alongside it.
-4. Click Log in with Epic. The first time, Setup asks for the ROTATED application
-   client secret (not your Epic password). Application IDs are prefilled.
-5. Optionally enable Remember on this PC to store the client ID and secret in
-   Windows Credential Manager for your Windows user. Otherwise they remain only
-   in process memory, are wiped after submission, and must be re-entered.
+FRONTIER / CHARGE - LOBBY LAB
+============================
+START
+1. Extract into a fresh folder. Run the official EOS service installer once if
+   it is not already installed. Open Charge.exe, the configured Epic Bootstrapper.
+2. For portable login and EOS cloud history, put PRIVATE Charge.local.ini next
+   to Charge.exe. Carry this SAME file to each PC. It contains readable client
+   credentials and the 64-hex-character player-data encryption key: keep it private.
+   It is deliberately NOT in this public ZIP. Never commit or share it.
+3. Click Log in. The existing Windows vault route also works, but cloud history
+   needs the data key from the private file (or Setup > Advanced).
 
-Settings live under Setup. Advanced contains the Developer Auth Tool route,
-permissions, SDK check, and Forget saved credential. To remove saved credentials
-outside the app: Windows Credential Manager > Windows Credentials >
-Frontier/Charge/Dev/EOSClient. Windows user credentials are not protection against
-malware running as that user. No Epic player password or token is stored there.
+FLOW
+Verified Auth + Connect -> automatic EOS lobby/RTC room and prepared match session
+-> mark yourself ready -> mark local dummy players ready -> start EOS match session
+-> End test match -> cache and queue a completed test record to EOS Player Data Storage.
+The host can disable auto-start. Prepare next match recreates the ended session.
+Joining another real lobby by ID is available under Join a friend. The host manages
+session registration. There is no actual game transport or gameplay replication yet.
 
-Epic owns the Account Portal presentation. There is no invented browser OAuth
-fallback, and no bypass of the service, app permissions, or Epic approval rules.
-Status 1 means the application was not launched through the Bootstrapper;
-status 2 means the EOS service is missing. Use Charge.exe, not App/*.exe.
+DUMMY PLAYERS
+The default three LOCAL DUMMY cards are only readiness controls for testing alone.
+They do not have Epic identities, are not registered session players and cannot
+send or receive voice. Records count real and dummy participants separately.
 
-The console colours informational, successful, warning and failed events.
-SDK ready is NOT proof of login. Only successful EOS Auth AND Connect set the
-verified state. Account permissions/consent and test-user eligibility still apply.
+VOICE
+EOS lobby RTC is real SDK functionality and starts with local audio input muted.
+Click Enable microphone explicitly. Use OS default input/output devices and allow
+microphone access in Windows. Connected voice is not proof that another person
+can hear you: test with a second eligible Epic account on another PC.
+Microsoft's hash-pinned XAudio2 redistributable is included under App, with notices.
 
-The runtime DLL is included. Do not copy files manually. This is a standalone
-networking test project, not the complete Frontier engine. The project DLL stays
-under Build/Output. CI checks rendering, SDK lifetime and extracted-package
-startup; it does NOT claim a real account login, overlay, or service-start test.
+CLOUD HISTORY
+Client policy must allow the lobby, sessions, voice and Player Data Storage actions
+used by this test app. Use minimal appropriate client permissions, not admin or
+trusted-server permissions. An EOS access/policy failure is displayed in the log.
+Cloud records include successful-login UTC, prepared session ID, completed or
+abandoned test sessions, duration and explicit dummy counts. No invented kills,
+scores or gameplay results. This is client-written history, not trusted competition
+statistics or an EOS Stats leaderboard. Up to 64 recent records are shown.
 
-PLATFORM REFUSAL / SAVED CREDENTIAL CORRECTION
-If the app reports a secret longer than 64 characters, open Setup, copy only the
-rotated secret, and use Paste secret to REPLACE the entire field. Keep Remember
-checked and click Apply / Save & log in to replace the old saved value. The app
-never truncates credentials or sends invalid input to EOS. If it still fails,
-Save log now includes redacted platform-error categories; attach that log, never
-your secret. Saving successfully does not mean Epic has accepted the credential.
+Records are separate immutable event files to avoid overwriting another PC's log.
+Local cache/pending uploads: %LOCALAPPDATA%\FrontierCharge\dev-v1\history\<PUID>.
+Keep the same storage_key on both PCs. Losing/changing it can make old cloud data
+unreadable. Rotating client_secret does NOT require changing storage_key.
+Failed uploads remain locally pending. Use Sync cloud history to retry. Normal
+Disconnect/close waits up to 8 seconds for cleanup/sync, then reports any timeout.
+Hard process termination cannot guarantee immediate remote lobby/session cleanup.
 
-COUNTRY PERMISSION / ACCOUNT CARD
-Charge now requests all four permissions required by its Epic application:
-Basic Profile, Friends List, Presence and Country. Review Epic's consent prompt.
-After Auth + Connect succeed, the account card shows your real Epic display name,
-country and language when Epic provides them. Profile details are not saved to logs.
-If asked to create a NEW Dev profile, approve only for a new test product user;
-this continues Connect without another login. Cancel if you need identity linking.
-The yellow unreviewed-brand banner is an Epic portal/review setting, not bypassed.
+PRIVACY / DIAGNOSTICS
+Copy log places redacted diagnostics on the Windows clipboard. Profile details,
+credentials and cloud encryption keys are not included. The private config may
+contain a credential previously exposed in chat: rotate it and replace only its
+client_secret value. No portable credential file belongs in a public release.
+
+PROOF BOUNDARIES
+WindowProof.bmp: rendered login window. LobbyProof.bmp: clearly labelled synthetic
+layout preview, NOT a real lobby or login. CI checks SDK/platform creation and local
+logic, NOT authenticated lobby creation, RTC transmission or player-data transfers.

@@ -115,6 +115,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Login checks compilation failed' }
             & "$Output/LoginSequenceChecks.exe"
             if ($LASTEXITCODE -ne 0) { throw 'Login checks failed' }
+            & cl.exe /nologo /std:c++20 /MD /EHsc /W4 /utf-8 "$env:GITHUB_WORKSPACE/VisualProof/Networking/LobbyChecks.cpp" "/Fe:$Output/LobbyChecks.exe" "/Fo:$Output/LobbyChecks.obj"
+            if ($LASTEXITCODE -ne 0) { throw 'Lobby/history checks compilation failed' }
+            & "$Output/LobbyChecks.exe"
+            if ($LASTEXITCODE -ne 0) { throw 'Lobby/history checks failed' }
             # Hosted runner has no hardware OpenGL ICD. These DLLs are NOT shipped.
             Copy-Item "$env:RUNNER_TEMP/Mesa/x64/*.dll" $Output -Force
             $env:GALLIUM_DRIVER = 'llvmpipe'
@@ -142,7 +146,7 @@ jobs:
           $Project = 'Frontier/Projects/Project-Networking'
           $Package = '_AgentScratch/Package/Project-Networking'
           New-Item -ItemType Directory -Force "$Package/Build/Output", "$Package/Content/Scenes", "$Package/App" | Out-Null
-          foreach ($Name in @('NetworkingLogin.exe', 'ProjectNetworking.dll', 'EOSSDK-Win64-Shipping.dll', 'BuildEvidence.json', 'WindowsChecks.log', 'WindowChecks.log', 'WindowProof.bmp')) {
+          foreach ($Name in @('NetworkingLogin.exe', 'ProjectNetworking.dll', 'EOSSDK-Win64-Shipping.dll', 'BuildEvidence.json', 'WindowsChecks.log', 'WindowChecks.log', 'WindowProof.bmp', 'LobbyProof.bmp')) {
             Copy-Item "$Project/Build/Output/$Name" "$Package/Build/Output/"
           }
           Move-Item "$Package/Build/Output/NetworkingLogin.exe" "$Package/App/NetworkingLogin.exe"
@@ -204,6 +208,6 @@ jobs:
           } else {
             gh release create $Tag $Zip "$Zip.sha256" --repo $env:GITHUB_REPOSITORY `
               --target $env:GITHUB_SHA --prerelease --title 'Project-Networking - ImGui Windows login app' `
-              --notes 'Minimal dark login card and coloured activity log. Extract into a fresh folder and open Charge.exe, the configured official Epic Bootstrapper. EOS runtime is included under App. First install EpicOnlineServicesInstaller.exe from your EOS Tools folder if the EOS service is missing. Setup holds application credentials; optional Windows Credential Manager storage enables repeat one-click login. Account Portal is the default; Developer Auth remains under Advanced. CI tests rendering, SDK lifetime and packaging, NOT real player login or service startup. No claim of authenticated content access.'
+              --notes 'Native Frontier-inspired lobby UI with real EOS lobby, host-managed session lifecycle, muted-by-default RTC voice, and Player Data Storage history. Local dummy players are explicitly labelled and never registered as EOS users. Copy log replaces Save log. Extract and open Charge.exe. EOS and Microsoft XAudio2 runtimes are included. A PRIVATE Charge.local.ini is needed for portable credentials and a consistent cross-PC data key; it is intentionally excluded from this public download. Requires lobby/session/voice/player-data client-policy permissions. CI checks build, deterministic state/data logic, real SDK/platform startup and native UI rendering. CI does not authenticate a player or prove live lobby, voice, session or cloud success. Gameplay replication and authoritative competitive stats are not implemented.'
           }
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

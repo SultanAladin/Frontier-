@@ -55,7 +55,7 @@ inline bool DecodeHistory(std::string_view Text, HistoryRecord& Output)
         Fields |= Bit;
     }
     if (Fields != 511 || !ValidHistoryId(R.Id) || !SafeRecordIdentifier(R.Lobby) || !SafeRecordIdentifier(R.Session) ||
-        (R.Kind != "login" && R.Kind != "completed" && R.Kind != "abandoned") ||
+        (R.Kind != "login" && R.Kind != "session" && R.Kind != "completed" && R.Kind != "abandoned") ||
         R.Utc < 0 || R.Utc > 4102444800LL || R.Duration < 0 || R.Duration > 604800 ||
         R.RealPlayers > 8 || R.DummyPlayers > 3) return false;
     Output = R;
