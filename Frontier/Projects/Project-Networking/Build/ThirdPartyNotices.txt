@@ -1,0 +1,9 @@
+Epic Online Services SDK runtime
+Copyright Epic Games, Inc. All Rights Reserved.
+
+EOSSDK-Win64-Shipping.dll is an Epic Online Services SDK 1.19.2.1 runtime supplied
+from the project owner's EOS download. It is third-party software, not original
+Frontier code, and remains subject to Epic's applicable SDK license terms.
+The project owner's SDK license and accompanying original notices are not replaced
+by this attribution. This test package does not include SDK development headers,
+import libraries, or Epic's Developer Authentication Tool.

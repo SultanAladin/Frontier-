@@ -1,13 +1,13 @@
 PROJECT-NETWORKING - WINDOWS X64 LOGIN TEST
 
 This package contains the actual MSVC-built LoginHost.exe and ProjectNetworking.dll.
-It does NOT contain the full Frontier engine, proprietary SDK files, or credentials.
+The EOS 1.19.2.1 Windows x64 runtime is already included beside the EXE.
+It does NOT contain the full Frontier engine, SDK headers/import libraries, or credentials.
 WindowsChecks.log records real SDK startup checks, NOT a player login.
 
 1. Extract the whole ZIP. Do not run the EXE from inside the ZIP viewer.
-2. From your EOS Flattened Drive folder, copy Bin/EOSSDK-Win64-Shipping.dll into
-   this package's Build/Output folder, beside LoginHost.exe. Use the x64 DLL,
-   not the arm64 DLL. The build used SDK 1.19.2.1.
+2. Leave the included EOSSDK-Win64-Shipping.dll in Build/Output beside LoginHost.exe.
+   No separate SDK download or manual DLL copy is needed.
 3. Install Microsoft Visual C++ 2015-2022 Redistributable (x64) if Windows reports
    missing VCRUNTIME140/MSVCP140 libraries. Never fetch individual DLLs from DLL sites.
 4. Start Epic's Developer Authentication Tool from your original Epic SDK/tools download.

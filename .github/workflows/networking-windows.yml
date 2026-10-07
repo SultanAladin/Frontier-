@@ -9,7 +9,7 @@ on:
       - 'Docs/NetworkingLogin.md'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   windows:
     runs-on: windows-2022
@@ -65,13 +65,13 @@ jobs:
           } finally {
             Stop-Transcript
           }
-      - name: Package binaries without SDK redistribution or credentials
+      - name: Package binaries with EOS runtime, without credentials
         shell: pwsh
         run: |
           $Project = 'Frontier/Projects/Project-Networking'
           $Package = '_AgentScratch/Package/Project-Networking'
           New-Item -ItemType Directory -Force "$Package/Build/Output", "$Package/Content/Scenes" | Out-Null
-          foreach ($Name in @('LoginHost.exe', 'ProjectNetworking.dll', 'BuildEvidence.json', 'WindowsChecks.log')) {
+          foreach ($Name in @('LoginHost.exe', 'ProjectNetworking.dll', 'EOSSDK-Win64-Shipping.dll', 'BuildEvidence.json', 'WindowsChecks.log')) {
             Copy-Item "$Project/Build/Output/$Name" "$Package/Build/Output/"
           }
           Copy-Item "$Project/Build/LoginSequence.ps1" "$Package/Build/"
@@ -80,10 +80,18 @@ jobs:
           Copy-Item "$Project/Content/Scenes/Networking.gltf" "$Package/Content/Scenes/"
           Copy-Item Docs/NetworkingLogin.md "$Package/INSTRUCTIONS.md"
           Copy-Item "$Project/Build/BinaryInstructions.txt" "$Package/START-HERE.txt"
+          Copy-Item "$Project/Build/ThirdPartyNotices.txt" "$Package/THIRD-PARTY.txt"
           Get-ChildItem $Package -Recurse -File | Get-FileHash -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash)  $([IO.Path]::GetRelativePath((Resolve-Path $Package), $_.Path))" } |
             Set-Content "$Package/SHA256SUMS.txt"
           Compress-Archive -Path $Package -DestinationPath '_AgentScratch/Project-Networking-Windows-x64.zip'
+          $Zip = '_AgentScratch/Project-Networking-Windows-x64.zip'
+          "$((Get-FileHash $Zip -Algorithm SHA256).Hash)  Project-Networking-Windows-x64.zip" |
+            Set-Content '_AgentScratch/Project-Networking-Windows-x64.zip.sha256'
+          Expand-Archive $Zip '_AgentScratch/VerifyPackage'
+          $Executable = '_AgentScratch/VerifyPackage/Project-Networking/Build/Output/LoginHost.exe'
+          & $Executable --sdk-check
+          if ($LASTEXITCODE -ne 0) { throw 'Extracted package failed real EOS runtime startup' }
       - name: Upload Windows test package
         uses: actions/upload-artifact@v4
         with:
@@ -91,3 +99,19 @@ jobs:
           path: _AgentScratch/Project-Networking-Windows-x64.zip
           if-no-files-found: error
           retention-days: 14
+      - name: Publish persistent release download
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Tag = "networking-test-$env:GITHUB_RUN_ID"
+          $Zip = '_AgentScratch/Project-Networking-Windows-x64.zip'
+          gh release view $Tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $Tag $Zip "$Zip.sha256" --clobber --repo $env:GITHUB_REPOSITORY
+          } else {
+            gh release create $Tag $Zip "$Zip.sha256" --repo $env:GITHUB_REPOSITORY `
+              --target $env:GITHUB_SHA --prerelease --title 'Project-Networking Windows x64 login test' `
+              --notes 'MSVC C++20 /MD build. Includes EOS 1.19.2.1 x64 runtime beside LoginHost.exe; no manual DLL copy required. Extract and read START-HERE.txt. Developer Authentication Tool and your rotated local client secret are still required. SDK startup checks passed; player authentication was not attempted in CI. This is the networking test project, not the complete Frontier engine.'
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
