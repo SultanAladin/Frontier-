@@ -79,6 +79,12 @@ jobs:
           try {
             & "$Output/LoginHost.exe" --sdk-check
             if ($LASTEXITCODE -ne 0) { throw 'Real EOS initialization/shutdown failed' }
+            $Lifecycle = & "$Output/LoginHost.exe" --lifecycle-check
+            if ($LASTEXITCODE -ne 0) { throw 'Same-process SDK lifecycle regression' }
+            $Lifecycle | Write-Host
+            if (($Lifecycle | Where-Object { $_ -eq 'sdk_initialized_once=1' }).Count -ne 1 -or
+                ($Lifecycle | Where-Object { $_ -eq 'sdk_shutdown_once=1' }).Count -ne 1 -or
+                ($Lifecycle -match 'EOS_AlreadyConfigured')) { throw 'Unexpected SDK reinitialization' }
             & "$Output/LoginHost.exe"
             if ($LASTEXITCODE -ne 2) { throw 'Missing-secret refusal did not fail closed' }
             $Check = "$env:GITHUB_WORKSPACE/VisualProof/Networking/LoginSequenceChecks.cpp"
@@ -160,6 +166,6 @@ jobs:
           } else {
             gh release create $Tag $Zip "$Zip.sha256" --repo $env:GITHUB_REPOSITORY `
               --target $env:GITHUB_SHA --prerelease --title 'Project-Networking - ImGui Windows login app' `
-              --notes 'Native Dear ImGui + GLFW window, Windows subsystem (no console). Extract and double-click NetworkingLogin.exe. EOS runtime is included. Window rendering (Mesa software OpenGL) and SDK startup were checked in CI; see included WindowProof.bmp and START-HERE.txt. Developer Authentication Tool and your rotated local client secret are still required. SDK startup checks passed; player authentication was not attempted in CI. This is the networking test project, not the complete Frontier engine.'
+              --notes 'ImGui + GLFW login/friends app. Fixes EOS SDK reinitialization after startup. Adds real friends queries and Epic overlay controls; overlays require official Bootstrapper and redistributable setup. No console. Extract and double-click NetworkingLogin.exe. EOS runtime is included. Window rendering (Mesa software OpenGL) and SDK startup were checked in CI; see included WindowProof.bmp and START-HERE.txt. Developer Authentication Tool and your rotated local client secret are still required. SDK startup checks passed; player authentication was not attempted in CI. This is the networking test project, not the complete Frontier engine.'
           }
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

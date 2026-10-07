@@ -31,6 +31,8 @@ char Credential[128] = "PlayerOne";
 char Diagnostics[32768]{};
 size_t DiagnosticLength = 0;
 bool AllowCreation = false;
+bool EnableSocial = true;
+char ClipboardText[8192]{};
 bool Busy = false;
 bool Attempted = false;
 bool Verified = false;
@@ -40,6 +42,13 @@ bool ScrollPending = false;
 int Method = 0;
 const ImVec4 Muted(0.57f, 0.64f, 0.73f, 1.0f);
 const ImVec4 Accent(0.34f, 0.75f, 0.98f, 1.0f);
+
+void WipeClipboard() noexcept
+{
+    volatile char* Bytes = ClipboardText;
+    for (size_t Index = 0; Index < sizeof(ClipboardText); ++Index)
+        Bytes[Index] = 0;
+}
 
 void WipeSecret() noexcept
 {
@@ -63,23 +72,70 @@ void ReceiveDiagnostic(const char* Text)
     ScrollPending = true;
 }
 
+#if defined(_WIN32)
+const char* ReadUnicodeClipboard(ImGuiContext*)
+{
+    WipeClipboard();
+    if (!IsClipboardFormatAvailable(CF_UNICODETEXT))
+    {
+        ReceiveDiagnostic("Clipboard has no plain Unicode text. Use the portal copy icon or type the field manually.");
+        return ClipboardText;
+    }
+    if (!OpenClipboard(nullptr))
+    {
+        ReceiveDiagnostic("Clipboard is busy. Try pasting again.");
+        return ClipboardText;
+    }
+    HANDLE Content = GetClipboardData(CF_UNICODETEXT);
+    const auto* Text = Content ? static_cast<const wchar_t*>(GlobalLock(Content)) : nullptr;
+    bool Copied = false;
+    if (Text)
+    {
+        const size_t Capacity = GlobalSize(Content) / sizeof(wchar_t);
+        size_t Length = 0;
+        while (Length < Capacity && Text[Length])
+            ++Length;
+        if (Length < Capacity && Length < 4096)
+        {
+            const int Count = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, Text, static_cast<int>(Length),
+                ClipboardText, static_cast<int>(sizeof(ClipboardText)) - 1, nullptr, nullptr);
+            Copied = Count > 0 || Length == 0;
+            if (Count > 0)
+                ClipboardText[Count] = 0;
+        }
+        GlobalUnlock(Content);
+    }
+    CloseClipboard();
+    if (!Copied)
+        ReceiveDiagnostic("Clipboard text could not be read safely. Copy only the field text and retry.");
+    return ClipboardText;
+}
+#endif
+
 void BeginLogin()
 {
-    if (Busy)
+    if (Busy || Verified)
         return;
     Verified = false;
     Cancelled = false;
     Attempted = true;
-    if (!Secret[0] || !ClientId[0] || (Method == 0 && !Credential[0]))
+    if (!Secret[0])
     {
-        ReceiveDiagnostic("Input refused: enter a client ID, rotated secret, and developer credential name if needed.");
+        ReceiveDiagnostic("Client secret is empty. Enter the ROTATED EOS application secret; it is not your Epic password.");
+        return;
+    }
+    if (!ClientId[0] || (Method == 0 && !Credential[0]))
+    {
+        ReceiveDiagnostic("Client ID or Developer Auth Tool credential NAME is missing.");
         return;
     }
     Networking::RetireEpic();
     const Networking::LoginSpecification Specification{
-        Secret, ClientId, Method == 0 ? "developer" : "accountportal", Credential, AllowCreation};
+        Secret, ClientId, Method == 0 ? "developer" : "accountportal", Credential, AllowCreation, EnableSocial};
     Busy = Networking::ConstructEpic(Specification, ReceiveDiagnostic);
     WipeSecret();
+    WipeClipboard();
+    ReceiveDiagnostic("Secret cleared after submission. Re-enter it before retrying.");
     if (!Busy)
         Networking::RetireEpic();
 }
@@ -147,6 +203,7 @@ void PresentLogin()
     ImGui::SetNextWindowSize(View->WorkSize);
     ImGui::Begin("Project-Networking", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoSavedSettings);
+    ImGui::BeginDisabled(Networking::EpicOverlayOwnsInput());
     ImGui::TextColored(Accent, "FRONTIER  /  PROJECT-NETWORKING");
     ImGui::SetWindowFontScale(1.65f);
     ImGui::TextUnformatted("Charge - Online access");
@@ -162,10 +219,10 @@ void PresentLogin()
     ImGui::BeginChild("Credentials", ImVec2(LeftWidth, Height), ImGuiChildFlags_Borders);
     ImGui::TextColored(Accent, "01  SIGN IN");
     ImGui::TextColored(Muted, "Charge / Dev sandbox / Dev Deployment");
-    ImGui::BeginDisabled(Busy);
+    ImGui::BeginDisabled(Busy || Verified);
     ImGui::TextUnformatted("Login method");
     ImGui::SetNextItemWidth(-1);
-    ImGui::Combo("##method", &Method, "Developer Auth Tool\0Epic Account Portal\0");
+    ImGui::Combo("##method", &Method, "Developer Auth Tool\0Epic login overlay (Account Portal)\0");
     if (Method == 0)
     {
         ImGui::TextUnformatted("Saved developer credential name");
@@ -182,7 +239,19 @@ void PresentLogin()
     ImGui::SetNextItemWidth(-1);
     ImGui::InputTextWithHint("##secret", "Enter the rotated secret locally", Secret, sizeof(Secret),
         ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo);
-    ImGui::TextColored(Muted, "Never saved to disk or written into the log.");
+    ImGui::TextColored(Muted, "Application credential - NOT your Epic password.");
+    ImGui::TextWrapped("Cleared after submission. Re-enter to retry. Never saved to disk or included in logs.");
+#if defined(_WIN32)
+    if (ImGui::Button("Paste secret"))
+    {
+        const char* Text = ReadUnicodeClipboard(nullptr);
+        if (std::strlen(Text) < sizeof(Secret))
+            std::snprintf(Secret, sizeof(Secret), "%s", Text);
+        else
+            ReceiveDiagnostic("Clipboard text is too long for this field; copy only the client secret.");
+        WipeClipboard();
+    }
+#endif
     if (ImGui::CollapsingHeader("Client configuration"))
     {
         ImGui::TextUnformatted("Client ID (not your Application ID)");
@@ -191,6 +260,7 @@ void PresentLogin()
         ImGui::TextWrapped("The provided Dev product, sandbox and deployment are configured. "
             "Edit the Client ID only if you replaced the whole client.");
     }
+    ImGui::Checkbox("Request Friends + Presence permissions", &EnableSocial);
     ImGui::Checkbox("Allow NEW Dev product-user creation", &AllowCreation);
     if (AllowCreation)
         ImGui::TextWrapped("Consent: EOS may create a new PUID. Do not use this to bypass account linking.");
@@ -200,6 +270,21 @@ void PresentLogin()
     ImGui::EndDisabled();
     if (Busy && ImGui::Button("Cancel login", ImVec2(-1, 38)))
         CancelLogin();
+    if (Verified && ImGui::Button("Disconnect", ImVec2(-1, 38)))
+    {
+        Networking::RetireEpic();
+        Verified = false;
+        Attempted = false;
+        ReceiveDiagnostic("Local session disconnected. The SDK stays initialized for another login.");
+    }
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("Epic overlay requirements"))
+    {
+        ImGui::TextWrapped("Login overlay = Epic Account Portal. Friends overlay = Epic Social Overlay. "
+            "Both need Epic's EOS redistributable and the configured EOS Bootstrapper on Windows. "
+            "The included SDK DLL is not the redistributable. These tools were not in the flattened SDK folder.");
+        ImGui::TextWrapped("%s", Networking::InspectOverlayReading());
+    }
     ImGui::Spacing();
     if (ImGui::CollapsingHeader("First-time setup"))
         ImGui::TextWrapped("Open Epic's Developer Authentication Tool on port 6547. "
@@ -244,6 +329,37 @@ void PresentLogin()
         SaveDiagnostics();
     ImGui::Spacing();
     ImGui::Separator();
+    if (ImGui::CollapsingHeader("EPIC FRIENDS & SOCIAL OVERLAY", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::BeginDisabled(!Verified);
+        ImGui::BeginDisabled(Networking::FriendsQueryPending());
+        if (ImGui::Button("Refresh friends"))
+            Networking::QueryEpicFriends();
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Button("Open Epic overlay"))
+            Networking::ShowEpicFriends();
+        if (ImGui::Button("Hide overlay"))
+            Networking::HideEpicFriends();
+        ImGui::EndDisabled();
+        ImGui::TextWrapped("%s", Networking::InspectFriendsReading());
+        ImGui::TextWrapped("%s", Networking::InspectOverlayReading());
+        if (Verified && Networking::InspectFriendCount() > 0)
+        {
+            ImGui::BeginChild("FriendNames", ImVec2(0, 120), ImGuiChildFlags_Borders);
+            for (int Index = 0; Index < Networking::InspectFriendCount(); ++Index)
+            {
+                ImGui::TextUnformatted(Networking::InspectFriendName(Index));
+                ImGui::SameLine();
+                ImGui::TextColored(Muted, "(%s)", Networking::InspectFriendship(Index));
+            }
+            ImGui::EndChild();
+        }
+        ImGui::TextWrapped("Only friends authorized for this application may be returned. "
+            "Use the Epic overlay for friend invitations. Names are never saved in the log.");
+    }
+    ImGui::Spacing();
+    ImGui::Separator();
     ImGui::TextColored(Muted, "ACTIVITY - TOKENS AND IDENTIFIERS ARE OMITTED");
     ImGui::BeginChild("DiagnosticReading", ImVec2(0, 0));
     ImGui::PushTextWrapPos(0);
@@ -257,6 +373,7 @@ void PresentLogin()
     ImGui::EndChild();
     ImGui::EndChild();
     ImGui::TextColored(Muted, "Development login test  /  No credentials embedded  /  EOS runtime included");
+    ImGui::EndDisabled();
     ImGui::End();
 }
 
@@ -335,22 +452,33 @@ int RunWindow(bool Smoke)
         ReceiveDiagnostic("CI rendering check; authentication NOT attempted.");
         ReceiveDiagnostic(reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
     }
+#if defined(_WIN32)
+    ImGui::GetPlatformIO().Platform_GetClipboardTextFn = ReadUnicodeClipboard;
+#endif
     SdkReady = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
     int Result = 0;
     int Cycles = 0;
     while (!glfwWindowShouldClose(Window))
     {
         glfwPollEvents();
+        Networking::AdvanceEpic();
         if (Busy)
         {
-            Networking::AdvanceEpic();
             const auto Progress = Networking::InspectLogin();
             if (Progress == Networking::LoginProgress::Connected || Progress == Networking::LoginProgress::Refused)
             {
                 Verified = Progress == Networking::LoginProgress::Connected;
                 Busy = false;
-                Networking::RetireEpic();
+                if (Verified && EnableSocial)
+                    Networking::QueryEpicFriends();
+                if (!Verified)
+                    Networking::RetireEpic();
             }
+        }
+        else if (Verified && Networking::InspectLogin() != Networking::LoginProgress::Connected)
+        {
+            Verified = false;
+            Networking::RetireEpic();
         }
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -369,10 +497,15 @@ int RunWindow(bool Smoke)
             const bool Captured = CaptureWindow(Width, Height);
             BeginLogin();
             const bool Refused = !Busy && !Verified && Attempted;
-            Result = Captured && SdkReady && Refused ? 0 : 3;
+            Networking::RetireEpic();
+            const bool Reused = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
+            const bool Guarded = !Networking::QueryEpicFriends() && !Networking::ShowEpicFriends();
+            Result = Captured && SdkReady && Refused && Reused && Guarded ? 0 : 3;
             std::ofstream Proof("WindowChecks.log");
             Proof << "glfw_imgui_rendered=" << Captured << "\nsdk_check=" << SdkReady
                   << "\nmissing_credentials_refused=" << Refused
+                  << "\nsdk_reused_same_process=" << Reused
+                  << "\nsocial_requires_login=" << Guarded
                   << "\nauthentication=NOT_ATTEMPTED\n" << Diagnostics;
             if (!Proof)
                 Result = 3;
@@ -380,8 +513,9 @@ int RunWindow(bool Smoke)
         }
         glfwSwapBuffers(Window);
     }
-    Networking::RetireEpic();
+    Networking::ShutdownEpic(ReceiveDiagnostic);
     WipeSecret();
+    WipeClipboard();
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -405,8 +539,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR CommandLine, int)
     }
     catch (...)
     {
-        Networking::RetireEpic();
+        Networking::ShutdownEpic();
         WipeSecret();
+        WipeClipboard();
         if (!Smoke)
             MessageBoxW(nullptr, L"The login window could not continue. No successful login is claimed.",
                 L"Project-Networking", MB_OK | MB_ICONERROR);

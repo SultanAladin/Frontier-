@@ -1,18 +1,43 @@
 Project-Networking real SDK checks
-utc=2026-10-07T07:14:50.825768+00:00
+utc=2026-10-07T07:58:27.475216+00:00
 authentication=NOT_ATTEMPTED; no client secret supplied
 Shutdown handler: initialize.
+EOS_Success
+sdk_initialized_once=1
 scope=sdk_runtime_only authentication=NOT_ATTEMPTED
 1.19.2.1-58105819
+sdk=ready; kept initialized for login and retries
 EOS_Success
-EOS_Success
+sdk_shutdown_once=1
 Shutdown handler: cleanup.
 exit=0
 Shutdown handler: initialize.
+EOS_Success
+sdk_initialized_once=1
 scope=sdk_runtime_only authentication=NOT_ATTEMPTED
 1.19.2.1-58105819
+sdk=ready; kept initialized for login and retries
 EOS_Success
+sdk_shutdown_once=1
+Shutdown handler: cleanup.
+exit=0
+Shutdown handler: initialize.
 EOS_Success
+sdk_initialized_once=1
+scope=sdk_runtime_only authentication=NOT_ATTEMPTED
+1.19.2.1-58105819
+sdk=ready; kept initialized for login and retries
+scope=sdk_runtime_only authentication=NOT_ATTEMPTED
+1.19.2.1-58105819
+sdk=ready; kept initialized for login and retries
+configuration=refused missing_EOS_CLIENT_SECRET; use a rotated credential locally
+scope=sdk_runtime_only authentication=NOT_ATTEMPTED
+1.19.2.1-58105819
+sdk=ready; kept initialized for login and retries
+EOS_Success
+sdk_shutdown_once=1
+sdk=retired; restart the application before using EOS again
+PASS same-process SDK reuse, retry, social guards and terminal shutdown
 Shutdown handler: cleanup.
 exit=0
 Shutdown handler: initialize.
@@ -22,7 +47,7 @@ Shutdown handler: cleanup.
 exit=2
 PASS real executable refuses missing credentials without authentication
 Shutdown handler: initialize.
-Usage: LoginHost [--sdk-check]
+Usage: LoginHost [--sdk-check | --lifecycle-check]
 Shutdown handler: cleanup.
 exit=2
 exit=0

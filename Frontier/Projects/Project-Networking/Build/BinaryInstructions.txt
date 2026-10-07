@@ -30,7 +30,7 @@ A successful SDK check is NOT a player login.
 
 WindowsChecks.log, WindowChecks.log and WindowProof.bmp are CI evidence for SDK startup,
 window rendering, and missing-credential rejection. No player authentication occurred in CI.
-The app remains a one-shot diagnostic, not a persistent multiplayer session.
+The app keeps the authenticated platform alive for social features, but is not a production multiplayer session.
 
 If Windows reports missing VCRUNTIME140/MSVCP140 libraries, install Microsoft's official
 Visual C++ 2015-2022 Redistributable (x64). Never download individual DLLs from DLL sites.
@@ -38,3 +38,22 @@ Visual C++ 2015-2022 Redistributable (x64). Never download individual DLLs from 
 The optional project DLL in Build/Output is for your existing Frontier.exe. This package
 is not a complete engine build. The old console diagnostic remains a CI-only source target
 and is not included in this GUI package. See INSTRUCTIONS.md for developer build details.
+
+FRIENDS AND OVERLAYS
+
+Enable Request Friends + Presence permissions before logging in; configure the same
+permissions on the linked Epic Account Services application. After successful Auth +
+Connect, Refresh friends loads the real application-visible list. Names are not logged.
+Open Epic overlay launches EOS's Social Overlay; use it for friend invitations.
+The default Epic overlay shortcut is Shift+F3.
+
+Epic login overlay (Account Portal) and the Social Overlay require Epic's EOS
+redistributable and a properly configured Bootstrapper launch. The SDK DLL in this
+ZIP does not install these tools. They were not in the supplied flattened SDK.
+The app now describes the exact readiness failure instead of only a numeric status.
+
+FIXED: startup Check SDK no longer shuts EOS down before login. The runtime remains
+initialized across checks, retry and disconnect, and shuts down once at final exit.
+Paste secret uses safe Unicode clipboard reading. An empty secret after submission
+is intentional: enter the rotated secret again to retry. Never paste the replacement
+in chat, and do not copy the portal's displayed asterisks instead of the real secret.

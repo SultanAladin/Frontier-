@@ -9,6 +9,10 @@
 #include <eos_auth.h>
 #include <eos_connect.h>
 #include <eos_version.h>
+#include <eos_friends.h>
+#include <eos_ui.h>
+#include <eos_userinfo.h>
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -25,6 +29,30 @@ EOS_Auth_IdToken* IdentityToken = nullptr;
 LoginSequence Login;
 DiagnosticReception Reception = nullptr;
 bool OwnsInitialization = false;
+bool FinalShutdown = false;
+bool Releasing = false;
+bool SocialEnabled = false;
+bool OverlayExclusive = false;
+bool OverlayPending = false;
+EOS_NotificationId OverlayNotification = EOS_INVALID_NOTIFICATIONID;
+EOS_HFriends Friends = nullptr;
+EOS_HUI SocialOverlay = nullptr;
+EOS_HUserInfo UserInformation = nullptr;
+EOS_EpicAccountId LocalAccount = nullptr;
+EOS_ProductUserId LocalProductUser = nullptr;
+constexpr int FriendCapacity = 128;
+struct FriendReading
+{
+    EOS_EpicAccountId Account = nullptr;
+    char Name[256]{};
+    const char* Relationship = "Friend";
+};
+FriendReading FriendReadings[FriendCapacity]{};
+int FriendCount = 0;
+int NamesPending = 0;
+bool QueryPending = false;
+char FriendsReading[256] = "Sign in to load friends.";
+char OverlayReading[256] = "Overlay readiness is checked when a platform is created.";
 bool AllowCreation = false;
 std::chrono::steady_clock::time_point Started;
 
@@ -34,12 +62,179 @@ void Emit(const char* Text) noexcept
         Reception(Text);
 }
 
-void Refuse(const char* Operation, EOS_EResult Result) noexcept
+void Report(const char* Operation, EOS_EResult Result) noexcept
 {
     char Text[256]{};
     std::snprintf(Text, sizeof(Text), "%s result=%s", Operation, EOS_EResult_ToString(Result));
     Emit(Text);
+}
+
+void Refuse(const char* Operation, EOS_EResult Result) noexcept
+{
+    Report(Operation, Result);
     Login.Refuse();
+}
+
+bool InitializeOnce(DiagnosticReception ActiveReception) noexcept
+{
+    if (FinalShutdown)
+    {
+        if (ActiveReception)
+            ActiveReception("sdk=retired; restart the application before using EOS again");
+        return false;
+    }
+    if (OwnsInitialization)
+        return true;
+    EOS_InitializeOptions Options{};
+    Options.ApiVersion = EOS_INITIALIZE_API_LATEST;
+    Options.ProductName = "Charge";
+    Options.ProductVersion = "Networking-Dev-2";
+    const EOS_EResult Result = EOS_Initialize(&Options);
+    if (ActiveReception)
+        ActiveReception(EOS_EResult_ToString(Result));
+    if (Result != EOS_EResult::EOS_Success)
+        return false;
+    OwnsInitialization = true;
+    if (ActiveReception)
+        ActiveReception("sdk_initialized_once=1");
+    return true;
+}
+
+void EOS_CALL ReceiveOverlayDisplay(const EOS_UI_OnDisplaySettingsUpdatedCallbackInfo* Completion)
+{
+    if (!Releasing)
+        OverlayExclusive = Completion->bIsExclusiveInput == EOS_TRUE;
+}
+
+bool RefreshOverlayReadiness() noexcept
+{
+    if (!Platform)
+        return false;
+#if defined(_WIN32)
+    EOS_Platform_GetDesktopCrossplayStatusOptions Options{};
+    Options.ApiVersion = EOS_PLATFORM_GETDESKTOPCROSSPLAYSTATUS_API_LATEST;
+    EOS_Platform_DesktopCrossplayStatusInfo Reading{};
+    const auto Result = EOS_Platform_GetDesktopCrossplayStatus(Platform, &Options, &Reading);
+    if (Result != EOS_EResult::EOS_Success)
+    {
+        std::snprintf(OverlayReading, sizeof(OverlayReading), "Overlay readiness: %s", EOS_EResult_ToString(Result));
+        return false;
+    }
+    const char* Explanation = "Unknown overlay readiness status";
+    switch (Reading.Status)
+    {
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_OK: Explanation = "Epic overlay ready. Social overlay shortcut: Shift+F3."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_ApplicationNotBootstrapped: Explanation = "Launch through Epic's EOS Bootstrapper, not directly through the EXE."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_ServiceNotInstalled: Explanation = "Install Epic's EOS redistributable (separate from the shipped SDK DLL)."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_ServiceStartFailed: Explanation = "EOS redistributable service could not start."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_ServiceNotRunning: Explanation = "EOS redistributable service is no longer running."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_OverlayDisabled: Explanation = "Overlay disabled by SDK configuration."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_OverlayNotInstalled: Explanation = "Epic overlay is not installed; repair the EOS redistributable."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_OverlayTrustCheckFailed: Explanation = "Overlay signature check failed; check Windows certificates and system clock."; break;
+    case EOS_EDesktopCrossplayStatus::EOS_DCS_OverlayLoadFailed: Explanation = "Epic overlay failed to load."; break;
+    }
+    std::snprintf(OverlayReading, sizeof(OverlayReading), "%s [status=%d service=%d]", Explanation,
+        static_cast<int>(Reading.Status), Reading.ServiceInitResult);
+    return Reading.Status == EOS_EDesktopCrossplayStatus::EOS_DCS_OK;
+#else
+    std::snprintf(OverlayReading, sizeof(OverlayReading), "This diagnostic's Epic overlay route targets Windows.");
+    return false;
+#endif
+}
+
+void EOS_CALL ReceiveFriendName(const EOS_UserInfo_QueryUserInfoCallbackInfo* Completion)
+{
+    if (Releasing || !UserInformation || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
+        return;
+    auto* Reading = static_cast<FriendReading*>(Completion->ClientData);
+    if (!Reading || Reading->Account != Completion->TargetUserId)
+        return;
+    if (Completion->ResultCode == EOS_EResult::EOS_Success)
+    {
+        EOS_UserInfo_CopyUserInfoOptions Options{};
+        Options.ApiVersion = EOS_USERINFO_COPYUSERINFO_API_LATEST;
+        Options.LocalUserId = LocalAccount;
+        Options.TargetUserId = Reading->Account;
+        EOS_UserInfo* Information = nullptr;
+        const auto Result = EOS_UserInfo_CopyUserInfo(UserInformation, &Options, &Information);
+        if (Result == EOS_EResult::EOS_Success && Information)
+        {
+            const char* Name = Information->DisplayNameSanitized;
+            if (Name && *Name)
+                std::snprintf(Reading->Name, sizeof(Reading->Name), "%s", Name);
+            EOS_UserInfo_Release(Information);
+        }
+    }
+    if (NamesPending > 0)
+        --NamesPending;
+}
+
+void EOS_CALL ReceiveFriends(const EOS_Friends_QueryFriendsCallbackInfo* Completion)
+{
+    if (Releasing || !Friends || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
+        return;
+    QueryPending = false;
+    if (Completion->ResultCode != EOS_EResult::EOS_Success)
+    {
+        Report("friends_query", Completion->ResultCode);
+        std::snprintf(FriendsReading, sizeof(FriendsReading), "Friends query refused: %s", EOS_EResult_ToString(Completion->ResultCode));
+        return;
+    }
+    EOS_Friends_GetFriendsCountOptions CountOptions{};
+    CountOptions.ApiVersion = EOS_FRIENDS_GETFRIENDSCOUNT_API_LATEST;
+    CountOptions.LocalUserId = LocalAccount;
+    const int Available = EOS_Friends_GetFriendsCount(Friends, &CountOptions);
+    FriendCount = std::clamp(Available, 0, FriendCapacity);
+    for (int Index = 0; Index < FriendCount; ++Index)
+    {
+        auto& Reading = FriendReadings[Index];
+        Reading = {};
+        std::snprintf(Reading.Name, sizeof(Reading.Name), "Friend %d (name unavailable)", Index + 1);
+        EOS_Friends_GetFriendAtIndexOptions Options{};
+        Options.ApiVersion = EOS_FRIENDS_GETFRIENDATINDEX_API_LATEST;
+        Options.LocalUserId = LocalAccount;
+        Options.Index = Index;
+        Reading.Account = EOS_Friends_GetFriendAtIndex(Friends, &Options);
+        if (EOS_EpicAccountId_IsValid(Reading.Account) != EOS_TRUE)
+            continue;
+        EOS_Friends_GetStatusOptions Status{};
+        Status.ApiVersion = EOS_FRIENDS_GETSTATUS_API_LATEST;
+        Status.LocalUserId = LocalAccount;
+        Status.TargetUserId = Reading.Account;
+        switch (EOS_Friends_GetStatus(Friends, &Status))
+        {
+        case EOS_EFriendsStatus::EOS_FS_Friends: Reading.Relationship = "Friend"; break;
+        case EOS_EFriendsStatus::EOS_FS_InviteSent: Reading.Relationship = "Invite sent"; break;
+        case EOS_EFriendsStatus::EOS_FS_InviteReceived: Reading.Relationship = "Invite received"; break;
+        default: Reading.Relationship = "Not friends"; break;
+        }
+        EOS_UserInfo_QueryUserInfoOptions NameOptions{};
+        NameOptions.ApiVersion = EOS_USERINFO_QUERYUSERINFO_API_LATEST;
+        NameOptions.LocalUserId = LocalAccount;
+        NameOptions.TargetUserId = Reading.Account;
+        ++NamesPending;
+        EOS_UserInfo_QueryUserInfo(UserInformation, &NameOptions, &Reading, ReceiveFriendName);
+    }
+    std::snprintf(FriendsReading, sizeof(FriendsReading), "Showing %d of %d friends visible to this application.", FriendCount, Available);
+    Emit("friends_query=success; names and account IDs are omitted from logs");
+}
+
+void EOS_CALL ReceiveOverlayShow(const EOS_UI_ShowFriendsCallbackInfo* Completion)
+{
+    if (!Releasing && EOS_EResult_IsOperationComplete(Completion->ResultCode) == EOS_TRUE)
+    {
+        OverlayPending = false;
+        Report("social_overlay_show", Completion->ResultCode);
+    }
+}
+
+void EOS_CALL ReceiveOverlayHide(const EOS_UI_HideFriendsCallbackInfo* Completion)
+{
+    if (!Releasing && EOS_EResult_IsOperationComplete(Completion->ResultCode) == EOS_TRUE)
+    {
+        OverlayPending = false;
+        Report("social_overlay_hide", Completion->ResultCode);
+    }
 }
 
 void ReleaseToken() noexcept
@@ -52,15 +247,20 @@ void ReleaseToken() noexcept
 void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
 {
     const bool Valid = EOS_ProductUserId_IsValid(ProductUser) == EOS_TRUE;
+    LocalProductUser = Valid ? ProductUser : nullptr;
     Login.AcceptConnect(Valid);
     Emit(Valid ? "connect=success product_user_id_valid=1" : "connect=refused invalid_product_user_id");
     if (Login.Progress == LoginProgress::Connected)
+    {
         Emit("LOGIN_VERIFIED auth=success connect=success");
+        if (!SocialEnabled)
+            std::snprintf(FriendsReading, sizeof(FriendsReading), "Friends permission was not requested; enable it and sign in again.");
+    }
 }
 
 void EOS_CALL ReceiveCreation(const EOS_Connect_CreateUserCallbackInfo* Completion)
 {
-    if (Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
+    if (Releasing || Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
     if (Completion->ResultCode != EOS_EResult::EOS_Success)
     {
@@ -72,7 +272,7 @@ void EOS_CALL ReceiveCreation(const EOS_Connect_CreateUserCallbackInfo* Completi
 
 void EOS_CALL ReceiveConnect(const EOS_Connect_LoginCallbackInfo* Completion)
 {
-    if (Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
+    if (Releasing || Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
     ReleaseToken();
     if (Completion->ResultCode == EOS_EResult::EOS_InvalidUser && Completion->ContinuanceToken)
@@ -99,7 +299,7 @@ void EOS_CALL ReceiveConnect(const EOS_Connect_LoginCallbackInfo* Completion)
 
 void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
 {
-    if (Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
+    if (Releasing || Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
     if (Completion->ResultCode != EOS_EResult::EOS_Success)
     {
@@ -113,6 +313,7 @@ void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
         Emit("auth=refused invalid_epic_account_id");
         return;
     }
+    LocalAccount = Completion->LocalUserId;
     Emit("auth=success epic_account_id_valid=1");
     EOS_Auth_CopyIdTokenOptions Copy{};
     Copy.ApiVersion = EOS_AUTH_COPYIDTOKEN_API_LATEST;
@@ -143,21 +344,12 @@ void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
 
 bool VerifyEpicRuntime(DiagnosticReception ActiveReception) noexcept
 {
-    if (Platform || OwnsInitialization || !ActiveReception)
+    if (!ActiveReception || !InitializeOnce(ActiveReception))
         return false;
     ActiveReception("scope=sdk_runtime_only authentication=NOT_ATTEMPTED");
     ActiveReception(EOS_GetVersion());
-    EOS_InitializeOptions Options{};
-    Options.ApiVersion = EOS_INITIALIZE_API_LATEST;
-    Options.ProductName = "Charge";
-    Options.ProductVersion = "Networking-Dev-1";
-    const EOS_EResult Result = EOS_Initialize(&Options);
-    ActiveReception(EOS_EResult_ToString(Result));
-    if (Result != EOS_EResult::EOS_Success)
-        return false;
-    const EOS_EResult Shutdown = EOS_Shutdown();
-    ActiveReception(EOS_EResult_ToString(Shutdown));
-    return Shutdown == EOS_EResult::EOS_Success;
+    ActiveReception("sdk=ready; kept initialized for login and retries");
+    return true;
 }
 
 bool ConstructEpic(DiagnosticReception ActiveReception) noexcept
@@ -172,7 +364,7 @@ bool ConstructEpic(DiagnosticReception ActiveReception) noexcept
 
 bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception ActiveReception) noexcept
 {
-    if (Platform || OwnsInitialization)
+    if (Platform || FinalShutdown)
         return false;
     Reception = ActiveReception;
     Login = {};
@@ -187,17 +379,12 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
     if (!ClientId || !*ClientId)
         ClientId = "xyza7891AKjtZj8wTzcmI5F3oc1zLU4s";
     AllowCreation = Specification.AllowCreation;
-    EOS_InitializeOptions Initialize{};
-    Initialize.ApiVersion = EOS_INITIALIZE_API_LATEST;
-    Initialize.ProductName = "Charge";
-    Initialize.ProductVersion = "Networking-Dev-1";
-    const EOS_EResult Result = EOS_Initialize(&Initialize);
-    if (Result != EOS_EResult::EOS_Success)
+    if (!InitializeOnce(ActiveReception))
     {
-        Refuse("initialize", Result);
+        Login.Refuse();
         return false;
     }
-    OwnsInitialization = true;
+    SocialEnabled = Specification.EnableSocial;
     EOS_Platform_Options Options{};
     Options.ApiVersion = EOS_PLATFORM_OPTIONS_API_LATEST;
     Options.ProductId = "fbf3442817da41bda43997bd3d87e875";
@@ -206,7 +393,11 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
     Options.ClientCredentials.ClientId = ClientId;
     Options.ClientCredentials.ClientSecret = Secret;
     Options.bIsServer = EOS_FALSE;
+#if defined(_WIN32)
+    Options.Flags = EOS_PF_WINDOWS_ENABLE_OVERLAY_OPENGL;
+#else
     Options.Flags = 0;
+#endif
     Platform = EOS_Platform_Create(&Options);
     if (!Platform)
     {
@@ -217,6 +408,16 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
     }
     Auth = EOS_Platform_GetAuthInterface(Platform);
     Connect = EOS_Platform_GetConnectInterface(Platform);
+    Friends = EOS_Platform_GetFriendsInterface(Platform);
+    SocialOverlay = EOS_Platform_GetUIInterface(Platform);
+    UserInformation = EOS_Platform_GetUserInfoInterface(Platform);
+    RefreshOverlayReadiness();
+    if (SocialOverlay)
+    {
+        EOS_UI_AddNotifyDisplaySettingsUpdatedOptions Display{};
+        Display.ApiVersion = EOS_UI_ADDNOTIFYDISPLAYSETTINGSUPDATED_API_LATEST;
+        OverlayNotification = EOS_UI_AddNotifyDisplaySettingsUpdated(SocialOverlay, &Display, nullptr, ReceiveOverlayDisplay);
+    }
     if (!Auth || !Connect)
     {
         Emit("interfaces=refused");
@@ -251,30 +452,24 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
         Credentials.Token = Credential;
     }
 #if defined(_WIN32)
-    else
+    else if (!RefreshOverlayReadiness())
     {
-        EOS_Platform_GetDesktopCrossplayStatusOptions Readiness{};
-        Readiness.ApiVersion = EOS_PLATFORM_GETDESKTOPCROSSPLAYSTATUS_API_LATEST;
-        EOS_Platform_DesktopCrossplayStatusInfo Reading{};
-        const EOS_EResult ReadinessResult = EOS_Platform_GetDesktopCrossplayStatus(Platform, &Readiness, &Reading);
-        if (ReadinessResult != EOS_EResult::EOS_Success ||
-            Reading.Status != EOS_EDesktopCrossplayStatus::EOS_DCS_OK)
-        {
-            char Text[256]{};
-            std::snprintf(Text, sizeof(Text), "account_portal=not_ready result=%s status=%d service=%d",
-                EOS_EResult_ToString(ReadinessResult), static_cast<int>(Reading.Status), Reading.ServiceInitResult);
-            Emit(Text);
-            Emit("Install EOS redistributable and launch through EOS Bootstrapper, or use Developer Auth Tool for testing");
-            Login.Refuse();
-            RetireEpic();
-            return false;
-        }
+        Emit(OverlayReading);
+        Emit("Account Portal requires Epic's Bootstrapper and EOS redistributable. The shipped SDK DLL alone is not enough.");
+        Login.Refuse();
+        RetireEpic();
+        return false;
     }
 #endif
     EOS_Auth_LoginOptions LoginOptions{};
     LoginOptions.ApiVersion = EOS_AUTH_LOGIN_API_LATEST;
     LoginOptions.Credentials = &Credentials;
     LoginOptions.ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_BasicProfile;
+    if (SocialEnabled)
+        LoginOptions.ScopeFlags = static_cast<EOS_EAuthScopeFlags>(
+            static_cast<int>(LoginOptions.ScopeFlags) |
+            static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_FriendsList) |
+            static_cast<int>(EOS_EAuthScopeFlags::EOS_AS_Presence));
     Started = std::chrono::steady_clock::now();
     Emit(Developer ? "auth=waiting method=developer timeout_seconds=180" :
                      "auth=waiting method=account_portal timeout_seconds=180");
@@ -284,9 +479,16 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
 
 void AdvanceEpic() noexcept
 {
-    if (!Platform || Login.Finished())
+    if (!Platform)
         return;
     EOS_Platform_Tick(Platform);
+    if (Login.Progress == LoginProgress::Connected &&
+        (EOS_Auth_GetLoginStatus(Auth, LocalAccount) != EOS_ELoginStatus::EOS_LS_LoggedIn ||
+         EOS_Connect_GetLoginStatus(Connect, LocalProductUser) != EOS_ELoginStatus::EOS_LS_LoggedIn))
+    {
+        Emit("session=not_logged_in; sign in again");
+        Login.Progress = LoginProgress::Refused;
+    }
     if (!Login.Finished() && std::chrono::steady_clock::now() - Started > std::chrono::seconds(180))
     {
         Emit("login=refused timeout");
@@ -296,18 +498,113 @@ void AdvanceEpic() noexcept
 
 void RetireEpic() noexcept
 {
-    Login.Refuse();
+    Releasing = true;
+    Login.Progress = LoginProgress::Refused;
+    if (SocialOverlay && OverlayNotification != EOS_INVALID_NOTIFICATIONID)
+        EOS_UI_RemoveNotifyDisplaySettingsUpdated(SocialOverlay, OverlayNotification);
+    OverlayNotification = EOS_INVALID_NOTIFICATIONID;
+    OverlayExclusive = false;
+    OverlayPending = false;
     if (Platform)
         EOS_Platform_Release(Platform);
     Platform = nullptr;
     Auth = nullptr;
     Connect = nullptr;
+    Friends = nullptr;
+    SocialOverlay = nullptr;
+    UserInformation = nullptr;
+    LocalAccount = nullptr;
+    LocalProductUser = nullptr;
     ReleaseToken();
-    if (OwnsInitialization)
-        EOS_Shutdown();
-    OwnsInitialization = false;
+    FriendCount = 0;
+    NamesPending = 0;
+    QueryPending = false;
+    for (auto& Reading : FriendReadings)
+        Reading = {};
+    std::snprintf(FriendsReading, sizeof(FriendsReading), "Sign in to load friends.");
     Reception = nullptr;
+    Releasing = false;
 }
+
+bool ShutdownEpic(DiagnosticReception ActiveReception) noexcept
+{
+    if (FinalShutdown)
+        return true;
+    RetireEpic();
+    FinalShutdown = true;
+    if (!OwnsInitialization)
+        return true;
+    const EOS_EResult Result = EOS_Shutdown();
+    OwnsInitialization = false;
+    if (ActiveReception)
+    {
+        ActiveReception(EOS_EResult_ToString(Result));
+        ActiveReception("sdk_shutdown_once=1");
+    }
+    return Result == EOS_EResult::EOS_Success;
+}
+
+bool QueryEpicFriends() noexcept
+{
+    if (!Friends || !UserInformation || !SocialEnabled || Login.Progress != LoginProgress::Connected)
+    {
+        Emit("friends=unavailable; complete login with Friends + Presence permissions enabled");
+        return false;
+    }
+    if (QueryPending || NamesPending > 0)
+        return false;
+    QueryPending = true;
+    FriendCount = 0;
+    std::snprintf(FriendsReading, sizeof(FriendsReading), "Querying Epic friends...");
+    EOS_Friends_QueryFriendsOptions Options{};
+    Options.ApiVersion = EOS_FRIENDS_QUERYFRIENDS_API_LATEST;
+    Options.LocalUserId = LocalAccount;
+    EOS_Friends_QueryFriends(Friends, &Options, nullptr, ReceiveFriends);
+    return true;
+}
+
+bool ShowEpicFriends() noexcept
+{
+    if (!SocialOverlay || Login.Progress != LoginProgress::Connected || OverlayPending)
+        return false;
+    if (!RefreshOverlayReadiness())
+    {
+        Emit(OverlayReading);
+        return false;
+    }
+    EOS_UI_ShowFriendsOptions Options{};
+    Options.ApiVersion = EOS_UI_SHOWFRIENDS_API_LATEST;
+    Options.LocalUserId = LocalAccount;
+    OverlayPending = true;
+    EOS_UI_ShowFriends(SocialOverlay, &Options, nullptr, ReceiveOverlayShow);
+    return true;
+}
+
+bool HideEpicFriends() noexcept
+{
+    if (!SocialOverlay || Login.Progress != LoginProgress::Connected || OverlayPending)
+        return false;
+    EOS_UI_HideFriendsOptions Options{};
+    Options.ApiVersion = EOS_UI_HIDEFRIENDS_API_LATEST;
+    Options.LocalUserId = LocalAccount;
+    OverlayPending = true;
+    EOS_UI_HideFriends(SocialOverlay, &Options, nullptr, ReceiveOverlayHide);
+    return true;
+}
+
+bool EpicOverlayOwnsInput() noexcept { return OverlayExclusive; }
+int InspectFriendCount() noexcept { return FriendCount; }
+const char* InspectFriendName(int Index) noexcept
+{
+    return Index >= 0 && Index < FriendCount ? FriendReadings[Index].Name : "";
+}
+const char* InspectFriendship(int Index) noexcept
+{
+    return Index >= 0 && Index < FriendCount ? FriendReadings[Index].Relationship : "";
+}
+const char* InspectFriendsReading() noexcept { return FriendsReading; }
+bool FriendsQueryPending() noexcept { return QueryPending || NamesPending > 0; }
+const char* InspectOverlayReading() noexcept { return OverlayReading; }
 
 LoginProgress InspectLogin() noexcept
 {

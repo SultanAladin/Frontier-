@@ -74,7 +74,7 @@ void FRONTIER_CODE_IMAGE_CALL RetireProject(void* Record)
 {
     if (Record != &Host || !Active)
         return;
-    Networking::RetireEpic();
+    Networking::ShutdownEpic(EmitDiagnostic);
     Active = false;
     Host = {};
 }

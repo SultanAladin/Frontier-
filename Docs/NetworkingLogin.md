@@ -39,9 +39,10 @@ SDK 1.19's SelectedAccountId is used for game-scoped identity, including previou
 Optional new-PUID creation requires explicit consent. Failures, missing credentials and timeouts cannot report success.
 Raw tokens, secrets, Epic account IDs and PUID strings are not emitted by the application diagnostics.
 
-This remains a one-shot login diagnostic, not production session management. It does not implement token refresh,
-identity linking, a login panel, Photon, commerce, lobbies, or multiplayer traffic. Local success is not a substitute
-for backend identity verification. The project owns a single EOS lifetime and refuses an already-initialized SDK.
+This remains a development login/social diagnostic, not production session management. It does not implement
+token refresh, identity linking, Photon, commerce, lobbies, or multiplayer traffic. Local success is not a substitute
+for backend identity verification. The app initializes EOS once and shuts it down only on final application exit. Disconnect/retry retires only
+the platform. It refuses an SDK lifetime owned by another subsystem rather than guessing ownership.
 
 ## Executed evidence
 
@@ -225,3 +226,41 @@ Current GUI download:
 https://github.com/c7egoist/Frontier/releases/download/networking-test-37587675861/Project-Networking-Windows-x64.zip
 
 Extract and open `NetworkingLogin.exe` at the package root. Older console-only releases are superseded.
+
+## SDK lifetime fix and Epic social features
+
+The previous window called EOS_Shutdown during its startup SDK check, then tried EOS_Initialize during login.
+That was incorrect: `eos_init.h` says initialization occurs once and no SDK calls are permitted after shutdown.
+This caused the reported `EOS_AlreadyConfigured`. The replacement keeps one SDK lifetime through checks, retries,
+login and social operations; only the final application exit shuts it down. The test suite now exercises this
+sequence in ONE PROCESS, unlike the earlier separate-process startup checks. Terminal shutdown is guarded.
+
+The secret field is an EOS application client credential, not an Epic user password. The value pasted in chat is
+exposed and must be rotated locally in the portal. The app does not embed or reuse it. The secret field is cleared
+after submission, so an empty-field warning on a retry means it needs to be entered again, not that EOS rejected it.
+The new paste button and ImGui clipboard callback use Windows Unicode clipboard APIs, report non-text/busy
+clipboards, and never echo copied text. Try the portal's copy icon, not copying the masked asterisks.
+
+Enable **Request Friends + Presence permissions** before login. The app requests Basic Profile, Friends List and
+Presence scopes; configure the matching permissions on the linked Epic Account Services application. Successful
+Auth + Connect keeps the platform alive and ticking. The Friends panel queries the real EOS friends list and
+sanitized display names. It renders at most 128 returned records, with an explicit returned/total count. Names and
+account IDs are not included in exported logs. Refresh friends performs a new query after prior requests finish.
+Only friends visible to this application's permissions/consent may be returned; this is not a promise of the entire
+Epic launcher friends list. Display names may be unavailable. Friendship status is not online-presence status.
+
+**Epic login overlay (Account Portal)** uses EOS Auth, not an ImGui imitation. **Open Epic overlay** calls
+EOS_UI_ShowFriends; the Epic Social Overlay handles friend invitations. The default shortcut is Shift+F3.
+The app enables the Windows OpenGL overlay capability and respects overlay-exclusive input notifications.
+Overlay readiness errors now identify missing Bootstrapper launch, missing/stopped redistributable service,
+overlay installation, or trust/load failures. No friends or overlay call is allowed before successful login.
+
+The supplied EOS Flattened folder has Include/Lib/Bin but no Bootstrapper or redistributable installer. The SDK DLL
+alone does NOT install these. Obtain the matching official tools from the original Epic SDK distribution, install
+the redistributable and launch the app through a properly configured EOS Bootstrapper. These prerequisites have
+not been bundled or silently downloaded. Developer Auth Tool is still a separate fallback for testing identity;
+it does not by itself satisfy Social Overlay setup. Live login, friend retrieval and visible Epic overlay operation
+cannot be verified in credential-free CI. Windows CI tests the UI, SDK lifetime and unauthenticated guards only.
+
+Disconnect closes this local platform, not a global Epic-account sign-out. Long-lived token refresh is not yet
+implemented; an expired session must sign in again. Never use this client's status as a premium entitlement check.

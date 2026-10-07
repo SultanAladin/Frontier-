@@ -180,6 +180,18 @@
     "Include/eos_version.h": {
       "bytes": 2293,
       "sha256": "2552a09e69fbdbb72ec09eae270aeb724a557dd344fb72bac985929e6ff65191"
+    },
+    "Include/eos_friends.h": {
+      "bytes": 9674,
+      "sha256": "b9d80aca762db326c504f02aef7c0a5c5e38633b13209f7e5805910f9837f8d1"
+    },
+    "Include/eos_ui.h": {
+      "bytes": 18292,
+      "sha256": "4241f0f00594571ee27aa61f9207e4bb04863054311646668af52d139ec00111"
+    },
+    "Include/eos_userinfo.h": {
+      "bytes": 13321,
+      "sha256": "8ca8bdf99a5a922870b461523654b7b77143780a4ded11282941576894435db5"
     }
   }
 }

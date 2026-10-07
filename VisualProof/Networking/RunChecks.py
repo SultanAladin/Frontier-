@@ -38,6 +38,10 @@ def main():
             text = run([output / 'LoginHost', '--sdk-check'])
             if text.count('EOS_Success') != 2 or 'authentication=NOT_ATTEMPTED' not in text:
                 raise RuntimeError('SDK initialization/shutdown did not both succeed')
+        lifecycle = run([output / 'LoginHost', '--lifecycle-check'])
+        if (lifecycle.count('sdk_initialized_once=1') != 1 or lifecycle.count('sdk_shutdown_once=1') != 1
+                or 'EOS_AlreadyConfigured' in lifecycle or 'PASS same-process SDK reuse' not in lifecycle):
+            raise RuntimeError('SDK lifetime regression')
         text = run([output / 'LoginHost'], expected=2)
         if 'missing_EOS_CLIENT_SECRET' not in text or 'LOGIN_VERIFIED' in text:
             raise RuntimeError('Credential refusal did not fail closed')

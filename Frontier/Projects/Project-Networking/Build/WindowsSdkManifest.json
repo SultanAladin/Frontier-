@@ -225,6 +225,21 @@
       "drive_id": "1sK3Ut4Aj-4U6v8beLoR2MPiJaA74-UEy",
       "bytes": 19548600,
       "sha256": "ab25af350c48856633d671a16e8469277f9acee39186d69fe5b2a26100d738e8"
+    },
+    "Include/eos_friends.h": {
+      "drive_id": "1R2oxn_NG5YbDC2ONOuU4p2T17MSwGUqE",
+      "bytes": 9674,
+      "sha256": "b9d80aca762db326c504f02aef7c0a5c5e38633b13209f7e5805910f9837f8d1"
+    },
+    "Include/eos_ui.h": {
+      "drive_id": "1lgHEjxi1PEw104LVP0yQ2REUsGBwWxxA",
+      "bytes": 18292,
+      "sha256": "4241f0f00594571ee27aa61f9207e4bb04863054311646668af52d139ec00111"
+    },
+    "Include/eos_userinfo.h": {
+      "drive_id": "1xvypZfMQ__tugTOEJM_vN3zMBUPYOgqK",
+      "bytes": 13321,
+      "sha256": "8ca8bdf99a5a922870b461523654b7b77143780a4ded11282941576894435db5"
     }
   }
 }
