@@ -1,5 +1,18 @@
 ## Country permission and signed-in profile
 
+**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37598078437/Project-Networking-Windows-x64.zip).
+Open **Charge.exe** after extracting into a fresh folder. Existing Windows vault
+credentials are reused. Review Epic's updated consent request; no secret re-entry
+is required unless the saved credential is invalid or rotated.
+
+[Windows run 37598078437](https://github.com/c7egoist/Frontier/actions/runs/37598078437)
+passed for source `4771d2cb8eda6333ac85a95364c23e30cdcac57a` in 3m37s. Checks
+cover the four required scopes, explicit creation consent/duplicate approval/
+terminal cancellation, signed-out profile guards, SDK/platform creation, native
+GUI rendering and extracted packaging. Real profile values and successful player
+Auth/Connect were not exercised by these tests. Latest Slate fetched for this
+change: `bf0bdd5005f97b6375c21bc74e9a4bd8b41417cd`.
+
 The user's screenshots now demonstrate actual Epic Account Portal rendering and
 consent UI. They also show Epic's **Missing Permissions** screen: Country was
 required by Charge but not requested. A later `EOS_Canceled` result is not an
@@ -33,7 +46,7 @@ profile values remain unverified until the user completes the new flow.
 
 ## Platform-refusal diagnostic update
 
-**Latest download:** [Windows ZIP](https://github.com/c7egoist/Frontier/releases/download/networking-test-37596249555/Project-Networking-Windows-x64.zip).
+**Previous platform-diagnostic download:** [Windows ZIP](https://github.com/c7egoist/Frontier/releases/download/networking-test-37596249555/Project-Networking-Windows-x64.zip).
 [Windows run 37596249555](https://github.com/c7egoist/Frontier/actions/runs/37596249555)
 passed on source `c7911f83e9c2f1022ff8d1d3838fb25edbe96c9f`, including real
 platform creation with a synthetic credential in both the console check and
