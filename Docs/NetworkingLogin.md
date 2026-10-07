@@ -25,8 +25,8 @@ dashboard Epic provider `clientid=xyza7891AKjtZj8wTzcmI5F3oc1zLU4s`,
 
 ## Lobby build
 
-**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37640531244/Project-Networking-Windows-x64.zip)
-(run [37640531244](https://github.com/c7egoist/Frontier/actions/runs/37640531244), source `114a1000830870603b7907e049ef96955cac81c8`, 19,648,042 bytes with `.sha256` sidecar).
+**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37647525299/Project-Networking-Windows-x64.zip)
+(run [37647525299](https://github.com/c7egoist/Frontier/actions/runs/37647525299), source `8bcde16da3612723c83e4878676e51010ee6b453`, 19,659,008 bytes with `.sha256` sidecar).
 
 Extract into a fresh folder and open **Charge.exe**. Put the **private**
 `Charge.local.ini` next to it for portable login and a stable cross-PC EOS cloud
@@ -40,7 +40,11 @@ Lobby/Browse/Settings/History tabs. If the log shows
 Sessions actions to the Dev client policy in the Epic portal; an unregistered
 lifecycle-only start remains available. This build also adds Epic auto-login
 (saved token, portal fallback), an English / Simplified-Chinese UI toggle, and
-tag-based lobby discovery (style, language, status, visibility).
+tag-based lobby discovery (style, language, status, visibility). It adds the
+Photon transport slice: EOS/Photon routing after login with a manual premium
+switch, Epic-auth Photon transport compiled against pinned headers (stub-linked
+until the official /MD x64 libs land), dormant Ecom ownership, and redacted
+transport diagnostics (see above).
 
 Full lobby, voice, session and history notes: `Docs/NetworkingLobbyPlan.md` and
 `Frontier/Projects/Project-Networking/Build/BinaryInstructions.txt`.
