@@ -1,5 +1,13 @@
 ## Platform-refusal diagnostic update
 
+**Latest download:** [Windows ZIP](https://github.com/c7egoist/Frontier/releases/download/networking-test-37596249555/Project-Networking-Windows-x64.zip).
+[Windows run 37596249555](https://github.com/c7egoist/Frontier/actions/runs/37596249555)
+passed on source `c7911f83e9c2f1022ff8d1d3838fb25edbe96c9f`, including real
+platform creation with a synthetic credential in both the console check and
+extracted GUI/OpenGL process. SDK lifetime, input validation and diagnostic
+redaction checks passed. Real player authentication was not attempted.
+
+
 `platform=refused` means EOS_Platform_Create returned null, before Account Portal
 is requested. A saved Windows credential can still contain invalid input: saving
 is not credential validation. We reproduced this exact failure with an 80-character
@@ -29,7 +37,7 @@ redaction. These checks are not successful player authentication.
 
 ## Minimal login / official launcher update
 
-**Current Windows download (18,912,276 bytes):**
+**Previous Windows download (18,912,276 bytes):**
 [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37594257135/Project-Networking-Windows-x64.zip)
 with a SHA-256 sidecar on the [release page](https://github.com/c7egoist/Frontier/releases/tag/networking-test-37594257135).
 
