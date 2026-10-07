@@ -97,7 +97,7 @@ void ReceiveDiagnostic(const char* Text)
     const auto Has = [&Lower](const char* Word) { return Lower.find(Word) != std::string::npos; };
     Reading.Severity = Has("failed") || Has("error") || Has("refused") || Has("could not") ? 3 :
         Has("missing") || Has("not ready") || Has("empty") || Has("cancelled") || Has("not bootstrapped") ? 2 :
-        Has("success") || Has("login_verified") || Has("sdk_initialized_once=1") ? 1 : 0;
+        Has("=success") || Has("eos_success") || Has("sdk_initialized_once=1") ? 1 : 0;
     ScrollPending = true;
 }
 
@@ -185,16 +185,18 @@ bool SaveCredential()
     return Stored;
 }
 
-void ForgetCredential()
+bool ForgetCredential(bool WipeInput = true)
 {
     if (CredDeleteW(CredentialTarget, CRED_TYPE_GENERIC, 0) || GetLastError() == ERROR_NOT_FOUND)
     {
         RememberCredential = false;
-        WipeSecret();
-        ReceiveDiagnostic("Saved application credential removed.");
+        if (WipeInput) WipeSecret();
+        ReceiveDiagnostic("No saved application credential remains.");
+        return true;
     }
     else
         ReceiveDiagnostic("Could not remove saved credential. Use Windows Credential Manager.");
+    return false;
 }
 #endif
 
@@ -350,8 +352,7 @@ void PresentSetup()
         {
             bool Stored = true;
 #if defined(_WIN32)
-            if (RememberCredential)
-                Stored = SaveCredential();
+            Stored = RememberCredential ? SaveCredential() : ForgetCredential(false);
 #endif
             if (Stored)
             {
@@ -361,7 +362,7 @@ void PresentSetup()
                     BeginLogin();
             }
             else
-                SetupError = "Windows could not save the credential. Uncheck Remember to keep it in memory only.";
+                SetupError = "Windows could not update saved credentials. Check Windows Credential Manager and retry.";
         }
     }
     ImGui::SameLine();
@@ -391,6 +392,9 @@ void PresentLogin()
     ImGui::BeginDisabled(Busy || Verified);
     if (ImGui::SmallButton("Setup"))
     {
+#if defined(_WIN32)
+        if (!Secret[0]) LoadCredential();
+#endif
         ContinueAfterSetup = false;
         SetupError = "";
         ImGui::OpenPopup("One-time setup");
@@ -418,7 +422,7 @@ void PresentLogin()
     ImGui::TextUnformatted(Verified ? "You're in." : "Welcome\nback.");
     if (TitleFont) ImGui::PopFont();
     ImGui::Spacing();
-    ImGui::TextColored(Muted, "Log in to access your content.");
+    ImGui::TextColored(Muted, "%s", Verified ? "Your Epic identity is connected." : "Log in to access your content.");
     ImGui::TextColored(Muted, "Secure sign-in with your Epic account.");
     ImGui::Dummy(ImVec2(0, 25));
     ImGui::PushStyleColor(ImGuiCol_Button, Accent);
@@ -451,6 +455,21 @@ void PresentLogin()
         Verified = false;
         Attempted = false;
         ReceiveDiagnostic("Disconnected locally. Ready for another login.");
+    }
+    if (Verified && ImGui::CollapsingHeader("Friends"))
+    {
+        ImGui::TextWrapped("%s", Networking::InspectFriendsReading());
+        ImGui::BeginDisabled(Networking::FriendsQueryPending());
+        if (ImGui::SmallButton("Refresh friends")) Networking::QueryEpicFriends();
+        ImGui::EndDisabled();
+        ImGui::BeginChild("Friend names", ImVec2(0, 100));
+        for (int Index = 0; Index < Networking::InspectFriendCount(); ++Index)
+        {
+            ImGui::TextUnformatted(Networking::InspectFriendName(Index));
+            ImGui::TextColored(Muted, "%s", Networking::InspectFriendship(Index));
+        }
+        ImGui::EndChild();
+        ImGui::TextWrapped("Only friends authorized for this app may be listed.");
     }
     ImGui::Spacing();
     const char* Status = Busy ? "Waiting for Epic..." : Verified ? "Auth + Connect verified" :
