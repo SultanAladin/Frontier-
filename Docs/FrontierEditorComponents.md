@@ -1,0 +1,107 @@
+# Frontier Editor components and their native C++ counterparts
+
+Reference UI: `Experimental/FrontierEditor` — the React outliner/inspector prototype that the native editor is
+converted from. This document is the cumulative component register. One row per browser component, the native
+route that mirrors it, and the honest current standing. Update the row in the same change that moves the code.
+
+Status legend: **Native** = a dedicated C++ route draws the approved cards; **Partial** = native behaviour exists
+but presentation, order or content differs; **Browser only** = no dedicated native route yet.
+
+## Component register
+
+| Browser component                   | Inspector family            | Native C++ route                                   | Status       |
+| ----------------------------------- | --------------------------- | -------------------------------------------------- | ------------ |
+| `light-inspectors.jsx`              | Point / Spot / Area / Tube / Strip | `Engine/Editor/LightInspectorPanel.cpp`      | Partial      |
+| `light-graphics.jsx`                | Emitter instruments         | Pending — polar, cone, falloff and emitter figures  | Browser only |
+| `celestial-controls.jsx`            | Sun / Stars                 | `SunInspectorPanel.cpp`, `StarsInspectorPanel.cpp`  | Native       |
+| `moon-controls.jsx`                 | Moon                        | `MoonInspectorPanel.cpp`                            | Native       |
+| `flare-inspector.jsx`               | Lens flare                  | `LensFlareInspectorPanel.cpp`                       | Native       |
+| `atmosphere-shared-controls.jsx`    | Atmosphere / Clouds / Fog   | `AtmosphereSkyInspectorPanel.cpp`, `CloudsInspectorPanel.cpp`, `FogInspectorPanel.cpp` | Native |
+| `weather-graphics.jsx`              | Wind / Precipitation / Rainbow | `WeatherInspectorPanel.cpp`                      | Native       |
+| `local-volumes.jsx`                 | Local cloud / Local fog     | `FogInspectorPanel.cpp`, `CloudsInspectorPanel.cpp` | Partial      |
+| `camera-graphics.jsx`, `optics.js`  | Camera                      | `CameraInspectorPanel.cpp`                          | Native       |
+| `organization.jsx`                  | Folder / collection         | `InspectorPanel.cpp`, `CollectionSequence.h`        | Native       |
+| `construct-menu.jsx`                | Construct palette           | `NativeConstructPanel.h`, `ConstructWorld.cpp`      | Native       |
+| `outliner-icons.jsx`                | Outliner artwork            | `OutlinerPanel.cpp`                                 | Partial      |
+| `material-inspector.jsx`            | Material channels           | Generic Surface group only                          | Browser only |
+| `object-inspector.jsx`              | Mesh transform / material   | Generic Transform group only                        | Browser only |
+| `foliage-inspectors.jsx`            | Forest / species            | None                                                | Browser only |
+| `fluid-graphics.jsx`                | Lake / ocean / river / liquid | None                                              | Browser only |
+| `property-graphics.jsx`             | Terrain instruments         | None                                                | Browser only |
+| `bake-quick-tiles.jsx`              | Bake tiles                  | Terminal bake sections in the dedicated panels      | Partial      |
+
+## 2026-10-07 — Scene emitters added to the browser editor
+
+The editor had no scene lights at all. Its object list ran Sun → Moon → Stars → Atmosphere → Clouds → Wind →
+Forest → Terrain → water bodies → meshes → Material → Camera, and the only lighting entry anywhere was a single
+`Area emitter` row in the Construct palette. The Sun is the scene's directional source and is deliberately
+untouched by this change.
+
+### Added
+
+- `light-inspectors.jsx` — five emitters matching the native `PunctualLuminaireRecord` core types: **Point**,
+  **Spot**, **Area** (rectangle), **Tube** and **Strip**. Directional remains the Sun's own inspector.
+- `light-graphics.jsx` — four instruments drawn from the authored values:
+  - `PhotometricPolar` — luminous-intensity distribution. Uniform sphere for a point source, a cone with a soft
+    shoulder between the inner and outer angle for a spot, a Lambertian cosine lobe for the surface emitters.
+  - `BeamCone` — side elevation of the cone against a floor plane, with the lit pool at the authored reach.
+    Dragging horizontally widens or narrows the outer cone.
+  - `FalloffCurve` — inverse-square attenuation across the authored reach, marking the half-illuminance distance.
+  - `EmitterFigure` — dimensioned schematic of the rectangle, tube or strip.
+- A `Lighting` group in the outliner, its folder in the organization migration (bumped to version 3), and the
+  existing approved artwork for the three emitters that have it (`editor-point-light.svg`,
+  `editor-spotlight.svg`, `editor-area-light.svg`). Tube and Strip keep their own symbols rather than being
+  relabelled with artwork that does not depict them.
+
+### Card order
+
+The order follows the sequence already accepted for the native light panel in C071/C072, so the conversion is a
+redraw rather than a rearrangement:
+
+```text
+Luminous output → Colour temperature → Reach & falloff → Beam shape (spot)
+   → Emitter dimensions (surface) → Placement → Shadows & response
+   → Luminous distribution (punctual) → Renderer support
+```
+
+### Photometry
+
+Flux is the authored quantity; everything else is derived from it, so the readouts cannot drift away from the
+slider. Strip output is authored per metre and multiplied by the run length.
+
+| Quantity              | Derivation                                                      |
+| --------------------- | --------------------------------------------------------------- |
+| Intensity, punctual   | `I = Φ / Ω`, with `Ω = 4π` for a point and `2π(1 − cos(θ/2))` for a spot |
+| Intensity, surface    | `I = Φ / π` — Lambertian                                         |
+| Illuminance at reach  | `E = I / d²`                                                     |
+| Luminance, surface    | `L = Φ / (π · A)`                                                |
+| Spot pool diameter    | `2 · d · tan(θ_outer / 2)`                                       |
+
+### Renderer support is reported, not implied
+
+Every emitter ends with a support card carrying three explicit states, matching what the engine actually does
+today: the scene record persists; punctual sources are consumed by the lighting kernel while extended emitters
+are not; and no lightmap bake path exists. Unsupported states are labelled rather than drawn as if they worked.
+
+### Executed verification
+
+`Exhibits/Workbench/Lighting/CaptureEmitterCards.mjs` drives the running editor in headless Chromium and asserts
+the result rather than only photographing it.
+
+```sh
+npm --prefix Experimental/FrontierEditor install --no-save puppeteer
+npm --prefix Experimental/FrontierEditor run dev -- --port 5173
+node Exhibits/Workbench/Lighting/CaptureEmitterCards.mjs
+```
+
+Result on 2026-10-07: **162 checks passed**, 11 images written to `Exhibits/Gallery/Lighting/`. The checks cover
+every card heading per emitter at 1600 px and 1120 px, the conditional cards appearing only on the emitters that
+own them, finite derived photometry, the three support rows, the `Lighting` folder and all five outliner rows.
+Uncaught script errors and unexpected failed requests fail the run; the absent native Construct bridge and the
+unreachable Google Fonts CDN are the two allowed network exceptions and are named in the source.
+
+### Not claimed
+
+This is the browser reference. It is not a renderer change, and no native C++ was modified by this entry — the
+native `LightInspectorPanel.cpp` still draws the earlier card set. The emitter instruments are authoring
+diagnostics computed from the authored record, not scene-camera imagery.
