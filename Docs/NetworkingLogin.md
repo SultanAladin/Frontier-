@@ -10,14 +10,12 @@ catalog-ownership tokens stay dormant until `EOS_CATALOG_ITEM_IDS` is set. No
 tokens are written to logs. Premium is a manual toggle for now; Xsolla
 entitlement will drive it later through `ResolvePremiumAccess()`.
 
-Build status: CI compiles the real Photon transport against pinned headers
-(`defold/extension-photon-realtime @ 8dad867470f2eb75aeae0c437e10ee723d8d1ccf`,
-SDK 5.0.14.3) and links a stub until the official **/MD x64** static libs land.
-To complete linking, upload the SDK's `windows_md_x64` `Common-cpp`, `Photon-cpp`
-and `LoadBalancing-cpp` `.lib` files to Drive; their hashes go in
-`Build/WindowsPhotonManifest.json` and the next CI run links them (partial sets
-fail the build loudly). The mirror's own Win64 libs are `/MT`-only and can never
-link into this `/MD` build. Realtime AppId `08ec2e74-b472-42d4-942e-27894128e8fb`;
+Build status: CI links the official Photon Realtime Core 6.0.0.347 **/MD x64**
+archives (`Common-cpp`, `Photon-cpp`, `LoadBalancing-cpp` release_md, hash-pinned
+in `Build/WindowsPhotonManifest.json` from the owner's Drive upload) against
+pinned headers (`defold/extension-photon-realtime @ 8dad867470f2eb75aeae0c437e10ee723d8d1ccf`,
+SDK 5.0.14.3). The link succeeds with no unresolved symbols. The mirror's own
+Win64 libs are `/MT`-only and can never link into this `/MD` build. Realtime AppId `08ec2e74-b472-42d4-942e-27894128e8fb`;
 dashboard Epic provider `clientid=xyza7891AKjtZj8wTzcmI5F3oc1zLU4s`,
 `catalogitemids=none` (no ownership check yet). Developer overrides:
 `PHOTON_APP_ID`, `PHOTON_ROOM`, `PHOTON_APP_VERSION`,
@@ -25,8 +23,8 @@ dashboard Epic provider `clientid=xyza7891AKjtZj8wTzcmI5F3oc1zLU4s`,
 
 ## Lobby build
 
-**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37647525299/Project-Networking-Windows-x64.zip)
-(run [37647525299](https://github.com/c7egoist/Frontier/actions/runs/37647525299), source `8bcde16da3612723c83e4878676e51010ee6b453`, 19,659,008 bytes with `.sha256` sidecar).
+**Latest Windows download:** [Project-Networking-Windows-x64.zip](https://github.com/c7egoist/Frontier/releases/download/networking-test-37649286520/Project-Networking-Windows-x64.zip)
+(run [37649286520](https://github.com/c7egoist/Frontier/actions/runs/37649286520), source `f2f5a680c456f6b2f1fc26d5d1bcd71a7522e11b`, 20,179,272 bytes with `.sha256` sidecar).
 
 Extract into a fresh folder and open **Charge.exe**. Put the **private**
 `Charge.local.ini` next to it for portable login and a stable cross-PC EOS cloud
@@ -42,9 +40,8 @@ lifecycle-only start remains available. This build also adds Epic auto-login
 (saved token, portal fallback), an English / Simplified-Chinese UI toggle, and
 tag-based lobby discovery (style, language, status, visibility). It adds the
 Photon transport slice: EOS/Photon routing after login with a manual premium
-switch, Epic-auth Photon transport compiled against pinned headers (stub-linked
-until the official /MD x64 libs land), dormant Ecom ownership, and redacted
-transport diagnostics (see above).
+switch, Epic-auth Photon transport linked against Realtime Core 6.0.0.347 /MD
+x64 libs, dormant Ecom ownership, and redacted transport diagnostics (see above).
 
 Full lobby, voice, session and history notes: `Docs/NetworkingLobbyPlan.md` and
 `Frontier/Projects/Project-Networking/Build/BinaryInstructions.txt`.
