@@ -4,6 +4,11 @@
 // 📦 Authenticates through Epic Account Portal and exchanges the identity token for a product user.
 
 #include "EpicExchange.h"
+#include "RoomRuntime.h"
+#include "LocalConfiguration.h"
+#if defined(_WIN32)
+#include <Windows/eos_Windows.h>
+#endif
 #include "AuthPolicy.h"
 #include "PlatformDiagnostics.h"
 #include <eos_logging.h>
@@ -47,6 +52,7 @@ EOS_ProductUserId LocalProductUser = nullptr;
 EOS_EpicAccountId ProfileAccount = nullptr;
 EOS_ContinuanceToken PendingCreation = nullptr;
 AccountProfile Profile;
+bool CloudEnabled = false;
 constexpr int FriendCapacity = 128;
 struct FriendReading
 {
@@ -91,7 +97,7 @@ void Refuse(const char* Operation, EOS_EResult Result) noexcept
     Login.Refuse();
 }
 
-bool CreatePlatform(const char* Secret, const char* ClientId) noexcept
+bool CreatePlatform(const char* Secret, const char* ClientId, const char* StorageKey = nullptr) noexcept
 {
     EOS_Platform_Options Options{};
     Options.ApiVersion = EOS_PLATFORM_OPTIONS_API_LATEST;
@@ -101,6 +107,24 @@ bool CreatePlatform(const char* Secret, const char* ClientId) noexcept
     Options.ClientCredentials.ClientId = ClientId;
     Options.ClientCredentials.ClientSecret = Secret;
     Options.bIsServer = EOS_FALSE;
+    CloudEnabled = StorageKey && ValidStorageKey(StorageKey);
+    Options.EncryptionKey = CloudEnabled ? StorageKey : nullptr;
+    std::error_code CacheError;
+    const auto CacheRoot = UserCacheRoot();
+    std::filesystem::create_directories(CacheRoot / "sdk", CacheError);
+    const auto Cache = PathUtf8(CacheRoot / "sdk");
+    if (!CacheError) Options.CacheDirectory = Cache.c_str();
+    else CloudEnabled = false;
+    EOS_Platform_RTCOptions RtcOptions{};
+    RtcOptions.ApiVersion = EOS_PLATFORM_RTCOPTIONS_API_LATEST;
+    Options.RTCOptions = &RtcOptions;
+#if defined(_WIN32)
+    const auto XAudio = PathUtf8(ExecutableDirectory() / "xaudio2_9redist.dll");
+    EOS_Windows_RTCOptions WindowsRtc{};
+    WindowsRtc.ApiVersion = EOS_WINDOWS_RTCOPTIONS_API_LATEST;
+    WindowsRtc.XAudio29DllPath = XAudio.c_str();
+    RtcOptions.PlatformSpecificOptions = &WindowsRtc;
+#endif
 #if defined(_WIN32)
     Options.Flags = EOS_PF_WINDOWS_ENABLE_OVERLAY_OPENGL;
 #else
@@ -120,7 +144,7 @@ bool CreatePlatform(const char* Secret, const char* ClientId) noexcept
     for (unsigned Bit = 1; Bit <= (1u << 8); Bit <<= 1)
         if (Bits & Bit) Emit(DescribePlatformDiagnostic(Bit));
     if (!Bits) Emit("platform_error=no_sdk_diagnostic; SDK supplied no classified warning/error during creation.");
-    Emit("Use Save log to share these redacted diagnostics. SDK ready only means the DLL initialized.");
+    Emit("Use Copy log to share these redacted diagnostics. SDK ready only means the DLL initialized.");
     return false;
 }
 
@@ -321,6 +345,7 @@ void EOS_CALL ReceiveOwnProfile(const EOS_UserInfo_QueryUserInfoCallbackInfo* Co
         std::snprintf(Profile.Country, sizeof(Profile.Country), "%s", Information->Country ? Information->Country : "");
         std::snprintf(Profile.Language, sizeof(Profile.Language), "%s", Information->PreferredLanguage ? Information->PreferredLanguage : "");
         Profile.Available = true;
+        SetRoomDisplayName(Profile.DisplayName);
         Emit("profile=loaded; personal details are displayed only in the account card, not saved to logs");
     }
     else Report("profile_copy", Result);
@@ -336,6 +361,7 @@ void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
     if (Login.Progress == LoginProgress::Connected)
     {
         Emit("LOGIN_VERIFIED auth=success connect=success");
+        BindRoomRuntime(Platform, LocalProductUser, Reception, UserCacheRoot(), CloudEnabled);
         QueryEpicProfile();
         if (!SocialEnabled)
             std::snprintf(FriendsReading, sizeof(FriendsReading), "Automatic friends loading is disabled. Enable it in Setup before signing in.");
@@ -508,7 +534,7 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
         return false;
     }
     SocialEnabled = Specification.EnableSocial;
-    if (!CreatePlatform(Secret, ClientId))
+    if (!CreatePlatform(Secret, ClientId, Specification.StorageKey))
     {
         Login.Refuse();
         RetireEpic();
@@ -586,6 +612,7 @@ void AdvanceEpic() noexcept
     if (!Platform)
         return;
     EOS_Platform_Tick(Platform);
+    TickRoomRuntime();
     if (Login.Progress == LoginProgress::Connected &&
         (EOS_Auth_GetLoginStatus(Auth, LocalAccount) != EOS_ELoginStatus::EOS_LS_LoggedIn ||
          EOS_Connect_GetLoginStatus(Connect, LocalProductUser) != EOS_ELoginStatus::EOS_LS_LoggedIn))
@@ -603,6 +630,7 @@ void AdvanceEpic() noexcept
 void RetireEpic() noexcept
 {
     Releasing = true;
+    DetachRoomRuntime();
     Login.Progress = LoginProgress::Refused;
     if (SocialOverlay && OverlayNotification != EOS_INVALID_NOTIFICATIONID)
         EOS_UI_RemoveNotifyDisplaySettingsUpdated(SocialOverlay, OverlayNotification);

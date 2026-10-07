@@ -36,9 +36,9 @@ def main():
     link = ['-L' + str(output), '-lEOSSDK-Linux-Shipping', '-Wl,-rpath,$ORIGIN', '-Wl,-z,defs']
     source = project / 'Source'
     commands = [
-        flags + [str(source / 'EpicExchange.cpp'), str(source / 'LoginHost.cpp')]
+        flags + [str(source / 'EpicExchange.cpp'), str(source / 'LobbyRuntime.cpp'), str(source / 'SessionHistory.cpp'), str(source / 'LoginHost.cpp')]
         + link + ['-o', str(output / 'LoginHost')],
-        flags + ['-fPIC', '-shared', str(source / 'EpicExchange.cpp'), str(source / 'NetworkingInterchange.cpp')]
+        flags + ['-fPIC', '-shared', str(source / 'EpicExchange.cpp'), str(source / 'LobbyRuntime.cpp'), str(source / 'SessionHistory.cpp'), str(source / 'NetworkingInterchange.cpp')]
         + link + ['-o', str(output / 'ProjectNetworking.so')],
     ]
     for command in commands:

@@ -24,12 +24,18 @@ if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') {
 }
 New-Item -ItemType Directory -Force $Output | Out-Null
 $Flags = @('/nologo', '/std:c++20', '/MD', '/EHsc', '/W4', '/utf-8', '/D_CRT_SECURE_NO_WARNINGS', "/I$Include", "/I$Interchange")
-$Exchange = Join-Path $ProjectRoot 'Source/EpicExchange.cpp'
+$Exchange = @('EpicExchange.cpp', 'LobbyRuntime.cpp', 'SessionHistory.cpp') | ForEach-Object { Join-Path $ProjectRoot "Source/$_" }
 Push-Location $Output
 try {
-    & cl.exe @Flags $Exchange (Join-Path $ProjectRoot 'Source/LoginHost.cpp') '/Fe:LoginHost.exe' /link $Library
-    if ($LASTEXITCODE -ne 0) { throw 'EOS console compilation/link failed.' }
-    & cl.exe @Flags /LD $Exchange (Join-Path $ProjectRoot 'Source/NetworkingInterchange.cpp') '/Fe:ProjectNetworking.dll' /link $Library
+    $Compile = & cl.exe @Flags @Exchange (Join-Path $ProjectRoot 'Source/LoginHost.cpp') '/Fe:LoginHost.exe' /link $Library 2>&1
+    $Code = $LASTEXITCODE
+    $Compile | Write-Host
+    if ($Code -ne 0) {
+        $Detail = (($Compile | Select-Object -Last 60) -join "`n").Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+        Write-Host "::error::$Detail"
+        throw 'EOS console compilation/link failed.'
+    }
+    & cl.exe @Flags /LD @Exchange (Join-Path $ProjectRoot 'Source/NetworkingInterchange.cpp') '/Fe:ProjectNetworking.dll' /link $Library
     if ($LASTEXITCODE -ne 0) { throw 'Frontier project DLL compilation/link failed.' }
     Copy-Item $Runtime (Join-Path $Output 'EOSSDK-Win64-Shipping.dll') -Force
     $GuiBuild = Join-Path $Output 'WindowBuild'

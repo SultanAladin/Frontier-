@@ -27,7 +27,7 @@ add_library(LoginImGui STATIC
 target_include_directories(LoginImGui PUBLIC "${IMGUI}" "${IMGUI}/backends")
 target_link_libraries(LoginImGui PUBLIC glfw OpenGL::GL)
 set(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../../Source")
-add_executable(NetworkingLogin WIN32 "${SOURCE}/WindowHost.cpp" "${SOURCE}/EpicExchange.cpp")
+add_executable(NetworkingLogin WIN32 "${SOURCE}/WindowHost.cpp" "${SOURCE}/EpicExchange.cpp" "${SOURCE}/LobbyRuntime.cpp" "${SOURCE}/SessionHistory.cpp")
 target_include_directories(NetworkingLogin PRIVATE "${EOS_SDK_ROOT}/Include")
 target_link_libraries(NetworkingLogin PRIVATE LoginImGui)
 if(WIN32)
@@ -45,3 +45,8 @@ set_target_properties(NetworkingLogin PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../Output")
 add_custom_command(TARGET NetworkingLogin POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${EOS_RUNTIME}" "$<TARGET_FILE_DIR:NetworkingLogin>")
+
+if(WIN32 AND EXISTS "${EOS_SDK_ROOT}/Bin/xaudio2_9redist.dll")
+    add_custom_command(TARGET NetworkingLogin POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${EOS_SDK_ROOT}/Bin/xaudio2_9redist.dll" "$<TARGET_FILE_DIR:NetworkingLogin>")
+endif()

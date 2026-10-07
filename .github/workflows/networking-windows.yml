@@ -52,6 +52,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'SDK fetch or hash verification failed' }
           python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Frontier/Projects/Project-Networking/Build/BootstrapperManifest.json
           if ($LASTEXITCODE -ne 0) { throw 'Bootstrapper fetch or hash verification failed' }
+      - name: Fetch hash-pinned Microsoft XAudio2 redistributable for EOS voice
+        shell: pwsh
+        run: |
+          $Archive = "$env:RUNNER_TEMP/xaudio.zip"
+          Invoke-WebRequest 'https://www.nuget.org/api/v2/package/Microsoft.XAudio2.Redist/1.2.11' -OutFile $Archive
+          if ((Get-FileHash $Archive -Algorithm SHA256).Hash -ne '4552e0b5b59de0cdbc6c217261c45f5968f7bbf1e8ab5f208e4bca6fd8fc5780') { throw 'XAudio package hash mismatch' }
+          Expand-Archive $Archive "$env:RUNNER_TEMP/XAudio"
+          $Dll = "$env:RUNNER_TEMP/XAudio/build/native/release/bin/x64/xaudio2_9redist.dll"
+          if (-not (Test-Path $Dll)) { throw 'XAudio x64 runtime missing' }
+          Copy-Item $Dll "$env:RUNNER_TEMP/EOS/Bin/xaudio2_9redist.dll"
+          $Licenses = @(Get-ChildItem "$env:RUNNER_TEMP/XAudio" -Recurse -File | Where-Object { $_.Name -match 'license|eula' })
+          if (-not $Licenses.Count) { throw 'XAudio license not found' }
+          New-Item -ItemType Directory "$env:RUNNER_TEMP/XAudioNotices" | Out-Null
+          $Index = 0
+          $Licenses | ForEach-Object { Copy-Item $_.FullName "$env:RUNNER_TEMP/XAudioNotices/$Index-$($_.Name)"; $Index++ }
       - name: Prepare software OpenGL for headless CI only
         shell: pwsh
         run: |
@@ -143,6 +158,10 @@ jobs:
           $Config | Get-Content | Tee-Object -FilePath "$Package/Build/Output/BootstrapperChecks.log"
           if ((Get-Content $Config[0].FullName -Raw) -notmatch 'ApplicationPath.*App[/\\]NetworkingLogin.exe') { throw 'Unexpected launcher target' }
           # Never install/start the service or simulate an account login on CI.
+          Copy-Item "$env:RUNNER_TEMP/EOS/Bin/xaudio2_9redist.dll" "$Package/App/xaudio2_9redist.dll"
+          Copy-Item "$env:RUNNER_TEMP/XAudioNotices" "$Package/XAudioNotices" -Recurse
+          # The portable credential/data-key file is private and must never enter public artifacts.
+          if (Get-ChildItem $Package -Recurse -File | Where-Object { $_.Name -match '\.local\.|\.pending$' }) { throw 'Private/local file found in release staging' }
           Copy-Item '_AgentScratch/Gui/glfw/LICENSE.md' "$Package/GLFW-LICENSE.md"
           Copy-Item '_AgentScratch/Gui/imgui/LICENSE.txt' "$Package/IMGUI-LICENSE.txt"
           Copy-Item "$Project/ProjectNetworking.frontier" "$Package/"

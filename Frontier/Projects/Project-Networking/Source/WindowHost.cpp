@@ -247,28 +247,42 @@ void CancelLogin()
     ReceiveDiagnostic("Login cancelled locally. No successful authentication is claimed.");
 }
 
-void SaveDiagnostics()
+void CopyDiagnostics()
 {
-    std::filesystem::path Destination = "Networking-login.log";
+    const std::string Text = std::string("Project-Networking diagnostic\nlogin_verified=") +
+        (Verified ? "1\n" : "0\n") + Diagnostics;
 #if defined(_WIN32)
-    wchar_t Filename[MAX_PATH] = L"Networking-login.log";
-    OPENFILENAMEW Selection{};
-    Selection.lStructSize = sizeof(Selection);
-    Selection.lpstrFilter = L"Log files\0*.log\0All files\0*.*\0";
-    Selection.lpstrFile = Filename;
-    Selection.nMaxFile = MAX_PATH;
-    Selection.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
-    Selection.lpstrDefExt = L"log";
-    if (!GetSaveFileNameW(&Selection))
+    const int Count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, Text.c_str(), -1, nullptr, 0);
+    if (Count <= 0)
+    {
+        ReceiveDiagnostic("Could not encode the log for the clipboard.");
         return;
-    Destination = Filename;
+    }
+    HGLOBAL Storage = GlobalAlloc(GMEM_MOVEABLE, static_cast<SIZE_T>(Count) * sizeof(wchar_t));
+    auto* Content = Storage ? static_cast<wchar_t*>(GlobalLock(Storage)) : nullptr;
+    if (!Content)
+    {
+        if (Storage) GlobalFree(Storage);
+        ReceiveDiagnostic("Could not allocate clipboard storage.");
+        return;
+    }
+    const bool Encoded = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, Text.c_str(), -1, Content, Count) == Count;
+    GlobalUnlock(Storage);
+    const HWND Owner = GetActiveWindow();
+    if (!Encoded || !Owner || !OpenClipboard(Owner))
+    {
+        GlobalFree(Storage);
+        ReceiveDiagnostic("Clipboard unavailable. Click Copy log again.");
+        return;
+    }
+    const bool Copied = EmptyClipboard() && SetClipboardData(CF_UNICODETEXT, Storage);
+    CloseClipboard();
+    if (!Copied) GlobalFree(Storage); // Windows owns the allocation only after success.
+    ReceiveDiagnostic(Copied ? "Redacted log copied. Paste it into your message." : "Could not copy the log. Try again.");
+#else
+    ImGui::SetClipboardText(Text.c_str());
+    ReceiveDiagnostic("Redacted log sent to the clipboard.");
 #endif
-    std::ofstream File(Destination);
-    File << "Project-Networking GUI diagnostic\n";
-    File << "unix_seconds=" << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << '\n';
-    File << "login_verified=" << (Verified ? 1 : 0) << '\n' << Diagnostics;
-    File.close();
-    ReceiveDiagnostic(File ? "Redacted log saved." : "Could not save log. Choose a writable location.");
 }
 
 void ConfigureAppearance()
@@ -515,8 +529,8 @@ void PresentLogin()
     ImGui::BeginChild("Activity card", ImVec2(0, Height), ImGuiChildFlags_Borders);
     ImGui::TextUnformatted("Activity");
     ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 82);
-    if (ImGui::SmallButton("Save log"))
-        SaveDiagnostics();
+    if (ImGui::SmallButton("Copy log"))
+        CopyDiagnostics();
     ImGui::TextColored(Muted, "Live events. No secrets or tokens.");
     ImGui::Spacing();
     ImGui::Separator();

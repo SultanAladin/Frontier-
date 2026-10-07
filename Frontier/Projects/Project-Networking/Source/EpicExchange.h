@@ -18,6 +18,7 @@ struct LoginSpecification
     const char* DeveloperCredential;
     bool AllowCreation;
     bool EnableSocial = true;
+    const char* StorageKey = nullptr;
 };
 
 const char* ValidateEpicCredentials(const char* Secret, const char* ClientId) noexcept;
