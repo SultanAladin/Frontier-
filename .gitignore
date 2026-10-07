@@ -11,6 +11,10 @@ __pycache__/
 # Consolidated build products and third-party installs (lockfile is authoritative).
 /build/
 /Build/
+# Proprietary online-service SDKs are installed locally and are never committed.
+/ThirdParty/EOS/
+/ThirdParty/Photon/
+/ThirdParty/Xsolla/
 ExternalPackages/*
 !ExternalPackages/Dependencies.lock.json
 !ExternalPackages/README.md

@@ -85,3 +85,11 @@ set_tests_properties(NativeBillboards PROPERTIES TIMEOUT 900)
 
 add_test(NAME NativeWindBindings COMMAND FrontierNativeProof --wind-bindings)
 set_tests_properties(NativeWindBindings PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+# Keep the multiplayer boundary compile-tested without downloading either proprietary provider SDK.
+add_executable(FrontierOnlineTransportContractProof Exhibits/Workbench/Online/TransportContractProof.cpp)
+target_include_directories(FrontierOnlineTransportContractProof PRIVATE Engine)
+target_compile_features(FrontierOnlineTransportContractProof PRIVATE cxx_std_20)
+add_test(NAME OnlineTransportContract COMMAND FrontierOnlineTransportContractProof)
+add_test(NAME OnlineSdkVerifier
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Tools/Tests/TestOnlineSdkVerifier.py")
