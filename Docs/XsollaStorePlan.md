@@ -101,7 +101,8 @@ Design rules:
 - **AutoCoin packs** (Xsolla virtual-currency packages, separate items; unit
   price $0.01/coin as the anchor): Entry Tokens 100 @ $0.99
   (SKU `entry_tokens`), Podium Tokens 550 @ $4.99 (+10% bonus),
-  Championship Tokens 1200 @ $9.99 (+20% bonus). Bonus tiers are
+  Championship Tokens 1200 @ $9.99 (+20% bonus). Launch with Entry Tokens
+  only; add Podium/Championship after the sandbox test passes. Bonus tiers are
   the standard conversion driver. Player always pays exactly the listed price;
   Xsolla's 5% (+ channel costs) comes out of our share, so $1 ≈ $0.90–0.93
   to us.
