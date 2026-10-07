@@ -3,21 +3,22 @@
   "sdk_runtime_sha256": "05c88b7adb10bfe3dc89d133af7318422838ab6909c06dcd3e74bd2af4ac2309",
   "interchange_header_sha256": "2999eb7e28a537e93b12476617514e9abb303d15a0f48065ce3ddc76ba204c48",
   "sources": {
-    "EpicExchange.cpp": "4033d8bb22f978ba96246f0a557c54291fd536d329702aa76d90de209932fa1e",
-    "EpicExchange.h": "43099adcf87fdb420be98a57010cd8d34dbd4e58cc80e181ea61cd7acd0a4149",
-    "LoginHost.cpp": "7e8add3383fa620de49902ef8ff94812746b1299117adb824c005ac99216f8ae",
+    "EpicExchange.cpp": "aa98ce68d569aa4c675eef10fc1aa9682776ce33ce284d3090e579cbe4d8dc4f",
+    "EpicExchange.h": "aa3fe6cbba797bee5215d48cbc5cef97bb3d3a36b2cea4291f51fab98dd06a56",
+    "LoginHost.cpp": "bb2ada8fd46b2f2147ec122a39d791325f46bae57d64c640d73dd1219d0688b8",
     "LoginSequence.h": "4b8a13d1aa2e5e45a29e17c75e2cf16856c2f356d29aaccef1cf93bb18ddfb05",
     "NetworkingInterchange.cpp": "fbe64f0fa059de42021aaf8385b3a91c0029fbcd33f9b1ff3239425ad03234e9",
-    "WindowHost.cpp": "a7e512e6c243ce6db6bb603d56818f6c5ad7942e4476880dc4719bd41b6faf77"
+    "PlatformDiagnostics.h": "a73dde9c153e990edb9cc5e5d99fff8c1511e2e66921c1b90b1c444f9919d2eb",
+    "WindowHost.cpp": "39a9bf7bc79e13c32337e71c9add90de2b88e0dda57f3ca201a601f9d453585d"
   },
   "artifacts": {
-    "LoginHost": "5995aa13ca16f0a8de7a227c464e80a138df200d77a94ac9936fa7f678dd4d44",
-    "ProjectNetworking.so": "1f8ac38e0732bc9cbb4cd3ecb190550166de720027df320b9dbcaaa4c56229f3"
+    "LoginHost": "c22b4c8f8f3bedef4f86b15d50ad6047ef9f3ec8b370489e0c0e655ffef7d3c5",
+    "ProjectNetworking.so": "eb2c67d48baa8ebba917c8e583b2ee811fa7357d7da641e6a265a5b93352bfe7"
   },
   "authentication": "NOT_ATTEMPTED",
   "check_sources": {
     "InterchangeChecks.cpp": "e8814cf04f0580e9d3d254401fc38f459b14f700b70092097def46270d8e6f60",
     "LoginSequenceChecks.cpp": "189a656c9fe56db17850497989070f5d991aa26074eb7fe924fbd5ab869d6bac",
-    "RunChecks.py": "d3414ce1f776da887f6f811af106f63d951df31a82b45fbfaa3ac029a61fee05"
+    "RunChecks.py": "9ea07a27a25d1ebb414fdecb620da0ced22bc2773c73f60ee0c4cf82f27c9641"
   }
 }

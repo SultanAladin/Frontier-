@@ -1,3 +1,32 @@
+## Platform-refusal diagnostic update
+
+`platform=refused` means EOS_Platform_Create returned null, before Account Portal
+is requested. A saved Windows credential can still contain invalid input: saving
+is not credential validation. We reproduced this exact failure with an 80-character
+synthetic secret. EOS permits at most 64 characters for both client ID and secret.
+That establishes a possible cause, **not proof of what was on the user's PC**.
+
+The update validates empty, oversized and whitespace/non-ASCII credentials before
+saving or submitting them, without truncating or logging their contents. Focused
+credential fields select their entire value, and **Paste secret** replaces rather
+than appends. Existing vault entries remain usable, but invalid entries prompt
+Setup for correction. Temporary-secret clearing no longer incorrectly asks users
+with saved credentials to re-enter them on every retry.
+
+Platform creation now captures SDK warnings/errors into fixed, redacted diagnostic
+categories. SDK message bodies, tokens, identifiers and paths are never forwarded
+to the UI or log. Unknown SDK messages are withheld, not guessed. SDK callbacks
+only update atomic flags; GUI logging stays on the caller thread.
+
+Setup is centred and constrained to the viewport, with a scrolling fields region
+and reserved space for Apply / Save & log in / Cancel. Technical settings still
+remain hidden behind Setup.
+
+`LoginHost --platform-check` now creates/releases the real platform with a clearly
+synthetic credential, without calling Auth or Connect. CI also exercises platform
+creation with the GUI's OpenGL context and checks credential bounds and diagnostic
+redaction. These checks are not successful player authentication.
+
 ## Minimal login / official launcher update
 
 **Current Windows download (18,912,276 bytes):**

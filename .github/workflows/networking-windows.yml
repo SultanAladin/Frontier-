@@ -81,6 +81,12 @@ jobs:
           try {
             & "$Output/LoginHost.exe" --sdk-check
             if ($LASTEXITCODE -ne 0) { throw 'Real EOS initialization/shutdown failed' }
+            $PlatformCheck = & "$Output/LoginHost.exe" --platform-check
+            $PlatformCheck | Write-Host
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::$($PlatformCheck -join '%0A')"
+              throw 'Real platform creation failed before authentication'
+            }
             $Lifecycle = & "$Output/LoginHost.exe" --lifecycle-check
             if ($LASTEXITCODE -ne 0) { throw 'Same-process SDK lifecycle regression' }
             $Lifecycle | Write-Host

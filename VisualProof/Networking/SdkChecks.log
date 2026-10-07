@@ -1,5 +1,5 @@
 Project-Networking real SDK checks
-utc=2026-10-07T08:34:34.124834+00:00
+utc=2026-10-07T08:47:39.638341+00:00
 authentication=NOT_ATTEMPTED; no client secret supplied
 Shutdown handler: initialize.
 EOS_Success
@@ -22,6 +22,16 @@ sdk_shutdown_once=1
 Shutdown handler: cleanup.
 exit=0
 Shutdown handler: initialize.
+EOS_Success
+sdk_initialized_once=1
+scope=platform_creation_only synthetic_credential=1 authentication=NOT_ATTEMPTED
+platform=created; player authentication has not yet completed
+EOS_Success
+sdk_shutdown_once=1
+Shutdown handler: cleanup.
+exit=0
+Shutdown handler: initialize.
+PASS credential bounds and SDK diagnostic redaction
 EOS_Success
 sdk_initialized_once=1
 scope=sdk_runtime_only authentication=NOT_ATTEMPTED
@@ -47,7 +57,7 @@ Shutdown handler: cleanup.
 exit=2
 PASS real executable refuses missing credentials without authentication
 Shutdown handler: initialize.
-Usage: LoginHost [--sdk-check | --lifecycle-check]
+Usage: LoginHost [--sdk-check | --lifecycle-check | --platform-check]
 Shutdown handler: cleanup.
 exit=2
 exit=0

@@ -192,6 +192,16 @@
     "Include/eos_userinfo.h": {
       "bytes": 13321,
       "sha256": "8ca8bdf99a5a922870b461523654b7b77143780a4ded11282941576894435db5"
+    },
+    "Include/eos_logging.h": {
+      "drive_id": "1zbrDj20M7wlKib9Ji8z3L7XuB8QM0HQJ",
+      "bytes": 3587,
+      "sha256": "8574042e0703ae98c8cc841c8455430d0518c7b171181fb0aa9209f7f571b2a8"
+    },
+    "Include/eos_logging_categories.h": {
+      "drive_id": "1lLY-9hSqhVELLPuUgTOlQBU-MVmOb6eN",
+      "bytes": 4503,
+      "sha256": "3f541ccbf188fafda7d2dc61ea5573eb596b9666a170faa59907cc42a46ed7d5"
     }
   }
 }

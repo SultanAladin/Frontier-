@@ -4,6 +4,9 @@
 // 📦 Authenticates through Epic Account Portal and exchanges the identity token for a product user.
 
 #include "EpicExchange.h"
+#include "PlatformDiagnostics.h"
+#include <eos_logging.h>
+#include <atomic>
 
 #include <eos_sdk.h>
 #include <eos_auth.h>
@@ -56,6 +59,15 @@ char OverlayReading[256] = "Overlay readiness is checked when a platform is crea
 bool AllowCreation = false;
 std::chrono::steady_clock::time_point Started;
 
+std::atomic<bool> CapturePlatformDiagnostics{false};
+std::atomic<unsigned> PlatformDiagnosticBits{0};
+void EOS_CALL ReceiveSdkLog(const EOS_LogMessage* Message)
+{
+    if (CapturePlatformDiagnostics.load() && Message &&
+        Message->Level <= EOS_ELogLevel::EOS_LOG_Warning)
+        PlatformDiagnosticBits.fetch_or(ClassifyPlatformDiagnostic(Message->Message));
+}
+
 void Emit(const char* Text) noexcept
 {
     if (Reception)
@@ -73,6 +85,39 @@ void Refuse(const char* Operation, EOS_EResult Result) noexcept
 {
     Report(Operation, Result);
     Login.Refuse();
+}
+
+bool CreatePlatform(const char* Secret, const char* ClientId) noexcept
+{
+    EOS_Platform_Options Options{};
+    Options.ApiVersion = EOS_PLATFORM_OPTIONS_API_LATEST;
+    Options.ProductId = "fbf3442817da41bda43997bd3d87e875";
+    Options.SandboxId = "p-ewz29ujngay2pm7t5twt8drcvbr8ru";
+    Options.DeploymentId = "bb5140b152114e8b92021b0afd8c9df1";
+    Options.ClientCredentials.ClientId = ClientId;
+    Options.ClientCredentials.ClientSecret = Secret;
+    Options.bIsServer = EOS_FALSE;
+#if defined(_WIN32)
+    Options.Flags = EOS_PF_WINDOWS_ENABLE_OVERLAY_OPENGL;
+#else
+    Options.Flags = 0;
+#endif
+    PlatformDiagnosticBits.store(0);
+    CapturePlatformDiagnostics.store(true);
+    Platform = EOS_Platform_Create(&Options);
+    CapturePlatformDiagnostics.store(false);
+    if (Platform)
+    {
+        Emit("platform=created; player authentication has not yet completed");
+        return true;
+    }
+    Emit("platform=refused; EOS_Platform_Create returned null. Account Portal was NOT requested.");
+    const unsigned Bits = PlatformDiagnosticBits.load();
+    for (unsigned Bit = 1; Bit <= (1u << 8); Bit <<= 1)
+        if (Bits & Bit) Emit(DescribePlatformDiagnostic(Bit));
+    if (!Bits) Emit("platform_error=no_sdk_diagnostic; SDK supplied no classified warning/error during creation.");
+    Emit("Use Save log to share these redacted diagnostics. SDK ready only means the DLL initialized.");
+    return false;
 }
 
 bool InitializeOnce(DiagnosticReception ActiveReception) noexcept
@@ -95,6 +140,9 @@ bool InitializeOnce(DiagnosticReception ActiveReception) noexcept
     if (Result != EOS_EResult::EOS_Success)
         return false;
     OwnsInitialization = true;
+    const auto Logging = EOS_Logging_SetCallback(ReceiveSdkLog);
+    if (Logging != EOS_EResult::EOS_Success && ActiveReception)
+        ActiveReception("SDK platform diagnostics unavailable; raw SDK logging remains disabled.");
     if (ActiveReception)
         ActiveReception("sdk_initialized_once=1");
     return true;
@@ -352,6 +400,33 @@ bool VerifyEpicRuntime(DiagnosticReception ActiveReception) noexcept
     return true;
 }
 
+const char* ValidateEpicCredentials(const char* Secret, const char* ClientId) noexcept
+{
+    if (!Secret || !*Secret) return "Client secret is empty. Enter the rotated application secret in Setup.";
+    if (!ClientId || !*ClientId) return "Client ID is empty. Check Setup > Advanced.";
+    if (std::strlen(Secret) > EOS_PLATFORM_CLIENTCREDENTIALS_CLIENTSECRET_MAX_LENGTH)
+        return "Client secret is too long (EOS maximum: 64 characters). Use Paste secret to REPLACE the field, not append to it.";
+    if (std::strlen(ClientId) > EOS_PLATFORM_CLIENTCREDENTIALS_CLIENTID_MAX_LENGTH)
+        return "Client ID is too long (EOS maximum: 64 characters). Replace the field in Setup > Advanced.";
+    for (const unsigned char* C = reinterpret_cast<const unsigned char*>(Secret); *C; ++C)
+        if (*C <= 32 || *C >= 127)
+            return "Client secret contains whitespace or non-ASCII text. Copy only the secret, not its label or surrounding text.";
+    for (const unsigned char* C = reinterpret_cast<const unsigned char*>(ClientId); *C; ++C)
+        if (*C <= 32 || *C >= 127)
+            return "Client ID contains whitespace or non-ASCII text. Copy only the client ID.";
+    return nullptr;
+}
+
+bool VerifyEpicPlatform(DiagnosticReception ActiveReception) noexcept
+{
+    if (Platform || FinalShutdown || !InitializeOnce(ActiveReception)) return false;
+    Reception = ActiveReception;
+    Emit("scope=platform_creation_only synthetic_credential=1 authentication=NOT_ATTEMPTED");
+    const bool Ready = CreatePlatform("SYNTHETIC_TEST_CREDENTIAL_NOT_A_REAL_SECRET", "xyza7891AKjtZj8wTzcmI5F3oc1zLU4s");
+    RetireEpic();
+    return Ready;
+}
+
 bool ConstructEpic(DiagnosticReception ActiveReception) noexcept
 {
     const char* Consent = std::getenv("EOS_ALLOW_CREATE_USER");
@@ -378,6 +453,13 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
     const char* ClientId = Specification.ClientId;
     if (!ClientId || !*ClientId)
         ClientId = "xyza7891AKjtZj8wTzcmI5F3oc1zLU4s";
+    if (const char* Error = ValidateEpicCredentials(Secret, ClientId))
+    {
+        Emit("configuration=refused; credentials were not submitted to EOS");
+        Emit(Error);
+        Login.Refuse();
+        return false;
+    }
     AllowCreation = Specification.AllowCreation;
     if (!InitializeOnce(ActiveReception))
     {
@@ -385,23 +467,8 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
         return false;
     }
     SocialEnabled = Specification.EnableSocial;
-    EOS_Platform_Options Options{};
-    Options.ApiVersion = EOS_PLATFORM_OPTIONS_API_LATEST;
-    Options.ProductId = "fbf3442817da41bda43997bd3d87e875";
-    Options.SandboxId = "p-ewz29ujngay2pm7t5twt8drcvbr8ru";
-    Options.DeploymentId = "bb5140b152114e8b92021b0afd8c9df1";
-    Options.ClientCredentials.ClientId = ClientId;
-    Options.ClientCredentials.ClientSecret = Secret;
-    Options.bIsServer = EOS_FALSE;
-#if defined(_WIN32)
-    Options.Flags = EOS_PF_WINDOWS_ENABLE_OVERLAY_OPENGL;
-#else
-    Options.Flags = 0;
-#endif
-    Platform = EOS_Platform_Create(&Options);
-    if (!Platform)
+    if (!CreatePlatform(Secret, ClientId))
     {
-        Emit("platform=refused");
         Login.Refuse();
         RetireEpic();
         return false;
@@ -534,6 +601,7 @@ bool ShutdownEpic(DiagnosticReception ActiveReception) noexcept
     FinalShutdown = true;
     if (!OwnsInitialization)
         return true;
+    EOS_Logging_SetCallback(nullptr);
     const EOS_EResult Result = EOS_Shutdown();
     OwnsInitialization = false;
     if (ActiveReception)

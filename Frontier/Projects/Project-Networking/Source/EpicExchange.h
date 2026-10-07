@@ -20,7 +20,9 @@ struct LoginSpecification
     bool EnableSocial = true;
 };
 
+const char* ValidateEpicCredentials(const char* Secret, const char* ClientId) noexcept;
 bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception Reception) noexcept;
+bool VerifyEpicPlatform(DiagnosticReception Reception) noexcept;
 bool VerifyEpicRuntime(DiagnosticReception Reception) noexcept;
 bool ConstructEpic(DiagnosticReception Reception) noexcept;
 bool ShutdownEpic(DiagnosticReception Reception = nullptr) noexcept;

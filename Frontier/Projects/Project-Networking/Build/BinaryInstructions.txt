@@ -32,3 +32,11 @@ The runtime DLL is included. Do not copy files manually. This is a standalone
 networking test project, not the complete Frontier engine. The project DLL stays
 under Build/Output. CI checks rendering, SDK lifetime and extracted-package
 startup; it does NOT claim a real account login, overlay, or service-start test.
+
+PLATFORM REFUSAL / SAVED CREDENTIAL CORRECTION
+If the app reports a secret longer than 64 characters, open Setup, copy only the
+rotated secret, and use Paste secret to REPLACE the entire field. Keep Remember
+checked and click Apply / Save & log in to replace the old saved value. The app
+never truncates credentials or sends invalid input to EOS. If it still fails,
+Save log now includes redacted platform-error categories; attach that log, never
+your secret. Saving successfully does not mean Epic has accepted the credential.

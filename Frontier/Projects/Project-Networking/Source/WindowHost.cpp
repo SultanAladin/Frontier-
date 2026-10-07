@@ -96,7 +96,7 @@ void ReceiveDiagnostic(const char* Text)
     std::transform(Lower.begin(), Lower.end(), Lower.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
     const auto Has = [&Lower](const char* Word) { return Lower.find(Word) != std::string::npos; };
     Reading.Severity = Has("failed") || Has("error") || Has("refused") || Has("could not") ? 3 :
-        Has("missing") || Has("not ready") || Has("empty") || Has("cancelled") || Has("not bootstrapped") ? 2 :
+        Has("too long") || Has("whitespace") || Has("missing") || Has("not ready") || Has("empty") || Has("cancelled") || Has("not bootstrapped") ? 2 :
         Has("=success") || Has("eos_success") || Has("sdk_initialized_once=1") ? 1 : 0;
     ScrollPending = true;
 }
@@ -217,13 +217,22 @@ void BeginLogin()
         ReceiveDiagnostic("Client ID or Developer Auth Tool credential NAME is missing.");
         return;
     }
+    if (const char* Error = Networking::ValidateEpicCredentials(Secret, ClientId))
+    {
+        ReceiveDiagnostic("configuration=refused; credentials were not submitted to EOS");
+        ReceiveDiagnostic(Error);
+        SetupError = Error;
+        SetupRequested = true;
+        return;
+    }
     Networking::RetireEpic();
     const Networking::LoginSpecification Specification{
         Secret, ClientId, Method == 0 ? "developer" : "accountportal", Credential, AllowCreation, EnableSocial};
     Busy = Networking::ConstructEpic(Specification, ReceiveDiagnostic);
     WipeSecret();
     WipeClipboard();
-    ReceiveDiagnostic("Secret cleared after submission. Re-enter it before retrying.");
+    ReceiveDiagnostic(RememberCredential ? "Temporary secret cleared. The saved Windows credential will be reused on retry." :
+        "Temporary secret cleared. Enter it in Setup before retrying, or enable Remember on this PC.");
     if (!Busy)
         Networking::RetireEpic();
 }
@@ -294,9 +303,14 @@ void ConfigureAppearance()
 
 void PresentSetup()
 {
-    ImGui::SetNextWindowSize(ImVec2(550, 0), ImGuiCond_Appearing);
-    if (!ImGui::BeginPopupModal("One-time setup", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    const auto* Viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(Viewport->WorkPos.x + Viewport->WorkSize.x * 0.5f,
+        Viewport->WorkPos.y + Viewport->WorkSize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(std::min(550.0f, Viewport->WorkSize.x - 32),
+        std::min(660.0f, Viewport->WorkSize.y - 32)), ImGuiCond_Always);
+    if (!ImGui::BeginPopupModal("One-time setup", nullptr, ImGuiWindowFlags_NoResize))
         return;
+    ImGui::BeginChild("Setup fields", ImVec2(0, -140));
     ImGui::TextWrapped("Install EpicOnlineServicesInstaller.exe once, then open Charge.exe (the included Epic launcher). "
         "The app can then ask Epic to display its login UI.");
     ImGui::Spacing();
@@ -304,7 +318,7 @@ void PresentSetup()
     ImGui::TextColored(Muted, "Not your Epic account password. Use a rotated secret.");
     ImGui::SetNextItemWidth(-1);
     ImGui::InputTextWithHint("##secret", "EOS client secret", Secret, sizeof(Secret),
-        ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo);
+        ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo | ImGuiInputTextFlags_AutoSelectAll);
 #if defined(_WIN32)
     if (ImGui::SmallButton("Paste secret"))
     {
@@ -321,7 +335,7 @@ void PresentSetup()
     {
         ImGui::TextUnformatted("EOS client ID");
         ImGui::SetNextItemWidth(-1);
-        ImGui::InputText("##client", ClientId, sizeof(ClientId));
+        ImGui::InputText("##client", ClientId, sizeof(ClientId), ImGuiInputTextFlags_AutoSelectAll);
         ImGui::SetNextItemWidth(-1);
         ImGui::Combo("##method", &Method, "Developer Auth Tool\0Epic Account Portal\0");
         if (Method == 0)
@@ -344,10 +358,11 @@ void PresentSetup()
         ImGui::TextWrapped("%s", Networking::InspectOverlayReading());
     }
     ImGui::Spacing();
+    ImGui::EndChild();
     if (ImGui::Button(ContinueAfterSetup ? "Save & log in" : "Apply setup", ImVec2(220, 42)))
     {
-        if (!Secret[0] || !ClientId[0])
-            SetupError = "Enter the client ID and rotated client secret.";
+        if (const char* Error = Networking::ValidateEpicCredentials(Secret, ClientId))
+            SetupError = Error;
         else
         {
             bool Stored = true;
@@ -520,7 +535,6 @@ void PresentLogin()
     {
         SetupRequested = false;
         ContinueAfterSetup = true;
-        SetupError = "";
         ImGui::OpenPopup("One-time setup");
     }
     PresentSetup();
@@ -651,12 +665,14 @@ int RunWindow(bool Smoke)
             const bool Refused = !Busy && !Verified && Attempted;
             Networking::RetireEpic();
             const bool Reused = Networking::VerifyEpicRuntime(ReceiveDiagnostic);
+            const bool PlatformReady = Networking::VerifyEpicPlatform(ReceiveDiagnostic);
             const bool Guarded = !Networking::QueryEpicFriends() && !Networking::ShowEpicFriends();
-            Result = Captured && SdkReady && Refused && Reused && Guarded ? 0 : 3;
+            Result = Captured && SdkReady && Refused && Reused && PlatformReady && Guarded ? 0 : 3;
             std::ofstream Proof("WindowChecks.log");
             Proof << "glfw_imgui_rendered=" << Captured << "\nsdk_check=" << SdkReady
                   << "\nmissing_credentials_refused=" << Refused
                   << "\nsdk_reused_same_process=" << Reused
+                  << "\nplatform_created_without_auth=" << PlatformReady
                   << "\nsocial_requires_login=" << Guarded
                   << "\nauthentication=NOT_ATTEMPTED\n" << Diagnostics;
             if (!Proof)
