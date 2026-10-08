@@ -692,6 +692,9 @@ fn vsArrow(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> 
   let x = ii % gx;
   let y = (ii / gx) % gy;
   let z = ii / (gx * gy);
+  // Density: G.swirl.w is the arrow stride. Only every stride-th voxel on each axis draws an arrow.
+  let st = max(1u, u32(G.swirl.w));
+  if (x % st != 0u || y % st != 0u || z % st != 0u) { return o; }
   let v = textureLoad(windTex, vec3i(i32(x), i32(y), i32(z)), 0).xyz;
   let mag = length(v);
   if (mag < 0.03) { return o; }
@@ -699,7 +702,7 @@ fn vsArrow(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> 
   let wp = G.windMin.xyz + (vec3f(f32(x), f32(y), f32(z)) + 0.5) * cell;
   let dn = v / mag;
   let t = clamp(mag / G.viz.x, 0.0, 1.0);
-  let len = min(cell.x, cell.z) * (0.35 + 0.9 * t);
+  let len = min(cell.x, cell.z) * (0.3 + 0.8 * t);
   let a = wp - dn * len * 0.5;
   let b = wp + dn * len * 0.5;
   let q = segQuad(a, b, G.viz.y * (0.6 + 0.4 * t), G.viz.y * 0.25, vi);

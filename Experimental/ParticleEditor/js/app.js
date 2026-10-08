@@ -269,7 +269,7 @@
     glob.set([DOMAIN.dim[0], DOMAIN.dim[1], DOMAIN.dim[2], state.wind.components.length], G.windDim);
     glob.set([state.time, dt, state.frame, state.wind.windScale], G.timing);
     glob.set([state.wind.arrowRef, 0.012, state.lightning.flash, state.wind.turbulence], G.viz);
-    glob.set([state.wind.swirl, 0.45, 0.22, 0], G.swirl);
+    glob.set([state.wind.swirl, 0.45, 0.22, state.wind.arrowStride || 3], G.swirl);
 
     const comps = new Float32Array(PE.WIND.maxComps * 8);
     state.wind.components.slice(0, PE.WIND.maxComps).forEach((c, i) => {
@@ -676,9 +676,10 @@
       rangeRow("Swirl", () => w.swirl, (v) => (w.swirl = v), { min: 0, max: 4, step: 0.05, digits: 2, unit: "m/s" }),
       rangeRow("Arrow full scale", () => w.arrowRef, (v) => (w.arrowRef = v), { min: 1, max: 15, step: 0.1, digits: 1, unit: "m/s" }),
       checkRow("Show grid arrows", () => w.showArrows, (v) => (w.showArrows = v)),
+      rangeRow("Arrow density", () => w.arrowStride, (v) => (w.arrowStride = v), { min: 1, max: 6, step: 1, digits: 0, unit: "voxel step" }),
       checkRow("Show floor", () => w.showFloor, (v) => (w.showFloor = v)),
       checkRow("Show domain box", () => w.showDomain, (v) => (w.showDomain = v)),
-      note("Arrow colour is speed: blue calm, cyan, yellow, red fast. Arrow length follows speed, up to one voxel.")));
+      note("Arrow colour is speed: blue calm, cyan, yellow, red fast. Density is the voxel step between arrows: 1 draws every voxel, 3 draws every third.")));
 
     w.components.forEach((c, i) => {
       root.append(card(c.name, WIND_TYPE_LABEL[c.type] || "WIND",

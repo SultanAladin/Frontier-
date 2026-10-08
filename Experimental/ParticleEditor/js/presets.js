@@ -428,6 +428,7 @@
       turbulence: 0.35,
       arrowRef: 6,
       showArrows: true,
+      arrowStride: 3,
       showFloor: true,
       showDomain: true,
       components: [
