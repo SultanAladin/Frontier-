@@ -32,7 +32,7 @@ import {
 } from "./ScenePolicy.js";
 import WindEditor from "./WindPanel.jsx";
 import GasEditor from "./GasPanel.jsx";
-import { GasRowSummary } from "./GasSpecification.js";
+import { GasEmitterRowSummary, GasRowSummary, NewGasEmitter } from "./GasSpecification.js";
 import AssetPanel from "./AssetPanel.jsx";
 import { RestoreAssets } from "./AssetDepot.js";
 import MaterialPanel from "./MaterialPanel.jsx";
@@ -66,6 +66,14 @@ const InitialRows = [
     "local-fog",
     "showcase",
     "Volumetric fire and smoke · dormant until fired",
+  ],
+  [
+    "gas-flame",
+    "Flame Source",
+    "gas-emitter",
+    "editor-particle-emitter",
+    "gas-domain",
+    "Emitter · a child of the domain, with its own transform in domain space",
   ],
   ["cameras", "Cameras", "group", "camera", null, "Camera collection"],
   [
@@ -297,6 +305,7 @@ function OutlinerMetadata(Row, Record = {}, Rows = []) {
       "×"
     );
   if (Row.Panel === "gas") return GasRowSummary(Record);
+  if (Row.Panel === "gas-emitter") return GasEmitterRowSummary(Record);
   if (Row.Panel === "wind")
     return (
       CompactNumber(V("Speed")) +
@@ -1825,6 +1834,30 @@ function App() {
                 GasOpener.current = document.activeElement;
                 EditGas(Selected);
               }}
+              GasChildren={Rows.filter(
+                (Row) => Row.Parent === Selected && Row.Panel === "gas-emitter",
+              ).map((Row) => ({ ...Row, Values: Values[Row.Id] || {} }))}
+              GasParent={(() => {
+                const Owner = Rows.find(
+                  (Row) => Row.Id === Subject.Parent && Row.Panel === "gas",
+                );
+                return Owner ? { ...Owner, Values: Values[Owner.Id] || {} } : null;
+              })()}
+              SelectRow={SelectRow}
+              AddEmitter={() =>
+                AddRow(
+                  {
+                    Id: "gas-flame",
+                    Name: "Emitter",
+                    Panel: "gas-emitter",
+                    Icon: "editor-particle-emitter",
+                    Parent: Selected,
+                    Description:
+                      "Emitter · a child of the domain, with its own transform in domain space",
+                  },
+                  NewGasEmitter(),
+                )
+              }
               OpenWind={() => {
                 WindOpener.current = document.activeElement;
                 EditWind(Selected);

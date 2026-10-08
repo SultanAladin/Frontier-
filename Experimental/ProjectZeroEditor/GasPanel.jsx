@@ -1,41 +1,93 @@
 //============================================================================================================================================
 //                                                              GASPANEL.JSX
 //============================================================================================================================================
-// 📦 The gas domain as the inspector shows it — a small card with the settings worth having inline, and one button to the full editor.
+// 📦 The gas domain as the inspector shows it — a transform, its children, the few settings worth having inline, and one button to the full editor.
 //
-// Two components, and the split is the whole design:
+// Four components, and the split is the whole design:
 //
-//    GasInspector   eleven settings, a preview that tells the truth about whether anything is running, a
-//                   live cost readout, and ↗. Docked in a 320-pixel column, so it holds what someone
-//                   actually adjusts while placing an effect in a level.
-//    GasEditor      the full page, opened from ↗, exactly as the fracture card opens the fracture editor
-//                   and the wind card opens WindEditor. It is not a second design: it hosts the Fluid
-//                   simulator page that already exists in Experimental/Fluid.
+//    GasPreview      a cheap stand-in for the volume that refuses to animate a domain the game would not run.
+//    GasInspector    the domain card stack: transform, hierarchy, run policy, budget, eleven settings, ↗.
+//    GasEmitterInspector   a child emitter, which is its own entity with its own transform.
+//    GasEditor       the full page, opened from ↗, exactly as the wind card opens WindEditor. It is not a
+//                    second design: it hosts the Fluid simulator page that already exists in Experimental/Fluid.
+//
+// 🔴 EVERY CONTROL HERE IS THE EDITOR'S OWN CONTROL.
+//    Card, Control, Tile, Metric and TransformPanel are imported from the inspector rather than restyled
+//    here, so a gas slider is the same object as a fog slider — same pill, same fill, same split value, same
+//    keyboard behaviour — and stays that way the next time the editor's styling moves. The first draft of
+//    this panel hand-rolled its rows and read as a visitor from another application, which it was. The only
+//    CSS this file still owns is the preview canvas, the policy description, the child list and the drawer:
+//    things the shared vocabulary has no word for.
 //
 // 🔴 THE PREVIEW REFUSES TO SHOW A PLUME THAT THE GAME WOULD NOT SHOW.
 //    A dormant domain draws its bounds and nothing else. It would be easy — and much prettier — to animate
 //    every card, and it would teach everyone that effects run by themselves. They do not: the budget admits
 //    twelve live domains and most of a level's gas is dormant until something fires it. A preview that lies
 //    about that is worse than no preview.
+//
+// ⚠️ The import of Card/Control from Inspectors.jsx closes a cycle, and it is the cycle Notch.jsx already
+//    lives in. Both sides export hoisted function declarations and nothing is called at module scope, so
+//    the binding is resolved at render time, long after both modules have finished evaluating.
 
 import React, { useEffect, useRef, useState } from "react";
+import { Card, Control, Glyph, Icon, Metric, Tile } from "./Inspectors.jsx";
+import TransformPanel from "./TransformPanel.jsx";
 import {
-  ExposedGasFields,
-  GasFieldGroups,
+  ApplyGasPreset,
+  GasEmitterRowSummary,
+  GasEmitterSheet,
+  GasEmitterTransformRows,
   GasPresetChoices,
+  GasPresetOptions,
   GasRowSummary,
   GasRunPolicies,
   GasRunning,
+  GasSheet,
   GasSummary,
   GasTiers,
-  NewGasDomain,
+  GasTransformRows,
+  NewGasEmitter,
   ResolveGas,
   SpellBytes,
   TierForDistance,
 } from "./GasSpecification.js";
 import "./GasPanel.css";
 
-export { GasRowSummary };
+export { GasRowSummary, GasEmitterRowSummary, NewGasEmitter };
+
+// Renders one sheet field through the editor's Control, which is the point of writing the sheet in the
+//    editor's shape in the first place.
+function Reader(Sheet, Values, Change) {
+  return (...Labels) =>
+    Labels.map((Label) => {
+      const Field = Sheet.find((Item) => Item.Label === Label);
+      if (!Field) return null;
+      return (
+        <Control
+          key={Label}
+          Field={Field}
+          Value={Values[Label] ?? Field.Default}
+          Change={(Next) => Change(Label, Next)}
+        />
+      );
+    });
+}
+
+// A Select in a sheet carries indices; these domains carry identifiers. One place converts, rather than
+//    every call site remembering to.
+function Chooser({ Label, Choices, Current, Change }) {
+  const Index = Math.max(
+    0,
+    Choices.findIndex((Choice) => Choice.Id === Current),
+  );
+  return (
+    <Control
+      Field={{ Label, Control: "Select", Options: Choices.map((Choice) => Choice.Name) }}
+      Value={Index}
+      Change={(Next) => Change(Choices[Next].Id)}
+    />
+  );
+}
 
 // ─── The preview ───────────────────────────────────────────────────────────────────────────────────────────
 
@@ -144,238 +196,260 @@ export function GasPreview({ Resolved, Active = true, Playing = true, Running = 
   );
 }
 
-// ─── The inspector card ────────────────────────────────────────────────────────────────────────────────────
+// ─── The domain card stack ─────────────────────────────────────────────────────────────────────────────────
 
-export function GasInspector({ Values, Change, Open, Hidden }) {
-  const Resolved = ResolveGas(Values),
-    [Fired, Fire] = useState(false),
-    [Group, ShowGroup] = useState("domain");
-  const Running = GasRunning(Resolved, Fired) && !Hidden;
-  const Domain = { ...NewGasDomain(), ...(Values.Gas || {}) };
-  const Assign = (Key, Reading) => Change("Gas", { ...Domain, [Key]: Reading });
-  const Override = (Key, Reading) =>
-    Change("Gas", { ...Domain, Overrides: { ...Domain.Overrides, [Key]: Reading } });
+export function GasInspector({
+  Values,
+  Change,
+  Open,
+  Hidden,
+  ToggleHidden,
+  Children = [],
+  SelectChild,
+  AddEmitter,
+}) {
+  const [Fired, Fire] = useState(false);
+  const Resolved = ResolveGas(Values, Children);
+  const Running = !Hidden && GasRunning(Resolved, Fired);
+  const F = Reader(GasSheet, Values, Change);
+  const Amber = Resolved.Bytes > 96 * 1024 * 1024;
 
-  // A domain over the ceiling on its own is a configuration mistake worth saying out loud here, where it is
-  //    made, rather than in a frame-rate report later.
-  const Heavy = Resolved.Bytes > 96 * 1024 * 1024;
+  // What the author has moved away from the preset, counted over the sheet only — a transform is not an
+  //    override, because the preset never had an opinion about where the effect is.
+  const Clean = ApplyGasPreset(Resolved.Preset, {});
+  const Departures = GasSheet.filter(
+    (Field) => Values[Field.Label] !== undefined && Values[Field.Label] !== Clean[Field.Label],
+  );
+
+  const Revert = () => {
+    for (const Field of Departures) Change(Field.Label, Clean[Field.Label]);
+  };
+
+  const Pin = [{ Id: "auto", Name: "Automatic · by distance" }].concat(
+    GasTiers.map((Tier) => ({
+      Id: Tier.Id,
+      Name: `${Tier.Name} · ${Tier.Extent ? Tier.Extent + "³" : "flipbook"}`,
+    })),
+  );
 
   return (
-    <section className="property-card gas-inspector" data-card="Gas domain">
-      <div className="gas-section-head">
-        <div>
-          <span className="eyebrow">VOLUMETRICS · GAS</span>
-          <h2>Gas domain</h2>
-        </div>
-        <button onClick={Open} aria-label="Expand FluidEditor" title="Open the full Fluid editor">
-          ↗
-        </button>
+    <>
+      <div className="tiles">
+        <Tile Label="Visible" Context="gas" IconName="visible" On={!Hidden} Action={ToggleHidden} />
+        <Tile
+          Label="Obstructs"
+          Context="gas"
+          On={Values.Obstructs !== false}
+          Action={() => Change("Obstructs", Values.Obstructs === false)}
+        />
+        <Tile
+          Label="Pushes objects"
+          Context="gas"
+          On={!!Values.Coupled}
+          Action={() => Change("Coupled", !Values.Coupled)}
+        />
       </div>
 
-      <GasPreview Resolved={Resolved} Active={!Hidden} Running={Running} />
-
-      <div className={"gas-status " + (Running ? "live" : "idle")}>
-        <i />
-        <span>{GasSummary(Resolved)}</span>
+      {/* ① The transform, first, because this is a 3D entity before it is an effect. Bounds take the row
+          Scale occupies on a mesh: the domain's extent is its scale, in metres, and is not a child. */}
+      <TransformPanel Values={Values} Change={Change} Rows={GasTransformRows} Space="WORLD SPACE" />
+      <div className="section-caption">
+        ROTATION ORIENTS CHILDREN, NOT THE LATTICE — the solver cube is axis-aligned
       </div>
 
-      <label className="gas-row">
-        Preset
-        <select
-          aria-label="Gas preset"
-          value={Resolved.Preset}
-          onChange={(Event) => Change("Gas", { ...Domain, Preset: Event.target.value, Overrides: {} })}
-        >
-          {GasPresetChoices.map((Entry) => (
-            <option key={Entry.Id} value={Entry.Id}>
-              {Entry.Name}
-              {Entry.OneShot ? " · one-shot" : ""}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <h4>WHEN IT RUNS</h4>
-      <div className="gas-policy" role="group" aria-label="Gas run policy">
-        {GasRunPolicies.map((Policy) => (
-          <button
-            key={Policy.Id}
-            aria-pressed={Resolved.Policy.Id === Policy.Id}
-            title={Policy.Description}
-            onClick={() => Assign("Run", Policy.Id)}
-          >
-            {Policy.Name}
-            <small>{Policy.Short}</small>
-          </button>
-        ))}
-      </div>
-      <p className="gas-note">{Resolved.Policy.Description}</p>
-
-      {Resolved.Policy.Id === "triggered" && (
-        <label className="gas-row">
-          Lifetime
-          <input
-            type="number"
-            aria-label="Gas lifetime"
-            min={0.2}
-            max={60}
-            step={0.1}
-            value={Resolved.Lifetime}
-            onChange={(Event) => Assign("Lifetime", Number(Event.target.value) || 0.2)}
-          />
-          <small>s</small>
-        </label>
-      )}
-
-      {Resolved.Policy.Id !== "always" && (
-        <button className="gas-wide-button" onClick={() => Fire(!Fired)} aria-pressed={Fired}>
-          {Fired ? "■ Stop preview" : "▶ Fire preview"}
-        </button>
-      )}
-
-      <h4>COST</h4>
-      <div className="gas-readout">
-        <div>
-          <strong>{Resolved.Tier.Name}</strong>
-          <small>{Resolved.QualityPin === "auto" ? "granted by distance" : "pinned"}</small>
-        </div>
-        <div>
-          <strong>{Resolved.Tier.Extent ? `${Resolved.Tier.Extent}³` : "card"}</strong>
-          <small>lattice</small>
-        </div>
-        <div className={Heavy ? "heavy" : ""}>
-          <strong>{SpellBytes(Resolved.Bytes)}</strong>
-          <small>live, of 256 MB</small>
-        </div>
-        <div>
-          <strong>{Resolved.Hertz ? `${Resolved.Hertz} Hz` : "—"}</strong>
-          <small>solver rate</small>
-        </div>
-      </div>
-
-      <label className="gas-row">
-        Quality
-        <select
-          aria-label="Gas quality"
-          value={Resolved.QualityPin}
-          onChange={(Event) => Assign("QualityPin", Event.target.value)}
-        >
-          <option value="auto">Auto · by distance</option>
-          {GasTiers.map((Tier) => (
-            <option key={Tier.Id} value={Tier.Id}>
-              Pin to {Tier.Name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      {Resolved.QualityPin === "auto" && (
-        <label className="gas-row gas-slider">
-          Viewer at
-          <input
-            type="range"
-            aria-label="Gas viewer distance"
-            min={1}
-            max={200}
-            step={1}
-            value={Resolved.Distance}
-            onChange={(Event) => Assign("Distance", Number(Event.target.value))}
-          />
-          <small>
-            {Math.round(Resolved.Distance)} m → {TierForDistance(Resolved.Distance).Name}
-          </small>
-        </label>
-      )}
-
-      <h4>PHYSICS</h4>
-      <label className="switch-row">
-        <span>Obstructs gas</span>
-        <button
-          className={"toggle " + (Resolved.Obstructs ? "on" : "")}
-          role="switch"
-          aria-label="Obstructs gas"
-          aria-checked={Resolved.Obstructs}
-          onClick={() => Assign("Obstructs", !Resolved.Obstructs)}
-        >
+      <Card Title="Domain">
+        <GasPreview Resolved={Resolved} Running={Running} />
+        <div className={"gas-state " + (Running ? "live" : "idle")}>
           <i />
-        </button>
-      </label>
-      <label className="switch-row">
-        <span>Pushes objects · two-way</span>
-        <button
-          className={"toggle " + (Resolved.Coupled ? "on" : "")}
-          role="switch"
-          aria-label="Two-way coupling"
-          aria-checked={Resolved.Coupled}
-          onClick={() => Assign("Coupled", !Resolved.Coupled)}
-        >
-          <i />
-        </button>
-      </label>
-      <p className="gas-note">
-        Obstructing the gas is cheap and almost always wanted. Being pushed by it is neither, so it is off
-        until a body opts in — debris and cloth clearly yes, a vehicle shoved by its own exhaust clearly not.
-      </p>
+          <span>{Hidden ? "Hidden · nothing simulates" : GasSummary(Resolved)}</span>
+        </div>
+        <Chooser
+          Label="Preset"
+          Choices={GasPresetChoices.map((Entry, Index) => ({
+            Id: Entry.Id,
+            Name: GasPresetOptions[Index],
+          }))}
+          Current={Resolved.Preset}
+          Change={(Id) => {
+            const Next = ApplyGasPreset(Id, Values);
+            for (const [Key, Reading] of Object.entries(Next)) Change(Key, Reading);
+          }}
+        />
+        {F("Dynamic Bounds", "Surge Limit", "Enclosed Box")}
+        <p className="gas-note">
+          Dynamic bounds let the cube grow to the surge limit when the plume reaches a wall, at the cost of
+          coarser voxels for the same count. Enclosed stops it venting through the sides.
+        </p>
+      </Card>
 
-      <h4>SETTINGS</h4>
-      <div className="gas-tabs" role="group" aria-label="Gas setting groups">
-        {GasFieldGroups.map((Entry) => (
+      <Card Title="Simulation">
+        <Chooser
+          Label="Runs"
+          Choices={GasRunPolicies}
+          Current={Resolved.Policy.Id}
+          Change={(Id) => Change("Run", Id)}
+        />
+        <p className="gas-note">{Resolved.Policy.Description}</p>
+        {Resolved.Policy.Id === "triggered" && (
+          <Control
+            Field={{ Label: "Lifetime", Control: "Slider", Minimum: 0.2, Maximum: 30, Decimals: 1, Unit: "s", Default: 4 }}
+            Value={Values.Lifetime ?? 4}
+            Change={(Next) => Change("Lifetime", Next)}
+          />
+        )}
+        {Resolved.Policy.Id !== "always" && (
           <button
-            key={Entry.Id}
-            aria-pressed={Group === Entry.Id}
-            onClick={() => ShowGroup(Entry.Id)}
+            className="gas-fire"
+            onClick={() => Fire(!Fired)}
+            aria-label={Fired ? "Stop the preview simulation" : "Fire the domain in the preview"}
           >
-            {Entry.Name}
+            <Glyph Name={Fired ? "CircleCheck" : "MotionActivity"} Size={13} />
+            {Fired ? "Stop preview" : "Fire in preview"}
           </button>
-        ))}
-      </div>
-      {ExposedGasFields.filter((Field) => Field.Group === Group).map((Field) =>
-        Field.Switch ? (
-          <label className="switch-row" key={Field.Key}>
-            <span>{Field.Label}</span>
-            <button
-              className={"toggle " + (Resolved.Settings[Field.Key] ? "on" : "")}
-              role="switch"
-              aria-label={Field.Label}
-              aria-checked={Boolean(Resolved.Settings[Field.Key])}
-              onClick={() => Override(Field.Key, !Resolved.Settings[Field.Key])}
-            >
-              <i />
-            </button>
-          </label>
+        )}
+      </Card>
+
+      <Card Title="Budget" Class={Amber ? "gas-amber" : ""}>
+        <Metric
+          Value={SpellBytes(Resolved.Bytes)}
+          Unit=""
+          Caption={`${Resolved.Tier.Name} tier · ${Resolved.Tier.Extent ? Resolved.Tier.Extent + "³ lattice" : "no solver"} · ${Resolved.Tier.Sweeps || 0} sweeps · ${Resolved.Hertz || 0} Hz`}
+        />
+        <Chooser
+          Label="Quality"
+          Choices={Pin}
+          Current={Values.QualityPin || "auto"}
+          Change={(Id) => Change("QualityPin", Id)}
+        />
+        <Control
+          Field={{ Label: "Viewer Distance", Control: "Slider", Minimum: 0, Maximum: 200, Decimals: 0, Unit: "m", Default: 12 }}
+          Value={Values.Distance ?? 12}
+          Change={(Next) => Change("Distance", Next)}
+        />
+        <p className="gas-note">
+          {Values.QualityPin && Values.QualityPin !== "auto"
+            ? "Pinned. A pin that outlives the shot it was set for is how a level runs out of budget."
+            : `Automatic: ${TierForDistance(Values.Distance ?? 12).Name} at this distance. The ladder is Engine/VolumetricDynamics/GasQualityAllowance.h, and the ceiling is 256 MB over twelve live domains.`}
+        </p>
+      </Card>
+
+      <Card Title="Source">
+        {Resolved.LiveEmitters > 0 ? (
+          <p className="gas-note">
+            Emission comes from {Resolved.LiveEmitters} child emitter
+            {Resolved.LiveEmitters === 1 ? "" : "s"} below. Select one to adjust it.
+            {Resolved.LiveEmitters > 1 &&
+              " The solver carries one continuous source, so the first enabled emitter drives it; the rest are authored and exported, awaiting the native multi-emitter path."}
+          </p>
         ) : (
-          <label className="gas-row gas-slider" key={Field.Key}>
-            {Field.Label}
-            <input
-              type="range"
-              aria-label={Field.Label}
-              min={Field.Min}
-              max={Field.Max}
-              step={Field.Step}
-              value={Resolved.Settings[Field.Key] ?? Field.Min}
-              onChange={(Event) => Override(Field.Key, Number(Event.target.value))}
-            />
-            <small>
-              {Number(Resolved.Settings[Field.Key] ?? 0).toFixed(2)} {Field.Unit}
-            </small>
-          </label>
-        ),
-      )}
-      {Object.keys(Domain.Overrides || {}).length > 0 && (
-        <button className="gas-wide-button quiet" onClick={() => Assign("Overrides", {})}>
-          Revert {Object.keys(Domain.Overrides).length} override
-          {Object.keys(Domain.Overrides).length === 1 ? "" : "s"} to the preset
+          F("Emission Rate", "Smoke", "Temperature", "Buoyancy")
+        )}
+      </Card>
+
+      <Card Title="Appearance">{F("Density", "Albedo", "Fire", "Exposure")}</Card>
+
+      {/* ② Children. Emitters only — see the header of GasSpecification.js for why a collider is not here. */}
+      <section className="generic-card gas-children" data-card="Hierarchy">
+        <h4>HIERARCHY</h4>
+        {Children.length === 0 ? (
+          <p className="gas-note">
+            No child emitters. The domain emits from its own centre using the Source readings above; add an
+            emitter when the flame belongs somewhere other than the middle of the box, or when there is more
+            than one of it.
+          </p>
+        ) : (
+          <ul className="gas-child-list">
+            {Children.map((Child) => (
+              <li key={Child.Id}>
+                <button onClick={() => SelectChild(Child.Id)} aria-label={"Select " + Child.Name}>
+                  <Icon Name="editor-particle-emitter" Size={16} />
+                  <span>{Child.Name}</span>
+                  <small>{GasEmitterRowSummary(Child.Values || {})}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button className="gas-add-child" onClick={AddEmitter} aria-label="Add emitter">
+          <Glyph Name="PlusAdd" Size={13} />
+          Add emitter
+        </button>
+        <p className="gas-note">
+          Colliders are not children. An object obstructs gas by opting in from its own inspector, so it can
+          obstruct several domains, move between them, and survive the deletion of any of them.
+        </p>
+      </section>
+
+      {Departures.length > 0 && (
+        <button className="gas-revert" onClick={Revert} aria-label="Revert to preset">
+          Revert {Departures.length} change{Departures.length === 1 ? "" : "s"} to {Resolved.PresetName}
         </button>
       )}
 
-      <button className="gas-wide-button" onClick={Open}>
-        Open FluidEditor · all {85} settings, viewport and flipbook bake ↗
+      <button className="gas-open" onClick={Open} aria-label="Expand FluidEditor">
+        <Glyph Name="ExpandDiagonal" Size={14} />
+        Open FluidEditor
+        <small>all 85 settings · presets · flipbook bake</small>
       </button>
-      <p className="gas-note">
-        Eleven settings here, the rest one button away. Saved with the scene and exported to the engine as
-        .gasscene.toml.
-      </p>
-    </section>
+    </>
+  );
+}
+
+// ─── A child emitter ───────────────────────────────────────────────────────────────────────────────────────
+
+// 🔴 An emitter is an entity, not a settings group. It has a transform of its own, it can be re-parented
+//    onto a tyre or a fracture piece, and it has siblings. That is the entire justification for its being a
+//    row rather than a fourth card on the domain — and if it could not be moved independently it would not
+//    have earned one.
+export function GasEmitterInspector({ Values, Change, Parent, SelectParent }) {
+  const F = Reader(GasEmitterSheet, Values, Change);
+  return (
+    <>
+      <div className="tiles">
+        <Tile
+          Label="Enabled"
+          Context="gas"
+          On={Values.Enabled !== false}
+          Action={() => Change("Enabled", Values.Enabled === false)}
+        />
+      </div>
+
+      <TransformPanel
+        Values={Values}
+        Change={Change}
+        Rows={GasEmitterTransformRows}
+        Space="DOMAIN SPACE"
+      />
+
+      <Card Title="Emission">{F("Radius", "Emission Rate", "Smoke", "Temperature", "Fuel", "Rise Speed", "Swirl")}</Card>
+
+      <section className="generic-card gas-children" data-card="Domain">
+        <h4>DOMAIN</h4>
+        {Parent ? (
+          <>
+            <ul className="gas-child-list">
+              <li>
+                <button onClick={() => SelectParent(Parent.Id)} aria-label={"Select " + Parent.Name}>
+                  <Icon Name="local-fog" Size={16} />
+                  <span>{Parent.Name}</span>
+                  <small>{GasRowSummary(Parent.Values || {})}</small>
+                </button>
+              </li>
+            </ul>
+            <p className="gas-note">
+              Position is in the domain's space, so moving or rotating the domain carries this with it. Drag
+              this row onto another object in the outliner to attach the flame to that object instead; the
+              domain it emits into is then whichever one encloses it.
+            </p>
+          </>
+        ) : (
+          <p className="gas-note">
+            Not inside a gas domain. An emitter with no domain is authored but inert — nothing simulates it
+            until it is parented to a domain or moved inside one.
+          </p>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -413,10 +487,18 @@ export default function GasEditor({ Subject, Values, Change, Domains, SelectDoma
   useEffect(() => {
     const Receive = (Event) => {
       if (Event.data?.Frontier !== "gas-scene-changed" || !Event.data.Settings) return;
-      Change("Gas", {
-        ...(Values.Gas || {}),
-        Overrides: { ...(Values.Gas?.Overrides || {}), ...Event.data.Settings },
-      });
+      // The page speaks the simulator's parameter names; the card stores the editor's labels. The sheet is
+      //    the dictionary between them, and a setting the card does not expose simply has no label to
+      //    land in — it stays in the full editor, which is where it was being adjusted.
+      const Arrived = Event.data.Settings;
+      for (const Field of GasSheet)
+        if (Arrived[Field.Key] !== undefined) Change(Field.Label, Arrived[Field.Key]);
+      if (Arrived.boundsWidth !== undefined || Arrived.boundsHeight !== undefined)
+        Change("Bounds", [
+          Arrived.boundsWidth ?? Resolved.Bounds[0],
+          Arrived.boundsHeight ?? Resolved.Bounds[1],
+          Arrived.boundsWidth ?? Resolved.Bounds[2],
+        ]);
     };
     window.addEventListener("message", Receive);
     return () => window.removeEventListener("message", Receive);

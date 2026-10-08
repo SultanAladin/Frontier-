@@ -20,15 +20,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  ExposedGasFields,
+  ApplyGasPreset,
   GasBytesPerVoxel,
+  GasEmitterSheet,
+  GasEmitterTransformRows,
   GasPresetChoices,
   GasRowSummary,
   GasRunPolicies,
   GasRunning,
   GasSummary,
+  GasSheet,
   GasTiers,
+  GasTransformRows,
   NewGasDomain,
+  NewGasEmitter,
   ResolveGas,
   SpellBytes,
   TierBytes,
@@ -97,7 +102,7 @@ Banner("The quality ladder agrees with GasQualityAllowance.h");
 
 Banner("A domain is in the scene whether or not it simulates");
 {
-  const Dormant = ResolveGas({ Gas: { ...NewGasDomain(), Run: "dormant" } });
+  const Dormant = ResolveGas({ ...NewGasDomain(), Run: "dormant" });
   Check(!GasRunning(Dormant, false), "a dormant domain does not simulate");
   Check(GasRunning(Dormant, true), "and does once something fires it");
   Check(
@@ -105,16 +110,16 @@ Banner("A domain is in the scene whether or not it simulates");
     "the card says so in words rather than only in a colour",
   );
 
-  const Always = ResolveGas({ Gas: { ...NewGasDomain(), Run: "always" } });
+  const Always = ResolveGas({ ...NewGasDomain(), Run: "always" });
   Check(GasRunning(Always, false), "an always-on domain simulates with nothing firing it");
 
-  const Distant = ResolveGas({ Gas: { ...NewGasDomain(), Run: "proximity", Distance: 400 } });
+  const Distant = ResolveGas({ ...NewGasDomain(), Run: "proximity", Distance: 400 });
   Check(
     !GasRunning(Distant, true),
     "a domain past the ladder does not simulate even when fired — beyond 150 m it is a flipbook, and firing a card does nothing",
   );
 
-  const Near = ResolveGas({ Gas: { ...NewGasDomain(), Run: "proximity", Distance: 40 } });
+  const Near = ResolveGas({ ...NewGasDomain(), Run: "proximity", Distance: 40 });
   Check(GasRunning(Near, false), "and inside the ladder proximity alone is enough");
 
   Check(GasRunPolicies[0].Id === "dormant", "dormant is first, because in a level it is the normal case");
@@ -138,9 +143,9 @@ Banner("Defaults, then preset, then this domain's own differences");
     "and the one-shots are marked, because the policy a user should pick depends on it",
   );
 
-  const Plain = ResolveGas({ Gas: { Preset: "camp_fire" } });
-  const Changed = ResolveGas({ Gas: { Preset: "camp_fire", Overrides: { boundsWidth: 7.5 } } });
-  Check(Changed.Settings.boundsWidth === 7.5, "an override wins over the preset");
+  const Plain = ResolveGas(ApplyGasPreset("camp_fire", {}));
+  const Changed = ResolveGas({ ...ApplyGasPreset("camp_fire", {}), Bounds: [7.5, 2.1, 7.5] });
+  Check(Changed.Settings.boundsWidth === 7.5, "the transform's Bounds row is what the solver reads as boundsWidth");
   Check(
     Changed.Settings.buoyancy === Plain.Settings.buoyancy,
     "and changes nothing else, so a domain cannot freeze a preset reading it never touched",
@@ -150,48 +155,143 @@ Banner("Defaults, then preset, then this domain's own differences");
     "a domain with no stored settings at all still resolves rather than throwing",
   );
 
-  for (const Field of ExposedGasFields)
+  for (const Field of GasSheet)
     Check(
-      Field.Switch || Plain.Settings[Field.Key] !== undefined,
-      `the exposed setting ${Field.Key} exists in the simulator's own parameters`,
+      Plain.Settings[Field.Key] !== undefined,
+      `the inline setting ${Field.Key} exists in the simulator's own parameters`,
     );
   Check(
-    ExposedGasFields.length === 11,
-    "eleven settings are exposed inline; the other seventy-four are one button away",
+    GasSheet.length === 11,
+    "eleven settings are inline; the other seventy-four are one button away",
+  );
+  Check(
+    !GasSheet.some((Field) => Field.Key === "gridResolution"),
+    "⚠️ the lattice is NOT a slider — the quality ladder owns it, and a control the budget overrules is a lie with a handle on it",
+  );
+  Check(
+    GasSheet.every((Field) => Field.Minimum === undefined || Field.Maximum > Field.Minimum),
+    "every slider has a range the editor's Control can clamp against",
   );
 
   Check(
-    GasRowSummary({ Gas: { Preset: "camp_fire", Run: "always", Distance: 4 } }).includes("Hero"),
-    "the outliner row carries preset, tier and policy in one line, as the wind and fog rows do",
+    GasRowSummary({ ...ApplyGasPreset("camp_fire", {}), Run: "always", Distance: 4 }).includes("Hero"),
+    "the outliner row carries extent, tier and policy in one line, as the wind and fog rows do",
+  );
+}
+
+// ─── The transform, and the hierarchy ──────────────────────────────────────────────────────────────────────
+
+Banner("A gas domain is a 3D entity, so it has a transform and children");
+{
+  const Rows = GasTransformRows.map((Row) => Row[0]);
+  Check(Rows[0] === "Position" && Rows[1] === "Rotation", "position and rotation are the first two rows, as on every other entity");
+  Check(
+    Rows[2] === "Bounds" && !Rows.includes("Scale"),
+    "① bounds take the row Scale occupies on a mesh — the domain's extent IS its scale, in metres, and is not a child",
+  );
+  Check(
+    GasTransformRows[2][1] === "m",
+    "and they are in metres rather than a multiplier, because a solver cube has a real size",
+  );
+
+  const Fresh = NewGasDomain("camp_fire");
+  Check(Array.isArray(Fresh.Position) && Array.isArray(Fresh.Rotation), "a new domain starts with a transform, not with one implied later");
+  const Resolved = ResolveGas(Fresh);
+  Check(
+    Resolved.Settings.boundsWidth === Resolved.Bounds[0] && Resolved.Settings.boundsHeight === Resolved.Bounds[1],
+    "the bounds row and the solver's bounds are one reading, not two that have to be kept level",
+  );
+  Check(
+    Resolved.Bounds[0] === Resolved.Bounds[2],
+    "X and Z stay equal: the browser solver uses one width for both horizontal axes, so a second number would be a number to get wrong",
+  );
+
+  // ② Emitters are children; ③ colliders are not.
+  const Emitter = NewGasEmitter();
+  Check(Array.isArray(Emitter.Position), "② an emitter has a transform of its own, which is what makes it an entity rather than a settings group");
+  Check(
+    GasEmitterTransformRows.length === 2 && !GasEmitterTransformRows.some((Row) => Row[0] === "Bounds"),
+    "and no bounds of its own — the box belongs to the domain",
+  );
+  const One = ResolveGas(Fresh, [{ Id: "a", Values: { ...Emitter, Temperature: 9 } }]);
+  Check(One.Settings.emitterTemperature === 9, "the first enabled emitter drives the solver's single continuous source");
+  const Two = ResolveGas(Fresh, [
+    { Id: "a", Values: { ...Emitter, Enabled: false } },
+    { Id: "b", Values: { ...Emitter, Temperature: 4 } },
+  ]);
+  Check(Two.LiveEmitters === 1 && Two.Settings.emitterTemperature === 4, "a disabled sibling is skipped rather than silently driving it");
+  Check(
+    ResolveGas(Fresh, [{ Id: "a", Values: { ...Emitter, Enabled: false } }]).Settings.emitterEnabled === false,
+    "and with every emitter off the domain emits nothing, instead of falling back to its own centre",
+  );
+  Check(
+    ResolveGas(Fresh, [{ Id: "a", Values: Emitter }, { Id: "b", Values: Emitter }]).Carried === 1,
+    "🚩 two live emitters are authored and exported, but only one crosses to the solver today — counted, not hidden",
   );
 }
 
 // ─── The wiring, and the bundle ────────────────────────────────────────────────────────────────────────────
 
-Banner("Wired into the editor, and present in what ships");
+Banner("Wired into the editor, drawn by the editor's own controls, and present in what ships");
 {
   const Editor = Read("Experimental/ProjectZeroEditor/Editor.jsx");
   const Inspectors = Read("Experimental/ProjectZeroEditor/Inspectors.jsx");
   const Panel = Read("Experimental/ProjectZeroEditor/GasPanel.jsx");
+  const Sheet = Read("Experimental/ProjectZeroEditor/GasSpecification.js");
+  const Style = Read("Experimental/ProjectZeroEditor/GasPanel.css");
 
   Check(/\[\s*"gas-domain",/.test(Editor), "a gas domain is an outliner row");
   Check(
     /"gas-domain"[\s\S]{0,160}"showcase"/.test(Editor),
     "and it sits in the scene collection rather than under World — it is an object, not a global field",
   );
-  Check(Editor.includes("GasRowSummary(Record)"), "the row carries its summary");
+  Check(/"gas-emitter",[\s\S]{0,120}"gas-domain"/.test(Editor), "② the emitter ships as a child row of the domain, with the domain as its parent");
+  Check(Editor.includes("GasEmitterRowSummary(Record)"), "and carries its own summary in the outliner");
+  Check(Editor.includes("AddEmitter"), "a domain can gain another emitter, so siblings are reachable without the construct menu");
+  Check(Editor.includes("GasRowSummary(Record)"), "the domain row carries its summary");
   Check(Editor.includes("<GasEditor"), "the full editor is mounted beside WindEditor");
   Check(Editor.includes('aria-label="Expand FluidEditor"'), "and focus returns to the expand button on close");
   Check(Inspectors.includes("<GasInspector"), "the card is rendered for a gas subject");
-  Check(Inspectors.includes("OpenGas"), "and its expand button is wired to the drawer");
-
+  Check(Inspectors.includes("<GasEmitterInspector"), "and the emitter has an inspector of its own");
+  Check(Inspectors.includes("OpenGas"), "the expand button is wired to the drawer");
   Check(
-    Panel.includes('data-card="Gas domain"'),
-    "the card declares itself the way every other property card does",
+    !Read("Experimental/ProjectZeroEditor/NativePanels.json").includes('"gas"'),
+    "⚠️ no hand-added gas entry in NativePanels.json — that file is generated from CelestialSequence.cpp and would claim a native provenance the gas panel has not got yet",
   );
+
+  // 🔴 The styling complaint, turned into a check: the panel must use the editor's primitives, not its own.
+  Check(
+    /import \{[^}]*Card[^}]*Control[^}]*\} from "\.\/Inspectors\.jsx"/.test(Panel),
+    "🔴 the panel draws through the inspector's own Card and Control rather than restyling them",
+  );
+  Check(Panel.includes("TransformPanel"), "and through the editor's own TransformPanel, so a gas transform is the transform");
+  Check(Panel.includes("<Tile"), "quick controls are the editor's tiles");
+  Check(Panel.includes("<Metric"), "and the cost reads out in the editor's metric, like every other card's headline number");
+  Check(
+    !/type="range"/.test(Panel),
+    "no hand-rolled range input survives in the panel — that was what made it read as a visitor from another application",
+  );
+  Check(!/\.gas-slider|\.gas-row|\.gas-tabs|\.gas-readout/.test(Style), "and the stylesheet no longer carries a second set of rows, pills, tabs and readouts");
+  Check(
+    Style.includes(".gas-visual") && Style.includes(".gas-state"),
+    "what is left is the preview, the run state, the child list and the drawer — the four things the shared vocabulary has no word for",
+  );
+  Check(
+    Sheet.includes('Control: "Slider"') && Sheet.includes("Minimum,") && Sheet.includes("Decimals,"),
+    "the gas sheet is written in the same descriptor shape NativePanels.json uses, which is why one Control can draw both",
+  );
+
   Check(
     Panel.includes("DORMANT · NOT SIMULATING"),
     "🔴 the preview refuses to animate a domain the game would not run",
+  );
+  Check(
+    Sheet.includes("OBSTACLES ARE NOT CHILDREN"),
+    "③ and the reason a collider is not parented to the domain is written down where the next person will look",
+  );
+  Check(
+    Sheet.includes("ROTATION DOES NOT REACH THE SOLVER") && Panel.includes("ROTATION ORIENTS CHILDREN"),
+    "⚠️ the axis-aligned lattice is admitted in the card itself, not just in a comment",
   );
   Check(
     /iframe/.test(Panel) && Panel.includes("Experimental/Fluid"),
@@ -199,11 +299,14 @@ Banner("Wired into the editor, and present in what ships");
   );
 
   const Bundle = Read("Experimental/ProjectZeroEditor/index.html");
-  Check(Bundle.includes("Gas domain"), "the card survived the build into the standalone bundle");
-  Check(Bundle.includes("Expand FluidEditor"), "so did the expand button");
+  Check(Bundle.includes("Expand FluidEditor"), "the expand button survived the build into the standalone bundle");
   Check(Bundle.includes("DORMANT"), "and the dormant state");
+  Check(Bundle.includes("ROTATION ORIENTS CHILDREN"), "and the rotation caveat");
+  Check(Bundle.includes("Add emitter"), "and the hierarchy's one affordance");
   for (const Policy of GasRunPolicies)
     Check(Bundle.includes(Policy.Description.slice(0, 40)), `the ${Policy.Name} policy explains itself in the bundle`);
+  for (const Field of GasEmitterSheet)
+    Check(Bundle.includes(Field.Label), `the emitter's ${Field.Label} reaches the bundle`);
 }
 
 console.log(`\nPASS ${Checks}`);
