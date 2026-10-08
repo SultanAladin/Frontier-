@@ -50,12 +50,28 @@ Precipitation uses the regular particle kind, not the debris kind. Debris pins t
 | Ember ribbons | Light fibre (kind 7), analytic | Rippling sheets of light across a sheet width. The pulse runs outward from the root. |
 | Weave trails | Light fibre (kind 7), analytic | Trails that comet along a weaving path, each leaving a tail that pulses outward along the path. |
 | Trim trail (stadium) | Light fibre (kind 7), analytic | Trails running round a flat stadium loop, like a light guide following dashboard trim. |
+| Derez cube | Transition (kind 5), GPU-simulated | A grid of cubes covers the object's surface (1,536 cells: 16×16 per face). Cubes hold in place, then release in a wave from one corner: each either bursts outward or falls under gravity. A cube that hits the floor bursts once into eight 2×2×2 children. Children are procedural (analytic motion, fading over a set life), not simulated particles, and they do not collide with anything. |
+| Cube to coins | Transition (kind 5), GPU-simulated | The same surface grid (384 cells) with gold coins instead of cubes. Coins are released once, burst or fall, and bounce on the floor (restitution 0.35). They never split. Coin resting behaviour is approximate. |
 
 Swarm particles (kind 6) read their neighbours from a snapshot taken after emission, so the flocking step is race-free. Fireworks use the same burst path as the Burst button, driven by a timer.
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |
 | Chemicals A+B→C | Molecular, GPU-simulated | Same as atoms, with stochastic A + B → C reactions on contact and C → A or B dissociation. |
 
 Particles are stored in one GPU buffer per system, with 64 bytes per particle. Simulation and rendering both stay on the GPU. The CPU only receives the small statistics described under *Readback costs* below.
+
+## Light fibre colour
+
+Light fibres use one of three colour modes, set in the **Colour** card:
+
+- **Solid**: every fibre uses the first stop.
+- **Ramp along fibre**: stops blend by position (0 to 1) along each fibre's length.
+- **Palette per strand**: each strand takes one stop, picked by a per-strand hash (so the mix is pseudo-random, not weighted).
+
+Up to 8 stops; each has a colour and (in ramp mode) a position. The accent colour is separate.
+
+## Transition systems
+
+Transition systems (kind 5 with a transition block) reform the object each cycle: `burstEvery` sets the cycle and `burstCount` equals the capacity, so every cycle replaces all particles. The hold time is `base + spread × t`, with `t` the normalised position from the min corner of the box. Derez cubes that hit the floor are removed from the particle count and replaced by children, so the alive count falls faster than the particle lifetimes suggest.
 
 ## Wind field
 
@@ -85,7 +101,7 @@ The editor keeps simulation state on the GPU. CPU readback is limited to the dat
 | --- | --- | --- | --- |
 | Molecular statistics (alive count, species counts A/B/C, kinetic energy sum) | 32 bytes per molecular system | At most one in flight per system, so about once per frame | Status bar, live counts, temperature readout |
 | Wind probe (one voxel, rgba16float) | 8 bytes | On request, while the viewport probe is enabled | Probe readout in the viewport |
-| Full particle buffer | 64 bytes × capacity (for example 1,024 atoms = 64 KiB; 65,536 = 4 MiB) | Only when **Benchmark full readback** is pressed | Measurement only; the editor never uses this data |
+| Full particle buffer | 80 bytes × capacity (for example 1,024 atoms = 80 KiB; 65,536 = 5 MiB) | Only when **Benchmark full readback** is pressed | Measurement only; the editor never uses this data |
 
 Why the statistics are cheap:
 

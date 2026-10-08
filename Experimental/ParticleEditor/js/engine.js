@@ -18,7 +18,7 @@
   PE.MAX_SEGS = 1600;
   PE.MAX_GD = 24;          // molecular grid resolution per axis (allocation ceiling)
   PE.SLOTS = 24;           // molecular grid slots per cell
-  const PART_BYTES = 64;
+  const PART_BYTES = 80;
   const LINE_BYTES = 28;
   const MAX_LINE_VERTS = 4096;
 
@@ -68,7 +68,7 @@
       this.cpu = new Float32Array(64);
       // Light fibres (kind 7) draw from their own uniform and path table; they do not simulate.
       if (params.kind === 7) {
-        this.fibreUniform = d.createBuffer({ size: 256, usage: U.UNIFORM | U.COPY_DST });
+        this.fibreUniform = d.createBuffer({ size: 512, usage: U.UNIFORM | U.COPY_DST });
         this.fibrePath = d.createBuffer({ size: PE.PATH_SAMPLES * 16, usage: U.STORAGE | U.COPY_DST });
         this.fibreBG = d.createBindGroup({
           layout: engine.gl1Render,
@@ -78,7 +78,7 @@
             { binding: 2, resource: { buffer: engine.segs } },
           ],
         });
-        this.fibreCpu = new Float32Array(64);
+        this.fibreCpu = new Float32Array(128);
         this.pathKey = null;
       }
       this.statPending = false;
@@ -255,6 +255,9 @@
         });
       this.pipe.partAdd = mkR("vsPart", "fsPart", ADD);
       this.pipe.partAlpha = mkR("vsPart", "fsPart", OVER);
+      // 📝 Cube particles (shape 4) and derez children: 36 vertices per cube, OVER blend.
+      this.pipe.cube = mkR("vsCube", "fsCube", OVER);
+      this.pipe.shatter = mkR("vsShatter", "fsCube", OVER);
       this.pipe.seg = mkR("vsSeg", "fsSeg", ADD);
       this.pipe.arrow = mkR("vsArrow", "fsArrow", ADD);
       const mkF = (vs, fs) =>
@@ -452,9 +455,21 @@
       }
       for (const job of frame.jobs) {
         if (!job.draw) continue;
-        rp.setPipeline(job.alpha ? this.pipe.partAlpha : this.pipe.partAdd);
-        rp.setBindGroup(1, job.gpu.renderBG);
-        rp.draw(6, job.gpu.cap);
+        if (job.cube) {
+          rp.setPipeline(this.pipe.cube);
+          rp.setBindGroup(1, job.gpu.renderBG);
+          rp.draw(36, job.gpu.cap);
+        } else {
+          rp.setPipeline(job.alpha ? this.pipe.partAlpha : this.pipe.partAdd);
+          rp.setBindGroup(1, job.gpu.renderBG);
+          rp.draw(6, job.gpu.cap);
+        }
+        if (job.shatter) {
+          // 📝 8 children (2x2x2) per cube, 36 vertices each.
+          rp.setPipeline(this.pipe.shatter);
+          rp.setBindGroup(1, job.gpu.renderBG);
+          rp.draw(288, job.gpu.cap);
+        }
       }
       if (frame.segCount) {
         rp.setPipeline(this.pipe.seg);
@@ -556,5 +571,11 @@
     else set("mol3", Math.min(p.reactRadius, 2.5 * p.sigma), p.damping, 0, 0);
     set("emit", o.head, o.seed, p.shape, p.leafMode);
     set("misc", p.sizeScale, p.pulseHz, p.pulseDepth, 0);
+    if (p.kind === 5) {
+      // 📝 Transition fields (kind 5 only). mol2.w = fragment flag; mol3 = hold base, hold spread, burst share, child life.
+      const tr = p.transition;
+      set("mol2", o.cellSize, o.gd, PE.SLOTS, tr && tr.fragment ? 1 : 0);
+      set("mol3", tr ? tr.holdBase : 0, tr ? tr.holdSpread : 0, tr ? tr.burstShare : 0, tr ? tr.childLife : 0);
+    }
   };
 })();

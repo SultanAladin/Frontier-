@@ -47,8 +47,10 @@
       intensity: 1.15,
       halo: 0.12,
       baseline: 0.1,
-      colA: [0.094, 0.706, 1, 1],
-      colB: [0.37, 0.85, 1, 1],
+      // 📝 Colour: mode "solid" uses stops[0]; "ramp" blends stops along the fibre by position;
+      //    "palette" picks one stop per strand (stops evenly weighted). Up to 8 stops.
+      colourMode: "ramp",
+      stops: [{ pos: 0, col: [0.094, 0.706, 1, 1] }, { pos: 1, col: [0.37, 0.85, 1, 1] }],
       colC: [0.92, 1, 1, 1],
       accentMix: 0.25,
       sparks: 0.8,
@@ -102,7 +104,16 @@
     return out;
   };
 
-  // Packs one fibre system into the 56-float Fib uniform. The curve is built in local axes
+  PE.COLOUR_MODES = ["solid", "ramp", "palette"];
+  PE.MAX_STOPS = 8;
+
+  // Evenly spaced stops from a list of sRGB hex colours, for presets.
+  PE.evenStops = function evenStops(hexes) {
+    const n = hexes.length;
+    return hexes.map((h, i) => ({ pos: n > 1 ? i / (n - 1) : 0, col: PE.hexLinear(h) }));
+  };
+
+  // Packs one fibre system into the 128-float Fib uniform (352 bytes used). The curve is built in local axes
   // where the fibre's path plane is XY and its lift is Z; the shader swaps Z and Y to the
   // editor's Y-up world. Directions are swapped the same way here.
   PE.fillFibre = function fillFibre(out, p, ctx) {
@@ -123,8 +134,21 @@
     put(8, Math.max(0, PE.FIBRE_SHAPES.indexOf(f.shape)), f.strands, f.segments, f.seed);
     put(9, PE.PATH_SAMPLES, f.sparks, f.sparkSize, f.sparkBrightness);
     put(10, ctx.viewW, ctx.viewH, 0, 0);
-    out.set([f.colA[0], f.colA[1], f.colA[2], 0], 44);
-    out.set([f.colB[0], f.colB[1], f.colB[2], 0], 48);
-    out.set([f.colC[0], f.colC[1], f.colC[2], 0], 52);
+    // Colour block: slot 11 accent, slots 12..19 stop colours, slots 20..21 stop positions.
+    // p8.z = stop count, p8.w = colour mode index (0 solid, 1 ramp, 2 palette).
+    const stops = (f.stops || []).slice(0, PE.MAX_STOPS).sort((a, b) => a.pos - b.pos);
+    const count = Math.max(1, stops.length);
+    const first = stops.length ? stops : [{ pos: 0, col: [1, 1, 1, 1] }];
+    const mode = Math.max(0, PE.COLOUR_MODES.indexOf(f.colourMode));
+    out.set([ctx.viewW, ctx.viewH, count, mode], 40);
+    out.set([f.colC[0], f.colC[1], f.colC[2], 0], 44);
+    for (let k = 0; k < count; k++) {
+      const c = first[k].col;
+      out.set([c[0], c[1], c[2], 1], (12 + k) * 4);
+    }
+    for (let k = 0; k < PE.MAX_STOPS; k++) {
+      const pos = k < first.length ? first[k].pos : 1;
+      out[(20 + (k >> 2)) * 4 + (k & 3)] = pos;
+    }
   };
 })();

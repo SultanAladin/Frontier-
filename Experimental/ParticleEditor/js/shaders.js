@@ -44,6 +44,7 @@ struct Part {
   v: vec4f,        // xyz velocity, w lifetime (dead when age >= life)
   c: vec4f,        // rgba
   m: vec4f,        // x size, y angle, z spin, w seed (or species for molecules)
+  e: vec4f,        // x hold time (s, transitions), y floor-impact time + 1 (0 = none, derez), zw unused
 };
 
 fn hash(x0: u32) -> u32 {
@@ -129,6 +130,21 @@ fn emitParticles(@builtin(global_invocation_id) gid: vec3u) {
     pos += vec3f(cos(a) * rr, 0.0, sin(a) * rr);
   } else if (shape == 3u) {
     pos += (vec3f(r0, r1, r2) * 2.0 - 1.0) * S.phys4.xyz;
+  } else if (shape == 4u) {
+    // 📝 Box surface grid: the cells tile every face, so one full batch covers the whole surface.
+    let g = max(1u, u32(floor(sqrt(S.phys3.x / 6.0))));
+    let cells = g * g;
+    let face = i % 6u;
+    let cell = (i / 6u) % cells;
+    let cu = (f32(cell % g) + 0.5) / f32(g) * 2.0 - 1.0;
+    let cv = (f32(cell / g) + 0.5) / f32(g) * 2.0 - 1.0;
+    let ax = face / 2u;
+    let sg = select(-1.0, 1.0, (face % 2u) == 0u);
+    var lp = vec3f(0.0);
+    lp[ax] = sg;
+    lp[(ax + 1u) % 3u] = cu;
+    lp[(ax + 2u) % 3u] = cv;
+    pos += lp * S.phys4.xyz;
   }
   var vel = vec3f(0.0);
   var life = mix(S.life.x, S.life.y, r3);
@@ -147,12 +163,24 @@ fn emitParticles(@builtin(global_invocation_id) gid: vec3u) {
     let local = vec3f(sinT * cos(phi), sinT * sin(phi), cosT);
     vel = (basis * local) * mix(S.speed.x, S.speed.y, r6);
   }
+  // 📝 Transition (kind 5, cube surface): hold until a wave released from one corner, then burst out or fall.
+  let trans = kind == 5u && shape == 4u && (S.mol3.x + S.mol3.y) > 0.0;
+  var hold = 0.0;
+  if (trans) {
+    let u01 = clamp((pos - S.origin.xyz) / max(S.phys4.xyz, vec3f(1e-4)) * 0.5 + 0.5, vec3f(0.0), vec3f(1.0));
+    let tc = (u01.x + u01.y + u01.z) / 3.0;
+    hold = S.mol3.x + S.mol3.y * (tc + 0.15 * r2);
+    life = hold + life;
+    let outDir = normalize(pos - S.origin.xyz + vec3f(0.0, 0.35, 0.0));
+    vel = select(vec3f(0.0), outDir * mix(S.speed.x, S.speed.y, r6), r4 < S.mol3.z);
+  }
   var q: Part;
   q.p = vec4f(pos, 0.0);
   q.v = vec4f(vel, life);
   q.c = S.colA;
-  q.m = vec4f(S.life.z * S.misc.x, r0 * 6.2831853, (r1 - 0.5) * 4.0,
+  q.m = vec4f(S.life.z * S.misc.x, select(r0 * 6.2831853, 0.0, trans), (r1 - 0.5) * 4.0,
               select(f32(st & 0xffffffu), species, molecular));
+  q.e = vec4f(hold, 0.0, 0.0, 0.0);
   parts[idx] = q;
 }
 
@@ -171,6 +199,11 @@ fn updateParticles(@builtin(global_invocation_id) gid: vec3u) {
   if (age >= life) { parts[i] = Part(); return; }
   let t01 = age / life;
   let seed = q.m.w;
+  // 📝 Transition pieces wait on the object's surface until their hold time: no motion and no spin, so the object reads as solid.
+  if (age < q.e.x) {
+    parts[i] = Part(vec4f(q.p.xyz, age), q.v, q.c, vec4f(q.m.x, 0.0, q.m.z, seed), q.e);
+    return;
+  }
   var pos = q.p.xyz;
   var v = q.v.xyz;
 
@@ -186,6 +219,12 @@ fn updateParticles(@builtin(global_invocation_id) gid: vec3u) {
   }
   pos += v * dt;
   if (pos.y < 0.0) {
+    // 📝 A derez cube breaks on its first floor impact. The parent stops here and its children are drawn procedurally.
+    if (kind == 5u && S.mol2.w > 0.5 && q.e.y <= 0.0) {
+      parts[i] = Part(vec4f(pos.x, 0.5 * q.m.x, pos.z, age), vec4f(v, age), q.c, q.m,
+                      vec4f(q.e.x, S.phys.y + 1.0, 0.0, 0.0));
+      return;
+    }
     pos.y = 0.0;
     if (kind == 1u) {
       v = vec3f(v.x * 0.55, 0.0, v.z * 0.55);
@@ -202,7 +241,7 @@ fn updateParticles(@builtin(global_invocation_id) gid: vec3u) {
   let size = mix(S.life.z, S.life.w, t01) * S.misc.x * (0.7 + 0.6 * fract(seed * 0.618034));
   var c = mix(S.colA, S.colB, t01);
   c.a = c.a * smoothstep(0.0, 0.08, t01) * (1.0 - smoothstep(0.7, 1.0, t01));
-  parts[i] = Part(vec4f(pos, age), vec4f(v, life), c, vec4f(size, ang, spin, seed));
+  parts[i] = Part(vec4f(pos, age), vec4f(v, life), c, vec4f(size, ang, spin, seed), q.e);
 }
 
 fn cellOf(p: vec3f) -> vec3i {
@@ -315,7 +354,7 @@ fn swarmStep(@builtin(global_invocation_id) gid: vec3u) {
   let pulse = 1.0 - S.misc.z + S.misc.z * (0.5 + 0.5 * sin(S.phys.y * S.misc.y * 6.2831853 + seed * 6.2831853));
   var c = mix(S.colA, S.colB, t01);
   c.a = c.a * pulse * smoothstep(0.0, 0.08, t01) * (1.0 - smoothstep(0.7, 1.0, t01));
-  parts[i] = Part(vec4f(pos, age), vec4f(v, life), c, vec4f(size, me.m.y, me.m.z, seed));
+  parts[i] = Part(vec4f(pos, age), vec4f(v, life), c, vec4f(size, me.m.y, me.m.z, seed), vec4f(0.0));
 }
 
 // Molecular step: reads the snapshot (race-free), writes only its own particle.
@@ -408,7 +447,7 @@ fn molStep(@builtin(global_invocation_id) gid: vec3u) {
   }
   let sz = sig * S.misc.x;
   parts[i] = Part(vec4f(S.origin.xyz + local, me.p.w + dt), vec4f(v, me.v.w), outC,
-                  vec4f(sz, me.m.y, me.m.z, sp));
+                  vec4f(sz, me.m.y, me.m.z, sp), vec4f(0.0));
 }
 `;
 
@@ -585,6 +624,14 @@ fn vsPart(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> V
                        + vec3f(0.0, 0.0001, 0.0));
     let local = vec3f(c.x * sz * 0.5, c.y * sz * 0.3, 0.0);
     wp = q.p.xyz + rotAxis(local, ax, q.m.y);
+  } else if (shape == 5u) {
+    // 📝 Coin: a disc in the plane of (cos a, 0, sin a) and up, so it flips edge-on as its spin angle turns.
+    let h = sz * 0.5;
+    let a = q.m.y;
+    let flat = vec3f(c.x * h * cos(a), c.y * h, c.x * h * sin(a));
+    let ax = normalize(vec3f(hashF(q.m.w, 1u) - 0.5, hashF(q.m.w, 2u) - 0.5, hashF(q.m.w, 3u) - 0.5)
+                       + vec3f(0.0, 0.0001, 0.0));
+    wp = q.p.xyz + rotAxis(flat, ax, 0.6 + hashF(q.m.w, 4u) * 0.8);
   } else {
     wp = q.p.xyz + G.camRight.xyz * (c.x * sz * 0.5) + G.camUp.xyz * (c.y * sz * 0.5);
   }
@@ -623,6 +670,12 @@ fn fsPart(i: VO) -> @location(0) vec4f {
       rgb = mix(rgb, rgb * 0.55, vein);
       rgb = rgb * (0.7 + 0.3 * sqrt(1.0 - e));
     }
+  } else if (shape == 5u) {
+    let r = length(i.uv);
+    if (r > 1.0) { discard; }
+    let rim = smoothstep(0.72, 1.0, r);
+    rgb = rgb * (0.8 + 0.2 * (1.0 - r)) + vec3f(0.35) * rim;
+    a = 1.0;
   } else {
     let r = length(i.uv);
     if (r > 1.0) { discard; }
@@ -632,6 +685,99 @@ fn fsPart(i: VO) -> @location(0) vec4f {
   }
   let alpha = clamp(a * i.col.a, 0.0, 1.0);
   return vec4f(rgb * alpha, alpha);
+}
+
+// 📝 Cubes: 36 vertices per cube, six faces, shaded by face normal. Used by cube particles and derez children.
+struct CO {
+  @builtin(position) pos: vec4f,
+  @location(0) col: vec4f,
+  @location(1) shade: f32,
+};
+
+struct CV {
+  p: vec3f,
+  n: vec3f,
+};
+
+fn cubeCorner(k: u32) -> vec2f {
+  let cs = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+                           vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0));
+  return cs[k];
+}
+
+fn cubeVert(vi: u32) -> CV {
+  let f = vi / 6u;
+  let ax = f / 2u;
+  let sg = select(-1.0, 1.0, (f % 2u) == 0u);
+  let c = cubeCorner(vi % 6u);
+  var p = vec3f(0.0);
+  p[ax] = 0.5 * sg;
+  p[(ax + 1u) % 3u] = c.x * 0.5;
+  p[(ax + 2u) % 3u] = c.y * 0.5;
+  var n = vec3f(0.0);
+  n[ax] = sg;
+  return CV(p, n);
+}
+
+fn cubeShade(n: vec3f) -> f32 {
+  return 0.45 + 0.55 * max(dot(n, normalize(vec3f(0.35, 0.8, 0.45))), 0.0);
+}
+
+@vertex
+fn vsCube(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> CO {
+  var o: CO;
+  o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+  let q = parts[ii];
+  if (!(q.p.w < q.v.w && q.c.a > 0.002 && q.m.x > 0.0)) { return o; }
+  let cv = cubeVert(vi);
+  let ax = normalize(vec3f(hashF(q.m.w, 1u) - 0.5, hashF(q.m.w, 2u) - 0.5, hashF(q.m.w, 3u) - 0.5)
+                     + vec3f(0.0, 0.0001, 0.0));
+  let wp = q.p.xyz + rotAxis(cv.p * q.m.x, ax, q.m.y);
+  o.pos = G.viewProj * vec4f(wp, 1.0);
+  o.col = q.c;
+  o.shade = cubeShade(rotAxis(cv.n, ax, q.m.y));
+  return o;
+}
+
+// 📝 Derez children: each derez cube that hit the floor splits into 8 half-size cubes that burst off the impact point,
+//    fall under gravity, rest on the floor and fade. Children are not particles and do not collide.
+@vertex
+fn vsShatter(@builtin(vertex_index) vi: u32) -> CO {
+  var o: CO;
+  o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+  let pi = vi / 288u;
+  let rem = vi % 288u;
+  let child = rem / 36u;
+  let q = parts[pi];
+  if (q.e.y <= 0.0 || q.m.x <= 0.0) { return o; }
+  let t = S.phys.y - (q.e.y - 1.0);
+  let life = S.mol3.w;
+  if (t < 0.0 || t >= life) { return o; }
+  let cs = q.m.x * 0.5;
+  let sc = q.m.w + f32(child) * 13.0;
+  let oc = vec3f(f32(child & 1u), f32((child >> 1u) & 1u), f32((child >> 2u) & 1u)) * 2.0 - 1.0;
+  let h = vec3f(hashF(sc, 1u), hashF(sc, 2u), hashF(sc, 3u));
+  let dirv = normalize(oc * 0.5 + (h - 0.5) * 0.8 + vec3f(0.0, 0.9, 0.0));
+  let speed = mix(1.2, 2.8, hashF(sc, 4u));
+  let g = -S.speed.w * 9.81;
+  var cp = q.p.xyz + vec3f(oc.x * cs * 0.5, 0.0, oc.z * cs * 0.5) + dirv * speed * t
+         + vec3f(0.0, 0.5 * g * t * t, 0.0);
+  cp.y = max(cp.y, cs * 0.5);
+  let fade = 1.0 - smoothstep(0.6 * life, life, t);
+  let ax = normalize(h - 0.5 + vec3f(0.0, 0.0001, 0.0));
+  let ang = (hashF(sc, 5u) - 0.5) * 8.0 * t;
+  let cv = cubeVert(vi % 36u);
+  let wp = cp + rotAxis(cv.p * cs, ax, ang);
+  o.pos = G.viewProj * vec4f(wp, 1.0);
+  o.col = vec4f(q.c.rgb, q.c.a * fade);
+  o.shade = cubeShade(rotAxis(cv.n, ax, ang));
+  return o;
+}
+
+@fragment
+fn fsCube(i: CO) -> @location(0) vec4f {
+  let a = clamp(i.col.a, 0.0, 1.0);
+  return vec4f(i.col.rgb * i.shade * a, a);
 }
 
 fn segQuad(a: vec3f, b: vec3f, wa: f32, wb: f32, vi: u32) -> vec4f {
@@ -767,10 +913,10 @@ struct Fib {
   p5: vec4f,      // x harmonic, y light heads per loop, z pulse rate per loop, w pulse shape
   p6: vec4f,      // x shape (0 streak, 1 ribbon, 2 trail), y strands, z segments, w seed
   p7: vec4f,      // x path samples, y spark share, z spark size (m), w spark brightness
-  p8: vec4f,      // x viewport width px, y viewport height px
-  colA: vec4f,
-  colB: vec4f,
+  p8: vec4f,      // x viewport width px, y viewport height px, z stop count, w colour mode (0 solid, 1 ramp, 2 palette)
   colC: vec4f,    // accent
+  stopC: array<vec4f, 8>,   // colour stops (rgb)
+  stopP: array<vec4f, 2>,   // stop positions 0..1 (8 floats)
 };
 
 @group(0) @binding(0) var<uniform> G: Glob;
@@ -920,6 +1066,36 @@ fn fbPulse(along: f32) -> f32 {
   return 1.0 - depth + depth * fbPulseLevel(fract(phase));
 }
 
+// 📝 Colour: solid uses stop 0; ramp blends stops by position along the fibre; palette picks a stop per strand.
+fn fbStopPos(i: u32) -> f32 {
+  return FB.stopP[i / 4u][i % 4u];
+}
+
+fn fbRamp(t: f32) -> vec3f {
+  let n = u32(FB.p8.z);
+  if (n <= 1u || t <= fbStopPos(0u)) { return FB.stopC[0].xyz; }
+  var col = FB.stopC[n - 1u].xyz;
+  for (var k = 0u; k + 1u < n; k++) {
+    let p0 = fbStopPos(k);
+    let p1 = fbStopPos(k + 1u);
+    if (t < p1) {
+      return mix(FB.stopC[k].xyz, FB.stopC[k + 1u].xyz, clamp((t - p0) / max(p1 - p0, 1e-5), 0.0, 1.0));
+    }
+  }
+  return col;
+}
+
+fn fbColourAt(t: f32, id: f32) -> vec3f {
+  let mode = u32(FB.p8.w);
+  let n = max(u32(FB.p8.z), 1u);
+  if (mode == 0u) { return FB.stopC[0].xyz; }
+  if (mode == 2u) {
+    let k = min(u32(fbUnit(id, 14.0) * f32(n)), n - 1u);
+    return FB.stopC[k].xyz;
+  }
+  return fbRamp(t);
+}
+
 struct FO {
   @builtin(position) pos: vec4f,
   @location(0) along: f32,
@@ -982,7 +1158,7 @@ fn fsFibre(i: FO) -> @location(0) vec4f {
   let streak = select(0.0, pow(1.0 - behind / win, 2.0) * front, behind < win);
   let lit = FB.p3.z + (1.0 - FB.p3.z) * streak;
   let ends = smoothstep(0.0, 0.04, i.along) * (1.0 - smoothstep(0.96, 1.0, i.along));
-  let base = mix(FB.colA.xyz, FB.colB.xyz, i.along);
+  let base = fbColourAt(i.along, i.id);
   let tint = mix(base, FB.colC.xyz, FB.p4.x * fbUnit(i.id, 12.0));
   let vary = 0.4 + 0.9 * fbUnit(i.id, 13.0);
   let level = FB.p3.x * vary * (line + glow) * lit * ends * i.fade * fbPulse(i.along);
@@ -1017,7 +1193,7 @@ fn vsSpark(@builtin(vertex_index) vi: u32) -> SO {
   let ndc = vec2f(c.x * half * 2.0 / FB.p8.x, c.y * half * 2.0 / FB.p8.y);
   o.pos = vec4f(clip.xy + ndc * clip.w, clip.z, clip.w);
   o.uv = c;
-  o.col = mix(FB.colA.xyz, FB.colB.xyz, s) * FB.p7.w * (0.6 + 0.8 * fbUnit(id, 10.0)) * fbPulse(s);
+  o.col = fbColourAt(s, id) * FB.p7.w * (0.6 + 0.8 * fbUnit(id, 10.0)) * fbPulse(s);
   return o;
 }
 

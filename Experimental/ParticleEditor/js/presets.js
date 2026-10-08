@@ -58,6 +58,35 @@
 
   const hex = PE.hexLinear;
 
+  // Transitions (kind 5, cube surface): the object's surface is covered by a grid of cubes or coins. They hold in
+  // place, then release in a wave from one corner: each either bursts outward or falls. Each cycle reforms the object.
+  const TRANSITION_PRESETS = [
+    {
+      id: "derez-cube", name: "Derez cube", group: "Transitions",
+      blurb: "A cube derezzes: its surface cubes release in a wave from one corner, bursting or falling. Each cube that hits the floor breaks once into eight smaller cubes.",
+      p: P({
+        kind: 5, shape: 4, blend: "alpha", capacity: 1536, rate: 0,
+        emitShape: 4, origin: [0, 0.6, 0], boxHalf: [0.6, 0.6, 0.6], radius: 0,
+        speedMin: 0.6, speedMax: 2.6, drag: 0.4, gravity: 1.0, lifeMin: 3, lifeMax: 4,
+        sizeStart: 0.075, sizeEnd: 0.075, colA: hex("#35d6ff"), colB: hex("#35d6ff"), colC: hex("#ffffff"),
+        windCoupling: 0.3, bounce: 0, burstEvery: 8, burstCount: 1536, burstAtOrigin: true,
+        transition: { holdBase: 0.6, holdSpread: 1.6, burstShare: 0.5, fragment: true, childLife: 1.2 },
+      }),
+    },
+    {
+      id: "cube-coins", name: "Cube to coins", group: "Transitions",
+      blurb: "A gold cube of coins: the surface coins release once, bursting or falling, and bounce on the floor. Coins never split.",
+      p: P({
+        kind: 5, shape: 5, blend: "alpha", capacity: 384, rate: 0,
+        emitShape: 4, origin: [0, 0.6, 0], boxHalf: [0.6, 0.6, 0.6], radius: 0,
+        speedMin: 1.5, speedMax: 4.0, drag: 0.2, gravity: 1.0, lifeMin: 4, lifeMax: 6,
+        sizeStart: 0.14, sizeEnd: 0.14, colA: hex("#ffc83d"), colB: hex("#ffc83d"), colC: hex("#fff3b0"),
+        windCoupling: 0.2, bounce: 0.35, burstEvery: 6, burstCount: 384, burstAtOrigin: true,
+        transition: { holdBase: 0.4, holdSpread: 0.9, burstShare: 0.85, fragment: false, childLife: 0 },
+      }),
+    },
+  ];
+
   // Light fibres (kind 7): analytic streaks, ribbons and path trails, ported from the Strand Editor. Not simulated.
   const FIBRE_PRESETS = [
     {
@@ -69,7 +98,7 @@
           shape: "streak", strands: 200, segments: 72, seed: 11, loopSeconds: 12, scale: 0.4,
           length: 12, spread: 1.2, amplitude: 2.4, frequency: 1, thickness: 1.5, taper: 0.6,
           intensity: 1.15, halo: 0.12, baseline: 0.1,
-          colA: hex("#18b4ff"), colB: hex("#5fd9ff"), colC: hex("#eaffff"), accentMix: 0.25,
+          stops: PE.evenStops(["#18b4ff", "#5fd9ff"]), colC: hex("#eaffff"), accentMix: 0.25,
           window: 0.55, windowCycles: 1, sparks: 0.8, sparkSize: 0.02, sparkBrightness: 3,
           pulseRate: 1, pulseDepth: 0.25, pulseShape: "Breathe",
         }),
@@ -84,7 +113,7 @@
           shape: "ribbon", strands: 140, segments: 120, seed: 41, loopSeconds: 10, scale: 1,
           length: 4.2, sheetWidth: 3, ripple: 1.6, waves: 0.9, phaseSpread: 1.2,
           thickness: 1.8, taper: 0.35, intensity: 1.4, halo: 0.35, baseline: 0.25,
-          colA: hex("#ff8a4c"), colB: hex("#ffb37a"), colC: hex("#fff1e6"), accentMix: 0.1,
+          stops: PE.evenStops(["#ff8a4c", "#ffb37a"]), colC: hex("#fff1e6"), accentMix: 0.1,
           window: 0.8, windowCycles: 1, sparks: 0.2, sparkSize: 0.02, sparkBrightness: 3,
           pulseRate: 1, pulseDepth: 0.6, pulseShape: "Ripple",
         }),
@@ -100,7 +129,7 @@
           pathShape: "Weave", pathSize: 5, trailLength: 0.1, phaseSpread: 6.283,
           spread: 0.12, amplitude: 0.08, frequency: 3, thickness: 1.2, taper: 0.5, intensity: 1.3,
           halo: 0.25, baseline: 0.03,
-          colA: hex("#18b4ff"), colB: hex("#e6fbff"), colC: hex("#ffffff"), accentMix: 0.2,
+          stops: PE.evenStops(["#18b4ff", "#e6fbff"]), colC: hex("#ffffff"), accentMix: 0.2,
           window: 0.6, windowCycles: 1, sparks: 0.5, sparkSize: 0.02, sparkBrightness: 3,
           pulseRate: 2, pulseDepth: 0.7, pulseShape: "Ripple",
         }),
@@ -116,7 +145,7 @@
           pathShape: "Stadium", pathSize: 4, trailLength: 0.35, phaseSpread: 6.2832,
           spread: 0.1, amplitude: 0.15, frequency: 2, thickness: 1.4, taper: 0.5, intensity: 1.2,
           halo: 0.2, baseline: 0.05,
-          colA: hex("#18b4ff"), colB: hex("#e6fbff"), colC: hex("#ffffff"), accentMix: 0.15,
+          stops: PE.evenStops(["#18b4ff", "#e6fbff"]), colC: hex("#ffffff"), accentMix: 0.15,
           window: 0.5, windowCycles: 1, sparks: 0.3, sparkSize: 0.015, sparkBrightness: 2.5,
           pulseRate: 2, pulseDepth: 0.5, pulseShape: "Ripple",
         }),
@@ -483,7 +512,7 @@
         windCoupling: 0.4, burstEvery: 2.6, burstCount: 180,
       }),
     },
-  ].concat(FIBRE_PRESETS);
+  ].concat(FIBRE_PRESETS, TRANSITION_PRESETS);
 
   PE.presetById = (id) => PE.Presets.find((preset) => preset.id === id);
 

@@ -356,6 +356,8 @@
         gpu: g, cpu: g.cpu, simulate, mol, emitN, steps, gd, swarm: p.kind === 6,
         readStats: simulate && state.frame % 3 === 0,
         draw: true, alpha: p.blend === "alpha",
+        cube: p.shape === 4,
+        shatter: !!(p.transition && p.transition.fragment),
       });
     }
 
@@ -579,6 +581,32 @@
   }
 
   // Light fibres: the same card language as particle systems, with fibre controls in place of emitter ones.
+  // 📝 Fibre colour: solid, ramp along the fibre (stops at chosen positions) or palette (one colour per strand).
+  function colourCard(f) {
+    const body = [
+      selectRow("Mode", [["solid", "Solid"], ["ramp", "Ramp along fibre"], ["palette", "Palette per strand"]],
+        () => f.colourMode, (v) => { f.colourMode = v; renderInspector(); }),
+      colorRow("Accent colour", f.colC),
+    ];
+    f.stops.forEach((st, i) => {
+      body.push(colorRow(`Stop ${i + 1}`, st.col));
+      if (f.colourMode === "ramp") {
+        body.push(rangeRow("Position", () => st.pos, (v) => (st.pos = v), { min: 0, max: 1, step: 0.01, digits: 2 }));
+      }
+      if (f.stops.length > 1) {
+        body.push(button("Remove stop", () => { f.stops.splice(i, 1); renderInspector(); }, "danger"));
+      }
+    });
+    if (f.stops.length < PE.MAX_STOPS) {
+      body.push(button("+ Add stop", () => {
+        const last = f.stops[f.stops.length - 1];
+        f.stops.push({ pos: Math.min(1, last.pos + 0.2), col: last.col.slice() });
+        renderInspector();
+      }, "accent"));
+    }
+    return card("Colour", f.colourMode.toUpperCase(), ...body);
+  }
+
   function renderFibreInspector(root, sys) {
     const p = sys.p;
     const f = p.fibre;
@@ -646,10 +674,9 @@
       rangeRow("Intensity", () => f.intensity, (v) => (f.intensity = v), { min: 0, max: 12, step: 0.01, digits: 2 }),
       rangeRow("Halo", () => f.halo, (v) => (f.halo = v), { min: 0, max: 2, step: 0.01, digits: 2 }),
       rangeRow("Idle brightness", () => f.baseline, (v) => (f.baseline = v), { min: 0, max: 1, step: 0.01, digits: 2 }),
-      colorRow("Colour start", f.colA),
-      colorRow("Colour end", f.colB),
-      colorRow("Accent colour", f.colC),
       rangeRow("Accent amount", () => f.accentMix, (v) => (f.accentMix = v), { min: 0, max: 1, step: 0.01, digits: 2 })));
+
+    root.append(colourCard(f));
 
     root.append(card("Head sparks", "SPARKS",
       rangeRow("Sparks", () => f.sparks, (v) => (f.sparks = v), { min: 0, max: 1, step: 0.01, digits: 2 }),
@@ -673,17 +700,21 @@
       el("div", { class: "btn-row" },
         button(sys.p.visible ? "Hide" : "Show", () => { sys.p.visible = !sys.p.visible; renderInspector(); }),
         button(mol ? "Re-seed" : "Clear", () => rebuildGpu(sys)),
-        button("Burst", () => { sys.pendingBurst += Math.max(60, Math.round(sys.gpu.cap * 0.4)); sys.overrideOrigin = null; }, "accent"),
+        button("Burst", () => { sys.pendingBurst += p.transition ? sys.gpu.cap : Math.max(60, Math.round(sys.gpu.cap * 0.4)); sys.overrideOrigin = null; }, "accent"),
         button("Delete", () => removeSystem(sys), "danger")),
       note(mol ? "Molecular systems keep every particle alive and integrate them on the GPU each sub-step." : "Burst spawns a one-off batch at the emitter origin.")));
 
-    const capSel = selectRow("Capacity", [[512, "512"], [1024, "1 024"], [2048, "2 048"], [4096, "4 096"], [8192, "8 192"]], () => p.capacity,
+    // 📝 Transition presets use 384 (coins) and 1536 (derez cubes = 6 x 16 x 16 surface cells); show the current size too.
+    const capOpts = [384, 512, 1024, 1536, 2048, 4096, 8192];
+    if (!capOpts.includes(p.capacity)) capOpts.push(p.capacity);
+    capOpts.sort((a, b) => a - b);
+    const capSel = selectRow("Capacity", capOpts.map((n) => [n, String(n).replace(/\B(?=(\d{3})+$)/g, " ")]), () => p.capacity,
       (v) => { p.capacity = v; rebuildGpu(sys); renderInspector(); });
     const emitCard = [capSel];
     if (!mol) {
       emitCard.push(rangeRow("Rate", () => p.rate, (v) => (p.rate = v), { min: 0, max: 2000, step: 1, unit: "/s" }));
     }
-    emitCard.push(selectRow("Shape", [[0, "Point"], [1, "Sphere volume"], [2, "Disc"], [3, "Box"]], () => p.emitShape, (v) => (p.emitShape = v)));
+    emitCard.push(selectRow("Shape", [[0, "Point"], [1, "Sphere volume"], [2, "Disc"], [3, "Box"], [4, "Box surface grid"]], () => p.emitShape, (v) => (p.emitShape = v)));
     emitCard.push(vecRow("Origin", p.origin, { min: -20, max: 20, step: 0.05, digits: 2, unit: "m" }));
     emitCard.push(rangeRow("Radius", () => p.radius, (v) => (p.radius = v), { min: 0, max: 8, step: 0.01, digits: 2, unit: "m" }));
     if (mol) {
@@ -698,10 +729,24 @@
       emitCard.push(rangeRow("Life max", () => p.lifeMax, (v) => (p.lifeMax = Math.max(v, p.lifeMin)), { min: 0.05, max: 20, step: 0.05, digits: 2, unit: "s" }));
     }
     root.append(card("Emitter", mol ? "INITIAL FILL" : "SPAWN", ...emitCard));
+    if (p.transition) {
+      // 📝 Transition card: hold timing, burst/fall split, and derez child cubes (cube shape only).
+      const tr = p.transition;
+      const trCard = [
+        rangeRow("Hold base", () => tr.holdBase, (v) => (tr.holdBase = v), { min: 0, max: 10, step: 0.05, digits: 2, unit: "s" }),
+        rangeRow("Release spread", () => tr.holdSpread, (v) => (tr.holdSpread = v), { min: 0, max: 10, step: 0.05, digits: 2, unit: "s" }),
+        rangeRow("Burst share", () => tr.burstShare, (v) => (tr.burstShare = v), { min: 0, max: 1, step: 0.01, digits: 2 }),
+      ];
+      if (p.shape === 4) {
+        trCard.push(checkRow("Break on floor impact", () => tr.fragment, (v) => (tr.fragment = v)));
+        trCard.push(rangeRow("Child cube life", () => tr.childLife, (v) => (tr.childLife = v), { min: 0.1, max: 6, step: 0.05, digits: 2, unit: "s" }));
+      }
+      root.append(card("Transition", "RELEASE", ...trCard));
+    }
 
     const partCard = [];
     if (!mol) {
-      partCard.push(selectRow("Shape", [[0, "Streak"], [1, "Sphere"], [2, "Leaf / paper"], [3, "Soft glow"]], () => p.shape, (v) => (p.shape = v)));
+      partCard.push(selectRow("Shape", [[0, "Streak"], [1, "Sphere"], [2, "Leaf / paper"], [3, "Soft glow"], [4, "Chip cube"], [5, "Coin"]], () => p.shape, (v) => (p.shape = v)));
       if (p.kind === 1) partCard.push(selectRow("Leaf mode", [[0, "Leaf"], [1, "Paper"]], () => p.leafMode, (v) => (p.leafMode = v)));
       partCard.push(selectRow("Blend", [["add", "Additive (glow)"], ["alpha", "Alpha (premultiplied)"]], () => p.blend, (v) => (p.blend = v)));
       partCard.push(rangeRow("Size start", () => p.sizeStart, (v) => (p.sizeStart = v), { min: 0.002, max: 2, step: 0.001, digits: 3, unit: "m" }));
