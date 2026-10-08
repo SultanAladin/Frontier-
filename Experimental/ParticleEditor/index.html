@@ -17,21 +17,6 @@
           <div class="brand-s">Frontier · WebGPU · Experimental</div>
         </div>
       </div>
-      <div class="tb-group" role="group" aria-label="Playback">
-        <button id="btn-play" class="tb-btn" type="button">Pause</button>
-        <button id="btn-reset" class="tb-btn" type="button" title="Reset every system">Reset</button>
-      </div>
-      <span class="tb-sep" aria-hidden="true"></span>
-      <div class="tb-group" role="group" aria-label="Lightning">
-        <button id="btn-strike" class="tb-btn accent" type="button" title="Strike lightning (L)">Strike</button>
-        <button id="btn-sound" class="tb-btn" type="button" title="Enable thunder audio">Sound</button>
-      </div>
-      <span class="tb-sep" aria-hidden="true"></span>
-      <div class="tb-group" role="group" aria-label="View">
-        <button id="btn-top" class="tb-btn" type="button" aria-pressed="false">Top</button>
-        <button id="btn-arrows" class="tb-btn" type="button" aria-pressed="true">Wind arrows</button>
-        <button id="btn-floor" class="tb-btn" type="button" aria-pressed="true">Floor</button>
-      </div>
       <label class="tb-speed">
         <span>Time</span>
         <input id="time-scale" type="range" min="0" max="2" step="0.01" value="1" aria-label="Time scale">
@@ -41,6 +26,7 @@
     </header>
 
     <aside class="pe-outliner" aria-label="Outliner">
+      <div class="tab-strip"><div class="document-tab active"><span>Outliner</span></div></div>
       <div class="pane-h">
         <h2>Outliner</h2>
         <span id="outliner-count" class="pane-meta"></span>
@@ -53,12 +39,34 @@
     </aside>
 
     <main class="pe-view">
-      <canvas id="view" aria-label="Particle viewport"></canvas>
-      <div class="view-hint" aria-hidden="true">Drag orbit · Right-drag pan · Wheel zoom · Space play/pause · L strike</div>
-      <div id="boot-error" class="boot-error" role="alert" hidden></div>
+      <div class="tab-strip"><div class="document-tab active"><span>Viewport</span></div></div>
+      <div class="vp-head">
+        <div class="vp-identity">
+          <strong>Particle scene</strong>
+          <span>Sparks · leaves · molecular · lightning · wind grid 24 × 12 × 24</span>
+        </div>
+        <div class="vp-actions" role="toolbar" aria-label="Viewport controls">
+          <div class="vp-seg" role="group" aria-label="Simulation">
+            <button id="btn-play" class="vp-seg-btn" type="button">Pause</button>
+            <button id="btn-reset" class="vp-seg-btn" type="button" title="Reset every system">Reset</button>
+          </div>
+          <button id="btn-strike" class="vp-btn accent" type="button" title="Strike lightning (L)">Strike <kbd>L</kbd></button>
+          <button id="btn-sound" class="vp-btn" type="button" title="Enable thunder audio">Sound</button>
+          <span class="vp-sep" aria-hidden="true"></span>
+          <button id="btn-top" class="vp-btn" type="button" aria-pressed="false">Top</button>
+          <button id="btn-arrows" class="vp-btn" type="button" aria-pressed="true">Wind arrows</button>
+          <button id="btn-floor" class="vp-btn" type="button" aria-pressed="true">Floor</button>
+        </div>
+      </div>
+      <div class="pe-stage">
+        <canvas id="view" aria-label="Particle viewport"></canvas>
+        <div class="view-hint" aria-hidden="true">Drag orbit · Right-drag pan · Wheel zoom · Space play/pause · L strike</div>
+        <div id="boot-error" class="boot-error" role="alert" hidden></div>
+      </div>
     </main>
 
     <aside class="pe-inspector" aria-label="Inspector">
+      <div class="tab-strip"><div class="document-tab active"><span>Inspector</span></div></div>
       <div class="pane-h"><h2>Inspector</h2></div>
       <div id="inspector" class="insp-scroll"></div>
     </aside>
