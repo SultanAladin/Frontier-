@@ -581,3 +581,48 @@ The Beaufort meter's first row is a label beside a stepper, so the row is `StepB
 tall; the scale's marker had been riding up into *WIND SPEED*.
 
 Still unswept: the fog cards and the light panel.
+
+## CloudDeckPanel.jsx — the vertical section the engine range actually needs
+
+`Experimental/ProjectZeroEditor/CloudDeckPanel.jsx` (4,845 B) is imported by `Inspectors.jsx:2` and rendered
+at `:1557`, inside `<Card Title="Cloud base" Height={452}>` between the `Metric` and `{!Local && F("Base")}`.
+It had never been looked at: every cloud conversion so far came from `InspectorDepot/panels/clouds.js`.
+
+Its own header comment explains why it exists — "adapts the ported InspectorDepot cloud-deck band to the
+native base/thickness range". The depot band fixes its window at 400 m, so an engine base of 1500 m simply
+leaves the canvas; this one sizes the window to the deck:
+
+| Quantity | Expression | Note |
+| --- | --- | --- |
+| Floor | `Local ? min(0, floor((Base − Thickness·0.25)/100)·100) : 0` | a world layer always stands on the datum |
+| Window | `max(400, ceil((Base − Floor + Thickness)·1.25/500)·500)` | the 500 m step is the real floor; the stated 400 m minimum only bites on a deck of no depth on the datum |
+| Y(a) | `176 − 18 − ((a − Floor)/Window)·(176 − 48)` | so the floor rule is y 158 and the head rule y 30, always |
+| Depth | `(Thickness/Window)·128` | the deck's drawn thickness |
+| Crown(x) | `0.65 + 0.3·sin(0.08x) + 0.12·sin(0.31x)` | the crest; min .236, max 1.042 — it tops the nominal thickness, which is why the surface clips |
+| Clamp | world `100 … 12000`, local `−100000 − T/2 … 100000 − T/2` | arrow keys step 10 m, not the engine's old 100 |
+
+Columns every 4 px are drawn 4.3 px wide — a deliberate 0.3 px overlap so there is no seam — filled with a
+`createLinearGradient(0, Top, 0, Datum+4)` of three stops: `rgba(238,243,248,.05)`, `.35 → rgba(238,243,248,
+.75·D)`, `1 → rgba(92,108,128,.72·D)`, where `D` is the engine's 0–4 `Density` normalised to the unit range.
+Five rules, labels at `(6, y−3)`; only an altitude of **exactly** nought prints `DATUM`, so a local floor of
+−200 m prints as a signed metre mark. Then the dashed `[3,3]` base line, then the title at `(6, 11)`.
+
+Ported to `Engine/Editor/CloudDeckSurface.h` (`Frontier::CloudDeck`, `namespace Kit = Frontier::WindInstrument`
+for the text primitives, so it inherits the 1.302 em scale). Proof
+`Exhibits/Workbench/Clouds/NativeCloudDeck.cpp` — **PASS 54**, five captures in
+`Exhibits/Gallery/CloudDeckNative/`.
+
+**Mounted**, replacing an approximation. `CloudsInspectorPanel.cpp`'s non-local *Cloud base* card drew its own
+graph: the `Cached.Side` density image over a fixed `0 … Ceiling` axis, labelled in km, dragged against
+`Ceiling` and keyed in 100 m steps. None of that is in the bundle. It is now `CloudDeck::PaintDeck` at
+`x 24, y Y+159, w CW−48`, with the reference's own drag (`Commit`) and ±10 m keys. The card's metric, caption
+and `Base` slider already matched and were left alone; the engine's extra "0 m world datum" note is kept.
+
+**Deviations.** The gradient is banded into 18 slices (an ImGui quad carries one colour). The canvas sets
+`8px sans-serif` rather than inheriting DM Sans; the port uses the baked DM Sans at 8 px, the only face the
+engine ships. `border-radius: 8` is faked with four `CornerNotch` wedges against the card's `#232323`, since
+an ImGui clip rectangle has square corners. The 0.3 px column overlap reads as a faint bright seam under the
+harness's ×3 supersampling, where the browser's analytic coverage makes it a faint dark one.
+
+`CloudSection` (`LiveGraph.jsx:637`), the sibling in the *Layer thickness* card, is **not** ported: it is a
+thin wrapper over the generic `Plot` component, which is shared framework rather than cloud UI.

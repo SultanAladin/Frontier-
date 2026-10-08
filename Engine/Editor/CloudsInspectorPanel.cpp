@@ -2,6 +2,7 @@
 #include "WindBindingControls.h"
 #include "WindPanelSurface.h"
 #include "CloudInstrumentSurface.h"
+#include "CloudDeckSurface.h"
 #include "ControlPanel.h"
 #include "SunReferenceDraw.h"
 #include "CloudDensityPreview.h"
@@ -52,8 +53,8 @@ void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
  if(Local){auto* Centre=Find(Sheet,"Centre");auto* Half=Find(Sheet,"Half Size");std::snprintf(Text,sizeof(Text),"%.0f × %.0f × %.0f m",double(Half->Axes[0]*2),double(Half->Axes[1]*2),double(Half->Axes[2]*2));U.Wrap(24,Y+65,CW-48,Text);
   Canvas C=Fit(U.D,U.At(24,Y+107),{CW-48,185},340,200);float Max=std::max({Half->Axes[0],Half->Axes[1],Half->Axes[2],.1f});float SX=Half->Axes[0]/Max*85,SY=Half->Axes[1]/Max*45,SZ=Half->Axes[2]/Max*80;auto P=[&](int I){float X=I&1?SX:-SX,Q=I&2?SY:-SY,Z=I&4?SZ:-SZ;return ImVec2(170+X+Q,100+Q*.5f-Z);};for(int I=0;I<8;++I)for(int Bit:{1,2,4})if(!(I&Bit))C.Line(P(I),P(I|Bit),Colour(158,185,215,.65f));C.Text(170,194,"World-space bounds · Z up",Muted,9);
   (void)Centre;Axes(U,Y+311,CW,"Centre","Centre · world X / Y / Z (m)");Axes(U,Y+378,CW,"Half Size","Half extents · X / Y / Z (m)");
- }else{float Base=Find(Sheet,"Base")->Figure,Ceil=Find(Sheet,"Ceiling")->Figure,Top=std::min(Ceil,Base+Find(Sheet,"Thickness")->Figure);std::snprintf(Text,sizeof(Text),"%.2f km",double(Base/1000));U.Text(24,Y+66,Text,30);U.Wrap(24,Y+112,CW-48,"World Z altitude · drag the base line");
-  float L=48,R=CW-32,T=Y+159,B=Y+337;U.D->AddImageRounded(Cached.Side.GetTexRef(),U.At(L,T),U.At(R,B),{0,0},{1,1},IM_COL32_WHITE,9);for(int I=0;I<=4;++I){float YY=T+(B-T)*I/4;U.D->AddLine(U.At(L,YY),U.At(R,YY),IM_COL32(140,162,189,35));std::snprintf(Text,sizeof(Text),"%.0f",double(Ceil/1000*(1-I/4.f)));U.Text(24,YY-4,Text,9,Muted);}float BY=B-Base/Ceil*(B-T),TY=B-Top/Ceil*(B-T);U.D->AddLine(U.At(L,BY),U.At(R,BY),IM_COL32(206,227,249,255),1.3f);U.D->AddLine(U.At(L,TY),U.At(R,TY),IM_COL32(143,173,210,160));U.D->AddCircleFilled(U.At(R-12,BY),5,IM_COL32(206,227,249,255));ImGui::SetCursorScreenPos(U.At(L,T));ImGui::InvisibleButton("##cloud-base-drag",{R-L,B-T},ImGuiButtonFlags_EnableNav);if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0))Find(Sheet,"Base")->Figure=std::clamp((U.At(0,B).y-ImGui::GetIO().MousePos.y)/(B-T)*Ceil,100.f,Ceil);if(ImGui::IsItemFocused()){float& V=Find(Sheet,"Base")->Figure;if(ImGui::IsKeyPressed(ImGuiKey_UpArrow))V=std::min(Ceil,V+100);if(ImGui::IsKeyPressed(ImGuiKey_DownArrow))V=std::max(100.f,V-100);}
+ }else{float Base=Find(Sheet,"Base")->Figure;std::snprintf(Text,sizeof(Text),"%.2f km",double(Base/1000));U.Text(24,Y+66,Text,30);U.Wrap(24,Y+112,CW-48,"World Z altitude · drag the base line");
+  {CloudDeck::DeckDraft Deck;Deck.Base=Base;Deck.Thickness=Find(Sheet,"Thickness")->Figure;Deck.Density=std::clamp(Find(Sheet,"Density")->Figure/4.f,0.f,1.f);const float DX=24,DY=Y+159,DW=CW-48;const ImVec2 DeckSpot=U.At(DX,DY);CloudDeck::PaintDeck(U.D,Font,DeckSpot,DW,Deck,IM_COL32(35,35,35,255));ImGui::SetCursorScreenPos(DeckSpot);ImGui::InvisibleButton("##cloud-base-drag",{DW,CloudDeck::DeckTall},ImGuiButtonFlags_EnableNav);float& BaseRef=Find(Sheet,"Base")->Figure;if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0))BaseRef=CloudDeck::Commit(Deck,ImGui::GetIO().MousePos.y-DeckSpot.y);if(ImGui::IsItemFocused()){if(ImGui::IsKeyPressed(ImGuiKey_UpArrow))BaseRef=CloudDeck::Nudge(Deck,true);if(ImGui::IsKeyPressed(ImGuiKey_DownArrow))BaseRef=CloudDeck::Nudge(Deck,false);}}
   U.Text(48,Y+350,"0 m world datum · not terrain-relative AGL",9,Muted);U.Slider(24,Y+383,CW-48,"Base");
  }
  U.Card(X2,Y2,CW,452,Local?"Volume section":"Layer thickness");
