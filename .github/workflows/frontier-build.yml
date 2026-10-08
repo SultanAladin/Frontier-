@@ -113,6 +113,27 @@ jobs:
             find .cache/cmake -name "$Check" -type f -perm -u+x -print -quit | xargs -r -I{} {}
           done
 
+      - name: Render the SolidArc contact sheets
+        run: |
+          mkdir -p Exhibits/Gallery/SolidArcNative
+          python3 Tools/Build/RunAnnounced.py "solidarc contact sheets" -- \
+            .cache/cmake/SolidArc --proofs Exhibits/Gallery/SolidArcNative \
+              Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase10_ContactSheet.arc \
+              Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase12_ContactSheet.arc \
+              Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase13_ContactSheet.arc \
+              Editor/AuthoringTools/Modelling/SolidArc/Samples/ToyCar.arc \
+              Editor/AuthoringTools/Modelling/SolidArc/Samples/ToyBiplane.arc \
+              Editor/AuthoringTools/Modelling/SolidArc/Samples/ToySailboat.arc
+          ls -la Exhibits/Gallery/SolidArcNative
+
+      - name: Publish the SolidArc renderings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solidarc-ui-captures
+          path: Exhibits/Gallery/SolidArcNative/**
+          if-no-files-found: warn
+
       - name: Publish the binaries
         if: always()
         uses: actions/upload-artifact@v4
