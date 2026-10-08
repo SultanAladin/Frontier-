@@ -56,6 +56,74 @@
 
   const P = (overrides) => Object.assign(PE.baseParams(), overrides);
 
+  const hex = PE.hexLinear;
+
+  // Light fibres (kind 7): analytic streaks, ribbons and path trails, ported from the Strand Editor. Not simulated.
+  const FIBRE_PRESETS = [
+    {
+      id: "light-streaks", name: "Light streaks", group: "Light fibres",
+      blurb: "Bezier light streaks: a head runs along each fibre and leaves a fading tail, with head sparks.",
+      p: P({
+        kind: 7, capacity: 64, origin: [-2.2, 1.6, 0], dir: [1, 0.42, 0],
+        fibre: PE.fibreParams({
+          shape: "streak", strands: 200, segments: 72, seed: 11, loopSeconds: 12, scale: 0.4,
+          length: 12, spread: 1.2, amplitude: 2.4, frequency: 1, thickness: 1.5, taper: 0.6,
+          intensity: 1.15, halo: 0.12, baseline: 0.1,
+          colA: hex("#18b4ff"), colB: hex("#5fd9ff"), colC: hex("#eaffff"), accentMix: 0.25,
+          window: 0.55, windowCycles: 1, sparks: 0.8, sparkSize: 0.02, sparkBrightness: 3,
+          pulseRate: 1, pulseDepth: 0.25, pulseShape: "Breathe",
+        }),
+      }),
+    },
+    {
+      id: "ember-ribbons", name: "Ember ribbons", group: "Light fibres",
+      blurb: "Rippling sheets of ember light; the pulse runs outward across the sheet.",
+      p: P({
+        kind: 7, capacity: 64, origin: [0, 1.8, 0],
+        fibre: PE.fibreParams({
+          shape: "ribbon", strands: 140, segments: 120, seed: 41, loopSeconds: 10, scale: 1,
+          length: 4.2, sheetWidth: 3, ripple: 1.6, waves: 0.9, phaseSpread: 1.2,
+          thickness: 1.8, taper: 0.35, intensity: 1.4, halo: 0.35, baseline: 0.25,
+          colA: hex("#ff8a4c"), colB: hex("#ffb37a"), colC: hex("#fff1e6"), accentMix: 0.1,
+          window: 0.8, windowCycles: 1, sparks: 0.2, sparkSize: 0.02, sparkBrightness: 3,
+          pulseRate: 1, pulseDepth: 0.6, pulseShape: "Ripple",
+        }),
+      }),
+    },
+    {
+      id: "weave-trails", name: "Weave trails", group: "Light fibres",
+      blurb: "Light trails comet along a weaving path, each leaving a tail that pulses outward along it.",
+      p: P({
+        kind: 7, capacity: 64, origin: [0, 1.2, 0],
+        fibre: PE.fibreParams({
+          shape: "trail", strands: 150, segments: 96, seed: 81, loopSeconds: 8, scale: 1,
+          pathShape: "Weave", pathSize: 5, trailLength: 0.1, phaseSpread: 6.283,
+          spread: 0.12, amplitude: 0.08, frequency: 3, thickness: 1.2, taper: 0.5, intensity: 1.3,
+          halo: 0.25, baseline: 0.03,
+          colA: hex("#18b4ff"), colB: hex("#e6fbff"), colC: hex("#ffffff"), accentMix: 0.2,
+          window: 0.6, windowCycles: 1, sparks: 0.5, sparkSize: 0.02, sparkBrightness: 3,
+          pulseRate: 2, pulseDepth: 0.7, pulseShape: "Ripple",
+        }),
+      }),
+    },
+    {
+      id: "trim-trail", name: "Trim trail (stadium)", group: "Light fibres",
+      blurb: "Light trails running round a flat stadium loop, the way a light guide follows dashboard trim.",
+      p: P({
+        kind: 7, capacity: 64, origin: [0, 1.2, 0],
+        fibre: PE.fibreParams({
+          shape: "trail", strands: 110, segments: 96, seed: 91, loopSeconds: 10, scale: 1,
+          pathShape: "Stadium", pathSize: 4, trailLength: 0.35, phaseSpread: 6.2832,
+          spread: 0.1, amplitude: 0.15, frequency: 2, thickness: 1.4, taper: 0.5, intensity: 1.2,
+          halo: 0.2, baseline: 0.05,
+          colA: hex("#18b4ff"), colB: hex("#e6fbff"), colC: hex("#ffffff"), accentMix: 0.15,
+          window: 0.5, windowCycles: 1, sparks: 0.3, sparkSize: 0.015, sparkBrightness: 2.5,
+          pulseRate: 2, pulseDepth: 0.5, pulseShape: "Ripple",
+        }),
+      }),
+    },
+  ];
+
   PE.Presets = [
     {
       id: "sparks", name: "Sparks", group: "Effects",
@@ -415,7 +483,7 @@
         windCoupling: 0.4, burstEvery: 2.6, burstCount: 180,
       }),
     },
-  ];
+  ].concat(FIBRE_PRESETS);
 
   PE.presetById = (id) => PE.Presets.find((preset) => preset.id === id);
 

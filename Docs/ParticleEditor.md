@@ -46,6 +46,10 @@ Precipitation uses the regular particle kind, not the debris kind. Debris pins t
 | Confetti & streamers | Wind-driven, GPU-simulated | Paper pieces that tumble with strong wind coupling. |
 | Steam vent | VFX, GPU-simulated | Hot steam rising from a vent and expanding as it cools. |
 | Fireworks | VFX, GPU-simulated | Timed bursts (every ~2.6 s, randomised) fired from random points in the sky. Trails are streak-shaped burst particles, not separate rising shells. |
+| Light streaks | Light fibre (kind 7), analytic | Bezier fibres with a bright head sliding along each one and a fading tail, plus head sparks. Ported from the Strand Editor. Not simulated, so wind does not move them. |
+| Ember ribbons | Light fibre (kind 7), analytic | Rippling sheets of light across a sheet width. The pulse runs outward from the root. |
+| Weave trails | Light fibre (kind 7), analytic | Trails that comet along a weaving path, each leaving a tail that pulses outward along the path. |
+| Trim trail (stadium) | Light fibre (kind 7), analytic | Trails running round a flat stadium loop, like a light guide following dashboard trim. |
 
 Swarm particles (kind 6) read their neighbours from a snapshot taken after emission, so the flocking step is race-free. Fireworks use the same burst path as the Burst button, driven by a timer.
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |

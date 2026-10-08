@@ -753,10 +753,287 @@ fn fsLine(i: LO) -> @location(0) vec4f {
 }
 `;
 
+  // Light fibres (Strand Editor port). Streak, ribbon and trail curves are evaluated per vertex.
+  // Struct Fib is packed by PE.fillFibre in fibres.js; keep the two in step.
+  const FIBRE = /* wgsl */ `
+struct Fib {
+  org: vec4f,     // xyz origin, w scale
+  dir: vec4f,     // xyz streak direction in local axes
+  p0: vec4f,      // x length, y spread, z amplitude, w frequency
+  p1: vec4f,      // x sheet width, y ripple, z waves, w phase spread
+  p2: vec4f,      // x trail length, y loop fraction, z thickness px, w taper
+  p3: vec4f,      // x intensity, y halo, z baseline, w light window
+  p4: vec4f,      // x accent mix, y pulse depth, z projection scale px/m at w=1, w pixel scale
+  p5: vec4f,      // x harmonic, y light heads per loop, z pulse rate per loop, w pulse shape
+  p6: vec4f,      // x shape (0 streak, 1 ribbon, 2 trail), y strands, z segments, w seed
+  p7: vec4f,      // x path samples, y spark share, z spark size (m), w spark brightness
+  p8: vec4f,      // x viewport width px, y viewport height px
+  colA: vec4f,
+  colB: vec4f,
+  colC: vec4f,    // accent
+};
+
+@group(0) @binding(0) var<uniform> G: Glob;
+@group(1) @binding(0) var<uniform> FB: Fib;
+@group(1) @binding(1) var<storage, read> FPath: array<vec4f>;
+
+const FTAU: f32 = 6.283185307;
+const FPI: f32 = 3.14159265;
+
+fn fbHash(k0: u32) -> u32 {
+  var k = k0;
+  k ^= k >> 16u;
+  k *= 0x7feb352du;
+  k ^= k >> 15u;
+  k *= 0x846ca68bu;
+  k ^= k >> 16u;
+  return k;
+}
+
+fn fbUnit(id: f32, salt: f32) -> f32 {
+  let key = u32(id) * 747796405u + u32(salt) * 2891336453u + u32(FB.p6.w) * 196613u;
+  return f32(fbHash(key)) * (1.0 / 4294967296.0);
+}
+
+fn fbLocalAxis() -> vec3f {
+  let d = FB.dir.xyz;
+  return select(vec3f(1.0, 0.0, 0.0), normalize(d), length(d) > 1e-5);
+}
+
+// Streak: a cubic Bezier from a root cluster to a reach, wobbling with the loop phase.
+fn fbBezier(s: f32, id: f32) -> vec3f {
+  let len = FB.p0.x;
+  let spread = FB.p0.y;
+  let amp = FB.p0.z;
+  let k = max(1.0, floor(FB.p0.w + 0.5));
+  let axis = fbLocalAxis();
+  let up = select(vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0), abs(axis.y) > 0.9);
+  let lateral = normalize(cross(up, axis));
+  let normal = cross(axis, lateral);
+  let angle = FTAU * fbUnit(id, 1.0);
+  let radius = spread * sqrt(fbUnit(id, 2.0));
+  let root = (lateral * cos(angle) + normal * sin(angle)) * radius;
+  let tipAngle = FTAU * fbUnit(id, 3.0);
+  let tipRadius = spread * 1.6 * sqrt(fbUnit(id, 4.0));
+  let reach = axis * len + (lateral * cos(tipAngle) + normal * sin(tipAngle)) * tipRadius;
+  let wt = FTAU * FB.p2.y * FB.p5.x;
+  let c1 = root + axis * (len * 0.34)
+         + (lateral * sin(k * wt + FTAU * fbUnit(id, 5.0)) + normal * cos(2.0 * k * wt + FTAU * fbUnit(id, 6.0))) * amp;
+  let c2 = reach - axis * (len * 0.34)
+         + (lateral * sin(k * wt + FTAU * fbUnit(id, 7.0)) + normal * sin(2.0 * k * wt + FTAU * fbUnit(id, 8.0))) * amp;
+  let u = 1.0 - s;
+  return u * u * u * root + 3.0 * u * u * s * c1 + 3.0 * u * s * s * c2 + s * s * s * reach;
+}
+
+// Ribbon: a sheet of fibres across SheetWidth, rippling in lift.
+fn fbWave(s: f32, id: f32) -> vec3f {
+  let across = (id + 0.5) / FB.p6.y - 0.5;
+  let along = (s - 0.5) * FB.p0.x;
+  let wt = FTAU * FB.p2.y * FB.p5.x;
+  let lift = FB.p1.y * (sin(along * FB.p1.z + wt + across * FB.p1.w * FTAU) * 0.7
+           + sin(across * FB.p1.x * FB.p1.z * 0.5 - 2.0 * wt + along * 0.35) * 0.3);
+  return vec3f(along, across * FB.p1.x, lift);
+}
+
+fn fbPathPoint(f: f32) -> vec3f {
+  let n = i32(FB.p7.x);
+  let pos = fract(f) * f32(n);
+  let idx = clamp(i32(floor(pos)), 0, n - 1);
+  let nxt = select(idx + 1, 0, idx + 1 >= n);
+  let r = pos - f32(idx);
+  return mix(FPath[idx].xyz, FPath[nxt].xyz, r);
+}
+
+fn fbPathTangent(f: f32) -> vec3f {
+  let step = 1.0 / FB.p7.x;
+  let span = fbPathPoint(f + step) - fbPathPoint(f - step);
+  return select(vec3f(1.0, 0.0, 0.0), normalize(span), length(span) > 1e-7);
+}
+
+// Trail: a bundle of fibres riding the path, each covering TrailLength of the loop behind its head.
+fn fbTrail(s: f32, id: f32) -> vec3f {
+  let lf = FB.p2.y;
+  let harm = FB.p5.x;
+  let head = fract(fbUnit(id, 9.0) * FB.p1.w / FTAU + lf * harm);
+  let arc = fract(head - FB.p2.x * (1.0 - s));
+  let axis = fbPathTangent(arc);
+  let side = normalize(cross(axis, vec3f(0.0, 0.0, 1.0)));
+  let angle = FTAU * fbUnit(id, 3.0);
+  let radius = FB.p0.y * sqrt(fbUnit(id, 4.0));
+  let k = max(1.0, floor(FB.p0.w + 0.5));
+  let wob = FB.p0.z * s * sin(FTAU * k * s + FTAU * fbUnit(id, 5.0) + FTAU * lf * harm);
+  return fbPathPoint(arc) + (side * cos(angle) + vec3f(0.0, 0.0, sin(angle))) * radius + side * wob;
+}
+
+fn fbCurve(s: f32, id: f32) -> vec3f {
+  let shape = i32(FB.p6.x);
+  if (shape == 2) { return fbTrail(s, id); }
+  if (shape == 1) { return fbWave(s, id); }
+  return fbBezier(s, id);
+}
+
+// Local (path plane XY, lift Z) to the editor's Y-up world, then scaled and placed.
+fn fbWorld(local: vec3f) -> vec3f {
+  return FB.org.xyz + vec3f(local.x, local.z, local.y) * FB.org.w;
+}
+
+fn fbWorldDir(local: vec3f) -> vec3f {
+  return vec3f(local.x, local.z, local.y);
+}
+
+fn fbPeriodicGap(a: f32, b: f32) -> f32 {
+  let g = abs(fract(a) - fract(b));
+  return min(g, 1.0 - g);
+}
+
+fn fbPulseLevel(cycle: f32) -> f32 {
+  if (i32(FB.p5.w) == 1) {
+    let first = exp(-pow(fbPeriodicGap(cycle, 0.10) / 0.045, 2.0));
+    let second = 0.55 * exp(-pow(fbPeriodicGap(cycle, 0.27) / 0.055, 2.0));
+    return clamp(first + second, 0.0, 1.0);
+  }
+  return 0.5 - 0.5 * cos(FTAU * cycle);
+}
+
+// One front runs along the fibre once per cycle, then holds and fades. Edges ascend in every smoothstep.
+fn fbSweep(pos: f32, cycle: f32) -> f32 {
+  let front = -0.03 + 1.06 * min(cycle / 0.45, 1.0);
+  let done = smoothstep(1.0, 1.01, front - 0.02);
+  let origin = mix(smoothstep(0.0, 0.04, pos), 1.0, done);
+  let body = origin * (1.0 - smoothstep(front - 0.02, front + 0.005, pos));
+  let off = (pos - (front - 0.012)) / 0.012;
+  let ridge = origin * exp(-0.5 * off * off) * smoothstep(0.0, 0.04, cycle)
+            * (1.0 - smoothstep(0.85, 1.0, front - 0.012));
+  let hold = 1.0 - smoothstep(0.75, 1.0, cycle);
+  return clamp(hold * clamp(0.65 * body + 0.35 * ridge, 0.0, 1.0), 0.0, 1.0);
+}
+
+fn fbPulse(along: f32) -> f32 {
+  let rate = FB.p5.z;
+  let depth = FB.p4.y;
+  let shape = i32(FB.p5.w);
+  if (rate == 0.0 || depth <= 0.0) { return 1.0; }
+  if (shape == 3) {
+    return 1.0 - depth + depth * fbSweep(along, fract(rate * FB.p2.y));
+  }
+  let phase = rate * FB.p2.y - select(0.0, along, shape == 2);
+  return 1.0 - depth + depth * fbPulseLevel(fract(phase));
+}
+
+struct FO {
+  @builtin(position) pos: vec4f,
+  @location(0) along: f32,
+  @location(1) across: f32,
+  @location(2) id: f32,
+  @location(3) sigma: f32,
+  @location(4) halo: f32,
+  @location(5) fade: f32,
+};
+
+@vertex
+fn vsFibre(@builtin(vertex_index) vi: u32) -> FO {
+  var o: FO;
+  let segs = u32(FB.p6.z);
+  let quad = vi / 6u;
+  let corner = vi - quad * 6u;
+  let strand = quad / segs;
+  let segment = quad - strand * segs;
+  let alongStep = select(0.0, 1.0, corner == 2u || corner == 3u || corner == 5u);
+  let sideStep = select(0.0, 1.0, corner == 1u || corner == 4u || corner == 5u);
+  let id = f32(strand);
+  let s = (f32(segment) + alongStep) / f32(segs);
+  let side = sideStep * 2.0 - 1.0;
+
+  let centre = fbWorld(fbCurve(s, id));
+  let ahead = fbWorldDir(fbCurve(min(s + 0.002, 1.0), id));
+  let behind = fbWorldDir(fbCurve(max(s - 0.002, 0.0), id));
+  let tangent = ahead - behind;
+  var lateral = cross(tangent, G.camPos.xyz - centre);
+  let ll = length(lateral);
+  lateral = select(vec3f(0.0, 1.0, 0.0), lateral / ll, ll > 1e-7);
+
+  // Core and halo widths are in pixels, so a fibre keeps its width at any distance.
+  let clip = G.viewProj * vec4f(centre, 1.0);
+  let ppm = FB.p4.z / max(clip.w, 1e-3);
+  let pixelScale = FB.p4.w;
+  let sigmaPx = max(0.8, FB.p2.z * pixelScale) * 0.42466;
+  let haloPx = max(2.4 * pixelScale, 2.0 * sigmaPx);
+  let envPx = 3.6 * haloPx;
+  let fade = mix(1.0, pow(max(sin(FPI * s), 0.0), 0.5), FB.p2.w);
+  let world = centre + lateral * (side * envPx / max(ppm, 1e-6));
+  o.pos = G.viewProj * vec4f(world, 1.0);
+  o.along = s;
+  o.across = side * envPx;
+  o.id = id;
+  o.sigma = sigmaPx;
+  o.halo = haloPx;
+  o.fade = fade;
+  return o;
+}
+
+@fragment
+fn fsFibre(i: FO) -> @location(0) vec4f {
+  let line = exp(-0.5 * i.across * i.across / (i.sigma * i.sigma));
+  let glow = FB.p3.y * exp(-0.5 * i.across * i.across / (i.halo * i.halo));
+  let head = fract(fbUnit(i.id, 9.0) + FB.p5.y * FB.p2.y);
+  let behind = fract(head - i.along);
+  let win = max(FB.p3.w, 1e-3);
+  let front = smoothstep(0.0, 0.05, behind);
+  let streak = select(0.0, pow(1.0 - behind / win, 2.0) * front, behind < win);
+  let lit = FB.p3.z + (1.0 - FB.p3.z) * streak;
+  let ends = smoothstep(0.0, 0.04, i.along) * (1.0 - smoothstep(0.96, 1.0, i.along));
+  let base = mix(FB.colA.xyz, FB.colB.xyz, i.along);
+  let tint = mix(base, FB.colC.xyz, FB.p4.x * fbUnit(i.id, 12.0));
+  let vary = 0.4 + 0.9 * fbUnit(i.id, 13.0);
+  let level = FB.p3.x * vary * (line + glow) * lit * ends * i.fade * fbPulse(i.along);
+  return vec4f(tint * level, 1.0);
+}
+
+// Head sparks: one small quad per fibre at its light head, sized in pixels like the Strand Editor's points.
+struct SO {
+  @builtin(position) pos: vec4f,
+  @location(0) uv: vec2f,
+  @location(1) col: vec3f,
+};
+
+@vertex
+fn vsSpark(@builtin(vertex_index) vi: u32) -> SO {
+  var o: SO;
+  o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+  let strand = vi / 6u;
+  let corner = vi - strand * 6u;
+  if (strand >= u32(FB.p6.y)) { return o; }
+  let id = f32(strand);
+  if (fbUnit(id, 11.0) > FB.p7.y) { return o; }
+  let s = fract(fbUnit(id, 9.0) + FB.p5.y * FB.p2.y);
+  let centre = fbWorld(fbCurve(s, id));
+  let clip = G.viewProj * vec4f(centre, 1.0);
+  let depth = max(clip.w, 0.001);
+  let sizePx = clamp(FB.p7.z * FB.org.w * FB.p4.z / depth, 1.0, 48.0);
+  var corners = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+                                vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0));
+  let c = corners[corner];
+  let half = sizePx * 0.5;
+  let ndc = vec2f(c.x * half * 2.0 / FB.p8.x, c.y * half * 2.0 / FB.p8.y);
+  o.pos = vec4f(clip.xy + ndc * clip.w, clip.z, clip.w);
+  o.uv = c;
+  o.col = mix(FB.colA.xyz, FB.colB.xyz, s) * FB.p7.w * (0.6 + 0.8 * fbUnit(id, 10.0)) * fbPulse(s);
+  return o;
+}
+
+@fragment
+fn fsSpark(i: SO) -> @location(0) vec4f {
+  let r2 = dot(i.uv, i.uv);
+  let disc = exp(-r2 * 7.0) * (1.0 - smoothstep(0.7, 1.0, r2));
+  return vec4f(i.col * disc, 1.0);
+}
+`;
+
   // Shared helpers are prepended to every module that needs them.
   PE.Shaders = {
     sim: COMMON + SIM,
     wind: COMMON + WIND,
     render: COMMON + RENDER,
+    fibre: COMMON + FIBRE,
   };
 })();

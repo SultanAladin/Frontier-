@@ -66,6 +66,21 @@
         ],
       });
       this.cpu = new Float32Array(64);
+      // Light fibres (kind 7) draw from their own uniform and path table; they do not simulate.
+      if (params.kind === 7) {
+        this.fibreUniform = d.createBuffer({ size: 256, usage: U.UNIFORM | U.COPY_DST });
+        this.fibrePath = d.createBuffer({ size: PE.PATH_SAMPLES * 16, usage: U.STORAGE | U.COPY_DST });
+        this.fibreBG = d.createBindGroup({
+          layout: engine.gl1Render,
+          entries: [
+            { binding: 0, resource: { buffer: this.fibreUniform } },
+            { binding: 1, resource: { buffer: this.fibrePath } },
+            { binding: 2, resource: { buffer: engine.segs } },
+          ],
+        });
+        this.fibreCpu = new Float32Array(64);
+        this.pathKey = null;
+      }
       this.statPending = false;
       this.stats_ = null;       // latest decoded readback
       this.readbackMs = 0;
@@ -76,6 +91,8 @@
       for (const b of [this.parts, this.snap, this.stats, this.statStage, this.uniform, this.cellCount, this.cellSlots]) {
         b.destroy();
       }
+      this.fibreUniform?.destroy();
+      this.fibrePath?.destroy();
     }
   }
   PE.SystemGPU = SystemGPU;
@@ -198,7 +215,7 @@
 
       // Shaders, compile-checked so errors show up in the UI rather than as silent black frames.
       const modules = {};
-      for (const key of ["sim", "wind", "render"]) {
+      for (const key of ["sim", "wind", "render", "fibre"]) {
         const m = d.createShaderModule({ code: PE.Shaders[key], label: "ParticleEditor " + key });
         const info = await m.getCompilationInfo();
         const errors = info.messages.filter((x) => x.type === "error");
@@ -240,6 +257,16 @@
       this.pipe.partAlpha = mkR("vsPart", "fsPart", OVER);
       this.pipe.seg = mkR("vsSeg", "fsSeg", ADD);
       this.pipe.arrow = mkR("vsArrow", "fsArrow", ADD);
+      const mkF = (vs, fs) =>
+        d.createRenderPipeline({
+          layout: renderLayout,
+          vertex: { module: modules.fibre, entryPoint: vs },
+          fragment: { module: modules.fibre, entryPoint: fs, targets: [{ format: this.format, blend: ADD }] },
+          primitive: { topology: "triangle-list" },
+          depthStencil: depth,
+        });
+      this.pipe.fibre = mkF("vsFibre", "fsFibre");
+      this.pipe.fibreSpark = mkF("vsSpark", "fsSpark");
       this.pipe.floor = mkR("vsFloor", "fsFloor", undefined, { depth: { depthWriteEnabled: true } });
       this.pipe.line = mkR("vsLine", "fsLine", OVER, {
         topology: "line-list",
@@ -291,6 +318,10 @@
       if (frame.lineCount) q.writeBuffer(this.lines, 0, frame.lines, 0, frame.lineCount * 7);
       for (const job of frame.jobs) {
         if (job.draw) q.writeBuffer(job.gpu.uniform, 0, job.cpu);
+        if (job.fibre) {
+          q.writeBuffer(job.gpu.fibreUniform, 0, job.cpu);
+          if (job.path) q.writeBuffer(job.gpu.fibrePath, 0, job.path);
+        }
       }
 
       const enc = d.createCommandEncoder({ label: "ParticleEditor frame" });
@@ -408,6 +439,16 @@
         rp.setPipeline(this.pipe.arrow);
         rp.setBindGroup(1, this.bgDummy);
         rp.draw(6, this.windCells);
+      }
+      for (const job of frame.jobs) {
+        if (!job.fibre) continue;
+        rp.setBindGroup(1, job.gpu.fibreBG);
+        rp.setPipeline(this.pipe.fibre);
+        rp.draw(job.strands * job.segments * 6);
+        if (job.sparks) {
+          rp.setPipeline(this.pipe.fibreSpark);
+          rp.draw(job.strands * 6);
+        }
       }
       for (const job of frame.jobs) {
         if (!job.draw) continue;

@@ -281,6 +281,28 @@
       if (!sys.p.visible || !sys.gpu) continue;
       const p = sys.p;
       const g = sys.gpu;
+      if (p.kind === 7) {
+        // Light fibres are analytic: no simulation, just a uniform and (for trails) a path table.
+        const f = p.fibre;
+        const key = f.pathShape + "|" + f.pathSize;
+        let path = null;
+        if (g.pathKey !== key) {
+          g.pathKey = key;
+          path = PE.samplePath(f.pathShape, f.pathSize, PE.PATH_SAMPLES);
+        }
+        PE.fillFibre(g.fibreCpu, p, {
+          lf: (state.time / f.loopSeconds) % 1,
+          projScale: (0.5 * canvas.height) / Math.tan(Math.PI / 8),
+          viewW: canvas.width,
+          viewH: canvas.height,
+        });
+        jobs.push({
+          gpu: g, cpu: g.fibreCpu, path, fibre: true, simulate: false, draw: false,
+          strands: f.strands, segments: f.segments, sparks: f.sparks > 0, alpha: false,
+          mol: false, emitN: 0, steps: 0, gd: 1,
+        });
+        continue;
+      }
       const mol = p.kind === 3 || p.kind === 4;
       const simulate = state.playing && dt > 0;
       let emitN = 0;
@@ -370,7 +392,7 @@
   function updateLive() {
     const live = state.ui.liveEls;
     const total = state.systems.filter((s) => s.p.visible).reduce((a, s) => a + (s.gpu.stats_ ? s.gpu.stats_.alive : 0), 0);
-    const cap = state.systems.filter((s) => s.p.visible).reduce((a, s) => a + s.gpu.cap, 0);
+    const cap = state.systems.filter((s) => s.p.visible && s.p.kind !== 7).reduce((a, s) => a + s.gpu.cap, 0);
     $("#st-particles").textContent = `${fmtInt(total)} / ${fmtInt(cap)} particles`;
     $("#st-fps").textContent = `${Math.round(state.fps)} fps · CPU ${state.cpuMs.toFixed(2)} ms`;
     const reads = state.systems.reduce((a, s) => a + s.gpu.readbackCount, 0);
@@ -383,7 +405,7 @@
 
     for (const sys of state.systems) {
       const meta = sys.ui_meta;
-      if (meta) meta.textContent = `${kindLabel(sys.p.kind)} · ${sys.gpu.stats_ ? fmtInt(sys.gpu.stats_.alive) : 0} alive`;
+      if (meta) meta.textContent = `${kindLabel(sys.p.kind)} · ${aliveText(sys)}`;
     }
     if (live.sys && state.selection.type === "system") {
       const sys = systemById(state.selection.id);
@@ -420,7 +442,13 @@
   }
 
   function kindLabel(k) {
-    return { 0: "Streak", 1: "Wind-driven", 3: "Molecular · LJ", 4: "Molecular · reactive", 5: "VFX", 6: "Swarm · flocking" }[k] || "Particles";
+    return { 0: "Streak", 1: "Wind-driven", 3: "Molecular · LJ", 4: "Molecular · reactive", 5: "VFX", 6: "Swarm · flocking", 7: "Light fibres" }[k] || "Particles";
+  }
+
+  // Outliner subtitle: particle systems count alive particles; fibres count strands.
+  function aliveText(sys) {
+    if (sys.p.kind === 7) return fmtInt(sys.p.fibre.strands) + " strands";
+    return (sys.gpu.stats_ ? fmtInt(sys.gpu.stats_.alive) : 0) + " alive";
   }
 
   // ----------------------------------------------------------------- outliner
@@ -453,7 +481,7 @@
       const item = row(sys.id, sys.name, "", `background:${toHex(sys.p.colA)}`,
         sel.type === "system" && sel.id === sys.id, () => select({ type: "system", id: sys.id }), eye);
       sys.ui_meta = item.querySelector(".ol-meta");
-      sys.ui_meta.textContent = `${kindLabel(sys.p.kind)} · ${sys.gpu.stats_ ? fmtInt(sys.gpu.stats_.alive) : 0} alive`;
+      sys.ui_meta.textContent = `${kindLabel(sys.p.kind)} · ${aliveText(sys)}`;
       list.append(item);
     }
     const add = el("select", { class: "ol-add", "aria-label": "Add particle system", onchange: (e) => {
@@ -550,8 +578,88 @@
     updateLive();
   }
 
+  // Light fibres: the same card language as particle systems, with fibre controls in place of emitter ones.
+  function renderFibreInspector(root, sys) {
+    const p = sys.p;
+    const f = p.fibre;
+    const preset = PE.presetById(sys.presetId);
+    const trail = f.shape === "trail";
+    const ribbon = f.shape === "ribbon";
+    root.append(el("div", { class: "insp-head" },
+      el("span", { class: "insp-path", text: "Light fibres / " + f.shape }),
+      el("h2", { text: sys.name }),
+      el("p", { class: "insp-sub", text: preset.blurb })));
+
+    root.append(card("System", null,
+      el("label", { class: "row" }, el("span", { class: "row-k", text: "Name" }),
+        el("input", { type: "text", value: sys.name, "aria-label": "System name", oninput: (e) => { sys.name = e.target.value || "Untitled"; renderOutliner(); } })),
+      el("div", { class: "btn-row" },
+        button(p.visible ? "Hide" : "Show", () => { p.visible = !p.visible; renderInspector(); }),
+        button("Delete", () => removeSystem(sys), "danger")),
+      note("Fibres are analytic: the GPU evaluates each curve from the loop phase, so they cost no simulation. Wind does not move them.")));
+
+    const form = [
+      selectRow("Form", [["streak", "Streak (light head)"], ["ribbon", "Ribbon (rippling sheet)"], ["trail", "Trail (rides a path)"]],
+        () => f.shape, (v) => { f.shape = v; renderInspector(); }),
+      rangeRow("Strands", () => f.strands, (v) => (f.strands = v), { min: 1, max: 1200, step: 1, digits: 0 }),
+      rangeRow("Segments", () => f.segments, (v) => (f.segments = v), { min: 4, max: 160, step: 1, digits: 0 }),
+      rangeRow("Seed", () => f.seed, (v) => (f.seed = v), { min: 1, max: 999, step: 1, digits: 0 }),
+    ];
+    if (!trail) form.push(rangeRow("Length", () => f.length, (v) => (f.length = v), { min: 0.5, max: 30, step: 0.01, digits: 2, unit: "m" }));
+    form.push(rangeRow("Spread", () => f.spread, (v) => (f.spread = v), { min: 0, max: 10, step: 0.01, digits: 2, unit: "m" }));
+    form.push(rangeRow("Wobble", () => f.amplitude, (v) => (f.amplitude = v), { min: 0, max: 4, step: 0.01, digits: 2, unit: "m" }));
+    form.push(rangeRow("Waves per loop", () => f.frequency, (v) => (f.frequency = v), { min: 0, max: 8, step: 0.01, digits: 2 }));
+    if (ribbon) {
+      form.push(rangeRow("Sheet width", () => f.sheetWidth, (v) => (f.sheetWidth = v), { min: 0.5, max: 30, step: 0.01, digits: 2, unit: "m" }));
+      form.push(rangeRow("Ripple", () => f.ripple, (v) => (f.ripple = v), { min: 0, max: 4, step: 0.01, digits: 2, unit: "m" }));
+      form.push(rangeRow("Sheet waves", () => f.waves, (v) => (f.waves = v), { min: 0, max: 6, step: 0.01, digits: 2 }));
+    }
+    if (ribbon || trail) {
+      form.push(rangeRow("Phase spread", () => f.phaseSpread, (v) => (f.phaseSpread = v), { min: 0, max: 6.283, step: 0.01, digits: 2, unit: "rad" }));
+    }
+    if (trail) {
+      form.push(selectRow("Path", PE.FIBRE_PATHS.map((n) => [n, n]), () => f.pathShape, (v) => (f.pathShape = v)));
+      form.push(rangeRow("Path size", () => f.pathSize, (v) => (f.pathSize = v), { min: 1, max: 10, step: 0.1, digits: 1, unit: "m" }));
+      form.push(rangeRow("Trail length", () => f.trailLength, (v) => (f.trailLength = v), { min: 0.02, max: 1, step: 0.01, digits: 2, unit: "share" }));
+    }
+    root.append(card("Form", null, ...form));
+
+    root.append(card("Motion", "LOOP", 
+      rangeRow("Loop period", () => f.loopSeconds, (v) => (f.loopSeconds = v), { min: 2, max: 60, step: 0.5, digits: 1, unit: "s" }),
+      rangeRow("Speed multiple", () => f.harmonic, (v) => (f.harmonic = v), { min: 1, max: 4, step: 1, digits: 0 }),
+      rangeRow("Light heads per loop", () => f.windowCycles, (v) => (f.windowCycles = v), { min: 1, max: 6, step: 1, digits: 0 }),
+      rangeRow("Light window", () => f.window, (v) => (f.window = v), { min: 0.02, max: 1, step: 0.01, digits: 2 }),
+      selectRow("Pulse shape", PE.PULSE_SHAPES.map((n) => [n, n]), () => f.pulseShape, (v) => (f.pulseShape = v)),
+      rangeRow("Pulses per loop", () => f.pulseRate, (v) => (f.pulseRate = v), { min: 0, max: 4, step: 1, digits: 0 }),
+      rangeRow("Pulse depth", () => f.pulseDepth, (v) => (f.pulseDepth = v), { min: 0, max: 1, step: 0.01, digits: 2 })));
+
+    const placement = [
+      vecRow("Origin", p.origin, { min: -20, max: 20, step: 0.05, digits: 2, unit: "m" }),
+      rangeRow("Scale", () => f.scale, (v) => (f.scale = v), { min: 0.05, max: 10, step: 0.01, digits: 2, unit: "×" }),
+    ];
+    if (!trail && !ribbon) placement.push(vecRow("Direction", p.dir, { min: -1, max: 1, step: 0.05, digits: 2 }));
+    root.append(card("Placement", null, ...placement));
+
+    root.append(card("Look", "RENDER",
+      rangeRow("Thickness", () => f.thickness, (v) => (f.thickness = v), { min: 0.5, max: 8, step: 0.05, digits: 2, unit: "px" }),
+      rangeRow("Taper", () => f.taper, (v) => (f.taper = v), { min: 0, max: 1, step: 0.01, digits: 2 }),
+      rangeRow("Intensity", () => f.intensity, (v) => (f.intensity = v), { min: 0, max: 12, step: 0.01, digits: 2 }),
+      rangeRow("Halo", () => f.halo, (v) => (f.halo = v), { min: 0, max: 2, step: 0.01, digits: 2 }),
+      rangeRow("Idle brightness", () => f.baseline, (v) => (f.baseline = v), { min: 0, max: 1, step: 0.01, digits: 2 }),
+      colorRow("Colour start", f.colA),
+      colorRow("Colour end", f.colB),
+      colorRow("Accent colour", f.colC),
+      rangeRow("Accent amount", () => f.accentMix, (v) => (f.accentMix = v), { min: 0, max: 1, step: 0.01, digits: 2 })));
+
+    root.append(card("Head sparks", "SPARKS",
+      rangeRow("Sparks", () => f.sparks, (v) => (f.sparks = v), { min: 0, max: 1, step: 0.01, digits: 2 }),
+      rangeRow("Spark size", () => f.sparkSize, (v) => (f.sparkSize = v), { min: 0, max: 0.4, step: 0.001, digits: 3, unit: "m" }),
+      rangeRow("Spark brightness", () => f.sparkBrightness, (v) => (f.sparkBrightness = v), { min: 0, max: 12, step: 0.01, digits: 2 })));
+  }
+
   function renderSystemInspector(root, sys, live) {
     const p = sys.p;
+    if (p.kind === 7) return renderFibreInspector(root, sys);
     const mol = p.kind === 3 || p.kind === 4;
     const preset = PE.presetById(sys.presetId);
     root.append(el("div", { class: "insp-head" },
