@@ -156,6 +156,22 @@ void Adopt(const EditorSheet& Sheet, Emitter& Light)
     }
 }
 
+// Write(Key, Next) needs the published slot, not the snapshot Adopt() took from it.
+EditorProperty* Bind(EditorSheet& Sheet, const char* Label)
+{
+    for (uint32_t G = 0; G < Sheet.GroupCount; ++G)
+    {
+        for (uint32_t P = 0; P < Sheet.Groups[G].PropertyCount; ++P)
+        {
+            if (Named(Sheet.Groups[G].Properties[P].Label, Label))
+            {
+                return &Sheet.Groups[G].Properties[P];
+            }
+        }
+    }
+    return nullptr;
+}
+
 // LightPanel.js Flux()
 float Flux(const Emitter& L)
 {
@@ -636,7 +652,8 @@ struct Column
     }
 
     // .field — a 10 px label, then the pill holding the black entry box and the range track.
-    void Field(const char* Name, float Value, float Low, float High, int Decimals, const char* Unit)
+    void Field(const char* Name, float Value, float Low, float High, int Decimals, const char* Unit,
+               EditorProperty* Bound = nullptr, float Step = 0.0f)
     {
         Pen += 17.0f;
         Draw->AddText(Face, 10.0f, { Ink(), Pen }, FieldLabel, Name);
@@ -662,11 +679,27 @@ struct Column
             Draw->AddRectFilled({ TrackLeft, Pen }, { TrackRight, Pen + 26.0f }, TrackLit, 13.0f);
             Draw->PopClipRect();
         }
+        // input[type=range]: pressing anywhere on the track seeks to it, and a drag keeps following.
+        if (Bound && Bound->Editable)
+        {
+            ImGui::SetCursorScreenPos({ TrackLeft, Pen });
+            ImGui::InvisibleButton(Name, { ImMax(1.0f, TrackRight - TrackLeft), 26.0f });
+            if (ImGui::IsItemActive())
+            {
+                const float Reach = ImMax(0.0001f, TrackRight - TrackLeft);
+                float Next = Low + ImClamp((ImGui::GetIO().MousePos.x - TrackLeft) / Reach, 0.0f, 1.0f) * (High - Low);
+                if (Step > 0.0f)
+                {
+                    Next = Low + std::floor((Next - Low) / Step + 0.5f) * Step;
+                }
+                Bound->Figure = ImClamp(Next, Low, High);
+            }
+        }
         Pen += 26.0f + 17.0f;
     }
 
     // .lp-toggle-row with .lp-switch — 38 x 21, the knob sliding 17 px.
-    void Switch(const char* Name, bool On)
+    void Switch(const char* Name, bool On, EditorProperty* Bound = nullptr)
     {
         Pen += 15.0f;
         Draw->AddText(Face, 11.0f, { Ink(), Pen + 3.0f }, RowText, Name);
@@ -674,6 +707,15 @@ struct Column
         Draw->AddRectFilled({ Right - 38.0f, Pen }, { Right, Pen + 21.0f }, On ? SwitchOn : SwitchOff, 10.5f);
         const float Knob = Right - 38.0f + 2.0f + (On ? 17.0f : 0.0f);
         Draw->AddCircleFilled({ Knob + 8.5f, Pen + 10.5f }, 8.5f, SwitchKnob, 32);
+        if (Bound && Bound->Editable)
+        {
+            ImGui::SetCursorScreenPos({ Right - 38.0f, Pen });
+            ImGui::InvisibleButton(Name, { 38.0f, 21.0f });
+            if (ImGui::IsItemClicked())
+            {
+                Bound->On = !Bound->On;
+            }
+        }
         Pen += 21.0f + 15.0f;
     }
 
@@ -686,7 +728,7 @@ struct Column
     }
 
     // .lp-profiles — a two-column grid of pressed-state buttons.
-    void Choices(const char* const* Names, unsigned Count, unsigned Picked)
+    void Choices(const char* const* Names, unsigned Count, unsigned Picked, EditorProperty* Bound = nullptr)
     {
         const float Cell = (Inner() - 6.0f) * 0.5f;
         for (unsigned Index = 0; Index < Count; ++Index)
@@ -698,6 +740,15 @@ struct Column
             Draw->AddRect({ X, Y }, { X + Cell, Y + 29.0f }, On ? PickedEdge : ChoiceEdge, 4.0f, 0, 1.0f);
             Inked(Draw, Face, 10.0f, { X + Cell * 0.5f, Y + 18.0f }, On ? PickedText : ChoiceText, Names[Index],
                   Anchor::Centre);
+            if (Bound && Bound->Editable)
+            {
+                ImGui::SetCursorScreenPos({ X, Y });
+                ImGui::InvisibleButton(Names[Index], { Cell, 29.0f });
+                if (ImGui::IsItemClicked())
+                {
+                    Bound->Picked = Index;
+                }
+            }
         }
         Pen += float((Count + 1u) / 2u) * (29.0f + 6.0f) - 6.0f;
     }
@@ -881,8 +932,9 @@ void RecordLightInspector(ControlPanel&, EditorInstance&, EditorSheet& Sheet)
     //--------------------------------------------------------------------------------------------------------------
     Panel.Begin(CardPadX);
     Panel.Head("Scene participation", "FLAGS", nullptr);
-    Panel.Switch("Cast shadows", Light.Shadows);
-    Panel.Switch(Ies ? "Draw distribution" : Spot ? "Draw cone" : Point ? "Show glow" : "Draw emitter", Light.Shown);
+    Panel.Switch("Cast shadows", Light.Shadows, Bind(Sheet, "Cast shadows"));
+    const char* ShownName = Ies ? "Draw distribution" : Spot ? "Draw cone" : Point ? "Show glow" : "Draw emitter";
+    Panel.Switch(ShownName, Light.Shown, Bind(Sheet, ShownName));
     Panel.Pen += CardPadY - 15.0f;
     Panel.End();
 
@@ -893,26 +945,27 @@ void RecordLightInspector(ControlPanel&, EditorInstance&, EditorSheet& Sheet)
     Panel.Head(Kind.Output, "OUTPUT", nullptr);
     if (Led)
     {
-        Panel.Field("Driver power", Light.Watts, 0.1f, 100.0f, 1, "W");
-        Panel.Field("Efficacy target", Light.Efficacy, 10.0f, 250.0f, 0, "lm/W");
-        Panel.Field("Dimmer", Light.Dimmer, 0.0f, 1.0f, 2, "");
+        Panel.Field("Driver power", Light.Watts, 0.1f, 100.0f, 1, "W", Bind(Sheet, "Driver power"), 0.1f);
+        Panel.Field("Efficacy target", Light.Efficacy, 10.0f, 250.0f, 0, "lm/W", Bind(Sheet, "Efficacy target"), 1.0f);
+        Panel.Field("Dimmer", Light.Dimmer, 0.0f, 1.0f, 2, "", Bind(Sheet, "Dimmer"), 0.01f);
     }
     else if (Strip)
     {
-        Panel.Field("Flux per metre", Light.LumensPerMetre, 10.0f, 4000.0f, 0, "lm/m");
-        Panel.Field("Load per metre", Light.WattsPerMetre, 1.0f, 50.0f, 1, "W/m");
-        Panel.Field("Dimmer", Light.Dimmer, 0.0f, 1.0f, 2, "");
+        Panel.Field("Flux per metre", Light.LumensPerMetre, 10.0f, 4000.0f, 0, "lm/m", Bind(Sheet, "Flux per metre"), 10.0f);
+        Panel.Field("Load per metre", Light.WattsPerMetre, 1.0f, 50.0f, 1, "W/m", Bind(Sheet, "Load per metre"), 0.1f);
+        Panel.Field("Dimmer", Light.Dimmer, 0.0f, 1.0f, 2, "", Bind(Sheet, "Dimmer"), 0.01f);
     }
     else
     {
-        Panel.Field(Point || Spot ? "Intensity" : "Luminous flux",
-                    Point || Spot ? Light.Intensity : Light.Lumens, 0.0f,
+        const char* FluxName = Point || Spot ? "Intensity" : "Luminous flux";
+        Panel.Field(FluxName, Point || Spot ? Light.Intensity : Light.Lumens, 0.0f,
                     Point ? 60.0f : Spot ? 200.0f : Ies ? 8000.0f : Area ? 20000.0f : 12000.0f,
-                    Point ? 1 : 0, Point || Spot ? "cd" : "lm");
+                    Point ? 1 : 0, Point || Spot ? "cd" : "lm", Bind(Sheet, FluxName),
+                    Point ? 0.1f : Spot ? 1.0f : 50.0f);
     }
     if (Ies || Tube || Led || Strip)
     {
-        Panel.Field("Colour temperature", Light.Temperature, 1800.0f, 12000.0f, 0, "K");
+        Panel.Field("Colour temperature", Light.Temperature, 1800.0f, 12000.0f, 0, "K", Bind(Sheet, "Colour temperature"), 100.0f);
     }
     {
         // .lp-colour — the swatch and its hex readout.
@@ -1001,49 +1054,49 @@ void RecordLightInspector(ControlPanel&, EditorInstance&, EditorSheet& Sheet)
     Panel.Head(Kind.Shape, "OPTICS", nullptr);
     if (Led)
     {
-        Panel.Field("Package diameter", Light.Diameter, 5.0f, 120.0f, 0, "mm");
-        Panel.Field("Emission angle", Light.Angle, 10.0f, 180.0f, 0, "\u00b0");
+        Panel.Field("Package diameter", Light.Diameter, 5.0f, 120.0f, 0, "mm", Bind(Sheet, "Package diameter"), 1.0f);
+        Panel.Field("Emission angle", Light.Angle, 10.0f, 180.0f, 0, "\u00b0", Bind(Sheet, "Emission angle"), 1.0f);
     }
     else if (Strip)
     {
-        Panel.Field("Strip length", Light.Length, 0.1f, 20.0f, 1, "m");
-        Panel.Field("Emitter density", Light.LedsPerMetre, 10.0f, 240.0f, 0, "/m");
-        Panel.Field("Supply voltage", Light.Voltage, 5.0f, 48.0f, 0, "V");
-        Panel.Switch("Opal diffuser", Light.Diffuser);
+        Panel.Field("Strip length", Light.Length, 0.1f, 20.0f, 1, "m", Bind(Sheet, "Strip length"), 0.1f);
+        Panel.Field("Emitter density", Light.LedsPerMetre, 10.0f, 240.0f, 0, "/m", Bind(Sheet, "Emitter density"), 1.0f);
+        Panel.Field("Supply voltage", Light.Voltage, 5.0f, 48.0f, 0, "V", Bind(Sheet, "Supply voltage"), 1.0f);
+        Panel.Switch("Opal diffuser", Light.Diffuser, Bind(Sheet, "Opal diffuser"));
     }
     else if (Ies)
     {
-        Panel.Choices(ProfileNames, 8u, Light.Profile);
+        Panel.Choices(ProfileNames, 8u, Light.Profile, Bind(Sheet, "Profile"));
         Panel.Note("Preset illustration \u00b7 IES file import pending.");
-        Panel.Field("Profile multiplier", Light.Multiplier, 0.0f, 4.0f, 2, "\u00d7");
-        Panel.Field("Field angle", Light.Cone, 5.0f, 100.0f, 1, "\u00b0");
-        Panel.Field("Cut-off pitch", Light.Cutoff, -5.0f, 5.0f, 1, "\u00b0");
-        Panel.Field("Photometric range", Light.Range, 1.0f, 250.0f, 0, "m");
+        Panel.Field("Profile multiplier", Light.Multiplier, 0.0f, 4.0f, 2, "\u00d7", Bind(Sheet, "Profile multiplier"), 0.05f);
+        Panel.Field("Field angle", Light.Cone, 5.0f, 100.0f, 1, "\u00b0", Bind(Sheet, "Field angle"), 0.5f);
+        Panel.Field("Cut-off pitch", Light.Cutoff, -5.0f, 5.0f, 1, "\u00b0", Bind(Sheet, "Cut-off pitch"), 0.1f);
+        Panel.Field("Photometric range", Light.Range, 1.0f, 250.0f, 0, "m", Bind(Sheet, "Photometric range"), 1.0f);
     }
     else if (Point)
     {
-        Panel.Field("Reach", Light.Distance, 1.0f, 120.0f, 0, "m");
-        Panel.Field("Decay exponent", Light.Decay, 0.0f, 4.0f, 2, "");
+        Panel.Field("Reach", Light.Distance, 1.0f, 120.0f, 0, "m", Bind(Sheet, "Reach"), 1.0f);
+        Panel.Field("Decay exponent", Light.Decay, 0.0f, 4.0f, 2, "", Bind(Sheet, "Decay exponent"), 0.05f);
     }
     else if (Spot)
     {
-        Panel.Field("Full cone angle", Light.Angle, 2.0f, 80.0f, 1, "\u00b0");
-        Panel.Field("Penumbra", Light.Penumbra, 0.0f, 1.0f, 2, "");
+        Panel.Field("Full cone angle", Light.Angle, 2.0f, 80.0f, 1, "\u00b0", Bind(Sheet, "Full cone angle"), 0.5f);
+        Panel.Field("Penumbra", Light.Penumbra, 0.0f, 1.0f, 2, "", Bind(Sheet, "Penumbra"), 0.01f);
     }
     else if (Area)
     {
         static const char* const Apertures[2] = { "Rectangle", "Disk" };
-        Panel.Choices(Apertures, 2u, Light.Disk ? 1u : 0u);
-        Panel.Field("Width", Light.Across, 0.1f, 20.0f, 1, "m");
-        Panel.Field("Height", Light.Tall, 0.1f, 20.0f, 1, "m");
-        Panel.Field("Beam spread", Light.Spread, 1.0f, 180.0f, 0, "\u00b0");
-        Panel.Switch("Two-sided emission", Light.TwoSided);
+        Panel.Choices(Apertures, 2u, Light.Disk ? 1u : 0u, Bind(Sheet, "Aperture"));
+        Panel.Field("Width", Light.Across, 0.1f, 20.0f, 1, "m", Bind(Sheet, "Width"), 0.1f);
+        Panel.Field("Height", Light.Tall, 0.1f, 20.0f, 1, "m", Bind(Sheet, "Height"), 0.1f);
+        Panel.Field("Beam spread", Light.Spread, 1.0f, 180.0f, 0, "\u00b0", Bind(Sheet, "Beam spread"), 1.0f);
+        Panel.Switch("Two-sided emission", Light.TwoSided, Bind(Sheet, "Two-sided emission"));
     }
     else
     {
-        Panel.Field("Length", Light.Length, 0.1f, 20.0f, 1, "m");
-        Panel.Field("Tube radius", Light.Radius, 0.01f, 1.0f, 2, "m");
-        Panel.Field("Reach", Light.Distance, 1.0f, 120.0f, 0, "m");
+        Panel.Field("Length", Light.Length, 0.1f, 20.0f, 1, "m", Bind(Sheet, "Length"), 0.1f);
+        Panel.Field("Tube radius", Light.Radius, 0.01f, 1.0f, 2, "m", Bind(Sheet, "Tube radius"), 0.01f);
+        Panel.Field("Reach", Light.Distance, 1.0f, 120.0f, 0, "m", Bind(Sheet, "Reach"), 1.0f);
     }
     Panel.Pen += CardPadY - 17.0f;
     Panel.End();
@@ -1054,10 +1107,12 @@ void RecordLightInspector(ControlPanel&, EditorInstance&, EditorSheet& Sheet)
     Panel.Begin(CardPadX);
     Panel.Head("Transform", "WORLD SPACE", nullptr);
     {
-        struct Row { const char* Name; const char* Unit; const float* Values; int Decimals; };
-        const Row Rows[3] = { { "Position", "m",        Light.Position, 2 },
-                              { "Rotation", "deg",      Light.Rotation, 1 },
-                              { "Scale",    "\u00d7",   Light.Scale,    2 } };
+        // TransformPanel.jsx's fixed rows, with the step, floor and ceiling it clamps each axis to.
+        struct Row { const char* Name; const char* Unit; const float* Values; int Decimals;
+                     float Step; float Floor; float Ceiling; };
+        const Row Rows[3] = { { "Position", "m",       Light.Position, 2, 0.01f, -100000.0f, 100000.0f },
+                              { "Rotation", "deg",     Light.Rotation, 1, 0.1f,   -36000.0f,  36000.0f },
+                              { "Scale",    "\u00d7",  Light.Scale,    2, 0.01f,      0.001f,  1000.0f } };
         const float Label = 58.0f;
         const float Gutter = 20.0f;                       // the row unit keeps its own column
         const float Cell  = (Panel.Inner() - Label - Gutter - 8.0f) / 3.0f;
@@ -1071,6 +1126,18 @@ void RecordLightInspector(ControlPanel&, EditorInstance&, EditorSheet& Sheet)
                 Fixed(Figure, sizeof(Figure), Line.Values[Axis], Line.Decimals);
                 Inked(Panel.Draw, Panel.Face, 11.0f, { X + Cell - 7.0f, Panel.Pen + 17.0f }, AxisText, Figure,
                       Anchor::Right);
+                if (EditorProperty* Bound = Bind(Sheet, Line.Name); Bound && Bound->Editable)
+                {
+                    ImGui::PushID(Line.Name);
+                    ImGui::SetCursorScreenPos({ X, Panel.Pen });
+                    ImGui::InvisibleButton(Axis == 0 ? "x" : Axis == 1 ? "y" : "z", { Cell, 26.0f });
+                    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+                    {
+                        Bound->Axes[Axis] = ImClamp(Bound->Axes[Axis] + ImGui::GetIO().MouseDelta.x * Line.Step,
+                                                    Line.Floor, Line.Ceiling);
+                    }
+                    ImGui::PopID();
+                }
             }
             Inked(Panel.Draw, Panel.Face, 9.0f, { Panel.Ink() + Panel.Inner(), Panel.Pen + 17.0f }, FieldLabel,
                   Line.Unit, Anchor::Right);

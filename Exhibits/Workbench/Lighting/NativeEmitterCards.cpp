@@ -354,6 +354,97 @@ int main()
         Capture((std::string(Entry.File) + "-Wide").c_str());
     }
 
+    //  Interaction: the controls must drive the published properties, not merely draw them -------------
+    auto Slot = [&](const char* Label) -> EditorProperty*
+    {
+        for (uint32_t G = 0; G < Sheet.GroupCount; ++G)
+        {
+            for (uint32_t P = 0; P < Sheet.Groups[G].PropertyCount; ++P)
+            {
+                if (std::strcmp(Sheet.Groups[G].Properties[P].Label, Label) == 0)
+                {
+                    return &Sheet.Groups[G].Properties[P];
+                }
+            }
+        }
+        return nullptr;
+    };
+    auto Point = [&](float X, float Y) { IO.AddMousePosEvent(X, Y); };
+    auto Press = [&](bool Down) { IO.AddMouseButtonEvent(0, Down); };
+
+    // The switch is 38 px wide against the card's right inner edge; sweep the column for it.
+    {
+        Width = 420;
+        Height = 2600;
+        Sheet = SheetFor(1);                                   // spotlight
+        Check(AdoptGlyph(IconSymbol::EditorSpotlight), "spot glyph for the interaction probe");
+        Tick();
+        const int Tall = static_cast<int>(Measured) + 12;
+        Height = Tall;
+        Tick();
+        const bool Before = Slot("Cast shadows")->On;
+        bool Flipped = false;
+        for (int Y = 0; Y < Tall && !Flipped; Y += 2)
+        {
+            Point(float(Width) - 15.0f - 19.0f, float(Y));
+            Press(false); Tick();
+            Press(true);  Tick();
+            Press(false); Tick();
+            Flipped = Slot("Cast shadows")->On != Before;
+        }
+        Check(Flipped, "clicking the switch writes Cast shadows back to the sheet");
+    }
+
+    // Pressing the far end of a range track seeks the value to its maximum, as input[type=range] does.
+    {
+        Width = 420;
+        Height = 2600;
+        Sheet = SheetFor(1);
+        Tick();
+        const int Tall = static_cast<int>(Measured) + 12;
+        Height = Tall;
+        Tick();
+        Check(std::fabs(Slot("Intensity")->Figure - 62.0f) < 0.01f, "spot intensity starts at 62 cd");
+        bool Seeked = false;
+        for (int Y = 0; Y < Tall && !Seeked; Y += 2)
+        {
+            Point(float(Width) - 15.0f - 19.0f, float(Y));   // well inside the track's right end
+            Press(false); Tick();
+            Press(true);  Tick();
+            Press(false); Tick();
+            Seeked = Slot("Intensity")->Figure > 150.0f;
+        }
+        Check(Seeked, "pressing near the track end seeks spot intensity from 62 cd past 150 cd");
+    }
+
+    // The transform cells are drag fields; TransformPanel.jsx steps position by 0.01 per pixel.
+    {
+        Width = 420;
+        Height = 2600;
+        Sheet = SheetFor(1);
+        Tick();
+        const int Tall = static_cast<int>(Measured) + 12;
+        Height = Tall;
+        Tick();
+        const float Before = Slot("Position")->Axes[0];
+        bool Dragged = false;
+        const float Columns[3] = { 110.0f, 160.0f, 210.0f };
+        for (int Y = Tall - 2; Y > Tall - 200 && !Dragged; Y -= 2)
+        {
+            for (const float X : Columns)
+            {
+                Point(X, float(Y));
+                Press(false); Tick();
+                Press(true);  Tick();
+                Point(X + 40.0f, float(Y)); Tick(); Tick();
+                Press(false); Tick();
+                if (std::fabs(Slot("Position")->Axes[0] - Before) > 0.05f) { Dragged = true; break; }
+            }
+        }
+        Check(Dragged, "dragging a transform cell moves the position axis");
+    }
+    IO.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+
     //  The arithmetic the cards print is LightPanel.js's own, checked against it ------------------------
     const float Pi = 3.14159265f;
 

@@ -129,3 +129,21 @@ from the centre. Both looked plausible but wrong before this was caught by eye.
 
 Acceptance test: the scripts already beside the sources — `CheckLightDesign.mjs`, `CheckLighting.mjs`,
 `CheckInspectorLayout.mjs`, `CheckSharedCards.mjs`.
+
+### The controls drive the sheet, they do not only draw it
+
+`Adopt` takes a snapshot of the published properties, so writing to that snapshot would be discarded at the top
+of the next frame. `Bind(Sheet, Label)` resolves the live `EditorProperty` behind a label and every control
+takes one:
+
+| Control | Browser behaviour reproduced | Native |
+|---|---|---|
+| Range | `input[type=range]` — pressing anywhere on the track seeks to it, a drag keeps following | `InvisibleButton` over the track, value from the pointer's share of the span, snapped to the field's step and clamped to its range |
+| Switch | `.lp-switch` click toggles | 38 x 21 `InvisibleButton` flipping `On` |
+| Profile cell | the pressed cell is the picked one | per-cell `InvisibleButton` setting `Picked` |
+| Transform axis | `TransformPanel.jsx`'s drag ref — horizontal pointer travel scrubs the axis | horizontal `MouseDelta.x * Step`, clamped per row: Position +/-100000 step 0.01, Rotation +/-36000 step 0.1, Scale 0.001-1000 step 0.01 |
+
+Every control is gated on `Editable`, so a read-only property stays inert.
+
+Three of the harness's checks prove this rather than asserting it: they feed ImGui synthetic mouse events and
+then read the sheet back, so a control that draws correctly but is wired to nothing fails the proof.
