@@ -265,3 +265,74 @@ resolves to a named field, so both panels pass `Assigned` and the option text st
 still-air and dangling-id states remain implemented and proved, they simply cannot arise from this sheet.
 
 77 checks: `python3 Exhibits/Workbench/Wind/RunNativeWindCards.py` → `Exhibits/Gallery/WindNative`.
+
+## The wind panel — which half actually ships
+
+The earlier note that `InspectorDepot/` is "the wrong half" is true for lights and **false for wind**, and the
+reason is one line of the build.
+
+`Build.mjs` has two entry points. The second one is `InspectorHost.js`, and that host mounts the depot panels:
+
+```js
+import { CUSTOM_PANELS } from "./InspectorDepot/panels/index.js";
+CUSTOM_PANELS[Type] = { ...CUSTOM_PANELS[Type], build: LightPanel };
+```
+
+It replaces exactly one family — lights — with `LightPanel.js`. Every other depot panel ships as written. So the
+wind panel the bundle mounts is `InspectorDepot/panels/wind.js`, which is why `Anemometer` and `Beaufort` are in
+`index.html` at all. Verify per family before porting; do not generalise from the light case in either direction.
+
+`Build.mjs` also rewrites `wind.js` and `fog.js` on load through `RecolourInstrument` in
+`InstrumentSpecification.js`. **Reading `wind.js` alone gives the wrong trace.** The shipped anemometer differs
+from the checked-in source in three anchored replacements, all recorded below.
+
+### The reference wind panel, card by card
+
+| # | Card | Class | Native today | State |
+|---|------|-------|--------------|-------|
+| 1 | Hero flow field | `pcard mp-hero wf-hero` | `Composite wind field` (a compass rose) | **not converted** |
+| 2 | Anemometer | `pcard mp-metric wf-trace` | `Anemometer` (speed text + 10 m vector) | **converted, this pass** |
+| 3 | Beaufort | `pcard mp-light wf-scale` | folded into the native Anemometer text | **not converted** |
+| 4 | Steadiness | `pcard` | `Variation controls` + `Gust envelope` | **not converted** |
+| 5 | Driving | `pcard` | — | **not converted** |
+
+A four-pill rail (`Mean` · `Gust` · `From` · `Force`) and a two-card duo (`Gusting to` · `Lulling to`) sit between
+cards 1 and 2. Neither exists natively. The native `Composite wind field`, `Variation controls` and `Gust envelope`
+are **not in the bundle at all** — they are native inventions, and removing them is a redesign, not an addition.
+
+### The anemometer — `Engine/Editor/WindInstrumentSurface.h`
+
+Namespace `Frontier::WindInstrument`. Palette read from `InspectorDepot/styles.css` `:root`, which is a neutral
+grey kit and shares nothing with the light family's green-tinted one: `--inset #1a1a1a`, `--field #000000`,
+`--stroke rgba(255,255,255,.05)`, `--text #f0f0f0`, `--text-dim #888888`, `--text-faint #5c5c5c`, `--r-inset 18px`.
+
+Arithmetic, straight off the source:
+
+- `gustAt(ph) = 1 + Gust·(swell·0.55) + Turbulence·(grain·0.18)` where
+  `swell = sin(ph·0.9)·0.6 + sin(ph·2.3+1.7)·0.3 + sin(ph·5.1)·0.1` and
+  `grain = (sin(ph·17.3) + sin(ph·29.7+2.1))·0.5`
+- the clock runs at `0.4 + Turbulence·2.2`
+- 240 samples — sixty seconds at four a second — prefilled backwards from the current phase so the trace is never
+  blank, then shifted one sample per quarter second with the remainder carried
+- defaults `speed 4.2 · direction 214 · gust 0.3 · turbulence 0.24`
+
+Trace geometry: `R 30 · L 2 · T 8 · B 15`, height 112 (170 when `.tall`), `top = max(2, max(trace, speed)·1.18)`,
+four dashed gridlines at quarters of `top` labelled `%.1f` below 12 and `%.0f` above, a 4/4 dashed mean rule, and
+`−60 s · −30 s · now` along the foot. Readouts: `floor(inst)` and `.{round(inst·10)%10}` at 46 px with the
+fraction in `--text-faint`, `Mean {speed} m/s · {band}, force {n}`, and four spec tiles — gust factor `hi/speed`,
+spread `hi−lo`, pressure `½·1.225·speed²`, and `km/h · kn`.
+
+The three `RecolourInstrument` replacements, which are the shipped behaviour:
+
+1. the green `rgba(137,224,196,.07)` gust band is replaced by a vertical wash under the trace path,
+   `rgba(224,224,224,.10)` at the top inset falling to `rgba(224,224,224,.01)` at the foot
+2. the trace stroke becomes `rgba(210,210,210,.36)` at 1.2 px
+3. the samples that sit above the mean are re-stroked in place at `rgba(242,242,242,.95)`, and the peak and
+   trough get 2.3 px dots in `#eeeeee` and `#d69a54`
+
+Recorded deviations: a flat ImGui quad cannot carry a gradient, so the wash is banded ten deep per column; the
+`.mp-x` button is drawn with its `arrowout` icon and no ground, because the CSS ground is transparent until hover.
+
+Proof: `python3 Exhibits/Workbench/Wind/RunNativeWindInstrument.py` → **PASS 36**, four captures in
+`Exhibits/Gallery/WindInstrument/`. The harness draws at 3× and box filters down — the CPU backend takes one
+sample per pixel with a hard inside test, which is fine for 46 px numerals and loses thin strokes at 9 px.

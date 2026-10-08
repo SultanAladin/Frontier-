@@ -1,0 +1,420 @@
+//==============================================================================================================================================
+//                                                          WINDINSTRUMENTSURFACE.H
+//==============================================================================================================================================
+// 📦 Drawing surface for the shipped wind instrument cards: the InspectorDepot/styles.css palette and the anemometer trace
+//    InspectorDepot/panels/wind.js paints, as rewritten at build time by InstrumentSpecification.js RecolourInstrument.
+
+#pragma once
+
+#include <imgui.h>
+#include <imgui_internal.h>
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cfloat>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+namespace Frontier::WindInstrument
+{
+
+constexpr float Pi = 3.14159265358979f;
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                  PALETTE AND GEOMETRY
+//------------------------------------------------------------------------------------------------------------------------
+// InspectorDepot/styles.css custom properties. This kit is neutral grey where the main editor's light family is
+//    green-tinted, so none of these constants are shared with LightPanelSurface.h or WindPanelSurface.h.
+
+constexpr ImU32 CardFill    = IM_COL32( 26,  26,  26, 255);   // [-] --inset #1a1a1a
+constexpr ImU32 FieldFill   = IM_COL32(  0,   0,   0, 255);   // [-] --field #000000
+constexpr ImU32 Stroke      = IM_COL32(255, 255, 255,  13);   // [-] --stroke rgba(255,255,255,.05)
+constexpr ImU32 TextFull    = IM_COL32(240, 240, 240, 255);   // [-] --text #f0f0f0
+constexpr ImU32 TextDim     = IM_COL32(136, 136, 136, 255);   // [-] --text-dim #888888
+constexpr ImU32 TextFaint   = IM_COL32( 92,  92,  92, 255);   // [-] --text-faint #5c5c5c
+constexpr ImU32 TraceRule   = IM_COL32(255, 255, 255,  15);   // [-] gridline rgba(255,255,255,.06)
+constexpr ImU32 TraceLabel  = IM_COL32(255, 255, 255,  66);   // [-] axis label rgba(255,255,255,.26)
+constexpr ImU32 TraceMean   = IM_COL32(255, 255, 255,  71);   // [-] mean rule rgba(255,255,255,.28)
+constexpr ImU32 TraceLine   = IM_COL32(210, 210, 210,  92);   // [-] recoloured trace rgba(210,210,210,.36)
+constexpr ImU32 TraceCrest  = IM_COL32(242, 242, 242, 242);   // [-] above-mean run rgba(242,242,242,.95)
+constexpr ImU32 TracePeak   = IM_COL32(238, 238, 238, 255);   // [-] peak dot #eeeeee
+constexpr ImU32 TraceTrough = IM_COL32(214, 154,  84, 255);   // [-] trough dot #d69a54
+constexpr ImU32 TraceHead   = IM_COL32(255, 255, 255, 255);   // [-] live dot #fff
+constexpr ImU32 WashTop     = IM_COL32(224, 224, 224,  26);   // [-] under-trace wash rgba(224,224,224,.10)
+constexpr ImU32 WashFoot    = IM_COL32(224, 224, 224,   3);   // [-] under-trace wash rgba(224,224,224,.01)
+
+constexpr float CardRound  = 18.0f;   // [px] --r-inset
+constexpr float CardPadX   = 14.0f;   // [px] .pcard padding left / right
+constexpr float CardPadTop = 12.0f;   // [px] .pcard padding-top
+constexpr float MetricFoot =  8.0f;   // [px] .mp-metric padding-bottom
+constexpr float HeadDrop   =  8.0f;   // [px] .mp-chead margin-bottom
+constexpr float HeadTitle  = 15.0f;   // [px] .mp-chead .t font-size
+constexpr float HeadSub    =  9.5f;   // [px] .mp-chead .s font-size
+constexpr float HeadGap    =  1.0f;   // [px] .mp-chead .l gap
+constexpr float NumSize    = 46.0f;   // [px] .mp-num .i and .d font-size
+constexpr float NumUnit    = 12.0f;   // [px] .mp-num .u font-size
+constexpr float NumLift    =  2.0f;   // [px] .mp-num margin-top
+constexpr float NumDrop    =  6.0f;   // [px] .mp-num margin-bottom
+constexpr float KeySize    =  9.5f;   // [px] .mp-k font-size
+constexpr float KeyValue   = 11.0f;   // [px] .mp-target .v font-size
+constexpr float ChartLift  =  2.0f;   // [px] .mp-chartwrap margin-top
+constexpr float ChartBleed =  4.0f;   // [px] .mp-chartwrap negative side margin
+constexpr float ChartBody  = 112.0f;  // [px] trace height, 170 when the card is pulled tall
+constexpr float ChartTall  = 170.0f;  // [px] .tall trace height
+constexpr float SpecGap    =  6.0f;   // [px] .mp-spec gap
+constexpr float SpecPadX   = 10.0f;   // [px] .mp-spec > div padding left / right
+constexpr float SpecPadY   =  7.0f;   // [px] .mp-spec > div padding top / bottom
+constexpr float SpecRound  = 14.0f;   // [px] .mp-spec > div border-radius
+constexpr float SpecKey    =  8.5f;   // [px] .mp-spec .k font-size
+constexpr float SpecValue  = 13.0f;   // [px] .mp-spec b font-size
+
+// Canvas text is baseline-anchored; ImGui places the line box top.
+constexpr float BaselineShare = 0.792f;
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                       PRIMITIVES
+//------------------------------------------------------------------------------------------------------------------------
+
+enum class Anchor { Start, Middle, End };
+
+inline float Measured(ImFont* Face, float Size, const char* Body)
+{
+    return Face->CalcTextSizeA(Size, FLT_MAX, 0.0f, Body).x;
+}
+
+inline void Boxed(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour, const char* Body)
+{
+    Draw->AddText(Face, Size, { X, Y }, Colour, Body);
+}
+
+inline void Inked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour, const char* Body,
+                  Anchor Side = Anchor::Start)
+{
+    ImVec2 Spot { X, Y - Size * BaselineShare };
+    if (Side != Anchor::Start)
+    {
+        const float Run = Measured(Face, Size, Body);
+        Spot.x -= Side == Anchor::Middle ? Run * 0.5f : Run;
+    }
+    Draw->AddText(Face, Size, Spot, Colour, Body);
+}
+
+// CSS letter-spacing: the browser adds the gap after every glyph, so the run is drawn a codepoint at a time.
+inline float Tracked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour,
+                     const char* Body, float Extra, bool Paint = true)
+{
+    float Pen = X;
+    for (const char* Scan = Body; *Scan;)
+    {
+        unsigned Point = 0;
+        const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
+        if (Used <= 0) break;
+        if (Paint) Draw->AddText(Face, Size, { Pen, Y }, Colour, Scan, Scan + Used);
+        ImFontBaked* Baked = Face->GetFontBaked(Size);
+        Pen += Baked->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
+        Scan += Used;
+    }
+    return Pen - X;
+}
+
+inline void Dashed(ImDrawList* Draw, ImVec2 From, ImVec2 To, ImU32 Colour, float On, float Off, float Thick)
+{
+    const float Run = std::sqrt((To.x - From.x) * (To.x - From.x) + (To.y - From.y) * (To.y - From.y));
+    if (Run <= 0.0f) return;
+    const float StepX = (To.x - From.x) / Run, StepY = (To.y - From.y) / Run;
+    for (float Walk = 0.0f; Walk < Run; Walk += On + Off)
+    {
+        const float End = std::min(Walk + On, Run);
+        Draw->AddLine({ From.x + StepX * Walk, From.y + StepY * Walk },
+                      { From.x + StepX * End,  From.y + StepY * End }, Colour, Thick);
+    }
+}
+
+// icons.js P.arrowout on its 24 unit grid: the diagonal, then the corner elbow it points into.
+inline void PaintArrowOut(ImDrawList* Draw, ImVec2 Spot, float Size, ImU32 Colour)
+{
+    const float Unit = Size / 24.0f, Thick = 1.75f * Unit;
+    auto At = [&](float X, float Y) { return ImVec2{ Spot.x + X * Unit, Spot.y + Y * Unit }; };
+    Draw->AddLine(At(8.5f, 15.5f), At(15.5f, 8.5f), Colour, Thick);
+    Draw->PathLineTo(At(9.5f, 8.5f));
+    Draw->PathLineTo(At(15.5f, 8.5f));
+    Draw->PathLineTo(At(15.5f, 14.5f));
+    Draw->PathStroke(Colour, 0, Thick);
+}
+
+inline void Upper(char* Out, size_t Size, const char* Body)
+{
+    size_t I = 0;
+    for (; Body[I] && I + 1 < Size; ++I) Out[I] = static_cast<char>(std::toupper(static_cast<unsigned char>(Body[I])));
+    Out[I] = '\0';
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                    WIND ARITHMETIC
+//------------------------------------------------------------------------------------------------------------------------
+// The Beaufort bands, the land descriptions and the sixteen-point compass, read straight off wind.js.
+
+struct BeaufortBand { float Limit; int Force; const char* Name; };
+
+constexpr BeaufortBand Beaufort[11] = {
+    {  0.5f,  0, "Calm"            }, {  1.5f,  1, "Light air"      }, {  3.3f,  2, "Light breeze" },
+    {  5.5f,  3, "Gentle breeze"   }, {  7.9f,  4, "Moderate breeze"}, { 10.7f,  5, "Fresh breeze" },
+    { 13.8f,  6, "Strong breeze"   }, { 17.1f,  7, "Near gale"      }, { 20.7f,  8, "Gale"         },
+    { 24.4f,  9, "Strong gale"     }, { 28.4f, 10, "Storm"          },
+};
+
+inline BeaufortBand Force(float Speed)
+{
+    for (const BeaufortBand& Band : Beaufort) if (Speed < Band.Limit) return Band;
+    return { FLT_MAX, 11, "Violent storm" };
+}
+
+inline const char* LandSign(float Speed)
+{
+    static const struct { float Limit; const char* Body; } Land[11] = {
+        {  0.5f, "smoke rises straight up" }, {  1.5f, "smoke drifts" }, {  3.3f, "leaves rustle" },
+        {  5.5f, "flags stir, leaves move" }, {  7.9f, "dust lifts, small branches move" },
+        { 10.7f, "small trees sway" }, { 13.8f, "large branches move" }, { 17.1f, "whole trees in motion" },
+        { 20.7f, "twigs break off" }, { 24.4f, "slates lift" }, { 28.4f, "trees uprooted" },
+    };
+    for (const auto& Entry : Land) if (Speed < Entry.Limit) return Entry.Body;
+    return "structural damage";
+}
+
+inline const char* Compass(float Degrees)
+{
+    static const char* Points[16] = { "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                                      "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW" };
+    const float Wrapped = std::fmod(std::fmod(Degrees, 360.0f) + 360.0f, 360.0f);
+    return Points[static_cast<int>(std::lround(Wrapped / 22.5f)) % 16];
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                   THE ANEMOMETER
+//------------------------------------------------------------------------------------------------------------------------
+// Sixty seconds at four samples a second. The trace is prefilled so it never looks switched off.
+
+constexpr int TraceLength = 240;
+
+struct WindDraft
+{
+    float Speed      = 4.2f;    // [m/s] P.speed
+    float Direction  = 214.0f;  // [deg] P.direction
+    float Gust       = 0.3f;    // [0..1] P.gust
+    float Turbulence = 0.24f;   // [0..1] P.turbulence
+};
+
+struct TraceLog
+{
+    float Sample[TraceLength] {};
+    float Phase   = 0.0f;
+    float Spare   = 0.0f;   // the sub-quarter-second remainder
+    float Instant = 0.0f;
+    bool  Ready   = false;
+};
+
+inline float GustAt(const WindDraft& Draft, float Phase)
+{
+    const float Swell = std::sin(Phase * 0.9f) * 0.6f
+                      + std::sin(Phase * 2.3f + 1.7f) * 0.3f
+                      + std::sin(Phase * 5.1f) * 0.1f;
+    const float Grain = (std::sin(Phase * 17.3f) + std::sin(Phase * 29.7f + 2.1f)) * 0.5f;
+    return 1.0f + Draft.Gust * (Swell * 0.55f) + Draft.Turbulence * Grain * 0.18f;
+}
+
+inline float Rate(const WindDraft& Draft) { return 0.4f + Draft.Turbulence * 2.2f; }
+
+inline void Prefill(TraceLog& Log, const WindDraft& Draft)
+{
+    const float Pace = Rate(Draft);
+    for (int I = 0; I < TraceLength; ++I)
+        Log.Sample[I] = std::max(0.0f, Draft.Speed * GustAt(Draft, Log.Phase - (TraceLength - I) * 0.25f * Pace));
+    Log.Instant = std::max(0.0f, Draft.Speed * GustAt(Draft, Log.Phase));
+    Log.Ready = true;
+}
+
+inline void Advance(TraceLog& Log, const WindDraft& Draft, float Delta)
+{
+    if (!Log.Ready) Prefill(Log, Draft);
+    Log.Phase += Delta * Rate(Draft);
+    Log.Instant = std::max(0.0f, Draft.Speed * GustAt(Draft, Log.Phase));
+    Log.Spare += Delta;
+    while (Log.Spare >= 0.25f)
+    {
+        Log.Spare -= 0.25f;
+        for (int I = 0; I + 1 < TraceLength; ++I) Log.Sample[I] = Log.Sample[I + 1];
+        Log.Sample[TraceLength - 1] = Log.Instant;
+    }
+}
+
+inline float Crest(const TraceLog& Log)
+{
+    float High = Log.Sample[0];
+    for (float Value : Log.Sample) High = std::max(High, Value);
+    return High;
+}
+
+inline float Lull(const TraceLog& Log)
+{
+    float Low = Log.Sample[0];
+    for (float Value : Log.Sample) Low = std::min(Low, Value);
+    return Low;
+}
+
+// The trace panel only, drawn into the .mp-chartwrap box. R/L/T/B are wind.js's own inset names.
+inline void PaintTrace(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float Tall,
+                       const TraceLog& Log, const WindDraft& Draft)
+{
+    constexpr float InsetR = 30.0f, InsetL = 2.0f, InsetT = 8.0f, InsetB = 15.0f;
+    const float High = Crest(Log);
+    const float Top  = std::max(2.0f, std::max(High, Draft.Speed) * 1.18f);
+    auto PX = [&](float Share) { return Spot.x + InsetL + Share * (Wide - InsetL - InsetR); };
+    auto PY = [&](float Value) { return Spot.y + InsetT + (1.0f - Value / Top) * (Tall - InsetT - InsetB); };
+
+    char Label[32];
+    for (float Share : { 0.25f, 0.5f, 0.75f, 1.0f })
+    {
+        const float Line = PY(Top * Share);
+        Dashed(Draw, { PX(0.0f), Line }, { PX(1.0f), Line }, TraceRule, 2.0f, 5.0f, 1.0f);
+        std::snprintf(Label, sizeof(Label), Top > 12.0f ? "%.0f" : "%.1f", double(Top * Share));
+        Inked(Draw, Face, Spot.x + Wide - InsetR + 6.0f, Line + 3.0f, 9.0f, TraceLabel, Label);
+    }
+
+    // RecolourInstrument drops the green gust band for a neutral wash under the trace itself.
+    const float WashTopY = Spot.y + InsetT, WashFootY = Spot.y + Tall - InsetB;
+    const float Base = PY(0.0f);
+    auto Wash = [&](float AtY)
+    {
+        const float Share = std::clamp((AtY - WashTopY) / std::max(1.0f, WashFootY - WashTopY), 0.0f, 1.0f);
+        return IM_COL32(224, 224, 224, int(26.0f + (3.0f - 26.0f) * Share + 0.5f));
+    };
+    constexpr int WashBands = 10;   // a flat quad cannot carry a gradient, so each column is banded down its height
+    for (int I = 0; I + 1 < TraceLength; ++I)
+    {
+        const float LeftX  = PX(float(I)     / (TraceLength - 1));
+        const float RightX = PX(float(I + 1) / (TraceLength - 1));
+        const float LeftY  = PY(Log.Sample[I]), RightY = PY(Log.Sample[I + 1]);
+        for (int Band = 0; Band < WashBands; ++Band)
+        {
+            const float From = float(Band) / WashBands, To = float(Band + 1) / WashBands;
+            const float LeftFrom  = LeftY  + (Base - LeftY)  * From, LeftTo  = LeftY  + (Base - LeftY)  * To;
+            const float RightFrom = RightY + (Base - RightY) * From, RightTo = RightY + (Base - RightY) * To;
+            Draw->AddQuadFilled({ LeftX, LeftFrom }, { RightX, RightFrom }, { RightX, RightTo }, { LeftX, LeftTo },
+                                Wash((LeftFrom + LeftTo + RightFrom + RightTo) * 0.25f));
+        }
+    }
+
+    const float MeanY = PY(Draft.Speed);
+    Dashed(Draw, { PX(0.0f), MeanY }, { PX(1.0f), MeanY }, TraceMean, 4.0f, 4.0f, 1.0f);
+
+    for (int I = 0; I + 1 < TraceLength; ++I)
+        Draw->AddLine({ PX(float(I) / (TraceLength - 1)), PY(Log.Sample[I]) },
+                      { PX(float(I + 1) / (TraceLength - 1)), PY(Log.Sample[I + 1]) }, TraceLine, 1.2f);
+
+    // Only the runs that actually sit above the mean are brightened; no second invented trace.
+    for (int I = 1; I < TraceLength; ++I)
+    {
+        if (Log.Sample[I] <= Draft.Speed || Log.Sample[I - 1] <= Draft.Speed) continue;
+        Draw->AddLine({ PX(float(I - 1) / (TraceLength - 1)), PY(Log.Sample[I - 1]) },
+                      { PX(float(I) / (TraceLength - 1)), PY(Log.Sample[I]) }, TraceCrest, 1.2f);
+    }
+
+    int PeakAt = 0, TroughAt = 0;
+    for (int I = 0; I < TraceLength; ++I)
+    {
+        if (Log.Sample[I] > Log.Sample[PeakAt])   PeakAt = I;
+        if (Log.Sample[I] < Log.Sample[TroughAt]) TroughAt = I;
+    }
+    Draw->AddCircleFilled({ PX(float(PeakAt) / (TraceLength - 1)), PY(Log.Sample[PeakAt]) }, 2.3f, TracePeak, 20);
+    Draw->AddCircleFilled({ PX(float(TroughAt) / (TraceLength - 1)), PY(Log.Sample[TroughAt]) }, 2.3f, TraceTrough, 20);
+    Draw->AddCircleFilled({ PX(1.0f), PY(Log.Sample[TraceLength - 1]) }, 2.6f, TraceHead, 20);
+
+    const float Foot = Spot.y + Tall - 3.0f;
+    Inked(Draw, Face, PX(0.0f), Foot, 9.0f, TraceLabel, "\xe2\x88\x92""60 s", Anchor::Start);
+    Inked(Draw, Face, PX(0.5f), Foot, 9.0f, TraceLabel, "\xe2\x88\x92""30 s", Anchor::Middle);
+    Inked(Draw, Face, PX(1.0f), Foot, 9.0f, TraceLabel, "now", Anchor::End);
+}
+
+inline float AnemometerHeight(bool Tall)
+{
+    return CardPadTop
+         + HeadTitle + HeadGap + HeadSub + HeadDrop
+         + NumLift + NumSize * 0.94f + NumDrop
+         + KeySize
+         + ChartLift + (Tall ? ChartTall : ChartBody)
+         + SpecGap + (SpecPadY * 2 + SpecKey + 1 + SpecValue) * 2 + SpecGap
+         + MetricFoot;
+}
+
+// Spot is the card's top-left. Wide is the full card width.
+inline void PaintAnemometer(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide,
+                            const TraceLog& Log, const WindDraft& Draft, bool Tall = false)
+{
+    const float Inner = Wide - CardPadX * 2.0f;
+    const float Left  = Spot.x + CardPadX;
+    const float Foot  = Spot.y + AnemometerHeight(Tall);
+    Draw->AddRectFilled(Spot, { Spot.x + Wide, Foot }, CardFill, CardRound);
+
+    float Y = Spot.y + CardPadTop;
+    Boxed(Draw, Face, Left, Y, HeadTitle, TextFull, "Anemometer");
+    char Sub[32];
+    Upper(Sub, sizeof(Sub), "Last 60 seconds");
+    Tracked(Draw, Face, Left, Y + HeadTitle + HeadGap, HeadSub, TextFaint, Sub, 0.9f);
+    // .mp-x, the taller-trace button: a 24 px square with a transparent ground until hover, so only
+    //    the 12 px arrowout icon shows. icons.js draws it on a 24 unit grid at stroke-width 1.75.
+    PaintArrowOut(Draw, { Spot.x + Wide - CardPadX - 24.0f + 6.0f, Y + 6.0f }, 12.0f, TextDim);
+    Y += HeadTitle + HeadGap + HeadSub + HeadDrop + NumLift;
+
+    char Whole[16], Fraction[8];
+    std::snprintf(Whole, sizeof(Whole), "%d", int(std::floor(Log.Instant)));
+    std::snprintf(Fraction, sizeof(Fraction), ".%d", int(std::lround(Log.Instant * 10.0f)) % 10);
+    const float WholeRun    = Tracked(Draw, Face, Left, Y, NumSize, TextFull, Whole, -2.4f);
+    const float FractionRun = Tracked(Draw, Face, Left + WholeRun, Y, NumSize, TextFaint, Fraction, -2.4f);
+    Boxed(Draw, Face, Left + WholeRun + FractionRun + 7.0f, Y + NumSize * 0.94f - NumUnit - 2.0f,
+          NumUnit, TextDim, "m/s");
+    Y += NumSize * 0.94f + NumDrop;
+
+    char Key[8];
+    Upper(Key, sizeof(Key), "Mean");
+    const float KeyRun = Tracked(Draw, Face, Left, Y, KeySize, TextFaint, Key, 1.3f);
+    const BeaufortBand Band = Force(Draft.Speed);
+    char Named[40];
+    std::snprintf(Named, sizeof(Named), "%s", Band.Name);
+    for (char* Scan = Named; *Scan; ++Scan) *Scan = static_cast<char>(std::tolower(static_cast<unsigned char>(*Scan)));
+    char Mean[96];
+    std::snprintf(Mean, sizeof(Mean), "%.1f m/s \xc2\xb7 %s, force %d", double(Draft.Speed), Named, Band.Force);
+    Boxed(Draw, Face, Left + KeyRun + 6.0f, Y + KeySize - KeyValue, KeyValue, TextDim, Mean);
+    Y += KeySize + ChartLift;
+
+    PaintTrace(Draw, Face, { Left - ChartBleed, Y }, Inner + ChartBleed * 2.0f,
+               Tall ? ChartTall : ChartBody, Log, Draft);
+    Y += (Tall ? ChartTall : ChartBody) + SpecGap;
+
+    const float High = Crest(Log), Low = Lull(Log);
+    const float Pressure = 0.5f * 1.225f * Draft.Speed * Draft.Speed;
+    char Values[4][48];
+    std::snprintf(Values[0], sizeof(Values[0]), "%.2f\xc3\x97", double(High / std::max(Draft.Speed, 0.1f)));
+    std::snprintf(Values[1], sizeof(Values[1]), "%.1f m/s", double(High - Low));
+    std::snprintf(Values[2], sizeof(Values[2]), Pressure < 10.0f ? "%.1f Pa" : "%.0f Pa", double(Pressure));
+    std::snprintf(Values[3], sizeof(Values[3]), "%.0f km/h \xc2\xb7 %.1f kn",
+                  double(Draft.Speed * 3.6f), double(Draft.Speed * 1.944f));
+    const char* Keys[4] = { "gust factor", "spread", "pressure", "also" };
+
+    const float TileW = (Inner - SpecGap) * 0.5f;
+    const float TileH = SpecPadY * 2 + SpecKey + 1 + SpecValue;
+    for (int I = 0; I < 4; ++I)
+    {
+        const float TileX = Left + (I % 2) * (TileW + SpecGap);
+        const float TileY = Y + (I / 2) * (TileH + SpecGap);
+        Draw->AddRectFilled({ TileX, TileY }, { TileX + TileW, TileY + TileH }, FieldFill, SpecRound);
+        Draw->AddRect({ TileX, TileY }, { TileX + TileW, TileY + TileH }, Stroke, SpecRound, 0, 1.0f);
+        char Caption[32];
+        Upper(Caption, sizeof(Caption), Keys[I]);
+        Tracked(Draw, Face, TileX + SpecPadX, TileY + SpecPadY, SpecKey, TextFaint, Caption, 1.1f);
+        Tracked(Draw, Face, TileX + SpecPadX, TileY + SpecPadY + SpecKey + 1.0f, SpecValue, TextFull,
+                Values[I], -0.2f);
+    }
+}
+
+} // namespace Frontier::WindInstrument
