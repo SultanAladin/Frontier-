@@ -17,7 +17,11 @@ endif()
 if(MSVC)
     add_compile_options(/W4 /WX /permissive- /utf-8)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wno-unused-function)
+    # -Wmaybe-uninitialized is off: GCC 13 at -O3 reports it for kernel locals that are given a
+    #    value on their declaring line, because it cannot follow the solver loops that decide
+    #    which branch writes them. MSVC /W4 /WX sees none of them, and the warning is not
+    #    worth silencing one false report at a time inside the geometry.
+    add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wno-unused-function -Wno-maybe-uninitialized)
 endif()
 
 # ─── Kernel: pure geometry, zero dependencies ───────────────────────────────────────────────────────────────────────────────────────────────
