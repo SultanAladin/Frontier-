@@ -30,7 +30,7 @@ Verify(
       for (const [Key, Value] of Object.entries(Parameters))
         Assert.equal(ValidateParameter(Key, Value), Value, Key);
     }
-    Assert.equal(Object.keys(PRESETS).length, 10);
+    Assert.equal(Object.keys(PRESETS).length, 18);
     Assert.deepEqual(
       Object.keys(PresetPresentation).sort(),
       Object.keys(PRESETS).sort(),
@@ -254,4 +254,71 @@ Verify("Bounds are no longer evaluated inside the volume shader", () => {
   const Shader = ReadText(new URL("shaders-glsl.js", import.meta.url), "utf8");
   Assert.doesNotMatch(Shader, /computeBoxWireframe|uShowBoundingBox/);
   Assert.match(Shader, /max\(abs\(rd\), vec3\(1e-7\)\)/);
+});
+Verify("Detonations have room to expand without a coarser voxel", () => {
+  // blastRadius is a fraction of the domain, not a world length: shaders-glsl.js splats it in
+  //    normalised uvw. So a wider box on its own grows the fireball with it and the plume still
+  //    reaches the wall. Room comes from a wider box AND a smaller fraction, and the voxel only
+  //    stays the same size if the grid grows with the box.
+  const Detonations = [
+    "ue5_pyro_default",
+    "shrapnel_airburst",
+    "tactical_ordnance",
+    "megaton_open_bounds",
+    "brick_fracture_dust",
+  ];
+  for (const Key of Detonations) {
+    const Parameters = ConstructPresetParameters(Key);
+    const Density = Parameters.gridResolution / Parameters.boundsWidth;
+    Assert.ok(
+      Density >= 28,
+      `${Key} resolves ${Density.toFixed(1)} voxels per world unit, under 28`,
+    );
+    Assert.ok(
+      Parameters.blastRadius <= 0.15,
+      `${Key} fills ${Parameters.blastRadius} of the domain, over 0.15`,
+    );
+    if (Parameters.dynamicBounds)
+      Assert.ok(
+        Parameters.dynamicBoundsMax <= 1.25,
+        `${Key} surges to ${Parameters.dynamicBoundsMax}x, which coarsens the voxel mid-blast`,
+      );
+  }
+});
+Verify("Cold effects carry no fuel and no fire", () => {
+  // A dust, sand or masonry preset that quietly lights itself is the easiest mistake to make here,
+  //    because every one of them is tuned from a fire preset.
+  for (const Key of [
+    "dust_tornado",
+    "ledge_sandfall",
+    "settling_dust",
+    "small_gust",
+    "brick_fracture_dust",
+  ]) {
+    const Parameters = ConstructPresetParameters(Key);
+    Assert.equal(Parameters.emitterFuel, 0, `${Key} emits fuel`);
+    Assert.equal(Parameters.blastFuel, 0, `${Key} bursts fuel`);
+    Assert.ok(Parameters.burnRate <= 0.2, `${Key} burns`);
+    Assert.ok(
+      Parameters.smokeAlbedo >= 0.5,
+      `${Key} scatters like soot, not like dust`,
+    );
+  }
+});
+Verify("Sand and dust fall, fire rises", () => {
+  for (const Key of ["ledge_sandfall", "settling_dust"]) {
+    const Parameters = ConstructPresetParameters(Key);
+    Assert.ok(
+      Parameters.smokeWeight > Parameters.buoyancy,
+      `${Key} would rise instead of settling`,
+    );
+  }
+  for (const Key of ["lantern_flame", "camp_fire"]) {
+    const Parameters = ConstructPresetParameters(Key);
+    Assert.ok(
+      Parameters.buoyancy > Parameters.smokeWeight,
+      `${Key} would sink instead of rising`,
+    );
+    Assert.ok(Parameters.emitterFuel > 0, `${Key} has nothing to burn`);
+  }
 });
