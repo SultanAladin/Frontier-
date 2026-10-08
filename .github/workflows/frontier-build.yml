@@ -37,25 +37,25 @@ jobs:
           python-version: '3.12'
 
       - name: Materialise the locked proof dependencies
-        run: python3 Tools/Bootstrap.py --profile proof
+        run: python3 Tools/Build/RunAnnounced.py "bootstrap proof" -- python3 Tools/Bootstrap.py --profile proof
 
       - name: Bundle parity — the native ports against the built reference bundle
-        run: python3 Exhibits/Workbench/BundleParity.py
+        run: python3 Tools/Build/RunAnnounced.py "bundle parity" -- python3 Exhibits/Workbench/BundleParity.py
 
       - name: Outliner row metadata
-        run: python3 Exhibits/Workbench/OutlinerMetadata/RunNativeOutlinerMetadata.py
+        run: python3 Tools/Build/RunAnnounced.py "outliner metadata" -- python3 Exhibits/Workbench/OutlinerMetadata/RunNativeOutlinerMetadata.py
 
       - name: Folder collection inspector
-        run: python3 Exhibits/Workbench/Folder/RunNativePanelProof.py
+        run: python3 Tools/Build/RunAnnounced.py "folder inspector" -- python3 Exhibits/Workbench/Folder/RunNativePanelProof.py
 
       - name: Base meshes
-        run: python3 Exhibits/Workbench/BaseMesh/RunNativeBaseMesh.py
+        run: python3 Tools/Build/RunAnnounced.py "base meshes" -- python3 Exhibits/Workbench/BaseMesh/RunNativeBaseMesh.py
 
       - name: Fracture editor page
-        run: python3 Exhibits/Workbench/FractureEditor/RunNativeFractureEditor.py
+        run: python3 Tools/Build/RunAnnounced.py "fracture editor" -- python3 Exhibits/Workbench/FractureEditor/RunNativeFractureEditor.py
 
       - name: Fracture card
-        run: python3 Exhibits/Workbench/Fracture/RunNativeFractureCard.py
+        run: python3 Tools/Build/RunAnnounced.py "fracture card" -- python3 Exhibits/Workbench/Fracture/RunNativeFractureCard.py
 
       - name: Publish the UI captures
         if: always()
@@ -88,21 +88,22 @@ jobs:
             libwayland-dev libxkbcommon-dev wayland-protocols pkg-config
 
       - name: Materialise the locked third-party dependencies
-        run: python3 Tools/Bootstrap.py --profile all
+        run: python3 Tools/Build/RunAnnounced.py "bootstrap all" -- python3 Tools/Bootstrap.py --profile all
 
       - name: Configure
-        run: cmake -S . -B .cache/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: python3 Tools/Build/RunAnnounced.py "cmake configure" -- cmake -S . -B .cache/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build the host and the project code images
-        run: cmake --build .cache/cmake --target Frontier ProjectZero ProjectDrive Project-Dyno --parallel
+        run: python3 Tools/Build/RunAnnounced.py "build host and projects" -- cmake --build .cache/cmake --target Frontier ProjectZero ProjectDrive Project-Dyno --parallel
 
       # SolidArc is EXCLUDE_FROM_ALL in the root list, so it is named outright. Its verification
       #    executables are built with it: they are what says the kernel still agrees with itself.
       - name: Build SolidArc and its verifications
         run: |
-          cmake --build .cache/cmake --target SolidArc --parallel
-          cmake --build .cache/cmake --target KernelVerification RasterVerification \
-                InteractionVerification SelectionVerification TopologyVerification --parallel
+          python3 Tools/Build/RunAnnounced.py "build solidarc" -- cmake --build .cache/cmake --target SolidArc --parallel
+          python3 Tools/Build/RunAnnounced.py "build solidarc verifications" -- cmake --build .cache/cmake \
+            --target KernelVerification RasterVerification InteractionVerification \
+                     SelectionVerification TopologyVerification --parallel
 
       - name: Run the SolidArc verifications
         run: |
@@ -137,7 +138,7 @@ jobs:
           python-version: '3.12'
 
       - name: Build and run the replication proof, plain and sanitized
-        run: python3 Exhibits/Workbench/Networking/RunReplicationChecks.py
+        run: python3 Tools/Build/RunAnnounced.py "replication" -- python3 Exhibits/Workbench/Networking/RunReplicationChecks.py
 
       - name: Publish the replication evidence
         if: always()
@@ -161,9 +162,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Materialise the locked third-party dependencies
-        run: python Tools/Bootstrap.py --profile all
-
       - name: Build SolidArc with MSVC x64 /MD
         shell: pwsh
         run: |
@@ -175,7 +173,7 @@ jobs:
           cmd /c "`"$VcVars`" >nul && set" | ForEach-Object {
             if ($_ -match '^([^=]+)=(.*)$') { Set-Item "Env:$($Matches[1])" $Matches[2] }
           }
-          python Tools/Build/CheckMsvcSolidArc.py
+          python Tools/Build/RunAnnounced.py "solidarc msvc" -- python Tools/Build/CheckMsvcSolidArc.py
           # The helper writes beside the checkout; bring its logs inside so they can be published.
           New-Item -ItemType Directory -Force _AgentScratch/build | Out-Null
           Copy-Item -Recurse -Force ../_AgentScratch/build/* _AgentScratch/build/ -ErrorAction SilentlyContinue
