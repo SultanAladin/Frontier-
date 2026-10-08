@@ -263,7 +263,10 @@ struct EditorPropertyGroup
     uint32_t        PropertyCount = 0u;
 };
 
-enum class EditorSheetAppearance : uint8_t { Generic, Sun, LensFlare, AtmosphereSky, Moon, Stars, GlobalCloud, LocalCloud, HeightFog, AerialFog, LocalFog, Wind, Precipitation, Rainbow, Camera, Light, PostProcess, Tyre, TyreTread, TyreLattice, SolidArc };
+// Gas and GasEmitter are a domain and its child emitter — a 3D entity with a transform, and the one thing
+//    parented to it. Both draw from Engine/Editor/GasCardSurface.h rather than from the generic sheet,
+//    because the card leads with a transform and a hierarchy and the generic path has no idea about either.
+enum class EditorSheetAppearance : uint8_t { Generic, Sun, LensFlare, AtmosphereSky, Moon, Stars, GlobalCloud, LocalCloud, HeightFog, AerialFog, LocalFog, Wind, Precipitation, Rainbow, Camera, Light, PostProcess, Tyre, TyreTread, TyreLattice, SolidArc, Gas, GasEmitter };
 
 // Borrowed immutable image data; project retains ownership through the editor frame.
 struct EditorSkyImage {

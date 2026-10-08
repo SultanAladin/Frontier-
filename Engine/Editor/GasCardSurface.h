@@ -716,6 +716,35 @@ inline GasStackLayout ResolveStack(ImFont* Light, float Wide, const GasCardSubje
 }
 
 
+// 📝 WHERE THE PANEL MUST PUT ITS BUTTONS, WRITTEN BY THE PAINTER RATHER THAN DERIVED TWICE.
+//    A draw-list card has no widgets, so InspectorPanel.cpp lays invisible buttons over it. Recomputing
+//    the cursor walk there would be a second copy of this file's arithmetic, and the two would part
+//    company the first time a note gained a line. So the painter reports where it actually painted, and
+//    every region below is in absolute screen coordinates: x, y, width, height.
+struct GasHitRegions
+{
+    ImVec4   Tiles[3]  = {};     // [px] - Visible, Obstructs, Pushes objects
+    ImVec4   Preset    = {};
+    ImVec4   Policy    = {};
+    ImVec4   Lifetime  = {};     // [px] - the slider track only; empty unless triggered
+    ImVec4   Retire    = {};     // [px] - 🔴 the toggle that decides whether a one-shot gives its fields back
+    ImVec4   Fire      = {};
+    ImVec4   Quality   = {};
+    ImVec4   Distance  = {};
+    ImVec4   Field[16] = {};     // [px] - by sheet index; zero width means the band did not draw it
+    ImVec4   Children[4] = {};
+    ImVec4   AddEmitter = {};
+    ImVec4   Revert    = {};
+    ImVec4   Open      = {};
+};
+
+inline bool Hit(const ImVec4& Region, ImVec2 Spot) noexcept
+{
+    return Region.z > 0.0f && Spot.x >= Region.x && Spot.x <= Region.x + Region.z &&
+           Spot.y >= Region.y && Spot.y <= Region.y + Region.w;
+}
+
+
 /// 📦 Paint the whole gas domain inspector at Spot, in a column Wide pixels across.
 /// in    Draw / Light / Regular   [-]   the draw list and the two DM Sans faces the editor ships
 /// in    Spot                     [px]  top-left of the card stack
@@ -725,8 +754,11 @@ inline GasStackLayout ResolveStack(ImFont* Light, float Wide, const GasCardSubje
 /// cost  ✔️ one pass, no allocation
 /// tag   api, nonthrowing
 inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 Spot, float Wide,
-                          const GasCardSubject& Subject) noexcept
+                          const GasCardSubject& Subject, GasHitRegions* Regions = nullptr) noexcept
 {
+    GasHitRegions Discard;
+    GasHitRegions& Where = Regions != nullptr ? *Regions : Discard;
+    Where = GasHitRegions{};
     const GasStackLayout Layout = ResolveStack(Light, Wide, Subject);
     const float Inner      = Wide - CardPadX * 2.0f;
     const float PlainInner = Wide - PlainPadX * 2.0f;
@@ -739,6 +771,9 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
     const char* TileLabel[3] = { "Visible", "Obstructs", "Pushes objects" };
     const bool  TileOn[3]    = { !Subject.Hidden, Subject.Obstructs, Subject.Coupled };
     PaintTiles(Draw, Light, { Spot.x, Cursor }, Wide, TileLabel, TileOn, 3u);
+    const float TileEach = (Wide - TileGap * 2.0f) / 3.0f;
+    for (int Index = 0; Index < 3; ++Index)
+        Where.Tiles[Index] = { Spot.x + (TileEach + TileGap) * float(Index), Cursor, TileEach, TileTall };
     Cursor += Layout.Tiles;
 
     // ① The transform, first, because this is a 3D entity before it is an effect.
@@ -759,6 +794,7 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
         PaintStateLine(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Running, Words);
         Inside += LabelSize + 10.0f;
         PaintSelect(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, "Preset", Subject.PresetName);
+        Where.Preset = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot, Inner, SelectTall };
         Inside += SelectHeight + FieldGap;
         uint32_t Reading = 0u;
         for (uint32_t Index = 0u; Index < Count; ++Index)
@@ -768,11 +804,14 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
             {
                 PaintSwitch(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Fields[Index].Label,
                             Subject.Readings[Index] > 0.5f);
+                Where.Field[Index] = { Spot.x + CardPadX + Inner - SwitchWide, Inside, SwitchWide, SwitchTall };
                 Inside += SwitchTall + FieldGap;
             }
             else
             {
                 PaintSlider(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Fields[Index], Subject.Readings[Index]);
+                Where.Field[Index] = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot + (PillTall - TrackTall) * 0.5f,
+                                       Inner - SplitWide - PillGap, TrackTall };
                 Inside += FieldHeight(Fields[Index]) + FieldGap;
             }
             ++Reading;
@@ -790,6 +829,7 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
         PaintCardShell(Draw, Light, { Spot.x, Cursor }, Wide, Tall, "Simulation");
         float Inside = Cursor + CardPadTop + TitleSize + TitleFoot;
         PaintSelect(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, "Runs", PolicyName(Subject.Policy));
+        Where.Policy = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot, Inner, SelectTall };
         Inside += SelectHeight + 10.0f;
         PaintNote(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, PolicyNote(Subject.Policy));
         Inside += NoteHeight(Light, Inner, PolicyNote(Subject.Policy));
@@ -798,8 +838,11 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
             Inside += FieldGap;
             const GasField Life{ "Lifetime", "Simulation", "lifetime", GasControl::Slider, 0.2f, 30.0f, 4.0f, 1u, "s" };
             PaintSlider(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Life, Subject.Lifetime);
+            Where.Lifetime = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot + (PillTall - TrackTall) * 0.5f,
+                               Inner - SplitWide - PillGap, TrackTall };
             Inside += FieldHeight(Life) + FieldGap;
             PaintSwitch(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, "Retire When Finished", Subject.Retire);
+            Where.Retire = { Spot.x + CardPadX + Inner - SwitchWide, Inside, SwitchWide, SwitchTall };
             Inside += SwitchTall;
         }
         if (Subject.Policy != 3u)
@@ -807,6 +850,7 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
             Inside += 10.0f;
             PaintAction(Draw, Light, { Spot.x + CardPadX, Inside }, Inner,
                         Subject.Fired ? "Stop preview" : "Fire in preview", ActionFill, ActionEdge, ActionInk);
+            Where.Fire = { Spot.x + CardPadX, Inside, Inner, ActionTall };
         }
         Cursor += Layout.Simulation;
     }
@@ -822,9 +866,12 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
         PaintNote(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Subject.TierReadout);
         Inside += NoteSize * NoteLead + FieldGap;
         PaintSelect(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, "Quality", Subject.QualityPin);
+        Where.Quality = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot, Inner, SelectTall };
         Inside += SelectHeight + FieldGap;
         const GasField Far{ "Viewer Distance", "Budget", "distance", GasControl::Slider, 0.0f, 200.0f, 12.0f, 0u, "m" };
         PaintSlider(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Far, Subject.Distance);
+        Where.Distance = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot + (PillTall - TrackTall) * 0.5f,
+                           Inner - SplitWide - PillGap, TrackTall };
         Cursor += Layout.Budget;
     }
 
@@ -844,6 +891,8 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
             {
                 if (std::strcmp(Fields[Index].Group, "Source") != 0) continue;
                 PaintSlider(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Fields[Index], Subject.Readings[Index]);
+                Where.Field[Index] = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot + (PillTall - TrackTall) * 0.5f,
+                                       Inner - SplitWide - PillGap, TrackTall };
                 Inside += FieldHeight(Fields[Index]) + FieldGap;
             }
         }
@@ -859,6 +908,8 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
         {
             if (std::strcmp(Fields[Index].Group, "Appearance") != 0) continue;
             PaintSlider(Draw, Light, { Spot.x + CardPadX, Inside }, Inner, Fields[Index], Subject.Readings[Index]);
+            Where.Field[Index] = { Spot.x + CardPadX, Inside + LabelSize + LabelFoot + (PillTall - TrackTall) * 0.5f,
+                                   Inner - SplitWide - PillGap, TrackTall };
             Inside += FieldHeight(Fields[Index]) + FieldGap;
         }
         Cursor += Layout.Appearance;
@@ -883,12 +934,14 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
             for (uint32_t Index = 0u; Index < Subject.ChildCount; ++Index)
             {
                 PaintChildRow(Draw, Light, { Spot.x + PlainPadX, Inside }, PlainInner, Subject.Children[Index]);
+                if (Index < 4u) Where.Children[Index] = { Spot.x + PlainPadX, Inside, PlainInner, ChildTall };
                 Inside += ChildTall + 4.0f;
             }
         }
         Inside += 10.0f;
         PaintAction(Draw, Light, { Spot.x + PlainPadX, Inside }, PlainInner, "Add emitter",
                     ActionFill, ActionEdge, ActionInk);
+        Where.AddEmitter = { Spot.x + PlainPadX, Inside, PlainInner, ActionTall };
         Inside += ActionTall + 10.0f;
         PaintNote(Draw, Light, { Spot.x + PlainPadX, Inside }, PlainInner, HierarchyNote());
         Cursor += Layout.Hierarchy;
@@ -901,10 +954,12 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
         std::snprintf(Words, sizeof(Words), "Revert %u change%s to %s", Subject.Departures,
                       Subject.Departures == 1u ? "" : "s", Subject.PresetName);
         PaintAction(Draw, Light, { Spot.x, Cursor }, Wide, Words, ActionFill, ActionEdge, SummaryInk);
+        Where.Revert = { Spot.x, Cursor, Wide, ActionTall };
         Cursor += ActionTall + 10.0f;
     }
     Draw->AddRectFilled({ Spot.x, Cursor }, { Spot.x + Wide, Cursor + OpenTall }, OpenFill, 10.0f);
     Draw->AddRect({ Spot.x, Cursor }, { Spot.x + Wide, Cursor + OpenTall }, OpenEdge, 10.0f, 0, 1.0f);
+    Where.Open = { Spot.x, Cursor, Wide, OpenTall };
     {
         const char* Title = "Open FluidEditor";
         const char* Under = "all 85 settings - presets - flipbook bake";

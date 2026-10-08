@@ -9,6 +9,7 @@
 #include "EditorInstance.h"
 #include "CollectionSequence.h"
 #include "FractureCardSurface.h"
+#include "GasCardSurface.h"
 
 #include <imgui.h>
 
@@ -25,6 +26,15 @@ struct FractureRecord
 {
     uint32_t           For = kNoEditorInstance;
     Fracture::Settings Recipe {};
+};
+
+// One gas domain as the inspector is editing it, matched to its instance. The browser keeps this in the
+//    scene's values; the panel keeps it beside the instance until the engine owns a gas component of its
+//    own — the same arrangement FractureRecord is in, and for the same reason.
+struct GasRecord
+{
+    uint32_t                 For = kNoEditorInstance;
+    GasCards::GasCardSubject Domain {};
 };
 
 class InspectorPanel final
@@ -45,6 +55,22 @@ public:
     void AssignRoster(EditorInstance* Rows, uint32_t Count) noexcept { Roster_ = Rows; RosterCount_ = Count; }
     uint32_t ConsumeCollectionPick() noexcept { const auto Selected = CollectionPick_; CollectionPick_ = kNoEditorInstance; return Selected; }
     void Record(EditorInstance* Picked, uint32_t PickedIndex, EditorSheet* Sheet, bool Embedded=false) noexcept;
+
+    // ↗ on the gas card. The browser opens the Fluid editor in a drawer; natively the host owns that
+    //    window, so the card raises a request and whoever drives the editor answers it. Returns the
+    //    instance that asked, once, and then forgets — a flag that is never consumed is a flag that fires
+    //    for the rest of the session.
+    uint32_t ConsumeFluidEditorRequest() noexcept
+    { const uint32_t Asked = FluidEditorFor_; FluidEditorFor_ = kNoEditorInstance; return Asked; }
+
+    // The gas domain the panel is holding for an instance, for a host that wants to read or seed it.
+    GasCards::GasCardSubject* QueryGasDomain(uint32_t PickedIndex) noexcept
+    { for (GasRecord& One : Gas_) if (One.For == PickedIndex) return &One.Domain; return nullptr; }
+
+    // Where the gas card last painted its controls, in screen coordinates. A harness that wants to press a
+    //    button needs the panel's own answer rather than a second guess at where the card begins — the
+    //    ident strip above it is exactly the sort of thing a guess gets wrong.
+    [[nodiscard]] const GasCards::GasHitRegions& QueryGasRegions() const noexcept { return GasWhere_; }
 #ifdef FRONTIER_DEVELOPMENT
     // CPU visual-proof seam for the collection card; production selection still enters through Record().
     void RecordCollectionProof(ControlPanel& Controls,EditorInstance* Rows,uint32_t Count,uint32_t Selected,const char* Search=nullptr) noexcept;
@@ -57,6 +83,7 @@ private:
     void  RecordCard(EditorPropertyGroup& Group, uint32_t Card) noexcept;
     void  RecordStanding(EditorInstance* Picked, uint32_t PickedIndex) noexcept;
     void  RecordFracture(EditorInstance& Picked, uint32_t PickedIndex) noexcept;
+    void  RecordGas(EditorInstance& Picked, uint32_t PickedIndex, bool Emitter) noexcept;
     void  RecordNotes(EditorInstance* Picked) noexcept;
     void  RecordFooter(EditorInstance* Picked) noexcept;
     float RecordCaps(const char* Text, const ImVec2& At, ImU32 Tint) noexcept;
@@ -77,6 +104,9 @@ private:
     char     NameText_[48] = {};
     bool     NotesFocus_  = false;   // the notes ring lags one tick (the push precedes the field)
     FractureRecord Fracture_[16] = {};
+    GasRecord      Gas_[8]        = {};
+    uint32_t       FluidEditorFor_ = kNoEditorInstance;
+    GasCards::GasHitRegions GasWhere_ = {};
     bool     NotesSeen_   = false;   // EntityNotes opens itself once, from whether a note exists
 };
 

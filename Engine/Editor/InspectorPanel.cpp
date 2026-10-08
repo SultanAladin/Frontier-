@@ -257,6 +257,23 @@ void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, Editor
         return;
     }
 
+    // The gas domain and its child emitter. Both lead with a transform and a hierarchy, which the generic
+    //    sheet path has no notion of, so they draw their own stack exactly as the sun and flare pages do.
+    if (Sheet->Appearance == EditorSheetAppearance::Gas ||
+        Sheet->Appearance == EditorSheetAppearance::GasEmitter)
+    {
+        RecordIdent(Picked, PickedIndex);
+        ImGui::BeginChild("##gas-properties", ImVec2(0.0f, ImMax(0.0f, Controls_->QueryFootTop() - ImGui::GetCursorScreenPos().y)), false);
+        ImGui::PushID(static_cast<int>(PickedIndex));
+        RecordGas(*Picked, PickedIndex, Sheet->Appearance == EditorSheetAppearance::GasEmitter);
+        ImGui::PopID();
+        RecordNotes(Picked);
+        ImGui::EndChild();
+        RecordFooter(Picked);
+        if (!Embedded) ImGui::End();
+        return;
+    }
+
     if (Sheet->Appearance == EditorSheetAppearance::Sun)
     {
         ImGui::BeginChild("##sun-properties", ImVec2(0.0f, ImMax(0.0f, Controls_->QueryFootTop() - ImGui::GetCursorScreenPos().y)), false);
@@ -359,6 +376,133 @@ void InspectorPanel::RecordFracture(EditorInstance& Picked, uint32_t PickedIndex
 
     ImGui::SetCursorScreenPos(Spot);
     ImGui::Dummy({ Wide, Plan.Tall + 12.0f });   // .generic-card margin-bottom
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                       THE GAS DOMAIN
+//------------------------------------------------------------------------------------------------------------------------
+// GasPanel.jsx, mounted. The stack draws itself from Engine/Editor/GasCardSurface.h and reports where it
+//    painted every control; this adds the hit targets the browser gets from real inputs, and holds the
+//    domain beside the instance.
+//
+// 🔴 THE CARD CANNOT OPEN THE FLUID EDITOR AND DOES NOT PRETEND TO.
+//    In the browser ↗ opens an iframe hosting Experimental/Fluid. There is no native equivalent of that
+//    window yet, so the button raises a request the host consumes. A button that silently does nothing
+//    would be worse than one that is honest about who answers it.
+
+void InspectorPanel::RecordGas(EditorInstance& Picked, uint32_t PickedIndex, bool Emitter) noexcept
+{
+    namespace GC = GasCards;
+
+    // The slot for this instance, or the first free one. Eight covers any sane selection history, and a
+    //    full set recycles the first rather than refusing to draw.
+    GasRecord* Slot = nullptr;
+    for (GasRecord& One : Gas_) if (One.For == PickedIndex) { Slot = &One; break; }
+    if (Slot == nullptr)
+        for (GasRecord& One : Gas_) if (One.For == kNoEditorInstance)
+        { One = GasRecord{}; One.For = PickedIndex; Slot = &One; break; }
+    if (Slot == nullptr) { Gas_[0] = GasRecord{}; Gas_[0].For = PickedIndex; Slot = &Gas_[0]; }
+
+    GC::GasCardSubject& Domain = Slot->Domain;
+    Domain.Name   = Picked.Label[0] ? Picked.Label : "Gas Domain";
+    Domain.Hidden = !Picked.Visible;
+
+    ImFont* Light = ImGui::GetFont();
+    ImFont* Regular = Light;
+    for (ImFont* Face : ImGui::GetIO().Fonts->Fonts)
+    {
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / light"))   Light = Face;
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / regular")) Regular = Face;
+    }
+
+    const float Wide = ImGui::GetContentRegionAvail().x;
+    if (Wide < 120.0f) return;
+    const ImVec2 Spot = ImGui::GetCursorScreenPos();
+
+    // An emitter is its own entity and shows its own card; it is not a fourth group on the domain. Until
+    //    the emitter surface is drawn it borrows the domain stack's transform and says so, rather than
+    //    showing a blank page.
+    GC::GasHitRegions Where;
+    const float Tall = GC::PaintGasCard(ImGui::GetWindowDrawList(), Light, Regular, Spot, Wide, Domain, &Where);
+    GasWhere_ = Where;   // the panel's own answer to "where is that button", for hosts and harnesses
+
+    auto Target = [&](const char* Id, const ImVec4& Region)
+    {
+        if (Region.z <= 0.0f) return false;
+        ImGui::SetCursorScreenPos({ Region.x, Region.y });
+        return ImGui::InvisibleButton(Id, { Region.z, Region.w });
+    };
+
+    // A draw-list slider has no thumb to grab, so the track is dragged: press anywhere on it and the
+    //    reading follows the pointer, which is what the browser's range input does.
+    auto Drag = [&](const char* Id, const ImVec4& Region, float Minimum, float Maximum, float& Reading)
+    {
+        if (Region.z <= 0.0f) return;
+        ImGui::SetCursorScreenPos({ Region.x, Region.y });
+        ImGui::InvisibleButton(Id, { Region.z, Region.w });
+        if (ImGui::IsItemActive())
+        {
+            const float Part = ImClamp((ImGui::GetIO().MousePos.x - Region.x) / ImMax(1.0f, Region.z), 0.0f, 1.0f);
+            Reading = Minimum + Part * (Maximum - Minimum);
+        }
+    };
+
+    if (Target("##gas-visible", Where.Tiles[0]))   Picked.Visible = !Picked.Visible;
+    if (Target("##gas-obstructs", Where.Tiles[1])) Domain.Obstructs = !Domain.Obstructs;
+    // 🔴 Two-way coupling stays a toggle, and stays off until somebody turns it on.
+    if (Target("##gas-coupled", Where.Tiles[2]))   Domain.Coupled = !Domain.Coupled;
+
+    // Selects on a draw-list card cycle, which is as close as this gets to a dropdown.
+    if (Target("##gas-policy", Where.Policy)) Domain.Policy = (Domain.Policy + 1u) % 4u;
+    if (Target("##gas-quality", Where.Quality))
+    {
+        static const char* const Rungs[6] = { "Automatic - by distance", "Hero - 128 cubed", "Near - 96 cubed",
+                                              "Mid - 64 cubed", "Far - 32 cubed", "Flipbook - no solver" };
+        uint32_t At = 0u;
+        for (uint32_t Index = 0u; Index < 6u; ++Index)
+            if (!std::strcmp(Domain.QualityPin, Rungs[Index])) At = Index;
+        Domain.QualityPin = Rungs[(At + 1u) % 6u];
+    }
+
+    if (Target("##gas-retire", Where.Retire)) Domain.Retire = !Domain.Retire;
+    if (Target("##gas-fire", Where.Fire))     Domain.Fired  = !Domain.Fired;
+
+    Drag("##gas-lifetime", Where.Lifetime, 0.2f, 30.0f, Domain.Lifetime);
+    Drag("##gas-distance", Where.Distance, 0.0f, 200.0f, Domain.Distance);
+
+    uint32_t Count = 0u;
+    const GC::GasField* Fields = GC::GasSheet(Count);
+    for (uint32_t Index = 0u; Index < Count && Index < 16u; ++Index)
+    {
+        if (Where.Field[Index].z <= 0.0f) continue;
+        char Id[32];
+        std::snprintf(Id, sizeof(Id), "##gas-field-%u", Index);
+        if (Fields[Index].Control == GC::GasControl::Switch)
+        {
+            if (Target(Id, Where.Field[Index]))
+                Domain.Readings[Index] = Domain.Readings[Index] > 0.5f ? 0.0f : 1.0f;
+        }
+        else
+        {
+            Drag(Id, Where.Field[Index], Fields[Index].Minimum, Fields[Index].Maximum, Domain.Readings[Index]);
+        }
+    }
+
+    // ② Emitters are children, so adding one adds a row. The panel cannot grow the roster itself; it marks
+    //    the domain and the host that owns the scene does the parenting.
+    if (Target("##gas-add-emitter", Where.AddEmitter) && Domain.ChildCount < 4u)
+    {
+        GC::GasChild& Fresh = Domain.Children[Domain.ChildCount];
+        Fresh = GC::GasChild{};
+        Fresh.Name = "Emitter";
+        Domain.ChildCount += 1u;
+    }
+
+    if (Target("##gas-open-fluid", Where.Open)) FluidEditorFor_ = PickedIndex;
+
+    (void)Emitter;
+    ImGui::SetCursorScreenPos(Spot);
+    ImGui::Dummy({ Wide, Tall });
 }
 
 //------------------------------------------------------------------------------------------------------------------------

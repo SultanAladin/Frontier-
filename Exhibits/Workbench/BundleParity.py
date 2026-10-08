@@ -57,10 +57,22 @@ def Native(Relative):
 
 
 def Parity(Name, Shipped, Source, Needles):
-    """Every needle must appear in the shipped bundle AND in the native port."""
+    """Every needle must appear in the shipped bundle AND in the native port.
+
+    A needle given as a compiled pattern is matched instead of searched. That is for the handful of
+    needles that are *expressions* rather than literals: esbuild renames its locals whenever the module
+    graph changes, so `(b.height-18-(x.clientY-b.top))/(b.height-48)` became the identical arithmetic
+    over `w` and `m` the first time an unrelated panel was added. Pinning the minifier's choice of
+    letters checks the minifier, not the port — the shape of the maths is the thing that must survive.
+    """
     for Needle, InNative in Needles:
-        Check(Needle in Shipped, f'{Name}: the bundle ships {Needle!r}')
-        Check(InNative in Source, f'{Name}: the native port carries {InNative!r} for {Needle!r}')
+        if hasattr(Needle, 'search'):
+            Found = Needle.search(Shipped)
+            Check(Found is not None, f'{Name}: the bundle ships the maths {Needle.pattern!r}')
+        else:
+            Check(Needle in Shipped, f'{Name}: the bundle ships {Needle!r}')
+        Shown = Needle.pattern if hasattr(Needle, 'pattern') else Needle
+        Check(InNative in Source, f'{Name}: the native port carries {InNative!r} for {Shown!r}')
 
 
 Raw = Bundle.read_text(encoding='utf-8', errors='replace')
@@ -164,7 +176,8 @@ Parity('cloud deck panel', Deck, Port, [
     ('"#929a9f"', 'IM_COL32(146, 154, 159, 255)'),
     ('setLineDash([3,3])', '3.0f, 3.0f'),
     ('4.3', '4.3f'),
-    ('(b.height-18-(x.clientY-b.top))/(b.height-48)', 'Tall - FootPad - Y'),
+    # The drag that reads a cloud base off the card: (height - 18 - (pointerY - top)) / (height - 48).
+    (re.compile(r'\(\w+\.height-18-\(\w+\.clientY-\w+\.top\)\)/\(\w+\.height-48\)'), 'Tall - FootPad - Y'),
 ])
 
 # ---------------------------------------------------------------------------------------------------

@@ -75,6 +75,9 @@ jobs:
       - name: Gas inspector — the ported card drawn from real ImGui commands, and the one-shot lifecycle
         run: python3 Tools/Build/RunAnnounced.py "gas card" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasCard.py
 
+      - name: Gas routing — the shipped InspectorPanel selecting a gas entity, clicked for real
+        run: python3 Tools/Build/RunAnnounced.py "gas routing" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasInspectorRoute.py
+
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 
