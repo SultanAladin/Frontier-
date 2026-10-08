@@ -1,0 +1,19 @@
+{
+  "name": "car-editor",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Plasticity-grade car surface modeller — Experimental prototype using ProjectZeroEditor's 3-dock form",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5174",
+    "build": "vite build",
+    "check": "node --check src.jsx"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
