@@ -42,6 +42,29 @@ namespace Frontier {
 
 constexpr uint32_t kNoObstructingBody = 0xffffffffu;   // [-] - a consent nobody owns; valid, and used by the editor
 
+// 🔴 THE ROUTING RULE, AND IT IS A RULE RATHER THAN A PREFERENCE.
+//
+//    | The object is                          | Level | Why                                                        |
+//    |----------------------------------------|-------|------------------------------------------------------------|
+//    | a cube, sphere, capsule, cylinder, ring| ①     | six signed distances, exact, no memory traffic, moves free  |
+//    | a vehicle, a rock, a fractured wall    | ②     | nothing analytic describes it; the raster already knows it  |
+//    | terrain                                | ②     | likewise, and it never moves, so the clipmap never restages |
+//
+//    AssignObstructionLevel() applies it from the one fact that decides it: whether a primitive was authored.
+//    An artist does not get a third choice, because the two wrong answers are both expensive — a mesh forced
+//    through level ① is a box that does not fit it, and a crate sent to level ② is 32768 clipmap samples to
+//    rediscover six planes.
+//
+// ⚠️ TWO CAVEATS THE TABLE CANNOT STATE.
+//    ① A MOVING OBJECT IS BETTER OFF ANALYTIC EVEN WHEN IT IS A MESH. The global distance field is staged for
+//       a placement and restaged when the placement moves; sampling it for a car doing 30 m/s costs that
+//       restage every frame and still lags by one. A vehicle is far better spent as a box and four tyre rings
+//       — which is precisely why GasColliderShape::TyreRing exists — and ApproximatesWell() below says so.
+//    ② GEOMETRY THINNER THAN HALF A VOXEL LEAKS AT EITHER LEVEL. At a 4 m domain that is 6 cm. A chain-link
+//       fence does not obstruct gas on a 32-cubed lattice no matter which admission it arrives through, and
+//       no amount of margin changes that: it is the lattice, not the admission.
+
+
 // How far outside a collider the motion shell reaches, in voxels. One voxel is the least that can push at all
 //    at this lattice, and more than two is an object shoving air it has not reached.
 constexpr float GasMotionShellInVoxels = 1.25f;
@@ -61,6 +84,41 @@ struct GasObstructionConsent
     float            Centre[3]         = { 0.0f, 0.0f, 0.0f };      // [m] - world centre this advance
     float            Velocity[3]       = { 0.0f, 0.0f, 0.0f };      // [m/s] - how it is moving this advance
 };
+
+
+/// 📦 Applies the routing rule above: a shape means level ①, no shape means level ②.
+/// in    Consent   [-]  the record, edited in place
+/// in    Shape     [-]  the primitive the object's own geometry is, or None for anything that is not one
+/// out   -
+/// note  this is the whole of the decision. Everything else about an object — whether it moves, how big it
+///       is, how many of it there are — changes the cost, never the level
+/// note  it does not tick Obstructs. Routing an object is not the same as consenting for it, and the one
+///       thing an artist must still do by hand is say that the gas should know the object is there at all
+/// cost  ✔️
+/// tag   api, nonallocating, nonthrowing
+inline void AssignObstructionLevel(GasObstructionConsent& Consent, GasColliderShape Shape) noexcept
+{
+    Consent.Shape             = Shape;
+    Consent.ByDistanceReading = Shape == GasColliderShape::None;
+}
+
+
+/// 📦 Would a few primitives serve this object better than the distance field would?
+/// in    Consent    [-]  the record, already routed
+/// in    Speed      [m/s]  how fast the object is moving
+/// out   bool       [-]  true when the object is on level ② and is moving fast enough for that to cost a
+///                       clipmap restage every frame — in which case it wants approximating by primitives
+/// note  ⚠️ advice, not enforcement. Nothing here rewrites an artist's object into a box behind their back;
+///       the editor is expected to say so in the inspector and let them decide
+/// note  the threshold is one domain-voxel of travel per advance at the common 4 m domain, which is the
+///       speed at which a lagging clipmap becomes visible as gas entering the object
+/// cost  ✔️
+/// tag   api, nonallocating, nonthrowing
+inline bool ApproximatesWell(const GasObstructionConsent& Consent, float Speed) noexcept
+{
+    constexpr float RestageWorthwhile = 7.5f;   // [m/s] - 0.125 m a voxel, 60 advances a second
+    return Consent.ByDistanceReading && Speed > RestageWorthwhile;
+}
 
 
 /// 📦 Does this consent obstruct anything at all through a primitive?

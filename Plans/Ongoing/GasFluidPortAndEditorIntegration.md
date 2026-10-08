@@ -395,7 +395,15 @@ Two findings from building it rather than planning it:
    rather than mocking it: an L-shaped wall is baked into a `DistanceFieldSpace`, registered, rasterised and
    obstructs a burning plume with no primitive anywhere. Proof
    `Exhibits/Workbench/GasFluid/NativeGasObstruction.cpp` **PASS 38**, run twice and compared, with three
-   captures in `Exhibits/Gallery/GasObstruction/`. 🚩 Still open: which bodies consent by default in a
+   captures in `Exhibits/Gallery/GasObstruction/` (**PASS 47** with the routing rule below).
+
+   **The routing rule.** `AssignObstructionLevel()` decides the level from the one fact that settles it —
+   whether a primitive was authored. A cube, sphere, capsule, cylinder or tyre ring takes level ①; a vehicle
+   body, a rock, a fractured wall or terrain takes level ②. Two caveats the table cannot state: a **fast
+   moving** object is better off analytic even when it is geometry (a car at 100 km/h restages the clipmap
+   every frame and still lags one behind — `ApproximatesWell()` advises a box and four tyre rings, and
+   advises only; it rewrites nothing), and geometry **thinner than half a voxel** leaks at either level, which
+   is the lattice and not the admission. 🚩 Still open: which bodies consent by default in a
    shipped scene — the answer stays in the scene, not in code
 7. ~~**Two-way through `WindField::Sample`**~~ — landed early with step 1, because the coarse field made it a
    contributor and a drag term rather than a coupling system. 🚩 Which bodies consent is still unanswered and

@@ -9,6 +9,17 @@ NATIVE GAS OBSTRUCTION - the three collision levels, and who consented to each
   PASS  an object sent to the distance field is not also walked as a primitive - that would be two admissions of one crate
   PASS  ⑤ and none of that turned the two-way switch on
 
+The routing rule: analytic shapes take level ①, everything else takes level ②
+  PASS  a crate is a box, and a box is level ① - 32768 clipmap samples to rediscover six planes is the wrong answer
+  PASS  terrain is not a sphere, so it is level ② - and it never moves, so the clipmap never restages
+  PASS  giving an object a primitive moves it to level ① in the same breath, with no second switch to forget
+  PASS  and taking it away moves it back
+  PASS  ① routing an object is not consenting for it: it still obstructs nothing until somebody ticks the box
+  PASS  a parked car on level ② is fine where it is
+  PASS  ⚠️ but a car at 100 km/h restages the clipmap every frame and still lags - it wants a box and four tyre rings
+  PASS  and a wheel already approximated that way is never advised to be approximated again
+  PASS  which is what GasColliderShape::TyreRing was for: the fast moving thing stays analytic
+
 ⑤ The two-way switch is read from exactly one place
   PASS  the object's own record wins over a stale toggle in the tuning - one switch, one place
   PASS  while the authored tuning survives intact
@@ -59,4 +70,4 @@ Captures
     wrote Exhibits/Gallery/GasObstruction/PlumeUnderDistanceField.png
   PASS  three captures: no obstruction, a primitive, and the engine's own distance field
 
-PASS 38
+PASS 47

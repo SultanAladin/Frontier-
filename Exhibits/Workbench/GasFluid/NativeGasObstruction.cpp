@@ -218,6 +218,53 @@ int main()
     }
 
     //---------------------------------------------------------------------------------------------------------
+    Banner("The routing rule: analytic shapes take level ①, everything else takes level ②");
+    {
+        // A crate is a box. A box is six signed distances, so it is routed to the primitive and never asks
+        //    the raster anything.
+        GasObstructionConsent Crate;
+        Crate.Obstructs = true;
+        AssignObstructionLevel(Crate, GasColliderShape::Box);
+        Check(ObstructsByPrimitive(Crate) && !ObstructsByDistanceReading(Crate),
+              "a crate is a box, and a box is level ① - 32768 clipmap samples to rediscover six planes is the wrong answer");
+
+        // Terrain is not any of the five shapes, so it goes to the field the raster already baked.
+        GasObstructionConsent Terrain;
+        Terrain.Obstructs = true;
+        AssignObstructionLevel(Terrain, GasColliderShape::None);
+        Check(ObstructsByDistanceReading(Terrain) && !ObstructsByPrimitive(Terrain),
+              "terrain is not a sphere, so it is level ② - and it never moves, so the clipmap never restages");
+
+        // The rule is one fact, applied the same way every time, and it is reversible.
+        AssignObstructionLevel(Terrain, GasColliderShape::Cylinder);
+        Check(ObstructsByPrimitive(Terrain),
+              "giving an object a primitive moves it to level ① in the same breath, with no second switch to forget");
+        AssignObstructionLevel(Terrain, GasColliderShape::None);
+        Check(ObstructsByDistanceReading(Terrain), "and taking it away moves it back");
+
+        GasObstructionConsent Unasked;
+        AssignObstructionLevel(Unasked, GasColliderShape::Sphere);
+        Check(!ObstructsByPrimitive(Unasked),
+              "① routing an object is not consenting for it: it still obstructs nothing until somebody ticks the box");
+
+        // ⚠️ The caveat the table cannot state: a fast mesh is better off approximated.
+        GasObstructionConsent Car;
+        Car.Obstructs = true;
+        AssignObstructionLevel(Car, GasColliderShape::None);
+        Check(!ApproximatesWell(Car, 0.0f), "a parked car on level ② is fine where it is");
+        Check(ApproximatesWell(Car, 28.0f),
+              "⚠️ but a car at 100 km/h restages the clipmap every frame and still lags - it wants a box and four tyre rings");
+
+        GasObstructionConsent Wheel;
+        Wheel.Obstructs = true;
+        AssignObstructionLevel(Wheel, GasColliderShape::TyreRing);
+        Check(!ApproximatesWell(Wheel, 28.0f),
+              "and a wheel already approximated that way is never advised to be approximated again");
+        Check(ObstructsByPrimitive(Wheel),
+              "which is what GasColliderShape::TyreRing was for: the fast moving thing stays analytic");
+    }
+
+    //---------------------------------------------------------------------------------------------------------
     Banner("⑤ The two-way switch is read from exactly one place");
     {
         GasObstructionConsent Barrel;
