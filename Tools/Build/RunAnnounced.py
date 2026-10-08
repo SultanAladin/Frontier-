@@ -11,7 +11,9 @@ API. Exit code is the command's own.
 import subprocess
 import sys
 
-MostCharacters = 4000
+MostCharacters = 1800
+Telling = ('error', 'Error', 'ERROR', 'fatal', 'undefined reference', 'FAIL', 'Traceback',
+           'assert', 'not found', 'No such file', 'cannot find', 'required')
 
 
 def main() -> int:
@@ -37,8 +39,12 @@ def main() -> int:
     if Code == 0:
         return 0
 
-    # Annotations are one line: real newlines are URL-escaped the way the runner expects.
-    Tail = ''.join(Spoken)[-MostCharacters:]
+    # GitHub caps an annotation, so lead with the lines that carry the diagnosis and follow with
+    #    the last of the output; a bare tail is usually the quiet part after the failure.
+    Lines = [Line.rstrip() for Line in Spoken if Line.strip()]
+    Diagnosing = [Line for Line in Lines if any(Word in Line for Word in Telling)][:18]
+    Closing = Lines[-14:]
+    Tail = '\n'.join(Diagnosing + ['--- the last of it ---'] + Closing)[-MostCharacters:]
     Escaped = Tail.replace('%', '%25').replace('\r', '').replace('\n', '%0A')
     print(f'::error title={Label} failed (exit {Code})::{Escaped}')
     return Code
