@@ -1,0 +1,1 @@
+PASS 14 checks: base meshes, verified counts + visuals
