@@ -804,6 +804,8 @@ fn vsCube(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> C
   o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
   let q = parts[ii];
   if (!(q.p.w < q.v.w && q.c.a > 0.002 && q.m.x > 0.0)) { return o; }
+  // 📝 Morphing transitions: a piece is a cube only until its release time, then it becomes a butterfly.
+  if (S.mol2.y > 0.5 && q.p.w >= q.e.x) { return o; }
   let cv = cubeVert(vi);
   let ax = normalize(vec3f(hashF(q.m.w, 1u) - 0.5, hashF(q.m.w, 2u) - 0.5, hashF(q.m.w, 3u) - 0.5)
                      + vec3f(0.0, 0.0001, 0.0));
@@ -853,6 +855,51 @@ fn vsShatter(@builtin(vertex_index) vi: u32) -> CO {
 fn fsCube(i: CO) -> @location(0) vec4f {
   let a = clamp(i.col.a, 0.0, 1.0);
   return vec4f(i.col.rgb * i.shade * a, a);
+}
+
+// 📝 Butterflies (dissolve into butterflies): a released piece becomes a flapping two-pair silhouette, billboarded to the camera.
+// The wings open and close with cos(flap), foreshortening their width. Colour is a per-piece blend of the system's two colours.
+@vertex
+fn vsFly(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VO {
+  var o: VO;
+  o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+  let q = parts[ii];
+  if (S.mol2.y < 0.5) { return o; }
+  if (!(q.p.w < q.v.w && q.c.a > 0.002 && q.m.x > 0.0 && q.p.w >= q.e.x)) { return o; }
+  let cs = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+                           vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0));
+  let c = cs[vi];
+  let sd = q.m.w;
+  let age = q.p.w;
+  let rate = 9.0 + 5.0 * hashF(sd, 6u);
+  let flap = cos(age * rate + 6.2831853 * hashF(sd, 7u));
+  let wingW = 0.2 + 0.8 * abs(flap);
+  let sz = q.m.x * 5.0;
+  let wp = q.p.xyz + G.camRight.xyz * (c.x * sz * 0.5) + G.camUp.xyz * (c.y * sz * 0.5);
+  o.pos = G.viewProj * vec4f(wp, 1.0);
+  o.uv = c;
+  o.ex = vec4f(wingW, flap, 0.0, 0.0);
+  o.col = vec4f(mix(S.colA.rgb, S.colB.rgb, hashF(sd, 8u)), q.c.a);
+  return o;
+}
+
+@fragment
+fn fsFly(i: VO) -> @location(0) vec4f {
+  let wingW = max(i.ex.x, 0.15);
+  let x = abs(i.uv.x);
+  let xs = x / wingW;                 // unfold the wing by its foreshortening
+  let y = i.uv.y;
+  // Forewing: large ellipse above the centre line. Hindwing: smaller ellipse below.
+  let dF = length(vec2f((xs - 0.5) / 0.5, (y - 0.3) / 0.35));
+  let dH = length(vec2f((xs - 0.4) / 0.36, (y + 0.3) / 0.26));
+  let dMin = min(dF, dH);
+  let wing = 1.0 - smoothstep(0.85, 1.0, dMin);
+  let body = (1.0 - smoothstep(0.03, 0.05, x)) * step(abs(y), 0.6);
+  if (wing < 0.01 && body < 0.01) { discard; }
+  let edge = 0.75 + 0.5 * (1.0 - min(dMin, 1.0));
+  let rgb = mix(i.col.rgb * edge, vec3f(0.08), body);
+  let a = max(wing, body) * i.col.a;
+  return vec4f(rgb * a, a);
 }
 
 fn segQuad(a: vec3f, b: vec3f, wa: f32, wb: f32, vi: u32) -> vec4f {

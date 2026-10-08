@@ -258,6 +258,7 @@
       // 📝 Cube particles (shape 4) and derez children: 36 vertices per cube, OVER blend.
       this.pipe.cube = mkR("vsCube", "fsCube", OVER);
       this.pipe.shatter = mkR("vsShatter", "fsCube", OVER);
+      this.pipe.fly = mkR("vsFly", "fsFly", OVER);
       this.pipe.seg = mkR("vsSeg", "fsSeg", ADD);
       this.pipe.arrow = mkR("vsArrow", "fsArrow", ADD);
       const mkF = (vs, fs) =>
@@ -470,6 +471,12 @@
           rp.setBindGroup(1, job.gpu.renderBG);
           rp.draw(288, job.gpu.cap);
         }
+        if (job.fly) {
+          // 📝 Butterflies: one billboard quad per piece, drawn only for pieces past their release time.
+          rp.setPipeline(this.pipe.fly);
+          rp.setBindGroup(1, job.gpu.renderBG);
+          rp.draw(6, job.gpu.cap);
+        }
       }
       if (frame.segCount) {
         rp.setPipeline(this.pipe.seg);
@@ -574,9 +581,9 @@
     if (p.kind === 5) {
       // 📝 Transition fields (kind 5 only). mol2.w = fragment flag; mol3 = hold base, hold spread, burst share, child life.
       const tr = p.transition;
-      // 📝 mol2: x = wave (1 melt), z = flight mode (0 burst/fall, 1 rebuild, 2 stack), w = fragment flag.
+      // 📝 mol2: x = wave (1 melt), y = morph to butterflies (1), z = flight mode (0 burst/fall, 1 rebuild, 2 stack), w = fragment flag.
       // misc.w = start distance (rebuild) or drop height (stack).
-      set("mol2", tr && tr.wave === "melt" ? 1 : 0, 0, tr ? (tr.assemble | 0) : 0, tr && tr.fragment ? 1 : 0);
+      set("mol2", tr && tr.wave === "melt" ? 1 : 0, tr && tr.after === "butterfly" ? 1 : 0, tr ? (tr.assemble | 0) : 0, tr && tr.fragment ? 1 : 0);
       set("mol3", tr ? tr.holdBase : 0, tr ? tr.holdSpread : 0, tr ? tr.burstShare : 0, tr ? tr.childLife : 0);
       set("misc", p.sizeScale, p.pulseHz, p.pulseDepth, tr && tr.shell ? tr.shell : 0);
     }

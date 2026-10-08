@@ -365,6 +365,7 @@
         draw: true, alpha: p.blend === "alpha",
         cube: p.shape === 4,
         shatter: !!(p.transition && p.transition.fragment),
+        fly: !!(p.transition && p.transition.after === "butterfly"),
       });
     }
 
@@ -747,6 +748,8 @@
       trCard.unshift(
         selectRow("Flight", [[0, "Burst or fall"], [1, "Rebuild from outside"], [2, "Stack in column"]],
           () => tr.assemble || 0, (v) => { tr.assemble = v; renderInspector(); }),
+        selectRow("After release", [["none", "Cube (fades out)"], ["butterfly", "Becomes a butterfly"]],
+          () => tr.after || "none", (v) => (tr.after = v)),
         selectRow("Release wave", [["corner", "Corner (derez)"], ["melt", "Melt (patchy)"]],
           () => tr.wave || "corner", (v) => (tr.wave = v)),
       );

@@ -144,6 +144,30 @@
         windCoupling: 0.15, bounce: 0.35, burstEvery: 3.5, burstCount: 120, burstAtOrigin: true,
       }),
     },
+    {
+      id: "dissolve-nothing", name: "Dissolve to nothing", group: "Transitions",
+      blurb: "The object dissolves to nothing: surface pieces release in patches, drift on the wind, shrink and fade out.",
+      p: P({
+        kind: 5, shape: 4, blend: "alpha", capacity: 1536, rate: 0,
+        emitShape: 4, origin: [0, 0.6, 0], boxHalf: [0.6, 0.6, 0.6], radius: 0,
+        speedMin: 0.1, speedMax: 0.6, drag: 0.8, buoyancy: 0.2, gravity: 0.1, lifeMin: 2.5, lifeMax: 4,
+        sizeStart: 0.075, sizeEnd: 0, colA: hex("#7fd6ff"), colB: hex("#c8f0ff"), colC: hex("#ffffff"),
+        windCoupling: 1.2, bounce: 0, burstEvery: 9, burstCount: 1536, burstAtOrigin: true,
+        transition: { holdBase: 0.2, holdSpread: 3.0, burstShare: 0.1, fragment: false, childLife: 0, wave: "melt", assemble: 0, shell: 0, after: "none" },
+      }),
+    },
+    {
+      id: "dissolve-butterflies", name: "Dissolve into butterflies", group: "Transitions",
+      blurb: "The object melts in patches, and each released piece becomes a flapping butterfly that rises, drifts on the wind and fades. The butterflies are simple two-pair silhouettes.",
+      p: P({
+        kind: 5, shape: 4, blend: "alpha", capacity: 1536, rate: 0,
+        emitShape: 4, origin: [0, 0.6, 0], boxHalf: [0.6, 0.6, 0.6], radius: 0,
+        speedMin: 0.2, speedMax: 0.9, drag: 0.8, buoyancy: 0.6, gravity: 0, lifeMin: 6, lifeMax: 9,
+        sizeStart: 0.075, sizeEnd: 0.075, colA: hex("#ff9a3c"), colB: hex("#3ec8ff"), colC: hex("#ffffff"),
+        windCoupling: 0.9, bounce: 0, flutter: 1.2, burstEvery: 12, burstCount: 1536, burstAtOrigin: true,
+        transition: { holdBase: 0.2, holdSpread: 3.0, burstShare: 0.1, fragment: false, childLife: 0, wave: "melt", assemble: 0, shell: 0, after: "butterfly" },
+      }),
+    },
   ];
 
   // Light fibres (kind 7): analytic streaks, ribbons and path trails, ported from the Strand Editor. Not simulated.
