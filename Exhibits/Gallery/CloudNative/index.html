@@ -56,7 +56,8 @@
   <h1>The cloud panel, drawn by the engine</h1>
   <p>Every pixel below came out of a real ImGui draw list, rasterised on the CPU and written to PNG by
      <code>Exhibits/Workbench/Clouds/NativeCloudCards.cpp</code>. Nothing here is a mock-up.</p>
-  <p>The source is <code>InspectorDepot/panels/clouds.js</code>. <code>InspectorHost.js</code> mounts the depot
+  <p>The shipped code is the depot kit embedded in the bundle at byte 4378455, mirrored on disk as
+     <code>InspectorDepot/panels/clouds.js</code>. <code>InspectorHost.js</code> mounts the depot
      panels and overrides only the five light types with <code>LightPanel.js</code>, so clouds — like wind —
      ship from the depot. The map, the histogram and the vertical section all read the same value-noise field,
      <code>frac(sin(x·127.1 + y·311.7)·43758.5453)</code> smoothed bilinearly and summed over three octaves;
@@ -69,6 +70,13 @@
      column and both duo cards stretch to the taller one; <code>.mp-chead .l</code> is a flex column, so the
      title and subtitle each take a full line box; and the notes wrap on the tracked advance instead of being
      split by hand.</p>
+  <p style="margin-top:14px"><b>Verified against the bundle, not the sources.</b>
+     <code>Experimental/ProjectZeroEditor/index.html</code> is the reference: a built, minified,
+     self-contained file in which the depot kit is an escaped JS string and <code>Editor.css</code> is
+     inlined. Reading the <code>.js</code> and <code>.css</code> beside it is not the same thing, so
+     <code>Exhibits/Workbench/BundleParity.py</code> now pulls the shipped code out of the bundle and
+     asserts that every literal and every numeric constant this port depends on is present there
+     &mdash; <b>199 checks across the cloud panel, the cloud deck and the fracture card</b>.</p>
   <div class="rail">
     <div class="pill"><b>429</b><span>checks passed</span></div>
     <div class="pill"><b>4</b><span>captures</span></div>

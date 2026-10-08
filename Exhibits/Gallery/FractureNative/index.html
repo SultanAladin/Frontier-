@@ -56,7 +56,8 @@
   <h1>The per-object fracture card, drawn by the engine</h1>
   <p>Every pixel below came out of a real ImGui draw list, rasterised on the CPU and written to PNG by
      <code>Exhibits/Workbench/Fracture/NativeFractureCard.cpp</code>. Nothing here is a mock-up.</p>
-  <p>The source is <code>Experimental/ProjectZeroEditor/FracturePanel.jsx</code>, which
+  <p>The shipped markup is in the bundle at byte 4623565 and its CSS in the bundle's inlined
+     <code>&lt;style&gt;</code>; on disk that is <code>FracturePanel.jsx</code>, which
      <code>Inspectors.jsx</code> hangs off the end of the geometry sheet, together with the shaded solid from
      <code>FractureEditor/FractureProjection.js</code> and the clamps in <code>FractureSpecification.js</code>.
      Nothing in <code>Engine/</code> carried any of it before.</p>
@@ -66,6 +67,13 @@
      to within 1e&minus;6. And <b>the card is a CSS block flow</b>, so the checks pin the collapsed margins
      rather than the sums: BAKE sits 18&nbsp;px under the diagram, not the 26 that adding the two margins
      would give, and the SDF block's border breaks the collapse so its switch keeps a full 20.</p>
+  <p style="margin-top:14px"><b>Verified against the bundle, not the sources.</b>
+     <code>Experimental/ProjectZeroEditor/index.html</code> is the reference: a built, minified,
+     self-contained file in which the depot kit is an escaped JS string and <code>Editor.css</code> is
+     inlined. Reading the <code>.js</code> and <code>.css</code> beside it is not the same thing, so
+     <code>Exhibits/Workbench/BundleParity.py</code> now pulls the shipped code out of the bundle and
+     asserts that every literal and every numeric constant this port depends on is present there
+     &mdash; <b>199 checks across the cloud panel, the cloud deck and the fracture card</b>.</p>
   <div class="rail">
     <div class="pill"><b>91</b><span>checks passed</span></div>
     <div class="pill"><b>5</b><span>captures</span></div>

@@ -694,3 +694,35 @@ as its closed box with a chevron and cycles 32 → 64 → 128 on click. The expa
 but opens nothing: the fracture editor itself (`Experimental/FractureEditor/`, a separate 788 KB bundle over
 `FracturePanel.js` 25,953 B, `FractureStructure.js` 22,026 B and `FracturePanel.css` 14,461 B) is **not yet
 ported** and is the obvious next piece.
+
+## Verifying against the bundle instead of the sources
+
+The reference is `Experimental/ProjectZeroEditor/index.html` — a built, minified, self-contained file.
+The `.js` and `.css` beside it are only *mirrors* of what it was built from, and reading them is not the
+same thing as reading the build. Twice the question "which half ships?" has only been answerable from the
+bundle, so this is now mechanical rather than a matter of care.
+
+`Exhibits/Workbench/BundleParity.py` walks the other way round: for each ported surface it locates the
+shipped code inside the bundle, un-escapes it (the depot kit is embedded as a doubly-escaped JS string;
+`Editor.css` is inlined in a single `<style>`), and asserts that every literal and every numeric constant
+the native header depends on is present there. **PASS 199.**
+
+What it settles, with byte offsets into the 4,869,252-byte file:
+
+| Port | Shipped where | Verdict |
+| --- | --- | --- |
+| `CloudInstrumentSurface.h` | depot kit, byte 4,378,455 | all 6 blocks, 30 literals and 17 constants match |
+| `CloudDeckSurface.h` | React chunk, byte 4,598,926 | ships verbatim; 17 literals and constants match |
+| `FractureCardSurface.h` | React chunk byte 4,623,565; CSS inlined | 13 literals, 8 CSS rules, 10 solid constants match |
+
+The constants are the part worth having, because that is where an approximation hides rather than in the
+strings. The cloud panel's checks pin, among others: `Math.max(.2, n)` on the feature scale before the
+octaves; the octave offsets `+9/−4` and `−3/+7`; the divisor `.92 + r·.08`; the 1600 probes laid out on a
+40-wide lattice at `(i%40·7, ⌊i/40⌋·5)`; the section's fixed `A−12−K/400·(A−20)` window; the deck body
+`10 + 34·density`; and the crest frequency `sin(K·.08·scale)`, which is multiplied by the feature scale and
+would read as plausible if it were not.
+
+**Correction to this register.** Earlier entries, and the gallery pages, cited `InspectorDepot/panels/clouds.js`
+and `CloudDeckPanel.jsx` as "the source". That phrasing was wrong even though the ports were right: the
+source of truth is the bundle, and the files on disk are mirrors of it. The gallery pages now cite the
+bundle and its offsets.
