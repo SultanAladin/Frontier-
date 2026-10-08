@@ -272,12 +272,95 @@ void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, Editor
     {
         RecordCard(Sheet->Groups[i], i);
     }
+    // FracturePanel.jsx hangs the fracture card off the end of the geometry sheet, after every property
+    //    group and before the rest of the inspector.
+    if (Picked->Category == EditorInstanceCategory::Geometry) RecordFracture(*Picked, PickedIndex);
     RecordStanding(Picked, PickedIndex);
     RecordNotes(Picked);
     ImGui::EndChild();
     ImGui::PopStyleVar();
     RecordFooter(Picked);
     if(!Embedded)ImGui::End();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                     PER-OBJECT FRACTURE
+//------------------------------------------------------------------------------------------------------------------------
+// FracturePanel.jsx, mounted. The card draws itself from Engine/Editor/FractureCardSurface.h; this adds the
+//    hit targets the browser gets from real buttons, and holds the recipe beside the instance.
+
+void InspectorPanel::RecordFracture(EditorInstance& Picked, uint32_t PickedIndex) noexcept
+{
+    namespace FR = Fracture;
+
+    // The slot for this instance, or the first free one. Sixteen covers any sane selection history.
+    FractureRecord* Slot = nullptr;
+    for (FractureRecord& One : Fracture_) if (One.For == PickedIndex) { Slot = &One; break; }
+    if (Slot == nullptr)
+        for (FractureRecord& One : Fracture_) if (One.For == kNoEditorInstance)
+        { One = FractureRecord{}; One.For = PickedIndex; Slot = &One; break; }
+    if (Slot == nullptr) { Fracture_[0] = FractureRecord{}; Fracture_[0].For = PickedIndex; Slot = &Fracture_[0]; }
+
+    ImFont* Light = ImGui::GetFont();
+    ImFont* Regular = Light;
+    for (ImFont* Face : ImGui::GetIO().Fonts->Fonts)
+    {
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / light"))   Light = Face;
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / regular")) Regular = Face;
+    }
+
+    // The engine's geometry rows carry no primitive kind, so the preview note falls back to "pending"
+    //    unless the row is plainly named after one of the four the browser previews.
+    auto Starts = [](const char* Text, const char* Word)
+    {
+        for (; *Word; ++Text, ++Word)
+            if (std::tolower(static_cast<unsigned char>(*Text)) != *Word) return false;
+        return true;
+    };
+    const char* Primitive = "mesh";
+    for (const char* Word : { "cube", "sphere", "cylinder", "cone", "torus" })
+        if (Starts(Picked.Label, Word)) { Primitive = Word; break; }
+    const FR::Owner Who { Picked.Label[0] ? Picked.Label : "Object", Primitive };
+
+    const float Wide = ImGui::GetContentRegionAvail().x;
+    if (Wide < 120.0f) return;
+    const ImVec2 Spot = ImGui::GetCursorScreenPos();
+    FR::Settings& Recipe = Slot->Recipe;
+    const FR::Plan Plan = FR::Measure(Light, Regular, Wide, Recipe, Who);
+    FR::PaintCard(ImGui::GetWindowDrawList(), Light, Regular, Spot, Wide, Recipe, Who);
+
+    ImGui::PushID(static_cast<int>(PickedIndex));
+    auto Hit = [&](const char* Id, float X, float Y, float W, float H)
+    {
+        ImGui::SetCursorScreenPos({ Spot.x + X, Spot.y + Y });
+        return ImGui::InvisibleButton(Id, { W, H });
+    };
+
+    if (Hit("##fracture-enable", Wide - FR::PadX - FR::ToggleWide, Plan.EnableTop,
+            FR::ToggleWide, FR::ToggleTall))
+        Recipe.Enabled = !Recipe.Enabled;
+
+    if (Recipe.Enabled)
+    {
+        const float Each = (Plan.Inner - 2.0f - FR::ModePad * 3.0f) * 0.5f;
+        for (int I = 0; I < 2; ++I)
+            if (Hit(I == 0 ? "##fracture-dynamic" : "##fracture-baked",
+                    FR::PadX + 1.0f + FR::ModePad + I * (Each + FR::ModePad),
+                    Plan.ModeTop + 1.0f + FR::ModePad, Each, FR::ButtonTall))
+                Recipe.Run = I == 0 ? FR::Mode::Dynamic : FR::Mode::Baked;
+
+        if (Plan.HasSdf && Hit("##fracture-sdf", Wide - FR::PadX - FR::ToggleWide, Plan.SdfSwitchTop,
+                               FR::ToggleWide, FR::ToggleTall))
+            Recipe.PieceSdf = !Recipe.PieceSdf;
+
+        // A select with three options; clicking cycles it, which is as close as a draw-list card gets.
+        if (Plan.HasField && Hit("##fracture-resolution", FR::PadX, Plan.SelectTop, Plan.Inner, FR::SelectTall))
+            Recipe.SdfResolution = Recipe.SdfResolution == 32 ? 64 : Recipe.SdfResolution == 64 ? 128 : 32;
+    }
+    ImGui::PopID();
+
+    ImGui::SetCursorScreenPos(Spot);
+    ImGui::Dummy({ Wide, Plan.Tall + 12.0f });   // .generic-card margin-bottom
 }
 
 //------------------------------------------------------------------------------------------------------------------------

@@ -626,3 +626,71 @@ harness's ×3 supersampling, where the browser's analytic coverage makes it a fa
 
 `CloudSection` (`LiveGraph.jsx:637`), the sibling in the *Layer thickness* card, is **not** ported: it is a
 thin wrapper over the generic `Plot` component, which is shared framework rather than cloud UI.
+
+
+## FracturePanel.jsx — the per-object fracture card
+
+`Experimental/ProjectZeroEditor/FracturePanel.jsx` (5,064 B) is imported by `Inspectors.jsx:5` and rendered
+at `:693` whenever `Subject.Panel === "geometry"`, after every property group. It pulls two modules out of
+the sibling app `Experimental/FractureEditor/`: `FractureSpecification.js` for the recipe and its clamps, and
+`FractureProjection.js` for the shaded solid. **Nothing in `Engine/` carried any of it** — this is purely
+additive.
+
+Ported to `Engine/Editor/FractureCardSurface.h` (`Frontier::Fracture`, `namespace Kit =
+Frontier::WindInstrument` for text, so it inherits the 1.302 em scale). Proof
+`Exhibits/Workbench/Fracture/NativeFractureCard.cpp` — **PASS 91**, five captures in
+`Exhibits/Gallery/FractureNative/`.
+
+### The recipe
+
+`Normalize()` clamps, and two of its keys round. These are reproduced exactly:
+
+| Key | Default | Limit |
+| --- | --- | --- |
+| `Energy` | 2500 | 0 … 50000 |
+| `Seed` | 42 | 1 … 999999, rounded |
+| `Ceiling` | 48 | 2 … 160, rounded |
+| `MinimumSize` | 0.045 | 0.002 … 0.3 |
+| `X` / `Y` / `Z` | 0 | ±1000 |
+| `SdfResolution` | 64 | **falls back** to 64 — it is a list of 32/64/128, not a range |
+| `Mode` | `dynamic` | `baked` or `dynamic` |
+
+### The card is a block flow
+
+Four disclosure stages, and the heights are collapsed margins rather than sums — the point the checks pin:
+
+| State | Height |
+| --- | --- |
+| Disabled | 136.248 |
+| Enabled, dynamic, cube | 442.59 |
+| Baked, no per-piece SDF | 513.59 |
+| Baked with per-piece SDF | 635.912 |
+
+`BAKE` sits **18 px** under the diagram, not 26: the diagram's 8 px bottom margin collapses into the heading's
+18 px top margin. `.fracture-sdf` has a border-top and padding-top, which *breaks* the collapse, so its first
+switch keeps its full 20 px. The header is 36.248 px — `Grind(15) + 5 + Grind(9)` — because the stacked title
+and eyebrow outgrow the 30 px button they sit beside.
+
+### The diagram
+
+`FractureGlyph()` is a genuine Voronoi diagram: nine fixed seeds, each cell the 36-gon of radius 58 clipped by
+the perpendicular bisector against every other seed (Sutherland–Hodgman on a half-plane). Cells are sorted by
+their first vertex's Y into painter's order — `Array.prototype.sort` is stable, so `std::stable_sort`. Each
+cell is shaded from `133 − 0.36·cx − 0.35·cy`, clamped to 35…210, with every seventh facet tinted green, and
+projected by `(140 + 1.05x + 0.18cx, 61 + 0.77y + 0.16cy − 0.12·√(58² − cx² − cy²))`. The nine cells tile the
+perimeter to within 1e−6 of its area, which is the check that proves the port rather than a screenshot.
+
+### Mounted
+
+`InspectorPanel::RecordFracture` in `InspectorPanel.cpp`, called from the generic object path right after the
+`RecordCard` loop and before `RecordStanding` — the same place the JSX appends it. The recipe lives in a
+16-slot `FractureRecord` table keyed by instance index, since the engine has no fracture component yet and the
+browser keeps these in `localStorage` under a scene ID. Hit targets are wired for the enable switch, the two
+mode buttons, the SDF switch and the resolution field.
+
+**Deviations.** The engine's geometry rows carry no primitive kind — the browser reads it off the outliner
+icon — so the mount infers one from the row's name and otherwise shows the "pending" note. `<select>` is drawn
+as its closed box with a chevron and cycles 32 → 64 → 128 on click. The expand button is drawn and hit-tested
+but opens nothing: the fracture editor itself (`Experimental/FractureEditor/`, a separate 788 KB bundle over
+`FracturePanel.js` 25,953 B, `FractureStructure.js` 22,026 B and `FracturePanel.css` 14,461 B) is **not yet
+ported** and is the obvious next piece.

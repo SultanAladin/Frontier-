@@ -8,6 +8,7 @@
 
 #include "EditorInstance.h"
 #include "CollectionSequence.h"
+#include "FractureCardSurface.h"
 
 #include <imgui.h>
 
@@ -16,6 +17,15 @@
 namespace Frontier {
 
 class ControlPanel;
+
+// One slot of per-object fracture authoring, matched to its instance. The browser keeps these in
+//    localStorage under a scene ID; the panel keeps them beside the instance until the engine owns a
+//    fracture component of its own.
+struct FractureRecord
+{
+    uint32_t           For = kNoEditorInstance;
+    Fracture::Settings Recipe {};
+};
 
 class InspectorPanel final
 {
@@ -46,6 +56,7 @@ private:
     void  RecordIdent(EditorInstance* Picked, uint32_t PickedIndex) noexcept;
     void  RecordCard(EditorPropertyGroup& Group, uint32_t Card) noexcept;
     void  RecordStanding(EditorInstance* Picked, uint32_t PickedIndex) noexcept;
+    void  RecordFracture(EditorInstance& Picked, uint32_t PickedIndex) noexcept;
     void  RecordNotes(EditorInstance* Picked) noexcept;
     void  RecordFooter(EditorInstance* Picked) noexcept;
     float RecordCaps(const char* Text, const ImVec2& At, ImU32 Tint) noexcept;
@@ -65,6 +76,7 @@ private:
     uint32_t NameFor_     = kNoEditorInstance;
     char     NameText_[48] = {};
     bool     NotesFocus_  = false;   // the notes ring lags one tick (the push precedes the field)
+    FractureRecord Fracture_[16] = {};
 };
 
 } // namespace Frontier
