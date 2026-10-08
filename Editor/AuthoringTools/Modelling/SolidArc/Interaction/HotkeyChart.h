@@ -26,6 +26,8 @@ class HotkeyChart
 public:
     // Loads the Plasticity + Blender defaults.
     static HotkeyChart Defaults() noexcept;
+    // Strict Plasticity — no Blender aliases, for CarEditor (curves-first).
+    static HotkeyChart StrictPlasticity() noexcept;
 
     void Bind(Key KeyCode, uint8_t Modifiers, std::string Verb, std::string Description) noexcept;
     bool Unbind(Key KeyCode, uint8_t Modifiers) noexcept;

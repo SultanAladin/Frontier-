@@ -36,6 +36,8 @@ add_library(SolidArcKernel STATIC
     Kernel/BlendSolver.cpp
     Kernel/TweakSolver.cpp
     Kernel/FaceEditSolver.cpp
+    Kernel/CurveContinuitySpecification.cpp
+    Kernel/CarLoftSpecification.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -123,4 +123,48 @@ HotkeyChart HotkeyChart::Defaults() noexcept
     return C;
 }
 
+HotkeyChart HotkeyChart::StrictPlasticity() noexcept
+{
+    HotkeyChart C;
+    auto B = [&](const char* Chord, const char* Verb, const char* Description)
+    {
+        Key K; uint8_t M;
+        if (ParseKeyChord(Chord, K, M)) C.Bind(K, M, Verb, Description);
+    };
+    // Strict Plasticity — CarEditor preset (no Blender Tab / F3 aliases, no duplicate view keys).
+    B("g",           "tool move",          "Move (Plasticity G)");
+    B("r",           "tool rotate",        "Rotate (Plasticity R)");
+    B("s",           "tool scale",         "Scale (Plasticity S)");
+    B("e",           "tool extrude",       "Extrude");
+    B("q",           "boolean union selected",     "Union Q");
+    B("shift+q",     "boolean subtract selected",  "Subtract Shift+Q");
+    B("ctrl+q",      "boolean intersect selected", "Intersect Ctrl+Q");
+    B("l",           "loft selected",      "Loft L");
+    B("shift+p",     "sweep selected",     "Sweep Shift+P");
+    B("shift+l",     "fillpatch selected", "Fillpatch Shift+L");
+    B("b",           "fillet selected 0.25",  "Fillet B");
+    B("shift+b",     "chamfer selected 0.25", "Chamfer Shift+B");
+    B("o",           "offset selected 0.25",  "Offset O");
+    B("c",           "tool cut",           "Cut C");
+    B("t",           "tool trim",          "Trim T");
+    B("j",           "join selected",      "Join J");
+    B("shift+a",     "tool line",          "Line Shift+A (Plasticity)");
+    B("ctrl+shift+c","tool circle",        "Circle");
+    B("ctrl+shift+r","tool rect",          "Rect");
+    B("ctrl+shift+a","tool arc",           "Arc");
+    B("ctrl+shift+s","tool spline",        "Spline");
+    B("1",           "selectmode control", "Control points 1");
+    B("2",           "selectmode edge",    "Edge 2");
+    B("3",           "selectmode face",    "Face 3");
+    B("4",           "selectmode solid",   "Solid 4");
+    B("a",           "select all",         "Select all A");
+    B("x",           "delete selected",    "Delete X");
+    B("ctrl+z",      "undo",               "Undo");
+    B("ctrl+shift+z","redo",               "Redo");
+    B("f",           "menu search",        "Search F (Plasticity)");
+    B("space",       "view fit selected","Fit Space (Plasticity)");
+    B("alt+z",       "show xray toggle",   "X-ray");
+    return C;
+}
+
 } // namespace Frontier
