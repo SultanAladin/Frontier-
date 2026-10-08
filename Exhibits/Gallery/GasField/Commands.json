@@ -92,5 +92,35 @@
     "Projects/Project-Gas/Source/GasHostMain.cpp",
     "-o",
     "/home/user/Frontier-/.cache/gasbuild/Project-Gas"
+  ],
+  [
+    "g++",
+    "-std=c++20",
+    "-O1",
+    "-Wall",
+    "-Wextra",
+    "-Wno-unused-parameter",
+    "-Wextra",
+    "-IEngine/VolumetricDynamics",
+    "-IEngine/DisplayPresentation",
+    "-IEngine/ContentInterchange",
+    "Exhibits/Workbench/GasFluid/NativeGasEmitters.cpp",
+    "-o",
+    "/home/user/Frontier-/.cache/gasbuild/GasEmittersFirst"
+  ],
+  [
+    "g++",
+    "-std=c++20",
+    "-O1",
+    "-Wall",
+    "-Wextra",
+    "-Wno-unused-parameter",
+    "-Wextra",
+    "-IEngine/VolumetricDynamics",
+    "-IEngine/DisplayPresentation",
+    "-IEngine/ContentInterchange",
+    "Exhibits/Workbench/GasFluid/NativeGasEmitters.cpp",
+    "-o",
+    "/home/user/Frontier-/.cache/gasbuild/GasEmittersSecond"
   ]
 ]

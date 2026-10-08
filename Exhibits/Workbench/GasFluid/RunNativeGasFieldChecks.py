@@ -30,6 +30,7 @@ Raymarch = 'Exhibits/Workbench/GasFluid/NativeGasRaymarch.cpp'
 SceneCodec = 'Exhibits/Workbench/GasFluid/NativeGasSceneCodec.cpp'
 SceneHost = 'Exhibits/Workbench/GasFluid/NativeGasSceneHost.cpp'
 StandaloneHost = 'Projects/Project-Gas/Source/GasHostMain.cpp'
+Emitters = 'Exhibits/Workbench/GasFluid/NativeGasEmitters.cpp'
 
 # The transcription must be current before anything is compiled against it. A stale header would still
 # build and still resolve presets; the only symptom would be a native plume that no longer matches the
@@ -153,6 +154,24 @@ for Name, Advances in (('camp_fire_steady', '110'), ('hero_detonation', '45'), (
 (Gallery / 'StandaloneHostProof.txt').write_text('\n'.join(HostTranscript))
 print(f'The standalone host answered {len(Samples) * 3 + 4} invocations over the committed corpus.')
 
+# The emitter component and the two gameplay hooks. Built twice as well, because the routing layer feeds the
+# solver and a determinism contract that holds inside the solver and not above it holds nowhere.
+EmitterTranscripts = []
+for Attempt in ('First', 'Second'):
+    Program = Build / f'GasEmitters{Attempt}'
+    Command = ['g++', *Flags, '-Wextra', *Include, Emitters, '-o', str(Program)]
+    subprocess.run(Command, cwd=Root, check=True)
+    Commands.append(Command)
+
+    Fired = subprocess.run([str(Program)], cwd=Root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    EmitterTranscripts.append(Fired.stdout)
+    if Attempt == 'First':
+        print(Fired.stdout, end='')
+    assert Fired.returncode == 0, f'gas emitter checks failed on the {Attempt.lower()} run'
+
+assert EmitterTranscripts[0] == EmitterTranscripts[1], 'two runs of the gas emitter checks disagreed'
+(Gallery / 'EmitterProof.txt').write_text(EmitterTranscripts[0])
+
 (Gallery / 'Proof.txt').write_text(Transcripts[0] + 'Two independent builds produced identical transcripts.\n')
 
 Tracked = [Root / 'Engine/VolumetricDynamics/GasSceneCodec.h',
@@ -169,6 +188,9 @@ Tracked = [Root / 'Engine/VolumetricDynamics/GasSceneCodec.h',
            Root / 'Engine/VolumetricDynamics/CoarseGasField.h',
            Root / 'Engine/VolumetricDynamics/GasCollisionIntake.h',
            Root / 'Engine/VolumetricDynamics/GasWindContribution.h',
+           Root / 'Engine/VolumetricDynamics/GasEmitterComponent.h',
+           Root / 'Engine/VolumetricDynamics/GasGameplayEmission.h',
+           Root / Emitters,
            Root / Source,
            Root / 'Engine/VolumetricDynamics/GasSceneResolve.h',
            Root / SceneHost,

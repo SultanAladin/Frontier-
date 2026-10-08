@@ -383,7 +383,29 @@ Two findings from building it rather than planning it:
    is deliberately left in the scene rather than guessed in code
 8. Outliner row and inline inspector — fluids exist in a level
 9. Fluid Editor page — fluids become editable
-10. Emitter component, then the fracture and tyre hooks — fluids become part of the game
+10. ~~**Emitter component, then the fracture and tyre hooks**~~ — landed.
+    `Engine/VolumetricDynamics/GasEmitterComponent.h` is the component and the router;
+    `GasGameplayEmission.h` is the two hooks, and neither the tyre solver nor the fracture runtime includes
+    either of them. Proof `Exhibits/Workbench/GasFluid/NativeGasEmitters.cpp` at **PASS 60**, built and run
+    twice like the rest of the directory. 🚩 The fracture hook has nothing to call it yet — fracture in this
+    tree is the editor UI only — so `GasFractureSeparation` is the shape of the call rather than a live caller
+
+### 6.0 · What landed for step 10
+
+| Piece | What it is |
+|---|---|
+| `GasEmitterComponent` | Carrier identity and placement, offset, spread, radius, strength, drag share, and a one-shot request count. A plain aggregate: it is saved, replicated and diffed |
+| `ResolveHostExtent` | The **nearest enclosing** authored domain, ties to the lower index. Nested domains are legal, and "nearest" is what makes a room inside a street win |
+| `ConstructImplicitExtent` | Six radii across, source a fifth of the way up, clamped to 1–24 m. An emitter nobody authored a domain for still runs rather than silently doing nothing |
+| `ResolveEmitters` | One deterministic sweep; consumes exactly one request per one-shot per call, so nine pieces in a frame are nine puffs |
+| `ConstructFractureEmitter` | Radius from the **cube root** of the piece volume — eight bricks is twice the puff — strength from the parting speed, capped at Mid and carded past 12 m |
+| `ConstructTyreEmitter` | Strength rises from zero at κ = 0.18 rather than switching on, scaled by load; a **disc** source that spends a fifth of its rise and inherits 35 % of the patch's travel, so the cloud is laid down the road |
+| `CubeRootOf` | Exponent-seeded, four fixed Newton steps. `std::cbrt` is not promised bit-for-bit across platforms and this number scales a radius multiplayer compares |
+
+The hooks are pure: they read the event and return a component. They do not ignite a residency, claim a rung
+or touch a budget — the governor does all three after it has seen the whole level, which is what stops a wall
+collapsing off-screen from evicting the fire the player is standing in front of. That is asserted, not hoped:
+forty-one claims, forty of them dust, and the camp fire keeps Hero without ever being demoted.
 
 ### 6.1 · What running a scene found that reading one did not
 
