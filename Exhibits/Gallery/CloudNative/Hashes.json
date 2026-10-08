@@ -1,8 +1,9 @@
 {
-  "Engine/Editor/CloudInstrumentSurface.h": "a66d2446a3ab1c87b5d3c391e6bf1f3176024ddf6f20057d98034bc8af9cacb5",
-  "Exhibits/Workbench/Clouds/NativeCloudCards.cpp": "383fed6e7ca14f48b230e0d3e011cc37d852b6563c5d2ac0fa3bc125c34962b4",
+  "Engine/Editor/CloudInstrumentSurface.h": "6277a87b0771716c3f1b0cc5c6828930ab5ca49578d8dff88f99847bbde3c130",
+  "Exhibits/Workbench/Clouds/NativeCloudCards.cpp": "a824cc2310eb2ca107c4931e0b4df564e40a02f842e97941629e19384681bad3",
   "Exhibits/Workbench/Clouds/RunNativeCloudCards.py": "0be0b14630dfd23c575d1223ff2c0fc9bf3e2c8cfe29b34182e478394f1aecdc",
-  "Exhibits/Gallery/CloudNative/Panel.png": "25dfe28ef855e58af18c011f87d4de0401cd88bd214a4dff0efb78423ae83b55",
-  "Exhibits/Gallery/CloudNative/PanelFew.png": "eab45eb35188b7d006975f1873a5f501963215e499fedf04191934b74cc8b68b",
-  "Exhibits/Gallery/CloudNative/PanelOvercast.png": "33192b885f9bb56d71d3c03358821751b8159076abd3a70f40c29d1cb469c24b"
+  "Exhibits/Gallery/CloudNative/Panel.png": "373c036f0a77b018caddea70bd6d532a63bc07c7b7d103b89686febe90a0c7c3",
+  "Exhibits/Gallery/CloudNative/PanelFew.png": "f4c33940d52fef053d9395f9b93bddb86217ca18a0147eb218aa8ed7a38c7413",
+  "Exhibits/Gallery/CloudNative/PanelMounted.png": "baf4b644e92a58e9ec85a2f6fd525500c2cee9a72fda7230d029cfac8c3f6b45",
+  "Exhibits/Gallery/CloudNative/PanelOvercast.png": "f8a2f4336cc826a54028566711752a21f926634dc5d87ccf6156f865d6bf18e0"
 }

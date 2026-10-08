@@ -1,6 +1,7 @@
 #include "CloudsInspectorPanel.h"
 #include "WindBindingControls.h"
 #include "WindPanelSurface.h"
+#include "CloudInstrumentSurface.h"
 #include "ControlPanel.h"
 #include "SunReferenceDraw.h"
 #include "CloudDensityPreview.h"
@@ -82,6 +83,31 @@ void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
   ImGui::SetCursorScreenPos(U.At(24,End+49+Body+12));
   ImGui::BeginChild("##cloud-wind-binding",{W-48,76},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);RecordWindBindingControls(Sheet);ImGui::EndChild();
   End+=49+Body+104;
+ }
+ // clouds.js opens with the satellite map, the rail and the duo, then the coverage distribution.
+ //    Those four read the same field and bind cleanly to this sheet; the deck and morphology cards
+ //    are left to the native Cloud base / Layer thickness / Cloud body cards above, because their
+ //    domains (a 20-400 m window, a 0-1 optical density, a cloud tint) are not what this engine stores.
+ {
+  namespace CI=CloudInstrument;
+  CI::CloudDraft Layer;
+  Layer.Coverage=Coverage.Figure;
+  // The engine keeps density as a 0-4 multiplier; the instrument reads optical density 0-1.
+  Layer.Density=std::clamp(Find(Sheet,"Density")->Figure/4.f,0.f,1.f);
+  Layer.Altitude=Find(Sheet,"Base")?Find(Sheet,"Base")->Figure:130.f;
+  Layer.Scale=Find(Sheet,"Feature Scale")?Find(Sheet,"Feature Scale")->Figure:1.f;
+  Layer.Linked=Find(Sheet,"Follow Wind")?Find(Sheet,"Follow Wind")->On:true;
+  // Edge detail and drift have no counterpart on this sheet, so they keep the panel's own defaults,
+  //    and 214 degrees is the fallback bearing clouds.js itself uses when no wind node is present.
+  End+=24;
+  CI::PaintMap(U.D,U.Font,U.At(0,End),W,CI::MapTall,Layer,214.f,IM_COL32(34,34,34,255));
+  End+=CI::MapTall+20;
+  CI::PaintRail(U.D,U.Font,U.At(0,End),W,Layer);
+  End+=WindInstrument::PillTall+10;
+  CI::PaintDuo(U.D,U.Font,U.At(0,End),W,Layer);
+  End+=WindInstrument::StatTall+20;
+  CI::PaintCoverage(U.D,U.Font,U.At(0,End),W,Layer);
+  End+=CI::CoverageHeight();
  }
  ImGui::SetCursorScreenPos(U.At(0,End+24));ImGui::Dummy({W,1});ImGui::PopFont();
 }

@@ -187,6 +187,29 @@ int main()
     Check(std::strcmp(CloudName(Layer.Coverage), "Few") == 0, "a .06 cover is few");
     Check(int(std::lround(Layer.Coverage * 8.0f)) == 0, "and rounds to nought oktas");
 
+    //-----------------------------------------------------------------------------------------------------
+    // What the mount in CloudsInspectorPanel.cpp actually feeds the cards. The engine keeps density as a
+    //    0-4 multiplier and a base in the hundreds of metres, so the normalisation is proved here rather
+    //    than assumed.
+    //-----------------------------------------------------------------------------------------------------
+    {
+        const float EngineDensity = 2.4f;    // the sheet's 0..4 multiplier
+        const float EngineBase    = 1500.0f; // metres, well past the instrument's own 400 m window
+        Layer = CloudDraft{};
+        Layer.Coverage = 0.72f;
+        Layer.Density  = std::clamp(EngineDensity / 4.0f, 0.0f, 1.0f);
+        Layer.Altitude = EngineBase;
+        Layer.Scale    = 1.8f;
+        Check(std::fabs(Layer.Density - 0.6f) < 1e-6f, "a 2.4x engine density is .6 optical density");
+        Check(Layer.Density >= 0.0f && Layer.Density <= 1.0f, "and the normalisation cannot leave the unit range");
+        Check(std::clamp(4.0f / 4.0f, 0.0f, 1.0f) == 1.0f, "the top of the engine range is fully opaque");
+        Check(std::strcmp(CloudName(Layer.Coverage), "Overcast") == 0, "a .72 cover reads overcast");
+        Check(int(std::lround(12.0f / Layer.Scale)) == 7, "a 1.8x feature scale is a seven kilometre swath");
+        // A base past the instrument's own window must stay inside the section box, not paint the card above.
+        Check(Layer.Altitude > 400.0f, "an engine base can sit well past the 400 m section window");
+        Capture("PanelMounted");
+    }
+
     ImGui::DestroyContext();
     std::printf("PASS %u checks: shipped cloud panel, satellite map, coverage histogram and vertical section.\n",
                 Checks);

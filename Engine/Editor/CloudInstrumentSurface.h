@@ -253,6 +253,7 @@ inline void Population(const CloudDraft& Layer, int Bins[20])
 inline void PaintHistogram(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float Tall,
                            const CloudDraft& Layer)
 {
+    Draw->PushClipRect(Spot, { Spot.x + Wide, Spot.y + Tall }, true);
     int Bins[20];
     Population(Layer, Bins);
     int Peak = 1;
@@ -273,6 +274,7 @@ inline void PaintHistogram(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wi
     Kit::Inked(Draw, Face, Spot.x + L, Spot.y + Tall - 3.0f, 8.0f, IM_COL32(255, 255, 255, 77), "CLEAR AIR");
     Kit::Inked(Draw, Face, Spot.x + Wide - R, Spot.y + Tall - 3.0f, 8.0f, IM_COL32(255, 255, 255, 77),
                "CONDENSED", Kit::Anchor::End);
+    Draw->PopClipRect();
 }
 
 inline float CoverageHeight()
@@ -322,6 +324,9 @@ inline void PaintSection(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide
                          const CloudDraft& Layer)
 {
     Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + Tall }, IM_COL32(6, 7, 8, 255));
+    // A canvas clips whatever runs past its box. A base well above the 400 m window would otherwise
+    //    paint its columns over the card above this one.
+    Draw->PushClipRect(Spot, { Spot.x + Wide, Spot.y + Tall }, true);
     float TR, TG, TB, SR, SG, SB;
     Unpack(Layer.Tint, TR, TG, TB);
     Unpack(Layer.Shade, SR, SG, SB);
@@ -369,6 +374,7 @@ inline void PaintSection(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide
         Kit::Inked(Draw, Face, Spot.x + 5.0f, Y - 2.0f, 8.0f, IM_COL32(255, 255, 255, 69), Label);
     }
     Kit::Dashed(Draw, { Spot.x, Base }, { Spot.x + Wide, Base }, IM_COL32(255, 255, 255, 166), 3.0f, 3.0f, 1.0f);
+    Draw->PopClipRect();
 }
 
 inline float DeckHeight()

@@ -424,3 +424,28 @@ swatch, as there is no native colour picker in this surface.
 
 Proof: `python3 Exhibits/Workbench/Clouds/RunNativeCloudCards.py` → **PASS 422**, three captures in
 `Exhibits/Gallery/CloudNative/`.
+
+### Mounted in the clouds inspector
+
+`CloudsInspectorPanel.cpp` now paints the first four blocks after its own cards, in the reference's order:
+satellite map, rail, duo, coverage distribution. The bind:
+
+| Card input | Engine sheet | Mapping |
+|---|---|---|
+| `Coverage` | `Coverage` 0–1 | direct |
+| `Density` (optical 0–1) | `Density` 0–4 × | `clamp(Density / 4, 0, 1)` |
+| `Scale` | `Feature Scale` 0.2–3 × | direct; the card's own domain runs to 4 |
+| `Altitude` | `Base` 100 m–ceiling | direct, display only |
+| `Linked` | `Follow Wind` | direct |
+| `Detail`, `Speed`, `Tint`, `Shade` | — | no counterpart; keep the panel's defaults |
+| wind bearing | — | 214°, which is `clouds.js`'s own fallback when no wind node exists |
+
+**The deck and morphology cards are deliberately not mounted.** Their domains are not what this engine stores:
+the vertical section is a fixed 0–400 m window while the engine's base runs to the ceiling in the thousands,
+and the colour chips have no cloud tint behind them. The native `Cloud base` / `Layer thickness` / `Cloud body`
+cards already cover that ground in the engine's own units. Forcing the bind would peg both tapes and empty the
+section — `PanelMounted.png` shows exactly that happening at a 1500 m base.
+
+That capture also found a real defect: a canvas clips its own overflow and an `ImDrawList` does not, so a base
+past the window painted the section's columns over the card above it. `PaintSection` and `PaintHistogram` now
+push their own clip rectangles.
