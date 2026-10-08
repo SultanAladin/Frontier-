@@ -147,3 +147,65 @@ Every control is gated on `Editable`, so a read-only property stays inert.
 
 Three of the harness's checks prove this rather than asserting it: they feed ImGui synthetic mouse events and
 then read the sheet back, so a control that draws correctly but is wired to nothing fails the proof.
+
+## Fog cards
+
+The fog card family already existed natively in `Engine/Editor/FogInspectorPanel.cpp` — header, `Fog settings`,
+`Visibility through fog`, `Medium`, a model-specific technical card and `Wind binding`. Three visuals inside it
+were missing or had drifted from the reference, and only those three were converted.
+
+| Browser source | Native | State before |
+|---|---|---|
+| `FogPanel.jsx` `FogBeamChamber` | `FogCards::PaintChamber` | Existed, drifted |
+| `HeightFogVisual.jsx` | `FogCards::PaintProfile` | A different graph entirely |
+| `FogShapePanel.jsx` | `FogCards::PaintVolume` | Absent |
+
+Card order, read off `Inspectors.jsx`: `Fog settings` (142) · `Visibility through fog` (435) · a two-column grid
+of `Medium` (416, with the chamber at its foot) and the technical card · `Wind binding`. The technical card is
+`Height and tint` for height fog, `Spectral transmission` for aerial, and — in the shipped bundle — **`Fog volume
+shape`** for local fog. The native panel titled that card `Local bounds`, which is the *cloud* card's title;
+`CheckFogCards.mjs` still expects the old name and is stale against `index.html`, so the bundle won.
+
+### What had drifted in the beam chamber
+
+| Quantity | Reference | Native before |
+|---|---|---|
+| Samples | 70 rects, width 4.2 | 68 lines, width 3.2 |
+| Half height | `3 + f² (11 + Spread·24)` | `3 + f² (11 + Spread·22)` |
+| Exposure | `0.32 + 0.68·T^0.15` | `0.35 + 0.65·T^0.15` |
+| Opacity | `(0.1 + Spread·0.2)·Exposure` | `(0.13 + min(2,Spread)·0.2)·Exposure` |
+| 2 % marker | always drawn, clamped to the span | drawn only when inside the span |
+| Footer | `2% · 208 m` / `10% PHYSICAL AT 120 m` | `2% range inside diagnostic span` |
+
+Extinction is `LiveGraph.jsx`'s `FogDensity` with `AuthoredPreview` set, so a disabled medium still previews its
+authored curve: height folds the density to a 25 m probe, aerial scales by a thousandth, local multiplies density
+by coverage and divides by a hundred.
+
+### The density profile is an editor, not a graph
+
+`HeightFogVisual.jsx` is a 300 x 210 space, `preserveAspectRatio="none"`, plotting density against altitude —
+the axes the old native sketch had swapped. Pressing it authors **both** values at once: falloff from the X
+position (`10 + share·2990`, rounded to the metre) and density from the Y position (`share·0.2`, rounded to four
+decimals), which is why the check asserts both moved from one press.
+
+### Volume shape
+
+`FogShape.js` is reproduced branch for branch so the vertex indices match: Box, Custom and Prism/Cylinder extrude
+a ring; Cone fans 48 base vertices to an apex with a spoke every sixth; Diamond is six points; Sphere and
+Ellipsoid sweep 13 latitudes by 24 longitudes. The preview is the same isometric,
+`[(x−y)/√2, (x+y)/√6 − z·√(2/3)]`, fitted to 270 x 190 and centred at 160, 120. Bounds are the mesh extremes plus
+Centre; Size is the mesh alone.
+
+Two deviations, both forced and both recorded here rather than hidden:
+
+- **Ear clipping for the caps.** A Custom outline extrudes to concave end caps, and `AddConvexPolyFilled`
+  misdraws those silently — the same trap the light response curve hit. The caps are triangulated instead.
+- **The `<select>` cycles.** A native popup list would have to be styled by ImGui, and the CSS says nothing about
+  a dropdown's appearance, so clicking the control advances to the next entry in `FogShapes`.
+
+Text keeps CSS letter-spacing through a per-codepoint `Tracked` helper; ImGui has no tracking of its own and the
+8 px uppercase micro-labels are unreadable without it. Anisotropic glyph scaling is the one thing the stretched
+profile cannot reproduce — positions and glyph height are exact, glyph width is natural.
+
+Acceptance test: `python3 Exhibits/Workbench/Fog/RunNativeFogCards.py`, 56 checks, captures in
+`Exhibits/Gallery/FogNative/`.
