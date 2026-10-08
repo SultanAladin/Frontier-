@@ -265,8 +265,9 @@ to 46 M, it runs off the render thread, and it replaces a 16 MB-per-frame readba
 | `CoarseGasField.h/.cpp` | The 32³ fixed-step CPU field: deterministic, feeds physics, never rendered |
 | `GasWindContribution.h` | The coarse field behind `WindField::Sample`, plus the drag and buoyancy terms |
 
-The browser file stays the single source of truth for tuning; the proof fails when the generated
-file is stale. (Same pattern as `CompileShaders.py` reading the shader table rather than copying it.)
+The browser file stays the single source of truth for tuning; the proof fails when a generated
+file is stale. **Scenes cross as TOML, never JSON** — Frontier already carries toml++ and already configures
+itself from TOML, so a JSON scene would be the only JSON in the build. (Same pattern as `CompileShaders.py` reading the shader table rather than copying it.)
 
 **Proof** — `Exhibits/Workbench/GasFluid/`, a CPU mirror with no window: a closed domain conserves
 smoke; divergence after projection is below a stated bound; every generated preset validates;
@@ -330,8 +331,8 @@ preset, this tick" — so neither fracture nor tyre knows anything about gas.
 
 ### Landed
 
-**Steps 1, 2, 3 and 7 are built and proved** — `Engine/VolumetricDynamics/`, header-only, and `Exhibits/Workbench/GasFluid/`
-at **PASS 198 + 48**, wired into the `proofs` job of `frontier-build.yml`.
+**Steps 1, 2, 3, 4 and 7 are built and proved** — `Engine/VolumetricDynamics/`, header-only, and `Exhibits/Workbench/GasFluid/`
+at **PASS 198 + 48 + 47**, wired into the `proofs` job of `frontier-build.yml`.
 
 | File | What landed |
 |---|---|
@@ -343,6 +344,8 @@ at **PASS 198 + 48**, wired into the `proofs` job of `frontier-build.yml`.
 | `Tools/Build/GenerateGasPresets.py` | The transcription, and the staleness guard in CI |
 | `DisplayPresentation/VolumeRaymarch.h` | The lighting and integration, CPU-authoritative |
 | `Shaders/GasVolumeRaymarch.slang` | Its transcription; entry 2 of 36 in both shader tables |
+| `GasSceneCodec.h` + `GasSceneFields.inl` | The scene crossing, in **TOML** via toml++; the `.inl` is generated |
+| `Experimental/Fluid/Samples/` | The committed parity corpus, written by the authoring tool |
 
 Header-only throughout, so no source list changes: `WindField.h` is in none of them either, and the three
 build routes enumerate `.cpp` files explicitly. The first target to consume these is step 3.
@@ -367,7 +370,10 @@ Two findings from building it rather than planning it:
    and combustion stages join when the displayed volume needs them in step 3
 3. ~~Volume raymarch~~ — landed. `VolumeRaymarch.h` is authoritative and the `.slang` is its
    transcription, so a disagreement is a diff rather than a mystery. Captures in `Exhibits/Gallery/GasField`
-4. Standalone host + scene round-trip against the browser — parity pinned
+4. ~~Scene round-trip against the browser~~ — landed, and stronger than planned: the engine reads the
+   committed corpus and writes it back **byte for byte**, so the two emitters cannot drift. The standalone
+   host behind `FRONTIER_GAS_ONLY` is the remaining half. 🚩 Sample *content* is deferred —
+   `Plans/Deferred/GasSampleSceneRefinement.md`
 5. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm
 6. Collision levels 1 and 2 — primitives, then the global distance field
 7. ~~**Two-way through `WindField::Sample`**~~ — landed early with step 1, because the coarse field made it a

@@ -27,16 +27,18 @@ Include = ['-IEngine/VolumetricDynamics', '-IEngine/DisplayPresentation', '-IEng
 Flags = ['-std=c++20', '-O1', '-Wall', '-Wextra', '-Wno-unused-parameter']
 Source = 'Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp'
 Raymarch = 'Exhibits/Workbench/GasFluid/NativeGasRaymarch.cpp'
+SceneCodec = 'Exhibits/Workbench/GasFluid/NativeGasSceneCodec.cpp'
 
 # The transcription must be current before anything is compiled against it. A stale header would still
 # build and still resolve presets; the only symptom would be a native plume that no longer matches the
 # browser one it was tuned against, which is exactly the failure a generated file exists to prevent.
-Generate = [sys.executable, str(Root / 'Tools/Build/GenerateGasPresets.py'), '--check']
-Staleness = subprocess.run(Generate, cwd=Root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-print(Staleness.stdout, end='')
-assert Staleness.returncode == 0, 'GasPresetLibrary.h is stale against presets.js'
-
-Commands, Transcripts = [Generate], []
+Commands, Transcripts = [], []
+for Generator in ('GenerateGasPresets.py', 'GenerateGasSceneCodec.py'):
+    Generate = [sys.executable, str(Root / 'Tools/Build' / Generator), '--check']
+    Staleness = subprocess.run(Generate, cwd=Root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(Staleness.stdout, end='')
+    assert Staleness.returncode == 0, f'{Generator} reports its output is stale against presets.js'
+    Commands.append(Generate)
 for Attempt in ('First', 'Second'):
     Program = Build / f'GasFieldChecks{Attempt}'
     Command = ['g++', *Flags, *Include, Source, '-o', str(Program)]
@@ -69,9 +71,32 @@ print(Rendered.stdout, end='')
 assert Rendered.returncode == 0, 'gas raymarch checks failed'
 (Gallery / 'RaymarchProof.txt').write_text(Rendered.stdout)
 
+# The scene crossing. toml++ is a proof-profile package, so Tools/Bootstrap.py has already staged it in CI;
+# locally it is fetched the same way. The claim is byte equality against the committed corpus, which the
+# browser tool wrote, so the two emitters cannot drift apart unnoticed.
+if not (Root / 'ExternalPackages/tomlpp/include/toml++/toml.hpp').exists():
+    subprocess.run([sys.executable, str(Root / 'Tools/Bootstrap.py'), '--package', 'tomlpp', '--repair'],
+                   cwd=Root, check=True)
+
+Crossing = Build / 'GasSceneCodec'
+Command = ['g++', '-std=c++20', '-O1', '-Wall', '-Wextra', *Include,
+           '-IExternalPackages/tomlpp/include', SceneCodec, '-o', str(Crossing)]
+subprocess.run(Command, cwd=Root, check=True)
+Commands.append(Command)
+
+Crossed = subprocess.run([str(Crossing)], cwd=Root, text=True,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+print(Crossed.stdout, end='')
+assert Crossed.returncode == 0, 'gas scene codec checks failed'
+(Gallery / 'SceneCodecProof.txt').write_text(Crossed.stdout)
+
 (Gallery / 'Proof.txt').write_text(Transcripts[0] + 'Two independent builds produced identical transcripts.\n')
 
-Tracked = [Root / 'Engine/DisplayPresentation/VolumeRaymarch.h',
+Tracked = [Root / 'Engine/VolumetricDynamics/GasSceneCodec.h',
+           Root / 'Engine/VolumetricDynamics/GasSceneFields.inl',
+           Root / 'Experimental/Fluid/src/SceneTomlCodec.js',
+           Root / SceneCodec,
+           Root / 'Engine/DisplayPresentation/VolumeRaymarch.h',
            Root / 'Engine/Shaders/GasVolumeRaymarch.slang',
            Root / Raymarch,
            Root / 'Experimental/Fluid/src/presets.js',

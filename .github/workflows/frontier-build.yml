@@ -60,6 +60,12 @@ jobs:
       - name: Gas presets — the transcription against presets.js
         run: python3 Tools/Build/RunAnnounced.py "gas presets" -- python3 Tools/Build/GenerateGasPresets.py --check
 
+      - name: Gas scene codec — the generated crossing against presets.js
+        run: python3 Tools/Build/RunAnnounced.py "gas codec" -- python3 Tools/Build/GenerateGasSceneCodec.py --check
+
+      - name: Gas samples — the committed corpus against the authoring tool
+        run: python3 Tools/Build/RunAnnounced.py "gas samples" -- node Experimental/Fluid/ExportSamples.mjs --check
+
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 
