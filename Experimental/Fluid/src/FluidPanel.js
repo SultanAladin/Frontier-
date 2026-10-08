@@ -16,6 +16,8 @@ import {
   ConstructPresetParameters,
   ComputeColliderPosition,
 } from "./SceneSpecification.js";
+import { ConstructSampleScene, SampleSummary } from "./SampleScenes.js";
+import { WriteSceneToml, SceneExtension } from "./SceneTomlCodec.js";
 
 const Select = (Selector) => document.querySelector(Selector);
 const SelectAll = (Selector) => [...document.querySelectorAll(Selector)];
@@ -942,6 +944,62 @@ class FluidPanel {
     this.Notify("Scene settings saved. Live voxel fields are not cached.");
   }
 
+  // The parity corpus. Loading one goes through exactly the path an opened file goes through, including
+  // ValidateScene, so a sample that would not survive a save and reload cannot be loaded here either.
+  LoadSample(Identity) {
+    if (!Identity) return;
+    try {
+      const Scene = ValidateScene(ConstructSampleScene(Identity));
+      this.ApplySceneParameters(Scene.Parameters);
+      this.Names = Scene.Names;
+      Select("#document-name").value = Scene.Name;
+      if (Scene.Camera) {
+        this.Camera.targetTheta = Scene.Camera.theta;
+        this.Camera.targetPhi = Scene.Camera.phi;
+        this.Camera.targetDistance = Scene.Camera.distance;
+        this.Camera.targetCenter = Scene.Camera.center;
+      }
+      this.Preset = "";
+      this.Selection = "domain";
+      this.Dirty = false;
+      this.ConstructPresetCards();
+      this.ConstructSceneRows();
+      this.ConstructInspector();
+      this.RefreshControls();
+      this.Notify(`Loaded sample: ${Scene.Name}`);
+    } catch (Failure) {
+      this.Notify(`Could not load that sample: ${Failure.message}`);
+    }
+  }
+
+  // 🔴 The engine reads TOML, not JSON. This writes the exact text Engine/VolumetricDynamics parses with
+  //    toml++, from the same scene object the JSON path writes, so the two cannot describe different scenes.
+  SaveSceneToml() {
+    const Name = Select("#document-name").value.trim() || "Untitled scene";
+    const Scene = {
+      format: "frontier-fluid-scene",
+      version: 1,
+      name: Name,
+      params: { ...this.Parameters },
+      names: { ...this.Names },
+      camera: {
+        theta: this.Camera.targetTheta,
+        phi: this.Camera.targetPhi,
+        distance: this.Camera.targetDistance,
+        center: [...this.Camera.targetCenter],
+      },
+    };
+    const Url = URL.createObjectURL(
+      new Blob([WriteSceneToml(Scene)], { type: "text/plain" }),
+    );
+    const Link = document.createElement("a");
+    Link.href = Url;
+    Link.download = `${Name.replace(/[^a-z0-9 _-]/gi, "").trim() || "scene"}${SceneExtension}`;
+    Link.click();
+    setTimeout(() => URL.revokeObjectURL(Url), 1000);
+    this.Notify(`Saved ${SceneExtension} — this is the file the engine reads.`);
+  }
+
   async OpenScene(File) {
     if (!File) return;
     const DocumentIdentity = this.Documents.ActiveIdentity;
@@ -1223,6 +1281,19 @@ class FluidPanel {
       this.InitializeRenderer("webgl2"),
     );
     Select("#export-button").addEventListener("click", () => this.SaveScene());
+    Select("#sample-toml-button").addEventListener("click", () => this.SaveSceneToml());
+    const Picker = Select("#sample-picker");
+    for (const Entry of SampleSummary()) {
+      const Choice = document.createElement("option");
+      Choice.value = Entry.identity;
+      Choice.textContent = Entry.name;
+      Choice.title = Entry.covers;
+      Picker.append(Choice);
+    }
+    Picker.addEventListener("change", (Event) => {
+      this.LoadSample(Event.target.value);
+      Event.target.value = "";
+    });
     Select("#import-button").addEventListener("click", () =>
       Select("#import-file").click(),
     );

@@ -1732,3 +1732,28 @@ dialog a {
     font-size: 10px;
   }
 }
+
+
+/* Sample scenes — the parity corpus the engine also loads. */
+.sample-note {
+  margin-left: 14px;
+}
+.sample-picker {
+  appearance: none;
+  background: #16181c;
+  border: 1px solid #2a2e35;
+  border-radius: 5px;
+  color: #c8ccd4;
+  font: inherit;
+  font-size: 12px;
+  margin: 0 8px;
+  max-width: 240px;
+  padding: 4px 8px;
+}
+.sample-picker:hover {
+  border-color: #3b414b;
+}
+.sample-picker:focus-visible {
+  border-color: #89a591;
+  outline: none;
+}

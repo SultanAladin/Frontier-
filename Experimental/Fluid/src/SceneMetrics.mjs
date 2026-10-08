@@ -1,3 +1,5 @@
+import { ConstructSampleScene, SampleIdentities, SampleCount } from "./SampleScenes.js";
+import { WriteSceneToml, ReadSceneToml, CountedSettings } from "./SceneTomlCodec.js";
 import { test as Verify } from "node:test";
 import Assert from "node:assert/strict";
 import { readFileSync as ReadText } from "node:fs";
@@ -321,4 +323,88 @@ Verify("Sand and dust fall, fire rises", () => {
     );
     Assert.ok(Parameters.emitterFuel > 0, `${Key} has nothing to burn`);
   }
+});
+
+// ── The parity corpus ──────────────────────────────────────────────────────────────────────────────
+// These eight scenes are what the native port loads and is compared against, so they are checked harder
+// than a demonstration would be: every one must survive ValidateScene, every one must survive a TOML
+// round-trip unchanged, and the set must still cover the cases it claims to cover.
+
+Verify("Every sample scene is a scene the application would accept", () => {
+  Assert.equal(SampleCount, 8, "the corpus changed size without the checks being revisited");
+  for (const Identity of SampleIdentities()) {
+    const Scene = ConstructSampleScene(Identity);
+    const Validated = ValidateScene(Scene);
+    Assert.ok(Validated.Name.length > 0, `${Identity} has no name`);
+    Assert.equal(
+      Object.keys(Scene.params).length,
+      Object.keys(DEFAULT_PARAMS).length,
+      `${Identity} does not carry every setting`,
+    );
+    for (const Key of ["domain", "emitter", "collider", "sun"])
+      Assert.ok(Validated.Names[Key], `${Identity} leaves ${Key} unnamed in the outliner`);
+    Assert.ok(Validated.Camera, `${Identity} has no camera, so it frames nothing`);
+  }
+});
+
+Verify("Every sample survives the TOML the engine reads", () => {
+  for (const Identity of SampleIdentities()) {
+    const Scene = ConstructSampleScene(Identity);
+    const Written = WriteSceneToml(Scene);
+    const Recovered = ReadSceneToml(Written);
+
+    Assert.equal(Recovered.name, Scene.name, `${Identity} lost its name`);
+    for (const [Key, Reading] of Object.entries(Scene.params))
+      Assert.equal(Recovered.params[Key], Reading, `${Identity} changed ${Key} crossing TOML`);
+    for (const [Key, Reading] of Object.entries(Scene.names))
+      Assert.equal(Recovered.names[Key], Reading, `${Identity} changed the name of ${Key}`);
+    Assert.deepEqual(Recovered.camera.center, Scene.camera.center, `${Identity} moved its camera`);
+
+    // Writing twice must produce the same bytes, or the corpus churns in version control.
+    Assert.equal(Written, WriteSceneToml(Scene), `${Identity} does not write deterministically`);
+    // And re-writing what was read must reproduce it, which is the actual round-trip claim.
+    Assert.equal(Written, WriteSceneToml({ ...Recovered, format: Scene.format, version: 1 }),
+      `${Identity} is not stable across a read and a second write`);
+  }
+});
+
+Verify("Counted settings cross TOML as integers and the rest as floats", () => {
+  // A float where the engine declares an integer makes toml++ hand back the wrong type and the native read
+  // refuses the file. The failure is correct and entirely avoidable, so it is caught here instead.
+  const Written = WriteSceneToml(ConstructSampleScene("hero_detonation"));
+  for (const Line of Written.split("\n")) {
+    const Pair = Line.match(/^([a-zA-Z][A-Za-z0-9_]*) = (-?[\d.]+)$/);
+    if (!Pair) continue;
+    const [, Key, Spelt] = Pair;
+    if (!Object.hasOwn(DEFAULT_PARAMS, Key)) continue;
+    if (CountedSettings.has(Key))
+      Assert.ok(!Spelt.includes("."), `${Key} is a count and must not be written as a float`);
+    else Assert.ok(Spelt.includes("."), `${Key} is continuous and must be written as a float`);
+  }
+});
+
+Verify("The corpus covers what it claims to", () => {
+  const Scenes = Object.fromEntries(
+    SampleIdentities().map((Identity) => [Identity, ConstructSampleScene(Identity).params]),
+  );
+  // The tyre ring, which exists in exactly one sample and must agree with GasColliderShape::TyreRing.
+  Assert.equal(Scenes.tyre_burnout_ring.obstacleType, 5, "the burnout sample lost its tyre ring");
+  // A cold sample with no fire anywhere, or the raymarch's scattering path is never exercised.
+  Assert.equal(Scenes.cold_dust_fall.emitterFuel, 0, "the cold sample lit itself");
+  Assert.equal(Scenes.cold_dust_fall.blastFuel, 0, "the cold sample lit itself");
+  // An obstruction that changes the silhouette.
+  Assert.notEqual(Scenes.deflector_obstacle.obstacleType, 0, "the deflection sample has nothing to deflect");
+  // The two ends of the cost range, which is what the budget governor is assigned against.
+  Assert.ok(
+    Scenes.hero_detonation.gridResolution >= 128,
+    "the hero sample is no longer the expensive one",
+  );
+  Assert.ok(
+    Scenes.far_cheap_plume.gridResolution <= 32,
+    "the distant sample is no longer the cheap one",
+  );
+  Assert.ok(
+    Scenes.open_bounds_megaton.boundsWidth > Scenes.camp_fire_steady.boundsWidth * 1.5,
+    "the megaton sample no longer stresses the optical normalisation",
+  );
 });

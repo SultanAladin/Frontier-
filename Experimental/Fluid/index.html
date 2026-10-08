@@ -70,7 +70,12 @@
           id="import-file"
           accept=".json,.fluid,application/json"
           hidden
-        />
+        /><span class="document-note sample-note">Samples</span
+        ><select id="sample-picker" class="sample-picker" aria-label="Load a sample scene">
+          <option value="">Load a sample scene…</option></select
+        ><button id="sample-toml-button" class="text-button">
+          Save as TOML<span data-icon="download"></span>
+        </button>
       </div>
       <main class="workspace" id="fluid-workspace">
         <aside class="left-panel">
