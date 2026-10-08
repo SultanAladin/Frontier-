@@ -69,6 +69,12 @@ jobs:
       - name: Gas inspector — the card's cost readout against GasQualityAllowance.h
         run: python3 Tools/Build/RunAnnounced.py "gas inspector" -- node Experimental/ProjectZeroEditor/CheckGasInspector.mjs
 
+      - name: Gas inspector parity — the native card against the HTML it was ported from
+        run: python3 Tools/Build/RunAnnounced.py "gas inspector parity" -- python3 Tools/Build/GasInspectorParity.py
+
+      - name: Gas inspector — the ported card drawn from real ImGui commands, and the one-shot lifecycle
+        run: python3 Tools/Build/RunAnnounced.py "gas card" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasCard.py
+
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 

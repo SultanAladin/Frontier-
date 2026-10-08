@@ -56,9 +56,9 @@ export const GasRunPolicies = [
   {
     Id: "triggered",
     Name: "On trigger",
-    Short: "fires, runs, stops",
+    Short: "fires, runs, retires",
     Description:
-      "Dormant until triggered, then simulates for its lifetime and returns to dormant. The lifetime is what stops a one-shot becoming a permanent domain.",
+      "Dormant until triggered, then simulates for its lifetime and retires. Most gas is this: a one-shot that runs once, is destroyed, and gives its fields back.",
   },
   {
     Id: "proximity",
@@ -75,6 +75,40 @@ export const GasRunPolicies = [
       "A camp fire, a chimney, a vent. Runs whenever the level is loaded, at whatever tier the budget grants.",
   },
 ];
+
+// ─── Retirement ────────────────────────────────────────────────────────────────────────────────────────────
+
+// 🔴 MOST GAS IS A ONE-SHOT, AND A ONE-SHOT THAT STAYS RESIDENT IS A LEAK WITH A SCHEDULE.
+//    A detonation, a dust hit, a pipe burst: fires once, runs for a few seconds, and is finished. Finished
+//    has to mean destroyed — the row may stay in the scene, but the solver's fields are handed back the
+//    moment the last visible wisp has gone, or forty one-shots in a corridor spend the whole level holding
+//    forty times 1.4 MB of velocity and smoke that nothing is reading.
+//
+//    Three phases, and the middle one exists because the alternative looks broken:
+//
+//      Running    the solver advances; the domain holds its fields.
+//      Fading     emission has stopped, the solver still advances, the plume dissipates on its own.
+//                 Cutting at the lifetime instead would make smoke vanish mid-air.
+//      Released   nothing advances and the fields are gone. The row remains, dormant and re-firable; what
+//                 was released is the storage, not the entity.
+//
+//    The fade is charged to the budget like any other running domain, because it is one.
+export const GasFadeSeconds = 1.6;
+
+export function GasRetires(Resolved) {
+  return Resolved.Policy.Id === "triggered" && Resolved.Retire !== false;
+}
+
+// What a one-shot occupies over its whole life, and for how long — the number that decides whether twelve
+//    domains is the ceiling or whether the corridor can have forty.
+export function GasResidency(Resolved) {
+  const Running = Number(Resolved.Lifetime || 0) + GasFadeSeconds;
+  return {
+    Seconds: GasRetires(Resolved) ? Running : Infinity,
+    Held: Resolved.Bytes,
+    Released: GasRetires(Resolved) ? Resolved.Bytes : 0,
+  };
+}
 
 // ─── The quality ladder, from GasQualityAllowance.h ────────────────────────────────────────────────────────
 
@@ -214,6 +248,9 @@ export function NewGasDomain(Preset = "camp_fire") {
     QualityPin: "auto",
     Distance: 12,
     Lifetime: 4,
+    // 🔴 A one-shot gives its fields back by default. Holding them is the choice that has to be made
+    //    deliberately, because it is the choice that costs something all level.
+    Retire: true,
     Obstructs: true,
     // 🔴 Two-way coupling off on a new domain, as GasWindContribution.h has it. A default-on coupling is a
     //    vehicle being shoved by its own exhaust.
@@ -288,7 +325,9 @@ export function GasSummary(Resolved) {
     return "Beyond the live ladder · drawn as a flipbook card, no solver";
   if (Resolved.Policy.Id === "dormant") return "In the scene, not simulating · waits to be fired";
   if (Resolved.Policy.Id === "triggered")
-    return `Fires on trigger · runs ${Number(Resolved.Lifetime || 0).toFixed(1)} s, then sleeps`;
+    return GasRetires(Resolved)
+      ? `Fires once · ${Number(Resolved.Lifetime || 0).toFixed(1)} s + ${GasFadeSeconds} s fade, then destroyed`
+      : `Fires on trigger · runs ${Number(Resolved.Lifetime || 0).toFixed(1)} s, then sleeps holding its fields`;
   if (Resolved.Policy.Id === "proximity")
     return `Simulates inside 150 m · ${Resolved.Tier.Name} at ${Math.round(Resolved.Distance)} m`;
   return `Always on · ${Resolved.Tier.Name} tier at ${Resolved.Hertz} Hz`;

@@ -37,6 +37,9 @@ import {
   GasEmitterRowSummary,
   GasEmitterSheet,
   GasEmitterTransformRows,
+  GasFadeSeconds,
+  GasResidency,
+  GasRetires,
   GasPresetChoices,
   GasPresetOptions,
   GasRowSummary,
@@ -296,6 +299,20 @@ export function GasInspector({
             Value={Values.Lifetime ?? 4}
             Change={(Next) => Change("Lifetime", Next)}
           />
+        )}
+        {Resolved.Policy.Id === "triggered" && (
+          <>
+            <Control
+              Field={{ Label: "Retire When Finished", Control: "Switch", Default: true }}
+              Value={Values.Retire !== false}
+              Change={(Next) => Change("Retire", Next)}
+            />
+            <p className="gas-note">
+              {GasRetires(Resolved)
+                ? `Runs ${Number(Values.Lifetime ?? 4).toFixed(1)} s, dissipates for ${GasFadeSeconds} s more, then the domain is destroyed and ${SpellBytes(GasResidency(Resolved).Released)} of velocity and smoke goes back to the budget. The row stays, dormant and re-firable.`
+                : "Kept resident after it finishes. Re-fires without a rebuild, and holds its fields for the rest of the level — worth it for something that fires repeatedly, a leak with a schedule for anything else."}
+            </p>
+          </>
         )}
         {Resolved.Policy.Id !== "always" && (
           <button
