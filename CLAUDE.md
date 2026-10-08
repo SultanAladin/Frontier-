@@ -134,6 +134,49 @@ self-checks so a regression fails loudly.
 
 ---
 
+## 🔴 The browser editor UI — there is exactly one reference
+
+When porting editor UI to native C++, the reference is **`Experimental/ProjectZeroEditor/index.html`** — the
+4.87 MB self-contained built bundle. Open that file, look at the panel, port what you see. Nothing else is the
+reference. This has been got wrong three times; do not guess a fourth.
+
+The bundle is built by `Build.mjs` from the sources beside it. Port from those sources, verify against the
+bundle. The light panel is **`LightPanel.js`** + **`LightPanel.css`** + `LightProjection.js`, and its transform
+block comes from `EmitterPanel.jsx` → `TransformPanel.jsx`.
+
+**Traps that have already cost rework:**
+
+- `Experimental/ProjectZeroEditor/InspectorDepot/` is a *second, unused* panel kit sitting in the same folder
+  (`panels/lights.js`, `advancedLights.js`, `fog.js`, classes `li-hero`, `al-hero`, `mp-hero`). The shipped light
+  panel does **not** use it — it only borrows `kit.js`'s `el()` helper and the `mp-rail` / `mp-pill` classes.
+  Porting `InspectorDepot/panels/lights.js` is porting the wrong half.
+- `Experimental/FrontierEditor/` is an **older** editor. Its `index.html` is a 438-byte Vite stub that cannot be
+  opened without a dev server, and it has no light family at all.
+- `Experimental/FractureEditor/` matches on "light" only because it carries Three.js `PointLight` / `SpotLight`
+  scene objects. It has no light inspector.
+
+**What a light inspector is made of** (`LightPanel.js`, six types: `pointlight`, `spotlight`, `ieslight`,
+`arealight`, `ledlight`, `ledstrip`):
+
+| Card | Class | Title |
+| --- | --- | --- |
+| Preview | `pcard lp-card lp-preview` | Radial falloff / Beam envelope / Photometric distribution / Luminous surface / Linear radiance / LED emitter / Ribbon light |
+| Readings rail | `mp-rail lp-readings` | type-specific `mp-pill` metrics |
+| Output | `pcard lp-card lp-output` | Source & colour / Driver & colour / Output per metre — caption `OUTPUT` |
+| Response | `lp-response`, appended **inside** Output | Distance response / Beam section / Angular response / Aperture balance / Electrical budget / Conversion budget / Linear output — caption `ANALYTICAL` |
+| Shape | `pcard lp-card lp-shape` | Attenuation / Beam shaping / Distribution profile / Package & optic / Layout & segments |
+| Transform | `lp-card lp-transform` | `MountLightTransform` → `TransformPanel.jsx` |
+| Scene participation | `pcard lp-card lp-participation` | caption `FLAGS` |
+
+The card note is `lp-note`. The source glyph — including the LED Strip icon — is `lp-source-icon`, fed from
+`LightSpecification.js`'s `LightIcons`. The transform rows are fixed and include rotation and scale:
+`["Position","m",…,0.01]`, `["Rotation","deg",…,0.1]`, `["Scale","×",[1,1,1],…,0.01]`, headed `Transform` with a
+`WORLD SPACE` kicker.
+
+Validation scripts already exist beside the sources — `CheckLightDesign.mjs`, `CheckLighting.mjs`,
+`CheckFogCards.mjs`, `CheckSharedCards.mjs`, `CheckInspectorLayout.mjs`. Use them as the acceptance test rather
+than inventing one. Keep the port register in [`Docs/InspectorDepotConversion.md`](Docs/InspectorDepotConversion.md).
+
 ## Design references
 
 - **Entity + Editor System** — [`Docs/EntityEditorSystem.md`](Docs/EntityEditorSystem.md)
