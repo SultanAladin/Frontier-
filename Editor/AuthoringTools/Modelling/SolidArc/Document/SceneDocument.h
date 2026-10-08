@@ -9,11 +9,15 @@
 #include "Document/FigureRecipe.h"
 #include <string>
 #include <vector>
+#include <map>
 
 namespace Frontier
 {
 
 enum class FigureClassification : uint8_t { Curve, Surface, Body, Empty };
+
+// 📝 Authored guide semantics, not a smoothness certificate or an automatic surface constraint.
+enum class FeaturePurpose : uint8_t { None, Design, CircularGuide, Repair };
 
 // A closed area of the sketch: one cell of the planar arrangement of all coplanar (workplane) curves. Derived — rebuilt after
 //    every change to the curves — so it is never edited directly; only its Filled choice is user-owned and survives rebuilds by
@@ -38,13 +42,23 @@ struct SceneFigure
     uint32_t     Identity = 0;                                                          // [-] stable, 1-based, doubles as pick identity
     FigureClassification     Classification = FigureClassification::Curve;                                                // [-]
     std::string  Name;                                                                  // [-] user-facing, unique
+    FeaturePurpose Feature = FeaturePurpose::None;                                     // [-] persistent curve purpose
     NurbsCurve   Curve;                                                                 // valid when Classification == Curve
     NurbsSurface Surface;                                                               // valid when Classification == Surface
     BrepBody     Body;                                                                  // valid when Classification == Body
     bool         Construction = false;                                                  // [-] drawn dashed, never rendered as solid
     bool         Hidden = false;                                                        // [-]
+    bool         Locked = false;                                                        // [-] the inspector's Locked cell: the Transform card refuses a locked figure
     bool         Selected = false;                                                      // [-]
     uint8_t      Matcap = 0;                                                            // [-] studio layer (Plasticity: one per whole)
+    // Per-face material override (Frontier extension): face index → studio layer. Faces absent from the map fall back to
+    //    the whole-figure Matcap. Lets a single solid carry paint on its shell and glass on one face, etc.
+    std::map<int, uint8_t> FaceMatcap;
+    [[nodiscard]] uint8_t MatcapForFace(int Face) const noexcept
+    {
+        auto It = FaceMatcap.find(Face);
+        return It != FaceMatcap.end() ? It->second : Matcap;
+    }
     float        Tint[3] = { 0.62f, 0.66f, 0.72f };                                     // [-] body colour
     std::vector<int> SelectedPoles;                                                     // [-] control-point selection (mode 1), pole indices
     std::vector<int> SelectedFaces;                                                     // [-] face selection (mode 3), body face indices

@@ -138,17 +138,39 @@ struct CameraRecord
     float       OrthographicHalfHeight = 1.0f;      // [m]
 };
 
-enum class PunctualLuminaireCategory : uint32_t { Directional = 0, Point = 1, Spot = 2 };
+enum class PunctualLuminaireCategory : uint32_t { Directional = 0, Point = 1, Spot = 2, Rectangle = 3, Tube = 4, Strip = 5 };
+enum class LuminaireDistribution : uint32_t { Uniform = 0, IesProfile = 1, AutomotiveLowBeam = 2 };
 
-struct PunctualLuminaireRecord                      // 🚧 stored only in R4a; the kernel does not light from these yet
+// Persistent authoring component used by imported and editor-created lights. Point, Spot and Directional are
+// renderer-ready types; extended emitters remain explicit authoring components until their sampling kernels land.
+struct PunctualLuminaireRecord
 {
     std::string               Name;
     PunctualLuminaireCategory Category = PunctualLuminaireCategory::Point;
+    LuminaireDistribution     Distribution = LuminaireDistribution::Uniform;
     float                     Colour[3] = { 1.0f, 1.0f, 1.0f };   // [-] linear Rec.709
-    float                     Intensity = 1.0f;     // [cd] point/spot, [lux] directional (KHR_lights_punctual)
+    float                     Intensity = 1.0f;     // [cd] point/spot, [lux] directional
     float                     Range     = 0.0f;     // [m]  0 = infinite
     float                     InnerConeAngle = 0.0f;   // [rad]
     float                     OuterConeAngle = 0.7853982f;
+    float                     Size[2] = { 1.0f, 1.0f }; // [m] rectangle width/height, tube/strip length/width
+    // Strip-specific authoring stays on the same persistent light component. These values mirror the accepted
+    // LED Strip cards rather than deriving an electrical model from generic intensity/size controls.
+    float                     LumensPerMetre = 1000.0f; // [lm/m]
+    float                     WattsPerMetre = 14.4f;    // [W/m]
+    float                     Dimmer = 1.0f;            // [0..1]
+    float                     Temperature = 4000.0f;    // [K]
+    float                     EmittersPerMetre = 60.0f; // [/m]
+    float                     SupplyVoltage = 24.0f;    // [V]
+    // Shadow and response authoring shared by every emitter category, mirroring the accepted
+    // "Shadows & response" card rather than being inferred from intensity.
+    float                     ShadowSoftness = 28.0f;   // [%] penumbra width at the shadow edge
+    float                     DiffuseResponse = 100.0f; // [%] matte surface contribution
+    float                     SpecularResponse = 100.0f;// [%] highlight contribution
+    bool                      Diffuser = true;
+    bool                      DrawEmitter = true;
+    bool                      Enabled = true;
+    bool                      CastShadows = true;
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -164,8 +186,43 @@ public:
     SceneStructure(const SceneStructure&) = delete;
     SceneStructure& operator=(const SceneStructure&) = delete;
 
+    // ── Shared topology ─────────────────────────────────────────────────────────────────────────────────────────
+    // Register a mesh ONCE and place it as many times as the level wants. Only what actually differs between two
+    //    placements — the transform, the material, the flags — is stored per placement; the vertex span, the index
+    //    span and the per-cluster LOD bake are stored once and referenced by every instance of them.
+    //
+    //    What this costs, measured on the material grid: 400 placements of the 68 k-triangle shader ball used to
+    //    mean 400 Morton sorts, 400 copies of 34 623 vertices, and 400 × 531 PatchGeometry::LoadOrBake coarse
+    //    bakes — about 1.1 GB of vertex and index storage for one mesh in 400 positions. Shared, the topology is
+    //    resident once (≈ 3.6 MB) and a placement appends only its InstanceRecords and ClusterRecords.
+    //
+    //    When a placement must NOT share: see ForkTopology. Material already varies per placement at no cost,
+    //    because MaterialIndex lives on InstanceRecord, not on the topology.
+    [[nodiscard]] uint32_t  RegisterTopology(const GeometryStructure& Mesh) noexcept;
+
+    // Place a registered topology. Returns the first InstanceRecord index, as RegisterInstance does.
+    uint32_t                PlaceTopology(uint32_t Topology, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept;
+
+    // Groundwork for destruction: give one placement a PRIVATE copy of the topology it currently shares, so its
+    //    geometry can be cut, split or removed without touching its siblings. The placement's InstanceRecords are
+    //    repointed at the copy; everything else in the scene is untouched. Returns the new topology index.
+    //    📝 Deliberately explicit. Nothing forks implicitly — a caller that mutates shared topology without asking
+    //    for a fork is mutating every placement of it, and that has to be a decision rather than an accident.
+    uint32_t                ForkTopology(uint32_t FirstInstance) noexcept;
+
+    [[nodiscard]] uint32_t  QueryTopologyCount() const noexcept { return static_cast<uint32_t>(Topologies.size()); }
+    // Placements sharing each topology, for diagnostics and for the sharing proof.
+    [[nodiscard]] uint32_t  QueryTopologyPlacements(uint32_t Topology) const noexcept
+                            { return Topology < Topologies.size() ? Topologies[Topology].Placements : 0u; }
+    // InstanceRecords one placement of this topology emits — the ≤ 8 192-triangle split, so a 68 k-triangle mesh
+    //    is 9 of them. A caller walking placements must step by this, not by one.
+    [[nodiscard]] uint32_t  QueryTopologyPartitions(uint32_t Topology) const noexcept
+                            { return Topology < Topologies.size() ? static_cast<uint32_t>(Topologies[Topology].Partitions.size()) : 0u; }
+
     // Append one mesh (object space) under a world transform. The mesh is split into ≤ 8 192-triangle instances and
     //    ≤ 128-triangle clusters; returns the first InstanceRecord index. Indices are into `Mesh`'s vertex span.
+    //    Equivalent to PlaceTopology(RegisterTopology(Mesh), ...): meshes with identical content share topology
+    //    automatically, so existing callers that register the same mesh repeatedly get the sharing for free.
     uint32_t                RegisterInstance(const GeometryStructure& Mesh, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept;
     uint32_t                RegisterMaterial(const MaterialDescriptor& Material) noexcept;
 
@@ -182,9 +239,15 @@ public:
     //    table. `Report` receives the material fold lines.
     void                    Finalise(uint32_t SlabLimit = 1u, std::vector<std::string>* Report = nullptr) noexcept;
 
+    // Commit a fixed-topology deformation snapshot; refresh culling and flattened world triangles together.
+    void                    RefreshGeometry(const std::vector<InstanceRecord>& Rows) noexcept;
+
     void                    Clear() noexcept;
 
     [[nodiscard]] const std::vector<VertexRecord>&      QueryVertices()   const noexcept { return Vertices; }
+    // 🔴 Mutating the vertex span of a SHARED topology changes every placement of it. Call ForkTopology first
+    //    unless that is genuinely what you want. The span a placement owns is [VertexOffset, +VertexCount).
+    [[nodiscard]] std::vector<VertexRecord>&            AccessVertices()        noexcept { return Vertices; }
     [[nodiscard]] const std::vector<uint32_t>&          QueryIndices()    const noexcept { return Indices; }
     [[nodiscard]] const std::vector<InstanceRecord>&    QueryInstances()  const noexcept { return Instances; }
     [[nodiscard]] const std::vector<ClusterRecord>&     QueryClusters()   const noexcept { return Clusters; }
@@ -192,6 +255,8 @@ public:
     [[nodiscard]] MaterialIndex&                        AccessMaterials()       noexcept { return Materials; }   // M7b: the materials page commits drafts through here
     [[nodiscard]] MaterialIndex&                        ModifyMaterials()       noexcept { return Materials; }
     [[nodiscard]] const std::vector<PlacementRecord>&   QueryPlacements() const noexcept { return Placements; }
+    [[nodiscard]] std::vector<PlacementRecord>&         AccessPlacements() noexcept { return Placements; }
+    [[nodiscard]] std::vector<PunctualLuminaireRecord>& AccessPunctualLuminaires() noexcept { return PunctualLuminaires; }
     [[nodiscard]] const std::vector<CameraRecord>&      QueryCameras()    const noexcept { return Cameras; }
     [[nodiscard]] const std::vector<PunctualLuminaireRecord>& QueryPunctualLuminaires() const noexcept { return PunctualLuminaires; }
     [[nodiscard]] const std::vector<LuminaireRecord>&   QueryLuminaires() const noexcept { return Luminaires; }
@@ -210,6 +275,39 @@ public:
 
 private:
     static ClusterRecord    ConstructCluster(const VertexRecord* MeshVertices, const uint32_t* MeshIndices, uint32_t TriangleCount, bool DoubleSided) noexcept;
+
+    // One registered topology: the spans in Vertices / Indices that every placement of it shares, plus the cluster
+    //    rows a placement copies and re-stamps. Built by RegisterTopology; never mutated afterwards.
+    struct TopologyRecord
+    {
+        uint64_t              ContentKey    = 0u;   // [-]   hash of the mesh's indices + positions; the sharing key
+        uint32_t              VertexOffset  = 0u;   // [idx] first VertexRecord — the value every instance carries
+        uint32_t              VertexCount   = 0u;   // [cnt]
+        uint32_t              TriangleCount = 0u;   // [cnt] fine triangles across the whole mesh
+        uint32_t              Placements    = 0u;   // [cnt] instances currently sharing this topology
+        // One entry per InstanceRecord a placement needs (the ≤ 8 192-triangle split), in order.
+        struct Partition
+        {
+            uint32_t FirstIndex    = 0u;            // [idx] into Indices — shared, identical for every placement
+            uint32_t TriangleCount = 0u;            // [cnt]
+            uint32_t FirstCluster  = 0u;            // [idx] into ClusterTemplates
+            uint32_t ClusterCount  = 0u;            // [cnt]
+        };
+        std::vector<Partition> Partitions;
+    };
+
+    // Cluster rows as built, with InstanceIndex left unset. A placement copies its partition's rows into Clusters
+    //    and stamps the owning instance. 64 B per cluster per placement is the one duplication that remains: the
+    //    row's only per-placement field is InstanceIndex, and removing it would change the device ABI the cull
+    //    shader reads. For the 400-ball grid that is 13.6 MB, against 1.1 GB for duplicating the topology itself.
+    std::vector<ClusterRecord>     ClusterTemplates;
+    std::vector<TopologyRecord>    Topologies;
+    // Which topology each InstanceRecord was placed from, parallel to Instances. It lives here and not on
+    //    InstanceRecord because that struct is a 160-byte std430 mirror of GpuInstance with no spare word, and
+    //    the device has no use for the back-reference — only ForkTopology does.
+    std::vector<uint32_t>          InstanceTopology;
+
+    [[nodiscard]] static uint64_t  TopologyKey(const GeometryStructure& Mesh) noexcept;
 
     std::vector<VertexRecord>      Vertices;
     std::vector<uint32_t>          Indices;

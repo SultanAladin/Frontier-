@@ -60,7 +60,19 @@ enum class DebugViewCategory : uint32_t
     Count        = 16
 };
 
-[[nodiscard]] const char* DebugViewName(DebugViewCategory View) noexcept;
+// 📝 Labels belong to the telemetry protocol, not Vulkan device construction. This
+// keeps headless diagnostics from linking the entire device translation unit.
+[[nodiscard]] inline const char* DebugViewName(DebugViewCategory View) noexcept
+{
+    static constexpr const char* Names[] = {
+        "Off", "Depth", "Visibility ID", "Motion Vectors", "Cluster ID", "HiZ (level 3)",
+        "Albedo", "Normal", "Roughness", "Metalness", "Shading Normal", "Reservoir M",
+        "Reservoir W", "Reservoir Age", "Patch Tiles", "Tiles + Wireframe"
+    };
+    static_assert(sizeof(Names) / sizeof(Names[0]) == static_cast<uint32_t>(DebugViewCategory::Count));
+    const auto Index = static_cast<uint32_t>(View);
+    return Index < static_cast<uint32_t>(DebugViewCategory::Count) ? Names[Index] : Names[0];
+}
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                  FRAME CONFIGURATION
@@ -212,7 +224,9 @@ public:
     //    reallocated when the side actually changes. Returns false if the stage could not be recorded (no shadow
     //    pipelines, no scene, or no live taps), in which case the caller must fall back rather than present a
     //    never-written image.
-    [[nodiscard]] bool  RecordShadowFrame(void* Command, uint32_t CycleSlot, const ShadowFrameConfiguration& Shadow) noexcept;
+    [[nodiscard]] bool  RecordShadowFrame(void* Command, uint32_t CycleSlot, const ShadowFrameConfiguration& Shadow, bool Resolve = true) noexcept;
+    [[nodiscard]] void* QueryShadowDescriptorLayout() const noexcept;
+    [[nodiscard]] void* QueryShadowDescriptors(uint32_t Slot) const noexcept;
 
     // True once the shadow pipelines exist — Bring() reports but does not fail on a missing shadow SPIR-V, so an
     //    engine built before these shaders were compiled still runs everything else.
@@ -233,6 +247,8 @@ public:
     // Resources the interim kernel binds (VkImageView / VkBuffer as void*; GENERAL layout images).
     [[nodiscard]] void* QuerySurfaceView()     const noexcept;
     [[nodiscard]] void* QueryNormalView()      const noexcept;
+    [[nodiscard]] void* QueryAlbedoView()      const noexcept;
+    [[nodiscard]] void* QueryMaterialAuxView() const noexcept;
     [[nodiscard]] void* QueryMotionView()      const noexcept;   // R6: RG16F motion (CurrentUv − PreviousUv, [0,1]) for temporal back-projection
     [[nodiscard]] void* QueryLuminaireBuffer() const noexcept;
     [[nodiscard]] void* QueryInstanceBuffer()  const noexcept;

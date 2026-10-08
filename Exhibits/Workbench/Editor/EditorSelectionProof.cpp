@@ -64,8 +64,8 @@ uint32_t SpanOfTriangle(const std::vector<Frontier::TriangleSpanRecord>& Spans, 
     return 0xFFFFFFFFu;
 }
 
-void FillVisibilityIds(const Frontier::ProjectZero::RayTracingSolver& Scene,
-                       const Frontier::ProjectZero::FlyThroughSolver& Camera,
+void FillVisibilityIds(const Frontier::HostRuntime::RayTracingSolver& Scene,
+                       const Frontier::HostRuntime::FlyThroughSolver& Camera,
                        std::vector<uint32_t>& Ids)
 {
     const Frontier::Vector3 O  = Camera.QuerySpatialLocation();
@@ -80,10 +80,10 @@ void FillVisibilityIds(const Frontier::ProjectZero::RayTracingSolver& Scene,
         {
             const float Sx = ((static_cast<float>(X) + 0.5f) / static_cast<float>(kViewW) * 2.0f - 1.0f) * TanHalf * Aspect;
             const float Sy = (1.0f - (static_cast<float>(Y) + 0.5f) / static_cast<float>(kViewH) * 2.0f) * TanHalf;
-            Frontier::ProjectZero::RayStructure Ray{
+            Frontier::HostRuntime::RayStructure Ray{
                 O, CpuReSTIR::Norm(CpuReSTIR::Add(F, CpuReSTIR::Add(CpuReSTIR::Mul(Rt, Sx), CpuReSTIR::Mul(Up, Sy)))),
                 1e-4f, 1e9f };
-            const Frontier::ProjectZero::HitIntersection Hit = Scene.EvaluateIntersection(Ray);
+            const Frontier::HostRuntime::HitIntersection Hit = Scene.EvaluateIntersection(Ray);
             uint32_t Packed = kOutlineInvalidVisibility;
             if (Hit.ValidCondition)
             {
@@ -234,7 +234,7 @@ void RasteriseGizmo(const Frontier::GizmoVertex* Triangles, uint32_t TriangleCou
 }
 
 // A ray from the camera through the pixel nearest a world point — how the proof aims taps and drags.
-void RayThroughWorld(const Frontier::ProjectZero::FlyThroughSolver& Camera, const float Point[3],
+void RayThroughWorld(const Frontier::HostRuntime::FlyThroughSolver& Camera, const float Point[3],
                      float Origin[3], float Toward[3])
 {
     const Frontier::Vector3 O = Camera.QuerySpatialLocation();
@@ -287,7 +287,7 @@ void ComposeDemandWorld(const Frontier::GizmoDemand& Demand, const Frontier::Giz
 
 // The picked span's world bounds and centroid — the independent yardstick the applied drags are measured
 //    against (the outcome on the triangles, not the matrix that produced it).
-void MeasureSpan(const Frontier::ProjectZero::RayTracingSolver& Scene, uint32_t Span,
+void MeasureSpan(const Frontier::HostRuntime::RayTracingSolver& Scene, uint32_t Span,
                  float Lo[3], float Hi[3], float Centre[3])
 {
     const auto& Spans = Scene.QuerySpans();
@@ -315,9 +315,9 @@ void MeasureSpan(const Frontier::ProjectZero::RayTracingSolver& Scene, uint32_t 
 int main()
 {
     std::fprintf(stderr, "[SelectionProof] the Cornell scene, traced on the CPU as the GPU build renders it\n");
-    Frontier::ProjectZero::RayTracingSolver Scene;
+    Frontier::HostRuntime::RayTracingSolver Scene;
     Scene.ConstructCornellBoxScene();
-    Frontier::ProjectZero::FlyThroughSolver Camera;
+    Frontier::HostRuntime::FlyThroughSolver Camera;
     Camera.AssignSpatialLocation(Frontier::Vector3{ 0.35f, -4.6f, 1.75f });
     Camera.AssignOrientationEuler(-0.06f, 0.0f, 0.0f);   // yaw 0 faces +Y, straight into the room
     Camera.AssignAspectRatio(static_cast<float>(kViewW) / static_cast<float>(kViewH));

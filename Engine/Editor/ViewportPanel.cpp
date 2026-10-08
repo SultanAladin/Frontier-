@@ -7,6 +7,7 @@
 
 #include "ControlPanel.h"
 #include "EditorInstance.h"
+#include "ConstructWorld.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>   // ImGuiWindow: the SkipItems early-out
@@ -533,6 +534,7 @@ void ViewportPanel::SetTransport(uint32_t Mode) noexcept
     // A run is always realtime; coming home unpauses. The world snapshot the reference keeps belongs to
     //    the engine wiring, so the UI keeps the mode machine and its two rules.
     Transport_ = Mode;
+    SimulationStep_ = false;
     if (Mode == kEdit)
     {
         Paused_ = false;
@@ -556,6 +558,7 @@ void ViewportPanel::SetRealtime(bool Realtime) noexcept
 
 void ViewportPanel::StepOnce() noexcept
 {
+    SimulationStep_ = Transport_ != kEdit;
     // One tick past the pause.
     if (!Paused_)
     {
@@ -567,6 +570,423 @@ void ViewportPanel::StepOnce() noexcept
 //                                                         HEADER BAR
 //------------------------------------------------------------------------------------------------------------------------
 
+namespace
+{
+// The web viewport's nine rail icons, drawn live from its own strokes in a 24-unit box: the four selection modes on a
+//    shared cube, the two shadings and the three gizmos.
+enum class RailIcon : uint32_t { SelectBody, SelectFace, SelectEdge, SelectVertex, ShadeWire, ShadeMatcap, GizmoMove, GizmoRotate, GizmoScale };
+
+void DrawRailIcon(ImDrawList* Draw, RailIcon Icon, const ImVec2& C, float Size, ImU32 Ink) noexcept
+{
+    const float U     = Size / 24.0f;
+    const float Thick = 1.7f * U < 1.15f ? 1.15f : 1.7f * U;
+    auto P = [&](float X, float Y) noexcept { return ImVec2(C.x + (X - 12.0f) * U, C.y + (Y - 12.0f) * U); };
+    auto Fainter = [&](float Fraction) noexcept
+    {
+        const uint32_t Alpha = static_cast<uint32_t>(static_cast<float>((Ink >> 24u) & 0xFFu) * Fraction);
+        return (Ink & 0x00FFFFFFu) | (Alpha << 24u);
+    };
+    auto Stroke = [&](float X0, float Y0, float X1, float Y1, ImU32 Tint, float Width) noexcept { Draw->AddLine(P(X0, Y0), P(X1, Y1), Tint, Width); };
+    auto Dashed = [&](float X0, float Y0, float X1, float Y1, ImU32 Tint) noexcept
+    {
+        // stroke-dasharray 2 2.4 in box units.
+        const float Dx = X1 - X0, Dy = Y1 - Y0;
+        const float Length = std::sqrt(Dx * Dx + Dy * Dy);
+        for (float At = 0.0f; At < Length; At += 4.4f)
+        {
+            const float To = std::min(At + 2.0f, Length);
+            Stroke(X0 + Dx * At / Length, Y0 + Dy * At / Length, X0 + Dx * To / Length, Y0 + Dy * To / Length, Tint, Thick);
+        }
+    };
+    auto Poly = [&](const float (*Points)[2], uint32_t Count, bool Shut, ImU32 Tint) noexcept
+    {
+        Draw->PathClear();
+        for (uint32_t i = 0u; i < Count; ++i)
+            Draw->PathLineTo(P(Points[i][0], Points[i][1]));
+        Draw->PathStroke(Tint, Shut ? ImDrawFlags_Closed : ImDrawFlags_None, Thick);
+    };
+    static const float Hex[6][2] = { { 12.0f, 3.0f }, { 20.0f, 7.5f }, { 20.0f, 16.5f }, { 12.0f, 21.0f }, { 4.0f, 16.5f }, { 4.0f, 7.5f } };
+    static const float Spine[3][2] = { { 4.0f, 7.5f }, { 12.0f, 12.0f }, { 20.0f, 7.5f } };
+    switch (Icon)
+    {
+    case RailIcon::SelectBody:
+        Poly(Hex, 6u, true, Ink);
+        Poly(Spine, 3u, false, Ink);
+        Stroke(12.0f, 12.0f, 12.0f, 21.0f, Ink, Thick);
+        break;
+    case RailIcon::SelectFace:
+    {
+        Poly(Hex, 6u, true, Fainter(0.45f));
+        const ImVec2 Top[4] = { P(4.0f, 7.5f), P(12.0f, 12.0f), P(20.0f, 7.5f), P(12.0f, 3.0f) };
+        Draw->AddConvexPolyFilled(Top, 4, Ink);
+        Draw->AddPolyline(Top, 4, Ink, ImDrawFlags_Closed, 1.4f * U < 1.0f ? 1.0f : 1.4f * U);
+        break;
+    }
+    case RailIcon::SelectEdge:
+        Poly(Hex, 6u, true, Fainter(0.45f));
+        Stroke(12.0f, 12.0f, 12.0f, 21.0f, Ink, 3.0f * U);
+        break;
+    case RailIcon::SelectVertex:
+        Poly(Hex, 6u, true, Fainter(0.45f));
+        Draw->AddCircleFilled(P(12.0f, 12.0f), 2.6f * U, Ink, 14);
+        Draw->AddCircleFilled(P(12.0f, 3.0f), 1.8f * U, Ink, 12);
+        Draw->AddCircleFilled(P(4.0f, 16.5f), 1.8f * U, Ink, 12);
+        Draw->AddCircleFilled(P(20.0f, 16.5f), 1.8f * U, Ink, 12);
+        break;
+    case RailIcon::ShadeWire:
+        Poly(Hex, 6u, true, Ink);
+        Poly(Spine, 3u, false, Ink);
+        Stroke(12.0f, 12.0f, 12.0f, 21.0f, Ink, Thick);
+        Dashed(12.0f, 12.0f, 4.0f, 16.5f, Fainter(0.7f));
+        Dashed(12.0f, 12.0f, 20.0f, 16.5f, Fainter(0.7f));
+        Dashed(12.0f, 3.0f, 12.0f, 12.0f, Fainter(0.7f));
+        break;
+    case RailIcon::ShadeMatcap:
+        Draw->AddCircle(P(12.0f, 12.0f), 8.5f * U, Ink, 28, Thick);
+        Draw->PathClear();
+        Draw->PathLineTo(P(7.6f, 10.2f));
+        Draw->PathBezierQuadraticCurveTo(P(8.34f, 7.49f), P(11.0f, 6.6f), 8);
+        Draw->PathStroke(Ink, ImDrawFlags_None, 2.0f * U);
+        Draw->AddCircleFilled(P(9.3f, 9.2f), 0.9f * U, Ink, 8);
+        break;
+    case RailIcon::GizmoMove:
+    {
+        static const float Head[8][4] = { { 12, 3, 9, 6 }, { 12, 3, 15, 6 }, { 12, 21, 9, 18 }, { 12, 21, 15, 18 },
+                                          { 3, 12, 6, 9 }, { 3, 12, 6, 15 }, { 21, 12, 18, 9 }, { 21, 12, 18, 15 } };
+        Stroke(12.0f, 3.0f, 12.0f, 21.0f, Ink, Thick);
+        Stroke(3.0f, 12.0f, 21.0f, 12.0f, Ink, Thick);
+        for (const auto& Arrow : Head)
+            Stroke(Arrow[0], Arrow[1], Arrow[2], Arrow[3], Ink, Thick);
+        break;
+    }
+    case RailIcon::GizmoRotate:
+    {
+        // M20 12 a8 8 0 1 1 -2.6 -5.9: seven-eighths of a circle, clockwise from three o'clock.
+        Draw->PathClear();
+        Draw->PathArcTo(P(12.0f, 12.0f), 8.0f * U, 0.0f, 5.454f, 24);
+        Draw->PathStroke(Ink, ImDrawFlags_None, Thick);
+        static const float Head[3][2] = { { 20.0f, 4.0f }, { 20.0f, 9.0f }, { 15.0f, 9.0f } };
+        Poly(Head, 3u, false, Ink);
+        break;
+    }
+    case RailIcon::GizmoScale:
+    {
+        Draw->AddRect(P(3.5f, 9.5f), P(14.5f, 20.5f), Ink, 1.5f * U, 0, Thick);
+        Stroke(13.0f, 11.0f, 20.5f, 3.5f, Ink, Thick);
+        static const float Head[3][2] = { { 15.0f, 3.5f }, { 20.5f, 3.5f }, { 20.5f, 9.0f } };
+        Poly(Head, 3u, false, Ink);
+        break;
+    }
+    }
+}
+}
+
+namespace
+{
+// The Construct menu's tile symbols, drawn from the web catalogue's own strokes in its 24-unit box.
+void DrawConstructGlyph(ImDrawList* Draw, ConstructGlyph Glyph, const ImVec2& C, float Size, ImU32 Ink) noexcept
+{
+    const float U     = Size / 24.0f;
+    const float Thick = 1.5f * U < 1.2f ? 1.2f : 1.5f * U;
+    auto P = [&](float X, float Y) noexcept { return ImVec2(C.x + (X - 12.0f) * U, C.y + (Y - 12.0f) * U); };
+    auto Stroke = [&](float X0, float Y0, float X1, float Y1) noexcept { Draw->AddLine(P(X0, Y0), P(X1, Y1), Ink, Thick); };
+    auto Dot = [&](float X, float Y, float R) noexcept { Draw->AddCircleFilled(P(X, Y), R * U, Ink, 10); };
+    auto Poly = [&](const float (*Points)[2], uint32_t Count, bool Shut) noexcept
+    {
+        Draw->PathClear();
+        for (uint32_t i = 0u; i < Count; ++i)
+            Draw->PathLineTo(P(Points[i][0], Points[i][1]));
+        Draw->PathStroke(Ink, Shut ? ImDrawFlags_Closed : ImDrawFlags_None, Thick);
+    };
+    // An ellipse (or a half of it) about (Cx, Cy), as a polyline: From and To are angles in turns.
+    auto Oval = [&](float Cx, float Cy, float Rx, float Ry, float From, float To) noexcept
+    {
+        Draw->PathClear();
+        const int Steps = 28;
+        for (int i = 0; i <= Steps; ++i)
+        {
+            const float A = (From + (To - From) * static_cast<float>(i) / static_cast<float>(Steps)) * 6.2831853f;
+            Draw->PathLineTo(P(Cx + Rx * std::cos(A), Cy + Ry * std::sin(A)));
+        }
+        Draw->PathStroke(Ink, (To - From) >= 0.999f ? ImDrawFlags_Closed : ImDrawFlags_None, Thick);
+    };
+    static const float Hex[6][2] = { { 12.0f, 3.0f }, { 20.0f, 7.5f }, { 20.0f, 16.5f }, { 12.0f, 21.0f }, { 4.0f, 16.5f }, { 4.0f, 7.5f } };
+    switch (Glyph)
+    {
+    case ConstructGlyph::Plane:
+    {
+        static const float Quad[4][2] = { { 3.0f, 16.0f }, { 9.0f, 7.0f }, { 21.0f, 7.0f }, { 15.0f, 16.0f } };
+        Poly(Quad, 4u, true);
+        break;
+    }
+    case ConstructGlyph::Empty:
+        Stroke(12.0f, 4.0f, 12.0f, 9.0f);
+        Stroke(12.0f, 15.0f, 12.0f, 20.0f);
+        Stroke(4.0f, 12.0f, 9.0f, 12.0f);
+        Stroke(15.0f, 12.0f, 20.0f, 12.0f);
+        Dot(12.0f, 12.0f, 1.2f);
+        break;
+    case ConstructGlyph::Line:
+        Stroke(5.0f, 19.0f, 19.0f, 5.0f);
+        Dot(5.0f, 19.0f, 1.6f);
+        Dot(19.0f, 5.0f, 1.6f);
+        break;
+    case ConstructGlyph::Polyline:
+    {
+        static const float Zig[5][2] = { { 3.0f, 17.0f }, { 8.0f, 8.0f }, { 12.0f, 14.0f }, { 16.0f, 6.0f }, { 21.0f, 17.0f } };
+        Poly(Zig, 5u, false);
+        break;
+    }
+    case ConstructGlyph::Rectangle:
+        Draw->AddRect(P(4.0f, 6.0f), P(20.0f, 18.0f), Ink, 0.0f, 0, Thick);
+        break;
+    case ConstructGlyph::CentreRectangle:
+        Draw->AddRect(P(4.0f, 6.0f), P(20.0f, 18.0f), Ink, 0.0f, 0, Thick);
+        Stroke(12.0f, 10.0f, 12.0f, 14.0f);
+        Stroke(10.0f, 12.0f, 14.0f, 12.0f);
+        break;
+    case ConstructGlyph::Slot:
+        Draw->AddRect(P(4.0f, 8.0f), P(20.0f, 16.0f), Ink, 4.0f * U, 0, Thick);
+        Dot(8.0f, 12.0f, 1.2f);
+        Dot(16.0f, 12.0f, 1.2f);
+        break;
+    case ConstructGlyph::Circle:
+        Draw->AddCircle(P(12.0f, 12.0f), 8.0f * U, Ink, 28, Thick);
+        Dot(12.0f, 12.0f, 1.2f);
+        break;
+    case ConstructGlyph::Arc:
+        Draw->PathClear();
+        Draw->PathArcTo(P(11.5f, 11.5f), 9.19f * U, 2.3561945f, 5.4977871f, 20);
+        Draw->PathStroke(Ink, ImDrawFlags_None, Thick);
+        Dot(5.0f, 18.0f, 1.5f);
+        Dot(18.0f, 5.0f, 1.5f);
+        Dot(12.0f, 14.0f, 1.2f);
+        break;
+    case ConstructGlyph::Ellipse:
+        Oval(12.0f, 12.0f, 9.0f, 5.5f, 0.0f, 1.0f);
+        break;
+    case ConstructGlyph::Polygon:
+        Poly(Hex, 6u, true);
+        break;
+    case ConstructGlyph::Spline:
+        Draw->PathClear();
+        Draw->PathLineTo(P(3.0f, 17.0f));
+        Draw->PathBezierCubicCurveTo(P(7.0f, 7.0f), P(13.0f, 21.0f), P(21.0f, 9.0f), 14);
+        Draw->PathStroke(Ink, ImDrawFlags_None, Thick);
+        break;
+    case ConstructGlyph::ControlCurve:
+        Draw->PathClear();
+        Draw->PathLineTo(P(3.0f, 17.0f));
+        Draw->PathBezierCubicCurveTo(P(7.0f, 7.0f), P(13.0f, 21.0f), P(21.0f, 9.0f), 14);
+        Draw->PathStroke(Ink, ImDrawFlags_None, Thick);
+        Dot(7.0f, 7.0f, 1.5f);
+        Dot(13.0f, 21.0f, 1.5f);
+        break;
+    case ConstructGlyph::Box:
+    {
+        Poly(Hex, 6u, true);
+        static const float Spine[3][2] = { { 4.0f, 7.5f }, { 12.0f, 12.0f }, { 20.0f, 7.5f } };
+        Poly(Spine, 3u, false);
+        Stroke(12.0f, 12.0f, 12.0f, 21.0f);
+        break;
+    }
+    case ConstructGlyph::Sphere:
+        Draw->AddCircle(P(12.0f, 12.0f), 8.5f * U, Ink, 28, Thick);
+        Oval(12.0f, 12.0f, 8.5f, 3.0f, 0.0f, 0.5f);
+        break;
+    case ConstructGlyph::Cylinder:
+        Oval(12.0f, 6.0f, 7.0f, 2.5f, 0.0f, 1.0f);
+        Stroke(5.0f, 6.0f, 5.0f, 18.0f);
+        Stroke(19.0f, 6.0f, 19.0f, 18.0f);
+        Oval(12.0f, 18.0f, 7.0f, 2.5f, 0.0f, 0.5f);
+        break;
+    case ConstructGlyph::Cone:
+        Stroke(12.0f, 3.5f, 4.5f, 18.0f);
+        Stroke(12.0f, 3.5f, 19.5f, 18.0f);
+        Oval(12.0f, 18.0f, 7.5f, 2.6f, 0.0f, 0.5f);
+        break;
+    case ConstructGlyph::Torus:
+        Oval(12.0f, 12.0f, 9.5f, 6.0f, 0.0f, 1.0f);
+        Oval(12.0f, 12.0f, 4.0f, 2.0f, 0.0f, 1.0f);
+        break;
+    case ConstructGlyph::Patch:
+    {
+        static const float Top[4][2]   = { { 3.0f, 8.0f }, { 10.0f, 4.0f }, { 21.0f, 8.0f }, { 14.0f, 12.0f } };
+        static const float Left[4][2]  = { { 3.0f, 8.0f }, { 3.0f, 16.0f }, { 14.0f, 20.0f }, { 14.0f, 12.0f } };
+        static const float Right[3][2] = { { 21.0f, 8.0f }, { 21.0f, 16.0f }, { 14.0f, 20.0f } };
+        Poly(Top, 4u, true);
+        Poly(Left, 4u, false);
+        Poly(Right, 3u, false);
+        break;
+    }
+    }
+}
+}
+
+void ViewportPanel::AssignConstructTiles(const ViewportConstructTile* Tiles, uint32_t Count) noexcept
+{
+    ConstructTiles_     = Tiles;
+    ConstructTileCount_ = Count < kConstructTileCap ? Count : kConstructTileCap;
+}
+
+bool ViewportPanel::QueryConstructPick(uint32_t* Index) noexcept
+{
+    if (ConstructPick_ == 0xFFFFFFFFu)
+        return false;
+    *Index         = ConstructPick_;
+    ConstructPick_ = 0xFFFFFFFFu;
+    return true;
+}
+
+bool ViewportPanel::QueryConstructTileCentre(uint32_t Index, float* X, float* Y) const noexcept
+{
+    if (Index >= ConstructTileCount_ || !ConstructTileSeen_[Index])
+        return false;
+    *X = ConstructTileX_[Index];
+    *Y = ConstructTileY_[Index];
+    return true;
+}
+
+bool ViewportPanel::QueryConstructSectionCentre(uint32_t Section, float* X, float* Y) const noexcept
+{
+    if (!ConstructShown_ || Section >= ConstructRailCount_)
+        return false;
+    *X = ConstructRailX_[Section];
+    *Y = ConstructRailY_[Section];
+    return true;
+}
+
+// The Construct menu, a popup that hangs from the chip: a rail of sections on the left (each with its tile count), the
+//    section's tiles in four columns on the right, a hint line under them. A click on a tile is the pick; the popup
+//    closes with it, as the web catalogue does when it is not pinned.
+void ViewportPanel::DrawConstructMenu(float MenuX, float MenuY) noexcept
+{
+    ConstructShown_ = false;
+    for (uint32_t i = 0u; i < kConstructTileCap; ++i)
+        ConstructTileSeen_[i] = false;
+    constexpr float kMenuW = 520.0f, kMenuH = 330.0f, kHeadH = 40.0f, kRailW = 132.0f, kFootH = 28.0f;
+    ImGui::SetNextWindowPos(ImVec2(MenuX, MenuY), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(kMenuW, kMenuH), ImGuiCond_Always);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(14, 16, 20, 250));
+    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(255, 255, 255, 34));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 14.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    const bool Open = ImGui::BeginPopup("##solidarc_construct_menu", ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    if (Open)
+    {
+        ConstructShown_ = true;
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+            ImGui::CloseCurrentPopup();
+        ImDrawList* Draw  = ImGui::GetWindowDrawList();
+        ImFont*     Small = Controls_->QuerySmall() != nullptr ? Controls_->QuerySmall() : ImGui::GetFont();
+        ImFont*     Mono  = Controls_->QueryMono() != nullptr ? Controls_->QueryMono() : Small;
+        const ImVec2 Origin = ImGui::GetWindowPos();
+        auto TextCentred = [&](const char* Text, float Cx, float Y, ImU32 Tint, ImFont* Face, float Px) noexcept
+        {
+            const ImVec2 T = Face->CalcTextSizeA(Px, FLT_MAX, 0.0f, Text);
+            Draw->AddText(Face, Px, ImVec2(Cx - T.x * 0.5f, Y), Tint, Text);
+        };
+
+        // The sections, in the order their first tile appears.
+        const char* Sections[8] = {};
+        uint32_t    Counts[8]   = {};
+        uint32_t    SectionCount = 0u;
+        for (uint32_t i = 0u; i < ConstructTileCount_; ++i)
+        {
+            uint32_t At = 0u;
+            while (At < SectionCount && std::strcmp(Sections[At], ConstructTiles_[i].Section) != 0)
+                ++At;
+            if (At == SectionCount && SectionCount < 8u)
+                Sections[SectionCount++] = ConstructTiles_[i].Section;
+            if (At < 8u)
+                ++Counts[At];
+        }
+        ConstructRailCount_ = SectionCount;
+        if (ConstructSection_ >= SectionCount)
+            ConstructSection_ = 0u;
+
+        // Head.
+        Draw->AddRectFilled(Origin, ImVec2(Origin.x + kMenuW, Origin.y + kHeadH), IM_COL32(255, 255, 255, 8), 14.0f, ImDrawFlags_RoundCornersTop);
+        Draw->AddLine(ImVec2(Origin.x, Origin.y + kHeadH), ImVec2(Origin.x + kMenuW, Origin.y + kHeadH), kStroke);
+        Draw->AddCircleFilled(ImVec2(Origin.x + 20.0f, Origin.y + kHeadH * 0.5f), 4.0f, IM_COL32(79, 216, 224, 255));
+        Draw->AddText(Small, 11.0f, ImVec2(Origin.x + 34.0f, Origin.y + kHeadH * 0.5f - 6.5f), kText, "Construct");
+        const char* Hint = "Tab";
+        const ImVec2 HintSize = Mono->CalcTextSizeA(9.0f, FLT_MAX, 0.0f, Hint);
+        Draw->AddRectFilled(ImVec2(Origin.x + kMenuW - 20.0f - HintSize.x, Origin.y + 12.0f), ImVec2(Origin.x + kMenuW - 12.0f, Origin.y + 28.0f), IM_COL32(255, 255, 255, 16), 5.0f);
+        Draw->AddText(Mono, 9.0f, ImVec2(Origin.x + kMenuW - 16.0f - HintSize.x, Origin.y + 20.0f - HintSize.y * 0.5f), kDim, Hint);
+
+        // The rail.
+        Draw->AddRectFilled(ImVec2(Origin.x, Origin.y + kHeadH), ImVec2(Origin.x + kRailW, Origin.y + kMenuH), IM_COL32(0, 0, 0, 46), 14.0f, ImDrawFlags_RoundCornersBottomLeft);
+        Draw->AddLine(ImVec2(Origin.x + kRailW, Origin.y + kHeadH), ImVec2(Origin.x + kRailW, Origin.y + kMenuH), kStroke);
+        for (uint32_t r = 0u; r < SectionCount; ++r)
+        {
+            const float Rx = Origin.x + 6.0f, Ry = Origin.y + kHeadH + 8.0f + static_cast<float>(r) * 38.0f;
+            char Id[40];
+            std::snprintf(Id, sizeof(Id), "##construct_section%u", r);
+            ImGui::SetCursorScreenPos(ImVec2(Rx, Ry));
+            ImGui::InvisibleButton(Id, ImVec2(kRailW - 12.0f, 36.0f));
+            const bool Hot = ImGui::IsItemHovered();
+            if (Hot && ImGui::IsMouseClicked(0))
+                ConstructSection_ = r;
+            const bool On = ConstructSection_ == r;
+            if (On || Hot)
+                Draw->AddRectFilled(ImVec2(Rx, Ry), ImVec2(Rx + kRailW - 12.0f, Ry + 36.0f), On ? IM_COL32(255, 255, 255, 26) : IM_COL32(255, 255, 255, 12), 7.0f);
+            Draw->AddText(Small, 11.0f, ImVec2(Rx + 10.0f, Ry + 18.0f - 6.5f), On || Hot ? kText : kDim, Sections[r]);
+            char Count[12];
+            std::snprintf(Count, sizeof(Count), "%u", Counts[r]);
+            const ImVec2 CountSize = Mono->CalcTextSizeA(9.0f, FLT_MAX, 0.0f, Count);
+            Draw->AddText(Mono, 9.0f, ImVec2(Rx + kRailW - 12.0f - 8.0f - CountSize.x, Ry + 18.0f - CountSize.y * 0.5f), kFaint, Count);
+            ConstructRailX_[r] = Rx + 20.0f;
+            ConstructRailY_[r] = Ry + 18.0f;
+        }
+
+        // The tiles of the shown section.
+        constexpr float kPad = 10.0f, kGapT = 6.0f, kTileH = 72.0f;
+        const float GridX = Origin.x + kRailW + kPad;
+        const float GridY = Origin.y + kHeadH + kPad;
+        const float TileW = (kMenuW - kRailW - 2.0f * kPad - 3.0f * kGapT) / 4.0f;
+        uint32_t Slot = 0u;
+        for (uint32_t i = 0u; i < ConstructTileCount_; ++i)
+        {
+            if (SectionCount == 0u || std::strcmp(ConstructTiles_[i].Section, Sections[ConstructSection_]) != 0)
+                continue;
+            const float Tx = GridX + static_cast<float>(Slot % 4u) * (TileW + kGapT);
+            const float Ty = GridY + static_cast<float>(Slot / 4u) * (kTileH + kGapT);
+            ++Slot;
+            char Id[40];
+            std::snprintf(Id, sizeof(Id), "##construct_tile%u", i);
+            ImGui::SetCursorScreenPos(ImVec2(Tx, Ty));
+            ImGui::InvisibleButton(Id, ImVec2(TileW, kTileH));
+            const bool Hot = ImGui::IsItemHovered();
+            Draw->AddRectFilled(ImVec2(Tx, Ty), ImVec2(Tx + TileW, Ty + kTileH), Hot ? IM_COL32(255, 255, 255, 30) : IM_COL32(255, 255, 255, 12), 8.0f);
+            Draw->AddRect(ImVec2(Tx, Ty), ImVec2(Tx + TileW, Ty + kTileH), Hot ? IM_COL32(255, 255, 255, 60) : kStroke, 8.0f);
+            DrawConstructGlyph(Draw, ConstructTiles_[i].Glyph, ImVec2(Tx + TileW * 0.5f, Ty + 28.0f), 24.0f, kText);
+            TextCentred(ConstructTiles_[i].Label, Tx + TileW * 0.5f, Ty + 50.0f, Hot ? kText : kDim, Small, 10.0f);
+            if (ConstructTiles_[i].Key != nullptr && ConstructTiles_[i].Key[0] != '\0')
+            {
+                const ImVec2 KeySize = Mono->CalcTextSizeA(9.0f, FLT_MAX, 0.0f, ConstructTiles_[i].Key);
+                Draw->AddRectFilled(ImVec2(Tx + TileW - 8.0f - KeySize.x, Ty + 5.0f), ImVec2(Tx + TileW - 3.0f, Ty + 18.0f), IM_COL32(255, 255, 255, 16), 5.0f);
+                Draw->AddText(Mono, 9.0f, ImVec2(Tx + TileW - 5.5f - KeySize.x, Ty + 11.5f - KeySize.y * 0.5f), kFaint, ConstructTiles_[i].Key);
+            }
+            ConstructTileX_[i]    = Tx + TileW * 0.5f;
+            ConstructTileY_[i]    = Ty + kTileH * 0.5f;
+            ConstructTileSeen_[i] = true;
+            if (Hot && ImGui::IsMouseClicked(0))
+            {
+                ConstructPick_ = i;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+
+        // The foot.
+        Draw->AddLine(ImVec2(Origin.x + kRailW, Origin.y + kMenuH - kFootH), ImVec2(Origin.x + kMenuW, Origin.y + kMenuH - kFootH), kStroke);
+        Draw->AddText(Small, 10.0f, ImVec2(Origin.x + kRailW + 12.0f, Origin.y + kMenuH - kFootH * 0.5f - 6.0f), kFaint, "Click a tile: it is placed at the next free spot on the workplane");
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+}
+
 void ViewportPanel::RecordSolidArcBar() noexcept
 {
     const float RowWidth = ImGui::GetContentRegionAvail().x;
@@ -575,7 +995,10 @@ void ViewportPanel::RecordSolidArcBar() noexcept
 
     constexpr float kToolPx = 9.0f;
     constexpr float kToolH = 22.0f;
-    constexpr float kGap = 4.0f;
+    constexpr float kGap = 8.0f;
+    constexpr float kSegH = 30.0f;     // the web .seg capsule: 24 px buttons inside 3 px of padding
+    constexpr float kSegBtnW = 32.0f;
+    constexpr float kIconPx = 17.0f;
     auto TextWidth = [Small, kToolPx](const char* Text) noexcept -> float
     {
         return Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Text).x;
@@ -585,169 +1008,91 @@ void ViewportPanel::RecordSolidArcBar() noexcept
         const ImVec2 T = Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Text);
         Draw->AddText(Small, kToolPx, ImVec2(X, Y + (kToolH - T.y) * 0.5f), Tint, Text);
     };
-    auto GroupWidth = [&](const char* const* Labels, uint32_t Count) noexcept -> float
-    {
-        float W = 0.0f;
-        for (uint32_t I = 0u; I < Count; ++I)
-            W += TextWidth(Labels[I]) + 6.0f;
-        return W;
-    };
-
-    const char* const SelectLabels[] = { "Body 1", "Face 2", "Edge 3", "Vertex 4" };
-    const char* const ShadeLabels[]  = { "Wire", "Flat", "Plastic", "Matcap" };
-    const char* const GizmoLabels[]  = { "Move G", "Rotate ⇧R", "Scale S" };
-    const char* const ViewLabels[]   = { "Top 7", "Front 1", "Right 3", "Iso", "Ortho 5" };
-
     const float ConstructW = TextWidth("Construct") + 22.0f;
-    const float SelectW = GroupWidth(SelectLabels, 4u);
-    const float CombineW = TextWidth("⇧ combine") + 12.0f;
-    const float ShadeW = GroupWidth(ShadeLabels, 4u);
-    const float GizmoW = GroupWidth(GizmoLabels, 3u);
-    const float ViewW = GroupWidth(ViewLabels, 5u);
-    const float ToolSpan = ConstructW + SelectW + CombineW + ShadeW + GizmoW + ViewW + kGap * 5.0f;
-    const bool Wrap = ToolSpan > RowWidth - 20.0f;
-    const float BarH = Wrap ? 72.0f : 38.0f;
+    const float BarH = 38.0f;
 
     ImGui::Dummy(ImVec2(RowWidth, BarH));
     const ImVec2 Cursor = ImGui::GetItemRectMin();
     const float StartX = Cursor.x + 10.0f;
     const float EndX = Cursor.x + RowWidth - 10.0f;
-    const float Row1 = Cursor.y + 8.0f;
-    const float Row2 = Cursor.y + 42.0f;
+    const float MidY = Cursor.y + BarH * 0.5f;
     float X = StartX;
-    float Y = Row1;
 
-    auto Seat = [&](float W) noexcept -> bool
+    // The Construct chip: the plus and the word. A click or Tab hangs the menu from it; a click away or Esc closes it.
+    float MenuX = X, MenuY = Cursor.y + BarH + 2.0f;
+    if (X + ConstructW <= EndX)
     {
-        if (X + W > EndX && Wrap && Y == Row1)
-        {
-            X = StartX;
-            Y = Row2;
-        }
-        return X + W <= EndX;
-    };
-    auto Advance = [&]() noexcept { X += kGap; };
-
-    auto Pill = [&](const char* Id, const char* Label, bool On, float W, ImU32 Accent, bool Enabled = true) noexcept -> bool
-    {
-        if (!Seat(W))
-            return false;
+        const float Y = MidY - kToolH * 0.5f;
         ImGui::SetCursorScreenPos(ImVec2(X, Y));
-        ImGui::InvisibleButton(Id, ImVec2(W, kToolH));
-        const bool Hot = Enabled && ImGui::IsItemHovered();
-        const bool Clicked = Enabled && Hot && ImGui::IsMouseClicked(0);
-        const ImU32 Fill = On ? IM_COL32(255, 255, 255, 34) : (Hot ? IM_COL32(255, 255, 255, 20) : IM_COL32(0, 0, 0, 95));
-        Draw->AddRectFilled(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), Fill, kToolH * 0.5f);
-        Draw->AddRect(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), Hot ? IM_COL32(255, 255, 255, 44) : kStroke, kToolH * 0.5f);
-        if (Accent != 0u)
-        {
-            Draw->AddLine(ImVec2(X + 10.0f, Y + kToolH * 0.5f), ImVec2(X + 18.0f, Y + kToolH * 0.5f), Accent, 1.5f);
-            Draw->AddLine(ImVec2(X + 14.0f, Y + kToolH * 0.5f - 4.0f), ImVec2(X + 14.0f, Y + kToolH * 0.5f + 4.0f), Accent, 1.5f);
-            TextAt(Label, X + 24.0f, Y, Enabled ? kText : kFaint);
-        }
-        else
-        {
-            const ImVec2 T = Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Label);
-            TextAt(Label, X + (W - T.x) * 0.5f, Y, Enabled ? (On ? kText : kDim) : kFaint);
-        }
-        X += W;
-        Advance();
-        return Clicked;
-    };
+        ImGui::InvisibleButton("##solidarc_construct", ImVec2(ConstructW, kToolH));
+        const bool Hot = ImGui::IsItemHovered();
+        const bool Shown = ImGui::IsPopupOpen("##solidarc_construct_menu");
+        if ((Hot && ImGui::IsMouseClicked(0) && !Shown) || (ImGui::IsWindowHovered() && ImGui::IsKeyPressed(ImGuiKey_Tab, false) && !Shown))
+            ImGui::OpenPopup("##solidarc_construct_menu");
+        Draw->AddRectFilled(ImVec2(X, Y), ImVec2(X + ConstructW, Y + kToolH), (Hot || Shown) ? IM_COL32(255, 255, 255, 34) : IM_COL32(0, 0, 0, 95), kToolH * 0.5f);
+        Draw->AddRect(ImVec2(X, Y), ImVec2(X + ConstructW, Y + kToolH), (Hot || Shown) ? IM_COL32(255, 255, 255, 44) : kStroke, kToolH * 0.5f);
+        const ImU32 Cyan = IM_COL32(79, 216, 224, 255);
+        Draw->AddLine(ImVec2(X + 10.0f, MidY), ImVec2(X + 18.0f, MidY), Cyan, 1.5f);
+        Draw->AddLine(ImVec2(X + 14.0f, MidY - 4.0f), ImVec2(X + 14.0f, MidY + 4.0f), Cyan, 1.5f);
+        TextAt("Construct", X + 24.0f, Y, kText);
+        X += ConstructW + kGap;
+    }
+    DrawConstructMenu(MenuX, MenuY);
 
-    auto Segments = [&](const char* Prefix, const char* const* Labels, uint32_t Count, uint32_t ActiveMask, float W) noexcept -> int
+    // One capsule of icon buttons. Mask segments toggle with Shift held, as the web rail's modes combine; the rest pick one.
+    auto Segment = [&](const char* Group, const RailIcon* Icons, const char* const* Titles, uint32_t Count, uint32_t* Picked, bool Combine) noexcept
     {
-        if (!Seat(W))
-            return -1;
-        Draw->AddRectFilled(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), IM_COL32(0, 0, 0, 95), kToolH * 0.5f);
-        Draw->AddRect(ImVec2(X, Y), ImVec2(X + W, Y + kToolH), kStroke, kToolH * 0.5f);
-        int Pick = -1;
-        float SX = X;
-        for (uint32_t I = 0u; I < Count; ++I)
+        const float Width = Count * kSegBtnW + (Count - 1u) * 3.0f + 6.0f;
+        if (X + Width > EndX)
+            return;
+        const float Y = MidY - kSegH * 0.5f;
+        Draw->AddRectFilled(ImVec2(X, Y), ImVec2(X + Width, Y + kSegH), IM_COL32(0, 0, 0, 90), kSegH * 0.5f);
+        Draw->AddRect(ImVec2(X, Y), ImVec2(X + Width, Y + kSegH), kStroke, kSegH * 0.5f);
+        for (uint32_t i = 0u; i < Count; ++i)
         {
-            const float SW = TextWidth(Labels[I]) + 6.0f;
-            char Id[64] = {};
-            std::snprintf(Id, sizeof(Id), "%s_%u", Prefix, I);
-            ImGui::SetCursorScreenPos(ImVec2(SX, Y));
-            ImGui::InvisibleButton(Id, ImVec2(SW, kToolH));
+            const float Bx = X + 3.0f + i * (kSegBtnW + 3.0f);
+            const float By = Y + 3.0f;
+            char Id[48];
+            std::snprintf(Id, sizeof(Id), "##%s%u", Group, i);
+            ImGui::SetCursorScreenPos(ImVec2(Bx, By));
+            ImGui::InvisibleButton(Id, ImVec2(kSegBtnW, 24.0f));
             const bool Hot = ImGui::IsItemHovered();
-            const bool On = (ActiveMask & (1u << I)) != 0u;
-            if (On || Hot)
-                Draw->AddRectFilled(ImVec2(SX + 1.0f, Y + 1.0f), ImVec2(SX + SW - 1.0f, Y + kToolH - 1.0f),
-                                    On ? IM_COL32(255, 255, 255, 38) : IM_COL32(255, 255, 255, 18), 10.0f);
-            if (I > 0u)
-                Draw->AddLine(ImVec2(SX, Y + 5.0f), ImVec2(SX, Y + kToolH - 5.0f), kStroke);
-            const ImVec2 T = Small->CalcTextSizeA(kToolPx, FLT_MAX, 0.0f, Labels[I]);
-            TextAt(Labels[I], SX + (SW - T.x) * 0.5f, Y, On ? kText : kDim);
             if (Hot && ImGui::IsMouseClicked(0))
-                Pick = static_cast<int>(I);
-            SX += SW;
+            {
+                if (Combine && ImGui::GetIO().KeyShift)
+                {
+                    const uint32_t Next = *Picked ^ (1u << i);
+                    *Picked = Next != 0u ? Next : *Picked;
+                }
+                else
+                    *Picked = Combine ? (1u << i) : i;
+            }
+            const bool On = Combine ? ((*Picked >> i) & 1u) != 0u : *Picked == i;
+            if (On)
+                Draw->AddRectFilled(ImVec2(Bx, By), ImVec2(Bx + kSegBtnW, By + 24.0f), IM_COL32(255, 255, 255, 36), 12.0f);
+            DrawRailIcon(Draw, Icons[i], ImVec2(Bx + kSegBtnW * 0.5f, By + 12.0f), kIconPx, On || Hot ? kText : kDim);
+            if (Hot)
+                ImGui::SetTooltip("%s", Titles[i]);
         }
-        X += W;
-        Advance();
-        return Pick;
+        X += Width + kGap;
     };
 
-    if (Pill("##solidarc_construct", "Construct", false, ConstructW, IM_COL32(79, 216, 224, 255)))
+    static const RailIcon      kSelectIcons[4] = { RailIcon::SelectBody, RailIcon::SelectFace, RailIcon::SelectEdge, RailIcon::SelectVertex };
+    static const char* const   kSelectTitles[4] = { "Body  1", "Face  2", "Edge  3", "Vertex  4" };
+    static const RailIcon      kShadeIcons[2] = { RailIcon::ShadeWire, RailIcon::ShadeMatcap };
+    static const char* const   kShadeTitles[2] = { "Wireframe", "Matcap" };
+    static const RailIcon      kGizmoIcons[3] = { RailIcon::GizmoMove, RailIcon::GizmoRotate, RailIcon::GizmoScale };
+    static const char* const   kGizmoTitles[3] = { "Move  G", "Rotate  Shift+R", "Scale  S" };
+
+    Segment("solidarc_select", kSelectIcons, kSelectTitles, 4u, &SolidArcSelectMask_, true);
+    const char* Combine = "shift combines";
+    if (X + TextWidth(Combine) + kGap <= EndX)
     {
-        // The catalogue opens in the SolidArc document host; this chip keeps the viewport-side affordance live.
+        TextAt(Combine, X, MidY - kToolH * 0.5f, kFaint);
+        X += TextWidth(Combine) + kGap;
     }
-
-    const int SelectPick = Segments("##solidarc_sel", SelectLabels, 4u, SolidArcSelectMask_, SelectW);
-    if (SelectPick >= 0)
-    {
-        const uint32_t Bit = 1u << static_cast<uint32_t>(SelectPick);
-        if (ImGui::GetIO().KeyShift)
-        {
-            SolidArcSelectMask_ ^= Bit;
-            if (SolidArcSelectMask_ == 0u)
-                SolidArcSelectMask_ = Bit;
-        }
-        else
-        {
-            SolidArcSelectMask_ = Bit;
-        }
-    }
-    (void)Pill("##solidarc_combine", "⇧ combine", false, CombineW, 0u, false);
-
-    const int ShadePick = Segments("##solidarc_shade", ShadeLabels, 4u, 1u << SolidArcShade_, ShadeW);
-    if (ShadePick >= 0)
-        SolidArcShade_ = static_cast<uint32_t>(ShadePick);
-
-    const int GizmoPick = Segments("##solidarc_gizmo", GizmoLabels, 3u, 1u << SolidArcGizmo_, GizmoW);
-    if (GizmoPick >= 0)
-        SolidArcGizmo_ = static_cast<uint32_t>(GizmoPick);
-
-    uint32_t ViewMask = 1u << SolidArcView_;
-    if (Orbit_.Ortho)
-        ViewMask |= 1u << 4u;
-    const int ViewPick = Segments("##solidarc_view", ViewLabels, 5u, ViewMask, ViewW);
-    if (ViewPick >= 0)
-    {
-        const uint32_t I = static_cast<uint32_t>(ViewPick);
-        SolidArcView_ = I;
-        if (I == 0u)
-        {
-            Orbit_.Yaw = kSnaps[5].Yaw; Orbit_.Pitch = kSnaps[5].Pitch; Orbit_.ViewPoint = 5u;
-        }
-        else if (I == 1u)
-        {
-            Orbit_.Yaw = kSnaps[1].Yaw; Orbit_.Pitch = kSnaps[1].Pitch; Orbit_.ViewPoint = 1u;
-        }
-        else if (I == 2u)
-        {
-            Orbit_.Yaw = kSnaps[3].Yaw; Orbit_.Pitch = kSnaps[3].Pitch; Orbit_.ViewPoint = 3u;
-        }
-        else if (I == 3u)
-        {
-            Orbit_.Yaw = 0.7853982f; Orbit_.Pitch = 0.5235988f; Orbit_.ViewPoint = 0u;
-        }
-        else
-        {
-            Orbit_.Ortho = !Orbit_.Ortho;
-        }
-        ++Orbit_.Revision;
-    }
+    Segment("solidarc_shade", kShadeIcons, kShadeTitles, 2u, &SolidArcShade_, false);
+    Segment("solidarc_gizmo", kGizmoIcons, kGizmoTitles, 3u, &SolidArcGizmo_, false);
 
     Draw->AddLine(ImVec2(Cursor.x, Cursor.y + BarH), ImVec2(Cursor.x + RowWidth, Cursor.y + BarH), kStroke);
 }
@@ -968,10 +1313,11 @@ void ViewportPanel::RecordBar() noexcept
         ImGui::PushFont(Small);
         if (ImGui::BeginMenu("Lights"))
         {
-            if (ImGui::MenuItem("Directional Light (Sun)")) {}
-            if (ImGui::MenuItem("Point Light")) {}
-            if (ImGui::MenuItem("Spot Light")) {}
-            if (ImGui::MenuItem("Rect / Area Light")) {}
+            auto AddLight=[&](ConstructKind Kind,const char* Name){if(!ConstructionWorld_)return;ConstructRequest R;R.Kind=Kind;R.Name=Name;if(ConstructEntity(*ConstructionWorld_,R))ConstructionChanged_=true;};
+            if (ImGui::MenuItem("Directional Light (Sun)")) AddLight(ConstructKind::DirectionalLight,"Directional Light");
+            if (ImGui::MenuItem("Point Light")) AddLight(ConstructKind::PointLight,"Point Light");
+            if (ImGui::MenuItem("Spot Light")) AddLight(ConstructKind::SpotLight,"Spot Light");
+            if (ImGui::MenuItem("Rect / Area Light")) AddLight(ConstructKind::RectangleLight,"Area Light");
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("World & Celestial"))
@@ -1333,9 +1679,9 @@ void ViewportPanel::RecordBar() noexcept
         if (GearHot)
         {
             ImGui::SetTooltip("Viewport settings");
-            if (ImGui::IsMouseClicked(0) && ShadeOpen_ != nullptr) *ShadeOpen_ = !*ShadeOpen_;
+            if (ImGui::IsMouseClicked(0)) ImGui::OpenPopup("##viewport-settings");
         }
-        const bool GearOn = (ShadeOpen_ != nullptr && *ShadeOpen_);
+        const bool GearOn = ImGui::IsPopupOpen("##viewport-settings");
         if (GearHot || GearOn)
             Draw->AddCircleFilled(ImVec2(GX + 14.0f, BtnY + 13.0f), 12.0f, GearHot ? kHover : IM_COL32(255, 255, 255, 16));
         const ImVec2 GearC(GX + 14.0f, BtnY + 13.0f);
@@ -1348,6 +1694,16 @@ void ViewportPanel::RecordBar() noexcept
                           ImVec2(GearC.x + 8.2f * std::cos(A), GearC.y + 8.2f * std::sin(A)), GearTint, 1.6f);
         }
         Draw->AddCircleFilled(GearC, 1.6f, GearTint);
+        if (ImGui::BeginPopup("##viewport-settings"))
+        {
+            ImGui::TextDisabled("VIEWPORT / SETTINGS");
+            if (Readout_ && Readout_->DiagnosticsOpen)
+                ImGui::MenuItem("Statistics / Debug", "F3", Readout_->DiagnosticsOpen);
+            ImGui::Checkbox("Realtime", &Realtime_);
+            if (ShadeOpen_ && ImGui::MenuItem("Display and rendering settings")) *ShadeOpen_ = true;
+            ImGui::EndPopup();
+        }
+
     }
 
     ImGui::SetCursorScreenPos(ImVec2(Cursor.x, Cursor.y + kBarHeight + kHairlineHeight));
@@ -1401,101 +1757,106 @@ void ViewportPanel::RecordView() noexcept
     // The orbit gizmo, Blender's compass: the three axes through the orbit's basis, pads on all six
     //    ends, letters on the positive three. A pad tap snaps its view, a drag orbits, and the wheel
     //    dollies over the view. Front pads read bright, back pads dim, and the hot pad rings.
+    // SolidArc is a CAD viewport: it carries no orbit compass in its corner, so nothing here may take its clicks.
+    bool OrbHover = false;
     float Gf[3], Gr[3], Gu[3];
-    OrbitBasis(Orbit_.Yaw, Orbit_.Pitch, Gf, Gr, Gu);
-    const ImVec2 OrbC(Max.x - 52.0f, Max.y - 52.0f);
-    constexpr float kArm = 20.0f;
-    struct PadDot { float X; float Y; bool Front; };
-    PadDot Pads[6];
-    constexpr float kAxes[6][3] = { { 1.0f, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f },
-                                    { 0.0f, 1.0f, 0.0f }, { 0.0f, -1.0f, 0.0f },
-                                    { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } };
-    for (uint32_t i = 0u; i < 6u; ++i)
+    OrbitBasis(Orbit_.Yaw, Orbit_.Pitch, Gf, Gr, Gu); // the pan below reads this basis whether or not the compass is drawn
+    if (Chrome_ != ViewportPanelChrome::SolidArcCad)
     {
-        const float Dx = kAxes[i][0] * Gr[0] + kAxes[i][1] * Gr[1] + kAxes[i][2] * Gr[2];
-        const float Dy = kAxes[i][0] * Gu[0] + kAxes[i][1] * Gu[1] + kAxes[i][2] * Gu[2];
-        const float Toward = -(kAxes[i][0] * Gf[0] + kAxes[i][1] * Gf[1] + kAxes[i][2] * Gf[2]);
-        Pads[i].X     = OrbC.x + Dx * kArm;
-        Pads[i].Y     = OrbC.y - Dy * kArm;
-        Pads[i].Front = Toward > 0.0f;
-    }
-    ImGui::SetCursorScreenPos(ImVec2(OrbC.x - 48.0f, OrbC.y - 48.0f));
-    ImGui::InvisibleButton("##orb", ImVec2(96.0f, 96.0f));
-    const bool OrbHover = ImGui::IsItemHovered();
-    OrbHot_ = 0u;
-    if (OrbHover || OrbHeld_)
-    {
-        const ImVec2 Mouse = ImGui::GetIO().MousePos;
-        float Best = 14.0f * 14.0f;
+        const ImVec2 OrbC(Max.x - 52.0f, Max.y - 52.0f);
+        constexpr float kArm = 20.0f;
+        struct PadDot { float X; float Y; bool Front; };
+        PadDot Pads[6];
+        constexpr float kAxes[6][3] = { { 1.0f, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f },
+                                        { 0.0f, 1.0f, 0.0f }, { 0.0f, -1.0f, 0.0f },
+                                        { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } };
         for (uint32_t i = 0u; i < 6u; ++i)
         {
-            const float Hx = Mouse.x - Pads[i].X, Hy = Mouse.y - Pads[i].Y;
-            const float D2 = Hx * Hx + Hy * Hy;
-            if (D2 < Best) { Best = D2; OrbHot_ = i + 1u; }
+            const float Dx = kAxes[i][0] * Gr[0] + kAxes[i][1] * Gr[1] + kAxes[i][2] * Gr[2];
+            const float Dy = kAxes[i][0] * Gu[0] + kAxes[i][1] * Gu[1] + kAxes[i][2] * Gu[2];
+            const float Toward = -(kAxes[i][0] * Gf[0] + kAxes[i][1] * Gf[1] + kAxes[i][2] * Gf[2]);
+            Pads[i].X     = OrbC.x + Dx * kArm;
+            Pads[i].Y     = OrbC.y - Dy * kArm;
+            Pads[i].Front = Toward > 0.0f;
         }
-    }
-    if (OrbHover && ImGui::IsMouseClicked(0))
-    {
-        OrbHeld_  = true;
-        OrbMoved_ = false;
-        OrbDownX_ = ImGui::GetIO().MousePos.x;
-        OrbDownY_ = ImGui::GetIO().MousePos.y;
-    }
-    if (OrbHeld_)
-    {
-        if (!ImGui::IsMouseDown(0))
-        {
-            if (!OrbMoved_ && OrbHot_ > 0u)
-            {
-                const uint32_t V = kPadViews[OrbHot_ - 1u];
-                Orbit_.Yaw       = kSnaps[V].Yaw;
-                Orbit_.Pitch     = kSnaps[V].Pitch;
-                Orbit_.ViewPoint = V;
-                ++Orbit_.Revision;
-            }
-            OrbHeld_ = false;
-        }
-        else
+        ImGui::SetCursorScreenPos(ImVec2(OrbC.x - 48.0f, OrbC.y - 48.0f));
+        ImGui::InvisibleButton("##orb", ImVec2(96.0f, 96.0f));
+        OrbHover = ImGui::IsItemHovered();
+        OrbHot_ = 0u;
+        if (OrbHover || OrbHeld_)
         {
             const ImVec2 Mouse = ImGui::GetIO().MousePos;
-            if (!OrbMoved_ && (std::fabs(Mouse.x - OrbDownX_) + std::fabs(Mouse.y - OrbDownY_)) > 4.0f)
-                OrbMoved_ = true;
-            if (OrbMoved_)
+            float Best = 14.0f * 14.0f;
+            for (uint32_t i = 0u; i < 6u; ++i)
             {
-                const ImVec2 Delta = ImGui::GetIO().MouseDelta;
-                Orbit_.Yaw   -= Delta.x * 0.008f;
-                Orbit_.Pitch += Delta.y * 0.008f;
-                if (Orbit_.Pitch > 1.55f)  Orbit_.Pitch = 1.55f;
-                if (Orbit_.Pitch < -1.55f) Orbit_.Pitch = -1.55f;
-                while (Orbit_.Yaw > kOrbitPi)  Orbit_.Yaw -= 2.0f * kOrbitPi;
-                while (Orbit_.Yaw < -kOrbitPi) Orbit_.Yaw += 2.0f * kOrbitPi;
-                Orbit_.ViewPoint = 0u;
-                ++Orbit_.Revision;
+                const float Hx = Mouse.x - Pads[i].X, Hy = Mouse.y - Pads[i].Y;
+                const float D2 = Hx * Hx + Hy * Hy;
+                if (D2 < Best) { Best = D2; OrbHot_ = i + 1u; }
             }
         }
+        if (OrbHover && ImGui::IsMouseClicked(0))
+        {
+            OrbHeld_  = true;
+            OrbMoved_ = false;
+            OrbDownX_ = ImGui::GetIO().MousePos.x;
+            OrbDownY_ = ImGui::GetIO().MousePos.y;
+        }
+        if (OrbHeld_)
+        {
+            if (!ImGui::IsMouseDown(0))
+            {
+                if (!OrbMoved_ && OrbHot_ > 0u)
+                {
+                    const uint32_t V = kPadViews[OrbHot_ - 1u];
+                    Orbit_.Yaw       = kSnaps[V].Yaw;
+                    Orbit_.Pitch     = kSnaps[V].Pitch;
+                    Orbit_.ViewPoint = V;
+                    ++Orbit_.Revision;
+                }
+                OrbHeld_ = false;
+            }
+            else
+            {
+                const ImVec2 Mouse = ImGui::GetIO().MousePos;
+                if (!OrbMoved_ && (std::fabs(Mouse.x - OrbDownX_) + std::fabs(Mouse.y - OrbDownY_)) > 4.0f)
+                    OrbMoved_ = true;
+                if (OrbMoved_)
+                {
+                    const ImVec2 Delta = ImGui::GetIO().MouseDelta;
+                    Orbit_.Yaw   -= Delta.x * 0.008f;
+                    Orbit_.Pitch += Delta.y * 0.008f;
+                    if (Orbit_.Pitch > 1.55f)  Orbit_.Pitch = 1.55f;
+                    if (Orbit_.Pitch < -1.55f) Orbit_.Pitch = -1.55f;
+                    while (Orbit_.Yaw > kOrbitPi)  Orbit_.Yaw -= 2.0f * kOrbitPi;
+                    while (Orbit_.Yaw < -kOrbitPi) Orbit_.Yaw += 2.0f * kOrbitPi;
+                    Orbit_.ViewPoint = 0u;
+                    ++Orbit_.Revision;
+                }
+            }
+        }
+        constexpr ImU32 kAxisTint[3] = { IM_COL32(239, 83, 80, 255),
+                                         IM_COL32(105, 208, 109, 255),
+                                         IM_COL32(91, 140, 255, 255) };
+        for (uint32_t a = 0u; a < 3u; ++a)
+            Draw->AddLine(ImVec2(Pads[2u * a].X, Pads[2u * a].Y),
+                ImVec2(Pads[2u * a + 1u].X, Pads[2u * a + 1u].Y),
+                ControlPanel::FadeTint(kAxisTint[a], 0.55f), 2.0f);
+        for (uint32_t i = 0u; i < 6u; ++i)
+        {
+            const ImU32 Tint = ControlPanel::FadeTint(kAxisTint[i / 2u], Pads[i].Front ? 1.0f : 0.35f);
+            Draw->AddCircleFilled(ImVec2(Pads[i].X, Pads[i].Y), 7.0f, Tint);
+            if (OrbHot_ == i + 1u)
+                Draw->AddCircle(ImVec2(Pads[i].X, Pads[i].Y), 10.0f, IM_COL32(255, 255, 255, 200), 0, 1.6f);
+        }
+        const char* kAxisNames[3] = { "X", "Y", "Z" };
+        ImGui::PushFont(Small);
+        for (uint32_t a = 0u; a < 3u; ++a)
+        {
+            const ImU32 Tint = ControlPanel::FadeTint(kAxisTint[a], Pads[2u * a].Front ? 1.0f : 0.4f);
+            Draw->AddText(ImVec2(Pads[2u * a].X + 9.0f, Pads[2u * a].Y - 7.0f), Tint, kAxisNames[a]);
+        }
+        ImGui::PopFont();
     }
-    constexpr ImU32 kAxisTint[3] = { IM_COL32(239, 83, 80, 255),
-                                     IM_COL32(105, 208, 109, 255),
-                                     IM_COL32(91, 140, 255, 255) };
-    for (uint32_t a = 0u; a < 3u; ++a)
-        Draw->AddLine(ImVec2(Pads[2u * a].X, Pads[2u * a].Y),
-            ImVec2(Pads[2u * a + 1u].X, Pads[2u * a + 1u].Y),
-            ControlPanel::FadeTint(kAxisTint[a], 0.55f), 2.0f);
-    for (uint32_t i = 0u; i < 6u; ++i)
-    {
-        const ImU32 Tint = ControlPanel::FadeTint(kAxisTint[i / 2u], Pads[i].Front ? 1.0f : 0.35f);
-        Draw->AddCircleFilled(ImVec2(Pads[i].X, Pads[i].Y), 7.0f, Tint);
-        if (OrbHot_ == i + 1u)
-            Draw->AddCircle(ImVec2(Pads[i].X, Pads[i].Y), 10.0f, IM_COL32(255, 255, 255, 200), 0, 1.6f);
-    }
-    const char* kAxisNames[3] = { "X", "Y", "Z" };
-    ImGui::PushFont(Small);
-    for (uint32_t a = 0u; a < 3u; ++a)
-    {
-        const ImU32 Tint = ControlPanel::FadeTint(kAxisTint[a], Pads[2u * a].Front ? 1.0f : 0.4f);
-        Draw->AddText(ImVec2(Pads[2u * a].X + 9.0f, Pads[2u * a].Y - 7.0f), Tint, kAxisNames[a]);
-    }
-    ImGui::PopFont();
 
     const bool BillboardHover=MarkersOn_?Billboards.Draw(Draw,Min,Max,!OrbHover&&!OrbHeld_&&!CanvasDragging_):(Billboards.ClearFrame(),false);
 
@@ -1505,18 +1866,67 @@ void ViewportPanel::RecordView() noexcept
     if (Chrome_ == ViewportPanelChrome::SolidArcCad)
     {
         const bool CanvasHover = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && !OrbHover && !OrbHeld_ && !BillboardHover;
+        const ImVec2 Pointer = ImGui::GetIO().MousePos;
+        const float  SpanX   = std::max(1.0f, Max.x - Min.x);
+        const float  SpanY   = std::max(1.0f, Max.y - Min.y);
         if (CanvasHover && (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1) || ImGui::IsMouseClicked(2)))
         {
             CanvasDragging_ = true;
+            // A plain left press is a pick if it lifts without moving; Ctrl+left-drag sweeps a box instead of orbiting.
+            PressLeft_  = ImGui::IsMouseClicked(0) && !ImGui::IsMouseClicked(1) && !ImGui::IsMouseClicked(2);
+            PressMoved_ = false;
+            PressBox_   = PressLeft_ && ImGui::GetIO().KeyCtrl;
+            PressX_     = Pointer.x;
+            PressY_     = Pointer.y;
         }
         if (CanvasDragging_)
         {
             if (!ImGui::IsMouseDown(0) && !ImGui::IsMouseDown(1) && !ImGui::IsMouseDown(2))
             {
                 CanvasDragging_ = false;
+                if (PressLeft_ && PressBox_ && PressMoved_)
+                {
+                    BoxLive_       = true;
+                    BoxExtend_     = ImGui::GetIO().KeyShift;
+                    BoxSubtract_   = ImGui::GetIO().KeyAlt;
+                    BoxU0_         = std::clamp((std::min(PressX_, Pointer.x) - Min.x) / SpanX, 0.0f, 1.0f);
+                    BoxU1_         = std::clamp((std::max(PressX_, Pointer.x) - Min.x) / SpanX, 0.0f, 1.0f);
+                    BoxV0_         = std::clamp((std::min(PressY_, Pointer.y) - Min.y) / SpanY, 0.0f, 1.0f);
+                    BoxV1_         = std::clamp((std::max(PressY_, Pointer.y) - Min.y) / SpanY, 0.0f, 1.0f);
+                }
+                else if (PressLeft_ && !PressMoved_)
+                {
+                    TapLive_     = true;
+                    TapAdditive_ = ImGui::GetIO().KeyShift || ImGui::GetIO().KeyCtrl;
+                    TapU_        = std::clamp((PressX_ - Min.x) / SpanX, 0.0f, 1.0f);
+                    TapV_        = std::clamp((PressY_ - Min.y) / SpanY, 0.0f, 1.0f);
+                }
+                PressLeft_ = false;
+                PressBox_  = false;
+            }
+            else if (PressBox_)
+            {
+                const float DragX = Pointer.x - PressX_;
+                const float DragY = Pointer.y - PressY_;
+                if (DragX * DragX + DragY * DragY > 16.0f)
+                    PressMoved_ = true;
+                if (PressMoved_)
+                {
+                    const ImVec2 CornerA(std::max(Min.x, std::min(PressX_, Pointer.x)), std::max(Min.y, std::min(PressY_, Pointer.y)));
+                    const ImVec2 CornerB(std::min(Max.x, std::max(PressX_, Pointer.x)), std::min(Max.y, std::max(PressY_, Pointer.y)));
+                    Draw->AddRectFilled(CornerA, CornerB, IM_COL32(255, 180, 84, 34));
+                    Draw->AddRect(CornerA, CornerB, IM_COL32(255, 180, 84, 220), 0.0f, 0, 1.0f);
+                }
             }
             else
             {
+                if (PressLeft_)
+                {
+                    const float DragX = Pointer.x - PressX_;
+                    const float DragY = Pointer.y - PressY_;
+                    if (DragX * DragX + DragY * DragY > 16.0f)
+                        PressMoved_ = true;
+                }
                 const ImVec2 Delta = ImGui::GetIO().MouseDelta;
                 if (Delta.x != 0.0f || Delta.y != 0.0f)
                 {
@@ -1577,6 +1987,8 @@ void ViewportPanel::RecordView() noexcept
         }
     }
 
+    LastX_ = Min.x;
+    LastY_ = Min.y;
     LastW_ = Max.x - Min.x;
     LastH_ = Max.y - Min.y;
     ImGui::SetCursorScreenPos(ImVec2(Min.x, Max.y));
@@ -1594,6 +2006,20 @@ bool ViewportPanel::QueryViewTap(float* AcrossU, float* DownV, bool* Additive) n
     if (AcrossU)  *AcrossU  = TapU_;
     if (DownV)    *DownV    = TapV_;
     if (Additive) *Additive = TapAdditive_;
+    return true;
+}
+
+bool ViewportPanel::QueryViewBox(float* U0, float* V0, float* U1, float* V1, bool* Extend, bool* Subtract) noexcept
+{
+    if (!BoxLive_)
+        return false;
+    BoxLive_ = false;
+    if (U0) *U0 = BoxU0_;
+    if (V0) *V0 = BoxV0_;
+    if (U1) *U1 = BoxU1_;
+    if (V1) *V1 = BoxV1_;
+    if (Extend)   *Extend   = BoxExtend_;
+    if (Subtract) *Subtract = BoxSubtract_;
     return true;
 }
 

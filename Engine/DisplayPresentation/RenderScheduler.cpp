@@ -65,8 +65,8 @@ void RenderScheduler::ApplyTheme() noexcept
 
 void RenderScheduler::Present(
     ReSTIRIntegrator&                    Integrator,
-    const ProjectZero::FlyThroughSolver& Camera,
-    const ProjectZero::RayTracingSolver& Scene,
+    const HostRuntime::FlyThroughSolver& Camera,
+    const HostRuntime::RayTracingSolver& Scene,
     uint32_t                             ViewportWidth,
     uint32_t                             ViewportHeight,
     EditorInstance*                        Instances,
@@ -296,7 +296,7 @@ const ViewportOrbit& RenderScheduler::QueryViewportOrbit() const noexcept
 //                                                    SECTION — CAMERA
 //============================================================================================================================================
 
-void RenderScheduler::SectionCamera(const ProjectZero::FlyThroughSolver& Camera) noexcept
+void RenderScheduler::SectionCamera(const HostRuntime::FlyThroughSolver& Camera) noexcept
 {
     if (!ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) return;
 
@@ -390,7 +390,7 @@ void RenderScheduler::SectionReSTIR(
 //                                                   SECTION — SCENE
 //============================================================================================================================================
 
-void RenderScheduler::SectionScene(const ProjectZero::RayTracingSolver& Scene) noexcept
+void RenderScheduler::SectionScene(const HostRuntime::RayTracingSolver& Scene) noexcept
 {
     if (!ImGui::CollapsingHeader("Scene", ImGuiTreeNodeFlags_DefaultOpen)) return;
 

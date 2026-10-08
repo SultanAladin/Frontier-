@@ -5,7 +5,7 @@
 namespace Frontier {
 // Authoring-thread API. Consumers must rebuild/upload traversal and invalidate history
 // before rendering a changed scene; never call this from a render-thread draw callback.
-enum class ConstructKind { Cube, Sphere, Cylinder, Cone, Plane, Torus, Area, Camera, Empty, Count };
+enum class ConstructKind { Cube, Sphere, Cylinder, Cone, Plane, Torus, Area, Camera, Empty, PointLight, SpotLight, DirectionalLight, RectangleLight, TubeLight, StripLight, Count };
 struct ConstructRequest {
     ConstructKind Kind = ConstructKind::Cube;
     std::string Name;

@@ -89,7 +89,7 @@ void Build(GeometryStructure& M, ConstructKind K) {
 }
 }
 const char* ConstructName(ConstructKind K) {
-    static const char* Names[]={"Cube","Sphere","Cylinder","Cone","Plane","Torus","Area emitter","Camera","Empty entity"};
+    static const char* Names[]={"Cube","Sphere","Cylinder","Cone","Plane","Torus","Area emitter","Camera","Empty entity","Point Light","Spot Light","Directional Light","Rectangle Light","Tube Light","LED Strip"};
     return unsigned(K)<unsigned(ConstructKind::Count)?Names[unsigned(K)]:"Invalid";
 }
 ConstructResult ConstructEntity(SceneStructure& World,const ConstructRequest& R,uint32_t SlabLimit) {
@@ -104,7 +104,8 @@ ConstructResult ConstructEntity(SceneStructure& World,const ConstructRequest& R,
     for(unsigned I=2;Exists(Name);++I) Name=Base+" "+std::to_string(I);
     Matrix4x4 T; for(unsigned I=0;I<3;++I) {T.Columns[I][I]=R.Size;T.Columns[3][I]=R.Position[I];}
     GeometryStructure Mesh;
-    const bool IsMesh=R.Kind<ConstructKind::Camera;
+    const bool IsMesh=R.Kind<=ConstructKind::Area;
+    const bool IsLight=R.Kind>=ConstructKind::PointLight&&R.Kind<=ConstructKind::StripLight;
     if(IsMesh) Build(Mesh,R.Kind);
     uint32_t P=World.RegisterPlacement(Name,kPlacementNone,T,T);
     if(IsMesh) {
@@ -115,6 +116,15 @@ ConstructResult ConstructEntity(SceneStructure& World,const ConstructRequest& R,
         auto First=World.RegisterInstance(Mesh,T,Slot,Emissive?InstanceFlagEmissive:0u);
         World.AttachInstances(P,First,static_cast<uint32_t>(World.QueryInstances().size())-First);
     } else if(R.Kind==ConstructKind::Camera) {CameraRecord Camera;Camera.Name=Name;World.RegisterCamera(Camera,P);}
+    else if(IsLight) {
+        PunctualLuminaireRecord Light;Light.Name=Name;Light.Intensity=R.Kind==ConstructKind::DirectionalLight?10.f:1200.f;Light.Range=R.Kind==ConstructKind::DirectionalLight?0.f:25.f;
+        if(R.Kind==ConstructKind::SpotLight)Light.Category=PunctualLuminaireCategory::Spot;
+        else if(R.Kind==ConstructKind::DirectionalLight)Light.Category=PunctualLuminaireCategory::Directional;
+        else if(R.Kind==ConstructKind::RectangleLight)Light.Category=PunctualLuminaireCategory::Rectangle;
+        else if(R.Kind==ConstructKind::TubeLight)Light.Category=PunctualLuminaireCategory::Tube;
+        else if(R.Kind==ConstructKind::StripLight){Light.Category=PunctualLuminaireCategory::Strip;Light.Size[0]=2.4f;Light.Size[1]=.04f;Light.Intensity=2400.f;Light.LumensPerMetre=1000.f;Light.WattsPerMetre=14.4f;Light.Dimmer=1.f;Light.Temperature=4000.f;Light.EmittersPerMetre=60.f;Light.SupplyVoltage=24.f;Light.Diffuser=true;}
+        World.RegisterPunctualLuminaire(Light,P);
+    }
     World.Finalise(SlabLimit);
     return {P,{}};
 }

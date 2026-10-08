@@ -494,8 +494,9 @@ class OrbitControls extends EventDispatcher {
 
 		function getZoomScale( delta ) {
 
-			const normalized_delta = Math.abs( delta ) / ( 100 * ( window.devicePixelRatio | 0 ) );
-			return Math.pow( 0.95, scope.zoomSpeed * normalized_delta );
+			// 📝 Pointer and wheel distances are CSS pixels, not framebuffer pixels. A fractional DPR must never divide by zero.
+			const Distance = Number.isFinite( delta ) ? Math.min( Math.abs( delta ), 200 ) : 0;
+			return Math.pow( 0.95, scope.zoomSpeed * Distance / 100 );
 
 		}
 
@@ -732,13 +733,17 @@ class OrbitControls extends EventDispatcher {
 
 			updateZoomParameters( event.clientX, event.clientY );
 
-			if ( event.deltaY < 0 ) {
+			// 📝 Normalize line/page wheels before the common bounded CSS-pixel conversion; trackpad fractions are preserved.
+			const Unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scope.domElement.clientHeight : 1;
+			const Distance = event.deltaY * Unit;
 
-				dollyIn( getZoomScale( event.deltaY ) );
+			if ( Distance < 0 ) {
 
-			} else if ( event.deltaY > 0 ) {
+				dollyIn( getZoomScale( Distance ) );
 
-				dollyOut( getZoomScale( event.deltaY ) );
+			} else if ( Distance > 0 ) {
+
+				dollyOut( getZoomScale( Distance ) );
 
 			}
 

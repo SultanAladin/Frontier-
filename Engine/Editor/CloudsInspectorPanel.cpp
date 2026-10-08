@@ -1,5 +1,8 @@
 #include "CloudsInspectorPanel.h"
 #include "WindBindingControls.h"
+#include "WindPanelSurface.h"
+#include "CloudInstrumentSurface.h"
+#include "CloudDeckSurface.h"
 #include "ControlPanel.h"
 #include "SunReferenceDraw.h"
 #include "CloudDensityPreview.h"
@@ -35,22 +38,23 @@ void Select(Panel& U,float X,float Y,float W,const char* N){auto& P=*Find(U.Shee
 void Axes(Panel& U,float Y,float W,const char* N,const char* Caption){auto& P=*Find(U.Sheet,N);U.Text(24,Y,Caption,11,Muted);ImGui::SetCursorScreenPos(U.At(24,Y+24));ImGui::BeginChild(N,{W-48,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);U.Controls.AxisVec3("##axes",P.Axes,1,true);ImGui::EndChild();}
 }
 void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet){
- RecordWindBindingControls(Sheet);
  if(!Find(Sheet,"Coverage")||!Find(Sheet,"Anisotropy")){ImGui::TextUnformatted("Cloud properties unavailable");return;}
  bool Local=Sheet.Appearance==EditorSheetAppearance::LocalCloud;auto* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(!std::strcmp(F->GetDebugName(),"Sun reference / regular"))Font=F;ImGui::PushFont(Font,14);ImVec2 O=ImGui::GetCursorScreenPos();O.x+=20;O.y+=20;float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),O,Font};auto& Cached=Cache();Update(Cached,Sheet,Local,(W-48)/182);char Text[160];
  U.Text(0,8,"Inspector / Environment",8,Muted);U.Text(0,48,"Clouds",25);U.Text(0,83,Local?"LOCAL VOLUMETRIC CLOUD · bounded volume":"GLOBAL VOLUMETRIC CLOUDS · atmospheric layer",10,Muted);
- U.Card(0,110,W,153,"Cloud settings");float TW=std::min(132.f,(W-60)/2);U.Tile(24,165,TW,"Enabled",&Find(Sheet,"Enabled")->On);U.Tile(36+TW,165,TW,"Follow wind",&Find(Sheet,"Follow Wind")->On);
- U.Card(0,279,W,422,"Cloud coverage");auto& Coverage=*Find(Sheet,"Coverage");std::snprintf(Text,sizeof(Text),"%.0f%%",double(Coverage.Figure*100));U.Text(24,342,Text,30);U.Wrap(24,388,W-48,Local?"One continuous density field within the local bounds":"One continuous density field · gaps close as coverage increases");
- U.D->AddImageRounded(Cached.Top.GetTexRef(),U.At(24,425),U.At(W-24,607),{0,0},{1,1},IM_COL32_WHITE,12);U.Text(32,438,"TOP-DOWN DENSITY",9,IM_COL32(194,211,229,255));
- Coverage.Figure*=100;Coverage.Maximum=100;Coverage.Decimals=0;std::snprintf(Coverage.Unit,sizeof(Coverage.Unit),"%%");U.Slider(24,625,W-48,"Coverage");Coverage.Figure/=100;Coverage.Maximum=1;Coverage.Decimals=2;Coverage.Unit[0]=0;
- U.Wrap(24,680,W-48,"Static density diagnostic · not measured sky cover or a lit render");
- bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Y=717,Y2=Wide?Y:Y+468;
+ auto& Coverage=*Find(Sheet,"Coverage");float SummaryBase=Local?Find(Sheet,"Centre")->Axes[2]-Find(Sheet,"Half Size")->Axes[2]:Find(Sheet,"Base")->Figure,SummaryDepth=Local?Find(Sheet,"Half Size")->Axes[2]*2:Find(Sheet,"Thickness")->Figure;
+ U.Card(0,110,W,220,"Cloud summary");std::snprintf(Text,sizeof(Text),"%.0f%%",double(Coverage.Figure*100));U.Text(24,171,Text,38);U.Wrap(24,220,W-48,Local?"Bounded local density volume":"Global atmospheric cloud deck");float StatW=(W-56)/2;for(int I=0;I<2;++I)U.D->AddRectFilled(U.At(24+I*(StatW+8),258),U.At(24+I*(StatW+8)+StatW,306),IM_COL32(27,29,31,255),10);std::snprintf(Text,sizeof(Text),"Base %.2f km",double(SummaryBase/1000));U.Text(38,275,Text,11);std::snprintf(Text,sizeof(Text),"Depth %.2f km",double(SummaryDepth/1000));U.Text(38+StatW+8,275,Text,11);
+ U.Card(0,346,W,153,"Cloud settings");float TW=std::min(132.f,(W-60)/2);U.Tile(24,401,TW,"Enabled",&Find(Sheet,"Enabled")->On);U.Tile(36+TW,401,TW,"Follow wind",&Find(Sheet,"Follow Wind")->On);
+ U.Card(0,515,W,422,"Cloud coverage");std::snprintf(Text,sizeof(Text),"%.0f%%",double(Coverage.Figure*100));U.Text(24,578,Text,30);U.Wrap(24,624,W-48,Local?"One continuous density field within the local bounds":"One continuous density field · gaps close as coverage increases");
+ U.D->AddImageRounded(Cached.Top.GetTexRef(),U.At(24,661),U.At(W-24,843),{0,0},{1,1},IM_COL32_WHITE,12);U.Text(32,674,"TOP-DOWN DENSITY",9,IM_COL32(194,211,229,255));
+ Coverage.Figure*=100;Coverage.Maximum=100;Coverage.Decimals=0;std::snprintf(Coverage.Unit,sizeof(Coverage.Unit),"%%");U.Slider(24,861,W-48,"Coverage");Coverage.Figure/=100;Coverage.Maximum=1;Coverage.Decimals=2;Coverage.Unit[0]=0;
+ U.Wrap(24,916,W-48,"Static density diagnostic · not measured sky cover or a lit render");
+ bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Y=953,Y2=Wide?Y:Y+468;
  U.Card(0,Y,CW,452,Local?"Local bounds":"Cloud base");
  if(Local){auto* Centre=Find(Sheet,"Centre");auto* Half=Find(Sheet,"Half Size");std::snprintf(Text,sizeof(Text),"%.0f × %.0f × %.0f m",double(Half->Axes[0]*2),double(Half->Axes[1]*2),double(Half->Axes[2]*2));U.Wrap(24,Y+65,CW-48,Text);
   Canvas C=Fit(U.D,U.At(24,Y+107),{CW-48,185},340,200);float Max=std::max({Half->Axes[0],Half->Axes[1],Half->Axes[2],.1f});float SX=Half->Axes[0]/Max*85,SY=Half->Axes[1]/Max*45,SZ=Half->Axes[2]/Max*80;auto P=[&](int I){float X=I&1?SX:-SX,Q=I&2?SY:-SY,Z=I&4?SZ:-SZ;return ImVec2(170+X+Q,100+Q*.5f-Z);};for(int I=0;I<8;++I)for(int Bit:{1,2,4})if(!(I&Bit))C.Line(P(I),P(I|Bit),Colour(158,185,215,.65f));C.Text(170,194,"World-space bounds · Z up",Muted,9);
   (void)Centre;Axes(U,Y+311,CW,"Centre","Centre · world X / Y / Z (m)");Axes(U,Y+378,CW,"Half Size","Half extents · X / Y / Z (m)");
- }else{float Base=Find(Sheet,"Base")->Figure,Ceil=Find(Sheet,"Ceiling")->Figure,Top=std::min(Ceil,Base+Find(Sheet,"Thickness")->Figure);std::snprintf(Text,sizeof(Text),"%.2f km",double(Base/1000));U.Text(24,Y+66,Text,30);U.Wrap(24,Y+112,CW-48,"World Z altitude · drag the base line");
-  float L=48,R=CW-32,T=Y+159,B=Y+337;U.D->AddImageRounded(Cached.Side.GetTexRef(),U.At(L,T),U.At(R,B),{0,0},{1,1},IM_COL32_WHITE,9);for(int I=0;I<=4;++I){float YY=T+(B-T)*I/4;U.D->AddLine(U.At(L,YY),U.At(R,YY),IM_COL32(140,162,189,35));std::snprintf(Text,sizeof(Text),"%.0f",double(Ceil/1000*(1-I/4.f)));U.Text(24,YY-4,Text,9,Muted);}float BY=B-Base/Ceil*(B-T),TY=B-Top/Ceil*(B-T);U.D->AddLine(U.At(L,BY),U.At(R,BY),IM_COL32(206,227,249,255),1.3f);U.D->AddLine(U.At(L,TY),U.At(R,TY),IM_COL32(143,173,210,160));U.D->AddCircleFilled(U.At(R-12,BY),5,IM_COL32(206,227,249,255));ImGui::SetCursorScreenPos(U.At(L,T));ImGui::InvisibleButton("##cloud-base-drag",{R-L,B-T},ImGuiButtonFlags_EnableNav);if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0))Find(Sheet,"Base")->Figure=std::clamp((U.At(0,B).y-ImGui::GetIO().MousePos.y)/(B-T)*Ceil,100.f,Ceil);if(ImGui::IsItemFocused()){float& V=Find(Sheet,"Base")->Figure;if(ImGui::IsKeyPressed(ImGuiKey_UpArrow))V=std::min(Ceil,V+100);if(ImGui::IsKeyPressed(ImGuiKey_DownArrow))V=std::max(100.f,V-100);}
+ }else{float Base=Find(Sheet,"Base")->Figure;std::snprintf(Text,sizeof(Text),"%.2f km",double(Base/1000));U.Text(24,Y+66,Text,30);U.Wrap(24,Y+112,CW-48,"World Z altitude · drag the base line");
+  {CloudDeck::DeckDraft Deck;Deck.Base=Base;Deck.Thickness=Find(Sheet,"Thickness")->Figure;Deck.Density=std::clamp(Find(Sheet,"Density")->Figure/4.f,0.f,1.f);const float DX=24,DY=Y+159,DW=CW-48;const ImVec2 DeckSpot=U.At(DX,DY);CloudDeck::PaintDeck(U.D,Font,DeckSpot,DW,Deck,IM_COL32(35,35,35,255));ImGui::SetCursorScreenPos(DeckSpot);ImGui::InvisibleButton("##cloud-base-drag",{DW,CloudDeck::DeckTall},ImGuiButtonFlags_EnableNav);float& BaseRef=Find(Sheet,"Base")->Figure;if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0))BaseRef=CloudDeck::Commit(Deck,ImGui::GetIO().MousePos.y-DeckSpot.y);if(ImGui::IsItemFocused()){if(ImGui::IsKeyPressed(ImGuiKey_UpArrow))BaseRef=CloudDeck::Nudge(Deck,true);if(ImGui::IsKeyPressed(ImGuiKey_DownArrow))BaseRef=CloudDeck::Nudge(Deck,false);}}
   U.Text(48,Y+350,"0 m world datum · not terrain-relative AGL",9,Muted);U.Slider(24,Y+383,CW-48,"Base");
  }
  U.Card(X2,Y2,CW,452,Local?"Volume section":"Layer thickness");
@@ -59,6 +63,53 @@ void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
  float End=Y2+468;U.Card(0,End,W,Local?270:402,"Cloud body");U.Slider(24,End+60,W-48,"Density");U.Slider(24,End+128,W-48,"Feature Scale");U.Slider(24,End+196,W-48,"Anisotropy");if(!Local){Select(U,24,End+264,(W-64)/2,"Type");U.Slider(40+(W-64)/2,End+264,(W-64)/2,"Anvil");U.Slider(24,End+326,W-48,"Ceiling");}
  End+=Local?286:418;U.Wrap(0,End,W,"Live cloud controls. Density previews are static at time zero; CPU/GPU scene volumes use the selected wind source.");End+=58;
  if(!Local){ImGuiID ID=ImGui::GetID("##cloud-shadow-fold");bool Open=ImGui::GetStateStorage()->GetBool(ID);U.Card(0,End,W,52,"GPU cloud shadows · separate field");U.Text(W-32,End+22,Open?"−":"+",13,Muted);ImGui::SetCursorScreenPos(U.At(0,End));if(ImGui::InvisibleButton("##cloud-shadow-fold",{W,52})){Open=!Open;ImGui::GetStateStorage()->SetBool(ID,Open);}if(Open){End+=68;for(auto& G:Sheet.Groups)if(!std::strcmp(G.Title,"Cloud Shadows")||!std::strcmp(G.Title,"Shadow Clock")){for(unsigned I=0;I<G.PropertyCount;++I){auto& P=G.Properties[I];if(P.Category==EditorPropertyCategory::Slider)U.Slider(24,End,W-48,P.Label);else if(P.Category==EditorPropertyCategory::Select)Select(U,24,End,W-48,P.Label);else U.Tile(24,End,132,P.Label,&P.On);End+=72;}}}else End+=52;}
+ // WindPanel.jsx closes the clouds panel with WindBinding, so the card lands last here too.
+ {
+  static WindCards::WindMotes Motes;
+  auto* Source=Find(Sheet,"Wind Source");
+  WindCards::BindingValues Bound;
+  const unsigned Pick=Source&&Source->Picked<Source->OptionCount?Source->Picked:0;
+  Bound.Assigned=Source!=nullptr;
+  Bound.FieldName=Source?Source->Options[Pick]:nullptr;
+  Bound.Following=Find(Sheet,"Follow Wind")?Find(Sheet,"Follow Wind")->On:true;
+  const WindCards::WindComposite Air=WindCards::Resolve(7.f,250.f,.25f);
+  const float Body=WindCards::BindingBodyHeight(U.Font,W-48,Bound);
+  U.Card(0,End,W,49+Body+104,"Wind binding");
+  auto Hits=WindCards::PaintBindingBody(U.D,U.Font,U.At(24,End+49),W-48,Bound,Air,Motes,ImGui::GetIO().DeltaTime,IM_COL32(34,34,34,255));
+  if(Source&&Source->OptionCount>1){
+   ImGui::SetCursorScreenPos({Hits.Select.x,Hits.Select.y});
+   if(ImGui::InvisibleButton("##cloud-wind-source",{Hits.Select.z-Hits.Select.x,Hits.Select.w-Hits.Select.y}))
+    Source->Picked=(Source->Picked+1)%Source->OptionCount;
+  }
+  ImGui::SetCursorScreenPos(U.At(24,End+49+Body+12));
+  ImGui::BeginChild("##cloud-wind-binding",{W-48,76},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);RecordWindBindingControls(Sheet);ImGui::EndChild();
+  End+=49+Body+104;
+ }
+ // clouds.js opens with the satellite map, the rail and the duo, then the coverage distribution.
+ //    Those four read the same field and bind cleanly to this sheet; the deck and morphology cards
+ //    are left to the native Cloud base / Layer thickness / Cloud body cards above, because their
+ //    domains (a 20-400 m window, a 0-1 optical density, a cloud tint) are not what this engine stores.
+ {
+  namespace CI=CloudInstrument;
+  CI::CloudDraft Layer;
+  Layer.Coverage=Coverage.Figure;
+  // The engine keeps density as a 0-4 multiplier; the instrument reads optical density 0-1.
+  Layer.Density=std::clamp(Find(Sheet,"Density")->Figure/4.f,0.f,1.f);
+  Layer.Altitude=Find(Sheet,"Base")?Find(Sheet,"Base")->Figure:130.f;
+  Layer.Scale=Find(Sheet,"Feature Scale")?Find(Sheet,"Feature Scale")->Figure:1.f;
+  Layer.Linked=Find(Sheet,"Follow Wind")?Find(Sheet,"Follow Wind")->On:true;
+  // Edge detail and drift have no counterpart on this sheet, so they keep the panel's own defaults,
+  //    and 214 degrees is the fallback bearing clouds.js itself uses when no wind node is present.
+  End+=24;
+  CI::PaintMap(U.D,U.Font,U.At(0,End),W,CI::MapTall,Layer,214.f,IM_COL32(34,34,34,255));
+  End+=CI::MapTall+20;
+  CI::PaintRail(U.D,U.Font,U.At(0,End),W,Layer);
+  End+=WindInstrument::PillTall+10;
+  CI::PaintDuo(U.D,U.Font,U.At(0,End),W,Layer);
+  End+=CI::DuoHeight(U.Font,W,Layer)+20;
+  CI::PaintCoverage(U.D,U.Font,U.At(0,End),W,Layer);
+  End+=CI::CoverageHeight();
+ }
  ImGui::SetCursorScreenPos(U.At(0,End+24));ImGui::Dummy({W,1});ImGui::PopFont();
 }
 }

@@ -32,6 +32,12 @@ layout(set = 0, binding = 9)          uniform sampler2D  HiZImage;
 layout(set = 0, binding = 10, rgba32f) uniform writeonly image2D SurfaceImage;
 layout(set = 0, binding = 11, rgba16f) uniform writeonly image2D NormalImage;
 layout(set = 0, binding = 12, rgba8)   uniform writeonly image2D OutputImage;
+// Thread E — material aux G-buffer. The surfel-GI and plain-raster paths do NOT run the full OpenPBR material
+//    evaluation, so they need the primary surface's metalness/roughness spelled out here to shade every material
+//    correctly (metals reflect, dielectrics diffuse). x = metalness, y = specular roughness, zw = 0. rgba16f is
+//    plenty for two 0..1 scalars and matches NormalImage's format. Written every pixel (background = 0,1).
+layout(set = 0, binding = 14, rgba16f) uniform writeonly image2D MaterialImage;
+layout(set = 0, binding = 15, rgba8)   uniform writeonly image2D AlbedoImage;
 
 // R6 row 3: prev-frame reservoirs for the M / W / Age debug views — the same buffer the kernel reads as
 //    binding 16 (written per frame by VisibilityExchange::RecordFrame), so the views show the last completed
@@ -151,6 +157,17 @@ void main()
 
     imageStore(SurfaceImage, ivec2(Pixel), vec4(Position, uintBitsToFloat(Visibility)));
     imageStore(NormalImage,  ivec2(Pixel), vec4(Normal, 0.0));
+    // Thread E — publish the primary surface's material parameters for the non-raytraced paths. Roughness is
+    //    MaterialRecord.Albedo.w and metalness is Emissive.w (same fields the R4b debug views read below), so this
+    //    aux target never disagrees with the kernel's material. Background writes metal 0 / rough 1 (matte void).
+    {
+        bool  AuxHit   = Visibility != kVisibilityInvalid;
+        float AuxMetal = AuxHit ? Materials[Material].Emissive.w : 0.0;
+        float AuxRough = AuxHit ? Materials[Material].Albedo.w   : 1.0;
+        imageStore(MaterialImage, ivec2(Pixel), vec4(AuxMetal, AuxRough, 0.0, 0.0));
+        vec3 Albedo = AuxHit ? Materials[Material].Albedo.xyz : vec3(0.0);
+        imageStore(AlbedoImage, ivec2(Pixel), vec4(Albedo, 1.0));
+    }
 
     uint View = Control.z;
     if (View == kDebugOff) return;

@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      SWAPCHAINEXCHANGE.H
 //============================================================================================================================================
-// 🧩 Vulkan instance, surface, device, swapchain and recording-slot transport across the hardware vendor edge.
+// 📦 Vulkan instance, surface, device, swapchain and recording-slot transport across the hardware vendor edge.
 
 #pragma once
 
@@ -13,6 +13,8 @@
 #include "RayTracingCapabilitySet.h"
 #include "OrientationClassifier.h"
 #include "VisibilityExchange.h"
+#include "SurfelGIStage.h"
+#include "DistanceFieldGIStage.h"
 #include "TriangleSpan.h"
 #include <cstdint>
 #include <string>
@@ -47,7 +49,7 @@ static constexpr float    kLuminanceLog2High      =  30.0f;   // 1e9 cd/m², abo
 //    It used to be a percentile window — the middle 75 % — and a percentile cannot tell a bright outlier from a
 //    bright subject, because both are just "the top of the distribution".
 //
-//    That distinction is the whole problem. A Cornell frame with the roof oculus in shot is two populations: a
+//    That distinction is the whole problem. An interior frame with a roof oculus in shot is two populations: a
 //    room near 1 cd/m² and a hole showing sky at thousands. Walking about changes how much of the frame the
 //    hole covers, the bright mode slid into and out of the average, and the reading swung 2 to 4.7 stops as the
 //    camera moved. Exposure is global, so the SKY pumped along with the room — which is the tell, because a sky
@@ -89,6 +91,7 @@ struct SwapchainConfiguration
     uint32_t    Height;                         // [px]  surface vertical resolution
     const char* Title;                          // [-]   window title string
     bool        ValidationEnabled;              // [-]   Vulkan validation layer activation
+    bool        HideUntilPresented = false;     // [-]   keep the browser visible instead of showing a blank loading window
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -194,6 +197,22 @@ enum DispatchFeature : uint32_t
                                                    //     cosine sky fill bit-for-bit. Mirrors kFeatureSkyReservoir
                                                    //     (bit 9 is the kernel-internal D10 identity bit — skipped here
                                                    //     so the two lists cannot collide if a host ever packs it).
+    DispatchFeatureRaytracing         = 1u << 11,  // Thread E: RenderPath==0 → the raytraced ReSTIR kernel is the
+                                                   //     active path. Mirrors kFeatureRaytracing (bit 11) in
+                                                   //     ReSTIRViewport.slang. bits 12-14 are the denoise-guide
+                                                   //     selector (see the shader), left to the denoise plumbing.
+    // Thread E: the Reflections tile is a THREE-way cycler, not a bit — 0 = Off, 1 = Sky, 2 = Raytraced. It is
+    //     packed as a 2-bit field at bits 15-16 (mirrors kReflectionModeShift / kReflectionModeMask in the shader).
+    //     Use the shift/mask below rather than treating any single value as a flag.
+    DispatchFeatureReflectionShift    = 15u,
+    DispatchFeatureReflectionMask     = 3u << 15,
+
+    // The denoiser DETAIL-GUIDE id (DenoiseGuideCategory, 0..6) packed into bits [12..14]. Carried in FeatureFlags
+    //    rather than a new push field because DispatchConfiguration is at Vulkan's guaranteed 128-byte push ceiling.
+    //    The kernel decodes it to emit the per-pixel preserve weight the à-trous fades back to raw by; Standard (0)
+    //    leaves the weight zero, i.e. the pre-guide filter, so a host that never sets it renders bit-for-bit as before.
+    DispatchGuideShift                = 12u,
+    DispatchGuideMask                 = 7u << 12,
 };
 
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
@@ -239,8 +258,11 @@ public:
 
     // D3: per-frame instance transform refresh (no reallocation, no device stall). See
     //    VisibilityExchange::RefreshInstances. Returns false if the count no longer matches the resident scene.
-    [[nodiscard]] bool          RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept
-    { return Visibility.RefreshInstances(Rows, Count); }
+    [[nodiscard]] bool          RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept;
+    /// 📦 Reports readiness of the SDF transport, not merely selection of render mode one.
+    [[nodiscard]] bool QueryDistanceFieldGIReady() const noexcept { return DistanceFieldStage.IsReady(); }
+    [[nodiscard]] bool QuerySurfelGIReady() const noexcept { return SurfelStage.IsReady(); }
+
     [[nodiscard]] uint32_t      QueryInstanceCount() const noexcept { return Visibility.QueryInstanceCount(); }
     void                        UploadTextures(const TextureIndex& Textures) noexcept;   // R4a bindless table → binding 18 (last since R6)
     void                        DestroyTextures() noexcept;
@@ -324,12 +346,13 @@ public:
     //    Slate.config.toml [render] ray_tracing_tier; the resolved tier is what the renderer must build for.
     void                        AssignRayTracingRequest(RayTracingRequestCategory Request) noexcept { RayTracingRequest = Request; }
     [[nodiscard]] const RayTracingCapabilitySet& QueryRayTracingCapabilities() const noexcept { return Capabilities; }
-    [[nodiscard]] RayTracingTierCategory QueryRayTracingTier() const noexcept { return Capabilities.ResolveTier(RayTracingRequest); }
+    [[nodiscard]] RayTracingTierCategory QueryRayTracingTier() const noexcept;
     [[nodiscard]] RayTracingRequestCategory QueryRayTracingRequest() const noexcept { return RayTracingRequest; }
     [[nodiscard]] bool          QueryFullscreen() const noexcept { return FullscreenActive; }
     [[nodiscard]] const char*   QueryPresentModeName() const noexcept;   // resolved VkPresentModeKHR, for diagnostics
 
     [[nodiscard]] CelestialBufferUsage QueryCelestialBufferUsage() const noexcept;
+    [[nodiscard]] bool HasPresentedFrame() const noexcept { return PresentedFrame; }
     [[nodiscard]] uint32_t      QueryWidth()  const noexcept { return Configuration.Width;  }
     [[nodiscard]] uint32_t      QueryHeight() const noexcept { return Configuration.Height; }
 
@@ -402,12 +425,15 @@ private:
     [[nodiscard]] bool  BringCycleSlots()       noexcept;
     [[nodiscard]] bool  BringImGui()            noexcept;
     [[nodiscard]] bool  BringVisibility()       noexcept;
+    [[nodiscard]] bool  BringSurfelGIStage()   noexcept;
+    [[nodiscard]] bool  BringDistanceFieldGIStage() noexcept;
+    void                BuildSurfelSamples(const SceneStructure& Scene) noexcept;
 
     void                RetireSwapchain()       noexcept;
     [[nodiscard]] bool  RebuildSwapchain()      noexcept;
     [[nodiscard]] uint32_t ResolvePresentMode() const noexcept;   // VkPresentModeKHR as uint32_t (header stays Vulkan-free)
 
-    void                RecordComputeCommands(uint32_t ImageOrdinal,
+    void                RecordComputeCommands(uint32_t ImageIndex,
                                               const DispatchConfiguration& Dispatch) noexcept;
     void                WriteDescriptorSet()   noexcept;
     void                ConstructSceneBuffers() noexcept;
@@ -434,6 +460,15 @@ private:
     bool                    FullscreenActive;    // [-]   window currently covers the primary monitor
     RayTracingCapabilitySet Capabilities;        // [-]   probed in BringPhysicalDevice
     VisibilityExchange      Visibility;          // [-]   R2 resident scene + cull / raster / HiZ / resolve
+    SurfelGIStage           SurfelStage;         // [-]   shared non-raytraced indirect-light compute route
+    uint64_t               SurfaceMaterialRevision = 0u;
+    bool                   SceneUploadInProgress = false;
+    void                   RefreshMaterialDescriptors() noexcept;
+    DistanceFieldStructure DistanceGeometry;
+    DistanceFieldGIStage    DistanceFieldStage;  // [-]   shared non-raytraced distance-field GI route (RenderPath == 1)
+    std::vector<SurfaceSample> SurfelSamples;    // [-]   persistent seed candidates derived from shared geometry
+    std::vector<VkImageView>   SurfelTextureViews;// [-]  bindless table lent to the surfel passes; outlives Bring()
+    float                   SurfelGridOrigin[3] = { 0.0f, 0.0f, 0.0f };
     bool                    TraversalResident = false;
     uint64_t                TraversalNodeCapacity = 0u;   // [B] allocation size, so a refit refresh cannot overrun
     uint64_t                TraversalLeafCapacity = 0u;   // [B]   // [-]   R3 CWBVH uploaded (kernel refuses to run without it)
@@ -446,6 +481,7 @@ private:
     uint64_t                BlasPlacementCapacity = 0u;   // [B] BlasPlacement rows
     VisibilityFrameConfiguration VisibilityFrame{};
     bool                    VisibilityFrameValid = false;
+    bool                    PresentedFrame = false;
     ShadowFrameConfiguration ShadowFrame{};        // R10: GI-off shadow settings (tier technique + resolution override)
     bool                    ShadowFrameValid = false;
 

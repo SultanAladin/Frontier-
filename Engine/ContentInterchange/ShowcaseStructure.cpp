@@ -30,6 +30,8 @@
 
 #include "ShowcaseStructure.h"
 #include "AutomotiveShowcasePresets.h"
+#include "ShowcaseMaterialFamilies.h"
+#include "ShaderBallGeometry.h"
 #include "SceneCodec.h"
 #include "../DeviceExchange/OrientationClassifier.h"
 #include <cmath>
@@ -140,7 +142,8 @@ void ShowcaseStructure::Construct() noexcept
             const float Hue = static_cast<float>(Col) / static_cast<float>(kShowcaseGridSide);        // hue wheel
             char Name[64];
             std::snprintf(Name, sizeof(Name), "grid_r%02u_c%02u", Row, Col);
-            if (Row >= 15u) std::snprintf(Name,sizeof(Name),"%s %02u",kAutomotiveFamilyNames[Row-15u],Col+1u);
+            if (Row == 15u) std::snprintf(Name,sizeof(Name),"%s %02u",kAutomotiveFamilyNames[Col / 4u],(Col % 4u)+1u);
+            else if (Row >= 16u) std::snprintf(Name,sizeof(Name),"%s %02u",kShowcaseRowNames[Row],Col+1u);
             MaterialDescriptor D = MakeMaterial(Name);
             MaterialSlabDescriptor& S = D.Slabs[0];
             switch (Row)
@@ -228,16 +231,63 @@ void ShowcaseStructure::Construct() noexcept
                 S.BaseMetalness = t;
                 S.SpecularRoughness = 0.22f;
                 break;
-            case 11:  // matte ceramic / rubber, alternating: even columns bright satin ceramic, odd dark rubber
-                if ((Col & 1u) == 0u) { HueColor(Hue, 0.30f, 0.90f, S.BaseColor); S.SpecularWeight = 0.4f; S.SpecularRoughness = 0.55f; S.BaseDiffuseRoughness = 0.5f; }
-                else                  { HueColor(Hue, 0.55f, 0.10f, S.BaseColor); S.SpecularWeight = 0.5f; S.SpecularRoughness = 0.85f; S.BaseDiffuseRoughness = 1.0f; }
+            case 11:  // POLYMERS — one real plastic per column, each at its own IOR, not a roughness sweep.
+                //    The point of the row is that "plastic" is not one material: ABS, PP and PTFE differ by
+                //    0.1 in IOR and a great deal in diffuse roughness, and nylon and PTFE are nearly white
+                //    while sharing almost nothing in how they scatter. Ceramic and rubber keep their slots as
+                //    the two ends of the gloss range.
+                {
+                    struct Polymer { const char* Label; float Ior, Rough, Diffuse, Sat, Value, Coat; };
+                    static const Polymer kPolymers[kShowcaseGridSide] = {
+                        { "ABS",        1.540f, 0.28f, 0.25f, 0.70f, 0.55f, 0.00f },
+                        { "Polystyrene",1.590f, 0.14f, 0.15f, 0.55f, 0.70f, 0.00f },
+                        { "Acrylic",    1.491f, 0.05f, 0.10f, 0.40f, 0.80f, 0.00f },
+                        { "Polycarb",   1.585f, 0.09f, 0.12f, 0.30f, 0.75f, 0.00f },
+                        { "PVC rigid",  1.540f, 0.35f, 0.35f, 0.25f, 0.60f, 0.00f },
+                        { "PET",        1.575f, 0.12f, 0.14f, 0.45f, 0.72f, 0.00f },
+                        { "Nylon 6",    1.530f, 0.42f, 0.55f, 0.10f, 0.85f, 0.00f },
+                        { "HDPE",       1.540f, 0.55f, 0.65f, 0.18f, 0.78f, 0.00f },
+                        { "LDPE",       1.510f, 0.68f, 0.78f, 0.15f, 0.82f, 0.00f },
+                        { "PP",         1.490f, 0.52f, 0.62f, 0.35f, 0.70f, 0.00f },
+                        { "PTFE",       1.350f, 0.78f, 0.95f, 0.02f, 0.92f, 0.00f },
+                        { "Silicone",   1.430f, 0.62f, 0.72f, 0.30f, 0.65f, 0.00f },
+                        { "Epoxy",      1.550f, 0.22f, 0.20f, 0.50f, 0.45f, 0.00f },
+                        { "Bakelite",   1.630f, 0.38f, 0.40f, 0.65f, 0.22f, 0.00f },
+                        { "Melamine",   1.600f, 0.18f, 0.22f, 0.20f, 0.88f, 0.00f },
+                        { "Rubber EPDM",1.520f, 0.88f, 1.00f, 0.05f, 0.045f,0.00f },
+                        { "Rubber worn",1.520f, 0.96f, 1.00f, 0.03f, 0.075f,0.00f },
+                        { "Ceramic",    1.700f, 0.08f, 0.30f, 0.12f, 0.90f, 0.00f },
+                        { "ABS lacquer",1.540f, 0.30f, 0.28f, 0.75f, 0.50f, 1.00f },
+                        { "PC lacquer", 1.585f, 0.34f, 0.26f, 0.60f, 0.40f, 1.00f } };
+                    const Polymer& P = kPolymers[Col];
+                    HueColor(Hue, P.Sat, P.Value, S.BaseColor);
+                    S.SpecularIor         = P.Ior;
+                    S.SpecularWeight      = 1.0f;
+                    S.SpecularRoughness   = P.Rough;
+                    S.BaseDiffuseRoughness= P.Diffuse;
+                    S.CoatWeight          = P.Coat;
+                    S.CoatRoughness       = 0.06f;
+                    S.CoatIor             = 1.5f;
+                    std::snprintf(Name, sizeof(Name), "polymer %s", P.Label);
+                    D.Name = Name;
+                }
                 break;
-            case 12:  // glint flakes: Deliot–Belcour density 1 → 8 over hue-tinted metal
-                HueColor(Hue, 0.50f, 0.30f, S.BaseColor);
-                S.BaseMetalness = 0.8f;
-                S.SpecularRoughness = 0.25f;
-                S.SlateGlintDensity = 1.0f + 7.0f * t;
-                S.SlateGlintUvScale = 4.0f + 8.0f * t;
+            case 12:  // GLITTER — coarse discrete sparkle, as distinct from the fine flake of car paint (row 15).
+                //    Glitter is a sparse scatter of LARGE mirror platelets in a clear binder: a low Deliot–Belcour
+                //    density at a low UV scale, so each flake subtends enough pixels to read as a separate glint
+                //    rather than a sheen. Density falls and flake size grows across the row, which is the axis
+                //    that separates glitter from metallic paint — paint raises density until the flakes merge.
+                HueColor(Hue, 0.65f, 0.45f, S.BaseColor);
+                S.BaseMetalness       = 0.0f;              // the binder is a dielectric; the FLAKES are the metal
+                S.SpecularIor         = 1.52f;
+                S.SpecularWeight      = 1.0f;
+                S.SpecularRoughness   = 0.08f + 0.10f * t;
+                S.SlateGlintDensity   = 6.0f - 5.2f * t;   // sparse, and getting sparser
+                S.SlateGlintUvScale   = 3.0f - 2.2f * t;   // coarse, and getting coarser
+                S.CoatWeight          = 1.0f;              // glitter is always under something
+                S.CoatRoughness       = 0.04f;
+                S.CoatIor             = 1.5f;
+                S.BaseDiffuseRoughness= 0.3f;
                 break;
             case 13:  // absorbing glass: fixed IOR, hue-tinted absorption deepening 0.10 → 0.60 m
                 SetColor(S.BaseColor, 1.0f, 1.0f, 1.0f);
@@ -260,8 +310,25 @@ void ShowcaseStructure::Construct() noexcept
                                        S.SpecularIor = 1.5f; S.SpecularRoughness = 0.30f; D.VolumeThickness = 1.1f; }                                                        // frosted glass
                 break;
             }
-            case 15: case 16: case 17: case 18: case 19:
-                AuthorAutomotiveShowcase(S, Row - 14u, t);
+            case 15:  // CAR METALLIC PAINT, flaked. r7 collapses the five automotive families onto one row: they
+                //    were 100 of the 400 slots for one material category, and the sweep within a family was a
+                //    smaller difference than the step between families. Four columns per family, CONTIGUOUS —
+                //    columns 4f..4f+3 are family f, sweeping 0 → 1 inside the block. Contiguous rather than
+                //    interleaved so one camera still frames one family, which is what the paint-* views do.
+                //    All five survive and four rows are freed for the material classes that had none.
+                AuthorAutomotiveShowcase(S, (Col / 4u) + 1u, static_cast<float>(Col % 4u) / 3.0f);
+                break;
+            case 16:  // WOOD — procedural grain. See AuthorWoodGrain.
+                AuthorWoodGrain(S, Col, t);
+                break;
+            case 17:  // PAPER — see AuthorPaperStock.
+                AuthorPaperStock(S, Col, t);
+                break;
+            case 18:  // FABRIC — see AuthorFabricWeave.
+                AuthorFabricWeave(S, Col, t);
+                break;
+            case 19:  // IOR / F0 / F82 / F90 — see AuthorFresnelLadder.
+                AuthorFresnelLadder(S, Col, t);
                 break;
             }
             Materials.push_back(D);
@@ -381,8 +448,17 @@ void ShowcaseStructure::Construct() noexcept
     //    and 15 rainbow luminaires at 992 tris each would put ~15 k rows in the alias table for no visual gain.
     constexpr float kRadius   = 0.55f;
     constexpr float kSpacing  = 1.5f;
-    constexpr float kGridEdge = kSpacing * static_cast<float>(kShowcaseGridSide - 1u) * 0.5f;   // 10.5 m
+    constexpr float kGridEdge = kSpacing * static_cast<float>(kShowcaseGridSide - 1u) * 0.5f;   // 14.25 m
     constexpr uint32_t kEmissionRow = 8u;   // matches the generator's case 8
+
+    // r7: the grid is the SHADER BALL, placed once per material through shared topology.
+    //    A sphere shows a material at one curvature with no occlusion and no edges, so sheen, coat, anisotropy
+    //    and subsurface all land as one highlight on one gradient. The ball has a flat plate, a convex dome, a
+    //    concave sweep, a thin lip and a self-occluding cushion, which is what separates a coat from a polish.
+    //    At 67 832 triangles a world-space soup of 400 of them would be 27 M triangles; as placements over one
+    //    registered topology the mesh is resident once. If the asset is missing the grid falls back to spheres,
+    //    so a checkout without it still renders — QueryGridMeshError() reports why.
+    const bool Instanced = BringGridMesh();
     for (uint32_t Index = 0u; Index < kGridMaterialCount; ++Index)
     {
         const uint32_t Material = Index + 1u;                       // 0 is the ground
@@ -391,7 +467,35 @@ void ShowcaseStructure::Construct() noexcept
                               -1.8f + kSpacing * static_cast<float>(Row),
                               kRadius };
         char Name[96];
-        std::snprintf(Name, sizeof(Name), "Sphere %03u (%s)", Material, Materials[Material].Name.c_str());
+        std::snprintf(Name, sizeof(Name), "Ball %03u (%s)", Material, Materials[Material].Name.c_str());
+
+        if (Instanced)
+        {
+            // The ball is authored resting on z = 0 and centred in xy, so the placement is a pure translation
+            //    to the cell. Emissive rows are NOT tessellated down any more: an emissive instance's triangles
+            //    all become luminaire-table rows, and 20 balls at 67 832 triangles each would put 1.4 M rows in
+            //    the alias table. The emission row therefore keeps a sphere even in the instanced grid.
+            if (Row == kEmissionRow)
+            {
+                const auto Span = OpenSpan(Name, true);
+                AppendSphere(Centre, kRadius, Material, 8u, 16u);
+                continue;
+            }
+            InstancedPlacementRecord Placement{};
+            Placement.Geometry = 0u;
+            Placement.Material = Material;
+            Placement.Name     = Name;
+            Placement.Dynamic  = true;
+            for (uint32_t C = 0u; C < 4u; ++C)
+                for (uint32_t R = 0u; R < 4u; ++R)
+                    Placement.World[C * 4u + R] = (C == R) ? 1.0f : 0.0f;
+            Placement.World[12] = Centre.x;
+            Placement.World[13] = Centre.y;
+            Placement.World[14] = 0.0f;                             // the mesh already rests on z = 0
+            GridPlacements.push_back(std::move(Placement));
+            continue;
+        }
+
         const auto Span = OpenSpan(Name, true);
         if (Row == kEmissionRow) AppendSphere(Centre, kRadius, Material, 8u, 16u);
         else                     AppendSphere(Centre, kRadius, Material, 16u, 32u);
@@ -667,13 +771,45 @@ bool ShowcaseIsCurrent(const std::string& Path) noexcept
     return Head.find(ShowcaseRevisionName()) != std::string::npos;
 }
 
+bool ShowcaseStructure::BringGridMesh() noexcept
+{
+    GridGeometry.clear();
+    GridPlacements.clear();
+    GridMeshError.clear();
+    GridVertices.clear();
+    GridIndices.clear();
+
+    std::string Resolved;
+    if (!ShaderBallGeometry::LoadResolved(kShaderBallAssetPath, GridMesh, &Resolved, &GridMeshError))
+        return false;
+    if (GridMesh.QueryVertices().empty() || GridMesh.QueryIndices().size() < 3u)
+    {
+        GridMeshError = "shader ball loaded empty";
+        return false;
+    }
+
+    // The encode records hold pointers, so the vectors they point at have to outlive the encode. Copying into
+    //    members rather than handing out GridMesh's internals keeps that guarantee local and obvious.
+    GridVertices = GridMesh.QueryVertices();
+    GridIndices  = GridMesh.QueryIndices();
+
+    InstancedGeometryRecord Record{};
+    Record.Vertices = &GridVertices;
+    Record.Indices  = &GridIndices;
+    Record.Name     = "ShaderBall";
+    GridGeometry.push_back(std::move(Record));
+    return true;
+}
+
 bool ShowcaseStructure::Export(const std::string& Path, std::string* Error) const noexcept
 {
     SceneEncodeConfiguration Configuration;
-    Configuration.Name           = ShowcaseRevisionName();   // stamps the revision so a stale file is detected
-    Configuration.CornerNormals  = &CornerNormals;
-    Configuration.WriteTexcoords = true;
-    Configuration.Spans          = &Spans;
+    Configuration.Name                = ShowcaseRevisionName();   // stamps the revision so a stale file is detected
+    Configuration.CornerNormals       = &CornerNormals;
+    Configuration.WriteTexcoords      = true;
+    Configuration.Spans               = &Spans;
+    Configuration.InstancedGeometry   = &GridGeometry;
+    Configuration.InstancedPlacements = &GridPlacements;
     return SceneCodec::Encode(Path, Triangles, Materials, Error, Configuration);
 }
 

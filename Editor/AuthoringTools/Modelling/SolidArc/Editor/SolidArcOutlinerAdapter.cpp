@@ -12,15 +12,16 @@
 namespace Frontier {
 namespace {
 
-// Exact SolidArc web palette from docs/solidarc/index.html KINDS:
+// Exact SolidArc web palette from docs/solidarc/index.html palette:
 // sketch/curve #4fd8e0, body #ffb454, surface #4da3ff, plane #b48cff, dim #e5d33a.
 constexpr float Channel(uint32_t V) noexcept { return static_cast<float>(V) / 255.0f; }
 constexpr float kSketchTint[3]       = { Channel( 79u), Channel(216u), Channel(224u) }; // #4fd8e0
 constexpr float kBodyTint[3]         = { Channel(255u), Channel(180u), Channel( 84u) }; // #ffb454
+constexpr float kProfileTint[3]      = { Channel( 52u), Channel(199u), Channel( 89u) }; // #34c759: profiles take the theme green, apart from the cyan lines
 constexpr float kSurfaceTint[3]      = { Channel( 77u), Channel(163u), Channel(255u) }; // #4da3ff
 constexpr float kConstructionTint[3] = { Channel(180u), Channel(140u), Channel(255u) }; // #b48cff
 constexpr float kDimensionTint[3]    = { Channel(229u), Channel(211u), Channel( 58u) }; // #e5d33a
-constexpr float kConstraintTint[3]   = { Channel(255u), Channel(180u), Channel( 84u) }; // SolidArc constraint key rows use the orange status accent
+constexpr float kConstraintTint[3]   = { Channel(255u), Channel(107u), Channel(138u) }; // constraint rose #ff6b8a: its own colour, apart from the body amber
 
 void AssignTint(EditorInstance& Row, const float Tint[3]) noexcept
 {
@@ -31,9 +32,9 @@ void AssignTint(EditorInstance& Row, const float Tint[3]) noexcept
 
 struct SolidArcBucket
 {
-    enum class Kind : uint32_t { Sketches, Bodies, Surfaces, Construction, Dimensions, Constraints } BucketKind;
+    enum class Content : uint32_t { Lines, Profiles, Bodies, Surfaces, Construction, Dimensions, Constraints } BucketContent;
     const char*          Label;
-    EditorGlyph          Glyph;
+    EditorSymbol       Mark;
     EditorNarrowing      Narrowing;
     uint32_t             FilterMask;
     float                Tint[3];
@@ -56,7 +57,7 @@ void SeatFolder(EditorInstance& Row,
                 const char* Label,
                 uint32_t Depth,
                 uint32_t KidCount,
-                EditorGlyph Glyph,
+                EditorSymbol Mark,
                 EditorNarrowing Narrowing,
                 uint32_t FilterMask,
                 const float Tint[3]) noexcept
@@ -65,7 +66,7 @@ void SeatFolder(EditorInstance& Row,
     Row.Depth      = Depth;
     Row.KidCount   = KidCount;
     Row.Category   = EditorInstanceCategory::Folder;
-    Row.Glyph      = Glyph;
+    Row.Symbol   = Mark;
     Row.Narrowing  = Narrowing;
     Row.FilterMask = FilterMask;
     Row.Pinned     = true;
@@ -99,15 +100,18 @@ const char* ClassNoun(FigureClassification Class) noexcept
     }
 }
 
-EditorGlyph FigureGlyph(FigureClassification Class) noexcept
+bool IsLineFigure(const SceneFigure& Figure) noexcept;
+
+EditorSymbol FigureMark(const SceneFigure& Figure) noexcept
 {
-    switch (Class)
+    if (Figure.Construction || Figure.Classification == FigureClassification::Empty)
+        return EditorSymbol::Construction;
+    switch (Figure.Classification)
     {
-    case FigureClassification::Curve:   return EditorGlyph::Wave;
-    case FigureClassification::Surface: return EditorGlyph::Plane;
-    case FigureClassification::Body:    return EditorGlyph::Lattice;
-    case FigureClassification::Empty:   return EditorGlyph::Orbit;
-    default:                            return EditorGlyph::Auto;
+    case FigureClassification::Body:    return EditorSymbol::Body;
+    case FigureClassification::Surface: return EditorSymbol::Surface;
+    case FigureClassification::Curve:   return IsLineFigure(Figure) ? EditorSymbol::Line : EditorSymbol::Profile;
+    default:                            return EditorSymbol::Profile;
     }
 }
 
@@ -152,7 +156,7 @@ const float* FigureOutlinerTint(const SceneFigure& Figure) noexcept
     if (Figure.Classification == FigureClassification::Surface)
         return kSurfaceTint;
     if (Figure.Classification == FigureClassification::Curve)
-        return kSketchTint;
+        return IsLineFigure(Figure) ? kSketchTint : kProfileTint;
     return kSketchTint;
 }
 
@@ -187,16 +191,18 @@ const char* BlueprintLabel(SceneFigure::ParametricForm Form) noexcept
 
 bool BucketAccepts(const SolidArcBucket& Bucket, const SceneFigure& Figure) noexcept
 {
-    using Kind = SolidArcBucket::Kind;
-    switch (Bucket.BucketKind)
+    using Content = SolidArcBucket::Content;
+    switch (Bucket.BucketContent)
     {
-    case Kind::Sketches:
-        return Figure.Classification == FigureClassification::Curve && !Figure.Construction;
-    case Kind::Bodies:
+    case Content::Lines:
+        return Figure.Classification == FigureClassification::Curve && !Figure.Construction && IsLineFigure(Figure);
+    case Content::Profiles:
+        return Figure.Classification == FigureClassification::Curve && !Figure.Construction && !IsLineFigure(Figure);
+    case Content::Bodies:
         return Figure.Classification == FigureClassification::Body && !Figure.Construction;
-    case Kind::Surfaces:
+    case Content::Surfaces:
         return Figure.Classification == FigureClassification::Surface && !Figure.Construction;
-    case Kind::Construction:
+    case Content::Construction:
         return Figure.Construction || Figure.Classification == FigureClassification::Empty;
     default:
         return false;
@@ -241,22 +247,26 @@ const ConstraintEntry* FindConstraint(const ConsoleHost& Host, uint32_t Id) noex
     return nullptr;
 }
 
+// The row's second line, the way the HTML outliner prints it: the form, then the one measure that names it.
 void FormatFigureMeta(const SceneFigure& Figure, char* Destination, size_t Capacity) noexcept
 {
     if (Destination == nullptr || Capacity == 0u)
         return;
+    const bool Authored = Figure.Blueprint.Form == SceneFigure::ParametricForm::None;
     if (Figure.Classification == FigureClassification::Body)
     {
         const BodyReport Report = Figure.Body.Validate();
-        std::snprintf(Destination, Capacity, "%s · %dF %dE", BlueprintLabel(Figure.Blueprint.Form), Report.Faces, Report.Edges);
+        std::snprintf(Destination, Capacity, "%s \xc2\xb7 %.2f m\xc2\xb3", Authored ? "body" : BlueprintLabel(Figure.Blueprint.Form), Report.Volume);
     }
     else if (Figure.Classification == FigureClassification::Surface)
     {
-        std::snprintf(Destination, Capacity, "%s · %zu poles", BlueprintLabel(Figure.Blueprint.Form), Figure.Surface.Poles.size());
+        std::snprintf(Destination, Capacity, "deg %d\xc3\x97%d \xc2\xb7 %zu poles", Figure.Surface.DegreeU, Figure.Surface.DegreeV,
+                      Figure.Surface.Poles.size());
     }
     else if (Figure.Classification == FigureClassification::Curve)
     {
-        std::snprintf(Destination, Capacity, "%s · %zu poles", BlueprintLabel(Figure.Blueprint.Form), Figure.Curve.Poles.size());
+        std::snprintf(Destination, Capacity, "%s \xc2\xb7 %.2f m", Authored ? "curve" : BlueprintLabel(Figure.Blueprint.Form),
+                      Figure.Curve.Length());
     }
     else
     {
@@ -270,11 +280,11 @@ void SeatFigureRow(EditorInstance& Row, SolidArcOutlinerBinding& Binding, const 
     Row.Depth     = Depth;
     Row.KidCount  = 0u;
     Row.Category  = EditorInstanceCategory::Geometry;
-    Row.Glyph     = FigureGlyph(Figure.Classification);
+    Row.Symbol  = FigureMark(Figure);
     Row.Narrowing = FigureNarrowing(Figure);
     Row.FilterMask = FigureFilterMask(Figure);
     Row.Visible   = !Figure.Hidden;
-    Row.Locked    = Figure.Construction;
+    Row.Locked    = Figure.Locked;
     AssignTint(Row, FigureOutlinerTint(Figure));
     FormatFigureMeta(Figure, Row.Meta, sizeof(Row.Meta));
     if (Figure.Construction)
@@ -294,6 +304,11 @@ void SeatFigureRow(EditorInstance& Row, SolidArcOutlinerBinding& Binding, const 
             Row.Standing = EditorStanding::Warn;
             CopyText(Row.StandingNote, sizeof(Row.StandingNote), "B-rep check");
         }
+    }
+    if (!Figure.Recipe.Complaint.empty())
+    {
+        Row.Standing = EditorStanding::Warn;
+        CopyText(Row.StandingNote, sizeof(Row.StandingNote), Figure.Recipe.Complaint.c_str());
     }
     Binding.RowRole = SolidArcOutlinerBinding::Role::Figure;
     Binding.FigureIdentity = Figure.Identity;
@@ -343,6 +358,78 @@ void AddAxis(EditorPropertyGroup& Group, const char* Label, Vec3 Value, bool Edi
         Property->Editable = Editable;
     }
 }
+
+EditorPropertyGroup* AddGroup(EditorSheet& Sheet, const char* Title, const char* Caption) noexcept
+{
+    EditorPropertyGroup* Group = AddGroup(Sheet, Title);
+    if (Group != nullptr)
+        CopyText(Group->Caption, sizeof(Group->Caption), Caption);
+    return Group;
+}
+
+// The pivot, rotation and scale the inspector's Transform card shows for the picked figure. A figure's geometry carries
+//    no rotation or scale of its own, so the card keeps the amounts applied since the pick (reset on a new pick) and
+//    the pivot they turn about; the pivot follows the figure when the gizmo or a command moves it.
+struct TransformDraft
+{
+    uint32_t Identity    = 0u;
+    bool     Seeded      = false;
+    Vec3     Pivot       = Vec3(0.0, 0.0, 0.0);     // [m]
+    Vec3     LastCentre  = Vec3(0.0, 0.0, 0.0);     // [m] the bounds centre when the pivot last agreed with the figure
+    float    Rotation[3] = { 0.0f, 0.0f, 0.0f };    // [deg]
+    float    Scale[3]    = { 1.0f, 1.0f, 1.0f };    // [-]
+    float    Uniform     = 1.0f;                    // [-]
+};
+
+TransformDraft gDraft;
+
+TransformDraft& DraftFor(const SceneFigure& Figure) noexcept
+{
+    if (gDraft.Identity != Figure.Identity)
+    {
+        gDraft          = TransformDraft{};
+        gDraft.Identity = Figure.Identity;
+    }
+    const Box3 Bounds = Figure.Bounds();
+    if (!Bounds.Empty())
+    {
+        const Vec3 Centre = Bounds.Centre();
+        if (!gDraft.Seeded)
+        {
+            gDraft.Pivot  = Centre;
+            gDraft.Seeded = true;
+        }
+        else
+        {
+            gDraft.Pivot = gDraft.Pivot + (Centre - gDraft.LastCentre);
+        }
+        gDraft.LastCentre = Centre;
+    }
+    return gDraft;
+}
+
+void AddSlider(EditorPropertyGroup& Group, const char* Label, float Value, float Low, float High, uint32_t Decimals, const char* Unit) noexcept
+{
+    if (EditorProperty* Property = AddProperty(Group, Label, EditorPropertyCategory::Slider))
+    {
+        Property->Figure   = Value;
+        Property->Minimum  = Low;
+        Property->Maximum  = High;
+        Property->Decimals = Decimals;
+        CopyText(Property->Unit, sizeof(Property->Unit), Unit);
+    }
+}
+
+// Applies M about the draft's pivot, so a rotation or scale turns the figure in place.
+void TransformAboutPivot(SceneFigure& Figure, TransformDraft& Draft, const Mat4& M) noexcept
+{
+    Figure.Transform(Mat4::Translation(Draft.Pivot) * M * Mat4::Translation(Draft.Pivot * -1.0));
+    const Box3 Bounds = Figure.Bounds();
+    if (!Bounds.Empty())
+        Draft.LastCentre = Bounds.Centre();
+}
+
+constexpr double kDegrees = 3.14159265358979323846 / 180.0;
 
 void AddColour(EditorPropertyGroup& Group, const char* Label, const float Tint[3]) noexcept
 {
@@ -415,24 +502,77 @@ void AddBlueprintParameters(EditorPropertyGroup& Group, const SceneFigure& Figur
     AddReadout(Group, "Closed", B.Closed ? "yes" : "no");
 }
 
+// The hero card's building blocks. The hero is the SolidArc inspector's top card: subject pill, big measure, up to three stats.
+void SeatHero(EditorSheet& Sheet, const char* Subject, uint32_t Identity, const char* Subtitle, const char* Measure, const char* Unit,
+              const char* Caption, bool Renameable) noexcept
+{
+    EditorSheetHero& Hero = Sheet.Hero;
+    Hero = EditorSheetHero{};
+    Hero.Active     = true;
+    Hero.Renameable = Renameable;
+    Hero.Identity   = Identity;
+    CopyText(Hero.Subject, sizeof(Hero.Subject), Subject);
+    CopyText(Hero.Subtitle, sizeof(Hero.Subtitle), Subtitle);
+    CopyText(Hero.Measure, sizeof(Hero.Measure), Measure);
+    CopyText(Hero.Unit, sizeof(Hero.Unit), Unit);
+    CopyText(Hero.Caption, sizeof(Hero.Caption), Caption);
+}
+
+void AddStat(EditorSheet& Sheet, const char* Label, const char* Text) noexcept
+{
+    EditorSheetHero& Hero = Sheet.Hero;
+    if (Hero.StatCount >= 3u)
+        return;
+    CopyText(Hero.StatLabel[Hero.StatCount], sizeof(Hero.StatLabel[0]), Label);
+    CopyText(Hero.StatText[Hero.StatCount], sizeof(Hero.StatText[0]), Text);
+    ++Hero.StatCount;
+}
+
+void AddStatNumber(EditorSheet& Sheet, const char* Label, size_t Value) noexcept
+{
+    char Buffer[24] = {};
+    std::snprintf(Buffer, sizeof(Buffer), "%zu", Value);
+    AddStat(Sheet, Label, Buffer);
+}
+
+void OfferPresence(EditorSheet& Sheet, EditorSheetPresence Cell, bool On) noexcept
+{
+    Sheet.PresenceOffered[static_cast<uint32_t>(Cell)] = true;
+    Sheet.Presence[static_cast<uint32_t>(Cell)]        = On;
+}
+
+constexpr uint32_t kSlotVisible = static_cast<uint32_t>(EditorSheetPresence::Visible);
+constexpr uint32_t kSlotLocked  = static_cast<uint32_t>(EditorSheetPresence::Locked);
+constexpr uint32_t kSlotBuild   = static_cast<uint32_t>(EditorSheetPresence::Construction);
+constexpr uint32_t kSlotDims    = static_cast<uint32_t>(EditorSheetPresence::Dimensions);
+
+// The whole document: no object picked, so the hero reports the scene and the cards list its contents and kernel.
 void BuildDocumentSheet(const ConsoleHost& Host, EditorSheet& Sheet) noexcept
 {
-    EditorPropertyGroup* Summary = AddGroup(Sheet, "Document");
+    uint32_t Bodies = 0u, Sketches = 0u, Surfaces = 0u, Construction = 0u;
+    for (const SceneFigure& Figure : Host.AllFigures())
+    {
+        if (Figure.Construction || Figure.Classification == FigureClassification::Empty)
+            ++Construction;
+        else if (Figure.Classification == FigureClassification::Body)
+            ++Bodies;
+        else if (Figure.Classification == FigureClassification::Surface)
+            ++Surfaces;
+        else if (Figure.Classification == FigureClassification::Curve)
+            ++Sketches;
+    }
+    char Buffer[48] = {};
+    std::snprintf(Buffer, sizeof(Buffer), "%zu figures", Host.AllFigures().size());
+    char Count[24] = {};
+    std::snprintf(Count, sizeof(Count), "%u", Bodies);
+    SeatHero(Sheet, "DOCUMENT", 0u, Buffer, Count, "", Bodies == 1u ? "body" : "bodies", false);
+    AddStat(Sheet, "Kernel", "NURBS");
+    AddStat(Sheet, "Tolerance", "1e-6");
+    AddStatNumber(Sheet, "Undo", Host.Timeline().UndoEntries().size());
+
+    EditorPropertyGroup* Summary = AddGroup(Sheet, "Contents", "What the document holds");
     if (Summary != nullptr)
     {
-        char Buffer[48] = {};
-        uint32_t Bodies = 0u, Sketches = 0u, Surfaces = 0u, Construction = 0u;
-        for (const SceneFigure& Figure : Host.AllFigures())
-        {
-            if (Figure.Construction || Figure.Classification == FigureClassification::Empty)
-                ++Construction;
-            else if (Figure.Classification == FigureClassification::Body)
-                ++Bodies;
-            else if (Figure.Classification == FigureClassification::Surface)
-                ++Surfaces;
-            else if (Figure.Classification == FigureClassification::Curve)
-                ++Sketches;
-        }
         std::snprintf(Buffer, sizeof(Buffer), "%u", Bodies); AddReadout(*Summary, "Bodies", Buffer);
         std::snprintf(Buffer, sizeof(Buffer), "%u", Sketches); AddReadout(*Summary, "Sketches", Buffer);
         std::snprintf(Buffer, sizeof(Buffer), "%u", Surfaces); AddReadout(*Summary, "Surfaces", Buffer);
@@ -441,22 +581,64 @@ void BuildDocumentSheet(const ConsoleHost& Host, EditorSheet& Sheet) noexcept
         std::snprintf(Buffer, sizeof(Buffer), "%zu", Host.AllConstraints().size()); AddReadout(*Summary, "Constraints", Buffer);
     }
 
-    EditorPropertyGroup* Kernel = AddGroup(Sheet, "CAD kernel");
+    EditorPropertyGroup* Kernel = AddGroup(Sheet, "CAD kernel", "Geometry engine");
     if (Kernel != nullptr)
     {
-        AddReadout(*Kernel, "Kernel", "NURBS · B-rep");
+        AddReadout(*Kernel, "Kernel", "NURBS \xc2\xb7 B-rep");
         AddReadout(*Kernel, "Tolerance", "1e-6");
         AddReadout(*Kernel, "Axes", "Z-up lattice");
         AddReadout(*Kernel, "Selection", SelectModeName(Host.CurrentSelectMode()));
+        std::snprintf(Buffer, sizeof(Buffer), "%zu / %zu", Host.Timeline().UndoEntries().size(), Host.Timeline().RedoEntries().size());
+        AddReadout(*Kernel, "Undo / redo", Buffer);
     }
+}
 
-    EditorPropertyGroup* Presentation = AddGroup(Sheet, "Presentation");
-    if (Presentation != nullptr)
+// Writes one editable Transform row back: Position moves the figure's pivot; Rotation and Scale apply the change since
+//    the last frame about the pivot and keep the new amounts in the draft.
+void ApplyTransformAxis(SceneFigure& Figure, const EditorProperty& Property) noexcept
+{
+    TransformDraft& Draft = DraftFor(Figure);
+    if (Figure.Locked)
+        return;                 // a locked figure keeps its pose; the next frame's sheet shows the draft again
+    if (std::strcmp(Property.Label, "Position") == 0)
     {
-        AddSwitch(*Presentation, "Dimension lines", true);
-        AddSwitch(*Presentation, "Construction", true);
-        AddSwitch(*Presentation, "Lattice", true);
-        AddMatcap(*Presentation, 3u);
+        if (!Draft.Seeded)
+            return;
+        const Vec3 Delta(Property.Axes[0] - Draft.Pivot.X, Property.Axes[1] - Draft.Pivot.Y, Property.Axes[2] - Draft.Pivot.Z);
+        if (std::fabs(Delta.X) + std::fabs(Delta.Y) + std::fabs(Delta.Z) > 1e-5)
+        {
+            Figure.Transform(Mat4::Translation(Delta));
+            Draft.Pivot = Draft.Pivot + Delta;
+            const Box3 Bounds = Figure.Bounds();
+            if (!Bounds.Empty())
+                Draft.LastCentre = Bounds.Centre();
+        }
+    }
+    else if (std::strcmp(Property.Label, "Rotation") == 0)
+    {
+        static const Vec3 Axes[3] = { Vec3(1.0, 0.0, 0.0), Vec3(0.0, 1.0, 0.0), Vec3(0.0, 0.0, 1.0) };
+        for (int Axis = 0; Axis < 3; ++Axis)
+        {
+            const double Delta = static_cast<double>(Property.Axes[Axis] - Draft.Rotation[Axis]);
+            if (std::fabs(Delta) < 1e-6)
+                continue;
+            TransformAboutPivot(Figure, Draft, Mat4::Rotation(Axes[Axis], Delta * kDegrees));
+            Draft.Rotation[Axis] = Property.Axes[Axis];
+        }
+    }
+    else if (std::strcmp(Property.Label, "Scale") == 0)
+    {
+        for (int Axis = 0; Axis < 3; ++Axis)
+        {
+            const float Target = std::max(Property.Axes[Axis], 0.01f);
+            const float Ratio  = Target / std::max(Draft.Scale[Axis], 0.01f);
+            if (std::fabs(Ratio - 1.0f) < 1e-6f)
+                continue;
+            Vec3 Factor(1.0, 1.0, 1.0);
+            (Axis == 0 ? Factor.X : (Axis == 1 ? Factor.Y : Factor.Z)) = Ratio;
+            TransformAboutPivot(Figure, Draft, Mat4::Scaling(Factor));
+            Draft.Scale[Axis] = Target;
+        }
     }
 }
 
@@ -474,14 +656,17 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
     for (uint32_t I = 0u; I < Capacity; ++I)
         ClearRow(Rows[I], Bindings[I]);
 
+    // 📝 One folder per filter-catalogue entry, in the catalogue's order and spelling, each in its own colour.
+    using Mark = EditorSymbol;
     const SolidArcBucket Buckets[] =
     {
-        { SolidArcBucket::Kind::Sketches,     "Sketches",     EditorGlyph::Wave,    EditorNarrowing::Lights,   SolidArcOutlinerFilter::Lines | SolidArcOutlinerFilter::Profiles, { kSketchTint[0],       kSketchTint[1],       kSketchTint[2] } },
-        { SolidArcBucket::Kind::Bodies,       "Bodies",       EditorGlyph::Lattice, EditorNarrowing::Bodies,   SolidArcOutlinerFilter::Bodies,                                { kBodyTint[0],         kBodyTint[1],         kBodyTint[2] } },
-        { SolidArcBucket::Kind::Surfaces,     "Surfaces",     EditorGlyph::Plane,   EditorNarrowing::Geometry, SolidArcOutlinerFilter::Surfaces,                              { kSurfaceTint[0],      kSurfaceTint[1],      kSurfaceTint[2] } },
-        { SolidArcBucket::Kind::Construction, "Construction", EditorGlyph::Orbit,   EditorNarrowing::Camera,   SolidArcOutlinerFilter::Construction,                          { kConstructionTint[0], kConstructionTint[1], kConstructionTint[2] } },
-        { SolidArcBucket::Kind::Dimensions,   "Dimensions",   EditorGlyph::Sliders, EditorNarrowing::Sky,      SolidArcOutlinerFilter::Dimensions,                            { kDimensionTint[0],    kDimensionTint[1],    kDimensionTint[2] } },
-        { SolidArcBucket::Kind::Constraints,  "Constraints",  EditorGlyph::Key,     EditorNarrowing::Auto,     SolidArcOutlinerFilter::Unfiltered,                         { kConstraintTint[0],   kConstraintTint[1],   kConstraintTint[2] } },
+        { SolidArcBucket::Content::Lines,        "Lines",        Mark::Line,         EditorNarrowing::Lights,   SolidArcOutlinerFilter::Lines,        { kSketchTint[0],       kSketchTint[1],       kSketchTint[2] } },
+        { SolidArcBucket::Content::Profiles,     "Profiles",     Mark::Profile,      EditorNarrowing::Sky,      SolidArcOutlinerFilter::Profiles,     { kProfileTint[0],      kProfileTint[1],      kProfileTint[2] } },
+        { SolidArcBucket::Content::Bodies,       "Bodies",       Mark::Body,         EditorNarrowing::Bodies,   SolidArcOutlinerFilter::Bodies,       { kBodyTint[0],         kBodyTint[1],         kBodyTint[2] } },
+        { SolidArcBucket::Content::Surfaces,     "Surfaces",     Mark::Surface,      EditorNarrowing::Geometry, SolidArcOutlinerFilter::Surfaces,     { kSurfaceTint[0],      kSurfaceTint[1],      kSurfaceTint[2] } },
+        { SolidArcBucket::Content::Construction, "Construction", Mark::Construction, EditorNarrowing::Camera,   SolidArcOutlinerFilter::Construction, { kConstructionTint[0], kConstructionTint[1], kConstructionTint[2] } },
+        { SolidArcBucket::Content::Dimensions,   "Dimensions",   Mark::Dimension,    EditorNarrowing::Sky,      SolidArcOutlinerFilter::Dimensions,   { kDimensionTint[0],    kDimensionTint[1],    kDimensionTint[2] } },
+        { SolidArcBucket::Content::Constraints,  "Constraints",  Mark::Constraint,   EditorNarrowing::Auto,     SolidArcOutlinerFilter::Constraints,   { kConstraintTint[0],   kConstraintTint[1],   kConstraintTint[2] } },
     };
 
     uint32_t At = 0u;
@@ -491,22 +676,22 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
             break;
 
         uint32_t KidCount = 0u;
-        if (Bucket.BucketKind == SolidArcBucket::Kind::Dimensions)
+        if (Bucket.BucketContent == SolidArcBucket::Content::Dimensions)
             KidCount = static_cast<uint32_t>(Host.AllDimensions().size());
-        else if (Bucket.BucketKind == SolidArcBucket::Kind::Constraints)
+        else if (Bucket.BucketContent == SolidArcBucket::Content::Constraints)
             KidCount = static_cast<uint32_t>(Host.AllConstraints().size());
         else
             KidCount = CountFigures(Host, Bucket);
 
         const uint32_t FolderRow = At++;
-        SeatFolder(Rows[FolderRow], Bucket.Label, 0u, KidCount, Bucket.Glyph, Bucket.Narrowing, Bucket.FilterMask, Bucket.Tint);
+        SeatFolder(Rows[FolderRow], Bucket.Label, 0u, KidCount, Bucket.Mark, Bucket.Narrowing, Bucket.FilterMask, Bucket.Tint);
         char CountText[24] = {};
         std::snprintf(CountText, sizeof(CountText), "%u", KidCount);
         CopyText(Rows[FolderRow].Meta, sizeof(Rows[FolderRow].Meta), CountText);
         if (KidCount == 0u)
             Rows[FolderRow].Standing = EditorStanding::Quiet;
 
-        if (Bucket.BucketKind == SolidArcBucket::Kind::Dimensions)
+        if (Bucket.BucketContent == SolidArcBucket::Content::Dimensions)
         {
             for (const ConsoleHost::DimensionEntry& Dimension : Host.AllDimensions())
             {
@@ -517,18 +702,23 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                 CopyText(Row.Label, sizeof(Row.Label), Dimension.AnchorName.empty() ? "Dimension" : Dimension.AnchorName.c_str());
                 Row.Depth     = 1u;
                 Row.Category  = EditorInstanceCategory::Geometry;
-                Row.Glyph     = EditorGlyph::Sliders;
+                Row.Symbol  = EditorSymbol::Dimension;
                 Row.Narrowing = Bucket.Narrowing;
                 Row.FilterMask = Bucket.FilterMask;
                 Row.Visible   = !Dimension.Hidden;
                 AssignTint(Row, Bucket.Tint);
-                CopyText(Row.Meta, sizeof(Row.Meta), Dimension.Label.c_str());
+                char Measure[16] = {};
+                if (Dimension.Label.empty())
+                    std::snprintf(Measure, sizeof(Measure), "%.2f m", Dimension.Value);
+                else
+                    std::snprintf(Measure, sizeof(Measure), "%s", Dimension.Label.c_str());
+                std::snprintf(Row.Meta, sizeof(Row.Meta), "%.11s \xc2\xb7 %.8s", Measure, Dimension.Slot >= 0 ? "driving" : "measured");
                 Binding.RowRole = SolidArcOutlinerBinding::Role::Dimension;
                 Binding.DimensionId = Dimension.Id;
                 ++At;
             }
         }
-        else if (Bucket.BucketKind == SolidArcBucket::Kind::Constraints)
+        else if (Bucket.BucketContent == SolidArcBucket::Content::Constraints)
         {
             for (const ConstraintEntry& Constraint : Host.AllConstraints())
             {
@@ -539,14 +729,12 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                 CopyText(Row.Label, sizeof(Row.Label), Constraint.Note.empty() ? "Constraint" : Constraint.Note.c_str());
                 Row.Depth     = 1u;
                 Row.Category  = EditorInstanceCategory::Geometry;
-                Row.Glyph     = EditorGlyph::Key;
+                Row.Symbol  = EditorSymbol::Constraint;
                 Row.Narrowing = Bucket.Narrowing;
                 Row.FilterMask = Bucket.FilterMask;
                 Row.Visible   = true;
                 AssignTint(Row, Bucket.Tint);
-                char IdText[24] = {};
-                std::snprintf(IdText, sizeof(IdText), "#%u", Constraint.Id);
-                CopyText(Row.Meta, sizeof(Row.Meta), IdText);
+                std::snprintf(Row.Meta, sizeof(Row.Meta), "#%u \xc2\xb7 sketch solver", Constraint.Id);
                 Binding.RowRole = SolidArcOutlinerBinding::Role::Constraint;
                 Binding.ConstraintId = Constraint.Id;
                 ++At;
@@ -606,21 +794,43 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
     if (Sheet == nullptr)
         return false;
     *Sheet = EditorSheet{};
+    Sheet->Appearance = EditorSheetAppearance::SolidArc;
 
     if (Binding.RowRole == SolidArcOutlinerBinding::Role::Dimension && Binding.DimensionId != 0u)
     {
         const ConsoleHost::DimensionEntry* Dimension = FindDimension(Host, Binding.DimensionId);
         if (Dimension == nullptr)
             return false;
-        EditorPropertyGroup* Group = AddGroup(*Sheet, "Dimension");
+        static const char* const Forms[] = { "linear", "angle", "radius", "diameter", "arc length", "bounding box" };
+        char Measure[24] = {};
+        const char* Unit = "";
+        if (Dimension->Label.empty())
+        {
+            std::snprintf(Measure, sizeof(Measure), "%.3f", Dimension->Value);
+            Unit = Dimension->Form == ConsoleHost::DimensionForm::Angle ? "rad" : "m";
+        }
+        else
+        {
+            std::snprintf(Measure, sizeof(Measure), "%s", Dimension->Label.c_str());
+        }
+        const char* Target = Dimension->AnchorName.empty() ? "free" : Dimension->AnchorName.c_str();
+        char Name[40] = {};
+        std::snprintf(Name, sizeof(Name), "Dimension \xc2\xb7 %s", Forms[std::min<size_t>(static_cast<size_t>(Dimension->Form), 5u)]);
+        SeatHero(*Sheet, "DIMENSION", Dimension->Id, Name, Measure, Unit, Dimension->Slot >= 0 ? "driving" : "measured", false);
+        AddStat(*Sheet, "Target", Target);
+        AddStat(*Sheet, "Style", Forms[std::min<size_t>(static_cast<size_t>(Dimension->Form), 5u)]);
+        AddStat(*Sheet, "Driving", Dimension->Slot >= 0 ? "live" : "no");
+        OfferPresence(*Sheet, EditorSheetPresence::Visible, !Dimension->Hidden);
+
+        EditorPropertyGroup* Group = AddGroup(*Sheet, "Dimension", "Measured or driving");
         if (Group != nullptr)
         {
             char Buffer[48] = {};
-            AddReadout(*Group, "Anchor", Dimension->AnchorName.empty() ? "free" : Dimension->AnchorName.c_str());
-            AddReadout(*Group, "Label", Dimension->Label.c_str());
+            AddReadout(*Group, "Anchor", Target);
+            if (!Dimension->Label.empty())
+                AddReadout(*Group, "Label", Dimension->Label.c_str());
             std::snprintf(Buffer, sizeof(Buffer), "%.3f", Dimension->Value); AddReadout(*Group, "Value", Buffer);
             AddReadout(*Group, "Live slot", Dimension->Slot >= 0 ? "parametric" : "read-only");
-            AddSwitch(*Group, "Hidden", Dimension->Hidden);
         }
         return true;
     }
@@ -630,11 +840,19 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
         const ConstraintEntry* Constraint = FindConstraint(Host, Binding.ConstraintId);
         if (Constraint == nullptr)
             return false;
-        EditorPropertyGroup* Group = AddGroup(*Sheet, "Constraint");
+        static const char* const Types[] = { "distance", "angle", "coincident", "horizontal", "vertical", "parallel", "perpendicular",
+                                             "equal length", "equal radius" };
+        const char* Type = Types[std::min<size_t>(static_cast<size_t>(Constraint->C.Type), 8u)];
+        SeatHero(*Sheet, "CONSTRAINT", Constraint->Id, "Sketch constraint", "", "", "", false);
+        AddStat(*Sheet, "Relation", Type);
+        AddStat(*Sheet, "Solver", "2D graph");
+        AddStat(*Sheet, "State", Constraint->C.Active ? "active" : "off");
+        EditorPropertyGroup* Group = AddGroup(*Sheet, "Constraint", "Sketch solver");
         if (Group != nullptr)
         {
             char Buffer[48] = {};
             std::snprintf(Buffer, sizeof(Buffer), "#%u", Constraint->Id); AddReadout(*Group, "Identity", Buffer);
+            AddReadout(*Group, "Relation", Type);
             AddReadout(*Group, "Note", Constraint->Note.c_str());
             AddReadout(*Group, "Solver", "2D sketch graph");
         }
@@ -651,54 +869,177 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
     if (Figure == nullptr)
         return false;
 
-    EditorPropertyGroup* Identity = AddGroup(*Sheet, "Identity");
-    if (Identity != nullptr)
+    char Buffer[48] = {};
+    char Subtitle[40] = {};
+    std::snprintf(Subtitle, sizeof(Subtitle), "%s \xc2\xb7 %s", ClassLabel(Figure->Classification), BlueprintLabel(Figure->Blueprint.Form));
+    const bool IsEmpty   = Figure->Classification == FigureClassification::Empty;
+    const bool IsCurve   = Figure->Classification == FigureClassification::Curve;
+    const bool IsBody    = Figure->Classification == FigureClassification::Body;
+    const bool IsSurface = Figure->Classification == FigureClassification::Surface;
+
+    const EditorSymbol Mark = FigureMark(*Figure);
+    const char* SubjectWord = "OBJECT";
+    switch (Mark)
     {
-        AddReadout(*Identity, "Class", ClassLabel(Figure->Classification));
-        AddReadout(*Identity, "Form", BlueprintLabel(Figure->Blueprint.Form));
-        AddSwitch(*Identity, "Hidden", Figure->Hidden);
-        AddSwitch(*Identity, "Construction", Figure->Construction);
-        AddMatcap(*Identity, Figure->Matcap);
+    case EditorSymbol::Line:         SubjectWord = "LINE";         break;
+    case EditorSymbol::Profile:      SubjectWord = "PROFILE";      break;
+    case EditorSymbol::Body:         SubjectWord = "BODY";         break;
+    case EditorSymbol::Surface:      SubjectWord = "SURFACE";      break;
+    case EditorSymbol::Construction: SubjectWord = "CONSTRUCTION"; break;
+    default: break;
     }
 
-    EditorPropertyGroup* Geometry = AddGroup(*Sheet, "CAD geometry");
-    if (Geometry != nullptr)
-        AddFigureCounts(*Geometry, *Figure);
+    if (IsBody)
+    {
+        const BodyReport Report = Figure->Body.Validate();
+        std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Volume);
+        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Buffer, "m\xc2\xb3", "volume", true);
+        AddStatNumber(*Sheet, "Faces", static_cast<size_t>(Report.Faces));
+        AddStatNumber(*Sheet, "Edges", static_cast<size_t>(Report.Edges));
+        AddStatNumber(*Sheet, "Vertices", static_cast<size_t>(Report.Vertices));
+    }
+    else if (IsSurface)
+    {
+        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->Surface.Poles.size());
+        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Buffer, "poles", "control net", true);
+        std::snprintf(Buffer, sizeof(Buffer), "%d \xc3\x97 %d", Figure->Surface.DegreeU, Figure->Surface.DegreeV);
+        AddStat(*Sheet, "Degree", Buffer);
+        std::snprintf(Buffer, sizeof(Buffer), "%d \xc3\x97 %d", Figure->Surface.CountU, Figure->Surface.CountV);
+        AddStat(*Sheet, "Net U\xc3\x97V", Buffer);
+        AddStatNumber(*Sheet, "Knots", Figure->Surface.KnotsU.size() + Figure->Surface.KnotsV.size());
+    }
+    else if (IsCurve)
+    {
+        std::snprintf(Buffer, sizeof(Buffer), "%.3f", Figure->Curve.Length());
+        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Buffer, "m", "length", true);
+        AddStatNumber(*Sheet, "Degree", static_cast<size_t>(Figure->Curve.Degree));
+        AddStatNumber(*Sheet, "Poles", Figure->Curve.Poles.size());
+        AddStat(*Sheet, "Closed", Figure->Curve.Closed() ? "yes" : "no");
+    }
+    else
+    {
+        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, "", "", "", true);
+        AddStat(*Sheet, "Role", "reference");
+        AddStat(*Sheet, "Shown", Figure->Hidden ? "no" : "yes");
+    }
+
+    // Presence: Visible always; Locked always; Construction for curves and empties; Dimensions when the figure anchors any.
+    size_t Anchored = 0u, AnchoredShown = 0u;
+    for (const ConsoleHost::DimensionEntry& Dimension : Host.AllDimensions())
+    {
+        if (Dimension.Anchor != Figure->Identity)
+            continue;
+        ++Anchored;
+        if (!Dimension.Hidden)
+            ++AnchoredShown;
+    }
+    OfferPresence(*Sheet, EditorSheetPresence::Visible, !Figure->Hidden);
+    OfferPresence(*Sheet, EditorSheetPresence::Locked, Figure->Locked);
+    if (IsCurve || IsEmpty)
+        OfferPresence(*Sheet, EditorSheetPresence::Construction, Figure->Construction);
+    if (Anchored > 0u)
+        OfferPresence(*Sheet, EditorSheetPresence::Dimensions, AnchoredShown > 0u);
+    Sheet->ActionsOffered = true;
 
     const Box3 Bounds = Figure->Bounds();
-    EditorPropertyGroup* BoundsGroup = AddGroup(*Sheet, "Bounds");
-    if (BoundsGroup != nullptr)
+    TransformDraft& Draft = DraftFor(*Figure);
+    EditorPropertyGroup* Transform = AddGroup(*Sheet, "Transform", "World space");
+    if (Transform != nullptr)
     {
         if (!Bounds.Empty())
         {
-            AddAxis(*BoundsGroup, "Min", Bounds.Low);
-            AddAxis(*BoundsGroup, "Max", Bounds.High);
-            AddAxis(*BoundsGroup, "Extent", Bounds.Extent());
-            AddAxis(*BoundsGroup, "Centre", Bounds.Centre());
+            AddAxis(*Transform, "Position", Draft.Pivot, true);
+            AddAxis(*Transform, "Rotation", Vec3(Draft.Rotation[0], Draft.Rotation[1], Draft.Rotation[2]), true);
+            AddAxis(*Transform, "Scale", Vec3(Draft.Scale[0], Draft.Scale[1], Draft.Scale[2]), true);
+            AddSlider(*Transform, "Uniform scale", Draft.Uniform, 0.1f, 4.0f, 2u, "x");
         }
         else
         {
-            AddReadout(*BoundsGroup, "Bounds", "empty");
+            AddReadout(*Transform, "Bounds", "empty");
         }
     }
 
-    EditorPropertyGroup* Parameters = AddGroup(*Sheet, "Parameters");
-    if (Parameters != nullptr)
-        AddBlueprintParameters(*Parameters, *Figure);
-
-    EditorPropertyGroup* Selection = AddGroup(*Sheet, "Sub-selection");
-    if (Selection != nullptr)
+    EditorPropertyGroup* BoundsCard = AddGroup(*Sheet, "Bounds", "Axis-aligned box");
+    if (BoundsCard != nullptr && !Bounds.Empty())
     {
-        char Buffer[48] = {};
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->SelectedFaces.size()); AddReadout(*Selection, "Faces", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->SelectedEdges.size()); AddReadout(*Selection, "Edges", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->SelectedPoles.size()); AddReadout(*Selection, "Vertices", Buffer);
+        AddAxis(*BoundsCard, "Size", Bounds.Extent());
+        AddAxis(*BoundsCard, "Min", Bounds.Low);
+        AddAxis(*BoundsCard, "Max", Bounds.High);
+        AddAxis(*BoundsCard, "Centre", Bounds.Centre());
     }
 
-    EditorPropertyGroup* Display = AddGroup(*Sheet, "Display");
-    if (Display != nullptr)
-        AddColour(*Display, "Tint", Figure->Tint);
+    EditorPropertyGroup* Parameters = AddGroup(*Sheet, "Parameters", "Parametric blueprint");
+    if (Parameters != nullptr)
+    {
+        if (Figure->Recipe.Operation == RecipeOperation::SurfaceOffset)
+        {
+            CopyText(Parameters->Caption, sizeof(Parameters->Caption), "Live surface-distance offset");
+            AddReadout(*Parameters, "Metric", "along support skin");
+            AddSlider(*Parameters, "Signed width", static_cast<float>(Figure->Recipe.Length * 1000), -1000, 1000, 3u, "mm");
+            for (const auto& Input : Host.AllFigures())
+            {
+                if (!Figure->Recipe.Path.Figures.empty() && Input.Identity == Figure->Recipe.Path.Figures.front())
+                    AddReadout(*Parameters, "Parent curve", Input.Name.c_str());
+                if (Input.Identity == Figure->Recipe.Path.Support)
+                    AddReadout(*Parameters, "Support", Input.Name.c_str());
+            }
+            char Tolerance[32] = {};
+            std::snprintf(Tolerance, sizeof(Tolerance), "%.4g mm", Figure->Recipe.Radius * 1000);
+            AddReadout(*Parameters, "Tolerance", Tolerance);
+            AddReadout(*Parameters, "Status", Figure->Recipe.Complaint.empty() ? "live" : Figure->Recipe.Complaint.c_str());
+        }
+        else AddBlueprintParameters(*Parameters, *Figure);
+    }
 
+    if (Anchored > 0u)
+    {
+        EditorPropertyGroup* Dims = AddGroup(*Sheet, "Dimensions", "Anchored to this figure");
+        if (Dims != nullptr)
+        {
+            for (const ConsoleHost::DimensionEntry& Dimension : Host.AllDimensions())
+            {
+                if (Dimension.Anchor != Figure->Identity)
+                    continue;
+                if (Dimension.Label.empty())
+                    std::snprintf(Buffer, sizeof(Buffer), "%.3f", Dimension.Value);
+                else
+                    std::snprintf(Buffer, sizeof(Buffer), "%s", Dimension.Label.c_str());
+                char Name[28] = {};
+                std::snprintf(Name, sizeof(Name), "#%u %s", Dimension.Id, Dimension.Slot >= 0 ? "driving" : "measured");
+                AddReadout(*Dims, Name, Buffer);
+            }
+        }
+    }
+
+    if (IsBody || IsSurface)
+    {
+        EditorPropertyGroup* Topology = AddGroup(*Sheet, "Topology", "B-rep and mass");
+        if (Topology != nullptr)
+        {
+            if (IsBody)
+            {
+                const BodyReport Report = Figure->Body.Validate();
+                std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Area); AddReadout(*Topology, "Area", Buffer);
+                std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Volume); AddReadout(*Topology, "Volume", Buffer);
+                AddReadout(*Topology, "B-rep", Report.Solid() ? "solid" : (Report.Manifold ? "sheet/wire" : "open"));
+            }
+            else
+            {
+                std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->Surface.KnotsU.size()); AddReadout(*Topology, "Knots U", Buffer);
+                std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->Surface.KnotsV.size()); AddReadout(*Topology, "Knots V", Buffer);
+            }
+            std::snprintf(Buffer, sizeof(Buffer), "%zu F \xc2\xb7 %zu E \xc2\xb7 %zu V", Figure->SelectedFaces.size(),
+                          Figure->SelectedEdges.size(), Figure->SelectedPoles.size());
+            AddReadout(*Topology, "Picked", Buffer);
+        }
+    }
+
+    EditorPropertyGroup* Display = AddGroup(*Sheet, "Display", "Tint and shading");
+    if (Display != nullptr)
+    {
+        AddColour(*Display, "Tint", Figure->Tint);
+        AddMatcap(*Display, Figure->Matcap);
+    }
     return true;
 }
 
@@ -706,11 +1047,40 @@ void ApplySolidArcInspectorSheet(ConsoleHost& Host,
                                  const SolidArcOutlinerBinding& Binding,
                                  const EditorSheet& Sheet) noexcept
 {
+    if (Binding.RowRole == SolidArcOutlinerBinding::Role::Dimension && Binding.DimensionId != 0u)
+    {
+        const ConsoleHost::DimensionEntry* Dimension = FindDimension(Host, Binding.DimensionId);
+        if (Dimension != nullptr && Sheet.Presence[kSlotVisible] == Dimension->Hidden)
+        {
+            char Line[48] = {};
+            std::snprintf(Line, sizeof(Line), "dim %s %u", Dimension->Hidden ? "show" : "hide", Dimension->Id);
+            Host.Execute(Line);
+        }
+        return;
+    }
     if (Binding.RowRole != SolidArcOutlinerBinding::Role::Figure || Binding.FigureIdentity == 0u)
         return;
     SceneFigure* Figure = FindFigure(Host, Binding.FigureIdentity);
     if (Figure == nullptr)
         return;
+
+    // Presence: Visible rides the outliner row (ApplySolidArcOutlinerVisibility), the rest is written here.
+    if (Sheet.PresenceOffered[kSlotLocked])
+        Figure->Locked = Sheet.Presence[kSlotLocked];
+    if (Sheet.PresenceOffered[kSlotBuild])
+        Figure->Construction = Sheet.Presence[kSlotBuild];
+    if (Sheet.PresenceOffered[kSlotDims])
+    {
+        for (const ConsoleHost::DimensionEntry& Dimension : Host.AllDimensions())
+        {
+            if (Dimension.Anchor != Figure->Identity || Dimension.Hidden == !Sheet.Presence[kSlotDims])
+                continue;
+            char Line[48] = {};
+            std::snprintf(Line, sizeof(Line), "dim %s %u", Sheet.Presence[kSlotDims] ? "show" : "hide", Dimension.Id);
+            Host.Execute(Line);
+            break;                  // the dimension list may have been touched; the next frame continues
+        }
+    }
 
     for (uint32_t G = 0u; G < Sheet.GroupCount; ++G)
     {
@@ -718,10 +1088,32 @@ void ApplySolidArcInspectorSheet(ConsoleHost& Host,
         for (uint32_t P = 0u; P < Group.PropertyCount; ++P)
         {
             const EditorProperty& Property = Group.Properties[P];
-            if (std::strcmp(Property.Label, "Hidden") == 0 && Property.Category == EditorPropertyCategory::Switch)
-                Figure->Hidden = Property.On;
-            else if (std::strcmp(Property.Label, "Construction") == 0 && Property.Category == EditorPropertyCategory::Switch)
-                Figure->Construction = Property.On;
+            if (Figure->Recipe.Operation == RecipeOperation::SurfaceOffset && Property.Category == EditorPropertyCategory::Slider &&
+                std::strcmp(Property.Label, "Signed width") == 0 &&
+                Property.Figure != static_cast<float>(Figure->Recipe.Length * 1000))
+            {
+                char Line[128] = {};
+                std::snprintf(Line, sizeof(Line), "surface-offset edit \"#%u\" %.17g", Figure->Identity, double(Property.Figure) / 1000);
+                Host.Execute(Line);
+                return;
+            }
+            if (Property.Category == EditorPropertyCategory::AxisVec3 && Property.Editable)
+            {
+                ApplyTransformAxis(*Figure, Property);
+            }
+            else if (Property.Category == EditorPropertyCategory::Slider && std::strcmp(Property.Label, "Uniform scale") == 0)
+            {
+                TransformDraft& Draft = DraftFor(*Figure);
+                const float Target = std::max(Property.Figure, 0.01f);
+                const float Ratio  = Target / std::max(Draft.Uniform, 0.01f);
+                if (!Figure->Locked && std::fabs(Ratio - 1.0f) > 1e-6f)
+                {
+                    TransformAboutPivot(*Figure, Draft, Mat4::Scaling(Vec3(Ratio, Ratio, Ratio)));
+                    for (float& Axis : Draft.Scale)
+                        Axis *= Ratio;
+                    Draft.Uniform = Target;
+                }
+            }
             else if (std::strcmp(Property.Label, "Matcap") == 0 && Property.Category == EditorPropertyCategory::Select)
                 Figure->Matcap = static_cast<uint8_t>(Property.Picked);
             else if (std::strcmp(Property.Label, "Tint") == 0 && Property.Category == EditorPropertyCategory::Colour)
@@ -731,6 +1123,23 @@ void ApplySolidArcInspectorSheet(ConsoleHost& Host,
                 Figure->Tint[2] = Property.ColourTint[2];
             }
         }
+    }
+
+    // The action tiles run last: a delete or an isolate changes the roster, so nothing is read after them.
+    if (Sheet.Action != EditorSheetAction::None && !(Sheet.Action == EditorSheetAction::Delete && Figure->Locked))
+    {
+        const char* Verb = Sheet.Action == EditorSheetAction::Duplicate ? "duplicate" : (Sheet.Action == EditorSheetAction::Isolate ? "isolate" : "delete");
+        // With several figures selected and this one among them, the action takes the whole selection, locked ones excepted for a delete.
+        std::string Line = Verb;
+        if (Figure->Selected && Host.Document().SelectedCount() > 1)
+        {
+            for (const SceneFigure& Member : Host.Document().Figures())
+                if (Member.Selected && !(Sheet.Action == EditorSheetAction::Delete && Member.Locked))
+                    Line += " #" + std::to_string(Member.Identity);
+        }
+        else
+            Line += " #" + std::to_string(Figure->Identity);
+        Host.Execute(Line);
     }
 }
 
