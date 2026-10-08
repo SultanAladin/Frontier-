@@ -222,6 +222,10 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/ControlKit.cpp
     Engine/DisplayPresentation/TextEntryState.cpp
     Engine/Editor/EditorHost.cpp
+    Engine/Editor/ControlPanel.cpp              # the panel widgets every inspector draws through
+    Engine/Editor/ShadeTick.cpp                 # EditorHost.h declares it
+    Engine/DisplayPresentation/CelestialSolver.cpp   # sun, moon and air mass for the sky inspectors
+    Engine/GeometricRaster/StarCatalogueIndex.cpp    # the star catalogue CelestialSequence loads
     Engine/Editor/OutlinerPanel.cpp
     Engine/Editor/ViewportPanel.cpp
     Engine/Editor/InspectorPanel.cpp
