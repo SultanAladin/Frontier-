@@ -1,0 +1,2 @@
+PASS 74 checks: native wind binding card, composite flow field and four component kinds.
+Exit: 0

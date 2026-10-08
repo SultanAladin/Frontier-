@@ -209,3 +209,51 @@ profile cannot reproduce — positions and glyph height are exact, glyph width i
 
 Acceptance test: `python3 Exhibits/Workbench/Fog/RunNativeFogCards.py`, 56 checks, captures in
 `Exhibits/Gallery/FogNative/`.
+
+## Wind binding card
+
+`WindPanel.jsx` ships `WindBinding` as a card (`data-card="Wind binding"`); the native side carried only
+`Engine/Editor/WindBindingControls.h`, a bare `SeparatorText` + `Checkbox` + `BeginCombo` stub. The fog panel
+already drew a card *titled* "Wind binding" with that stub inside it, so only the card's contents were missing.
+
+| Browser | Native | Note |
+| --- | --- | --- |
+| `WindBinding` (`WindPanel.jsx`) | `WindCards::PaintBindingBody` | select, editor shortcut, preview, note |
+| `WindCanvas` (`WindPanel.jsx`) | `WindCards::PaintCanvas` | heat field, lattice, arrows, flow strokes |
+| `ResolveWind` / `EvaluateWind` (`WindSpecification.js`) | `WindCards::Resolve` / `Evaluate` | clamps and four kinds |
+
+New file `Engine/Editor/WindPanelSurface.h` (namespace `Frontier::WindCards`). Mounted from
+`FogInspectorPanel.cpp` inside the existing card; the native-only "Own wind component" switch is kept beneath
+the preview as a supplement, so no native capability was removed.
+
+### Measurements
+
+Card chrome comes from **Editor.css** `.property-card` (padding 23/24/22, radius 22, border `#343434`,
+`linear-gradient(135deg,#252525,#202020)`), not from the light or fog card rules: `h3` 12 px `#cacaca` with a
+28 px drop, `> p` 11 px `#919191`, body text 13 px `#f0f0f0`. From **WindPanel.css**: the select is full width,
+32 px tall, radius 16, margin `10px 0 18px`; the wide button is full width at 12 px padding with a 14 px drop;
+the canvas is 180 px tall in this card (280 px elsewhere), radius 14, border `#ffffff12`; the legend is a 10 px
+row with a 4 px bar running `#306e7c → #58a56e → #d3b565`; the caption is 10 px `#83948e`.
+
+### The flow field
+
+Canvas clear `#111b20`. A 64 × 48 speed field is drawn back at canvas size with `imageSmoothingEnabled` at
+`globalAlpha .5`; bilinear smoothing between texel centres is reproduced with four-corner gradient quads. The
+32 px lattice is `#ffffff09`. 190 motes are seeded deterministically from two coprime strides
+(`(i·73 % 151)/151`, `(i·43 % 149)/149`), advected at eight times real time, and drawn as trails that walk five
+steps upstream and fade from the tail. Speed colours are `hsl(190 − s·150, 48%, 32% + s·28%)` for
+`s = min(1, speed/30)`: teal `(42,108,121)` at rest, green `(70,174,61)` at 15 m/s, gold `(202,169,104)` at 30.
+
+### Recorded deviations
+
+- A canvas clips its own `border-radius`; an ImGui clip rectangle cannot, so the four corner notches are
+  repainted in the backdrop colour with a triangle fan (`RoundNotch`). `AddConvexPolyFilled` cannot fill them —
+  each notch is concave.
+- ImGui cannot fade a stroke's alpha along its length, so every trail leg is cut into four graded pieces.
+- The `<select>` cycles on click rather than opening a popup, as the fog shape select already does.
+- `WindEditor` — the modal "place and combine components" window, `wind-editor` in the bundle — is **not** ported.
+  The shortcut button is drawn and returns its hit rectangle, but nothing is mounted behind it yet.
+- `CloudsInspectorPanel.cpp` still calls the old `RecordWindBindingControls` stub bare, outside any card. The
+  card is wired into fog only.
+
+74 checks: `python3 Exhibits/Workbench/Wind/RunNativeWindCards.py` → `Exhibits/Gallery/WindNative`.
