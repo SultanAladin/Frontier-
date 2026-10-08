@@ -31,6 +31,8 @@ import {
   ConsolidateAtmosphereFlags,
 } from "./ScenePolicy.js";
 import WindEditor from "./WindPanel.jsx";
+import GasEditor from "./GasPanel.jsx";
+import { GasRowSummary } from "./GasSpecification.js";
 import AssetPanel from "./AssetPanel.jsx";
 import { RestoreAssets } from "./AssetDepot.js";
 import MaterialPanel from "./MaterialPanel.jsx";
@@ -57,6 +59,14 @@ const InitialRows = [
   ],
   ["torus", "Torus", "geometry", "editor-torus", "showcase", "Geometry"],
   ["cone", "Cone", "geometry", "editor-cone", "showcase", "Geometry"],
+  [
+    "gas-domain",
+    "Gas Domain",
+    "gas",
+    "local-fog",
+    "showcase",
+    "Volumetric fire and smoke · dormant until fired",
+  ],
   ["cameras", "Cameras", "group", "camera", null, "Camera collection"],
   [
     "camera",
@@ -286,6 +296,7 @@ function OutlinerMetadata(Row, Record = {}, Rows = []) {
       CompactNumber(V("Brightness")) +
       "×"
     );
+  if (Row.Panel === "gas") return GasRowSummary(Record);
   if (Row.Panel === "wind")
     return (
       CompactNumber(V("Speed")) +
@@ -562,6 +573,21 @@ function App() {
     (Row) => Row.Id === WindTarget && Row.Panel === "wind",
   );
   const WindFields = Rows.filter((Row) => Row.Panel === "wind");
+  const [GasTarget, EditGas] = useState(null);
+  const GasOpener = useRef(null);
+  const CloseGas = () => {
+    EditGas(null);
+    requestAnimationFrame(() => {
+      const Target = GasOpener.current?.isConnected
+        ? GasOpener.current
+        : document.querySelector('[aria-label="Expand FluidEditor"]');
+      Target?.focus({ preventScroll: true });
+    });
+  };
+  const GasSubject = Rows.find(
+    (Row) => Row.Id === GasTarget && Row.Panel === "gas",
+  );
+  const GasDomains = Rows.filter((Row) => Row.Panel === "gas");
   const [ShaderTarget, SelectShaderTarget] = useState(null),
     [ShaderFloating, FloatShader] = useState(false);
   const ShaderAsset = AssetRecords.find(
@@ -1795,6 +1821,10 @@ function App() {
                   );
                 }
               }}
+              OpenGas={() => {
+                GasOpener.current = document.activeElement;
+                EditGas(Selected);
+              }}
               OpenWind={() => {
                 WindOpener.current = document.activeElement;
                 EditWind(Selected);
@@ -2168,6 +2198,30 @@ function App() {
             )}
           </div>
         </>
+      )}
+      {GasSubject && (
+        <GasEditor
+          key={GasSubject.Id}
+          Subject={GasSubject}
+          Values={Values[GasSubject.Id] || {}}
+          Domains={GasDomains}
+          Hidden={Hidden[GasSubject.Id]}
+          SelectDomain={EditGas}
+          Rename={(Name) =>
+            AssignRows((Previous) =>
+              Previous.map((Row) =>
+                Row.Id === GasSubject.Id ? { ...Row, Name } : Row,
+              ),
+            )
+          }
+          Change={(Key, Value) =>
+            AssignValues((Previous) => ({
+              ...Previous,
+              [GasSubject.Id]: { ...Previous[GasSubject.Id], [Key]: Value },
+            }))
+          }
+          Close={CloseGas}
+        />
       )}
       {WindSubject && (
         <WindEditor

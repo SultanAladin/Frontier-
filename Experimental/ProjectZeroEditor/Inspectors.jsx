@@ -16,6 +16,7 @@ import {
 import FogShapePanel from "./FogShapePanel.jsx";
 import { IsEditorCamera } from "./ScenePolicy.js";
 import { WindInspector, WindBinding } from "./WindPanel.jsx";
+import { GasInspector } from "./GasPanel.jsx";
 import TransformPanel from "./TransformPanel.jsx";
 import MaterialPanel from "./MaterialPanel.jsx";
 import ActionIcon, { QuickSymbol } from "./ActionIcon.jsx";
@@ -475,6 +476,7 @@ export function Inspector({
   ToggleHidden,
   OpenShader,
   OpenFracture,
+  OpenGas,
   OpenWind,
   OpenWindField,
   WindFields = [],
@@ -1388,6 +1390,18 @@ export function Inspector({
         </Card>
         <div className="section-caption">BAKING</div>
         <Bake Title="Lens flare image" />
+      </>
+    );
+  } else if (Subject.Panel === "gas") {
+    Content = (
+      <>
+        {Header("Volumetrics", "Gas domain")}
+        <GasInspector
+          Values={Values}
+          Change={Change}
+          Open={OpenGas}
+          Hidden={Hidden}
+        />
       </>
     );
   } else if (Subject.Panel === "wind") {

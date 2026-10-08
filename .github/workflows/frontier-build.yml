@@ -66,6 +66,9 @@ jobs:
       - name: Gas samples — the committed corpus against the authoring tool
         run: python3 Tools/Build/RunAnnounced.py "gas samples" -- node Experimental/Fluid/ExportSamples.mjs --check
 
+      - name: Gas inspector — the card's cost readout against GasQualityAllowance.h
+        run: python3 Tools/Build/RunAnnounced.py "gas inspector" -- node Experimental/ProjectZeroEditor/CheckGasInspector.mjs
+
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 
