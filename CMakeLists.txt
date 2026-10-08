@@ -364,6 +364,10 @@ set_source_files_properties(Engine/PlatformInterchange/MiniaudioTranslation.cpp 
 target_include_directories(Frontier PRIVATE
     ${FRONTIER_ENGINE_INCLUDES}
     ${CMAKE_CURRENT_SOURCE_DIR}/Engine/Host
+    # The editor panels include their neighbours and the sky solver by bare name, the way the MSVC
+    #    route already puts both folders on the include path.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Engine/Editor
+    ${CMAKE_CURRENT_SOURCE_DIR}/Engine/DisplayPresentation
     ${EXT}/miniaudio
     ${Vulkan_INCLUDE_DIRS}
     ${IMGUI_SRC}
