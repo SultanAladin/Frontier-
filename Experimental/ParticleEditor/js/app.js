@@ -435,18 +435,21 @@
       return item;
     };
     const sel = state.selection;
-    list.append(el("div", { class: "ol-group", text: "Environment" }));
-    list.append(row("wind", "Wind field", `${state.wind.components.filter((c) => c.enabled).length} active · ${PE.WIND.dim.join("×")} grid`,
+    const q = (state.ui.olQuery || "").trim().toLowerCase();
+    const match = (t) => !q || t.toLowerCase().includes(q);
+    if (match("Environment") || match("Wind field") || match("Lightning")) list.append(el("div", { class: "ol-group", text: "Environment" }));
+    if (match("Wind field")) list.append(row("wind", "Wind field", `${state.wind.components.filter((c) => c.enabled).length} active · ${PE.WIND.dim.join("×")} grid`,
       "background: linear-gradient(90deg,#3a7bff,#ffd34a,#ff4a2a)", sel.type === "wind", () => select({ type: "wind" })));
-    list.append(row("light", "Lightning", `${state.lightning.strikes} strikes · ${state.lightning.auto ? "auto" : "manual"}`,
+    if (match("Lightning")) list.append(row("light", "Lightning", `${state.lightning.strikes} strikes · ${state.lightning.auto ? "auto" : "manual"}`,
       "background:#c9e2ff", sel.type === "lightning", () => select({ type: "lightning" })));
     list.append(el("div", { class: "ol-group", text: "Particle systems" }));
     for (const sys of state.systems) {
+      if (!match(sys.name)) continue;
       const eye = el("button", {
         class: "ol-eye" + (sys.p.visible ? " is-on" : ""), title: sys.p.visible ? "Hide" : "Show",
         "aria-pressed": sys.p.visible ? "true" : "false",
         onclick: (e) => { e.stopPropagation(); sys.p.visible = !sys.p.visible; renderOutliner(); },
-      }, sys.p.visible ? "●" : "○");
+      }, "");
       const item = row(sys.id, sys.name, "", `background:${toHex(sys.p.colA)}`,
         sel.type === "system" && sel.id === sys.id, () => select({ type: "system", id: sys.id }), eye);
       sys.ui_meta = item.querySelector(".ol-meta");
@@ -483,8 +486,10 @@
     const digits = o.digits;
     const range = el("input", { type: "range", min: o.min, max: o.max, step: o.step, value: get() });
     const num = el("input", { type: "number", min: o.min, max: o.max, step: o.step, value: fmt(get(), digits), class: "num" });
-    range.addEventListener("input", () => { const v = +range.value; num.value = fmt(v, digits); set(v); });
-    num.addEventListener("change", () => { const v = +num.value; if (Number.isFinite(v)) { const c = clamp(v, o.min, o.max); range.value = c; num.value = fmt(c, digits); set(c); } });
+    const fill = () => range.style.setProperty("--fill", ((+range.value - o.min) / (o.max - o.min) * 100) + "%");
+    fill();
+    range.addEventListener("input", () => { const v = +range.value; num.value = fmt(v, digits); set(v); fill(); });
+    num.addEventListener("change", () => { const v = +num.value; if (Number.isFinite(v)) { const c = clamp(v, o.min, o.max); range.value = c; num.value = fmt(c, digits); set(c); fill(); } });
     return el("label", { class: "row" }, el("span", { class: "row-k", text: label }), range, num, el("em", { class: "unit", text: o.unit || "" }));
   }
   function vecRow(label, arr, o) {
@@ -496,7 +501,7 @@
       });
       return input;
     });
-    return el("div", { class: "row vec-row" }, el("span", { class: "row-k", text: label }), el("div", { class: "vec" }, ...inputs), el("em", { class: "unit", text: o.unit || "" }));
+    return el("div", { class: "row vec-row" }, el("span", { class: "row-k", text: label }), el("div", { class: "axes" }, ...inputs.map((inp, i) => el("label", {}, el("b", { text: "XYZ"[i] }), inp))), el("em", { class: "unit", text: o.unit || "" }));
   }
   function colorRow(label, arr) {
     const picker = el("input", { type: "color", value: toHex(arr), "aria-label": label + " colour" });
@@ -753,6 +758,7 @@
 
   // ----------------------------------------------------------------- toolbar
   function setupToolbar() {
+    $("#ol-search").addEventListener("input", (e) => { state.ui.olQuery = e.target.value; renderOutliner(); });
     const playBtn = $("#btn-play");
     const sync = () => {
       playBtn.textContent = state.playing ? "Pause" : "Play";
