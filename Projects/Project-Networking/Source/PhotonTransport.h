@@ -50,5 +50,23 @@ void TickPhotonTransport() noexcept;
 void StopPhotonTransport() noexcept;
 // Sends one codec packet. Only valid while Joined; returns false otherwise.
 bool SendPhotonPacket(const std::uint8_t* Bytes, std::size_t Length, bool Reliable) noexcept;
+
+// Inbound seam. A decoded replication packet is passed straight to the attendant from inside the
+//    Photon callback, so the payload pointer is valid only for the duration of the call. One
+//    attendant at a time; nullptr detaches. Without an attendant an arrival is counted and dropped,
+//    which is what the transport did before replication existed.
+using PhotonPacketReception = void (*)(void* Attendant, int Slot, std::uint8_t Carriage,
+                                       const std::uint8_t* Payload, std::size_t Length);
+void AttendPhotonPackets(PhotonPacketReception Reception, void* Attendant) noexcept;
+
+// The local player's room slot, the room's occupancy, and whether this peer is Photon's master
+//    client. All zero / false while not Joined.
+struct PhotonRoomReading
+{
+    int  LocalSlot = 0;
+    int  Occupancy = 0;
+    bool MasterClient = false;
+};
+PhotonRoomReading InspectPhotonRoom() noexcept;
 PhotonStatus InspectPhotonStatus() noexcept;
 }

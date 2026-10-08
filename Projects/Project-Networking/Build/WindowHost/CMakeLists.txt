@@ -48,7 +48,9 @@ target_include_directories(LoginImGui PUBLIC "${IMGUI}" "${IMGUI}/backends")
 target_link_libraries(LoginImGui PUBLIC glfw OpenGL::GL)
 set(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../../Source")
 set(NETWORKING_SOURCES "${SOURCE}/EpicExchange.cpp" "${SOURCE}/BackendClient.cpp" "${SOURCE}/LobbyRuntime.cpp" "${SOURCE}/SessionHistory.cpp"
-    "${SOURCE}/TransportRouter.cpp" "${SOURCE}/EcomOwnership.cpp" "${SOURCE}/EosTransport.cpp")
+    "${SOURCE}/TransportRouter.cpp" "${SOURCE}/EcomOwnership.cpp" "${SOURCE}/EosTransport.cpp"
+    # Replication is carrier-agnostic, so it links the same whether Photon is real or stubbed.
+    "${SOURCE}/ReplicationLink.cpp" "${SOURCE}/PhotonReplicationLink.cpp" "${SOURCE}/ReplicationSequence.cpp")
 if(PHOTON_LINKED)
     list(APPEND NETWORKING_SOURCES "${SOURCE}/PhotonTransport.cpp")
 else()

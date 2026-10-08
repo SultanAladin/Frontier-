@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$SdkRoot,
-    [Parameter(Mandatory = $true)][string]$SlateRoot,
+    # This repository carries Engine/ProjectInterchange itself, so SlateRoot is only needed when
+    #    building against a different checkout's project ABI.
+    [Parameter(Mandatory = $false)][string]$SlateRoot,
     [Parameter(Mandatory = $true)][string]$GuiRoot,
     [Parameter(Mandatory = $true)][string]$PhotonRoot
 )
@@ -8,13 +10,18 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 $Output = Join-Path $PSScriptRoot 'Output'
 $SdkRoot = (Resolve-Path $SdkRoot).Path
-$SlateRoot = (Resolve-Path $SlateRoot).Path
+$RepositoryRoot = Split-Path (Split-Path $ProjectRoot -Parent) -Parent
+if ($SlateRoot) { $SlateRoot = (Resolve-Path $SlateRoot).Path }
 $GuiRoot = (Resolve-Path $GuiRoot).Path
 $PhotonRoot = (Resolve-Path $PhotonRoot).Path
 $Include = Join-Path $SdkRoot 'Include'
 $Library = Join-Path $SdkRoot 'Lib/EOSSDK-Win64-Shipping.lib'
 $Runtime = Join-Path $SdkRoot 'Bin/EOSSDK-Win64-Shipping.dll'
-$Interchange = Join-Path $SlateRoot 'Frontier/Engine/ProjectInterchange'
+$Interchange = Join-Path $RepositoryRoot 'Engine/ProjectInterchange'
+if ($SlateRoot) {
+    $Donor = Join-Path $SlateRoot 'Frontier/Engine/ProjectInterchange'
+    if (Test-Path (Join-Path $Donor 'ProjectInterchange.h')) { $Interchange = $Donor }
+}
 $PhotonInclude = Join-Path $PhotonRoot 'realtime/include'
 $PhotonLibDir = Join-Path $SdkRoot 'Photon/Lib'
 foreach ($Required in @($Library, $Runtime, (Join-Path $Include 'eos_sdk.h'), (Join-Path $Include 'eos_ecom.h'),
@@ -42,7 +49,7 @@ if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') {
 }
 New-Item -ItemType Directory -Force $Output | Out-Null
 $Flags = @('/nologo', '/std:c++20', '/MD', '/EHsc', '/W4', '/utf-8', '/D_CRT_SECURE_NO_WARNINGS', "/I$Include", "/I$Interchange", "/I$PhotonInclude")
-$Exchange = @('EpicExchange.cpp', 'BackendClient.cpp', 'LobbyRuntime.cpp', 'SessionHistory.cpp', 'TransportRouter.cpp', 'EcomOwnership.cpp', 'EosTransport.cpp') | ForEach-Object { Join-Path $ProjectRoot "Source/$_" }
+$Exchange = @('EpicExchange.cpp', 'BackendClient.cpp', 'LobbyRuntime.cpp', 'SessionHistory.cpp', 'TransportRouter.cpp', 'EcomOwnership.cpp', 'EosTransport.cpp', 'ReplicationLink.cpp', 'PhotonReplicationLink.cpp', 'ReplicationSequence.cpp') | ForEach-Object { Join-Path $ProjectRoot "Source/$_" }
 if ($PhotonLinked) {
     $Exchange += Join-Path $ProjectRoot 'Source/PhotonTransport.cpp'
     # Photon archives need these OS libs named explicitly (no #pragma comment in headers).

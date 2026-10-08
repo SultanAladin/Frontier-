@@ -4,8 +4,8 @@ on:
     branches: ['arena/**']
     paths:
       - '.github/workflows/networking-windows.yml'
-      - 'Frontier/Projects/Project-Networking/**'
-      - 'VisualProof/Networking/**'
+      - 'Projects/Project-Networking/**'
+      - 'Exhibits/Workbench/Networking/**'
       - 'Docs/NetworkingLogin.md'
       - 'Docs/NetworkingLobbyPlan.md'
   workflow_dispatch:
@@ -60,11 +60,11 @@ jobs:
         run: |
           python -m pip install gdown==5.2.0
           if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
-          python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS"
+          python Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS"
           if ($LASTEXITCODE -ne 0) { throw 'SDK fetch or hash verification failed' }
-          python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Frontier/Projects/Project-Networking/Build/BootstrapperManifest.json
+          python Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Projects/Project-Networking/Build/BootstrapperManifest.json
           if ($LASTEXITCODE -ne 0) { throw 'Bootstrapper fetch or hash verification failed' }
-          python Frontier/Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Frontier/Projects/Project-Networking/Build/WindowsPhotonManifest.json
+          python Projects/Project-Networking/Build/FetchWindowsSdk.py "$env:RUNNER_TEMP/EOS" --manifest Projects/Project-Networking/Build/WindowsPhotonManifest.json
           if ($LASTEXITCODE -ne 0) { throw 'Photon lib fetch or hash verification failed' }
       - name: Fetch hash-pinned Microsoft XAudio2 redistributable for EOS voice
         shell: pwsh
@@ -103,7 +103,7 @@ jobs:
           cmd /c "`"$VcVars`" >nul && set" | ForEach-Object {
             if ($_ -match '^([^=]+)=(.*)$') { Set-Item "Env:$($Matches[1])" $Matches[2] }
           }
-          $Project = Join-Path $env:GITHUB_WORKSPACE 'Frontier/Projects/Project-Networking'
+          $Project = Join-Path $env:GITHUB_WORKSPACE 'Projects/Project-Networking'
           & "$Project/Build/ToolchainSequence.ps1" -SdkRoot "$env:RUNNER_TEMP/EOS" -SlateRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Slate" -GuiRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Gui" -PhotonRoot "$env:GITHUB_WORKSPACE/_AgentScratch/Photon"
           $Output = "$Project/Build/Output"
           Start-Transcript -Path "$Output/WindowsChecks.log"
@@ -124,16 +124,16 @@ jobs:
                 ($Lifecycle -match 'EOS_AlreadyConfigured')) { throw 'Unexpected SDK reinitialization' }
             & "$Output/LoginHost.exe"
             if ($LASTEXITCODE -ne 2) { throw 'Missing-secret refusal did not fail closed' }
-            $Check = "$env:GITHUB_WORKSPACE/VisualProof/Networking/LoginSequenceChecks.cpp"
+            $Check = "$env:GITHUB_WORKSPACE/Exhibits/Workbench/Networking/LoginSequenceChecks.cpp"
             & cl.exe /nologo /std:c++20 /MD /EHsc /W4 /utf-8 $Check "/Fe:$Output/LoginSequenceChecks.exe" "/Fo:$Output/LoginSequenceChecks.obj"
             if ($LASTEXITCODE -ne 0) { throw 'Login checks compilation failed' }
             & "$Output/LoginSequenceChecks.exe"
             if ($LASTEXITCODE -ne 0) { throw 'Login checks failed' }
-            & cl.exe /nologo /std:c++20 /MD /EHsc /W4 /utf-8 "$env:GITHUB_WORKSPACE/VisualProof/Networking/LobbyChecks.cpp" "/Fe:$Output/LobbyChecks.exe" "/Fo:$Output/LobbyChecks.obj"
+            & cl.exe /nologo /std:c++20 /MD /EHsc /W4 /utf-8 "$env:GITHUB_WORKSPACE/Exhibits/Workbench/Networking/LobbyChecks.cpp" "/Fe:$Output/LobbyChecks.exe" "/Fo:$Output/LobbyChecks.obj"
             if ($LASTEXITCODE -ne 0) { throw 'Lobby/history checks compilation failed' }
             & "$Output/LobbyChecks.exe"
             if ($LASTEXITCODE -ne 0) { throw 'Lobby/history checks failed' }
-            & cl.exe /nologo /std:c++20 /MD /EHsc /W4 /utf-8 "$env:GITHUB_WORKSPACE/VisualProof/Networking/TransportChecks.cpp" "/Fe:$Output/TransportChecks.exe" "/Fo:$Output/TransportChecks.obj"
+            & cl.exe /nologo /std:c++20 /MD /EHsc /W4 /utf-8 "$env:GITHUB_WORKSPACE/Exhibits/Workbench/Networking/TransportChecks.cpp" "/Fe:$Output/TransportChecks.exe" "/Fo:$Output/TransportChecks.obj"
             if ($LASTEXITCODE -ne 0) { throw 'Transport checks compilation failed' }
             & "$Output/TransportChecks.exe"
             if ($LASTEXITCODE -ne 0) { throw 'Transport checks failed' }
@@ -164,7 +164,7 @@ jobs:
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.Drawing
-          $Image = [System.Drawing.Image]::FromFile((Resolve-Path 'Frontier/Projects/Project-Networking/Build/Output/LobbyProof.bmp'))
+          $Image = [System.Drawing.Image]::FromFile((Resolve-Path 'Projects/Project-Networking/Build/Output/LobbyProof.bmp'))
           $Stream = [System.IO.MemoryStream]::new()
           $Image.Save($Stream, [System.Drawing.Imaging.ImageFormat]::Png)
           $Data = [Convert]::ToBase64String($Stream.ToArray())
@@ -177,7 +177,7 @@ jobs:
       - name: Package binaries with EOS runtime, without credentials
         shell: pwsh
         run: |
-          $Project = 'Frontier/Projects/Project-Networking'
+          $Project = 'Projects/Project-Networking'
           $Package = '_AgentScratch/Package/Project-Networking'
           New-Item -ItemType Directory -Force "$Package/Build/Output", "$Package/Content/Scenes", "$Package/App" | Out-Null
           foreach ($Name in @('NetworkingLogin.exe', 'ProjectNetworking.dll', 'EOSSDK-Win64-Shipping.dll', 'BuildEvidence.json', 'WindowsChecks.log', 'WindowChecks.log', 'WindowProof.bmp', 'LobbyProof.bmp')) {
@@ -241,7 +241,7 @@ jobs:
           for ($Attempt = 0; $Attempt -lt 3; $Attempt++) {
             $Existing = & gh release view $Tag --repo $env:GITHUB_REPOSITORY 2>&1
             if ($LASTEXITCODE -ne 0) {
-              $Create = & gh release create $Tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'Frontier - EOS Lobby Lab' --notes-file 'Frontier/Projects/Project-Networking/Build/ReleaseNotes.txt' 2>&1
+              $Create = & gh release create $Tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'Frontier - EOS Lobby Lab' --notes-file 'Projects/Project-Networking/Build/ReleaseNotes.txt' 2>&1
               $Create | Write-Host
             }
             $Upload = & gh release upload $Tag $Zip "$Zip.sha256" --clobber --repo $env:GITHUB_REPOSITORY 2>&1

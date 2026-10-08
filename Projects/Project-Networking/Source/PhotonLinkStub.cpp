@@ -34,6 +34,10 @@ bool SendPhotonPacket(const std::uint8_t* /*Bytes*/, std::size_t /*Length*/, boo
     return false;
 }
 
+void AttendPhotonPackets(PhotonPacketReception /*Reception*/, void* /*Attendant*/) noexcept {}
+
+PhotonRoomReading InspectPhotonRoom() noexcept { return PhotonRoomReading{}; }
+
 PhotonStatus InspectPhotonStatus() noexcept
 {
     PhotonStatus Status;

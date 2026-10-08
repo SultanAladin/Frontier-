@@ -46,6 +46,8 @@ unsigned Sent = 0;
 unsigned Received = 0;
 bool FirstSent = false;
 std::chrono::steady_clock::time_point ProgressAt;
+PhotonPacketReception Attendant = nullptr;
+void* AttendantReader = nullptr;
 
 void Emit(const char* Text) noexcept
 {
@@ -196,6 +198,10 @@ public:
             return;
         }
         ++Received;
+        // The replication sequence attends here. The payload points into Photon's own buffer, so the
+        //    attendant copies anything it keeps; that is stated on AttendPhotonPackets.
+        if (Attendant)
+            Attendant(AttendantReader, PlayerNr, static_cast<std::uint8_t>(Kind), Payload, PayloadLength);
         char Line[160]{};
         std::snprintf(Line, sizeof(Line), "photon_packet_received bytes=%d kind=%u slot=%d",
             Sizes[0], static_cast<unsigned>(Kind), PlayerNr);
@@ -424,6 +430,23 @@ bool SendPhotonPacket(const std::uint8_t* Bytes, std::size_t Length, bool Reliab
         return false;
     ++Sent;
     return true;
+}
+
+void AttendPhotonPackets(PhotonPacketReception Reception, void* Reader) noexcept
+{
+    Attendant = Reception;
+    AttendantReader = Reader;
+}
+
+PhotonRoomReading InspectPhotonRoom() noexcept
+{
+    PhotonRoomReading Reading;
+    if (!Session || Session->getState() != ExitGames::LoadBalancing::PeerStates::Joined)
+        return Reading;
+    Reading.LocalSlot = Session->getLocalPlayer().getNumber();
+    Reading.Occupancy = Session->getCountPlayersIngame();
+    Reading.MasterClient = Session->getLocalPlayer().getIsMasterClient();
+    return Reading;
 }
 
 PhotonStatus InspectPhotonStatus() noexcept

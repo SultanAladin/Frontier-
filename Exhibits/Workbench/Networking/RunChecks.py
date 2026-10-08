@@ -10,13 +10,13 @@ import subprocess
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--slate-root', required=True, type=pathlib.Path)
+    parser.add_argument('--slate-root', type=pathlib.Path)
     args = parser.parse_args()
-    root = pathlib.Path(__file__).resolve().parents[2]
+    root = pathlib.Path(__file__).resolve().parents[3]
     proof = pathlib.Path(__file__).resolve().parent
-    project = root / 'Frontier/Projects/Project-Networking'
+    project = root / 'Projects/Project-Networking'
     output = project / 'Build/Output'
-    include = args.slate_root.resolve() / 'Frontier/Engine/ProjectInterchange'
+    include = root / 'Engine/ProjectInterchange'
     environment = dict(os.environ)
     for key in ('EOS_CLIENT_SECRET', 'EOS_CLIENT_ID', 'EOS_ALLOW_CREATE_USER',
                 'EOS_LOGIN_METHOD', 'EOS_DEVELOPER_CREDENTIAL'):

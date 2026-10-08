@@ -119,3 +119,54 @@ the page rather than under its scroll).
 - The folder fixture had two rows that contradicted the reference scene: `Lighting` was a light with an
   atmosphere glyph, and `Moons` was geometry. Both are folders now, and `Moons` is hidden so its child
   proves the `Hidden by ancestor` wording. An empty `Staging` folder was added for the empty state.
+
+---
+
+## 2026-10-08 — merging Project-Networking, and the replication port
+
+### The merge
+
+`c7egoist/Frontier` branch `arena/9928a45d-frontier` is a lean 83-file tree that nests everything
+under `Frontier/` and keeps proofs in `VisualProof/`. Merged with `--allow-unrelated-histories`; the
+only conflicts were `README.md` (kept ours) and `.gitignore` (kept ours, plus their `Build/Output`,
+`ThirdParty`, `*.local.*` and `.env` rules). Their two trees were then relocated onto this layout:
+
+| Theirs | Here |
+| --- | --- |
+| `Frontier/Projects/Project-Networking` | `Projects/Project-Networking` |
+| `VisualProof/Networking` | `Exhibits/Workbench/Networking` |
+
+`RunChecks.py`, both `ToolchainSequence` scripts and `networking-windows.yml` all carried the old
+paths and were corrected with the move.
+
+### What was tried and rejected
+
+- **Replicating through `TransportRouter`.** The router picks between EOS and Photon for one process
+  and owns the premium decision; replication needs a carrier it can send on and be handed arrivals
+  from, which is a smaller thing. A separate `ReplicationLink` keeps the router's premium rule out of
+  the snapshot path, and makes the loopback carrier — the one the proof runs on — possible at all.
+- **Letting a carrier own the replicated readings.** Rejected: the simulation already keeps them.
+  A description declares offsets into bytes the caller owns, so there is one copy, not two.
+- **Stepping over an unknown placement inside a snapshot.** Without its description there is no way
+  to know how many bytes its properties take, so the identity after it cannot be found. The snapshot
+  stops at the first unknown placement and is counted, rather than guessing.
+- **`-Wformat-truncation` on the Photon reading.** Photon's reading is 256 bytes and the link's is
+  192. Clipped with `%.*s` deliberately — the cause code sits at the head of the string, which is the
+  part a reader needs.
+
+### Measurements
+
+| Check | Result |
+| --- | --- |
+| `Exhibits/Workbench/Networking/RunReplicationChecks.py` | PASS 66, and PASS again under ASan + UBSan |
+| `Exhibits/Workbench/BundleParity.py` | PASS 498, unchanged by the merge |
+| `Exhibits/Workbench/{BaseMesh,Fracture,FractureEditor}` runners | PASS 66 / 91 / 121, unchanged |
+
+### Notes
+
+- `PhotonTransport` counted arrivals and dropped them. It now carries `AttendPhotonPackets` and
+  `InspectPhotonRoom`, so the replication sequence can hear a packet and read its own room slot,
+  occupancy and master-client standing. `PhotonLinkStub.cpp` answers both honestly.
+- Project-Networking is not in the root `CMakeLists.txt` and should not be: it needs the EOS SDK,
+  which CI fetches under hash verification. The replication half needs neither EOS nor Photon, so it
+  builds and proves itself on a plain runner.

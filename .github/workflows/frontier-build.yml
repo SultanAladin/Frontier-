@@ -1,0 +1,191 @@
+name: Frontier build
+
+# 📦 Builds the host, the three projects and SolidArc, and publishes the UI captures as artifacts.
+#
+#    linux-engine   Frontier, ProjectZero, ProjectDrive, Project-Dyno and SolidArc, through the root
+#                   CMake route. CMake is the Linux/IDE route only — Windows builds go through
+#                   Tools/Build/ToolchainSequence.ps1, which is what the windows-solidarc job runs.
+#    proofs         The dependency-free native proofs, including every editor UI capture. Download
+#                   the "frontier-ui-captures" artifact to look at the UI without building anything.
+#    replication    Project-Networking's replication sequence and its proof, plain and sanitized.
+#                   No EOS SDK and no Photon libs are needed for this; the Windows job in
+#                   networking-windows.yml is the one that links them.
+
+on:
+  push:
+    branches: ['arena/**', 'main']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontier-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Everything that needs no GPU SDK and no window ───────────────────────────────────────────────
+  proofs:
+    name: Native proofs and UI captures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Materialise the locked proof dependencies
+        run: python3 Tools/Bootstrap.py --profile proof
+
+      - name: Bundle parity — the native ports against the built reference bundle
+        run: python3 Exhibits/Workbench/BundleParity.py
+
+      - name: Outliner row metadata
+        run: python3 Exhibits/Workbench/OutlinerMetadata/RunNativeOutlinerMetadata.py
+
+      - name: Folder collection inspector
+        run: python3 Exhibits/Workbench/Folder/RunNativePanelProof.py
+
+      - name: Base meshes
+        run: python3 Exhibits/Workbench/BaseMesh/RunNativeBaseMesh.py
+
+      - name: Fracture editor page
+        run: python3 Exhibits/Workbench/FractureEditor/RunNativeFractureEditor.py
+
+      - name: Fracture card
+        run: python3 Exhibits/Workbench/Fracture/RunNativeFractureCard.py
+
+      - name: Publish the UI captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontier-ui-captures
+          path: Exhibits/Gallery/**
+          if-no-files-found: error
+          retention-days: 30
+
+  # ── The host and the three projects ──────────────────────────────────────────────────────────────
+  linux-engine:
+    name: Frontier, Project-Zero, Project-Drive, Project-Dyno, SolidArc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Vulkan, X11 and Wayland development packages: GLFW is built from source out of
+      #    ExternalPackages and needs the platform headers, and the host links the Vulkan loader.
+      - name: Install the platform development packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake libvulkan-dev vulkan-validationlayers glslang-tools \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev \
+            libwayland-dev libxkbcommon-dev wayland-protocols pkg-config
+
+      - name: Materialise the locked third-party dependencies
+        run: python3 Tools/Bootstrap.py --profile all
+
+      - name: Configure
+        run: cmake -S . -B .cache/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build the host and the project code images
+        run: cmake --build .cache/cmake --target Frontier ProjectZero ProjectDrive Project-Dyno --parallel
+
+      # SolidArc is EXCLUDE_FROM_ALL in the root list, so it is named outright. Its verification
+      #    executables are built with it: they are what says the kernel still agrees with itself.
+      - name: Build SolidArc and its verifications
+        run: |
+          cmake --build .cache/cmake --target SolidArc --parallel
+          cmake --build .cache/cmake --target KernelVerification RasterVerification \
+                InteractionVerification SelectionVerification TopologyVerification --parallel
+
+      - name: Run the SolidArc verifications
+        run: |
+          for Check in KernelVerification RasterVerification InteractionVerification \
+                       SelectionVerification TopologyVerification; do
+            echo "--- $Check"
+            find .cache/cmake -name "$Check" -type f -perm -u+x -print -quit | xargs -r -I{} {}
+          done
+
+      - name: Publish the binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontier-linux-binaries
+          path: |
+            .cache/cmake/Frontier
+            .cache/cmake/*.so
+            .cache/cmake/**/SolidArc
+            Projects/Project-Drive/Build/*.so
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ── Replication, which needs no SDK at all ───────────────────────────────────────────────────────
+  replication:
+    name: Project-Networking replication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build and run the replication proof, plain and sanitized
+        run: python3 Exhibits/Workbench/Networking/RunReplicationChecks.py
+
+      - name: Publish the replication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replication-evidence
+          path: |
+            Exhibits/Workbench/Networking/ReplicationChecks.log
+            Exhibits/Workbench/Networking/ReplicationEvidence.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ── SolidArc through the Windows MSVC route, which is the one that produces its UI ───────────────
+  windows-solidarc:
+    name: SolidArc (MSVC)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Materialise the locked third-party dependencies
+        run: python Tools/Bootstrap.py --profile all
+
+      - name: Build SolidArc with MSVC x64 /MD
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $VsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $VisualStudio = & $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $VisualStudio) { throw 'Visual Studio C++ tools not found' }
+          $VcVars = Join-Path $VisualStudio 'VC\Auxiliary\Build\vcvars64.bat'
+          cmd /c "`"$VcVars`" >nul && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') { Set-Item "Env:$($Matches[1])" $Matches[2] }
+          }
+          python Tools/Build/CheckMsvcSolidArc.py
+          # The helper writes beside the checkout; bring its logs inside so they can be published.
+          New-Item -ItemType Directory -Force _AgentScratch/build | Out-Null
+          Copy-Item -Recurse -Force ../_AgentScratch/build/* _AgentScratch/build/ -ErrorAction SilentlyContinue
+
+      - name: Publish the SolidArc build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solidarc-windows
+          path: |
+            _AgentScratch/build/**
+          if-no-files-found: warn
+          retention-days: 14

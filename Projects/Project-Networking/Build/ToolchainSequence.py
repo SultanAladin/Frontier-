@@ -15,15 +15,20 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sdk-root', required=True, type=pathlib.Path)
-    parser.add_argument('--slate-root', required=True, type=pathlib.Path,
-                        help='Checkout containing Frontier/Engine/ProjectInterchange')
+    parser.add_argument('--slate-root', type=pathlib.Path,
+                        help='Other checkout carrying Frontier/Engine/ProjectInterchange; this '
+                             'repository supplies Engine/ProjectInterchange by itself')
     parser.add_argument('--gui-root', type=pathlib.Path, help='Optional folder with pinned glfw and imgui sources')
     args = parser.parse_args()
     if not sys.platform.startswith('linux'):
         parser.error('Windows builds use ToolchainSequence.ps1 (MSVC /MD).')
     project = pathlib.Path(__file__).resolve().parent.parent
     sdk = args.sdk_root.resolve()
-    interchange = args.slate_root.resolve() / 'Frontier/Engine/ProjectInterchange'
+    interchange = project.parents[2] / 'Engine/ProjectInterchange'
+    if args.slate_root is not None:
+        donor = args.slate_root.resolve() / 'Frontier/Engine/ProjectInterchange'
+        if (donor / 'ProjectInterchange.h').is_file():
+            interchange = donor
     runtime = sdk / 'Bin/libEOSSDK-Linux-Shipping.so'
     for required in (runtime, sdk / 'Include/eos_sdk.h', interchange / 'ProjectInterchange.h'):
         if not required.is_file():
@@ -41,6 +46,15 @@ def main():
         flags + ['-fPIC', '-shared', str(source / 'EpicExchange.cpp'), str(source / 'LobbyRuntime.cpp'), str(source / 'SessionHistory.cpp'), str(source / 'NetworkingInterchange.cpp')]
         + link + ['-o', str(output / 'ProjectNetworking.so')],
     ]
+    # The replication sequence needs neither EOS nor Photon to compile, and its proof is what the
+    #    workflow runs on Linux. The Photon carrier links against the stub here.
+    replication = [str(source / name) for name in
+                   ('ReplicationSequence.cpp', 'ReplicationLink.cpp', 'PhotonReplicationLink.cpp',
+                    'PhotonLinkStub.cpp')]
+    commands.append(['g++', '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I' + str(source)]
+                    + replication
+                    + [str(project.parents[2] / 'Exhibits/Workbench/Networking/ReplicationChecks.cpp'),
+                       '-o', str(output / 'ReplicationChecks')])
     for command in commands:
         subprocess.run(command, check=True)
     if args.gui_root:
@@ -54,7 +68,8 @@ def main():
         'sdk_runtime_sha256': digest(runtime),
         'interchange_header_sha256': digest(interchange / 'ProjectInterchange.h'),
         'sources': {p.name: digest(p) for p in sorted(source.iterdir()) if p.is_file()},
-        'artifacts': {name: digest(output / name) for name in ('LoginHost', 'ProjectNetworking.so')},
+        'artifacts': {name: digest(output / name)
+                      for name in ('LoginHost', 'ProjectNetworking.so', 'ReplicationChecks')},
         'authentication': 'NOT_ATTEMPTED',
     }
     (output / 'LinuxBuildEvidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
