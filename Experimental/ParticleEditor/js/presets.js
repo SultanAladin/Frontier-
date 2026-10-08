@@ -85,6 +85,65 @@
         transition: { holdBase: 0.4, holdSpread: 0.9, burstShare: 0.85, fragment: false, childLife: 0 },
       }),
     },
+    {
+      id: "melt-away", name: "Melt away", group: "Transitions",
+      blurb: "The object melts: surface cubes release in patches across the surface rather than a corner wave, and the pieces drift off on the wind.",
+      p: P({
+        kind: 5, shape: 4, blend: "alpha", capacity: 1536, rate: 0,
+        emitShape: 4, origin: [0, 0.6, 0], boxHalf: [0.6, 0.6, 0.6], radius: 0,
+        speedMin: 0.2, speedMax: 0.9, drag: 0.6, gravity: 0.2, lifeMin: 6, lifeMax: 8,
+        sizeStart: 0.075, sizeEnd: 0.05, colA: hex("#ffb347"), colB: hex("#ff5a1f"), colC: hex("#fff1d6"),
+        windCoupling: 1.4, bounce: 0, burstEvery: 10, burstCount: 1536, burstAtOrigin: true,
+        transition: { holdBase: 0.2, holdSpread: 3.0, burstShare: 0.15, fragment: false, childLife: 0, wave: "melt", assemble: 0, shell: 0 },
+      }),
+    },
+    {
+      id: "reverse-derez", name: "Reverse derez", group: "Transitions",
+      blurb: "The object rebuilds: cubes fly in from a shell around it, snap onto the surface in a wave from one corner, then hold.",
+      p: P({
+        kind: 5, shape: 4, blend: "alpha", capacity: 1536, rate: 0,
+        emitShape: 4, origin: [0, 0.6, 0], boxHalf: [0.6, 0.6, 0.6], radius: 0,
+        speedMin: 0.5, speedMax: 2, drag: 0.4, gravity: 0, lifeMin: 3, lifeMax: 4,
+        sizeStart: 0.075, sizeEnd: 0.075, colA: hex("#35d6ff"), colB: hex("#35d6ff"), colC: hex("#ffffff"),
+        windCoupling: 0, bounce: 0, burstEvery: 9, burstCount: 1536, burstAtOrigin: true,
+        transition: { holdBase: 0.3, holdSpread: 2.0, burstShare: 0, fragment: false, childLife: 0, wave: "corner", assemble: 1, shell: 3.0 },
+      }),
+    },
+    {
+      id: "voxel-explosion", name: "Voxel explosion", group: "Transitions",
+      blurb: "A solid sphere made of cubes: it holds for a moment, then every cube bursts radially and tumbles on its own axis. No floor breaking.",
+      p: P({
+        kind: 5, shape: 4, blend: "alpha", capacity: 1024, rate: 0,
+        emitShape: 1, origin: [0, 2.2, 0], radius: 0.9,
+        speedMin: 2.0, speedMax: 4.5, drag: 0.9, gravity: 0.12, lifeMin: 2.5, lifeMax: 4,
+        sizeStart: 0.12, sizeEnd: 0.1, colA: hex("#ff5a3c"), colB: hex("#ffd166"), colC: hex("#ffffff"),
+        windCoupling: 0.2, bounce: 0, burstEvery: 6, burstCount: 1024, burstAtOrigin: true,
+        transition: { holdBase: 0.4, holdSpread: 0.15, burstShare: 1, fragment: false, childLife: 0, wave: "corner", assemble: 0, shell: 0 },
+      }),
+    },
+    {
+      id: "coin-stack", name: "Coin stack", group: "Transitions",
+      blurb: "Gold coins drop one by one into a column on the floor, settle with a small bounce and stay stacked. Scripted drops, not physics: coins do not collide.",
+      p: P({
+        kind: 5, shape: 5, blend: "alpha", capacity: 64, rate: 0,
+        emitShape: 0, origin: [0, 0, 0], radius: 0,
+        speedMin: 0, speedMax: 0, drag: 0, gravity: 0, lifeMin: 1, lifeMax: 1,
+        sizeStart: 0.4, sizeEnd: 0.4, colA: hex("#ffc83d"), colB: hex("#ffc83d"), colC: hex("#fff3b0"),
+        windCoupling: 0, bounce: 0, burstEvery: 10, burstCount: 40, burstAtOrigin: true,
+        transition: { holdBase: 0.3, holdSpread: 3.0, burstShare: 0, fragment: false, childLife: 0, wave: "corner", assemble: 2, shell: 3.0 },
+      }),
+    },
+    {
+      id: "coin-fountain", name: "Coin fountain", group: "VFX",
+      blurb: "Gold coins fired upward from one point, arcing over and bouncing onto the floor. They scatter into a loose heap; particles do not collide, so there is no true pile.",
+      p: P({
+        kind: 0, shape: 5, blend: "alpha", capacity: 400, rate: 0,
+        emitShape: 0, origin: [0, 0.1, 0], dir: [0, 1, 0], spread: 0.45,
+        speedMin: 5, speedMax: 8, drag: 0.08, gravity: 1.0, lifeMin: 6, lifeMax: 9,
+        sizeStart: 0.16, sizeEnd: 0.16, colA: hex("#ffc83d"), colB: hex("#ffb020"), colC: hex("#fff3b0"),
+        windCoupling: 0.15, bounce: 0.35, burstEvery: 3.5, burstCount: 120, burstAtOrigin: true,
+      }),
+    },
   ];
 
   // Light fibres (kind 7): analytic streaks, ribbons and path trails, ported from the Strand Editor. Not simulated.

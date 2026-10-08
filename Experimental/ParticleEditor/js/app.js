@@ -75,6 +75,7 @@
     cpuMs: 0,
     probeOn: true,
     probe: [0, 1, 0],
+    web: { enabled: false, interval: 0.6, nextAt: 0, k: 2 },
     ui: { liveEls: {} },
   };
   window.ParticleEditorState = state; // for diagnostics in the console
@@ -253,6 +254,12 @@
     // Lightning and strike sparks.
     const hits = state.lightning.update(dt, state.time);
     for (const hit of hits) onStrike(hit);
+    // 📝 Lightning web: re-strike arcs between visible system origins on an interval.
+    if (state.web.enabled && state.time >= state.web.nextAt) {
+      const nodes = state.systems.filter((s) => s.p.visible).map((s) => [s.p.origin[0], s.p.origin[1], s.p.origin[2]]);
+      if (nodes.length >= 2) state.lightning.web(state.time, nodes, { k: state.web.k, life: state.web.interval * 0.9 });  // arcs stay lit until the next re-strike
+      state.web.nextAt = state.time + state.web.interval;
+    }
 
     const canvas = state.engine.canvas;
     const aspect = canvas.width / Math.max(1, canvas.height);
@@ -737,6 +744,16 @@
         rangeRow("Release spread", () => tr.holdSpread, (v) => (tr.holdSpread = v), { min: 0, max: 10, step: 0.05, digits: 2, unit: "s" }),
         rangeRow("Burst share", () => tr.burstShare, (v) => (tr.burstShare = v), { min: 0, max: 1, step: 0.01, digits: 2 }),
       ];
+      trCard.unshift(
+        selectRow("Flight", [[0, "Burst or fall"], [1, "Rebuild from outside"], [2, "Stack in column"]],
+          () => tr.assemble || 0, (v) => { tr.assemble = v; renderInspector(); }),
+        selectRow("Release wave", [["corner", "Corner (derez)"], ["melt", "Melt (patchy)"]],
+          () => tr.wave || "corner", (v) => (tr.wave = v)),
+      );
+      if (tr.assemble > 0) {
+        trCard.push(rangeRow(tr.assemble === 2 ? "Drop height" : "Start distance", () => tr.shell || 0, (v) => (tr.shell = v),
+          { min: 0.5, max: 8, step: 0.05, digits: 2, unit: "m" }));
+      }
       if (p.shape === 4) {
         trCard.push(checkRow("Break on floor impact", () => tr.fragment, (v) => (tr.fragment = v)));
         trCard.push(rangeRow("Child cube life", () => tr.childLife, (v) => (tr.childLife = v), { min: 0.1, max: 6, step: 0.05, digits: 2, unit: "s" }));
@@ -809,7 +826,7 @@
         const r = await state.engine.benchmarkFullReadback(sys.gpu);
         btn.disabled = false;
         btn.textContent = "Benchmark full readback";
-        out.textContent = `${fmtInt(r.bytes / 1024)} KiB (${fmtInt(sys.gpu.cap)} × 64 B) in ${r.ms.toFixed(2)} ms ≈ ${r.mbPerSecond.toFixed(0)} MiB/s · ${fmtInt(r.alive)} alive. Measured on this browser's adapter; the full buffer is not used by the editor.`;
+        out.textContent = `${fmtInt(r.bytes / 1024)} KiB (${fmtInt(sys.gpu.cap)} × 80 B) in ${r.ms.toFixed(2)} ms ≈ ${r.mbPerSecond.toFixed(0)} MiB/s · ${fmtInt(r.alive)} alive. Measured on this browser's adapter; the full buffer is not used by the editor.`;
       })));
     const out = el("p", { class: "note bench", text: "Not measured yet." });
     read.push(out);
@@ -906,6 +923,11 @@
       rangeRow("Roughness", () => L.amp, (v) => (L.amp = v), { min: 0.2, max: 5, step: 0.05, digits: 2, unit: "m" }),
       rangeRow("Detail levels", () => L.levels, (v) => (L.levels = Math.round(v)), { min: 3, max: 7, step: 1, digits: 0 }),
       rangeRow("Branch chance", () => L.branchChance, (v) => (L.branchChance = v), { min: 0, max: 1, step: 0.01, digits: 2 })));
+    root.append(card("Lightning web", "ARCS",
+      checkRow("Arcs between systems", () => state.web.enabled, (v) => { state.web.enabled = v; state.web.nextAt = 0; }),
+      rangeRow("Re-strike every", () => state.web.interval, (v) => (state.web.interval = v), { min: 0.1, max: 3, step: 0.05, digits: 2, unit: "s" }),
+      rangeRow("Links per system", () => state.web.k, (v) => (state.web.k = Math.round(v)), { min: 1, max: 4, step: 1, digits: 0 }),
+      note("Each visible particle system's origin is a node. Every node links to its nearest neighbours with a branching bolt, redrawn each interval. Bolts are drawn only; they do not light or strike particles.")));
     state.ui.liveEls = Object.assign(live, { light: true });
     refreshLightningReadout();
   }

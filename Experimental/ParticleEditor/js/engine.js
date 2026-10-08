@@ -574,8 +574,11 @@
     if (p.kind === 5) {
       // 📝 Transition fields (kind 5 only). mol2.w = fragment flag; mol3 = hold base, hold spread, burst share, child life.
       const tr = p.transition;
-      set("mol2", o.cellSize, o.gd, PE.SLOTS, tr && tr.fragment ? 1 : 0);
+      // 📝 mol2: x = wave (1 melt), z = flight mode (0 burst/fall, 1 rebuild, 2 stack), w = fragment flag.
+      // misc.w = start distance (rebuild) or drop height (stack).
+      set("mol2", tr && tr.wave === "melt" ? 1 : 0, 0, tr ? (tr.assemble | 0) : 0, tr && tr.fragment ? 1 : 0);
       set("mol3", tr ? tr.holdBase : 0, tr ? tr.holdSpread : 0, tr ? tr.burstShare : 0, tr ? tr.childLife : 0);
+      set("misc", p.sizeScale, p.pulseHz, p.pulseDepth, tr && tr.shell ? tr.shell : 0);
     }
   };
 })();

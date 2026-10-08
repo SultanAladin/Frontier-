@@ -20,6 +20,7 @@ Query parameters:
 | --- | --- | --- |
 | Sparks | Ballistic, GPU-simulated | Streak-rendered. Emitted by the **Strike** button and by lightning. Affected by the wind field. |
 | Lightning and thunder | Procedural bolts | **Strike** creates a bolt with a flash, a thunder cue (**Sound**) and a spark burst at the impact point. |
+| Lightning web | Lightning, procedural | Branching arcs between scene objects. Every visible particle system's origin is a node, linked to its nearest neighbours and redrawn on an interval. Arcs are drawn only; they do not strike or light particles. Turn on in the **Lightning web** card. |
 | Leaves | Wind-driven, GPU-simulated | Leaf or paper sprites (selectable). They take their velocity from the wind field at their position.
 | Tornado debris | Wind-driven, GPU-simulated | Paper debris lifted from a ring around a vortex. Adding it enables the **Tornado** wind component at its origin. |
 | Sandstorm | Wind-driven, GPU-simulated | Dense dust (up to about 6,000 grains) fired from the upwind edge. Adding it sets **Prevailing wind** to 8 m/s at bearing 70°. |
@@ -52,6 +53,11 @@ Precipitation uses the regular particle kind, not the debris kind. Debris pins t
 | Trim trail (stadium) | Light fibre (kind 7), analytic | Trails running round a flat stadium loop, like a light guide following dashboard trim. |
 | Derez cube | Transition (kind 5), GPU-simulated | A grid of cubes covers the object's surface (1,536 cells: 16×16 per face). Cubes hold in place, then release in a wave from one corner: each either bursts outward or falls under gravity. A cube that hits the floor bursts once into eight 2×2×2 children. Children are procedural (analytic motion, fading over a set life), not simulated particles, and they do not collide with anything. |
 | Cube to coins | Transition (kind 5), GPU-simulated | The same surface grid (384 cells) with gold coins instead of cubes. Coins are released once, burst or fall, and bounce on the floor (restitution 0.35). They never split. Coin resting behaviour is approximate. |
+| Melt away | Transition (kind 5), GPU-simulated | The object melts: surface cubes release in patches across the surface (Release wave: Melt), and the pieces drift off on the wind (high wind coupling). Pieces that land stay on the floor and slide with the wind. |
+| Reverse derez | Transition (kind 5), analytic flight | Cubes fly in from a shell around the object (Start distance), snap onto their surface cell in a wave from one corner, and hold. Flight is scripted (eased from the shell to the slot), not simulated. |
+| Voxel explosion | Transition (kind 5), GPU-simulated | A solid sphere of cubes holds briefly, then every cube bursts radially and tumbles on its own axis. Cubes are sampled randomly inside the sphere, so they can overlap; there is no lattice. No floor breaking. |
+| Coin stack | Transition (kind 5), analytic drops | Coins drop one by one into a column on the floor, land, settle with a small damped bounce and stay stacked. Scripted drops, not physics: coins do not collide with each other. |
+| Coin fountain | Particles (kind 0), GPU-simulated | Gold coins fired upward from a point, arcing over and bouncing onto the floor. They scatter into a loose heap; particles do not collide, so there is no true pile. |
 
 Swarm particles (kind 6) read their neighbours from a snapshot taken after emission, so the flocking step is race-free. Fireworks use the same burst path as the Burst button, driven by a timer.
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |

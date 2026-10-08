@@ -96,6 +96,36 @@
       return hits;
     }
 
+    // 📝 Lightning web: each node links to its k nearest neighbours with one branching bolt per link.
+    // Nodes are scene objects (particle-system origins). Bolts are drawn only; they do not light particles.
+    web(now, nodes, opt = {}) {
+      const k = opt.k || 2;
+      const life = opt.life || 0.3;
+      const maxLinks = opt.maxLinks || 16;
+      const pairs = new Map();
+      nodes.forEach((a, i) => {
+        const near = nodes
+          .map((b, j) => ({ j, d: Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) }))
+          .filter((o) => o.j !== i)
+          .sort((x, y) => x.d - y.d)
+          .slice(0, k);
+        for (const o of near) pairs.set(Math.min(i, o.j) + "," + Math.max(i, o.j), [i, o.j]);
+      });
+      let made = 0;
+      for (const [i, j] of pairs.values()) {
+        if (made >= maxLinks) break;
+        const a = nodes[i];
+        const b = nodes[j];
+        const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        const segs = makeBolt(this.rng, a, b, {
+          amp: Math.min(1.5, 0.05 * d + 0.2), levels: 4, width: 0.07, branchChance: 0.5,
+        });
+        this.bolts.push({ segs, t0: now, life, seed: this.rng() * 1000 });
+        made++;
+      }
+      return made;
+    }
+
     // Packs the alive bolts into the GPU segment buffer: (a, width), (b, intensity).
     pack(now) {
       let n = 0;

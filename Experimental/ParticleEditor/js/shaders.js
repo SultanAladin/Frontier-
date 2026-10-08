@@ -108,6 +108,40 @@ fn sampleWind(p: vec3f) -> vec3f {
   return textureSampleLevel(windTex, windSamp, uvw, 0.0).xyz;
 }
 
+// 📝 Surface grid: local position in [-1, 1]^3 for cell i of a box surface (cap = 6 * g * g cells).
+fn surfaceLocal(i: u32, cap: f32) -> vec3f {
+  let g = max(1u, u32(floor(sqrt(cap / 6.0))));
+  let cells = g * g;
+  let face = i % 6u;
+  let cell = (i / 6u) % cells;
+  let cu = (f32(cell % g) + 0.5) / f32(g) * 2.0 - 1.0;
+  let cv = (f32(cell / g) + 0.5) / f32(g) * 2.0 - 1.0;
+  let ax = face / 2u;
+  let sg = select(-1.0, 1.0, (face % 2u) == 0u);
+  var lp = vec3f(0.0);
+  lp[ax] = sg;
+  lp[(ax + 1u) % 3u] = cu;
+  lp[(ax + 2u) % 3u] = cv;
+  return lp;
+}
+
+// 📝 Slot for particle i in an assembly mode: 1 = its surface cell, 2 = its place in a column on the floor.
+fn assembleTarget(i: u32, mode: u32) -> vec3f {
+  if (mode == 2u) {
+    let sz = S.life.z * S.misc.x;
+    return vec3f(S.origin.x, S.origin.y + (f32(i) + 0.5) * 0.2 * sz, S.origin.z);
+  }
+  return S.origin.xyz + surfaceLocal(i, S.phys3.x) * S.phys4.xyz;
+}
+
+// 📝 Release time (0..1) across the object. Corner: a wave from the min corner. Melt: patchy clumps that melt across the surface.
+fn waveT(u: vec3f) -> f32 {
+  if (S.mol2.x > 0.5) {
+    return clamp(0.5 + 0.3 * sin(u.x * 5.0 + u.y * 3.0 + 0.7) + 0.2 * sin(u.y * 7.0 - u.z * 4.0 + 2.1), 0.0, 1.0);
+  }
+  return (u.x + u.y + u.z) / 3.0;
+}
+
 @compute @workgroup_size(64)
 fn emitParticles(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
@@ -132,19 +166,7 @@ fn emitParticles(@builtin(global_invocation_id) gid: vec3u) {
     pos += (vec3f(r0, r1, r2) * 2.0 - 1.0) * S.phys4.xyz;
   } else if (shape == 4u) {
     // 📝 Box surface grid: the cells tile every face, so one full batch covers the whole surface.
-    let g = max(1u, u32(floor(sqrt(S.phys3.x / 6.0))));
-    let cells = g * g;
-    let face = i % 6u;
-    let cell = (i / 6u) % cells;
-    let cu = (f32(cell % g) + 0.5) / f32(g) * 2.0 - 1.0;
-    let cv = (f32(cell / g) + 0.5) / f32(g) * 2.0 - 1.0;
-    let ax = face / 2u;
-    let sg = select(-1.0, 1.0, (face % 2u) == 0u);
-    var lp = vec3f(0.0);
-    lp[ax] = sg;
-    lp[(ax + 1u) % 3u] = cu;
-    lp[(ax + 2u) % 3u] = cv;
-    pos += lp * S.phys4.xyz;
+    pos += surfaceLocal(i, S.phys3.x) * S.phys4.xyz;
   }
   var vel = vec3f(0.0);
   var life = mix(S.life.x, S.life.y, r3);
@@ -163,16 +185,40 @@ fn emitParticles(@builtin(global_invocation_id) gid: vec3u) {
     let local = vec3f(sinT * cos(phi), sinT * sin(phi), cosT);
     vel = (basis * local) * mix(S.speed.x, S.speed.y, r6);
   }
-  // 📝 Transition (kind 5, cube surface): hold until a wave released from one corner, then burst out or fall.
-  let trans = kind == 5u && shape == 4u && (S.mol3.x + S.mol3.y) > 0.0;
+  // 📝 Transitions (kind 5). Modes: 0 = hold, then burst or fall; 1 = rebuild from a shell; 2 = stack in a column.
+  let amode = u32(S.mol2.z);
+  let trans = kind == 5u && (S.mol3.x + S.mol3.y) > 0.0;
   var hold = 0.0;
+  var eZ = 0.0;
+  var eW = 0.0;
   if (trans) {
-    let u01 = clamp((pos - S.origin.xyz) / max(S.phys4.xyz, vec3f(1e-4)) * 0.5 + 0.5, vec3f(0.0), vec3f(1.0));
-    let tc = (u01.x + u01.y + u01.z) / 3.0;
-    hold = S.mol3.x + S.mol3.y * (tc + 0.15 * r2);
-    life = hold + life;
-    let outDir = normalize(pos - S.origin.xyz + vec3f(0.0, 0.35, 0.0));
-    vel = select(vec3f(0.0), outDir * mix(S.speed.x, S.speed.y, r6), r4 < S.mol3.z);
+    var u01 = vec3f(0.5);
+    if (amode == 1u) {
+      u01 = surfaceLocal(i, S.phys3.x) * 0.5 + 0.5;
+    } else if (shape == 4u) {
+      u01 = clamp((pos - S.origin.xyz) / max(S.phys4.xyz, vec3f(1e-4)) * 0.5 + 0.5, vec3f(0.0), vec3f(1.0));
+    }
+    var tc = select(r2, waveT(u01), shape == 4u || amode == 1u);
+    if (amode == 2u) { tc = f32(i) / max(S.phys3.x, 1.0); }
+    let jit = select(0.15 * r2, 0.0, amode == 2u);
+    hold = S.mol3.x + S.mol3.y * (tc + jit);
+    if (amode == 0u) {
+      life = hold + life;
+      let outDir = normalize(pos - S.origin.xyz + vec3f(0.0, 0.35, 0.0));
+      vel = select(vec3f(0.0), outDir * mix(S.speed.x, S.speed.y, r6), r4 < S.mol3.z);
+    } else {
+      // 📝 Assembly: start on a shell around the object (rebuild) or above the column (stack). Velocity holds the start point.
+      life = 10000.0;
+      if (amode == 1u) {
+        let dirS = normalize(vec3f(r0, r1, r2) * 2.0 - 1.0 + vec3f(0.0, 0.001, 0.0));
+        pos = S.origin.xyz + dirS * S.misc.w * (0.8 + 0.4 * r4);
+      } else {
+        pos = vec3f(S.origin.x + (r4 - 0.5) * 0.12, S.origin.y + S.misc.w, S.origin.z + (r5 - 0.5) * 0.12);
+      }
+      vel = pos;
+      eZ = f32(i);
+      eW = select(0.0, 1.0, amode == 2u);
+    }
   }
   var q: Part;
   q.p = vec4f(pos, 0.0);
@@ -180,7 +226,7 @@ fn emitParticles(@builtin(global_invocation_id) gid: vec3u) {
   q.c = S.colA;
   q.m = vec4f(S.life.z * S.misc.x, select(r0 * 6.2831853, 0.0, trans), (r1 - 0.5) * 4.0,
               select(f32(st & 0xffffffu), species, molecular));
-  q.e = vec4f(hold, 0.0, 0.0, 0.0);
+  q.e = vec4f(hold, 0.0, eZ, eW);
   parts[idx] = q;
 }
 
@@ -199,6 +245,30 @@ fn updateParticles(@builtin(global_invocation_id) gid: vec3u) {
   if (age >= life) { parts[i] = Part(); return; }
   let t01 = age / life;
   let seed = q.m.w;
+  // 📝 Assembly (kind 5, modes 1 and 2): analytic flight to a fixed slot, then hold. No physics after release.
+  let amode = u32(S.mol2.z);
+  if (kind == 5u && amode > 0u) {
+    let s0 = q.v.xyz;
+    var p2 = assembleTarget(u32(q.e.z), amode);
+    if (amode == 1u) {
+      let u = clamp(age / max(q.e.x, 1e-4), 0.0, 1.0);
+      let e = u * u * (3.0 - 2.0 * u);
+      p2 = mix(s0, p2, e) + vec3f(0.0, 0.5 * sin(3.14159265 * u) * (1.0 - e), 0.0);
+    } else {
+      let g = 9.81;
+      let tf = sqrt(2.0 * max(s0.y - p2.y, 0.0) / g);
+      let tau = max(age - (q.e.x - tf), 0.0);
+      if (tau < tf) {
+        let k = clamp(tau / max(tf, 1e-4), 0.0, 1.0);
+        p2 = vec3f(mix(s0.x, p2.x, k), s0.y - 0.5 * g * tau * tau, mix(s0.z, p2.z, k));
+      } else {
+        let b = max(age - q.e.x, 0.0);
+        p2.y += 0.02 * exp(-8.0 * b) * abs(sin(25.0 * b));
+      }
+    }
+    parts[i] = Part(vec4f(p2, age), q.v, q.c, q.m, q.e);
+    return;
+  }
   // 📝 Transition pieces wait on the object's surface until their hold time: no motion and no spin, so the object reads as solid.
   if (age < q.e.x) {
     parts[i] = Part(vec4f(q.p.xyz, age), q.v, q.c, vec4f(q.m.x, 0.0, q.m.z, seed), q.e);
@@ -631,7 +701,12 @@ fn vsPart(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> V
     let flat = vec3f(c.x * h * cos(a), c.y * h, c.x * h * sin(a));
     let ax = normalize(vec3f(hashF(q.m.w, 1u) - 0.5, hashF(q.m.w, 2u) - 0.5, hashF(q.m.w, 3u) - 0.5)
                        + vec3f(0.0, 0.0001, 0.0));
-    wp = q.p.xyz + rotAxis(flat, ax, 0.6 + hashF(q.m.w, 4u) * 0.8);
+    if (q.e.w > 0.5) {
+      // 📝 Stacked coins lie flat: a disc in the horizontal plane.
+      wp = q.p.xyz + vec3f(c.x * h * cos(a) - c.y * h * sin(a), 0.0, c.x * h * sin(a) + c.y * h * cos(a));
+    } else {
+      wp = q.p.xyz + rotAxis(flat, ax, 0.6 + hashF(q.m.w, 4u) * 0.8);
+    }
   } else {
     wp = q.p.xyz + G.camRight.xyz * (c.x * sz * 0.5) + G.camUp.xyz * (c.y * sz * 0.5);
   }
