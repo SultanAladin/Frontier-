@@ -84,6 +84,7 @@
 
   // ----------------------------------------------------------------- systems
   function makeSystem(presetId, nameOverride) {
+    applyWindLink(PE.presetById(presetId));
     const preset = PE.presetById(presetId);
     const p = JSON.parse(JSON.stringify(preset.p));
     const sys = {
@@ -109,6 +110,22 @@
     sys.head = 0;
     sys.acc = 0;
     sys.pendingBurst = 0;
+  }
+
+  // Some presets need a matching wind component to look right (a tornado needs its vortex,
+  // a sandstorm needs a strong prevailing wind). Enable or create that component when added.
+  function applyWindLink(preset) {
+    const link = preset.windLink;
+    if (!link) return;
+    const comps = state.wind.components;
+    let c = comps.find((k) => k.type === link.type);
+    if (!c) {
+      if (comps.length >= PE.WIND.maxComps) return;
+      c = { name: link.name, type: link.type, enabled: false, x: 0, z: 0, radius: 2, strength: 4, bearing: 0, freq: 0 };
+      comps.push(c);
+    }
+    const place = link.local ? { x: preset.p.origin[0], z: preset.p.origin[2] } : {};
+    Object.assign(c, link.set || {}, place, { enabled: true });
   }
 
   function addSystem(presetId) {
@@ -241,7 +258,7 @@
     const aspect = canvas.width / Math.max(1, canvas.height);
     const cam = cameraMatrices(aspect);
 
-    const glob = new Float32Array(48);
+    const glob = new Float32Array(52);
     const G = PE.GLOB_OFF;
     glob.set(cam.vp, G.viewProj);
     glob.set([cam.r[0], cam.r[1], cam.r[2], 0], G.camRight);
@@ -252,6 +269,7 @@
     glob.set([DOMAIN.dim[0], DOMAIN.dim[1], DOMAIN.dim[2], state.wind.components.length], G.windDim);
     glob.set([state.time, dt, state.frame, state.wind.windScale], G.timing);
     glob.set([state.wind.arrowRef, 0.012, state.lightning.flash, state.wind.turbulence], G.viz);
+    glob.set([state.wind.swirl, 0.45, 0.22, 0], G.swirl);
 
     const comps = new Float32Array(PE.WIND.maxComps * 8);
     state.wind.components.slice(0, PE.WIND.maxComps).forEach((c, i) => {
@@ -639,6 +657,7 @@
     root.append(card("Field", "GRID",
       rangeRow("Wind scale", () => w.windScale, (v) => (w.windScale = v), { min: 0, max: 3, step: 0.01, digits: 2, unit: "×" }),
       rangeRow("Turbulence", () => w.turbulence, (v) => (w.turbulence = v), { min: 0, max: 2, step: 0.01, digits: 2, unit: "m/s" }),
+      rangeRow("Swirl", () => w.swirl, (v) => (w.swirl = v), { min: 0, max: 4, step: 0.05, digits: 2, unit: "m/s" }),
       rangeRow("Arrow full scale", () => w.arrowRef, (v) => (w.arrowRef = v), { min: 1, max: 15, step: 0.1, digits: 1, unit: "m/s" }),
       checkRow("Show grid arrows", () => w.showArrows, (v) => (w.showArrows = v)),
       checkRow("Show floor", () => w.showFloor, (v) => (w.showFloor = v)),

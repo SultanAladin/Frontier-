@@ -9,10 +9,10 @@
     origin: 0, dir: 1, speed: 2, life: 3, colA: 4, colB: 5, colC: 6, phys: 7,
     phys2: 8, phys3: 9, phys4: 10, mol: 11, mol2: 12, mol3: 13, emit: 14, misc: 15,
   };
-  // Offsets (floats) into the Glob uniform (192 bytes).
+  // Offsets (floats) into the Glob uniform (208 bytes).
   PE.GLOB_OFF = {
     viewProj: 0, camRight: 16, camUp: 20, camPos: 24, windMin: 28, windSize: 32,
-    windDim: 36, timing: 40, viz: 44,
+    windDim: 36, timing: 40, viz: 44, swirl: 48,
   };
   PE.WIND = { min: [-6, 0, -6], size: [12, 8, 12], dim: [24, 12, 24], maxComps: 16 };
   PE.MAX_SEGS = 1600;
@@ -113,7 +113,7 @@
       const C = GPUShaderStage.COMPUTE;
 
       // Shared buffers.
-      this.glob = d.createBuffer({ size: 192, usage: U.UNIFORM | U.COPY_DST });
+      this.glob = d.createBuffer({ size: 208, usage: U.UNIFORM | U.COPY_DST });
       this.comps = d.createBuffer({ size: PE.WIND.maxComps * 32, usage: U.STORAGE | U.COPY_DST });
       this.segs = d.createBuffer({ size: PE.MAX_SEGS * 2 * 16, usage: U.STORAGE | U.COPY_DST });
       this.lines = d.createBuffer({ size: MAX_LINE_VERTS * LINE_BYTES, usage: U.VERTEX | U.COPY_DST });

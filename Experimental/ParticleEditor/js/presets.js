@@ -165,6 +165,63 @@
         colA: [1, 0.95, 0.7, 1], colB: [1, 0.35, 0.08, 0], windCoupling: 0.6,
       }),
     },
+    {
+      id: "tornado", name: "Tornado debris", group: "Storms",
+      blurb: "Debris lifted by a tornado. Adding it enables the Tornado wind vortex at this spot; the swirl is the grid itself.",
+      windLink: { type: 2, name: "Tornado", local: true, set: { radius: 2.4, strength: 9 } },
+      p: P({
+        kind: 1, shape: 2, leafMode: 1, blend: "alpha", capacity: 1500, rate: 90,
+        emitShape: 2, origin: [0, 0.05, -2], radius: 1.6, dir: [0, 1, 0], spread: 0.6,
+        speedMin: 1, speedMax: 3, drag: 0.4, gravity: 0.3, lifeMin: 4, lifeMax: 7,
+        sizeStart: 0.14, sizeEnd: 0.1, colA: [0.36, 0.31, 0.26, 1], colB: [0.52, 0.46, 0.38, 0],
+        windCoupling: 3.5, flutter: 1.2, bounce: 0,
+      }),
+    },
+    {
+      id: "sandstorm", name: "Sandstorm", group: "Storms",
+      blurb: "Dust driven across the scene. Adding it sets Prevailing wind to 8 m/s at bearing 70°.",
+      windLink: { type: 0, name: "Prevailing wind", set: { strength: 8, bearing: 70 } },
+      p: P({
+        kind: 1, shape: 3, blend: "alpha", capacity: 6000, rate: 900,
+        emitShape: 3, origin: [-5.6, 1.1, 0], boxHalf: [0.3, 0.9, 5.2], dir: [0.94, 0, 0.342], spread: 0.25,
+        speedMin: 5, speedMax: 8, drag: 1.0, gravity: 0.2, lifeMin: 4, lifeMax: 7,
+        sizeStart: 0.07, sizeEnd: 0.05, colA: [0.82, 0.66, 0.42, 0.55], colB: [0.7, 0.55, 0.34, 0],
+        windCoupling: 4, flutter: 0.6, bounce: 0,
+      }),
+    },
+    {
+      id: "snow", name: "Snow", group: "Weather",
+      blurb: "Slow snowfall that drifts and flutters through the wind field.",
+      p: P({
+        kind: 1, shape: 3, blend: "alpha", capacity: 3000, rate: 160,
+        emitShape: 3, boxHalf: [5, 0, 5], origin: [0, 7.2, 0], dir: [0, -1, 0], spread: 0.2,
+        speedMin: 0.4, speedMax: 0.9, drag: 1.0, gravity: 0.3, lifeMin: 9, lifeMax: 13,
+        sizeStart: 0.07, sizeEnd: 0.06, colA: [0.95, 0.97, 1, 0.85], colB: [0.95, 0.97, 1, 0],
+        windCoupling: 1.2, flutter: 0.9,
+      }),
+    },
+    {
+      id: "embers", name: "Embers", group: "VFX",
+      blurb: "Glowing embers lifted on hot air; additive, short-lived, bent by the wind.",
+      p: P({
+        kind: 5, shape: 3, blend: "add", capacity: 900, rate: 45,
+        emitShape: 1, radius: 0.5, origin: [-4.0, 0.3, -4.0], dir: [0, 1, 0], spread: 0.5,
+        speedMin: 0.8, speedMax: 2.2, drag: 0.7, buoyancy: 1.8, gravity: 0, lifeMin: 2, lifeMax: 4.2,
+        sizeStart: 0.035, sizeEnd: 0.012, colA: [1, 0.72, 0.3, 1], colB: [0.9, 0.25, 0.05, 0],
+        windCoupling: 1.5,
+      }),
+    },
+    {
+      id: "petals", name: "Cherry petals", group: "Wind-blown",
+      blurb: "Petals drifting off a canopy; they tumble and follow the wind closely.",
+      p: P({
+        kind: 1, shape: 2, leafMode: 0, blend: "alpha", capacity: 700, rate: 14,
+        emitShape: 2, origin: [2.5, 4.4, 2.5], radius: 2.2, dir: [0, -1, 0], spread: 0.5,
+        speedMin: 0.2, speedMax: 0.7, drag: 1.3, gravity: 0.3, lifeMin: 7, lifeMax: 11,
+        sizeStart: 0.1, sizeEnd: 0.09, colA: [1, 0.74, 0.82, 1], colB: [0.96, 0.58, 0.72, 1],
+        windCoupling: 2.4, flutter: 1.6,
+      }),
+    },
   ];
 
   PE.presetById = (id) => PE.Presets.find((preset) => preset.id === id);
@@ -186,6 +243,7 @@
         { name: "Tornado", type: 2, enabled: false, x: -2, z: -4, radius: 1.6, strength: 6, bearing: 0, freq: 0 },
         { name: "Radial suction", type: 3, enabled: false, x: 0, z: -2, radius: 3, strength: -2, bearing: 0, freq: 0 },
       ],
+      swirl: 1.2,
     };
   };
 

@@ -17,6 +17,7 @@ struct Glob {
   windDim: vec4f,
   timing: vec4f,
   viz: vec4f,
+  swirl: vec4f,    // x swirl strength (m/s), y spatial frequency (1/m), z animation rate
 };
 
 struct Sys {
@@ -379,6 +380,21 @@ fn vnoise3(p: vec3f) -> f32 {
   return mix(a, b, u.z);
 }
 
+// Curl of a vector potential built from three value-noise fields. The curl is divergence-free,
+// so the swirl never creates sources or sinks: the grid turns over on itself, like a real eddy field.
+fn noisePot(q: vec3f) -> vec3f {
+  return vec3f(vnoise3(q), vnoise3(q + vec3f(17.3, 3.1, 9.7)), vnoise3(q + vec3f(5.2, 31.7, 1.9))) * 2.0 - 1.0;
+}
+
+fn curlNoise(q: vec3f) -> vec3f {
+  let e = 0.05;
+  let inv = 0.5 / e;
+  let dAdx = (noisePot(q + vec3f(e, 0.0, 0.0)) - noisePot(q - vec3f(e, 0.0, 0.0))) * inv;
+  let dAdy = (noisePot(q + vec3f(0.0, e, 0.0)) - noisePot(q - vec3f(0.0, e, 0.0))) * inv;
+  let dAdz = (noisePot(q + vec3f(0.0, 0.0, e)) - noisePot(q - vec3f(0.0, 0.0, e))) * inv;
+  return vec3f(dAdy.z - dAdz.y, dAdz.x - dAdx.z, dAdx.y - dAdy.x);
+}
+
 // Evaluates every enabled component on the voxel grid. Output rgb = velocity (m/s, already
 // scaled by the global wind scale), a = magnitude. Linear superposition, like the reference
 // HTML wind model (EvaluateWind), plus an animated turbulence term.
@@ -429,6 +445,13 @@ fn buildWind(@builtin(global_invocation_id) id: vec3u) {
     let ny = vnoise3(q + vec3f(17.3, 3.1, 9.7));
     let nz = vnoise3(q + vec3f(5.2, 31.7, 1.9));
     acc += (vec3f(nx, ny, nz) * 2.0 - 1.0) * turb * (1.0 + length(acc) * 0.2);
+  }
+  // Swirl: divergence-free curl noise, drifting in time so the arrows visibly turn over.
+  let sw = G.swirl.x;
+  if (sw > 0.0) {
+    let tz = t * G.swirl.z;
+    let q = wp * G.swirl.y + vec3f(tz, tz * 0.6, -tz * 0.8);
+    acc += curlNoise(q) * sw;
   }
   acc *= G.timing.w;
   textureStore(windOut, vec3i(id), vec4f(acc, length(acc)));

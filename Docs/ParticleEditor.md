@@ -20,7 +20,12 @@ Query parameters:
 | --- | --- | --- |
 | Sparks | Ballistic, GPU-simulated | Streak-rendered. Emitted by the **Strike** button and by lightning. Affected by the wind field. |
 | Lightning and thunder | Procedural bolts | **Strike** creates a bolt with a flash, a thunder cue (**Sound**) and a spark burst at the impact point. |
-| Leaves | Wind-driven, GPU-simulated | Leaf or paper sprites (selectable). They take their velocity from the wind field at their position. |
+| Leaves | Wind-driven, GPU-simulated | Leaf or paper sprites (selectable). They take their velocity from the wind field at their position.
+| Tornado debris | Wind-driven, GPU-simulated | Paper debris lifted from a ring around a vortex. Adding it enables the **Tornado** wind component at its origin. |
+| Sandstorm | Wind-driven, GPU-simulated | Dense dust (up to about 6,000 grains) fired from the upwind edge. Adding it sets **Prevailing wind** to 8 m/s at bearing 70°. |
+| Snow | Wind-driven, GPU-simulated | Slow flakes falling through the wind field. |
+| Embers | Additive VFX | Glowing embers lifted on buoyancy and bent by the wind. |
+| Cherry petals | Wind-driven, GPU-simulated | Petals that tumble and follow the wind closely. | |
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |
 | Chemicals A+B→C | Molecular, GPU-simulated | Same as atoms, with stochastic A + B → C reactions on contact and C → A or B dissociation. |
 
@@ -35,6 +40,8 @@ Sources (all linear superposition, as in the reference):
 - **Prevailing wind**: directional, with strength, bearing, radius and centre position.
 - **Passing gust**: travelling gust bands.
 - **Turbulence**: scaled noise, controlled by the *Turbulence* slider.
+- **Swirl**: a divergence-free curl-noise field, controlled by the *Swirl* slider (m/s). Because it is a curl, it turns the grid over on itself without creating sources or sinks, so arrows visibly swirl while the net flow stays intact.
+- **Tornado** (a wind component, type 2): a vortex with a tangential velocity, inflow, and an updraft. Systems such as Tornado debris read it through the grid like any other wind.
 
 The field is visualised as a 3D grid rather than a single plane. Each arrow is one voxel:
 
