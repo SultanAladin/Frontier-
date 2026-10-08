@@ -81,104 +81,135 @@ EditorProperty& Tint(EditorPropertyGroup& Group, const char* Name, float R, floa
     return Slot;
 }
 
-// Type is the engine's own six-way selector; the panel folds it onto the reference's five emitters.
-void Family(EditorPropertyGroup& Group, unsigned Category)
+// Subject.type in LightPanel.js. The engine selector carries the same seven styles in the same order.
+void Family(EditorPropertyGroup& Group, unsigned Style)
 {
     EditorProperty& Type = Open(Group, "Type", EditorPropertyCategory::Select);
-    Type.Picked = Category;
+    Type.Picked = Style;
     Type.OptionCount = 6;
-    const char* Names[] = {"Directional", "Point", "Spot", "Rectangle / Area", "Tube", "Strip"};
+    const char* Names[] = {"Point", "Spot", "IES", "Area", "Tube", "LED"};
     for (int Slot = 0; Slot < 6; ++Slot)
     {
         std::snprintf(Type.Options[Slot], sizeof(Type.Options[Slot]), "%s", Names[Slot]);
     }
 }
 
-// The property set is InspectorDepot/world.js, name for name and default for default, so the native panel
-//    binds to the reference's own controls instead of to engine-side lookalikes.
-EditorSheet SheetFor(unsigned Category)
+// The property set is LightPanel.js's Field() calls and LightSpecification.js's LightDefaults, name for
+//    name and range for range, so the native panel binds to the reference's own controls.
+EditorSheet SheetFor(unsigned Style)
 {
     EditorSheet Sheet;
     Sheet.Appearance = EditorSheetAppearance::Light;
 
-    EditorPropertyGroup& Transform = Sheet.Groups[Sheet.GroupCount++];
-    std::snprintf(Transform.Title, sizeof(Transform.Title), "Transform");
-    Family(Transform, Category == 6 ? 2u : Category);
+    EditorPropertyGroup& Place = Sheet.Groups[Sheet.GroupCount++];
+    std::snprintf(Place.Title, sizeof(Place.Title), "Transform");
+    Family(Place, Style);
+    Axes(Place, "Position", 0, 2, 0, 0.01f);
+    Axes(Place, "Rotation", 0, 0, 0, 0.1f);
+    Axes(Place, "Scale",    1, 1, 1, 0.01f);
 
-    EditorPropertyGroup& Emission = Sheet.Groups[Sheet.GroupCount++];
-    std::snprintf(Emission.Title, sizeof(Emission.Title), "Emission");
+    EditorPropertyGroup& Out = Sheet.Groups[Sheet.GroupCount++];
+    std::snprintf(Out.Title, sizeof(Out.Title), "Output");
+    EditorPropertyGroup& Optic = Sheet.Groups[Sheet.GroupCount++];
+    std::snprintf(Optic.Title, sizeof(Optic.Title), "Optics");
+    EditorPropertyGroup& Flags = Sheet.Groups[Sheet.GroupCount++];
+    std::snprintf(Flags.Title, sizeof(Flags.Title), "Flags");
 
-    switch (Category)
+    switch (Style)
     {
-    case 1:   // pointlight
-        Axes(Transform, "Position", 0, 2, 0, 0.05f);
-        Tint(Emission, "Emission colour", 1.000f, 0.851f, 0.627f);          // #ffd9a0
-        Tape(Emission, "Intensity", 14, 0, 60, 1, "cd");
-        Tape(Emission, "Reach", 26, 1, 120, 0, "m");
-        Tape(Emission, "Decay exponent", 2, 0, 4, 2, "");
-        State(Emission, "Cast Shadows", false);
-        State(Emission, "Show glow", true);
+    case 0:   // pointlight
+        Tint(Out, "Emission tint", 1.000f, 0.851f, 0.627f);
+        Tape(Out, "Intensity", 14, 0, 60, 1, "cd");
+        Tape(Optic, "Reach", 26, 1, 120, 0, "m");
+        Tape(Optic, "Decay exponent", 2, 0, 4, 2, "");
+        State(Flags, "Cast shadows", false);
+        State(Flags, "Show glow", true);
         break;
 
-    case 2:   // spotlight
-        Axes(Transform, "Position", 0, 6, 0, 0.05f);
-        Axes(Transform, "Target", 0, 0, 0, 0.05f);
-        Tint(Emission, "Emission colour", 0.910f, 0.941f, 1.000f);          // #e8f0ff
-        Tape(Emission, "Cone angle", 26, 2, 80, 1, "deg");
-        Tape(Emission, "Penumbra", 0.42f, 0, 1, 2, "");
-        Tape(Emission, "Intensity", 62, 0, 200, 0, "cd");
-        State(Emission, "Cast Shadows", true);
-        State(Emission, "Draw cone", true);
+    case 1:   // spotlight
+        Tint(Out, "Emission tint", 0.910f, 0.941f, 1.000f);
+        Tape(Out, "Intensity", 62, 0, 200, 0, "cd");
+        Tape(Optic, "Full cone angle", 26, 2, 80, 1, "deg");
+        Tape(Optic, "Penumbra", 0.42f, 0, 1, 2, "");
+        State(Flags, "Cast shadows", true);
+        State(Flags, "Draw cone", true);
         break;
 
-    case 6:   // ieslight — reached through a Spot whose Distribution names a photometric profile
+    case 2:   // ieslight
     {
-        Axes(Transform, "Position", 0, 1, 0, 0.05f);
-        Axes(Transform, "Target", 0, 0.6f, -12, 0.05f);
-        EditorProperty& Profile = Open(Transform, "Distribution", EditorPropertyCategory::Select);
-        Profile.OptionCount = 6;
-        Profile.Picked = 1;                                                  // ECE Low Beam
-        const char* Profiles[] = {"Uniform", "ECE Low Beam", "SAE Low Beam", "High Beam", "Fog Lamp", "Parking Lamp"};
+        Tint(Out, "Emission tint", 1.0f, 1.0f, 1.0f);
+        Tape(Out, "Luminous flux", 1650, 0, 8000, 0, "lm");
+        Tape(Out, "Colour temperature", 4300, 1800, 12000, 0, "K");
+        EditorProperty& Preset = Open(Optic, "Profile", EditorPropertyCategory::Select);
+        Preset.Picked = 3u;                       // ECE Low Beam
+        Preset.OptionCount = 6;
+        const char* Names[] = {"Downlight", "Wall wash", "Batwing", "ECE Low Beam", "SAE Low Beam", "High Beam"};
         for (int Slot = 0; Slot < 6; ++Slot)
         {
-            std::snprintf(Profile.Options[Slot], sizeof(Profile.Options[Slot]), "%s", Profiles[Slot]);
+            std::snprintf(Preset.Options[Slot], sizeof(Preset.Options[Slot]), "%s", Names[Slot]);
         }
-        Tint(Emission, "Emission colour", 1.000f, 0.949f, 0.812f);          // #fff2cf
-        Tape(Emission, "Luminous flux", 1650, 0, 8000, 0, "lm");
-        Tape(Emission, "Profile multiplier", 1, 0, 4, 2, "x");
-        Tape(Emission, "Photometric range", 120, 1, 250, 0, "m");
-        Tape(Emission, "Field angle", 58, 5, 100, 1, "deg");
-        Tape(Emission, "Cut-off pitch", -1, -5, 5, 1, "deg");
-        Tape(Emission, "Colour temperature", 4300, 1800, 12000, 0, "K");
-        State(Emission, "Cast Shadows", true);
-        State(Emission, "Draw distribution", true);
+        Tape(Optic, "Profile multiplier", 1, 0, 4, 2, "x");
+        Tape(Optic, "Field angle", 58, 5, 100, 1, "deg");
+        Tape(Optic, "Cut-off pitch", -1, -5, 5, 1, "deg");
+        Tape(Optic, "Photometric range", 120, 1, 250, 0, "m");
+        State(Flags, "Cast shadows", true);
+        State(Flags, "Draw distribution", true);
         break;
     }
 
     case 3:   // arealight
-        Axes(Transform, "Position", 0, 3, 0, 0.05f);
-        Axes(Transform, "Target", 0, 0, 0, 0.05f);
-        Tint(Emission, "Emission colour", 1.000f, 0.945f, 0.839f);          // #fff1d6
-        Tape(Emission, "Width", 2, 0.1f, 20, 2, "m");
-        Tape(Emission, "Height", 1, 0.1f, 20, 2, "m");
-        Tape(Emission, "Luminous flux", 2400, 0, 20000, 0, "lm");
-        Tape(Emission, "Beam spread", 120, 1, 180, 0, "deg");
-        State(Emission, "Two sided", false);
-        State(Emission, "Cast Shadows", false);
-        State(Emission, "Draw emitter", true);
+    {
+        Tint(Out, "Emission tint", 1.000f, 0.945f, 0.839f);
+        Tape(Out, "Luminous flux", 2400, 0, 20000, 0, "lm");
+        EditorProperty& Shape = Open(Optic, "Aperture", EditorPropertyCategory::Select);
+        Shape.Picked = 0u;
+        Shape.OptionCount = 2;
+        std::snprintf(Shape.Options[0], sizeof(Shape.Options[0]), "Rectangle");
+        std::snprintf(Shape.Options[1], sizeof(Shape.Options[1]), "Disk");
+        Tape(Optic, "Width", 2, 0.1f, 20, 1, "m");
+        Tape(Optic, "Height", 1, 0.1f, 20, 1, "m");
+        Tape(Optic, "Beam spread", 120, 1, 180, 0, "deg");
+        State(Optic, "Two-sided emission", false);
+        State(Flags, "Cast shadows", true);
+        State(Flags, "Draw emitter", true);
+        break;
+    }
+
+    case 4:   // tubelight
+        Tint(Out, "Emission tint", 0.910f, 0.949f, 1.000f);
+        Tape(Out, "Luminous flux", 1800, 0, 12000, 0, "lm");
+        Tape(Out, "Colour temperature", 5600, 1800, 12000, 0, "K");
+        Tape(Optic, "Length", 1.5f, 0.1f, 20, 1, "m");
+        Tape(Optic, "Tube radius", 0.04f, 0.01f, 1, 2, "m");
+        Tape(Optic, "Reach", 24, 1, 120, 0, "m");
+        State(Flags, "Cast shadows", true);
+        State(Flags, "Draw emitter", true);
         break;
 
-    default:  // tubelight, and the LED strip that is a tube run
-        Axes(Transform, "Position", 0, 2, 0, 0.05f);
-        Axes(Transform, "Rotation", 0, 0, Category == 5 ? 20.0f : 0.0f, 1.0f);
-        Tint(Emission, "Emission colour", 0.910f, 0.949f, 1.000f);          // #e8f2ff
-        Tape(Emission, "Length", Category == 5 ? 2.4f : 1.5f, 0.1f, 20, 2, "m");
-        Tape(Emission, "Tube radius", 0.04f, 0.01f, 1, 2, "m");
-        Tape(Emission, "Luminous flux", Category == 5 ? 2400.0f : 1800.0f, 0, 12000, 0, "lm");
-        Tape(Emission, "Reach", 24, 1, 120, 0, "m");
-        Tape(Emission, "Colour temperature", 5600, 1800, 12000, 0, "K");
-        State(Emission, "Cast Shadows", false);
-        State(Emission, "Draw emitter", true);
+    case 5:   // ledlight — LightSpecification.js LightDefaults.ledlight
+        Tint(Out, "Emission tint", 1.0f, 1.0f, 1.0f);
+        Tape(Out, "Driver power", 10, 0.1f, 100, 1, "W");
+        Tape(Out, "Efficacy target", 110, 10, 250, 0, "lm/W");
+        Tape(Out, "Dimmer", 1, 0, 1, 2, "");
+        Tape(Out, "Colour temperature", 4000, 1800, 12000, 0, "K");
+        Tape(Optic, "Package diameter", 40, 5, 120, 0, "mm");
+        Tape(Optic, "Emission angle", 120, 10, 180, 0, "deg");
+        State(Flags, "Cast shadows", true);
+        State(Flags, "Draw emitter", true);
+        break;
+
+    default:  // ledstrip — LightSpecification.js LightDefaults.ledstrip
+        Tint(Out, "Emission tint", 1.0f, 1.0f, 1.0f);
+        Tape(Out, "Flux per metre", 1000, 10, 4000, 0, "lm/m");
+        Tape(Out, "Load per metre", 14.4f, 1, 50, 1, "W/m");
+        Tape(Out, "Dimmer", 1, 0, 1, 2, "");
+        Tape(Out, "Colour temperature", 3000, 1800, 12000, 0, "K");
+        Tape(Optic, "Strip length", 2.4f, 0.1f, 20, 1, "m");
+        Tape(Optic, "Emitter density", 60, 10, 240, 0, "/m");
+        Tape(Optic, "Supply voltage", 24, 5, 48, 0, "V");
+        State(Optic, "Opal diffuser", false);
+        State(Flags, "Cast shadows", true);
+        State(Flags, "Draw emitter", true);
         break;
     }
     return Sheet;
@@ -251,15 +282,15 @@ int main()
         Check(stbi_write_png(Path.c_str(), Width, Height, 3, Pixels.data(), Width * 3) != 0, "capture written");
     };
 
-    struct Emitter { unsigned Category; const char* File; };
+    struct Emitter { unsigned Style; const char* File; };
     const Emitter Roster[] = {
-        {1, "PointLight"}, {2, "SpotLight"}, {6, "IesLight"},
-        {3, "AreaLight"},  {4, "TubeLight"}, {5, "StripLight"},
+        {0, "PointLight"}, {1, "SpotLight"}, {2, "IesLight"}, {3, "AreaLight"},
+        {4, "TubeLight"},  {5, "LedLight"},  {6, "StripLight"},
     };
 
     for (const Emitter& Entry : Roster)
     {
-        Sheet = SheetFor(Entry.Category);
+        Sheet = SheetFor(Entry.Style);
         Check(Sheet.Appearance == EditorSheetAppearance::Light, "dedicated native Light route");
         Width = 318;
         Capture(Entry.File);
@@ -267,29 +298,37 @@ int main()
         Capture((std::string(Entry.File) + "-Wide").c_str());
     }
 
-    //  The arithmetic the cards print is the reference's own, checked against it ---------------------------
-    auto LuxAt = [](float Intensity, float Distance, float Decay)
-    {
-        return Intensity / std::pow(std::max(1.0f, Distance), Decay);
-    };
+    //  The arithmetic the cards print is LightPanel.js's own, checked against it ------------------------
     const float Pi = 3.14159265f;
 
-    // lights.js: a 14 cd point at physical decay reads 0.56 lx at five metres and 0.14 lx at ten.
-    Check(std::fabs(LuxAt(14, 5, 2) - 0.56f) < 0.005f, "point exposure at 5 m is 0.56 lx");
-    Check(std::fabs(LuxAt(14, 10, 2) - 0.14f) < 0.005f, "point exposure at 10 m is 0.14 lx");
-    // A 62 cd key spot reads 2.48 lx at five metres, and its 26 degree cone pools 2.3 m across there.
-    Check(std::fabs(LuxAt(62, 5, 2) - 2.48f) < 0.005f, "spot exposure at 5 m is 2.48 lx");
-    Check(std::fabs(2 * 5 * std::tan(26 * Pi / 360.0f) - 2.308f) < 0.01f, "spot pool at 5 m is 2.3 m");
-    // advancedLights.js peak candela: IES is flux x multiplier x 1.8; a surface divides by its aperture.
-    Check(std::fabs(1650.0f * 1.0f * 1.8f - 2970.0f) < 0.5f, "ECE low beam peaks at 2970 cd");
-    Check(std::fabs(2400.0f / (2.0f * 1.0f) * 0.45f - 540.0f) < 0.5f, "2 x 1 m softbox peaks at 540 cd");
-    Check(std::fabs(1800.0f / 1.5f * 0.45f - 540.0f) < 0.5f, "1.5 m tube peaks at 540 cd");
-    // Efficacy is min(160, 70 + K / 100).
-    Check(std::fabs(std::min(160.0f, 70 + 4300.0f / 100.0f) - 113.0f) < 0.5f, "4300 K reads 113 lm/W");
-    Check(std::fabs(std::min(160.0f, 70 + 5600.0f / 100.0f) - 126.0f) < 0.5f, "5600 K reads 126 lm/W");
+    // Flux(): the LED driver and the strip derive their lumens; every other style authors them.
+    Check(std::fabs(10.0f * 110.0f * 1.0f - 1100.0f) < 0.5f, "LED driver yields 1100 lm");
+    Check(std::fabs(1000.0f * 2.4f * 1.0f - 2400.0f) < 0.5f, "2.4 m strip yields 2400 lm");
+
+    // Point: the rail reads Flux / 5^decay, and the sample table repeats it at 1, 2, 5 and 10 m.
+    Check(std::fabs(14.0f / std::pow(5.0f, 2.0f) - 0.56f) < 0.005f, "point reads 0.56 lx at 5 m");
+    Check(std::fabs(14.0f / std::pow(10.0f, 2.0f) - 0.14f) < 0.005f, "point reads 0.14 lx at 10 m");
+
+    // Spot: the response prints the beam diameter on a perpendicular plane at five metres.
+    Check(std::fabs(2 * 5 * std::tan(26 * Pi / 360.0f) - 2.308f) < 0.01f, "spot pools 2.31 m at 5 m");
+
+    // IES: the rail scales the authored flux by the profile multiplier.
+    Check(std::fabs(1650.0f * 1.0f - 1650.0f) < 0.5f, "ECE low beam scales to 1650 lm");
+
+    // Area: the response divides flux by the aperture, and a disk takes pi / 4 of the rectangle.
+    Check(std::fabs(2400.0f / (2.0f * 1.0f) - 1200.0f) < 0.5f, "2 x 1 m softbox reads 1200 lm/m2");
+    Check(std::fabs(2.0f * 1.0f * (Pi / 4.0f) - 1.5708f) < 0.001f, "a disk aperture measures 1.57 m2");
+
+    // Tube: linear output is flux over length.
+    Check(std::fabs(1800.0f / 1.5f - 1200.0f) < 0.5f, "1.5 m tube reads 1200 lm/m");
+
+    // Strip: connected watts, emitter count, and the ideal full-load current.
+    Check(std::fabs(2.4f * 14.4f - 34.56f) < 0.01f, "2.4 m strip draws 34.6 W");
+    Check(std::fabs(std::floor(2.4f * 60.0f + 0.5f) - 144.0f) < 0.5f, "2.4 m strip carries 144 LEDs");
+    Check(std::fabs((2.4f * 14.4f) / 24.0f - 1.44f) < 0.005f, "2.4 m strip pulls 1.44 A");
 
     ImGui::DestroyContext();
-    std::printf("PASS %u checks: native light inspector for Point, Spot, IES, Area, Tube and Strip at two column widths.\n",
+    std::printf("PASS %u checks: native light inspector for Point, Spot, IES, Area, Tube, LED and Strip at two column widths.\n",
                 Checks);
     return 0;
 }

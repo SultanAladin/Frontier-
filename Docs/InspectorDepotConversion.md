@@ -4,13 +4,11 @@ Reference: **`Experimental/ProjectZeroEditor/index.html`**, the 4.87 MB self-con
 author on 2026-10-08. Built by `Build.mjs` from the sources beside it. The light panel is `LightPanel.js` +
 `LightPanel.css` + `LightProjection.js`, with its transform block from `EmitterPanel.jsx` → `TransformPanel.jsx`.
 
-## Superseded work — do not trust it
+## History
 
-`Engine/Editor/LightInspectorPanel.cpp` and `Engine/Editor/LightDepotSurface.h` currently implement
-`InspectorDepot/panels/lights.js` + `advancedLights.js`. **That is the wrong half of the folder.**
-`InspectorDepot/` is a second, unused panel kit; the shipped panel only borrows its `el()` helper and the
-`mp-rail` / `mp-pill` class names. The captures in `Exhibits/Gallery/LightingNative` show that wrong panel.
-Both files and the gallery are to be replaced by the port described below.
+The panel was first built from `Experimental/FrontierEditor` and then from `InspectorDepot/panels/lights.js`;
+both were wrong. `Engine/Editor/LightDepotSurface.h` has been deleted and `LightInspectorPanel.cpp` rewritten
+against `LightPanel.js`.
 
 Two earlier misses, recorded so they are not repeated: the first attempt ported `Experimental/FrontierEditor`
 (an older editor with no light family, so five emitters were invented); the second ported `InspectorDepot`.
@@ -101,10 +99,29 @@ with left 43, right `width − 15`, top 28, bottom `height − 30`, five gridlin
 | --- | --- |
 | Reference identified and recorded in `CLAUDE.md` | Done |
 | Card set, palette, geometry, per-type controls transcribed | Done — above |
-| Native chrome port | Not started |
-| `ProjectLight` / `ProjectResponse` illustrations | Not started |
-| Remove the superseded InspectorDepot conversion and its gallery | Not started |
+| Native chrome port — all six blocks, seven styles | Done — `LightInspectorPanel.cpp` |
+| `ProjectLight` illustrations, seven styles | Done — `PaintStudy` |
+| `ProjectResponse` plot and sections | Done — `PaintResponse` |
+| Superseded InspectorDepot conversion removed | Done — `LightDepotSurface.h` deleted |
+| Header source glyph (`lp-source-icon`) | **Outstanding** — needs an SVG rasteriser |
+| Control interaction (drag, click, write-back) | Outstanding — the port draws, it does not yet edit |
 | Fog cards (`FogPanel.jsx`, `FogShapePanel.jsx`) | Not started |
+
+### The source glyph
+
+`LightPanel.js` prepends a 25 x 25 `img` into each card header, `LightIcons[Style]` from
+`LightSpecification.js`: `editor-point-light`, `editor-spotlight`, `editor-dome-light`, `editor-area-light`,
+`light-area-2d`, `light-point-2d`, `slate-ring-light`. All seven are real `IconSymbol` entries that the engine
+rasterises through ThorVG, so the panel takes the shipped artwork rather than redrawing it — it calls the
+`LightGlyphSource` hook declared in `LightInspectorPanel.h`. The editor supplies that from `IconArt`. The proof
+harness leaves it null because this sandbox has no SVG rasteriser (`rsvg-convert` is absent and ImageMagick's
+SVG delegate fails), so the captures reserve the 25 px box and leave it empty.
+
+### Two fills ImGui cannot do directly
+
+`AddConvexPolyFilled` silently misdraws concave shapes. The area under a 1 / d^n illuminance curve is filled as
+one quad per segment, and a photometric lobe — star-shaped about the origin but not convex — as a triangle fan
+from the centre. Both looked plausible but wrong before this was caught by eye.
 
 Acceptance test: the scripts already beside the sources — `CheckLightDesign.mjs`, `CheckLighting.mjs`,
 `CheckInspectorLayout.mjs`, `CheckSharedCards.mjs`.

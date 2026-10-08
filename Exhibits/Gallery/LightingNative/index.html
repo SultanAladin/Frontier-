@@ -54,9 +54,9 @@
 <header>
   <div class="kicker">Executed proof · Exhibits / Gallery / LightingNative</div>
   <h1>Native light inspector, converted from InspectorDepot</h1>
-  <p>Six emitters drawn by <code>Engine/Editor/LightInspectorPanel.cpp</code>, converted 1:1 from
-     <code>Experimental/ProjectZeroEditor/InspectorDepot</code> — <code>panels/lights.js</code> for point and
-     spot, <code>panels/advancedLights.js</code> for IES, area and tube. Every capture below is written from
+  <p>Seven emitters drawn by <code>Engine/Editor/LightInspectorPanel.cpp</code>, converted 1:1 from
+     <code>Experimental/ProjectZeroEditor/LightPanel.js</code>, <code>LightPanel.css</code> and
+     <code>LightProjection.js</code> — the light panel that ships inside <code>index.html</code>. Every capture below is written from
      real ImGui draw commands by
      <code>python3 Exhibits/Workbench/Lighting/RunNativeEmitterCards.py</code>, not mocked up.</p>
   <p>Each emitter is shown at the two widths an inspector column actually gets. At 318 px the axis fields clip
@@ -64,9 +64,9 @@
      <code>min-width:0</code>, so flexbox shrinks the field past its 38 px basis and the input clips. The
      420 px capture shows them whole.</p>
   <div class="rail">
-    <div class="pill"><b>27</b><span>Checks passed</span></div>
-    <div class="pill"><b>12</b><span>Captures</span></div>
-    <div class="pill"><b>6</b><span>Emitters</span></div>
+    <div class="pill"><b>33</b><span>Checks passed</span></div>
+    <div class="pill"><b>14</b><span>Captures</span></div>
+    <div class="pill"><b>7</b><span>Emitters</span></div>
     <div class="pill"><b>318 / 420</b><span>Column widths</span></div>
   </div>
   <div style="margin-top:16px"><span class="tag"><i></i>Rendered from native draw commands</span></div>
@@ -74,44 +74,50 @@
 
 <div class="grid">
   <figure>
-    <figcaption><b>Point Light</b><em>lights.js</em></figcaption>
+    <figcaption><b>Point light</b><em>LightPanel.js</em></figcaption>
     <span class="shot"><img src="PointLight-Wide.png" alt="Native point light inspector at 420 px"></span>
     <div class="pair"><a href="PointLight.png">318 px</a><a href="PointLight-Wide.png">420 px</a></div>
   </figure>
   <figure>
-    <figcaption><b>Spot Light</b><em>lights.js</em></figcaption>
+    <figcaption><b>Spot light</b><em>LightPanel.js</em></figcaption>
     <span class="shot"><img src="SpotLight-Wide.png" alt="Native spot light inspector at 420 px"></span>
     <div class="pair"><a href="SpotLight.png">318 px</a><a href="SpotLight-Wide.png">420 px</a></div>
   </figure>
   <figure>
-    <figcaption><b>IES / Automotive</b><em>advancedLights.js</em></figcaption>
+    <figcaption><b>IES photometric</b><em>LightPanel.js</em></figcaption>
     <span class="shot"><img src="IesLight-Wide.png" alt="Native IES light inspector at 420 px"></span>
     <div class="pair"><a href="IesLight.png">318 px</a><a href="IesLight-Wide.png">420 px</a></div>
   </figure>
   <figure>
-    <figcaption><b>Rect Area Light</b><em>advancedLights.js</em></figcaption>
+    <figcaption><b>Area / softbox</b><em>LightPanel.js</em></figcaption>
     <span class="shot"><img src="AreaLight-Wide.png" alt="Native area light inspector at 420 px"></span>
     <div class="pair"><a href="AreaLight.png">318 px</a><a href="AreaLight-Wide.png">420 px</a></div>
   </figure>
   <figure>
-    <figcaption><b>Tube Light</b><em>advancedLights.js</em></figcaption>
+    <figcaption><b>Tube light</b><em>LightPanel.js</em></figcaption>
     <span class="shot"><img src="TubeLight-Wide.png" alt="Native tube light inspector at 420 px"></span>
     <div class="pair"><a href="TubeLight.png">318 px</a><a href="TubeLight-Wide.png">420 px</a></div>
   </figure>
   <figure>
-    <figcaption><b>LED Strip</b><em>tube run</em></figcaption>
+    <figcaption><b>LED emitter</b><em>LightPanel.js</em></figcaption>
+    <span class="shot"><img src="LedLight-Wide.png" alt="Native LED emitter inspector at 420 px"></span>
+    <div class="pair"><a href="LedLight.png">318 px</a><a href="LedLight-Wide.png">420 px</a></div>
+  </figure>
+  <figure>
+    <figcaption><b>LED strip</b><em>LightPanel.js</em></figcaption>
     <span class="shot"><img src="StripLight-Wide.png" alt="Native LED strip inspector at 420 px"></span>
     <div class="pair"><a href="StripLight.png">318 px</a><a href="StripLight-Wide.png">420 px</a></div>
   </figure>
 </div>
 
 <footer>
-  The run asserts the arithmetic the cards print, taken from the reference: a 14 cd point reads 0.56 lx at five
-  metres and 0.14 lx at ten; a 62 cd key spot reads 2.48 lx and pools 2.3 m across at five metres; an ECE low
-  beam peaks at 2970 cd; a 2 × 1 m softbox and a 1.5 m tube both peak at 540 cd; efficacy is
-  min(160, 70 + K / 100). Executed commands are in <code>Commands.json</code>, source and capture digests in
-  <code>Hashes.json</code>, and the run log in <code>Proof.txt</code>. Conversion register:
-  <code>Docs/InspectorDepotConversion.md</code>.
+  The run asserts the arithmetic the cards print, taken from the reference: a 10 W driver at 110 lm/W yields
+  1,100 lm; a 2.4 m strip yields 2,400 lm, draws 34.6 W, carries 144 emitters and pulls 1.44 A; a 14 cd point
+  reads 0.56 lx at five metres and 0.14 lx at ten; a 62 cd spot pools 2.31 m across at five metres; a 2 x 1 m
+  softbox reads 1,200 lm/m2; a 1.5 m tube reads 1,200 lm/m. Executed commands are in <code>Commands.json</code>, source and capture digests in
+  <code>Hashes.json</code>, and the run log in <code>Proof.txt</code>. Port register:
+  <code>Docs/InspectorDepotConversion.md</code>. The header source glyph needs an SVG rasteriser, which this
+  sandbox has none of, so its 25 px box is reserved but empty.
 </footer>
 </body>
 </html>
