@@ -103,7 +103,7 @@ with left 43, right `width − 15`, top 28, bottom `height − 30`, five gridlin
 | `ProjectLight` illustrations, seven styles | Done — `PaintStudy` |
 | `ProjectResponse` plot and sections | Done — `PaintResponse` |
 | Superseded InspectorDepot conversion removed | Done — `LightDepotSurface.h` deleted |
-| Header source glyph (`lp-source-icon`) | **Outstanding** — needs an SVG rasteriser |
+| Header source glyph (`lp-source-icon`) | Done — shipped artwork, baked for the harness |
 | Control interaction (drag, click, write-back) | Outstanding — the port draws, it does not yet edit |
 | Fog cards (`FogPanel.jsx`, `FogShapePanel.jsx`) | Not started |
 
@@ -111,11 +111,15 @@ with left 43, right `width − 15`, top 28, bottom `height − 30`, five gridlin
 
 `LightPanel.js` prepends a 25 x 25 `img` into each card header, `LightIcons[Style]` from
 `LightSpecification.js`: `editor-point-light`, `editor-spotlight`, `editor-dome-light`, `editor-area-light`,
-`light-area-2d`, `light-point-2d`, `slate-ring-light`. All seven are real `IconSymbol` entries that the engine
-rasterises through ThorVG, so the panel takes the shipped artwork rather than redrawing it — it calls the
-`LightGlyphSource` hook declared in `LightInspectorPanel.h`. The editor supplies that from `IconArt`. The proof
-harness leaves it null because this sandbox has no SVG rasteriser (`rsvg-convert` is absent and ImageMagick's
-SVG delegate fails), so the captures reserve the 25 px box and leave it empty.
+`light-area-2d`, `light-point-2d`, `slate-ring-light`. All seven are real `IconSymbol` entries, so the panel
+asks for the shipped artwork rather than redrawing it, through the `LightGlyphSource` hook declared in
+`LightInspectorPanel.h`. The editor answers that from `IconArt` / ThorVG.
+
+The harness cannot — this sandbox has no SVG rasteriser, `rsvg-convert` is absent and ImageMagick's SVG
+delegate fails. `BakeLightGlyphs.mjs` rasterises the same seven SVGs with `@resvg/resvg-js` to straight-alpha
+RGBA8 at 2x into `Glyphs/*.rgba`, which the harness reads with a plain `fread` and hands to the CPU backend as
+its one custom sheet. Re-bake with `node Exhibits/Workbench/Lighting/BakeLightGlyphs.mjs` after
+`npm i @resvg/resvg-js`; the baked files are committed so the proof runs without node.
 
 ### Two fills ImGui cannot do directly
 

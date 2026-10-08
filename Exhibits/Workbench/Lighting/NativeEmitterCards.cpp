@@ -25,6 +25,47 @@ namespace
 
 unsigned Checks = 0;
 
+// LightPanel.js prepends LightIcons[Style] into every card header. The editor rasterises that SVG through
+//    IconArt; the harness reads the same artwork pre-baked by BakeLightGlyphs.mjs.
+constexpr int kGlyphEdge = 50;
+std::vector<unsigned char> gGlyph;
+unsigned char gGlyphToken = 0;
+ImTextureID gGlyphId = static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(&gGlyphToken));
+
+const char* GlyphFile(IconSymbol Symbol)
+{
+    switch (Symbol)
+    {
+    case IconSymbol::EditorPointLight: return "editor-point-light";
+    case IconSymbol::EditorSpotlight:  return "editor-spotlight";
+    case IconSymbol::EditorDomeLight:  return "editor-dome-light";
+    case IconSymbol::EditorAreaLight:  return "editor-area-light";
+    case IconSymbol::LightArea2D:      return "light-area-2d";
+    case IconSymbol::LightPoint2D:     return "light-point-2d";
+    case IconSymbol::SlateRingLight:   return "slate-ring-light";
+    default:                           return nullptr;
+    }
+}
+
+bool AdoptGlyph(IconSymbol Symbol)
+{
+    const char* Name = GlyphFile(Symbol);
+    if (!Name)
+    {
+        return false;
+    }
+    const std::string Path = std::string("Exhibits/Workbench/Lighting/Glyphs/") + Name + ".rgba";
+    std::FILE* Handle = std::fopen(Path.c_str(), "rb");
+    if (!Handle)
+    {
+        return false;
+    }
+    gGlyph.assign(size_t(kGlyphEdge) * kGlyphEdge * 4, 0);
+    const size_t Read = std::fread(gGlyph.data(), 1, gGlyph.size(), Handle);
+    std::fclose(Handle);
+    return Read == gGlyph.size();
+}
+
 void Check(bool Condition, const char* Claim)
 {
     ++Checks;
@@ -215,7 +256,13 @@ EditorSheet SheetFor(unsigned Style)
     return Sheet;
 }
 
-} // namespace
+
+ImTextureID SupplyGlyph(IconSymbol, float)
+{
+    return gGlyph.empty() ? ImTextureID_Invalid : gGlyphId;
+}
+
+}   // namespace
 
 int main()
 {
@@ -233,6 +280,8 @@ int main()
     std::snprintf(DisplayConfig.Name, sizeof(DisplayConfig.Name), "Sun reference / light");
     ImFont* Display = IO.Fonts->AddFontFromFileTTF("EngineContent/Fonts/SunReference/DMSans-Light.ttf", 48, &DisplayConfig);
     ImGui::StyleColorsDark();
+
+    LightGlyphSource = &SupplyGlyph;
 
     auto Controls = std::make_unique<ControlPanel>();
     Controls->AssignFonts(Face, Face, Face, Face, Face, Display);
@@ -276,21 +325,28 @@ int main()
         std::vector<unsigned char> Pixels(size_t(Width) * Height * 3, 5);
         for (ImDrawList* List : ImGui::GetDrawData()->CmdLists)
         {
-            FrontierProof::Draw(List, Pixels.data(), Width, Height, {0, 0}, {1, 1});
+            FrontierProof::Draw(List, Pixels.data(), Width, Height, {0, 0}, {1, 1}, gGlyphId,
+                                {gGlyph.data(), kGlyphEdge, kGlyphEdge, 4});
         }
         const std::string Path = "Exhibits/Gallery/LightingNative/" + std::string(Name) + ".png";
         Check(stbi_write_png(Path.c_str(), Width, Height, 3, Pixels.data(), Width * 3) != 0, "capture written");
     };
 
-    struct Emitter { unsigned Style; const char* File; };
+    struct Emitter { unsigned Style; const char* File; IconSymbol Artwork; };
     const Emitter Roster[] = {
-        {0, "PointLight"}, {1, "SpotLight"}, {2, "IesLight"}, {3, "AreaLight"},
-        {4, "TubeLight"},  {5, "LedLight"},  {6, "StripLight"},
+        {0, "PointLight",  IconSymbol::EditorPointLight},
+        {1, "SpotLight",   IconSymbol::EditorSpotlight},
+        {2, "IesLight",    IconSymbol::EditorDomeLight},
+        {3, "AreaLight",   IconSymbol::EditorAreaLight},
+        {4, "TubeLight",   IconSymbol::LightArea2D},
+        {5, "LedLight",    IconSymbol::LightPoint2D},
+        {6, "StripLight",  IconSymbol::SlateRingLight},
     };
 
     for (const Emitter& Entry : Roster)
     {
         Sheet = SheetFor(Entry.Style);
+        Check(AdoptGlyph(Entry.Artwork), "header glyph baked for this style");
         Check(Sheet.Appearance == EditorSheetAppearance::Light, "dedicated native Light route");
         Width = 318;
         Capture(Entry.File);
