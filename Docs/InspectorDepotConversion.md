@@ -374,3 +374,53 @@ clip rectangle cannot be rounded; mote streaks are laid down in eight graded pie
 stroke along its length; the caption and sky gradients are banded.
 
 Proof: `python3 Exhibits/Workbench/Wind/RunNativeWindInstrument.py` → **PASS 240**, six captures.
+
+## The cloud panel
+
+Same architecture as wind: `InspectorHost.js` overrides only `pointlight`, `spotlight`, `ieslight`, `arealight`,
+`tubelight`, `ledlight` and `ledstrip`, so `clouds: { build: cloudsPanel, owns: ['Layer', 'Motion & tint'] }`
+ships from `InspectorDepot/panels/clouds.js`. Unlike `wind.js` and `fog.js` it is **not** passed through
+`RecolourInstrument`, so the checked-in source is what the bundle draws.
+
+`Engine/Editor/CloudInstrumentSurface.h`, namespace `Frontier::CloudInstrument`. It takes the depot's shared
+furniture — palette, text primitives, tape, stepper, card head, corner notch — from `WindInstrumentSurface.h`
+under the alias `Kit`, because wind was converted first. It is the same kit, not a copy.
+
+| # | Block | Class | State |
+|---|-------|-------|-------|
+| 1 | Satellite map | `pcard mp-hero cl-hero` | converted |
+| 2 | Rail — Coverage · Optical · Base · Drift | `mp-rail` | converted |
+| 3 | Duo — Sun reaching datum · Sky cover | `mp-duo` | converted |
+| 4 | Coverage distribution | `pcard mp-metric cl-cover` | converted |
+| 5 | Cloud deck | `pcard mp-light cl-layer` | converted |
+| 6 | Morphology | `pcard mp-light cl-form` | converted |
+
+Defaults `coverage .46 · density .62 · altitude 130 m · scale 1 · detail .55 · speed 1 · tint #eef3f8 ·
+shade #5c6a7c · windLinked true`.
+
+**The field.** `hash(x,y) = frac(sin(x·127.1 + y·311.7)·43758.5453)`, bilinear value noise with a
+`t²(3−2t)` fade, then `n = vn(·028f)·.55 + vn(·067f+9,·067f−4)·.3 + vn(·16f−3,·16f+7)·(.07+d·.08)`, all over
+`.92 + d·.08` and clamped. `f = max(.2, scale)`. **Run it in doubles** — the browser does, and single precision
+walks off the lattice. The condensate threshold is `1 − coverage·.78`.
+
+**Map** — 3 px cells over a corner-to-corner ramp `#111820 → #050708`; a cell draws when `n > threshold`, tinted
+`shade + (tint − shade)·(body·.55 + .2)` at `(.16 + body·.72)·density`. An eight-by-five graticule, `N`, a
+`12/scale km SWATH` legend, and the wind arrow at `(w−30, h−22)` pointing `(direction + 90)°`.
+
+**Coverage** — 1600 probes of the same field binned twenty ways; bins past the threshold are
+`rgba(238,243,248,.72)`, the rest `rgba(255,255,255,.11)`, with a dashed cut at the threshold.
+
+**Cloud deck** — a 0–400 m section, `py(m) = h − 12 − m/400·(h−20)`, columns 4 px wide with
+`top = base − thick·(.65 + .3·sin(x·.08·scale) + .12·sin(x·.31))` and `thick = 10 + 34·density`, each a
+three-stop ramp from a `.05` wisp through `.75·density` body to a `.72·density` shadow. Then the `Cloud base`
+and `Optical density` tapes.
+
+**Morphology** — `Feature size`, `Edge detail` and `Drift speed` tapes, the sunlit/shadowed colour chips
+(30 px, radius 10, hex at 11.5 px), the `FOLLOW WIND` tag, and the note.
+
+Recorded deviations: the hero's rounded clip is faked with corner notches; the diagonal sea ramp and the column
+ramps are banded, since a flat ImGui quad carries one colour; the `<input type=color>` chip is drawn as a
+swatch, as there is no native colour picker in this surface.
+
+Proof: `python3 Exhibits/Workbench/Clouds/RunNativeCloudCards.py` → **PASS 422**, three captures in
+`Exhibits/Gallery/CloudNative/`.

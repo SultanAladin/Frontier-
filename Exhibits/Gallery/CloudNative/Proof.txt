@@ -1,0 +1,2 @@
+PASS 422 checks: shipped cloud panel, satellite map, coverage histogram and vertical section.
+Exit: 0
