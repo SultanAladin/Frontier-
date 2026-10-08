@@ -125,7 +125,14 @@ struct PlacementRecord
     uint32_t    Camera          = kPlacementNone;   // [idx] CameraRecord
     uint32_t    Luminaire       = kPlacementNone;   // [idx] PunctualLuminaireRecord
     bool        Dynamic         = false;            // [-] the object moves (--animate / physics drive it)
+    // Which base mesh built this placement, as an index into ConstructKind; kNoBaseMesh for anything that
+    //    was not constructed from one (an import, a camera, a luminaire). The shipped editor keeps the same
+    //    fact on the outliner row's icon and reads the fracture primitive back off it. Authoring state only:
+    //    glTF carries no such notion, so SceneCodec neither writes nor reads it.
+    uint8_t     BaseMesh        = 0xFFu;
 };
+
+constexpr uint8_t kNoBaseMesh = 0xFFu;
 
 struct CameraRecord
 {
@@ -234,6 +241,7 @@ public:
     void                    AttachCamera(uint32_t Placement, uint32_t Camera) noexcept            { if (Placement < Placements.size() && Camera < Cameras.size()) Placements[Placement].Camera = Camera; }
     void                    AttachPunctualLuminaire(uint32_t Placement, uint32_t Luminaire) noexcept { if (Placement < Placements.size() && Luminaire < PunctualLuminaires.size()) Placements[Placement].Luminaire = Luminaire; }
     void                    AssignPlacementDynamic(uint32_t Placement, bool Dynamic) noexcept { if (Placement < Placements.size()) Placements[Placement].Dynamic = Dynamic; }
+    void                    AssignPlacementBaseMesh(uint32_t Placement, uint8_t Kind) noexcept { if (Placement < Placements.size()) Placements[Placement].BaseMesh = Kind; }
 
     // Finalise: flatten materials at `SlabLimit`, flatten world-space triangles, gather luminaires, build the alias
     //    table. `Report` receives the material fold lines.

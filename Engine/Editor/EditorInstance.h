@@ -117,6 +117,50 @@ struct EditorInstance
     EditorSymbol   Symbol  = EditorSymbol::None;      // tool-drawn symbol in Tint; None keeps Glyph/Artwork
 };
 
+//------------------------------------------------------------------------------------------------------------------------
+//                                                   BASE MESH IDENTITY
+//------------------------------------------------------------------------------------------------------------------------
+// The shipped editor gives each base mesh its own artwork (Editor.jsx InitialRows) and then reads the
+//    primitive back off it — FractureSpecification.js Describe() is literally
+//    `Subject.Icon.replace(/^editor-/, "")`. The engine seated every geometry row as EditorMesh, so the
+//    icon carried no identity and anything that needed one had to guess from the label. These two give a
+//    row the same round trip the browser has.
+
+// The five base meshes the reference opens with, in roster order.
+constexpr IconSymbol kBaseMeshArtwork[] =
+{
+    IconSymbol::EditorCube, IconSymbol::EditorSphere, IconSymbol::EditorCylinder,
+    IconSymbol::EditorTorus, IconSymbol::EditorCone,
+};
+
+// "editor-cube.svg" -> "cube". Returns nullptr for artwork that is not a base mesh, which is the browser's
+//    `undefined` and makes Supported() false exactly as it does there.
+[[nodiscard]] inline const char* BaseMeshPrimitive(IconSymbol Artwork) noexcept
+{
+    switch (Artwork)
+    {
+    case IconSymbol::EditorCube:     return "cube";
+    case IconSymbol::EditorSphere:   return "sphere";
+    case IconSymbol::EditorCylinder: return "cylinder";
+    case IconSymbol::EditorTorus:    return "torus";
+    case IconSymbol::EditorCone:     return "cone";
+    default:                         return nullptr;
+    }
+}
+
+[[nodiscard]] inline IconSymbol BaseMeshArtwork(const char* Primitive) noexcept
+{
+    if (Primitive == nullptr) return IconSymbol::Count;
+    for (IconSymbol One : kBaseMeshArtwork)
+    {
+        const char* Name = BaseMeshPrimitive(One);
+        const char* Scan = Primitive;
+        while (*Name && *Scan && *Name == *Scan) { ++Name; ++Scan; }
+        if (*Name == 0 && *Scan == 0) return One;
+    }
+    return IconSymbol::Count;
+}
+
 // The foot strips: one height across the outliner, the inspector and the viewport, so the three hems
 //    draw one unbroken line. Every foot reserves exactly this and draws exactly this.
 constexpr float kEditorFooterH = 40.0f;

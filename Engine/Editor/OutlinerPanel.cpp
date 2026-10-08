@@ -683,6 +683,9 @@ void DrawRowStatus(ImDrawList* Draw, RowStatus Status, const ImVec2& C, float Fa
 
 IconSymbol ArtworkFor(const EditorInstance& Row) noexcept
 {
+    // A base mesh names itself through its artwork — editor-cube, editor-sphere and the rest — exactly as
+    //    Editor.jsx seats them. Everything downstream (the fracture card's primitive, the viewport marker)
+    //    reads it back off this, so the row must carry it rather than fall through to the generic mesh.
     if (Row.Artwork != IconSymbol::Count) return Row.Artwork;
     switch (Row.Glyph)
     {

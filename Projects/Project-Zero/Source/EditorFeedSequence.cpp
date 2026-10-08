@@ -7,6 +7,7 @@
 //    with the roster.
 
 #include "EditorFeedSequence.h"
+#include "../../../Engine/Editor/ConstructWorld.h"
 
 #include <cmath>
 #include <cstdio>
@@ -323,6 +324,10 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             else
             {
                 Row.Category = EditorInstanceCategory::Geometry;
+                // A constructed base mesh names itself through its artwork, exactly as Editor.jsx seats
+                //    the five it opens with. Imports keep the generic mesh glyph.
+                if (P.BaseMesh != kNoBaseMesh)
+                    Row.Artwork = ConstructArtwork(static_cast<ConstructKind>(P.BaseMesh));
                 const uint32_t First = P.FirstInstance < LevelInstances.size() ? P.FirstInstance : 0u;
                 const uint32_t Slot = (P.InstanceCount > 0u && First < LevelInstances.size())
                     ? LevelInstances[First].MaterialIndex : 0xFFFFFFFFu;

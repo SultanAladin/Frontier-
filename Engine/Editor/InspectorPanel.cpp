@@ -314,18 +314,10 @@ void InspectorPanel::RecordFracture(EditorInstance& Picked, uint32_t PickedIndex
         if (!std::strcmp(Face->GetDebugName(), "Sun reference / regular")) Regular = Face;
     }
 
-    // The engine's geometry rows carry no primitive kind, so the preview note falls back to "pending"
-    //    unless the row is plainly named after one of the four the browser previews.
-    auto Starts = [](const char* Text, const char* Word)
-    {
-        for (; *Word; ++Text, ++Word)
-            if (std::tolower(static_cast<unsigned char>(*Text)) != *Word) return false;
-        return true;
-    };
-    const char* Primitive = "mesh";
-    for (const char* Word : { "cube", "sphere", "cylinder", "cone", "torus" })
-        if (Starts(Picked.Label, Word)) { Primitive = Word; break; }
-    const FR::Owner Who { Picked.Label[0] ? Picked.Label : "Object", Primitive };
+    // Describe().Primitive, 1:1: the browser reads the primitive off the row's icon, never off its name.
+    //    A row whose artwork is not one of the five base meshes has no primitive, and the card says so.
+    const char* Primitive = BaseMeshPrimitive(Picked.Artwork);
+    const FR::Owner Who { Picked.Label[0] ? Picked.Label : "Object", Primitive ? Primitive : "mesh" };
 
     const float Wide = ImGui::GetContentRegionAvail().x;
     if (Wide < 120.0f) return;

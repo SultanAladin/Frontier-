@@ -766,3 +766,74 @@ Ported to `Engine/Editor/EntityNotesSurface.h`. Proof `Exhibits/Workbench/Notes/
 JavaScript — dead CSS for a depot folder panel that is not mounted. The folder UI that does ship is the
 React `group` subject (`ScenePolicy.js:33`, `ReferencePanel.jsx:34`), which uses the ordinary inspector
 header. So apart from the missing note there is no separate folder panel to port.
+
+## Base meshes — the five the editor opens with, and the primitive it derives from them
+
+`Editor.jsx:46` seeds the outliner with one `Showcase` collection and five geometry subjects — Cube,
+Sphere, Cylinder, Torus, Cone — each carrying its own `editor-<primitive>` icon. Everything downstream
+reads the **icon**, never the name: `FractureSpecification.js` computes
+`Primitive = Subject.Icon.replace(/^editor-/, "")`, and the fracture card's support line, its
+`Signature`, its specimen art and the `?object=` link the arrow opens all hang off that one string.
+
+`CheckerViewport.jsx` draws each subject as an analytical marker — eleven SVG path and ellipse commands
+over an 80 × 76 viewBox, on a `repeating-conic-gradient` checker — inside `.preview-placement`, a
+126 px minimum cell in an `auto-fill minmax(110px, 1fr)` grid.
+
+Ported to `Engine/Editor/BaseMeshSurface.h`: the roster, `PrimitiveOfIcon`, `Partitionable`, the
+transcribed marker artwork (cubics flattened to 16 segments), `PaintMarkerIn` / `PaintPlacement` /
+`PaintChecker` / `Columns` / `PaintPane`. Proof `Exhibits/Workbench/BaseMesh/NativeBaseMesh.cpp` —
+**PASS 66**, four captures in `Exhibits/Gallery/BaseMeshNative/`.
+
+### The defect this found
+
+The five primitive SVGs ship in `EngineContent/Icons/` but were **absent from `IconSymbols.inc`**, so
+every geometry row in the native outliner collapsed to `IconSymbol::EditorMesh` and the fracture card
+recovered its primitive by sniffing `Picked.Label` — which gets "Cube 2" wrong in one direction and an
+imported "Cone bracket" wrong in the other. `EditorGlyph` mirrors `OutlinerIconCategory` 1:1 offset by
+`Auto`, so widening that enumeration is invasive; the fix rides on `EditorInstance::Artwork` instead.
+
+Identity now round-trips: `ConstructEntity` → `PlacementRecord::BaseMesh` → `ConstructArtwork` →
+`Row.Artwork` → `BaseMeshPrimitive` → the fracture card. Both baked icon manifests are name-keyed, so
+inserting the five enumerators in alphabetical position is safe. ⚠️ `ConstructKind` is
+Cube/Sphere/Cylinder/Cone/Plane/Torus and the roster is Cube/Sphere/Cylinder/Torus/Cone — the two orders
+disagree, so the crossing always goes through `ConstructArtwork` / `MarkerPrimitive`, never a cast.
+
+## The fracture editor — the second page
+
+`Experimental/FractureEditor/index.html` is a separate built bundle, opened by the fracture card's ↗ at
+`../FractureEditor/index.html?object=<Id>`. UI only here: no solver runs behind the port.
+
+| Band | Shape |
+| --- | --- |
+| `.titlebar` | 39 px `#121212` — brand, divider, `HTML AUTHORING PREVIEW` tail at 9 px / 1.3 tracking |
+| `.workspace-bar` | 40 px `#202020` — the 150 px tab, breadcrumb, `Export fracture…` |
+| `.workspace` | grid `240px minmax(260px, 1fr) 330px`, 1 px gaps on `#080808`; ≥ 1600 → 270 / 350; ≤ 1180 → 190 / 300; ≤ 900 drops the object pane |
+| `.statusbar` | 26 px `#111` |
+
+Panels are `#1b1b1b` under a 39 px `#222` `.pane-heading`; the viewport is `#151515` with a 40 px
+toolbar, a title at 27 / 27, a centred help line and a four-column `#161616` metrics strip; cards are
+`#191919` on `#ffffff0b` at **radius 22**, padding 20 / 17.
+
+Five cards, in order: Material, Impact, Fragment quality, Bake, Geometry receipt. The material figures
+are not inlined in the page — they come from `SourceDepot/Fragmentation/src/fracture/materials.ts`
+(Gc / density): concrete 140 / 2 350, rock 95 / 2 700, wood 320 / 520, glass 7 / 2 500, tempered
+7 / 2 500, plastic 460 / 1 050 — and are grouped as `toLocaleString` groups them.
+
+`QualityGlyph(Ceiling, MinimumSize)` (`FractureProjection.js`) is a real Voronoi diagram, not a picture
+of one: `Count = clamp(6…28, round(6 + √Ceiling × 1.6 − MinimumSize × 30))` golden-ratio sites, each cell
+clipped out of a ±114 × ±36 frame and pulled toward its own centroid by `max(0.35, 1 − Gap/len)`. The
+proof asserts the cells tile that frame to within 1e-6 of its area.
+
+Ported to `Engine/Editor/FractureEditorSurface.h`. Proof
+`Exhibits/Workbench/FractureEditor/NativeFractureEditor.cpp` — **PASS 121**, six captures in
+`Exhibits/Gallery/FractureEditorNative/`. `BundleParity.py` now reads both built bundles and
+`materials.ts`: **PASS 428**.
+
+### Deviations
+
+- The `#viewport` canvas has no renderer behind it, so it is stood in for by `CheckerViewport`'s own
+  analytical marker for the same primitive. The overlay, toolbar, controls and metrics are as shipped.
+- Naming: the module keeps the sibling `*Surface.h` vocabulary (`Paint…`, `Settings`, `Mode`). The
+  invented spellings that had no reference anchor were renamed to clear `SKILL-Naming.md` —
+  `Model` → `Subject`, `Kind` → `Solid` / `Shape`, `Bake` (the enumeration) → `Freshness`. `BaseMesh`
+  is kept: it is the reference's own term for the five analytical primitives.

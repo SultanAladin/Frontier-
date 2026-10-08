@@ -92,6 +92,26 @@ const char* ConstructName(ConstructKind K) {
     static const char* Names[]={"Cube","Sphere","Cylinder","Cone","Plane","Torus","Area emitter","Camera","Empty entity","Point Light","Spot Light","Directional Light","Rectangle Light","Tube Light","LED Strip"};
     return unsigned(K)<unsigned(ConstructKind::Count)?Names[unsigned(K)]:"Invalid";
 }
+IconSymbol ConstructArtwork(ConstructKind K) {
+    switch(K) {
+    case ConstructKind::Cube:     return IconSymbol::EditorCube;
+    case ConstructKind::Sphere:   return IconSymbol::EditorSphere;
+    case ConstructKind::Cylinder: return IconSymbol::EditorCylinder;
+    case ConstructKind::Torus:    return IconSymbol::EditorTorus;
+    case ConstructKind::Cone:     return IconSymbol::EditorCone;
+    default:                      return IconSymbol::Count;
+    }
+}
+const char* ConstructPrimitive(ConstructKind K) {
+    switch(K) {
+    case ConstructKind::Cube:     return "cube";
+    case ConstructKind::Sphere:   return "sphere";
+    case ConstructKind::Cylinder: return "cylinder";
+    case ConstructKind::Torus:    return "torus";
+    case ConstructKind::Cone:     return "cone";
+    default:                      return nullptr;
+    }
+}
 ConstructResult ConstructEntity(SceneStructure& World,const ConstructRequest& R,uint32_t SlabLimit) {
     if(unsigned(R.Kind)>=unsigned(ConstructKind::Count)) return {kPlacementNone,"Unsupported entity"};
     if(!std::isfinite(R.Size)||R.Size<.001f||R.Size>10000) return {kPlacementNone,"Size must be between 0.001 and 10000 metres"};
@@ -108,6 +128,9 @@ ConstructResult ConstructEntity(SceneStructure& World,const ConstructRequest& R,
     const bool IsLight=R.Kind>=ConstructKind::PointLight&&R.Kind<=ConstructKind::StripLight;
     if(IsMesh) Build(Mesh,R.Kind);
     uint32_t P=World.RegisterPlacement(Name,kPlacementNone,T,T);
+    // Record which base mesh built it, so the outliner can seat the right artwork and the fracture card
+    // can read its primitive off that artwork rather than guessing from the name.
+    if(ConstructArtwork(R.Kind)!=IconSymbol::Count) World.AssignPlacementBaseMesh(P,static_cast<uint8_t>(R.Kind));
     if(IsMesh) {
         MaterialDescriptor Material; Material.Name=Name+" surface"; Material.Slabs.emplace_back();
         const bool Emissive=R.Kind==ConstructKind::Area;

@@ -254,5 +254,152 @@ for Needle, InNative in [
     Check(re.sub(r'\s+', '', Needle) in Flat, f'notes CSS: the bundle ships {Needle!r}')
     Check(InNative in Port, f'notes CSS: the native port carries {InNative!r} for {Needle!r}')
 
-print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture and notes ports match the built bundle.')
+# ---------------------------------------------------------------------------------------------------
+# The base meshes. CheckerViewport.jsx draws an analytical marker per primitive, and Editor.jsx opens
+#    with five of them. The primitive is derived from the icon, never from the label.
+# ---------------------------------------------------------------------------------------------------
+Checker = Region(Loose, 'HTML PREVIEW', 40000, 20000)
+Port = Native('Engine/Editor/BaseMeshSurface.h')
+Parity('base meshes', Checker, Port, [
+    ('HTML PREVIEW \u00b7 ANALYTICAL MARKERS', 'HTML PREVIEW \\xc2\\xb7 ANALYTICAL MARKERS'),
+    ('m40 7 27 15v31L40 69 13 53V22Z', 'm40 7 27 15v31L40 69 13 53V22Z'),
+    ('m13 22 27 16 27-16', 'm13 22 27 16 27-16'),
+    ('M14 57 40 9l26 48', 'M14 57 40 9l26 48'),
+    ('M15 18v39c0 14 50 14 50 0V18', 'M15 18v39c0 14 50 14 50 0V18'),
+    ('M15 57c0-14 50-14 50 0', 'M15 57c0-14 50-14 50 0'),
+    ('3 4', 'Dashes'),
+    ('0 0 80 76', 'BoxWide'),
+])
+for Needle, InNative in [
+    ('editor-cube', 'editor-cube'),
+    ('editor-sphere', 'editor-sphere'),
+    ('editor-cylinder', 'editor-cylinder'),
+    ('editor-torus', 'editor-torus'),
+    ('editor-cone', 'editor-cone'),
+]:
+    Check(Needle in Raw, f'base meshes: the bundle ships the icon {Needle!r}')
+    Check(InNative in Port, f'base meshes: the native roster carries {InNative!r}')
+    # The icon is also the primitive, once the editor- prefix is stripped.
+    Check(f'"{Needle[len("editor-"):]}"' in Port, f'base meshes: and the primitive {Needle[7:]!r}')
+for Needle, InNative in [
+    ('.preview-placement{min-width:0;min-height:126px', 'PlaceMin     = 126.0f'),
+    ('border-radius:10px', 'PlaceRound   = 10.0f'),
+    ('color:#b4c0ce', 'IM_COL32(180, 192, 206, 255)'),
+    ('#ffb454', 'IM_COL32(255, 180,  84, 255)'),
+    ('color:#f0ce9e', 'IM_COL32(240, 206, 158, 255)'),
+    ('repeating-conic-gradient(#1d1d1d0%25%,#1717170%50%)', 'IM_COL32( 29,  29,  29, 255)'),
+    ('48px 48px', 'CheckerTile  = 48.0f'),
+    ('minmax(110px,1fr)', 'GridMin      = 110.0f'),
+    ('fill:#17171775', 'IM_COL32( 23,  23,  23, 117)'),
+    ('stroke-width:1.4', 'MarkerStroke'),
+]:
+    Flat = re.sub(r'\s+', '', Sheet)
+    Check(re.sub(r'\s+', '', Needle) in Flat, f'placement CSS: the bundle ships {Needle!r}')
+    Check(InNative in Port, f'placement CSS: the native port carries {InNative!r} for {Needle!r}')
+
+# ---------------------------------------------------------------------------------------------------
+# The fracture editor. A second built bundle, with its own markup, stylesheet and wiring; the editor
+#    card's arrow opens it, so the two are separate pages and separate builds.
+# ---------------------------------------------------------------------------------------------------
+Editor = Root / 'Experimental/FractureEditor/index.html'
+Check(Editor.exists(), 'the fracture editor ships its own built bundle')
+EditorRaw = Editor.read_text(encoding='utf-8', errors='replace')
+EditorStyle = re.search(r'<style[^>]*>(.*?)</style>', EditorRaw, re.S)
+Check(EditorStyle is not None, 'and inlines its own stylesheet')
+EditorSheet = re.sub(r'\s+', '', EditorStyle.group(1))
+Port = Native('Engine/Editor/FractureEditorSurface.h')
+Parity('fracture editor', EditorRaw, Port, [
+    ('Fracture inspector', 'Fracture inspector'),
+    ('PER OBJECT', 'PER OBJECT'),
+    ('LOCAL SPACE', 'LOCAL SPACE'),
+    ('Fracture response \u00b7 not surface appearance', 'Fracture response \\xc2\\xb7 not surface appearance'),
+    ('CRACK RESISTANCE', 'CRACK RESISTANCE'),
+    ('DENSITY', 'DENSITY'),
+    ('Impact energy', 'Impact energy'),
+    ('Pattern seed', 'Pattern seed'),
+    ('Fragment ceiling', 'Fragment ceiling'),
+    ('Minimum span', 'Minimum span'),
+    ('Fragment separation', 'Fragment separation'),
+    ('Needle rejection', 'Needle rejection'),
+    ('Closed caps', 'Closed caps'),
+    ('Quality-aware triangulation', 'Quality-aware triangulation'),
+    ('Bake SDF per piece', 'Bake SDF per piece'),
+    ('Resolution per piece', 'Resolution per piece'),
+    ('Geometry receipt', 'Geometry receipt'),
+    ('Refused candidates', 'Refused candidates'),
+    ('Volume error', 'Volume error'),
+    ('Geometry generation', 'Geometry generation'),
+    ('MIN TRIANGLE QUALITY', 'MIN TRIANGLE QUALITY'),
+    ('OCCUPIED VOLUME', 'OCCUPIED VOLUME'),
+    ('SOURCE OWNER', 'SOURCE OWNER'),
+    ('Export fracture', 'Export fracture'),
+    ('Reassemble', 'Reassemble'),
+    ('NATIVE PORT PENDING', 'NATIVE PORT PENDING'),
+    # Refresh()'s derived text, and the specimen line art it swaps in.
+    ('DISABLED', 'DISABLED'),
+    ('Bake is stale', 'Bake is stale'),
+    ('Not baked', 'Not baked'),
+    ('No stored fragment geometry', 'No stored fragment geometry'),
+    ('m30 5 23 13v26L30 56 7 44V18Z', 'm30 5 23 13v26L30 56 7 44V18Z'),
+    ('M9 13v33c0 11 42 11 42 0V13', 'M9 13v33c0 11 42 11 42 0V13'),
+    # the fixed impact graph
+    ('M15 10V83H269M15 47H269M79 10V83M143 10V83M207 10V83', 'M15 10V83H269M15 47H269M79 10V83M143 10V83M207 10V83'),
+    ('M15 18C65 34 129 59 269 75', 'M15 18C65 34 129 59 269 75'),
+    ('cut priority', 'cut priority'),
+    # the material table, from materials.ts
+    ('Tempered glass', 'Tempered glass'),
+    ('ABS plastic', 'ABS plastic'),
+])
+
+# MATERIALS itself is not inlined in the page: the figures come from the fragmentation source the
+#    editor is built against, so they are checked there rather than invented.
+Stock = Native('Experimental/FractureEditor/SourceDepot/Fragmentation/src/fracture/materials.ts')
+for Needle, InNative in [
+    ('0x9d9d97', 'IM_COL32(0x9d, 0x9d, 0x97, 255)'),
+    ('0x7c7b78', 'IM_COL32(0x7c, 0x7b, 0x78, 255)'),
+    ('0xb5854a', 'IM_COL32(0xb5, 0x85, 0x4a, 255)'),
+    ('0xcfe6ea', 'IM_COL32(0xcf, 0xe6, 0xea, 255)'),
+    ('0xd8552f', 'IM_COL32(0xd8, 0x55, 0x2f, 255)'),
+    ('2350', '2350'),
+    ('2700', '2700'),
+    ('520', '520'),
+    ('1050', '1050'),
+    ('460', '460'),
+    ('320', '320'),
+    ('140', '140'),
+    ('95', '95'),
+]:
+    Check(Needle in Stock, f'material table: materials.ts carries {Needle!r}')
+    Check(InNative in Port, f'material table: the native port carries {InNative!r} for {Needle!r}')
+for Needle, InNative in [
+    ('.titlebar{height:39px', 'TitleBar     = 39.0f'),
+    ('.workspace-bar{height:40px', 'WorkBar      = 40.0f'),
+    ('grid-template-columns:240pxminmax(260px,1fr)330px', 'LeftWide     = 240.0f'),
+    ('@media(min-width:1600px)', 'LeftWideBig  = 270.0f'),
+    ('@media(max-width:1180px)', 'LeftWideNarrow  = 190.0f'),
+    ('@media(max-width:900px)', 'ShowTarget'),
+    ('.statusbar{height:26px', 'StatusBar'),
+    ('.pane-heading{height:39px', 'PaneHead'),
+    ('.viewport-toolbar{height:40px', 'ToolBar      = 40.0f'),
+    ('background:#151515', 'IM_COL32( 21,  21,  21, 255)'),
+    ('background:#1b1b1b', 'IM_COL32( 27,  27,  27, 255)'),
+    ('border-radius:22px', 'CardRound'),
+    ('background:#191919', 'IM_COL32( 25,  25,  25, 255)'),
+    ('#bacbbf', 'IM_COL32(186, 203, 191, 255)'),
+    ('#17271d', 'IM_COL32( 23,  39,  29, 255)'),
+]:
+    Check(re.sub(r'\s+', '', Needle) in EditorSheet, f'fracture editor CSS: the bundle ships {Needle!r}')
+    Check(InNative in Port, f'fracture editor CSS: the native port carries {InNative!r} for {Needle!r}')
+
+# The bake dot's three colours are assigned by Refresh(), not by the stylesheet.
+for Needle, InNative in [
+    ('#89a591', 'IM_COL32(137, 165, 145, 255)'),
+    ('#aa795a', 'IM_COL32(170, 121,  90, 255)'),
+    ('#555', 'IM_COL32( 85,  85,  85, 255)'),
+]:
+    Check(Needle in EditorRaw, f'bake dot: the bundle ships {Needle!r}')
+    Check(InNative in Port, f'bake dot: the native port carries {InNative!r} for {Needle!r}')
+
+print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture, notes, base-mesh and '
+      f'fracture-editor ports match the built bundles.')
 sys.exit(0)
