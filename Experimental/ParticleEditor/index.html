@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Particle Editor: WebGPU particle systems for sparks, lightning, wind-driven debris, molecular physics, chemical reactions and VFX, with a 3D wind grid.">
+  <title>Particle Editor — Frontier</title>
+  <link rel="stylesheet" href="ParticleEditor.css">
+</head>
+<body>
+  <div class="pe-app">
+    <header class="pe-top">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <div class="brand-t">Particle Editor</div>
+          <div class="brand-s">Frontier · WebGPU · Experimental</div>
+        </div>
+      </div>
+      <div class="tb-group" role="group" aria-label="Playback">
+        <button id="btn-play" class="tb-btn" type="button">Pause</button>
+        <button id="btn-reset" class="tb-btn" type="button" title="Reset every system">Reset</button>
+      </div>
+      <span class="tb-sep" aria-hidden="true"></span>
+      <div class="tb-group" role="group" aria-label="Lightning">
+        <button id="btn-strike" class="tb-btn accent" type="button" title="Strike lightning (L)">Strike</button>
+        <button id="btn-sound" class="tb-btn" type="button" title="Enable thunder audio">Sound</button>
+      </div>
+      <span class="tb-sep" aria-hidden="true"></span>
+      <div class="tb-group" role="group" aria-label="View">
+        <button id="btn-top" class="tb-btn" type="button" aria-pressed="false">Top</button>
+        <button id="btn-arrows" class="tb-btn" type="button" aria-pressed="true">Wind arrows</button>
+        <button id="btn-floor" class="tb-btn" type="button" aria-pressed="true">Floor</button>
+      </div>
+      <label class="tb-speed">
+        <span>Time</span>
+        <input id="time-scale" type="range" min="0" max="2" step="0.01" value="1" aria-label="Time scale">
+        <span id="time-scale-v">1.00×</span>
+      </label>
+      <span id="st-state" class="pill ok">Live</span>
+    </header>
+
+    <aside class="pe-outliner" aria-label="Outliner">
+      <div class="pane-h">
+        <h2>Outliner</h2>
+        <span id="outliner-count" class="pane-meta"></span>
+      </div>
+      <div class="counts">
+        <div class="count"><span>Visible</span><b id="outliner-visible">0</b></div>
+        <div class="count"><span>Hidden</span><b id="outliner-hidden">0</b></div>
+      </div>
+      <div id="outliner-list" class="ol-list"></div>
+    </aside>
+
+    <main class="pe-view">
+      <canvas id="view" aria-label="Particle viewport"></canvas>
+      <div class="view-hint" aria-hidden="true">Drag orbit · Right-drag pan · Wheel zoom · Space play/pause · L strike</div>
+      <div id="boot-error" class="boot-error" role="alert" hidden></div>
+    </main>
+
+    <aside class="pe-inspector" aria-label="Inspector">
+      <div class="pane-h"><h2>Inspector</h2></div>
+      <div id="inspector" class="insp-scroll"></div>
+    </aside>
+
+    <footer class="pe-status">
+      <span id="st-adapter" class="st-item">WebGPU</span>
+      <span id="st-particles" class="st-item">0 particles</span>
+      <span id="st-fps" class="st-item">– fps</span>
+      <span id="st-readback" class="st-item">readback –</span>
+      <span class="st-right">Wind grid 24 × 12 × 24 · compute + instanced render · no engine connection</span>
+    </footer>
+  </div>
+
+  <script src="js/presets.js"></script>
+  <script src="js/shaders.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/lightning.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
