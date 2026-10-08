@@ -57,6 +57,9 @@ jobs:
       - name: Fracture card
         run: python3 Tools/Build/RunAnnounced.py "fracture card" -- python3 Exhibits/Workbench/Fracture/RunNativeFractureCard.py
 
+      - name: Gas field — reproducibility, budget, obstruction and the coupling switch
+        run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
+
       - name: Publish the UI captures
         if: always()
         uses: actions/upload-artifact@v4

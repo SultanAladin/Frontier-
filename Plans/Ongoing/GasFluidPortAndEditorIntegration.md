@@ -329,21 +329,51 @@ preset, this tick" — so neither fracture nor tyre knows anything about gas.
 
 ## 6 · Order
 
-1. **The coarse CPU field** — 32³, fixed step, deterministic, plus the budget and tier tables. No
+### Landed
+
+**Step 1 is built and proved** — `Engine/VolumetricDynamics/`, header-only, and `Exhibits/Workbench/GasFluid/`
+at **PASS 91**, wired into the `proofs` job of `frontier-build.yml`.
+
+| File | What landed |
+|---|---|
+| `GasQualityAllowance.h` | The five rungs, the three ceilings, the governor, and `RemainingAfter()` |
+| `CoarseGasField.h` | The 32-cubed reproducible reading: emission, buoyancy, transport, 12 fixed Jacobi sweeps |
+| `GasCollisionIntake.h` | Admission ① five primitives incl. the tyre ring, admission ② the distance-reading seam |
+| `GasWindContribution.h` | Two-way, behind `WindField::Sample`, off until `CouplingEnabled` is set |
+
+Header-only throughout, so no source list changes: `WindField.h` is in none of them either, and the three
+build routes enumerate `.cpp` files explicitly. The first target to consume these is step 3.
+
+Two findings from building it rather than planning it:
+
+- **The reproducibility claim has to be observed, not asserted.** The runner builds and runs the checks twice
+  into separate directories and compares the transcripts, because a suite that only ever runs once cannot see
+  the property it exists to defend.
+- **The drag term needed a clamp that the plan did not anticipate.** Drag is dissipative in the continuum, but
+  integrated explicitly a light body in a fast flow can be handed an impulse larger than the one that would
+  equalise the two velocities, and it then oscillates with growing amplitude. Capping the impulse at exactly
+  that equalising value makes overshoot impossible for any mass, interval and coefficient. Without it the
+  "stable by construction" claim in §3 is false for light debris, which is precisely the content two-way
+  coupling exists for.
+
+### Remaining
+
+1. ~~**The coarse CPU field**~~ — 32³, fixed step, deterministic, plus the budget and tier tables. No
    GPU, no window, fully provable, and it is what physics and multiplayer depend on
 2. Solver stages and the generated presets, shared by both fields
 3. Volume raymarch, its shader added to the CI shader table — it becomes visible
 4. Standalone host + scene round-trip against the browser — parity pinned
 5. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm
 6. Collision levels 1 and 2 — primitives, then the global distance field
-7. **Two-way through `WindField::Sample`** — the coarse field already exists by now, so this is a
-   contributor and a drag term, not a coupling system
+7. ~~**Two-way through `WindField::Sample`**~~ — landed early with step 1, because the coarse field made it a
+   contributor and a drag term rather than a coupling system. 🚩 Which bodies consent is still unanswered and
+   is deliberately left in the scene rather than guessed in code
 8. Outliner row and inline inspector — fluids exist in a level
 9. Fluid Editor page — fluids become editable
 10. Emitter component, then the fracture and tyre hooks — fluids become part of the game
 
-Steps 1, 3 and 5 are the real work. Step 1 moved to the front because the coarse field is now load
-bearing for physics and multiplayer, not a contingency.
+Steps 3 and 5 are the remaining real work. Step 1 moved to the front because the coarse field is load bearing
+for physics and multiplayer rather than a contingency, and carrying step 7 with it cost almost nothing.
 
 ## 7 · Still open
 
