@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // 📦 Exercises login acceptance ordering only; never contacts EOS and cannot prove a player authenticated.
 
-#include "../../Frontier/Projects/Project-Networking/Source/LoginSequence.h"
+#include "../../../Projects/Project-Networking/Source/LoginSequence.h"
 #include <cstdio>
 
 int main()

@@ -71,3 +71,10 @@ The replication sources are in all three routes, as a build change must be:
 - `Projects/Project-Networking/Build/ToolchainSequence.ps1` — the MSVC `/MD` x64 route
 - `Projects/Project-Networking/Build/WindowHost/CMakeLists.txt` — the windowed diagnostic
 - `Projects/Project-Networking/Build/ToolchainSequence.py` — the Linux route, which also builds the proof
+
+## What CI holds to account without an SDK
+
+`Exhibits/Workbench/Networking/RunSdkFreeChecks.py` — **PASS 80** across the transport, lobby and
+login checks, and seven sources compiled under `-Wall -Wextra -Werror`. Only `EpicExchange`,
+`LobbyRuntime`, `SessionHistory`, `LoginHost`, `WindowHost`, `EcomOwnership` and the real
+`PhotonTransport` reach an SDK header; `RunChecks.py` covers those where one is installed.

@@ -1,7 +1,7 @@
-#include "../../Frontier/Projects/Project-Networking/Source/HistoryFormat.h"
-#include "../../Frontier/Projects/Project-Networking/Source/LocalConfiguration.h"
-#include "../../Frontier/Projects/Project-Networking/Source/AppSettings.h"
-#include "../../Frontier/Projects/Project-Networking/Source/Localization.h"
+#include "../../../Projects/Project-Networking/Source/HistoryFormat.h"
+#include "../../../Projects/Project-Networking/Source/LocalConfiguration.h"
+#include "../../../Projects/Project-Networking/Source/AppSettings.h"
+#include "../../../Projects/Project-Networking/Source/Localization.h"
 #include <cstdio>
 #include <string>
 int main()

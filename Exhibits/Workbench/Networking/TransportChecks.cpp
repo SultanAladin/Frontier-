@@ -1,7 +1,7 @@
-#include "../../Frontier/Projects/Project-Networking/Source/TransportCodec.h"
-#include "../../Frontier/Projects/Project-Networking/Source/TransportRouter.h"
-#include "../../Frontier/Projects/Project-Networking/Source/AppSettings.h"
-#include "../../Frontier/Projects/Project-Networking/Source/Localization.h"
+#include "../../../Projects/Project-Networking/Source/TransportCodec.h"
+#include "../../../Projects/Project-Networking/Source/TransportRouter.h"
+#include "../../../Projects/Project-Networking/Source/AppSettings.h"
+#include "../../../Projects/Project-Networking/Source/Localization.h"
 #include <cstdio>
 #include <string>
 #include <vector>

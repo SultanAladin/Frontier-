@@ -246,6 +246,9 @@ bool SplitBackendUrl(const char* Url, SplitUrl& Out) noexcept
     return true;
 }
 
+// Only the Windows branch below asks a backend anything, so the verdict parser is dead weight
+//    elsewhere and -Wunused-function says so.
+#if defined(_WIN32)
 bool ScanVerdict(const char* Body, bool& Premium, int& Coins) noexcept
 {
     const char* P = std::strstr(Body, "\"premium\"");
@@ -277,6 +280,7 @@ bool ScanVerdict(const char* Body, bool& Premium, int& Coins) noexcept
     }
     return true;
 }
+#endif
 
 #if defined(_WIN32)
 struct WinHttpHandle

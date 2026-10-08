@@ -168,6 +168,9 @@ jobs:
       - name: Build and run the replication proof, plain and sanitized
         run: python3 Tools/Build/RunAnnounced.py "replication" -- python3 Exhibits/Workbench/Networking/RunReplicationChecks.py
 
+      - name: The rest of Project-Networking that needs no SDK
+        run: python3 Tools/Build/RunAnnounced.py "networking sdk-free" -- python3 Exhibits/Workbench/Networking/RunSdkFreeChecks.py
+
       - name: Publish the replication evidence
         if: always()
         uses: actions/upload-artifact@v4
