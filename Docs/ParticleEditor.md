@@ -30,6 +30,9 @@ Query parameters:
 Precipitation uses the regular particle kind, not the debris kind. Debris pins to the floor, while the other kinds bounce with the preset's `bounce` coefficient, so rain, hail and snow set a bounce value.
 | Embers | Additive VFX | Glowing embers lifted on buoyancy and bent by the wind. |
 | Cherry petals | Wind-driven, GPU-simulated | Petals that tumble and follow the wind closely. | |
+| Sand grains | Ground, GPU-simulated | Sand kicked up from the floor in short hops (saltation) and carried by the wind. |
+| Ash flakes | VFX, GPU-simulated | Grey ash lifted by a fire's heat, drifting and settling onto the ground. |
+| Small debris | Ground, GPU-simulated | Twigs, bark and wood chips thrown up and clattering off the ground. Small pieces only; stone-sized rubble is out of scope. |
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |
 | Chemicals A+B→C | Molecular, GPU-simulated | Same as atoms, with stochastic A + B → C reactions on contact and C → A or B dissociation. |
 

@@ -234,6 +234,39 @@
         windCoupling: 2.4, flutter: 1.6,
       }),
     },
+    {
+      id: "sand", name: "Sand grains", group: "Ground",
+      blurb: "Sand kicked up from the ground in short hops (saltation) and carried by the wind.",
+      p: P({
+        kind: 0, shape: 1, blend: "alpha", capacity: 4000, rate: 350,
+        emitShape: 3, boxHalf: [5, 0, 5], origin: [0, 0.08, 0], dir: [0, 1, 0], spread: 0.35,
+        speedMin: 0.8, speedMax: 2.2, drag: 0.1, gravity: 1, lifeMin: 2.5, lifeMax: 4,
+        sizeStart: 0.025, sizeEnd: 0.022, colA: [0.86, 0.74, 0.52, 1], colB: [0.7, 0.58, 0.4, 0],
+        windCoupling: 2.5, bounce: 0.2,
+      }),
+    },
+    {
+      id: "ash", name: "Ash flakes", group: "VFX",
+      blurb: "Grey ash lifted by a fire's heat, drifting and settling onto the ground.",
+      p: P({
+        kind: 1, shape: 3, blend: "alpha", capacity: 1500, rate: 30,
+        emitShape: 1, radius: 0.6, origin: [-4.2, 1.2, -4], dir: [0, 1, 0], spread: 0.4,
+        speedMin: 0.3, speedMax: 1.0, drag: 1.2, buoyancy: 0.9, gravity: 0.12, lifeMin: 6, lifeMax: 10,
+        sizeStart: 0.05, sizeEnd: 0.08, colA: [0.55, 0.55, 0.55, 0.7], colB: [0.35, 0.35, 0.36, 0],
+        windCoupling: 1.6, flutter: 0.7,
+      }),
+    },
+    {
+      id: "debris", name: "Small debris", group: "Ground",
+      blurb: "Twigs, bark and wood chips thrown up and clattering off the ground. Small pieces only, no stones.",
+      p: P({
+        kind: 0, shape: 0, blend: "alpha", capacity: 800, rate: 30,
+        emitShape: 1, radius: 0.6, origin: [-2, 0.25, 4], dir: [0, 1, 0], spread: 0.9,
+        speedMin: 2, speedMax: 5, drag: 0.3, gravity: 1, lifeMin: 3, lifeMax: 5,
+        sizeStart: 0.035, sizeEnd: 0.03, colA: [0.46, 0.32, 0.18, 1], colB: [0.3, 0.22, 0.14, 0],
+        windCoupling: 1.8, bounce: 0.35,
+      }),
+    },
   ];
 
   PE.presetById = (id) => PE.Presets.find((preset) => preset.id === id);
