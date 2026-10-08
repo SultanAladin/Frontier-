@@ -103,21 +103,25 @@ inline void AssignObstructionLevel(GasObstructionConsent& Consent, GasColliderSh
 }
 
 
-/// 📦 Would a few primitives serve this object better than the distance field would?
+/// 📦 Should this object be read in its OWN space rather than out of the composited world?
 /// in    Consent    [-]  the record, already routed
-/// in    Speed      [m/s]  how fast the object is moving
-/// out   bool       [-]  true when the object is on level ② and is moving fast enough for that to cost a
-///                       clipmap restage every frame — in which case it wants approximating by primitives
-/// note  ⚠️ advice, not enforcement. Nothing here rewrites an artist's object into a box behind their back;
-///       the editor is expected to say so in the inspector and let them decide
-/// note  the threshold is one domain-voxel of travel per advance at the common 4 m domain, which is the
-///       speed at which a lagging clipmap becomes visible as gas entering the object
+/// in    Speed      [m/s]  how fast the object is moving, including any spin at its extremity
+/// out   bool       [-]  true for a level ② object that moves at all
+/// 🔴    THE COMPOSITED WORLD IS FOR THINGS THAT DO NOT MOVE. GlobalDistanceFieldSpace bakes placements into a
+///       world volume and carries a translation and a scale and no rotation at all, so a car read out of it
+///       is both stale and unturnable. GasSceneDistanceIntake.h reads a moving body by carrying the query
+///       into the body's own space instead — the field is baked once and never rebaked, rotation is free
+///       because it is the query that rotates, and a body at 30 m/s costs exactly what a parked one costs.
+/// note  the threshold is a twentieth of a voxel of travel per advance at the common 4 m domain: anything
+///       that moves perceptibly at all is better read locally, and the only objects worth compositing are
+///       the ones that never move again
+/// note  ⚠️ advice, not enforcement, and it does not rewrite anybody's object
 /// cost  ✔️
 /// tag   api, nonallocating, nonthrowing
-inline bool ApproximatesWell(const GasObstructionConsent& Consent, float Speed) noexcept
+inline bool PrefersLocalReading(const GasObstructionConsent& Consent, float Speed) noexcept
 {
-    constexpr float RestageWorthwhile = 7.5f;   // [m/s] - 0.125 m a voxel, 60 advances a second
-    return Consent.ByDistanceReading && Speed > RestageWorthwhile;
+    constexpr float StillEnough = 0.375f;   // [m/s] - 1/20 voxel per advance at 60 Hz on a 4 m domain
+    return Consent.ByDistanceReading && (Speed > StillEnough || Speed < -StillEnough);
 }
 
 

@@ -251,17 +251,20 @@ int main()
         GasObstructionConsent Car;
         Car.Obstructs = true;
         AssignObstructionLevel(Car, GasColliderShape::None);
-        Check(!ApproximatesWell(Car, 0.0f), "a parked car on level ② is fine where it is");
-        Check(ApproximatesWell(Car, 28.0f),
-              "⚠️ but a car at 100 km/h restages the clipmap every frame and still lags - it wants a box and four tyre rings");
+        Check(!PrefersLocalReading(Car, 0.0f),
+              "a car that is parked for good may be composited into the world like any other scenery");
+        Check(PrefersLocalReading(Car, 28.0f),
+              "⚠️ but a car at 100 km/h is read in its own space instead - the composited world is stale the moment it moves");
+        Check(PrefersLocalReading(Car, 0.9f) && PrefersLocalReading(Car, -0.9f),
+              "and so is one creeping either way: anything that moves perceptibly is better asked than rebaked");
 
         GasObstructionConsent Wheel;
         Wheel.Obstructs = true;
         AssignObstructionLevel(Wheel, GasColliderShape::TyreRing);
-        Check(!ApproximatesWell(Wheel, 28.0f),
-              "and a wheel already approximated that way is never advised to be approximated again");
+        Check(!PrefersLocalReading(Wheel, 28.0f),
+              "a wheel that is already a ring is analytic and has nothing to read locally");
         Check(ObstructsByPrimitive(Wheel),
-              "which is what GasColliderShape::TyreRing was for: the fast moving thing stays analytic");
+              "which is what GasColliderShape::TyreRing was for: a thing this simple stays level ①");
     }
 
     //---------------------------------------------------------------------------------------------------------
@@ -557,6 +560,120 @@ int main()
         ResetField(WallOnly, Origin, 4.0f);
         const uint32_t Alone = AdmitObstructions(WallOnly, Both, 1u, &ReadSceneDistance, &Scene, Scratch, 4u);
         Check(Mixed > Alone, "and the sphere adds solid voxels the wall did not already own");
+    }
+
+    //---------------------------------------------------------------------------------------------------------
+    Banner("🔴 A moving body is asked in its own space, never restaged - and so it may also turn");
+    {
+        // A plank: long in local X, short in local Y. Baked ONCE, in its own space, centred on its origin.
+        //    Nothing below ever touches it again, however the body moves.
+        DistanceFieldSpace Plank(32u, 32u, 32u, Vector3{ -1.0f, -1.0f, -1.0f }, Vector3{ 1.0f, 1.0f, 1.0f });
+        for (uint32_t Z = 0u; Z < 32u; ++Z)
+        for (uint32_t Y = 0u; Y < 32u; ++Y)
+        for (uint32_t X = 0u; X < 32u; ++X)
+        {
+            const float Lx = -1.0f + (static_cast<float>(X) + 0.5f) * 0.0625f;
+            const float Ly = -1.0f + (static_cast<float>(Y) + 0.5f) * 0.0625f;
+            const float Lz = -1.0f + (static_cast<float>(Z) + 0.5f) * 0.0625f;
+            const float Dx = std::fabs(Lx) - 0.85f, Dy = std::fabs(Ly) - 0.12f, Dz = std::fabs(Lz) - 0.12f;
+            const float Widest = Dx > Dy ? (Dx > Dz ? Dx : Dz) : (Dy > Dz ? Dy : Dz);
+            Plank.SetVoxelSample(X, Y, Z, Widest);
+        }
+
+        GasRigidDistanceBody Body;
+        Body.Local = &Plank;
+        Body.Translation[0] = 2.0f; Body.Translation[1] = 2.0f; Body.Translation[2] = 2.0f;
+
+        // Along local X, 0.6 m from the origin, is inside the plank. Along local Y it is well outside.
+        const float AlongX[3] = { 2.6f, 2.0f, 2.0f };
+        const float AlongY[3] = { 2.0f, 2.6f, 2.0f };
+        Check(ReadBodyDistance(Body, AlongX) < 0.0f, "a point along the plank's length is inside it");
+        Check(ReadBodyDistance(Body, AlongY) > 0.0f, "and one along its width is outside it");
+
+        // Now turn the body a quarter turn about axis 2. Nothing is rebaked; the QUERY rotates.
+        GasRigidDistanceBody Turned = Body;
+        Turned.Basis[0] = 0.0f; Turned.Basis[1] = 1.0f; Turned.Basis[2] = 0.0f;   // local X now points along world Y
+        Turned.Basis[3] = -1.0f; Turned.Basis[4] = 0.0f; Turned.Basis[5] = 0.0f;
+        Check(ReadBodyDistance(Turned, AlongY) < 0.0f,
+              "🔴 turned a quarter turn, the plank is now inside where it was outside - rotation the composited world cannot express at all");
+        Check(ReadBodyDistance(Turned, AlongX) > 0.0f, "and outside where it was inside");
+
+        // Translating it is the same: one subtraction, no rebake.
+        GasRigidDistanceBody Shifted = Body;
+        Shifted.Translation[0] = 1.0f;
+        Check(ReadBodyDistance(Shifted, AlongX) > 0.0f
+              && ReadBodyDistance(Shifted, AlongX) > ReadBodyDistance(Body, AlongX),
+              "and sliding the body slides what the gas sees, with nothing restaged anywhere");
+
+        // Scale is carried out of the local space as well as into it, so the answer stays metres.
+        GasRigidDistanceBody Halved = Body;
+        Halved.Scale = 0.5f;
+        Check(ReadBodyDistance(Halved, AlongX) > 0.0f, "a half-size plank no longer reaches 0.6 m along itself");
+
+        // The obstruction follows the body through the lattice, advance by advance, with no restage call.
+        CoarseGasField Field;
+        ResetField(Field, Origin, 4.0f);
+        GasRigidDistanceScene Moving;
+        Moving.Bodies = &Body;
+        Moving.Count  = 1u;
+
+        ClearOccupancy(Field);
+        const uint32_t Here = AdmitDistanceReading(Field, &ReadRigidSceneDistance, &Moving, 0.0f);
+        Check(Here > 0u, "the plank is in the gas lattice, read straight out of its own space");
+
+        GasRigidDistanceBody Elsewhere = Body;
+        Elsewhere.Translation[1] = 3.2f;
+        GasRigidDistanceScene Later;
+        Later.Bodies = &Elsewhere;
+        Later.Count  = 1u;
+        CoarseGasField Second;
+        ResetField(Second, Origin, 4.0f);
+        ClearOccupancy(Second);
+        const uint32_t There = AdmitDistanceReading(Second, &ReadRigidSceneDistance, &Later, 0.0f);
+        Check(There > 0u && std::memcmp(Field.Occupancy.data(), Second.Occupancy.data(),
+                                        CoarseVoxelCount * sizeof(float)) != 0,
+              "and moving it moves the solid voxels - without one call to UpdateGlobalGrid in this whole section");
+
+        // A spinning body drags air around itself even when its origin is not going anywhere.
+        GasRigidDistanceBody Spinning = Body;
+        Spinning.Spin[2] = 12.0f;
+        GasRigidDistanceScene Turning;
+        Turning.Bodies = &Spinning;
+        Turning.Count  = 1u;
+
+        CoarseGasField Stirred;
+        ResetField(Stirred, Origin, 4.0f);
+        ClearOccupancy(Stirred);
+        AdmitDistanceReading(Stirred, &ReadRigidSceneDistance, &Turning, 0.0f);
+        const uint32_t Dragged = AdmitBodyMotion(Stirred, Turning, 1.25f);
+        Check(Dragged > 0u, "a plank spinning on the spot still drags the air beside it");
+
+        float Swirl = 0.0f;
+        for (uint32_t Slot = 0u; Slot < CoarseVoxelCount; ++Slot)
+        {
+            Swirl += std::fabs(Stirred.VelocityX[Slot]) + std::fabs(Stirred.VelocityY[Slot]);
+        }
+        Check(Swirl > 0.0f, "with a velocity that comes from the spin crossed into the arm, not from a translation it has not made");
+
+        GasRigidDistanceBody Parked = Body;
+        GasRigidDistanceScene Still;
+        Still.Bodies = &Parked;
+        Still.Count  = 1u;
+        CoarseGasField Quiet;
+        ResetField(Quiet, Origin, 4.0f);
+        ClearOccupancy(Quiet);
+        AdmitDistanceReading(Quiet, &ReadRigidSceneDistance, &Still, 0.0f);
+        Check(AdmitBodyMotion(Quiet, Still, 1.25f) == 0u, "while a plank that is doing nothing moves no air at all");
+
+        // Bodies and the static world are not alternatives: a car drives across terrain.
+        GasRigidDistanceScene Both;
+        Both.Bodies = &Body;
+        Both.Count  = 1u;
+        Both.Static = nullptr;
+        const float Far[3] = { 0.2f, 0.2f, 3.8f };
+        Check(ReadRigidSceneDistance(&Both, Far) > 0.0f, "a point far from everything is outside everything");
+        Check(ReadRigidSceneDistance(nullptr, Far) > 1000.0f,
+              "and a reading with no scene behind it answers 'nothing near' rather than crashing a solver");
     }
 
     //---------------------------------------------------------------------------------------------------------

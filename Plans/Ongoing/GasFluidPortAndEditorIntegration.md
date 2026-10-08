@@ -397,12 +397,21 @@ Two findings from building it rather than planning it:
    `Exhibits/Workbench/GasFluid/NativeGasObstruction.cpp` **PASS 38**, run twice and compared, with three
    captures in `Exhibits/Gallery/GasObstruction/` (**PASS 47** with the routing rule below).
 
+   **A moving body is asked, not rebaked.** `GlobalDistanceFieldSpace` composites placements into a world
+   volume and carries a translation and a scale and **no rotation**, so a vehicle read out of it is both
+   stale and unturnable. `GasRigidDistanceBody` instead carries the query **into the body's own space** by
+   the inverse of its transform — `local = Basisᵀ·(world − Translation)/Scale`, `distance = sample·Scale` —
+   which is what Unreal does with mesh distance fields: baked once in object space, never rebaked, rotation
+   free because it is the query that rotates. A body at 30 m/s costs exactly what a parked one costs.
+   `AdmitBodyMotion()` pushes air with `V + ω × r`, so a wheel spinning on the spot still drags air.
+   `ReadRigidSceneDistance()` mins the moving bodies against the static composited world — a car drives
+   across terrain, so they are not alternatives.
+
    **The routing rule.** `AssignObstructionLevel()` decides the level from the one fact that settles it —
    whether a primitive was authored. A cube, sphere, capsule, cylinder or tyre ring takes level ①; a vehicle
-   body, a rock, a fractured wall or terrain takes level ②. Two caveats the table cannot state: a **fast
-   moving** object is better off analytic even when it is geometry (a car at 100 km/h restages the clipmap
-   every frame and still lags one behind — `ApproximatesWell()` advises a box and four tyre rings, and
-   advises only; it rewrites nothing), and geometry **thinner than half a voxel** leaks at either level, which
+   body, a rock, a fractured wall or terrain takes level ②. Two caveats the table cannot state: anything that **moves** is read
+   in its own space rather than out of the composited world (`PrefersLocalReading()` says so above a
+   twentieth of a voxel per advance, and advises only — it rewrites nothing), and geometry **thinner than half a voxel** leaks at either level, which
    is the lattice and not the admission. 🚩 Still open: which bodies consent by default in a
    shipped scene — the answer stays in the scene, not in code
 7. ~~**Two-way through `WindField::Sample`**~~ — landed early with step 1, because the coarse field made it a
