@@ -55,6 +55,7 @@
           { binding: 3, resource: { buffer: this.cellCount } },
           { binding: 4, resource: { buffer: this.cellSlots } },
           { binding: 5, resource: { buffer: this.snap } },
+          { binding: 6, resource: { buffer: this.engine.fieldBuf } },
         ],
       });
       this.renderBG = d.createBindGroup({
@@ -123,7 +124,7 @@
       this.adapterName = [ai.vendor, ai.architecture, ai.device, ai.description].filter(Boolean).join(" ") || "WebGPU adapter";
       this.format = navigator.gpu.getPreferredCanvasFormat();
       this.context = this.canvas.getContext("webgpu");
-      this.context.configure({ device: d, format: this.format, alphaMode: "opaque" });
+      this.context.configure({ device: d, format: this.format, alphaMode: "opaque", usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 
       const U = GPUBufferUsage;
       const VF = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
@@ -171,8 +172,11 @@
           { binding: 3, visibility: C, buffer: { type: "storage" } },
           { binding: 4, visibility: C, buffer: { type: "storage" } },
           { binding: 5, visibility: C, buffer: { type: "read-only-storage" } },
+          { binding: 6, visibility: C, buffer: { type: "read-only-storage" } },
         ],
       });
+      // 📝 Force fields, written each frame by the app (512 bytes: count/time, then 8 fields of 3 vec4).
+      this.fieldBuf = d.createBuffer({ size: 512, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
       this.gl1Render = d.createBindGroupLayout({
         entries: [
           { binding: 0, visibility: VF, buffer: { type: "uniform" } },
@@ -215,7 +219,7 @@
 
       // Shaders, compile-checked so errors show up in the UI rather than as silent black frames.
       const modules = {};
-      for (const key of ["sim", "wind", "render", "fibre"]) {
+      for (const key of ["sim", "wind", "render", "fibre", "lens"]) {
         const m = d.createShaderModule({ code: PE.Shaders[key], label: "ParticleEditor " + key });
         const info = await m.getCompilationInfo();
         const errors = info.messages.filter((x) => x.type === "error");
@@ -259,6 +263,15 @@
       this.pipe.cube = mkR("vsCube", "fsCube", OVER);
       this.pipe.shatter = mkR("vsShatter", "fsCube", OVER);
       this.pipe.fly = mkR("vsFly", "fsFly", OVER);
+      // 📝 Lensing: one full-screen pass that samples the captured frame (see LENS in shaders.js).
+      this.lensPipe = d.createRenderPipeline({
+        layout: "auto",
+        vertex: { module: modules.lens, entryPoint: "vsLens" },
+        fragment: { module: modules.lens, entryPoint: "fsLens", targets: [{ format: this.format }] },
+        primitive: { topology: "triangle-list" },
+      });
+      this.lensUniform = d.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      this.lensSampler = d.createSampler({ magFilter: "linear", minFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge" });
       this.pipe.seg = mkR("vsSeg", "fsSeg", ADD);
       this.pipe.arrow = mkR("vsArrow", "fsArrow", ADD);
       const mkF = (vs, fs) =>
@@ -319,6 +332,7 @@
       q.writeBuffer(this.glob, 0, frame.glob);
       q.writeBuffer(this.comps, 0, frame.comps);
       if (frame.segCount) q.writeBuffer(this.segs, 0, frame.segData, 0, frame.segCount * 8);
+      if (frame.fields) q.writeBuffer(this.fieldBuf, 0, frame.fields);
       if (frame.lineCount) q.writeBuffer(this.lines, 0, frame.lines, 0, frame.lineCount * 7);
       for (const job of frame.jobs) {
         if (job.draw) q.writeBuffer(job.gpu.uniform, 0, job.cpu);
@@ -484,6 +498,33 @@
         rp.draw(6, frame.segCount);
       }
       rp.end();
+
+      // 📝 Gravitational lensing: copy the drawn frame, then redraw it with each black hole bending the background.
+      if (frame.lensCount) {
+        const cur = this.context.getCurrentTexture();
+        if (!this.capTex || this.capTex.width !== cur.width || this.capTex.height !== cur.height) {
+          if (this.capTex) this.capTex.destroy();
+          this.capTex = this.device.createTexture({
+            size: [cur.width, cur.height], format: this.format,
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+          });
+          this.lensBG = this.device.createBindGroup({
+            layout: this.lensPipe.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: { buffer: this.lensUniform } },
+              { binding: 1, resource: this.capTex.createView() },
+              { binding: 2, resource: this.lensSampler },
+            ],
+          });
+        }
+        q.writeBuffer(this.lensUniform, 0, frame.lens);
+        enc.copyTextureToTexture({ texture: cur }, { texture: this.capTex }, [cur.width, cur.height]);
+        const lp = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: "load", storeOp: "store" }] });
+        lp.setPipeline(this.lensPipe);
+        lp.setBindGroup(0, this.lensBG);
+        lp.draw(3);
+        lp.end();
+      }
 
       q.submit([enc.finish()]);
 

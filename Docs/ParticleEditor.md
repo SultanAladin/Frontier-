@@ -27,6 +27,7 @@ Query parameters:
 | Rain streaks | Precipitation, GPU-simulated | Streaked drops that fall through the wind field and rebound a little off the floor. |
 | Hail | Precipitation, GPU-simulated | Ice pellets that drop fast and bounce high off the floor before settling. |
 | Snow | Precipitation, GPU-simulated | Flakes that drift through the wind field and land with a soft rebound. |
+| Black hole | VFX (kind 5), GPU-simulated, plus screen-space lensing | A glowing accretion disc that is pulled in by an attractor, swirls inward and is swallowed at the swallow radius. The background is bent around the horizon by a full-screen lens pass, and a photon ring sits outside it. Lensing is a screen-space approximation, not a ray-traced metric. Tune it in the **Black hole** card. |
 
 Precipitation uses the regular particle kind, not the debris kind. Debris pins to the floor, while the other kinds bounce with the preset's `bounce` coefficient, so rain, hail and snow set a bounce value.
 | Embers | Additive VFX | Glowing embers lifted on buoyancy and bent by the wind. |
@@ -65,7 +66,7 @@ Swarm particles (kind 6) read their neighbours from a snapshot taken after emiss
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |
 | Chemicals A+B→C | Molecular, GPU-simulated | Same as atoms, with stochastic A + B → C reactions on contact and C → A or B dissociation. |
 
-Particles are stored in one GPU buffer per system, with 64 bytes per particle. Simulation and rendering both stay on the GPU. The CPU only receives the small statistics described under *Readback costs* below.
+Particles are stored in one GPU buffer per system, with 80 bytes per particle. Simulation and rendering both stay on the GPU. The CPU only receives the small statistics described under *Readback costs* below.
 
 ## Light fibre colour
 
@@ -80,6 +81,20 @@ Up to 8 stops; each has a colour and (in ramp mode) a position. The accent colou
 ## Transition systems
 
 Transition systems (kind 5 with a transition block) reform the object each cycle: `burstEvery` sets the cycle and `burstCount` equals the capacity, so every cycle replaces all particles. The hold time is `base + spread × t`, with `t` the normalised position from the min corner of the box. Derez cubes that hit the floor are removed from the particle count and replaced by children, so the alive count falls faster than the particle lifetimes suggest.
+
+## Force fields and black holes
+
+Force fields are invisible regions that act on every GPU particle, including debris and transitions. Add them from **Environment → Force fields**, which opens the **Force fields** inspector (up to 8 fields):
+
+- **Attractor**: pulls particles toward its centre, with an optional **swirl** (sideways push, which gives spiral infall) and a **swallow radius** inside which particles are removed.
+- **Repulsor**: pushes particles away from its centre.
+- **Reverse gravity**: lifts particles upward (strength in m/s²). It is timed: **Start**, **Duration** and **Period** set a repeating window, and period 0 means once. Radius 0 means the field applies everywhere.
+
+Radius sets the falloff: strength is `(1 − r/R)²` inside radius R, so the pull is strongest at the centre and reaches zero at the edge.
+
+Black hole systems add their own attractor at their origin. Their lensing is a second, screen-space step: each frame the canvas is copied and a full-screen pass bends the background around the projected horizon, with a black disc inside the horizon and a photon ring outside it. The bend is a weak-field mapping (`r − E²/r`), not a ray trace, and it fades with distance from the black hole. Particles are not lensed; they are drawn normally.
+
+Limitations: force fields act on particles, not on rigid meshes. Particles do not collide with each other. The accretion disc comes from the swirl term, not from a Keplerian emitter.
 
 ## Wind field
 

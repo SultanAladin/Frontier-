@@ -99,6 +99,57 @@ fn rotAxis(v: vec3f, k: vec3f, a: f32) -> vec3f {
 @group(1) @binding(3) var<storage, read_write> cellCount: array<atomic<u32>>;
 @group(1) @binding(4) var<storage, read_write> cellSlots: array<u32>;
 @group(1) @binding(5) var<storage, read> snap: array<Part>;
+@group(1) @binding(6) var<storage, read> fields: array<vec4f>;
+
+// 📝 Force fields, packed by the app each frame. fields[0] = (count, time, 0, 0). Field k uses vec4 slots 1+3k .. 3+3k:
+//   a = (centre, radius; radius 0 = everywhere), b = (type 0 attract / 1 repel / 2 lift, strength, swirl, swallow radius),
+//   c = (start, duration, period; period 0 = once).
+fn fieldOn(c: vec4f, now: f32) -> bool {
+  let t = now - c.x;
+  if (t < 0.0) { return false; }
+  if (c.z > 0.0) { return (t % c.z) < c.y; }
+  return t < c.y;
+}
+
+fn fieldAccel(p: vec3f) -> vec3f {
+  let n = u32(fields[0].x);
+  let now = fields[0].y;
+  var acc = vec3f(0.0);
+  for (var k = 0u; k < n; k++) {
+    let a = fields[1u + 3u * k];
+    let b = fields[2u + 3u * k];
+    let c = fields[3u + 3u * k];
+    if (!fieldOn(c, now)) { continue; }
+    let d = a.xyz - p;
+    let r = length(d);
+    let everywhere = a.w <= 0.0;
+    if (!everywhere && r >= a.w) { continue; }
+    let g = select(pow(clamp(1.0 - r / max(a.w, 1e-3), 0.0, 1.0), 2.0), 1.0, everywhere);
+    let dir = d / max(r, 1e-3);
+    let typ = u32(b.x);
+    if (typ == 0u) {
+      let tang = normalize(cross(vec3f(0.0, 1.0, 0.0), dir) + vec3f(1e-5, 0.0, 0.0));
+      acc += (dir * b.y + tang * b.z) * g;
+    } else if (typ == 1u) {
+      acc -= dir * b.y * g;
+    } else {
+      acc += vec3f(0.0, b.y, 0.0) * g;
+    }
+  }
+  return acc;
+}
+
+fn fieldSwallowed(p: vec3f) -> bool {
+  let n = u32(fields[0].x);
+  let now = fields[0].y;
+  for (var k = 0u; k < n; k++) {
+    let a = fields[1u + 3u * k];
+    let b = fields[2u + 3u * k];
+    let c = fields[3u + 3u * k];
+    if (u32(b.x) == 0u && b.w > 0.0 && fieldOn(c, now) && length(a.xyz - p) < b.w) { return true; }
+  }
+  return false;
+}
 
 const FMAX: f32 = 180.0;
 
@@ -283,6 +334,11 @@ fn updateParticles(@builtin(global_invocation_id) gid: vec3u) {
   v += (wind - v) * k;
   v *= exp(-S.speed.z * dt);
   v.y += (-S.speed.w * 9.81 + S.phys2.z) * dt;
+  // 📝 Force fields: pull, push or lift; a particle inside an attractor's swallow radius is removed.
+  if (fields[0].x > 0.0) {
+    if (fieldSwallowed(pos)) { parts[i] = Part(); return; }
+    v += fieldAccel(pos) * dt;
+  }
   if (S.phys2.w > 0.0) {
     let ph = age * 2.7 + seed * 0.013;
     v += vec3f(sin(ph), 0.25 * cos(ph * 1.3), cos(ph * 0.8 + 1.0)) * S.phys2.w * dt;
@@ -1328,7 +1384,59 @@ fn fsSpark(i: SO) -> @location(0) vec4f {
 `;
 
   // Shared helpers are prepended to every module that needs them.
+// 📝 Gravitational lensing (screen space). Samples a copy of the frame: inside the horizon the frame is black,
+// outside it the background is bent outward by a weak-field mapping (source radius r - E^2/r, fading with distance),
+// and a bright photon ring sits at about 1.3 horizon radii. This is an approximation, not a ray-traced metric.
+const LENS = `
+struct LensU { bh0: vec4f, bh1: vec4f, misc: vec4f };
+@group(0) @binding(0) var<uniform> LU: LensU;
+@group(0) @binding(1) var capTex: texture_2d<f32>;
+@group(0) @binding(2) var capSamp: sampler;
+
+@vertex
+fn vsLens(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4f {
+  let p = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+  return vec4f(p[vi], 0.0, 1.0);
+}
+
+@fragment
+fn fsLens(@builtin(position) fc: vec4f) -> @location(0) vec4f {
+  let dim = vec2f(textureDimensions(capTex));
+  let uv = fc.xy / dim;
+  let aspect = LU.misc.y;
+  let n = u32(LU.misc.x);
+  var src = uv;
+  var bestR = 1e9;
+  var inside = 0.0;
+  var ring = 0.0;
+  for (var k = 0u; k < 2u; k++) {
+    if (k >= n) { break; }
+    let bh = select(LU.bh1, LU.bh0, k == 0u);
+    let c = bh.xy;
+    let E = bh.z;
+    let H = bh.w;
+    let d = (uv - c) * vec2f(aspect, 1.0);
+    let r = length(d);
+    if (r < bestR) {
+      bestR = r;
+      let dir = d / max(r, 1e-5);
+      // Inside the Einstein radius the signed source radius goes negative: the image comes from the far side.
+      let rs = r - E * E / max(r, 1e-5);
+      let taper = 1.0 - smoothstep(0.35, 0.6, r);
+      let rr = mix(r, rs, taper);
+      src = c + dir * rr / vec2f(aspect, 1.0);
+    }
+    inside = max(inside, 1.0 - smoothstep(H * 0.9, H, r));
+    let q = (r - 1.3 * H) / (0.12 * H);
+    ring += exp(-q * q);
+  }
+  let col = textureSampleLevel(capTex, capSamp, src, 0.0).rgb;
+  let glow = vec3f(1.0, 0.72, 0.4) * ring * LU.misc.z;
+  return vec4f(col * (1.0 - inside) + glow * (1.0 - inside), 1.0);
+}`;
+
   PE.Shaders = {
+    lens: LENS,
     sim: COMMON + SIM,
     wind: COMMON + WIND,
     render: COMMON + RENDER,

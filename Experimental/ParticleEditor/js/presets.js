@@ -168,6 +168,19 @@
         transition: { holdBase: 0.2, holdSpread: 3.0, burstShare: 0.1, fragment: false, childLife: 0, wave: "melt", assemble: 0, shell: 0, after: "butterfly" },
       }),
     },
+    {
+      id: "black-hole", name: "Black hole", group: "Space",
+      blurb: "A black hole: a glowing accretion disc spirals inward and is swallowed, while the background bends around the horizon (screen-space lensing, approximate).",
+      p: P({
+        kind: 5, shape: 3, blend: "add", capacity: 3000, rate: 400,
+        emitShape: 2, radius: 2.6, origin: [0, 2.2, 0], dir: [0, 1, 0], spread: 0.05,
+        speedMin: 0, speedMax: 0.2, drag: 0.2, gravity: 0, lifeMin: 6, lifeMax: 10,
+        sizeStart: 0.07, sizeEnd: 0.02, colA: hex("#ffd08a"), colB: hex("#ff6a1a"), colC: hex("#ffffff"),
+        windCoupling: 0, bounce: 0,
+        attractor: { enabled: true, strength: 7, radius: 16, swirl: 3.5, swallow: 0.4 },
+        blackHole: { horizon: 0.45, einstein: 3.0 },
+      }),
+    },
   ];
 
   // Light fibres (kind 7): analytic streaks, ribbons and path trails, ported from the Strand Editor. Not simulated.

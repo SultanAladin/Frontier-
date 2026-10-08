@@ -76,6 +76,7 @@
     probeOn: true,
     probe: [0, 1, 0],
     web: { enabled: false, interval: 0.6, nextAt: 0, k: 2 },
+    fields: [],   // global force fields: { type, enabled, pos, radius, strength, swirl, swallow, t0, duration, period }
     ui: { liveEls: {} },
   };
   window.ParticleEditorState = state; // for diagnostics in the console
@@ -373,8 +374,12 @@
     const lines = buildLines(cam);
     const probe = state.probeOn && !state.engine.probePending && state.frame % 4 === 0 ? probeVoxel() : null;
 
+    const lens = packLens(cam, aspect);
     state.engine.render({
       glob,
+      fields: packFields(),
+      lensCount: lens.count,
+      lens: lens.data,
       comps,
       clear: COLORS.bg.map((c) => c + state.lightning.flash * 0.22),
       floor: state.wind.showFloor,
@@ -475,9 +480,11 @@
     const sel = state.selection;
     const q = (state.ui.olQuery || "").trim().toLowerCase();
     const match = (t) => !q || t.toLowerCase().includes(q);
-    if (match("Environment") || match("Wind field") || match("Lightning")) list.append(el("div", { class: "ol-group", text: "Environment" }));
+    if (match("Environment") || match("Wind field") || match("Lightning") || match("Force fields")) list.append(el("div", { class: "ol-group", text: "Environment" }));
     if (match("Wind field")) list.append(row("wind", "Wind field", `${state.wind.components.filter((c) => c.enabled).length} active · ${PE.WIND.dim.join("×")} grid`,
       "background: linear-gradient(90deg,#3a7bff,#ffd34a,#ff4a2a)", sel.type === "wind", () => select({ type: "wind" })));
+    if (match("Force fields")) list.append(row("forces", "Force fields", `${state.fields.length} global · ${state.systems.filter((x) => x.p.attractor && x.p.attractor.enabled).length} black hole`,
+      "background:#9ad0ff", sel.type === "forces", () => select({ type: "forces" })));
     if (match("Lightning")) list.append(row("light", "Lightning", `${state.lightning.strikes} strikes · ${state.lightning.auto ? "auto" : "manual"}`,
       "background:#c9e2ff", sel.type === "lightning", () => select({ type: "lightning" })));
     list.append(el("div", { class: "ol-group", text: "Particle systems" }));
@@ -571,6 +578,98 @@
   }
 
   // ----------------------------------------------------------------- inspector
+  // 📝 Force fields for the GPU: attractors on black hole systems, plus the global fields. Max 8.
+  // Layout matches fieldAccel in shaders.js: fields[0] = (count, time), then 3 vec4 per field.
+  function packFields() {
+    const out = new Float32Array(128);
+    let n = 0;
+    const put = (type, pos, f) => {
+      if (n >= 8) return;
+      const o = (1 + 3 * n) * 4;
+      out.set([pos[0], pos[1], pos[2], f.radius], o);
+      out.set([type, f.strength, f.swirl || 0, f.swallow || 0], o + 4);
+      out.set([f.t0 || 0, f.duration, f.period || 0, 0], o + 8);
+      n++;
+    };
+    for (const sys of state.systems) {
+      const at = sys.p.attractor;
+      if (!sys.p.visible || !at || !at.enabled) continue;
+      put(0, sys.p.origin, { radius: at.radius, strength: at.strength, swirl: at.swirl, swallow: at.swallow, t0: 0, duration: 1e9, period: 0 });
+    }
+    for (const f of state.fields) if (f.enabled) put(f.type, f.pos, f);
+    out[0] = n;
+    out[1] = state.time;
+    return out;
+  }
+
+  // 📝 Black hole lensing inputs: each visible black hole's screen centre (uv, y down) and radii as fractions of the
+  // screen height: horizon H and Einstein radius E. Radii are world metres scaled by 0.5 / (distance · tan(22.5°)).
+  function packLens(cam, aspect) {
+    const out = new Float32Array(16);
+    let n = 0;
+    const vp = cam.vp;
+    const k0 = 0.5 / Math.tan(Math.PI / 8);
+    for (const sys of state.systems) {
+      const bh = sys.p.blackHole;
+      if (!sys.p.visible || !bh || n >= 2) continue;
+      const o = sys.p.origin;
+      const clip = [0, 1, 2, 3].map((r) => vp[r] * o[0] + vp[4 + r] * o[1] + vp[8 + r] * o[2] + vp[12 + r]);
+      if (clip[3] <= 0.01) continue;
+      const dist = Math.hypot(o[0] - cam.eye[0], o[1] - cam.eye[1], o[2] - cam.eye[2]);
+      const kk = k0 / Math.max(dist, 0.01);
+      const uvX = (clip[0] / clip[3]) * 0.5 + 0.5;
+      const uvY = 0.5 - (clip[1] / clip[3]) * 0.5;
+      out.set([uvX, uvY, bh.horizon * (bh.einstein || 0) * kk, bh.horizon * kk], n * 4);
+      n++;
+    }
+    out[8] = n;
+    out[9] = aspect;
+    out[10] = 0.35;
+    return { count: n, data: out };
+  }
+
+  // 📝 Force field editor: add attractors, repulsors and timed reverse-gravity lifts.
+  function addField(type) {
+    state.fields.push({
+      type, enabled: true, pos: [0, 2, 0],
+      radius: type === 2 ? 0 : 8, strength: 6, swirl: 0, swallow: 0,
+      t0: type === 2 ? 2 : 0, duration: type === 2 ? 3 : 1e9, period: type === 2 ? 10 : 0,
+    });
+    select({ type: "forces" });
+  }
+
+  function renderForcesInspector(root) {
+    root.append(el("div", { class: "insp-head" },
+      el("span", { class: "insp-path", text: "Environment / Force fields" }),
+      el("h2", { text: "Force fields" }),
+      el("p", { class: "insp-sub", text: "Invisible fields that pull, push or lift particles. Black hole systems add their own attractor. Timed fields switch on for a window and repeat every period (0 = once)." })));
+    root.append(card("Add", null,
+      el("div", { class: "btn-row" },
+        button("+ Attractor", () => addField(0), "accent"),
+        button("+ Repulsor", () => addField(1)),
+        button("+ Reverse gravity", () => addField(2)))));
+    const names = ["Attractor", "Repulsor", "Reverse gravity"];
+    state.fields.forEach((f, i) => {
+      const body = [
+        checkRow("Enabled", () => f.enabled, (v) => (f.enabled = v)),
+        vecRow("Centre", f.pos, { min: -20, max: 20, step: 0.05, digits: 2, unit: "m" }),
+        rangeRow(f.type === 2 ? "Radius (0 = everywhere)" : "Radius", () => f.radius, (v) => (f.radius = v), { min: 0, max: 30, step: 0.05, digits: 2, unit: "m" }),
+        rangeRow("Strength", () => f.strength, (v) => (f.strength = v), { min: 0, max: 30, step: 0.1, digits: 1, unit: "m/s²" }),
+      ];
+      if (f.type === 0) {
+        body.push(rangeRow("Swirl", () => f.swirl, (v) => (f.swirl = v), { min: 0, max: 12, step: 0.05, digits: 2 }));
+        body.push(rangeRow("Swallow radius", () => f.swallow, (v) => (f.swallow = v), { min: 0, max: 3, step: 0.01, digits: 2, unit: "m" }));
+      } else {
+        body.push(rangeRow("Start", () => f.t0, (v) => (f.t0 = v), { min: 0, max: 60, step: 0.1, digits: 1, unit: "s" }));
+        body.push(rangeRow("Duration", () => f.duration, (v) => (f.duration = v), { min: 0.1, max: 120, step: 0.1, digits: 1, unit: "s" }));
+        body.push(rangeRow("Period (0 = once)", () => f.period, (v) => (f.period = v), { min: 0, max: 120, step: 0.1, digits: 1, unit: "s" }));
+      }
+      body.push(button("Delete", () => { state.fields.splice(i, 1); renderInspector(); }, "danger"));
+      root.append(card(`${i + 1}. ${names[f.type]}`, f.type === 2 ? "TIMED" : null, ...body));
+    });
+    if (!state.fields.length) root.append(note("No fields yet. Add one above."));
+  }
+
   function renderInspector() {
     const root = $("#inspector");
     root.innerHTML = "";
@@ -583,6 +682,8 @@
       renderWindInspector(root, live);
     } else if (sel.type === "lightning") {
       renderLightningInspector(root, live);
+    } else if (sel.type === "forces") {
+      renderForcesInspector(root);
     }
     renderOutliner();
     updateLive();
@@ -762,6 +863,17 @@
         trCard.push(rangeRow("Child cube life", () => tr.childLife, (v) => (tr.childLife = v), { min: 0.1, max: 6, step: 0.05, digits: 2, unit: "s" }));
       }
       root.append(card("Transition", "RELEASE", ...trCard));
+    }
+    if (p.blackHole && p.attractor) {
+      const bh = p.blackHole;
+      const at = p.attractor;
+      root.append(card("Black hole", "PULL + LENS",
+        rangeRow("Horizon", () => bh.horizon, (v) => (bh.horizon = v), { min: 0.1, max: 2, step: 0.01, digits: 2, unit: "m" }),
+        rangeRow("Lensing strength", () => bh.einstein, (v) => (bh.einstein = v), { min: 0, max: 6, step: 0.05, digits: 2, unit: "×H" }),
+        rangeRow("Pull strength", () => at.strength, (v) => (at.strength = v), { min: 0, max: 30, step: 0.1, digits: 1, unit: "m/s²" }),
+        rangeRow("Pull radius", () => at.radius, (v) => (at.radius = v), { min: 1, max: 40, step: 0.1, digits: 1, unit: "m" }),
+        rangeRow("Swirl", () => at.swirl, (v) => (at.swirl = v), { min: 0, max: 12, step: 0.05, digits: 2 }),
+        rangeRow("Swallow radius", () => at.swallow, (v) => (at.swallow = v), { min: 0, max: 3, step: 0.01, digits: 2, unit: "m" })));
     }
 
     const partCard = [];
