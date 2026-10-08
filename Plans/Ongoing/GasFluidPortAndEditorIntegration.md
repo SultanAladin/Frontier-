@@ -43,30 +43,24 @@ fuel, soot — `RGBA16F` ping-ponged (16 B), pressure ping-ponged (4 B), diverge
 
 VRAM is not the problem. **The pressure solve is**, and it scales with the cube of resolution.
 
-### Baking the 3D volume — is it performant?
+### Baking the 3D volume — measured, and then dropped
 
-Short answer: **on VRAM, no; on GPU time, yes — and only at 64³ or below.**
-
-A baked volume is a sequence of 3D textures. Only density and temperature need to survive the bake
-(fuel and soot have already done their work), so `RG8` — 2 bytes per voxel.
+A baked volume is a sequence of 3D textures. Only density and temperature survive a bake (fuel and
+soot have already done their work), so `RG8` — 2 bytes per voxel.
 
 | Grid | Per frame | 90 frames (3 s @ 30 Hz), raw | Sparse 8³ bricks, ~20 % occupancy |
 |---|---|---|---|
-| 64³ | 0.5 MB | **47 MB** | **~9 MB** |
-| 96³ | 1.7 MB | 159 MB | ~32 MB |
-| 128³ | 4.0 MB | **377 MB** | ~56 MB |
+| 64³ | 0.5 MB | 47 MB | ~9 MB |
+| 128³ | 4.0 MB | 377 MB | ~56 MB |
 
-So:
+**Decided: no 3D baking.** 56 MB for one three-second hero effect buys almost nothing over
+simulating it, block compression cannot rescue it (`BC4`/`BC7` on `VK_IMAGE_TYPE_3D` is optional in
+Vulkan and missing on much of the hardware), and the one case where it pays — a 64³ effect repeated
+thirty times — is a case the 2D flipbook serves for a fifth of the memory and a fiftieth of the
+render cost. The numbers are kept here so the decision does not get relitigated from scratch.
 
-- **64³ baked, sparse, is shippable** — ~9 MB per effect, and it replaces 5.8 M voxel-ops per frame
-  with one 3D texture fetch per raymarch step. That is a genuine win for a repeated effect.
-- **128³ baked is not.** 56 MB for one three-second effect buys very little over simulating it.
-- Block compression does not rescue it: `BC4`/`BC7` on `VK_IMAGE_TYPE_3D` is optional in Vulkan and
-  absent on a lot of hardware, so it cannot be relied on.
-- The win is **shared instances**. One bake played by thirty muzzle puffs costs 9 MB once. One bake
-  played by one hero explosion costs 9 MB for one explosion — simulate that instead.
-
-**Conclusion: bake in 3D only for effects that repeat, at 64³, sparse, under four seconds.**
+Every effect is therefore either **simulated live** or **played back as a 2D card**. There is no
+third thing to build, bake, version or ship.
 
 ### Baking to a 2D sprite sheet — the better trade for small and distant
 
@@ -87,12 +81,12 @@ hold up when you walk around it or through it.
 
 ### The rule that falls out
 
-| | Live sim | 3D bake | 2D flipbook |
-|---|---|---|---|
-| Hero, player-adjacent, unique | ✅ | | |
-| Repeated mid-ground, 64³ | ✅ at distance | ✅ | |
-| Small, numerous, or distant | | | ✅ |
-| Must react to the world | ✅ | | |
+| | Live sim | 2D flipbook card |
+|---|---|---|
+| Hero, player-adjacent, unique | ✅ | |
+| Mid-ground, reacting to the world | ✅ | |
+| Small, numerous, or distant | | ✅ |
+| Repeated identically many times | | ✅ |
 
 ---
 
@@ -118,6 +112,41 @@ two newest states in between — the same easing the replication runtime already
 placements. This is what the request for "60 FPS near, 30 FPS far" actually means in a solver, and
 it is where most of the saving comes from: halving the step rate halves the pressure solve.
 
+### Fixed rate per tier, never a free-running one
+
+**Decided: a 60 Hz master tick, and each tier steps on an integer divisor of it — 1, 2 or 4.** The
+*tier* is reassigned dynamically; the *rate inside a tier* never varies. A rate driven by measured
+frame time was considered and rejected on three counts:
+
+1. **It would be non-deterministic**, which throws away everything §4 buys.
+2. **Interpolating between two states needs a known interval.** A wandering one makes the
+   in-between frames guesswork.
+3. **A preset would stop meaning one thing.** Artists tune dissipation, cooling and burn against
+   seconds, not against steps; a varying step makes the same preset look different on two machines
+   and different from itself one second later.
+
+**The trap, and it is a real one.** Stepping at 30 Hz instead of 60 means doubling `dt`, or the
+smoke literally evolves at half speed. And doubling `dt` while applying `smokeDissipation` *per
+step* halves the dissipation per second — distant smoke would linger roughly twice as long as near
+smoke from the identical preset, which reads as a bug and is very hard to spot in review. So every
+rate-like setting is defined **per second** and converted with the real `dt`:
+
+```
+Remaining = pow(1 − DissipationPerSecond, dt)      // not  1 − DissipationPerSecond
+```
+
+This applies to `smokeDissipation`, `coolingRate`, `velocityDamping` and `burnRate`. The CPU proof
+asserts it directly: the same preset stepped at 60, 30 and 15 Hz must reach the same total smoke,
+within a stated tolerance, after one simulated second. Without that check the tier system quietly
+changes how every effect looks.
+
+**One dynamic exception, and it is still deterministic.** A domain that has just taken a blast runs
+at full rate for half a second regardless of distance, because a detonation at 15 Hz judders
+visibly. It is deterministic because the trigger is a replicated event, not a frame-time
+measurement.
+
+**Tier changes cross-fade** over about a quarter of a second rather than switching on one frame.
+
 `GasBudget` owns three ceilings — VRAM, per-frame milliseconds, and live domain count. When a new
 domain would breach one it is demoted a tier, and if it is already at Far it plays a card instead.
 A frame-time governor demotes the furthest domain first when the measured gas cost exceeds its
@@ -126,42 +155,97 @@ shows which tier each domain is running at and why.
 
 ---
 
-## 3 · Collision — objects that the gas can feel
+## 3 · Collision — all three levels, and the gas pushes back through the wind field
 
-Opt-in, per object, with a `GasCollision` component. Three levels:
+**The world pushes the gas** — three levels, all three built, each opt-in per object through a
+`GasCollision` component:
 
 1. **Primitive** — sphere, capsule, box, cylinder, or the tyre ring the simulator already has.
-   Rasterised into the obstacle mask each tick. Nearly free.
+   Rasterised analytically into the obstacle mask each tick. Nearly free, and exact.
 2. **Distance field** — sample `GlobalDistanceFieldSpace` where it covers the domain. Arbitrary
    meshes become colliders **with no new code in the solver**, because the engine already bakes this
-   field and nothing currently consumes it. This is the single highest-value reuse in the plan.
-3. **Two-way** — integrate pressure over the object's occupied cells and hand the force to Jolt.
-   **Off by default.** It costs a readback, it is the only part that can destabilise the rigid-body
-   solver, and it is the first thing to break determinism.
+   field and no target currently consumes it. An object opts in and its mesh is simply there.
+3. **Two-way** — below. On by default for debris-weight bodies, off for anything the player stands
+   on or drives.
 
-Default is one-way: the world pushes the gas, the gas does not push the world.
+Levels 1 and 2 compose: a primitive is cheaper and exact, so an object that has one uses it, and
+anything else falls through to the distance field.
+
+### The gas pushes the world — as a force field, not a readback
+
+The obvious two-way coupling reads pressure back off the GPU and hands it to Jolt. That is the wrong
+shape here, three times over: a 128³ `RGBA16F` readback is ~16 MB a frame and stalls the pipeline;
+raw pressure gradients inject energy and can destabilise the rigid-body solver; and it is the single
+thing that makes the simulation non-deterministic for multiplayer.
+
+**Instead the gas publishes a coarse force field and Jolt samples it — through the seam the engine
+already has.** `Engine/DisplayPresentation/WindField.h` already exposes
+`WindField::Sample(Wind, Position, Time, OutVelocity)` and is already consumed by `Precipitation.h`
+and `VolumetricMedia.h`. A gas domain becomes **another contributor to that same sample point**.
+
+| | Pressure readback | Force-field mirror |
+|---|---|---|
+| Moved per frame | ~16 MB at 128³ | **32 KB at 16³, 262 KB at 32³** |
+| Pipeline | Stalls, or three frames of staging | Async, latency is harmless for drag |
+| Stability | Pressure gradients can add energy | Drag is dissipative, stable by construction |
+| Determinism | Broken | **Intact — see §4** |
+| New interface | A whole coupling path | One more contributor behind `WindField::Sample` |
+
+The force is ordinary aerodynamic drag against the *relative* velocity:
+
+```
+F = ½ ρ Cd A · |v_gas − v_body| · (v_gas − v_body)
+```
+
+Dissipative, so it can never pump energy into a body the way a pressure gradient can. Buoyancy from
+the temperature field is the same shape and rides along with it.
+
+**Where the coarse field comes from is the whole trick** — see §4. It is not a downsample of the GPU
+volume. It is its own small CPU solver, which is what makes the force deterministic.
+
+**Honest limits.** A 32³ field cannot resolve the eddies that are visible in a 128³ render, so a leaf
+will not swirl exactly where the smoke curls. For pushing debris, cloth and ragdolls that is
+invisible; for anything finer, the emitter's analytic velocity is added at the sample point. And the
+two fields can drift apart in appearance, which is managed by running the coarse solver from the
+*same* emitters and the *same* preset so they agree in bulk even where they differ in detail.
 
 ---
 
-## 4 · Determinism — only where it is paid for
+## 4 · Two fields, which settles determinism as a side effect
 
-**Single-player: none required.** The solver may use whatever GPU reduction order it likes.
+Every gas effect runs **two** solvers from the same emitters and the same preset:
 
-**Multiplayer: do not replicate the fluid.** Replicate the *cause* and let every client simulate its
-own smoke. A fracture sends "piece 12 broke at this transform with this energy"; a tyre sends its
-slip ratio. Both are a handful of bytes and both already fit the replication runtime landed in
-`Projects/Project-Networking` — `ReplicationSequence` carries exactly this kind of small authored
-event. Two clients will then show visually different smoke, which does not matter, **because smoke
-is not gameplay**.
+| | **Coarse field** | **Fine volume** |
+|---|---|---|
+| Where | CPU, worker thread | GPU |
+| Grid | 32³ (1.5 MB, ~0.7 M voxel-ops) | 64³–128³ per tier |
+| Fixed step, fixed sweeps, integer-seeded noise | **Yes** | No |
+| Deterministic across machines | **Yes** | No, and never needs to be |
+| What reads it | **Physics forces** via `WindField::Sample`; line-of-sight queries if ever wanted | The raymarch, and nothing else |
+| Replicated | By cause (see below) | Never |
 
-It stops being true the moment smoke *blocks line of sight*. If that is ever wanted, the answer is
-two fields, not one deterministic one:
+This one split answers three separate questions at once:
 
-- a coarse **32³ CPU occlusion field**, fixed timestep, fixed iteration count, integer-seeded noise,
-  fixed reduction order — deterministic, replicated, and what the game logic queries;
-- the pretty GPU volume on top, non-deterministic and purely cosmetic.
+- **Two-way physics without a readback.** The force field Jolt samples is computed on the CPU, so
+  there is no GPU readback at all — not a smaller one, *none*. §3's force-field mirror is simply
+  this field.
+- **Determinism, free.** Because the forces come from a fixed-step CPU solver with a fixed
+  iteration count and integer-seeded noise, **two-way coupling is deterministic by construction**.
+  The GPU volume may differ between an NVIDIA and an AMD machine; nothing that touches gameplay
+  reads it.
+- **Occlusion, if it is ever wanted.** The field that answers "is there smoke between these two
+  points" already exists and is already authoritative.
 
-That separation is standard, and it is far cheaper than making a GPU fluid bit-exact across vendors.
+**Multiplayer replicates the cause, never the fluid.** A fracture sends "piece 12 broke at this
+transform with this energy"; a tyre sends its slip ratio. A handful of bytes each, and both already
+fit the replication runtime in `Projects/Project-Networking` — `ReplicationSequence` carries exactly
+this kind of small authored event. Every client then runs the same deterministic coarse field from
+the same events and gets the same forces, and renders whatever fine volume its hardware manages.
+
+**Single-player** runs the same two fields; it simply never has to agree with anyone.
+
+The coarse solver is not free, but it is close: 32³ is 0.7 M voxel-ops against the fine field's 5.8 M
+to 46 M, it runs off the render thread, and it replaces a 16 MB-per-frame readback.
 
 ---
 
@@ -178,14 +262,19 @@ That separation is standard, and it is far cheaper than making a GPU fluid bit-e
 | `CombustionSequence.cpp` | Burn rate, heat, soot, expansion, cooling |
 | `GasSettings.h` | The 84 settings with their ranges, mirroring `ControlSpecification` |
 | `GasPresetLibrary.cpp` | **Generated** from `presets.js` by `Tools/Build/GenerateGasPresets.py` |
-| `GasBudget.h/.cpp` | The tier table, the ceilings, the governor |
+| `GasBudget.h/.cpp` | The tier table, the ceilings, the governor, the per-second → per-step conversion |
+| `CoarseGasField.h/.cpp` | The 32³ fixed-step CPU field: deterministic, feeds physics, never rendered |
+| `GasWindContribution.h` | The coarse field behind `WindField::Sample`, plus the drag and buoyancy terms |
 
 The browser file stays the single source of truth for tuning; the proof fails when the generated
 file is stale. (Same pattern as `CompileShaders.py` reading the shader table rather than copying it.)
 
 **Proof** — `Exhibits/Workbench/GasFluid/`, a CPU mirror with no window: a closed domain conserves
 smoke; divergence after projection is below a stated bound; every generated preset validates;
-the tier table never exceeds its stated VRAM; and the three rules the node suite already enforces —
+the tier table never exceeds its stated VRAM; **the same preset stepped at 60, 30 and 15 Hz reaches
+the same total smoke after one simulated second** (the per-second conversion in §2); **the coarse
+field produces bit-identical readings across two runs and across a rebuild** (determinism, which is
+the only thing multiplayer rests on); and the three rules the node suite already enforces —
 detonations keep ≥ 28 voxels per world unit, cold effects carry no fuel on either path, sand sinks
 and fire rises.
 
@@ -216,7 +305,7 @@ the budget has actually assigned it.
 fracture card opens the fracture editor. `Engine/Editor/FluidEditorSurface.h`, drawn with the same
 `ControlPanel` widgets, a **port of the browser page** rather than a new design: preset rail and its
 four filters, grouped inspector, viewport with bounds box and voxel grid lines, debug channel
-selector, and the bake panel — which now bakes **both** a 2D flipbook and a sparse 3D volume.
+selector, and the flipbook bake panel.
 
 **Proof** — `Exhibits/Workbench/FluidEditor/`, matched against the bundle the way `BundleParity.py`
 already matches the Project Zero editor.
@@ -240,26 +329,33 @@ preset, this tick" — so neither fracture nor tyre knows anything about gas.
 
 ## 6 · Order
 
-1. Solver + generated presets + CPU proof + the budget table — provable with no GPU
-2. Volume raymarch, its shader in the CI table — it becomes visible
-3. Standalone host + scene round-trip against the browser — parity pinned
-4. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm
-5. Outliner row and inline inspector — fluids exist in a level
-6. Fluid Editor page — fluids become editable
-7. Emitter component, then the fracture and tyre hooks — fluids become part of the game
-8. Collision: primitives, then the global distance field, then optional two-way
-9. Sparse 3D bake — last, because it is the narrowest win
+1. **The coarse CPU field** — 32³, fixed step, deterministic, plus the budget and tier tables. No
+   GPU, no window, fully provable, and it is what physics and multiplayer depend on
+2. Solver stages and the generated presets, shared by both fields
+3. Volume raymarch, its shader added to the CI shader table — it becomes visible
+4. Standalone host + scene round-trip against the browser — parity pinned
+5. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm
+6. Collision levels 1 and 2 — primitives, then the global distance field
+7. **Two-way through `WindField::Sample`** — the coarse field already exists by now, so this is a
+   contributor and a drag term, not a coupling system
+8. Outliner row and inline inspector — fluids exist in a level
+9. Fluid Editor page — fluids become editable
+10. Emitter component, then the fracture and tyre hooks — fluids become part of the game
 
-Steps 1, 2 and 4 are the real work. Everything after is wiring onto seams this repo already has.
+Steps 1, 3 and 5 are the real work. Step 1 moved to the front because the coarse field is now load
+bearing for physics and multiplayer, not a contingency.
 
 ## 7 · Still open
 
-- **Whose budget?** The ceilings above are a proposal, not a measurement. They need pinning to a
-  target card before step 1 is finished.
-- **Flipbook authoring.** Six-way lighting triples the atlas. Worth it, or is a single lit sheet
-  with a normal good enough for this engine's look?
-- **Does smoke ever block sight?** If yes, the 32³ deterministic CPU field in §4 is not optional and
-  should move into step 1.
+- **Whose budget?** The ceilings are a proposal, not a measurement. Pin them to a target card before
+  step 1 finishes.
+- **Flipbook authoring.** Six-way lighting triples the atlas. Worth it, or is one lit sheet plus a
+  normal enough for this engine's look?
+- **Which bodies get two-way by default?** Debris, cloth and ragdolls clearly yes. Vehicles are the
+  argument: a burnout cloud pushing the car that made it is physically real and almost certainly
+  unwanted.
+- **Does the coarse field need to answer line-of-sight?** It can. Whether any gameplay asks is a
+  design question, and the answer only adds a query, not a solver.
 
 ## Deliberately excluded
 
