@@ -57,6 +57,9 @@ jobs:
       - name: Fracture card
         run: python3 Tools/Build/RunAnnounced.py "fracture card" -- python3 Exhibits/Workbench/Fracture/RunNativeFractureCard.py
 
+      - name: Gas presets — the transcription against presets.js
+        run: python3 Tools/Build/RunAnnounced.py "gas presets" -- python3 Tools/Build/GenerateGasPresets.py --check
+
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 

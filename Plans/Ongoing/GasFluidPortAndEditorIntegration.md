@@ -260,8 +260,7 @@ to 46 M, it runs off the render thread, and it replaces a 16 MB-per-frame readba
 | `PressureProjection.cpp` | Jacobi divergence removal |
 | `VorticityConfinement.cpp` | The curl-restoring force |
 | `CombustionSequence.cpp` | Burn rate, heat, soot, expansion, cooling |
-| `GasSettings.h` | The 84 settings with their ranges, mirroring `ControlSpecification` |
-| `GasPresetLibrary.cpp` | **Generated** from `presets.js` by `Tools/Build/GenerateGasPresets.py` |
+| `GasPresetLibrary.h` | **Generated** — the 85 settings and 18 presets, from `presets.js` |
 | `GasBudget.h/.cpp` | The tier table, the ceilings, the governor, the per-second → per-step conversion |
 | `CoarseGasField.h/.cpp` | The 32³ fixed-step CPU field: deterministic, feeds physics, never rendered |
 | `GasWindContribution.h` | The coarse field behind `WindField::Sample`, plus the drag and buoyancy terms |
@@ -331,8 +330,8 @@ preset, this tick" — so neither fracture nor tyre knows anything about gas.
 
 ### Landed
 
-**Step 1 is built and proved** — `Engine/VolumetricDynamics/`, header-only, and `Exhibits/Workbench/GasFluid/`
-at **PASS 91**, wired into the `proofs` job of `frontier-build.yml`.
+**Steps 1, 2 and 7 are built and proved** — `Engine/VolumetricDynamics/`, header-only, and `Exhibits/Workbench/GasFluid/`
+at **PASS 198**, wired into the `proofs` job of `frontier-build.yml`.
 
 | File | What landed |
 |---|---|
@@ -340,6 +339,8 @@ at **PASS 91**, wired into the `proofs` job of `frontier-build.yml`.
 | `CoarseGasField.h` | The 32-cubed reproducible reading: emission, buoyancy, transport, 12 fixed Jacobi sweeps |
 | `GasCollisionIntake.h` | Admission ① five primitives incl. the tyre ring, admission ② the distance-reading seam |
 | `GasWindContribution.h` | Two-way, behind `WindField::Sample`, off until `CouplingEnabled` is set |
+| `GasPresetLibrary.h` | **Generated** from `presets.js`: 85 settings, 18 presets, `--check` guards it |
+| `Tools/Build/GenerateGasPresets.py` | The transcription, and the staleness guard in CI |
 
 Header-only throughout, so no source list changes: `WindField.h` is in none of them either, and the three
 build routes enumerate `.cpp` files explicitly. The first target to consume these is step 3.
@@ -360,7 +361,8 @@ Two findings from building it rather than planning it:
 
 1. ~~**The coarse CPU field**~~ — 32³, fixed step, deterministic, plus the budget and tier tables. No
    GPU, no window, fully provable, and it is what physics and multiplayer depend on
-2. Solver stages and the generated presets, shared by both fields
+2. ~~Solver stages and the generated presets~~ — the presets and settings landed; the MacCormack
+   and combustion stages join when the displayed volume needs them in step 3
 3. Volume raymarch, its shader added to the CI shader table — it becomes visible
 4. Standalone host + scene round-trip against the browser — parity pinned
 5. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm

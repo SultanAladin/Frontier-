@@ -27,7 +27,15 @@ Include = ['-IEngine/VolumetricDynamics', '-IEngine/DisplayPresentation']
 Flags = ['-std=c++20', '-O1', '-Wall', '-Wextra', '-Wno-unused-parameter']
 Source = 'Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp'
 
-Commands, Transcripts = [], []
+# The transcription must be current before anything is compiled against it. A stale header would still
+# build and still resolve presets; the only symptom would be a native plume that no longer matches the
+# browser one it was tuned against, which is exactly the failure a generated file exists to prevent.
+Generate = [sys.executable, str(Root / 'Tools/Build/GenerateGasPresets.py'), '--check']
+Staleness = subprocess.run(Generate, cwd=Root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+print(Staleness.stdout, end='')
+assert Staleness.returncode == 0, 'GasPresetLibrary.h is stale against presets.js'
+
+Commands, Transcripts = [Generate], []
 for Attempt in ('First', 'Second'):
     Program = Build / f'GasFieldChecks{Attempt}'
     Command = ['g++', *Flags, *Include, Source, '-o', str(Program)]
@@ -47,7 +55,10 @@ print('Two independent builds produced identical transcripts.')
 
 (Gallery / 'Proof.txt').write_text(Transcripts[0] + 'Two independent builds produced identical transcripts.\n')
 
-Tracked = [Root / 'Engine/VolumetricDynamics/GasQualityAllowance.h',
+Tracked = [Root / 'Experimental/Fluid/src/presets.js',
+           Root / 'Tools/Build/GenerateGasPresets.py',
+           Root / 'Engine/VolumetricDynamics/GasPresetLibrary.h',
+           Root / 'Engine/VolumetricDynamics/GasQualityAllowance.h',
            Root / 'Engine/VolumetricDynamics/CoarseGasField.h',
            Root / 'Engine/VolumetricDynamics/GasCollisionIntake.h',
            Root / 'Engine/VolumetricDynamics/GasWindContribution.h',

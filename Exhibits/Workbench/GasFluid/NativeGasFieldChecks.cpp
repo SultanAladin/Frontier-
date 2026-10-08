@@ -17,6 +17,7 @@
 
 #include "CoarseGasField.h"
 #include "GasCollisionIntake.h"
+#include "GasPresetLibrary.h"
 #include "GasQualityAllowance.h"
 #include "GasWindContribution.h"
 
@@ -26,6 +27,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace Frontier;
@@ -104,6 +106,145 @@ int main()
 
     try
     {
+
+    //----------------------------------------------------------------------------------------------------------------
+    //                                     THE TRANSCRIBED SETTINGS AND PRESETS
+    //----------------------------------------------------------------------------------------------------------------
+
+    // 📝 These mirror the three rules Experimental/Fluid/src/SceneMetrics.mjs already enforces in the browser.
+    //    They are restated here rather than trusted across the transcription, because a generator that drops a
+    //    preset's differences would still produce a header that compiles and presets that resolve -- and the
+    //    only visible symptom would be a native plume that no longer looks like the browser one.
+
+    Banner("The transcribed settings and presets");
+
+    Check(GasSettingCount == 85u, "all 85 settings crossed from presets.js");
+    Check(GasPresetCount  == 18u, "and all 18 presets");
+
+    {
+        const GasPreset* Library = GasPresetLibrary();
+        uint32_t Named = 0u, Described = 0u, Detonating = 0u;
+        for (uint32_t Slot = 0u; Slot < GasPresetCount; ++Slot)
+        {
+            if (Library[Slot].Identity[0] != '\0' && Library[Slot].Name[0] != '\0') ++Named;
+            if (Library[Slot].Description[0] != '\0') ++Described;
+            if (Library[Slot].DetonateOnLoad) ++Detonating;
+        }
+        Check(Named == GasPresetCount, "every preset carries an identity and a name");
+        Check(Described == GasPresetCount, "and a description for the rail beneath it");
+        Check(Detonating > 0u, "and at least one opens mid-explosion");
+
+        // Identities must be unique, or a scene storing one of them cannot be reopened unambiguously.
+        uint32_t Collisions = 0u;
+        for (uint32_t Left = 0u; Left < GasPresetCount; ++Left)
+            for (uint32_t Right = Left + 1u; Right < GasPresetCount; ++Right)
+                if (std::strcmp(Library[Left].Identity, Library[Right].Identity) == 0) ++Collisions;
+        Check(Collisions == 0u, "and no two presets share an identity");
+
+        // Resolving by slot and by identity must agree, since the editor uses one and a scene the other.
+        const GasSettings BySlot     = ConstructPresetSettings(3u);
+        const GasSettings ByIdentity = ConstructPresetSettings(Library[3].Identity);
+        Check(BySlot.LatticeResolution == ByIdentity.LatticeResolution
+           && BySlot.BoundsWidth == ByIdentity.BoundsWidth,
+              "resolving by slot and by identity give the same settings");
+
+        const GasSettings Unknown = ConstructPresetSettings("a_preset_that_was_renamed");
+        Check(Unknown.LatticeResolution == GasSettings{}.LatticeResolution,
+              "an unknown identity yields the defaults rather than refusing to open");
+        Check(ConstructPresetSettings(static_cast<const char*>(nullptr)).PressureIterations
+              == GasSettings{}.PressureIterations, "and a null identity is not dereferenced");
+        Check(ConstructPresetSettings(999u).PressureIterations == GasSettings{}.PressureIterations,
+              "as does a slot past the end of the library");
+
+        // 🔴 The continuous settings must be declared as floats even where every preset currently lands on
+        //    a whole number. timeScale, shockwaveStrength, sunAzimuth and sunElevation are all whole in all
+        //    eighteen presets today; typed from those readings they would become integers, and the first
+        //    artist to drag one to 0.55 would get a silent truncation to zero and an effect that does not
+        //    move. A counted setting stays an integer because a lattice cannot be 64.5 voxels wide.
+        static_assert(std::is_same_v<decltype(GasSettings::TimeScale),          float>,
+                      "a continuous control must not be declared as an integer");
+        static_assert(std::is_same_v<decltype(GasSettings::ShockwaveStrength),  float>,
+                      "a continuous control must not be declared as an integer");
+        static_assert(std::is_same_v<decltype(GasSettings::SunAzimuth),         float>,
+                      "a continuous control must not be declared as an integer");
+        static_assert(std::is_same_v<decltype(GasSettings::LatticeResolution),  int32_t>,
+                      "a counted setting must not be declared as a float");
+        static_assert(std::is_same_v<decltype(GasSettings::RaymarchSteps),      int32_t>,
+                      "a counted setting must not be declared as a float");
+        static_assert(std::is_same_v<decltype(GasSettings::MacCormackAdvection), bool>,
+                      "a switch must stay a switch");
+
+        GasSettings Dragged;
+        Dragged.TimeScale = 0.55f;
+        Check(Dragged.TimeScale > 0.5f && Dragged.TimeScale < 0.6f,
+              "a continuous control holds a fraction rather than truncating it to zero");
+
+        // Every preset resolves to a lattice the solver could actually allocate.
+        for (uint32_t Slot = 0u; Slot < GasPresetCount; ++Slot)
+        {
+            const GasSettings Settings = ConstructPresetSettings(Slot);
+            Check(Settings.LatticeResolution >= 16 && Settings.LatticeResolution <= 256,
+                  "every preset asks for a lattice between 16 and 256 voxels");
+            Check(Settings.PressureIterations > 0 && Settings.PressureIterations <= 64,
+                  "and a sweep count the budget can carry");
+            Check(Settings.BoundsWidth > 0.0f && Settings.BoundsHeight > 0.0f,
+                  "and a domain with a positive extent");
+        }
+    }
+
+    {
+        // Rule 1 - a detonation keeps its voxel density. Enlarging the bounds without shrinking the blast
+        //    radius is the defect this guards, and it coarsens the explosion exactly when it matters most.
+        const char* const Detonations[5] = { "ue5_pyro_default", "shrapnel_airburst", "tactical_ordnance",
+                                             "megaton_open_bounds", "brick_fracture_dust" };
+        for (const char* Identity : Detonations)
+        {
+            const GasSettings Settings = ConstructPresetSettings(Identity);
+            const float Density = static_cast<float>(Settings.LatticeResolution) / Settings.BoundsWidth;
+            Check(Density >= 28.0f, "a detonation resolves at least 28 voxels per world unit");
+            Check(Settings.BlastRadius <= 0.15f, "and fills no more than 0.15 of its domain");
+            if (Settings.DynamicBounds)
+                Check(Settings.DynamicBoundsMax <= 1.25f, "and does not surge enough to coarsen mid-blast");
+        }
+    }
+
+    {
+        // Rule 2 - a cold effect must not light itself. Every one of these was tuned from a fire preset,
+        //    which is exactly why the mistake is easy and the check is cheap.
+        const char* const Cold[5] = { "dust_tornado", "ledge_sandfall", "settling_dust",
+                                      "small_gust", "brick_fracture_dust" };
+        for (const char* Identity : Cold)
+        {
+            const GasSettings Settings = ConstructPresetSettings(Identity);
+            Check(Settings.EmitterFuel == 0.0f, "a cold effect emits no fuel");
+            Check(Settings.BlastFuel   == 0.0f, "and bursts none either");
+            Check(Settings.BurnRate    <= 0.2f, "and does not burn");
+            Check(Settings.SmokeAlbedo >= 0.5f, "and scatters like dust rather than like soot");
+        }
+    }
+
+    {
+        // Rule 3 - the signs of the physics, which no amount of tuning should be able to invert.
+        for (const char* Identity : { "ledge_sandfall", "settling_dust" })
+        {
+            const GasSettings Settings = ConstructPresetSettings(Identity);
+            Check(Settings.SmokeWeight > Settings.Buoyancy, "sand and settling dust fall");
+        }
+        for (const char* Identity : { "lantern_flame", "camp_fire" })
+        {
+            const GasSettings Settings = ConstructPresetSettings(Identity);
+            Check(Settings.Buoyancy > Settings.SmokeWeight, "while flame rises");
+            Check(Settings.EmitterFuel > 0.0f, "and has something to burn");
+        }
+    }
+
+    {
+        // The tyre ring the solver obstructs with is the one the preset selects, so the two agree about
+        //    which obstruction a burnout is happening against.
+        const GasSettings Burnout = ConstructPresetSettings("tyre_burnout");
+        Check(Burnout.ObstacleType == static_cast<int32_t>(GasColliderShape::TyreRing),
+              "the tyre burnout preset selects the tyre ring, matching GasColliderShape");
+    }
 
     //----------------------------------------------------------------------------------------------------------------
     //                                              THE QUALITY LADDER

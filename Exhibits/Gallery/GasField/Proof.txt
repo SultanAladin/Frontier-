@@ -1,5 +1,114 @@
 Gas field checks - the reproducible reading, its budget, its obstruction and its coupling
 
+The transcribed settings and presets
+  PASS  all 85 settings crossed from presets.js
+  PASS  and all 18 presets
+  PASS  every preset carries an identity and a name
+  PASS  and a description for the rail beneath it
+  PASS  and at least one opens mid-explosion
+  PASS  and no two presets share an identity
+  PASS  resolving by slot and by identity give the same settings
+  PASS  an unknown identity yields the defaults rather than refusing to open
+  PASS  and a null identity is not dereferenced
+  PASS  as does a slot past the end of the library
+  PASS  a continuous control holds a fraction rather than truncating it to zero
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  every preset asks for a lattice between 16 and 256 voxels
+  PASS  and a sweep count the budget can carry
+  PASS  and a domain with a positive extent
+  PASS  a detonation resolves at least 28 voxels per world unit
+  PASS  and fills no more than 0.15 of its domain
+  PASS  and does not surge enough to coarsen mid-blast
+  PASS  a detonation resolves at least 28 voxels per world unit
+  PASS  and fills no more than 0.15 of its domain
+  PASS  and does not surge enough to coarsen mid-blast
+  PASS  a detonation resolves at least 28 voxels per world unit
+  PASS  and fills no more than 0.15 of its domain
+  PASS  and does not surge enough to coarsen mid-blast
+  PASS  a detonation resolves at least 28 voxels per world unit
+  PASS  and fills no more than 0.15 of its domain
+  PASS  and does not surge enough to coarsen mid-blast
+  PASS  a detonation resolves at least 28 voxels per world unit
+  PASS  and fills no more than 0.15 of its domain
+  PASS  and does not surge enough to coarsen mid-blast
+  PASS  a cold effect emits no fuel
+  PASS  and bursts none either
+  PASS  and does not burn
+  PASS  and scatters like dust rather than like soot
+  PASS  a cold effect emits no fuel
+  PASS  and bursts none either
+  PASS  and does not burn
+  PASS  and scatters like dust rather than like soot
+  PASS  a cold effect emits no fuel
+  PASS  and bursts none either
+  PASS  and does not burn
+  PASS  and scatters like dust rather than like soot
+  PASS  a cold effect emits no fuel
+  PASS  and bursts none either
+  PASS  and does not burn
+  PASS  and scatters like dust rather than like soot
+  PASS  a cold effect emits no fuel
+  PASS  and bursts none either
+  PASS  and does not burn
+  PASS  and scatters like dust rather than like soot
+  PASS  sand and settling dust fall
+  PASS  sand and settling dust fall
+  PASS  while flame rises
+  PASS  and has something to burn
+  PASS  while flame rises
+  PASS  and has something to burn
+  PASS  the tyre burnout preset selects the tyre ring, matching GasColliderShape
+
 The quality ladder
   PASS  Hero simulates at 128 cubed
   PASS  Far simulates at 32 cubed
@@ -109,5 +218,5 @@ The accumulating caller - a variable frame duration never reaches the solver
   PASS  the ragged caller took the same 20 advances
   PASS  and reached a byte-identical field, which is why the step is not a parameter
 
-PASS 91
+PASS 198
 Two independent builds produced identical transcripts.
