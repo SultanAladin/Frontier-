@@ -23,7 +23,11 @@ Query parameters:
 | Leaves | Wind-driven, GPU-simulated | Leaf or paper sprites (selectable). They take their velocity from the wind field at their position.
 | Tornado debris | Wind-driven, GPU-simulated | Paper debris lifted from a ring around a vortex. Adding it enables the **Tornado** wind component at its origin. |
 | Sandstorm | Wind-driven, GPU-simulated | Dense dust (up to about 6,000 grains) fired from the upwind edge. Adding it sets **Prevailing wind** to 8 m/s at bearing 70°. |
-| Snow | Wind-driven, GPU-simulated | Slow flakes falling through the wind field. |
+| Rain streaks | Precipitation, GPU-simulated | Streaked drops that fall through the wind field and rebound a little off the floor. |
+| Hail | Precipitation, GPU-simulated | Ice pellets that drop fast and bounce high off the floor before settling. |
+| Snow | Precipitation, GPU-simulated | Flakes that drift through the wind field and land with a soft rebound. |
+
+Precipitation uses the regular particle kind, not the debris kind. Debris pins to the floor, while the other kinds bounce with the preset's `bounce` coefficient, so rain, hail and snow set a bounce value.
 | Embers | Additive VFX | Glowing embers lifted on buoyancy and bent by the wind. |
 | Cherry petals | Wind-driven, GPU-simulated | Petals that tumble and follow the wind closely. | |
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |

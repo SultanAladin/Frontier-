@@ -77,14 +77,26 @@
     },
     {
       id: "rain", name: "Rain streaks", group: "Weather",
-      blurb: "Rain falling through the wind field; streaks stretch with speed.",
+      blurb: "Rain falling through the wind field. Drops bounce off the floor with a small splash rebound, then fade.",
       p: P({
-        kind: 0, shape: 0, blend: "alpha", capacity: 4000, rate: 350,
+        kind: 0, shape: 0, blend: "alpha", capacity: 5000, rate: 500,
         emitShape: 3, boxHalf: [5, 0, 5], origin: [0, 7.2, 0], dir: [0, -1, 0], spread: 0.03,
-        speedMin: 7, speedMax: 9, drag: 0, gravity: 0.6, lifeMin: 1, lifeMax: 1.5,
-        sizeStart: 0.06, sizeEnd: 0.06,
-        colA: [0.7, 0.8, 1, 0.5], colB: [0.7, 0.8, 1, 0.3],
-        windCoupling: 0.7,
+        speedMin: 7, speedMax: 9, drag: 0, gravity: 0.6, lifeMin: 1.2, lifeMax: 1.8,
+        sizeStart: 0.06, sizeEnd: 0.05,
+        colA: [0.75, 0.85, 1, 0.85], colB: [0.75, 0.85, 1, 0.25],
+        windCoupling: 0.7, bounce: 0.25,
+      }),
+    },
+    {
+      id: "hail", name: "Hail", group: "Weather",
+      blurb: "Hard ice pellets that drop fast and bounce high off the floor before settling.",
+      p: P({
+        kind: 0, shape: 1, blend: "alpha", capacity: 1500, rate: 70,
+        emitShape: 3, boxHalf: [5, 0, 5], origin: [0, 7.2, 0], dir: [0, -1, 0], spread: 0.05,
+        speedMin: 6, speedMax: 8, drag: 0.05, gravity: 1.0, lifeMin: 3, lifeMax: 4.5,
+        sizeStart: 0.09, sizeEnd: 0.09,
+        colA: [0.9, 0.95, 1, 1], colB: [0.8, 0.86, 0.95, 0.2],
+        windCoupling: 0.8, bounce: 0.5,
       }),
     },
     {
@@ -191,13 +203,13 @@
     },
     {
       id: "snow", name: "Snow", group: "Weather",
-      blurb: "Slow snowfall that drifts and flutters through the wind field.",
+      blurb: "Slow snowfall that drifts and flutters through the wind field, with a soft rebound at the floor.",
       p: P({
-        kind: 1, shape: 3, blend: "alpha", capacity: 3000, rate: 160,
+        kind: 0, shape: 3, blend: "alpha", capacity: 3000, rate: 160,
         emitShape: 3, boxHalf: [5, 0, 5], origin: [0, 7.2, 0], dir: [0, -1, 0], spread: 0.2,
         speedMin: 0.4, speedMax: 0.9, drag: 1.0, gravity: 0.3, lifeMin: 9, lifeMax: 13,
         sizeStart: 0.07, sizeEnd: 0.06, colA: [0.95, 0.97, 1, 0.85], colB: [0.95, 0.97, 1, 0],
-        windCoupling: 1.2, flutter: 0.9,
+        windCoupling: 1.2, flutter: 0.9, bounce: 0.12,
       }),
     },
     {
