@@ -506,20 +506,27 @@ target_link_libraries(Jolt PUBLIC pthread)
 # Deliberately does NOT link FrontierEngine: the testbed is a console proof of the RigidBodySolver seam and needs neither Vulkan nor
 #    GLFW, so it stays buildable when the graphics submodules are uninitialised.
 
-add_executable(Project-Physics
-    Engine/DeviceExchange/OrientationClassifier.cpp
-    Engine/DeviceExchange/DiagnosticMetrics.cpp
-    Engine/PhysicalDynamics/RigidBodySolver.cpp
-    Projects/Project-Physics/Source/DropSceneStructure.cpp
-    Projects/Project-Physics/Source/GameExecution.cpp
-)
-target_include_directories(Project-Physics PRIVATE
-    ${FRONTIER_ENGINE_INCLUDES}
-    ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Physics/Source
-)
-target_compile_definitions(Project-Physics PRIVATE FRONTIER_DEVELOPMENT "$<$<CONFIG:Debug>:FRONTIER_DEBUG=1>")
-target_compile_options(Project-Physics PRIVATE -Wall -Wextra -Wno-psabi)
-target_link_libraries(Project-Physics PRIVATE Jolt pthread)
+# The testbed's own sources are not in every checkout of this repository, and a missing source file
+#    is a configure-time error that takes the whole tree down with it, so it is declared only when
+#    it is actually here.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Physics/Source/DropSceneStructure.cpp")
+    add_executable(Project-Physics
+        Engine/DeviceExchange/OrientationClassifier.cpp
+        Engine/DeviceExchange/DiagnosticMetrics.cpp
+        Engine/PhysicalDynamics/RigidBodySolver.cpp
+        Projects/Project-Physics/Source/DropSceneStructure.cpp
+        Projects/Project-Physics/Source/GameExecution.cpp
+    )
+    target_include_directories(Project-Physics PRIVATE
+        ${FRONTIER_ENGINE_INCLUDES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Physics/Source
+    )
+    target_compile_definitions(Project-Physics PRIVATE FRONTIER_DEVELOPMENT "$<$<CONFIG:Debug>:FRONTIER_DEBUG=1>")
+    target_compile_options(Project-Physics PRIVATE -Wall -Wextra -Wno-psabi)
+    target_link_libraries(Project-Physics PRIVATE Jolt pthread)
+else()
+    message(STATUS "[Frontier] Project-Physics sources absent - the Jolt testbed is not declared")
+endif()
 
 # Standalone fluid research host alongside the native application.
 add_subdirectory(Projects/Project-Fluid)
