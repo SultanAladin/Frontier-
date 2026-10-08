@@ -224,6 +224,15 @@ export const PresetPresentation = {
     "24³ grid · lower GPU cost",
     "flame",
   ],
+  lamp_fire: ["Lamp fire", "fire", "Steady wick flame in still air", "flame"],
+  lantern_flame: ["Lantern flame", "fire", "Contained glow, no sparks", "flame"],
+  campfire: ["Campfire", "fire", "Flickering logs with rising sparks", "flame"],
+  smoke_tornado: ["Smoke tornado", "smoke", "Dust funnel spinning up", "rotate"],
+  tyre_burnout: ["Tyre burnout", "smoke", "Thick white smoke at the contact patch", "orbit"],
+  sand_spill: ["Sand spill", "smoke", "Dust pouring off a ledge", "layers"],
+  dust_cloud: ["Dust cloud", "smoke", "Settling cloud from an impact", "smoke"],
+  small_gust: ["Small gust", "smoke", "A sideways puff of dust", "wind"],
+  brick_fracture: ["Brick fracture", "blast", "Dust burst as a brick breaks", "wall"],
 };
 
 export function ComputeColliderPosition(Parameters, Time) {

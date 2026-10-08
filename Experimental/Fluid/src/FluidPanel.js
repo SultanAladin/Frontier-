@@ -53,6 +53,7 @@ const GlyphPaths = {
   brush: '<path d="m14 3 7 7-10 10H4v-7Zm-6 7 7 7M3 21h7"/>',
   burst: '<path d="m12 2 2 6 6-4-3 7 5 3-7 1-1 7-4-6-7 4 4-7-5-4 7 1Z"/>',
   rotate: '<path d="M4 10a8 8 0 1 1 1 7M4 3v7h7"/>',
+  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h6"/>',
   warning: '<path d="m12 3 10 18H2Zm0 6v5m0 3h.01"/>',
   rewind: '<path d="M4 5v14m14-14L7 12l11 7Z"/>',
   pause: '<path d="M8 5v14m8-14v14"/>',
@@ -531,7 +532,9 @@ class FluidPanel {
       9.5,
       Math.max(this.Parameters.boundsWidth, this.Parameters.boundsHeight) * 2.3,
     );
-    if (PRESETS[Key].triggerExplosionOnLoad) this.Engine?.triggerExplosion();
+    // Presets may pass one-shot burst options (for example a directional gust).
+    if (PRESETS[Key].triggerExplosionOnLoad)
+      this.Engine?.triggerExplosion(PRESETS[Key].triggerOptions);
     this.ConstructPresetCards();
     this.ConstructSceneRows();
     this.ConstructInspector();

@@ -310,7 +310,7 @@ try {
   await Page.locator("#preset-search").fill("ashfall");
   Assert.equal(await Page.locator("[data-preset]").count(), 1);
   await Page.locator("#reset-search").evaluate((Element) => Element.click());
-  Assert.equal(await Page.locator("[data-preset]").count(), 10);
+  Assert.equal(await Page.locator("[data-preset]").count(), 19);
   await Page.locator("#preset-search").fill("Lightweight");
   await Page.locator('[data-preset="low_gpu_performance"]').click();
   Assert.equal((await Snapshot()).grid, 24);

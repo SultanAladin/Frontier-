@@ -30,13 +30,33 @@ Verify(
       for (const [Key, Value] of Object.entries(Parameters))
         Assert.equal(ValidateParameter(Key, Value), Value, Key);
     }
-    Assert.equal(Object.keys(PRESETS).length, 10);
+    Assert.equal(Object.keys(PRESETS).length, 19);
     Assert.deepEqual(
       Object.keys(PresetPresentation).sort(),
       Object.keys(PRESETS).sort(),
     );
   },
 );
+Verify("Every preset loads, saves and reopens through the scene specification", () => {
+  for (const Key of Object.keys(PRESETS)) {
+    Assert.ok(
+      ["fire", "smoke", "blast"].includes(PresetPresentation[Key][1]),
+      `${Key} needs a library category`,
+    );
+    const Decoded = ValidateScene({
+      format: "frontier-fluid-scene",
+      version: 1,
+      name: PresetPresentation[Key][0],
+      params: ConstructPresetParameters(Key),
+    });
+    Assert.deepEqual(Decoded.Parameters, ConstructPresetParameters(Key), Key);
+    if (PRESETS[Key].triggerOptions)
+      Assert.ok(
+        PRESETS[Key].triggerExplosionOnLoad,
+        `${Key} burst options need triggerExplosionOnLoad`,
+      );
+  }
+});
 Verify("Every simulation setting has an inspector or toolbar control", () => {
   Assert.deepEqual(
     Object.keys(InitialParameters)
