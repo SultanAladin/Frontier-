@@ -49,3 +49,10 @@ EngineContent/GeometryArchives/CreaturesVault/Refined/
 Projects/Project-Drive/Content/Scenes/DriveCourse.gltf
 Projects/Project-Drive/Build/DriveContentHost
 _AgentScratch/
+
+# ── Project-Networking, merged from c7egoist/Frontier arena/9928a45d-frontier ──────────────────────
+# Fetched SDKs and toolchains, build output, and anything carrying a live credential.
+**/Build/Output/
+**/ThirdParty/
+*.local.*
+.env
