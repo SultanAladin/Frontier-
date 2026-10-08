@@ -33,7 +33,7 @@ Precipitation uses the regular particle kind, not the debris kind. Debris pins t
 | Sand grains | Ground, GPU-simulated | Sand kicked up from the floor in short hops (saltation) and carried by the wind. |
 | Ash flakes | VFX, GPU-simulated | Grey ash lifted by a fire's heat, drifting and settling onto the ground. |
 | Small debris | Ground, GPU-simulated | Twigs, bark and wood chips thrown up and clattering off the ground. Small pieces only; stone-sized rubble is out of scope. |
-| Flares | VFX, GPU-simulated | Burning road flares: bright additive red glow that trails sparks and sinks slowly. |
+| Countermeasure flares | Aircraft, GPU-simulated | IR decoy flares dispensed by a jet to break missile lock: white-hot bursts every ~0.9 s from the aircraft origin, falling and burning out behind it. |
 | Pollen & dust motes | Ambient, GPU-simulated | Slow glowing motes drifting on the wind. Light shafts are not modelled. |
 | Fireflies | Swarm (kind 6), GPU-simulated | Glowing points that wander and pulse (pulse frequency and depth are preset parameters). |
 | Insect swarm | Swarm (kind 6), GPU-simulated | Gnat-like flock: separation, alignment and cohesion, plus wander. Brute-force neighbour search, so keep capacity at a few hundred. |

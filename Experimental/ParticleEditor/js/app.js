@@ -295,7 +295,9 @@
           if (sys.burstTimer <= 0) {
             sys.burstTimer = p.burstEvery * (0.7 + 0.6 * Math.random());
             sys.pendingBurst += p.burstCount;
-            sys.overrideOrigin = [-3 + 6 * Math.random(), 3.5 + 2.5 * Math.random(), -3 + 6 * Math.random()];
+            sys.overrideOrigin = p.burstAtOrigin
+              ? null
+              : [-3 + 6 * Math.random(), 3.5 + 2.5 * Math.random(), -3 + 6 * Math.random()];
           }
         }
         if (sys.overrideOrigin) {

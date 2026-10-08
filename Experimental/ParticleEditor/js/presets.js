@@ -49,6 +49,7 @@
       swarmRadius: 1.2,     // swarm neighbour radius (m), kind 6
       burstEvery: 0,        // timed bursts in seconds (fireworks); 0 = off
       burstCount: 120,      // particles per timed burst
+      burstAtOrigin: false, // true: timed bursts fire from the emitter origin, not random sky points
       visible: true,
     };
   };
@@ -273,14 +274,14 @@
       }),
     },
     {
-      id: "flares", name: "Flares", group: "VFX",
-      blurb: "Burning road flares: bright additive red glow that trails sparks and sinks slowly.",
+      id: "flares", name: "Countermeasure flares", group: "Aircraft",
+      blurb: "IR decoy flares dispensed by a jet to break missile lock: a white-hot burst that falls behind the aircraft and burns out.",
       p: P({
-        kind: 5, shape: 3, blend: "add", capacity: 1200, rate: 60,
-        emitShape: 1, radius: 0.05, origin: [4.5, 0.2, -4], dir: [0, 1, 0], spread: 0.3,
-        speedMin: 0.5, speedMax: 1.5, drag: 1.0, buoyancy: 0.2, gravity: 0.3, lifeMin: 1.5, lifeMax: 3.5,
-        sizeStart: 0.25, sizeEnd: 0.08, colA: [1, 0.35, 0.15, 1], colB: [0.9, 0.1, 0.05, 0],
-        windCoupling: 0.6,
+        kind: 5, shape: 3, blend: "add", capacity: 600, rate: 0,
+        emitShape: 1, radius: 0.3, origin: [4.5, 4.5, -4], dir: [-1, -0.25, 0], spread: 0.35,
+        speedMin: 4, speedMax: 7, drag: 1.4, buoyancy: 0, gravity: 1.0, lifeMin: 4, lifeMax: 7,
+        sizeStart: 0.45, sizeEnd: 0.12, colA: [1, 0.98, 0.85, 1], colB: [1, 0.42, 0.1, 0],
+        windCoupling: 0.5, burstEvery: 0.9, burstCount: 14, burstAtOrigin: true,
       }),
     },
     {
