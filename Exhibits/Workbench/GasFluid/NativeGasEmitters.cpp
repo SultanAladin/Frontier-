@@ -20,6 +20,7 @@
 #include "CoarseGasField.h"
 #include "GasEmitterComponent.h"
 #include "GasGameplayEmission.h"
+#include "GasVehicleIntake.h"
 #include "GasPresetLibrary.h"
 #include "GasQualityAllowance.h"
 
@@ -386,6 +387,42 @@ int main()
 
         Check(QualityForFracture(20.0f) == GasQuality::Flipbook,
               "🔴 and the hook had already capped them there before the governor was asked, at no cost at all");
+    }
+
+    //---------------------------------------------------------------------------------------------------------
+    Banner("The seam is real: the shipped wheel telemetry fills the contact report unchanged");
+    {
+        // Frontier::Vehicle::VehicleTelemetry is what the vehicle solver already publishes every step. Nothing
+        //    in it was added for gas, which is the whole claim GasTyreContact makes about itself.
+        Vehicle::VehicleTelemetry Car;
+        Car.WheelCount   = 4u;
+        Car.ForwardSpeed = 18.0f;
+        Car.Wheels[2].ContactPoint = { 2.5f, -0.8f, 0.04f };
+        Car.Wheels[2].VerticalLoad = 3100.0f;
+        Car.Wheels[2].SlipRatio    = 0.62f;
+        Car.Wheels[2].InContact    = true;
+
+        const GasTyreContact Read = ReadTyreContact(Car, 2u);
+        Check(Read.Position[0] == 2.5f && Read.Position[2] == 0.04f,
+              "the contact patch crosses unchanged - both layers put +Z up, so there is no axis to get wrong");
+        Check(Read.NormalLoad == 3100.0f && Read.SlipRatio == 0.62f, "and so do the load and the slip");
+        Check(Read.Carrier == 2u, "the wheel index is the carrier, so four corners are four emitters and not one");
+        Check(Read.Forward[0] > 17.0f && std::fabs(Read.Forward[2]) < 1e-5f,
+              "the cloud is dragged along the hub's own axis at the speed the car is making");
+
+        Check(TyreSmokes(Read) && ConstructWheelEmitter(Car, 2u).Enabled,
+              "a wheel spinning that hard smokes, through the adapter and the hook together");
+
+        Car.Wheels[2].SlipRatio = -0.62f;
+        Check(ReadTyreContact(Car, 2u).SlipRatio == 0.62f,
+              "a wheel locked under braking reports negative slip and lays down exactly the same smoke");
+
+        Car.Wheels[2].InContact = false;
+        Check(ReadTyreContact(Car, 2u).NormalLoad == 0.0f && !ConstructWheelEmitter(Car, 2u).Enabled,
+              "④ a wheel in the air carries no load, so the call site needs no check of its own");
+
+        Check(ReadTyreContact(Car, 7u).NormalLoad == 0.0f,
+              "and asking for a corner the car does not have answers a quiet patch rather than reading past the end");
     }
 
     }

@@ -387,8 +387,11 @@ Two findings from building it rather than planning it:
     `Engine/VolumetricDynamics/GasEmitterComponent.h` is the component and the router;
     `GasGameplayEmission.h` is the two hooks, and neither the tyre solver nor the fracture runtime includes
     either of them. Proof `Exhibits/Workbench/GasFluid/NativeGasEmitters.cpp` at **PASS 60**, built and run
-    twice like the rest of the directory. 🚩 The fracture hook has nothing to call it yet — fracture in this
-    tree is the editor UI only — so `GasFractureSeparation` is the shape of the call rather than a live caller
+    twice like the rest of the directory, now **PASS 68** with the vehicle seam closed. 🚩 The fracture hook
+    has nothing to call it yet — fracture in this tree is the editor UI only — so `GasFractureSeparation` is
+    the shape of the call rather than a live caller. The tyre hook, by contrast, has a live one:
+    `GasVehicleIntake.h` reads `Frontier::Vehicle::VehicleTelemetry` straight into a `GasTyreContact` and is
+    the only file in the engine that includes both the vehicle and the gas
 
 ### 6.0 · What landed for step 10
 
@@ -397,6 +400,7 @@ Two findings from building it rather than planning it:
 | `GasEmitterComponent` | Carrier identity and placement, offset, spread, radius, strength, drag share, and a one-shot request count. A plain aggregate: it is saved, replicated and diffed |
 | `ResolveHostExtent` | The **nearest enclosing** authored domain, ties to the lower index. Nested domains are legal, and "nearest" is what makes a room inside a street win |
 | `ConstructImplicitExtent` | Six radii across, source a fifth of the way up, clamped to 1–24 m. An emitter nobody authored a domain for still runs rather than silently doing nothing |
+| `GasVehicleIntake` | The adapter: one shipped `WheelTelemetry` becomes one `GasTyreContact`, patch and travel and unsigned slip and load. Nothing was added to the vehicle for it, which is the claim the hook makes about itself |
 | `ResolveEmitters` | One deterministic sweep; consumes exactly one request per one-shot per call, so nine pieces in a frame are nine puffs |
 | `ConstructFractureEmitter` | Radius from the **cube root** of the piece volume — eight bricks is twice the puff — strength from the parting speed, capped at Mid and carded past 12 m |
 | `ConstructTyreEmitter` | Strength rises from zero at κ = 0.18 rather than switching on, scaled by load; a **disc** source that spends a fifth of its rise and inherits 35 % of the patch's travel, so the cloud is laid down the road |

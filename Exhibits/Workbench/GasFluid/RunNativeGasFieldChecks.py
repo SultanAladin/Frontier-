@@ -23,7 +23,7 @@ Gallery = Root / 'Exhibits/Gallery/GasField'
 Build.mkdir(parents=True, exist_ok=True)
 Gallery.mkdir(parents=True, exist_ok=True)
 
-Include = ['-IEngine/VolumetricDynamics', '-IEngine/DisplayPresentation', '-IEngine/ContentInterchange']
+Include = ['-IEngine/VolumetricDynamics', '-IEngine/PhysicalDynamics', '-IEngine/DisplayPresentation', '-IEngine/ContentInterchange']
 Flags = ['-std=c++20', '-O1', '-Wall', '-Wextra', '-Wno-unused-parameter']
 Source = 'Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp'
 Raymarch = 'Exhibits/Workbench/GasFluid/NativeGasRaymarch.cpp'
@@ -189,6 +189,7 @@ Tracked = [Root / 'Engine/VolumetricDynamics/GasSceneCodec.h',
            Root / 'Engine/VolumetricDynamics/GasCollisionIntake.h',
            Root / 'Engine/VolumetricDynamics/GasWindContribution.h',
            Root / 'Engine/VolumetricDynamics/GasEmitterComponent.h',
+           Root / 'Engine/VolumetricDynamics/GasVehicleIntake.h',
            Root / 'Engine/VolumetricDynamics/GasGameplayEmission.h',
            Root / Emitters,
            Root / Source,
