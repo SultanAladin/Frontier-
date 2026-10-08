@@ -23,9 +23,10 @@ Gallery = Root / 'Exhibits/Gallery/GasField'
 Build.mkdir(parents=True, exist_ok=True)
 Gallery.mkdir(parents=True, exist_ok=True)
 
-Include = ['-IEngine/VolumetricDynamics', '-IEngine/DisplayPresentation']
+Include = ['-IEngine/VolumetricDynamics', '-IEngine/DisplayPresentation', '-IEngine/ContentInterchange']
 Flags = ['-std=c++20', '-O1', '-Wall', '-Wextra', '-Wno-unused-parameter']
 Source = 'Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp'
+Raymarch = 'Exhibits/Workbench/GasFluid/NativeGasRaymarch.cpp'
 
 # The transcription must be current before anything is compiled against it. A stale header would still
 # build and still resolve presets; the only symptom would be a native plume that no longer matches the
@@ -53,9 +54,27 @@ for Attempt in ('First', 'Second'):
 assert Transcripts[0] == Transcripts[1], 'two runs of the gas field checks disagreed'
 print('Two independent builds produced identical transcripts.')
 
+# The volume integration, and the captures it writes. -O2 because the march is the slow part by a wide
+# margin and the proof is run on every push.
+Gallery.mkdir(parents=True, exist_ok=True)
+Marching = Build / 'GasRaymarch'
+Command = ['g++', '-std=c++20', '-O2', '-Wall', '-Wextra', '-Wno-unused-parameter', *Include,
+           Raymarch, '-o', str(Marching)]
+subprocess.run(Command, cwd=Root, check=True)
+Commands.append(Command)
+
+Rendered = subprocess.run([str(Marching)], cwd=Root, text=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+print(Rendered.stdout, end='')
+assert Rendered.returncode == 0, 'gas raymarch checks failed'
+(Gallery / 'RaymarchProof.txt').write_text(Rendered.stdout)
+
 (Gallery / 'Proof.txt').write_text(Transcripts[0] + 'Two independent builds produced identical transcripts.\n')
 
-Tracked = [Root / 'Experimental/Fluid/src/presets.js',
+Tracked = [Root / 'Engine/DisplayPresentation/VolumeRaymarch.h',
+           Root / 'Engine/Shaders/GasVolumeRaymarch.slang',
+           Root / Raymarch,
+           Root / 'Experimental/Fluid/src/presets.js',
            Root / 'Tools/Build/GenerateGasPresets.py',
            Root / 'Engine/VolumetricDynamics/GasPresetLibrary.h',
            Root / 'Engine/VolumetricDynamics/GasQualityAllowance.h',
@@ -63,7 +82,7 @@ Tracked = [Root / 'Experimental/Fluid/src/presets.js',
            Root / 'Engine/VolumetricDynamics/GasCollisionIntake.h',
            Root / 'Engine/VolumetricDynamics/GasWindContribution.h',
            Root / Source,
-           Path(__file__)]
+           Path(__file__), *sorted(Gallery.glob('*.png'))]
 (Gallery / 'Commands.json').write_text(json.dumps(Commands, indent=2) + '\n')
 (Gallery / 'Hashes.json').write_text(json.dumps(
     {str(Entry.relative_to(Root)): hashlib.sha256(Entry.read_bytes()).hexdigest() for Entry in Tracked},

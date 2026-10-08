@@ -13,6 +13,7 @@
     "-Wno-unused-parameter",
     "-IEngine/VolumetricDynamics",
     "-IEngine/DisplayPresentation",
+    "-IEngine/ContentInterchange",
     "Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp",
     "-o",
     "/home/user/Frontier-/.cache/gasbuild/GasFieldChecksFirst"
@@ -26,8 +27,23 @@
     "-Wno-unused-parameter",
     "-IEngine/VolumetricDynamics",
     "-IEngine/DisplayPresentation",
+    "-IEngine/ContentInterchange",
     "Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp",
     "-o",
     "/home/user/Frontier-/.cache/gasbuild/GasFieldChecksSecond"
+  ],
+  [
+    "g++",
+    "-std=c++20",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Wno-unused-parameter",
+    "-IEngine/VolumetricDynamics",
+    "-IEngine/DisplayPresentation",
+    "-IEngine/ContentInterchange",
+    "Exhibits/Workbench/GasFluid/NativeGasRaymarch.cpp",
+    "-o",
+    "/home/user/Frontier-/.cache/gasbuild/GasRaymarch"
   ]
 ]

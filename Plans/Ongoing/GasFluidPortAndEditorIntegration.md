@@ -330,8 +330,8 @@ preset, this tick" — so neither fracture nor tyre knows anything about gas.
 
 ### Landed
 
-**Steps 1, 2 and 7 are built and proved** — `Engine/VolumetricDynamics/`, header-only, and `Exhibits/Workbench/GasFluid/`
-at **PASS 198**, wired into the `proofs` job of `frontier-build.yml`.
+**Steps 1, 2, 3 and 7 are built and proved** — `Engine/VolumetricDynamics/`, header-only, and `Exhibits/Workbench/GasFluid/`
+at **PASS 198 + 48**, wired into the `proofs` job of `frontier-build.yml`.
 
 | File | What landed |
 |---|---|
@@ -341,6 +341,8 @@ at **PASS 198**, wired into the `proofs` job of `frontier-build.yml`.
 | `GasWindContribution.h` | Two-way, behind `WindField::Sample`, off until `CouplingEnabled` is set |
 | `GasPresetLibrary.h` | **Generated** from `presets.js`: 85 settings, 18 presets, `--check` guards it |
 | `Tools/Build/GenerateGasPresets.py` | The transcription, and the staleness guard in CI |
+| `DisplayPresentation/VolumeRaymarch.h` | The lighting and integration, CPU-authoritative |
+| `Shaders/GasVolumeRaymarch.slang` | Its transcription; entry 2 of 36 in both shader tables |
 
 Header-only throughout, so no source list changes: `WindField.h` is in none of them either, and the three
 build routes enumerate `.cpp` files explicitly. The first target to consume these is step 3.
@@ -363,7 +365,8 @@ Two findings from building it rather than planning it:
    GPU, no window, fully provable, and it is what physics and multiplayer depend on
 2. ~~Solver stages and the generated presets~~ — the presets and settings landed; the MacCormack
    and combustion stages join when the displayed volume needs them in step 3
-3. Volume raymarch, its shader added to the CI shader table — it becomes visible
+3. ~~Volume raymarch~~ — landed. `VolumeRaymarch.h` is authoritative and the `.slang` is its
+   transcription, so a disagreement is a diff rather than a mystery. Captures in `Exhibits/Gallery/GasField`
 4. Standalone host + scene round-trip against the browser — parity pinned
 5. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm
 6. Collision levels 1 and 2 — primitives, then the global distance field
@@ -374,7 +377,7 @@ Two findings from building it rather than planning it:
 9. Fluid Editor page — fluids become editable
 10. Emitter component, then the fracture and tyre hooks — fluids become part of the game
 
-Steps 3 and 5 are the remaining real work. Step 1 moved to the front because the coarse field is load bearing
+Step 5 is the remaining real work. Step 1 moved to the front because the coarse field is load bearing
 for physics and multiplayer rather than a contingency, and carrying step 7 with it cost almost nothing.
 
 ## 7 · Still open

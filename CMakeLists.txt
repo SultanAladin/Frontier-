@@ -104,6 +104,7 @@ set(SHADER_INCLUDES "${SHADER_ROOT}/ViewportIntegrator.slang" "${SHADER_ROOT}/Ra
                     "${SHADER_ROOT}/OutlineRecords.slang" "${SHADER_ROOT}/GizmoRecords.slang")
 set(SHADER_TABLE
     "FluidExtract.slang|compute|FluidExtract.spv"
+    "GasVolumeRaymarch.slang|compute|GasVolumeRaymarch.spv"
     "../../Projects/Project-Fluid/Shaders/ParticleClear.slang|compute|FluidParticleClear.spv"
     "../../Projects/Project-Fluid/Shaders/ParticleSplat.slang|compute|FluidParticleSplat.spv"
     "../../Projects/Project-Fluid/Shaders/SurfaceResolve.slang|compute|FluidSurfaceResolve.spv"

@@ -376,6 +376,7 @@ function Resolve-ShaderCompiler([string] $VulkanRoot)
 # kernel's own includes; the include list below re-lowers all of them when any shared header changes.
 $ShaderTable = @(
     @{ Source = 'FluidExtract.slang'; Stage = 'compute'; Output = 'FluidExtract.spv' }
+    @{ Source = 'GasVolumeRaymarch.slang'; Stage = 'compute'; Output = 'GasVolumeRaymarch.spv' }
     @{ Source = '../../Projects/Project-Fluid/Shaders/ParticleClear.slang'; Stage = 'compute'; Output = 'FluidParticleClear.spv' }
     @{ Source = '../../Projects/Project-Fluid/Shaders/ParticleSplat.slang'; Stage = 'compute'; Output = 'FluidParticleSplat.spv' }
     @{ Source = '../../Projects/Project-Fluid/Shaders/SurfaceResolve.slang'; Stage = 'compute'; Output = 'FluidSurfaceResolve.spv' }
