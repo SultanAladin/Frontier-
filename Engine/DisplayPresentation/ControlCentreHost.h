@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 Frontier/DisplayPresentation/ControlCentreHost.h — Top Notch Control Centre: Drawer Locomotion, Notch Travel and Overlay Recording
 //============================================================================================================================================
-// 🧩 The pull-down shade behind a notch that hangs from the top edge of the display.
+// 📦 The pull-down shade behind a notch that hangs from the top edge of the display.
 //
 //    Geometry  (from the Notch reference, ArcNotch.tsx):
 //      • notch handle 400 × 36 px, SVG outline
@@ -52,6 +52,7 @@
 #include "DialogueHost.h"
 #include "PixelSpace.h"
 #include "FidelityClassifier.h"
+#include "DenoiseGuide.h"
 #include "VectorCodec.h"
 #include "../DeviceExchange/InputExchange.h"
 
@@ -103,7 +104,8 @@ enum class QuickTileCategory : uint32_t
     Notifications      = 4,
     Quality            = 5,
     PatchGeometry      = 6,
-    Count              = 7
+    Raytracing         = 7,   // master: ReSTIR raytraced path on/off. Off -> surfel GI (GI on) / plain visibility raster (GI off)
+    Count              = 8
 };
 
 // One entry of the 4 × 2 quick-settings grid. Slots ≥ Count are empty and draw nothing.
@@ -115,10 +117,20 @@ struct QuickTileStructure
     bool                      Cycles;     // [-]    true: each tap advances an enum; false: toggle
 };
 
+// Reflection technique. No screen-space reflections by design — a reflection is either ray-traced against the scene, or
+//    the sky dome sampled along the reflection vector (cheap gloss, no rays), or off. Cycled by the Reflections tile;
+//    the host degrades Raytraced -> Sky whenever the raytracing budget is not actually running (see GameExecution matrix).
+enum class ReflectionModeCategory : uint32_t { Off = 0, Sky = 1, Raytraced = 2, Count = 3 };
+[[nodiscard]] constexpr ReflectionModeCategory NextReflectionMode(ReflectionModeCategory M) noexcept
+{
+    return static_cast<ReflectionModeCategory>((static_cast<uint32_t>(M) + 1u) % static_cast<uint32_t>(ReflectionModeCategory::Count));
+}
+
 // Everything the dashboard controls, read by the project each frame and pushed into the renderer.
 struct ControlCentreSettings
 {
     bool             GlobalIllumination = true;
+    bool             Raytracing         = true;   // ReSTIR raytraced path. Off -> surfel GI (GI on) / plain visibility raster (GI off)
     bool             AntiAliasing       = true;
     bool             FrameRateOverlay   = false;
     bool             Notifications      = true;
@@ -127,13 +139,19 @@ struct ControlCentreSettings
     // Shadow map side, chosen on the Render page. Auto follows the Quality tier (256 … 2048); any other entry
     //    pins the map at that side and outranks the tier. The filter itself is always the tier's.
     ShadowResolutionCategory ShadowResolution = ShadowResolutionCategory::FollowQualityTier;
-    uint32_t         ReflectionBounces  = 3u;       // [-] 0 = Off, 1, 2, 3, 4
+    uint32_t         ReflectionBounces  = 3u;       // [-] raytraced reflection depth used when ReflectionMode == Raytraced
+    ReflectionModeCategory ReflectionMode = ReflectionModeCategory::Raytraced;  // [-] Off / Sky / Raytraced (the Reflections tile)
     uint32_t         GiBounces          = 2u;       // [-] 0 = Off, 1, 2, 3, 4
     bool             SkyAmbient         = true;     // [-] Physical sky ambient illumination
     bool             SkyReservoir       = true;     // [-] #27B: sky-light reuse — the dome rides the DI reservoir
                                                     //     (less shimmer on glass/gloss facing sky). Render page row,
                                                     //     deliberately NOT a quick tile.
     uint32_t         PatchDebug = 0u; // 0 Off / 1 Patch Tiles / 2 Tiles + Wireframe (session-local)
+    // The denoiser detail-guide (Render page row). Standard = the shipped à-trous; the other entries fade the
+    //    filtered result back toward the raw sample where a deterministic guide marks genuine shading detail, so
+    //    flakes / reflections / luminaires / rims / edges survive the filter. Smart combines them and is the
+    //    default — it is the setting that keeps flakes visible at Standard quality (FlakeVerification/Denoise).
+    DenoiseGuideCategory DenoiseGuide  = DenoiseGuideCategory::Smart;
     uint32_t         Revision           = 0u;       // [-] bumps on every change; projects compare to react
 };
 

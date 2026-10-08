@@ -70,6 +70,21 @@ enum class EditorNarrowing : uint32_t
     Count
 };
 
+// A tool's own symbol for a row. None keeps the stock glyph; anything else replaces it with a mark drawn in the
+//    row's tint, a folder shell around it for folder rows. SolidArc seats these so its folders are CAD folders
+//    in its own colour rather than the game outliner's generic folder.
+enum class EditorSymbol : uint32_t
+{
+    None = 0u,
+    Line,
+    Profile,
+    Body,
+    Surface,
+    Construction,
+    Dimension,
+    Constraint
+};
+
 // One row of the roster. The feed walks in preorder: a folder's rows follow it, deepened by Depth, so the
 //    panel renders the hierarchy without any links of its own.
 struct EditorInstance
@@ -99,6 +114,7 @@ struct EditorInstance
     bool             Pinned    = false;                     // true: no drag, no eye — the page's World / Lights
     bool             Component = false;                    // owned leaf: cannot be reparented independently
     bool             Shut      = false;                     // row-owned collapse pose (false reads open)
+    EditorSymbol   Symbol  = EditorSymbol::None;      // tool-drawn symbol in Tint; None keeps Glyph/Artwork
 };
 
 // The foot strips: one height across the outliner, the inspector and the viewport, so the three hems
@@ -130,6 +146,7 @@ inline EditorFpsBand EditorFpsBandFor(float Fps) noexcept
 // The outliner's footer strip: five figures the tick refreshes — the page's Realtime / Quality / Sun / Moons / Cam.
 struct EditorReadout
 {
+    bool* DiagnosticsOpen = nullptr;
     float    Fps            = 60.0f;
     char     Quality[16]    = "Standard";
     char     Pixels[16]     = {};                           // "1280×720"
@@ -202,7 +219,7 @@ struct EditorPropertyGroup
     uint32_t        PropertyCount = 0u;
 };
 
-enum class EditorSheetAppearance : uint8_t { Generic, Sun, LensFlare, AtmosphereSky, Moon, Stars, GlobalCloud, LocalCloud, HeightFog, AerialFog, LocalFog, Wind, Precipitation, Rainbow, Camera };
+enum class EditorSheetAppearance : uint8_t { Generic, Sun, LensFlare, AtmosphereSky, Moon, Stars, GlobalCloud, LocalCloud, HeightFog, AerialFog, LocalFog, Wind, Precipitation, Rainbow, Camera, Light, PostProcess, Tyre, TyreTread, TyreLattice, SolidArc };
 
 // Borrowed immutable image data; project retains ownership through the editor frame.
 struct EditorSkyImage {
@@ -219,9 +236,37 @@ struct StarRecord;
 struct EditorStarPreview { const StarRecord* Records=nullptr; uint32_t Count=0; float Seconds=0; };
 struct EditorFogPreview {float Rayleigh[3]={5.8e-6f,13.5e-6f,33.1e-6f};float Mie=21e-6f,RayleighHeight=8000,MieHeight=1200;};
 struct EditorWeatherPreview { float Wind[8]={}; uint32_t Alive=0; float SnowDepth=0, RainVisibility=0; bool AboveWeather=false; };
+// SolidArc's hero card: the subject pill, the subtitle, one big measure with its unit and caption, and up to three stat tiles.
+//    The adapter writes it; the SolidArc inspector paints it. A sheet whose Hero.Active is false draws no hero.
+struct EditorSheetHero
+{
+    bool     Active       = false;
+    bool     Renameable   = true;               // the name field is live only for a figure
+    char     Subject[16]  = {};                 // "BODY" — the head pill's word
+    uint32_t Identity     = 0u;                 // the head pill's "#8"; 0 prints no number
+    char     Subtitle[40] = {};
+    char     Measure[24]  = {};                 // "7.680"; empty hides the numeral
+    char     Unit[8]      = {};                 // "m³"
+    char     Caption[24]  = {};                 // "volume"
+    char     StatLabel[3][16] = {};
+    char     StatText[3][24]  = {};
+    uint32_t StatCount    = 0u;
+};
+
+// The four presence cells: seated or lifted, offered or not. The inspector flips Presence; the adapter writes it back.
+enum class EditorSheetPresence : uint32_t { Visible = 0u, Locked, Construction, Dimensions, Count };
+
+// One-shot verbs the inspector's action tiles raise; the adapter runs and clears them.
+enum class EditorSheetAction : uint8_t { None = 0u, Duplicate, Isolate, Delete };
+
 struct EditorSheet
 {
     uint64_t InspectorKey=0;
+    EditorSheetHero Hero{};
+    bool PresenceOffered[4] = {};
+    bool Presence[4]        = {};
+    bool ActionsOffered     = false;
+    EditorSheetAction Action = EditorSheetAction::None;
     EditorWeatherPreview WeatherPreview{};
     bool CameraLive=false;float CameraAspect=1.5f;
     EditorSkyImage SkyImage{};

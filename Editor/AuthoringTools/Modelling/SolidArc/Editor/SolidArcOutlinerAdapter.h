@@ -22,6 +22,7 @@ constexpr uint32_t Bodies       = 1u << 2u;
 constexpr uint32_t Surfaces     = 1u << 3u;
 constexpr uint32_t Construction = 1u << 4u;
 constexpr uint32_t Dimensions   = 1u << 5u;
+constexpr uint32_t Constraints  = 1u << 6u;
 constexpr uint32_t Unfiltered   = 1u << 31u;
 }
 

@@ -31,7 +31,7 @@ trap 'rm -rf "$Stage"' EXIT
 g++ -std=c++20 -O1 -g -I. -I"$VULKAN_ROOT/include" \
     -o "$Stage/PerformanceTelemetryGate" \
     Tools/Build/Gates/PerformanceTelemetryGate.cpp \
-    Projects/Project-Zero/Source/PerformanceTelemetrySequence.cpp \
+    Engine/Host/PerformanceTelemetrySequence.cpp \
     Engine/DeviceExchange/DiagnosticMetrics.cpp
 
 # Run in the staging directory so the probe report is written and removed there, not in the tree.

@@ -53,40 +53,28 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <chrono>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
-namespace {
+// The engine's single material model, shared with VisibilityRaster and SurfelReference.
+#include "ContentInterchange/UnifiedMaterialEvaluation.h"
+namespace { const Frontier::ShadingTableSet* g_Tables = nullptr; }
 
-const Frontier::ShadingTableSet* g_Tables = nullptr;
-
-} // namespace
-
-inline vec3 FetchEnergy(float mu, float alpha)
+// FetchEnergy / FetchSheen / FetchSheenFull and the MaterialEvaluation.slang include now come from
+// ContentInterchange/UnifiedMaterialEvaluation.h, included above, so every CPU render path gets them
+// from one place. The definitions below were the original; they are forwarded, not re-implemented.
+inline vec3 FetchEnergyUnused(float mu, float alpha)
 {
-    float Out[3] = { 0.0f, 0.0f, 0.0f };
-    Frontier::ShadingTableCodec::SampleEnergy(*g_Tables, mu, alpha, Out);
-    return vec3(Out[0], Out[1], Out[2]);
+    return FetchEnergy(mu, alpha);
 }
 
-inline vec3 FetchSheen(float mu, float alpha)
-{
-    float Out[3] = { 0.0f, 0.0f, 0.0f };
-    Frontier::ShadingTableCodec::SampleSheen(*g_Tables, mu, alpha, Out);
-    return vec3(Out[0], Out[1], Out[2]);
-}
+inline vec3 FetchSheenUnused(float mu, float alpha) { return FetchSheen(mu, alpha); }
 
-inline vec4 FetchSheenFull(float mu, float alpha)
-{
-    float Out[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    Frontier::ShadingTableCodec::SampleSheenFull(*g_Tables, mu, alpha, Out);
-    return vec4(Out[0], Out[1], Out[2], Out[3]);
-}
-
-#define FRONTIER_AUTOMOTIVE_SHOWCASE 1
-#include "MaterialEvaluation.slang"   // the shipped OpenPBR lobe set, compiled 1:1 as C++ (see the file's own header)
+inline vec4 FetchSheenFullUnused(float mu, float alpha) { return FetchSheenFull(mu, alpha); }
+#include "AutomotiveFlakePaint.slang"  // System B: finite hash-placed flakes + footprint LOD (A/B against the System A glint hook)
 
 // ── The spatial interface's figure evaluation, compiled 1:1 as C++ (the R4b discipline, same as the lobe set) ──────
 // InterfaceSignedDistance.slang needs three GLSL builtins the material shim never met (GLSL's two-argument atan is
@@ -114,6 +102,7 @@ inline double abs(double x)         { return x < 0.0 ? -x : x; }   // un-suffixe
 #include "../../../Engine/SpatialInterface/InterfaceLayoutCodec.h"
 #include "../../../Engine/SpatialInterface/InterfaceLightProjection.h"
 #include "../../../Engine/GeometricRaster/SceneStructure.h"
+#include "../../Project-Drive/Source/DriveSceneAuthor.h"
 
 namespace {
 
@@ -186,6 +175,57 @@ std::vector<bool>              g_MatCutAway;   // [-] the material's constant op
 std::vector<float>             g_MatGlintDensity;
 std::vector<float>             g_MatGlintUvScale;
 bool g_MatGlintsOff = false;   // [-] DIAGNOSTIC (--no-glints): the pre-M6 surface, the A/B arm for the glint sheets
+bool g_FlakesSystemB = false;  // [-] --flakes-systemb: drive the flake normal from System B (AutomotiveFlakePaint.slang,
+                               //     finite hash-placed + footprint-LOD) instead of System A's sine-band signal.
+
+// System B flake normal for the ReSTIR path. Uses AutomotivePrepareFlakes (finite cells + ray-cone footprint LOD)
+//    to place a discrete metallic flake at this hit, then perturbs the shading normal by that flake's microfacet
+//    slope. Sub-footprint flakes (s.Unresolved -> 1) contribute NO perturbation, so distant flakes converge to a
+//    smooth surface instead of aliasing — the whole reason System B exists. This is the same "perturb the normal,
+//    then run OpenPBR" architecture the engine already uses for flakes, only the flake FIELD is System B's.
+static vec3 SystemBFlakeNormal(const vec3& normal, const vec3& worldPos, float footprintMetres,
+                               float density, float uvScale)
+{
+    AutomotivePaintParameters p = AutomotivePaintDefaults();
+    p.Density = density < 0.0f ? 0.0f : (density > 16.0f ? 16.0f : density);   // glint density 1..8 -> flakes/cell
+    // Bigger uv_scale -> higher frequency -> smaller flakes. Map the library's ~12..36 (already x3) to ~2.0..0.8 mm,
+    //    the coarse end the model allows (DiameterMm is clamped to 2 mm inside AutomotivePrepareFlakes) so the flakes
+    //    are large enough to resolve against a close-up pixel footprint instead of dissolving to a uniform sheen.
+    float diam = 30.0f / (uvScale < 0.001f ? 0.001f : uvScale);
+    p.DiameterMm = diam < 0.4f ? 0.4f : (diam > 2.0f ? 2.0f : diam);
+    // Object-locked UV from world position (metres) — stable frame-to-frame, unlike raw screen noise.
+    vec2 uv(worldPos.x + worldPos.z * 0.37f, worldPos.y + worldPos.z * 0.11f);
+    float fp = footprintMetres < 1e-5f ? 1e-5f : footprintMetres;
+    vec2 dx(fp, 0.0f), dy(0.0f, fp);
+    AutomotiveFlakeSurface s = AutomotivePrepareFlakes(p, uv, dx, dy);
+    float w = s.Weight * (1.0f - s.Unresolved);       // resolved coverage only
+    if (!(w > 0.0f)) return normal;
+    // Inline orthonormal tangent frame (this helper precedes ShadingFrame's definition).
+    vec3 up = std::abs(normal.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f);
+    vec3 t = normalize(cross(up, normal));
+    vec3 b = cross(normal, t);
+    // A flake facet with tangent-space slope (sx,sy) has normal ~ (-sx,-sy,1); blend in by coverage.
+    vec3 pert = normalize(normal - (t * (s.Slope.x * w) + b * (s.Slope.y * w)));
+    return pert;
+}
+
+// The resolved System-B flake coverage at a hit (0 = no flake, 1 = a flake fully covers this footprint). This is the
+//    deterministic guide the denoiser prototypes use to KEEP flakes: it is the same finite hash-placed field the
+//    normal perturbation reads, so a pixel it marks is a pixel that genuinely carries a flake, not Monte-Carlo noise.
+static float SystemBFlakeWeight(const vec3& worldPos, float footprintMetres, float density, float uvScale)
+{
+    if (!(density > 0.0f)) return 0.0f;
+    AutomotivePaintParameters p = AutomotivePaintDefaults();
+    p.Density = density > 16.0f ? 16.0f : density;
+    float diam = 30.0f / (uvScale < 0.001f ? 0.001f : uvScale);
+    p.DiameterMm = diam < 0.4f ? 0.4f : (diam > 2.0f ? 2.0f : diam);
+    vec2 uv(worldPos.x + worldPos.z * 0.37f, worldPos.y + worldPos.z * 0.11f);
+    float fp = footprintMetres < 1e-5f ? 1e-5f : footprintMetres;
+    vec2 dx(fp, 0.0f), dy(0.0f, fp);
+    AutomotiveFlakeSurface s = AutomotivePrepareFlakes(p, uv, dx, dy);
+    float w = s.Weight * (1.0f - s.Unresolved);
+    return w < 0.0f ? 0.0f : (w > 1.0f ? 1.0f : w);
+}
 
 Frontier::ProjectZero::SkyFogIntegrator g_Sky;
 vec3  g_SunDirRender(0.0f, 0.0f, 1.0f);   // [-] unit vector toward the sun, render frame (Y-up)
@@ -253,59 +293,14 @@ struct Rng
         return static_cast<float>(W) * (1.0f / 4294967296.0f);
     }
 };
-
 //------------------------------------------------------------------------------------------------------------------------
 //                                     DESCRIPTOR RECORDS → SHADING RECORD
 //------------------------------------------------------------------------------------------------------------------------
-// A transcription of ReSTIRViewport.slang's `ResolveMaterial` for the constants-only case (no textures bound). Every
-//    line below corresponds to a line of that function; the channel fetches all resolve to their documented default
-//    (`SampleChannel*` with no slot returns vec4(1.0) / vec4(1.0, 0.5, 1.0, 1.0) for anisotropy), which is why the folds
-//    collapse to plain multiplies. Keeping the shape of the kernel's code — rather than writing "the obvious fold" —
-//    is what makes this the engine's material model instead of a lookalike.
+// 📝 This host used to carry its own `TranscribeShadingRecord`. It was the third hand-written copy of the same
+//    MaterialSlabRecord → ShadingRecord mapping, so it was lifted into
+//    `Frontier::UnifiedMaterial::MakeShadingRecord` (ContentInterchange/UnifiedMaterialEvaluation.h) and the
+//    copy here deleted. There is now ONE transcription and every CPU path calls it.
 
-ShadingRecord TranscribeShadingRecord(const MaterialSlabRecord& S, uint32_t Selection)
-{
-    ShadingRecord m;
-    m.AutomotiveData=vec4(S.Reserved0,S.Reserved1,0.0f,0.0f);m.AutomotiveDensity=S.SlateGlintDensity;
-    m.BaseColor          = vec3(S.BaseWeight * S.BaseColorR, S.BaseWeight * S.BaseColorG, S.BaseWeight * S.BaseColorB);
-    m.Metalness          = S.BaseMetalness;
-    m.DiffuseRoughness   = S.BaseDiffuseRoughness;
-    m.SpecularWeight     = S.SpecularWeight;
-    m.SpecularColor      = vec3(S.SpecularColorR, S.SpecularColorG, S.SpecularColorB);
-    m.SpecularRoughness  = S.SpecularRoughness;
-    m.SpecularAnisotropy = S.SpecularRoughnessAnisotropy;                 // × anisoTex.z (=1 unbound)
-    m.AnisotropyAngle    = S.AnisotropyRotation;                          // atan(1,0)=0 + Slate2.x
-    m.SpecularIor        = S.SpecularIor;
-    m.ThinFilmWeight     = S.ThinFilmWeight;
-    m.ThinFilmThickness  = S.ThinFilmThickness;
-    m.ThinFilmIor        = S.ThinFilmIor;
-    m.HazinessWeight     = S.SlateHazinessWeight;
-    m.HazinessRoughness  = S.SlateHazinessRoughness;
-    m.CoatWeight         = S.CoatWeight;
-    m.CoatColor          = vec3(S.CoatColorR, S.CoatColorG, S.CoatColorB);
-    m.CoatRoughness      = S.CoatRoughness;
-    m.CoatAnisotropy     = S.CoatRoughnessAnisotropy;
-    m.CoatIor            = S.CoatIor;
-    m.CoatDarkening      = S.CoatDarkening;
-    m.CoatTangent        = vec3(1.0f, 0.0f, 0.0f);                        // identity (no coat normal texture bound)
-    m.CoatNormal         = vec3(0.0f, 0.0f, 1.0f);
-    m.FuzzWeight         = S.FuzzWeight;
-    m.FuzzColor          = vec3(S.FuzzColorR, S.FuzzColorG, S.FuzzColorB);
-    m.FuzzRoughness      = S.FuzzRoughness;
-    m.Emission           = vec3(S.EmissionLuminance * S.EmissionColorR, S.EmissionLuminance * S.EmissionColorG,
-                                S.EmissionLuminance * S.EmissionColorB);
-    m.TransmissionWeight = S.TransmissionWeight;
-    m.TransmissionColor  = vec3(S.TransmissionColorR, S.TransmissionColorG, S.TransmissionColorB);
-    m.TransmissionDepth  = S.TransmissionDepth;
-    m.TransmissionThickness = 0.0f;                                       // tracer-side: the true chord, or the no-exit fallback
-    m.Selection          = Selection;
-    m.SssWeight          = S.SubsurfaceWeight;
-    m.SssColor           = vec3(S.SubsurfaceColorR, S.SubsurfaceColorG, S.SubsurfaceColorB);
-    m.SssRadius          = S.SubsurfaceRadius;
-    m.SssRadiusScale     = vec3(S.SubsurfaceRadiusScaleR, S.SubsurfaceRadiusScaleG, S.SubsurfaceRadiusScaleB);
-    m.SssThickness       = 0.0f;                                          // filled per hit by SssChord
-    return m;
-}
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                     CAMERA
@@ -336,15 +331,53 @@ Viewpoint ViewpointFor(const std::string& Name)
 // The showcase level's framings. The default here is GameExecution.cpp's "Showcase" branch VERBATIM — the position,
 //    pitch, yaw and FoV the application itself opens with when it is launched with no --scene at all. That is the
 //    whole point of this harness: the sheet must be the shot the product gives you, not a flattering angle.
+// Project-Drive framings.  The car rests at the origin with +X forward and +Z up.
+//
+// Yaw here is the host's own convention: CLOCKWISE FROM NORTH (+Y), so yaw 90 looks along +X.  That makes
+// the yaw needed to look from an eye at the car atan2(dx, dy) -- NOT atan2(dy, dx).  Getting that backwards
+// aims every camera away from the subject and renders an empty checkerboard, which is exactly what the
+// first attempt produced.  The values below are computed from the eye/target pairs, not guessed.
+Viewpoint DriveViewpointFor(const std::string& Name)
+{
+    if (Name == "front-quarter") return { Frontier::Vector3{  6.60f, -5.60f, 2.30f }, -10.5f, -49.7f, 46.0f };
+    if (Name == "side")          return { Frontier::Vector3{  0.20f, -8.20f, 1.55f },  -5.9f,  -1.4f, 42.0f };
+    if (Name == "wheel")         return { Frontier::Vector3{  2.90f, -2.60f, 0.85f },  -6.0f, -17.8f, 40.0f };
+    // "orbit@<degrees>" -- a turntable framing derived from an azimuth, so a whole GIF can be driven
+    // from the command line without a named view per frame.  Azimuth 0 is the rear three-quarter
+    // default below, and the orbit keeps that radius/height so the sequence opens on the same shot.
+    if (Name.rfind("orbit@", 0) == 0)
+    {
+        const float Deg = std::strtof(Name.c_str() + 6, nullptr);
+        const float Rad = Deg * 3.14159265f / 180.0f;
+        const float Ring = 8.37f, Height = 2.20f;                 // matches the default eye
+        const float Ex = Ring * std::sin(Rad) + (-6.40f) * std::cos(Rad) * 0.0f;
+        const float Cx = -6.40f, Cy = -5.40f;                     // default eye, rotated about the car
+        const float Px = Cx * std::cos(Rad) - Cy * std::sin(Rad);
+        const float Py = Cx * std::sin(Rad) + Cy * std::cos(Rad);
+        (void)Ex;
+        const float Ax = 0.0f, Ay = 0.0f, Az = 0.70f;             // aim at the car
+        const float Dx = Ax - Px, Dy = Ay - Py, Dz = Az - Height;
+        const float Yaw   = std::atan2(Dx, Dy) * 180.0f / 3.14159265f;
+        const float Pitch = std::atan2(Dz, std::sqrt(Dx * Dx + Dy * Dy)) * 180.0f / 3.14159265f;
+        return { Frontier::Vector3{ Px, Py, Height }, Pitch, Yaw, 46.0f };
+    }
+    // Default: the rear three-quarter the material sheets use.
+    return { Frontier::Vector3{ -6.40f, -5.40f, 2.20f }, -10.2f, 49.8f, 46.0f };
+}
+
 Viewpoint ShowcaseViewpointFor(const std::string& Name)
 {
     // R6 review cameras use the actual 400-sphere scene, not a separate studio.
     if (Name == "grid400") return { Frontier::Vector3{0.0f,-9.0f,42.0f},-62.0f,0.0f,44.0f };
+    // r7: all five automotive families live on ROW 15, four contiguous columns each (4f .. 4f+3), sweeping the
+    //    family's parameter 0 → 1 inside the block. Before r7 each family owned a whole row (15 + f) and these
+    //    cameras stood at the end of it looking along +X. Now they look BROADSIDE at one four-ball block.
     const char* PaintViews[5]={"paint-candy","paint-glitter","paint-iridescent","paint-cobalt","paint-copper"};
     for(int family=0;family<5;++family){
-        const float rowY=-1.8f+1.5f*static_cast<float>(15+family);
-        if(Name==PaintViews[family])return {Frontier::Vector3{-16.2f,rowY,1.25f},-18.5f,90.0f,42.0f};
-        if(Name==std::string(PaintViews[family])+"-macro")return {Frontier::Vector3{-14.99f,rowY,.60f},0.0f,90.0f,40.0f};
+        const float rowY=-1.8f+1.5f*15.0f;
+        const float blockX=-14.25f+1.5f*(4.0f*static_cast<float>(family)+1.5f);
+        if(Name==PaintViews[family])return {Frontier::Vector3{blockX,rowY-4.6f,1.55f},-11.0f,0.0f,46.0f};
+        if(Name==std::string(PaintViews[family])+"-macro")return {Frontier::Vector3{blockX-2.25f,rowY-1.55f,.60f},0.0f,0.0f,40.0f};
     }
 
     if (Name == "grid")   return { Frontier::Vector3{  0.0f, -9.50f, 4.20f }, -10.0f,  0.0f, 55.0f };  // closer on the grid's front rows
@@ -353,6 +386,7 @@ Viewpoint ShowcaseViewpointFor(const std::string& Name)
     if (Name == "wide")   return { Frontier::Vector3{  0.0f, -22.0f, 11.0f }, -18.0f,  0.0f, 62.0f };  // 15×15 grid + scattered ring
     if (Name == "panel")  return { Frontier::Vector3{ 2.35f, -5.60f, 1.35f },  -4.0f,  8.0f, 42.0f };  // the interface panel, close
     if (Name == "glints") return { Frontier::Vector3{ -1.0f, 12.70f, 1.60f },  -7.0f,  0.0f, 50.0f };  // M6: row 12 (Y +16.2), density 1 → 8 x uv_scale 4 → 12
+    if (Name == "flake1") return { Frontier::Vector3{ -9.75f, 15.20f, 1.75f }, -40.0f,  0.0f, 34.0f };  // close-up: row 12 col 3 flake sphere (fireflies-vs-flakes)
     return { Frontier::Vector3{ 0.0f, -15.0f, 8.00f }, -21.0f, 0.0f, 55.0f };                          // the product's entry shot (r4)
 }
 
@@ -1745,8 +1779,11 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R, int Bounces, bool SkipPrimaryDirect = fals
         if (!g_MatGlintsOff && g_MatGlintDensity[T.Material] > 0.0f && Mat.AutomotiveData.x == 0.0f)
         {
             const float GlintCoverage = 1.0f - expf(-g_MatGlintDensity[T.Material] * 0.25f);
-            const vec3 Gn = AutomotiveApplyTriCoatFlakeNormal(Ns, O + D * H.T, GlintCoverage,
-                                                              g_MatGlintUvScale[T.Material] * 3.0f, 0.37f);
+            const vec3 Gn = g_FlakesSystemB
+                ? SystemBFlakeNormal(Ns, O + D * H.T, H.T * g_AutomotiveRaySpread,
+                                     g_MatGlintDensity[T.Material], g_MatGlintUvScale[T.Material] * 3.0f)
+                : AutomotiveApplyTriCoatFlakeNormal(Ns, O + D * H.T, GlintCoverage,
+                                                    g_MatGlintUvScale[T.Material] * 3.0f, 0.37f);
             if (dot(Gn, Ng) > 0.0f) Ns = Gn;
         }
         vec3 Tt, Bt;
@@ -1859,7 +1896,7 @@ float TotalLightPower()
 //    way any authored emitter is. ObjectId is the span ordinal the proxy's triangles report as their instance.
 bool BuildInterfacePanel(uint16_t ObjectId)
 {
-    using Frontier::ProjectZero::InterfaceTrialSequence;
+    using Frontier::HostRuntime::InterfaceTrialSequence;
 
     // ── The panel, composed by the engine's own pipeline ────────────────────────────────────────────────────────
     // Placement is the berth ShowcaseStructure authors: upright (local +Y onto world +Z), face along −Y toward the
@@ -1949,7 +1986,7 @@ bool BuildInterfacePanel(uint16_t ObjectId)
     {
         const uint32_t Selection = (R.Flags & Frontier::kMaterialReflectanceMask) >> Frontier::kMaterialReflectanceShift;
         const MaterialSlabRecord& S = Slabs[std::min(static_cast<size_t>(R.SlabOffset), Slabs.size() - 1u)];
-        g_Mat.push_back(TranscribeShadingRecord(S, Selection));
+        g_Mat.push_back(Frontier::UnifiedMaterial::MakeShadingRecord(S, Selection));
         g_MatFlags.push_back(R.Flags);
         g_MatCutoff.push_back(R.AlphaCutoff);
         g_MatCutAway.push_back(false);
@@ -1991,12 +2028,18 @@ bool BuildLevel()
     //    M10 set this harness shipped with. Everything below this point is level-agnostic.
     MaterialSwatchStructure Library;
     ShowcaseStructure       Showcase;
+    // Project-Drive: the same authored soup the visibility-raster mirror draws, so the three render
+    // modes differ ONLY in the light transport, never in the geometry or the materials.
+    Frontier::Drive::DriveSceneAuthor Drive;
+    const bool IsDrive    = (g_Level == "drive");
     const bool IsShowcase = (g_Level == "showcase");
-    if (IsShowcase) Showcase.Construct(); else Library.Construct();
+    if (IsDrive)         Drive.Construct(/*StaticPose=*/true);
+    else if (IsShowcase) Showcase.Construct();
+    else                 Library.Construct();
 
-    const std::vector<Frontier::TriangleIndex>&      Tris     = IsShowcase ? Showcase.QueryTriangles()     : Library.QueryTriangles();
-    const std::vector<Frontier::Vector3>&            Corners  = IsShowcase ? Showcase.QueryCornerNormals() : Library.QueryCornerNormals();
-    const std::vector<Frontier::MaterialDescriptor>& Authored = IsShowcase ? Showcase.QueryMaterials()     : Library.QueryMaterials();
+    const std::vector<Frontier::TriangleIndex>&      Tris     = IsDrive ? Drive.QueryTriangles()     : IsShowcase ? Showcase.QueryTriangles()     : Library.QueryTriangles();
+    const std::vector<Frontier::Vector3>&            Corners  = IsDrive ? Drive.QueryCornerNormals() : IsShowcase ? Showcase.QueryCornerNormals() : Library.QueryCornerNormals();
+    const std::vector<Frontier::MaterialDescriptor>& Authored = IsDrive ? Drive.QueryMaterials()     : IsShowcase ? Showcase.QueryMaterials()     : Library.QueryMaterials();
     if (Tris.empty() || Corners.size() != Tris.size() * 3u)
     {
         std::printf("[material-level] the level's triangle soup is malformed (%zu tris, %zu corner normals)\n",
@@ -2018,7 +2061,7 @@ bool BuildLevel()
     {
         const uint32_t Selection = (Records[I].Flags & Frontier::kMaterialReflectanceMask) >> Frontier::kMaterialReflectanceShift;
         const MaterialSlabRecord& S = Slabs[std::min(static_cast<size_t>(Records[I].SlabOffset), Slabs.size() - 1u)];
-        g_Mat[I] = TranscribeShadingRecord(S, Selection);
+        g_Mat[I] = Frontier::UnifiedMaterial::MakeShadingRecord(S, Selection);
         g_MatGlintDensity[I]=S.SlateGlintDensity;g_MatGlintUvScale[I]=S.SlateGlintUvScale;
         g_MatFlags[I] = Records[I].Flags;
         g_MatCutoff[I] = Records[I].AlphaCutoff;
@@ -2036,7 +2079,7 @@ bool BuildLevel()
 
     // Soup index → object (span), so every triangle knows which of the level's objects it belongs to. Spans are the
     //    builder's own record of one object's triangle range and are what the GPU uploads as instances.
-    const std::vector<Frontier::TriangleSpanRecord>& Spans = IsShowcase ? Showcase.QuerySpans() : Library.QuerySpans();
+    const std::vector<Frontier::TriangleSpanRecord>& Spans = IsDrive ? Drive.QuerySpans() : IsShowcase ? Showcase.QuerySpans() : Library.QuerySpans();
     // ⚠️ uint8_t indexes the span list, and the showcase has 115 spans — fine today, but one more row of objects
     //    would wrap silently and put triangles on the wrong object. Widened to uint16_t rather than left to rot.
     std::vector<uint16_t> ObjectOfSoup(Tris.size(), 0u);
@@ -2080,8 +2123,8 @@ bool BuildLevel()
             const bool IsSwatch = R.Material >= First && R.Material < First + static_cast<int>(MaterialSwatchStructure::kSwatchCount);
             if (IsSwatch)
             {
-                const uint32_t Ordinal = static_cast<uint32_t>(R.Material - First);
-                if (Ordinal / MaterialSwatchStructure::kSwatchColumns != Row) continue;
+                const uint32_t SwatchIndex = static_cast<uint32_t>(R.Material - First);
+                if (SwatchIndex / MaterialSwatchStructure::kSwatchColumns != Row) continue;
             }
         }
         g_Tris.push_back(R);
@@ -2136,6 +2179,15 @@ struct SequenceResult
     std::vector<float> Mean;        // [W*H*3] the running mean, linear radiance (what ResolveSurface publishes)
     std::vector<float> Surface;     // [W*H*4] normal xyz + depth in w (0 = sky): the filter's geometry buffer
     std::vector<float> Variance;    // [W*H]   the variance of the mean the kernel's recursion reports
+    // Denoiser-prototype guides (populated at resolve, used by the --denoise-sweep A/B modes; ignored by the shipped
+    //    à-trous). Albedo = per-pixel demodulation colour, Rough = specular roughness, FlakeMask = deterministic
+    //    System-B flake coverage at the primary hit (0 = no flake). None of these touch the shipped filter path.
+    std::vector<float> Albedo;      // [W*H*3]
+    std::vector<float> Rough;       // [W*H]   effective sharpest specular roughness (base / coat / glass, whichever tightest)
+    std::vector<float> FlakeMask;   // [W*H]
+    std::vector<float> Emission;    // [W*H]   emissive luminance [nit] at the primary hit (luminaire guide)
+    std::vector<float> NdotV;       // [W*H]   |N·V| at the primary hit (Fresnel / grazing-rim guide)
+    std::vector<float> Metal;       // [W*H]   metalness at the primary hit (diagnostic)
     long               NonFinite = 0;
     double             ReservoirCoverage = 0.0;   // [%]  pixels whose reservoir survived the frame
     double             MeanReservoirM = 0.0;      // [-]  mean M over the surface pixels (reuse is visible here)
@@ -2176,6 +2228,12 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
     Out.Mean.assign(static_cast<size_t>(Width) * Height * 3u, 0.0f);
     Out.Surface.assign(static_cast<size_t>(Width) * Height * 4u, 0.0f);
     Out.Variance.assign(static_cast<size_t>(Width) * Height, 0.0f);
+    Out.Albedo.assign(static_cast<size_t>(Width) * Height * 3u, 1.0f);
+    Out.Rough.assign(static_cast<size_t>(Width) * Height, 1.0f);
+    Out.FlakeMask.assign(static_cast<size_t>(Width) * Height, 0.0f);
+    Out.Emission.assign(static_cast<size_t>(Width) * Height, 0.0f);
+    Out.NdotV.assign(static_cast<size_t>(Width) * Height, 1.0f);
+    Out.Metal.assign(static_cast<size_t>(Width) * Height, 0.0f);
 
     // The running mean. The kernel keeps it in HistoryImage/HistorySurfaceImage and REPROJECTS it through the R2
     //    motion vectors (ResolveSurface, R7a), so the CPU mirror does too. Double-buffered — a GPU reads and writes
@@ -2329,8 +2387,11 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                     if (!g_MatGlintsOff && g_MatGlintDensity[Tri.Material] > 0.0f && g_Mat[Tri.Material].AutomotiveData.x == 0.0f)
                     {
                         const float GlintCoverage = 1.0f - expf(-g_MatGlintDensity[Tri.Material] * 0.25f);
-                        const vec3 Gn = AutomotiveApplyTriCoatFlakeNormal(Surf.Ns, Surf.P, GlintCoverage,
-                                                                          g_MatGlintUvScale[Tri.Material] * 3.0f, 0.37f);
+                        const vec3 Gn = g_FlakesSystemB
+                            ? SystemBFlakeNormal(Surf.Ns, Surf.P, Surf.Depth * g_AutomotiveRaySpread,
+                                                 g_MatGlintDensity[Tri.Material], g_MatGlintUvScale[Tri.Material] * 3.0f)
+                            : AutomotiveApplyTriCoatFlakeNormal(Surf.Ns, Surf.P, GlintCoverage,
+                                                               g_MatGlintUvScale[Tri.Material] * 3.0f, 0.37f);
                         if (dot(Gn, Surf.Ng) > 0.0f) Surf.Ns = Gn;
                     }
                     ShadingFrame(Surf.Ns, Surf.T, Surf.B);
@@ -2562,6 +2623,33 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                 Out.Variance[Pixel] = VarianceOut;
                 float* Surf4 = &Out.Surface[Pixel * 4u];
                 Surf4[0] = Surf.Ng.x; Surf4[1] = Surf.Ng.y; Surf4[2] = Surf.Ng.z; Surf4[3] = Surf.Depth;
+                // Denoiser-prototype guides (deterministic; the shipped à-trous ignores these fields).
+                if (Surf.Depth > 0.0f)
+                {
+                    const ShadingRecord& M = Surf.Mat;
+                    vec3 alb = M.BaseColor + (M.SpecularColor - M.BaseColor) * M.Metalness;
+                    Out.Albedo[Pixel * 3u + 0u] = alb.x < 0.04f ? 0.04f : (alb.x > 1.0f ? 1.0f : alb.x);
+                    Out.Albedo[Pixel * 3u + 1u] = alb.y < 0.04f ? 0.04f : (alb.y > 1.0f ? 1.0f : alb.y);
+                    Out.Albedo[Pixel * 3u + 2u] = alb.z < 0.04f ? 0.04f : (alb.z > 1.0f ? 1.0f : alb.z);
+                    // Effective sharpest specular roughness: the clearcoat lobe (when present) and glass are sharper
+                    //    than the base, so the spec guide must key on whichever lobe is tightest.
+                    float effRough = M.SpecularRoughness;
+                    if (M.CoatWeight > 0.5f)          effRough = effRough < M.CoatRoughness ? effRough : M.CoatRoughness;
+                    if (M.TransmissionWeight > 0.5f)  effRough = effRough < 0.05f ? effRough : 0.05f;
+                    Out.Rough[Pixel]     = effRough;
+                    Out.Metal[Pixel]     = M.Metalness;
+                    Out.NdotV[Pixel]     = Surf.Wo.z < 0.0f ? 0.0f : (Surf.Wo.z > 1.0f ? 1.0f : Surf.Wo.z);
+                    Out.Emission[Pixel]  = 0.2126f * M.Emission.x + 0.7152f * M.Emission.y + 0.0722f * M.Emission.z;
+                    if (Surf.MaterialIdx >= 0 && !g_MatGlintsOff
+                        && static_cast<size_t>(Surf.MaterialIdx) < g_MatGlintDensity.size()
+                        && g_MatGlintDensity[static_cast<size_t>(Surf.MaterialIdx)] > 0.0f)
+                    {
+                        Out.FlakeMask[Pixel] = SystemBFlakeWeight(
+                            Surf.P, Surf.Depth * g_AutomotiveRaySpread,
+                            g_MatGlintDensity[static_cast<size_t>(Surf.MaterialIdx)],
+                            g_MatGlintUvScale[static_cast<size_t>(Surf.MaterialIdx)] * 3.0f);
+                    }
+                }
                 if (Surf.Depth > 0.0f) { T.Surface += 1.0; T.SamplesBehind += static_cast<double>(Accumulator.Count); }
             });
 
@@ -2718,6 +2806,142 @@ void ApplyAtrousChain(SequenceResult& Result, int Extent, int Levels, float Expo
         Result.Mean[I * 3u + 1u] = Filtered[I * 4u + 1u];
         Result.Mean[I * 3u + 2u] = Filtered[I * 4u + 2u];
         Result.Variance[I] = Filtered[I * 4u + 3u];
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//   DENOISER PROTOTYPES — A/B variants over the SAME accumulated film (research: DenoiserResearch.md)
+//------------------------------------------------------------------------------------------------------------------------
+// These are host-side experiments layered ON TOP of the shipped à-trous (they call it unchanged), so the parity mirror
+//    is untouched. The point is to answer "how do we keep the flakes?" without more samples. Each mode is applied to a
+//    fresh copy of the film by --denoise-sweep and timed in isolation.
+enum class DenoiseMode { Raw, Atrous, Demod, SpecAware, FlakeGuide, Combo,
+                         SpecGuide, EmissGuide, FresnelGuide, EdgeGuide, Smart };
+static const char* DenoiseModeName(DenoiseMode M)
+{
+    switch (M) {
+        case DenoiseMode::Raw:          return "raw";
+        case DenoiseMode::Atrous:       return "atrous";
+        case DenoiseMode::Demod:        return "demod";
+        case DenoiseMode::SpecAware:    return "specaware";
+        case DenoiseMode::FlakeGuide:   return "flakeguide";
+        case DenoiseMode::Combo:        return "combo";
+        case DenoiseMode::SpecGuide:    return "specguide";
+        case DenoiseMode::EmissGuide:   return "emissguide";
+        case DenoiseMode::FresnelGuide: return "fresnelguide";
+        case DenoiseMode::EdgeGuide:    return "edgeguide";
+        case DenoiseMode::Smart:        return "smart";
+    }
+    return "?";
+}
+static float Smooth01(float x, float lo, float hi)
+{
+    if (hi <= lo) return x >= hi ? 1.0f : 0.0f;
+    float t = (x - lo) / (hi - lo);
+    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+// Apply one prototype mode to Result IN PLACE (Result.Mean becomes the final linear radiance).
+void ApplyDenoiseMode(SequenceResult& Result, DenoiseMode Mode, int Extent, int Levels, float Exposure)
+{
+    const size_t N = static_cast<size_t>(Extent) * Extent;
+    if (Mode == DenoiseMode::Raw) return;
+    if (Mode == DenoiseMode::Atrous) { ApplyAtrousChain(Result, Extent, Levels, Exposure); return; }
+
+    const std::vector<float> Raw = Result.Mean;   // pre-filter radiance, for the preserve/lerp modes
+
+    // A5/A1: demodulate by the per-pixel albedo so the filter runs on illumination, not surface colour.
+    const bool Demod = (Mode == DenoiseMode::Demod || Mode == DenoiseMode::Combo);
+    if (Demod)
+    {
+        for (size_t i = 0; i < N; ++i)
+            for (int c = 0; c < 3; ++c)
+                Result.Mean[i * 3u + static_cast<size_t>(c)] /= Result.Albedo[i * 3u + static_cast<size_t>(c)];
+        for (size_t i = 0; i < N; ++i)
+        {
+            float la = (Result.Albedo[i * 3u] + Result.Albedo[i * 3u + 1u] + Result.Albedo[i * 3u + 2u]) / 3.0f;
+            Result.Variance[i] /= (la * la);       // scalar approximation (see V8DenoiserReview #3)
+        }
+    }
+
+    ApplyAtrousChain(Result, Extent, Levels, Exposure);
+
+    if (Demod)
+        for (size_t i = 0; i < N; ++i)
+            for (int c = 0; c < 3; ++c)
+                Result.Mean[i * 3u + static_cast<size_t>(c)] *= Result.Albedo[i * 3u + static_cast<size_t>(c)];
+
+    // A2/A4: fade back toward the raw pixel where the guide says "genuine high-frequency detail", not noise.
+    // The guide/preserve family: fade back toward the raw pixel where a deterministic guide says "genuine
+    //    high-frequency detail", not Monte-Carlo noise. Each guide is a cheap per-pixel signal (see the menu below).
+    const bool NeedsPreserve =
+        Mode == DenoiseMode::SpecAware || Mode == DenoiseMode::FlakeGuide || Mode == DenoiseMode::Combo ||
+        Mode == DenoiseMode::SpecGuide || Mode == DenoiseMode::EmissGuide || Mode == DenoiseMode::FresnelGuide ||
+        Mode == DenoiseMode::EdgeGuide || Mode == DenoiseMode::Smart;
+
+    // GEOMETRY-EDGE guide: strength of the normal/depth discontinuity to the 4-neighbours (silhouettes, contacts).
+    const bool NeedsEdge = (Mode == DenoiseMode::EdgeGuide || Mode == DenoiseMode::Smart);
+    std::vector<float> Edge;
+    if (NeedsEdge)
+    {
+        Edge.assign(N, 0.0f);
+        const int E = Extent;
+        for (int y = 0; y < E; ++y)
+            for (int x = 0; x < E; ++x)
+            {
+                const size_t i = static_cast<size_t>(y) * E + x;
+                const float dC = Result.Surface[i * 4u + 3u];
+                if (!(dC > 0.0f)) continue;                       // sky: no edge preserve
+                const vec3 nC(Result.Surface[i*4u], Result.Surface[i*4u+1u], Result.Surface[i*4u+2u]);
+                float e = 0.0f;
+                const int Off[4][2] = { {1,0},{-1,0},{0,1},{0,-1} };
+                for (auto& o : Off)
+                {
+                    const int nx = x+o[0], ny = y+o[1];
+                    if (nx<0||ny<0||nx>=E||ny>=E) continue;
+                    const size_t j = static_cast<size_t>(ny)*E + nx;
+                    const float dN = Result.Surface[j*4u+3u];
+                    const vec3 nN(Result.Surface[j*4u], Result.Surface[j*4u+1u], Result.Surface[j*4u+2u]);
+                    const float dn = 1.0f - (nC.x*nN.x + nC.y*nN.y + nC.z*nN.z);     // normal disagreement
+                    const float dd = (dN>0.0f) ? std::fabs(dC-dN)/(dC>1e-3f?dC:1e-3f) : 1.0f; // relative depth jump
+                    const float here = std::max(dn*3.0f, dd*8.0f);
+                    e = e > here ? e : here;
+                }
+                Edge[i] = Smooth01(e, 0.15f, 1.0f);
+            }
+    }
+
+    if (NeedsPreserve)
+    {
+        for (size_t i = 0; i < N; ++i)
+        {
+            float preserve = 0.0f;
+            auto raise = [&](float v){ if (v > preserve) preserve = v; };
+
+            if (Mode == DenoiseMode::FlakeGuide || Mode == DenoiseMode::Combo || Mode == DenoiseMode::Smart)
+                raise(Result.FlakeMask[i]);                                   // deterministic flake coverage
+            if (Mode == DenoiseMode::SpecAware || Mode == DenoiseMode::Combo)
+                raise(1.0f - Smooth01(Result.Rough[i], 0.02f, 0.18f));        // sharp specular (base roughness)
+            if (Mode == DenoiseMode::SpecGuide || Mode == DenoiseMode::Smart)
+                raise(1.0f - Smooth01(Result.Rough[i], 0.02f, 0.30f));        // sharp reflections (chrome/gold/glass/coat)
+            if (Mode == DenoiseMode::EmissGuide || Mode == DenoiseMode::Smart)
+                raise(Smooth01(Result.Emission[i], 0.5f, 4.0f));             // luminaires are noise-free signal
+            if (Mode == DenoiseMode::FresnelGuide || Mode == DenoiseMode::Smart)
+            {
+                const float f = 1.0f - Result.NdotV[i];
+                raise((Mode == DenoiseMode::Smart ? 0.6f : 1.0f) * f*f*f*f);  // grazing-angle rim highlight
+            }
+            if ((Mode == DenoiseMode::EdgeGuide || Mode == DenoiseMode::Smart) && !Edge.empty())
+                raise(Edge[i]);                                              // silhouettes / contact shadows
+
+            preserve = preserve < 0.0f ? 0.0f : (preserve > 1.0f ? 1.0f : preserve);
+            for (int c = 0; c < 3; ++c)
+            {
+                const size_t k = i * 3u + static_cast<size_t>(c);
+                Result.Mean[k] = Result.Mean[k] * (1.0f - preserve) + Raw[k] * preserve;
+            }
+        }
     }
 }
 
@@ -3011,6 +3235,7 @@ int main(int ArgumentCount, char** ArgumentValues)
     float PanPerFrame = 0.0f;   // [m/frame] camera drift, so the reprojection has something to reproject
     bool  UseRestir = false;    // the CPU ReSTIR DI mirror (see the block above)
     bool  Denoise = false;      // the shipped à-trous chain over the accumulated film
+    bool  DenoiseSweep = false; // --denoise-sweep: render once, write every prototype denoiser variant + timings
     unsigned Threads = std::thread::hardware_concurrency();
     if (Threads == 0u) Threads = 2u;
     bool ProbeMode = false;   // D10: --shadow-probe — does the moving object's shadow follow it? (no image, no noise)
@@ -3048,6 +3273,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--restir-no-gi-reuse")      g_RestirGiReuse = false;
         else if (A == "--restir-final-visibility") g_RestirFinalVisibility = true;   // the pre-reuse arm: re-trace the merged selection
         else if (A == "--no-glints") g_MatGlintsOff = true;   // M6's A/B: the pre-glint surface
+        else if (A == "--flakes-systemb") g_FlakesSystemB = true;   // System B flake field instead of System A
         else if (A == "--restir-dead-skip") g_RestirDeadSkip = true;   // #6's refused arm (adaptive-M bias, +9 % RMSE): kept for re-measurement
         else if (A == "--restir-no-identity")      g_RestirIdentity = false;
         else if (A == "--drift")        g_RestirDrift = static_cast<float>(std::atof(Next("--drift")));
@@ -3070,6 +3296,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         else if (A == "--panel-gain") g_PanelGain = static_cast<float>(std::atof(Next("--panel-gain")));   // 0 = overlay only, no scene light
         else if (A == "--denoise")  Denoise = true;
         else if (A == "--denoise-levels") DenoiseLevels = std::atoi(Next("--denoise-levels"));
+        else if (A == "--denoise-sweep")  DenoiseSweep = true;
         else if (A == "--help")
         {
             std::printf("usage: MaterialLevelViewport [--out file.png] [--level materials|showcase]\n"
@@ -3149,7 +3376,9 @@ int main(int ArgumentCount, char** ArgumentValues)
         std::printf("[material-level] sun pick: %.3f power-proportional (was the fixed 0.5 coin)\n",
                     static_cast<double>(g_SunPickProbability));
 
-    const Viewpoint VP = (g_Level == "showcase") ? ShowcaseViewpointFor(View) : ViewpointFor(View);
+    const Viewpoint VP = (g_Level == "drive")    ? DriveViewpointFor(View)
+                   : (g_Level == "showcase") ? ShowcaseViewpointFor(View)
+                   :                           ViewpointFor(View);
     std::printf("[material-level] view '%s': eye (%.2f %.2f %.2f), pitch %.1f°, yaw %.1f°, FoV %.0f°, %dx%d @ %d spp, %d bounces, %d frame%s%s%s%s\n",
                 View.c_str(), VP.Position.x, VP.Position.y, VP.Position.z, VP.PitchDegrees, VP.YawDegrees, VP.FieldOfView,
                 Width, Height, Spp, Bounces, Frames, Frames == 1 ? "" : "s",
@@ -3165,6 +3394,7 @@ int main(int ArgumentCount, char** ArgumentValues)
 
     Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake(1024u);
     g_Tables = &Tables;
+    Frontier::UnifiedMaterial::BindTables(Tables);   // the raster and surfel paths read these too
 
     if (Denoise && Width != Height)
     {
@@ -3191,6 +3421,41 @@ int main(int ArgumentCount, char** ArgumentValues)
         if(!PngWriteCounterpart::WritePng(RawOutPath.c_str(),Width,Height,3,RawPng.data(),Width*3))return 2;
         std::printf("[material-level] unfiltered accumulated film -> %s\n",RawOutPath.c_str());
     }
+    if (DenoiseSweep)
+    {
+        // Strip a trailing .png from OutPath to make a stem for the per-mode files.
+        std::string Stem = OutPath;
+        if (Stem.size() > 4 && Stem.substr(Stem.size() - 4) == ".png") Stem = Stem.substr(0, Stem.size() - 4);
+
+        ColourTransfer SweepTransfer;
+        SweepTransfer.ToneMap = Frontier::ToneMapCategory::Aces;
+        SweepTransfer.Exposure = Exposure;
+        SweepTransfer.Saturation = 1.0f;
+
+        const DenoiseMode Modes[] = { DenoiseMode::Raw, DenoiseMode::Atrous, DenoiseMode::FlakeGuide,
+                                      DenoiseMode::SpecGuide, DenoiseMode::EmissGuide, DenoiseMode::FresnelGuide,
+                                      DenoiseMode::EdgeGuide, DenoiseMode::Smart };
+        std::printf("[denoise-sweep] %d levels, %dx%d — timing the denoise stage only (render already done)\n",
+                    DenoiseLevels, Width, Height);
+        for (DenoiseMode Mode : Modes)
+        {
+            SequenceResult Copy = Sequence;                       // fresh film per mode
+            const auto T0 = std::chrono::high_resolution_clock::now();
+            ApplyDenoiseMode(Copy, Mode, Width, DenoiseLevels, Exposure);
+            const auto T1 = std::chrono::high_resolution_clock::now();
+            const double Ms = std::chrono::duration<double, std::milli>(T1 - T0).count();
+
+            std::vector<unsigned char> Png(Copy.Mean.size());
+            for (size_t i = 0; i < Copy.Mean.size(); i += 3u)
+                ColourPipeline::ApplyToByte(SweepTransfer, Copy.Mean.data() + i, Png.data() + i);
+            std::string Path = Stem + "_" + DenoiseModeName(Mode) + ".png";
+            const int Ok = PngWriteCounterpart::WritePng(Path.c_str(), Width, Height, 3, Png.data(), Width * 3);
+            std::printf("[denoise-sweep] %-11s %8.2f ms   -> %s%s\n",
+                        DenoiseModeName(Mode), Ms, Path.c_str(), Ok ? "" : "  (WRITE FAILED)");
+        }
+        return 0;
+    }
+
     if (Denoise) ApplyAtrousChain(Sequence, Width, DenoiseLevels, Exposure);
     const std::vector<float>& Film = Sequence.Mean;
     if (UseRestir)

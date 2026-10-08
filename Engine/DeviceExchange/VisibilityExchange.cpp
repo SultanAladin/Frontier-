@@ -58,12 +58,6 @@ static_assert(sizeof(FrameConstantRecord) == 336u, "FrameConstantRecord must mat
 
 struct HiZPushRecord { uint32_t SourceExtent[2]; uint32_t TargetExtent[2]; uint32_t CopyLevelZero; };
 
-const char* DebugViewName(DebugViewCategory View) noexcept
-{
-    static const char* Names[] = { "Off", "Depth", "Visibility ID", "Motion Vectors", "Cluster ID", "HiZ (level 3)", "Albedo", "Normal", "Roughness", "Metalness", "Shading Normal", "Reservoir M", "Reservoir W", "Reservoir Age", "Patch Tiles", "Tiles + Wireframe" };
-    const uint32_t I = static_cast<uint32_t>(View);
-    return I < static_cast<uint32_t>(DebugViewCategory::Count) ? Names[I] : Names[0];
-}
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    VULKAN RECORD
@@ -89,6 +83,8 @@ struct GpuImage
 
 struct VisibilityExchange::VulkanRecord
 {
+    std::vector<InstanceRecord> PendingInstances;
+
     VkDevice                          Device         = VK_NULL_HANDLE;
     VkPhysicalDevice                  PhysicalDevice = VK_NULL_HANDLE;
     VkPhysicalDeviceMemoryProperties  MemoryProperties{};
@@ -109,7 +105,7 @@ struct VisibilityExchange::VulkanRecord
     bool      VisibleParity = false;                            // which bit buffer is "previous" this frame
 
     // Targets (render-size)
-    GpuImage Depth, Visibility, Motion, HiZ, Surface, Normal;
+    GpuImage Depth, Visibility, Motion, HiZ, Surface, Normal, MaterialAux, Albedo;
     VkImageView PresentationView = VK_NULL_HANDLE;              // borrowed from SwapchainExchange
     VkFramebuffer Framebuffer    = VK_NULL_HANDLE;
     VkExtent2D    TargetExtent{};
@@ -450,7 +446,7 @@ void VisibilityExchange::RetireTargets() noexcept
     VkDevice D = Vulkan->Device;
     if (Vulkan->Framebuffer) vkDestroyFramebuffer(D, Vulkan->Framebuffer, nullptr);
     Vulkan->Framebuffer = VK_NULL_HANDLE;
-    for (GpuImage* I : { &Vulkan->Depth, &Vulkan->Visibility, &Vulkan->Motion, &Vulkan->HiZ, &Vulkan->Surface, &Vulkan->Normal }) DestroyImage(D, *I);
+    for (GpuImage* I : { &Vulkan->Depth, &Vulkan->Visibility, &Vulkan->Motion, &Vulkan->HiZ, &Vulkan->Surface, &Vulkan->Normal, &Vulkan->MaterialAux, &Vulkan->Albedo }) DestroyImage(D, *I);
     Vulkan->TargetsInitialised = false;
     PreviousValid = false;
 }
@@ -525,9 +521,9 @@ bool VisibilityExchange::BringPipelines() noexcept
     if (!MakePipelineLayout(Vulkan->HiZLayout, sizeof(HiZPushRecord), CS, Vulkan->HiZPipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/HiZReduce.spv", Vulkan->HiZPipelineLayout, Vulkan->HiZPipeline)) return false;
 
-    // ④ Resolve: 0 frame, 1 instances, 2 clusters, 3 vertices, 4 indices, 5 materials, 6 visibility, 7 motion, 8 depth, 9 HiZ, 10 surface, 11 normal, 12 presentation, 13 reservoirs (R6 row 3, M/W/Age views)
+    // ④ Resolve: shared position, normal, material-auxiliary, and albedo targets feed the non-raytraced Surfel route.
     if (!MakeLayout({ Binding(0, UBO, CS), Binding(1, SSBO, CS), Binding(2, SSBO, CS), Binding(3, SSBO, CS), Binding(4, SSBO, CS), Binding(5, SSBO, CS),
-                      Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS) }, Vulkan->ResolveLayout)) return false;
+                      Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS), Binding(14, IMG, CS), Binding(15, IMG, CS) }, Vulkan->ResolveLayout)) return false;
     if (!MakePipelineLayout(Vulkan->ResolveLayout, 0u, 0u, Vulkan->ResolvePipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/SurfaceResolve.spv", Vulkan->ResolvePipelineLayout, Vulkan->ResolvePipeline)) return false;
 
@@ -827,6 +823,8 @@ bool VisibilityExchange::Resize(uint32_t NewWidth, uint32_t NewHeight, void* Pre
     if (!CreateImage(D, P, Vulkan->HiZ,        VK_FORMAT_R32_SFLOAT,          Vulkan->TargetExtent, MipCount(Width, Height), VK_IMAGE_USAGE_STORAGE_BIT | Sampled | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "hiz")) return false;
     if (!CreateImage(D, P, Vulkan->Surface,    VK_FORMAT_R32G32B32A32_SFLOAT, Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "surface")) return false;
     if (!CreateImage(D, P, Vulkan->Normal,     VK_FORMAT_R16G16B16A16_SFLOAT, Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "normal")) return false;
+    if (!CreateImage(D, P, Vulkan->MaterialAux,  VK_FORMAT_R16G16B16A16_SFLOAT, Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "material auxiliary")) return false;
+    if (!CreateImage(D, P, Vulkan->Albedo,       VK_FORMAT_R8G8B8A8_UNORM,     Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "albedo")) return false;
     if (Vulkan->HiZ.Levels > Vulkan->HiZSets.size()) { std::cerr << "[VisibilityExchange] HiZ needs more than 16 levels.\n"; return false; }
 
     const VkImageView Attachments[3] = { Vulkan->Visibility.View, Vulkan->Motion.View, Vulkan->Depth.View };
@@ -848,6 +846,7 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
 {
     if (!Vulkan->Device) return;
     vkDeviceWaitIdle(Vulkan->Device);
+    Vulkan->PendingInstances.clear();
     VkDevice D = Vulkan->Device;
     const VkPhysicalDeviceMemoryProperties& P = Vulkan->MemoryProperties;
     constexpr VkBufferUsageFlags S = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
@@ -855,7 +854,7 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
     const auto Bytes = [](const auto& V) { return V.size() * sizeof(V[0]); };
     (void)UploadBuffer(D, P, Vulkan->Vertices,      Scene.QueryVertices().data(),      Bytes(Scene.QueryVertices()),      S, "vertices");
     (void)UploadBuffer(D, P, Vulkan->Indices,       Scene.QueryIndices().data(),       Bytes(Scene.QueryIndices()),       S | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, "indices");
-    (void)UploadBuffer(D, P, Vulkan->Instances,     Scene.QueryInstances().data(),     Bytes(Scene.QueryInstances()),     S, "instances");
+    (void)UploadBuffer(D, P, Vulkan->Instances,     Scene.QueryInstances().data(),     Bytes(Scene.QueryInstances()),     S | VK_BUFFER_USAGE_TRANSFER_DST_BIT, "instances");
     (void)UploadBuffer(D, P, Vulkan->Clusters,      Scene.QueryClusters().data(),      Bytes(Scene.QueryClusters()),      S, "clusters");
     (void)UploadBuffer(D, P, Vulkan->Materials,     Scene.QueryMaterials().QueryRecords().data(), Bytes(Scene.QueryMaterials().QueryRecords()), S, "materials");   // R4a MaterialRecord[]
     (void)UploadBuffer(D, P, Vulkan->Luminaires,    Scene.QueryLuminaires().data(),    Bytes(Scene.QueryLuminaires()),    S, "luminaires");
@@ -924,16 +923,12 @@ bool VisibilityExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t C
     if (Count != InstanceCount)                  return false;
     if (Vulkan == nullptr || !Vulkan->Instances.Buffer) return false;
 
-    void* Destination = Vulkan->Instances.Mapped;
-    if (Destination == nullptr) return false;    // device-local fallback: no host mapping to write through
-
     const size_t Bytes = static_cast<size_t>(Count) * sizeof(InstanceRecord);
     if (Bytes > static_cast<size_t>(Vulkan->Instances.Bytes)) return false;
 
-    // The allocation is HOST_VISIBLE | HOST_COHERENT and mapped once at creation, so this is a plain memcpy into
-    //    memory the GPU already sees. No reallocation, so the VkBuffer handle and every descriptor written against
-    //    it stay valid — which is the whole reason this can run per frame while UploadScene cannot.
-    std::memcpy(Destination, Rows, Bytes);
+    // RecordFrame copies the staged bytes in queue order. Coherent host memory alone does not
+    // protect an earlier recording that is still reading these shared transforms.
+    Vulkan->PendingInstances.assign(Rows, Rows + Count);
     return true;
 }
 
@@ -1003,6 +998,8 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
         Image (X, 10u, IMG, Vulkan->Surface.View);
         Image (X, 11u, IMG, Vulkan->Normal.View);
         if (Vulkan->PresentationView) Image(X, 12u, IMG, Vulkan->PresentationView);
+        Image (X, 14u, IMG, Vulkan->MaterialAux.View);
+        Image (X, 15u, IMG, Vulkan->Albedo.View);
     }
     // HiZ sets: set L writes level L; set 0 reads the depth attachment, set L>0 reads level L−1.
     for (uint32_t L = 0u; L < Vulkan->HiZ.Levels; ++L)
@@ -1190,6 +1187,26 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
 {
     if (!IsReady() || !Vulkan->Framebuffer) return;
     VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandHandle);
+    if (!Vulkan->PendingInstances.empty())
+    {
+        VkBufferMemoryBarrier Transfer{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        Transfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        Transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Transfer.srcQueueFamilyIndex = Transfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        Transfer.buffer = Vulkan->Instances.Buffer;
+        Transfer.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0u, 0u, nullptr, 1u, &Transfer, 0u, nullptr);
+        const VkDeviceSize Bytes = Vulkan->PendingInstances.size() * sizeof(InstanceRecord);
+        const auto* Source = reinterpret_cast<const unsigned char*>(Vulkan->PendingInstances.data());
+        for (VkDeviceSize Offset = 0u; Offset < Bytes; Offset += 65536u)
+            vkCmdUpdateBuffer(Command, Vulkan->Instances.Buffer, Offset, std::min<VkDeviceSize>(65536u, Bytes - Offset), Source + Offset);
+        Transfer.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Transfer.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             0u, 0u, nullptr, 1u, &Transfer, 0u, nullptr);
+        Vulkan->PendingInstances.clear();
+    }
     ReadTelemetry(Slot);
 
     const uint32_t Q = Slot * kTimestampCount;
@@ -1228,6 +1245,8 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
         ImageBarrier(Command, Vulkan->HiZ.Image,     VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
         ImageBarrier(Command, Vulkan->Surface.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
         ImageBarrier(Command, Vulkan->Normal.Image,  VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
+        ImageBarrier(Command, Vulkan->MaterialAux.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
+        ImageBarrier(Command, Vulkan->Albedo.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
         VkClearColorValue Zero{}; VkImageSubresourceRange All{ VK_IMAGE_ASPECT_COLOR_BIT, 0u, VK_REMAINING_MIP_LEVELS, 0u, 1u };
         vkCmdClearColorImage(Command, Vulkan->HiZ.Image, VK_IMAGE_LAYOUT_GENERAL, &Zero, 1u, &All);
         ImageBarrier(Command, Vulkan->HiZ.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, Transfer, Compute);
@@ -1338,6 +1357,8 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
     vkCmdDispatch(Command, (Frame.RenderWidth + 15u) / 16u, (Frame.RenderHeight + 15u) / 16u, 1u);
     ImageBarrier(Command, Vulkan->Surface.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, Compute, Compute);
     ImageBarrier(Command, Vulkan->Normal.Image,  VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, Compute, Compute);
+    ImageBarrier(Command, Vulkan->MaterialAux.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, Compute, Compute);
+    ImageBarrier(Command, Vulkan->Albedo.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, Compute, Compute);
     vkCmdWriteTimestamp(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Q + 10u);
 
     // ⑥ Counters → this slot's read-back buffer (read two frames later, after the fence).
@@ -1454,7 +1475,7 @@ bool VisibilityExchange::PlaceShadowTaps(ShadowFrameConfiguration& Shadow) const
     //    used to produce none, because the moon was only ever a disc painted into the sky.
     const bool MoonLit = Shadow.MoonEnabled
                       && (Shadow.MoonRadiance[0] + Shadow.MoonRadiance[1] + Shadow.MoonRadiance[2]) > 0.0f;
-    if (Emitters.empty() && !SunLit && !MoonLit) return false;
+    // Zero taps still resolve ambient, emission and the sky; they are not a ray-tracing request.
 
     uint32_t Placed = 0u;
 
@@ -1594,10 +1615,10 @@ static_assert(sizeof(ShadowConstantRecord) % 16u == 0u, "std140 blocks are 16-B 
 
 } // namespace
 
-bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, const ShadowFrameConfiguration& Shadow) noexcept
+bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, const ShadowFrameConfiguration& Shadow, bool Resolve) noexcept
 {
     if (!IsReady() || !Vulkan->ShadowReady || Slot >= Vulkan->SlotCount) return false;
-    if (Shadow.TapCount == 0u) return false;   // no emitters: the caller must not present an unwritten image
+
 
     VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandHandle);
     VkDevice D = Vulkan->Device;
@@ -1649,6 +1670,16 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
         ArrayView.format   = VK_FORMAT_D32_SFLOAT;
         ArrayView.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0u, 1u, 0u, ShadowFrameConfiguration::MaximumTaps };
         if (vkCreateImageView(D, &ArrayView, nullptr, &Maps.View) != VK_SUCCESS) return false;
+
+        VkImageMemoryBarrier Initialise{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        Initialise.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        Initialise.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        Initialise.srcQueueFamilyIndex = Initialise.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        Initialise.image = Maps.Image;
+        Initialise.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0u, 1u, 0u, ShadowFrameConfiguration::MaximumTaps };
+        Initialise.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             0u, 0u, nullptr, 0u, nullptr, 1u, &Initialise);
 
         // One single-layer view + framebuffer per tap: a render pass writes one layer at a time.
         Vulkan->ShadowLayerViews.resize(ShadowFrameConfiguration::MaximumTaps, VK_NULL_HANDLE);
@@ -1767,12 +1798,16 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
 
     // ④ The shading pass. Set 0 is the resolve's scene + G-buffer set (the surface and normal images the resolve
     //    just wrote); set 1 is the maps and constants.
+    if (Resolve)
+    {
     vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ShadowResolvePipeline);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ShadowResolvePipelineLayout,
                             0u, 1u, &Vulkan->ResolveSets[Slot], 0u, nullptr);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ShadowResolvePipelineLayout,
                             1u, 1u, &Vulkan->ShadowSets[Slot], 0u, nullptr);
     vkCmdDispatch(Command, (Vulkan->TargetExtent.width + 15u) / 16u, (Vulkan->TargetExtent.height + 15u) / 16u, 1u);
+
+    }
 
     // Closes the span opened at ①. COMPUTE_SHADER rather than BOTTOM_OF_PIPE so the stamp waits for the resolve
     //    dispatch above to retire — the maps' raster is already ordered before it by the render pass.
@@ -1853,6 +1888,8 @@ void VisibilityExchange::RecordKernelEnd(void* CommandHandle, uint32_t Slot) noe
 
 void* VisibilityExchange::QuerySurfaceView()        const noexcept { return Vulkan->Surface.View; }
 void* VisibilityExchange::QueryNormalView()         const noexcept { return Vulkan->Normal.View; }
+void* VisibilityExchange::QueryAlbedoView()         const noexcept { return Vulkan->Albedo.View; }
+void* VisibilityExchange::QueryMaterialAuxView()    const noexcept { return Vulkan->MaterialAux.View; }
 void* VisibilityExchange::QueryMotionView()         const noexcept { return Vulkan->Motion.View; }
 void* VisibilityExchange::QueryLuminaireBuffer()    const noexcept { return Vulkan->Luminaires.Buffer; }
 void* VisibilityExchange::QueryInstanceBuffer()     const noexcept { return Vulkan->Instances.Buffer; }
@@ -1862,3 +1899,15 @@ void* VisibilityExchange::QueryVertexBuffer()       const noexcept { return Vulk
 void* VisibilityExchange::QueryIndexBuffer()        const noexcept { return Vulkan->Indices.Buffer; }
 
 } // namespace Frontier
+
+namespace Frontier {
+void* VisibilityExchange::QueryShadowDescriptorLayout() const noexcept
+{
+    return Vulkan ? reinterpret_cast<void*>(Vulkan->ShadowLayout) : nullptr;
+}
+
+void* VisibilityExchange::QueryShadowDescriptors(uint32_t Slot) const noexcept
+{
+    return Vulkan && Slot < Vulkan->SlotCount ? reinterpret_cast<void*>(Vulkan->ShadowSets[Slot]) : nullptr;
+}
+}

@@ -51,13 +51,21 @@ public:
     [[nodiscard]] uint32_t QueryPicked() const noexcept;                 // the primary pick, or kNoEditorInstance
     [[nodiscard]] uint32_t QueryPickedCount() const noexcept;
     [[nodiscard]] uint32_t QueryPickedAt(uint32_t Slot) const noexcept;
+    void RevealInstance(uint32_t Index, const EditorInstance* Rows, uint32_t Count) noexcept;
     void PickInstance(uint32_t Index) noexcept;                            // the test seam; the proof drives the pick
 
     // Selection operations are public because EditorHost and RenderScheduler expose the same editor seams to the
     // runtime and to the headless proof harness. Row-click policy (plain/Ctrl/Shift) remains private in HandleRowClick.
     [[nodiscard]] bool IsPicked(uint32_t Index) const noexcept;
     void TogglePick(uint32_t Index) noexcept;
+    // Seats a whole pick at once (the host mirrors the document's selection here): the first row leads. Rows past
+    //    kMaxEditorPicked do not fit the pick and are left out; none clears the pick.
+    void AssignPicks(const uint32_t* Rows, uint32_t Count) noexcept;
     void AddPick(uint32_t Index) noexcept;
+
+    // SolidArc's document look: the head pill, the Figures / Selected tiles, two-line rows with a status glyph and the
+    //    census foot. Off keeps the game outliner exactly as it was.
+    void AssignDocumentStyle(bool On) noexcept { DocumentStyle_ = On; }
 
     // The page's Tab: the panel narrows to 236 px and drops its tiles, pills and metas.
     [[nodiscard]] bool QueryCompact() const noexcept { return Compact_; }
@@ -78,6 +86,9 @@ private:
                    float Squeeze = 1.0f) noexcept;
     void RecordEmpty(float Width) noexcept;
     void RecordFooter() noexcept;
+    void RecordDocumentTiles(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
+    void RecordDocumentFooter() noexcept;
+    void TakeCensus(const EditorInstance* Instances, uint32_t InstanceCount) noexcept;
     [[nodiscard]] uint32_t QueryFilterCount() const noexcept;
     [[nodiscard]] const char* QueryFilterLabel(uint32_t Slot) const noexcept;
     [[nodiscard]] uint32_t QueryFilterTint(uint32_t Slot) const noexcept;
@@ -127,6 +138,13 @@ private:
     uint32_t OrderRevision_ = 0u;
     bool     Shown_[kMaxEditorInstances] = {};                                 // this tick's search / narrowing hits
     bool     TreeHovered_  = false;
+
+    // The document style: this tick's census, taken once from the roster before anything draws.
+    bool     DocumentStyle_ = false;
+    uint32_t CensusSymbol_[8] = {};      // figures per EditorSymbol (index = the mark), folders excluded
+    uint32_t CensusShown_   = 0u;
+    uint32_t CensusHidden_  = 0u;
+    uint32_t CensusIssues_  = 0u;
 };
 
 } // namespace Frontier

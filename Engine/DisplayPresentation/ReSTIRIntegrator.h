@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      RESTIRINTEGRATOR.H
 //============================================================================================================================================
-// 🧩 Drives the interim progressive path-tracing kernel (RIS direct lighting + one NEE bounce, running-mean accumulation).
+// 📦 Drives the interim progressive path-tracing kernel (RIS direct lighting + one NEE bounce, running-mean accumulation).
 //    🚧 Not yet ReSTIR proper — see the status block at the top of Engine/Shaders/ReSTIRViewport.slang and plan v2.1.
 
 #pragma once
@@ -12,9 +12,10 @@
 
 #include "../DeviceExchange/SwapchainExchange.h"
 #include "../ContentInterchange/MaterialDescriptor.h"
+#include "DenoiseGuide.h"
 #include "ExposureIntegrator.h"
-#include "../../Projects/Project-Zero/Source/RayTracingSolver.h"
-#include "../../Projects/Project-Zero/Source/FlyThroughSolver.h"
+#include "../Host/RayTracingSolver.h"
+#include "../Host/FlyThroughSolver.h"
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -46,9 +47,16 @@ struct ReSTIRIntegratorConfiguration
                                            //       default; off restores the single-sample vertex NEE (the A/B)
     bool        AliasPick          = true;  // [-]   R6 row 3: Walker-alias light pick (false = uniform, R0 identity; F5)
     bool        Denoise            = true;  // [-]   R7: edge-avoiding à-trous filter (false = the raw accumulated image)
+    DenoiseGuideCategory DenoiseGuide = DenoiseGuideCategory::Smart; // [-] detail-guide the à-trous fades back to raw
+                                             //       toward (Standard = the pre-guide filter). Smart keeps flakes /
+                                             //       reflections / luminaires / rims / edges — the flakes-at-Standard fix.
     bool        TemporalReprojection = true; // [-]   R7a: back-project the running mean through the motion vectors
                                              //       (false = the pre-R7a same-pixel accumulator, kept as an identity switch)
     uint32_t    MaxReflectionBounces = 3u;  // [-]   max specular reflection bounces (0 = off, 1, 2, 3, 4)
+    uint32_t    ReflectionMode      = 2u;   // [-]   0 = Off, 1 = Sky, 2 = Raytraced (Reflections tile). Packed into FeatureFlags bits 15-16.
+    uint32_t    RenderPath          = 0u;   // [-]   0 = raytraced ReSTIR kernel, 1 = Distance Field GI (SDF GI), 2 = plain visibility raster.
+                                            //       The HOST selects which dispatch runs; the kernel reads this only to early-out
+                                            //       when it is not the active path. bit 11 = kFeatureRaytracing mirrors RenderPath==0.
     uint32_t    MaxGiBounces         = 2u;  // [-]   max diffuse GI bounces (0 = off, 1, 2, 3, 4)
     bool        SkyAmbientEnabled    = true; // [-]   physical atmospheric sky dome ambient direct illumination
     bool        SkyReservoir         = true; // [-]   #27B: the sky as a DI reservoir candidate (kSkyLightIndex) — sky
@@ -71,7 +79,7 @@ public:
 
     // Construct the DispatchConfiguration from live camera state and scene counts
     [[nodiscard]] DispatchConfiguration
-    BuildDispatch(const ProjectZero::FlyThroughSolver& Camera,
+    BuildDispatch(const HostRuntime::FlyThroughSolver& Camera,
                   uint32_t                             ViewportWidth,
                   uint32_t                             ViewportHeight,
                   uint32_t                             AlphaMaskedMaterialCount,   // R4b: materials flagged MaterialFlagAlphaMask
@@ -79,14 +87,14 @@ public:
 
     // Count emissive triangles in the scene (used to set LuminaireTriangleCount each frame)
     [[nodiscard]] static uint32_t
-    CountLuminaireTriangles(const ProjectZero::RayTracingSolver& Scene) noexcept;
+    CountLuminaireTriangles(const HostRuntime::RayTracingSolver& Scene) noexcept;
 
     // Build GPU triangle and material records from the CPU scene
     [[nodiscard]] static std::vector<TriangleIndex>
-    BuildTriangleIndex(const ProjectZero::RayTracingSolver& Scene) noexcept;
+    BuildTriangleIndex(const HostRuntime::RayTracingSolver& Scene) noexcept;
 
     [[nodiscard]] static std::vector<MaterialDescriptor>
-    BuildMaterialDescriptors(const ProjectZero::RayTracingSolver& Scene) noexcept;
+    BuildMaterialDescriptors(const HostRuntime::RayTracingSolver& Scene) noexcept;
 
     // Mutable configuration — updated live by RenderScheduler
     // Any parameter change invalidates the temporal history; the accumulation restarts at index 0.
@@ -134,6 +142,7 @@ public:
     //    deliberately does NOT reset accumulation — restarting would throw away a converged history to change a
     //    post-process, and the A/B comparison the switch exists for would be impossible.
     void AssignDenoise           (bool     On)    noexcept { ActiveConfiguration.Denoise = On; }
+    void AssignDenoiseGuide      (DenoiseGuideCategory Guide) noexcept { if (ActiveConfiguration.DenoiseGuide != Guide) { ActiveConfiguration.DenoiseGuide = Guide; ResetAccumulation("denoise guide"); } }
     // R7a. Reprojection changes what is SAMPLED (which history texel feeds the mean), so unlike the denoise toggle
     //    it resets accumulation — the same rule as every other sampling change.
     void AssignTemporalReprojection(bool On)    noexcept { if (ActiveConfiguration.TemporalReprojection != On) { ActiveConfiguration.TemporalReprojection = On; ResetAccumulation("reprojection"); } }
@@ -141,6 +150,8 @@ public:
     void AssignMaxGiBounces(uint32_t Bounces) noexcept { if (ActiveConfiguration.MaxGiBounces != Bounces) { ActiveConfiguration.MaxGiBounces = Bounces; ResetAccumulation("GI bounces"); } }
     void AssignSkyAmbient(bool On) noexcept { if (ActiveConfiguration.SkyAmbientEnabled != On) { ActiveConfiguration.SkyAmbientEnabled = On; ResetAccumulation("sky ambient"); } }
     void AssignSkyReservoir(bool On) noexcept { if (ActiveConfiguration.SkyReservoir != On) { ActiveConfiguration.SkyReservoir = On; ResetAccumulation("sky reservoir"); } }
+    void AssignReflectionMode(uint32_t Mode) noexcept { if (ActiveConfiguration.ReflectionMode != Mode) { ActiveConfiguration.ReflectionMode = Mode; ResetAccumulation("reflection mode"); } }
+    void AssignRenderPath(uint32_t Path) noexcept { if (ActiveConfiguration.RenderPath != Path) { ActiveConfiguration.RenderPath = Path; ResetAccumulation("render path"); } }
 
     // ⚠️ THE INCREMENT MUST NOT SWALLOW THE RESET. The frame loop reads the index for the dispatch,
     //    the §8 record comparisons reset it when the sky changes, and the loop unconditionally increments it
@@ -175,7 +186,7 @@ public:
 
     // Compares the camera pose against the one used for the running history; a moved or turned camera
     //    (or a resized viewport) restarts accumulation so no stale radiance is blended in.
-    void ObserveCamera(const ProjectZero::FlyThroughSolver& Camera, uint32_t ViewportWidth, uint32_t ViewportHeight) noexcept;
+    void ObserveCamera(const HostRuntime::FlyThroughSolver& Camera, uint32_t ViewportWidth, uint32_t ViewportHeight) noexcept;
 
     // D6/D7 — how many top-level instances the resident two-level structure carries. The integrator never holds the
     //    structure itself (DisplayPresentation sits above DeviceExchange and below the project), so the project assigns

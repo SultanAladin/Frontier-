@@ -28,7 +28,9 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
 CMakeFile='CMakeLists.txt'
-Ps1File='Projects/Project-Zero/Build/ToolchainSequence.ps1'
+# 2026-10-01: Projects/Project-Zero/Build/ToolchainSequence.ps1 is now a forwarding shim to the root script.
+#    Parsing the shim found no $EngineRelative at all and reported every CMake TU as missing.
+Ps1File='Tools/Build/ToolchainSequence.ps1'
 Work="$(mktemp -d /tmp/BuildSourceList.XXXXXX)"
 trap 'rm -rf "$Work"' EXIT
 
@@ -47,7 +49,10 @@ CmakeList() { # $1 = variable name
 }
 CmakeList FRONTIER_ENGINE_SOURCES  > "$Work/cmake_engine.txt"
 CmakeList PROJECT_ZERO_SOURCES     > "$Work/cmake_project.txt"
-cat "$Work/cmake_engine.txt" "$Work/cmake_project.txt" | sort -u > "$Work/cmake.txt"
+# 2026-10-01: FRONTIER_HOST_SOURCES was never read, so TUs the Frontier target compiles only from that block
+#    (ShaderballPreview.cpp among them) looked absent from CMake and check ⑤ failed on a tree that was correct.
+CmakeList FRONTIER_HOST_SOURCES    > "$Work/cmake_host.txt"
+cat "$Work/cmake_engine.txt" "$Work/cmake_project.txt" "$Work/cmake_host.txt" | sort -u > "$Work/cmake.txt"
 
 # ── extract the PS1 list ($EngineRelative = @( ... ) — the batch that becomes Project-Zero.exe) ───────────────────────
 sed -n '/^\$EngineRelative = @(/,/^)/p' "$Ps1File" \
@@ -86,10 +91,35 @@ fi
 #    The allowlist exists so that "not linked into the exe" is a DECISION with a reason, never an omission. Anything
 #    here that gains a consumer must move into both lists.
 cat > "$Work/allow.txt" <<'ALLOW'
+Engine\Generators\Tyre\RimSpecification.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
+Engine\Generators\Tyre\TreadPatternRaster.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
+Engine\Generators\Tyre\TyreAppearanceSpecification.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
+Engine\Generators\Tyre\TyreGeneratorWindow.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
+Engine\Generators\Tyre\TyrePresetLibrary.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
+Engine\Generators\Tyre\TreadMeshSolver.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadMeshProof.cpp, not a runtime host consumer
+Engine\Generators\Tyre\TreadRegionSolver.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadMeshProof.cpp, not a runtime host consumer
+Engine\Generators\Tyre\TyreMeshStructure.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadMeshProof.cpp, not a runtime host consumer
 Engine\Editor\ConstructWorld.cpp|CPU authoring bridge linked by Projects/Project-Zero/Host/Makefile; not live GPU spawning
 Engine\GeometricRaster\VisibilityRaster.cpp|the CPU visibility mirror the shadow proofs read; no exe consumer yet
 Projects\Project-Zero\Source\RendererHost.cpp|linked into the separate Project-Zero-CpuReference target, not the showroom
 Projects\Project-Zero\Source\SkyFogIntegrator.cpp|RendererHost's dependency; CpuReference target only
+Projects\Project-Zero\Source\ProjectZeroInterchange.cpp|IS the ProjectZero.dll code image, linked separately from the exe
+Projects\Project-Zero\Source\RayTracingSolver.cpp|linked into Project-Zero-CpuReference, not the exe
+Engine\PhysicalDynamics\VehiclePhysicsThread.cpp|Project-Drive vehicle stack: no image links it yet (see Docs/WindowsBuild.md)
+Engine\PhysicalDynamics\XPBDTyreSolver.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\PhysicalDynamics\Vehicle\Aerodynamics.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\PhysicalDynamics\Vehicle\Drivetrain.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\PhysicalDynamics\Vehicle\PacejkaMagicFormula.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\PhysicalDynamics\Vehicle\TyreSlipDynamics.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\PhysicalDynamics\Vehicle\VehicleGeometry.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\PhysicalDynamics\Vehicle\VehicleSolver.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\PhysicalDynamics\Vehicle\XPBDSoftTyre.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\DisplayPresentation\DistanceFieldIntegrator.cpp|CPU offline reference integrator for distance field GI
+Engine\GeometricRaster\DistanceFieldBakeSolver.cpp|CPU offline distance field baker
+Engine\GeometricRaster\DistanceFieldSpace.cpp|CPU local distance field volume representation
+Engine\GeometricRaster\GlobalDistanceFieldSpace.cpp|CPU global distance field clipmaps representation
+Engine\GeometricRaster\SurfaceCacheStructure.cpp|CPU surface cache atlas and lighting card representation
+
 ALLOW
 
 cut -d'|' -f1 < "$Work/allow.txt" | sort -u > "$Work/allow_paths.txt"

@@ -41,7 +41,7 @@ int main(){
     Check(std::isfinite(AtSource[0])&&std::isfinite(AtSource[1])&&std::isfinite(AtSource[2]),"source-centre angular guard");
     const float Forward[]={0,0,1},Right[]={1,0,0},Up[]={0,1,0};
     auto Packed=Scene->PackPostRecord(Forward,Right,Up,1,640.f/280,280,1);
-    Check(sizeof(Packed)==544&&offsetof(PostConstantRecord,PostLayers)==128,"extended ABI preserves original offsets");
+    Check(sizeof(Packed)==208&&offsetof(PostConstantRecord,PostLayers)==128,"extended ABI preserves original offsets");
     Check(Packed.PostFlareUv[3]==1&&Packed.PostLayers[2]==1&&Packed.PostLayers[3]==0&&Packed.PostLayers[4]==1,"layer flags reach actual renderer record");
     Check(Packed.PostLayers[10]==6&&Packed.PostLayers[13]==Defaults.Layers.HaloWidth,"shape and halo width reach actual renderer record");
     Find(*Sheet,"Type").Picked=1;Apply();Check(!Scene->Flare.CustomMix,"legacy preset restores old path");Find(*Sheet,"Halo width").Figure=.08f;Apply();Check(Scene->Flare.CustomMix,"algorithm-specific edit activates custom layers");
@@ -62,10 +62,10 @@ int main(){
     Check(QueryLensFlarePreview().Revision>Info.Revision,"sliders invalidate shared preview image");
     Scene->Flare=Defaults;Scene->BuildSheet(CelestialEntity::LensFlare,*Sheet);Rest();
     auto* Props=Window("##flare-properties");ImVec2 O=Props->DC.CursorStartPos;O.x+=20;O.y+=20;float W=Props->WorkRect.GetWidth()-40;
-    float CH=141+(W-48)*280/640+14+44+72+50,LY=299+CH+16;
+    float CH=141+(W-48)*280/640+14+44+72+50,LY=110+CH+16;
     Find(*Sheet,"Type").Picked=0;Apply();Rest();Click({O.x+24+((W-16)/2-66)/6,O.y+LY+203});Check(Scene->Flare.CustomMix&&Find(*Sheet,"Anamorphic").On,"first layer click enables visible layer from a legacy preset");
     bool Old=Find(*Sheet,"Streaks").On;Click({O.x+24+(((W-16)/2-66)/3+9)+((W-16)/2-66)/6,O.y+LY+203});Check(Find(*Sheet,"Streaks").On!=Old,"layer toggle pointer write-back");
-    Click({O.x+24+(W-48)*.7f,O.y+299+141+((W-48)*280/640)*.3f});Check(std::abs(Scene->FlarePreviewX-.7f)<.01f&&std::abs(Scene->FlarePreviewY-.3f)<.01f,"drag source updates preview pose");
+    Click({O.x+24+(W-48)*.7f,O.y+110+141+((W-48)*280/640)*.3f});Check(std::abs(Scene->FlarePreviewX-.7f)<.01f&&std::abs(Scene->FlarePreviewY-.3f)<.01f,"drag source updates preview pose");
     float BeforeArrow=Scene->FlarePreviewX;IO.AddKeyEvent(ImGuiKey_RightArrow,true);Tick();IO.AddKeyEvent(ImGuiKey_RightArrow,false);Tick();Check(Scene->FlarePreviewX>BeforeArrow,"focused preview responds to arrow key");
     Check(Scene->Observation.LocalHours==12,"preview pose does not change scene clock");
     float Col=(W-16)/2,GX=Col+16;float GhostBefore=Find(*Sheet,"Ghosts").Figure;

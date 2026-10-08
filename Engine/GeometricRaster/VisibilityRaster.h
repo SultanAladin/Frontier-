@@ -3,9 +3,22 @@
 //============================================================================================================================================
 // 🧩 The no-ray render path: a CPU visibility buffer under a microrasterizer, the GI-off look. Pass one walks
 //    every triangle over the pixels it covers and keeps, per pixel, the nearest triangle id with its barycentrics
-//    (the visibility buffer). Pass two shades each covered pixel direct-only lookdev PBR — Lambert plus a GGX
-//    specular under the luminaires, visibility from rasterized shadow maps, a flat ambient fill, no bounces.
-//    Emissive triangles emit, misses take the sky.
+//    (the visibility buffer). Pass two shades each covered pixel with THE ENGINE'S MATERIAL MODEL — the full
+//    OpenPBR lobe set from Shaders/MaterialEvaluation.slang, via ContentInterchange/UnifiedMaterialEvaluation.h,
+//    the same text the ReSTIR kernel evaluates — under the luminaires, visibility from rasterized shadow maps,
+//    an ambient fill through the same lobes, no bounces. Emissive triangles emit, misses take the sky.
+//
+//    ⚠️ This header used to describe the shading as "direct-only lookdev PBR — Lambert plus a GGX specular", and
+//    the code matched: a hand-rolled two-lobe BRDF over MaterialRecord's flattened 64-byte header. That was a
+//    statement about an implementation shortcut, written as though it were a statement about rasterisation. It is
+//    not. Rasterisation determines how VISIBILITY is resolved. It places no constraint whatsoever on which BSDF
+//    is evaluated once a pixel knows which triangle it sees. Reading it as a constraint is what let the GI-off
+//    column of every comparison sheet quietly differ from the GI-on columns by material model as well as by light
+//    transport — so coat, flakes, transmission, fuzz and thin film were absent from this path entirely, and the
+//    sheets could not show the thing they were made to show.
+//
+//    What genuinely distinguishes this path is below, and is unchanged: no ray queries, shadow maps for
+//    visibility, no indirect bounce. Those are transport. The material is not transport.
 //
 //    Shadow filtering is a quality-tier decision, carried in by ShadowCriteria (mirroring FidelityCriteria's
 //    shadow fields so this header need not depend on the presentation layer):

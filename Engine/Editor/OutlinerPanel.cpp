@@ -79,6 +79,11 @@ constexpr float kSidePad      = 14.0f;    // .scene-stat / .search / .filters
 constexpr float kTreePad      = 10.0f;    // .tree padding 2px 10px 10px
 constexpr float kRowH         = 39.0f;
 constexpr float kRowHCompact  = 34.0f;
+constexpr float kCadRowH      = 44.0f;   // document style: a two-line row
+constexpr float kCadFolderH   = 34.0f;   // document style: a group head
+constexpr float kCadStep      = 16.0f;   // document style: indent per depth
+constexpr float kCadRadius    = 16.0f;   // document style: row ground
+constexpr float kCadTile      = 15.0f;   // document style: half of the 30 px symbol tile
 constexpr float kRowRadius    = 7.0f;    // rows are rectangles: selection, hover and drop ground all square
 constexpr float kRowGap       = 7.0f;
 constexpr float kChevBox      = 14.0f;
@@ -474,6 +479,208 @@ void DrawChevron(ImDrawList* Draw, const ImVec2& Centre, float Size, ImU32 Tint,
     }
 }
 
+//------------------------------------------------------------------------------------------------------------------------
+//                                                       SYMBOLS
+//------------------------------------------------------------------------------------------------------------------------
+// A tool's own row art, drawn live in the row's tint: the symbol inside a tinted tile, for a folder row and for a figure
+//    row alike, so a folder shows the very symbol its figures wear. A row with no symbol keeps the stock folder shell.
+//    Each symbol is the web outliner's own strokes, scaled to the row size.
+
+void DrawSymbol(ImDrawList* Draw, EditorSymbol Mark, const ImVec2& C, float Half, ImU32 Ink, float Thick) noexcept
+{
+    // The web outliner's own strokes, in its 24-unit viewBox, scaled so the whole box is Half * 2.4 px across.
+    const float U = Half * 0.1f;
+    auto P = [&](float X, float Y) noexcept { return ImVec2(C.x + (X - 12.0f) * U, C.y + (Y - 12.0f) * U); };
+    auto Run = [&](const float (*Points)[2], uint32_t Count, bool Shut) noexcept
+    {
+        for (uint32_t i = 0u; i < Count; ++i)
+            Draw->PathLineTo(P(Points[i][0], Points[i][1]));
+        Draw->PathStroke(Ink, Shut ? ImDrawFlags_Closed : ImDrawFlags_None, Thick);
+    };
+    auto Stroke = [&](float X0, float Y0, float X1, float Y1) noexcept { Draw->AddLine(P(X0, Y0), P(X1, Y1), Ink, Thick); };
+    switch (Mark)
+    {
+    case EditorSymbol::Line:
+        // The curve: M3 17 c4-10 10 4 18-8.
+        Draw->PathClear();
+        Draw->PathLineTo(P(3.0f, 17.0f));
+        Draw->PathBezierCubicCurveTo(P(7.0f, 7.0f), P(13.0f, 21.0f), P(21.0f, 9.0f), 14);
+        Draw->PathStroke(Ink, ImDrawFlags_None, Thick);
+        break;
+    case EditorSymbol::Profile:
+    {
+        // The sketch zig-zag: M4 20 8 6l4 10 3-6 5 10.
+        static const float Zig[5][2] = { { 4.0f, 20.0f }, { 8.0f, 6.0f }, { 12.0f, 16.0f }, { 15.0f, 10.0f }, { 20.0f, 20.0f } };
+        Draw->PathClear();
+        Run(Zig, 5u, false);
+        break;
+    }
+    case EditorSymbol::Body:
+    {
+        static const float Hex[6][2] = { { 12.0f, 3.0f }, { 20.0f, 7.5f }, { 20.0f, 16.5f }, { 12.0f, 21.0f }, { 4.0f, 16.5f }, { 4.0f, 7.5f } };
+        Draw->PathClear();
+        Run(Hex, 6u, true);
+        Stroke(12.0f, 12.0f, 20.0f, 7.5f);
+        Stroke(12.0f, 12.0f, 12.0f, 21.0f);
+        Stroke(12.0f, 12.0f, 4.0f, 7.5f);
+        break;
+    }
+    case EditorSymbol::Surface:
+    {
+        // M3 8l7-4 11 4-7 4z  M3 8v8l11 4v-8  M21 8v8l-7 4
+        static const float Top[4][2]  = { { 3.0f, 8.0f }, { 10.0f, 4.0f }, { 21.0f, 8.0f }, { 14.0f, 12.0f } };
+        static const float Left[4][2] = { { 3.0f, 8.0f }, { 3.0f, 16.0f }, { 14.0f, 20.0f }, { 14.0f, 12.0f } };
+        static const float Right[3][2] = { { 21.0f, 8.0f }, { 21.0f, 16.0f }, { 14.0f, 20.0f } };
+        Draw->PathClear();
+        Run(Top, 4u, true);
+        Draw->PathClear();
+        Run(Left, 4u, false);
+        Draw->PathClear();
+        Run(Right, 3u, false);
+        break;
+    }
+    case EditorSymbol::Construction:
+    {
+        // The work plane: M3 15l6-8h12l-6 8z  M9 7v10M15 7v10
+        static const float Plane[4][2] = { { 3.0f, 15.0f }, { 9.0f, 7.0f }, { 21.0f, 7.0f }, { 15.0f, 15.0f } };
+        Draw->PathClear();
+        Run(Plane, 4u, true);
+        Stroke(9.0f, 7.0f, 9.0f, 17.0f);
+        Stroke(15.0f, 7.0f, 15.0f, 17.0f);
+        break;
+    }
+    case EditorSymbol::Dimension:
+    {
+        // M4 18V6M20 18V6M4 12h16M8 9l-4 3 4 3M16 9l4 3-4 3
+        static const float Left[3][2]  = { { 8.0f, 9.0f }, { 4.0f, 12.0f }, { 8.0f, 15.0f } };
+        static const float Right[3][2] = { { 16.0f, 9.0f }, { 20.0f, 12.0f }, { 16.0f, 15.0f } };
+        Stroke(4.0f, 18.0f, 4.0f, 6.0f);
+        Stroke(20.0f, 18.0f, 20.0f, 6.0f);
+        Stroke(4.0f, 12.0f, 20.0f, 12.0f);
+        Draw->PathClear();
+        Run(Left, 3u, false);
+        Draw->PathClear();
+        Run(Right, 3u, false);
+        break;
+    }
+    case EditorSymbol::Constraint:
+        // The link glyph's two joined loops.
+        Draw->AddCircle(P(8.5f, 12.0f), 5.2f * U, Ink, 16, Thick);
+        Draw->AddCircle(P(15.5f, 12.0f), 5.2f * U, Ink, 16, Thick);
+        break;
+    default:
+        break;
+    }
+}
+
+// Seats the tile and the symbol inside it, in the 30 px icon box whose top-left is Box. Only a folder row with no symbol
+//    of its own falls back to the flat two-tone folder: a darker tab and back panel behind a lighter front body, with a
+//    white paper strip between the two while it is open.
+void DrawSymbolArt(ImDrawList* Draw, const EditorInstance& Row, const ImVec2& Box, float Cy, ImU32 Tint, float Fade, bool Open, bool Document) noexcept
+{
+    const bool  Folder = Row.Category == EditorInstanceCategory::Folder && Row.Symbol == EditorSymbol::None;
+    const float Cx     = Box.x + kIcoBox * 0.5f;
+    const ImU32 Ink    = ScaleAlpha(Tint, Fade);
+    auto Wash = [&](uint8_t Alpha) { return ScaleAlpha(WithAlpha(Tint, Alpha), Fade); };
+    if (Folder)
+    {
+        const float R = static_cast<float>( Tint        & 0xFFu);
+        const float G = static_cast<float>((Tint >> 8u)  & 0xFFu);
+        const float B = static_cast<float>((Tint >> 16u) & 0xFFu);
+        const ImU32 Back  = ScaleAlpha(IM_COL32(static_cast<int>(R * 0.62f), static_cast<int>(G * 0.62f), static_cast<int>(B * 0.62f), 255), Fade);
+        const ImU32 Front = ScaleAlpha(IM_COL32(static_cast<int>(R * 0.96f + 8.0f), static_cast<int>(G * 0.96f + 8.0f), static_cast<int>(B * 0.96f + 8.0f), 255), Fade);
+        const ImU32 Paper = ScaleAlpha(IM_COL32(244, 246, 250, 255), Fade);
+
+        const float X0 = Cx - 13.0f, X1 = Cx + 13.0f;
+        const float Y0 = Cy - 10.0f, Y1 = Cy + 10.0f;
+        // Back panel with its tab: the tab rises on the left, the panel runs the full width beneath it.
+        Draw->AddRectFilled(ImVec2(X0, Y0), ImVec2(X0 + 11.0f, Y0 + 7.0f), Back, 3.0f, ImDrawFlags_RoundCornersTop);
+        Draw->AddRectFilled(ImVec2(X0, Y0 + 3.0f), ImVec2(X1, Y1), Back, 3.0f);
+        // Paper, only while open.
+        if (Open)
+            Draw->AddRectFilled(ImVec2(X0 + 2.5f, Y0 + 4.5f), ImVec2(X1 - 2.5f, Y0 + 11.0f), Paper, 1.5f);
+        // Front body: lighter, starts lower when the paper shows.
+        Draw->AddRectFilled(ImVec2(X0, Y0 + (Open ? 7.5f : 6.0f)), ImVec2(X1, Y1), Front, 3.0f);
+    }
+    else
+    {
+        // Document style: the HTML's 30 px tile, its own colour at 14 % inside a 35 % hairline, the mark a little larger.
+        const float Half = Document ? kCadTile : 11.0f;
+        const ImVec2 A(Cx - Half, Cy - Half), B(Cx + Half, Cy + Half);
+        // A folder row wears the same tile as its figures, a little stronger, so the group reads before its rows do.
+        const bool Group = Row.Category == EditorInstanceCategory::Folder;
+        Draw->AddRectFilled(A, B, Wash(Group ? 64 : (Document ? 36 : 38)), Document ? 10.0f : 7.0f);
+        Draw->AddRect(A, B, Wash(Group ? 150 : (Document ? 90 : 150)), Document ? 10.0f : 7.0f, 0, 1.0f);
+        DrawSymbol(Draw, Row.Symbol, ImVec2(Cx, Cy), Document ? 6.5f : 5.0f, Ink, Document ? 1.5f : 1.3f);
+    }
+}
+
+// One capsule outline, turned to Angle: the link glyph is two of them overlapped.
+void StrokeCapsule(ImDrawList* Draw, const ImVec2& C, float Half, float Radius, float Angle, ImU32 Ink, float Thick) noexcept
+{
+    const float Dx = std::cos(Angle), Dy = std::sin(Angle);
+    const ImVec2 Near(C.x - Dx * Half, C.y - Dy * Half), Far(C.x + Dx * Half, C.y + Dy * Half);
+    Draw->PathClear();
+    Draw->PathArcTo(Far, Radius, Angle - 1.57079633f, Angle + 1.57079633f, 8);
+    Draw->PathArcTo(Near, Radius, Angle + 1.57079633f, Angle + 4.71238898f, 8);
+    Draw->PathStroke(Ink, ImDrawFlags_Closed, Thick);
+}
+
+// The document row's status: a bare glyph in its own colour, no disc. Seated reads as a green check, a derived body as a
+//    cyan link, a reference as the violet plane, a warning as an orange triangle on a faint wash.
+enum class RowStatus : uint32_t { Seated, Linked, Reference, Warning, None };
+
+RowStatus StatusOf(const EditorInstance& Row, EditorStanding Standing) noexcept
+{
+    if (Standing == EditorStanding::Warn || Standing == EditorStanding::Err)
+    {
+        return Row.Visible ? RowStatus::Warning : RowStatus::None;
+    }
+    if (!Row.Visible)
+    {
+        return RowStatus::None;
+    }
+    if (std::strcmp(Row.Tag, "Live") == 0)
+    {
+        return RowStatus::Linked;
+    }
+    if (std::strcmp(Row.Tag, "Ref") == 0)
+    {
+        return RowStatus::Reference;
+    }
+    return RowStatus::Seated;
+}
+
+void DrawRowStatus(ImDrawList* Draw, RowStatus Status, const ImVec2& C, float Fade) noexcept
+{
+    switch (Status)
+    {
+    case RowStatus::Seated:
+        DrawIcon(Draw, OutlinerIconCategory::Check, ImVec2(C.x - 6.5f, C.y - 6.5f), 13.0f, ScaleAlpha(kGreen, Fade));
+        break;
+    case RowStatus::Linked:
+    {
+        const ImU32 Ink = ScaleAlpha(IM_COL32(79, 216, 224, 255), Fade);
+        StrokeCapsule(Draw, ImVec2(C.x - 2.4f, C.y + 2.4f), 2.4f, 2.7f, -0.78539816f, Ink, 1.4f);
+        StrokeCapsule(Draw, ImVec2(C.x + 2.4f, C.y - 2.4f), 2.4f, 2.7f, -0.78539816f, Ink, 1.4f);
+        break;
+    }
+    case RowStatus::Reference:
+    {
+        const ImU32 Ink = ScaleAlpha(IM_COL32(180, 140, 255, 255), Fade);
+        const ImVec2 Quad[4] = { ImVec2(C.x - 6.0f, C.y + 3.5f), ImVec2(C.x - 2.5f, C.y - 3.5f), ImVec2(C.x + 6.0f, C.y - 3.5f), ImVec2(C.x + 2.5f, C.y + 3.5f) };
+        Draw->AddPolyline(Quad, 4, Ink, ImDrawFlags_Closed, 1.4f);
+        break;
+    }
+    case RowStatus::Warning:
+        Draw->AddRectFilled(ImVec2(C.x - 11.0f, C.y - 11.0f), ImVec2(C.x + 11.0f, C.y + 11.0f), ScaleAlpha(kWarnBg, Fade), 7.0f);
+        DrawIcon(Draw, OutlinerIconCategory::Warn, ImVec2(C.x - 6.0f, C.y - 6.0f), 12.0f, ScaleAlpha(kOrange, Fade));
+        break;
+    default:
+        break;
+    }
+}
+
 IconSymbol ArtworkFor(const EditorInstance& Row) noexcept
 {
     if (Row.Artwork != IconSymbol::Count) return Row.Artwork;
@@ -804,12 +1011,40 @@ uint32_t OutlinerPanel::QueryPickedAt(uint32_t Slot) const noexcept
     return Slot < PickedCount_ ? Picked_[Slot] : kNoEditorInstance;
 }
 
+void OutlinerPanel::RevealInstance(uint32_t Index, const EditorInstance* Rows, uint32_t Count) noexcept
+{
+    if (!Rows || Index >= Count || Index >= kMaxEditorInstances) return;
+    QueryText_[0] = 0;
+    for (bool& Enabled : FilterOn_) Enabled = false;
+    uint32_t Depth = Rows[Index].Depth;
+    for (uint32_t Earlier = Index; Earlier > 0 && Depth > 0;)
+    {
+        --Earlier;
+        if (Rows[Earlier].Depth < Depth)
+        {
+            Shut_[Earlier] = false;
+            Depth = Rows[Earlier].Depth;
+        }
+    }
+    PickInstance(Index);
+    Revealed_ = kNoEditorInstance;
+}
+
 void OutlinerPanel::PickInstance(uint32_t Index) noexcept
 {
     ExplicitPick_=true;
     Picked_[0]   = Index;
     PickedCount_ = 1u;
     Anchor_      = Index;
+}
+
+void OutlinerPanel::AssignPicks(const uint32_t* Rows, uint32_t Count) noexcept
+{
+    ExplicitPick_ = true;
+    PickedCount_  = 0u;
+    for (uint32_t Slot = 0u; Rows != nullptr && Slot < Count && PickedCount_ < kMaxEditorPicked; ++Slot)
+        AddPick(Rows[Slot]);
+    Anchor_ = PickedCount_ > 0u ? Picked_[0] : kNoEditorInstance;
 }
 
 bool OutlinerPanel::IsPicked(uint32_t Index) const noexcept
@@ -1101,10 +1336,21 @@ void OutlinerPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) no
         Compact_     = false;
     }
 
+    if (DocumentStyle_)
+    {
+        TakeCensus(Instances, InstanceCount);
+    }
     RecordHeader(Instances, InstanceCount);
     if (!Compact_)
     {
-        RecordTiles(Instances, InstanceCount);
+        if (DocumentStyle_)
+        {
+            RecordDocumentTiles(Instances, InstanceCount);
+        }
+        else
+        {
+            RecordTiles(Instances, InstanceCount);
+        }
     }
     RecordSearch();
     if (!Compact_)
@@ -1112,7 +1358,14 @@ void OutlinerPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) no
         RecordChips();
     }
     (void)RecordOutline(Instances, InstanceCount);
-    RecordFooter();
+    if (DocumentStyle_)
+    {
+        RecordDocumentFooter();
+    }
+    else
+    {
+        RecordFooter();
+    }
     for(uint32_t i=0;i<InstanceCount;++i){Instances[i].Shut=Shut_[i];RosterKeys_[i]=Instances[i].InspectorKey;}
     RosterCount_=InstanceCount;
     ImGui::End();
@@ -1158,8 +1411,28 @@ void OutlinerPanel::RecordHeader(EditorInstance* Instances, uint32_t InstanceCou
         // "Showcase · 142 nodes" — the level name rides the tick readout; without one the head reads "Scene".
         const char* Scene = (Readout_ != nullptr && Readout_->Scene[0] != '\0') ? Readout_->Scene : "Scene";
         char Sub[40];
-        std::snprintf(Sub, sizeof(Sub), "%s \xc2\xb7 %u nodes", Scene, Total);
-        DrawSized(Draw, Ui, 12.0f, X, Cy + 1.0f, kT3, Sub);
+        if (DocumentStyle_)
+        {
+            // The HTML's head pill: a hairline capsule, 9 px tracked capitals, "SOLIDARC · DOCUMENT".
+            std::snprintf(Sub, sizeof(Sub), "%s \xc2\xb7 document", Scene);
+            char Caps[40];
+            UpperCopy(Caps, sizeof(Caps), Sub);
+            const float PillW = MeasureSpaced(Ui, 9.0f, Caps, 0.9f) + 20.0f;
+            const ImVec2 PillMin(X - 2.0f, Cy - 10.0f);
+            Draw->AddRect(PillMin, ImVec2(PillMin.x + PillW, PillMin.y + 20.0f), kStroke, 10.0f, 0, 1.0f);
+            DrawSpaced(Draw, Ui, 9.0f, ImVec2(PillMin.x + 10.0f, Cy - Ui->CalcTextSizeA(9.0f, FLT_MAX, 0.0f, Caps).y * 0.5f), kT2, Caps, 0.9f);
+        }
+        else
+        {
+            std::snprintf(Sub, sizeof(Sub), "%s \xc2\xb7 %u nodes", Scene, Total);
+            DrawSized(Draw, Ui, 12.0f, X, Cy + 1.0f, kT3, Sub);
+        }
+    }
+    if (DocumentStyle_)
+    {
+        // The document head carries no compact button; Tab still narrows the panel.
+        ImGui::SetCursorScreenPos(ImVec2(Cursor.x, Cursor.y + PadT + LineH + PadB));
+        return;
     }
 
     // .cbtn: 28 px round, 1 px stroke; compact lights it (text ink on g3), hover the same.
@@ -1339,7 +1612,7 @@ void OutlinerPanel::RecordSearch() noexcept
                             ImVec2(ArrowX, ArrowY + (PopupOpen ? -4.0f : 4.0f)), (Hot || PopupOpen) ? kText : kT3);
     if (Lit > 0u)
     {
-        char Count[8];
+        char Count[12];
         std::snprintf(Count, sizeof(Count), "%u", Lit);
         const float CountW = MeasureSized(Ui, 10.0f, Count) + 10.0f;
         Draw->AddRectFilled(ImVec2(BtnMax.x - 28.0f - CountW, Cy - 9.0f), ImVec2(BtnMax.x - 28.0f, Cy + 9.0f),
@@ -1648,7 +1921,11 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     ImFont*     Ui   = Controls_->QueryUi();
     ImFont*     Mono = Controls_->QueryMono();
     const float Fold = Squeeze < 0.0f ? 0.0f : (Squeeze > 1.0f ? 1.0f : Squeeze);
-    const float RowH = (Compact_ ? kRowHCompact : kRowH) * Fold;
+    const bool  Cad    = DocumentStyle_;
+    const bool  Folder = Row.Category == EditorInstanceCategory::Folder;
+    const float Indent = Cad ? kCadStep : 13.0f;
+    const float RowH = (Cad ? (Folder ? kCadFolderH : kCadRowH) : (Compact_ ? kRowHCompact : kRowH)) * Fold;
+    const float Radius = Cad ? kCadRadius : kRowRadius;
     const float Width = ImGui::GetContentRegionAvail().x;
 
     const ImVec2 Origin = ImGui::GetCursorScreenPos();
@@ -1657,7 +1934,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     ImGui::PushID(static_cast<int>(Index));
     // Keep the row's hit target out of the chevron/eye columns. A full-width
     // InvisibleButton consumed their press before the small controls could see it.
-    const float HitLeft=Min.x+8.0f+float(Row.Depth)*13.0f+kChevBox+kRowGap;
+    const float HitLeft=Min.x+8.0f+float(Row.Depth)*Indent+kChevBox+kRowGap;
     const float HitRight=Max.x-(Row.Pinned?0.0f:kEyeBox+6.0f);
     ImGui::SetCursorScreenPos(ImVec2(HitLeft,Min.y));
     ImGui::InvisibleButton("##row", ImVec2(std::max(1.0f,HitRight-HitLeft), RowH), ImGuiButtonFlags_MouseButtonLeft);
@@ -1670,7 +1947,6 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         ImGui::SetScrollHereY(0.5f);
         Revealing_ = true;   // this frame's scroll belongs to the reveal; the glide adopts it next frame
     }
-    const bool Folder  = Row.Category == EditorInstanceCategory::Folder;
     const bool Dim     = !Row.Visible && !Folder;
     const ImU32 Accent = RowTint(Row);
 
@@ -1701,18 +1977,22 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     // Ground.
     if (Picked)
     {
-        Draw->AddRectFilled(Min, Max, kSelBg, kRowRadius);
-        Draw->AddRect(Min, Max, kStroke2, kRowRadius, 0, 1.0f);
-        Draw->AddRectFilled(ImVec2(Min.x, Min.y), ImVec2(Min.x + 3.0f, Max.y), Accent, 0.0f);
+        // The document row is the HTML's .row.sel: a white wash and a hairline, no accent bar.
+        Draw->AddRectFilled(Min, Max, Cad ? IM_COL32(255, 255, 255, 18) : kSelBg, Radius);
+        Draw->AddRect(Min, Max, kStroke2, Radius, 0, 1.0f);
+        if (!Cad)
+        {
+            Draw->AddRectFilled(ImVec2(Min.x, Min.y), ImVec2(Min.x + 3.0f, Max.y), Accent, 0.0f);
+        }
     }
     else if (Hot && DragLifted_ == kNoEditorInstance)
     {
-        Draw->AddRectFilled(Min, Max, kG2, kRowRadius);
+        Draw->AddRectFilled(Min, Max, kG2, Radius);
     }
     if (DropHere && !DropBefore)
     {
-        Draw->AddRectFilled(Min, Max, WithAlpha(Accent, 31), kRowRadius);   // color-mix 12 %
-        Draw->AddRect(Min, Max, Accent, kRowRadius, 0, 1.0f);
+        Draw->AddRectFilled(Min, Max, WithAlpha(Accent, 31), Radius);   // color-mix 12 %
+        Draw->AddRect(Min, Max, Accent, Radius, 0, 1.0f);
     }
     if (DropHere && DropBefore)
     {
@@ -1728,7 +2008,13 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
 
     // Columns, left to right.
     const float Cy = Min.y + RowH * 0.5f;
-    float X = Min.x + 8.0f + static_cast<float>(Row.Depth) * 13.0f;
+    float X = Min.x + 8.0f + static_cast<float>(Row.Depth) * Indent;
+    if (Cad && Row.Depth >= 2u && !Folding)
+    {
+        // .row.child::before: the hairline that ties a child to the row above.
+        const float Lx = X - 5.0f;
+        Draw->AddLine(ImVec2(Lx, Min.y), ImVec2(Lx, Max.y), kStroke, 1.0f);
+    }
 
     // Chevron.
     {
@@ -1752,7 +2038,9 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         const IconSymbol Artwork = ArtworkFor(Row);
         const float ArtSize=std::min(kIcoBox,RowH-4.f);
         const ImVec2 ArtMin(X+(kIcoBox-ArtSize)*.5f, Cy-ArtSize*.5f);
-        if (!IconPresentation::Draw(Draw, Artwork, ArtMin, ArtSize, Fade * DimF))
+        if (Row.Symbol != EditorSymbol::None)
+            DrawSymbolArt(Draw, Row, ImVec2(X, Cy - kIcoBox * 0.5f), Cy, Accent, Fade * DimF, HasKids && !Shut_[Index], Cad);
+        else if (!IconPresentation::Draw(Draw, Artwork, ArtMin, ArtSize, Fade * DimF))
             DrawIcon(Draw, IconFor(Row), ImVec2(X + (kIcoBox - 14.0f) * 0.5f, Cy - 7.0f), 14.0f, GlyphInk);
         else if (IconPresentation::Result(Artwork) != IconResult::Ready &&
                  ImGui::IsMouseHoveringRect(ArtMin, ImVec2(ArtMin.x+ArtSize, ArtMin.y+ArtSize)))
@@ -1790,7 +2078,23 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     }
 
     // Folder rows match HTML: artwork + label + visibility, no extra status glyph.
-    if (!Folder)
+    if (!Folder && Cad)
+    {
+        EditorStanding Standing = EditorStanding::Ok;
+        char Note[24] = {};
+        StandingOf(Instances, InstanceCount, Index, HasKids, Standing, Note, sizeof(Note));
+        RightX -= kStatBox + 6.0f;
+        const RowStatus Status = StatusOf(Row, Standing);
+        DrawRowStatus(Draw, Status, ImVec2(RightX + (kStatBox + 6.0f) * 0.5f, Cy), Fade);
+        ImGui::SetCursorScreenPos(ImVec2(RightX, Cy - kStatBox * 0.5f));
+        ImGui::InvisibleButton("##stat", ImVec2(kStatBox + 6.0f, kStatBox));
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", Note);
+        }
+        RightX -= kRowGap;
+    }
+    else if (!Folder)
     {
         EditorStanding Standing = EditorStanding::Ok;
         char Note[24] = {};
@@ -1817,21 +2121,39 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         RightX -= kRowGap;
     }
 
-    // Meta.
-    if (!Compact_ && Row.Meta[0] != '\0')
+    // Meta. The document row prints it under the name instead; only a group head keeps it on the right (its count).
+    if (!Compact_ && Row.Meta[0] != '\0' && (!Cad || Folder))
     {
-        const float W = MeasureSized(Mono, 11.0f, Row.Meta);
+        const float MetaPx = Cad ? 10.0f : 11.0f;
+        const float W = MeasureSized(Mono, MetaPx, Row.Meta);
         RightX -= W;
-        DrawSized(Draw, Mono, 11.0f, RightX, Cy, ScaleAlpha(kT3, Fade), Row.Meta);
+        DrawSized(Draw, Mono, MetaPx, RightX, Cy, ScaleAlpha(kT3, Fade), Row.Meta);
         RightX -= kRowGap;
     }
 
     // Name and tag.
     {
         const float NameW = RightX - X;
-        if (Folder)
+        if (Folder && Cad)
+        {
+            // .grp-h: 11 px, uppercase, .1em tracking, t3.
+            char Upper[48];
+            UpperCopy(Upper, sizeof(Upper), Row.Label);
+            const float Lift = Ui->CalcTextSizeA(11.0f, FLT_MAX, 0.0f, Upper).y * 0.5f;
+            DrawSpaced(Draw, Ui, 11.0f, ImVec2(X, Cy - Lift), ScaleAlpha((Hot || Picked) ? kText : kT2, Fade), Upper, 1.1f);
+        }
+        else if (Folder)
         {
             DrawClipped(Draw, Ui, 13.0f, X, Cy, NameW, ScaleAlpha(Ink, DimF), Row.Label);
+        }
+        else if (Cad)
+        {
+            // .row .txt: the name over a mono 10 px meta line.
+            DrawClipped(Draw, Ui, 13.0f, X, Cy - 7.0f, NameW, ScaleAlpha(Ink, DimF), Row.Label);
+            if (!Compact_ && Row.Meta[0] != '\0')
+            {
+                DrawClipped(Draw, Mono, 10.0f, X, Cy + 8.0f, NameW, ScaleAlpha(kT3, Fade * DimF), Row.Meta);
+            }
         }
         else
         {
@@ -1885,6 +2207,178 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         Shut_[Index] = !Shut_[Index];
     }
     if (Folding) Draw->PopClipRect();
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                    DOCUMENT STYLE
+//------------------------------------------------------------------------------------------------------------------------
+// SolidArc's HTML outliner: the Figures / Selected tiles under the head, and a census foot in place of the game's readout
+//    strip. The census is taken once per tick from the roster, so the tiles, the bar and the counts always agree.
+
+void OutlinerPanel::TakeCensus(const EditorInstance* Instances, uint32_t InstanceCount) noexcept
+{
+    for (uint32_t& Count : CensusSymbol_)
+    {
+        Count = 0u;
+    }
+    CensusShown_  = 0u;
+    CensusHidden_ = 0u;
+    CensusIssues_ = 0u;
+    for (uint32_t i = 0u; i < InstanceCount; ++i)
+    {
+        const EditorInstance& Row = Instances[i];
+        if (Row.Category == EditorInstanceCategory::Folder)
+        {
+            continue;
+        }
+        ++CensusSymbol_[static_cast<uint32_t>(Row.Symbol) & 7u];
+        if (Row.Visible)
+        {
+            ++CensusShown_;
+        }
+        else
+        {
+            ++CensusHidden_;
+        }
+        if (Row.Visible && (Row.Standing == EditorStanding::Warn || Row.Standing == EditorStanding::Err))
+        {
+            ++CensusIssues_;
+        }
+    }
+}
+
+void OutlinerPanel::RecordDocumentTiles(EditorInstance* Instances, uint32_t InstanceCount) noexcept
+{
+    const float RowWidth = ImGui::GetContentRegionAvail().x;
+    const float TileW = (RowWidth - 2.0f * kSidePad - 8.0f) * 0.5f;
+    const float TileH = 64.0f;
+    ImGui::Dummy(ImVec2(RowWidth, TileH + 10.0f));
+    const ImVec2 Cursor = ImGui::GetItemRectMin();
+    ImDrawList* Draw    = ImGui::GetWindowDrawList();
+    ImFont*     Ui      = Controls_->QueryUi();
+    ImFont*     Mono    = Controls_->QueryMono();
+    ImFont*     Display = Controls_->QueryDisplay();
+
+    const uint32_t Total  = CensusShown_ + CensusHidden_;
+    const uint32_t Picked = PickedCount_;
+    const char*    Name   = (Picked > 0u && Picked_[0] < InstanceCount) ? Instances[Picked_[0]].Label : "none";
+
+    for (uint32_t t = 0u; t < 2u; ++t)
+    {
+        const ImVec2 Min(Cursor.x + kSidePad + static_cast<float>(t) * (TileW + 8.0f), Cursor.y);
+        const ImVec2 Max(Min.x + TileW, Min.y + TileH);
+        Draw->AddRectFilled(Min, Max, kTileBg, 18.0f);
+        Draw->AddRect(Min, Max, kStroke, 18.0f, 0, 1.0f);
+
+        // .tile .l: an 8 px status dot and the label; .s: the 10 px t3 captions beneath; b: the 24 px figure.
+        const bool Lit = t == 0u || Picked > 0u;
+        Draw->AddCircleFilled(ImVec2(Min.x + 17.0f, Min.y + 17.0f), 4.0f, Lit ? kGreen : kT3);
+        DrawSized(Draw, Ui, 11.0f, Min.x + 28.0f, Min.y + 17.0f, kT2, t == 0u ? "Figures" : "Selected");
+        char Line[40];
+        if (t == 0u)
+        {
+            std::snprintf(Line, sizeof(Line), "%u visible", CensusShown_);
+            DrawSized(Draw, Mono, 10.0f, Min.x + 14.0f, Min.y + 36.0f, kT3, Line);
+            std::snprintf(Line, sizeof(Line), "%u hidden", CensusHidden_);
+            DrawSized(Draw, Mono, 10.0f, Min.x + 14.0f, Min.y + 49.0f, CensusHidden_ > 0u ? kOrange : kT3, Line);
+        }
+        else
+        {
+            DrawClipped(Draw, Mono, 10.0f, Min.x + 14.0f, Min.y + 43.0f, TileW - 28.0f - 30.0f, kT3, Picked > 1u ? "several" : Name);
+        }
+        char Figure[12];
+        std::snprintf(Figure, sizeof(Figure), "%u", t == 0u ? Total : Picked);
+        const float FigW = MeasureSized(Display, 28.0f, Figure);
+        const ImVec2 FigG = Display->CalcTextSizeA(28.0f, FLT_MAX, 0.0f, Figure);
+        Draw->AddText(Display, 28.0f, ImVec2(Max.x - 14.0f - FigW, Max.y - 8.0f - FigG.y + 2.0f), kText, Figure);
+    }
+    ImGui::SetCursorScreenPos(ImVec2(Cursor.x, Cursor.y + TileH + 10.0f));
+}
+
+void OutlinerPanel::RecordDocumentFooter() noexcept
+{
+    static const EditorReadout Resting = {};
+    const EditorReadout& R = Readout_ != nullptr ? *Readout_ : Resting;
+    const float RowWidth = ImGui::GetContentRegionAvail().x;
+    const float FootTop  = Controls_->QueryFootTop();
+    if (ImGui::GetCursorScreenPos().y < FootTop)
+    {
+        ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, FootTop));
+    }
+    const float PadX = 14.0f;
+    ImGui::Dummy(ImVec2(RowWidth, kEditorFooterH));
+    const ImVec2 Cursor = ImGui::GetItemRectMin();
+    ImDrawList* Draw = ImGui::GetWindowDrawList();
+    ImFont*     Ui   = Controls_->QueryUi();
+    ImFont*     Mono = Controls_->QueryMono();
+    Draw->AddRectFilled(Cursor, ImVec2(Cursor.x + RowWidth, Cursor.y + kEditorFooterH), kWash);
+    Draw->AddLine(Cursor, ImVec2(Cursor.x + RowWidth, Cursor.y), kStroke, 1.0f);
+
+    // .foot-census: one segment per symbol, as wide as the symbol is populous, in its own colour.
+    static const ImU32 SymbolTint[8] = { 0u, IM_COL32(79, 216, 224, 255), IM_COL32(79, 216, 224, 255), IM_COL32(255, 180, 84, 255),
+                                       IM_COL32(77, 163, 255, 255), IM_COL32(180, 140, 255, 255), IM_COL32(229, 211, 58, 255),
+                                       IM_COL32(255, 107, 138, 255) };
+    uint32_t Total = 0u;
+    for (uint32_t k = 1u; k < 8u; ++k)
+    {
+        Total += CensusSymbol_[k];
+    }
+    const float BarY = Cursor.y + 7.0f;
+    const float BarW = RowWidth - 2.0f * PadX;
+    Draw->AddRectFilled(ImVec2(Cursor.x + PadX, BarY), ImVec2(Cursor.x + PadX + BarW, BarY + 5.0f), kWash, 3.0f);
+    uint32_t Populated = 0u;
+    for (uint32_t k = 1u; k < 8u; ++k)
+    {
+        Populated += CensusSymbol_[k] > 0u ? 1u : 0u;
+    }
+    float BarX = Cursor.x + PadX;
+    const float Room = BarW - 3.0f * static_cast<float>(Populated > 0u ? Populated - 1u : 0u);
+    for (uint32_t k = 1u; k < 8u && Total > 0u; ++k)
+    {
+        if (CensusSymbol_[k] == 0u)
+        {
+            continue;
+        }
+        const float W = Room * static_cast<float>(CensusSymbol_[k]) / static_cast<float>(Total);
+        Draw->AddRectFilled(ImVec2(BarX, BarY), ImVec2(BarX + W, BarY + 5.0f), SymbolTint[k], 2.5f);
+        BarX += W + 3.0f;
+    }
+
+    // .foot-row: the live counts left, the verdict right.
+    const float Cy = Cursor.y + 28.0f;
+    char Text[32];
+    float X = Cursor.x + PadX;
+    std::snprintf(Text, sizeof(Text), "%u/%u", CensusShown_, CensusShown_ + CensusHidden_);
+    DrawSized(Draw, Mono, 10.5f, X, Cy, kText, Text);
+    X += MeasureSized(Mono, 10.5f, Text) + 3.0f;
+    DrawSized(Draw, Ui, 10.0f, X, Cy, kT3, "shown");
+    X += MeasureSized(Ui, 10.0f, "shown") + 12.0f;
+    std::snprintf(Text, sizeof(Text), "%u hidden", CensusHidden_);
+    DrawSized(Draw, Mono, 10.5f, X, Cy, CensusHidden_ > 0u ? kOrange : kT3, Text);
+
+    float RightX = Cursor.x + RowWidth - PadX;
+    const bool Clean = CensusIssues_ == 0u;
+    if (Clean)
+    {
+        std::snprintf(Text, sizeof(Text), "clean");
+    }
+    else
+    {
+        std::snprintf(Text, sizeof(Text), "%u issue%s", CensusIssues_, CensusIssues_ > 1u ? "s" : "");
+    }
+    RightX -= MeasureSized(Mono, 10.5f, Text);
+    DrawSized(Draw, Mono, 10.5f, RightX, Cy, Clean ? kGreen : kOrange, Text);
+    RightX -= 15.0f;
+    DrawIcon(Draw, Clean ? OutlinerIconCategory::Check : OutlinerIconCategory::Warn, ImVec2(RightX, Cy - 6.0f), 12.0f, Clean ? kGreen : kOrange);
+    if (R.Triangles > 0u)
+    {
+        std::snprintf(Text, sizeof(Text), "%.1fk tris", static_cast<double>(R.Triangles) / 1000.0);
+        const float W = MeasureSized(Mono, 10.5f, Text);
+        if (RightX - 12.0f - W > X + MeasureSized(Mono, 10.5f, "0 hidden") + 8.0f)
+        {
+            DrawSized(Draw, Mono, 10.5f, RightX - 12.0f - W, Cy, kT3, Text);
+        }
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------

@@ -49,6 +49,8 @@ public:
     using InspectorExchange = EditorSheet* (*)(uint32_t, bool, void*) noexcept;
     void AssignInspectorExchange(InspectorExchange Fn,void* Context) noexcept {InspectorExchange_=Fn;InspectorContext_=Context;}
     void AssignBillboardExchange(BillboardExchange Fn,void* Context) noexcept {Viewport_.Billboards.Assign(Fn,Context);}
+    void AssignConstructionWorld(SceneStructure* World) noexcept {Viewport_.AssignConstructionWorld(World);}
+    bool TakeConstructionChanged() noexcept {return Viewport_.TakeConstructionChanged();}
     bool TakeBillboardSelection() noexcept {const bool V=BillboardSelection_;BillboardSelection_=false;return V;}
     ImVec2 QueryBillboardCentre(uint64_t Key) const noexcept {return Viewport_.Billboards.Centre(Key);}
     void AssignInspectorWorkspace(bool On) noexcept {if(InspectorWorkspace_!=On){InspectorWorkspace_=On;LayoutSeated_=false;}}
@@ -95,6 +97,12 @@ public:
 
     // The outliner's foot strip figures; the project refreshes the struct in place each tick.
     void AssignReadout(const EditorReadout* Readout) noexcept;
+
+    // The shared widget vocabulary, so a tool window drawn beside the panels uses the same sliders they do.
+    [[nodiscard]] uint32_t QueryTransport() const noexcept { return Viewport_.QueryTransport(); }
+    [[nodiscard]] bool QueryPaused() const noexcept { return Viewport_.QueryPaused(); }
+    bool TakeSimulationStep() noexcept { return Viewport_.TakeSimulationStep(); }
+    [[nodiscard]] ControlPanel& QueryControls() noexcept { return Controls_; }
     // Bumps when a drag reparents a row: the project re-reads the roster order.
     [[nodiscard]] uint32_t QueryOrderRevision() const noexcept;
     [[nodiscard]] float QueryViewWidth() const noexcept;

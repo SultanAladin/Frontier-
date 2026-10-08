@@ -21,8 +21,13 @@ namespace Frontier::SlangMirror
 #define xy xy()
 #define xyz xyz()
 #define zw zw()
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4100) // Shared shader signatures retain unused uniform inputs.
+#elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 using uint = std::uint32_t;
 inline float log(float A) { return std::log(A); }
 #include "Shaders/ShadingRecords.slang"
@@ -35,7 +40,7 @@ inline float log(float A) { return std::log(A); }
 #undef out
 // ---- Matcap pre-render: every studio sample once into a 128×128 RGB layer (≈ 0.6 ms per layer), sampled bilinearly. ----
 constexpr int MatcapSize = 128;
-constexpr int MatcapLayers = 10;
+constexpr int MatcapLayers = 14;   // 0-9 studios + Frontier car studios: 10 rubber, 11 glass, 12 headlight, 13 taillight
 struct MatcapSheet
 {
     std::vector<float> Texels;                                                          // [-] Layers × Size × Size × 3
@@ -74,7 +79,11 @@ float3 MatcapLookup(uint Layer, float3 N)
     return lerp(Top, Bottom, Ty);
 }
 
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#elif defined(__GNUC__)
 #pragma GCC diagnostic pop
+#endif
 #undef xy
 #undef xyz
 #undef zw
@@ -92,7 +101,9 @@ namespace SM = SlangMirror;
 
 struct SoftwareRaster::Detail
 {
-    uint32_t              W = 0, H = 0;
+    uint32_t              W = 0, H = 0;                                                 // [px] working planes, Samples times the visible size
+    uint32_t              OutW = 0, OutH = 0;                                           // [px] visible size
+    uint32_t              Samples = 2;                                                  // [-] working pixels per visible pixel, each way
     std::vector<float>    Colour;                                                       // [-] RGBA float, straight alpha over opaque clear
     std::vector<float>    DepthPlane;                                                   // [-] 0..1
     std::vector<uint32_t> PickPlane;                                                    // [-]
@@ -242,14 +253,25 @@ SoftwareRaster::~SoftwareRaster() = default;
 
 void SoftwareRaster::Resize(uint32_t Width, uint32_t Height) noexcept
 {
-    Self->W = Width; Self->H = Height;
-    Self->Colour.assign(static_cast<size_t>(Width) * Height * 4, 0.0f);
-    Self->DepthPlane.assign(static_cast<size_t>(Width) * Height, 1.0f);
-    Self->PickPlane.assign(static_cast<size_t>(Width) * Height, 0u);
+    Self->OutW = Width; Self->OutH = Height;
+    Self->W = Width * Self->Samples; Self->H = Height * Self->Samples;
+    Self->Colour.assign(static_cast<size_t>(Self->W) * Self->H * 4, 0.0f);
+    Self->DepthPlane.assign(static_cast<size_t>(Self->W) * Self->H, 1.0f);
+    Self->PickPlane.assign(static_cast<size_t>(Self->W) * Self->H, 0u);
 }
 
-uint32_t SoftwareRaster::Width() const noexcept { return Self->W; }
-uint32_t SoftwareRaster::Height() const noexcept { return Self->H; }
+uint32_t SoftwareRaster::Width() const noexcept { return Self->OutW; }
+uint32_t SoftwareRaster::Height() const noexcept { return Self->OutH; }
+
+void SoftwareRaster::AssignSamples(uint32_t Samples) noexcept
+{
+    const uint32_t Clamped = std::clamp<uint32_t>(Samples, 1u, 4u);
+    if (Clamped == Self->Samples) return;
+    Self->Samples = Clamped;
+    Resize(Self->OutW, Self->OutH);
+}
+
+uint32_t SoftwareRaster::QuerySamples() const noexcept { return Self->Samples; }
 
 void SoftwareRaster::BeginTarget(const float ClearColour[4]) noexcept
 {
@@ -265,15 +287,22 @@ void SoftwareRaster::BeginTarget(const float ClearColour[4]) noexcept
 
 void SoftwareRaster::BindView(const ViewRecord& View) noexcept
 {
-    Self->ViewCurrent = View;
-    Self->View = MirrorView(View);
+    // Every length the shaders read in pixels is counted in working pixels, so a line stays as wide on screen.
+    const float Scale = static_cast<float>(Self->Samples);
+    ViewRecord Scaled = View;
+    for (int I = 0; I < 2; ++I) { Scaled.Viewport[I] = View.Viewport[I] * Scale; Scaled.Viewport[I + 2] = View.Viewport[I + 2] / Scale; }
+    Scaled.LatticeStyle[3] = View.LatticeStyle[3] * Scale;
+    Scaled.PixelAngle = View.PixelAngle / Scale;
+    Scaled.PixelWorld = View.PixelWorld / Scale;
+    Self->ViewCurrent = Scaled;
+    Self->View = MirrorView(Scaled);
 }
 
 void SoftwareRaster::BeginOverlay() noexcept { Self->Overlay = true; }
 void SoftwareRaster::EndTarget() noexcept { Self->Overlay = false; }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                  LATTICE (analytic, per pixel, 4-tap supersample)
+//                                                  LATTICE (analytic, per pixel, one centre tap)
 //------------------------------------------------------------------------------------------------------------------------
 
 void SoftwareRaster::DrawLattice() noexcept
@@ -282,30 +311,23 @@ void SoftwareRaster::DrawLattice() noexcept
     Mat4 ClipView; for (int I = 0; I < 16; ++I) ClipView.M[I] = V.ClipView[I];
     bool Perspective = V.EyePosition[3] > 0.5f;
     Vec3 Eye{ V.EyePosition[0], V.EyePosition[1], V.EyePosition[2] };
-    const float Taps[4][2] = { { 0.25f, 0.25f }, { 0.75f, 0.25f }, { 0.25f, 0.75f }, { 0.75f, 0.75f } };
+    // The lattice coverage is analytic and already anti-aliased over one pixel, so one centre tap is the whole answer;
+    //    averaging four offset taps would only smear a one-pixel line across two.
     for (uint32_t Y = 0; Y < Self->H; ++Y)
         for (uint32_t X = 0; X < Self->W; ++X)
         {
-            SM::float4 Sum{ 0, 0, 0, 0 };
-            float DepthMin = 1.0f;
-            for (const float* Tap : Taps)
-            {
-                double NdcX = ((X + Tap[0]) / Self->W) * 2.0 - 1.0;
-                double NdcY = ((Y + Tap[1]) / Self->H) * 2.0 - 1.0;
-                Vec3 NearP = ClipView.TransformPoint({ NdcX, NdcY, 0.0 });
-                Vec3 FarP  = ClipView.TransformPoint({ NdcX, NdcY, 1.0 });
-                Vec3 Origin = Perspective ? Eye : NearP;
-                Vec3 Direction = (FarP - NearP).Normalised();
-                SM::LatticeSample G = SM::LatticeShade(Self->View, SM::float3(float(Origin.X), float(Origin.Y), float(Origin.Z)),
-                                                 SM::float3(float(Direction.X), float(Direction.Y), float(Direction.Z)), V.PixelAngle, V.PixelWorld);
-                Sum = Sum + SM::float4(G.Colour.xyz() * G.Colour.w, G.Colour.w);
-                DepthMin = std::min(DepthMin, G.Depth);
-            }
-            if (Sum.w <= 0.002f) continue;
-            SM::float4 Averaged{ Sum.x / Sum.w, Sum.y / Sum.w, Sum.z / Sum.w, Sum.w * 0.25f };
+            double NdcX = ((X + 0.5) / Self->W) * 2.0 - 1.0;
+            double NdcY = ((Y + 0.5) / Self->H) * 2.0 - 1.0;
+            Vec3 NearP = ClipView.TransformPoint({ NdcX, NdcY, 0.0 });
+            Vec3 FarP  = ClipView.TransformPoint({ NdcX, NdcY, 1.0 });
+            Vec3 Origin = Perspective ? Eye : NearP;
+            Vec3 Direction = (FarP - NearP).Normalised();
+            SM::LatticeSample G = SM::LatticeShade(Self->View, SM::float3(float(Origin.X), float(Origin.Y), float(Origin.Z)),
+                                             SM::float3(float(Direction.X), float(Direction.Y), float(Direction.Z)), V.PixelAngle, V.PixelWorld);
+            if (G.Colour.w <= 0.002f) continue;
             size_t Index = static_cast<size_t>(Y) * Self->W + X;
-            if (DepthMin > Self->DepthPlane[Index]) continue;
-            Self->Cover(X, Y, Averaged);
+            if (G.Depth > Self->DepthPlane[Index]) continue;
+            Self->Cover(X, Y, G.Colour);
             ++Self->Count.Fragments;
         }
 }
@@ -317,6 +339,8 @@ void SoftwareRaster::DrawLattice() noexcept
 void SoftwareRaster::DrawSurface(const SurfaceStream& Stream, const DrawRecord& Draw) noexcept
 {
     SM::DrawRecord D = MirrorDraw(Draw);
+    D.Selection.z *= static_cast<float>(Self->Samples);
+    D.Selection.w *= static_cast<float>(Self->Samples);
     const SM::ViewRecord& V = Self->View;
     uint32_t N = Stream.VertexCount();
     std::vector<Detail::ClipVertex> Clip(N);
@@ -351,6 +375,8 @@ void SoftwareRaster::DrawSurface(const SurfaceStream& Stream, const DrawRecord& 
 void SoftwareRaster::DrawSegments(const SegmentStream& Stream, const DrawRecord& Draw) noexcept
 {
     SM::DrawRecord D = MirrorDraw(Draw);
+    D.Selection.z *= static_cast<float>(Self->Samples);
+    D.Selection.w *= static_cast<float>(Self->Samples);
     const SM::ViewRecord& V = Self->View;
     auto Shade = [&](const float* Vy, bool)
     {
@@ -382,6 +408,8 @@ void SoftwareRaster::DrawSegments(const SegmentStream& Stream, const DrawRecord&
 void SoftwareRaster::DrawPoints(const PointStream& Stream, const DrawRecord& Draw) noexcept
 {
     SM::DrawRecord D = MirrorDraw(Draw);
+    D.Selection.z *= static_cast<float>(Self->Samples);
+    D.Selection.w *= static_cast<float>(Self->Samples);
     const SM::ViewRecord& V = Self->View;
     auto Shade = [&](const float* Vy, bool)
     {
@@ -413,28 +441,45 @@ void SoftwareRaster::DrawPoints(const PointStream& Stream, const DrawRecord& Dra
 RasterImage SoftwareRaster::Readback() const noexcept
 {
     RasterImage Image;
-    Image.Width = Self->W; Image.Height = Self->H;
-    Image.Pixels.resize(static_cast<size_t>(Self->W) * Self->H * 4);
-    for (size_t I = 0; I < Image.Pixels.size(); ++I)
-    {
-        float C = Self->Colour[I];
-        // sRGB-ish gamma for the proof PNGs so shading reads like a real viewport.
-        if (I % 4 != 3) C = std::pow(SM::saturate(C), 1.0f / 2.2f);
-        Image.Pixels[I] = static_cast<uint8_t>(std::lround(SM::saturate(C) * 255.0f));
-    }
+    Image.Width = Self->OutW; Image.Height = Self->OutH;
+    Image.Pixels.resize(static_cast<size_t>(Self->OutW) * Self->OutH * 4);
+    const uint32_t N = Self->Samples;
+    const float    Share = 1.0f / static_cast<float>(N * N);
+    for (uint32_t Y = 0; Y < Self->OutH; ++Y)
+        for (uint32_t X = 0; X < Self->OutW; ++X)
+        {
+            // Box filter over the N x N working pixels, in linear light, then the display curve once.
+            float Sum[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+            for (uint32_t Row = 0; Row < N; ++Row)
+                for (uint32_t Column = 0; Column < N; ++Column)
+                {
+                    const float* Src = &Self->Colour[(static_cast<size_t>(Y * N + Row) * Self->W + (X * N + Column)) * 4];
+                    for (int C = 0; C < 4; ++C) Sum[C] += SM::saturate(Src[C]);
+                }
+            uint8_t* Dst = &Image.Pixels[(static_cast<size_t>(Y) * Self->OutW + X) * 4];
+            for (int C = 0; C < 4; ++C)
+            {
+                float V = Sum[C] * Share;
+                // sRGB-ish gamma for the proof PNGs so shading reads like a real viewport.
+                if (C != 3) V = std::pow(SM::saturate(V), 1.0f / 2.2f);
+                Dst[C] = static_cast<uint8_t>(std::lround(SM::saturate(V) * 255.0f));
+            }
+        }
     return Image;
 }
 
 uint32_t SoftwareRaster::Pick(uint32_t X, uint32_t Y) const noexcept
 {
-    if (X >= Self->W || Y >= Self->H) return 0;
-    return Self->PickPlane[static_cast<size_t>(Y) * Self->W + X];
+    if (X >= Self->OutW || Y >= Self->OutH) return 0;
+    const uint32_t Centre = Self->Samples / 2u;
+    return Self->PickPlane[static_cast<size_t>(Y * Self->Samples + Centre) * Self->W + (X * Self->Samples + Centre)];
 }
 
 float SoftwareRaster::Depth(uint32_t X, uint32_t Y) const noexcept
 {
-    if (X >= Self->W || Y >= Self->H) return 1.0f;
-    return Self->DepthPlane[static_cast<size_t>(Y) * Self->W + X];
+    if (X >= Self->OutW || Y >= Self->OutH) return 1.0f;
+    const uint32_t Centre = Self->Samples / 2u;
+    return Self->DepthPlane[static_cast<size_t>(Y * Self->Samples + Centre) * Self->W + (X * Self->Samples + Centre)];
 }
 
 RasterExchange::Tally SoftwareRaster::QueryTally() const noexcept { return Self->Count; }
@@ -570,7 +615,8 @@ std::vector<uint8_t> DeflateFixed(const std::vector<uint8_t>& Raw) noexcept
 
 const char* MatcapName(uint8_t Layer) noexcept
 {
-    static const char* Names[] = { "steel", "chrome", "gold", "copper", "plastic-white", "plastic-red", "plastic-blue", "clay", "pearl", "carbon" };
+    static const char* Names[] = { "steel", "chrome", "gold", "copper", "plastic-white", "plastic-red", "plastic-blue", "clay", "pearl", "carbon",
+                                   "rubber", "glass", "headlight", "taillight" };
     return Layer < SlangMirror::MatcapLayers ? Names[Layer] : "?";
 }
 int MatcapCount() noexcept { return SlangMirror::MatcapLayers; }
