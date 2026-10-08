@@ -259,8 +259,12 @@ int main()
         const float Tall = BindingHeight(Face, 400.0f, Bound);
         const float Stack = 23 + 16 + 28 + std::round(13.0f * 1.2f) + 10 + 32 + 18
                           + WideButtonHeight(13.0f) + 14 + VisualHeight(180.0f) + 22;
-        Check(std::fabs(Tall - (Stack + Stacked(Face, 11.0f, 352.0f, "x"))) < 0.51f,
-              "the bound card stacks padding, title, select, button, visual and one note line");
+        // DM Sans sets `normal` line-height to 1.302 em, and the note wraps after "preview;" in a 352 px
+        //    column, so the two note lines are 2 x 11 x 1.302 px tall.
+        Check(std::fabs(Stacked(Face, 11.0f, 352.0f, "x") - 11.0f * 1.302f) < 0.01f,
+              "one 11 px line box is 1.302 em tall");
+        Check(std::fabs(Tall - (Stack + 2.0f * 11.0f * 1.302f)) < 0.51f,
+              "the bound card stacks padding, title, select, button, visual and two note lines");
         Check(VisualHeight(180.0f) == 180 + 12 + 10 + 6 + 10, "the visual is canvas, legend and caption");
         Check(WideButtonHeight(13.0f) == 40.0f, "a 12 px padded wide button is 40 px tall");
 

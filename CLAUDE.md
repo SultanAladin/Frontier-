@@ -144,6 +144,15 @@ The bundle is built by `Build.mjs` from the sources beside it. Port from those s
 bundle. The light panel is **`LightPanel.js`** + **`LightPanel.css`** + `LightProjection.js`, and its transform
 block comes from `EmitterPanel.jsx` → `TransformPanel.jsx`.
 
+**Type: CSS sizes the em box, ImGui sizes ascent minus descent.** They differ by exactly **1.302** for
+DM Sans (`hhea` ascent 992, descent −310 per 1000 em), so `AddText(Face, 12, …)` draws a run 23% narrower than
+`font-size: 12px` does in Chrome. Multiply every CSS pixel size by 1.302 before handing it to ImGui — see
+`WindCards::Grind` in `Engine/Editor/WindPanelSurface.h`. The same 1.302 is DM Sans's `normal` line-height, so
+a baked line is then exactly one CSS line box tall, and the baseline sits `0.992 × size` below its top. The
+body is DM Sans **Light 300**; only `h2`/`h3` in a section head are **Regular 400**, so both faces get baked.
+Surfaces written before this was found still draw CSS pixels at ImGui sizes: `WindInstrumentSurface.h`,
+`CloudInstrumentSurface.h`, the fog cards and the light panel each need the same three-line correction.
+
 **Traps that have already cost rework:**
 
 - `Experimental/ProjectZeroEditor/InspectorDepot/` is a *second, unused* panel kit sitting in the same folder

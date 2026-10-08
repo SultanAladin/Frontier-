@@ -449,3 +449,100 @@ section — `PanelMounted.png` shows exactly that happening at a 1500 m base.
 That capture also found a real defect: a canvas clips its own overflow and an `ImDrawList` does not, so a base
 past the window painted the section's columns over the card above it. `PaintSection` and `PaintHistogram` now
 push their own clip rectangles.
+
+## The WindEditor dialog
+
+`WindPanel.jsx:503`, `export default function WindEditor` — the full-screen modal the wind inspector raises
+from *Open WindEditor · place and combine components*. It is the only authoring surface in the reference that
+is not a card, and `CheckReference.mjs` guards it by name ("Pre-C041 composite WindEditor is restored and
+opens"). Ported whole into `Engine/Editor/WindEditorSurface.h` (`Frontier::WindEditor`), over the evaluator,
+mote field and canvas already in `WindPanelSurface.h`.
+
+### The type was wrong everywhere, and is now right here
+
+ImGui bakes a face so that **ascent − descent** equals the size you ask for. CSS sizes the **em box**. DM Sans
+reports `hhea` ascent 992, descent −310, lineGap 0 per 1000 em, so the two differ by exactly **1.302** — a run
+drawn at `AddText(Face, 12, …)` is 23% narrower than the same run at `font-size: 12px` in Chrome. Measured, not
+assumed: `Pause preview` is **70.980 px** at 12 px per the font's own `hmtx` table, and ImGui returned 54.516.
+
+`WindCards::Grind(Size) = Size * EmScale` now sits inside `Measured`, `Inked`, `Boxed`, `Stacked` and `Flowed`,
+so every call site keeps passing CSS pixels and gets browser metrics back. Two consequences fall out for free:
+
+* 1.302 is also DM Sans's `normal` line-height, so one baked line of ImGui text is exactly one CSS line box
+  tall, and `Flowed` wraps and stacks like a block of copy.
+* The ascent share is 0.992, so a baseline — canvas `fillText`, or an SVG `<text y>` — sits `0.992 × size`
+  below the top of the box ImGui draws. `BaselineShare` was 0.792; it is now `AscentShare`.
+
+The binding card picked the correction up through the shared kit: its note now wraps to two lines at 352 px, as
+it does in the browser, and `RunNativeWindCards.py` went from 77 to **PASS 78** with the claim restated.
+
+**The other native surfaces have not been swept yet.** `WindInstrumentSurface.h`, `CloudInstrumentSurface.h`,
+the fog cards and the light panel each carry their own copies of these primitives and still draw CSS pixels at
+ImGui sizes. The same three-line change applies to each, and each needs its harness re-run.
+
+Two weights are baked, which no earlier surface needed: the dialog is DM Sans **Light 300** throughout —
+`body` sets it and `h1,h2,h3,h4` keep it — except `.wind-section-head h2/h3` and `.wind-dimensions h3`, which
+are **Regular 400**. `h3` is also `#cacaca` from `Editor.css`, not the dialog's `#d3d9d4`; `h2` inherits.
+
+### The box model, worked through
+
+Every height below is padding + border + line boxes. None of them is a number from a stylesheet on its own.
+
+| Element | Composition | Height |
+|---|---|---|
+| `input` / `select` | 9 + 1 + 12 × 1.302 + 1 + 9 | **35.624** |
+| `label` | 11 × 1.302 + 8 gap + input | **57.946** |
+| `.wind-parts > div` | 1 + 7 + 9 × 1.302 + 6 + 12 × 1.302 + 7 + 1 | **49.342** |
+| `.wind-add-buttons button` | 8 + 1 + 11 × 1.302 + 1 + 8, past `min-height: 32` | **32.322** |
+| `.wind-editor-header` | 22 + 13 × 1.302 strut + 5 + 26 × 1.302 + 22 + 1 rule | **100.778** |
+| `.wind-editor > footer` | 1 rule + 14 + 10 × 1.302 + 14 | **42.02** |
+| `.wind-editor p` | 14 margin + 11 × 1.6 + 14 margin | **45.6** per line |
+| `.wind-view-switches label` | 13 checkbox + 3 + 3 user agent margins | **19** |
+
+The eyebrow is a 9 px `<span>` in a 13 px block, so its line box is the **strut's** 16.926 and its baseline is
+12.896 down, not 11.718 and 8.928. `h1` has `margin: 5px 0 0`. `.wind-name`'s 24 px bottom margin collapses
+over `.wind-section-head`'s 12, and that 12 collapses under `.wind-add-buttons`'s 14 — so the gaps down the
+aside are 24 and 14, never 36 or 26. At 1600 × 950 the two view columns are **649.5** px and nothing scrolls.
+
+### The placement map
+
+`<svg viewBox="0 0 600 400" preserveAspectRatio="none">` inside a 649.5 × 330 border box, so the user space is
+stretched **1.079 across and 0.82 down** and the two axes genuinely disagree:
+
+* a `<circle r=13>` handle is drawn as an ellipse 14.03 × 10.66, and the selected `r=16` as 17.27 × 13.12;
+* `stroke-width: 1` is 1.079 px on a vertical rule and 0.82 px on a horizontal one;
+* `stroke-dasharray="4 5"` on the centre cross measures 4.32/5.40 across and 3.28/4.10 down;
+* `<text font-size="11">` is baked at 11 × 0.82 and walked at 11 × 1.079, so every glyph lands where the
+  browser puts it. Only the outlines themselves are not widened — recorded as a deviation.
+
+Placement: directional components ignore X/Z and pin to `x = 30`, `z = 52 + 34 × index`; everything else maps
+`(X / Width + 0.5) × 600` and `(Z / Depth + 0.5) × 400`, and its radius draws as
+`(Radius / Width) × 600` by `(Radius / Depth) × 400`. `CheckWind.mjs` drags a handle to .36 / .62 and expects
+−140 m and 120 m back on a 1000 m slice; the native check asserts the same inverse. A disabled component sets
+`opacity` on the whole `<g>`, so the fill, the stroke, the number and the caption all drop to 0.4 together.
+
+### What the dialog is made of
+
+| Region | Contents | State |
+|---|---|---|
+| Header | eyebrow, `WindEditor`, field `select` 200 px, `+ Wind field`, pause/resume, `×` 36 px | converted |
+| Component list | field name, `Components n / 64`, four add buttons, the rows, `Preview bounds · m` | converted |
+| Place components | the stretched SVG placement map and its hint paragraph | converted |
+| Combined vector field | `WindCanvas` from the shared kit, with the three view switches | converted |
+| Selected component | heading, `Remove component`, the 4-column property grid, the per-kind paragraph | converted |
+| Footer | the `.green`/`.red` 7 px dot, the evaluated/hidden note, the pending note | converted |
+
+The property grid follows the JSX branches exactly: name, type, strength, X, Z, radius always; **bearing** for
+directional and gust; **frequency** for gust alone. So a tornado or a radial shows 6 cells in two rows, a
+directional 7, a gust 8. With nothing selected the card collapses to the heading *Select or add a component*.
+
+Recorded deviations: the shell's and the map's rounded clips are faked with corner notches, since an ImGui clip
+rectangle has square corners; the backdrop's `backdrop-filter: blur(8px)` is painted as the flat `#000b` over
+a dark ground; the `select` chevron and the checkbox tick are drawn rather than taken from a user agent; SVG
+glyph outlines are positioned on a stretched pen but not themselves widened.
+
+Proof: `python3 Exhibits/Workbench/WindEditor/RunNativeWindEditor.py` → **PASS 38**, four 1648 × 998 captures
+in `Exhibits/Gallery/WindEditorNative/`.
+
+**Not mounted.** The dialog has nothing to open it from yet: the wind panel it belongs to is itself proved but
+unmounted, so wiring the modal waits on `WeatherInspectorPanel.cpp` gaining the inspector first.

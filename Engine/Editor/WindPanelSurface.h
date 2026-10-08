@@ -70,7 +70,15 @@ constexpr float LegendGap   = 10.0f;   // [px] .wind-legend gap
 constexpr float LegendBar   =  4.0f;   // [px] .wind-legend i height
 constexpr float CaptionSize = 10.0f;   // [px] .wind-visual > small font-size
 
-constexpr float BaselineShare = 0.792f;   // [-] canvas fillText y is the baseline; ImGui places the line box top
+// ImGui bakes a face so that ascent - descent equals the requested size; CSS sizes the em box instead. For
+//    DM Sans (hhea ascent 992, descent -310, gap 0 per 1000 em) the two differ by exactly 1.302, so a CSS
+//    pixel size is ground up by that factor before it is handed to ImGui. The same number is the font's
+//    `normal` line-height, which is why a baked line of text is also exactly one CSS line box tall.
+constexpr float EmScale       = 1.302f;   // [-] (992 + 310) / 1000, DM Sans hhea
+constexpr float AscentShare   = 0.992f;   // [-] 992 / 1000, the CSS baseline drop inside a line box
+constexpr float BaselineShare = AscentShare;
+
+inline float Grind(float Size) { return Size * EmScale; }
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                       PRIMITIVES
@@ -85,7 +93,7 @@ inline ImU32 Blend(ImU32 Colour, float Alpha)
 
 inline float Measured(ImFont* Face, float Size, const char* Body)
 {
-    return Face->CalcTextSizeA(Size, FLT_MAX, 0.0f, Body).x;
+    return Face->CalcTextSizeA(Grind(Size), FLT_MAX, 0.0f, Body).x;
 }
 
 // Canvas fillText anchors on the baseline; ImGui anchors on the line box top, so the run is lifted back.
@@ -98,24 +106,24 @@ inline void Inked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, 
         const float Run = Measured(Face, Size, Body);
         Spot.x -= Side == Anchor::Middle ? Run * 0.5f : Run;
     }
-    Draw->AddText(Face, Size, Spot, Colour, Body);
+    Draw->AddText(Face, Grind(Size), Spot, Colour, Body);
 }
 
 // Line box text: X,Y is the top-left corner, as the CSS box model places it.
 inline void Boxed(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour, const char* Body)
 {
-    Draw->AddText(Face, Size, { X, Y }, Colour, Body);
+    Draw->AddText(Face, Grind(Size), { X, Y }, Colour, Body);
 }
 
 inline float Stacked(ImFont* Face, float Size, float Wide, const char* Body)
 {
-    return Face->CalcTextSizeA(Size, FLT_MAX, Wide, Body).y;
+    return Face->CalcTextSizeA(Grind(Size), FLT_MAX, Wide, Body).y;
 }
 
 inline void Flowed(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, float Wide, ImU32 Colour,
                    const char* Body)
 {
-    Draw->AddText(Face, Size, { X, Y }, Colour, Body, nullptr, Wide);
+    Draw->AddText(Face, Grind(Size), { X, Y }, Colour, Body, nullptr, Wide);
 }
 
 // A canvas with border-radius clips its own painting; an ImGui clip rectangle cannot, so the four corner
