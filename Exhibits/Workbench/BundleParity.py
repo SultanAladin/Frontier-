@@ -221,5 +221,38 @@ for Needle, InNative in [
     Check(Needle in Glyph, f'fracture solid: the bundle ships {Needle!r}')
     Check(InNative in Port, f'fracture solid: the native port carries {InNative!r}')
 
-print(f'PASS {Checks} checks: the native cloud, cloud-deck and fracture ports match the built bundle.')
+# ---------------------------------------------------------------------------------------------------
+# EntityNotes. Rendered from the shared Header() for every subject, folders included.
+# ---------------------------------------------------------------------------------------------------
+Notes = Region(Raw, 'Purpose, ownership, review notes', 4000, 2000)
+Port = Native('Engine/Editor/EntityNotesSurface.h')
+Parity('entity notes', Notes, Port, [
+    ('Add notes', 'Add notes'),
+    ('Purpose, ownership, review notes', 'Purpose, ownership, review notes'),
+    ('Hide', '"Hide"'),
+    ('Optional', 'OPTIONAL'),
+    ('entity-notes', 'EntityNotes'),
+])
+for Needle, InNative in [
+    ('.entity-notes-add{min-height:30px', 'AddTall    = 30.0f'),
+    ('border:1px dashed #424242', 'IM_COL32( 66,  66,  66, 255)'),
+    ('color:#898989', 'IM_COL32(137, 137, 137, 255)'),
+    ('.entity-notes-add:hover{color:#d2d2d2;border-color:#676767}', 'IM_COL32(103, 103, 103, 255)'),
+    ('.entity-notes{margin-top:10px;padding:10px;border-radius:9px;background:#191919;border:1px solid #303030}',
+     'PanelRound =  9.0f'),
+    ('.entity-notes strong{color:#c9c9c9;font-size:10px', 'IM_COL32(201, 201, 201, 255)'),
+    ('.entity-notes small{color:#6e6e6e;font-size:8px;text-transform:uppercase;letter-spacing:.8px}',
+     'AsideTrack =  0.8f'),
+    ('.entity-notes button{min-height:22px', 'HideTall   = 22.0f'),
+    ('.entity-notes textarea{width:100%;min-height:76px;resize:vertical;border-radius:6px;background:#111;color:#ccc}',
+     'FieldTall  = 76.0f'),
+    ('.inspector-heading{height:110px', 'HeadShut   = 110.0f'),
+    ('.inspector-heading:has(>.entity-notes){height:224px}', 'HeadOpen   = 224.0f'),
+    ('.inspector-heading>.entity-notes{position:absolute;top:105px', 'NotesTop   = 105.0f'),
+]:
+    Flat = re.sub(r'\s+', '', Sheet)
+    Check(re.sub(r'\s+', '', Needle) in Flat, f'notes CSS: the bundle ships {Needle!r}')
+    Check(InNative in Port, f'notes CSS: the native port carries {InNative!r} for {Needle!r}')
+
+print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture and notes ports match the built bundle.')
 sys.exit(0)

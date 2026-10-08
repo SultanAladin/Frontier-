@@ -726,3 +726,43 @@ would read as plausible if it were not.
 and `CloudDeckPanel.jsx` as "the source". That phrasing was wrong even though the ports were right: the
 source of truth is the bundle, and the files on disk are mirrors of it. The gallery pages now cite the
 bundle and its offsets.
+
+## EntityNotes — the note, and the folder branch that never drew one
+
+`EntityNotes` (`Inspectors.jsx:409`) is rendered from the shared `Header()`, so **every** inspector subject
+carries it — `geometry`, `light`, `post` and `group` alike, and a folder is a `group`. Two states:
+
+| State | Shape |
+| --- | --- |
+| closed | `.entity-notes-add` — a 30 px dashed `#424242` button, `padding:5px 9px`, a 13 px plus, a 6 px gap, "Add notes" at 9 px, pinned `top:0;right:0` in the heading |
+| open | `.entity-notes` — `padding:10`, `radius:9`, `#191919` on `#303030`; a row of **Notes** / OPTIONAL / Hide; a 76 px `#111` textarea at `radius:6` |
+
+It opens itself from `useState(Boolean(Value))` — a subject that already has a note shows it.
+
+Measured heights: the header row is **22 px**, the Hide button being taller than either piece of type beside
+it, so the panel is `1 + 10 + 22 + 8 + 76 + 10 + 1 = 128`. The heading is 110 px and grows to 224 via
+`:has(> .entity-notes)`, but the panel is absolutely positioned at `top:105px`, so it reaches 233 and
+**overhangs its own heading by nine pixels**. That is the reference's behaviour, and the harness pins it
+rather than tidying it away.
+
+Ported to `Engine/Editor/EntityNotesSurface.h`. Proof `Exhibits/Workbench/Notes/NativeEntityNotes.cpp` —
+**PASS 15**, four captures in `Exhibits/Gallery/EntityNotesNative/`. `BundleParity.py` now covers it too:
+**PASS 235**.
+
+### Two defects this found
+
+1. **The native note was the wrong component.** `InspectorPanel::RecordNotes` drew a chevron disclosure in a
+   rounded 18 px inset card, with a letterspaced caps header and a 64 px field. No part of that shape is in
+   the bundle. Replaced with the ported component; the field stays a live `InputTextMultiline`, drawn
+   transparent over the painted box so the reference's geometry is what shows.
+2. **Folders had no note at all.** Of the fourteen branches in `InspectorPanel::Record`, thirteen called
+   `RecordNotes`; the folder branch (`Category == Folder`, line 244) returned early without it. Fixed.
+
+`NotesSeen_` resets with `SheetFor_` so each new selection re-derives its own disclosure.
+
+### Folders, checked
+
+`.folderpanel`, `.fd-eye` and `.fd-empty` **are** in the bundle's stylesheet but appear nowhere in its
+JavaScript — dead CSS for a depot folder panel that is not mounted. The folder UI that does ship is the
+React `group` subject (`ScenePolicy.js:33`, `ReferencePanel.jsx:34`), which uses the ordinary inspector
+header. So apart from the missing note there is no separate folder panel to port.

@@ -77,6 +77,7 @@ private:
     char     NameText_[48] = {};
     bool     NotesFocus_  = false;   // the notes ring lags one tick (the push precedes the field)
     FractureRecord Fracture_[16] = {};
+    bool     NotesSeen_   = false;   // EntityNotes opens itself once, from whether a note exists
 };
 
 } // namespace Frontier

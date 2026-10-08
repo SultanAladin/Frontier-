@@ -4,6 +4,7 @@
 // 🧩 Development editor inspector — the picked instance as a property sheet.
 
 #include "InspectorPanel.h"
+#include "EntityNotesSurface.h"
 #include "TyreInspectorPanel.h"
 
 #include "ControlPanel.h"
@@ -125,6 +126,7 @@ void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, Editor
     if (PickedIndex != SheetFor_)
     {
         SheetFor_ = PickedIndex;
+        NotesSeen_ = false;   // a new subject re-derives its own note disclosure
         NameFor_  = kNoEditorInstance;
         for (uint32_t i = 0u; i < 8u; ++i)
         {
@@ -245,6 +247,9 @@ void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, Editor
     {
         ImGui::BeginChild("##collection-content",ImVec2(0,ImMax(0.f,Controls_->QueryFootTop()-ImGui::GetCursorScreenPos().y)),ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar);
         RecordCollection(*Picked, PickedIndex);
+        // Every other branch draws the note; folders were the one that did not. The reference renders
+        //    EntityNotes from the shared Header(), so a group carries one exactly like anything else.
+        RecordNotes(Picked);
         ImGui::EndChild();
         RecordFooter(Picked);
         if (!Embedded) ImGui::End();
@@ -800,60 +805,70 @@ void InspectorPanel::RecordStanding(EditorInstance* Picked, uint32_t PickedIndex
 
 void InspectorPanel::RecordNotes(EditorInstance* Picked) noexcept
 {
+    namespace EN = EntityNotes;
     ImGui::PushID(7);
 
-    const float RowWidth = ImGui::GetContentRegionAvail().x;
-    const float H = CardShut_[7] ? (12.0f + 24.0f + 10.0f) : (12.0f + 24.0f + 8.0f + 64.0f + 14.0f);
-    ImGui::Dummy(ImVec2(RowWidth, H));
-    const ImVec2 Min = ImGui::GetItemRectMin();
-    const ImVec2 Max = ImGui::GetItemRectMax();
-
-    ImDrawList* Draw = ImGui::GetWindowDrawList();
-    Draw->AddRectFilled(Min, Max, kInset, 18.0f);
-    Draw->AddRect(Min, Max, kStroke, 18.0f);
-
-    const ImVec2 HeadMin(Min.x + 14.0f, Min.y + 12.0f);
-    ImGui::SetCursorScreenPos(HeadMin);
-    ImGui::InvisibleButton("##h4n", ImVec2(RowWidth - 28.0f, 24.0f));
-    if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
+    ImFont* Light = ImGui::GetFont();
+    ImFont* Regular = Light;
+    for (ImFont* Face : ImGui::GetIO().Fonts->Fonts)
     {
-        CardShut_[7] = !CardShut_[7];
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / light"))   Light = Face;
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / regular")) Regular = Face;
     }
-    const float ChevY = HeadMin.y + 12.0f;
+
+    // useState(Boolean(Value)): a subject that already carries a note opens showing it. CardShut_[7]
+    //    remembers a deliberate Hide for as long as the selection lasts.
+    if (Picked->Notes[0] && !NotesSeen_) { CardShut_[7] = false; NotesSeen_ = true; }
+    if (!Picked->Notes[0] && !NotesSeen_) { CardShut_[7] = true; NotesSeen_ = true; }
+
+    const float RowWidth = ImGui::GetContentRegionAvail().x;
+    ImDrawList* Draw = ImGui::GetWindowDrawList();
+
     if (CardShut_[7])
     {
-        Draw->AddTriangleFilled(ImVec2(HeadMin.x + 1.0f, ChevY - 4.0f), ImVec2(HeadMin.x + 1.0f, ChevY + 4.0f),
-            ImVec2(HeadMin.x + 7.0f, ChevY), kDim);
+        // Closed: the dashed add button, pinned right as .inspector-heading > .entity-notes-add is.
+        const float Wide = EN::AddWidth(Light);
+        ImGui::Dummy(ImVec2(RowWidth, EN::AddTall));
+        const ImVec2 Min = ImGui::GetItemRectMin();
+        const ImVec2 Spot(Min.x + RowWidth - Wide, Min.y);
+        ImGui::SetCursorScreenPos(Spot);
+        const bool Hit = ImGui::InvisibleButton("##add-notes", ImVec2(Wide, EN::AddTall));
+        EN::PaintAdd(Draw, Light, Spot, ImGui::IsItemHovered());
+        if (Hit) CardShut_[7] = false;
     }
     else
     {
-        Draw->AddTriangleFilled(ImVec2(HeadMin.x - 1.0f, ChevY - 2.5f), ImVec2(HeadMin.x + 9.0f, ChevY - 2.5f),
-            ImVec2(HeadMin.x + 4.0f, ChevY + 3.5f), kDim);
-    }
-    RecordCaps("Notes", ImVec2(HeadMin.x + 14.0f, HeadMin.y + 5.0f), kDim);
+        const float Tall = EN::PanelHeight();
+        ImGui::Dummy(ImVec2(RowWidth, Tall));
+        const ImVec2 Min = ImGui::GetItemRectMin();
+        EN::PaintPanel(Draw, Light, Regular, Min, RowWidth, Picked->Notes, NotesFocus_);
 
-    if (!CardShut_[7])
-    {
-        const float BodyX = Min.x + 14.0f;
-        const float BodyW = RowWidth - 28.0f;
-        ImGui::SetCursorScreenPos(ImVec2(BodyX, Min.y + 12.0f + 24.0f + 8.0f));
-        ImGui::PushItemWidth(BodyW);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Border, NotesFocus_
-            ? ImVec4(0.180f, 0.180f, 0.180f, 1.0f) : ImVec4(1.0f, 1.0f, 1.0f, 0.05f));
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 8.0f));
-        ImGui::PushFont(Controls_->QueryUi());
-        ImGui::InputTextMultiline("##notes", Picked->Notes, sizeof(Picked->Notes), ImVec2(BodyW, 64.0f));
+        const float HideSpan = EN::HideWidth(Light);
+        ImGui::SetCursorScreenPos(ImVec2(Min.x + RowWidth - 1.0f - EN::PanelPad - HideSpan,
+                                         Min.y + 1.0f + EN::PanelPad
+                                         + (EN::RowHeight() - EN::HideTall) * 0.5f));
+        if (ImGui::InvisibleButton("##hide-notes", ImVec2(HideSpan, EN::HideTall))) CardShut_[7] = true;
+
+        // The field itself stays a real ImGui control so the note remains editable; it is drawn
+        //    transparent over the painted box so the reference's own geometry is what shows.
+        const float FieldX = Min.x + 1.0f + EN::PanelPad;
+        const float FieldW = RowWidth - 2.0f - EN::PanelPad * 2.0f;
+        ImGui::SetCursorScreenPos(ImVec2(FieldX, Min.y + 1.0f + EN::PanelPad + EN::RowHeight() + EN::RowDrop));
+        ImGui::PushItemWidth(FieldW);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(EN::FieldPad, EN::FieldPad));
+        ImGui::PushFont(Light, EN::FieldSize * Frontier::WindInstrument::EmScale);
+        ImGui::InputTextMultiline("##notes", Picked->Notes, sizeof(Picked->Notes),
+                                  ImVec2(FieldW, EN::FieldTall));
         NotesFocus_ = ImGui::IsItemFocused();
         ImGui::PopFont();
-        ImGui::PopStyleVar(3);
+        ImGui::PopStyleVar(2);
         ImGui::PopStyleColor(2);
         ImGui::PopItemWidth();
     }
 
-    ImGui::SetCursorScreenPos(ImVec2(Min.x, Max.y));
     ImGui::Dummy(ImVec2(RowWidth, 10.0f));
     ImGui::PopID();
 }
