@@ -376,7 +376,15 @@ Two findings from building it rather than planning it:
    `Engine/VolumetricDynamics/GasSceneResolve.h` is the seam, and running it found three defects a byte
    comparison cannot see — §6.1 below. 🚩 Sample *content* is deferred —
    `Plans/Deferred/GasSampleSceneRefinement.md`
-5. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm
+5. ~~**2D flipbook bake**~~ — landed. `Engine/VolumetricDynamics/GasFlipbookSheet.h` is the browser's layout
+   exactly (4/16/32/64 tiles, 64–512 px, 12/24/30/60 per second, 0–3 s warm-up, left to right then top to
+   bottom, straight coverage in alpha), plus `TileAtElapsed()` — one float in, one index out, which is the
+   whole per-instance cost of the rung — and a TOML descriptor beside the sheet rather than the page's JSON.
+   `PngWriteCounterpart::WritePng` grew RGBA so the coverage survives the file. Proof
+   `Exhibits/Workbench/GasFluid/NativeGasFlipbook.cpp` at **PASS 74** bakes a real camp fire through the
+   shipped solver and the shipped integration, twice, and compares the two sheets byte for byte:
+   `Exhibits/Gallery/GasFlipbook/CampFireSheet.png` with `CampFireSheet.toml`. 🚩 The colour in that capture
+   is the known-wrong fire rendering, deferred deliberately; the sheet mechanism is what is proved here
 6. Collision levels 1 and 2 — primitives, then the global distance field
 7. ~~**Two-way through `WindField::Sample`**~~ — landed early with step 1, because the coarse field made it a
    contributor and a drag term rather than a coupling system. 🚩 Which bodies consent is still unanswered and
