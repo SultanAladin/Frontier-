@@ -90,6 +90,9 @@ jobs:
       - name: Materialise the locked third-party dependencies
         run: python3 Tools/Build/RunAnnounced.py "bootstrap all" -- python3 Tools/Bootstrap.py --profile all
 
+      - name: Lower the shaders to SPIR-V
+        run: python3 Tools/Build/RunAnnounced.py "shader lowering" -- python3 Tools/Build/CompileShaders.py --all
+
       - name: Configure
         run: python3 Tools/Build/RunAnnounced.py "cmake configure" -- cmake -S . -B .cache/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
 
@@ -147,6 +150,8 @@ jobs:
         with:
           name: frontier-linux-binaries
           path: |
+            Engine/Shaders/*.spv
+            Engine/Shaders/ShaderManifest.json
             .cache/cmake/Frontier
             .cache/cmake/*.so
             .cache/cmake/**/SolidArc
