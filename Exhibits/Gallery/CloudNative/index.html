@@ -61,6 +61,14 @@
      ship from the depot. The map, the histogram and the vertical section all read the same value-noise field,
      <code>frac(sin(x·127.1 + y·311.7)·43758.5453)</code> smoothed bilinearly and summed over three octaves;
      it is evaluated in double precision because the browser does, and single precision lands on different cells.</p>
+  <p style="margin-top:14px"><b>Swept to browser-sized type.</b> ImGui bakes a face so that ascent minus
+     descent equals the requested size; CSS sizes the em box. For DM Sans the two differ by exactly 1.302, so
+     every run here used to be 23% narrower than Chrome draws it. <code>WindInstrument::Grind</code> now
+     applies the factor inside the text primitives, and the three collisions the correct type exposed are
+     fixed: <code>.mp-stat</code> is the two-column grid it always was, so a long label wraps in its own
+     column and both duo cards stretch to the taller one; <code>.mp-chead .l</code> is a flex column, so the
+     title and subtitle each take a full line box; and the notes wrap on the tracked advance instead of being
+     split by hand.</p>
   <div class="rail">
     <div class="pill"><b>429</b><span>checks passed</span></div>
     <div class="pill"><b>4</b><span>captures</span></div>

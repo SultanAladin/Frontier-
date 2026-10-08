@@ -205,30 +205,46 @@ inline void PaintCloudGlyph(ImDrawList* Draw, ImVec2 Spot, float Size, ImU32 Col
     Draw->PathStroke(Colour, ImDrawFlags_Closed, Thick);
 }
 
+// The two readings the depot panel puts under the rail. "Sun reaching datum" is long enough to wrap in its
+//    own grid column at a 340 px panel width, which is what makes the duo taller than one .mp-stat row.
+inline void DuoBody(const CloudDraft& Layer, int Which, char* Body, size_t Size, char* Unit, size_t UnitSize)
+{
+    if (Which == 0)
+    {
+        std::snprintf(Body, Size, "%.0f", double(std::exp(-Layer.Density * Layer.Coverage * 2.2f) * 100.0f));
+        std::snprintf(Unit, UnitSize, "%%");
+    }
+    else
+    {
+        std::snprintf(Body, Size, "%d", int(std::lround(Layer.Coverage * 8.0f)));
+        std::snprintf(Unit, UnitSize, "/8");
+    }
+}
+
+inline const char* DuoLabel(int Which) { return Which == 0 ? "Sun reaching datum" : "Sky cover"; }
+
+inline float DuoHeight(ImFont* Face, float Wide, const CloudDraft& Layer)
+{
+    const float Half = (Wide - 10.0f) * 0.5f;
+    float Tall = 0.0f;
+    for (int I = 0; I < 2; ++I)
+    {
+        char Body[16], Unit[8];
+        DuoBody(Layer, I, Body, sizeof(Body), Unit, sizeof(Unit));
+        Tall = std::max(Tall, Kit::StatHeight(Face, Half, DuoLabel(I), Body, Unit));
+    }
+    return Tall;
+}
+
 inline void PaintDuo(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const CloudDraft& Layer)
 {
     const float Gap = 10.0f, Half = (Wide - Gap) * 0.5f;
-    const float Passing = std::exp(-Layer.Density * Layer.Coverage * 2.2f) * 100.0f;
     for (int I = 0; I < 2; ++I)
     {
-        const float X = Spot.x + I * (Half + Gap);
-        Draw->AddRectFilled({ X, Spot.y }, { X + Half, Spot.y + Kit::StatTall }, Kit::CardFill, Kit::CardRound);
-        const ImU32 Ink    = IM_COL32(34, 197, 94, 255);
-        const ImU32 Ground = IM_COL32(34, 197, 94, 33);
-        Draw->AddRectFilled({ X + 13.0f, Spot.y + 11.0f }, { X + 32.0f, Spot.y + 30.0f }, Ground, 7.0f);
-        if (I == 0) PaintSunGlyph  (Draw, { X + 16.5f, Spot.y + 14.5f }, 12.0f, Ink);
-        else        PaintCloudGlyph(Draw, { X + 16.5f, Spot.y + 14.5f }, 12.0f, Ink);
-        const float Row = Spot.y + 11.0f + 19.0f + 6.0f + 25.0f;
-        Kit::Boxed(Draw, Face, X + 13.0f, Row - 11.0f, 11.0f, Kit::TextDim,
-                   I == 0 ? "Sun reaching datum" : "Sky cover");
         char Body[16], Unit[8];
-        if (I == 0) { std::snprintf(Body, 16, "%.0f", double(Passing)); std::snprintf(Unit, 8, "%%"); }
-        else        { std::snprintf(Body, 16, "%d", int(std::lround(Layer.Coverage * 8.0f)));
-                      std::snprintf(Unit, 8, "/8"); }
-        const float UnitRun = Kit::Measured(Face, 11.0f, Unit) + 2.0f;
-        const float Run = Kit::Tracked(Draw, Face, 0, 0, 25.0f, 0, Body, -1.4f, false);
-        Kit::Tracked(Draw, Face, X + Half - 13.0f - UnitRun - Run, Row - 25.0f, 25.0f, Kit::TextFull, Body, -1.4f);
-        Kit::Inked(Draw, Face, X + Half - 13.0f, Row, 11.0f, Kit::TextDim, Unit, Kit::Anchor::End);
+        DuoBody(Layer, I, Body, sizeof(Body), Unit, sizeof(Unit));
+        Kit::PaintStat(Draw, Face, { Spot.x + I * (Half + Gap), Spot.y }, Half, DuoLabel(I), Body, Unit,
+                       false, I == 0 ? PaintSunGlyph : PaintCloudGlyph, DuoHeight(Face, Wide, Layer));
     }
 }
 

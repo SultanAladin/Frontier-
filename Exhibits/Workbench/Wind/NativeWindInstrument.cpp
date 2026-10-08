@@ -56,7 +56,7 @@ int main()
     //    followed by 20 px and a bare block by 10.
     auto PanelHeight = [&](ImFont* With)
     {
-        return HeroTall + 20.0f + PillTall + 10.0f + (StatTall + 10.0f) + 10.0f
+        return HeroTall + 20.0f + PillTall + 10.0f + (DuoHeight(Face, float(Width) - 20.0f, Log) + 10.0f) + 10.0f
              + AnemometerHeight(Tall) + 20.0f + BeaufortHeight() + 20.0f + SteadinessHeight() + 20.0f
              + DrivingHeight(With, 320.0f, Flock, 3) + 10.0f;
     };
@@ -81,7 +81,7 @@ int main()
             float Y = Origin.y;
             PaintHero(Draw, Face, { Origin.x, Y }, Card, HeroTall, Air, Log, Draft);   Y += HeroTall + 20.0f;
             PaintRail(Draw, Face, { Origin.x, Y }, Card, Log, Draft);                  Y += PillTall + 10.0f;
-            PaintDuo(Draw, Face, { Origin.x, Y }, Card, Log);                          Y += StatTall + 10.0f + 10.0f;
+            PaintDuo(Draw, Face, { Origin.x, Y }, Card, Log);                          Y += DuoHeight(Face, Card, Log) + 10.0f + 10.0f;
             PaintAnemometer(Draw, Face, { Origin.x, Y }, Card, Log, Draft, Tall);
             Y += AnemometerHeight(Tall) + 20.0f;
             PaintBeaufortCard(Draw, Face, { Origin.x, Y }, Card, Draft);               Y += BeaufortHeight() + 20.0f;

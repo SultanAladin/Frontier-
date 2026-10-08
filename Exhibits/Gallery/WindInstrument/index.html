@@ -62,6 +62,14 @@
      then rewritten at build time by <code>InstrumentSpecification.js</code>: the green gust band becomes a
      neutral wash, the stroke drops to <code>rgba(210,210,210,.36)</code>, and the samples above the mean are
      brightened in place with peak and trough dots in <code>#eeeeee</code> and <code>#d69a54</code>.</p>
+  <p style="margin-top:14px"><b>Swept to browser-sized type.</b> ImGui bakes a face so that ascent minus
+     descent equals the requested size; CSS sizes the em box. For DM Sans the two differ by exactly 1.302, so
+     every run here used to be 23% narrower than Chrome draws it. <code>WindInstrument::Grind</code> now
+     applies the factor inside the text primitives, and the three collisions the correct type exposed are
+     fixed: <code>.mp-stat</code> is the two-column grid it always was, so a long label wraps in its own
+     column and both duo cards stretch to the taller one; <code>.mp-chead .l</code> is a flex column, so the
+     title and subtitle each take a full line box; and the notes wrap on the tracked advance instead of being
+     split by hand.</p>
   <div class="rail">
     <div class="pill"><b>240</b><span>checks passed</span></div>
     <div class="pill"><b>6</b><span>captures</span></div>

@@ -546,3 +546,38 @@ in `Exhibits/Gallery/WindEditorNative/`.
 
 **Not mounted.** The dialog has nothing to open it from yet: the wind panel it belongs to is itself proved but
 unmounted, so wiring the modal waits on `WeatherInspectorPanel.cpp` gaining the inspector first.
+
+## Sweeping the cloud and wind panels to browser-sized type
+
+`WindInstrumentSurface.h` carries its own copies of the text primitives, and `CloudInstrumentSurface.h`
+aliases that whole kit as `Kit`, so the two panels share one correction: `Grind(Size) = Size * 1.302` now
+sits inside `Measured`, `Boxed`, `Inked` and `Tracked`, and `BaselineShare` is `AscentShare` (0.992). Both
+harnesses still pass — **PASS 429** for clouds and **PASS 240** for wind — because their claims are about the
+field maths, not about text extents.
+
+Growing the glyphs to their true size exposed three layout bugs that the undersized type had been hiding.
+Each was a place where a CSS box had been approximated by a constant tuned to the smaller text.
+
+**`.mp-stat` is a grid, not a stack.** `grid-template-columns: 1fr auto` with `align-items: end`, the icon
+spanning both columns above. The number takes its own width and the label takes what is left, so
+*Sun reaching datum* **wraps inside its column** instead of running under the `53`. The row gap is 2, not the
+6 that had been guessed. And `.mp-duo` is itself a grid, so its two cells **stretch to the taller one**: the
+slack is shared between the stat's two auto rows, which drops the shorter card's icon by half of it and
+leaves the bottom-aligned label and number on the padding edge. `StatHeight` and `DuoHeight` replace the
+`StatTall` constant everywhere, including the mount in `CloudsInspectorPanel.cpp`.
+
+**`.mp-chead .l` is a flex column.** The title and the subtitle each occupy a full line box — 15 × 1.302 and
+9.5 × 1.302 — not their font sizes. `HeadHeight()` was 7.4 px short per card, which is why *Coverage* and
+*CONDENSATE THRESHOLD · CELL POPULATION* had started to touch.
+
+**Notes wrap; they are not split by hand.** The driving note had been hard-coded as two string literals
+broken at a point that only worked at the old scale, and it was drawn at 10.5 px when `.mpanel .mp-note`
+overrides the size to 10. The hero caption had the same problem in a flex row: `.mp-cap .l` has
+`min-width: 0`, so it shrinks and its sub-line wraps, and the band grows upward from the card's foot rather
+than letting the text run under `force 3`. Both now go through `TrackedWrap` / `PaintTrackedFlow`, a greedy
+word wrapper that measures with letter-spacing included — ImGui's own wrapping does not know about tracking.
+
+The Beaufort meter's first row is a label beside a stepper, so the row is `StepBox` tall, not `MeterKey`
+tall; the scale's marker had been riding up into *WIND SPEED*.
+
+Still unswept: the fog cards and the light panel.

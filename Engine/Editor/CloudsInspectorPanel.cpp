@@ -105,7 +105,7 @@ void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
   CI::PaintRail(U.D,U.Font,U.At(0,End),W,Layer);
   End+=WindInstrument::PillTall+10;
   CI::PaintDuo(U.D,U.Font,U.At(0,End),W,Layer);
-  End+=WindInstrument::StatTall+20;
+  End+=CI::DuoHeight(U.Font,W,Layer)+20;
   CI::PaintCoverage(U.D,U.Font,U.At(0,End),W,Layer);
   End+=CI::CoverageHeight();
  }

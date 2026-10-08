@@ -69,8 +69,16 @@ constexpr float SpecRound  = 14.0f;   // [px] .mp-spec > div border-radius
 constexpr float SpecKey    =  8.5f;   // [px] .mp-spec .k font-size
 constexpr float SpecValue  = 13.0f;   // [px] .mp-spec b font-size
 
+// ImGui bakes a face so that ascent - descent equals the requested size; CSS sizes the em box instead. For
+//    DM Sans (hhea ascent 992, descent -310, gap 0 per 1000 em) the two differ by exactly 1.302, so a CSS
+//    pixel size is ground up by that factor before it is handed to ImGui. The same number is the font's
+//    `normal` line-height, which is why a baked line is also exactly one CSS line box tall.
+constexpr float EmScale       = 1.302f;   // [-] (992 + 310) / 1000, DM Sans hhea
+constexpr float AscentShare   = 0.992f;   // [-] 992 / 1000, the baseline drop inside a line box
 // Canvas text is baseline-anchored; ImGui places the line box top.
-constexpr float BaselineShare = 0.792f;
+constexpr float BaselineShare = AscentShare;
+
+inline float Grind(float Size) { return Size * EmScale; }
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                       PRIMITIVES
@@ -80,12 +88,12 @@ enum class Anchor { Start, Middle, End };
 
 inline float Measured(ImFont* Face, float Size, const char* Body)
 {
-    return Face->CalcTextSizeA(Size, FLT_MAX, 0.0f, Body).x;
+    return Face->CalcTextSizeA(Grind(Size), FLT_MAX, 0.0f, Body).x;
 }
 
 inline void Boxed(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour, const char* Body)
 {
-    Draw->AddText(Face, Size, { X, Y }, Colour, Body);
+    Draw->AddText(Face, Grind(Size), { X, Y }, Colour, Body);
 }
 
 inline void Inked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour, const char* Body,
@@ -97,7 +105,27 @@ inline void Inked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, 
         const float Run = Measured(Face, Size, Body);
         Spot.x -= Side == Anchor::Middle ? Run * 0.5f : Run;
     }
-    Draw->AddText(Face, Size, Spot, Colour, Body);
+    Draw->AddText(Face, Grind(Size), Spot, Colour, Body);
+}
+
+// CSS adds letter-spacing after every glyph, the last one included, so the run is that much wider than the
+//    sum of its advances.
+// .mp-chead .l is a flex column, so the title and the subtitle each occupy a full line box.
+inline float HeadHeight() { return Grind(HeadTitle) + HeadGap + Grind(HeadSub) + HeadDrop; }
+
+inline float TrackedWidth(ImFont* Face, float Size, const char* Body, float Extra)
+{
+    ImFontBaked* Baked = Face->GetFontBaked(Grind(Size));
+    float Run = 0.0f;
+    for (const char* Scan = Body; *Scan;)
+    {
+        unsigned Point = 0;
+        const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
+        if (Used <= 0) break;
+        Run += Baked->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
+        Scan += Used;
+    }
+    return Run;
 }
 
 // CSS letter-spacing: the browser adds the gap after every glyph, so the run is drawn a codepoint at a time.
@@ -110,12 +138,69 @@ inline float Tracked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Siz
         unsigned Point = 0;
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
-        if (Paint) Draw->AddText(Face, Size, { Pen, Y }, Colour, Scan, Scan + Used);
-        ImFontBaked* Baked = Face->GetFontBaked(Size);
+        if (Paint) Draw->AddText(Face, Grind(Size), { Pen, Y }, Colour, Scan, Scan + Used);
+        ImFontBaked* Baked = Face->GetFontBaked(Grind(Size));
         Pen += Baked->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
         Scan += Used;
     }
     return Pen - X;
+}
+
+// ImGui's own wrapping does not know about letter-spacing, so the break points are found with the tracked
+//    advance instead. Greedy, on spaces, exactly as a browser breaks a run of plain words.
+struct TrackedLine { const char* From; const char* To; };
+
+inline int TrackedWrap(ImFont* Face, float Size, const char* Body, float Extra, float Wide,
+                       TrackedLine* Lines, int Limit)
+{
+    int Count = 0;
+    const char* Start = Body;
+    while (*Start && Count < Limit)
+    {
+        const char* Best = nullptr;
+        for (const char* Scan = Start; ; ++Scan)
+        {
+            const bool Stop = *Scan == 0;
+            if (*Scan == ' ' || Stop)
+            {
+                char Piece[256];
+                const size_t Taken = std::min(sizeof(Piece) - 1, size_t(Scan - Start));
+                std::memcpy(Piece, Start, Taken);
+                Piece[Taken] = 0;
+                if (TrackedWidth(Face, Size, Piece, Extra) <= Wide || !Best) Best = Scan;
+                else break;
+                if (Stop) break;
+            }
+        }
+        Lines[Count++] = { Start, Best };
+        Start = Best;
+        while (*Start == ' ') ++Start;
+    }
+    return Count;
+}
+
+inline float TrackedFlowHeight(ImFont* Face, float Size, const char* Body, float Extra, float Wide)
+{
+    TrackedLine Lines[12];
+    const int Count = TrackedWrap(Face, Size, Body, Extra, Wide, Lines, 12);
+    return std::max(1, Count) * Grind(Size);
+}
+
+// Y is the top of the first line box.
+inline float PaintTrackedFlow(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour,
+                              const char* Body, float Extra, float Wide)
+{
+    TrackedLine Lines[12];
+    const int Count = TrackedWrap(Face, Size, Body, Extra, Wide, Lines, 12);
+    for (int I = 0; I < Count; ++I)
+    {
+        char Piece[256];
+        const size_t Taken = std::min(sizeof(Piece) - 1, size_t(Lines[I].To - Lines[I].From));
+        std::memcpy(Piece, Lines[I].From, Taken);
+        Piece[Taken] = 0;
+        Tracked(Draw, Face, X, Y + I * Grind(Size), Size, Colour, Piece, Extra);
+    }
+    return std::max(1, Count) * Grind(Size);
 }
 
 inline void Dashed(ImDrawList* Draw, ImVec2 From, ImVec2 To, ImU32 Colour, float On, float Off, float Thick)
@@ -339,7 +424,7 @@ inline void PaintTrace(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, 
 inline float AnemometerHeight(bool Tall)
 {
     return CardPadTop
-         + HeadTitle + HeadGap + HeadSub + HeadDrop
+         + HeadHeight()
          + NumLift + NumSize * 0.94f + NumDrop
          + KeySize
          + ChartLift + (Tall ? ChartTall : ChartBody)
@@ -360,11 +445,11 @@ inline void PaintAnemometer(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float W
     Boxed(Draw, Face, Left, Y, HeadTitle, TextFull, "Anemometer");
     char Sub[32];
     Upper(Sub, sizeof(Sub), "Last 60 seconds");
-    Tracked(Draw, Face, Left, Y + HeadTitle + HeadGap, HeadSub, TextFaint, Sub, 0.9f);
+    Tracked(Draw, Face, Left, Y + Grind(HeadTitle) + HeadGap, HeadSub, TextFaint, Sub, 0.9f);
     // .mp-x, the taller-trace button: a 24 px square with a transparent ground until hover, so only
     //    the 12 px arrowout icon shows. icons.js draws it on a 24 unit grid at stroke-width 1.75.
     PaintArrowOut(Draw, { Spot.x + Wide - CardPadX - 24.0f + 6.0f, Y + 6.0f }, 12.0f, TextDim);
-    Y += HeadTitle + HeadGap + HeadSub + HeadDrop + NumLift;
+    Y += HeadHeight() + NumLift;
 
     char Whole[16], Fraction[8];
     std::snprintf(Whole, sizeof(Whole), "%d", int(std::floor(Log.Instant)));
@@ -667,24 +752,32 @@ inline void PaintHero(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, f
     }
 
     // The caption, over a ramp into near-black so the words stay legible whatever streams beneath.
-    const float CapTall = 8.0f + 12.5f + 2.0f + 10.0f + 9.0f;
-    const float CapTop  = Spot.y + Tall - CapTall;
+    const BeaufortBand Sign = Force(Draft.Speed);
+    char Flank[24];
+    std::snprintf(Flank, sizeof(Flank), "force %d", Sign.Force);
+    char Line[128], Spoken[128];
+    std::snprintf(Line, sizeof(Line), "%.1f m/s from %s %d\xc2\xb0 \xc2\xb7 %s", double(Draft.Speed),
+                  Compass(Draft.Direction), int(std::lround(Draft.Direction)), LandSign(Draft.Speed));
+    Upper(Spoken, sizeof(Spoken), Line);
+    // .mp-cap: a flex row with a 10 px gap. .r takes its own width, .l has min-width 0 and takes the rest,
+    //    so a long sub wraps inside the left column and the whole band grows upward from the card's foot.
+    const float CapFlank = Measured(Face, 10.5f, Flank);
+    const float CapLeft  = std::max(1.0f, Wide - 12.0f * 2.0f - CapFlank - 10.0f);
+    const float CapSub   = TrackedFlowHeight(Face, 10.0f, Spoken, 0.6f, CapLeft);
+    const float CapTall  = 8.0f + Grind(12.5f) + 2.0f + CapSub + 9.0f;
+    const float CapTop   = Spot.y + Tall - CapTall;
     for (int I = 0; I < 16; ++I)
     {
         const float A = float(I) / 16.0f, B = float(I + 1) / 16.0f;
         Draw->AddRectFilled({ Spot.x, CapTop + CapTall * A }, { Spot.x + Wide, CapTop + CapTall * B + 1.0f },
                             IM_COL32(5, 7, 15, int(224.0f * (A + B) * 0.5f + 0.5f)));
     }
-    const BeaufortBand Band = Force(Draft.Speed);
-    Boxed(Draw, Face, Spot.x + 12.0f, CapTop + 8.0f, 12.5f, TextFull, Band.Name);
-    char Sub[128], Shown[128];
-    std::snprintf(Sub, sizeof(Sub), "%.1f m/s from %s %d\xc2\xb0 \xc2\xb7 %s", double(Draft.Speed),
-                  Compass(Draft.Direction), int(std::lround(Draft.Direction)), LandSign(Draft.Speed));
-    Upper(Shown, sizeof(Shown), Sub);
-    Tracked(Draw, Face, Spot.x + 12.0f, CapTop + 8.0f + 12.5f + 2.0f, 10.0f, TextFaint, Shown, 0.6f);
-    char Right[24];
-    std::snprintf(Right, sizeof(Right), "force %d", Band.Force);
-    Inked(Draw, Face, Spot.x + Wide - 12.0f, CapTop + CapTall - 9.0f, 10.5f, TextDim, Right, Anchor::End);
+    Boxed(Draw, Face, Spot.x + 12.0f, CapTop + 8.0f, 12.5f, TextFull, Sign.Name);
+    PaintTrackedFlow(Draw, Face, Spot.x + 12.0f, CapTop + 8.0f + Grind(12.5f) + 2.0f, 10.0f, TextFaint,
+                     Spoken, 0.6f, CapLeft);
+    // align-items: flex-end — the right column sits on the same bottom edge as the left.
+    Boxed(Draw, Face, Spot.x + Wide - 12.0f - CapFlank, CapTop + CapTall - 9.0f - Grind(10.5f), 10.5f,
+          TextDim, Flank);
     Draw->PopClipRect();
     const float R = CardRound;
     const float X1 = Spot.x + Wide, Y1 = Spot.y + Tall;
@@ -731,7 +824,84 @@ inline void PaintRail(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide,
     }
 }
 
-constexpr float StatTall = 11.0f + 19.0f + 6.0f + 25.0f + 10.0f;
+// .mp-stat is a grid, not a stack: `grid-template-columns: 1fr auto` with `align-items: end`, the icon
+//    spanning both columns above. The number takes its own width and the label takes what is left, so a long
+//    label wraps inside its column rather than running under the number — and the card grows when it does.
+constexpr float StatPadX    = 13.0f;   // [px] .mp-stat padding-left / right
+constexpr float StatPadTop  = 11.0f;   // [px] .mp-stat padding-top
+constexpr float StatPadFoot = 10.0f;   // [px] .mp-stat padding-bottom
+constexpr float StatRowGap  =  2.0f;   // [px] .mp-stat row gap
+constexpr float StatColGap  =  8.0f;   // [px] .mp-stat column gap
+constexpr float StatIcon    = 19.0f;   // [px] .mp-stat .i
+constexpr float StatIconPad =  3.5f;   // [px] the 12 px glyph centred in it
+constexpr float StatLabel   = 11.0f;   // [px] .mp-stat .l font-size
+constexpr float StatNumber  = 25.0f;   // [px] .mp-stat .n font-size, line-height 1
+constexpr float StatTrack   = -1.4f;   // [px] .mp-stat .n letter-spacing
+constexpr float StatUnit    = 11.0f;   // [px] .mp-stat .n em font-size
+constexpr float StatUnitGap =  2.0f;   // [px] .mp-stat .n em margin-left
+
+using StatGlyph = void (*)(ImDrawList*, ImVec2, float, ImU32);
+
+// The auto column: the tracked number, then the inline unit that shares its baseline.
+inline float StatValueWidth(ImFont* Face, const char* Body, const char* Unit)
+{
+    float Run = TrackedWidth(Face, StatNumber, Body, StatTrack);
+    if (Unit && *Unit) Run += StatUnitGap + Measured(Face, StatUnit, Unit);
+    return Run;
+}
+
+inline float StatLabelColumn(ImFont* Face, float Wide, const char* Body, const char* Unit)
+{
+    return std::max(1.0f, Wide - StatPadX * 2.0f - StatValueWidth(Face, Body, Unit) - StatColGap);
+}
+
+inline float StatHeight(ImFont* Face, float Wide, const char* Label, const char* Body, const char* Unit)
+{
+    const float Column = StatLabelColumn(Face, Wide, Body, Unit);
+    const float Block  = std::max(Grind(StatLabel),
+                                  Face->CalcTextSizeA(Grind(StatLabel), FLT_MAX, Column, Label).y);
+    return StatPadTop + StatIcon + StatRowGap + std::max(Block, StatNumber) + StatPadFoot;
+}
+
+// A one-line label, which is what every card using the constant form carries.
+constexpr float StatTall = StatPadTop + StatIcon + StatRowGap + StatNumber + StatPadFoot;
+
+// Row is the height the grid row forces on the card; a .mp-duo cell stretches to its taller sibling. The
+//    slack is shared between the two auto rows, so the icon drops by half of it and the label and number,
+//    being bottom aligned, land on the card's own padding edge.
+inline void PaintStat(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const char* Label,
+                      const char* Body, const char* Unit, bool Down, StatGlyph Glyph, float Row = 0.0f)
+{
+    const float Natural = StatHeight(Face, Wide, Label, Body, Unit);
+    const float Tall    = std::max(Row, Natural);
+    const float Slack   = (Tall - Natural) * 0.5f;
+    Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + Tall }, CardFill, CardRound);
+
+    const ImU32 Ink    = Down ? IM_COL32(239, 68, 68, 255) : IM_COL32( 34, 197,  94, 255);
+    const ImU32 Ground = Down ? IM_COL32(239, 68, 68,  36) : IM_COL32( 34, 197,  94,  33);
+    const float IconTop = Spot.y + StatPadTop + Slack;
+    Draw->AddRectFilled({ Spot.x + StatPadX, IconTop },
+                        { Spot.x + StatPadX + StatIcon, IconTop + StatIcon }, Ground, 7.0f);
+    if (Glyph) Glyph(Draw, { Spot.x + StatPadX + StatIconPad, IconTop + StatIconPad }, 12.0f, Ink);
+
+    // align-items: end — both boxes sit on the bottom edge of the second row.
+    const float Foot   = Spot.y + Tall - StatPadFoot;
+    const float Column = StatLabelColumn(Face, Wide, Body, Unit);
+    const float Block  = std::max(Grind(StatLabel),
+                                  Face->CalcTextSizeA(Grind(StatLabel), FLT_MAX, Column, Label).y);
+    Draw->AddText(Face, Grind(StatLabel), { Spot.x + StatPadX, Foot - Block }, TextDim, Label, nullptr,
+                  Column);
+
+    // line-height: 1 on a 1.302 em face, so the half leading is negative and the baseline sits 21.025 down.
+    const float NumberTop = Foot - StatNumber + (StatNumber - Grind(StatNumber)) * 0.5f;
+    const float Base      = NumberTop + StatNumber * AscentShare;
+    const float Value     = StatValueWidth(Face, Body, Unit);
+    const float Left      = Spot.x + Wide - StatPadX - Value;
+    Tracked(Draw, Face, Left, NumberTop, StatNumber, TextFull, Body, StatTrack);
+    if (Unit && *Unit)
+        Boxed(Draw, Face, Spot.x + Wide - StatPadX - Measured(Face, StatUnit, Unit),
+              Base - StatUnit * AscentShare, StatUnit, TextDim, Unit);
+}
 
 // icons.js P.wind and P.alert on their 24 unit grid.
 inline void PaintWindGlyph(ImDrawList* Draw, ImVec2 Spot, float Size, ImU32 Colour)
@@ -756,6 +926,16 @@ inline void PaintAlertGlyph(ImDrawList* Draw, ImVec2 Spot, float Size, ImU32 Col
     Draw->AddLine(At(12, 17.2f), At(12, 17.6f), Colour, Thick);
 }
 
+inline float DuoHeight(ImFont* Face, float Wide, const TraceLog& Log)
+{
+    const float Half = (Wide - 10.0f) * 0.5f;
+    char High[16], Low[16];
+    std::snprintf(High, sizeof(High), "%.1f", double(Crest(Log)));
+    std::snprintf(Low,  sizeof(Low),  "%.1f", double(Lull(Log)));
+    return std::max(StatHeight(Face, Half, "Gusting to", High, "m/s"),
+                    StatHeight(Face, Half, "Lulling to", Low,  "m/s"));
+}
+
 inline void PaintDuo(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const TraceLog& Log)
 {
     const float Gap = 10.0f, Half = (Wide - Gap) * 0.5f;
@@ -763,23 +943,12 @@ inline void PaintDuo(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, co
     const bool  Alarmed = High > 17.0f;
     for (int I = 0; I < 2; ++I)
     {
-        const float X = Spot.x + I * (Half + Gap);
-        Draw->AddRectFilled({ X, Spot.y }, { X + Half, Spot.y + StatTall }, CardFill, CardRound);
-        const bool Down = I == 0 && Alarmed;
-        const ImU32 Ink    = Down ? IM_COL32(239, 68, 68, 255) : IM_COL32(34, 197, 94, 255);
-        const ImU32 Ground = Down ? IM_COL32(239, 68, 68, 36)  : IM_COL32(34, 197, 94, 33);
-        Draw->AddRectFilled({ X + 13.0f, Spot.y + 11.0f }, { X + 13.0f + 19.0f, Spot.y + 11.0f + 19.0f },
-                            Ground, 7.0f);
-        if (Down) PaintAlertGlyph(Draw, { X + 13.0f + 3.5f, Spot.y + 11.0f + 3.5f }, 12.0f, Ink);
-        else      PaintWindGlyph (Draw, { X + 13.0f + 3.5f, Spot.y + 11.0f + 3.5f }, 12.0f, Ink);
-        const float Row = Spot.y + 11.0f + 19.0f + 6.0f + 25.0f;
-        Boxed(Draw, Face, X + 13.0f, Row - 11.0f, 11.0f, TextDim, I == 0 ? "Gusting to" : "Lulling to");
         char Body[16];
         std::snprintf(Body, sizeof(Body), "%.1f", double(I == 0 ? High : Low));
-        const float UnitRun = Measured(Face, 11.0f, "m/s") + 2.0f;
-        const float Run = Tracked(Draw, Face, 0, 0, 25.0f, 0, Body, -1.4f, false);
-        Tracked(Draw, Face, X + Half - 13.0f - UnitRun - Run, Row - 25.0f, 25.0f, TextFull, Body, -1.4f);
-        Inked(Draw, Face, X + Half - 13.0f, Row, 11.0f, TextDim, "m/s", Anchor::End);
+        const bool Down = I == 0 && Alarmed;
+        PaintStat(Draw, Face, { Spot.x + I * (Half + Gap), Spot.y }, Half,
+                  I == 0 ? "Gusting to" : "Lulling to", Body, "m/s", Down,
+                  Down ? PaintAlertGlyph : PaintWindGlyph, DuoHeight(Face, Wide, Log));
     }
 }
 
@@ -788,6 +957,13 @@ inline void PaintDuo(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, co
 //------------------------------------------------------------------------------------------------------------------------
 
 constexpr float ScaleTall = 44.0f;
+
+// .wf-meter: a header row holding the key and the stepper, then the scale under it.
+constexpr float MeterLift  = 4.0f;    // [px] the stepper's inset from the meter's top
+constexpr float MeterKey   = 8.5f;    // [px] .mp-k font-size
+constexpr float MeterGap   = 2.0f;    // [px] between the header row and the scale
+inline float MeterHeadTall() { return MeterLift + StepBox + MeterGap; }
+inline float MeterTallness() { return MeterHeadTall() + ScaleTall + 2.0f; }
 
 inline void PaintScale(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const WindDraft& Draft)
 {
@@ -831,20 +1007,19 @@ inline void PaintScale(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, 
 }
 
 // The shared card head: title, subtitle, and whatever the body needs beneath.
-inline float HeadHeight() { return HeadTitle + HeadGap + HeadSub + HeadDrop; }
 
 inline void PaintHead(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, const char* Title, const char* Under)
 {
     Boxed(Draw, Face, Spot.x, Spot.y, HeadTitle, TextFull, Title);
     char Shown[64];
     Upper(Shown, sizeof(Shown), Under);
-    Tracked(Draw, Face, Spot.x, Spot.y + HeadTitle + HeadGap, HeadSub, TextFaint, Shown, 0.9f);
+    Tracked(Draw, Face, Spot.x, Spot.y + Grind(HeadTitle) + HeadGap, HeadSub, TextFaint, Shown, 0.9f);
 }
 
 inline float BeaufortHeight()
 {
     return CardPadTop + HeadHeight()
-         + 2.0f + (8.0f + 8.5f + 2.0f + ScaleTall + 2.0f) + 10.0f
+         + 2.0f + MeterTallness() + 10.0f
          + TapeHeight()
          + 10.5f + 14.0f;
 }
@@ -857,15 +1032,16 @@ inline void PaintBeaufortCard(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float
     PaintHead(Draw, Face, { Left, Y }, "Beaufort", "Force \xc2\xb7 bearing");
     Y += HeadHeight() + 2.0f;
 
-    const float MeterTall = 8.0f + 8.5f + 2.0f + ScaleTall + 2.0f;
+    const float MeterTall = MeterTallness();
     Draw->AddRectFilled({ Left, Y }, { Left + Inner, Y + MeterTall }, FieldFill, CardRound);
     Draw->AddRect({ Left, Y }, { Left + Inner, Y + MeterTall }, Stroke, CardRound, 0, 1.0f);
     char Key[20];
     Upper(Key, sizeof(Key), "wind speed");
-    Tracked(Draw, Face, Left + 9.0f, Y + 8.0f + (StepBox - 8.5f) * 0.5f, 8.5f, TextFaint, Key, 1.1f);
-    PaintStepper(Draw, Face, { Left + Inner - 9.0f - StepperWidth(Face, "m/s"), Y + 4.0f },
+    Tracked(Draw, Face, Left + 9.0f, Y + MeterLift + (StepBox - Grind(MeterKey)) * 0.5f, MeterKey,
+            TextFaint, Key, 1.1f);
+    PaintStepper(Draw, Face, { Left + Inner - 9.0f - StepperWidth(Face, "m/s"), Y + MeterLift },
                  Draft.Speed, 1, "m/s");
-    PaintScale(Draw, Face, { Left, Y + 8.0f + 8.5f + 2.0f }, Inner, Draft);
+    PaintScale(Draw, Face, { Left, Y + MeterHeadTall() }, Inner, Draft);
     Y += MeterTall + 10.0f;
 
     static const Mark Rose[5] = { { 0.0f, "N" }, { 0.25f, "E" }, { 0.5f, "S" }, { 0.75f, "W" }, { 1.0f, "N" } };
@@ -924,6 +1100,11 @@ struct Follower { const char* Name; bool Linked; };
 
 constexpr float TagTall = 4.0f + 8.5f + 5.0f;
 
+// .mpanel .mp-note, 10 px with .2 px tracking and 2 px of padding either side.
+constexpr const char* DrivingNote =
+    "Clouds and water can each be cut loose from the field \xe2\x80\x94 switch one off and it keeps its "
+    "own drift.";
+
 inline float DrivingHeight(ImFont* Face, float Wide, const Follower* Flock, int Count)
 {
     const float Inner = Wide - CardPadX * 2.0f;
@@ -937,7 +1118,7 @@ inline float DrivingHeight(ImFont* Face, float Wide, const Follower* Flock, int 
         X += Run + 5.0f;
     }
     return CardPadTop + HeadHeight() + 8.0f + Rows * TagTall + (Rows - 1.0f) * 5.0f + 2.0f
-         + 8.0f + 10.5f * 2.0f + 14.0f;
+         + 8.0f + TrackedFlowHeight(Face, 10.0f, DrivingNote, 0.2f, Inner - 2.0f) + 14.0f;
 }
 
 inline void PaintDriving(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide,
@@ -965,10 +1146,7 @@ inline void PaintDriving(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide
         X += Run + 5.0f;
     }
     Y += TagTall + 2.0f + 8.0f;
-    Tracked(Draw, Face, Left + 2.0f, Y, 10.5f, TextFaint,
-            "Clouds and water can each be cut loose from the field \xe2\x80\x94 switch one", 0.2f);
-    Tracked(Draw, Face, Left + 2.0f, Y + 10.5f, 10.5f, TextFaint,
-            "off and it keeps its own drift.", 0.2f);
+    PaintTrackedFlow(Draw, Face, Left + 2.0f, Y, 10.0f, TextFaint, DrivingNote, 0.2f, Inner - 2.0f);
 }
 
 } // namespace Frontier::WindInstrument

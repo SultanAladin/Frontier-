@@ -49,7 +49,7 @@ int main()
 
     auto PanelHeight = [&]()
     {
-        return MapTall + 20.0f + Kit::PillTall + 10.0f + (Kit::StatTall + 10.0f) + 10.0f
+        return MapTall + 20.0f + Kit::PillTall + 10.0f + (DuoHeight(Face, float(Width) - 20.0f, Layer) + 10.0f) + 10.0f
              + CoverageHeight() + 20.0f + DeckHeight() + 20.0f + MorphologyHeight() + 10.0f;
     };
 
@@ -70,7 +70,7 @@ int main()
         float Y = Origin.y;
         PaintMap(Draw, Face, { Origin.x, Y }, Card, MapTall, Layer, WindFrom);  Y += MapTall + 20.0f;
         PaintRail(Draw, Face, { Origin.x, Y }, Card, Layer);                    Y += Kit::PillTall + 10.0f;
-        PaintDuo(Draw, Face, { Origin.x, Y }, Card, Layer);                     Y += Kit::StatTall + 20.0f;
+        PaintDuo(Draw, Face, { Origin.x, Y }, Card, Layer);                     Y += DuoHeight(Face, Card, Layer) + 20.0f;
         PaintCoverage(Draw, Face, { Origin.x, Y }, Card, Layer);                Y += CoverageHeight() + 20.0f;
         PaintDeck(Draw, Face, { Origin.x, Y }, Card, Layer);                    Y += DeckHeight() + 20.0f;
         PaintMorphology(Draw, Face, { Origin.x, Y }, Card, Layer);
