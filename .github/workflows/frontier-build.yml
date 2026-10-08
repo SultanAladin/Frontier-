@@ -107,17 +107,24 @@ jobs:
 
       - name: Run the SolidArc verifications
         run: |
+          set -euo pipefail
           for Check in KernelVerification RasterVerification InteractionVerification \
                        SelectionVerification TopologyVerification; do
-            echo "--- $Check"
-            find .cache/cmake -name "$Check" -type f -perm -u+x -print -quit | xargs -r -I{} {}
+            Program="$(find .cache/cmake -type f -name "$Check" -perm -u+x -print -quit)"
+            if [ -z "$Program" ]; then
+              echo "::error title=$Check::not built anywhere under .cache/cmake"
+              exit 1
+            fi
+            echo "--- $Check ($Program)"
+            python3 Tools/Build/RunAnnounced.py "$Check" -- "$(pwd)/$Program"
           done
 
       - name: Render the SolidArc contact sheets
         run: |
           mkdir -p Exhibits/Gallery/SolidArcNative
           python3 Tools/Build/RunAnnounced.py "solidarc contact sheets" -- \
-            .cache/cmake/SolidArc --proofs Exhibits/Gallery/SolidArcNative \
+            "$(find .cache/cmake -type f -name SolidArc -perm -u+x -print -quit)" \
+              --proofs Exhibits/Gallery/SolidArcNative \
               Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase10_ContactSheet.arc \
               Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase12_ContactSheet.arc \
               Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase13_ContactSheet.arc \
