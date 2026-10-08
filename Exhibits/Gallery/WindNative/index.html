@@ -55,22 +55,27 @@
   <div class="kicker">Executed proof · Exhibits/Gallery/WindNative</div>
   <h1>The wind binding card, drawn by the engine</h1>
   <p><code>WindPanel.jsx</code>'s <code>WindBinding</code> card and its <code>WindCanvas</code> composite flow
-     field, converted into <code>Engine/Editor/WindPanelSurface.h</code> and mounted in the fog inspector's
-     existing <em>Wind binding</em> card. Every capture below is real ImGui draw output, rasterised on the CPU —
-     no screenshots and no mock-ups.</p>
+     field, converted into <code>Engine/Editor/WindPanelSurface.h</code> and mounted in both the fog and the
+     clouds inspectors. Every capture below is real ImGui draw output, rasterised on the CPU — no screenshots
+     and no mock-ups.</p>
   <p>The browser shipped this as a card; natively it was a bare checkbox and combo box
      (<code>WindBindingControls.h</code>). The authoring model — <code>ResolveWind</code>'s clamps and fallback
-     pair, and <code>EvaluateWind</code>'s four component kinds — is reproduced term for term, and the 74 checks
+     pair, and <code>EvaluateWind</code>'s four component kinds — is reproduced term for term, and the 77 checks
      assert the arithmetic rather than the pixels.</p>
   <div class="rail">
-    <div class="pill"><b>74</b><span>checks passed</span></div>
-    <div class="pill"><b>10</b><span>captures</span></div>
-    <div class="pill"><b>4</b><span>component kinds</span></div>
+    <div class="pill"><b>77</b><span>checks passed</span></div>
+    <div class="pill"><b>11</b><span>captures</span></div>
+    <div class="pill"><b>2</b><span>panels wired</span></div>
     <div class="pill"><b>190</b><span>flow strokes</span></div>
   </div>
   <div class="rail"><span class="tag"><i></i>python3 Exhibits/Workbench/Wind/RunNativeWindCards.py</span></div>
 </header>
 <div class="grid">
+  <figure>
+    <figcaption><b>As mounted</b><em>BindingGlobal</em></figcaption>
+    <a class="shot" href="BindingGlobal.png"><img src="BindingGlobal.png" alt="As mounted"></a>
+    <p style="font-size:11.5px;line-height:1.6;margin-top:10px">What the fog and clouds panels actually render. Native <code>Wind Source</code> entry 0 is the shared <em>Global wind</em>, so the select always names a field — the browser's still-air blank never arises from that sheet.</p>
+  </figure>
   <figure>
     <figcaption><b>Bound · following</b><em>BindingBound</em></figcaption>
     <a class="shot" href="BindingBound.png"><img src="BindingBound.png" alt="Bound · following"></a>

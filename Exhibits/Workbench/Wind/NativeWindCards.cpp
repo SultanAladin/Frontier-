@@ -301,6 +301,22 @@ int main()
         Check(Hits.Edit.z > Hits.Edit.x, "the shortcut survives Follow Wind being switched off");
     }
 
+    // What the fog and clouds panels actually mount: Wind Source entry 0 is the shared Global wind, so the
+    //    native select always names a field and the still-air blank never arises from that sheet.
+    Values = BindingValues{};
+    Values.FieldName = "Global wind";
+    Values.Assigned  = true;
+    Values.Following = true;
+    Prime(90);
+    Capture("BindingGlobal");
+    {
+        char Note[224];
+        BindingNote(Values, Note, sizeof(Note));
+        Check(std::strstr(Note, "Using all components of Global wind.") != nullptr,
+              "the note names the bound field rather than a placeholder");
+        Check(Hits.Edit.z > Hits.Edit.x, "the global binding still offers the editor shortcut");
+    }
+
     Values = BindingValues{};
     Values.Assigned = true;
     Prime(0);

@@ -1,5 +1,6 @@
 #include "CloudsInspectorPanel.h"
 #include "WindBindingControls.h"
+#include "WindPanelSurface.h"
 #include "ControlPanel.h"
 #include "SunReferenceDraw.h"
 #include "CloudDensityPreview.h"
@@ -35,7 +36,6 @@ void Select(Panel& U,float X,float Y,float W,const char* N){auto& P=*Find(U.Shee
 void Axes(Panel& U,float Y,float W,const char* N,const char* Caption){auto& P=*Find(U.Sheet,N);U.Text(24,Y,Caption,11,Muted);ImGui::SetCursorScreenPos(U.At(24,Y+24));ImGui::BeginChild(N,{W-48,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);U.Controls.AxisVec3("##axes",P.Axes,1,true);ImGui::EndChild();}
 }
 void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet){
- RecordWindBindingControls(Sheet);
  if(!Find(Sheet,"Coverage")||!Find(Sheet,"Anisotropy")){ImGui::TextUnformatted("Cloud properties unavailable");return;}
  bool Local=Sheet.Appearance==EditorSheetAppearance::LocalCloud;auto* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(!std::strcmp(F->GetDebugName(),"Sun reference / regular"))Font=F;ImGui::PushFont(Font,14);ImVec2 O=ImGui::GetCursorScreenPos();O.x+=20;O.y+=20;float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),O,Font};auto& Cached=Cache();Update(Cached,Sheet,Local,(W-48)/182);char Text[160];
  U.Text(0,8,"Inspector / Environment",8,Muted);U.Text(0,48,"Clouds",25);U.Text(0,83,Local?"LOCAL VOLUMETRIC CLOUD · bounded volume":"GLOBAL VOLUMETRIC CLOUDS · atmospheric layer",10,Muted);
@@ -61,6 +61,28 @@ void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
  float End=Y2+468;U.Card(0,End,W,Local?270:402,"Cloud body");U.Slider(24,End+60,W-48,"Density");U.Slider(24,End+128,W-48,"Feature Scale");U.Slider(24,End+196,W-48,"Anisotropy");if(!Local){Select(U,24,End+264,(W-64)/2,"Type");U.Slider(40+(W-64)/2,End+264,(W-64)/2,"Anvil");U.Slider(24,End+326,W-48,"Ceiling");}
  End+=Local?286:418;U.Wrap(0,End,W,"Live cloud controls. Density previews are static at time zero; CPU/GPU scene volumes use the selected wind source.");End+=58;
  if(!Local){ImGuiID ID=ImGui::GetID("##cloud-shadow-fold");bool Open=ImGui::GetStateStorage()->GetBool(ID);U.Card(0,End,W,52,"GPU cloud shadows · separate field");U.Text(W-32,End+22,Open?"−":"+",13,Muted);ImGui::SetCursorScreenPos(U.At(0,End));if(ImGui::InvisibleButton("##cloud-shadow-fold",{W,52})){Open=!Open;ImGui::GetStateStorage()->SetBool(ID,Open);}if(Open){End+=68;for(auto& G:Sheet.Groups)if(!std::strcmp(G.Title,"Cloud Shadows")||!std::strcmp(G.Title,"Shadow Clock")){for(unsigned I=0;I<G.PropertyCount;++I){auto& P=G.Properties[I];if(P.Category==EditorPropertyCategory::Slider)U.Slider(24,End,W-48,P.Label);else if(P.Category==EditorPropertyCategory::Select)Select(U,24,End,W-48,P.Label);else U.Tile(24,End,132,P.Label,&P.On);End+=72;}}}else End+=52;}
+ // WindPanel.jsx closes the clouds panel with WindBinding, so the card lands last here too.
+ {
+  static WindCards::WindMotes Motes;
+  auto* Source=Find(Sheet,"Wind Source");
+  WindCards::BindingValues Bound;
+  const unsigned Pick=Source&&Source->Picked<Source->OptionCount?Source->Picked:0;
+  Bound.Assigned=Source!=nullptr;
+  Bound.FieldName=Source?Source->Options[Pick]:nullptr;
+  Bound.Following=Find(Sheet,"Follow Wind")?Find(Sheet,"Follow Wind")->On:true;
+  const WindCards::WindComposite Air=WindCards::Resolve(7.f,250.f,.25f);
+  const float Body=WindCards::BindingBodyHeight(U.Font,W-48,Bound);
+  U.Card(0,End,W,49+Body+104,"Wind binding");
+  auto Hits=WindCards::PaintBindingBody(U.D,U.Font,U.At(24,End+49),W-48,Bound,Air,Motes,ImGui::GetIO().DeltaTime,IM_COL32(34,34,34,255));
+  if(Source&&Source->OptionCount>1){
+   ImGui::SetCursorScreenPos({Hits.Select.x,Hits.Select.y});
+   if(ImGui::InvisibleButton("##cloud-wind-source",{Hits.Select.z-Hits.Select.x,Hits.Select.w-Hits.Select.y}))
+    Source->Picked=(Source->Picked+1)%Source->OptionCount;
+  }
+  ImGui::SetCursorScreenPos(U.At(24,End+49+Body+12));
+  ImGui::BeginChild("##cloud-wind-binding",{W-48,76},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);RecordWindBindingControls(Sheet);ImGui::EndChild();
+  End+=49+Body+104;
+ }
  ImGui::SetCursorScreenPos(U.At(0,End+24));ImGui::Dummy({W,1});ImGui::PopFont();
 }
 }

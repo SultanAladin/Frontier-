@@ -1,8 +1,9 @@
 {
   "Engine/Editor/WindPanelSurface.h": "0409594b1c806806d75b394a37c51db06f4e7c4c93c73140e603e134ece24222",
-  "Exhibits/Workbench/Wind/NativeWindCards.cpp": "597e90bf4141736f9b998308360f1e01c17fc2042e6665342394813b2e6843d4",
+  "Exhibits/Workbench/Wind/NativeWindCards.cpp": "0edf3180d4725734035efb93ed425b187c0530167920dbfecc7a08ce64b158ee",
   "Exhibits/Workbench/Wind/RunNativeWindCards.py": "2b0d22e5ffad83b09b039e8dffe462785cfdb982c754ca748779b1444af4e58d",
   "Exhibits/Gallery/WindNative/BindingBound.png": "2fdde5514a84947f55074a80b3cae971a6222d64f9e22dfc63ba893866b9be24",
+  "Exhibits/Gallery/WindNative/BindingGlobal.png": "67a628bbcaa36091f82b5a169b25d72e2ac916979f9e532fb4477d67ce1f0fd1",
   "Exhibits/Gallery/WindNative/BindingMissing.png": "48c133c1b1d065c0d8cd78ef94706efc7ba7452345bf3dd63fb2e12e50a08aae",
   "Exhibits/Gallery/WindNative/BindingNone.png": "f6af04474d71db9a9b6737d1c050ab4c9e445c82b1731ff74ebfe776494a9851",
   "Exhibits/Gallery/WindNative/BindingUnfollowed.png": "fa9ffa5dbe32c553254a35e7fe59b033727bef642b5b136304e9494c017f3437",

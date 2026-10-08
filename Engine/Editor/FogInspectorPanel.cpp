@@ -76,9 +76,10 @@ void RecordFogInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Shee
   static WindCards::WindMotes Motes;
   auto* Source=Find(Sheet,"Wind Source");
   WindCards::BindingValues Bound;
+  // Wind Source always resolves: entry 0 is the shared Global wind, not the browser's still-air blank.
   const unsigned Pick=Source&&Source->Picked<Source->OptionCount?Source->Picked:0;
-  Bound.Assigned=Source&&Pick>0;
-  Bound.FieldName=Bound.Assigned?Source->Options[Pick]:nullptr;
+  Bound.Assigned=Source!=nullptr;
+  Bound.FieldName=Source?Source->Options[Pick]:nullptr;
   Bound.Following=Find(Sheet,"Follow Wind")?Find(Sheet,"Follow Wind")->On:true;
   // No authored WindField reaches the native sheet, so ResolveWind's own fallback pair stands in.
   const WindCards::WindComposite Air=WindCards::Resolve(7.f,250.f,.25f);

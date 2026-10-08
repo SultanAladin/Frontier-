@@ -253,7 +253,15 @@ steps upstream and fade from the tail. Speed colours are `hsl(190 − s·150, 48
 - The `<select>` cycles on click rather than opening a popup, as the fog shape select already does.
 - `WindEditor` — the modal "place and combine components" window, `wind-editor` in the bundle — is **not** ported.
   The shortcut button is drawn and returns its hit rectangle, but nothing is mounted behind it yet.
-- `CloudsInspectorPanel.cpp` still calls the old `RecordWindBindingControls` stub bare, outside any card. The
-  card is wired into fog only.
+### Mounted in both panels
 
-74 checks: `python3 Exhibits/Workbench/Wind/RunNativeWindCards.py` → `Exhibits/Gallery/WindNative`.
+`FogInspectorPanel.cpp` reuses the card it already drew. `CloudsInspectorPanel.cpp` previously called the stub
+bare at the top of the function — before the panel chrome and before its own property guard; the card now sits
+**last**, which is where `WindPanel.jsx` puts `WindBinding` in the clouds branch.
+
+One semantic correction came out of the clouds wiring: native `Wind Source` entry 0 is `WindNames[0]`,
+**"Global wind"** — the shared field, not the browser's still-air blank. The native select therefore always
+resolves to a named field, so both panels pass `Assigned` and the option text straight through. The
+still-air and dangling-id states remain implemented and proved, they simply cannot arise from this sheet.
+
+77 checks: `python3 Exhibits/Workbench/Wind/RunNativeWindCards.py` → `Exhibits/Gallery/WindNative`.
