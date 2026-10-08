@@ -385,7 +385,18 @@ Two findings from building it rather than planning it:
    shipped solver and the shipped integration, twice, and compares the two sheets byte for byte:
    `Exhibits/Gallery/GasFlipbook/CampFireSheet.png` with `CampFireSheet.toml`. 🚩 The colour in that capture
    is the known-wrong fire rendering, deferred deliberately; the sheet mechanism is what is proved here
-6. Collision levels 1 and 2 — primitives, then the global distance field
+6. ~~**Collision levels 1 and 2 — primitives, then the global distance field**~~ — landed.
+   `GasObstructionConsent.h` is the opt-in as data: one record per object, **every level off by default**,
+   with the cull (scene order, tail dropped, never reordered), `AdmitObstructions()` as the whole per-advance
+   step, and `AdmitBoundaryMotion()` so a moving obstruction pushes the air **in front of** it rather than
+   inside itself, where the solver stills it. `ConstructCouplingConsent()` makes the object's record the one
+   place level ③'s switch is read from — a stale toggle in saved tuning loses to it.
+   `GasSceneDistanceIntake.h` binds level ② to the real `GlobalDistanceFieldSpace`, and the proof links it
+   rather than mocking it: an L-shaped wall is baked into a `DistanceFieldSpace`, registered, rasterised and
+   obstructs a burning plume with no primitive anywhere. Proof
+   `Exhibits/Workbench/GasFluid/NativeGasObstruction.cpp` **PASS 38**, run twice and compared, with three
+   captures in `Exhibits/Gallery/GasObstruction/`. 🚩 Still open: which bodies consent by default in a
+   shipped scene — the answer stays in the scene, not in code
 7. ~~**Two-way through `WindField::Sample`**~~ — landed early with step 1, because the coarse field made it a
    contributor and a drag term rather than a coupling system. 🚩 Which bodies consent is still unanswered and
    is deliberately left in the scene rather than guessed in code

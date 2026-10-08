@@ -81,6 +81,9 @@ jobs:
       - name: Gas flipbook — the bottom rung's sheet, baked from the shipped solver
         run: python3 Tools/Build/RunAnnounced.py "gas flipbook" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFlipbook.py
 
+      - name: Gas obstruction — the three collision levels against the engine's own distance field
+        run: python3 Tools/Build/RunAnnounced.py "gas obstruction" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasObstruction.py
+
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 
