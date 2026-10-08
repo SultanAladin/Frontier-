@@ -44,6 +44,11 @@
       reactRadius: 0.12,    // chemicals: contact radius
       fracA: 0.5,           // chemicals: initial fraction of A
       simDt: 0.004,         // molecular: integration step (s) at time scale 1
+      pulseHz: 0,           // swarm glow pulse frequency (Hz); fireflies
+      pulseDepth: 0,        // 0 steady .. 1 full pulse
+      swarmRadius: 1.2,     // swarm neighbour radius (m), kind 6
+      burstEvery: 0,        // timed bursts in seconds (fireworks); 0 = off
+      burstCount: 120,      // particles per timed burst
       visible: true,
     };
   };
@@ -265,6 +270,148 @@
         speedMin: 2, speedMax: 5, drag: 0.3, gravity: 1, lifeMin: 3, lifeMax: 5,
         sizeStart: 0.035, sizeEnd: 0.03, colA: [0.46, 0.32, 0.18, 1], colB: [0.3, 0.22, 0.14, 0],
         windCoupling: 1.8, bounce: 0.35,
+      }),
+    },
+    {
+      id: "flares", name: "Flares", group: "VFX",
+      blurb: "Burning road flares: bright additive red glow that trails sparks and sinks slowly.",
+      p: P({
+        kind: 5, shape: 3, blend: "add", capacity: 1200, rate: 60,
+        emitShape: 1, radius: 0.05, origin: [4.5, 0.2, -4], dir: [0, 1, 0], spread: 0.3,
+        speedMin: 0.5, speedMax: 1.5, drag: 1.0, buoyancy: 0.2, gravity: 0.3, lifeMin: 1.5, lifeMax: 3.5,
+        sizeStart: 0.25, sizeEnd: 0.08, colA: [1, 0.35, 0.15, 1], colB: [0.9, 0.1, 0.05, 0],
+        windCoupling: 0.6,
+      }),
+    },
+    {
+      id: "pollen", name: "Pollen & dust motes", group: "Ambient",
+      blurb: "Slow glowing motes that drift on the wind through the air. Light shafts are not modelled.",
+      p: P({
+        kind: 1, shape: 3, blend: "alpha", capacity: 2000, rate: 90,
+        emitShape: 3, boxHalf: [5, 1.5, 5], origin: [0, 2.5, 0], dir: [0, 1, 0], spread: 0.5,
+        speedMin: 0.05, speedMax: 0.2, drag: 0.6, gravity: 0.02, lifeMin: 8, lifeMax: 12,
+        sizeStart: 0.03, sizeEnd: 0.03, colA: [1, 0.95, 0.6, 0.6], colB: [1, 0.9, 0.5, 0],
+        windCoupling: 1.6, flutter: 0.6,
+      }),
+    },
+    {
+      id: "fireflies", name: "Fireflies", group: "Ambient",
+      blurb: "Glowing points that wander through the air and pulse. Swarm behaviour (kind 6), best at night.",
+      p: P({
+        kind: 6, shape: 3, blend: "add", capacity: 256, rate: 12,
+        emitShape: 3, boxHalf: [4, 1.2, 4], origin: [0, 1.4, 0], dir: [0, 1, 0], spread: 0.5,
+        speedMin: 0.2, speedMax: 0.9, drag: 0.4, gravity: 0, lifeMin: 10, lifeMax: 16,
+        sizeStart: 0.06, sizeEnd: 0.05, colA: [0.7, 1, 0.3, 1], colB: [0.7, 1, 0.3, 0.2],
+        windCoupling: 0.3, flutter: 0.6, swarmRadius: 2.0, pulseHz: 0.8, pulseDepth: 0.85,
+      }),
+    },
+    {
+      id: "insects", name: "Insect swarm", group: "Ambient",
+      blurb: "Gnat-like swarm that flocks: separation, alignment and cohesion, computed on the GPU.",
+      p: P({
+        kind: 6, shape: 1, blend: "alpha", capacity: 512, rate: 40,
+        emitShape: 3, boxHalf: [2.5, 1.2, 2.5], origin: [-2, 1.8, 2], dir: [0, 1, 0], spread: 0.5,
+        speedMin: 0.5, speedMax: 2.2, drag: 0.3, gravity: 0, lifeMin: 15, lifeMax: 25,
+        sizeStart: 0.04, sizeEnd: 0.04, colA: [0.62, 0.57, 0.47, 1], colB: [0.45, 0.42, 0.36, 0.6],
+        windCoupling: 0.5, flutter: 1.2, swarmRadius: 1.6
+      }),
+    },
+    {
+      id: "watermist", name: "Water mist", group: "Water",
+      blurb: "Fine droplets blown off a waterfall or spray: short life and high drag.",
+      p: P({
+        kind: 5, shape: 3, blend: "alpha", capacity: 2500, rate: 200,
+        emitShape: 2, radius: 0.5, origin: [5, 3, 0], dir: [-1, 0, 0], spread: 0.9,
+        speedMin: 0.4, speedMax: 1.2, drag: 2.5, gravity: 0.15, lifeMin: 1.2, lifeMax: 2.2,
+        sizeStart: 0.06, sizeEnd: 0.5, colA: [0.85, 0.92, 1, 0.35], colB: [0.9, 0.95, 1, 0],
+        windCoupling: 1.0,
+      }),
+    },
+    {
+      id: "splash", name: "Splash rings", group: "Water",
+      blurb: "Expanding ripple rings on the floor. Placed at random ground points, not at each impact.",
+      p: P({
+        kind: 5, shape: 3, blend: "alpha", capacity: 600, rate: 40,
+        emitShape: 3, boxHalf: [5, 0, 5], origin: [0, 0.02, 0], dir: [0, 1, 0], spread: 0,
+        speedMin: 0, speedMax: 0, drag: 0, gravity: 0, lifeMin: 0.45, lifeMax: 0.7,
+        sizeStart: 0.08, sizeEnd: 0.9, colA: [0.8, 0.9, 1, 0.5], colB: [0.8, 0.9, 1, 0],
+      }),
+    },
+    {
+      id: "glass", name: "Glass shards", group: "Effects",
+      blurb: "Sharp bright fragments blown from a broken window. They bounce and glint, unlike debris.",
+      p: P({
+        kind: 0, shape: 0, blend: "add", capacity: 800, rate: 30,
+        emitShape: 1, radius: 0.4, origin: [3, 2.5, -3], dir: [0, 0, 1], spread: 1.0,
+        speedMin: 2, speedMax: 5, drag: 0.15, gravity: 1, lifeMin: 2, lifeMax: 3.5,
+        sizeStart: 0.04, sizeEnd: 0.02, colA: [0.8, 0.95, 1, 1], colB: [0.6, 0.8, 1, 0],
+        windCoupling: 0.4, bounce: 0.3,
+      }),
+    },
+    {
+      id: "lapilli", name: "Volcanic ash & lapilli", group: "VFX",
+      blurb: "Hot, heavy ejecta thrown high by a vent: faster and bigger than ash flakes.",
+      p: P({
+        kind: 0, shape: 1, blend: "alpha", capacity: 500, rate: 25,
+        emitShape: 1, radius: 0.4, origin: [-4.2, 0.3, -4], dir: [0, 1, 0], spread: 0.5,
+        speedMin: 6, speedMax: 12, drag: 0.1, gravity: 1, lifeMin: 3, lifeMax: 5,
+        sizeStart: 0.08, sizeEnd: 0.06, colA: [1, 0.45, 0.15, 1], colB: [0.25, 0.22, 0.2, 0],
+        windCoupling: 0.8, bounce: 0.3,
+      }),
+    },
+    {
+      id: "seeds", name: "Dandelion seeds", group: "Wind-blown",
+      blurb: "Very light seeds that float and flutter; the wind carries them.",
+      p: P({
+        kind: 1, shape: 3, blend: "alpha", capacity: 400, rate: 15,
+        emitShape: 1, radius: 0.6, origin: [-3, 2.2, 3], dir: [0, 1, 0], spread: 0.6,
+        speedMin: 0.1, speedMax: 0.4, drag: 1.4, gravity: 0.08, lifeMin: 8, lifeMax: 12,
+        sizeStart: 0.04, sizeEnd: 0.035, colA: [1, 1, 0.97, 0.8], colB: [1, 1, 1, 0],
+        windCoupling: 3.0, flutter: 1.4,
+      }),
+    },
+    {
+      id: "feathers", name: "Feathers", group: "Wind-blown",
+      blurb: "Light feathers that drift, spin and sway in the wind.",
+      p: P({
+        kind: 1, shape: 2, leafMode: 0, blend: "alpha", capacity: 300, rate: 6,
+        emitShape: 1, radius: 0.6, origin: [-3, 3.2, -3], dir: [0, 1, 0], spread: 0.5,
+        speedMin: 0.1, speedMax: 0.3, drag: 1.2, gravity: 0.2, lifeMin: 8, lifeMax: 12,
+        sizeStart: 0.13, sizeEnd: 0.12, colA: [0.97, 0.97, 0.94, 1], colB: [0.75, 0.75, 0.78, 1],
+        windCoupling: 2.6, flutter: 1.8,
+      }),
+    },
+    {
+      id: "confetti", name: "Confetti & streamers", group: "Wind-blown",
+      blurb: "Paper pieces that tumble and flutter; strong wind coupling.",
+      p: P({
+        kind: 1, shape: 2, leafMode: 1, blend: "alpha", capacity: 1200, rate: 25,
+        emitShape: 1, radius: 0.5, origin: [0, 0.3, -1], dir: [0, 1, 0], spread: 0.8,
+        speedMin: 1, speedMax: 3, drag: 0.8, gravity: 0.25, lifeMin: 5, lifeMax: 8,
+        sizeStart: 0.09, sizeEnd: 0.08, colA: [1, 0.82, 0.3, 1], colB: [1, 0.4, 0.6, 1],
+        windCoupling: 3.5, flutter: 2.2,
+      }),
+    },
+    {
+      id: "steam", name: "Steam vent", group: "VFX",
+      blurb: "Hot steam rising from a vent and expanding as it cools.",
+      p: P({
+        kind: 5, shape: 3, blend: "alpha", capacity: 1600, rate: 60,
+        emitShape: 2, radius: 0.35, origin: [4, 0.05, 4], dir: [0, 1, 0], spread: 0.12,
+        speedMin: 0.8, speedMax: 1.6, drag: 1.5, buoyancy: 1.6, gravity: 0, lifeMin: 3, lifeMax: 5,
+        sizeStart: 0.15, sizeEnd: 1.6, colA: [0.92, 0.94, 0.96, 0.45], colB: [0.8, 0.82, 0.85, 0],
+        windCoupling: 1.2,
+      }),
+    },
+    {
+      id: "fireworks", name: "Fireworks", group: "VFX",
+      blurb: "Timed shells: each burst fires from a random point in the sky, with streaked trails.",
+      p: P({
+        kind: 5, shape: 0, blend: "add", capacity: 3000, rate: 0,
+        emitShape: 1, radius: 0.1, origin: [0, 6, 0], dir: [0, 1, 0], spread: 3.14159,
+        speedMin: 4, speedMax: 9, drag: 1.8, gravity: 0.8, lifeMin: 1.2, lifeMax: 2.4,
+        sizeStart: 0.06, sizeEnd: 0.02, colA: [1, 0.9, 0.6, 1], colB: [1, 0.35, 0.1, 0],
+        windCoupling: 0.4, burstEvery: 2.6, burstCount: 180,
       }),
     },
   ];

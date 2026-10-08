@@ -260,6 +260,64 @@ fn molInsert(@builtin(global_invocation_id) gid: vec3u) {
   if (slot < K) { cellSlots[ci * K + slot] = i; }
 }
 
+// Swarm step (kind 6): brute-force boids over the snapshot, plus wander, a weak leash to the
+// emitter, wind coupling, and an optional pulse (fireflies). Reads snap, writes only its own particle.
+@compute @workgroup_size(64)
+fn swarmStep(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  let cap = u32(S.phys3.x);
+  if (i >= cap) { return; }
+  let me = snap[i];
+  if (me.p.w >= me.v.w) { return; }
+  let dt = S.phys.x;
+  let R = max(S.mol3.x, 0.1);
+  let vmax = max(S.mol3.y, 0.05);
+  var sep = vec3f(0.0);
+  var ali = vec3f(0.0);
+  var coh = vec3f(0.0);
+  var n = 0.0;
+  for (var j = 0u; j < cap; j++) {
+    if (j == i) { continue; }
+    let o = snap[j];
+    if (o.p.w >= o.v.w) { continue; }
+    let rv = me.p.xyz - o.p.xyz;
+    let d2 = dot(rv, rv);
+    if (d2 > R * R) { continue; }
+    let d = sqrt(max(d2, 1e-6));
+    sep += rv / d * (1.0 - d / R);
+    ali += o.v.xyz;
+    coh += o.p.xyz;
+    n += 1.0;
+  }
+  var a = vec3f(0.0);
+  if (n > 0.0) {
+    a += sep * 3.0;
+    a += (ali / n - me.v.xyz) * 1.5;
+    a += (coh / n - me.p.xyz) * 0.8;
+  }
+  let seed = me.m.w;
+  let tt = S.phys.y * 0.9 + seed * 0.37;
+  a += vec3f(sin(tt * 1.3 + seed), 0.5 * sin(tt * 0.7 + seed * 2.1), cos(tt * 1.1 + seed * 0.7)) * S.phys2.w;
+  a += -(me.p.xyz - S.origin.xyz) * 0.12;
+  var v = me.v.xyz + a * dt;
+  let sp = length(v);
+  if (sp > vmax) { v *= vmax / sp; }
+  let wind = sampleWind(me.p.xyz);
+  v += (wind - v) * min(S.phys2.x * dt, 1.0);
+  v.y += (-S.speed.w * 9.81 + S.phys2.z) * dt;
+  var pos = me.p.xyz + v * dt;
+  if (pos.y < 0.02) { pos.y = 0.02; v.y = abs(v.y) * 0.5; }
+  let life = me.v.w;
+  let age = me.p.w + dt;
+  if (age >= life) { parts[i] = Part(); return; }
+  let t01 = age / life;
+  let size = mix(S.life.z, S.life.w, t01) * S.misc.x * (0.7 + 0.6 * fract(seed * 0.618034));
+  let pulse = 1.0 - S.misc.z + S.misc.z * (0.5 + 0.5 * sin(S.phys.y * S.misc.y * 6.2831853 + seed * 6.2831853));
+  var c = mix(S.colA, S.colB, t01);
+  c.a = c.a * pulse * smoothstep(0.0, 0.08, t01) * (1.0 - smoothstep(0.7, 1.0, t01));
+  parts[i] = Part(vec4f(pos, age), vec4f(v, life), c, vec4f(size, me.m.y, me.m.z, seed));
+}
+
 // Molecular step: reads the snapshot (race-free), writes only its own particle.
 // Kind 3: Lennard-Jones-style gas with Langevin thermostat.
 // Kind 4: soft repulsion + stochastic A + B -> C reaction and C -> A/B dissociation.

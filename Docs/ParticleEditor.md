@@ -33,6 +33,21 @@ Precipitation uses the regular particle kind, not the debris kind. Debris pins t
 | Sand grains | Ground, GPU-simulated | Sand kicked up from the floor in short hops (saltation) and carried by the wind. |
 | Ash flakes | VFX, GPU-simulated | Grey ash lifted by a fire's heat, drifting and settling onto the ground. |
 | Small debris | Ground, GPU-simulated | Twigs, bark and wood chips thrown up and clattering off the ground. Small pieces only; stone-sized rubble is out of scope. |
+| Flares | VFX, GPU-simulated | Burning road flares: bright additive red glow that trails sparks and sinks slowly. |
+| Pollen & dust motes | Ambient, GPU-simulated | Slow glowing motes drifting on the wind. Light shafts are not modelled. |
+| Fireflies | Swarm (kind 6), GPU-simulated | Glowing points that wander and pulse (pulse frequency and depth are preset parameters). |
+| Insect swarm | Swarm (kind 6), GPU-simulated | Gnat-like flock: separation, alignment and cohesion, plus wander. Brute-force neighbour search, so keep capacity at a few hundred. |
+| Water mist | VFX, GPU-simulated | Fine droplets blown off a waterfall or spray: short life, high drag. |
+| Splash rings | VFX, GPU-simulated | Expanding ripple rings on the floor. Placed at random ground points, not at each rain or hail impact (no impact events yet). |
+| Glass shards | Streak, GPU-simulated | Sharp bright fragments from a broken window. They bounce and glint. |
+| Volcanic ash & lapilli | Sphere, GPU-simulated | Hot, heavy ejecta thrown high by a vent: faster and bigger than ash flakes. |
+| Dandelion seeds | Wind-driven, GPU-simulated | Very light seeds that float and flutter in the wind. |
+| Feathers | Wind-driven, GPU-simulated | Light feathers that drift, spin and sway. |
+| Confetti & streamers | Wind-driven, GPU-simulated | Paper pieces that tumble with strong wind coupling. |
+| Steam vent | VFX, GPU-simulated | Hot steam rising from a vent and expanding as it cools. |
+| Fireworks | VFX, GPU-simulated | Timed bursts (every ~2.6 s, randomised) fired from random points in the sky. Trails are streak-shaped burst particles, not separate rising shells. |
+
+Swarm particles (kind 6) read their neighbours from a snapshot taken after emission, so the flocking step is race-free. Fireworks use the same burst path as the Burst button, driven by a timer.
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |
 | Chemicals A+B→C | Molecular, GPU-simulated | Same as atoms, with stochastic A + B → C reactions on contact and C → A or B dissociation. |
 

@@ -289,6 +289,15 @@
       let head = sys.head;
       let origin = p.origin;
       if (simulate) {
+        if (p.burstEvery > 0) {
+          // Timed bursts (fireworks): each shell fires from a random point in the sky.
+          sys.burstTimer = (sys.burstTimer ?? 0) - dt;
+          if (sys.burstTimer <= 0) {
+            sys.burstTimer = p.burstEvery * (0.7 + 0.6 * Math.random());
+            sys.pendingBurst += p.burstCount;
+            sys.overrideOrigin = [-3 + 6 * Math.random(), 3.5 + 2.5 * Math.random(), -3 + 6 * Math.random()];
+          }
+        }
         if (sys.overrideOrigin) {
           origin = sys.overrideOrigin;
           sys.overrideOrigin = null;
@@ -320,7 +329,7 @@
         seed: (state.frame * 7919 + sys.id * 104729) >>> 0, mol, gd, cellSize: mol ? (2 * B) / gd : 1,
       });
       jobs.push({
-        gpu: g, cpu: g.cpu, simulate, mol, emitN, steps, gd,
+        gpu: g, cpu: g.cpu, simulate, mol, emitN, steps, gd, swarm: p.kind === 6,
         readStats: simulate && state.frame % 3 === 0,
         draw: true, alpha: p.blend === "alpha",
       });
@@ -409,7 +418,7 @@
   }
 
   function kindLabel(k) {
-    return { 0: "Streak", 1: "Wind-driven", 3: "Molecular · LJ", 4: "Molecular · reactive", 5: "VFX" }[k] || "Particles";
+    return { 0: "Streak", 1: "Wind-driven", 3: "Molecular · LJ", 4: "Molecular · reactive", 5: "VFX", 6: "Swarm · flocking" }[k] || "Particles";
   }
 
   // ----------------------------------------------------------------- outliner

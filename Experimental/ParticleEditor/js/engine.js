@@ -223,6 +223,7 @@
         molClear: mkC("molClear"),
         molInsert: mkC("molInsert"),
         molStep: mkC("molStep"),
+        swarm: mkC("swarmStep"),
       };
 
       const renderLayout = d.createPipelineLayout({ bindGroupLayouts: [this.gl0, this.gl1Render] });
@@ -342,7 +343,15 @@
             pass.setPipeline(this.pipe.emit);
             pass.dispatchWorkgroups(Math.ceil(job.emitN / 64));
           }
-          pass.setPipeline(this.pipe.update);
+          if (job.swarm) {
+            // Swarms read neighbours from a snapshot taken after emission (race-free).
+            pass.end();
+            enc.copyBufferToBuffer(g.parts, 0, g.snap, 0, cap * PART_BYTES);
+            pass = enc.beginComputePass({ label: "swarm" });
+            pass.setBindGroup(0, this.bg0);
+            pass.setBindGroup(1, g.simBG);
+          }
+          pass.setPipeline(job.swarm ? this.pipe.swarm : this.pipe.update);
           pass.dispatchWorkgroups(Math.ceil(cap / 64));
           pass.end();
         }
@@ -502,8 +511,9 @@
     set("phys4", o.mol ? B : p.boxHalf[0], o.mol ? B : p.boxHalf[1], o.mol ? B : p.boxHalf[2], o.head);
     set("mol", p.temperature, p.epsilon, p.sigma, p.reactRate);
     set("mol2", o.cellSize, o.gd, PE.SLOTS, p.dissociation);
-    set("mol3", Math.min(p.reactRadius, 2.5 * p.sigma), p.damping, 0, 0);
+    if (p.kind === 6) set("mol3", p.swarmRadius, p.speedMax, 0, 0);
+    else set("mol3", Math.min(p.reactRadius, 2.5 * p.sigma), p.damping, 0, 0);
     set("emit", o.head, o.seed, p.shape, p.leafMode);
-    set("misc", p.sizeScale, 0, 0, 0);
+    set("misc", p.sizeScale, p.pulseHz, p.pulseDepth, 0);
   };
 })();
