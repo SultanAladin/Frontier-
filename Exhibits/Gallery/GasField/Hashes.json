@@ -14,10 +14,17 @@
   "Engine/VolumetricDynamics/GasCollisionIntake.h": "71fb7450971c7564fa6f376d56efdfb41859577959b72e359c792ae9936f9abd",
   "Engine/VolumetricDynamics/GasWindContribution.h": "bba52a8231f29dd86143c153aca170c32c22a1dfa6218fea9014ff0e870bb53c",
   "Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp": "bb768bd6f61a4ed56e603012f21007b4229e99ac49b4a5fe002ffcf00707ed9c",
-  "Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py": "efffc892e8b599f1927ef2e1a20c7b4a8966a08ccc9e7afb6e05fd9d41e3db2f",
+  "Engine/VolumetricDynamics/GasSceneResolve.h": "5f6565fd4dfe53e9298f274dae5273817fb8beb8313b639ccc76c13789b5e8d6",
+  "Exhibits/Workbench/GasFluid/NativeGasSceneHost.cpp": "799cae10710161ee90b882a8377073b0449987b8bfb1a4a05389d5776cd0940d",
+  "Projects/Project-Gas/Source/GasHostMain.cpp": "7c8cdb8a1b781e5dd3d6f3c1d41382062fcfacd8f46b00404ce1ccfc50d939fe",
+  "Projects/Project-Gas/CMakeLists.txt": "4c05df478452d789c5a12574a2e3beef4f72dd9bbe9ce8144665f24d4d7682b7",
+  "Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py": "35c4307ea64c2a518fcc874e9d76add1e59b6343d8711b90c1d869f5364b56a8",
   "Exhibits/Gallery/GasField/DustBackLit.png": "96735342f5ad0018a4276c29162c7e5053e925856414c463b7caff89fa0fa660",
   "Exhibits/Gallery/GasField/DustCold.png": "42bca816c9c3a26452f63c345bc398921ede2709124eb11aa518f0be3d58ea09",
   "Exhibits/Gallery/GasField/PlumeBackLit.png": "905479f9ce3fadbd1681db14459cdd486f13f262ae7e83555dd423eb8f62e1fd",
   "Exhibits/Gallery/GasField/PlumeFront.png": "43d9b560f1a72344146b3f96d62c19c3e383c5d639f0050aab92d6101d5825e6",
-  "Exhibits/Gallery/GasField/PlumeSide.png": "e28b5f66549f9d7f93c9c00a55710563b8a4558bf4b8c4295f4b35486192715e"
+  "Exhibits/Gallery/GasField/PlumeSide.png": "e28b5f66549f9d7f93c9c00a55710563b8a4558bf4b8c4295f4b35486192715e",
+  "Exhibits/Gallery/GasField/Scene-camp_fire_steady.png": "f7f312685b92b89b7a4f5271ec9da7660e1c70d5169766747c611ac2e5e62fc6",
+  "Exhibits/Gallery/GasField/Scene-deflector_obstacle.png": "c2a0f50d93050c9dda3d7edea82318d9fa5247d9e760ec0454695b9f5f800a53",
+  "Exhibits/Gallery/GasField/Scene-hero_detonation.png": "df0aa3591b3ad5a121569d5f93fbeb2be111c1b9870e7f9b70bd29872a2468d3"
 }

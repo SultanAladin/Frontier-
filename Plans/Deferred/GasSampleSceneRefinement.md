@@ -33,6 +33,8 @@ Recorded now, while the review is fresh, rather than rediscovered later.
 | Object names | The outliner names are plausible placeholders. `collider = "None"` in the distant plume is a name standing in for an absence, which is not what a name is for. |
 | Coverage gaps | Nothing covers: a domain with **two** emitters; an emitter attached to a moving object; a scene whose dynamic bounds actually surge during capture; the deflector *and* the tyre ring together. |
 | Scale honesty | Bounds are inherited from presets authored for a browser viewport. Whether those metres correspond to anything in a Frontier level has not been checked, and the budget governor's distance thresholds assume they do. |
+| Framing, now measured | 📝 **Added after the native host rendered all eight.** `tyre_burnout_ring` through its own authored camera comes back **6.5 % covered and almost entirely black** — dark soot, low sun, and a framing that has drifted off the plume. It is the clearest single piece of evidence for this deferral, and it is why the gallery capture of an obstructed plume uses `deflector_obstacle` instead. `camp_fire_steady` frames tightly enough that the plume is cut off at the top. |
+| One-shots are silent | `fracture_dust_burst` and `open_bounds_megaton` carry no emitter: advancing either without firing its blast leaves an **empty cube**, and the native side can only infer that they are one-shots from "no emitter, loaded blast". A refinement should decide whether a scene ought to say so outright. See §7 of the ongoing plan. |
 | Count | Eight is a guess. The corpus should be as small as it can be while covering the cases; it has not been argued down or up. |
 
 ## What must not change without revisiting
@@ -44,7 +46,10 @@ deliberately:
    is what stops a burnout smoking through its own tyre.
 2. **`cold_dust_fall` carries no fuel and no heat.** It is the only scene in which the raymarch's scattering
    path is the sole source of light, so losing that makes the emission term untestable.
-3. **The cost range stays spread.** `hero_detonation` at 128³ and `far_cheap_plume` at 32³ are what the budget
+3. **A retuned scene must still cross byte for byte.** `ctest --test-dir Build/GasOnly` and the CI corpus
+   step both run `Project-Gas cross` over every file; re-exporting from the browser is what keeps them
+   agreeing, and hand-editing a `.gasscene.toml` is what stops them.
+4. **The cost range stays spread.** `hero_detonation` at 128³ and `far_cheap_plume` at 32³ are what the budget
    governor is exercised against; narrowing the range quietly narrows that check.
 
 ## Resuming
@@ -54,5 +59,7 @@ deliberately:
 3. Re-run `node --test src/SceneMetrics.mjs`; the corpus checks are identity-driven and need no edit unless
    the count changes.
 4. Re-export the `.gasscene.toml` corpus; the native round-trip check reads whatever is there.
+5. Look at each scene natively — `Project-Gas view <scene> --picture <out.png>` renders through the scene's
+   own camera, so a framing can be judged without a browser.
 
 No native work is blocked by this.

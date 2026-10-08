@@ -69,6 +69,18 @@ jobs:
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 
+      # The runner above compiles the standalone host with g++ directly, so that it runs on a machine with
+      # no CMake. This is the other half: that FRONTIER_GAS_ONLY configures, builds and passes its own tests
+      # through the build the user will actually type. ctest runs `cross` over every committed sample.
+      - name: Gas standalone host — FRONTIER_GAS_ONLY through CMake
+        run: |
+          python3 Tools/Build/RunAnnounced.py "gas host configure" -- \
+            cmake -S . -B Build/GasOnly -DFRONTIER_GAS_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+          python3 Tools/Build/RunAnnounced.py "gas host build" -- \
+            cmake --build Build/GasOnly --parallel
+          python3 Tools/Build/RunAnnounced.py "gas host tests" -- \
+            ctest --test-dir Build/GasOnly --output-on-failure
+
       - name: Publish the UI captures
         if: always()
         uses: actions/upload-artifact@v4

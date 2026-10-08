@@ -28,6 +28,8 @@ Flags = ['-std=c++20', '-O1', '-Wall', '-Wextra', '-Wno-unused-parameter']
 Source = 'Exhibits/Workbench/GasFluid/NativeGasFieldChecks.cpp'
 Raymarch = 'Exhibits/Workbench/GasFluid/NativeGasRaymarch.cpp'
 SceneCodec = 'Exhibits/Workbench/GasFluid/NativeGasSceneCodec.cpp'
+SceneHost = 'Exhibits/Workbench/GasFluid/NativeGasSceneHost.cpp'
+StandaloneHost = 'Projects/Project-Gas/Source/GasHostMain.cpp'
 
 # The transcription must be current before anything is compiled against it. A stale header would still
 # build and still resolve presets; the only symptom would be a native plume that no longer matches the
@@ -90,6 +92,67 @@ print(Crossed.stdout, end='')
 assert Crossed.returncode == 0, 'gas scene codec checks failed'
 (Gallery / 'SceneCodecProof.txt').write_text(Crossed.stdout)
 
+# The scene actually run. The codec above proves the file crosses; this proves the readings in it mean the
+# same thing once they are in the solver's units, which a byte comparison cannot see. Three defects were
+# found by running it that nothing else reported — see the header of NativeGasSceneHost.cpp.
+Running = Build / 'GasSceneHost'
+Command = ['g++', '-std=c++20', '-O1', '-Wall', '-Wextra', *Include,
+           '-IExternalPackages/tomlpp/include', SceneHost, '-o', str(Running)]
+subprocess.run(Command, cwd=Root, check=True)
+Commands.append(Command)
+
+Ran = subprocess.run([str(Running)], cwd=Root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+print(Ran.stdout, end='')
+assert Ran.returncode == 0, 'gas scene host checks failed'
+(Gallery / 'SceneHostProof.txt').write_text(Ran.stdout)
+
+# The standalone host itself, built the way Projects/Project-Gas/CMakeLists.txt builds it and exercised on
+# the committed corpus. Compiled here with g++ directly rather than through CMake so the proof runs on a
+# machine with no CMake; the CMake path is configured in CI, where one exists.
+Standalone = Build / 'Project-Gas'
+Command = ['g++', '-std=c++20', '-O2', '-Wall', '-Wextra', *Include,
+           '-IExternalPackages/tomlpp/include', StandaloneHost, '-o', str(Standalone)]
+subprocess.run(Command, cwd=Root, check=True)
+Commands.append(Command)
+
+HostTranscript = []
+Samples = sorted((Root / 'Experimental/Fluid/Samples').glob('*.gasscene.toml'))
+assert len(Samples) == 8, f'the committed corpus holds {len(Samples)} scenes, not eight'
+for Sample in Samples:
+    Relative = str(Sample.relative_to(Root))
+    for Verb in (['read', Relative], ['cross', Relative], ['advance', Relative, '--advances', '90']):
+        Spoken = subprocess.run([str(Standalone), *Verb], cwd=Root, text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        HostTranscript.append('$ Project-Gas ' + ' '.join(Verb) + '\n' + Spoken.stdout)
+        assert Spoken.returncode == 0, f'the standalone host failed: {Verb}'
+
+# A refusal must still be a refusal through the host, not merely inside the codec.
+Broken = Build / 'NotAScene.gasscene.toml'
+Broken.write_text('format = "frontier-fluid-scene"\nversion = 99\nname = "from the future"\n')
+Refused = subprocess.run([str(Standalone), 'read', str(Broken)], cwd=Root, text=True,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+HostTranscript.append('$ Project-Gas read <a scene from a later version>\n' + Refused.stdout)
+assert Refused.returncode != 0, 'the host accepted a scene it should have refused'
+assert 'version' in Refused.stdout, 'the host refused without saying why'
+
+# Three captures, each through the scene's own camera rather than a bearing chosen here. A picture taken
+# through a framing the scene did not author would prove something about the framing.
+for Name, Advances in (('camp_fire_steady', '110'), ('hero_detonation', '45'), ('deflector_obstacle', '120')):
+    Capture = Gallery / f'Scene-{Name}.png'
+    Verb = ['view', f'Experimental/Fluid/Samples/{Name}.gasscene.toml', '--picture',
+            str(Capture.relative_to(Root)), '--extent', '256', '--advances', Advances]
+    if Name == 'hero_detonation':
+        Verb.append('--blast')
+    Seen = subprocess.run([str(Standalone), *Verb], cwd=Root, text=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(Seen.stdout, end='')
+    HostTranscript.append('$ Project-Gas ' + ' '.join(Verb) + '\n' + Seen.stdout)
+    assert Seen.returncode == 0, f'the standalone host could not render {Name}'
+    assert Capture.exists(), f'{Capture} was reported written and is not there'
+
+(Gallery / 'StandaloneHostProof.txt').write_text('\n'.join(HostTranscript))
+print(f'The standalone host answered {len(Samples) * 3 + 4} invocations over the committed corpus.')
+
 (Gallery / 'Proof.txt').write_text(Transcripts[0] + 'Two independent builds produced identical transcripts.\n')
 
 Tracked = [Root / 'Engine/VolumetricDynamics/GasSceneCodec.h',
@@ -107,6 +170,10 @@ Tracked = [Root / 'Engine/VolumetricDynamics/GasSceneCodec.h',
            Root / 'Engine/VolumetricDynamics/GasCollisionIntake.h',
            Root / 'Engine/VolumetricDynamics/GasWindContribution.h',
            Root / Source,
+           Root / 'Engine/VolumetricDynamics/GasSceneResolve.h',
+           Root / SceneHost,
+           Root / StandaloneHost,
+           Root / 'Projects/Project-Gas/CMakeLists.txt',
            Path(__file__), *sorted(Gallery.glob('*.png'))]
 (Gallery / 'Commands.json').write_text(json.dumps(Commands, indent=2) + '\n')
 (Gallery / 'Hashes.json').write_text(json.dumps(

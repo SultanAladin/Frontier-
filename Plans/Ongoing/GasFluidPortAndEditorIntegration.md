@@ -370,9 +370,11 @@ Two findings from building it rather than planning it:
    and combustion stages join when the displayed volume needs them in step 3
 3. ~~Volume raymarch~~ — landed. `VolumeRaymarch.h` is authoritative and the `.slang` is its
    transcription, so a disagreement is a diff rather than a mystery. Captures in `Exhibits/Gallery/GasField`
-4. ~~Scene round-trip against the browser~~ — landed, and stronger than planned: the engine reads the
-   committed corpus and writes it back **byte for byte**, so the two emitters cannot drift. The standalone
-   host behind `FRONTIER_GAS_ONLY` is the remaining half. 🚩 Sample *content* is deferred —
+4. ~~Scene round-trip against the browser, and the standalone host~~ — landed, and stronger than planned:
+   the engine reads the committed corpus and writes it back **byte for byte**, and `Project-Gas` behind
+   `FRONTIER_GAS_ONLY` opens, runs and renders a scene with no window, no Vulkan and no SDK.
+   `Engine/VolumetricDynamics/GasSceneResolve.h` is the seam, and running it found three defects a byte
+   comparison cannot see — §6.1 below. 🚩 Sample *content* is deferred —
    `Plans/Deferred/GasSampleSceneRefinement.md`
 5. **2D flipbook bake** — the cheapest tier, and the browser already has the algorithm
 6. Collision levels 1 and 2 — primitives, then the global distance field
@@ -383,6 +385,49 @@ Two findings from building it rather than planning it:
 9. Fluid Editor page — fluids become editable
 10. Emitter component, then the fracture and tyre hooks — fluids become part of the game
 
+### 6.1 · What running a scene found that reading one did not
+
+Step 4's first half proved the file crosses byte for byte. Its second half ran what crossed, and the
+distance between those two statements turned out to be three defects, none of which any structural or
+byte-level check could have reported. They are recorded here because they are the argument for the
+standalone host existing at all:
+
+| Defect | What it looked like | Why nothing else saw it |
+|---|---|---|
+| An authored loss is the coefficient 𝑘 in exp(−𝑘·Δτ); the solver wants the fraction shed per second | Every scene ran with **no heat in it at all** — `camp_fire` authors 1.35 and `RemainingAfter` clamps anything ≥ 1 to zero | Same type, same units on the label, plausible magnitude. The file crossed, the field stayed reproducible, and the plume still rose on smoke weight |
+| The authored falloff is a smoothstep ending at 1.35 radii; the injector's is a gaussian ending at 3σ | The source came out four times wider — sixty times the volume — and the first render was a flat orange wall at 100 % coverage | A radius is a radius until something renders it |
+| `CoarseGasField` conserves smoke; the authoring tool vents its sides and roof unless the scene is enclosed | A continuous source filled a sealed box in two seconds | Conservation is the *correct* behaviour for the determinism checks, which is why it was never questioned |
+
+A fourth is a gap in the format rather than a defect in the code: **a scene with no emitter and a loaded
+blast is a one-shot, and nothing in the file says so.** The authoring tool knows because the preset carries
+`DetonateOnLoad`, but a scene stores settings, not the preset it came from. Two of the eight committed
+samples are one-shots, and advancing them without firing leaves an empty cube that passes every structural
+check there is. It is inferred from the settings for now — `GasSceneRun::OneShot` — and carrying an explicit
+trigger is a version-2 format question, listed in §7.
+
+Two more differences are spent in the seam rather than being defects. The authoring emitter *asserts* a
+reading each frame where the solver's injector *adds* one, so the source region is capped after injection —
+without it a 3.5 K emitter reached 17 K and a 3.2 m/s one reached 80 m/s. And the obstacle numbering is
+**not** the shape enum: `OBSTACLE_TYPES` and `GasColliderShape` agree on 0, 1 and 5 and disagree on
+everything between, so a cast compiles and silently turns a deflector slab into a cylinder. A written table
+is used instead, and the two shapes that cannot be represented at all — a cylinder lying along X, a tyre ring
+standing upright — are admitted as their closest axis-aligned relative with a flag saying so.
+
+### 6.2 · The standalone host
+
+```
+Project-Gas read    <scene.gasscene.toml>                 what this build understood, and what it did not
+Project-Gas cross   <scene> [--into <path>]               writes it back and compares byte for byte
+Project-Gas advance <scene> [--advances N] [--blast]      runs the coarse field and reports what is in it
+Project-Gas view    <scene> --picture <p.png> [--extent N]  renders through the scene's own camera
+```
+
+`cmake -S . -B Build/GasOnly -DFRONTIER_GAS_ONLY=ON && cmake --build Build/GasOnly && ctest --test-dir
+Build/GasOnly` — ctest runs `cross` over every committed sample, so adding a scene adds a test. The host
+decides nothing: every conversion comes from `GasSceneResolve.h`, every reading from `GasSceneCodec.h`.
+A standalone tool that quietly tunes its own copy of the effect is worse than none, because its pictures
+then prove nothing about the engine.
+
 Step 5 is the remaining real work. Step 1 moved to the front because the coarse field is load bearing
 for physics and multiplayer rather than a contingency, and carrying step 7 with it cost almost nothing.
 
@@ -392,6 +437,9 @@ for physics and multiplayer rather than a contingency, and carrying step 7 with 
   step 1 finishes.
 - **Flipbook authoring.** Six-way lighting triples the atlas. Worth it, or is one lit sheet plus a
   normal enough for this engine's look?
+- **Should a scene carry its trigger?** A one-shot is currently inferred from "no emitter, loaded blast".
+  That reading is correct for all eight samples and is still an inference. A version-2 format with an
+  explicit trigger — and the preset key the scene was built from — would end the guess.
 - **Which bodies get two-way by default?** Debris, cloth and ragdolls clearly yes. Vehicles are the
   argument: a burnout cloud pushing the car that made it is physically real and almost certainly
   unwanted.
