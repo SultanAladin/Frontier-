@@ -400,6 +400,65 @@ for Needle, InNative in [
     Check(Needle in EditorRaw, f'bake dot: the bundle ships {Needle!r}')
     Check(InNative in Port, f'bake dot: the native port carries {InNative!r} for {Needle!r}')
 
-print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture, notes, base-mesh and '
-      f'fracture-editor ports match the built bundles.')
+
+# ---------------------------------------------------------------------------------------------------
+# The outliner row metadata. Editor.jsx OutlinerMetadata() answers for nineteen panels; every unit and
+#    every separator below is lifted out of the shipped bundle, not out of the .jsx mirror beside it.
+# ---------------------------------------------------------------------------------------------------
+Port = Native('Engine/Editor/OutlinerMetadata.h')
+Parity('outliner metadata', Loose, Port, [
+    ('Editor \u00b7 permanent',   '"Editor \\xc2\\xb7 permanent"'),
+    (' item',                     '"%u item%s"'),
+    ('Position ',                 '"Position %s m"'),
+    (' mm \u00b7 f/',             '"%s mm%sf/%s"'),
+    ('EV ',                       '"EV %s%s"'),
+    ('Mie ',                      '"Mie %s%s%sozone %s"'),
+    (' ghosts',                   '"%s%s%s%s ghosts"'),
+    ('Lunar phase ',              '"Lunar phase %s%s%s%s%%"'),
+    (' mag',                      '"%s mag%s%s%s"'),
+    (' m/s \u00b7 ',              '"%s m/s%s%s%s"'),
+    ('starts ',                   '"%s%s%sstarts %s m"'),
+    (' mm/h',                     '"%s%s%s mm/h"'),
+    ('ledstrip',                  'Strip'),
+    ('pointlight',                '"Point"'),
+    ('spotlight',                 '"Spot"'),
+    ('ieslight',                  '"IES"'),
+    ('arealight',                 '"Area"'),
+    ('tubelight',                 '"Tube"'),
+])
+# The seven luminaire outputs and the two photometric units the light branch chooses between.
+for Needle, InNative in [
+    ('"cd"', '"cd"'),
+    ('"lm"', '"lm"'),
+    ('"lx"', '"lx"'),
+]:
+    Check(Needle.strip('"') in Loose, f'light metadata: the bundle ships {Needle!r}')
+    Check(InNative in Port, f'light metadata: the native port carries {InNative!r}')
+
+# ---------------------------------------------------------------------------------------------------
+# The folder inspector. FolderInventory.mjs names the collection types; FolderInspector.jsx writes the
+#    composition footer, the empty state, the no-match state and each entry's visibility word.
+# ---------------------------------------------------------------------------------------------------
+Folder = Native('Engine/Editor/InspectorPanel.cpp')
+Parity('folder inspector', Loose, Folder, [
+    ('constructed preview markers',  'constructed preview markers'),
+    ('not render workload or memory usage', 'not render workload or memory usage'),
+    ('This folder is empty. Newly added children will appear here.',
+     'This folder is empty. Newly added children will appear here.'),
+    ('Clear filters',                '"Clear filters"'),
+    ('Hidden by ancestor',           '"Hidden by ancestor"'),
+    ('Scene collection',             '"Scene collection \u00b7 indexed from the current scene"'),
+    ('indexed from the current scene', 'indexed from the current scene'),
+])
+Parity('collection types', Loose, Port, [
+    ('Local clouds',    '"Local clouds"'),
+    ('Height fog',      '"Height fog"'),
+    ('Aerial fog',      '"Aerial fog"'),
+    ('Lens flares',     '"Lens flares"'),
+    ('Post processing', '"Post processing"'),
+    ('Precipitation',   '"Precipitation"'),
+])
+
+print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture, notes, base-mesh, '
+      f'fracture-editor, outliner-metadata and folder-inspector ports match the built bundles.')
 sys.exit(0)

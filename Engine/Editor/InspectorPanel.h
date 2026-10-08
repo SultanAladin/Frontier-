@@ -47,7 +47,7 @@ public:
     void Record(EditorInstance* Picked, uint32_t PickedIndex, EditorSheet* Sheet, bool Embedded=false) noexcept;
 #ifdef FRONTIER_DEVELOPMENT
     // CPU visual-proof seam for the collection card; production selection still enters through Record().
-    void RecordCollectionProof(ControlPanel& Controls,EditorInstance* Rows,uint32_t Count,uint32_t Selected) noexcept;
+    void RecordCollectionProof(ControlPanel& Controls,EditorInstance* Rows,uint32_t Count,uint32_t Selected,const char* Search=nullptr) noexcept;
 #endif
 
 private:

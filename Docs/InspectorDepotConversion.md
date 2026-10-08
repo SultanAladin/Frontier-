@@ -837,3 +837,78 @@ Ported to `Engine/Editor/FractureEditorSurface.h`. Proof
   invented spellings that had no reference anchor were renamed to clear `SKILL-Naming.md` —
   `Model` → `Subject`, `Kind` → `Solid` / `Shape`, `Bake` (the enumeration) → `Freshness`. `BaseMesh`
   is kept: it is the reference's own term for the five analytical primitives.
+
+## The outliner row metadata
+
+Every outliner row in the reference carries a small live figure under its name — `Editor.jsx`
+`OutlinerMetadata(Row, Record, Rows)`, lines 225–378, drawn at 1295–1400. The native outliner already
+drew a `Row.Meta` line, but only the celestial feed filled it; geometry, cameras, lights, folders, the
+editor camera and post process came through blank. The contract is now in one place,
+`Engine/Editor/OutlinerMetadata.h`, and the row feeds call it.
+
+The separator is U+00B7 with a space either side, the multiplication sign U+00D7 and the degree sign
+U+00B0, as the bundle ships them. Where a row has no stored value the browser falls back to the panel
+field's own default, so `struct RowReading` carries those defaults rather than zeros.
+
+| Panel | Figure |
+| --- | --- |
+| editor camera | `Editor · permanent` |
+| `group` | `N item` / `N items` |
+| `geometry` | `Position x,y,z m` |
+| `camera` | `{Focal:0} mm · f/{Aperture:1}` |
+| `post` | `EV {+}{Compensation:1}` |
+| `atmosphere` | `Mie {:1}× · ozone {:1}` |
+| `sun` | `{Intensity:1}× · {Angular diameter:2}°` |
+| `flare` | `{Intensity:1}× · {Ghosts:0} ghosts` |
+| `moon` | `Lunar phase {Phase×360:0}° · {Phase×100:0}%` |
+| `stars` | `{Limiting magnitude:1} mag · {Brightness:1}×` |
+| `wind` | `{Speed:1} m/s · {Bearing:0}°` |
+| `height-fog` | `{Density:2}× · {Falloff height:0} m` |
+| `aerial-fog` | `{Density:1}× · starts {Start:0} m` |
+| `local-fog` | `{Density:1}× · {Coverage×100:0}%` |
+| `clouds`, `local-cloud` | `{Coverage×100:0}% · {Density:1}×` |
+| `precipitation` | `{Rain\|Drizzle\|Hail\|Snow\|Sleet} · {Intensity:1} mm/h` |
+| `rainbow` | `{Intensity:1}× · {Minimum path:0} m` |
+| `light` | `{Output:0} {cd\|lm} · {Shape} · {x,y,z}` |
+
+A light reads its reference luminaire: candela for point and spot, lumens for everything else, and
+plain `lx` off the row's own intensity when no luminaire is referenced. An LED reads
+watts × efficacy × dimmer; a strip reads lumens-per-metre × length × dimmer. The shape names are the
+bundle's own — `Point`, `Spot`, `IES`, `Area`, `Tube`, `LED`, `Strip`.
+
+Numbers go through `CompactNumber`, which is `toLocaleString("en-US", { maximumFractionDigits: n })`:
+thousands grouped, trailing zeros dropped, no minimum fraction digits, and halves rounded away from
+zero rather than to even as `printf` does. A non-finite reading answers with an em dash.
+
+`EditorInstance::Meta` was widened from 24 to 48 bytes; the longest figure a light can print is 41.
+
+Proof `Exhibits/Workbench/OutlinerMetadata/NativeOutlinerMetadata.cpp` — **PASS 51**, one capture in
+`Exhibits/Gallery/OutlinerMetadataNative/`.
+
+### Deviations
+
+- The celestial rows keep the richer engine-derived wording they already had where the engine actually
+  computes a better figure than the browser can — air mass on the sun, the solved limiting magnitude on
+  the stars, the fog visibility distance. Those are readings, not placeholders. Only the three
+  placeholder strings (`Live`, `Study`, `+0.0 EV`) were replaced.
+
+## The folder inspector
+
+`RecordCollection()` in `Engine/Editor/InspectorPanel.cpp` was already a close port of
+`FolderInspector.jsx` and `FolderInventory.mjs`. Six differences were found and closed.
+
+| Was | Now |
+| --- | --- |
+| Composition footer without a count, and no "usage" | `{N} constructed preview markers · visibility includes ancestor folders. Counts are scene records, not render workload or memory usage.` |
+| Nothing shown for an empty folder | `This folder is empty. Newly added children will appear here.` |
+| No-match state had no way out | A **Clear filters** button, which clears search, scope, type, visibility and the page |
+| Every entry read `Visible` or `Hidden` | A row hidden only by an ancestor reads `Hidden by ancestor` |
+| Entry type came from the four-way category, depth was absolute | `CollectionTypeName(PanelOfRow(…))`, depth relative to the selected folder |
+| Only seven entries of a page were drawn | The whole page slice, with the card growing to hold it |
+
+`CollectionSequence` gained `Constructed` (entries with artwork, the browser's `Row.Preview`) and
+`RowSelection::Own` (the row's own visibility flag, so inherited hiding can be told apart from it).
+
+Proof `Exhibits/Workbench/Folder/NativePanelProof.cpp` with the new
+`Exhibits/Workbench/Folder/RunNativePanelProof.py` — seven captures in `Exhibits/Gallery/FolderNative/`,
+including the empty-folder and no-match states.

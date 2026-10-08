@@ -81,3 +81,41 @@ per object" row.
 The fracture-editor page is captured at 1440 × 900 (dynamic, baked + SDF, fragments, disabled),
 1120 × 760 (the ≤ 1180 breakpoint) and 1280 × 2080 (one tall frame so the whole inspector column is on
 the page rather than under its scroll).
+
+---
+
+## 2026-10-08 — outliner metadata and the folder inspector
+
+### What was tried and rejected
+
+- **Converting the celestial rows to the browser's wording.** The feed already prints air mass for the
+  sun, a solved limiting magnitude for the stars and a visibility distance for the fogs. Those are real
+  engine readings and strictly richer than the browser's `{Intensity}× · {Angular diameter}°`. Rejected:
+  the ask was the *missing* metadata, and overwriting a computed figure with a slider echo loses
+  information. Only the three placeholders — `Live`, `Study`, `+0.0 EV` — were replaced.
+- **`CompactNumber` exactness against `Intl` for float-sourced readings.** `-12.45f` is `-12.4499998`
+  at float precision, so it legitimately prints `-12.4` where JavaScript's double prints `-12.5`. The
+  relative `1e-12` nudge closes the double case and nothing wider; a nudge big enough to fix the float
+  case (~1e-7) would round genuine readings wrongly. Accepted and noted in the header.
+- **A five-part in-place patch script that writes once at the end.** A late needle missed and discarded
+  four good edits with it. Rewritten to verify every needle before writing.
+
+### Measurements
+
+| Check | Result |
+| --- | --- |
+| `Exhibits/Workbench/OutlinerMetadata/RunNativeOutlinerMetadata.py` | PASS 51, one capture |
+| `Exhibits/Workbench/Folder/RunNativePanelProof.py` | PASS, seven captures |
+| `Exhibits/Workbench/BundleParity.py` | PASS 498, up from 428 |
+
+### Notes
+
+- `Exhibits/Workbench/Folder/` had no runner at all: `CheckEditorProof.sh` points at
+  `Exhibits/Workbench/FrontierMirror/RunSolidArcMirror.py`, which is not in this tree. The new
+  `RunNativePanelProof.py` links the shipped inspector family and `CelestialSolver.cpp` directly, so
+  the capture is of the real `InspectorPanel::RecordCollection`, not a mirror of it.
+- `RecordCollectionProof` is behind `FRONTIER_DEVELOPMENT`; the runner defines it. It gained an
+  optional search string so the no-match state can be captured.
+- The folder fixture had two rows that contradicted the reference scene: `Lighting` was a light with an
+  atmosphere glyph, and `Moons` was geometry. Both are folders now, and `Moons` is hidden so its child
+  proves the `Hidden by ancestor` wording. An empty `Staging` folder was added for the empty state.

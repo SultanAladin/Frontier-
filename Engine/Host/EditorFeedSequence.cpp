@@ -7,6 +7,7 @@
 //    with the roster.
 
 #include "EditorFeedSequence.h"
+#include "../Editor/OutlinerMetadata.h"
 
 #include <algorithm>
 #include <cmath>
@@ -36,6 +37,42 @@ constexpr float kFolderTint[3]      = { 0.788f, 0.635f, 0.294f };   // amber, sh
 constexpr float kLightTint[3]       = { 0.961f, 0.827f, 0.294f };   // the lamp rows
 constexpr float kCameraTint[3]      = { 0.412f, 0.765f, 1.000f };   // the camera rows
 constexpr float kPostProcessTint[3] = { 1.000f, 0.541f, 0.396f };   // post process accent
+
+// Editor.jsx OutlinerMetadata(): every row carries the small live figure under its name. The reference
+//    gives one to all eighteen panels, so the feed answers for every family it seats, not only the ones
+//    that happened to have a figure to hand.
+RowReading PlacementReading(const PlacementRecord& Placement, const SceneStructure& Level) noexcept
+{
+    RowReading Reading;
+    Reading.Position[0] = Placement.WorldTransform[12];
+    Reading.Position[1] = Placement.WorldTransform[13];
+    Reading.Position[2] = Placement.WorldTransform[14];
+    const auto& Luminaires = Level.QueryPunctualLuminaires();
+    if (Placement.Luminaire < Luminaires.size())
+    {
+        const PunctualLuminaireRecord& Lamp = Luminaires[Placement.Luminaire];
+        Reading.Referenced = true;
+        Reading.Output     = Lamp.Intensity;
+        switch (Lamp.Category)
+        {
+        case PunctualLuminaireCategory::Point:     Reading.Shape = LuminaireShape::Point; break;
+        case PunctualLuminaireCategory::Spot:      Reading.Shape = LuminaireShape::Spot;  break;
+        case PunctualLuminaireCategory::Tube:      Reading.Shape = LuminaireShape::Tube;  break;
+        case PunctualLuminaireCategory::Strip:     Reading.Shape = LuminaireShape::Strip;
+                                                   Reading.Output = Lamp.LumensPerMetre * Lamp.Size[0] * Lamp.Dimmer;
+                                                   break;
+        case PunctualLuminaireCategory::Rectangle: Reading.Shape = LuminaireShape::Area;  break;
+        default:
+            // A directional source is not one of the seven reference shapes; it reports lux, as an
+            //    unreferenced row does, and names itself Area the way the browser's default does.
+            Reading.Referenced = false;
+            Reading.Intensity  = Lamp.Intensity;
+            Reading.Shape      = LuminaireShape::Area;
+            break;
+        }
+    }
+    return Reading;
+}
 
 // True only when all of the placement's instances sit on emissive materials. Reads the flattened records —
 //    emission_luminance × emission_color — so the test matches what the kernel lights from.
@@ -319,6 +356,7 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             else                 std::snprintf(Row.Label, sizeof(Row.Label), "Object %u", Entry.Ordinal);
             Row.Depth = Entry.Depth;
             Row.Dynamic = P.Dynamic;
+            const RowReading Reading = PlacementReading(P, Level);
             const uint32_t Folder = PlacementFolder(P, Level);
             if (P.InstanceCount == 0u && P.Camera == kPlacementNone && P.Luminaire == kPlacementNone)
             {
@@ -331,18 +369,20 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
                 Row.Category = EditorInstanceCategory::Light;
                 CopyTint(Row.Tint, kLightTint);
                 if(P.Luminaire<Level.QueryPunctualLuminaires().size()){
-                    const auto& L=Level.QueryPunctualLuminaires()[P.Luminaire];const char* Type=L.Category==PunctualLuminaireCategory::Directional?"Sun":L.Category==PunctualLuminaireCategory::Point?"Point":L.Category==PunctualLuminaireCategory::Spot?"Spot":L.Category==PunctualLuminaireCategory::Rectangle?"Area":L.Category==PunctualLuminaireCategory::Tube?"Tube":"Strip";
-                    std::snprintf(Row.Meta,sizeof(Row.Meta),"%s %.0f %s",Type,double(L.Intensity),L.Category==PunctualLuminaireCategory::Directional?"lx":"cd");std::snprintf(Row.Tag,sizeof(Row.Tag),"LGT");Row.Standing=L.Enabled?EditorStanding::Ok:EditorStanding::Quiet;std::snprintf(Row.StandingNote,sizeof(Row.StandingNote),L.Enabled?"Enabled":"Disabled");
+                    const auto& L=Level.QueryPunctualLuminaires()[P.Luminaire];
+                    OutlinerMetadata(RowPanel::Light,Reading,Row.Meta,sizeof(Row.Meta));std::snprintf(Row.Tag,sizeof(Row.Tag),"LGT");Row.Standing=L.Enabled?EditorStanding::Ok:EditorStanding::Quiet;std::snprintf(Row.StandingNote,sizeof(Row.StandingNote),L.Enabled?"Enabled":"Disabled");
                 }
             }
             else if (Folder == kFolderCameras)
             {
                 Row.Category = EditorInstanceCategory::Camera;
+                OutlinerMetadata(RowPanel::Camera, Reading, Row.Meta, sizeof(Row.Meta));
                 CopyTint(Row.Tint, kCameraTint);
             }
             else
             {
                 Row.Category = EditorInstanceCategory::Geometry;
+                OutlinerMetadata(RowPanel::Geometry, Reading, Row.Meta, sizeof(Row.Meta));
                 const uint32_t First = P.FirstInstance < LevelInstances.size() ? P.FirstInstance : 0u;
                 const uint32_t Slot = (P.InstanceCount > 0u && First < LevelInstances.size())
                     ? LevelInstances[First].MaterialIndex : 0xFFFFFFFFu;
@@ -362,7 +402,7 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             Row.Category = EditorInstanceCategory::Camera;
             Row.Glyph    = EditorGlyph::Camera;Row.Artwork=IconSymbol::Camera;
             Row.Narrowing = EditorNarrowing::Camera;
-            std::snprintf(Row.Meta, sizeof(Row.Meta), "Live");
+            OutlinerMetadata(RowPanel::EditorCamera, RowReading{}, Row.Meta, sizeof(Row.Meta));
             CopyTint(Row.Tint, kCameraTint);
             break;
         case FeedRowKind::CineCamera:
@@ -371,7 +411,7 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             Row.Category = EditorInstanceCategory::Camera;
             Row.Glyph    = EditorGlyph::Camera;Row.Artwork=IconSymbol::Camera;
             Row.Narrowing = EditorNarrowing::Camera;
-            std::snprintf(Row.Meta, sizeof(Row.Meta), "Study");
+            OutlinerMetadata(RowPanel::Camera, RowReading{}, Row.Meta, sizeof(Row.Meta));
             CopyTint(Row.Tint, kCameraTint);
             break;
         case FeedRowKind::PostProcess:
@@ -381,7 +421,7 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             Row.Glyph    = EditorGlyph::Effects;
             Row.Narrowing = EditorNarrowing::Camera;
             std::snprintf(Row.Tag, sizeof(Row.Tag), "Comp");
-            std::snprintf(Row.Meta, sizeof(Row.Meta), "+0.0 EV");
+            OutlinerMetadata(RowPanel::Post, RowReading{}, Row.Meta, sizeof(Row.Meta));
             CopyTint(Row.Tint, kPostProcessTint);
             break;
         }
@@ -396,6 +436,9 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             if (Instances[K].Depth == 1u)
                 ++Kids;
         Instances[R].KidCount = Kids;
+        RowReading Enclosing;
+        Enclosing.Enclosed = Kids;
+        OutlinerMetadata(RowPanel::Group, Enclosing, Instances[R].Meta, sizeof(Instances[R].Meta));
     }
     return Rows;
 }

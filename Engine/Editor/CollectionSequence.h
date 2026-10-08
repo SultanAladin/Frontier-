@@ -18,11 +18,13 @@ struct CollectionSequence
     struct RowSelection
     {
         uint32_t Index;
-        bool     Visible;
+        bool     Visible;     // the effective visibility, enclosing folders included
+        bool     Own = true;  // its own flag; Own && !Visible is FolderInventory's Inherited
     };
 
     uint64_t                  SelectedKey = 0;
     uint32_t                  Total = 0, Direct = 0, Visible = 0, Locked = 0, Folders = 0, MaximumDepth = 0;
+    uint32_t                  Constructed = 0;   // FolderInventory.Constructed: rows with a preview marker
     uint32_t                  Categories[static_cast<unsigned>(EditorInstanceCategory::Count)]{};
     uint32_t                  Glyphs[static_cast<unsigned>(EditorGlyph::Count)]{};
     uint32_t                  AutoCategories[static_cast<unsigned>(EditorInstanceCategory::Count)]{};
@@ -51,7 +53,7 @@ struct CollectionSequence
 
     void Traverse(const EditorInstance* Rows, uint32_t Count, uint32_t Selected)
     {
-        Total = Direct = Visible = Locked = Folders = MaximumDepth = 0;
+        Total = Direct = Visible = Locked = Folders = MaximumDepth = Constructed = 0;
         std::fill(std::begin(Categories), std::end(Categories), 0u);
         std::fill(std::begin(Glyphs), std::end(Glyphs), 0u);
         std::fill(std::begin(AutoCategories), std::end(AutoCategories), 0u);
@@ -82,6 +84,9 @@ struct CollectionSequence
                 Locked += Row.Locked || Row.Pinned;
                 Folders += Row.Category == EditorInstanceCategory::Folder;
                 MaximumDepth = std::max(MaximumDepth, Distance);
+                // Editor.jsx seats a preview marker on every row it constructed from a base mesh, and
+                //    FolderInventory counts exactly those.
+                Constructed += BaseMeshPrimitive(Row.Artwork) != nullptr;
                 const unsigned Group = static_cast<unsigned>(Row.Category);
                 if (Group < static_cast<unsigned>(EditorInstanceCategory::Count)) ++Categories[Group];
                 const unsigned Glyph = static_cast<unsigned>(Row.Glyph);
@@ -89,9 +94,9 @@ struct CollectionSequence
                 if (Row.Glyph == EditorGlyph::Auto && Group < static_cast<unsigned>(EditorInstanceCategory::Count)) ++AutoCategories[Group];
                 if ((!DirectOnly || Distance == 1) && (!Category || Group + 1 == unsigned(Category)) &&
                     (!Visibility || Effective == (Visibility == 1)) && (!GlyphFilter || int(Glyph) == GlyphFilter) && Contains(Row.Label, Search))
-                    Matches.push_back({Index, Effective});
+                    Matches.push_back({Index, Effective, Row.Visible});
             }
-            EnclosingRows.push_back({Index, Effective});
+            EnclosingRows.push_back({Index, Effective, Row.Visible});
         }
         if(Sort==0)std::sort(Matches.begin(),Matches.end(),[&](const RowSelection& A,const RowSelection& B){return std::strcmp(Rows[A.Index].Label,Rows[B.Index].Label)<0;});
         else if(Sort==1)std::sort(Matches.begin(),Matches.end(),[&](const RowSelection& A,const RowSelection& B){const auto CA=static_cast<unsigned>(Rows[A.Index].Category),CB=static_cast<unsigned>(Rows[B.Index].Category);return CA!=CB?CA<CB:std::strcmp(Rows[A.Index].Label,Rows[B.Index].Label)<0;});

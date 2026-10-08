@@ -8,6 +8,7 @@
 
 #include "EditorFeedSequence.h"
 #include "../../../Engine/Editor/ConstructWorld.h"
+#include "../../../Engine/Editor/OutlinerMetadata.h"
 
 #include <cmath>
 #include <cstdio>
@@ -73,6 +74,42 @@ uint32_t PlacementFolder(const PlacementRecord& P, const SceneStructure& Level) 
 
 // Depth below its folder: roots sit at 1, nested placements deepen. The ancestor chase is capped so a corrupt
 //    link idles at the root instead of looping.
+// Editor.jsx OutlinerMetadata(): every row carries the small live figure under its name. The reference
+//    gives one to all eighteen panels, so the feed answers for every family it seats, not only the ones
+//    that happened to have a figure to hand.
+RowReading PlacementReading(const PlacementRecord& Placement, const SceneStructure& Level) noexcept
+{
+    RowReading Reading;
+    Reading.Position[0] = Placement.WorldTransform[12];
+    Reading.Position[1] = Placement.WorldTransform[13];
+    Reading.Position[2] = Placement.WorldTransform[14];
+    const auto& Luminaires = Level.QueryPunctualLuminaires();
+    if (Placement.Luminaire < Luminaires.size())
+    {
+        const PunctualLuminaireRecord& Lamp = Luminaires[Placement.Luminaire];
+        Reading.Referenced = true;
+        Reading.Output     = Lamp.Intensity;
+        switch (Lamp.Category)
+        {
+        case PunctualLuminaireCategory::Point:     Reading.Shape = LuminaireShape::Point; break;
+        case PunctualLuminaireCategory::Spot:      Reading.Shape = LuminaireShape::Spot;  break;
+        case PunctualLuminaireCategory::Tube:      Reading.Shape = LuminaireShape::Tube;  break;
+        case PunctualLuminaireCategory::Strip:     Reading.Shape = LuminaireShape::Strip;
+                                                   Reading.Output = Lamp.LumensPerMetre * Lamp.Size[0] * Lamp.Dimmer;
+                                                   break;
+        case PunctualLuminaireCategory::Rectangle: Reading.Shape = LuminaireShape::Area;  break;
+        default:
+            // A directional source is not one of the seven reference shapes; it reports lux, as an
+            //    unreferenced row does, and names itself Area the way the browser's default does.
+            Reading.Referenced = false;
+            Reading.Intensity  = Lamp.Intensity;
+            Reading.Shape      = LuminaireShape::Area;
+            break;
+        }
+    }
+    return Reading;
+}
+
 uint32_t PlacementDepth(uint32_t Ordinal, const SceneStructure& Level) noexcept
 {
     const auto& Placements = Level.QueryPlacements();
@@ -308,22 +345,26 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             const PlacementRecord& P = Placements[Entry.Ordinal];
             if (!P.Name.empty()) std::snprintf(Row.Label, sizeof(Row.Label), "%s", P.Name.c_str());
             else                 std::snprintf(Row.Label, sizeof(Row.Label), "Object %u", Entry.Ordinal);
+            const RowReading Reading = PlacementReading(P, Level);
             Row.Depth = PlacementDepth(Entry.Ordinal, Level);
             Row.Dynamic = P.Dynamic;
             const uint32_t Folder = PlacementFolder(P, Level);
             if (Folder == kFolderLighting)
             {
                 Row.Category = EditorInstanceCategory::Light;
+                OutlinerMetadata(RowPanel::Light, Reading, Row.Meta, sizeof(Row.Meta));
                 CopyTint(Row.Tint, kLightTint);
             }
             else if (Folder == kFolderCameras)
             {
                 Row.Category = EditorInstanceCategory::Camera;
+                OutlinerMetadata(RowPanel::Camera, Reading, Row.Meta, sizeof(Row.Meta));
                 CopyTint(Row.Tint, kCameraTint);
             }
             else
             {
                 Row.Category = EditorInstanceCategory::Geometry;
+                OutlinerMetadata(RowPanel::Geometry, Reading, Row.Meta, sizeof(Row.Meta));
                 // A constructed base mesh names itself through its artwork, exactly as Editor.jsx seats
                 //    the five it opens with. Imports keep the generic mesh glyph.
                 if (P.BaseMesh != kNoBaseMesh)
@@ -346,7 +387,8 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             Row.Category = EditorInstanceCategory::Camera;
             Row.Glyph    = EditorGlyph::Camera;Row.Artwork=IconSymbol::Camera;
             Row.Narrowing = EditorNarrowing::Camera;
-            std::snprintf(Row.Meta, sizeof(Row.Meta), "Live");
+            Row.Pinned = true;   // the permanent viewport camera, as Editor.jsx IsEditorCamera reads it
+            OutlinerMetadata(RowPanel::EditorCamera, RowReading{}, Row.Meta, sizeof(Row.Meta));
             CopyTint(Row.Tint, kCameraTint);
             break;
         case FeedRowKind::CineCamera:
@@ -355,7 +397,7 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             Row.Category = EditorInstanceCategory::Camera;
             Row.Glyph    = EditorGlyph::Camera;Row.Artwork=IconSymbol::Camera;
             Row.Narrowing = EditorNarrowing::Camera;
-            std::snprintf(Row.Meta, sizeof(Row.Meta), "Study");
+            OutlinerMetadata(RowPanel::Camera, RowReading{}, Row.Meta, sizeof(Row.Meta));
             CopyTint(Row.Tint, kCameraTint);
             break;
         case FeedRowKind::PostProcess:
@@ -365,7 +407,7 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             Row.Glyph    = EditorGlyph::Effects;
             Row.Narrowing = EditorNarrowing::Camera;
             std::snprintf(Row.Tag, sizeof(Row.Tag), "Comp");
-            std::snprintf(Row.Meta, sizeof(Row.Meta), "+0.0 EV");
+            OutlinerMetadata(RowPanel::Post, RowReading{}, Row.Meta, sizeof(Row.Meta));
             CopyTint(Row.Tint, kPostProcessTint);
             break;
         }
@@ -380,6 +422,9 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             if (Instances[K].Depth == 1u)
                 ++Kids;
         Instances[R].KidCount = Kids;
+        RowReading Enclosing;
+        Enclosing.Enclosed = Kids;
+        OutlinerMetadata(RowPanel::Group, Enclosing, Instances[R].Meta, sizeof(Instances[R].Meta));
     }
     return Rows;
 }

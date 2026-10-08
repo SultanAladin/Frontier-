@@ -262,7 +262,7 @@ uint32_t FillMirrorInstances(Frontier::EditorInstance* Instances, const Frontier
     const auto& Tris  = Scene.QueryTriangles();
     for (const auto& Span : Spans)
     {
-        char Meta[24]; std::snprintf(Meta, sizeof(Meta), "%u tris", Span.TriangleCount);
+        char Meta[48]; std::snprintf(Meta, sizeof(Meta), "%u tris", Span.TriangleCount);
         const auto& M = Mats[Tris[Span.FirstTriangle].MaterialIndex];
         const bool Emissive = M.EmissiveRadiance.x + M.EmissiveRadiance.y + M.EmissiveRadiance.z > 0.0f;
         const float Tint[3] = { M.AlbedoColor.x, M.AlbedoColor.y, M.AlbedoColor.z };

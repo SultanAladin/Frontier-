@@ -109,7 +109,7 @@ struct EditorInstance
     uint32_t         FilterMask = 0u;                        // optional per-tool filter bits; 0 derives from Narrowing/Category
     EditorStanding   Standing  = EditorStanding::Auto;      // the 16 px standing dot
     char             StandingNote[20] = {};                 // its hover title ("Below horizon")
-    char             Meta[24]  = {};                        // the right-hand live figure ("12.4°", "AM 1.02")
+    char             Meta[48]  = {};                        // OutlinerMetadata(): the live figure under the name
     char             Tag[8]    = {};                        // the small pill after the name ("Comp")
     bool             Pinned    = false;                     // true: no drag, no eye — the page's World / Lights
     bool             Component = false;                    // owned leaf: cannot be reparented independently
