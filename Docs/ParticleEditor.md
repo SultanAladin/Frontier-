@@ -28,6 +28,12 @@ Query parameters:
 | Hail | Precipitation, GPU-simulated | Ice pellets that drop fast and bounce high off the floor before settling. |
 | Snow | Precipitation, GPU-simulated | Flakes that drift through the wind field and land with a soft rebound. |
 | Black hole | VFX (kind 5), GPU-simulated, plus screen-space lensing | A glowing accretion disc that is pulled in by an attractor, swirls inward and is swallowed at the swallow radius. The background is bent around the horizon by a full-screen lens pass, and a photon ring sits outside it. Lensing is a screen-space approximation, not a ray-traced metric. Tune it in the **Black hole** card. |
+| Heat shimmer | VFX (kind 0), GPU-simulated, plus screen-space distortion | A faint rising plume that bends the scene behind it with a noise offset. Place it over a fire or an exhaust. The bending is an approximation: it shifts the sampled image, it does not refract real geometry. Tune it in the **Heat shimmer** card. |
+| Magnetic field lines | Light fibres (analytic) | Light trails drawn along the field lines of a magnetic dipole (path shape **Dipole field line**, axis in the plane of the lines). Sparks ride the lines. They are analytic, so they do not move with the field. Pair with **Magnetic particles**. |
+| Magnetic particles | Particles (kind 0), GPU-simulated | Particles steered by a dipole force field: they are pushed along the local field direction and damped across it, so they circulate along the field lines. This is a steering approximation, not an integrated Lorentz force. Tune it in the **Magnetic dipole** card. |
+| Bubbles | Particles (kind 0), GPU-simulated | Transparent spheres (shape **Bubble**) with a fresnel rim and a small highlight. They rise on buoyancy, sway (flutter) and grow slightly. |
+| Foam | Particles (kind 0), GPU-simulated | Many small bubbles that bunch up and bob near the floor, pushed by the wind. |
+| Glitch dissolve | Transition (kind 5), GPU-simulated | The derez path with a **Glitch (blocky)** release wave. Release times come from hashed cells on a 7×5×7 grid plus a rising sweep, so the break-up is blocky rather than smooth. After release, each cube jumps in 12 steps a second. |
 
 Precipitation uses the regular particle kind, not the debris kind. Debris pins to the floor, while the other kinds bounce with the preset's `bounce` coefficient, so rain, hail and snow set a bounce value.
 | Embers | Additive VFX | Glowing embers lifted on buoyancy and bent by the wind. |
@@ -95,6 +101,14 @@ Radius sets the falloff: strength is `(1 − r/R)²` inside radius R, so the pul
 Black hole systems add their own attractor at their origin. Their lensing is a second, screen-space step: each frame the canvas is copied and a full-screen pass bends the background around the projected horizon, with a black disc inside the horizon and a photon ring outside it. The bend is a weak-field mapping (`r − E²/r`), not a ray trace, and it fades with distance from the black hole. Particles are not lensed; they are drawn normally.
 
 Limitations: force fields act on particles, not on rigid meshes. Particles do not collide with each other. The accretion disc comes from the swirl term, not from a Keplerian emitter.
+
+## Heat shimmer, magnetic fields and bubbles
+
+- **Heat shimmer** (`heatShimmer`: radius, strength, frequency, rise speed) adds a second screen-space pass. Inside its radius the sampled UV is offset by a noise field that rises over time and fades toward the edge. There is no black core. It works on any system, and it runs in the same copy-and-lens pass as the black hole.
+- **Magnetic dipole** force (type 3): the axis is world Z through the system origin. The drive term pushes along the local field direction, and the guide term damps velocity across it. Both fade with the radius. The 1/r³ magnitude is not used, only the direction. Particles near the centre are softened so the direction does not flip violently.
+- **Bubble** is particle shape 6: a billboard with a fresnel rim, a highlight and a near-clear centre. Buoyancy and flutter come from the existing parameters.
+
+Limitations: the heat shimmer distorts the frame, not the particles behind it. The magnetic particles steer toward the local field direction, so they follow the lines qualitatively but are not an exact trajectory.
 
 ## Wind field
 

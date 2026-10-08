@@ -378,7 +378,7 @@
     state.engine.render({
       glob,
       fields: packFields(),
-      lensCount: lens.count,
+      lensCount: lens.count + lens.shCount,
       lens: lens.data,
       comps,
       clear: COLORS.bg.map((c) => c + state.lightning.flash * 0.22),
@@ -596,6 +596,12 @@
       if (!sys.p.visible || !at || !at.enabled) continue;
       put(0, sys.p.origin, { radius: at.radius, strength: at.strength, swirl: at.swirl, swallow: at.swallow, t0: 0, duration: 1e9, period: 0 });
     }
+    // 📝 Magnetic dipole fields: type 3, strength = drive, swirl slot = guide rate.
+    for (const sys of state.systems) {
+      const mf = sys.p.magneticField;
+      if (!sys.p.visible || !mf) continue;
+      put(3, sys.p.origin, { radius: mf.radius, strength: mf.strength, swirl: mf.guide, swallow: 0, t0: 0, duration: 1e9, period: 0 });
+    }
     for (const f of state.fields) if (f.enabled) put(f.type, f.pos, f);
     out[0] = n;
     out[1] = state.time;
@@ -605,27 +611,40 @@
   // 📝 Black hole lensing inputs: each visible black hole's screen centre (uv, y down) and radii as fractions of the
   // screen height: horizon H and Einstein radius E. Radii are world metres scaled by 0.5 / (distance · tan(22.5°)).
   function packLens(cam, aspect) {
-    const out = new Float32Array(16);
+    // Layout matches LensU in shaders.js: bh0, bh1, misc, then two shimmers (sa, sb each).
+    const out = new Float32Array(32);
     let n = 0;
+    let sh = 0;
     const vp = cam.vp;
     const k0 = 0.5 / Math.tan(Math.PI / 8);
+    const project = (o) => {
+      const clip = [0, 1, 2, 3].map((r) => vp[r] * o[0] + vp[4 + r] * o[1] + vp[8 + r] * o[2] + vp[12 + r]);
+      if (clip[3] <= 0.01) return null;
+      const dist = Math.hypot(o[0] - cam.eye[0], o[1] - cam.eye[1], o[2] - cam.eye[2]);
+      return { u: (clip[0] / clip[3]) * 0.5 + 0.5, v: 0.5 - (clip[1] / clip[3]) * 0.5, k: k0 / Math.max(dist, 0.01) };
+    };
     for (const sys of state.systems) {
       const bh = sys.p.blackHole;
       if (!sys.p.visible || !bh || n >= 2) continue;
-      const o = sys.p.origin;
-      const clip = [0, 1, 2, 3].map((r) => vp[r] * o[0] + vp[4 + r] * o[1] + vp[8 + r] * o[2] + vp[12 + r]);
-      if (clip[3] <= 0.01) continue;
-      const dist = Math.hypot(o[0] - cam.eye[0], o[1] - cam.eye[1], o[2] - cam.eye[2]);
-      const kk = k0 / Math.max(dist, 0.01);
-      const uvX = (clip[0] / clip[3]) * 0.5 + 0.5;
-      const uvY = 0.5 - (clip[1] / clip[3]) * 0.5;
-      out.set([uvX, uvY, bh.horizon * (bh.einstein || 0) * kk, bh.horizon * kk], n * 4);
+      const pr = project(sys.p.origin);
+      if (!pr) continue;
+      out.set([pr.u, pr.v, bh.horizon * (bh.einstein || 0) * pr.k, bh.horizon * pr.k], n * 4);
       n++;
+    }
+    for (const sys of state.systems) {
+      const hs = sys.p.heatShimmer;
+      if (!sys.p.visible || !hs || sh >= 2) continue;
+      const pr = project(sys.p.origin);
+      if (!pr) continue;
+      out.set([pr.u, pr.v, hs.radius * pr.k, hs.strength], 12 + sh * 8);
+      out.set([state.time * hs.rate, hs.freq, 0, 0], 16 + sh * 8);
+      sh++;
     }
     out[8] = n;
     out[9] = aspect;
     out[10] = 0.35;
-    return { count: n, data: out };
+    out[11] = sh;
+    return { count: n, shCount: sh, data: out };
   }
 
   // 📝 Force field editor: add attractors, repulsors and timed reverse-gravity lifts.
@@ -851,7 +870,7 @@
           () => tr.assemble || 0, (v) => { tr.assemble = v; renderInspector(); }),
         selectRow("After release", [["none", "Cube (fades out)"], ["butterfly", "Becomes a butterfly"]],
           () => tr.after || "none", (v) => (tr.after = v)),
-        selectRow("Release wave", [["corner", "Corner (derez)"], ["melt", "Melt (patchy)"]],
+        selectRow("Release wave", [["corner", "Corner (derez)"], ["melt", "Melt (patchy)"], ["glitch", "Glitch (blocky)"]],
           () => tr.wave || "corner", (v) => (tr.wave = v)),
       );
       if (tr.assemble > 0) {
@@ -875,10 +894,25 @@
         rangeRow("Swirl", () => at.swirl, (v) => (at.swirl = v), { min: 0, max: 12, step: 0.05, digits: 2 }),
         rangeRow("Swallow radius", () => at.swallow, (v) => (at.swallow = v), { min: 0, max: 3, step: 0.01, digits: 2, unit: "m" })));
     }
+    if (p.heatShimmer) {
+      const hs = p.heatShimmer;
+      root.append(card("Heat shimmer", "DISTORTION",
+        rangeRow("Radius", () => hs.radius, (v) => (hs.radius = v), { min: 0.2, max: 6, step: 0.05, digits: 2, unit: "m" }),
+        rangeRow("Strength", () => hs.strength, (v) => (hs.strength = v), { min: 0, max: 0.05, step: 0.001, digits: 3 }),
+        rangeRow("Frequency", () => hs.freq, (v) => (hs.freq = v), { min: 2, max: 40, step: 0.5, digits: 1 }),
+        rangeRow("Rise speed", () => hs.rate, (v) => (hs.rate = v), { min: 0, max: 5, step: 0.05, digits: 2, unit: "×" })));
+    }
+    if (p.magneticField) {
+      const mf = p.magneticField;
+      root.append(card("Magnetic dipole", "FIELD LINES",
+        rangeRow("Drive strength", () => mf.strength, (v) => (mf.strength = v), { min: 0, max: 10, step: 0.05, digits: 2, unit: "m/s²" }),
+        rangeRow("Guide rate", () => mf.guide, (v) => (mf.guide = v), { min: 0, max: 12, step: 0.05, digits: 2, unit: "1/s" }),
+        rangeRow("Radius", () => mf.radius, (v) => (mf.radius = v), { min: 1, max: 20, step: 0.1, digits: 1, unit: "m" })));
+    }
 
     const partCard = [];
     if (!mol) {
-      partCard.push(selectRow("Shape", [[0, "Streak"], [1, "Sphere"], [2, "Leaf / paper"], [3, "Soft glow"], [4, "Chip cube"], [5, "Coin"]], () => p.shape, (v) => (p.shape = v)));
+      partCard.push(selectRow("Shape", [[0, "Streak"], [1, "Sphere"], [2, "Leaf / paper"], [3, "Soft glow"], [4, "Chip cube"], [5, "Coin"], [6, "Bubble"]], () => p.shape, (v) => (p.shape = v)));
       if (p.kind === 1) partCard.push(selectRow("Leaf mode", [[0, "Leaf"], [1, "Paper"]], () => p.leafMode, (v) => (p.leafMode = v)));
       partCard.push(selectRow("Blend", [["add", "Additive (glow)"], ["alpha", "Alpha (premultiplied)"]], () => p.blend, (v) => (p.blend = v)));
       partCard.push(rangeRow("Size start", () => p.sizeStart, (v) => (p.sizeStart = v), { min: 0.002, max: 2, step: 0.001, digits: 3, unit: "m" }));

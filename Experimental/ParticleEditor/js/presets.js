@@ -181,6 +181,76 @@
         blackHole: { horizon: 0.45, einstein: 3.0 },
       }),
     },
+    {
+      id: "heat-shimmer", name: "Heat shimmer", group: "VFX",
+      blurb: "Hot-air shimmer: a rising, almost invisible plume that bends the scene behind it. Place it over a fire or an exhaust. The bending is a screen-space approximation.",
+      p: P({
+        kind: 0, shape: 3, blend: "alpha", capacity: 200, rate: 30, emitShape: 1, radius: 0.5,
+        origin: [0, 0.4, 0], dir: [0, 1, 0], spread: 0.3, speedMin: 0.6, speedMax: 1.4, drag: 0.5, gravity: 0,
+        buoyancy: 1.5, flutter: 0.4, windCoupling: 0.6, lifeMin: 2, lifeMax: 3.5, sizeStart: 0.3, sizeEnd: 0.9,
+        colA: hex("#2a323b"), colB: hex("#3d4954"), colC: hex("#ffffff"), bounce: 0,
+        heatShimmer: { radius: 1.6, strength: 0.03, freq: 14, rate: 1.5 },
+      }),
+    },
+    {
+      id: "magnetic-lines", name: "Magnetic field lines", group: "Fields",
+      blurb: "Light fibres drawn along the field lines of a magnetic dipole (axis in the plane of the lines). Sparks ride the lines. Pair it with Magnetic particles at the same origin.",
+      p: P({
+        kind: 7, capacity: 64, origin: [0, 1.2, 0],
+        fibre: PE.fibreParams({
+          shape: "trail", strands: 60, segments: 96, seed: 31, loopSeconds: 8, scale: 1,
+          pathShape: "Dipole field line", pathSize: 3, trailLength: 0.25, phaseSpread: 6.2832,
+          spread: 0.05, amplitude: 0.04, frequency: 2, thickness: 1.0, taper: 0.5, intensity: 1.2,
+          halo: 0.2, baseline: 0.02,
+          stops: PE.evenStops(["#ff6a3d", "#ffe0a6"]), colC: hex("#ffffff"), accentMix: 0.2,
+          window: 0.5, windowCycles: 1, sparks: 0.4, sparkSize: 0.02, sparkBrightness: 3,
+          pulseRate: 1.5, pulseDepth: 0.5, pulseShape: "Breathe",
+        }),
+      }),
+    },
+    {
+      id: "magnetic-particles", name: "Magnetic particles", group: "Fields",
+      blurb: "Glowing particles steered by a magnetic dipole: they follow the local field direction, so they circulate along the field lines. Pair it with Magnetic field lines at the same origin.",
+      p: P({
+        kind: 0, shape: 3, blend: "add", capacity: 1200, rate: 220, emitShape: 1, radius: 2.4,
+        origin: [0, 1.2, 0], dir: [0, 1, 0], spread: 0.1, speedMin: 0, speedMax: 0.4, drag: 0.1, gravity: 0,
+        lifeMin: 6, lifeMax: 10, sizeStart: 0.07, sizeEnd: 0.05,
+        colA: hex("#ff8a4c"), colB: hex("#ffd7a0"), colC: hex("#ffffff"), windCoupling: 0, bounce: 0,
+        magneticField: { strength: 3.0, guide: 4.0, radius: 6 },
+      }),
+    },
+    {
+      id: "bubbles", name: "Bubbles", group: "Water",
+      blurb: "Soap bubbles: transparent spheres with a fresnel rim and a small highlight. They rise on buoyancy, sway, grow slightly and drift on the wind.",
+      p: P({
+        kind: 0, shape: 6, blend: "alpha", capacity: 400, rate: 25, emitShape: 2, radius: 0.8,
+        origin: [0, 0.2, 0], dir: [0, 1, 0], spread: 0.25, speedMin: 0.2, speedMax: 0.6, drag: 0.15, gravity: 0,
+        buoyancy: 1.4, flutter: 0.6, windCoupling: 0.8, lifeMin: 5, lifeMax: 8, sizeStart: 0.12, sizeEnd: 0.2,
+        colA: hex("#bfe9ff"), colB: hex("#e8f8ff"), colC: hex("#ffffff"), bounce: 0,
+      }),
+    },
+    {
+      id: "foam", name: "Foam", group: "Water",
+      blurb: "Dense, small bubbles that bunch up and bob near the floor, pushed by the wind. Good for surf or soapy water.",
+      p: P({
+        kind: 0, shape: 6, blend: "alpha", capacity: 1500, rate: 500, emitShape: 2, radius: 1.8,
+        origin: [0, 0.1, 0], dir: [0, 1, 0], spread: 0.6, speedMin: 0.2, speedMax: 1.0, drag: 1.5, gravity: 1.0,
+        buoyancy: 0.2, flutter: 0.3, windCoupling: 1.2, bounce: 0.2, lifeMin: 4, lifeMax: 7,
+        sizeStart: 0.05, sizeEnd: 0.06, colA: hex("#f4fbff"), colB: hex("#d6eefc"), colC: hex("#ffffff"),
+      }),
+    },
+    {
+      id: "glitch-dissolve", name: "Glitch dissolve", group: "Transitions",
+      blurb: "Digital dissolve: the object breaks into cubes in blocky, noise-driven steps, and each released cube jumps in short stutters as it drifts away.",
+      p: P({
+        kind: 5, shape: 4, blend: "alpha", capacity: 1536, rate: 0,
+        emitShape: 4, origin: [0, 0.6, 0], boxHalf: [0.6, 0.6, 0.6], radius: 0,
+        speedMin: 0.1, speedMax: 0.6, drag: 0.8, buoyancy: 0.2, gravity: 0.1, lifeMin: 2.5, lifeMax: 4,
+        sizeStart: 0.075, sizeEnd: 0, colA: hex("#00ffd0"), colB: hex("#ff2d6f"), colC: hex("#ffffff"),
+        windCoupling: 1.0, bounce: 0, burstEvery: 9, burstCount: 1536, burstAtOrigin: true,
+        transition: { holdBase: 0.2, holdSpread: 2.5, burstShare: 0.2, fragment: false, childLife: 0, wave: "glitch", assemble: 0, shell: 0, after: "none" },
+      }),
+    },
   ];
 
   // Light fibres (kind 7): analytic streaks, ribbons and path trails, ported from the Strand Editor. Not simulated.

@@ -270,7 +270,7 @@
         fragment: { module: modules.lens, entryPoint: "fsLens", targets: [{ format: this.format }] },
         primitive: { topology: "triangle-list" },
       });
-      this.lensUniform = d.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      this.lensUniform = d.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       this.lensSampler = d.createSampler({ magFilter: "linear", minFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge" });
       this.pipe.seg = mkR("vsSeg", "fsSeg", ADD);
       this.pipe.arrow = mkR("vsArrow", "fsArrow", ADD);
@@ -624,7 +624,7 @@
       const tr = p.transition;
       // 📝 mol2: x = wave (1 melt), y = morph to butterflies (1), z = flight mode (0 burst/fall, 1 rebuild, 2 stack), w = fragment flag.
       // misc.w = start distance (rebuild) or drop height (stack).
-      set("mol2", tr && tr.wave === "melt" ? 1 : 0, tr && tr.after === "butterfly" ? 1 : 0, tr ? (tr.assemble | 0) : 0, tr && tr.fragment ? 1 : 0);
+      set("mol2", tr && tr.wave === "melt" ? 1 : tr && tr.wave === "glitch" ? 2 : 0, tr && tr.after === "butterfly" ? 1 : 0, tr ? (tr.assemble | 0) : 0, tr && tr.fragment ? 1 : 0);
       set("mol3", tr ? tr.holdBase : 0, tr ? tr.holdSpread : 0, tr ? tr.burstShare : 0, tr ? tr.childLife : 0);
       set("misc", p.sizeScale, p.pulseHz, p.pulseDepth, tr && tr.shell ? tr.shell : 0);
     }

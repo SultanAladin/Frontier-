@@ -111,7 +111,7 @@ fn fieldOn(c: vec4f, now: f32) -> bool {
   return t < c.y;
 }
 
-fn fieldAccel(p: vec3f) -> vec3f {
+fn fieldAccel(p: vec3f, vel: vec3f) -> vec3f {
   let n = u32(fields[0].x);
   let now = fields[0].y;
   var acc = vec3f(0.0);
@@ -132,8 +132,18 @@ fn fieldAccel(p: vec3f) -> vec3f {
       acc += (dir * b.y + tang * b.z) * g;
     } else if (typ == 1u) {
       acc -= dir * b.y * g;
-    } else {
+    } else if (typ == 2u) {
       acc += vec3f(0.0, b.y, 0.0) * g;
+    } else {
+      // 📝 Magnetic dipole (axis = world Z, centred on the field). The drive pushes along the local field direction and
+      // damps motion across it, so particles ride the field lines. Strength b.y = drive, b.z = guide rate.
+      let rv = p - a.xyz;
+      let rh = rv / max(length(rv), 0.4);
+      let zAxis = vec3f(0.0, 0.0, 1.0);
+      let B = 3.0 * dot(zAxis, rh) * rh - zAxis;
+      let Bh = normalize(B);
+      let vPerp = vel - Bh * dot(vel, Bh);
+      acc += (Bh * b.y - vPerp * b.z) * g;
     }
   }
   return acc;
@@ -187,6 +197,12 @@ fn assembleTarget(i: u32, mode: u32) -> vec3f {
 
 // 📝 Release time (0..1) across the object. Corner: a wave from the min corner. Melt: patchy clumps that melt across the surface.
 fn waveT(u: vec3f) -> f32 {
+  // 📝 Glitch: blocky cells on a 7x5x7 grid, each with a hashed release time, plus a rising sweep.
+  if (S.mol2.x > 1.5) {
+    let cell = floor(u * vec3f(7.0, 5.0, 7.0));
+    let h = fract(sin(dot(cell, vec3f(12.9898, 78.233, 37.719))) * 43758.5453);
+    return clamp(0.6 * h + 0.4 * u.y, 0.0, 1.0);
+  }
   if (S.mol2.x > 0.5) {
     return clamp(0.5 + 0.3 * sin(u.x * 5.0 + u.y * 3.0 + 0.7) + 0.2 * sin(u.y * 7.0 - u.z * 4.0 + 2.1), 0.0, 1.0);
   }
@@ -337,7 +353,7 @@ fn updateParticles(@builtin(global_invocation_id) gid: vec3u) {
   // 📝 Force fields: pull, push or lift; a particle inside an attractor's swallow radius is removed.
   if (fields[0].x > 0.0) {
     if (fieldSwallowed(pos)) { parts[i] = Part(); return; }
-    v += fieldAccel(pos) * dt;
+    v += fieldAccel(pos, v) * dt;
   }
   if (S.phys2.w > 0.0) {
     let ph = age * 2.7 + seed * 0.013;
@@ -801,6 +817,16 @@ fn fsPart(i: VO) -> @location(0) vec4f {
       rgb = mix(rgb, rgb * 0.55, vein);
       rgb = rgb * (0.7 + 0.3 * sqrt(1.0 - e));
     }
+  } else if (shape == 6u) {
+    // 📝 Bubble: a thin transparent shell. Fresnel brightens the rim, a small highlight sits upper left, the body is nearly clear.
+    let r2 = dot(i.uv, i.uv);
+    if (r2 > 1.0) { discard; }
+    let z = sqrt(1.0 - r2);
+    let fres = pow(1.0 - z, 3.0);
+    let L = normalize(vec3f(-0.4, 0.5, 0.75));
+    let hl = pow(max(dot(vec3f(i.uv, z), L), 0.0), 40.0);
+    rgb = rgb * 0.35 + vec3f(0.85, 0.95, 1.0) * fres + vec3f(1.0) * hl;
+    a = clamp(0.06 + 0.85 * fres + 0.9 * hl, 0.0, 1.0) * smoothstep(1.0, 0.92, sqrt(r2));
   } else if (shape == 5u) {
     let r = length(i.uv);
     if (r > 1.0) { discard; }
@@ -865,7 +891,13 @@ fn vsCube(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> C
   let cv = cubeVert(vi);
   let ax = normalize(vec3f(hashF(q.m.w, 1u) - 0.5, hashF(q.m.w, 2u) - 0.5, hashF(q.m.w, 3u) - 0.5)
                      + vec3f(0.0, 0.0001, 0.0));
-  let wp = q.p.xyz + rotAxis(cv.p * q.m.x, ax, q.m.y);
+  // 📝 Glitch: after release, each cube jumps in blocky steps (it moves 12 times a second).
+  var jit = vec3f(0.0);
+  if (S.mol2.x > 1.5 && q.p.w >= q.e.x) {
+    let stepI = floor(q.p.w * 12.0);
+    jit = (vec3f(hashF(q.m.w + stepI, 5u), hashF(q.m.w + stepI, 6u), hashF(q.m.w + stepI, 7u)) - vec3f(0.5)) * 0.12;
+  }
+  let wp = q.p.xyz + jit + rotAxis(cv.p * q.m.x, ax, q.m.y);
   o.pos = G.viewProj * vec4f(wp, 1.0);
   o.col = q.c;
   o.shade = cubeShade(rotAxis(cv.n, ax, q.m.y));
@@ -1388,10 +1420,30 @@ fn fsSpark(i: SO) -> @location(0) vec4f {
 // outside it the background is bent outward by a weak-field mapping (source radius r - E^2/r, fading with distance),
 // and a bright photon ring sits at about 1.3 horizon radii. This is an approximation, not a ray-traced metric.
 const LENS = `
-struct LensU { bh0: vec4f, bh1: vec4f, misc: vec4f };
+struct LensU { bh0: vec4f, bh1: vec4f, misc: vec4f, sh0: vec4f, sh1: vec4f, sh2: vec4f, sh3: vec4f, pad: vec4f };
 @group(0) @binding(0) var<uniform> LU: LensU;
 @group(0) @binding(1) var capTex: texture_2d<f32>;
 @group(0) @binding(2) var capSamp: sampler;
+
+fn h2(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
+
+fn vnoise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h2(i), h2(i + vec2f(1.0, 0.0)), u.x), mix(h2(i + vec2f(0.0, 1.0)), h2(i + vec2f(1.0, 1.0)), u.x), u.y);
+}
+
+// 📝 Heat shimmer: a noise offset of the sampled UV that rises with time and fades toward the edge of its radius.
+// sa = (centre uv, radius in screen-height units, strength in uv), sb = (time * rate, noise frequency).
+fn shimmerOff(uv: vec2f, sa: vec4f, sb: vec4f) -> vec2f {
+  let d = (uv - sa.xy) * vec2f(LU.misc.y, 1.0);
+  let r = length(d) / max(sa.z, 1e-5);
+  let fall = 1.0 - smoothstep(0.6, 1.0, r);
+  let p = vec2f(uv.x * sb.y, uv.y * sb.y - sb.x * 1.5);
+  let n = vec2f(vnoise(p), vnoise(p + vec2f(5.2, 1.3))) - vec2f(0.5);
+  return n * sa.w * fall;
+}
 
 @vertex
 fn vsLens(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4f {
@@ -1430,6 +1482,10 @@ fn fsLens(@builtin(position) fc: vec4f) -> @location(0) vec4f {
     let q = (r - 1.3 * H) / (0.12 * H);
     ring += exp(-q * q);
   }
+  var shOff = vec2f(0.0);
+  if (LU.misc.w > 0.5) { shOff += shimmerOff(uv, LU.sh0, LU.sh1); }
+  if (LU.misc.w > 1.5) { shOff += shimmerOff(uv, LU.sh2, LU.sh3); }
+  src += shOff;
   let col = textureSampleLevel(capTex, capSamp, src, 0.0).rgb;
   let glow = vec3f(1.0, 0.72, 0.4) * ring * LU.misc.z;
   return vec4f(col * (1.0 - inside) + glow * (1.0 - inside), 1.0);

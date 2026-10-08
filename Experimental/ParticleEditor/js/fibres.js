@@ -8,7 +8,7 @@
 
   PE.PATH_SAMPLES = 512;                                   // arc-length table size for trails
   PE.FIBRE_SHAPES = ["streak", "ribbon", "trail"];         // Bezier streak, Wave sheet, Path trail
-  PE.FIBRE_PATHS = ["Ring", "Figure eight", "Rose", "Weave", "Loop", "Stadium"];
+  PE.FIBRE_PATHS = ["Ring", "Figure eight", "Rose", "Weave", "Loop", "Stadium", "Dipole field line"];
   PE.PULSE_SHAPES = ["Breathe", "Heartbeat", "Ripple", "Sweep"];
 
   // sRGB hex to linear RGBA, the colour space every system parameter uses.
@@ -70,6 +70,8 @@
     Rose: (a) => { const r = Math.cos(5 * a); return [r * Math.cos(a), r * Math.sin(a)]; },
     Weave: (a) => [Math.sin(3 * a), 0.6 * Math.sin(2 * a + 0.5)],
     Loop: (a) => { const r = (0.5 + Math.cos(a)) / 1.5; return [r * Math.cos(a), r * Math.sin(a)]; },
+    // 📝 Dipole field line r = L·sin²θ (axis along the local y, which maps to world Z). One full line runs out and back through the dipole.
+    "Dipole field line": (a) => { const th = a / 2; const r = Math.sin(th) ** 2; return [r * Math.sin(th), r * Math.cos(th)]; },
     Stadium: (a) => {
       const c = Math.cos(a), s = Math.sin(a);
       return [Math.sign(c) * Math.abs(c) ** 0.5, 0.36 * Math.sign(s) * Math.abs(s) ** 0.5];
