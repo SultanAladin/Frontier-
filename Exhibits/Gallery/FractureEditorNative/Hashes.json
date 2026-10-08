@@ -1,0 +1,10 @@
+{
+  "Engine/Editor/FractureEditorSurface.h": "0f40af646dbdeb54fc34ebd221988593c074865fdd546fbad4471e5b083f5e0c",
+  "Engine/Editor/FractureCardSurface.h": "e0182938b05acdb6dc3e525ccb0cb2c928467f972105aaea978e123ac559ca2d",
+  "Exhibits/Workbench/FractureEditor/NativeFractureEditor.cpp": "cf52a6a535d7a889a7badbe4d3156f34804e4224c4e2a78d592e9da720bbfa7a",
+  "Exhibits/Workbench/FractureEditor/RunNativeFractureEditor.py": "424486b045cf7359277ed5753acb4c69377de145942debd4d487118106662f94",
+  "Exhibits/Gallery/FractureEditorNative/Editor1180.png": "e2b1c9a486da77ce38520305e9a068b2a0cf7bf03fa47186795370e05e70071b",
+  "Exhibits/Gallery/FractureEditorNative/Editor1600.png": "c8358fe977656aab03371737ad3e73e320888adc2008b9c3b32e8ccb094ede1d",
+  "Exhibits/Gallery/FractureEditorNative/Editor620.png": "e28e770c1b504eda1ca2e75a4457330909fa49f1e190dcf39c85b2e02cb77594",
+  "Exhibits/Gallery/FractureEditorNative/Editor900.png": "2fff1339ee2e5f7640ae0ee116a97d81dc56e8275e5c7d56bb6e94cebc8e552d"
+}

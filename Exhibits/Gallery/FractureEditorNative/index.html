@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontier — The fracture editor, drawn by the engine</title>
+<style>
+  :root{--bg:#050505;--panel:#121212;--inset:#1a1a1a;--stroke:rgba(255,255,255,.06);--stroke-strong:#2e2e2e;--text:#f0f0f0;--dim:#888;--faint:#5c5c5c;--ok:#22c55e}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:40px 32px 80px}
+  header{max-width:1180px;margin:0 auto 34px}
+  h1{font-size:23px;font-weight:450;letter-spacing:-.3px;margin-bottom:8px}
+  .kicker{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  p{font-size:13px;line-height:1.65;color:var(--dim);max-width:76ch}
+  p+p{margin-top:10px}
+  code{background:var(--inset);border:1px solid var(--stroke);border-radius:6px;padding:1px 6px;font-size:12px;color:#cfcfcf}
+  .rail{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0 0}
+  .pill{display:flex;flex-direction:column;gap:1px;padding:7px 13px 8px;background:var(--panel);border:1px solid var(--stroke);border-radius:999px}
+  .pill b{font-size:14px;font-weight:500;letter-spacing:-.3px}
+  .pill span{font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--faint)}
+  .tag{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1px solid var(--stroke-strong);background:var(--inset);font-size:8.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text)}
+  .tag i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 7px rgba(34,197,94,.65)}
+  .grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr;gap:22px}
+  @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+  figure{background:var(--inset);border:1px solid var(--stroke);border-radius:18px;padding:14px 14px 16px;min-width:0}
+  figcaption{display:flex;align-items:baseline;gap:8px;margin-bottom:11px}
+  figcaption b{font-size:15px;font-weight:450;letter-spacing:-.1px}
+  figcaption em{font-style:normal;margin-left:auto;font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--faint)}
+  .shot{display:block;border-radius:12px;overflow:hidden;background:var(--bg);border:1px solid var(--stroke)}
+  .shot img{display:block;width:100%;height:auto}
+  footer{max-width:1180px;margin:46px auto 0;padding-top:22px;border-top:1px solid var(--stroke);font-size:11px;line-height:1.7;color:var(--faint)}
+</style>
+</head>
+<body>
+<header>
+  <div class="kicker">Exhibits · Gallery · FractureEditorNative</div>
+  <h1>The fracture editor dialog, drawn by the engine</h1>
+  <p>Every pixel below came out of a real ImGui draw list, rasterised on the CPU and written to PNG by
+     <code>Exhibits/Workbench/FractureEditor/NativeFractureEditor.cpp</code>. Nothing here is a mock-up.</p>
+  <p>The reference is the standalone authoring review at
+     <code>Experimental/FractureEditor/index.html</code> — a built 788 KB bundle whose
+     <code>FracturePanel.css</code> (14 461 B) is inlined in its <code>&lt;style&gt;</code>,
+     <code>FracturePanel.js</code> (25 953 B) and <code>FractureStructure.js</code> (22 026 B) in its
+     script, built by <code>Experimental/FractureEditor/Build.mjs</code>. In the host editor it is opened
+     from the per-object fracture card's ↗ and from the object context menu, per-object and not a global
+     gallery.</p>
+  <p>This is a <b>chrome port</b>: titlebar, workspace bar, the three-column workspace
+     (<code>240 px · 1fr · 330 px</code> with a <code>1 px</code> gap), the five inspector cards, the
+     viewport placeholder and the <code>26 px</code> statusbar. The Three.js viewport and the fracture
+     simulation are a dark placeholder — the port does not claim to run the orbit or the fracture solve on the CPU.</p>
+  <p>The checks are the CSS box model worked through by hand: titlebar <code>39 px</code> on
+     <code>#121212</code>, workspace bar <code>40 px</code> on <code>#202020</code> with its
+     <code>#303030</code> tab, pane headings <code>39 px</code> on <code>#222</code>, the
+     <code>#1b1b1b</code> side panels, the <code>240 px</code> / <code>330 px</code> tracks, card
+     <code>22 px</code> radius, the <code>#191919/#ffffff0b</code> cards and the
+     <code>#bacbbf/#17271d</code> primary. <code>BundleParity</code> would fail if any of those literals
+     drifted from the shipped <code>&lt;style&gt;</code>.</p>
+  <div class="rail">
+    <div class="pill"><b>20</b><span>checks passed</span></div>
+    <div class="pill"><b>4</b><span>captures</span></div>
+    <div class="pill"><b>240 · 330</b><span>side panels</span></div>
+    <div class="pill"><b>5</b><span>inspector cards</span></div>
+  </div>
+  <p style="margin-top:18px"><span class="tag"><i></i>Executed, not illustrated</span></p>
+</header>
+<div class="grid">
+  <figure>
+    <figcaption><b>Editor — 1600 × 950</b><em>default</em></figcaption>
+    <span class="shot"><img src="Editor1600.png" alt="Fracture editor at 1600 px"></span>
+    <p style="margin-top:10px;font-size:12px">Titlebar 39 px, workspace bar 40 px, left panel 240 px, centre 1028 px, inspector 330 px, gaps 1 px — the bundle's own grid.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Editor — 1180 × 950</b><em>narrow</em></figcaption>
+    <span class="shot"><img src="Editor1180.png" alt="Fracture editor at 1180 px"></span>
+    <p style="margin-top:10px;font-size:12px">The same three columns, the viewport squeezed but still the whole chrome: target, viewport, inspector and statusbar.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Editor — 900 × 950</b><em>target hidden</em></figcaption>
+    <span class="shot"><img src="Editor900.png" alt="Fracture editor at 900 px"></span>
+    <p style="margin-top:10px;font-size:12px">At 900 px the centre is 328 px; the stylesheet keeps all three columns until the stacking breakpoint.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Editor — 620 × 1100</b><em>stacked, chrome only</em></figcaption>
+    <span class="shot"><img src="Editor620.png" alt="Fracture editor at 620 px"></span>
+    <p style="margin-top:10px;font-size:12px">The native tall capture: the same chrome, verified at a phone width. The Three.js canvas is intentionally dark.</p>
+  </figure>
+</div>
+<footer>
+  Built from <code>Engine/Editor/FractureEditorSurface.h</code> against the inlined <code>&lt;style&gt;</code>
+  in the built bundle at <code>Experimental/FractureEditor/index.html</code> (titlebar <code>#121212 39 px</code>,
+  workspace bar <code>#202020 40 px</code>, <code>.pane-heading</code> <code>#222 39 px</code>,
+  <code>.workspace</code> <code>240 px / 1fr / 330 px 1 px gap</code>). The viewport help reads
+  <em>Drag to orbit · Scroll to zoom · Shift-click to place impact</em>.
+</footer>
+</body>
+</html>

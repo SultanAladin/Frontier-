@@ -1,0 +1,30 @@
+[
+  [
+    "g++",
+    "-std=c++20",
+    "-O1",
+    "-fno-strict-aliasing",
+    "-Wall",
+    "-Wno-unused-parameter",
+    "-Wno-unused-variable",
+    "-IExternalPackages/imgui",
+    "-IEngine/Editor",
+    "-IEngine/ContentInterchange",
+    "-IExhibits/Workbench/IconArt",
+    "-IExhibits/Workbench/Editor",
+    "-c",
+    "Exhibits/Workbench/BaseMeshes/NativeBaseMeshes.cpp",
+    "-o",
+    "/home/user/Frontier-/.cache/basemeshedbuild/NativeBaseMeshes.o"
+  ],
+  [
+    "g++",
+    "/home/user/Frontier-/.cache/basemeshedbuild/imgui.o",
+    "/home/user/Frontier-/.cache/basemeshedbuild/imgui_draw.o",
+    "/home/user/Frontier-/.cache/basemeshedbuild/imgui_widgets.o",
+    "/home/user/Frontier-/.cache/basemeshedbuild/imgui_tables.o",
+    "/home/user/Frontier-/.cache/basemeshedbuild/NativeBaseMeshes.o",
+    "-o",
+    "/home/user/Frontier-/.cache/basemeshedbuild/BaseMeshProof"
+  ]
+]

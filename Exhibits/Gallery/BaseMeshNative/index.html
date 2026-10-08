@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontier — Base meshes, drawn by the engine</title>
+<style>
+  :root{--bg:#050505;--panel:#121212;--inset:#1a1a1a;--stroke:rgba(255,255,255,.06);--stroke-strong:#2e2e2e;--text:#f0f0f0;--dim:#888;--faint:#5c5c5c;--ok:#22c55e}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:40px 32px 80px}
+  header{max-width:1180px;margin:0 auto 34px}
+  h1{font-size:23px;font-weight:450;letter-spacing:-.3px;margin-bottom:8px}
+  .kicker{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  p{font-size:13px;line-height:1.65;color:var(--dim);max-width:76ch}
+  p+p{margin-top:10px}
+  code{background:var(--inset);border:1px solid var(--stroke);border-radius:6px;padding:1px 6px;font-size:12px;color:#cfcfcf}
+  .rail{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0 0}
+  .pill{display:flex;flex-direction:column;gap:1px;padding:7px 13px 8px;background:var(--panel);border:1px solid var(--stroke);border-radius:999px}
+  .pill b{font-size:14px;font-weight:500;letter-spacing:-.3px}
+  .pill span{font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--faint)}
+  .tag{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1px solid var(--stroke-strong);background:var(--inset);font-size:8.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text)}
+  .tag i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 7px rgba(34,197,94,.65)}
+  table{width:100%;max-width:760px;margin:18px 0;border-collapse:collapse;font-size:12px}
+  th{font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--faint);text-align:left;padding:6px 10px;border-bottom:1px solid var(--stroke-strong)}
+  td{padding:7px 10px;border-bottom:1px solid var(--stroke);color:var(--dim)}
+  td b{color:var(--text);font-weight:500}
+  td:last-child{color:var(--faint);font-variant-numeric:tabular-nums}
+  .grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:22px}
+  figure{background:var(--inset);border:1px solid var(--stroke);border-radius:18px;padding:14px 14px 16px;min-width:0}
+  figcaption{display:flex;align-items:baseline;gap:8px;margin-bottom:11px}
+  figcaption b{font-size:15px;font-weight:450;letter-spacing:-.1px}
+  figcaption em{font-style:normal;margin-left:auto;font-size:9px;letter-spacing:1.1px;text-transform:uppercase;color:var(--faint)}
+  .shot{display:block;border-radius:12px;overflow:hidden;background:var(--bg);border:1px solid var(--stroke)}
+  .shot img{display:block;width:100%;height:auto}
+  footer{max-width:1180px;margin:46px auto 0;padding-top:22px;border-top:1px solid var(--stroke);font-size:11px;line-height:1.7;color:var(--faint)}
+</style>
+</head>
+<body>
+<header>
+  <div class="kicker">Exhibits · Gallery · BaseMeshNative</div>
+  <h1>The five analytical base meshes, drawn by the engine</h1>
+  <p>Every pixel below came out of a real ImGui draw list, rasterised on the CPU and written to PNG by
+     <code>Exhibits/Workbench/BaseMeshes/NativeBaseMeshes.cpp</code>. Nothing here is a mock-up.</p>
+  <p>The catalogue is the browser's own <code>Editor.jsx:52</code> — five entries, each with an
+     <code>editor-*</code> icon and an expected tessellation out of
+     <code>Engine/Editor/ConstructWorld.cpp</code>. Before this port nothing in <code>Engine/</code>
+     carried that icon set or those counts together with the card chrome.</p>
+  <p>Screenshots cannot prove a mesh is not a decorative replacement. The numbers can. The proof pins the
+     native <code>Build()</code> topology and checks it byte-for-byte, then renders the same vertices
+     isometrically so the thumbnails are recognisable against the browser's own SVGs.</p>
+  <table>
+    <tr><th>Mesh</th><th>Icon</th><th>Topology</th><th>Note</th></tr>
+    <tr><td><b>Cube</b></td><td>editor-cube</td><td>36 v · 12 t</td><td>6 faces · 2 tris each</td></tr>
+    <tr><td><b>Sphere</b></td><td>editor-sphere</td><td>561 v · 1024 t</td><td>32 × 16 · 33×17 verts</td></tr>
+    <tr><td><b>Cylinder</b></td><td>editor-cylinder</td><td>384 v · 128 t</td><td>32 sides · caps</td></tr>
+    <tr><td><b>Cone</b></td><td>editor-cone</td><td>192 v · 64 t</td><td>32 sides · 1 cap</td></tr>
+    <tr><td><b>Torus</b></td><td>editor-torus</td><td>429 v · 768 t</td><td>32×12 · 33×13 verts · R 0.35 r 0.15</td></tr>
+  </table>
+  <p>Combined: <b>1602 vertices, 1996 triangles</b>. The card chrome behind them is the same
+     <code>.generic-card</code> the fracture card uses — 22 px radius, 14 px / 18 px padding — so the
+     wrapping grid and the collapsed block flow are checked, not just the pictures.</p>
+  <div class="rail">
+    <div class="pill"><b>26</b><span>checks passed</span></div>
+    <div class="pill"><b>6</b><span>captures</span></div>
+    <div class="pill"><b>5</b><span>primitives</span></div>
+    <div class="pill"><b>1996</b><span>triangles</span></div>
+  </div>
+  <p style="margin-top:18px"><span class="tag"><i></i>Executed, not illustrated</span></p>
+</header>
+<div class="grid">
+  <figure>
+    <figcaption><b>Card, 760 px</b><em>2 rows · 3 columns</em></figcaption>
+    <span class="shot"><img src="Card760.png" alt="Base mesh card at 760 px"></span>
+    <p style="margin-top:10px;font-size:12px">Wide enough for three across: 18 px + 19.53 px + 8 px + 2×110 px + 12 px + 18 px = 304.53 px tall.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Card, 520 px</b><em>2 rows · 3 columns</em></figcaption>
+    <span class="shot"><img src="Card520.png" alt="Base mesh card at 520 px"></span>
+    <p style="margin-top:10px;font-size:12px">The same two rows, each thumbnail a little narrower. The wireframes are a CPU isometric projection of the actual ConstructWorld vertices.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Card, 340 px</b><em>3 rows · 2 columns</em></figcaption>
+    <span class="shot"><img src="Card340.png" alt="Base mesh card at 340 px"></span>
+    <p style="margin-top:10px;font-size:12px">At 340 px the grid collapses to two columns and three rows: 18 px + 19.53 px + 8 px + 3×110 px + 2×12 px + 18 px = 426.53 px tall.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Thumb — Cube</b><em>36 v · 12 t</em></figcaption>
+    <span class="shot"><img src="ThumbCube.png" alt="Cube wireframe"></span>
+    <p style="margin-top:10px;font-size:12px">12 edges, 8 vertices projected at 30°. The count is the native Build() count, not a decorative cube.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Thumb — Sphere</b><em>561 v · 1024 t</em></figcaption>
+    <span class="shot"><img src="ThumbSphere.png" alt="Sphere wireframe"></span>
+    <p style="margin-top:10px;font-size:12px">Three great circles plus the 32×16 UV lattice — 33×17 vertices, 32×16×2 triangles.</p>
+  </figure>
+  <figure>
+    <figcaption><b>Thumb — Torus</b><em>429 v · 768 t</em></figcaption>
+    <span class="shot"><img src="ThumbTorus.png" alt="Torus wireframe"></span>
+    <p style="margin-top:10px;font-size:12px">32×12 quads, 33×13 vertices, R 0.35 plus r 0.15 — the only primitive that reuses a vertex row.</p>
+  </figure>
+</div>
+<footer>
+  Built from <code>Engine/Editor/BaseMeshSurface.h</code> (22 px radius, 14/18 padding, #1a1a1a/#ffffff0d) and the
+  <code>ConstructKind</code> map cube 0, sphere 1, cylinder 2, cone 3, torus 5. The reference is
+  <code>Experimental/ProjectZeroEditor/index.html</code> at 67c2601.
+</footer>
+</body>
+</html>

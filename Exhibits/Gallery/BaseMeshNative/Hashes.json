@@ -1,0 +1,12 @@
+{
+  "Engine/Editor/BaseMeshSurface.h": "8505c7b8ff0bfb9165ac6a7de134a15018050f24dd30cb1077201b0713527f1e",
+  "Engine/Editor/ConstructWorld.h": "6dd55d4bc743782fb7b0e868b84283240f8f54320d2fc0bc96c6477e02f233d5",
+  "Exhibits/Workbench/BaseMeshes/NativeBaseMeshes.cpp": "3594a26cfae02477d2c279571ac735397d40c6584ecb716bef4056767e179088",
+  "Exhibits/Workbench/BaseMeshes/RunNativeBaseMeshes.py": "8d07dc439f29a5edcd1467abe0a870431c858cff32e2a6bc429cf1db777c045a",
+  "Exhibits/Gallery/BaseMeshNative/Card340.png": "c48a3148c76d71a2a2bc753b865e9a797e64fd54d0f4f02e33be5e7fbcca781e",
+  "Exhibits/Gallery/BaseMeshNative/Card520.png": "349fbee89ff33c7f4280d3dc2251bca9e7b3b22b0138cb51c3750dcb690d87c3",
+  "Exhibits/Gallery/BaseMeshNative/Card760.png": "2361ce052b5152681eec85284564f1056c16b632d8df0336a2b32ba6c237e633",
+  "Exhibits/Gallery/BaseMeshNative/ThumbCube.png": "220dd6b7ed1930357e73e61456bbc2070cc2beadfe69d0e7264ad29a3c60db59",
+  "Exhibits/Gallery/BaseMeshNative/ThumbSphere.png": "0b2c2c8a086c4554258b624e8921edcd4c2bbd0507bf40f33090e6ec2c7b42be",
+  "Exhibits/Gallery/BaseMeshNative/ThumbTorus.png": "806fed2c98080cbf78eb60dd67bc21219b05a6a815d1705baad0e3476d61a1e2"
+}
