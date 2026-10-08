@@ -1,2 +1,2 @@
-PASS 36 checks: shipped anemometer card, Beaufort scale and the rolling sixty-second trace.
+PASS 240 checks: shipped anemometer card, Beaufort scale and the rolling sixty-second trace.
 Exit: 0

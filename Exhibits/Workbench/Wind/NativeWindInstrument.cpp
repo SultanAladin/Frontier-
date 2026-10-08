@@ -47,7 +47,19 @@ int main()
     float Measured = 0;
     WindDraft Draft;
     TraceLog  Log;
+    Sky       Air;
     bool      Tall = false;
+    bool      WholePanel = false;
+    const Follower Flock[3] = { { "Cloud deck", true }, { "Water", true }, { "Foliage", false } };
+
+    // .mpanel is a 10 px flex column and .pcard carries its own 10 px bottom margin, so a card is
+    //    followed by 20 px and a bare block by 10.
+    auto PanelHeight = [&](ImFont* With)
+    {
+        return HeroTall + 20.0f + PillTall + 10.0f + (StatTall + 10.0f) + 10.0f
+             + AnemometerHeight(Tall) + 20.0f + BeaufortHeight() + 20.0f + SteadinessHeight() + 20.0f
+             + DrivingHeight(With, 320.0f, Flock, 3) + 10.0f;
+    };
 
     auto Tick = [&]()
     {
@@ -62,9 +74,26 @@ int main()
         ImDrawList* Draw = ImGui::GetWindowDrawList();
         const ImVec2 Origin{ 10.0f, 10.0f };
         const float  Card = float(Width) - 20.0f;
-        Draw->AddRectFilled({ 0, 0 }, { float(Width), float(Height) }, IM_COL32(18, 18, 18, 255));
-        PaintAnemometer(Draw, Face, Origin, Card, Log, Draft, Tall);
-        const float Deep = AnemometerHeight(Tall);
+        Draw->AddRectFilled({ 0, 0 }, { float(Width), float(Height) }, IM_COL32(5, 5, 5, 255));
+        float Deep;
+        if (WholePanel)
+        {
+            float Y = Origin.y;
+            PaintHero(Draw, Face, { Origin.x, Y }, Card, HeroTall, Air, Log, Draft);   Y += HeroTall + 20.0f;
+            PaintRail(Draw, Face, { Origin.x, Y }, Card, Log, Draft);                  Y += PillTall + 10.0f;
+            PaintDuo(Draw, Face, { Origin.x, Y }, Card, Log);                          Y += StatTall + 10.0f + 10.0f;
+            PaintAnemometer(Draw, Face, { Origin.x, Y }, Card, Log, Draft, Tall);
+            Y += AnemometerHeight(Tall) + 20.0f;
+            PaintBeaufortCard(Draw, Face, { Origin.x, Y }, Card, Draft);               Y += BeaufortHeight() + 20.0f;
+            PaintSteadiness(Draw, Face, { Origin.x, Y }, Card, Draft);                 Y += SteadinessHeight() + 20.0f;
+            PaintDriving(Draw, Face, { Origin.x, Y }, Card, Flock, 3);
+            Deep = Y - Origin.y + DrivingHeight(Face, Card, Flock, 3) + 10.0f;
+        }
+        else
+        {
+            PaintAnemometer(Draw, Face, Origin, Card, Log, Draft, Tall);
+            Deep = AnemometerHeight(Tall);
+        }
         ImGui::PopFont();
         ImGui::SetCursorScreenPos({ 0, 0 });
         ImGui::Dummy({ float(Width), Deep + 20.0f });
@@ -77,7 +106,7 @@ int main()
 
     auto Capture = [&](const char* Name)
     {
-        Height = 900;
+        Height = WholePanel ? int(PanelHeight(Face)) + 220 : 900;
         Tick();
         Height = static_cast<int>(Measured) + 2;
         for (int Frame = 0; Frame < 3; ++Frame) Tick();
@@ -200,6 +229,70 @@ int main()
         const float Top = std::max(2.0f, std::max(Crest(Log), Draft.Speed) * 1.18f);
         Check(Top == 2.0f, "the trace keeps a two metre floor so a calm field still has an axis");
     }
+
+    //-----------------------------------------------------------------------------------------------------
+    // The hero field.
+    //-----------------------------------------------------------------------------------------------------
+    Draft = WindDraft{};
+    Prefill(Log, Draft);
+    SkyPrime(Air);
+    {
+        Check(MoteCount == 190, "a hundred and ninety motes stream the field");
+        Check(std::fabs(Air.Motes[0].X - 0.0f) < 1e-6f && std::fabs(Air.Motes[1].X - 0.977f) < 1e-6f,
+              "the motes are seeded off the same integer sieve the browser uses");
+        float UX, UY;
+        Heading(Draft, UX, UY);
+        // 214 degrees is the bearing it comes FROM, so the air travels towards 34 degrees.
+        const float Towards = std::fmod(std::atan2(UY, UX) * 180.0f / Pi + 90.0f + 360.0f, 360.0f);
+        Check(std::fabs(Towards - 34.0f) < 0.01f, "a south-westerly blows towards the north-east");
+        Check(std::fabs(Curl(0.0f, 0.0f, 0.0f)) < 1e-6f, "the curl field is nought at the origin");
+        const float Before = Air.Motes[7].X;
+        SkyAdvance(Air, Draft, Log, 320.0f, HeroTall, 1.0f / 60.0f);
+        Check(Air.Motes[7].X != Before, "a frame moves the air");
+        for (int Frame = 0; Frame < 600; ++Frame) SkyAdvance(Air, Draft, Log, 320.0f, HeroTall, 1.0f / 60.0f);
+        for (const Mote& Speck : Air.Motes)
+            Check(Speck.X >= -0.16f && Speck.X <= 1.16f && Speck.Y >= -0.16f && Speck.Y <= 1.16f,
+                  "ten seconds on, every mote is still recycled inside the field");
+    }
+
+    //-----------------------------------------------------------------------------------------------------
+    // The Beaufort block scale.
+    //-----------------------------------------------------------------------------------------------------
+    {
+        Check(std::fabs(Beaufort[0].Limit - 0.5f) < 1e-6f && std::fabs(Beaufort[10].Limit - 28.4f) < 1e-5f,
+              "the scale runs from calm at .5 to storm at 28.4, then a twelfth block out to 30");
+        // The block ramp walks green to red across the eleven forces.
+        const int ColdR = int(std::lround(60 + 0.0f * 195)), HotR = int(std::lround(60 + 1.0f * 195));
+        Check(ColdR == 60 && HotR == 255, "force nought is green, force eleven is red");
+    }
+
+    //-----------------------------------------------------------------------------------------------------
+    // Steadiness and the followers.
+    //-----------------------------------------------------------------------------------------------------
+    {
+        Check(std::fabs((1.0f + 0.3f * 0.6f) - 1.18f) < 1e-6f, "the default gust-to-mean ratio is 1.18x");
+        Check(int(0.24f * 100.0f + 0.5f) == 24, "the default turbulence intensity reads 24 per cent");
+        Check(Flock[2].Linked == false, "a follower can be cut loose and keeps its own drift");
+    }
+
+    //-----------------------------------------------------------------------------------------------------
+    // The whole panel, in the reference's own order.
+    //-----------------------------------------------------------------------------------------------------
+    WholePanel = true;
+    SkyPrime(Air);
+    for (int Frame = 0; Frame < 90; ++Frame) SkyAdvance(Air, Draft, Log, 320.0f, HeroTall, 1.0f / 60.0f);
+    Capture("Panel");
+
+    Draft.Speed = 19.4f;
+    Draft.Gust = 0.62f;
+    Draft.Turbulence = 0.55f;
+    Draft.Direction = 287.0f;
+    Prefill(Log, Draft);
+    SkyPrime(Air);
+    for (int Frame = 0; Frame < 90; ++Frame) SkyAdvance(Air, Draft, Log, 320.0f, HeroTall, 1.0f / 60.0f);
+    Capture("PanelGale");
+    Check(Crest(Log) > 17.0f, "a gale trips the gusting-to card into its alarmed colour");
+    Check(std::strcmp(Compass(287.0f), "WNW") == 0, "287 degrees is west-north-west");
 
     ImGui::DestroyContext();
     std::printf("PASS %u checks: shipped anemometer card, Beaufort scale and the rolling sixty-second trace.\n",

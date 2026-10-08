@@ -290,15 +290,20 @@ from the checked-in source in three anchored replacements, all recorded below.
 
 | # | Card | Class | Native today | State |
 |---|------|-------|--------------|-------|
-| 1 | Hero flow field | `pcard mp-hero wf-hero` | `Composite wind field` (a compass rose) | **not converted** |
-| 2 | Anemometer | `pcard mp-metric wf-trace` | `Anemometer` (speed text + 10 m vector) | **converted, this pass** |
-| 3 | Beaufort | `pcard mp-light wf-scale` | folded into the native Anemometer text | **not converted** |
-| 4 | Steadiness | `pcard` | `Variation controls` + `Gust envelope` | **not converted** |
-| 5 | Driving | `pcard` | — | **not converted** |
+| 1 | Hero flow field | `pcard mp-hero wf-hero` | `Composite wind field` (a compass rose) | **converted** |
+| 2 | Rail, four pills | `mp-rail` | — | **converted** |
+| 3 | Gusting / lulling duo | `mp-duo` | — | **converted** |
+| 4 | Anemometer | `pcard mp-metric wf-trace` | `Anemometer` (speed text + 10 m vector) | **converted** |
+| 5 | Beaufort | `pcard mp-light wf-scale` | folded into the native Anemometer text | **converted** |
+| 6 | Steadiness | `pcard` | `Variation controls` + `Gust envelope` | **converted** |
+| 7 | Driving | `pcard` | — | **converted** |
 
-A four-pill rail (`Mean` · `Gust` · `From` · `Force`) and a two-card duo (`Gusting to` · `Lulling to`) sit between
-cards 1 and 2. Neither exists natively. The native `Composite wind field`, `Variation controls` and `Gust envelope`
-are **not in the bundle at all** — they are native inventions, and removing them is a redesign, not an addition.
+The native `Composite wind field`, `Variation controls` and `Gust envelope` are **not in the bundle at all** —
+they are native inventions. They have been left in place: the brief was to add what is missing, not to redesign
+what is already there. Deleting them is a one-line change in `WeatherInspectorPanel.cpp` if that is wanted.
+
+`.mpanel` is `display:flex; flex-direction:column; gap:10px` and `.pcard` carries its own `margin-bottom:10px`,
+so a card is followed by 20 px of air and a bare block (the rail, the duo) by 10.
 
 ### The anemometer — `Engine/Editor/WindInstrumentSurface.h`
 
@@ -336,3 +341,36 @@ Recorded deviations: a flat ImGui quad cannot carry a gradient, so the wash is b
 Proof: `python3 Exhibits/Workbench/Wind/RunNativeWindInstrument.py` → **PASS 36**, four captures in
 `Exhibits/Gallery/WindInstrument/`. The harness draws at 3× and box filters down — the CPU backend takes one
 sample per pixel with a hard inside test, which is fine for 46 px numerals and loses thin strokes at 9 px.
+
+### The rest of the panel
+
+All seven blocks now live in `Engine/Editor/WindInstrumentSurface.h`.
+
+**Hero** — 190 motes seeded off the integer sieve `x=(i·977)%1000/1000`, `y=(i·613)%1000`, `life=(i·37)%100`,
+`seed=(i·131)%1000`. Advection is a two-term curl, `sin(x·7.1+t·0.7)·cos(y·6.3−t·0.5) +
+½·sin(x·13.7−t·1.1)·cos(y·11.3+t·0.9)`, rotated into the heading and stepped by
+`(0.03 + norm·0.55)·gust·dt·(0.65 + seed·0.7)`, with `y` scaled by the canvas aspect. Motes recycle off the
+upwind edge. Streaks are `rgba(137,224,196,·)` — the hero is *not* touched by `RecolourInstrument`, only the
+trace is. Bearing is meteorological: 214° means the air travels towards 34°.
+
+**Rail** — `repeat(3,1fr) 1.25fr`, so the Force pill is a quarter wider. **Duo** — two `.mp-stat` cards; past
+17 m/s the gusting card flips from `--ok` to `--danger` and swaps its wind glyph for the alert triangle.
+
+**Beaufort** — the `.mp-meter` block scale: twelve blocks (eleven forces plus a run-out to 30 m/s) coloured
+`rgb(60+t·195, 200−t·120, 180−t·120)` at 85% over black, even forces numbered in `rgba(0,0,0,.55)`, ticks at
+0/10/20/30, and a pennant marker. Below it the `Coming from` tape and the land-sign note.
+
+**Steadiness** — two tapes, `Gustiness` (STEADY/BREEZY/SQUALLY at 0/.3/1) and `Turbulence`
+(LAMINAR/OPEN AIR/ROTOR at 0/.24/1), over two spec tiles.
+
+**Driving** — `pillToggle` tags for everything carrying `windLinked`, lit when followed.
+
+**The tape**, shared by three cards: 41 divisions, major every ten at `rgba(255,255,255,.30)`, the rest lit to
+`.22` below the value and `.09` above; lengths 9 / 6 / 4; a baseline at `.10`; named marks at 8 px that are
+**dropped when they would collide** within 5 px; a pennant at `base−13 → base−19` over a 1.4 px stem.
+
+Recorded deviations: the hero's rounded clip is faked by repainting the four corner notches, because an ImGui
+clip rectangle cannot be rounded; mote streaks are laid down in eight graded pieces, because ImGui cannot fade a
+stroke along its length; the caption and sky gradients are banded.
+
+Proof: `python3 Exhibits/Workbench/Wind/RunNativeWindInstrument.py` → **PASS 240**, six captures.

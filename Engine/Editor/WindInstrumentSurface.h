@@ -417,4 +417,558 @@ inline void PaintAnemometer(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float W
     }
 }
 
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                  THE SHARED CONTROLS
+//------------------------------------------------------------------------------------------------------------------------
+// controls.js stepper and tape. The tape is the panel's workhorse: a forty-division ruler lit up to the
+//    current value, named marks along the foot, and a pennant marker.
+
+struct Mark { float At; const char* Label; };
+
+constexpr float StepBox   = 20.0f;   // [px] .step button
+constexpr float StepRound =  7.0f;   // [px] .step button border-radius
+constexpr float StepField = 42.0f;   // [px] .step input width
+constexpr ImU32 Raised    = IM_COL32(34, 34, 34, 255);   // [-] --raised #222222
+
+inline float StepperWidth(ImFont* Face, const char* Unit)
+{
+    const float UnitRun = Unit && *Unit ? Measured(Face, 9.0f, Unit) + 3.0f : 0.0f;
+    return StepBox + 4.0f + (StepField + UnitRun + 16.0f + 2.0f) + 4.0f + StepBox;
+}
+
+inline void PaintStepper(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Value, int Decimals, const char* Unit)
+{
+    const float UnitRun = Unit && *Unit ? Measured(Face, 9.0f, Unit) + 3.0f : 0.0f;
+    const float FieldW  = StepField + UnitRun + 16.0f + 2.0f;
+    auto Button = [&](float X, const char* Sign)
+    {
+        Draw->AddRectFilled({ X, Spot.y }, { X + StepBox, Spot.y + StepBox }, Raised, StepRound);
+        Draw->AddRect({ X, Spot.y }, { X + StepBox, Spot.y + StepBox }, Stroke, StepRound, 0, 1.0f);
+        Inked(Draw, Face, X + StepBox * 0.5f, Spot.y + StepBox * 0.5f + 4.0f, 12.0f, TextDim, Sign, Anchor::Middle);
+    };
+    Button(Spot.x, "\xe2\x88\x92");
+    const float FieldX = Spot.x + StepBox + 4.0f;
+    const float FieldY = Spot.y + (StepBox - 21.0f) * 0.5f;
+    Draw->AddRectFilled({ FieldX, FieldY }, { FieldX + FieldW, FieldY + 21.0f }, FieldFill, 9.0f);
+    Draw->AddRect({ FieldX, FieldY }, { FieldX + FieldW, FieldY + 21.0f }, Stroke, 9.0f, 0, 1.0f);
+    char Body[32];
+    std::snprintf(Body, sizeof(Body), "%.*f", Decimals, double(Value));
+    const float Baseline = FieldY + 3.0f + 12.5f;
+    Inked(Draw, Face, FieldX + 8.0f + StepField, Baseline, 12.5f, TextFull, Body, Anchor::End);
+    if (UnitRun > 0.0f) Inked(Draw, Face, FieldX + 8.0f + StepField + 3.0f, Baseline, 9.0f, TextDim, Unit);
+    Button(FieldX + FieldW + 4.0f, "+");
+}
+
+constexpr float TapeBody = 30.0f;   // [px] tape({ height })
+constexpr float TapeLead = 10.0f;   // [px] .tape margin-top
+constexpr float TapeFoot = 12.0f;   // [px] .tape margin-bottom
+
+inline float TapeHeight() { return TapeLead + StepBox + 1.0f + TapeBody + TapeFoot; }
+
+inline void PaintTape(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const char* Label,
+                      float Value, float Low, float High, int Decimals, const char* Unit,
+                      const Mark* Marks, int MarkCount)
+{
+    const float HeadY = Spot.y + TapeLead;
+    char Key[40];
+    Upper(Key, sizeof(Key), Label);
+    Tracked(Draw, Face, Spot.x, HeadY + (StepBox - 9.5f) * 0.5f, 9.5f, TextFaint, Key, 1.3f);
+    PaintStepper(Draw, Face, { Spot.x + Wide - StepperWidth(Face, Unit), HeadY }, Value, Decimals, Unit);
+
+    const float Top  = HeadY + StepBox + 1.0f;
+    const float Pad  = 8.0f, Span = Wide - Pad * 2.0f, Base = Top + TapeBody - 11.0f;
+    const float Share = std::clamp((Value - Low) / std::max(1e-6f, High - Low), 0.0f, 1.0f);
+    for (int I = 0; I <= 40; ++I)
+    {
+        const float At = float(I) / 40.0f;
+        const bool  Major = I % 10 == 0;
+        const bool  Lit = At <= Share;
+        const ImU32 Ink = Major ? IM_COL32(255, 255, 255, 77)
+                                : IM_COL32(255, 255, 255, Lit ? 56 : 23);
+        const float Long = Major ? 9.0f : (I % 5 == 0 ? 6.0f : 4.0f);
+        const float X = Spot.x + Pad + At * Span;
+        Draw->AddLine({ X, Base - Long }, { X, Base }, Ink, 1.0f);
+    }
+    Draw->AddLine({ Spot.x + Pad, Base + 0.5f }, { Spot.x + Pad + Span, Base + 0.5f },
+                  IM_COL32(255, 255, 255, 26), 1.0f);
+
+    // A label that would collide with one already placed is dropped, exactly as the canvas does.
+    float Taken[8][2];
+    int   TakenCount = 0;
+    for (int I = 0; I < MarkCount && TakenCount < 8; ++I)
+    {
+        const float X = Spot.x + Pad + Marks[I].At * Span;
+        const float Run = Measured(Face, 8.0f, Marks[I].Label);
+        const float X0 = Marks[I].At <= 0.0f ? X : Marks[I].At >= 1.0f ? X - Run : X - Run * 0.5f;
+        const float X1 = X0 + Run;
+        bool Clash = false;
+        for (int J = 0; J < TakenCount; ++J)
+            if (X0 < Taken[J][1] + 5.0f && X1 > Taken[J][0] - 5.0f) Clash = true;
+        if (Clash) continue;
+        Taken[TakenCount][0] = X0;
+        Taken[TakenCount][1] = X1;
+        ++TakenCount;
+        Boxed(Draw, Face, X0, Top + TapeBody - 1.0f - 8.0f, 8.0f, IM_COL32(255, 255, 255, 71), Marks[I].Label);
+    }
+
+    const float X = Spot.x + Pad + Share * Span;
+    Draw->AddTriangleFilled({ X, Base - 13.0f }, { X + 4.0f, Base - 19.0f }, { X - 4.0f, Base - 19.0f }, TraceHead);
+    Draw->AddLine({ X, Base - 12.0f }, { X, Base }, IM_COL32(255, 255, 255, 217), 1.4f);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                      THE HERO
+//------------------------------------------------------------------------------------------------------------------------
+// A hundred and ninety motes streaming on a curl field. Drag out from the middle and the angle is the
+//    bearing, the distance the speed.
+
+constexpr int   MoteCount = 190;
+constexpr float HeroTall  = 168.0f;   // [px] the hero canvas, 138 when the panel is compact
+constexpr float HeroShort = 138.0f;
+
+struct Mote { float X, Y, Life, Seed, Dx, Dy; };
+struct Sky  { Mote Motes[MoteCount] {}; bool Ready = false; };
+
+inline float Curl(float X, float Y, float Phase)
+{
+    return std::sin(X * 7.1f + Phase * 0.7f) * std::cos(Y * 6.3f - Phase * 0.5f)
+         + 0.5f * std::sin(X * 13.7f - Phase * 1.1f) * std::cos(Y * 11.3f + Phase * 0.9f);
+}
+
+inline void SkyPrime(Sky& Air)
+{
+    for (int I = 0; I < MoteCount; ++I)
+        Air.Motes[I] = { float((I * 977) % 1000) / 1000.0f, float((I * 613) % 1000) / 1000.0f,
+                         float((I * 37) % 100) / 100.0f, float((I * 131) % 1000) / 1000.0f, 1.0f, 0.0f };
+    Air.Ready = true;
+}
+
+// Meteorological convention: the bearing is where the wind comes FROM, so it blows the other way.
+inline void Heading(const WindDraft& Draft, float& UX, float& UY)
+{
+    const float Angle = (Draft.Direction + 180.0f - 90.0f) * Pi / 180.0f;
+    UX = std::cos(Angle);
+    UY = std::sin(Angle);
+}
+
+inline void SkyAdvance(Sky& Air, const WindDraft& Draft, const TraceLog& Log,
+                       float Wide, float Tall, float Delta)
+{
+    if (!Air.Ready) SkyPrime(Air);
+    float UX, UY;
+    Heading(Draft, UX, UY);
+    const float Turb = Draft.Turbulence;
+    const float Norm = std::min(1.0f, Draft.Speed / 30.0f);
+    const float Gust = GustAt(Draft, Log.Phase);
+    const float Step = (0.03f + Norm * 0.55f) * Gust * Delta;
+    for (Mote& Speck : Air.Motes)
+    {
+        const float Twist = Curl(Speck.X, Speck.Y, Log.Phase) * Turb * 0.9f;
+        const float Cos = std::cos(Twist * 0.9f), Sin = std::sin(Twist * 0.9f);
+        Speck.Dx = UX * Cos - UY * Sin;
+        Speck.Dy = UX * Sin + UY * Cos;
+        const float Pace = Step * (0.65f + Speck.Seed * 0.7f);
+        Speck.X += Speck.Dx * Pace;
+        Speck.Y += Speck.Dy * Pace * (Wide / Tall);
+        Speck.Life -= Delta * (0.25f + Norm * 0.5f);
+        if (Speck.Life <= 0.0f || Speck.X < -0.05f || Speck.X > 1.05f || Speck.Y < -0.05f || Speck.Y > 1.05f)
+        {
+            Speck.X = UX > 0.0f ? -0.02f - Speck.Seed * 0.1f
+                    : UX < 0.0f ?  1.02f + Speck.Seed * 0.1f : Speck.Seed;
+            if (std::fabs(UX) < 0.35f) { Speck.X = Speck.Seed; Speck.Y = UY > 0.0f ? -0.02f : 1.02f; }
+            else                        Speck.Y = std::fmod(Speck.Seed * 7919.0f, 1000.0f) / 1000.0f;
+            Speck.Life = 0.6f + Speck.Seed * 0.9f;
+        }
+    }
+}
+
+// An ImGui clip rectangle cannot be rounded, so a canvas with a border-radius paints over its own
+//    corners. Repaint the four notches in whatever sits behind the card.
+inline void CornerNotch(ImDrawList* Draw, ImVec2 Square, ImVec2 Heart, float Radius, float From, ImU32 Backdrop)
+{
+    Draw->PathLineTo(Square);
+    for (int I = 0; I <= 12; ++I)
+        Draw->PathLineTo({ Heart.x + std::cos(From + Pi * 0.5f * I / 12.0f) * Radius,
+                           Heart.y + std::sin(From + Pi * 0.5f * I / 12.0f) * Radius });
+    Draw->PathFillConvex(Backdrop);
+}
+
+inline void PaintHero(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float Tall,
+                      const Sky& Air, const TraceLog& Log, const WindDraft& Draft,
+                      ImU32 Backdrop = IM_COL32(5, 5, 5, 255))
+{
+    Draw->PushClipRect(Spot, { Spot.x + Wide, Spot.y + Tall }, true);
+    // The sky itself, a short vertical ramp.
+    constexpr int Ramp = 24;
+    for (int I = 0; I < Ramp; ++I)
+    {
+        const float A = float(I) / Ramp, B = float(I + 1) / Ramp;
+        const float Mid = (A + B) * 0.5f;
+        const ImU32 Ink = IM_COL32(int(10 + (13 - 10) * Mid + 0.5f), int(16 + (26 - 16) * Mid + 0.5f),
+                                   int(20 + (27 - 20) * Mid + 0.5f), 255);
+        Draw->AddRectFilled({ Spot.x, Spot.y + Tall * A }, { Spot.x + Wide, Spot.y + Tall * B + 1.0f }, Ink);
+    }
+    for (float X = 0.0f; X < Wide; X += 26.0f)
+        Draw->AddLine({ Spot.x + X, Spot.y }, { Spot.x + X, Spot.y + Tall }, IM_COL32(255, 255, 255, 9), 1.0f);
+    for (float Y = 0.0f; Y < Tall; Y += 26.0f)
+        Draw->AddLine({ Spot.x, Spot.y + Y }, { Spot.x + Wide, Spot.y + Y }, IM_COL32(255, 255, 255, 9), 1.0f);
+
+    const float Norm = std::min(1.0f, Draft.Speed / 30.0f);
+    const float Gust = GustAt(Draft, Log.Phase);
+    const float Thick = 0.9f + Norm * 1.3f;
+    for (const Mote& Speck : Air.Motes)
+    {
+        const float Long = (7.0f + Norm * 34.0f) * (0.5f + Speck.Seed);
+        const float X = Spot.x + Speck.X * Wide, Y = Spot.y + Speck.Y * Tall;
+        const float Alpha = std::min(0.8f, (0.3f + Norm * 0.45f)
+                                           * std::min(1.0f, Speck.Life * 2.2f) * Gust);
+        // ImGui cannot fade a stroke along its length, so the streak is laid down in graded pieces.
+        constexpr int Pieces = 8;
+        for (int I = 0; I < Pieces; ++I)
+        {
+            const float A = float(I) / Pieces, B = float(I + 1) / Pieces;
+            const int Shade = int(Alpha * ((A + B) * 0.5f) * 255.0f + 0.5f);
+            if (Shade <= 0) continue;
+            Draw->AddLine({ X - Speck.Dx * Long * (1.0f - A), Y - Speck.Dy * Long * (1.0f - A) },
+                          { X - Speck.Dx * Long * (1.0f - B), Y - Speck.Dy * Long * (1.0f - B) },
+                          IM_COL32(137, 224, 196, Shade), Thick);
+        }
+    }
+
+    float UX, UY;
+    Heading(Draft, UX, UY);
+    const float CX = Spot.x + Wide * 0.5f, CY = Spot.y + Tall * 0.5f;
+    const float Reach = std::min(Wide, Tall) * 0.34f;
+    const float Long  = Reach * (0.25f + Norm * 0.75f);
+    for (int I = 0; I < 72; ++I)   // a 2/4 dashed rim
+    {
+        if (I % 2) continue;
+        const float A = float(I) / 72.0f * 2.0f * Pi, B = float(I + 1) / 72.0f * 2.0f * Pi;
+        Draw->AddLine({ CX + std::cos(A) * Reach, CY + std::sin(A) * Reach },
+                      { CX + std::cos(B) * Reach, CY + std::sin(B) * Reach }, IM_COL32(255, 255, 255, 26), 1.0f);
+    }
+    Draw->AddLine({ CX, CY }, { CX + UX * Long, CY + UY * Long }, IM_COL32(255, 255, 255, 217), 2.0f);
+    const float HX = CX + UX * Long, HY = CY + UY * Long;
+    Draw->AddTriangleFilled({ HX + UX * 7.0f, HY + UY * 7.0f },
+                            { HX - UY * 4.5f - UX * 2.0f, HY + UX * 4.5f - UY * 2.0f },
+                            { HX + UY * 4.5f - UX * 2.0f, HY - UX * 4.5f - UY * 2.0f }, TraceHead);
+    Draw->AddCircleFilled({ CX, CY }, 2.5f, IM_COL32(255, 255, 255, 140), 18);
+
+    const float Face8 = (Draft.Direction - 90.0f) * Pi / 180.0f;
+    Inked(Draw, Face, CX + std::cos(Face8) * (Reach + 11.0f), CY + std::sin(Face8) * (Reach + 11.0f) + 3.0f,
+          8.0f, IM_COL32(255, 255, 255, 107), Compass(Draft.Direction), Anchor::Middle);
+    const char* Cardinals[4] = { "N", "E", "S", "W" };
+    for (int I = 0; I < 4; ++I)
+    {
+        const float Angle = (I * 90.0f - 90.0f) * Pi / 180.0f;
+        Inked(Draw, Face, CX + std::cos(Angle) * (Reach + 11.0f), CY + std::sin(Angle) * (Reach + 11.0f) + 3.0f,
+              8.0f, IM_COL32(255, 255, 255, 46), Cardinals[I], Anchor::Middle);
+    }
+
+    // The caption, over a ramp into near-black so the words stay legible whatever streams beneath.
+    const float CapTall = 8.0f + 12.5f + 2.0f + 10.0f + 9.0f;
+    const float CapTop  = Spot.y + Tall - CapTall;
+    for (int I = 0; I < 16; ++I)
+    {
+        const float A = float(I) / 16.0f, B = float(I + 1) / 16.0f;
+        Draw->AddRectFilled({ Spot.x, CapTop + CapTall * A }, { Spot.x + Wide, CapTop + CapTall * B + 1.0f },
+                            IM_COL32(5, 7, 15, int(224.0f * (A + B) * 0.5f + 0.5f)));
+    }
+    const BeaufortBand Band = Force(Draft.Speed);
+    Boxed(Draw, Face, Spot.x + 12.0f, CapTop + 8.0f, 12.5f, TextFull, Band.Name);
+    char Sub[128], Shown[128];
+    std::snprintf(Sub, sizeof(Sub), "%.1f m/s from %s %d\xc2\xb0 \xc2\xb7 %s", double(Draft.Speed),
+                  Compass(Draft.Direction), int(std::lround(Draft.Direction)), LandSign(Draft.Speed));
+    Upper(Shown, sizeof(Shown), Sub);
+    Tracked(Draw, Face, Spot.x + 12.0f, CapTop + 8.0f + 12.5f + 2.0f, 10.0f, TextFaint, Shown, 0.6f);
+    char Right[24];
+    std::snprintf(Right, sizeof(Right), "force %d", Band.Force);
+    Inked(Draw, Face, Spot.x + Wide - 12.0f, CapTop + CapTall - 9.0f, 10.5f, TextDim, Right, Anchor::End);
+    Draw->PopClipRect();
+    const float R = CardRound;
+    const float X1 = Spot.x + Wide, Y1 = Spot.y + Tall;
+    CornerNotch(Draw, Spot,        { Spot.x + R, Spot.y + R }, R,  Pi,          Backdrop);
+    CornerNotch(Draw, { X1, Spot.y }, { X1 - R, Spot.y + R },  R, -Pi * 0.5f,   Backdrop);
+    CornerNotch(Draw, { X1, Y1 },     { X1 - R, Y1 - R },      R,  0.0f,        Backdrop);
+    CornerNotch(Draw, { Spot.x, Y1 }, { Spot.x + R, Y1 - R },  R,  Pi * 0.5f,   Backdrop);
+    Draw->AddRect(Spot, { X1, Y1 }, IM_COL32(46, 46, 46, 255), R, 0, 1.0f);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                 THE RAIL AND THE DUO
+//------------------------------------------------------------------------------------------------------------------------
+
+constexpr float PillTall = 7.0f + 14.0f + 1.0f + 9.0f + 8.0f + 2.0f;
+constexpr ImU32 PanelFill = IM_COL32(18, 18, 18, 255);   // [-] --panel #121212
+
+// Four pills, the last a quarter wider: .mp-rail is repeat(3,1fr) 1.25fr.
+inline void PaintRail(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide,
+                      const TraceLog& Log, const WindDraft& Draft)
+{
+    const float Gap = 5.0f, Share = (Wide - Gap * 3.0f) / 4.25f;
+    const BeaufortBand Band = Force(Draft.Speed);
+    char Value[4][24], Unit[4][12];
+    std::snprintf(Value[0], sizeof(Value[0]), "%.1f", double(Draft.Speed));      std::snprintf(Unit[0], 12, "m/s");
+    std::snprintf(Value[1], sizeof(Value[1]), "%.1f", double(Crest(Log)));       std::snprintf(Unit[1], 12, "m/s");
+    std::snprintf(Value[2], sizeof(Value[2]), "%s", Compass(Draft.Direction));
+    std::snprintf(Unit[2], 12, "%d\xc2\xb0", int(std::lround(Draft.Direction)));
+    std::snprintf(Value[3], sizeof(Value[3]), "%d", Band.Force);                 std::snprintf(Unit[3], 12, "bf");
+    const char* Keys[4] = { "Mean", "Gust", "From", "Force" };
+
+    float X = Spot.x;
+    for (int I = 0; I < 4; ++I)
+    {
+        const float Run = I == 3 ? Share * 1.25f : Share;
+        Draw->AddRectFilled({ X, Spot.y }, { X + Run, Spot.y + PillTall }, PanelFill, 999.0f);
+        Draw->AddRect({ X, Spot.y }, { X + Run, Spot.y + PillTall }, Stroke, 999.0f, 0, 1.0f);
+        const float Lead = Tracked(Draw, Face, X + 9.0f, Spot.y + 7.0f, 14.0f, TextFull, Value[I], -0.3f);
+        Tracked(Draw, Face, X + 9.0f + Lead + 2.0f, Spot.y + 7.0f + 14.0f - 9.5f, 9.5f, TextDim, Unit[I], 0.4f);
+        char Key[16];
+        Upper(Key, sizeof(Key), Keys[I]);
+        Tracked(Draw, Face, X + 9.0f, Spot.y + 7.0f + 14.0f + 1.0f, 9.0f, TextFaint, Key, 1.1f);
+        X += Run + Gap;
+    }
+}
+
+constexpr float StatTall = 11.0f + 19.0f + 6.0f + 25.0f + 10.0f;
+
+// icons.js P.wind and P.alert on their 24 unit grid.
+inline void PaintWindGlyph(ImDrawList* Draw, ImVec2 Spot, float Size, ImU32 Colour)
+{
+    const float U = Size / 24.0f, Thick = 1.75f * U;
+    auto At = [&](float X, float Y) { return ImVec2{ Spot.x + X * U, Spot.y + Y * U }; };
+    Draw->AddLine(At(3, 8), At(12, 8), Colour, Thick);
+    Draw->PathArcTo(At(12, 5), 3.0f * U, 0.5f * Pi, -0.5f * Pi, 12);
+    Draw->PathStroke(Colour, 0, Thick);
+    Draw->AddLine(At(3, 13), At(16, 13), Colour, Thick);
+    Draw->PathArcTo(At(16, 16), 3.0f * U, -0.5f * Pi, 0.5f * Pi, 12);
+    Draw->PathStroke(Colour, 0, Thick);
+    Draw->AddLine(At(3, 18), At(10, 18), Colour, Thick);
+}
+
+inline void PaintAlertGlyph(ImDrawList* Draw, ImVec2 Spot, float Size, ImU32 Colour)
+{
+    const float U = Size / 24.0f, Thick = 1.75f * U;
+    auto At = [&](float X, float Y) { return ImVec2{ Spot.x + X * U, Spot.y + Y * U }; };
+    Draw->AddTriangle(At(12, 3), At(2, 20), At(22, 20), Colour, Thick);
+    Draw->AddLine(At(12, 10), At(12, 14), Colour, Thick);
+    Draw->AddLine(At(12, 17.2f), At(12, 17.6f), Colour, Thick);
+}
+
+inline void PaintDuo(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const TraceLog& Log)
+{
+    const float Gap = 10.0f, Half = (Wide - Gap) * 0.5f;
+    const float High = Crest(Log), Low = Lull(Log);
+    const bool  Alarmed = High > 17.0f;
+    for (int I = 0; I < 2; ++I)
+    {
+        const float X = Spot.x + I * (Half + Gap);
+        Draw->AddRectFilled({ X, Spot.y }, { X + Half, Spot.y + StatTall }, CardFill, CardRound);
+        const bool Down = I == 0 && Alarmed;
+        const ImU32 Ink    = Down ? IM_COL32(239, 68, 68, 255) : IM_COL32(34, 197, 94, 255);
+        const ImU32 Ground = Down ? IM_COL32(239, 68, 68, 36)  : IM_COL32(34, 197, 94, 33);
+        Draw->AddRectFilled({ X + 13.0f, Spot.y + 11.0f }, { X + 13.0f + 19.0f, Spot.y + 11.0f + 19.0f },
+                            Ground, 7.0f);
+        if (Down) PaintAlertGlyph(Draw, { X + 13.0f + 3.5f, Spot.y + 11.0f + 3.5f }, 12.0f, Ink);
+        else      PaintWindGlyph (Draw, { X + 13.0f + 3.5f, Spot.y + 11.0f + 3.5f }, 12.0f, Ink);
+        const float Row = Spot.y + 11.0f + 19.0f + 6.0f + 25.0f;
+        Boxed(Draw, Face, X + 13.0f, Row - 11.0f, 11.0f, TextDim, I == 0 ? "Gusting to" : "Lulling to");
+        char Body[16];
+        std::snprintf(Body, sizeof(Body), "%.1f", double(I == 0 ? High : Low));
+        const float UnitRun = Measured(Face, 11.0f, "m/s") + 2.0f;
+        const float Run = Tracked(Draw, Face, 0, 0, 25.0f, 0, Body, -1.4f, false);
+        Tracked(Draw, Face, X + Half - 13.0f - UnitRun - Run, Row - 25.0f, 25.0f, TextFull, Body, -1.4f);
+        Inked(Draw, Face, X + Half - 13.0f, Row, 11.0f, TextDim, "m/s", Anchor::End);
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                            THE BEAUFORT SCALE AND THE REST
+//------------------------------------------------------------------------------------------------------------------------
+
+constexpr float ScaleTall = 44.0f;
+
+inline void PaintScale(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const WindDraft& Draft)
+{
+    const float Pad = 8.0f, Span = Wide - Pad * 2.0f, Y = Spot.y + 10.0f, Deep = 14.0f, Ceiling = 30.0f;
+    auto PX = [&](float Value) { return Spot.x + Pad + std::clamp(Value / Ceiling, 0.0f, 1.0f) * Span; };
+
+    float Previous = 0.0f;
+    for (int I = 0; I <= 11; ++I)
+    {
+        const float Limit = I < 11 ? Beaufort[I].Limit : 30.0f;
+        const int   Band  = I < 11 ? Beaufort[I].Force : 11;
+        const float X0 = PX(Previous), X1 = PX(Limit);
+        const float Heat = float(Band) / 11.0f;
+        // 85% opaque over the meter's black ground.
+        const ImU32 Ink = IM_COL32(int(std::lround(60 + Heat * 195) * 0.85f),
+                                   int(std::lround(200 - Heat * 120) * 0.85f),
+                                   int(std::lround(180 - Heat * 120) * 0.85f), 255);
+        Draw->AddRectFilled({ X0, Y }, { X0 + std::max(1.0f, X1 - X0 - 1.0f), Y + Deep }, Ink);
+        if (Band % 2 == 0 && X1 - X0 > 9.0f)
+        {
+            char Number[4];
+            std::snprintf(Number, sizeof(Number), "%d", Band);
+            Inked(Draw, Face, (X0 + X1) * 0.5f, Y + Deep - 4.0f, 7.5f, IM_COL32(0, 0, 0, 140), Number,
+                  Anchor::Middle);
+        }
+        Previous = Limit;
+    }
+
+    const struct { float At; const char* Label; } Ticks[4] = { { 0, "0" }, { 10, "10" }, { 20, "20" }, { 30, "30 m/s" } };
+    for (const auto& Tick : Ticks)
+    {
+        const float X = PX(Tick.At);
+        Draw->AddLine({ X, Y + Deep + 1.0f }, { X, Y + Deep + 5.0f }, IM_COL32(255, 255, 255, 46), 1.0f);
+        Inked(Draw, Face, X, Spot.y + ScaleTall - 3.0f, 8.0f, IM_COL32(255, 255, 255, 77), Tick.Label,
+              Tick.At <= 0.0f ? Anchor::Start : Tick.At >= 30.0f ? Anchor::End : Anchor::Middle);
+    }
+
+    const float MX = PX(Draft.Speed);
+    Draw->AddTriangleFilled({ MX, Y - 1.0f }, { MX + 4.0f, Y - 7.0f }, { MX - 4.0f, Y - 7.0f }, TraceHead);
+    Draw->AddLine({ MX, Y }, { MX, Y + Deep }, IM_COL32(255, 255, 255, 242), 1.4f);
+}
+
+// The shared card head: title, subtitle, and whatever the body needs beneath.
+inline float HeadHeight() { return HeadTitle + HeadGap + HeadSub + HeadDrop; }
+
+inline void PaintHead(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, const char* Title, const char* Under)
+{
+    Boxed(Draw, Face, Spot.x, Spot.y, HeadTitle, TextFull, Title);
+    char Shown[64];
+    Upper(Shown, sizeof(Shown), Under);
+    Tracked(Draw, Face, Spot.x, Spot.y + HeadTitle + HeadGap, HeadSub, TextFaint, Shown, 0.9f);
+}
+
+inline float BeaufortHeight()
+{
+    return CardPadTop + HeadHeight()
+         + 2.0f + (8.0f + 8.5f + 2.0f + ScaleTall + 2.0f) + 10.0f
+         + TapeHeight()
+         + 10.5f + 14.0f;
+}
+
+inline void PaintBeaufortCard(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const WindDraft& Draft)
+{
+    const float Inner = Wide - CardPadX * 2.0f, Left = Spot.x + CardPadX;
+    Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + BeaufortHeight() }, CardFill, CardRound);
+    float Y = Spot.y + CardPadTop;
+    PaintHead(Draw, Face, { Left, Y }, "Beaufort", "Force \xc2\xb7 bearing");
+    Y += HeadHeight() + 2.0f;
+
+    const float MeterTall = 8.0f + 8.5f + 2.0f + ScaleTall + 2.0f;
+    Draw->AddRectFilled({ Left, Y }, { Left + Inner, Y + MeterTall }, FieldFill, CardRound);
+    Draw->AddRect({ Left, Y }, { Left + Inner, Y + MeterTall }, Stroke, CardRound, 0, 1.0f);
+    char Key[20];
+    Upper(Key, sizeof(Key), "wind speed");
+    Tracked(Draw, Face, Left + 9.0f, Y + 8.0f + (StepBox - 8.5f) * 0.5f, 8.5f, TextFaint, Key, 1.1f);
+    PaintStepper(Draw, Face, { Left + Inner - 9.0f - StepperWidth(Face, "m/s"), Y + 4.0f },
+                 Draft.Speed, 1, "m/s");
+    PaintScale(Draw, Face, { Left, Y + 8.0f + 8.5f + 2.0f }, Inner, Draft);
+    Y += MeterTall + 10.0f;
+
+    static const Mark Rose[5] = { { 0.0f, "N" }, { 0.25f, "E" }, { 0.5f, "S" }, { 0.75f, "W" }, { 1.0f, "N" } };
+    PaintTape(Draw, Face, { Left, Y }, Inner, "Coming from", Draft.Direction, 0.0f, 360.0f, 0, "\xc2\xb0", Rose, 5);
+    Y += TapeHeight();
+
+    const BeaufortBand Band = Force(Draft.Speed);
+    char Named[40];
+    std::snprintf(Named, sizeof(Named), "%s", Band.Name);
+    for (char* Scan = Named; *Scan; ++Scan) *Scan = static_cast<char>(std::tolower(static_cast<unsigned char>(*Scan)));
+    char Note[160];
+    std::snprintf(Note, sizeof(Note), "Force %d \xc2\xb7 %s \xe2\x80\x94 %s.", Band.Force, Named, LandSign(Draft.Speed));
+    Tracked(Draw, Face, Left + 2.0f, Y, 10.5f, TextFaint, Note, 0.2f);
+}
+
+inline float SteadinessHeight()
+{
+    return CardPadTop + HeadHeight() + TapeHeight() * 2.0f
+         + (SpecPadY * 2 + SpecKey + 1 + SpecValue) + 14.0f;
+}
+
+inline void PaintSteadiness(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const WindDraft& Draft)
+{
+    const float Inner = Wide - CardPadX * 2.0f, Left = Spot.x + CardPadX;
+    Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + SteadinessHeight() }, CardFill, CardRound);
+    float Y = Spot.y + CardPadTop;
+    PaintHead(Draw, Face, { Left, Y }, "Steadiness", "Gust \xc2\xb7 turbulence");
+    Y += HeadHeight();
+
+    static const Mark GustMarks[3] = { { 0.0f, "STEADY" }, { 0.3f, "BREEZY" }, { 1.0f, "SQUALLY" } };
+    static const Mark TurbMarks[3] = { { 0.0f, "LAMINAR" }, { 0.24f, "OPEN AIR" }, { 1.0f, "ROTOR" } };
+    PaintTape(Draw, Face, { Left, Y }, Inner, "Gustiness", Draft.Gust, 0, 1, 2, "", GustMarks, 3);
+    Y += TapeHeight();
+    PaintTape(Draw, Face, { Left, Y }, Inner, "Turbulence", Draft.Turbulence, 0, 1, 2, "", TurbMarks, 3);
+    Y += TapeHeight();
+
+    char Values[2][24];
+    std::snprintf(Values[0], sizeof(Values[0]), "%.0f%%", double(Draft.Turbulence * 100.0f));
+    std::snprintf(Values[1], sizeof(Values[1]), "%.2f\xc3\x97", double(1.0f + Draft.Gust * 0.6f));
+    const char* Keys[2] = { "turbulence intensity", "gust to mean" };
+    const float TileW = (Inner - SpecGap) * 0.5f, TileH = SpecPadY * 2 + SpecKey + 1 + SpecValue;
+    for (int I = 0; I < 2; ++I)
+    {
+        const float X = Left + I * (TileW + SpecGap);
+        Draw->AddRectFilled({ X, Y }, { X + TileW, Y + TileH }, FieldFill, SpecRound);
+        Draw->AddRect({ X, Y }, { X + TileW, Y + TileH }, Stroke, SpecRound, 0, 1.0f);
+        char Caption[40];
+        Upper(Caption, sizeof(Caption), Keys[I]);
+        Tracked(Draw, Face, X + SpecPadX, Y + SpecPadY, SpecKey, TextFaint, Caption, 1.1f);
+        Tracked(Draw, Face, X + SpecPadX, Y + SpecPadY + SpecKey + 1.0f, SpecValue, TextFull, Values[I], -0.2f);
+    }
+}
+
+// The things in the scene that follow this field. Each is a pill that can be cut loose.
+struct Follower { const char* Name; bool Linked; };
+
+constexpr float TagTall = 4.0f + 8.5f + 5.0f;
+
+inline float DrivingHeight(ImFont* Face, float Wide, const Follower* Flock, int Count)
+{
+    const float Inner = Wide - CardPadX * 2.0f;
+    float X = 0.0f, Rows = 1.0f;
+    for (int I = 0; I < Count; ++I)
+    {
+        char Shown[40];
+        Upper(Shown, sizeof(Shown), Flock[I].Name);
+        const float Run = Tracked(nullptr, Face, 0, 0, 8.5f, 0, Shown, 1.2f, false) + 18.0f;
+        if (X > 0.0f && X + Run > Inner) { Rows += 1.0f; X = 0.0f; }
+        X += Run + 5.0f;
+    }
+    return CardPadTop + HeadHeight() + 8.0f + Rows * TagTall + (Rows - 1.0f) * 5.0f + 2.0f
+         + 8.0f + 10.5f * 2.0f + 14.0f;
+}
+
+inline void PaintDriving(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide,
+                         const Follower* Flock, int Count)
+{
+    const float Inner = Wide - CardPadX * 2.0f, Left = Spot.x + CardPadX;
+    Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + DrivingHeight(Face, Wide, Flock, Count) },
+                        CardFill, CardRound);
+    float Y = Spot.y + CardPadTop;
+    PaintHead(Draw, Face, { Left, Y }, "Driving", "Everything that follows this field");
+    Y += HeadHeight() + 8.0f;
+
+    float X = Left;
+    for (int I = 0; I < Count; ++I)
+    {
+        char Shown[40];
+        Upper(Shown, sizeof(Shown), Flock[I].Name);
+        const float Run = Tracked(Draw, Face, 0, 0, 8.5f, 0, Shown, 1.2f, false) + 18.0f;
+        if (X > Left && X + Run > Left + Inner) { X = Left; Y += TagTall + 5.0f; }
+        const bool On = Flock[I].Linked;
+        if (On) Draw->AddRectFilled({ X, Y }, { X + Run, Y + TagTall }, CardFill, 999.0f);
+        Draw->AddRect({ X, Y }, { X + Run, Y + TagTall },
+                      On ? IM_COL32(46, 46, 46, 255) : Stroke, 999.0f, 0, 1.0f);
+        Tracked(Draw, Face, X + 9.0f, Y + 4.0f, 8.5f, On ? TextFull : TextFaint, Shown, 1.2f);
+        X += Run + 5.0f;
+    }
+    Y += TagTall + 2.0f + 8.0f;
+    Tracked(Draw, Face, Left + 2.0f, Y, 10.5f, TextFaint,
+            "Clouds and water can each be cut loose from the field \xe2\x80\x94 switch one", 0.2f);
+    Tracked(Draw, Face, Left + 2.0f, Y + 10.5f, 10.5f, TextFaint,
+            "off and it keeps its own drift.", 0.2f);
+}
+
 } // namespace Frontier::WindInstrument
