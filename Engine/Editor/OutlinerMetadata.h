@@ -42,8 +42,22 @@ enum class RowPanel : uint32_t
     LocalCloud,
     Precipitation,
     Rainbow,
+    Gas,
+    GasEmitter,
     Count
 };
+
+/// 📦 The panel a row speaks for when the row carries a sheet appearance of its own.
+/// in    Appearance [-] the sheet the feed assigned the row
+/// in    Glyph      [-] the row's glyph, consulted when the appearance says nothing
+/// in    Family     [-] the row's category
+/// in    Permanent  [-] true for the editor camera
+/// out   RowPanel   [-] Gas and GasEmitter come from the appearance and from nowhere else
+/// note  a gas domain shares the local fog glyph, because volumetric fog and volumetric fire are the same
+///       drawing to an icon set; the two rows are not the same panel, so the glyph cannot be what decides it
+inline RowPanel PanelOfRow(EditorSheetAppearance Appearance, EditorGlyph Glyph,
+                           EditorInstanceCategory Family, bool Permanent = false) noexcept;
+
 
 /// 📦 The panel a row speaks for, from the glyph it already carries and the family it belongs to.
 /// in    Glyph     [-] the row's own glyph; Auto defers to the category
@@ -87,6 +101,16 @@ inline RowPanel PanelOfRow(EditorGlyph Glyph, EditorInstanceCategory Family, boo
     }
 }
 
+inline RowPanel PanelOfRow(EditorSheetAppearance Appearance, EditorGlyph Glyph,
+                           EditorInstanceCategory Family, bool Permanent) noexcept
+{
+    if (Permanent) return RowPanel::EditorCamera;
+    if (Appearance == EditorSheetAppearance::Gas)        return RowPanel::Gas;
+    if (Appearance == EditorSheetAppearance::GasEmitter) return RowPanel::GasEmitter;
+    return PanelOfRow(Glyph, Family, false);
+}
+
+
 // FolderInventory.mjs CollectionTypes — the plural the collection inspector lists a panel under.
 inline const char* CollectionTypeName(RowPanel Panel) noexcept
 {
@@ -111,6 +135,8 @@ inline const char* CollectionTypeName(RowPanel Panel) noexcept
     case RowPanel::Rainbow:       return "Rainbows";
     case RowPanel::Flare:         return "Lens flares";
     case RowPanel::Post:          return "Post processing";
+    case RowPanel::Gas:           return "Gas domains";
+    case RowPanel::GasEmitter:    return "Gas emitters";
     default:                      return "Geometry";
     }
 }
@@ -124,6 +150,8 @@ inline const char* PanelProse(RowPanel Panel) noexcept
     case RowPanel::AerialFog:     return "aerial fog";
     case RowPanel::LocalFog:      return "local fog";
     case RowPanel::LocalCloud:    return "local cloud";
+    case RowPanel::Gas:           return "gas";
+    case RowPanel::GasEmitter:    return "gas emitter";
     default:                      return "geometry";
     }
 }
@@ -240,6 +268,12 @@ struct RowReading
     float    Start           = 500.0f;    // [m]
     float    Coverage        = 0.5f;      // [-]   0…1
     uint32_t Precipitate     = 0u;        // [-]   index into Rain / Drizzle / Hail / Snow / Sleet
+    float    Bounds[3]       = { 1.85f, 2.1f, 1.85f };   // [m]   gas: the domain's own box
+    const char* QualityName  = "Automatic";              // [-]   gas: the rung, as the card spells it
+    const char* PolicyName   = "On trigger";             // [-]   gas: the run policy, lowercased below
+    float    EmissionRate    = 1.0f;                     // [x]   gas emitter
+    float    Temperature     = 0.0f;                     // [K]   gas emitter
+    bool     Emitting        = true;                     // [-]   gas emitter: Values.Enabled
     float    MinimumPath     = 100.0f;    // [m]
     float    Output          = 32.0f;     // [cd | lm]
     bool     Referenced      = false;     // true once the row carries a reference luminaire
@@ -368,6 +402,32 @@ inline void OutlinerMetadata(RowPanel Panel, const RowReading& Reading, char* Ou
         CompactNumber(double(Reading.MinimumPath), 0, Second, sizeof(Second));
         std::snprintf(Out, Room, "%s%s%s%s m", First, Times, Dot, Second);
         return;
+
+    case RowPanel::Gas:
+    {
+        // GasSpecification.js GasRowSummary(): toFixed(1) on two bounds, the rung's name, and the policy
+        //    name lowercased. Fixed decimals, not CompactNumber — the browser does not group these two.
+        char Lower[32];
+        std::snprintf(Lower, sizeof(Lower), "%s", Reading.PolicyName != nullptr ? Reading.PolicyName : "");
+        for (char* Letter = Lower; *Letter != '\0'; ++Letter)
+        {
+            if (*Letter >= 'A' && *Letter <= 'Z') *Letter = char(*Letter - 'A' + 'a');
+        }
+        std::snprintf(Out, Room, "%.1f%s%.1f m%s%s%s%s", double(Reading.Bounds[0]), Times,
+                      double(Reading.Bounds[1]), Dot,
+                      Reading.QualityName != nullptr ? Reading.QualityName : "", Dot, Lower);
+        return;
+    }
+
+    case RowPanel::GasEmitter:
+    {
+        // GasEmitterRowSummary(): the rate with two decimals and a multiplication sign, or the word off.
+        char Rate[32];
+        if (Reading.Emitting) std::snprintf(Rate, sizeof(Rate), "%.2f%s", double(Reading.EmissionRate), Times);
+        else                  std::snprintf(Rate, sizeof(Rate), "off");
+        std::snprintf(Out, Room, "%s%s%.1f K", Rate, Dot, double(Reading.Temperature));
+        return;
+    }
 
     case RowPanel::Light:
     {

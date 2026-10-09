@@ -41,8 +41,17 @@ A child emitter takes the same branch
   PASS  an emitter row opens the gas branch and gets a slot of its own
   PASS  named from its own row, because it is its own entity and not a group on the domain
 
+The outliner row says what the browser's row says
+  PASS  a gas domain reads '1.9x2.1 m - Near - on trigger', policy lowercased as the browser lowercases it
+  PASS  and an emitter reads '1.40x - 3.5 K'
+  PASS  a disabled emitter says 'off' rather than reporting a rate it is not emitting at
+  PASS  the panel comes from the sheet appearance, not the glyph - gas shares the local fog drawing
+  PASS  and the emitter is its own panel, sharing that glyph with neither of them
+  PASS  while a real local fog row is untouched by any of this
+  PASS  and a folder holding them counts them under names of their own
+
 Capture
   PASS  the shipped inspector's own frame is written out, ident strip and all
 
-PASS 34
+PASS 41
 Exit: 0

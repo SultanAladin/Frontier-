@@ -21,6 +21,7 @@
 
 #include "ControlPanel.h"
 #include "InspectorPanel.h"
+#include "OutlinerMetadata.h"
 #include "GasCardSurface.h"
 #include "CpuDraw.h"
 #include "PngWriteCounterpart.h"
@@ -202,6 +203,42 @@ int main()
         Check(!std::strcmp(Inspector.QueryGasDomain(1u)->Name, "Flame Source"),
               "named from its own row, because it is its own entity and not a group on the domain");
         Sheet.Appearance = EditorSheetAppearance::Gas;
+    }
+
+    //---------------------------------------------------------------------------------------------------------
+    Banner("The outliner row says what the browser's row says");
+    {
+        RowReading Reading;
+        Reading.Bounds[0] = 1.85f; Reading.Bounds[1] = 2.1f; Reading.Bounds[2] = 1.85f;
+        Reading.QualityName = "Near";
+        Reading.PolicyName  = "On trigger";
+
+        char Line[96];
+        OutlinerMetadata(RowPanel::Gas, Reading, Line, sizeof(Line));
+        Check(std::strcmp(Line, "1.9\xc3\x97""2.1 m \xc2\xb7 Near \xc2\xb7 on trigger") == 0,
+              "a gas domain reads '1.9x2.1 m - Near - on trigger', policy lowercased as the browser lowercases it");
+
+        Reading.EmissionRate = 1.4f;
+        Reading.Temperature  = 3.5f;
+        OutlinerMetadata(RowPanel::GasEmitter, Reading, Line, sizeof(Line));
+        Check(std::strcmp(Line, "1.40\xc3\x97 \xc2\xb7 3.5 K") == 0, "and an emitter reads '1.40x - 3.5 K'");
+
+        Reading.Emitting = false;
+        OutlinerMetadata(RowPanel::GasEmitter, Reading, Line, sizeof(Line));
+        Check(std::strcmp(Line, "off \xc2\xb7 3.5 K") == 0,
+              "a disabled emitter says 'off' rather than reporting a rate it is not emitting at");
+
+        Check(PanelOfRow(EditorSheetAppearance::Gas, EditorGlyph::Fog, EditorInstanceCategory::Geometry)
+              == RowPanel::Gas,
+              "the panel comes from the sheet appearance, not the glyph - gas shares the local fog drawing");
+        Check(PanelOfRow(EditorSheetAppearance::GasEmitter, EditorGlyph::Fog,
+                         EditorInstanceCategory::Geometry) == RowPanel::GasEmitter,
+              "and the emitter is its own panel, sharing that glyph with neither of them");
+        Check(PanelOfRow(EditorSheetAppearance::LocalFog, EditorGlyph::Fog, EditorInstanceCategory::Geometry)
+              == RowPanel::LocalFog, "while a real local fog row is untouched by any of this");
+        Check(std::strcmp(CollectionTypeName(RowPanel::Gas), "Gas domains") == 0
+              && std::strcmp(CollectionTypeName(RowPanel::GasEmitter), "Gas emitters") == 0,
+              "and a folder holding them counts them under names of their own");
     }
 
     //---------------------------------------------------------------------------------------------------------

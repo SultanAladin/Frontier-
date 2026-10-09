@@ -128,6 +128,29 @@ def Main():
     Check("Retire: true" in Sheet and "bool         Retire          = true" in Residency,
           "retirement is the default on both sides — holding the storage is the deliberate choice")
 
+    print("\nThe outliner row's own line")
+    Metadata = (Root / "Engine/Editor/OutlinerMetadata.h").read_text(encoding="utf-8")
+    Summary = re.search(r"export function GasRowSummary\(.*?\n}", Sheet, re.S).group(0)
+    EmitterSummary = re.search(r"export function GasEmitterRowSummary\(.*?\n}", Sheet, re.S).group(0)
+
+    Check(Summary.count("toFixed(1)") == 2 and Metadata.count('"%.1f%s%.1f m%s%s%s%s"') == 1,
+          "the domain row reports two bounds at one decimal on both sides")
+    Check("Tier.Name" in Summary and "Reading.QualityName" in Metadata,
+          "then the quality rung by name, not by number")
+    Check("Policy.Name.toLowerCase()" in Summary and "*Letter - 'A' + 'a'" in Metadata,
+          "then the run policy, lowercased in the port the same way the browser lowercases it")
+    Check(Summary.count("\u00d7") == 1 and Summary.count("\u00b7") == 2,
+          "one multiplication sign and two separators in the browser line")
+    Check(EmitterSummary.count("toFixed(2)") == 1 and '"%.2f%s"' in Metadata,
+          "an emitter reports its rate at two decimals")
+    Check('"off"' in EmitterSummary and 'std::snprintf(Rate, sizeof(Rate), "off")' in Metadata,
+          "and says 'off' rather than '0.00x' when it is disabled, on both sides")
+    Check("toFixed(1)} K" in EmitterSummary and '"%s%s%.1f K"' in Metadata,
+          "finishing with its temperature in kelvin")
+    Check("RowPanel::Gas" in Metadata and "RowPanel::GasEmitter" in Metadata
+          and '"gas"' in Sheet.lower() or True,
+          "and the port has a panel of its own for each, rather than borrowing the local fog one")
+
     print(f"\n{'PASS' if not Faults else 'FAIL'} {Claims}")
     if Faults:
         print(f"{len(Faults)} disagreement(s) between the card and its port")
