@@ -84,6 +84,9 @@ jobs:
       - name: Spatial HUD — the tablet's graph, layout, values and submission order
         run: python3 Tools/Build/RunAnnounced.py "spatial hud" -- node Experimental/SpatialHud/CheckHud.mjs
 
+      - name: Spatial HUD still — the panel rasterised on the CPU, so a blank screen fails the build
+        run: python3 Tools/Build/RunAnnounced.py "hud still" -- node Experimental/SpatialHud/RenderStill.mjs --check
+
       - name: Force field parity — the native taxonomy against the browser it was ported from
         run: python3 Tools/Build/RunAnnounced.py "force field parity" -- python3 Tools/Build/ForceFieldParity.py
 

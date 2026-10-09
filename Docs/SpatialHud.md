@@ -191,9 +191,40 @@ Two of its checks are worth naming:
 - **A blank leading digit, not a zero.** `007 KM/H` is a clock, not a speedometer. The engine gives
   blank its own code (10); the check holds `7`, `42`, `180`, an over-range value and a negative one.
 
-What `CheckHud` does **not** claim is that it looks right. There is no headless WebGPU here, and a
-check asserting pixels it never rendered would be worse than none. The page is the proof of
-appearance.
+## Pixels without a GPU
+
+```
+node Experimental/SpatialHud/RenderStill.mjs            # three stills into Experimental/SpatialHud/Stills/
+node Experimental/SpatialHud/RenderStill.mjs --check    # small, fast, fails if the panel is blank
+```
+
+There is no headless WebGPU in this environment, so for a while nothing could say what the panel
+*looked* like — `CheckHud` is careful to check numbers and not pixels, and the page was the only
+proof of appearance. That is a bad place for a user interface to live, because the one failure that
+matters most to a reader (a black rectangle) was the one failure no check could see.
+
+`RenderStill.mjs` closes it. It is **not** a mock-up: it imports `constructHudLayout`, `resolve` and
+`pack` from the same modules the host uses, reads the identical forty-float figure slots in the
+identical submission order, evaluates the same signed distance functions, builds the fibre uniform
+with the same `packFibre`, and writes a PNG with no dependencies. The glyph outlines are converted
+out of `InterfaceSignedDistance.slang` **at run time** and pinned by a self-check, so the font still
+has exactly one authority.
+
+Where it differs from the GPU, stated plainly: figures are resolved by ray-plane intersection per
+pixel rather than by rasterising a strip; `fwidth` is a finite difference against the neighbouring
+pixel's ray; fibres take the minimum perpendicular distance to the strand polyline, which is the
+same one-fragment-per-pixel-per-strand the expanded quad produces; and there is a 2× supersample in
+place of MSAA. No gamma is applied on the way out, because the canvas format is `bgra8unorm` and the
+browser shows those numbers unconverted — encoding here would make the still brighter than the panel
+is, which is the one lie this tool must not tell.
+
+`--check` runs in `frontier-build.yml`. It asserts the mean luminance clears a floor, so **a
+composition that renders to black now fails the build** rather than waiting for someone to open the
+page.
+
+What `CheckHud` does **not** claim is that it looks right — only `RenderStill` shows that, and only
+to a reader. Neither is a substitute for the page: the stills are one instant with the springs at
+rest, and they cannot show the envelope, the orbit, or the frame rate.
 
 ## When the page is blank
 
@@ -207,6 +238,21 @@ If the box is empty and the readout still says `starting`, the script never ran 
 browser console for a module that failed to load.
 
 ## Still open
+
+Three things the first CPU stills exposed, none of which any numeric check could have caught:
+
+- **The seven-segment bars do not meet.** In `DistanceSegmentDigit` the horizontal arms are
+  `HalfW - Inset` long while the vertical bars sit at `±HalfW`, so a top bar stops about nine
+  millimetres short of the stroke it should join. The digits are *correct* — ` 90` is ` 90` — but
+  they read as loose bars rather than as numerals. The inset exists to stop adjacent bars merging at
+  the corners; it is being charged to the wrong axis.
+- **`BOOST` sits under the needle.** The label is at `y = -GaugeRadius * 0.52`, inside the dial,
+  which is where the needle sweeps at low readings. It wants to be below the dial's opening.
+- **The Live rung covers a band, not the face.** The fibre volume runs as a narrow ribbon across the
+  middle while the Field rung fills the whole panel. That is the hull bound doing its job — the
+  spread had to come down to keep strands behind the glass — but it means the two rungs do not read
+  as the same backdrop at two qualities. Widening wants more strands at a lower spread, not a bigger
+  hull.
 
 - Nothing is ported to C++ yet. The order would be: the fibre stages as a second pipeline beside the
   interface raster (they are already the editor's own code, which the engine does not yet have at
