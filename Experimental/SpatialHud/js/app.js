@@ -327,7 +327,22 @@ async function start() {
 
   State.streak = structure.query(handles.streaks).streak.slice();
 
+  // 🔴 TWO CAMERAS, TWO UNIFORM BUFFERS.
+  //
+  //    The interface and the fibres are drawn through the panel's off-axis frustum into the
+  //    display; the body and the glass are drawn through the window's ordinary perspective. They
+  //    share a struct and nothing else. The eye position inside both is the same real world eye,
+  //    which is what keeps the fibre aperture and the parallax honest.
+  //
+  //    Both live here, above the first bind group that reads either of them. `const` is hoisted
+  //    but NOT initialised, so a reference from above is a hard ReferenceError rather than an
+  //    undefined — and nothing but the browser will tell you.
+  const GlobalFloats = 32;
   const globals = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const displayGlobalData = new Float32Array(GlobalFloats);
+  const displayGlobals = device.createBuffer({
+    size: displayGlobalData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
   let capacity = Math.max(structure.count, 64);
   let figureBuffer = device.createBuffer({
     size: capacity * FloatsPerFigure * 4,
@@ -336,17 +351,6 @@ async function start() {
   let bind = device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
     entries: [{ binding: 0, resource: { buffer: displayGlobals } }, { binding: 1, resource: { buffer: figureBuffer } }],
-  });
-
-  // 🔴 TWO CAMERAS, TWO UNIFORM BUFFERS.
-  //
-  //    The interface and the fibres are drawn through the panel's off-axis frustum into the
-  //    display; the body and the glass are drawn through the window's ordinary perspective. They
-  //    share a struct and nothing else. The eye position inside both is the same real world eye,
-  //    which is what keeps the fibre aperture and the parallax honest.
-  const displayGlobalData = new Float32Array(globalData.length);
-  const displayGlobals = device.createBuffer({
-    size: displayGlobalData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
   const roomData = new Float32Array(RoomFloats);
@@ -403,7 +407,7 @@ async function start() {
   // then dies still says what it managed.
   let firstFrame = true;
 
-  const globalData = new Float32Array(32);
+  const globalData = new Float32Array(GlobalFloats);
   let last = performance.now() / 1000;
   let elapsed = 0;
   let frames = 0, frameClock = last, rate = 0;

@@ -87,6 +87,9 @@ jobs:
       - name: Spatial HUD still — the panel rasterised on the CPU, so a blank screen fails the build
         run: python3 Tools/Build/RunAnnounced.py "hud still" -- node Experimental/SpatialHud/RenderStill.mjs --check
 
+      - name: Spatial HUD host — app.js run headless, so a page that cannot boot fails the build
+        run: python3 Tools/Build/RunAnnounced.py "hud host" -- node Experimental/SpatialHud/CheckHost.mjs
+
       - name: Force field parity — the native taxonomy against the browser it was ported from
         run: python3 Tools/Build/RunAnnounced.py "force field parity" -- python3 Tools/Build/ForceFieldParity.py
 
