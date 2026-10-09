@@ -36,10 +36,16 @@ Clicking the shipped card changes the shipped domain
   PASS  nothing has asked for the Fluid editor yet
   PASS  ↗ raises the request, naming the instance that asked
   PASS  and consuming it clears it - a flag that is never consumed fires for the rest of the session
+  PASS  ✔️ and a domain's ↗ did not also ask for the particle editor
+  PASS  the domain's card knows it is a domain, which is what its Open band reads from
 
 A child emitter takes the same branch
   PASS  an emitter row opens the gas branch and gets a slot of its own
   PASS  named from its own row, because it is its own entity and not a group on the domain
+  PASS  ✔️ an emitter's card knows it is an emitter
+  PASS  ↗ on an emitter raises the ParticleEditor request, naming the row that asked
+  PASS  🔴 and it does not raise the Fluid one -- one button, one destination, chosen by the row
+  PASS  consuming clears it
 
 The outliner row says what the browser's row says
   PASS  a gas domain reads '1.9x2.1 m - Near - on trigger', policy lowercased as the browser lowercases it
@@ -53,5 +59,5 @@ The outliner row says what the browser's row says
 Capture
   PASS  the shipped inspector's own frame is written out, ident strip and all
 
-PASS 41
+PASS 47
 Exit: 0

@@ -88,7 +88,8 @@ Captures
   PASS  capture written: CardOneShotFiring
   PASS  capture written: CardKeptResident
   PASS  capture written: CardAlwaysWithEmitters
+  PASS  capture written: CardEmitterOpensParticleEditor
   PASS  capture written: CardHeroOverAmber
 
-PASS 76
+PASS 77
 Exit: 0

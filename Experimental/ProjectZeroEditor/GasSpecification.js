@@ -212,6 +212,46 @@ export const GasTransformRows = [
   ["Bounds", "m", [1.85, 2.1, 1.85], 0.1, 64, 0.01],
 ];
 
+// ─── The emitter's crossing to the Particle Editor ─────────────────────────────────────────────────────────
+
+// 🔴 A gas emitter and a particle system are not the same object and most of their settings do not
+//    correspond at all: smoke, fuel and temperature are fields a fluid solver integrates, and a particle
+//    system has no fields. Four readings do correspond, exactly, and those are the four that cross. The
+//    rest stay where they were authored. Inventing a conversion for the others would be worse than not
+//    having one -- it would look like it worked.
+export const GasEmitterToParticles = [
+  ["Position",   "origin",    "m"],
+  ["Radius",     "radius",    "m"],
+  ["Rise Speed", "buoyancy",  "m/s"],
+  ["Swirl",      "swirl",     ""],
+];
+
+// 📦 The particle settings a gas emitter's readings imply.
+export function ParticleSettingsFromEmitter(Values) {
+  const Settings = {};
+  for (const [Label, Key] of GasEmitterToParticles) {
+    const Reading = Values?.[Label];
+    if (Reading === undefined || Reading === null) continue;
+    if (Array.isArray(Reading)) {
+      if (Reading.length === 3 && Reading.every((One) => Number.isFinite(One))) Settings[Key] = Reading.slice();
+    } else if (Number.isFinite(Reading)) Settings[Key] = Reading;
+  }
+  return Settings;
+}
+
+// 📦 The emitter readings a returning particle system implies. The inverse of the above over the same four.
+export function EmitterValuesFromParticles(Settings) {
+  const Values = {};
+  for (const [Label, Key] of GasEmitterToParticles) {
+    const Reading = Settings?.[Key];
+    if (Reading === undefined || Reading === null) continue;
+    if (Array.isArray(Reading)) {
+      if (Reading.length === 3 && Reading.every((One) => Number.isFinite(One))) Values[Label] = Reading.slice();
+    } else if (Number.isFinite(Reading)) Values[Label] = Reading;
+  }
+  return Values;
+}
+
 export const GasEmitterTransformRows = [
   ["Position", "m", [0, 0, 0], -1000, 1000, 0.01],
   ["Rotation", "deg", [0, 0, 0], -36000, 36000, 0.1],

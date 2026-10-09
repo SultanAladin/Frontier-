@@ -346,6 +346,14 @@ int main()
         Subject.Readings[9] = 9.0f;
         Capture("CardAlwaysWithEmitters");
 
+        // ③ The same card drawn for an emitter row: the Open band is the only thing that changes, because
+        //    the expanded editor behind it is the Particle Editor rather than the Fluid one.
+        Subject = GasCardSubject{};
+        Subject.Emitter = true;
+        Subject.Name = "Flame Source";
+        Subject.PresetName = "Hearth embers";
+        Capture("CardEmitterOpensParticleEditor");
+
         Subject = GasCardSubject{};
         Subject.Policy = 2u;
         Subject.Distance = 6.0f;

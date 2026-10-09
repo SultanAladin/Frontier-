@@ -37,6 +37,9 @@ import {
   GasEmitterRowSummary,
   GasEmitterSheet,
   GasEmitterTransformRows,
+  GasEmitterToParticles,
+  ParticleSettingsFromEmitter,
+  EmitterValuesFromParticles,
   GasFadeSeconds,
   GasResidency,
   GasRetires,
@@ -418,7 +421,7 @@ export function GasInspector({
 //    onto a tyre or a fracture piece, and it has siblings. That is the entire justification for its being a
 //    row rather than a fourth card on the domain — and if it could not be moved independently it would not
 //    have earned one.
-export function GasEmitterInspector({ Values, Change, Parent, SelectParent }) {
+export function GasEmitterInspector({ Values, Change, Parent, SelectParent, Open }) {
   const F = Reader(GasEmitterSheet, Values, Change);
   return (
     <>
@@ -466,6 +469,18 @@ export function GasEmitterInspector({ Values, Change, Parent, SelectParent }) {
           </p>
         )}
       </section>
+
+      {/* ③ The emitter's ↗, which is the particle editor rather than the fluid one. A domain is a volume a
+          solver integrates and opens in FluidEditor; an emitter is a source of discrete things -- sparks,
+          embers, debris -- and that is what ParticleEditor authors. One card, one editor, chosen by what
+          the row actually is. */}
+      {Open && (
+        <button className="gas-open" onClick={Open} aria-label="Expand ParticleEditor">
+          <Glyph Name="ExpandDiagonal" Size={14} />
+          Open ParticleEditor
+          <small>52 presets · sparks · debris · fibres · lightning</small>
+        </button>
+      )}
     </>
   );
 }
@@ -608,6 +623,132 @@ export default function GasEditor({ Subject, Values, Change, Domains, SelectDoma
             {Hidden ? "Domain hidden · nothing simulates" : GasSummary(Resolved)}
           </span>
           <span>Saved with the scene · crosses to the engine as .gasscene.toml</span>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+// ─── The particle editor ───────────────────────────────────────────────────────────────────────────────────
+
+// Where the Particle Editor page is served from. Unlike the Fluid simulator it has no build step at all —
+//    three script tags over a window global — so the source file itself is the page, and there is no dist
+//    to point at. That is convenient here and is the first thing to fix about it; see Docs/ParticleEditor.md.
+export function ParticleEditorSource() {
+  return (
+    (typeof window !== "undefined" && window.FrontierParticleEditorUrl) ||
+    "../ParticleEditor/index.html"
+  );
+}
+
+// 🔴 THE EMITTER'S EXPANDED EDITOR, AND WHY IT IS A DIFFERENT PAGE FROM THE DOMAIN'S.
+//    A gas domain is a volume that a solver integrates: its expanded editor is the Fluid simulator, which
+//    is that same solver with a viewport attached. An emitter is a source of discrete things, and what an
+//    author wants to open for one is a particle system — sparks off a grinder, embers off a fire, debris
+//    off a fracture. Opening FluidEditor for it would show the domain's settings again under a different
+//    title, which is how an editor ends up with two of everything.
+export function ParticleEditor({ Subject, Values, Change, Rename, Close }) {
+  const Root = useRef(null),
+    Frame = useRef(null),
+    [Reached, Reach] = useState(false);
+
+  useEffect(() => {
+    const Before = document.activeElement;
+    Root.current?.querySelector("button")?.focus();
+    return () => Before?.isConnected && Before.focus();
+  }, []);
+
+  // The handoff, in the same two sentences the Fluid drawer uses. Only the four readings in
+  //    GasEmitterToParticles cross; everything else on either side stays where it was authored.
+  useEffect(() => {
+    const Receive = (Event) => {
+      if (Event.data?.Frontier !== "particle-system-changed" || !Event.data.Settings) return;
+      const Arrived = EmitterValuesFromParticles(Event.data.Settings);
+      for (const [Label, Reading] of Object.entries(Arrived)) Change(Label, Reading);
+    };
+    window.addEventListener("message", Receive);
+    return () => window.removeEventListener("message", Receive);
+  }, [Change]);
+
+  const Hand = () => {
+    Reach(true);
+    Frame.current?.contentWindow?.postMessage(
+      {
+        Frontier: "particle-system",
+        Name: Subject.Name,
+        Preset: Values.ParticlePreset || "embers",
+        Settings: ParticleSettingsFromEmitter(Values),
+      },
+      "*",
+    );
+  };
+
+  const Key = (Event) => {
+    if (Event.key === "Escape") {
+      Event.stopPropagation();
+      Close();
+    }
+  };
+
+  return (
+    <div className="gas-editor-backdrop">
+      <section
+        className="gas-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-label="ParticleEditor"
+        ref={Root}
+        onKeyDown={Key}
+      >
+        <header className="gas-editor-header">
+          <div>
+            <span className="eyebrow">VOLUMETRICS / EMITTER</span>
+            <h1>ParticleEditor</h1>
+          </div>
+          <label className="gas-name">
+            Name
+            <input
+              aria-label="Emitter name"
+              value={Subject.Name}
+              maxLength={80}
+              onChange={(Event) => Rename(Event.target.value)}
+            />
+          </label>
+          <button className="gas-close" aria-label="Close ParticleEditor" onClick={Close}>
+            ×
+          </button>
+        </header>
+
+        <div className="gas-editor-body">
+          <iframe
+            ref={Frame}
+            className="gas-editor-frame"
+            title="Particle editor"
+            src={ParticleEditorSource()}
+            onLoad={Hand}
+          />
+          {!Reached && (
+            <div className="gas-editor-absent">
+              <h3>The Particle Editor page is not being served</h3>
+              <p>
+                This drawer hosts <code>Experimental/ParticleEditor</code> rather than reimplementing it,
+                exactly as the domain's drawer hosts <code>Experimental/Fluid</code>. Serve the repository
+                root, or set <code>window.FrontierParticleEditorUrl</code>.
+              </p>
+              <p>
+                It needs WebGPU: it has no WebGL2 path, so a browser without WebGPU shows its own boot
+                banner rather than a viewport.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <footer>
+          <span>
+            <i className="green" />
+            {GasEmitterToParticles.length} readings cross · the rest stay in their own editor
+          </span>
+          <span>Saved with the scene · the emitter is a row, not a settings group</span>
         </footer>
       </section>
     </div>

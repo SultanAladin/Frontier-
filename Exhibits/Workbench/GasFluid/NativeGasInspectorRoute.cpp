@@ -191,6 +191,10 @@ int main()
         Check(Inspector.ConsumeFluidEditorRequest() == 0u, "↗ raises the request, naming the instance that asked");
         Check(Inspector.ConsumeFluidEditorRequest() == kNoEditorInstance,
               "and consuming it clears it - a flag that is never consumed fires for the rest of the session");
+        Check(Inspector.ConsumeParticleEditorRequest() == kNoEditorInstance,
+              "\xe2\x9c\x94\xef\xb8\x8f and a domain's \xe2\x86\x97 did not also ask for the particle editor");
+        Check(!Inspector.QueryGasDomain(0u)->Emitter,
+              "the domain's card knows it is a domain, which is what its Open band reads from");
     }
 
     //---------------------------------------------------------------------------------------------------------
@@ -202,6 +206,20 @@ int main()
         Check(Inspector.QueryGasDomain(1u) != nullptr, "an emitter row opens the gas branch and gets a slot of its own");
         Check(!std::strcmp(Inspector.QueryGasDomain(1u)->Name, "Flame Source"),
               "named from its own row, because it is its own entity and not a group on the domain");
+
+        // ③ The emitter's own expanded editor. Same button, same hit region, different page -- and the
+        //    fluid request must stay silent, because a host that opened the fluid simulator for an emitter
+        //    would be showing the domain's settings over again.
+        GasCards::GasHitRegions Where = Inspector.QueryGasRegions();
+        Check(Inspector.QueryGasDomain(1u)->Emitter,
+              "\xe2\x9c\x94\xef\xb8\x8f an emitter's card knows it is an emitter");
+        Click(Where.Open, 1u);
+        Check(Inspector.ConsumeParticleEditorRequest() == 1u,
+              "\xe2\x86\x97 on an emitter raises the ParticleEditor request, naming the row that asked");
+        Check(Inspector.ConsumeFluidEditorRequest() == kNoEditorInstance,
+              "\xf0\x9f\x94\xb4 and it does not raise the Fluid one -- one button, one destination, chosen by the row");
+        Check(Inspector.ConsumeParticleEditorRequest() == kNoEditorInstance, "consuming clears it");
+
         Sheet.Appearance = EditorSheetAppearance::Gas;
     }
 

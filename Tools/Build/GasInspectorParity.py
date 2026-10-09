@@ -151,6 +151,39 @@ def Main():
           and '"gas"' in Sheet.lower() or True,
           "and the port has a panel of its own for each, rather than borrowing the local fog one")
 
+    print("\nThe expand button, which is two destinations behind one glyph")
+    Panel = (Root / "Experimental/ProjectZeroEditor/GasPanel.jsx").read_text(encoding="utf-8")
+    Routing = (Root / "Engine/Editor/InspectorPanel.cpp").read_text(encoding="utf-8")
+    Check("Open FluidEditor" in Panel and '"Open FluidEditor"' in Surface,
+          "a gas domain's \u2197 reads Open FluidEditor on both sides")
+    Check("Open ParticleEditor" in Panel and '"Open ParticleEditor"' in Surface,
+          "\u2713 and a gas emitter's reads Open ParticleEditor on both sides")
+    Check("all 85 settings \u00b7 presets \u00b7 flipbook bake" in Panel
+          and "all 85 settings - presets - flipbook bake" in Surface,
+          "the domain's subtitle agrees, allowing for the port's ASCII separators")
+    Check("52 presets \u00b7 sparks \u00b7 debris \u00b7 fibres \u00b7 lightning" in Panel
+          and "52 presets - sparks - debris - fibres - lightning" in Surface,
+          "and so does the emitter's")
+    Check("Subject.Emitter ?" in Surface and "bool        Emitter" in Surface,
+          "the native card chooses by a flag on the subject, not by a second card")
+    Check('aria-label="Expand ParticleEditor"' in Panel,
+          "the browser button is reachable by name, as the fluid one is")
+    Check("ParticleEditorFor_ = PickedIndex" in Routing and "FluidEditorFor_    = PickedIndex" in Routing,
+          "and the native panel raises one request or the other from the same hit region")
+    Check(Panel.count("ParticleEditorSource") >= 2 and "../ParticleEditor/index.html" in Panel,
+          "\U0001f534 the drawer hosts the Particle Editor page rather than reimplementing it")
+
+    Crossing = re.search(r"export const GasEmitterToParticles = \[(.*?)\n\];", Sheet, re.S).group(1)
+    Crossed = re.findall(r'\["([A-Za-z ]+)",\s*"(\w+)"', Crossing)
+    Emitter = [Field["Label"] for Field in ReadBrowserSheet(Sheet, "GasEmitterSheet")]
+    Check([Label for Label, _ in Crossed] == ["Position", "Radius", "Rise Speed", "Swirl"],
+          "four emitter readings cross to the particle editor, and they are named")
+    Check(all(Label in Emitter or Label == "Position" for Label, _ in Crossed),
+          "every one of them is a reading the emitter sheet actually has, or its transform")
+    Check(not any(Label in [One for One, _ in Crossed] for Label in ["Smoke", "Fuel", "Temperature"]),
+          "\u274c smoke, fuel and temperature do not cross -- they are fields a solver integrates and a "
+          "particle system has none")
+
     print(f"\n{'PASS' if not Faults else 'FAIL'} {Claims}")
     if Faults:
         print(f"{len(Faults)} disagreement(s) between the card and its port")

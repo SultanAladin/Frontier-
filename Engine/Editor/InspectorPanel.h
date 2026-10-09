@@ -63,6 +63,12 @@ public:
     uint32_t ConsumeFluidEditorRequest() noexcept
     { const uint32_t Asked = FluidEditorFor_; FluidEditorFor_ = kNoEditorInstance; return Asked; }
 
+    // ↗ on a gas *emitter's* card. The same button, a different page: Experimental/ParticleEditor rather
+    //    than Experimental/Fluid. Kept as its own request rather than one request with a kind, because a
+    //    host that has only built one of the two editors must be able to answer one and ignore the other.
+    uint32_t ConsumeParticleEditorRequest() noexcept
+    { const uint32_t Asked = ParticleEditorFor_; ParticleEditorFor_ = kNoEditorInstance; return Asked; }
+
     // The gas domain the panel is holding for an instance, for a host that wants to read or seed it.
     GasCards::GasCardSubject* QueryGasDomain(uint32_t PickedIndex) noexcept
     { for (GasRecord& One : Gas_) if (One.For == PickedIndex) return &One.Domain; return nullptr; }
@@ -106,6 +112,7 @@ private:
     FractureRecord Fracture_[16] = {};
     GasRecord      Gas_[8]        = {};
     uint32_t       FluidEditorFor_ = kNoEditorInstance;
+    uint32_t       ParticleEditorFor_ = kNoEditorInstance;
     GasCards::GasHitRegions GasWhere_ = {};
     bool     NotesSeen_   = false;   // EntityNotes opens itself once, from whether a note exists
 };

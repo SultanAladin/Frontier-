@@ -31,7 +31,7 @@ import {
   ConsolidateAtmosphereFlags,
 } from "./ScenePolicy.js";
 import WindEditor from "./WindPanel.jsx";
-import GasEditor from "./GasPanel.jsx";
+import GasEditor, { ParticleEditor } from "./GasPanel.jsx";
 import { GasEmitterRowSummary, GasRowSummary, NewGasEmitter } from "./GasSpecification.js";
 import AssetPanel from "./AssetPanel.jsx";
 import { RestoreAssets } from "./AssetDepot.js";
@@ -597,6 +597,21 @@ function App() {
     (Row) => Row.Id === GasTarget && Row.Panel === "gas",
   );
   const GasDomains = Rows.filter((Row) => Row.Panel === "gas");
+  // The emitter's own expanded editor. Same shape as the domain's, a different page behind it.
+  const [ParticleTarget, EditParticles] = useState(null);
+  const ParticleOpener = useRef(null);
+  const CloseParticles = () => {
+    EditParticles(null);
+    requestAnimationFrame(() => {
+      const Target = ParticleOpener.current?.isConnected
+        ? ParticleOpener.current
+        : document.querySelector('[aria-label="Expand ParticleEditor"]');
+      Target?.focus({ preventScroll: true });
+    });
+  };
+  const ParticleSubject = Rows.find(
+    (Row) => Row.Id === ParticleTarget && Row.Panel === "gas-emitter",
+  );
   const [ShaderTarget, SelectShaderTarget] = useState(null),
     [ShaderFloating, FloatShader] = useState(false);
   const ShaderAsset = AssetRecords.find(
@@ -1830,6 +1845,10 @@ function App() {
                   );
                 }
               }}
+              OpenParticles={() => {
+                ParticleOpener.current = document.activeElement;
+                EditParticles(Selected);
+              }}
               OpenGas={() => {
                 GasOpener.current = document.activeElement;
                 EditGas(Selected);
@@ -2254,6 +2273,27 @@ function App() {
             }))
           }
           Close={CloseGas}
+        />
+      )}
+      {ParticleSubject && (
+        <ParticleEditor
+          key={ParticleSubject.Id}
+          Subject={ParticleSubject}
+          Values={Values[ParticleSubject.Id] || {}}
+          Rename={(Name) =>
+            AssignRows((Previous) =>
+              Previous.map((Row) =>
+                Row.Id === ParticleSubject.Id ? { ...Row, Name } : Row,
+              ),
+            )
+          }
+          Change={(Key, Value) =>
+            AssignValues((Previous) => ({
+              ...Previous,
+              [ParticleSubject.Id]: { ...Previous[ParticleSubject.Id], [Key]: Value },
+            }))
+          }
+          Close={CloseParticles}
         />
       )}
       {WindSubject && (

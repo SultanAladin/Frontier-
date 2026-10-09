@@ -218,6 +218,7 @@ struct GasCardSubject
 {
     const char* Name        = "Gas Domain";
     const char* PresetName  = "Camp fire";
+    bool        Emitter     = false;             // ③ an emitter opens ParticleEditor, a domain FluidEditor
     bool        Hidden      = false;
     bool        Obstructs   = true;
     bool        Coupled     = false;             // 🔴 two-way coupling off by default, as the header has it
@@ -961,8 +962,12 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
     Draw->AddRect({ Spot.x, Cursor }, { Spot.x + Wide, Cursor + OpenTall }, OpenEdge, 10.0f, 0, 1.0f);
     Where.Open = { Spot.x, Cursor, Wide, OpenTall };
     {
-        const char* Title = "Open FluidEditor";
-        const char* Under = "all 85 settings - presets - flipbook bake";
+        // ③ A domain is a volume a solver integrates and opens in the Fluid simulator. An emitter is a
+        //    source of discrete things and opens in the Particle Editor. One button, two destinations,
+        //    chosen by what the row is -- not two buttons, and not one editor pretending to be both.
+        const char* Title = Subject.Emitter ? "Open ParticleEditor" : "Open FluidEditor";
+        const char* Under = Subject.Emitter ? "52 presets - sparks - debris - fibres - lightning"
+                                            : "all 85 settings - presets - flipbook bake";
         const ImVec2 TitleSized = Light->CalcTextSizeA(12.0f, FLT_MAX, 0.0f, Title);
         const ImVec2 UnderSized = Light->CalcTextSizeA(NoteSize, FLT_MAX, 0.0f, Under);
         Draw->AddText(Light, 12.0f, { Spot.x + (Wide - TitleSized.x) * 0.5f, Cursor + 13.0f }, ActionInk, Title);

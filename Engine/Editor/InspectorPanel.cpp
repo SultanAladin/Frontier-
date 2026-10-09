@@ -404,8 +404,9 @@ void InspectorPanel::RecordGas(EditorInstance& Picked, uint32_t PickedIndex, boo
     if (Slot == nullptr) { Gas_[0] = GasRecord{}; Gas_[0].For = PickedIndex; Slot = &Gas_[0]; }
 
     GC::GasCardSubject& Domain = Slot->Domain;
-    Domain.Name   = Picked.Label[0] ? Picked.Label : "Gas Domain";
-    Domain.Hidden = !Picked.Visible;
+    Domain.Name    = Picked.Label[0] ? Picked.Label : "Gas Domain";
+    Domain.Hidden  = !Picked.Visible;
+    Domain.Emitter = Emitter;
 
     ImFont* Light = ImGui::GetFont();
     ImFont* Regular = Light;
@@ -498,9 +499,13 @@ void InspectorPanel::RecordGas(EditorInstance& Picked, uint32_t PickedIndex, boo
         Domain.ChildCount += 1u;
     }
 
-    if (Target("##gas-open-fluid", Where.Open)) FluidEditorFor_ = PickedIndex;
+    // ③ One ↗, two destinations. An emitter opens the Particle Editor; a domain opens the Fluid one.
+    if (Target("##gas-open-fluid", Where.Open))
+    {
+        if (Emitter) ParticleEditorFor_ = PickedIndex;
+        else         FluidEditorFor_    = PickedIndex;
+    }
 
-    (void)Emitter;
     ImGui::SetCursorScreenPos(Spot);
     ImGui::Dummy({ Wide, Tall });
 }

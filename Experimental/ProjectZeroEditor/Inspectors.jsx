@@ -478,6 +478,7 @@ export function Inspector({
   OpenShader,
   OpenFracture,
   OpenGas,
+  OpenParticles,
   GasChildren = [],
   GasParent = null,
   SelectRow,
@@ -1430,6 +1431,7 @@ export function Inspector({
           Change={Change}
           Parent={GasParent}
           SelectParent={SelectRow}
+          Open={OpenParticles}
         />
       </>
     );

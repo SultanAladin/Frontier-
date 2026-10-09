@@ -69,6 +69,9 @@ jobs:
       - name: Gas inspector — the card's cost readout against GasQualityAllowance.h
         run: python3 Tools/Build/RunAnnounced.py "gas inspector" -- node Experimental/ProjectZeroEditor/CheckGasInspector.mjs
 
+      - name: Particle editor — the scene handoff the emitter card opens it through
+        run: python3 Tools/Build/RunAnnounced.py "particle handoff" -- node Experimental/ParticleEditor/CheckHandoff.mjs
+
       - name: Gas inspector parity — the native card against the HTML it was ported from
         run: python3 Tools/Build/RunAnnounced.py "gas inspector parity" -- python3 Tools/Build/GasInspectorParity.py
 
