@@ -75,6 +75,15 @@ jobs:
       - name: Force fields — the taxonomy wind, gravity and drag all have to fit
         run: python3 Tools/Build/RunAnnounced.py "force fields" -- node Experimental/ParticleEditor/CheckForceFields.mjs
 
+      - name: Force field panel — the one list drawn into a real DOM
+        run: python3 Tools/Build/RunAnnounced.py "force panel" -- node Experimental/ParticleEditor/CheckForcePanel.mjs
+
+      - name: Force field parity — the native taxonomy against the browser it was ported from
+        run: python3 Tools/Build/RunAnnounced.py "force field parity" -- python3 Tools/Build/ForceFieldParity.py
+
+      - name: Force fields, natively — the same arithmetic, twice, byte for byte
+        run: python3 Tools/Build/RunAnnounced.py "native force fields" -- python3 Exhibits/Workbench/GasFluid/RunNativeForceFields.py
+
       - name: Gas inspector parity — the native card against the HTML it was ported from
         run: python3 Tools/Build/RunAnnounced.py "gas inspector parity" -- python3 Tools/Build/GasInspectorParity.py
 

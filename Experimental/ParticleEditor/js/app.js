@@ -77,6 +77,11 @@ import "./handoff.js";
     systems: [],
     nextId: 1,
     selection: { type: "wind" },
+    // 🔴 ONE LIST. Wind components and force fields used to be two separate arrays with two separate
+    //    shapes, edited in two panels, because nothing had noticed they were the same entity seen twice.
+    //    They are now one authored list of force fields; `wind` keeps only the lattice's own display and
+    //    global terms, which are settings of the sampling grid rather than fields in it.
+    forces: PE.Forces.DefaultForces(),
     wind: PE.defaultWind(),
     cam: { yaw: 0.6, pitch: 0.3, dist: 12.5, target: [0, 1.6, 0] },
     playing: true,
@@ -88,7 +93,6 @@ import "./handoff.js";
     probeOn: true,
     probe: [0, 1, 0],
     web: { enabled: false, interval: 0.6, nextAt: 0, k: 2 },
-    fields: [],   // global force fields: { type, enabled, pos, radius, strength, swirl, swallow, t0, duration, period }
     ui: { liveEls: {} },
   };
   window.ParticleEditorState = state; // for diagnostics in the console
@@ -128,18 +132,39 @@ import "./handoff.js";
 
   // Some presets need a matching wind component to look right (a tornado needs its vortex,
   // a sandstorm needs a strong prevailing wind). Enable or create that component when added.
+  // A preset's windLink still speaks the lattice's language (type number, bearing, x/z), because that is
+  //    how fifty-two presets are written and rewriting them is a separate job from unifying the lists.
+  //    This is the one place that translation lives.
+  const FLOW_KIND = ["prevailing", "gust", "tornado", "outflow"];
+
   function applyWindLink(preset) {
     const link = preset.windLink;
     if (!link) return;
-    const comps = state.wind.components;
-    let c = comps.find((k) => k.type === link.type);
-    if (!c) {
-      if (comps.length >= PE.WIND.maxComps) return;
-      c = { name: link.name, type: link.type, enabled: false, x: 0, z: 0, radius: 2, strength: 4, bearing: 0, freq: 0 };
-      comps.push(c);
+    const Kind = FLOW_KIND[link.type];
+    if (!Kind) return;
+    let Field = state.forces.find((One) => One.Kind === Kind);
+    if (!Field) {
+      if (flowFields().length >= PE.WIND.maxComps) return;
+      Field = { ...PE.Forces.BaseField(Kind), Name: link.name, Enabled: false,
+                Centre: [0, 0, 0], Radius: 2, Strength: 4, Rate: 0, Direction: PE.Forces.Along(0) };
+      state.forces.push(Field);
     }
-    const place = link.local ? { x: preset.p.origin[0], z: preset.p.origin[2] } : {};
-    Object.assign(c, link.set || {}, place, { enabled: true });
+    const Set = link.set || {};
+    if (Set.radius !== undefined) Field.Radius = Set.radius;
+    if (Set.strength !== undefined) Field.Strength = Set.strength;
+    if (Set.bearing !== undefined) Field.Direction = PE.Forces.Along(Set.bearing);
+    if (Set.freq !== undefined) Field.Rate = Set.freq;
+    if (link.local) { Field.Centre[0] = preset.p.origin[0]; Field.Centre[2] = preset.p.origin[2]; }
+    Field.Enabled = true;
+  }
+
+  // The flow fields, in authored order. buildWind reads a fixed count and tests each entry's own enabled
+  //    flag, so a disabled one keeps its slot rather than shuffling the ones behind it.
+  function flowFields() {
+    return state.forces.filter((One) => {
+      const Kind = PE.Forces.KindById(One.Kind);
+      return Kind && Kind.Give === PE.Forces.Contribution.Flow;
+    });
   }
 
   function addSystem(presetId) {
@@ -290,13 +315,14 @@ import "./handoff.js";
     glob.set([cam.eye[0], cam.eye[1], cam.eye[2], 1], G.camPos);
     glob.set([DOMAIN.min[0], DOMAIN.min[1], DOMAIN.min[2], 0], G.windMin);
     glob.set([DOMAIN.size[0], DOMAIN.size[1], DOMAIN.size[2], 0], G.windSize);
-    glob.set([DOMAIN.dim[0], DOMAIN.dim[1], DOMAIN.dim[2], state.wind.components.length], G.windDim);
+    const Flow = PE.Forces.ForGpu(state.forces).Lattice;
+    glob.set([DOMAIN.dim[0], DOMAIN.dim[1], DOMAIN.dim[2], Flow.length], G.windDim);
     glob.set([state.time, dt, state.frame, state.wind.windScale], G.timing);
     glob.set([state.wind.arrowRef, 0.012, state.lightning.flash, state.wind.turbulence], G.viz);
     glob.set([state.wind.swirl, 0.45, 0.22, state.wind.arrowStride || 3], G.swirl);
 
     const comps = new Float32Array(PE.WIND.maxComps * 8);
-    state.wind.components.slice(0, PE.WIND.maxComps).forEach((c, i) => {
+    Flow.slice(0, PE.WIND.maxComps).forEach((c, i) => {
       comps.set([c.x, c.z, Math.max(0.5, c.radius), c.type, c.strength, (c.bearing * Math.PI) / 180, c.freq, c.enabled ? 1 : 0], i * 8);
     });
 
@@ -497,9 +523,9 @@ import "./handoff.js";
     const q = (state.ui.olQuery || "").trim().toLowerCase();
     const match = (t) => !q || t.toLowerCase().includes(q);
     if (match("Environment") || match("Wind field") || match("Lightning") || match("Force fields")) list.append(el("div", { class: "ol-group", text: "Environment" }));
-    if (match("Wind field")) list.append(row("wind", "Wind field", `${state.wind.components.filter((c) => c.enabled).length} active · ${PE.WIND.dim.join("×")} grid`,
+    if (match("Wind field")) list.append(row("wind", "Wind field", `${flowFields().filter((c) => c.Enabled).length} active · ${PE.WIND.dim.join("×")} grid`,
       "background: linear-gradient(90deg,#3a7bff,#ffd34a,#ff4a2a)", sel.type === "wind", () => select({ type: "wind" })));
-    if (match("Force fields")) list.append(row("forces", "Force fields", `${state.fields.length} global · ${state.systems.filter((x) => x.p.attractor && x.p.attractor.enabled).length} black hole`,
+    if (match("Force fields")) list.append(row("forces", "Force fields", forcesRowSummary(),
       "background:#9ad0ff", sel.type === "forces", () => select({ type: "forces" })));
     if (match("Lightning")) list.append(row("light", "Lightning", `${state.lightning.strikes} strikes · ${state.lightning.auto ? "auto" : "manual"}`,
       "background:#c9e2ff", sel.type === "lightning", () => select({ type: "lightning" })));
@@ -534,6 +560,19 @@ import "./handoff.js";
     state.ui.liveEls.vis = null;
     $("#outliner-visible").textContent = String(counts);
     $("#outliner-hidden").textContent = String(state.systems.length - counts);
+  }
+
+  // The outliner line for the force fields, counted by contribution so that the taxonomy is visible
+  //    without opening the panel.
+  function forcesRowSummary() {
+    const Count = { flow: 0, accelerate: 0, damp: 0 };
+    for (const Field of state.forces) {
+      const Kind = PE.Forces.KindById(Field.Kind);
+      if (Kind && Field.Enabled) Count[Kind.Give]++;
+    }
+    const Own = state.systems.filter((One) => One.p.attractor && One.p.attractor.enabled).length;
+    return `${Count.flow} flow · ${Count.accelerate} accel` + (Count.damp ? ` · ${Count.damp} damp` : "")
+         + (Own ? ` · ${Own} black hole` : "");
   }
 
   function select(sel) {
@@ -634,7 +673,9 @@ import "./handoff.js";
       if (!sys.p.visible || !mf) continue;
       put(3, sys.p.origin, { radius: mf.radius, strength: mf.strength, swirl: mf.guide, swallow: 0, t0: 0, duration: 1e9, period: 0 });
     }
-    for (const f of state.fields) if (f.enabled) put(f.type, f.pos, f);
+    // The authored acceleration fields. Per-system attractors above are not in the list because they
+    //    belong to a system rather than to the scene — they move with it and die with it.
+    for (const Entry of PE.Forces.ForGpu(state.forces, state.time).Forces) put(Entry.type, Entry.pos, Entry);
     out[0] = n;
     out[1] = state.time;
     return out;
@@ -679,46 +720,117 @@ import "./handoff.js";
     return { count: n, shCount: sh, data: out };
   }
 
-  // 📝 Force field editor: add attractors, repulsors and timed reverse-gravity lifts.
-  function addField(type) {
-    state.fields.push({
-      type, enabled: true, pos: [0, 2, 0],
-      radius: type === 2 ? 0 : 8, strength: 6, swirl: 0, swallow: 0,
-      t0: type === 2 ? 2 : 0, duration: type === 2 ? 3 : 1e9, period: type === 2 ? 10 : 0,
-    });
+  // 📝 Any kind in the taxonomy can be added, including the ones with no GPU path yet. Those are drawn
+  //    with a plain warning rather than hidden, because a kind that silently does nothing is worse than
+  //    one that says it does nothing.
+  function addForce(Id) {
+    const Fresh = PE.Forces.BaseField(Id);
+    const Same = state.forces.filter((One) => One.Kind === Id).length;
+    if (Same) Fresh.Name = Fresh.Name + " " + (Same + 1);
+    if (Fresh.Reaches !== PE.Forces.Reach.Everywhere) Fresh.Centre = [0, 2, 0];
+    state.forces.push(Fresh);
     select({ type: "forces" });
+    return Fresh;
   }
+
+  // ─── One panel for every field ───────────────────────────────────────────────────────────────────────
+  //
+  // Grouped by what each field contributes rather than by where it used to be edited. A reader can see
+  //    at a glance that wind and gravity are different quantities, which is the point of the taxonomy,
+  //    and the grouping is read from the spec rather than hand-sorted here.
+  const GIVE_PROSE = {
+    flow: ["FLOW \u00b7 m/s", "Velocity the air carries. A receiver is dragged toward it at its own coupling, so the same wind moves a leaf and a hailstone differently, and nothing in it accelerates forever. These sum into one lattice however many there are."],
+    accelerate: ["ACCELERATE \u00b7 m/s\u00b2", "Added straight to velocity. Coupling has no say, which is why gravity belongs here and not in the wind: it must move everything by the same amount. Evaluated per receiver, so these cost more than flow does."],
+    damp: ["DAMP \u00b7 1/s", "Scales velocity down. Removes energy rather than adding a direction, so unlike a force it can never start something moving."],
+  };
 
   function renderForcesInspector(root) {
     root.append(el("div", { class: "insp-head" },
       el("span", { class: "insp-path", text: "Environment / Force fields" }),
       el("h2", { text: "Force fields" }),
-      el("p", { class: "insp-sub", text: "Invisible fields that pull, push or lift particles. Black hole systems add their own attractor. Timed fields switch on for a window and repeat every period (0 = once)." })));
-    root.append(card("Add", null,
-      el("div", { class: "btn-row" },
-        button("+ Attractor", () => addField(0), "accent"),
-        button("+ Repulsor", () => addField(1)),
-        button("+ Reverse gravity", () => addField(2)))));
-    const names = ["Attractor", "Repulsor", "Reverse gravity"];
-    state.fields.forEach((f, i) => {
-      const body = [
-        checkRow("Enabled", () => f.enabled, (v) => (f.enabled = v)),
-        vecRow("Centre", f.pos, { min: -20, max: 20, step: 0.05, digits: 2, unit: "m" }),
-        rangeRow(f.type === 2 ? "Radius (0 = everywhere)" : "Radius", () => f.radius, (v) => (f.radius = v), { min: 0, max: 30, step: 0.05, digits: 2, unit: "m" }),
-        rangeRow("Strength", () => f.strength, (v) => (f.strength = v), { min: 0, max: 30, step: 0.1, digits: 1, unit: "m/s²" }),
-      ];
-      if (f.type === 0) {
-        body.push(rangeRow("Swirl", () => f.swirl, (v) => (f.swirl = v), { min: 0, max: 12, step: 0.05, digits: 2 }));
-        body.push(rangeRow("Swallow radius", () => f.swallow, (v) => (f.swallow = v), { min: 0, max: 3, step: 0.01, digits: 2, unit: "m" }));
-      } else {
-        body.push(rangeRow("Start", () => f.t0, (v) => (f.t0 = v), { min: 0, max: 60, step: 0.1, digits: 1, unit: "s" }));
-        body.push(rangeRow("Duration", () => f.duration, (v) => (f.duration = v), { min: 0.1, max: 120, step: 0.1, digits: 1, unit: "s" }));
-        body.push(rangeRow("Period (0 = once)", () => f.period, (v) => (f.period = v), { min: 0, max: 120, step: 0.1, digits: 1, unit: "s" }));
+      el("p", { class: "insp-sub", text: "Every field in the scene, grouped by what it contributes. Wind is the flow kinds; gravity and attraction are acceleration. Black hole and magnetic systems carry their own, which move with them and are not listed here." })));
+
+    const Adders = el("div", { class: "btn-row wrap" });
+    for (const Kind of PE.Forces.ForceFieldKinds) {
+      Adders.append(button("+ " + Kind.Name, () => { addForce(Kind.Id); renderInspector(); },
+                           Kind.Id === "gravity" ? "accent" : ""));
+    }
+    root.append(card("Add", null, Adders));
+
+    const { Baked, Live } = PE.Forces.Bakeable(state.forces);
+    root.append(card("Cost", "WHAT THIS SCENE PAYS",
+      el("div", { class: "stat-grid" },
+        el("div", { class: "stat" }, el("span", { class: "stat-k", text: "Summed into the lattice" }),
+          el("span", { class: "stat-v", text: String(Baked.length) })),
+        el("div", { class: "stat" }, el("span", { class: "stat-k", text: "Evaluated per receiver" }),
+          el("span", { class: "stat-v", text: String(Live.length) }))),
+      note("Flow fields sum into one velocity texture and then cost one sample each step no matter how many there are. Acceleration fields cannot: the useful ones are unbounded and a bounded texture would clip them, so each is evaluated per receiver per step.")));
+
+    for (const Give of ["flow", "accelerate", "damp"]) {
+      const Mine = state.forces
+        .map((Field, Index) => ({ Field, Index }))
+        .filter(({ Field }) => PE.Forces.KindById(Field.Kind)?.Give === Give);
+      if (!Mine.length) continue;
+      const [Kicker, Prose] = GIVE_PROSE[Give];
+      root.append(el("p", { class: "note group-note", text: Prose }));
+      for (const { Field, Index } of Mine) root.append(forceCard(Field, Index, Kicker));
+    }
+
+    if (!state.forces.length) root.append(note("No fields. Add one above."));
+  }
+
+  function forceCard(Field, Index, Kicker) {
+    const Kind = PE.Forces.KindById(Field.Kind);
+    const Body = [
+      el("label", { class: "row" }, el("span", { class: "row-k", text: "Name" }),
+        el("input", { type: "text", value: Field.Name, "aria-label": "Field name",
+                      oninput: (Event) => { Field.Name = Event.target.value || Kind.Name; renderOutliner(); } })),
+      checkRow("Enabled", () => Field.Enabled, (v) => (Field.Enabled = v)),
+      rangeRow("Strength", () => Field.Strength, (v) => (Field.Strength = v),
+               { min: -20, max: 20, step: 0.05, digits: 2, unit: Kind.Unit }),
+    ];
+
+    if (Field.Reaches === PE.Forces.Reach.Everywhere) {
+      Body.push(note("Reaches everywhere. This is not a very large sphere \u2014 it has no centre and no edge, which is the case a bounded lattice could not have held."));
+    } else {
+      Body.push(vecRow("Centre", Field.Centre, { min: -20, max: 20, step: 0.05, digits: 2, unit: "m" }));
+      Body.push(rangeRow("Radius", () => Field.Radius, (v) => (Field.Radius = v),
+                         { min: 0.5, max: 30, step: 0.05, digits: 2, unit: "m" }));
+      Body.push(selectRow("Falloff", Object.values(PE.Forces.Falloff).map((One) => [One, One]),
+                          () => Field.Fades, (v) => (Field.Fades = v)));
+    }
+
+    if (Kind.Give === PE.Forces.Contribution.Flow) {
+      Body.push(rangeRow("Bearing", () => Math.round(PE.Forces.Bearing(Field)),
+                         (v) => (Field.Direction = PE.Forces.Along(v)),
+                         { min: 0, max: 360, step: 1, digits: 0, unit: "\u00b0" }));
+      if (Field.Kind === "gust") {
+        Body.push(rangeRow("Band speed", () => Field.Rate, (v) => (Field.Rate = v),
+                           { min: 0, max: 2, step: 0.01, digits: 2 }));
       }
-      body.push(button("Delete", () => { state.fields.splice(i, 1); renderInspector(); }, "danger"));
-      root.append(card(`${i + 1}. ${names[f.type]}`, f.type === 2 ? "TIMED" : null, ...body));
-    });
-    if (!state.fields.length) root.append(note("No fields yet. Add one above."));
+    }
+    if (Field.Kind === "attract") {
+      Body.push(rangeRow("Swirl", () => Field.Swirl, (v) => (Field.Swirl = v),
+                         { min: 0, max: 12, step: 0.05, digits: 2 }));
+      Body.push(rangeRow("Swallow radius", () => Field.Swallow, (v) => (Field.Swallow = v),
+                         { min: 0, max: 3, step: 0.01, digits: 2, unit: "m" }));
+    }
+
+    Body.push(rangeRow("Start", () => Field.Begins, (v) => (Field.Begins = v),
+                       { min: 0, max: 60, step: 0.1, digits: 1, unit: "s" }));
+    Body.push(rangeRow("Lasts (0 = forever)", () => Field.Lasts, (v) => (Field.Lasts = v),
+                       { min: 0, max: 120, step: 0.1, digits: 1, unit: "s" }));
+    Body.push(rangeRow("Repeats (0 = once)", () => Field.Repeats, (v) => (Field.Repeats = v),
+                       { min: 0, max: 120, step: 0.1, digits: 1, unit: "s" }));
+
+    if (!PE.Forces.Packable(Field)) {
+      Body.push(note("\u26a0\ufe0f This kind has no GPU path yet, so it is authored and described but does not move anything. It is listed rather than hidden because a control that silently does nothing is worse than one that says so."));
+    }
+
+    Body.push(el("div", { class: "btn-row" },
+      button("Remove", () => { state.forces.splice(Index, 1); renderInspector(); }, "danger")));
+
+    return card(Field.Name, Kicker, ...Body);
   }
 
   function renderInspector() {
@@ -1035,26 +1147,19 @@ import "./handoff.js";
       checkRow("Show domain box", () => w.showDomain, (v) => (w.showDomain = v)),
       note("Arrow colour is speed: blue calm, cyan, yellow, red fast. Density is the voxel step between arrows: 1 draws every voxel, 3 draws every third.")));
 
-    w.components.forEach((c, i) => {
-      root.append(card(c.name, WIND_TYPE_LABEL[c.type] || "WIND",
-        el("label", { class: "row" }, el("span", { class: "row-k", text: "Name" }),
-          el("input", { type: "text", value: c.name, "aria-label": "Wind component name", oninput: (e) => { c.name = e.target.value || "Wind"; } })),
-        selectRow("Type", PE.WindTypes.map((t, k) => [k, t]), () => c.type, (v) => { c.type = v; renderInspector(); }),
-        checkRow("Enabled", () => c.enabled, (v) => (c.enabled = v)),
-        rangeRow("Strength", () => c.strength, (v) => (c.strength = v), { min: -20, max: 20, step: 0.05, digits: 2, unit: "m/s" }),
-        rangeRow("Bearing", () => c.bearing, (v) => (c.bearing = v), { min: 0, max: 360, step: 1, digits: 0, unit: "°" }),
-        rangeRow("Radius", () => c.radius, (v) => (c.radius = v), { min: 0.5, max: 12, step: 0.05, digits: 2, unit: "m" }),
-        rangeRow("X", () => c.x, (v) => (c.x = v), { min: -6, max: 6, step: 0.05, digits: 2, unit: "m" }),
-        rangeRow("Z", () => c.z, (v) => (c.z = v), { min: -6, max: 6, step: 0.05, digits: 2, unit: "m" }),
-        c.type === 1 ? rangeRow("Band speed", () => c.freq, (v) => (c.freq = v), { min: 0, max: 2, step: 0.01, digits: 2 }) : null,
-        el("div", { class: "btn-row" }, button("Remove", () => { w.components.splice(i, 1); renderInspector(); }, "danger"))));
-    });
-    root.append(el("div", { class: "btn-row pad" },
-      button("Add component", () => {
-        if (w.components.length >= PE.WIND.maxComps) return;
-        w.components.push({ name: "Wind " + (w.components.length + 1), type: 0, enabled: true, x: 0, z: 0, radius: 4, strength: 2, bearing: 90, freq: 0.3 });
-        renderInspector();
-      }, "accent")));
+    // 📝 The components that used to be edited here are force fields now, and live in the one panel with
+    //    the rest. What is left is the lattice itself: its global terms and how it is drawn. Turbulence
+    //    and swirl stay because they are properties of the sampling grid, added to every cell of it,
+    //    rather than fields anybody placed.
+    const Flowing = flowFields();
+    root.append(card("Fields in this lattice", "FLOW", 
+      ...(Flowing.length
+        ? Flowing.map((Field) => el("div", { class: "stat" },
+            el("span", { class: "stat-k", text: Field.Name }),
+            el("span", { class: "stat-v", text: Field.Enabled ? Field.Strength.toFixed(2) + " m/s" : "off" })))
+        : [note("No flow fields. The lattice is empty and every receiver coasts.")]),
+      el("div", { class: "btn-row" },
+        button("Edit force fields", () => select({ type: "forces" }), "accent"))));
 
     const probeR = el("span", { class: "stat-v", text: "–" });
     const probeMs = el("span", { class: "stat-v", text: "–" });
@@ -1070,7 +1175,6 @@ import "./handoff.js";
     void px;
     state.ui.liveEls = Object.assign(live, { probe: probeR, probeMs });
   }
-  const WIND_TYPE_LABEL = { 0: "DIRECTIONAL", 1: "GUST", 2: "TORNADO", 3: "RADIAL" };
 
   function renderLightningInspector(root, live) {
     const L = state.lightning;

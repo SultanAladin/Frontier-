@@ -309,12 +309,57 @@ Per the same rule the gas colliders follow, the responding set is data. A field 
 acts on (empty = everything) and a receiver names the channels it is in. "This room is on the Moon, but
 only for the rubble" is authored, never compiled in.
 
+### The migration — two lists became one
+
+Wind components and force fields were two arrays, two shapes, two panels. They are now one authored list,
+`state.forces`, and the two panels became one grouped by contribution. The wind panel keeps what is
+genuinely the lattice's own — scale, turbulence, swirl, arrows, the domain box — because those are
+settings of the sampling grid, not fields anyone placed in it.
+
+**The discipline that makes this a refactor rather than a rewrite:** the shaders did not change, and the
+payloads they receive are asserted equal to the ones the two hand-written structures produced.
+`defaultWind().components` is deliberately still in `presets.js`, unread by the editor, because
+`CheckForceFields.mjs` asserts `DefaultForces()` against *that array* — field by field, bit for bit,
+bearings to within 1e-9 of a degree. Delete it and the migration loses its only witness.
+
+Two traps the checks caught, both of which would have read as physics bugs:
+
+| | |
+| --- | --- |
+| 🔴 | **Gravity must pack with radius 0.** The shader reads 0 as *everywhere*; packing the authored 8 m would have made gravity a small ball. |
+| 🔴 | **A disabled flow field keeps its lattice slot.** `buildWind` reads a fixed count and tests each entry's own flag, so dropping a disabled one shifts every field behind it into the wrong slot. Acceleration fields are the opposite — only awake ones are packed. |
+
+Gravity reaches the existing shader as a downward `Lift`, the one force type that is already a fixed
+world axis. That is a mapping, not a merge: it is authored as gravity, it stays `Accelerate`, and when
+the shader grows a type of its own exactly one line changes.
+
+### The native port
+
+`Engine/VolumetricDynamics/ForceFieldSet.h` sits *above* `Engine/DisplayPresentation/WindField.h`, which
+keeps its name and its job — the atmospheric model and its carefully split cheap/expensive sampling
+interface — and becomes the solver behind the flow kinds.
+
+| Check | Count |
+| --- | --- |
+| `CheckForceFields.mjs` — the taxonomy and the migration's equality | 91 |
+| `CheckForcePanel.mjs` — the one list drawn into a real DOM | 44 (38 without jsdom) |
+| `NativeForceFields.cpp` — the same arithmetic in C++, run twice, byte for byte | 64 |
+| `ForceFieldParity.py` — the port against the browser, kind by kind | 67 |
+
+The native proof deliberately makes the *same claims with the same numbers* as the browser one. Two files
+agreeing on prose is worth nothing; two files agreeing on arithmetic is what makes it a port.
+
 ### Still open
 
-- The editor's existing `state.fields` and wind panel have not yet been moved onto this spec — it is the
-  reference, and the migration is the next step, browser first and then the native port.
-- A field's `Acts` channels have no UI yet.
-- `Reach.Cone` is declared and not yet sampled.
+- A field's `Acts` channels have no UI yet — the plumbing is there on both sides, the editor has no
+  control for it.
+- `Reach.Cone` and `Reach.Box` are declared and not yet sampled; `Drag` and `Current` have no shader
+  path, which `Packable()` reports and the panel states on the card rather than hiding.
+- The 52 presets still describe their wind links in the lattice's old language (type number, bearing,
+  x/z). One adapter in `app.js` translates it. Rewriting the presets is a separate job.
+- Per-system attractors and magnetic dipoles are still attached to their system rather than being
+  entries in the list, which is correct — they move with the system and die with it — but it means two
+  places create acceleration entries.
 
 ## WebGL2 — closed, will not fix
 

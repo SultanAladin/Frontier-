@@ -91,33 +91,38 @@ export function Falls(Shape, Distance, Radius) {
 export const ForceFieldKinds = [
   // ── flow: already built into the wind lattice, one texture sample however many there are ──
   { Id: "prevailing", Name: "Prevailing wind", Give: Contribution.Flow, Reaches: Reach.Everywhere,
-    Was: "wind component 0", Unit: "m/s" },
+    Was: "wind component 0", Unit: "m/s", Lattice: 0 },
   { Id: "gust", Name: "Gust front", Give: Contribution.Flow, Reaches: Reach.Sphere,
-    Was: "wind component 1", Unit: "m/s" },
+    Was: "wind component 1", Unit: "m/s", Lattice: 1 },
   { Id: "tornado", Name: "Tornado", Give: Contribution.Flow, Reaches: Reach.Sphere,
-    Was: "wind component 2", Unit: "m/s" },
+    Was: "wind component 2", Unit: "m/s", Lattice: 2 },
   { Id: "outflow", Name: "Blast outflow", Give: Contribution.Flow, Reaches: Reach.Sphere,
-    Was: "wind component 3", Unit: "m/s" },
+    Was: "wind component 3", Unit: "m/s", Lattice: 3 },
 
   // ── accelerate: evaluated per receiver ──
   { Id: "attract", Name: "Attractor", Give: Contribution.Accelerate, Reaches: Reach.Sphere,
-    Was: "force type 0", Unit: "m/s\u00b2" },
+    Was: "force type 0", Unit: "m/s\u00b2", Force: 0 },
   { Id: "repel", Name: "Repulsor", Give: Contribution.Accelerate, Reaches: Reach.Sphere,
-    Was: "force type 1", Unit: "m/s\u00b2" },
+    Was: "force type 1", Unit: "m/s\u00b2", Force: 1 },
   { Id: "lift", Name: "Lift", Give: Contribution.Accelerate, Reaches: Reach.Sphere,
-    Was: "force type 2", Unit: "m/s\u00b2" },
+    Was: "force type 2", Unit: "m/s\u00b2", Force: 2 },
   { Id: "magnetic", Name: "Magnetic dipole", Give: Contribution.Accelerate, Reaches: Reach.Sphere,
-    Was: "force type 3", Unit: "m/s\u00b2" },
+    Was: "force type 3", Unit: "m/s\u00b2", Force: 3 },
 
   // ── the ones the umbrella is for ──
   // 📝 Gravity is the clearest proof that this had to be its own contribution. It is unbounded, so it has
   //    no radius to bake into a lattice, and it is an acceleration, so a receiver's wind coupling must
   //    have no say in it whatsoever. Today it is a per-system scalar that every preset sets separately,
   //    which is why there is no way to author "this room is on the Moon".
+  // 📝 Gravity reaches the existing GPU path as a downward Lift, which is the one force type that is
+  //    already a fixed world axis. That is a mapping, not a merge: it stays Accelerate here, it is
+  //    authored as gravity, and when the shader grows a type of its own only this line changes.
   { Id: "gravity", Name: "Gravity", Give: Contribution.Accelerate, Reaches: Reach.Everywhere,
-    Was: null, Unit: "m/s\u00b2" },
+    Was: null, Unit: "m/s\u00b2", Force: 2, Inverts: true },
   { Id: "orbit", Name: "Orbit", Give: Contribution.Accelerate, Reaches: Reach.Sphere,
-    Was: null, Unit: "m/s\u00b2" },
+    Was: null, Unit: "m/s\u00b2", Force: 0 },
+  // These two have no GPU path yet. Declaring them without one is deliberate: the taxonomy is the design
+  //    reference, and a kind that cannot be packed is caught by CheckForceFields rather than by a user.
   { Id: "drag", Name: "Drag volume", Give: Contribution.Damp, Reaches: Reach.Box,
     Was: null, Unit: "1/s" },
   { Id: "current", Name: "Current", Give: Contribution.Flow, Reaches: Reach.Box,
@@ -143,6 +148,8 @@ export function BaseField(Id) {
     Reaches: Kind ? Kind.Reaches : Reach.Sphere,
     Fades: Falloff.Smooth,
     Swirl: 0,
+    Rate: 0,        // [Hz] gust pulse rate; the flow lattice's `freq`
+    Swallow: 0,     // [m] an attractor this close removes the receiver; the black hole's horizon
     // 🔴 WHO RESPONDS IS CONFIGURATION, NOT CODE. The same rule the gas colliders follow. A field names
     //    the channels it acts on and a receiver names the channels it belongs to; an empty list on the
     //    field means everything. Hardcoding "gravity affects debris" is how an engine ends up needing a
@@ -304,3 +311,114 @@ PE.Forces = {
   Contribution, Reach, Falloff, Falls, ForceFieldKinds, KindById, BaseField,
   Awake, ActsOn, Reaching, SampleField, Resolve, Advance, Bakeable,
 };
+
+// ─── Reaching the GPU ───────────────────────────────────────────────────────────────────────────────────
+//
+// 🔴 THE SHADERS DO NOT CHANGE. One authored list has to produce exactly the two payloads the GPU already
+//    consumes — the flow lattice's component array and the acceleration array that fieldAccel walks — and
+//    produce them bit for bit the same as the two hand-written structures it replaces. That constraint is
+//    what makes this a migration that can be verified without a GPU in the room, and CheckForceFields
+//    asserts the equality against the original packing rather than against a description of it.
+
+// 📦 The compass bearing a directional field points along, in degrees. The lattice is authored in
+//    bearings because that is how wind is talked about; the field stores a direction because that is what
+//    generalises. Round-tripping through this is exact to about 1e-13 of a degree, not bit-exact.
+export function Bearing(Field) {
+  const [x, , z] = Field.Direction;
+  const Degrees = (Math.atan2(x, z) * 180) / Math.PI;
+  return Degrees < 0 ? Degrees + 360 : Degrees;
+}
+
+export function Along(Degrees) {
+  const Turn = (Degrees * Math.PI) / 180;
+  return [Math.sin(Turn), 0, Math.cos(Turn)];
+}
+
+// 📦 One flow field as the lattice builder's component: the eight floats buildWind reads per entry.
+export function LatticeComponent(Field) {
+  const Kind = KindById(Field.Kind);
+  if (!Kind || Kind.Give !== Contribution.Flow || Kind.Lattice === undefined) return null;
+  return {
+    x: Field.Centre[0],
+    z: Field.Centre[2],
+    radius: Field.Radius,
+    type: Kind.Lattice,
+    strength: Field.Strength,
+    bearing: Bearing(Field),
+    freq: Field.Rate,
+    enabled: Field.Enabled,
+  };
+}
+
+// 📦 One acceleration field as fieldAccel's three vec4s.
+//    ⚠️ A radius of 0 means "everywhere" to the shader, which is why Reach.Everywhere packs as 0 rather
+//       than as a large number. Getting that backwards would make gravity a sphere eight metres wide.
+export function ForceEntry(Field) {
+  const Kind = KindById(Field.Kind);
+  if (!Kind || Kind.Give !== Contribution.Accelerate || Kind.Force === undefined) return null;
+  const Everywhere = Field.Reaches === Reach.Everywhere;
+  return {
+    type: Kind.Force,
+    pos: Field.Centre.slice(),
+    radius: Everywhere ? 0 : Field.Radius,
+    strength: Kind.Inverts ? -Field.Strength : Field.Strength,
+    swirl: Field.Swirl,
+    swallow: Field.Swallow,
+    t0: Field.Begins,
+    duration: Field.Lasts > 0 ? Field.Lasts : 1e9,
+    period: Field.Repeats,
+  };
+}
+
+// 📦 Every kind that claims a contribution must be able to reach the GPU, or be known not to.
+export function Packable(Field) {
+  const Kind = KindById(Field.Kind);
+  if (!Kind) return false;
+  if (Kind.Give === Contribution.Flow) return Kind.Lattice !== undefined;
+  if (Kind.Give === Contribution.Accelerate) return Kind.Force !== undefined;
+  return false;   // 📝 Damp has no GPU path yet; the inspector says so rather than silently dropping it.
+}
+
+// ─── The authored list ──────────────────────────────────────────────────────────────────────────────────
+
+// 📦 The scene's fields, as one list. This reproduces the four wind components defaultWind() shipped —
+//    same order, same readings — because the migration must not change what the editor opens with.
+export function DefaultForces() {
+  const Make = (Id, Name, Enabled, Centre, Radius, Strength, BearingDegrees, Rate) => ({
+    ...BaseField(Id),
+    Name, Enabled, Centre, Radius, Strength, Rate,
+    Direction: Along(BearingDegrees),
+  });
+  return [
+    Make("prevailing", "Prevailing wind", true, [0, 0, 0], 6, 3, 70, 0.3),
+    Make("gust", "Passing gust", true, [-4, 0, 0], 4, 5, 70, 0.3),
+    Make("tornado", "Tornado", false, [-2, 0, -4], 1.6, 6, 0, 0),
+    Make("outflow", "Radial suction", false, [0, 0, -2], 3, -2, 0, 0),
+  ];
+}
+
+// 📦 Split an authored list into the two GPU payloads, in the order the GPU expects them.
+//    Flow fields keep their slot whether enabled or not, because buildWind reads a fixed count and tests
+//    the enabled flag itself; acceleration fields are packed only while awake, as fieldAccel's caller
+//    always did.
+export function ForGpu(Fields, Now) {
+  const Lattice = [], Forces = [];
+  for (const Field of Fields || []) {
+    const Kind = KindById(Field.Kind);
+    if (!Kind) continue;
+    if (Kind.Give === Contribution.Flow) {
+      const Component = LatticeComponent(Field);
+      if (Component) Lattice.push(Component);
+    } else if (Kind.Give === Contribution.Accelerate) {
+      if (!Field.Enabled) continue;
+      if (!Awake(Field, Now === undefined ? Field.Begins : Now)) continue;
+      const Entry = ForceEntry(Field);
+      if (Entry) Forces.push(Entry);
+    }
+  }
+  return { Lattice, Forces };
+}
+
+Object.assign(PE.Forces, {
+  Bearing, Along, LatticeComponent, ForceEntry, Packable, DefaultForces, ForGpu,
+});

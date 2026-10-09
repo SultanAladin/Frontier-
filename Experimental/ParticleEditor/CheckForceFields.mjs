@@ -225,3 +225,97 @@ Banner("🔴 The absence of wind is not a wind of zero");
 }
 
 console.log("\nPASS " + Checks);
+
+//---------------------------------------------------------------------------------------------------------
+// 🔴 THE MIGRATION CHANGED NOTHING.
+//
+// Wind components and force fields were two arrays with two shapes edited in two panels. They are one
+// list now. The only way that is a refactor rather than a rewrite is if the payloads the GPU receives are
+// the same ones it received before, so this asserts the new list against the original hand-written data
+// still sitting in presets.js, field by field, rather than against a description of it.
+//---------------------------------------------------------------------------------------------------------
+import { PE } from "./js/pe.js";
+import "./js/fibres.js";
+import "./js/presets.js";
+import {
+  Bearing, Along, LatticeComponent, ForceEntry, Packable, DefaultForces, ForGpu,
+} from "./js/forcefields.js";
+
+Banner("The default scene opens exactly as it did");
+{
+  const Original = PE.defaultWind().components;
+  const Moved = ForGpu(DefaultForces()).Lattice;
+
+  Check(Moved.length === Original.length, "the same number of flow fields as there were wind components");
+  for (let At = 0; At < Original.length; At++) {
+    const Was = Original[At], Now = Moved[At];
+    Check(Now.type === Was.type && Now.x === Was.x && Now.z === Was.z && Now.radius === Was.radius
+          && Now.strength === Was.strength && Now.freq === Was.freq && Now.enabled === Was.enabled,
+          `component ${At} (${Was.name}) packs identically: type, position, radius, strength, rate, enabled`);
+    Check(Near(Now.bearing, Was.bearing, 1e-9),
+          `and its bearing survives the trip through a direction vector to within 1e-9 of a degree`);
+  }
+  Check(DefaultForces().map((One) => One.Name).join("|") === Original.map((One) => One.name).join("|"),
+        "and they keep their names and their order, so the panel reads the same way it always did");
+}
+
+Banner("Bearings round-trip");
+{
+  for (const Degrees of [0, 70, 90, 180, 269, 359.5]) {
+    Check(Near(Bearing({ Direction: Along(Degrees) }), Degrees, 1e-9),
+          `${Degrees}\u00b0 survives being stored as a direction and read back`);
+  }
+  Check(Near(Bearing({ Direction: Along(-90) }), 270, 1e-9),
+        "and a negative bearing comes back on the compass rather than as a negative number");
+}
+
+Banner("Every kind can reach the GPU, or is known not to");
+{
+  for (const Kind of ForceFieldKinds) {
+    const Field = BaseField(Kind.Id);
+    const Reached = Packable(Field);
+    if (Kind.Give === Contribution.Damp || Kind.Id === "current") {
+      Check(!Reached, `${Kind.Name} has no GPU path yet, and says so rather than silently doing nothing`);
+      continue;
+    }
+    Check(Reached, `${Kind.Name} packs into a payload the existing shaders already read`);
+    const Packed = Kind.Give === Contribution.Flow ? LatticeComponent(Field) : ForceEntry(Field);
+    Check(Packed !== null && Number.isFinite(Packed.strength),
+          `and comes out with a finite strength rather than a NaN the uniform packer would swallow`);
+  }
+}
+
+Banner("🔴 Gravity packs as an unbounded field, not an eight-metre sphere");
+{
+  const Gravity = ForceEntry(BaseField("gravity"));
+  Check(Gravity.radius === 0,
+        "a radius of 0 is what the shader reads as 'everywhere' -- packing the authored 8 m would have "
+        + "made gravity a small ball and looked like a physics bug for a week");
+  Check(Gravity.strength === -9.81,
+        "and it packs as a downward lift, because Lift is the one existing force type that is a fixed "
+        + "world axis; the sign is the whole mapping");
+  Check(ForceEntry(BaseField("lift")).strength > 0, "while lift itself still points up");
+  Check(ForceEntry({ ...BaseField("attract"), Radius: 12 }).radius === 12,
+        "a field that really is a sphere keeps its radius");
+  Check(ForceEntry(BaseField("gravity")).duration >= 1e9,
+        "and a field with no duration packs as effectively forever, as the old timed fields did");
+}
+
+Banner("Only awake acceleration fields are packed, but flow keeps its slot");
+{
+  const Fields = [
+    { ...BaseField("prevailing"), Enabled: false },
+    { ...BaseField("gust"), Enabled: true },
+    { ...BaseField("attract"), Enabled: false },
+    { ...BaseField("repel"), Enabled: true, Begins: 50, Lasts: 1 },
+    { ...BaseField("lift"), Enabled: true },
+  ];
+  const { Lattice, Forces } = ForGpu(Fields, 0);
+  Check(Lattice.length === 2 && Lattice[0].enabled === false,
+        "🔴 a disabled flow field keeps its slot and carries its own flag -- buildWind reads a fixed "
+        + "count, so dropping it would shift every field behind it into the wrong one");
+  Check(Forces.length === 1 && Forces[0].type === 2,
+        "whereas a disabled or sleeping acceleration field is simply not packed, as before");
+}
+
+console.log("\nPASS " + Checks);

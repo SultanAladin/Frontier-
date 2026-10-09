@@ -694,6 +694,10 @@ import { PE } from "./pe.js";
       arrowStride: 3,
       showFloor: true,
       showDomain: true,
+      // 🔴 KEPT ON PURPOSE, AND NO LONGER READ BY THE EDITOR. These four are what the wind panel shipped
+      //    with before wind and force fields became one list. PE.Forces.DefaultForces() has to reproduce
+      //    them exactly, and CheckForceFields.mjs asserts that against THIS array rather than against a
+      //    description of it. Delete it and the migration loses the only witness that it changed nothing.
       components: [
         { name: "Prevailing wind", type: 0, enabled: true, x: 0, z: 0, radius: 6, strength: 3, bearing: 70, freq: 0.3 },
         { name: "Passing gust", type: 1, enabled: true, x: -4, z: 0, radius: 4, strength: 5, bearing: 70, freq: 0.3 },
