@@ -288,6 +288,10 @@ async function start() {
   wireControls(structure, handles);
   wireCamera(canvas);
 
+  // Reported on the first frame, not after the first half second, so a page that renders once and
+  // then dies still says what it managed.
+  let firstFrame = true;
+
   const globalData = new Float32Array(32);
   let last = performance.now() / 1000;
   let elapsed = 0;
@@ -415,16 +419,23 @@ async function start() {
     device.queue.submit([encoder.finish()]);
 
     frames++;
-    if (now - frameClock > 0.5) {
+    if (firstFrame || now - frameClock > 0.5) {
+      firstFrame = false;
       rate = frames / (now - frameClock);
       frames = 0; frameClock = now;
       const strands = State.backdrop === 'live' ? ` · ${StreakPreset.strands} fibres` : '';
       document.getElementById('readout').textContent =
         `${packed.count} figures${strands} · ${rate.toFixed(0)} fps`;
     }
-    requestAnimationFrame(frame);
+    requestAnimationFrame(guarded);
   }
-  requestAnimationFrame(frame);
+
+  // A throw inside a requestAnimationFrame callback is logged and then swallowed: the loop simply
+  // stops and the canvas freezes with no explanation. Catch it where it can still be shown.
+  function guarded() {
+    try { frame(); } catch (trouble) { announce(trouble); }
+  }
+  requestAnimationFrame(guarded);
 }
 
 // ── the control rail ─────────────────────────────────────────────────────────────────────────────
@@ -445,6 +456,14 @@ const StreakFields = [
   ['intensity', 6, 0, 4, 0.01], ['core', 7, 0.0005, 0.012, 0.0001],
 ];
 
+// Every lookup here goes through this. A control that is missing from the markup is a bug worth
+// seeing, but it is not worth losing the whole panel over — the page reports it and carries on.
+function control(selector) {
+  const found = document.querySelector(selector);
+  if (!found) console.warn(`SpatialHud: no control matches ${selector}`);
+  return found;
+}
+
 function wireControls(structure, handles) {
   for (const [name, index] of StreakFields) {
     const input = document.querySelector(`[data-streak="${name}"]`);
@@ -461,39 +480,52 @@ function wireControls(structure, handles) {
     });
   }
 
-  State.fieldOpacity = Number(document.querySelector('[data-field="fieldOpacity"]').value);
-  document.querySelector('[data-field="fieldOpacity"]').addEventListener('input', (event) => {
-    State.fieldOpacity = Number(event.target.value);
-  });
+  const fieldOpacity = control('[data-field="fieldOpacity"]');
+  if (fieldOpacity) {
+    State.fieldOpacity = Number(fieldOpacity.value);
+    fieldOpacity.addEventListener('input', (event) => {
+      State.fieldOpacity = Number(event.target.value);
+    });
+  }
 
   for (const button of document.querySelectorAll('[data-rung]')) {
     button.addEventListener('click', () => {
       State.backdrop = button.dataset.rung;
-      for (const other of document.querySelectorAll('[data-rung]')) {
-        other.classList.toggle('on', other === button);
-      }
-      document.getElementById('rung-note').textContent = RungNotes[State.backdrop];
+      showRung();
     });
   }
 
   for (const name of ['speed', 'boost', 'regen', 'ambient']) {
-    const input = document.querySelector(`[data-field="${name}"]`);
+    const input = control(`[data-field="${name}"]`);
+    if (!input) continue;
     input.addEventListener('input', () => {
       State[name] = Number(input.value);
-      State.demo = false;
-      document.querySelector('[data-field="demo"]').checked = false;
+      if (name !== 'ambient') stopDemo();
     });
   }
-  document.querySelector('[data-field="sport"]').addEventListener('change', (event) => {
+  control('[data-field="sport"]')?.addEventListener('change', (event) => {
     State.sport = event.target.checked ? 1 : 0;
-    State.demo = false;
-    document.querySelector('[data-field="demo"]').checked = false;
+    stopDemo();
   });
-  document.querySelector('[data-field="demo"]').addEventListener('change', (event) => {
+  control('[data-field="demo"]')?.addEventListener('change', (event) => {
     State.demo = event.target.checked;
   });
-  document.getElementById('rung-note').textContent = RungNotes[State.backdrop];
+  showRung();
   reflectControls();
+}
+
+function stopDemo() {
+  State.demo = false;
+  const demo = document.querySelector('[data-field="demo"]');
+  if (demo) demo.checked = false;
+}
+
+function showRung() {
+  const note = document.getElementById('rung-note');
+  if (note) note.textContent = RungNotes[State.backdrop];
+  for (const button of document.querySelectorAll('[data-rung]')) {
+    button.classList.toggle('on', button.dataset.rung === State.backdrop);
+  }
 }
 
 function reflectControls() {
@@ -526,9 +558,32 @@ function wireCamera(canvas) {
   }, { passive: false });
 }
 
+// 🔴 NOTHING MAY FAIL SILENTLY.
+//
+//    The first time this page broke, it broke invisibly: one exception while wiring a control left
+//    a black canvas, an untouched "starting" readout and no message anywhere. A WebGPU page that
+//    cannot say why it is blank is almost impossible to report a bug against, so every path into
+//    start() now ends somewhere visible.
+function announce(trouble) {
+  const notice = document.getElementById('notice');
+  notice.hidden = false;
+  notice.textContent = String(trouble && trouble.stack ? trouble.stack : trouble);
+  const readout = document.getElementById('readout');
+  if (readout) readout.textContent = 'stopped';
+  console.error(trouble);
+}
+
+function boot() {
+  try {
+    start().catch(announce);
+  } catch (trouble) {
+    announce(trouble);
+  }
+}
+
 // A module script is deferred, so DOMContentLoaded has already fired by the time this runs.
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', start);
+  document.addEventListener('DOMContentLoaded', boot);
 } else {
-  start();
+  boot();
 }

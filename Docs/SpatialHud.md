@@ -1,8 +1,22 @@
 # The spatial HUD tablet
 
 `Experimental/SpatialHud/` — the Project-Zero trial panel reworked as a car fascia, with the particle
-editor's light streaks behind it. Serve the repository root and open
-`/Experimental/SpatialHud/index.html`. WebGPU only.
+editor's light streaks behind it. WebGPU only.
+
+```
+python3 Tools/Build/ServeExperiments.py --port 8099
+```
+
+then open `/Experimental/SpatialHud/index.html`.
+
+🔴 **Serve it with that, not with `python3 -m http.server`.** The plain handler sends no
+`Cache-Control` at all, so a browser applies a heuristic and may reuse a response without
+revalidating. These pages are ES modules that import each other, which means the browser will
+cheerfully load a new `index.html` against an `app.js` from five minutes ago. That failure is silent
+and looks like an impossible bug: the first time it happened here the symptom was a black canvas and
+an untouched readout, caused by nothing worse than a control attribute renamed in markup the cached
+script had never seen. `ServeExperiments.py` sends `no-store`, refuses to answer `304`, and knows
+that `.mjs` is JavaScript.
 
 This is the browser stage. Nothing here has crossed into C++ yet, by the standing rule that a UI is
 designed where it can be looked at before it is ported.
@@ -169,6 +183,17 @@ Two of its checks are worth naming:
 What `CheckHud` does **not** claim is that it looks right. There is no headless WebGPU here, and a
 check asserting pixels it never rendered would be worse than none. The page is the proof of
 appearance.
+
+## When the page is blank
+
+Every path into `start()` ends somewhere visible now — a thrown error, a rejected promise, or a throw
+inside the animation callback all print into the red box over the canvas instead of leaving a black
+rectangle. The readout reports on the **first** frame rather than after half a second, so a page that
+renders once and then dies still says what it managed. A control missing from the markup warns and is
+skipped rather than taking the whole panel down.
+
+If the box is empty and the readout still says `starting`, the script never ran at all: check the
+browser console for a module that failed to load.
 
 ## Still open
 
