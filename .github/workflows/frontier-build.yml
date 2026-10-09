@@ -84,6 +84,15 @@ jobs:
       - name: Force fields, natively — the same arithmetic, twice, byte for byte
         run: python3 Tools/Build/RunAnnounced.py "native force fields" -- python3 Exhibits/Workbench/GasFluid/RunNativeForceFields.py
 
+      - name: Force field panel parity — the native panel against the browser panel, row for row
+        run: python3 Tools/Build/RunAnnounced.py "force panel parity" -- python3 Tools/Build/ForceFieldPanelParity.py
+
+      - name: Force field panel, natively — the ported panel, drawn and captured
+        run: python3 Tools/Build/RunAnnounced.py "native force panel" -- python3 Exhibits/Workbench/GasFluid/RunNativeForceCard.py
+
+      - name: Force field routing — the shipped inspector opening the panel, clicked not inspected
+        run: python3 Tools/Build/RunAnnounced.py "force field routing" -- python3 Exhibits/Workbench/GasFluid/RunNativeForceRoute.py
+
       - name: Gas inspector parity — the native card against the HTML it was ported from
         run: python3 Tools/Build/RunAnnounced.py "gas inspector parity" -- python3 Tools/Build/GasInspectorParity.py
 

@@ -257,6 +257,22 @@ void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, Editor
         return;
     }
 
+    // The force fields. The row is a page rather than an object: no transform, no hierarchy, no notes
+    //    about a thing — the scene's fields, grouped by what they contribute.
+    if (Sheet->Appearance == EditorSheetAppearance::ForceFields)
+    {
+        RecordIdent(Picked, PickedIndex);
+        ImGui::BeginChild("##force-properties", ImVec2(0.0f, ImMax(0.0f, Controls_->QueryFootTop() - ImGui::GetCursorScreenPos().y)), false);
+        ImGui::PushID(static_cast<int>(PickedIndex));
+        RecordForceFields();
+        ImGui::PopID();
+        RecordNotes(Picked);
+        ImGui::EndChild();
+        RecordFooter(Picked);
+        if (!Embedded) ImGui::End();
+        return;
+    }
+
     // The gas domain and its child emitter. Both lead with a transform and a hierarchy, which the generic
     //    sheet path has no notion of, so they draw their own stack exactly as the sun and flare pages do.
     if (Sheet->Appearance == EditorSheetAppearance::Gas ||
@@ -504,6 +520,93 @@ void InspectorPanel::RecordGas(EditorInstance& Picked, uint32_t PickedIndex, boo
     {
         if (Emitter) ParticleEditorFor_ = PickedIndex;
         else         FluidEditorFor_    = PickedIndex;
+    }
+
+    ImGui::SetCursorScreenPos(Spot);
+    ImGui::Dummy({ Wide, Tall });
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                      THE FORCE FIELDS
+//------------------------------------------------------------------------------------------------------------------------
+
+void InspectorPanel::RecordForceFields() noexcept
+{
+    namespace FC = ForceCards;
+
+    ImFont* Light = ImGui::GetFont();
+    ImFont* Regular = Light;
+    for (ImFont* Face : ImGui::GetIO().Fonts->Fonts)
+    {
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / light"))   Light = Face;
+        if (!std::strcmp(Face->GetDebugName(), "Sun reference / regular")) Regular = Face;
+    }
+
+    const float Wide = ImGui::GetContentRegionAvail().x;
+    if (Wide < 120.0f) return;
+    const ImVec2 Spot = ImGui::GetCursorScreenPos();
+
+    FC::ForceHitRegions Where;
+    const float Tall = FC::PaintForceCard(ImGui::GetWindowDrawList(), Light, Regular, Spot, Wide, Forces_, &Where);
+    ForceWhere_ = Where;
+
+    auto Target = [&](const char* Id, const ImVec4& Region)
+    {
+        if (Region.z <= 0.0f) return false;
+        ImGui::SetCursorScreenPos({ Region.x, Region.y });
+        return ImGui::InvisibleButton(Id, { Region.z, Region.w });
+    };
+    auto Drag = [&](const char* Id, const ImVec4& Region, float Minimum, float Maximum, float& Reading)
+    {
+        if (Region.z <= 0.0f) return;
+        ImGui::SetCursorScreenPos({ Region.x, Region.y });
+        ImGui::InvisibleButton(Id, { Region.z, Region.w });
+        if (ImGui::IsItemActive())
+        {
+            const float Part = ImClamp((ImGui::GetIO().MousePos.x - Region.x) / ImMax(1.0f, Region.z), 0.0f, 1.0f);
+            Reading = Minimum + Part * (Maximum - Minimum);
+        }
+    };
+
+    // Adding a field takes the kind's own defaults, which is why ForceFieldKindFacts carries a reach: a
+    //    gravity added here must arrive reaching everywhere, not as an 8 m ball somebody has to notice.
+    for (uint32_t At = 0u; At < uint32_t(ForceFieldKind::Count); ++At)
+    {
+        char Id[40];
+        std::snprintf(Id, sizeof(Id), "##force-add-%u", At);
+        if (!Target(Id, Where.Add[At]) || Forces_.Count >= FC::MaxFields) continue;
+        ForceField& Fresh = Forces_.Fields[Forces_.Count];
+        Fresh = ForceField{};
+        Fresh.Kind    = ForceFieldKind(At);
+        Fresh.Reaches = FactsOf(Fresh.Kind).Reaches;
+        std::snprintf(Fresh.Name, sizeof(Fresh.Name), "%s", FactsOf(Fresh.Kind).Name);
+        Forces_.Count += 1u;
+    }
+
+    for (uint32_t At = 0u; At < Forces_.Count && At < FC::MaxFields; ++At)
+    {
+        char Id[40];
+        std::snprintf(Id, sizeof(Id), "##force-enabled-%u", At);
+        if (Target(Id, Where.Enabled[At])) Forces_.Fields[At].Enabled = !Forces_.Fields[At].Enabled;
+
+        std::snprintf(Id, sizeof(Id), "##force-strength-%u", At);
+        Drag(Id, Where.Strength[At], -20.0f, 20.0f, Forces_.Fields[At].Strength);
+    }
+
+    // Removal is done after the pass, and once: deleting inside the loop would shift every later card out
+    //    from under the regions this frame was drawn with.
+    uint32_t Doomed = FC::MaxFields;
+    for (uint32_t At = 0u; At < Forces_.Count && At < FC::MaxFields; ++At)
+    {
+        char Id[40];
+        std::snprintf(Id, sizeof(Id), "##force-remove-%u", At);
+        if (Target(Id, Where.Remove[At])) Doomed = At;
+    }
+    if (Doomed < Forces_.Count)
+    {
+        for (uint32_t At = Doomed + 1u; At < Forces_.Count; ++At) Forces_.Fields[At - 1u] = Forces_.Fields[At];
+        Forces_.Count -= 1u;
+        Forces_.Fields[Forces_.Count] = ForceField{};
     }
 
     ImGui::SetCursorScreenPos(Spot);

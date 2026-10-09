@@ -44,6 +44,7 @@ enum class RowPanel : uint32_t
     Rainbow,
     Gas,
     GasEmitter,
+    ForceField,       // the one row that stands for every field in the scene, as the browser's does
     Count
 };
 
@@ -107,6 +108,7 @@ inline RowPanel PanelOfRow(EditorSheetAppearance Appearance, EditorGlyph Glyph,
     if (Permanent) return RowPanel::EditorCamera;
     if (Appearance == EditorSheetAppearance::Gas)        return RowPanel::Gas;
     if (Appearance == EditorSheetAppearance::GasEmitter) return RowPanel::GasEmitter;
+    if (Appearance == EditorSheetAppearance::ForceFields) return RowPanel::ForceField;
     return PanelOfRow(Glyph, Family, false);
 }
 
@@ -137,6 +139,7 @@ inline const char* CollectionTypeName(RowPanel Panel) noexcept
     case RowPanel::Post:          return "Post processing";
     case RowPanel::Gas:           return "Gas domains";
     case RowPanel::GasEmitter:    return "Gas emitters";
+    case RowPanel::ForceField:    return "Force fields";
     default:                      return "Geometry";
     }
 }
@@ -152,6 +155,7 @@ inline const char* PanelProse(RowPanel Panel) noexcept
     case RowPanel::LocalCloud:    return "local cloud";
     case RowPanel::Gas:           return "gas";
     case RowPanel::GasEmitter:    return "gas emitter";
+    case RowPanel::ForceField:    return "force fields";
     default:                      return "geometry";
     }
 }
@@ -274,6 +278,12 @@ struct RowReading
     float    EmissionRate    = 1.0f;                     // [x]   gas emitter
     float    Temperature     = 0.0f;                     // [K]   gas emitter
     bool     Emitting        = true;                     // [-]   gas emitter: Values.Enabled
+    // 🔴 The force field row counts by CONTRIBUTION, not by kind. Six fields is not a useful figure;
+    //    "3 flow - 2 accel" is, because those two numbers cost differently and behave differently.
+    uint32_t FlowFields       = 0u;       // [-]   force fields: awake kinds that return a velocity
+    uint32_t AccelerateFields = 0u;       // [-]   ... an acceleration
+    uint32_t DampFields       = 0u;       // [-]   ... a decay rate; omitted from the line when none
+    uint32_t OwnedFields      = 0u;       // [-]   per-system attractors, which the panel does not list
     float    MinimumPath     = 100.0f;    // [m]
     float    Output          = 32.0f;     // [cd | lm]
     bool     Referenced      = false;     // true once the row carries a reference luminaire
@@ -426,6 +436,26 @@ inline void OutlinerMetadata(RowPanel Panel, const RowReading& Reading, char* Ou
         if (Reading.Emitting) std::snprintf(Rate, sizeof(Rate), "%.2f%s", double(Reading.EmissionRate), Times);
         else                  std::snprintf(Rate, sizeof(Rate), "off");
         std::snprintf(Out, Room, "%s%s%.1f K", Rate, Dot, double(Reading.Temperature));
+        return;
+    }
+
+    case RowPanel::ForceField:
+    {
+        // app.js forcesRowSummary(): the three counts, the damp term only when there is one, and the
+        //    per-system attractors named separately because they are not the panel's to delete.
+        int Written = std::snprintf(Out, Room, "%u flow%s%u accel", Reading.FlowFields, Dot,
+                                    Reading.AccelerateFields);
+        if (Written < 0) { if (Room > 0) Out[0] = '\0'; return; }
+        size_t At = size_t(Written) < Room ? size_t(Written) : Room - 1;
+        if (Reading.DampFields != 0u)
+        {
+            Written = std::snprintf(Out + At, Room - At, "%s%u damp", Dot, Reading.DampFields);
+            if (Written > 0) At += size_t(Written) < Room - At ? size_t(Written) : Room - At - 1;
+        }
+        if (Reading.OwnedFields != 0u)
+        {
+            std::snprintf(Out + At, Room - At, "%s%u black hole", Dot, Reading.OwnedFields);
+        }
         return;
     }
 

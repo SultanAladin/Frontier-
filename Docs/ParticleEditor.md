@@ -349,6 +349,47 @@ interface — and becomes the solver behind the flow kinds.
 The native proof deliberately makes the *same claims with the same numbers* as the browser one. Two files
 agreeing on prose is worth nothing; two files agreeing on arithmetic is what makes it a port.
 
+### The native editor UI
+
+The panel itself followed the taxonomy across, by the same route the gas card took.
+
+`Engine/Editor/ForceFieldCardSurface.h` is the native Force Fields panel. It owns **no painters**: every
+pill, switch, select, note and card shell is `GasCards`', because the stylesheet is shared and two
+painters that resemble each other drift apart. What the file owns is the *stack* — the order, the
+grouping, the heights, and the hit regions.
+
+Four things the panel says out loud, each of them structural rather than something a painter remembers:
+
+1. **The grouping is read from `FactsOf(Kind).Give`**, not from a hand-written list, so a kind added to
+   the taxonomy cannot go missing from the panel. An empty group paints no heading at all.
+2. **A field that reaches everywhere draws no centre and no radius.** Not greyed out — absent. The row
+   planner reads the *field*, so an authored override behaves the way the kind's default does.
+3. **A kind with no shader path is listed and says so.** A control that silently does nothing is worse
+   than one that admits it.
+4. **The cost card counts what sums into the lattice against what is evaluated per receiver**, read
+   through `ForceBakeable` so the panel and the engine cannot disagree about which fields are cheap.
+
+Routing: `EditorSheetAppearance::ForceFields` → `RowPanel::ForceField` → `InspectorPanel::RecordForceFields()`.
+🔴 Unlike a gas domain, the fields are **one set for the scene, not a slot per instance** — a field is a
+thing in the world, not a property of whichever row is selected, exactly as the browser's single outliner
+row has it. The outliner line counts by contribution (`3 flow · 2 accel · 1 damp · 2 black hole`), because
+six fields is not a useful figure and those three numbers are.
+
+| Check | Count |
+| --- | --- |
+| `NativeForceCard.cpp` — the panel drawn from real ImGui draw commands, with captures | 136 |
+| `NativeForceRoute.cpp` — the shipped inspector opening it, clicked not inspected | 48 |
+| `ForceFieldPanelParity.py` — the native panel against the browser panel, row for row | 381 |
+
+Captures: `Exhibits/Gallery/ForceCardNative/` (empty, flow only, flow and acceleration, with damping) and
+`Exhibits/Gallery/ForceFieldRoute/InspectorRoute.png` (the shipped inspector's own frame, ident strip and
+all).
+
+`ForceFieldPanelParity.py` is the sibling of `ForceFieldParity.py`: that one holds the two *taxonomies*
+level, this one holds the two *panels* level — which rows a card shows for a given kind, in what order,
+with what label, over what span, to how many decimals, in what unit, and which sentences it says. Like its
+sibling it **parses** both sides rather than running them, so it needs neither node nor a compiler.
+
 ### Still open
 
 - A field's `Acts` channels have no UI yet — the plumbing is there on both sides, the editor has no
@@ -359,7 +400,14 @@ agreeing on prose is worth nothing; two files agreeing on arithmetic is what mak
   x/z). One adapter in `app.js` translates it. Rewriting the presets is a separate job.
 - Per-system attractors and magnetic dipoles are still attached to their system rather than being
   entries in the list, which is correct — they move with the system and die with it — but it means two
-  places create acceleration entries.
+  places create acceleration entries. The native header says so out loud; the native panel does not yet
+  *count* them, because nothing in the editor owns a particle system to count.
+- The native panel's name field, centre triple and falloff select are **drawn but not yet editable** —
+  the toggle, the strength track, add and remove are wired. A draw-list card has no text input, so the
+  name needs the editor's own field widget rather than an invisible button over a rectangle.
+- No row in the native editor's feed carries `EditorSheetAppearance::ForceFields` yet: the branch, the
+  panel and the routing are proven, but `EditorFeedSequence::BuildSheet` still has to emit it — the same
+  gap gas has.
 
 ## WebGL2 — closed, will not fix
 

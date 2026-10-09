@@ -10,6 +10,7 @@
 #include "CollectionSequence.h"
 #include "FractureCardSurface.h"
 #include "GasCardSurface.h"
+#include "ForceFieldCardSurface.h"
 
 #include <imgui.h>
 
@@ -73,6 +74,12 @@ public:
     GasCards::GasCardSubject* QueryGasDomain(uint32_t PickedIndex) noexcept
     { for (GasRecord& One : Gas_) if (One.For == PickedIndex) return &One.Domain; return nullptr; }
 
+    // The scene's force fields. 🔴 ONE SET, NOT ONE PER INSTANCE. A field is a thing in the world, not a
+    //    property of whatever row happens to be selected, so the row named "Force fields" shows the same
+    //    set whichever instance carries it — exactly as the browser's single outliner row does.
+    [[nodiscard]] ForceCards::ForceCardSubject& QueryForceFields() noexcept { return Forces_; }
+    [[nodiscard]] const ForceCards::ForceHitRegions& QueryForceRegions() const noexcept { return ForceWhere_; }
+
     // Where the gas card last painted its controls, in screen coordinates. A harness that wants to press a
     //    button needs the panel's own answer rather than a second guess at where the card begins — the
     //    ident strip above it is exactly the sort of thing a guess gets wrong.
@@ -90,6 +97,7 @@ private:
     void  RecordStanding(EditorInstance* Picked, uint32_t PickedIndex) noexcept;
     void  RecordFracture(EditorInstance& Picked, uint32_t PickedIndex) noexcept;
     void  RecordGas(EditorInstance& Picked, uint32_t PickedIndex, bool Emitter) noexcept;
+    void  RecordForceFields() noexcept;
     void  RecordNotes(EditorInstance* Picked) noexcept;
     void  RecordFooter(EditorInstance* Picked) noexcept;
     float RecordCaps(const char* Text, const ImVec2& At, ImU32 Tint) noexcept;
@@ -114,6 +122,8 @@ private:
     uint32_t       FluidEditorFor_ = kNoEditorInstance;
     uint32_t       ParticleEditorFor_ = kNoEditorInstance;
     GasCards::GasHitRegions GasWhere_ = {};
+    ForceCards::ForceCardSubject  Forces_      = {};
+    ForceCards::ForceHitRegions   ForceWhere_  = {};
     bool     NotesSeen_   = false;   // EntityNotes opens itself once, from whether a note exists
 };
 
