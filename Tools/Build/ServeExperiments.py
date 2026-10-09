@@ -38,6 +38,9 @@ from pathlib import Path
 
 Root = Path(__file__).resolve().parents[2]
 
+# Where "/" sends you. Set by --landing; empty means serve the ordinary directory listing.
+Landing = ''
+
 # 🔴 The content types are spelled out here rather than read back out of extensions_map. That map
 #    holds only the handful of overrides the base class declares — everything else, .html included,
 #    comes from the mimetypes module — so indexing it for a served file raises KeyError on the most
@@ -97,6 +100,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
+        # 🔴 The repository root is a wall of forty folders with no hint that an experiment is in
+        #    there. A preview opens at "/", so "/" has to be the thing you came to look at — the
+        #    landing path is configuration, and without one the server is technically correct and
+        #    practically useless. This cost a round trip of "I don't see it".
+        if Landing and urllib.parse.urlparse(self.path).path == '/':
+            self.send_response(302)
+            self.send_header('Location', Landing)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
         served = self.Rewrite()
         if served is None:
             super().do_GET()
@@ -145,10 +158,15 @@ if __name__ == '__main__':
     Parser = argparse.ArgumentParser()
     Parser.add_argument('--port', type=int, default=8099)
     Parser.add_argument('--bind', default='0.0.0.0')
+    Parser.add_argument('--landing', default='/Experimental/SpatialHud/index.html',
+                        help='where "/" redirects; pass an empty string for a directory listing')
     Arguments = Parser.parse_args()
+    Landing = Arguments.landing
 
     with Server((Arguments.bind, Arguments.port),
                 functools.partial(Handler, directory=str(Root))) as Listening:
         print(f'ServeExperiments: {Root} on {Arguments.bind}:{Arguments.port} — '
               f'no-store, and every module URL versioned by mtime', flush=True)
+        if Landing:
+            print(f'ServeExperiments: / redirects to {Landing}', flush=True)
         Listening.serve_forever()

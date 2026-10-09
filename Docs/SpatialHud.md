@@ -511,3 +511,20 @@ figure for the space would have written the minutes one glyph early and blanked 
 date is worse — month names differ in length. `text(..., { keepSpaces: true })` emits a figure per
 character (the stroke font returns `1e9` for code 32, so it still draws nothing) and `respell()`
 writes positionally. Three checks cover it.
+
+### Serving it
+
+```
+python3 Tools/Build/ServeExperiments.py --port 8099 --bind 0.0.0.0
+```
+
+`/` redirects to `/Experimental/SpatialHud/index.html`. That redirect exists because the repository
+root is a directory listing of forty folders with no hint that an experiment is in any of them — a
+preview opens at `/`, so `/` has to be the thing you came to look at. Pass `--landing ''` for the
+ordinary listing.
+
+🔴 **If the page is blank or stale, check the server is still up before you debug the code.** It has
+died silently once. `app.js` can be booted headlessly — `node CheckHost.mjs` — and the number of
+instances in the display pass says which composition is live: **190 figures is the home screen, 69
+is the dashboard.** That distinguishes "the code is wrong" from "you are looking at a dead port" in
+one command, and the second was the answer the one time it came up.
