@@ -9,6 +9,7 @@ import { SDF_WGSL } from './sdf.generated.js';
 import { STREAK_WGSL } from './streaks.js';
 import { constructHudLayout, assignValues } from './layout.js';
 import { FIBRE_WGSL, packFibre, StreakPreset, FibreFloats } from './fibres.js';
+import { CHASSIS_WGSL, packChassis, ChassisFloats } from './chassis.js';
 
 // Module-scope declarations come first so the fibre stages can reach the globals the figure stages
 // also use. One module, one shader compilation, three pipelines off it.
@@ -207,7 +208,7 @@ async function start() {
 
   const module = device.createShaderModule({
     label: 'spatial interface',
-    code: `${Prelude}\n${SDF_WGSL}\n${STREAK_WGSL}\n${FIBRE_WGSL}\n${Stages}`,
+    code: `${Prelude}\n${SDF_WGSL}\n${STREAK_WGSL}\n${FIBRE_WGSL}\n${CHASSIS_WGSL}\n${Stages}`,
   });
 
   const info = await module.getCompilationInfo();
@@ -257,6 +258,24 @@ async function start() {
     primitive: { topology: 'triangle-list' },
   });
 
+  // 🔴 THE OBJECT, NOT THE INTERFACE. Engine/SpatialInterface draws figures on a plane, which is a
+  //    PICTURE of a bezel and not a bezel: no thickness, no normal, no front surface, nothing
+  //    around it. These two passes are the tablet itself — a raymarched slab with a chamfer, a
+  //    floor it stands on, and glass over the front. Opaque, so the body replaces the background;
+  //    additive, so the glass lies over the readout the way a reflection lies over a picture.
+  const chassisPipeline = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module, entryPoint: 'vsScreenwide' },
+    fragment: { module, entryPoint: 'fsChassis', targets: [{ format }] },
+    primitive: { topology: 'triangle-list' },
+  });
+  const glassPipeline = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module, entryPoint: 'vsScreenwide' },
+    fragment: { module, entryPoint: 'fsGlass', targets: [{ format, blend: additive }] },
+    primitive: { topology: 'triangle-list' },
+  });
+
   const { structure, handles } = constructHudLayout();
   State.streak = structure.query(handles.streaks).streak.slice();
 
@@ -279,6 +298,15 @@ async function start() {
                         { binding: 2, resource: { buffer: fibreBuffer } }];
   const fibreBind = device.createBindGroup({ layout: fibrePipeline.getBindGroupLayout(0), entries: fibreEntries });
   const sparkBind = device.createBindGroup({ layout: sparkPipeline.getBindGroupLayout(0), entries: fibreEntries });
+
+  const chassisData = new Float32Array(ChassisFloats);
+  const chassisBuffer = device.createBuffer({
+    size: chassisData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const chassisEntries = [{ binding: 0, resource: { buffer: globals } },
+                          { binding: 3, resource: { buffer: chassisBuffer } }];
+  const chassisBind = device.createBindGroup({ layout: chassisPipeline.getBindGroupLayout(0), entries: chassisEntries });
+  const glassBind = device.createBindGroup({ layout: glassPipeline.getBindGroupLayout(0), entries: chassisEntries });
 
   const boostChannel = new Channel(260, 22);
   const fillChannel = new Channel(220, 30, State.regen);
@@ -346,6 +374,14 @@ async function start() {
     // distance — the same quantity the particle editor passes as projScale.
     const projectionScale = 0.5 * height / Math.tan(fieldOfView * 0.5);
 
+    // The march needs a ray, and Globals does not carry one. The basis is handed over already
+    // scaled by the aspect and the field of view, so the fragment stage is two multiplies.
+    const tanHalf = Math.tan(fieldOfView * 0.5);
+    const forward = normalise([-eye[0], -eye[1], -eye[2]]);
+    const right = normalise(cross(forward, [0, 0, 1]));
+    const upward = cross(right, forward);
+    const aspect = width / height;
+
     // The analytic field is a RUNG, not a fallback: it is the only form of this backdrop that can
     // be answered at a hit point, because it is a closed-form function of a plane coordinate and
     // geometry is not. It is drawn only when it is the rung in use.
@@ -361,6 +397,14 @@ async function start() {
 
     const { placements } = resolve(structure);
     const packed = pack(structure, placements, eye);
+
+    packChassis(chassisData, {
+      rows: placements[handles.housing],
+      right: right.map((One) => One * aspect * tanHalf),
+      up: upward.map((One) => One * tanHalf),
+      forward,
+    });
+    device.queue.writeBuffer(chassisBuffer, 0, chassisData);
 
     // Where the world goes: after the housing, the face and the field rung, before every control.
     const backdropRank = structure.query(handles.streaks).orderingRank;
@@ -398,6 +442,11 @@ async function start() {
         storeOp: 'store',
       }],
     });
+    // The object first: body, chamfer, floor, and the light the screen pools onto it.
+    pass.setPipeline(chassisPipeline);
+    pass.setBindGroup(0, chassisBind);
+    pass.draw(3);
+
     // The interface is still one draw — the world is inserted between its two halves.
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bind);
@@ -415,6 +464,11 @@ async function start() {
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bind);
     pass.draw(4, packed.count - splitAt, 0, splitAt);
+
+    // The glass lies over the picture, because that is where a reflection is.
+    pass.setPipeline(glassPipeline);
+    pass.setBindGroup(0, glassBind);
+    pass.draw(3);
     pass.end();
     device.queue.submit([encoder.finish()]);
 

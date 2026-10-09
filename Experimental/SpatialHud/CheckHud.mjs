@@ -13,6 +13,10 @@ import { Category, Slot, Structure, Figure, Detached, resolve, pack, composePlac
          combinePlacement, composeSortKey, OpaqueThreshold, FloatsPerFigure } from './js/figures.js';
 import { constructHudLayout, assignValues, PanelHalfWidth, PanelHalfHeight } from './js/layout.js';
 import { StreakPreset, packFibre, FibreFloats, FIBRE_WGSL } from './js/fibres.js';
+import {
+  CHASSIS_WGSL, packChassis, ChassisFloats, ChassisHalfDepth, ChassisCorner, ChassisChamfer,
+  FloorHeight, KeyDirection, RimDirection, SoftSharpness, GlassSharpness,
+} from './js/chassis.js';
 import { SDF_WGSL } from './js/sdf.generated.js';
 import { STREAK_WGSL } from './js/streaks.js';
 
@@ -413,6 +417,47 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   Claim('the back of the tablet is opaque', FIBRE_WGSL.includes('fbEyePanel().z <= 0.0'));
   Claim('the unported shapes are absent, not stubbed',
         !FIBRE_WGSL.includes('fbWave') && !FIBRE_WGSL.includes('fbTrail'));
+}
+
+// ── the chassis: the tablet as an object ─────────────────────────────────────────────────────────
+// 🔴 The interface alone can never look like a tablet. A housing figure is a rounded rectangle with
+//    a dark colour - a PICTURE of a bezel. No thickness, so no edge to catch a highlight; no
+//    normal, so nothing responds to the room; no front surface, so no glass; nothing around it, so
+//    no scale and no place. These hold the object's dimensions and the two things that make it read
+//    as one: a chamfer narrower than the corner, and a floor it actually stands on.
+
+{
+  const packed = packChassis(new Float32Array(ChassisFloats), {
+    rows: [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0]],
+    right: [1, 0, 0], up: [0, 0, 1], forward: [0, 1, 0],
+  });
+
+  Claim('the chassis uniform is 18 vec4s', ChassisFloats === 72 && packed.length === 72);
+  Near('the slab is as wide as the panel', packed[0], PanelHalfWidth);
+  Near('the slab is as tall as the panel', packed[1], PanelHalfHeight);
+  Claim(`the slab is a tablet thickness, not a card (${(ChassisHalfDepth * 2000).toFixed(1)} mm)`,
+        ChassisHalfDepth * 2 > 0.006 && ChassisHalfDepth * 2 < 0.014);
+
+  // The chamfer rolls the rim. Let it reach the corner radius and the body stops being a slab with
+  // a milled edge and becomes a lozenge.
+  Claim('the chamfer is an edge roll, not a corner radius', ChassisChamfer < ChassisCorner * 0.25);
+  Claim('the chamfer fits inside the thickness', ChassisChamfer < ChassisHalfDepth);
+
+  // 🔴 It STANDS. A tablet floating a centimetre off the floor is the single loudest tell that a
+  //    render is a render, and the two numbers that prevent it live in different places.
+  Near('the floor is exactly under the bottom edge', FloorHeight, -PanelHalfHeight);
+
+  Claim('the lamp and the rim come from different sides',
+        KeyDirection[0] * RimDirection[0] < 0);
+  Claim('the soft lobe is broad and the lamp lobe is tight', SoftSharpness < GlassSharpness / 20);
+
+  for (const name of ['vsScreenwide', 'fsChassis', 'fsGlass', 'chBody', 'chNormal', 'chLit']) {
+    Claim(`the chassis shader carries ${name}`, CHASSIS_WGSL.includes(`fn ${name}`));
+  }
+  Claim('the body is the engine\'s rounded rectangle, extruded, not a second shape',
+        CHASSIS_WGSL.includes('DistanceRoundedRectangle(panel.xy, CH.half.xy, CH.half.w)'));
+  Claim('the shadow is solved on the panel plane, not marched',
+        CHASSIS_WGSL.includes('let cross = -panel.z / toLight.z;'));
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────────────────────────

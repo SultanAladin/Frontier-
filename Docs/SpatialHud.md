@@ -184,6 +184,52 @@ simply visible from behind, which is the same mistake wearing different clothes.
 `Stills/Grazing.png` is the angle that exposed it. `CheckHud` pins the clip **site**, not just its
 presence, so nobody quietly puts it back on the strand.
 
+## 🔴 The interface alone can never look like a tablet
+
+`Engine/SpatialInterface` draws figures on a plane. That is the right shape for a user interface and
+it is all the engine has — but a housing figure is a rounded rectangle with a dark colour, which is
+a **picture** of a bezel, not a bezel:
+
+| missing | consequence |
+|---|---|
+| thickness | no edge, so no rim highlight and no sense of an object |
+| a normal | nothing responds to the room; it cannot turn toward or away from a light |
+| a front surface | no glass, and glass is most of what says "device" |
+| anything around it | no scale, no place, no shadow, nowhere for the glow to land |
+
+A dark rectangle floating in black cannot read as a device however carefully the contents are tuned,
+and every hour spent on the contents is an hour spent on the wrong problem. So `js/chassis.js` adds
+the object: **a raymarched slab, a floor, two lights and glass.**
+
+**Why a raymarch and not a mesh.** A chamfered slab as triangles means a vertex buffer, an index
+buffer, normals, and a depth buffer for it to self-occlude against — four bindings this exchange does
+not have and one (depth) the interface deliberately refuses, because every figure is coplanar within
+3 mm and a depth test would z-fight rather than resolve. A signed distance costs none of it: exact
+silhouette at any zoom, corner radius as a number rather than a tessellation, normal as the gradient,
+and the whole body is **one full-screen triangle with no vertex data at all**. It is also the same
+idea the rest of this interface is built on, which matters more than the saving.
+
+**Three decisions worth keeping.**
+
+- **The chamfer rolls the extrusion, not the box.** `DistanceRoundedRectangle` + rounded extrude puts
+  the roll on the rim only, where a milled edge has one, instead of swelling the corner radius in the
+  plane as well. `CheckHud` holds `chamfer < corner / 4`.
+- **The shadow is solved, not marched.** The slab is thin, so where the lamp ray crosses the panel
+  plane is tested against the face — the same ray-plane solve as the fibre aperture, at a fraction of
+  a march's cost.
+- **The glass is drawn after the interface.** A reflection is on the outer surface and the picture is
+  behind it. Drawing the sheen under the readout says the opposite, and an eye reads that instantly
+  as a decal.
+
+**Faked, stated plainly:** the environment is a two-tone gradient, so a reflection shows a sky tone
+and a ground tone and not the furniture. That is the one place a render target would buy something
+real — along with bloom — and it is still not built.
+
+Two lights, because one is not enough: with a single source the away-facing edge falls to the
+background value and the silhouette stops existing on that side. And two specular lobes, because
+**glass reflects areas, not points** — a lone sharp highlight is a pinprick that reads as a bug,
+while a broad soft shape rolling across the surface is what says "sheet of glass".
+
 ## 🔴 The volume behind a panel is a slab, not a cylinder
 
 `fbBezier` scatters its root and reach on a **disc** perpendicular to the axis, so one `spread`
