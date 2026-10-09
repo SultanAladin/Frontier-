@@ -466,11 +466,12 @@ function control(selector) {
 
 function wireControls(structure, handles) {
   for (const [name, index] of StreakFields) {
-    const input = document.querySelector(`[data-streak="${name}"]`);
+    const input = control(`[data-streak="${name}"]`);
     if (!input) continue;
     input.value = State.streak[index];
+    const readout = input.nextElementSibling;
     const show = () => {
-      input.nextElementSibling.textContent = Number(input.value).toString();
+      if (readout) readout.textContent = Number(input.value).toString();
     };
     show();
     input.addEventListener('input', () => {

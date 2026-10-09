@@ -13,10 +13,21 @@ then open `/Experimental/SpatialHud/index.html`.
 `Cache-Control` at all, so a browser applies a heuristic and may reuse a response without
 revalidating. These pages are ES modules that import each other, which means the browser will
 cheerfully load a new `index.html` against an `app.js` from five minutes ago. That failure is silent
-and looks like an impossible bug: the first time it happened here the symptom was a black canvas and
-an untouched readout, caused by nothing worse than a control attribute renamed in markup the cached
-script had never seen. `ServeExperiments.py` sends `no-store`, refuses to answer `304`, and knows
-that `.mjs` is JavaScript.
+and looks like an impossible bug: the symptom here was a black canvas, an untouched readout, and a
+stack trace naming line numbers that no longer existed in the file — all caused by nothing worse
+than a control attribute renamed in markup the cached script had never seen.
+
+**`no-store` alone was not enough**, and that is the part worth remembering. It governs the *next*
+response; it says nothing about the copy already in the cache, which stays fresh on its own terms
+and is served again on an ordinary reload. So the first load after the fix still ran the stale
+module. `ServeExperiments.py` therefore **versions every module URL** by its target's modification
+time — `./figures.js` is rewritten to `./figures.js?v=1791531925` in whatever file imports it, right
+through the nested graph. A changed file is a different URL, so no cache can answer it, and nobody
+has to remember to hard-refresh. It also corrects the MIME type for `.mjs`, which the standard
+handler does not know and which makes a module script fail to load outright.
+
+It is a development server: it rewrites what it serves, which is exactly what a production server
+must never do.
 
 This is the browser stage. Nothing here has crossed into C++ yet, by the standing rule that a UI is
 designed where it can be looked at before it is ported.
