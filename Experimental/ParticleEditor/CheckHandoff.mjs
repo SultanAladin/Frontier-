@@ -36,9 +36,11 @@ const Window = {
   parent: null,
 };
 Window.window = Window;
-const Sandbox = vm.createContext({ window: Window, JSON, Object, Array, Number });
+const Sandbox = vm.createContext({ window: Window, JSON, Object, Array, Number, String, console });
+vm.runInContext(readFileSync(join(Here, "js/edits.js"), "utf8"), Sandbox);
 vm.runInContext(readFileSync(join(Here, "js/handoff.js"), "utf8"), Sandbox);
 const Handoff = Window.PE.Handoff;
+const Edits = Window.PE.Edits;
 
 Banner("Describing what is selected");
 {
@@ -111,13 +113,92 @@ Banner("Noticing a change");
   Check(Handoff.Same(null, null) && !Handoff.Same(A, null), "and null is only the same as null");
 }
 
+Banner("One place an edit passes through");
+{
+  const Heard = [];
+  const Stop = Edits.Subscribe((Edit) => Heard.push(Edit));
+
+  const System = { id: 1, p: { rate: 10 } };
+  Edits.For(System);
+  Check(Edits.Announce("Rate", 42) === 1, "an announcement reaches the one watcher listening");
+  Check(Heard[0].What === "Rate" && Heard[0].Value === 42 && Heard[0].System === System,
+        "carrying what was edited, to what, and on which system");
+
+  // The whole point: a row helper's setter is wrapped once and every row built by it is observable.
+  let Written = 0;
+  const Set = Edits.Through("Smoke", (Value) => { Written = Value; });
+  Set(7);
+  Check(Written === 7 && Heard.length === 2 && Heard[1].What === "Smoke",
+        "a setter put Through the funnel still writes, and is heard -- the row does not have to remember");
+
+  Check(Edits.Quietly(() => Edits.Announce("Rate", 1)) === 0,
+        "\U0001f534 a programmatic edit announces nothing, so admitting a host's message cannot echo back "
+        + "to it as an edit and loop");
+  Check(Heard.length === 2, "and nothing was heard during it");
+
+  // A watcher behind a throwing one must still be reached, and the row must still have written.
+  let Behind = 0;
+  const StopNoisy = Edits.Subscribe(() => { throw new Error("watcher trouble"); });
+  const StopBehind = Edits.Subscribe(() => { Behind++; });
+  Check(Edits.Announce("Rate", 2) === 2 && Behind === 1,
+        "one watcher throwing is logged and stepped over; the watchers behind it, and the drag, carry on");
+
+  StopNoisy();
+  StopBehind();
+  Stop();
+  const Before = Heard.length;
+  Edits.Announce("Rate", 3);
+  Check(Heard.length === Before && Edits.Watchers.length === 0,
+        "unsubscribing is honoured, and leaves nothing behind -- a watcher that cannot leave is a leak");
+  Edits.For(null);
+}
+
 Banner("Standing alone");
 {
   Window.parent = Window;   // not framed
+  const Watching = Edits.Watchers.length;
   const Stop = Handoff.Install({ selection: { type: "wind" }, systems: [] }, {});
   Check(typeof Stop === "function" && Listeners.length === 0,
         "with no host above it the page installs nothing at all -- no listener, no interval, no posting "
         + "into its own window");
+  Check(Edits.Watchers.length === Watching, "and it does not subscribe to edits nobody asked it to report");
+}
+
+Banner("Framed, it reports an edit instead of waiting for a poll");
+{
+  const Sent = [];
+  const Host = { postMessage: (Message) => Sent.push(Message) };
+  Window.parent = Host;
+  let Fire = null;
+  Window.setTimeout = (Work) => { Fire = Work; return 1; };
+  Window.clearTimeout = () => {};
+  Window.setInterval = () => 2;
+
+  const State = { selection: { type: "system", id: 1 },
+                  systems: [{ id: 1, presetId: "embers", name: "Embers", p: { rate: 10 } }] };
+  const Stop = Handoff.Install(State, {});
+  Check(Sent.length === 1 && Sent[0].Frontier === "particle-editor-ready",
+        "it announces itself to the host on boot, so the host knows the page is alive");
+  Check(Edits.Watchers.length > 0, "and it subscribes to the funnel rather than polling for a change");
+
+  State.systems[0].p.rate = 55;
+  Edits.Announce("Emission Rate", 55);
+  Check(Fire !== null, "an edit schedules a post rather than sending one per input event of a drag");
+  Fire();
+  Check(Sent.length === 2 && Sent[1].Settings.rate === 55,
+        "and when it settles the host is told, carrying the new reading");
+
+  Fire = null;
+  Edits.Announce("Emission Rate", 55);
+  if (Fire) Fire();
+  Check(Sent.length === 2, "an edit that changed nothing is not reported -- the host hears scenes, not events");
+
+  Stop();
+  const After = Edits.Watchers.length;
+  Edits.Announce("Emission Rate", 9);
+  Check(Edits.Watchers.length === After && After === 0,
+        "and closing the page lets go of the funnel");
+  Window.parent = null;
 }
 
 console.log("\nPASS " + Checks);

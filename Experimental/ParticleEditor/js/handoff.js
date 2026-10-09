@@ -7,15 +7,20 @@
 //    that makes the trip possible: postMessage in, postMessage out, in the same shape GasPanel.jsx already
 //    speaks to the Fluid simulator ("gas-scene" / "gas-scene-changed").
 //
-// ⚠️ KNOWN COMPROMISE. app.js has no single commit point for a parameter change: every inspector row
-//    writes straight into sys.p from its own closure. There is therefore nothing to subscribe to, and this
-//    diffs a snapshot on an interval instead. The right fix is a setParam(sys, key, value) funnel that the
-//    rows call and this listens to; until that lands, a change is seen within one poll rather than at once.
+// 📝 HOW A CHANGE IS NOTICED. js/edits.js funnels every inspector row through one announcement, so this
+//    subscribes rather than polling. The announcement says only that something was edited; this still
+//    re-describes the scene and compares, because the row's label is not the parameter's name and a
+//    description that is merely different from the last one is the only claim worth posting.
+//
+//    A slow safety net remains behind the subscription, at a much longer interval, for the writes that do
+//    not come from a row at all — a preset applied in code, a system removed. Catching those within a
+//    couple of seconds is enough; they are not what an author is dragging.
 (function () {
   "use strict";
   const PE = (window.PE = window.PE || {});
 
-  const POLL_MS = 500;   // [ms] how long a change can sit before the host hears about it
+  const SETTLE_MS = 90;    // [ms] edits are coalesced for this long, so dragging a slider posts once
+  const SWEEP_MS = 2000;   // [ms] the safety net, for changes that never passed through a row
 
   // Values a host is allowed to set. Anything else in an arriving message is ignored rather than merged:
   //    a message is untrusted input, and Object.assign over sys.p would let a sender invent fields that
@@ -87,24 +92,45 @@
     const Receive = (Event) => {
       const Message = Event.data;
       if (!Message || Message.Frontier !== "particle-system") return;
-      const sys = Host.Open(Message.Preset, Message.Name);
-      if (!sys) return;
-      if (Admit(sys.p, Message.Settings) > 0) Host.Rebuild(sys);
-      Host.Refresh();
+      // 🔴 Quietly: admitting the host's own message must not announce an edit, or the subscription
+      //    above posts it straight back and the two windows talk to each other forever.
+      PE.Edits.Quietly(() => {
+        const sys = Host.Open(Message.Preset, Message.Name);
+        if (!sys) return;
+        if (Admit(sys.p, Message.Settings) > 0) Host.Rebuild(sys);
+        Host.Refresh();
+      });
       Last = Describe(state);
     };
     window.addEventListener("message", Receive);
 
-    const Poll = window.setInterval(() => {
+    // Post only when the scene actually reads differently, however the change arrived.
+    const Post = () => {
       const Now = Describe(state);
-      if (!Now || Same(Now, Last)) return;
+      if (!Now || Same(Now, Last)) return false;
       Last = Now;
       window.parent.postMessage(Now, "*");
-    }, POLL_MS);
+      return true;
+    };
+
+    // Dragging a slider announces on every input event. Coalescing to one post per settle keeps a drag
+    //    from becoming a hundred messages, while still landing well inside a person's reaction time.
+    let Settling = 0;
+    const Unsubscribe = PE.Edits.Subscribe(() => {
+      if (Settling) return;
+      Settling = window.setTimeout(() => { Settling = 0; Post(); }, SETTLE_MS);
+    });
+
+    const Sweep = window.setInterval(Post, SWEEP_MS);
 
     window.parent.postMessage({ Frontier: "particle-editor-ready" }, "*");
-    return () => { window.removeEventListener("message", Receive); window.clearInterval(Poll); };
+    return () => {
+      window.removeEventListener("message", Receive);
+      window.clearInterval(Sweep);
+      if (Settling) window.clearTimeout(Settling);
+      Unsubscribe();
+    };
   }
 
-  PE.Handoff = { Describe, Admit, Writable, Same, Install, POLL_MS };
+  PE.Handoff = { Describe, Admit, Writable, Same, Install, SETTLE_MS, SWEEP_MS };
 })();

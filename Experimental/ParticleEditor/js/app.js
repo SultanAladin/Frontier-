@@ -531,7 +531,11 @@
   }
 
   // ----------------------------------------------------------------- controls
-  function rangeRow(label, get, set, o) {
+  // Every row helper below funnels its write through PE.Edits, so that an edit is observable without
+  //    thirty-two closures having to remember to say so. See js/edits.js for why the funnel is here
+  //    rather than at the parameter.
+  function rangeRow(label, get, set0, o) {
+    const set = PE.Edits.Through(label, set0);
     const digits = o.digits;
     const range = el("input", { type: "range", min: o.min, max: o.max, step: o.step, value: get() });
     const num = el("input", { type: "number", min: o.min, max: o.max, step: o.step, value: fmt(get(), digits), class: "num" });
@@ -546,7 +550,12 @@
       const input = el("input", { type: "number", step: o.step, value: fmt(arr[i], o.digits), class: "num vec", "aria-label": label + " " + "xyz"[i] });
       input.addEventListener("change", () => {
         const v = +input.value;
-        if (Number.isFinite(v)) { arr[i] = clamp(v, o.min, o.max); input.value = fmt(arr[i], o.digits); o.onChange?.(); }
+        if (Number.isFinite(v)) {
+          arr[i] = clamp(v, o.min, o.max);
+          input.value = fmt(arr[i], o.digits);
+          o.onChange?.();
+          PE.Edits.Announce(label + " " + "XYZ"[i], arr[i]);
+        }
       });
       return input;
     });
@@ -555,22 +564,29 @@
   function colorRow(label, arr) {
     const picker = el("input", { type: "color", value: toHex(arr), "aria-label": label + " colour" });
     const alpha = el("input", { type: "range", min: 0, max: 1, step: 0.01, value: arr[3] ?? 1, "aria-label": label + " alpha" });
-    picker.addEventListener("input", () => { const c = fromHex(picker.value); arr[0] = c[0]; arr[1] = c[1]; arr[2] = c[2]; });
-    alpha.addEventListener("input", () => { arr[3] = +alpha.value; });
+    picker.addEventListener("input", () => {
+      const c = fromHex(picker.value);
+      arr[0] = c[0]; arr[1] = c[1]; arr[2] = c[2];
+      PE.Edits.Announce(label, arr.slice(0, 3));
+    });
+    alpha.addEventListener("input", () => { arr[3] = +alpha.value; PE.Edits.Announce(label + " alpha", arr[3]); });
     return el("label", { class: "row" }, el("span", { class: "row-k", text: label }), picker, alpha, el("em", { class: "unit", text: "α" }));
   }
-  function selectRow(label, options, get, set) {
+  function selectRow(label, options, get, set0) {
+    const set = PE.Edits.Through(label, set0);
     const s = el("select", { "aria-label": label }, ...options.map(([v, t]) => el("option", { value: v, text: t, selected: String(get()) === String(v) })));
     s.addEventListener("change", () => set(isNaN(+s.value) ? s.value : +s.value));
     return el("label", { class: "row" }, el("span", { class: "row-k", text: label }), s);
   }
-  function checkRow(label, get, set) {
+  function checkRow(label, get, set0) {
+    const set = PE.Edits.Through(label, set0);
     const c = el("input", { type: "checkbox", checked: get(), "aria-label": label });
     c.addEventListener("change", () => set(c.checked));
     return el("label", { class: "row check" }, el("span", { class: "row-k", text: label }), c);
   }
   function button(label, onclick, cls = "") {
-    return el("button", { class: "btn " + cls, onclick, type: "button" }, label);
+    const Press = (Event) => { const Answer = onclick(Event); PE.Edits.Announce(label, true); return Answer; };
+    return el("button", { class: "btn " + cls, onclick: Press, type: "button" }, label);
   }
   function card(title, kicker, ...body) {
     return el("section", { class: "pcard" },
@@ -698,9 +714,12 @@
     root.innerHTML = "";
     const live = (state.ui.liveEls = { vis: state.ui.liveEls.vis });
     const sel = state.selection;
+    // Rows capture their system in a closure, so the edit funnel is told which one they belong to.
+    //    Cleared for the panels that edit the world rather than a system.
+    PE.Edits.For(null);
     if (sel.type === "system") {
       const sys = systemById(sel.id);
-      if (sys) renderSystemInspector(root, sys, live);
+      if (sys) { PE.Edits.For(sys); renderSystemInspector(root, sys, live); }
     } else if (sel.type === "wind") {
       renderWindInspector(root, live);
     } else if (sel.type === "lightning") {

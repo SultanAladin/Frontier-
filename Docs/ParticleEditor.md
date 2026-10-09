@@ -185,7 +185,7 @@ Six things were changed on arrival. Each is a defect rather than a difference of
 | ❌ | The frame loop kept encoding GPU work in a background tab. | `frame()` returns early on `document.hidden` and resets `lastT`, so time does not jump when the tab comes back. |
 | ❌ | Nothing could get a scene in or out — no save, no load, no export, no `localStorage`. 52 presets could be tuned and nothing left the page. | `js/handoff.js`, below. |
 | ❌ | No tests of any kind. | `CheckHandoff.mjs`, 24 checks, run in CI. |
-| ❌ | No single commit point for a parameter change: every inspector row writes straight into `sys.p` from its own closure, so nothing can observe an edit. | Not fixed. The handoff diffs a snapshot every 500 ms instead. The real fix is a `setParam(sys, key, value)` funnel that every row goes through; it touches most of `app.js`. |
+| ❌ | No single commit point for a parameter change: every inspector row writes straight into `sys.p` from its own closure, so nothing can observe an edit. | `js/edits.js` — the funnel, placed at the six row helpers rather than at the parameter. The handoff subscribes; the 500 ms poll is gone. |
 
 Three further findings were recorded and not acted on, because each is a rewrite rather than a repair:
 
@@ -197,15 +197,40 @@ Three further findings were recorded and not acted on, because each is a rewrite
   serves a stale script.
 - ❌ **One-letter identifiers throughout** (`d`, `U`, `o`, `s`, `f`, `el`, `$`). This will have to be
   undone when the page is ported to C++, where `AgenticInstuctions/SKILL-Naming.md` applies.
-- ❌ **Unconditional per-system molecular lattice.** `MAX_GD³ (24³) × SLOTS (24) × 4 B` ≈ 1.33 MB of
-  `cellSlots` plus 55 KB of `cellCount` is allocated for every system, including the many kinds that
-  never read it. Twelve systems is 17 MB of VRAM nothing touches.
+*(The unconditional per-system molecular lattice was the fourth such finding and is now fixed: only kinds
+3 and 4 allocate it, and the rest share a 16-byte stub, because the bind group layout still demands the
+binding. `kind` comes from the preset and is never edited, so the decision is made once in the
+`SystemGPU` constructor.)*
 
 What the page already got right, and should keep: device loss is handled (`d.lost.then` → a banner rather
 than a frozen canvas); boot is wrapped so a failure explains itself; DPR is capped at 2 with a
 `ResizeObserver`; readbacks are single-flight behind `statPending`/`probePending`; `innerHTML` is only ever
 assigned `""`, so there is no injection surface; and the engine/app split with documented uniform slot maps
 (`PE.SYS_SLOT`, `PE.GLOB_OFF`) is genuinely clear.
+
+## The edit funnel
+
+`js/edits.js` is the one place an edit passes through. The obvious shape for this is
+`setParam(sys, key, value)` called by all thirty-two inspector closures — but that means editing
+thirty-two closures, and the thirty-third one written next month will forget. Every one of them is
+already reached through six row helpers (`rangeRow`, `vecRow`, `colorRow`, `selectRow`, `checkRow`, and
+the action `button`), so the funnel sits **at the widget layer instead**: six call sites, and a new row is
+observable by construction, because the only way to draw a row is to call one of the six.
+
+- `For(sys)` — rows capture their system in a closure, which the funnel cannot see, so `renderInspector`
+  names it once at the top.
+- `Subscribe(fn)` → returns the unsubscribe. A watcher that cannot leave is a leak the first time the
+  drawer is opened twice.
+- `Quietly(work)` — runs without announcing. This is what stops a host's arriving message from being
+  re-announced as an edit and posted straight back; without it the two windows talk to each other forever.
+- `Announce(what, value)` / `Through(what, set)`.
+
+A throwing watcher is logged and stepped over, because a subscriber's bug must not freeze a slider
+mid-drag.
+
+What this deliberately does **not** catch: a write made in code rather than by a person. That is the right
+side to err on — the funnel reports authoring, and a programmatic write is the caller's own business to
+report. The handoff keeps a 2 s sweep behind its subscription for exactly those.
 
 ## The handoff — how the gas emitter card opens this page
 
@@ -218,8 +243,9 @@ assigned `""`, so there is no injection surface; and the engine/app split with d
 - `Writable(p)` — only scalars, strings and numeric vectors cross. GPU handles, functions and arrays of
   objects do not, because `postMessage` would either throw or clone the page's live state.
 - `Install(state, Host)` — listens for `particle-system`, posts `particle-system-changed`, announces
-  `particle-editor-ready` on boot, and polls a diff every 500 ms. **With no parent frame it installs
-  nothing at all**, so the standalone page is unaffected.
+  `particle-editor-ready` on boot, and subscribes to the edit funnel — coalescing a drag to one post per
+  90 ms, with a 2 s sweep behind it for changes that never passed through a row. **With no parent frame
+  it installs nothing at all**, so the standalone page is unaffected.
 
 In the editor, `GasEmitterInspector` grew an `Open ParticleEditor` button and `ParticleEditor` in
 `GasPanel.jsx` is the drawer behind it — the same shape as the domain's `Open FluidEditor` and `GasEditor`,

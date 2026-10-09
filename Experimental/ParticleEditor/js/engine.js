@@ -43,9 +43,22 @@
       this.stats = d.createBuffer({ size: 32, usage: U.STORAGE | U.COPY_SRC });
       this.statStage = d.createBuffer({ size: 32, usage: U.MAP_READ | U.COPY_DST });
       this.uniform = d.createBuffer({ size: 256, usage: U.UNIFORM | U.COPY_DST });
-      const cells = PE.MAX_GD ** 3;
-      this.cellCount = d.createBuffer({ size: cells * 4, usage: U.STORAGE });
-      this.cellSlots = d.createBuffer({ size: cells * PE.SLOTS * 4, usage: U.STORAGE });
+      // 💾 The neighbour lattice, and only for the kinds that have neighbours. Atoms (3) and chemicals (4)
+      //    bin themselves into it each step to find who is close enough to interact with; sparks, leaves,
+      //    rain and the rest never touch it. Allocating it for all of them cost MAX_GD^3 * SLOTS * 4 B =
+      //    1.33 MB plus 55 KB of counters per system -- 17 MB of VRAM across a dozen systems that never
+      //    read a byte of it. `kind` comes from the preset and is never edited, so this is decided once.
+      this.molecular = params.kind === 3 || params.kind === 4;
+      if (this.molecular) {
+        const cells = PE.MAX_GD ** 3;
+        this.cellCount = d.createBuffer({ size: cells * 4, usage: U.STORAGE });
+        this.cellSlots = d.createBuffer({ size: cells * PE.SLOTS * 4, usage: U.STORAGE });
+        this.latticeBytes = cells * 4 + cells * PE.SLOTS * 4;
+      } else {
+        this.cellCount = engine.vacantCellCount;
+        this.cellSlots = engine.vacantCellSlots;
+        this.latticeBytes = 0;
+      }
       this.simBG = d.createBindGroup({
         layout: engine.gl1Sim,
         entries: [
@@ -94,7 +107,10 @@
     //    error. The handler reads this mark instead of trusting that it is still wanted.
     destroy() {
       this.gone = true;
-      for (const b of [this.parts, this.snap, this.stats, this.statStage, this.uniform, this.cellCount, this.cellSlots]) {
+      const Mine = [this.parts, this.snap, this.stats, this.statStage, this.uniform];
+      // Only a molecular system owns its lattice; the rest borrowed the engine's stub and must not free it.
+      if (this.molecular) Mine.push(this.cellCount, this.cellSlots);
+      for (const b of Mine) {
         b.destroy();
       }
       this.fibreUniform?.destroy();
@@ -182,6 +198,11 @@
       });
       // 📝 Force fields, written each frame by the app (512 bytes: count/time, then 8 fields of 3 vec4).
       this.fieldBuf = d.createBuffer({ size: 512, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+      // The neighbour lattice is only read by the molecular kinds, but the bind group layout demands
+      //    bindings 3 and 4 from every system. One shared stub stands in for the systems that never index
+      //    it, instead of 1.4 MB of untouched VRAM each. See SystemGPU below.
+      this.vacantCellCount = d.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE });
+      this.vacantCellSlots = d.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE });
       this.gl1Render = d.createBindGroupLayout({
         entries: [
           { binding: 0, visibility: VF, buffer: { type: "uniform" } },
