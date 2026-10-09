@@ -9,7 +9,7 @@ import { SDF_WGSL } from './sdf.generated.js';
 import { STREAK_WGSL } from './streaks.js';
 import { constructHudLayout, assignValues } from './layout.js';
 import { FIBRE_WGSL, packFibre, StreakPreset, FibreFloats } from './fibres.js';
-import { CHASSIS_WGSL, packChassis, ChassisFloats } from './chassis.js';
+import { CHASSIS_WGSL, packRoom, RoomFloats } from './chassis.js';
 
 // Module-scope declarations come first so the fibre stages can reach the globals the figure stages
 // also use. One module, one shader compilation, three pipelines off it.
@@ -258,22 +258,19 @@ async function start() {
     primitive: { topology: 'triangle-list' },
   });
 
-  // 🔴 THE OBJECT, NOT THE INTERFACE. Engine/SpatialInterface draws figures on a plane, which is a
-  //    PICTURE of a bezel and not a bezel: no thickness, no normal, no front surface, nothing
-  //    around it. These two passes are the tablet itself — a raymarched slab with a chamfer, a
-  //    floor it stands on, and glass over the front. Opaque, so the body replaces the background;
-  //    additive, so the glass lies over the readout the way a reflection lies over a picture.
-  const chassisPipeline = device.createRenderPipeline({
+  // The tablet as an object. The body is opaque and goes down first, so everything else lands on
+  // a real surface; the glass is composited last, over the finished interface.
+  const roomPipeline = device.createRenderPipeline({
     layout: 'auto',
-    vertex: { module, entryPoint: 'vsScreenwide' },
-    fragment: { module, entryPoint: 'fsChassis', targets: [{ format }] },
+    vertex: { module, entryPoint: 'vsRoom' },
+    fragment: { module, entryPoint: 'fsRoom', targets: [{ format }] },
     primitive: { topology: 'triangle-list' },
   });
   const glassPipeline = device.createRenderPipeline({
     layout: 'auto',
-    vertex: { module, entryPoint: 'vsScreenwide' },
+    vertex: { module, entryPoint: 'vsGlass' },
     fragment: { module, entryPoint: 'fsGlass', targets: [{ format, blend: additive }] },
-    primitive: { topology: 'triangle-list' },
+    primitive: { topology: 'triangle-strip' },
   });
 
   const { structure, handles } = constructHudLayout();
@@ -290,6 +287,15 @@ async function start() {
     entries: [{ binding: 0, resource: { buffer: globals } }, { binding: 1, resource: { buffer: figureBuffer } }],
   });
 
+  const roomData = new Float32Array(RoomFloats);
+  const roomBuffer = device.createBuffer({
+    size: roomData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const roomEntries = [{ binding: 0, resource: { buffer: globals } },
+                       { binding: 3, resource: { buffer: roomBuffer } }];
+  const roomBind = device.createBindGroup({ layout: roomPipeline.getBindGroupLayout(0), entries: roomEntries });
+  const glassBind = device.createBindGroup({ layout: glassPipeline.getBindGroupLayout(0), entries: roomEntries });
+
   const fibreData = new Float32Array(FibreFloats);
   const fibreBuffer = device.createBuffer({
     size: fibreData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -298,15 +304,6 @@ async function start() {
                         { binding: 2, resource: { buffer: fibreBuffer } }];
   const fibreBind = device.createBindGroup({ layout: fibrePipeline.getBindGroupLayout(0), entries: fibreEntries });
   const sparkBind = device.createBindGroup({ layout: sparkPipeline.getBindGroupLayout(0), entries: fibreEntries });
-
-  const chassisData = new Float32Array(ChassisFloats);
-  const chassisBuffer = device.createBuffer({
-    size: chassisData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  const chassisEntries = [{ binding: 0, resource: { buffer: globals } },
-                          { binding: 3, resource: { buffer: chassisBuffer } }];
-  const chassisBind = device.createBindGroup({ layout: chassisPipeline.getBindGroupLayout(0), entries: chassisEntries });
-  const glassBind = device.createBindGroup({ layout: glassPipeline.getBindGroupLayout(0), entries: chassisEntries });
 
   const boostChannel = new Channel(260, 22);
   const fillChannel = new Channel(220, 30, State.regen);
@@ -366,6 +363,9 @@ async function start() {
       Math.sin(State.tilt) * State.distance,
     ];
     const fieldOfView = 0.62;
+    const forward = normalise([-eye[0], -eye[1], -eye[2]]);
+    const right = normalise(cross(forward, [0, 0, 1]));
+    const rise = cross(right, forward);
     const view = lookAt(eye, [0, 0, 0], [0, 0, 1]);
     const projection = perspective(fieldOfView, width / height, 0.02, 40);
     const viewClip = multiply(projection, view);
@@ -373,14 +373,6 @@ async function start() {
     // Pixels per world metre at w = 1, which is how the fibres keep a constant pixel width at any
     // distance — the same quantity the particle editor passes as projScale.
     const projectionScale = 0.5 * height / Math.tan(fieldOfView * 0.5);
-
-    // The march needs a ray, and Globals does not carry one. The basis is handed over already
-    // scaled by the aspect and the field of view, so the fragment stage is two multiplies.
-    const tanHalf = Math.tan(fieldOfView * 0.5);
-    const forward = normalise([-eye[0], -eye[1], -eye[2]]);
-    const right = normalise(cross(forward, [0, 0, 1]));
-    const upward = cross(right, forward);
-    const aspect = width / height;
 
     // The analytic field is a RUNG, not a fallback: it is the only form of this backdrop that can
     // be answered at a hit point, because it is a closed-form function of a plane coordinate and
@@ -398,18 +390,15 @@ async function start() {
     const { placements } = resolve(structure);
     const packed = pack(structure, placements, eye);
 
-    packChassis(chassisData, {
-      rows: placements[handles.housing],
-      right: right.map((One) => One * aspect * tanHalf),
-      up: upward.map((One) => One * tanHalf),
-      forward,
-    });
-    device.queue.writeBuffer(chassisBuffer, 0, chassisData);
-
     // Where the world goes: after the housing, the face and the field rung, before every control.
     const backdropRank = structure.query(handles.streaks).orderingRank;
     let splitAt = packed.order.findIndex((at) => structure.query(at).orderingRank > backdropRank);
     if (splitAt < 0) splitAt = packed.count;
+
+    packRoom(roomData, placements[handles.housing], {
+      forward, right, up: rise, tanHalf: Math.tan(fieldOfView * 0.5), aspect: width / height,
+    });
+    device.queue.writeBuffer(roomBuffer, 0, roomData);
 
     if (State.backdrop === 'live') {
       packFibre(fibreData, StreakPreset, {
@@ -442,9 +431,9 @@ async function start() {
         storeOp: 'store',
       }],
     });
-    // The object first: body, chamfer, floor, and the light the screen pools onto it.
-    pass.setPipeline(chassisPipeline);
-    pass.setBindGroup(0, chassisBind);
+    // The tablet first: an opaque body, marched, that everything else sits on.
+    pass.setPipeline(roomPipeline);
+    pass.setBindGroup(0, roomBind);
     pass.draw(3);
 
     // The interface is still one draw — the world is inserted between its two halves.
@@ -465,10 +454,10 @@ async function start() {
     pass.setBindGroup(0, bind);
     pass.draw(4, packed.count - splitAt, 0, splitAt);
 
-    // The glass lies over the picture, because that is where a reflection is.
+    // The glass last, over the finished interface, because that is where a reflection lives.
     pass.setPipeline(glassPipeline);
     pass.setBindGroup(0, glassBind);
-    pass.draw(3);
+    pass.draw(4);
     pass.end();
     device.queue.submit([encoder.finish()]);
 

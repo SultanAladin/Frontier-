@@ -184,52 +184,6 @@ simply visible from behind, which is the same mistake wearing different clothes.
 `Stills/Grazing.png` is the angle that exposed it. `CheckHud` pins the clip **site**, not just its
 presence, so nobody quietly puts it back on the strand.
 
-## 🔴 The interface alone can never look like a tablet
-
-`Engine/SpatialInterface` draws figures on a plane. That is the right shape for a user interface and
-it is all the engine has — but a housing figure is a rounded rectangle with a dark colour, which is
-a **picture** of a bezel, not a bezel:
-
-| missing | consequence |
-|---|---|
-| thickness | no edge, so no rim highlight and no sense of an object |
-| a normal | nothing responds to the room; it cannot turn toward or away from a light |
-| a front surface | no glass, and glass is most of what says "device" |
-| anything around it | no scale, no place, no shadow, nowhere for the glow to land |
-
-A dark rectangle floating in black cannot read as a device however carefully the contents are tuned,
-and every hour spent on the contents is an hour spent on the wrong problem. So `js/chassis.js` adds
-the object: **a raymarched slab, a floor, two lights and glass.**
-
-**Why a raymarch and not a mesh.** A chamfered slab as triangles means a vertex buffer, an index
-buffer, normals, and a depth buffer for it to self-occlude against — four bindings this exchange does
-not have and one (depth) the interface deliberately refuses, because every figure is coplanar within
-3 mm and a depth test would z-fight rather than resolve. A signed distance costs none of it: exact
-silhouette at any zoom, corner radius as a number rather than a tessellation, normal as the gradient,
-and the whole body is **one full-screen triangle with no vertex data at all**. It is also the same
-idea the rest of this interface is built on, which matters more than the saving.
-
-**Three decisions worth keeping.**
-
-- **The chamfer rolls the extrusion, not the box.** `DistanceRoundedRectangle` + rounded extrude puts
-  the roll on the rim only, where a milled edge has one, instead of swelling the corner radius in the
-  plane as well. `CheckHud` holds `chamfer < corner / 4`.
-- **The shadow is solved, not marched.** The slab is thin, so where the lamp ray crosses the panel
-  plane is tested against the face — the same ray-plane solve as the fibre aperture, at a fraction of
-  a march's cost.
-- **The glass is drawn after the interface.** A reflection is on the outer surface and the picture is
-  behind it. Drawing the sheen under the readout says the opposite, and an eye reads that instantly
-  as a decal.
-
-**Faked, stated plainly:** the environment is a two-tone gradient, so a reflection shows a sky tone
-and a ground tone and not the furniture. That is the one place a render target would buy something
-real — along with bloom — and it is still not built.
-
-Two lights, because one is not enough: with a single source the away-facing edge falls to the
-background value and the silhouette stops existing on that side. And two specular lobes, because
-**glass reflects areas, not points** — a lone sharp highlight is a pinprick that reads as a bug,
-while a broad soft shape rolling across the surface is what says "sheet of glass".
-
 ## 🔴 The volume behind a panel is a slab, not a cylinder
 
 `fbBezier` scatters its root and reach on a **disc** perpendicular to the axis, so one `spread`
@@ -256,6 +210,58 @@ fills the face while sitting further behind the glass than it did before.
 
 `CheckHud` holds the two gains apart (`liftGain > 2 × depthGain`) and carries them through the
 hull bound, so the bound still bounds the thing that is actually drawn.
+
+## 🔴 The tablet is an object, not a quad
+
+The panel used to be a rectangle floating in a clear colour. Everything on it was right and the
+whole thing still read as a picture of a tablet rather than a tablet, because nothing in the image
+said there was a thing there: no thickness, no edge, no surface for the light to find.
+
+`js/chassis.js` raymarches a rounded box — 464 × 274 × 21 mm, 21 mm corner radius — in panel space,
+in two extra passes around the existing ones:
+
+| order | pass | blend | what |
+|---|---|---|---|
+| 1 | `vsRoom`/`fsRoom` | opaque | the body and the room, with a near-black well inside the face rect |
+| 2 | interface, first half | over | housing, face, backdrop rung |
+| 3 | fibres + sparks | additive | the world behind the glass |
+| 4 | interface, second half | over | every control |
+| 5 | `vsGlass`/`fsGlass` | additive | reflection, Fresnel, the seam lip |
+
+Still no render target. The glass is composited over a finished interface in the same pass, which
+is why it can only *add* — there is no refraction and no parallax between the glass and what is
+under it, and that is the first thing here that would genuinely need an offscreen target. There is
+also no floor and no contact shadow, deliberately: a floor wants the panel leaned back, and the
+lean would move the housing's quarter turn about X that the whole layout and all its checks are
+built on.
+
+### 🔴 A light is a card, and the glass does not reflect the key
+
+Two findings, and they cost a day between them if you meet them one at a time.
+
+**A point lobe cannot appear in a mirror.** The first version lit everything with
+`pow(dot(direction, key), n)`. On the machined body that is fine. On the screen it produces
+*nothing*: a flat mirror reflects exactly one direction per pixel, so a lobe tight enough to read
+as sharp is tight enough that the eye never lands inside it, and the result is a black sheet with
+a bright rim. What a photograph of a device actually shows is a long soft **strip**, and that
+strip is the shape of the *light*, not of the material. So `RoomCard` takes a source as a
+rectangle measured in its own tangent plane — `wide`, `tall` — and roughness only decides how much
+to swell it. Material sharpness and light shape stopped being the same number.
+
+**And the card the glass shows is not the key.** Work out where the reflection goes rather than
+guessing. This panel stands upright, so for any eye above its centre the mirror direction points
+*down and forward* — a vertical screen reflects what is in front of it, never the ceiling. A key
+placed where a key belongs, high and over the left shoulder, reflects to somewhere below the
+floor. So there are two sources: `kKeyDirection` high, narrow, which rakes the chamfer along the
+top edge and gives the slab its form; and `kFrontCard` **low**, broad, which in a real room is the
+lit table the device is standing on, and which is the only thing the glass shows.
+
+That split buys the behaviour as well as the look: head-on the card sits near the edge of the lobe
+and the screen is nearly clear, and as the tablet turns the reflection blooms across it. Tilt a
+real tablet under a desk lamp and that is exactly what happens.
+
+`CheckHud` pins the two directions apart, because collapsing them back into one light is the
+obvious simplification and it returns the black sheet.
 
 ## 🔴 A finding about the native sort key
 

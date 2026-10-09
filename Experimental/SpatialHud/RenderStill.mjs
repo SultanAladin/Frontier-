@@ -35,12 +35,7 @@ import { pathToFileURL } from 'node:url';
 import { constructHudLayout, assignValues } from './js/layout.js';
 import { resolve, pack, FloatsPerFigure, Category } from './js/figures.js';
 import { StreakPreset, packFibre, FibreFloats } from './js/fibres.js';
-import {
-  ChassisHalfWidth, ChassisHalfHeight, ChassisHalfDepth, ChassisCorner, ChassisChamfer,
-  FloorHeight, KeyDirection, KeyColour, KeyLevel, SkyTone, GroundTone,
-  BodyAlbedo, FloorAlbedo, GlassF0, BodyF0, GlassSharpness, BodySharpness,
-  RimDirection, RimColour, RimLevel, SoftSharpness, SoftLevel,
-} from './js/chassis.js';
+import { Chassis } from './js/chassis.js';
 
 const Here = dirname(fileURLToPath(import.meta.url));
 
@@ -468,6 +463,251 @@ class Fibres {
   }
 }
 
+// ── the tablet itself, mirrored from js/chassis.js ───────────────────────────────────────────────
+
+const KeyDirection = [-0.3827, -0.6428, 0.6634];
+
+// The card: see the long note beside RoomCard in js/chassis.js. A point lobe cannot show up in a
+// flat mirror; a strip can, and a strip is what every photograph of a device actually shows.
+function RoomCard(direction, axis, wide, tall, sharpness) {
+  const depth = direction[0] * axis[0] + direction[1] * axis[1] + direction[2] * axis[2];
+  if (depth <= 0.02) return 0;
+
+  let sx = axis[1] * 1 - axis[2] * 0, sy = axis[2] * 0 - axis[0] * 1, sz = 0;
+  const sl = Math.hypot(sx, sy, sz) || 1;
+  sx /= sl; sy /= sl; sz /= sl;
+  const ux = sy * axis[2] - sz * axis[1];
+  const uy = sz * axis[0] - sx * axis[2];
+  const uz = sx * axis[1] - sy * axis[0];
+
+  const spread = mix(3.0, 1.0, sharpness);
+  const across = (direction[0] * sx + direction[1] * sy + direction[2] * sz) / depth / (wide * spread);
+  const along = (direction[0] * ux + direction[1] * uy + direction[2] * uz) / depth / (tall * spread);
+  return Math.exp(-(across * across + along * along));
+}
+
+const FrontCard = [-0.3302, -0.8805, -0.3402];
+const RoomFalloff = 0.55;
+
+const FillDirection = (() => {
+  const f = [0.80, -0.36, 0.22];
+  const l = Math.hypot(f[0], f[1], f[2]);
+  return [f[0] / l, f[1] / l, f[2] / l];
+})();
+
+function RoomLight(direction, sharpness) {
+  const height = clamp(direction[2] * 0.5 + 0.5, 0, 1);
+  const shell = height * height;
+  const down = clamp(-direction[2], 0, 1) ** 2;
+  const light = [mix(0.0070, 0.0360, shell) + 0.0130 * down,
+                 mix(0.0080, 0.0400, shell) + 0.0145 * down,
+                 mix(0.0105, 0.0500, shell) + 0.0175 * down];
+
+  const key = RoomCard(direction, KeyDirection, 0.55, 0.070, sharpness) * mix(1.1, 6.0, sharpness);
+  light[0] += 1.000 * key; light[1] += 0.985 * key; light[2] += 0.955 * key;
+
+  const front = RoomCard(direction, FrontCard, 1.10, 0.26, sharpness) * mix(0.7, 2.4, sharpness);
+  light[0] += 0.940 * front; light[1] += 0.965 * front; light[2] += 1.000 * front;
+
+  const fill = RoomCard(direction, FillDirection, 0.45, 0.30, sharpness) * mix(0.35, 1.5, sharpness);
+  light[0] += 0.30 * fill; light[1] += 0.42 * fill; light[2] += 0.62 * fill;
+  return light;
+}
+
+function Schlick(cosine, base) {
+  const f = clamp(1 - cosine, 0, 1);
+  return base + (1 - base) * f * f * f * f * f;
+}
+
+class Tablet {
+  constructor(rows) {
+    this.rows = rows;
+    this.half = [Chassis.halfWidth, Chassis.halfHeight, Chassis.halfDepth];
+    this.radius = Chassis.cornerRadius;
+  }
+
+  toPanelPoint(world) {
+    const r = this.rows;
+    const dx = world[0] - r[0][3], dy = world[1] - r[1][3], dz = world[2] - r[2][3];
+    return [r[0][0] * dx + r[1][0] * dy + r[2][0] * dz,
+            r[0][1] * dx + r[1][1] * dy + r[2][1] * dz,
+            r[0][2] * dx + r[1][2] * dy + r[2][2] * dz];
+  }
+
+  toPanelDirection(world) {
+    const r = this.rows;
+    return [r[0][0] * world[0] + r[1][0] * world[1] + r[2][0] * world[2],
+            r[0][1] * world[0] + r[1][1] * world[1] + r[2][1] * world[2],
+            r[0][2] * world[0] + r[1][2] * world[1] + r[2][2] * world[2]];
+  }
+
+  toWorldDirection(panel) {
+    const r = this.rows;
+    return [r[0][0] * panel[0] + r[0][1] * panel[1] + r[0][2] * panel[2],
+            r[1][0] * panel[0] + r[1][1] * panel[1] + r[1][2] * panel[2],
+            r[2][0] * panel[0] + r[2][1] * panel[1] + r[2][2] * panel[2]];
+  }
+
+  body(p) {
+    const radius = this.radius;
+    const ix = Math.max(this.half[0] - radius, 0);
+    const iy = Math.max(this.half[1] - radius, 0);
+    const iz = Math.max(this.half[2] - radius, 0);
+    const dx = Math.abs(p[0]) - ix, dy = Math.abs(p[1]) - iy, dz = Math.abs(p[2] + this.half[2]) - iz;
+    const ox = Math.max(dx, 0), oy = Math.max(dy, 0), oz = Math.max(dz, 0);
+    return Math.hypot(ox, oy, oz) + Math.min(Math.max(dx, Math.max(dy, dz)), 0) - radius;
+  }
+
+  normal(p) {
+    const h = 2e-5;
+    const corners = [[1, -1, -1], [-1, -1, 1], [-1, 1, -1], [1, 1, 1]];
+    const out = [0, 0, 0];
+    for (const c of corners) {
+      const d = this.body([p[0] + c[0] * h, p[1] + c[1] * h, p[2] + c[2] * h]);
+      out[0] += c[0] * d; out[1] += c[1] * d; out[2] += c[2] * d;
+    }
+    const l = Math.hypot(out[0], out[1], out[2]) || 1;
+    return [out[0] / l, out[1] / l, out[2] / l];
+  }
+
+  march(origin, direction) {
+    let travel = 0;
+    for (let step = 0; step < 72; step++) {
+      const here = [origin[0] + direction[0] * travel,
+                    origin[1] + direction[1] * travel,
+                    origin[2] + direction[2] * travel];
+      const distance = this.body(here);
+      if (distance < 1.5e-5) return { struck: true, panel: here, travel };
+      travel += Math.max(distance, 1e-5);
+      if (travel > 6) break;
+    }
+    return { struck: false };
+  }
+}
+
+function DrawRoom(picture, camera, tablet) {
+  const { width, height } = picture;
+  const roughness = Chassis.bodyRoughness;
+  const sharpness = clamp(1 - roughness, 0, 1);
+  const albedo = [0.0320, 0.0345, 0.0400];
+  const originPanel = tablet.toPanelPoint(camera.eye);
+
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < width; px++) {
+      const direction = camera.ray(px, py);
+      const at = py * width + px;
+
+      const hit = tablet.march(originPanel, tablet.toPanelDirection(direction));
+      if (!hit.struck) {
+        const sky = RoomLight(direction, 0);
+        picture.lit[at * 3] = sky[0] * RoomFalloff;
+        picture.lit[at * 3 + 1] = sky[1] * RoomFalloff;
+        picture.lit[at * 3 + 2] = sky[2] * RoomFalloff;
+        continue;
+      }
+
+      const normalPanel = tablet.normal(hit.panel);
+      const worldNormal = (() => {
+        const n = tablet.toWorldDirection(normalPanel);
+        const l = Math.hypot(n[0], n[1], n[2]) || 1;
+        return [n[0] / l, n[1] / l, n[2] / l];
+      })();
+
+      const faceReach = DistanceRoundedRectangle(hit.panel[0], hit.panel[1],
+        tablet.half[0] - 0.0115, tablet.half[1] - 0.0115, 0.0145);
+      if (faceReach < 0 && normalPanel[2] > 0.86) {
+        picture.lit[at * 3] = 0.0042; picture.lit[at * 3 + 1] = 0.0048; picture.lit[at * 3 + 2] = 0.0060;
+        continue;
+      }
+
+      const view = [-direction[0], -direction[1], -direction[2]];
+      const lambert = Math.max(worldNormal[0] * KeyDirection[0] + worldNormal[1] * KeyDirection[1]
+                             + worldNormal[2] * KeyDirection[2], 0);
+      const ambient = RoomLight(worldNormal, 0);
+
+      const facing = Math.max(worldNormal[0] * view[0] + worldNormal[1] * view[1] + worldNormal[2] * view[2], 0);
+      const bounce = [2 * facing * worldNormal[0] - view[0],
+                      2 * facing * worldNormal[1] - view[1],
+                      2 * facing * worldNormal[2] - view[2]];
+      const mirror = RoomLight(bounce, sharpness * 0.55);
+      const fresnel = Schlick(facing, 0.055);
+
+      const spill = clamp(normalPanel[2], 0, 1) * Math.exp(-Math.max(faceReach, 0) / 0.010) * Chassis.screenSpill;
+      const tint = [0.055, 0.195, 0.300];
+
+      // The chamfer: where the slab turns, the normal sweeps through the key over a couple of
+      // millimetres and a bright line runs along the edge. A plane cannot do this.
+      const face = (() => {
+        const r = tablet.rows;
+        const n = [r[0][2], r[1][2], r[2][2]];
+        const l = Math.hypot(n[0], n[1], n[2]) || 1;
+        return [n[0] / l, n[1] / l, n[2] / l];
+      })();
+      const turn = clamp(1 - Math.abs(worldNormal[0] * face[0] + worldNormal[1] * face[1]
+                                    + worldNormal[2] * face[2]), 0, 1);
+      const chamfer = turn * turn * lambert * 0.55;
+      const chamferTint = [0.30, 0.33, 0.40];
+
+      for (let c = 0; c < 3; c++) {
+        picture.lit[at * 3 + c] = albedo[c] * (lambert * Chassis.keyIntensity + 0.14)
+                                + albedo[c] * ambient[c] * 3.4
+                                + mirror[c] * fresnel * 1.9
+                                + chamferTint[c] * chamfer
+                                + tint[c] * spill;
+      }
+    }
+  }
+}
+
+function DrawGlass(picture, camera, tablet) {
+  const { width, height } = picture;
+  const sharpness = clamp(1 - Chassis.glassRoughness, 0, 1);
+  const r = tablet.rows;
+  const normal = (() => {
+    const n = [r[0][2], r[1][2], r[2][2]];
+    const l = Math.hypot(n[0], n[1], n[2]) || 1;
+    return [n[0] / l, n[1] / l, n[2] / l];
+  })();
+  const O = [r[0][3], r[1][3], r[2][3]];
+  const U = [r[0][0], r[1][0], r[2][0]];
+  const V = [r[0][1], r[1][1], r[2][1]];
+  const hw = tablet.half[0] - 0.0012, hh = tablet.half[1] - 0.0012;
+
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < width; px++) {
+      const direction = camera.ray(px, py);
+      const denom = direction[0] * normal[0] + direction[1] * normal[1] + direction[2] * normal[2];
+      if (Math.abs(denom) < 1e-9) continue;
+      const t = ((O[0] - camera.eye[0]) * normal[0] + (O[1] - camera.eye[1]) * normal[1]
+               + (O[2] - camera.eye[2]) * normal[2]) / denom;
+      if (t <= 0) continue;
+
+      const P = [camera.eye[0] + direction[0] * t, camera.eye[1] + direction[1] * t,
+                 camera.eye[2] + direction[2] * t];
+      const dx = P[0] - O[0], dy = P[1] - O[1], dz = P[2] - O[2];
+      const lx = dx * U[0] + dy * U[1] + dz * U[2];
+      const ly = dx * V[0] + dy * V[1] + dz * V[2];
+      const lip = DistanceRoundedRectangle(lx, ly, hw, hh, tablet.radius);
+      if (lip > 0) continue;
+
+      const view = [-direction[0], -direction[1], -direction[2]];
+      const facing = Math.max(normal[0] * view[0] + normal[1] * view[1] + normal[2] * view[2], 0);
+      const bounce = [2 * facing * normal[0] - view[0], 2 * facing * normal[1] - view[1],
+                      2 * facing * normal[2] - view[2]];
+      const fresnel = Schlick(facing, 0.042);
+      const sharp = RoomLight(bounce, sharpness);
+      const wide = RoomLight(bounce, sharpness * 0.35);
+      const seam = Math.exp(lip / 0.0016) * 0.65 * (0.25 + 0.75 * fresnel);
+      const lipTint = [0.35, 0.40, 0.50];
+
+      const at = py * width + px;
+      for (let c = 0; c < 3; c++) {
+        picture.lit[at * 3 + c] += sharp[c] * fresnel + wide[c] * fresnel * 0.20 + lipTint[c] * seam;
+      }
+    }
+  }
+}
+
 // ── the camera ───────────────────────────────────────────────────────────────────────────────────
 
 function Camera(orbit, tilt, distance, fieldOfView, width, height) {
@@ -830,266 +1070,6 @@ function DrawSparks(picture, camera, fibres) {
   }
 }
 
-
-// ── the chassis, ported from js/chassis.js ───────────────────────────────────────────────────────
-// A rounded slab, a floor, one key light, glass over the front. Marched in the panel's own space.
-
-const V3 = {
-  sub: (A, B) => [A[0] - B[0], A[1] - B[1], A[2] - B[2]],
-  add: (A, B) => [A[0] + B[0], A[1] + B[1], A[2] + B[2]],
-  mul: (A, k) => [A[0] * k, A[1] * k, A[2] * k],
-  dot: (A, B) => A[0] * B[0] + A[1] * B[1] + A[2] * B[2],
-  unit: (A) => { const L = Math.hypot(A[0], A[1], A[2]) || 1; return [A[0] / L, A[1] / L, A[2] / L]; },
-};
-
-class Chassis {
-  constructor(rows, screenLight) {
-    this.rows = rows;
-    this.half = [ChassisHalfWidth, ChassisHalfHeight, ChassisHalfDepth];
-    this.key = V3.unit(KeyDirection);
-    this.rim = V3.unit(RimDirection);
-    this.screenLight = screenLight;
-    this.centre = [rows[0][3], rows[1][3], rows[2][3]];
-  }
-
-  toPanel(world) {
-    const r = this.rows;
-    const d = V3.sub(world, this.centre);
-    return [r[0][0] * d[0] + r[1][0] * d[1] + r[2][0] * d[2],
-            r[0][1] * d[0] + r[1][1] * d[1] + r[2][1] * d[2],
-            r[0][2] * d[0] + r[1][2] * d[1] + r[2][2] * d[2]];
-  }
-
-  turnIn(world) {
-    const r = this.rows;
-    return [r[0][0] * world[0] + r[1][0] * world[1] + r[2][0] * world[2],
-            r[0][1] * world[0] + r[1][1] * world[1] + r[2][1] * world[2],
-            r[0][2] * world[0] + r[1][2] * world[1] + r[2][2] * world[2]];
-  }
-
-  turnOut(panel) {
-    const r = this.rows;
-    return [r[0][0] * panel[0] + r[0][1] * panel[1] + r[0][2] * panel[2],
-            r[1][0] * panel[0] + r[1][1] * panel[1] + r[1][2] * panel[2],
-            r[2][0] * panel[0] + r[2][1] * panel[1] + r[2][2] * panel[2]];
-  }
-
-  // The rounded rectangle extruded with a rolled edge: the chamfer lands on the rim only, which is
-  // where a milled edge has one, instead of swelling the corner radius in the plane as well.
-  body(p) {
-    const plane = DistanceRoundedRectangle(p[0], p[1], this.half[0], this.half[1], ChassisCorner) + ChassisChamfer;
-    const through = Math.abs(p[2]) - this.half[2] + ChassisChamfer;
-    return Math.min(Math.max(plane, through), 0)
-         + length2(Math.max(plane, 0), Math.max(through, 0)) - ChassisChamfer;
-  }
-
-  normal(p) {
-    const h = 0.00018;
-    return V3.unit([
-      this.body([p[0] + h, p[1], p[2]]) - this.body([p[0] - h, p[1], p[2]]),
-      this.body([p[0], p[1] + h, p[2]]) - this.body([p[0], p[1] - h, p[2]]),
-      this.body([p[0], p[1], p[2] + h]) - this.body([p[0], p[1], p[2] - h]),
-    ]);
-  }
-
-  // Does the key light reach here? The slab is thin, so the shadow is solved where the light ray
-  // crosses the panel plane rather than by marching — the aperture trick, again.
-  lit(panel) {
-    const toLight = this.turnIn(this.key);
-    if (Math.abs(toLight[2]) < 1e-7) return 1;
-    const cross = -panel[2] / toLight[2];
-    if (cross <= 0) return 1;
-    const meet = [panel[0] + toLight[0] * cross, panel[1] + toLight[1] * cross];
-    return 1 - CoverageFromDistance(
-      DistanceRoundedRectangle(meet[0], meet[1], this.half[0], this.half[1], ChassisCorner), 0.004);
-  }
-}
-
-const Environment = (d) => {
-  const t = clamp(d[2] * 0.5 + 0.5, 0, 1);
-  return [mix(GroundTone[0], SkyTone[0], t), mix(GroundTone[1], SkyTone[1], t), mix(GroundTone[2], SkyTone[2], t)];
-};
-
-const Fresnel = (f0, cosine) => f0 + (1 - f0) * Math.pow(clamp(1 - cosine, 0, 1), 5);
-
-function DrawChassis(picture, camera, chassis, clear) {
-  const { width, height } = picture;
-  const key = chassis.key;
-  const keyLit = [KeyColour[0] * KeyLevel, KeyColour[1] * KeyLevel, KeyColour[2] * KeyLevel];
-  const rimLit = [RimColour[0] * RimLevel, RimColour[1] * RimLevel, RimColour[2] * RimLevel];
-
-  // The slab's screen bound, so the march only runs where the body can possibly be.
-  let minX = width, minY = height, maxX = 0, maxY = 0;
-  for (let corner = 0; corner < 8; corner++) {
-    const p = [(corner & 1 ? 1 : -1) * chassis.half[0],
-               (corner & 2 ? 1 : -1) * chassis.half[1],
-               (corner & 4 ? 1 : -1) * chassis.half[2]];
-    const at = camera.project(chassis.turnOut(p).map((One, i) => One + chassis.centre[i]));
-    if (!at) continue;
-    minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x);
-    minY = Math.min(minY, at.y); maxY = Math.max(maxY, at.y);
-  }
-  const bx0 = Math.floor(minX) - 2, bx1 = Math.ceil(maxX) + 2;
-  const by0 = Math.floor(minY) - 2, by1 = Math.ceil(maxY) + 2;
-
-  const eyePanel = chassis.toPanel(camera.eye);
-
-  for (let py = 0; py < height; py++) {
-    for (let px = 0; px < width; px++) {
-      const ray = camera.ray(px, py);
-      let bestT = Infinity, hit = null;
-
-      // The floor: analytic, because a plane does not need a march.
-      if (ray[2] < -1e-6 && camera.eye[2] > FloorHeight) {
-        const t = (FloorHeight - camera.eye[2]) / ray[2];
-        if (t > 0) { bestT = t; hit = 'floor'; }
-      }
-
-      // The body: sphere-traced in panel space, where the distance is the same because the
-      // transform is rigid.
-      if (px >= bx0 && px <= bx1 && py >= by0 && py <= by1) {
-        const dirPanel = chassis.turnIn(ray);
-        let t = 0;
-        for (let step = 0; step < 72; step++) {
-          const here = [eyePanel[0] + dirPanel[0] * t, eyePanel[1] + dirPanel[1] * t, eyePanel[2] + dirPanel[2] * t];
-          const d = chassis.body(here);
-          if (d < 2.0e-5) { if (t < bestT) { bestT = t; hit = 'body'; } break; }
-          t += d;
-          if (t > 6 || t > bestT) break;
-        }
-      }
-      if (!hit) continue;
-
-      const where = V3.add(camera.eye, V3.mul(ray, bestT));
-      const view = V3.mul(ray, -1);
-      let colour;
-
-      if (hit === 'body') {
-        const panel = chassis.toPanel(where);
-        const nPanel = chassis.normal(panel);
-        const normal = chassis.turnOut(nPanel);
-        const facing = nPanel[2] > 0.70;                       // the glass front, not the rim or back
-
-        const albedo = facing ? [0.0030, 0.0032, 0.0038] : BodyAlbedo;
-        const f0 = facing ? GlassF0 : BodyF0;
-        const sharp = facing ? GlassSharpness : BodySharpness;
-
-        const shade = chassis.lit(panel);
-        const lambert = Math.max(V3.dot(normal, key), 0) * shade;
-        const grazing = Math.max(V3.dot(normal, chassis.rim), 0);
-        const half = V3.unit(V3.add(key, view));
-        const gloss = Math.pow(Math.max(V3.dot(normal, half), 0), sharp);
-        const soft = Math.pow(Math.max(V3.dot(normal, half), 0), SoftSharpness) * SoftLevel;
-        const toward = Fresnel(f0, Math.max(V3.dot(normal, view), 0));
-        const bounce = V3.dot(normal, view) * 2;
-        const mirror = Environment([normal[0] * bounce - view[0],
-                                    normal[1] * bounce - view[1],
-                                    normal[2] * bounce - view[2]]);
-        const sky = Environment(normal);
-
-        colour = [0, 1, 2].map((c) =>
-          albedo[c] * (keyLit[c] * lambert + rimLit[c] * grazing + sky[c] * 1.6)
-          + (keyLit[c] * gloss * 1.3 * shade + keyLit[c] * soft) * toward
-          + mirror[c] * toward * 1.5);
-      } else {
-        const normal = [0, 0, 1];
-        const panel = chassis.toPanel(where);
-        const lambert = Math.max(key[2], 0) * chassis.lit(panel);
-        const sky = Environment(normal);
-
-        // The screen pools light onto the floor. The face is an area source, not a point, so the
-        // falloff is gentler than inverse square and it is weighted by how much of the face the
-        // floor point can see.
-        const toFace = V3.sub(chassis.centre, where);
-        const reach = Math.hypot(toFace[0], toFace[1], toFace[2]);
-        const facing = Math.max(V3.dot(normal, V3.mul(toFace, 1 / Math.max(reach, 1e-4))), 0);
-        const pool = Math.exp(-reach / 0.21) * facing;
-
-        const toward = Fresnel(0.035, Math.max(V3.dot(normal, view), 0));
-        const mirror = Environment([view[0] * -1, view[1] * -1, Math.abs(view[2])]);
-
-        colour = [0, 1, 2].map((c) =>
-          FloorAlbedo[c] * (keyLit[c] * lambert + sky[c] * 1.5)
-          + chassis.screenLight[c] * pool
-          + mirror[c] * toward * 0.8);
-
-        // No hard horizon: the floor dissolves into the background rather than ending.
-        const away = clamp(Math.exp(-Math.max(reach - 0.5, 0) / 0.85), 0, 1);
-        colour = colour.map((One, c) => mix(clear[c], One, away));
-      }
-
-      const at = py * width + px;
-      picture.lit[at * 3] = colour[0];
-      picture.lit[at * 3 + 1] = colour[1];
-      picture.lit[at * 3 + 2] = colour[2];
-    }
-  }
-}
-
-// The glass goes on LAST, over the interface, because a reflection is on the outer surface and the
-// pixels under it are behind it. This is the single strongest cue that there is a sheet of
-// something in front of the picture.
-function DrawGlass(picture, camera, chassis) {
-  const { width, height } = picture;
-  const key = chassis.key;
-  const eyePanel = chassis.toPanel(camera.eye);
-
-  let minX = width, minY = height, maxX = 0, maxY = 0;
-  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    const at = camera.project(V3.add(chassis.centre,
-      chassis.turnOut([sx * chassis.half[0], sy * chassis.half[1], chassis.half[2]])));
-    if (!at) continue;
-    minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x);
-    minY = Math.min(minY, at.y); maxY = Math.max(maxY, at.y);
-  }
-  const x0 = Math.max(0, Math.floor(minX)), x1 = Math.min(width - 1, Math.ceil(maxX));
-  const y0 = Math.max(0, Math.floor(minY)), y1 = Math.min(height - 1, Math.ceil(maxY));
-
-  const face = chassis.turnOut([0, 0, 1]);
-  const keyLit = [KeyColour[0] * KeyLevel, KeyColour[1] * KeyLevel, KeyColour[2] * KeyLevel];
-
-  for (let py = y0; py <= y1; py++) {
-    for (let px = x0; px <= x1; px++) {
-      const ray = camera.ray(px, py);
-      const dirPanel = chassis.turnIn(ray);
-      if (Math.abs(dirPanel[2]) < 1e-7) continue;
-      const t = (chassis.half[2] - eyePanel[2]) / dirPanel[2];
-      if (t <= 0) continue;
-
-      const panel = [eyePanel[0] + dirPanel[0] * t, eyePanel[1] + dirPanel[1] * t, chassis.half[2]];
-      const edge = CoverageFromDistance(
-        DistanceRoundedRectangle(panel[0], panel[1], chassis.half[0], chassis.half[1], ChassisCorner), 0.0006);
-      if (edge <= 0) continue;
-
-      const view = V3.mul(ray, -1);
-      const cosine = V3.dot(face, view);
-      if (cosine <= 0) continue;
-
-      const toward = Fresnel(GlassF0, cosine);
-      const half = V3.unit(V3.add(key, view));
-      const aim = Math.max(V3.dot(face, half), 0);
-      const gloss = Math.pow(aim, GlassSharpness) * 1.6;
-      const soft = Math.pow(aim, SoftSharpness) * SoftLevel;
-      const mirror = Environment([face[0] * 2 * cosine - view[0],
-                                  face[1] * 2 * cosine - view[1],
-                                  face[2] * 2 * cosine - view[2]]);
-
-      // The display edge: where the painted bezel behind the glass gives way to the panel. On a
-      // real tablet this is a hairline, not a border, and leaving it out is one of the things that
-      // makes a render read as a drawing of a tablet.
-      const inner = DistanceRoundedRectangle(panel[0], panel[1],
-                                             chassis.half[0] - 0.0082, chassis.half[1] - 0.0082, 0.0145);
-      const seam = Math.exp(-(inner * inner) / (0.00055 * 0.00055)) * 0.020;
-
-      const level = toward * edge;
-      picture.add(py * width + px,
-        (mirror[0] * 1.5 + keyLit[0] * (gloss + soft)) * level + seam * edge,
-        (mirror[1] * 1.5 + keyLit[1] * (gloss + soft)) * level + seam * edge * 1.04,
-        (mirror[2] * 1.5 + keyLit[2] * (gloss + soft)) * level + seam * edge * 1.12);
-    }
-  }
-}
-
 // ── the still ────────────────────────────────────────────────────────────────────────────────────
 
 export function RenderStill(options) {
@@ -1121,12 +1101,10 @@ export function RenderStill(options) {
   let splitAt = packed.order.findIndex((at) => structure.query(at).orderingRank > backdropRank);
   if (splitAt < 0) splitAt = packed.count;
 
+  const tablet = new Tablet(placements[handles.housing]);
+  DrawRoom(picture, camera, tablet);
+
   const room = [ambient, ambient * 1.02, ambient * 1.08];
-
-  // The object first: body, chamfer, floor, and the light the screen pools onto it.
-  const chassis = new Chassis(placements[handles.housing], [0.030, 0.105, 0.150]);
-  DrawChassis(picture, camera, chassis, [0.012, 0.014, 0.018]);
-
   DrawFigures(picture, camera, packed, 0, splitAt, room, time);
 
   if (backdrop === 'live') {
@@ -1139,9 +1117,7 @@ export function RenderStill(options) {
   }
 
   DrawFigures(picture, camera, packed, splitAt, packed.count, room, time);
-
-  // The glass is in front of the picture, so it goes on after it.
-  DrawGlass(picture, camera, chassis);
+  DrawGlass(picture, camera, tablet);
   return { picture: picture.resolve(supersample), figures: packed.count };
 }
 

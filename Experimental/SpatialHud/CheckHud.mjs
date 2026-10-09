@@ -13,12 +13,9 @@ import { Category, Slot, Structure, Figure, Detached, resolve, pack, composePlac
          combinePlacement, composeSortKey, OpaqueThreshold, FloatsPerFigure } from './js/figures.js';
 import { constructHudLayout, assignValues, PanelHalfWidth, PanelHalfHeight } from './js/layout.js';
 import { StreakPreset, packFibre, FibreFloats, FIBRE_WGSL } from './js/fibres.js';
-import {
-  CHASSIS_WGSL, packChassis, ChassisFloats, ChassisHalfDepth, ChassisCorner, ChassisChamfer,
-  FloorHeight, KeyDirection, RimDirection, SoftSharpness, GlassSharpness,
-} from './js/chassis.js';
 import { SDF_WGSL } from './js/sdf.generated.js';
 import { STREAK_WGSL } from './js/streaks.js';
+import { CHASSIS_WGSL, Chassis, packRoom, RoomFloats } from './js/chassis.js';
 
 let Passed = 0;
 const Failures = [];
@@ -419,45 +416,57 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
         !FIBRE_WGSL.includes('fbWave') && !FIBRE_WGSL.includes('fbTrail'));
 }
 
-// ── the chassis: the tablet as an object ─────────────────────────────────────────────────────────
-// 🔴 The interface alone can never look like a tablet. A housing figure is a rounded rectangle with
-//    a dark colour - a PICTURE of a bezel. No thickness, so no edge to catch a highlight; no
-//    normal, so nothing responds to the room; no front surface, so no glass; nothing around it, so
-//    no scale and no place. These hold the object's dimensions and the two things that make it read
-//    as one: a chamfer narrower than the corner, and a floor it actually stands on.
+// ── the chassis ──────────────────────────────────────────────────────────────────────────────────
 
 {
-  const packed = packChassis(new Float32Array(ChassisFloats), {
-    rows: [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0]],
-    right: [1, 0, 0], up: [0, 0, 1], forward: [0, 1, 0],
-  });
+  Claim('the chassis is a rounded solid, not a plane', Chassis.halfDepth > 0.008);
+  Claim('the body is wider than it is tall', Chassis.halfWidth > Chassis.halfHeight);
+  Claim('the corner radius fits inside the short side', Chassis.cornerRadius < Chassis.halfHeight);
+  Claim('the glass is far smoother than the body', Chassis.glassRoughness < Chassis.bodyRoughness * 0.25);
 
-  Claim('the chassis uniform is 18 vec4s', ChassisFloats === 72 && packed.length === 72);
-  Near('the slab is as wide as the panel', packed[0], PanelHalfWidth);
-  Near('the slab is as tall as the panel', packed[1], PanelHalfHeight);
-  Claim(`the slab is a tablet thickness, not a card (${(ChassisHalfDepth * 2000).toFixed(1)} mm)`,
-        ChassisHalfDepth * 2 > 0.006 && ChassisHalfDepth * 2 < 0.014);
+  Claim('the body is actually marched', CHASSIS_WGSL.includes('fn RoomMarch'));
+  Claim('the surface normal is tetrahedral', CHASSIS_WGSL.includes('fn RoomNormal'));
+  Claim('the body opens a well for the interface to draw into',
+        CHASSIS_WGSL.includes('fn fsRoom') && CHASSIS_WGSL.includes('fn fsGlass'));
 
-  // The chamfer rolls the rim. Let it reach the corner radius and the body stops being a slab with
-  // a milled edge and becomes a lozenge.
-  Claim('the chamfer is an edge roll, not a corner radius', ChassisChamfer < ChassisCorner * 0.25);
-  Claim('the chamfer fits inside the thickness', ChassisChamfer < ChassisHalfDepth);
+  // 🔴 A POINT LIGHT CANNOT APPEAR IN A MIRROR, AND THE GLASS IS A MIRROR.
+  //
+  //    pow(dot(dir, key), n) is fine on the body and produces nothing at all on the screen: a flat
+  //    mirror reflects exactly one direction per pixel, so a lobe tight enough to read as sharp is
+  //    tight enough that the eye never lands inside it. What a photograph of a device shows is a
+  //    long soft strip, and that is the shape of the LIGHT, not of the material. So a source here
+  //    is a rectangle measured in its own tangent plane and the two are separate numbers.
+  Claim('a source is a card with two extents', CHASSIS_WGSL.includes('fn RoomCard')
+        && CHASSIS_WGSL.includes('wide : f32, tall : f32'));
+  Claim('the card is measured in its own tangent plane',
+        CHASSIS_WGSL.includes('dot(direction, sideways) / depth'));
+  Claim('a rougher surface sees a bigger card', CHASSIS_WGSL.includes('mix(3.0, 1.0, sharpness)'));
 
-  // 🔴 It STANDS. A tablet floating a centimetre off the floor is the single loudest tell that a
-  //    render is a render, and the two numbers that prevent it live in different places.
-  Near('the floor is exactly under the bottom edge', FloorHeight, -PanelHalfHeight);
+  // 🔴 AND THE GLASS DOES NOT REFLECT THE KEY.
+  //
+  //    The panel stands upright, so for any eye above its centre the mirror direction points DOWN
+  //    and forward. A key placed where a key belongs — high — reflects to somewhere below the
+  //    floor. The card the screen shows has to be low, which in a real room is the lit table the
+  //    device stands on. These two are pinned apart because collapsing them back into one light
+  //    is the obvious simplification and it returns a black sheet with a rim.
+  Claim('the key is high', CHASSIS_WGSL.includes('kKeyDirection = vec3f(-0.3827, -0.6428, 0.6634)'));
+  Claim('the card the glass shows is low',
+        CHASSIS_WGSL.includes('kFrontCard = vec3f(-0.3302, -0.8805, -0.3402)'));
+  Claim('they are two different lights', CHASSIS_WGSL.includes('kKeyDirection')
+        && CHASSIS_WGSL.includes('kFrontCard') && !CHASSIS_WGSL.includes('kFrontCard = kKeyDirection'));
+  Claim('the room behind is dimmer than the subject', CHASSIS_WGSL.includes('kRoomFalloff = 0.55'));
 
-  Claim('the lamp and the rim come from different sides',
-        KeyDirection[0] * RimDirection[0] < 0);
-  Claim('the soft lobe is broad and the lamp lobe is tight', SoftSharpness < GlassSharpness / 20);
+  // The chamfer is the strongest "machined from a solid" cue there is, and a plane cannot have one.
+  Claim('the turning edge catches the key', CHASSIS_WGSL.includes('1.0 - abs(dot(worldNormal'));
 
-  for (const name of ['vsScreenwide', 'fsChassis', 'fsGlass', 'chBody', 'chNormal', 'chLit']) {
-    Claim(`the chassis shader carries ${name}`, CHASSIS_WGSL.includes(`fn ${name}`));
-  }
-  Claim('the body is the engine\'s rounded rectangle, extruded, not a second shape',
-        CHASSIS_WGSL.includes('DistanceRoundedRectangle(panel.xy, CH.half.xy, CH.half.w)'));
-  Claim('the shadow is solved on the panel plane, not marched',
-        CHASSIS_WGSL.includes('let cross = -panel.z / toLight.z;'));
+  // The uniform has to survive the trip.
+  const rows = [[1, 0, 0, 0.02], [0, 0, -1, -0.03], [0, 1, 0, 0.5]];
+  const out = new Float32Array(RoomFloats);
+  packRoom(out, rows, { forward: [0, 1, 0], right: [1, 0, 0], up: [0, 0, 1], tanHalf: 0.317, aspect: 1.6 });
+  Claim('packRoom fills every slot', out.every((v) => Number.isFinite(v)));
+  Claim('packRoom writes the panel rows', Math.abs(out[3] - 0.02) < 1e-6 && Math.abs(out[11] - 0.5) < 1e-6);
+  Claim('packRoom carries the body extents',
+        [...out].some((v) => Math.abs(v - Chassis.halfWidth) < 1e-6));
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────────────────────────
