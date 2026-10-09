@@ -37,6 +37,7 @@ import { constructShellLayout, assignShellValues } from './js/shell.js';
 import { resolve, pack, FloatsPerFigure, Category } from './js/figures.js';
 import { StreakPreset, packFibre, FibreFloats } from './js/fibres.js';
 import { Chassis } from './js/chassis.js';
+import { Approach } from './js/display.js';
 import { Glass, DisplayWidth, DisplayHeight, BloomWidth, BloomHeight,
          DisplayProjectionScale } from './js/display.js';
 import { PanelHalfWidth, PanelHalfHeight } from './js/layout.js';
@@ -1018,6 +1019,17 @@ function DisplayCamera(eye, rows, width, height) {
       const p = toPanel(P);
       const rise = eyePanel[2] - p[2];
       if (rise <= 1e-6) return null;
+
+      // 🔴 CLIP AT THE NEAR PLANE, BECAUSE THE HARDWARE DOES.
+      //
+      //    This renderer existed to show what the browser shows, and for one whole stretch of work
+      //    it showed something better: it had no near plane, so it drew the entire interface while
+      //    the GPU was discarding every figure of it. The stills looked correct and the device was
+      //    black. A renderer more forgiving than the hardware is not a proof of anything.
+      //
+      //    DisplayClip puts the plane Approach in front of the glass, so anything beyond that is
+      //    gone — here as well as there.
+      if (p[2] > Approach) return null;
       const t = eyePanel[2] / rise;
       const cx = eyePanel[0] + (p[0] - eyePanel[0]) * t;
       const cy = eyePanel[1] + (p[1] - eyePanel[1]) * t;

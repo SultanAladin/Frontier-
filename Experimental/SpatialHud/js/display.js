@@ -80,6 +80,11 @@ export const Glass = {
 //    Composed right to left: panel-from-world, then the translation to the eye, then the frustum.
 //---------------------------------------------------------------------------------------------//
 
+// [m] How far in FRONT of the glass the display frustum's near plane sits. The interface stacks
+// toward the viewer one millimetre per layer and reaches 4.4 mm at its tallest, so this is that
+// with room to spare. It costs nothing but depth range.
+export const Approach = 0.020;
+
 export function DisplayClip(rows, eye, halfWidth, halfHeight) {
     // Panel from world. The rotation is orthonormal, so its inverse is its transpose, and the
     // translation comes along as -(transpose * origin).
@@ -100,13 +105,30 @@ export function DisplayClip(rows, eye, halfWidth, halfHeight) {
 
     // A panel seen exactly edge on has no window at all. Hold the eye a millimetre in front so the
     // matrix stays finite; the tablet is a sliver of nothing at that angle anyway.
-    const near = Math.max(eyePanel[2], 0.001);
-    const far = near + 8;
+    const depth = Math.max(eyePanel[2], 0.001);
 
-    const left = -halfWidth - eyePanel[0];
-    const right = halfWidth - eyePanel[0];
-    const bottom = -halfHeight - eyePanel[1];
-    const top = halfHeight - eyePanel[1];
+    // 🔴 THE NEAR PLANE CANNOT BE THE PANEL, EVEN THOUGH THE WINDOW IS.
+    //
+    //    The frustum's window is the panel rectangle — that is the whole point of an off-axis
+    //    projection, and it is what makes a texture coordinate equal a panel coordinate. But
+    //    putting the near PLANE there too clips away everything in front of it, and the entire
+    //    interface is in front of it: the layout stacks its figures toward the viewer a millimetre
+    //    at a time, up to 4.4 mm. Every one of them was being discarded by the GPU. The only
+    //    things left were the fibres, which live BEHIND the glass at negative z — which is exactly
+    //    what the device showed: a black screen with the wallpaper still moving on it.
+    //
+    //    So the plane moves toward the eye by Approach, and the window shrinks by the same ratio.
+    //    Because the window and the plane scale together, 2n/(r-l) and (r+l)/(r-l) are both
+    //    unchanged: every sightline still crosses the glass exactly where it did, the corners
+    //    still land on +/-1, and only the depth range moves. Nothing about the parallax changes.
+    const near = Math.max(depth - Approach, depth * 0.05);
+    const reach = near / depth;
+    const far = depth + 8;
+
+    const left = (-halfWidth - eyePanel[0]) * reach;
+    const right = (halfWidth - eyePanel[0]) * reach;
+    const bottom = (-halfHeight - eyePanel[1]) * reach;
+    const top = (halfHeight - eyePanel[1]) * reach;
 
     // Column-major, WebGPU clip depth 0..1, looking down -z.
     const frustum = [

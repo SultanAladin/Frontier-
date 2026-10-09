@@ -528,3 +528,29 @@ died silently once. `app.js` can be booted headlessly — `node CheckHost.mjs` �
 instances in the display pass says which composition is live: **190 figures is the home screen, 69
 is the dashboard.** That distinguishes "the code is wrong" from "you are looking at a dead port" in
 one command, and the second was the answer the one time it came up.
+
+### 🔴 The near plane cannot be the panel, even though the window is
+
+The off-axis projection's *window* is the panel rectangle — that is the point of it, and it is what
+makes a texture coordinate equal a panel coordinate. Putting the near *plane* there too clips away
+everything in front of it, and **the entire interface is in front of it**: the layout stacks figures
+toward the viewer a millimetre per layer, reaching 4.4 mm. The GPU discarded every one of them. All
+that survived were the fibres, which live *behind* the glass at negative z — so the device showed a
+black screen with the wallpaper still moving on it.
+
+`DisplayClip` now pulls the plane `Approach` (20 mm) toward the eye and shrinks the window by the
+same ratio. Because the window and the plane scale together, `2n/(r-l)` and `(r+l)/(r-l)` are both
+unchanged: every sightline still crosses the glass exactly where it did, the corners still land on
+±1, and only the depth range moves. The existing corner, parallax and depth-behind-glass pins all
+still pass, which is the evidence that the parallax was not disturbed.
+
+**🔴 Why it survived so long: `RenderStill.mjs` had no near plane.** My own rasteriser drew the whole
+interface while the hardware was throwing it away, so the stills looked right and the device was
+black — for several commits, on *both* screens. **A renderer more forgiving than the hardware is not
+a proof.** `DisplayCamera.project()` now clips at `Approach` too, and with the bug reintroduced the
+still's mean luminance drops 0.0340 → 0.0232, which is the still going dark exactly as the device
+did.
+
+`CheckHud` now pushes **every figure of both compositions** through the real matrix the host uploads,
+at four camera angles, and demands `w > 0` and `0 ≤ ndc.z ≤ 1`. That is the check whose absence cost
+a whole screen.

@@ -17,7 +17,7 @@ import { StreakPreset, packFibre, FibreFloats, FIBRE_WGSL } from './js/fibres.js
 import { SDF_WGSL } from './js/sdf.generated.js';
 import { STREAK_WGSL } from './js/streaks.js';
 import { CHASSIS_WGSL, Chassis, packRoom, RoomFloats } from './js/chassis.js';
-import { DISPLAY_WGSL, DisplayClip, DisplayProjectionScale, Glass,
+import { DISPLAY_WGSL, DisplayClip, DisplayProjectionScale, Glass, Approach,
          DisplayWidth, DisplayHeight } from './js/display.js';
 
 let Passed = 0;
@@ -671,6 +671,62 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   const Spellable = /^[A-Z0-9 %+,\-./:]*$/;
   Claim('every app name is in the font the engine actually has',
         ShellApps.every((app) => Spellable.test(app.name)));
+}
+
+// ── 🔴 EVERY FIGURE MUST SURVIVE THE GPU'S CLIPPER, NOT JUST MY RASTERISER ───────────────────────
+//
+//    This is the check that was missing, and its absence cost a whole screen. The display frustum
+//    put its NEAR PLANE on the panel surface while the layout stacks every figure one millimetre
+//    at a time TOWARD the viewer. The GPU dutifully clipped all of them; the browser showed a
+//    black screen with only the fibres, which live behind the glass at negative z.
+//
+//    It survived because RenderStill.mjs — my own rasteriser, and the thing I had been checking
+//    against — does not implement near-plane clipping at all. It drew the figures happily and the
+//    stills looked right. A renderer that is more forgiving than the hardware is not a proof.
+//
+//    So: take the REAL matrix the host uploads, push every figure of BOTH compositions through it,
+//    and demand the homogeneous result actually lie inside the clip volume.
+{
+  const Angles = [
+    { orbit: 0.05, tilt: 0.04, distance: 0.60 },
+    { orbit: 0.62, tilt: 0.26, distance: 0.74 },
+    { orbit: 1.24, tilt: 0.42, distance: 0.70 },   // the grazing angle
+    { orbit: -0.80, tilt: -0.20, distance: 1.40 },
+  ];
+
+  for (const [name, make] of [['home', constructShellLayout], ['dashboard', constructHudLayout]]) {
+    const { structure, handles } = make();
+    structure.query(handles.housing).rotationX = Math.PI / 2 - Chassis.lean;
+    const { placements } = resolve(structure);
+    const rows = placements[handles.housing];
+
+    let worst = Infinity, clipped = 0, behind = 0;
+    for (const view of Angles) {
+      const eye = [
+        Math.sin(view.orbit) * Math.cos(view.tilt) * view.distance,
+        -Math.cos(view.orbit) * Math.cos(view.tilt) * view.distance,
+        Math.sin(view.tilt) * view.distance,
+      ];
+      const M = DisplayClip(rows, eye, PanelHalfWidth, PanelHalfHeight).clip;
+      for (let at = 0; at < structure.count; at++) {
+        const p = placements[at];
+        if (!p) continue;
+        const world = [p[0][3], p[1][3], p[2][3], 1];
+        const out = [0, 1, 2, 3].map((c) =>
+          M[c] * world[0] + M[4 + c] * world[1] + M[8 + c] * world[2] + M[12 + c] * world[3]);
+        if (!(out[3] > 0)) { behind++; continue; }
+        const depth = out[2] / out[3];
+        worst = Math.min(worst, depth);
+        if (depth < 0 || depth > 1) clipped++;
+      }
+    }
+    Claim(`${name}: no figure projects behind the eye`, behind === 0);
+    Claim(`${name}: NO FIGURE IS CLIPPED BY THE NEAR PLANE`, clipped === 0);
+    Claim(`${name}: and the nearest one keeps headroom in front of it`, worst > 0.005);
+  }
+
+  // The margin is real and the stack is measured against it, so neither can drift into the other.
+  Claim('the frustum reaches further forward than the interface stacks', Approach > 0.0044 * 2);
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────────────────────────
