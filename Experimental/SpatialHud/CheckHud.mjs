@@ -16,6 +16,8 @@ import { StreakPreset, packFibre, FibreFloats, FIBRE_WGSL } from './js/fibres.js
 import { SDF_WGSL } from './js/sdf.generated.js';
 import { STREAK_WGSL } from './js/streaks.js';
 import { CHASSIS_WGSL, Chassis, packRoom, RoomFloats } from './js/chassis.js';
+import { DISPLAY_WGSL, DisplayClip, DisplayProjectionScale, Glass,
+         DisplayWidth, DisplayHeight } from './js/display.js';
 
 let Passed = 0;
 const Failures = [];
@@ -426,8 +428,9 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
 
   Claim('the body is actually marched', CHASSIS_WGSL.includes('fn RoomMarch'));
   Claim('the surface normal is tetrahedral', CHASSIS_WGSL.includes('fn RoomNormal'));
-  Claim('the body opens a well for the interface to draw into',
-        CHASSIS_WGSL.includes('fn fsRoom') && CHASSIS_WGSL.includes('fn fsGlass'));
+  Claim('the body opens a well for the interface to draw into', CHASSIS_WGSL.includes('fn fsRoom'));
+  Claim('the glass left the chassis for the target it now reads',
+        !CHASSIS_WGSL.includes('fn fsGlass') && DISPLAY_WGSL.includes('fn fsGlass'));
 
   // 🔴 A POINT LIGHT CANNOT APPEAR IN A MIRROR, AND THE GLASS IS A MIRROR.
   //
@@ -467,6 +470,111 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   Claim('packRoom writes the panel rows', Math.abs(out[3] - 0.02) < 1e-6 && Math.abs(out[11] - 0.5) < 1e-6);
   Claim('packRoom carries the body extents',
         [...out].some((v) => Math.abs(v - Chassis.halfWidth) < 1e-6));
+}
+
+// ── the display target ───────────────────────────────────────────────────────────────────────────
+
+{
+  // 🔴 THE OFF-AXIS PROJECTION HAS TO BE EXACT, NOT CLOSE.
+  //
+  //    The glass samples the display at the point where the sightline crosses the panel. If the
+  //    matrix that FILLED the display disagrees with that mapping even slightly, every pixel is
+  //    displaced, and the displacement would be indistinguishable from the refraction offset the
+  //    same shader applies on purpose. One of the two would be silently wrong and the picture
+  //    would still look plausible. So: push points through the matrix and check they land where
+  //    the ray-plane crossing says they land, to float precision.
+  const rows = [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0]];          // the housing's quarter turn
+  const eye = [0.31, -0.62, 0.17];
+  const hw = PanelHalfWidth, hh = PanelHalfHeight;
+  const { clip, eyePanel } = DisplayClip(rows, eye, hw, hh);
+
+  const through = (P) => {
+    const w = [P[0], P[1], P[2], 1];
+    const out = [0, 0, 0, 0];
+    for (let r = 0; r < 4; r++) {
+      out[r] = clip[0 * 4 + r] * w[0] + clip[1 * 4 + r] * w[1]
+             + clip[2 * 4 + r] * w[2] + clip[3 * 4 + r] * w[3];
+    }
+    return [out[0] / out[3], out[1] / out[3], out[2] / out[3], out[3]];
+  };
+  // Panel point -> world, for this particular rotation.
+  const world = (x, y, z) => [x, -z, y];
+
+  // The four corners of the panel must land exactly on the corners of the target.
+  let corners = true;
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const n = through(world(sx * hw, sy * hh, 0));
+    if (Math.abs(n[0] - sx) > 2e-5 || Math.abs(n[1] - sy) > 2e-5) corners = false;
+  }
+  Claim('the panel fills the display exactly', corners);
+
+  // A point BEHIND the glass must land where its sightline crosses the glass — this is the one
+  // that fails if anyone replaces the frustum with an orthographic bake.
+  let depth = true;
+  for (const [px, py, pz] of [[0.05, 0.02, -0.08], [-0.12, 0.06, -0.14], [0.18, -0.09, -0.03]]) {
+    const t = eyePanel[2] / (eyePanel[2] - pz);
+    const cx = eyePanel[0] + (px - eyePanel[0]) * t;
+    const cy = eyePanel[1] + (py - eyePanel[1]) * t;
+    const n = through(world(px, py, pz));
+    if (Math.abs(n[0] - cx / hw) > 2e-5 || Math.abs(n[1] - cy / hh) > 2e-5) depth = false;
+  }
+  Claim('depth behind the glass projects, so the volume is not flattened', depth);
+  Claim('everything drawn is in front of the near plane',
+        through(world(0.05, 0.02, -0.08))[3] > 0 && through(world(0, 0, 0))[3] > 0);
+
+  // Move the eye and the image of a point BEHIND the glass must move with it. This is the
+  // parallax, and it is the single thing an orthographic bake would quietly destroy: a flattened
+  // display would put that point at the same place from every angle.
+  const moved = DisplayClip(rows, [-0.31, -0.62, 0.17], hw, hh);
+  const far = world(0.05, 0.02, -0.12);
+  const before = through(far);
+  const after = (() => {
+    const w = [far[0], far[1], far[2], 1];
+    const out = [0, 0, 0, 0];
+    for (let r = 0; r < 4; r++) {
+      out[r] = moved.clip[0 * 4 + r] * w[0] + moved.clip[1 * 4 + r] * w[1]
+             + moved.clip[2 * 4 + r] * w[2] + moved.clip[3 * 4 + r] * w[3];
+    }
+    return [out[0] / out[3], out[1] / out[3]];
+  })();
+  Claim('the volume behind the glass parallaxes with the eye',
+        Math.abs(after[0] - before[0]) > 0.05);
+
+  Claim('the display has the panel aspect',
+        Math.abs(DisplayWidth / DisplayHeight - PanelHalfWidth / PanelHalfHeight) < 0.002);
+  Claim('line width is measured in display pixels',
+        DisplayProjectionScale(0.5, PanelHalfHeight) > 0);
+
+  // 🔴 The glass SAMPLES. Additive glass can only add, so it can never bend, displace or dim what
+  //    is under it, and bending what is under it is the entire physical content of the word.
+  Claim('the glass reads the display target', DISPLAY_WGSL.includes('textureSample(DisplaySheet'));
+  Claim('the glass offsets by refraction', DISPLAY_WGSL.includes('fn GlassOffset')
+        && DISPLAY_WGSL.includes('refract(incident, normal'));
+  Claim('transmission and reflection SPLIT the energy',
+        DISPLAY_WGSL.includes('transmitted * (1.0 - fresnel) + reflected * fresnel'));
+  Claim('the glass is no longer additive', !DISPLAY_WGSL.includes('blend: additive'));
+  Claim('the glow is added inside the glass, so Fresnel attenuates it',
+        DISPLAY_WGSL.indexOf('BloomSheet, DisplaySampler, base') < DISPLAY_WGSL.indexOf('1.0 - fresnel'));
+
+  // The measurement that deleted the dispersion. Keep it: if the glass ever gets thicker, this is
+  // the number that decides whether per-channel sampling earns its two extra reads.
+  const slide = (deg) => {
+    const a = deg * Math.PI / 180;
+    const i = [Math.sin(a), 0, -Math.cos(a)];
+    const shift = (n) => {
+      const eta = 1 / n, cosi = -i[2];
+      const k = 1 - eta * eta * (1 - cosi * cosi);
+      const bent = [eta * i[0], 0, eta * i[2] + (eta * cosi - Math.sqrt(k))];
+      return (bent[0] / Math.abs(bent[2]) - i[0] / Math.abs(i[2])) * Glass.thickness;
+    };
+    return { green: shift(Glass.index), spread: Math.abs(shift(1.505) - shift(1.529)) };
+  };
+  const perMetre = DisplayWidth / (2 * PanelHalfWidth);
+  Claim('refraction is visible at a steep angle', Math.abs(slide(60).green * perMetre) > 4);
+  Claim('refraction vanishes head-on', Math.abs(slide(0).green) < 1e-9);
+  Claim('dispersion is below the pixel grid, which is why it is not simulated',
+        slide(75).spread * perMetre < 1);
+  Claim('and the shader does not pretend otherwise', !DISPLAY_WGSL.includes('indexRed'));
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────────────────────────

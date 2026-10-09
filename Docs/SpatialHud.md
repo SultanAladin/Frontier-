@@ -220,20 +220,74 @@ said there was a thing there: no thickness, no edge, no surface for the light to
 `js/chassis.js` raymarches a rounded box — 464 × 274 × 21 mm, 21 mm corner radius — in panel space,
 in two extra passes around the existing ones:
 
-| order | pass | blend | what |
+| # | target | pass | what |
 |---|---|---|---|
-| 1 | `vsRoom`/`fsRoom` | opaque | the body and the room, with a near-black well inside the face rect |
-| 2 | interface, first half | over | housing, face, backdrop rung |
-| 3 | fibres + sparks | additive | the world behind the glass |
-| 4 | interface, second half | over | every control |
-| 5 | `vsGlass`/`fsGlass` | additive | reflection, Fresnel, the seam lip |
+| 1 | **display** 1440×845 rgba16f | interface, first half → fibres + sparks → interface, second half | the panel's own camera: an off-axis frustum whose near plane is the panel |
+| 2 | **glow** 360×212 ×2 | `fsBloomCut` → `fsBloomAcross` → `fsBloomDown` | bright pass and a separable Gaussian |
+| 3 | **window** | `fsRoom` (opaque) → `fsGlass` (over) | the tablet in the room, sampling the display |
 
-Still no render target. The glass is composited over a finished interface in the same pass, which
-is why it can only *add* — there is no refraction and no parallax between the glass and what is
-under it, and that is the first thing here that would genuinely need an offscreen target. There is
-also no floor and no contact shadow, deliberately: a floor wants the panel leaned back, and the
+`rgba16float`, not the swapchain's 8 bits: the interface is additive in places and the bright pass
+has to tell a lit element from a blown one. Both need values above 1.0 to survive the trip.
+
+There is no floor and no contact shadow, deliberately: a floor wants the panel leaned back, and the
 lean would move the housing's quarter turn about X that the whole layout and all its checks are
 built on.
+
+### 🔴 Additive glass was never glass
+
+The first version of the chassis composited the glass over the finished interface with an additive
+blend. That is a decal, and it was wrong in a way no screenshot would have shown: **additive light
+can only add.** It could paint a reflection on the picture, but it could never bend, displace, dim
+or tint what was underneath it — and bending what is underneath is the entire physical content of
+the word *glass*.
+
+So the panel renders into a texture of its own and the tablet **samples** it, which is how a device
+screen is done in an engine. `js/display.js` owns the target and the pass that reads it:
+
+| | |
+|---|---|
+| **refraction** | the emitting plane sits 2.4 mm behind the outer face, so the image slides under its own glass |
+| **bloom** | emissive elements bleed, added *inside* the glass so Fresnel attenuates it too |
+| **a real split** | `transmitted × (1 − F) + reflected × F` — energy *leaves* the interface as the room takes over |
+| **its own pixels** | 1440 × 845, fixed, independent of the window |
+
+The split is the one you feel. Additively, the interface stayed at full brightness at a grazing
+angle with a highlight added on top; now it correctly fades as the room wins.
+
+#### The projection is off-axis, and it has to be
+
+The obvious way to fill a screen texture is to render the interface orthographically, face on. That
+throws away the thing this whole experiment is about: the fibre volume is a hundred-odd millimetres
+deep, and an orthographic bake flattens it to a sticker the moment the camera moves.
+
+So it uses the projection a portal or a mirror uses — apex at the **real eye**, near plane the
+**panel rectangle** rather than a symmetric window about the view axis. Then texture UV and panel
+coordinate are the same quantity by construction, depth behind the glass projects exactly as it did
+when it was drawn straight to the screen, and sampling at the sightline's crossing reproduces the
+old image to the pixel. Which is what makes any offset from that point *real refraction measured
+against a correct baseline* rather than a smear that happens to look busy.
+
+`CheckHud` pushes points through the matrix and compares them against the ray-plane crossing to
+float precision, including points behind the glass. If that mapping were even slightly off, every
+pixel would be displaced by an amount indistinguishable from the refraction the same shader applies
+on purpose, and one of the two would be silently wrong while the picture still looked plausible.
+
+#### 🔴 Measure the effect before you ship it
+
+Refraction, at the display's own resolution:
+
+| incidence | 15° | 30° | 45° | 60° | 75° |
+|---|---|---|---|---|---|
+| shift (display px) | −0.71 | −1.71 | −3.55 | −7.79 | −21.84 |
+
+Visible, and visibly moving. The first version also sampled **red, green and blue separately**,
+since the index of refraction is wavelength dependent and colour fringing at the rim of a thick
+cover is a real thing. Then it got measured: across crown glass's actual spread (n = 1.505 … 1.529)
+the red and blue sample points differ by **0.12 of a pixel** at 60°, and 0.17 at 75°. Below the
+grid. It cannot appear. That was two extra texture reads per screen pixel per frame to produce
+nothing resolvable, so it is gone — you would need about two centimetres of cover glass before it
+crossed one pixel. The check keeps the measurement so the decision can be revisited if the glass
+ever gets thicker.
 
 ### 🔴 A light is a card, and the glass does not reflect the key
 
@@ -283,7 +337,7 @@ opaque, or transparency stops being the most significant bit of the key.
 
 ```
 python3 Tools/Build/GenerateHudShader.py --check     # the WGSL port is current
-node Experimental/SpatialHud/CheckHud.mjs            # PASS 120
+node Experimental/SpatialHud/CheckHud.mjs            # PASS 161
 ```
 
 Both run in `frontier-build.yml`. `CheckHud` covers the composition arithmetic (a quarter turn about

@@ -35,7 +35,9 @@
 //    beneath it. Both want the interface rendered before the glass is shaded, which is the first
 //    thing here that would actually need an offscreen target.
 
-export const RoomFloats = 32;                  // 8 vec4s
+import { PanelHalfWidth, PanelHalfHeight } from './layout.js';
+
+export const RoomFloats = 36;                  // 9 vec4s
 
 // The body, in panel metres. The front face sits at panel z = 0, so the interface — which is
 // authored on that plane — lands exactly on the glass.
@@ -63,6 +65,9 @@ export function packRoom(out, rows, camera) {
   put(5, camera.right[0], camera.right[1], camera.right[2], camera.aspect);
   put(6, camera.up[0], camera.up[1], camera.up[2], Chassis.screenSpill);
   put(7, Chassis.bodyRoughness, Chassis.glassRoughness, Chassis.keyIntensity, 0);
+  // The PANEL rectangle, which is what the display texture covers and so what the glass
+  // samples across. It is not the body's: the body stands a couple of millimetres proud.
+  put(8, PanelHalfWidth, PanelHalfHeight, 0, 0);
   return out;
 }
 
@@ -80,6 +85,7 @@ struct Room {
   side : vec4f,     // xyz camera right, w aspect
   rise : vec4f,     // xyz camera up, w screen spill
   tone : vec4f,     // x body roughness, y glass roughness, z key intensity
+  face : vec4f,     // xy panel half extent [m] - the rectangle the display covers
 };
 
 @group(0) @binding(3) var<uniform> R : Room;
@@ -333,60 +339,7 @@ fn fsRoom(in : RoomVarying) -> @location(0) vec4f {
 
 // ── the glass ────────────────────────────────────────────────────────────────────────────────────
 // A quad on the panel's own plane, composited over the finished interface. Fresnel against the
-// view, a tight reflection of the same room function the body uses, and nothing else — a screen
-// coating is a dielectric and behaves like one.
-
-struct GlassVarying {
-  @builtin(position) Position : vec4f,
-  @location(0) Local : vec2f,
-  @location(1) World : vec3f,
-};
-
-@vertex
-fn vsGlass(@builtin(vertex_index) Vertex : u32) -> GlassVarying {
-  let sign = vec2f(select(-1.0, 1.0, (Vertex & 1u) != 0u),
-                   select(-1.0, 1.0, (Vertex & 2u) != 0u));
-  let corner = sign * R.body.xy;
-  let world = vec3f(dot(R.rowX.xyz, vec3f(corner, 0.0)) + R.rowX.w,
-                    dot(R.rowY.xyz, vec3f(corner, 0.0)) + R.rowY.w,
-                    dot(R.rowZ.xyz, vec3f(corner, 0.0)) + R.rowZ.w);
-
-  var out : GlassVarying;
-  out.Position = G.viewClip * vec4f(world, 1.0);
-  out.Local = corner;
-  out.World = world;
-  return out;
-}
-
-@fragment
-fn fsGlass(in : GlassVarying) -> @location(0) vec4f {
-  let edge = max(fwidth(in.Local.x), fwidth(in.Local.y));
-  let inside = CoverageFromDistance(
-      DistanceRoundedRectangle(in.Local, R.body.xy - vec2f(0.0012), R.body.w), max(edge, 1.0e-6));
-  if (inside <= 0.0) { discard; }
-
-  let normal = normalize(vec3f(R.rowX.z, R.rowY.z, R.rowZ.z));   // the panel's own +Z, in the world
-  let view = normalize(G.eye.xyz - in.World);
-  let facing = max(dot(normal, view), 0.0);
-
-  // 🔴 Fresnel is the reason this reads as glass. Straight on, a coated screen reflects about four
-  //    percent and you see the interface; at a glancing angle it reflects most of the light and
-  //    the room wins. That swing is what the eye uses to decide a surface is covered, and it is
-  //    free - one dot product and a fifth power.
-  let fresnel = RoomSchlick(facing, 0.042);
-  let sharpness = clamp(1.0 - R.tone.y, 0.0, 1.0);
-  let bounce = reflect(-view, normal);
-  var reflected = RoomLight(bounce, sharpness) * fresnel;
-
-  // The coating is not a mirror: a second, much wider lobe sits under the sharp one.
-  reflected += RoomLight(bounce, sharpness * 0.35) * fresnel * 0.20;
-
-  // The lip. Light creeps along the join between the cover glass and the body, which is the detail
-  // that separates a screen set INTO something from a screen printed ON it.
-  let lip = DistanceRoundedRectangle(in.Local, R.body.xy - vec2f(0.0012), R.body.w);
-  let seam = exp(lip / 0.0016) * 0.65;
-  reflected += vec3f(0.35, 0.40, 0.50) * seam * (0.25 + 0.75 * fresnel);
-
-  return vec4f(reflected * inside, 1.0);
-}
+// The glass is no longer here. It became a pass that SAMPLES the display target rather than
+// one that adds light on top of a finished picture, so it lives in js/display.js next to
+// the target it reads. See the header there for why additive glass was never glass.
 `;

@@ -36,6 +36,9 @@ import { constructHudLayout, assignValues } from './js/layout.js';
 import { resolve, pack, FloatsPerFigure, Category } from './js/figures.js';
 import { StreakPreset, packFibre, FibreFloats } from './js/fibres.js';
 import { Chassis } from './js/chassis.js';
+import { Glass, DisplayWidth, DisplayHeight, BloomWidth, BloomHeight,
+         DisplayProjectionScale } from './js/display.js';
+import { PanelHalfWidth, PanelHalfHeight } from './js/layout.js';
 
 const Here = dirname(fileURLToPath(import.meta.url));
 
@@ -659,55 +662,6 @@ function DrawRoom(picture, camera, tablet) {
   }
 }
 
-function DrawGlass(picture, camera, tablet) {
-  const { width, height } = picture;
-  const sharpness = clamp(1 - Chassis.glassRoughness, 0, 1);
-  const r = tablet.rows;
-  const normal = (() => {
-    const n = [r[0][2], r[1][2], r[2][2]];
-    const l = Math.hypot(n[0], n[1], n[2]) || 1;
-    return [n[0] / l, n[1] / l, n[2] / l];
-  })();
-  const O = [r[0][3], r[1][3], r[2][3]];
-  const U = [r[0][0], r[1][0], r[2][0]];
-  const V = [r[0][1], r[1][1], r[2][1]];
-  const hw = tablet.half[0] - 0.0012, hh = tablet.half[1] - 0.0012;
-
-  for (let py = 0; py < height; py++) {
-    for (let px = 0; px < width; px++) {
-      const direction = camera.ray(px, py);
-      const denom = direction[0] * normal[0] + direction[1] * normal[1] + direction[2] * normal[2];
-      if (Math.abs(denom) < 1e-9) continue;
-      const t = ((O[0] - camera.eye[0]) * normal[0] + (O[1] - camera.eye[1]) * normal[1]
-               + (O[2] - camera.eye[2]) * normal[2]) / denom;
-      if (t <= 0) continue;
-
-      const P = [camera.eye[0] + direction[0] * t, camera.eye[1] + direction[1] * t,
-                 camera.eye[2] + direction[2] * t];
-      const dx = P[0] - O[0], dy = P[1] - O[1], dz = P[2] - O[2];
-      const lx = dx * U[0] + dy * U[1] + dz * U[2];
-      const ly = dx * V[0] + dy * V[1] + dz * V[2];
-      const lip = DistanceRoundedRectangle(lx, ly, hw, hh, tablet.radius);
-      if (lip > 0) continue;
-
-      const view = [-direction[0], -direction[1], -direction[2]];
-      const facing = Math.max(normal[0] * view[0] + normal[1] * view[1] + normal[2] * view[2], 0);
-      const bounce = [2 * facing * normal[0] - view[0], 2 * facing * normal[1] - view[1],
-                      2 * facing * normal[2] - view[2]];
-      const fresnel = Schlick(facing, 0.042);
-      const sharp = RoomLight(bounce, sharpness);
-      const wide = RoomLight(bounce, sharpness * 0.35);
-      const seam = Math.exp(lip / 0.0016) * 0.65 * (0.25 + 0.75 * fresnel);
-      const lipTint = [0.35, 0.40, 0.50];
-
-      const at = py * width + px;
-      for (let c = 0; c < 3; c++) {
-        picture.lit[at * 3 + c] += sharp[c] * fresnel + wide[c] * fresnel * 0.20 + lipTint[c] * seam;
-      }
-    }
-  }
-}
-
 // ── the camera ───────────────────────────────────────────────────────────────────────────────────
 
 function Camera(orbit, tilt, distance, fieldOfView, width, height) {
@@ -744,6 +698,224 @@ function Camera(orbit, tilt, distance, fieldOfView, width, height) {
       return { x: ((sx / depth) / (aspect * tanHalf) * 0.5 + 0.5) * width,
                y: (0.5 - (sy / depth) / tanHalf * 0.5) * height,
                depth };
+    },
+  };
+}
+
+// ── the glow ─────────────────────────────────────────────────────────────────────────────────────
+// Bright pass to a quarter, then one separable Gaussian along each axis. Mirrors fsBloomCut /
+// fsBloomAcross / fsBloomDown.
+
+function Bloom(display) {
+  const small = { width: BloomWidth, height: BloomHeight, lit: new Float32Array(BloomWidth * BloomHeight * 3) };
+  const other = { width: BloomWidth, height: BloomHeight, lit: new Float32Array(BloomWidth * BloomHeight * 3) };
+
+  for (let y = 0; y < BloomHeight; y++) {
+    for (let x = 0; x < BloomWidth; x++) {
+      const u = (x + 0.5) / BloomWidth, v = (y + 0.5) / BloomHeight;
+      const total = [0, 0, 0];
+      for (const [ox, oy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const c = SampleBilinear(display, u + ox / DisplayWidth, v + oy / DisplayHeight);
+        const level = Math.max(c[0], c[1], c[2]);
+        const over = Math.max(level - Glass.bloomThreshold, 0);
+        const gain = over / Math.max(level, 1e-4);
+        total[0] += c[0] * gain; total[1] += c[1] * gain; total[2] += c[2] * gain;
+      }
+      const at = (y * BloomWidth + x) * 3;
+      small.lit[at] = total[0] * 0.25; small.lit[at + 1] = total[1] * 0.25; small.lit[at + 2] = total[2] * 0.25;
+    }
+  }
+
+  const weight = [0.2270270, 0.1945946, 0.1216216, 0.0540541, 0.0162162];
+  const blur = (from, to, stepX, stepY) => {
+    for (let y = 0; y < BloomHeight; y++) {
+      for (let x = 0; x < BloomWidth; x++) {
+        const u = (x + 0.5) / BloomWidth, v = (y + 0.5) / BloomHeight;
+        const total = [0, 0, 0];
+        const centre = SampleBilinear(from, u, v);
+        total[0] = centre[0] * weight[0]; total[1] = centre[1] * weight[0]; total[2] = centre[2] * weight[0];
+        for (let i = 1; i <= 4; i++) {
+          const a = SampleBilinear(from, u + stepX * i, v + stepY * i);
+          const b = SampleBilinear(from, u - stepX * i, v - stepY * i);
+          for (let c = 0; c < 3; c++) total[c] += (a[c] + b[c]) * weight[i];
+        }
+        const at = (y * BloomWidth + x) * 3;
+        to.lit[at] = total[0]; to.lit[at + 1] = total[1]; to.lit[at + 2] = total[2];
+      }
+    }
+  };
+  blur(small, other, 1 / BloomWidth, 0);
+  blur(other, small, 0, 1 / BloomHeight);
+  return small;
+}
+
+// Bilinear with clamp-to-edge, matching the sampler the host binds. Clamp matters: the refraction
+// offset walks the sample point past the edge at a steep angle, and a wrap would fold the opposite
+// side of the interface into the rim.
+function SampleBilinear(sheet, u, v) {
+  const { width, height, lit } = sheet;
+  const x = clamp(u, 0, 1) * width - 0.5, y = clamp(v, 0, 1) * height - 0.5;
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const fx = x - x0, fy = y - y0;
+  const out = [0, 0, 0];
+  for (let j = 0; j <= 1; j++) {
+    for (let i = 0; i <= 1; i++) {
+      const sx = Math.min(Math.max(x0 + i, 0), width - 1);
+      const sy = Math.min(Math.max(y0 + j, 0), height - 1);
+      const w = (i ? fx : 1 - fx) * (j ? fy : 1 - fy);
+      const at = (sy * width + sx) * 3;
+      out[0] += lit[at] * w; out[1] += lit[at + 1] * w; out[2] += lit[at + 2] * w;
+    }
+  }
+  return out;
+}
+
+// ── the glass ────────────────────────────────────────────────────────────────────────────────────
+//
+// 🔴 IT SAMPLES. That is the whole difference, and it is the difference between glass and a decal.
+//
+//    The previous version added a reflection on top of an already finished picture. Additive light
+//    can only ADD, so it could never bend, displace, dim or tint what was under it — and bending
+//    what is under it is the entire physical content of the word glass. Now the interface lives in
+//    a texture and this pass decides what you see of it:
+//
+//      · refraction, per channel, because the emitting plane sits behind the outer face
+//      · the glow, added INSIDE the glass so the Fresnel term attenuates it too
+//      · a real split: transmitted * (1 - F) + reflected * F, so energy LEAVES the interface as
+//        the room takes over, instead of the interface staying at full brightness underneath
+//
+// Mirrors fsGlass in js/display.js.
+
+function GlassOffset(incident, index) {
+  // refract() against the panel normal (0,0,1), in panel space.
+  const eta = 1 / index;
+  const cosi = -incident[2];
+  const k = 1 - eta * eta * (1 - cosi * cosi);
+  if (k < 0) return [0, 0];
+  const bent = [eta * incident[0], eta * incident[1], eta * incident[2] + (eta * cosi - Math.sqrt(k)) * 1];
+  const straightSlide = [incident[0] / Math.max(Math.abs(incident[2]), 1e-4),
+                         incident[1] / Math.max(Math.abs(incident[2]), 1e-4)];
+  const bentSlide = [bent[0] / Math.max(Math.abs(bent[2]), 1e-4),
+                     bent[1] / Math.max(Math.abs(bent[2]), 1e-4)];
+  return [(bentSlide[0] - straightSlide[0]) * Glass.thickness,
+          (bentSlide[1] - straightSlide[1]) * Glass.thickness];
+}
+
+function DrawGlass(picture, camera, tablet, display, bloom) {
+  const { width, height } = picture;
+  const sharpness = clamp(1 - Chassis.glassRoughness, 0, 1);
+  const r = tablet.rows;
+  const normal = (() => {
+    const n = [r[0][2], r[1][2], r[2][2]];
+    const l = Math.hypot(n[0], n[1], n[2]) || 1;
+    return [n[0] / l, n[1] / l, n[2] / l];
+  })();
+  const O = [r[0][3], r[1][3], r[2][3]];
+  const U = [r[0][0], r[1][0], r[2][0]];
+  const V = [r[0][1], r[1][1], r[2][1]];
+  const hw = PanelHalfWidth - 0.0010, hh = PanelHalfHeight - 0.0010;
+  const radius = Chassis.cornerRadius * 0.86;
+
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < width; px++) {
+      const direction = camera.ray(px, py);
+      const denom = direction[0] * normal[0] + direction[1] * normal[1] + direction[2] * normal[2];
+      if (Math.abs(denom) < 1e-9) continue;
+      const t = ((O[0] - camera.eye[0]) * normal[0] + (O[1] - camera.eye[1]) * normal[1]
+               + (O[2] - camera.eye[2]) * normal[2]) / denom;
+      if (t <= 0) continue;
+
+      const P = [camera.eye[0] + direction[0] * t, camera.eye[1] + direction[1] * t,
+                 camera.eye[2] + direction[2] * t];
+      const dx = P[0] - O[0], dy = P[1] - O[1], dz = P[2] - O[2];
+      const lx = dx * U[0] + dy * U[1] + dz * U[2];
+      const ly = dx * V[0] + dy * V[1] + dz * V[2];
+      const lip = DistanceRoundedRectangle(lx, ly, hw, hh, radius);
+      if (lip > 0) continue;
+
+      const view = [-direction[0], -direction[1], -direction[2]];
+      const facing = Math.max(normal[0] * view[0] + normal[1] * view[1] + normal[2] * view[2], 0);
+
+      const incident = tablet.toPanelDirection(direction);
+      const il = Math.hypot(incident[0], incident[1], incident[2]) || 1;
+      incident[0] /= il; incident[1] /= il; incident[2] /= il;
+
+      const base = [lx / PanelHalfWidth * 0.5 + 0.5, 0.5 - ly / PanelHalfHeight * 0.5];
+      const slide = GlassOffset(incident, Glass.index);
+      const shifted = [base[0] + slide[0] / PanelHalfWidth * 0.5,
+                       base[1] - slide[1] / PanelHalfHeight * 0.5];
+      const transmitted = SampleBilinear(display, shifted[0], shifted[1]);
+
+      const glow = SampleBilinear(bloom, base[0], base[1]);
+      for (let c = 0; c < 3; c++) transmitted[c] += glow[c] * Glass.bloomStrength;
+
+      const fresnel = Schlick(facing, 0.042);
+      const bounce = [2 * facing * normal[0] - view[0], 2 * facing * normal[1] - view[1],
+                      2 * facing * normal[2] - view[2]];
+      const sharp = RoomLight(bounce, sharpness);
+      const wide = RoomLight(bounce, sharpness * 0.35);
+      const seam = Math.exp(lip / 0.0016) * 0.55 * (0.25 + 0.75 * fresnel);
+      const lipTint = [0.35, 0.40, 0.50];
+
+      const at = py * width + px;
+      for (let c = 0; c < 3; c++) {
+        picture.lit[at * 3 + c] = transmitted[c] * (1 - fresnel)
+                                + (sharp[c] + wide[c] * 0.20) * fresnel
+                                + lipTint[c] * seam;
+      }
+    }
+  }
+}
+
+// ── the display camera ───────────────────────────────────────────────────────────────────────────
+//
+// 🔴 The off-axis frustum, which in a ray tracer is simply a different ray per pixel: the one from
+//    the real eye through that point of the PANEL rectangle. Same apex, different window. The
+//    volume behind the glass therefore projects exactly as it does to the window camera, which is
+//    the whole reason the display is not baked orthographically — an orthographic bake would flatten
+//    the fibre volume to a sticker and kill the parallax this experiment exists to show.
+//
+//    See the derivation in js/display.js. The matrix there and the rays here are the same map.
+
+function DisplayCamera(eye, rows, width, height) {
+  const hw = PanelHalfWidth, hh = PanelHalfHeight;
+  const norm = (A) => { const L = Math.hypot(A[0], A[1], A[2]) || 1; return [A[0] / L, A[1] / L, A[2] / L]; };
+
+  const toWorld = (local) => [
+    rows[0][0] * local[0] + rows[0][1] * local[1] + rows[0][3],
+    rows[1][0] * local[0] + rows[1][1] * local[1] + rows[1][3],
+    rows[2][0] * local[0] + rows[2][1] * local[1] + rows[2][3],
+  ];
+  const toPanel = (world) => {
+    const dx = world[0] - rows[0][3], dy = world[1] - rows[1][3], dz = world[2] - rows[2][3];
+    return [rows[0][0] * dx + rows[1][0] * dy + rows[2][0] * dz,
+            rows[0][1] * dx + rows[1][1] * dy + rows[2][1] * dz,
+            rows[0][2] * dx + rows[1][2] * dy + rows[2][2] * dz];
+  };
+  const eyePanel = toPanel(eye);
+
+  return {
+    eye, width, height, eyePanel,
+    projectionScale: DisplayProjectionScale(eyePanel[2], hh),
+    forward: norm([-rows[0][2], -rows[1][2], -rows[2][2]]),
+    right: [rows[0][0], rows[1][0], rows[2][0]],
+    up: [rows[0][1], rows[1][1], rows[2][1]],
+
+    ray(px, py) {
+      const local = [(2 * (px + 0.5) / width - 1) * hw, (1 - 2 * (py + 0.5) / height) * hh];
+      const P = toWorld(local);
+      return norm([P[0] - eye[0], P[1] - eye[1], P[2] - eye[2]]);
+    },
+
+    // Where the sightline from the eye to P crosses the glass, in display pixels.
+    project(P) {
+      const p = toPanel(P);
+      const rise = eyePanel[2] - p[2];
+      if (rise <= 1e-6) return null;
+      const t = eyePanel[2] / rise;
+      const cx = eyePanel[0] + (p[0] - eyePanel[0]) * t;
+      const cy = eyePanel[1] + (p[1] - eyePanel[1]) * t;
+      return { x: (cx / hw * 0.5 + 0.5) * width, y: (0.5 - cy / hh * 0.5) * height, depth: rise };
     },
   };
 }
@@ -1102,23 +1274,38 @@ export function RenderStill(options) {
   if (splitAt < 0) splitAt = packed.count;
 
   const tablet = new Tablet(placements[handles.housing]);
-  DrawRoom(picture, camera, tablet);
-
   const room = [ambient, ambient * 1.02, ambient * 1.08];
-  DrawFigures(picture, camera, packed, 0, splitAt, room, time);
+
+  // ── pass one: the display, into its own buffer, through the panel's own frustum ──────────────
+  //
+  // Its resolution is the panel's, not the window's, and it does not get the supersample: a real
+  // display has the pixels it has, and the glass resolves it bilinearly like a sampler would.
+  const screen = new Picture(DisplayWidth, DisplayHeight, [0.0032, 0.0036, 0.0048]);
+  const panelCamera = DisplayCamera(camera.eye, placements[handles.housing],
+                                    DisplayWidth, DisplayHeight);
+
+  DrawFigures(screen, panelCamera, packed, 0, splitAt, room, time);
 
   if (backdrop === 'live') {
     const fibres = new Fibres(packFibre(new Float32Array(FibreFloats), StreakPreset, {
-      time, width: W, height: H, projectionScale: camera.projectionScale,
+      time, width: DisplayWidth, height: DisplayHeight,
+      projectionScale: panelCamera.projectionScale,
       rows: placements[handles.housing],
     }));
-    DrawFibres(picture, camera, fibres);
-    DrawSparks(picture, camera, fibres);
+    DrawFibres(screen, panelCamera, fibres);
+    DrawSparks(screen, panelCamera, fibres);
   }
 
-  DrawFigures(picture, camera, packed, splitAt, packed.count, room, time);
-  DrawGlass(picture, camera, tablet);
-  return { picture: picture.resolve(supersample), figures: packed.count };
+  DrawFigures(screen, panelCamera, packed, splitAt, packed.count, room, time);
+
+  // ── pass two: the glow, which is the thing a target is actually worth paying for ─────────────
+  const glow = Bloom(screen);
+
+  // ── pass three: the tablet in the room, reading the display as a texture ─────────────────────
+  DrawRoom(picture, camera, tablet);
+  DrawGlass(picture, camera, tablet, screen, glow);
+
+  return { picture: picture.resolve(supersample), figures: packed.count, display: screen };
 }
 
 // ── the command ──────────────────────────────────────────────────────────────────────────────────

@@ -7,9 +7,11 @@
 import { pack, resolve, FloatsPerFigure } from './figures.js';
 import { SDF_WGSL } from './sdf.generated.js';
 import { STREAK_WGSL } from './streaks.js';
-import { constructHudLayout, assignValues } from './layout.js';
+import { constructHudLayout, assignValues, PanelHalfWidth, PanelHalfHeight } from './layout.js';
 import { FIBRE_WGSL, packFibre, StreakPreset, FibreFloats } from './fibres.js';
 import { CHASSIS_WGSL, packRoom, RoomFloats } from './chassis.js';
+import { DISPLAY_WGSL, DisplayClip, DisplayProjectionScale,
+         DisplayWidth, DisplayHeight, BloomWidth, BloomHeight } from './display.js';
 
 // Module-scope declarations come first so the fibre stages can reach the globals the figure stages
 // also use. One module, one shader compilation, three pipelines off it.
@@ -208,7 +210,7 @@ async function start() {
 
   const module = device.createShaderModule({
     label: 'spatial interface',
-    code: `${Prelude}\n${SDF_WGSL}\n${STREAK_WGSL}\n${FIBRE_WGSL}\n${CHASSIS_WGSL}\n${Stages}`,
+    code: `${Prelude}\n${SDF_WGSL}\n${STREAK_WGSL}\n${FIBRE_WGSL}\n${CHASSIS_WGSL}\n${DISPLAY_WGSL}\n${Stages}`,
   });
 
   const info = await module.getCompilationInfo();
@@ -219,6 +221,14 @@ async function start() {
     throw new Error(errors[0].message);
   }
 
+  // Premultiplied alpha, composited against the resolved scene — the engine's own blend.
+  const over = {
+    color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+    alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+  };
+
+  // 🔴 The interface targets the DISPLAY, not the window. Everything from here to the glass pass
+  //    is drawn at the panel's own resolution, through the panel's own off-axis projection.
   const pipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: { module, entryPoint: 'VertexMain' },
@@ -226,12 +236,8 @@ async function start() {
       module,
       entryPoint: 'FragmentMain',
       targets: [{
-        format,
-        // Premultiplied alpha, composited against the resolved scene — the engine's own blend.
-        blend: {
-          color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-          alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-        },
+        format: 'rgba16float',
+        blend: over,
       }],
     },
     primitive: { topology: 'triangle-strip' },
@@ -248,18 +254,55 @@ async function start() {
   const fibrePipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: { module, entryPoint: 'vsFibre' },
-    fragment: { module, entryPoint: 'fsFibre', targets: [{ format, blend: additive }] },
+    fragment: { module, entryPoint: 'fsFibre', targets: [{ format: 'rgba16float', blend: additive }] },
     primitive: { topology: 'triangle-list' },
   });
   const sparkPipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: { module, entryPoint: 'vsSpark' },
-    fragment: { module, entryPoint: 'fsSpark', targets: [{ format, blend: additive }] },
+    fragment: { module, entryPoint: 'fsSpark', targets: [{ format: 'rgba16float', blend: additive }] },
     primitive: { topology: 'triangle-list' },
   });
 
+  // 🔴 THE DISPLAY IS A TEXTURE NOW.
+  //
+  //    rgba16float, not the swapchain's 8-bit format. The interface is additive in places and the
+  //    bloom bright pass has to be able to tell a lit element from a blown one, and both of those
+  //    need values above 1.0 to survive the trip. An 8-bit target clamps them flat and the glow
+  //    comes out as a uniform halo around everything white.
+  const displayFormat = 'rgba16float';
+  const displayTexture = device.createTexture({
+    size: [DisplayWidth, DisplayHeight],
+    format: displayFormat,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+  });
+  const bloomTexture = [0, 1].map(() => device.createTexture({
+    size: [BloomWidth, BloomHeight],
+    format: displayFormat,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+  }));
+  const displayView = displayTexture.createView();
+  const bloomView = bloomTexture.map((T) => T.createView());
+
+  // Clamp, because the refraction offset walks the sample point past the edge at a steep angle
+  // and a repeat would wrap the opposite side of the interface into the rim.
+  const displaySampler = device.createSampler({
+    magFilter: 'linear', minFilter: 'linear',
+    addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
+  });
+
+  const coverPipeline = (entryPoint, target) => device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module, entryPoint: 'vsCover' },
+    fragment: { module, entryPoint, targets: [{ format: target }] },
+    primitive: { topology: 'triangle-list' },
+  });
+  const bloomCutPipeline = coverPipeline('fsBloomCut', displayFormat);
+  const bloomAcrossPipeline = coverPipeline('fsBloomAcross', displayFormat);
+  const bloomDownPipeline = coverPipeline('fsBloomDown', displayFormat);
+
   // The tablet as an object. The body is opaque and goes down first, so everything else lands on
-  // a real surface; the glass is composited last, over the finished interface.
+  // a real surface; the glass reads the display target and is the last thing drawn.
   const roomPipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: { module, entryPoint: 'vsRoom' },
@@ -269,7 +312,9 @@ async function start() {
   const glassPipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: { module, entryPoint: 'vsGlass' },
-    fragment: { module, entryPoint: 'fsGlass', targets: [{ format, blend: additive }] },
+    // Over, not additive. The glass OWNS the face now: it decides how much of the interface you
+    // see and how much of the room, and a split needs to be able to take light away.
+    fragment: { module, entryPoint: 'fsGlass', targets: [{ format, blend: over }] },
     primitive: { topology: 'triangle-strip' },
   });
 
@@ -284,23 +329,58 @@ async function start() {
   });
   let bind = device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
-    entries: [{ binding: 0, resource: { buffer: globals } }, { binding: 1, resource: { buffer: figureBuffer } }],
+    entries: [{ binding: 0, resource: { buffer: displayGlobals } }, { binding: 1, resource: { buffer: figureBuffer } }],
+  });
+
+  // 🔴 TWO CAMERAS, TWO UNIFORM BUFFERS.
+  //
+  //    The interface and the fibres are drawn through the panel's off-axis frustum into the
+  //    display; the body and the glass are drawn through the window's ordinary perspective. They
+  //    share a struct and nothing else. The eye position inside both is the same real world eye,
+  //    which is what keeps the fibre aperture and the parallax honest.
+  const displayGlobalData = new Float32Array(globalData.length);
+  const displayGlobals = device.createBuffer({
+    size: displayGlobalData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
   const roomData = new Float32Array(RoomFloats);
   const roomBuffer = device.createBuffer({
     size: roomData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  const roomEntries = [{ binding: 0, resource: { buffer: globals } },
-                       { binding: 3, resource: { buffer: roomBuffer } }];
-  const roomBind = device.createBindGroup({ layout: roomPipeline.getBindGroupLayout(0), entries: roomEntries });
-  const glassBind = device.createBindGroup({ layout: glassPipeline.getBindGroupLayout(0), entries: roomEntries });
+  const roomBind = device.createBindGroup({
+    layout: roomPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: globals } },
+              { binding: 3, resource: { buffer: roomBuffer } }],
+  });
+  const glassBind = device.createBindGroup({
+    layout: glassPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: globals } },
+              { binding: 3, resource: { buffer: roomBuffer } },
+              { binding: 4, resource: displayView },
+              { binding: 5, resource: displaySampler },
+              { binding: 6, resource: bloomView[1] }],
+  });
+
+  // The glow chain: bright pass off the display into the first small target, then one blur along
+  // each axis, ping-ponging between the two.
+  const bloomCutBind = device.createBindGroup({
+    layout: bloomCutPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 4, resource: displayView }, { binding: 5, resource: displaySampler }],
+  });
+  const bloomAcrossBind = device.createBindGroup({
+    layout: bloomAcrossPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 5, resource: displaySampler }, { binding: 6, resource: bloomView[0] }],
+  });
+  const bloomDownBind = device.createBindGroup({
+    layout: bloomDownPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 5, resource: displaySampler }, { binding: 6, resource: bloomView[1] }],
+  });
 
   const fibreData = new Float32Array(FibreFloats);
   const fibreBuffer = device.createBuffer({
     size: fibreData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  const fibreEntries = [{ binding: 0, resource: { buffer: globals } },
+  const fibreEntries = [{ binding: 0, resource: { buffer: displayGlobals } },
                         { binding: 2, resource: { buffer: fibreBuffer } }];
   const fibreBind = device.createBindGroup({ layout: fibrePipeline.getBindGroupLayout(0), entries: fibreEntries });
   const sparkBind = device.createBindGroup({ layout: sparkPipeline.getBindGroupLayout(0), entries: fibreEntries });
@@ -400,9 +480,22 @@ async function start() {
     });
     device.queue.writeBuffer(roomBuffer, 0, roomData);
 
+    // The panel's own camera: same eye, different window. The near plane IS the panel, so the
+    // interface fills the display exactly and the depth behind the glass still projects.
+    const display = DisplayClip(placements[handles.housing], eye, PanelHalfWidth, PanelHalfHeight);
+    const displayScale = DisplayProjectionScale(display.eyePanel[2], PanelHalfHeight);
+
+    displayGlobalData.set(display.clip, 0);
+    displayGlobalData.set([eye[0], eye[1], eye[2], 0], 16);
+    displayGlobalData.set([DisplayWidth, DisplayHeight, 0, 0], 20);
+    displayGlobalData.set([a, a * 1.02, a * 1.08, 0], 24);
+    displayGlobalData.set([elapsed, dt, 0, 0], 28);
+    device.queue.writeBuffer(displayGlobals, 0, displayGlobalData);
+
     if (State.backdrop === 'live') {
+      // Line width is in the DISPLAY's pixels now, because that is where the strip is rastered.
       packFibre(fibreData, StreakPreset, {
-        time: elapsed, width, height, projectionScale,
+        time: elapsed, width: DisplayWidth, height: DisplayHeight, projectionScale: displayScale,
         rows: placements[handles.housing],
       });
       device.queue.writeBuffer(fibreBuffer, 0, fibreData);
@@ -417,44 +510,66 @@ async function start() {
       });
       bind = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
-        entries: [{ binding: 0, resource: { buffer: globals } }, { binding: 1, resource: { buffer: figureBuffer } }],
+        entries: [{ binding: 0, resource: { buffer: displayGlobals } },
+                  { binding: 1, resource: { buffer: figureBuffer } }],
       });
     }
     device.queue.writeBuffer(figureBuffer, 0, packed.data);
 
     const encoder = device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: context.getCurrentTexture().createView(),
-        clearValue: { r: 0.012, g: 0.014, b: 0.018, a: 1 },
-        loadOp: 'clear',
-        storeOp: 'store',
-      }],
+    const sheet = (view, clear) => encoder.beginRenderPass({
+      colorAttachments: [{ view, clearValue: clear, loadOp: 'clear', storeOp: 'store' }],
     });
-    // The tablet first: an opaque body, marched, that everything else sits on.
+
+    // ── pass one: the display, into its own texture, through the panel's own frustum ───────────
+    //
+    // The clear is the black an unlit LCD sits at rather than the room's colour: this is inside
+    // the device now and the room cannot reach it.
+    const screen = sheet(displayView, { r: 0.0032, g: 0.0036, b: 0.0048, a: 1 });
+    screen.setPipeline(pipeline);
+    screen.setBindGroup(0, bind);
+    screen.draw(4, splitAt, 0, 0);
+
+    if (State.backdrop === 'live') {
+      screen.setPipeline(fibrePipeline);
+      screen.setBindGroup(0, fibreBind);
+      screen.draw(StreakPreset.strands * StreakPreset.segments * 6);
+      screen.setPipeline(sparkPipeline);
+      screen.setBindGroup(0, sparkBind);
+      screen.draw(StreakPreset.strands * 6);
+    }
+
+    screen.setPipeline(pipeline);
+    screen.setBindGroup(0, bind);
+    screen.draw(4, packed.count - splitAt, 0, splitAt);
+    screen.end();
+
+    // ── pass two: the glow. Bright pass down to a quarter, then one blur along each axis ───────
+    const cut = sheet(bloomView[0], { r: 0, g: 0, b: 0, a: 1 });
+    cut.setPipeline(bloomCutPipeline);
+    cut.setBindGroup(0, bloomCutBind);
+    cut.draw(3);
+    cut.end();
+
+    const across = sheet(bloomView[1], { r: 0, g: 0, b: 0, a: 1 });
+    across.setPipeline(bloomAcrossPipeline);
+    across.setBindGroup(0, bloomAcrossBind);
+    across.draw(3);
+    across.end();
+
+    const down = sheet(bloomView[0], { r: 0, g: 0, b: 0, a: 1 });
+    down.setPipeline(bloomDownPipeline);
+    down.setBindGroup(0, bloomDownBind);
+    down.draw(3);
+    down.end();
+
+    // ── pass three: the tablet in the room, which reads the display as a texture ───────────────
+    const pass = sheet(context.getCurrentTexture().createView(),
+                       { r: 0.012, g: 0.014, b: 0.018, a: 1 });
     pass.setPipeline(roomPipeline);
     pass.setBindGroup(0, roomBind);
     pass.draw(3);
 
-    // The interface is still one draw — the world is inserted between its two halves.
-    pass.setPipeline(pipeline);
-    pass.setBindGroup(0, bind);
-    pass.draw(4, splitAt, 0, 0);
-
-    if (State.backdrop === 'live') {
-      pass.setPipeline(fibrePipeline);
-      pass.setBindGroup(0, fibreBind);
-      pass.draw(StreakPreset.strands * StreakPreset.segments * 6);
-      pass.setPipeline(sparkPipeline);
-      pass.setBindGroup(0, sparkBind);
-      pass.draw(StreakPreset.strands * 6);
-    }
-
-    pass.setPipeline(pipeline);
-    pass.setBindGroup(0, bind);
-    pass.draw(4, packed.count - splitAt, 0, splitAt);
-
-    // The glass last, over the finished interface, because that is where a reflection lives.
     pass.setPipeline(glassPipeline);
     pass.setBindGroup(0, glassBind);
     pass.draw(4);
