@@ -84,6 +84,12 @@ jobs:
       - name: Gas obstruction — the three collision levels against the engine's own distance field
         run: python3 Tools/Build/RunAnnounced.py "gas obstruction" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasObstruction.py
 
+      - name: Fluid editor controls — the generated table against SceneSpecification.js
+        run: python3 Tools/Build/RunAnnounced.py "fluid controls" -- python3 Tools/Build/GenerateFluidEditorControls.py --check
+
+      - name: Fluid editor — the whole expanded page, drawn from real ImGui commands
+        run: python3 Tools/Build/RunAnnounced.py "fluid editor" -- python3 Exhibits/Workbench/FluidEditor/RunNativeFluidEditor.py
+
       - name: Gas field — reproducibility, budget, obstruction and the coupling switch
         run: python3 Tools/Build/RunAnnounced.py "gas field" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFieldChecks.py
 
