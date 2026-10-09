@@ -47,35 +47,82 @@ GLSL permits and WGSL does not, each of which it had to learn:
 
 `--check` fails if the written file is stale; CI runs it.
 
-## The streak field
+## The backdrop ladder
 
-A new category, ordinal **7**, after every category the engine already ships. It has no native
-counterpart yet, so it is the one shader written by hand, in `js/streaks.js`.
+The backdrop has three rungs, switchable in the page, because one answer cannot serve a panel you are
+pressing your nose against and a panel reflected in a windscreen forty metres away.
 
-**Why it is not the particle editor's actual particles.** The obvious build is to run the light-streak
-pass into a render target and bind it as the background. The spatial interface binds no texture at
-all, and `InterfacePanelSample.slang` gives the reason: a sampled background means a sampler binding,
-a texture lifetime and a second pass whose result a reflection ray cannot cheaply query. A panel that
-is a lit surface in a room has to be answerable at a hit point, not only at a screen pixel. So the
-streaks are a field — one more branch in the fragment shader that was already running.
+| rung | what it is | for |
+|---|---|---|
+| **Live** | the particle editor's real 3D Bézier fibres, as geometry | the panel being looked at |
+| **Field** | an analytic field evaluated in the panel's plane | distant panels, and reflections |
+| **Average** | one colour — the existing `Low` tier | far reflections |
 
-**What that cost.** The preset's fibres are cubic Béziers in 3D sampled over 72 segments: fine as
-geometry, hopeless per fragment, where the nearest point on a Bézier has no closed form. Each strand
-here is an explicit curve `y = f(x)` of two summed harmonics, so the distance to it is the vertical
-gap corrected by the slope — first order, exact on the curve, about twenty instructions. **A strand
-cannot double back on itself.** For light running across a panel that is not a loss; for the preset's
-root-cluster-to-reach spray it would be. This is a sibling of that effect, not a port of it.
+### Live — the real fibres, and why it is not a render target
 
-Everything that makes the preset read as light streaks is kept, because none of it needed the Bézier:
-the running head, the exponential wake behind it, the hard leading edge, the spark at the head,
-per-strand phase and pace from the editor's own hash (`fbHash`, bit for bit), and one additive tone
-map at the end.
+`js/fibres.js` ports `fbHash`, `fbUnit`, `fbBezier`, `fbPulse`, `fbRamp`, `fbColourAt` and both the
+fibre and spark stages out of `Experimental/ParticleEditor/js/shaders.js`, keeping the editor's own
+uniform slot numbering so the two can be read side by side. Not ported: ribbon and trail. A trail
+needs the arc-length path table as a storage buffer and a ribbon is a sheet rather than a volume, so
+the packer **refuses** any shape but `streak` instead of quietly falling back to it.
 
-Eight parameters ride in two vectors rather than in `ScalarAlpha`/`ScalarBeta`: strands, amplitude,
-waves, speed, tail, seed, intensity, core. Six do not fit in two floats, and a parameter smuggled into
-another one's slot is how a slot stops meaning anything. **The native 112-byte instance slot will have
-to grow the same way** — that is the first real cost of this category and it should be decided
-deliberately, not discovered.
+The obvious way to put a 3D world behind a UI panel is to render it offscreen and sample the texture.
+That is a sampler binding, a texture lifetime, a second pass, and a result a reflection ray cannot
+cheaply ask about — the objection `InterfacePanelSample.slang` already makes.
+
+But the engine has the mechanism a portal actually needs: the ⑥ **shader clip**, "a rounded rectangle
+in the figure's own plane ... works under any transform, unlike a scissor rectangle". So the fibres
+are drawn **in the same render pass**, in the panel's own local space, clipped by the panel's rounded
+rectangle in the fragment shader. Own pipeline, own vertex program, own geometry — a custom raster in
+every way that matters — and no offscreen target.
+
+An offscreen target earns its cost for exactly three things, none of which is "3D": **bloom**, a
+**camera of its own**, or a **resolution and refresh rate decoupled** from the panel's. Bloom is the
+real one, and part of why the editor's own streaks look as good as they do. Add it when it is wanted.
+
+Two things are new, because a fibre in a panel is not a fibre in a scene. The curve is built in
+**panel-local metres** and carried to the world by the panel's own transform rows, so moving the
+tablet moves the light inside it. And depth is handled at both ends: a strand dims with distance
+behind the glass (the cue that makes a volume read as a volume), and dims again over a 15 mm band as
+it approaches the surface, because a strand must not cross the glass and hang in the room — and a
+hard cut at the plane would show as a bright edge the moment the tablet is tilted.
+
+🔴 **The hull bound caught a real bug.** A cubic Bézier lies in the convex hull of its control points,
+so the volume can be bounded from the preset's numbers alone — no hash, no sampling, and no second
+copy of `fbBezier` to drift from the shader's. At the preset's own `spread` 1.2 and `amplitude` 2.4
+that hull reached about 0.14 m perpendicular to the axis, which through the curve-to-panel mapping put
+strands **ten centimetres in front of the glass** — light glowing in the room outside the tablet,
+where the lateral clip could not see it. They are 0.9 and 1.3 here, and `CheckHud` fails if the volume
+ever escapes forward again.
+
+The interface is still one `draw(4, instances)`; the world is inserted between its two halves —
+housing, face and field rung, then the fibres and sparks, then every control.
+
+### Field — the analytic rung
+
+A new category, ordinal **7**, after every category the engine already ships, hand-written in
+`js/streaks.js`.
+
+It is **flat by construction**: every strand sits at the same depth, so it slides with the surface
+instead of swimming behind it, and the eye reads that as paint rather than as light in a volume. That
+is not a tuning problem and no parameter work fixes it.
+
+It is kept anyway, because it is the only form of this backdrop that **can be answered at a hit
+point** — a closed-form function of a plane coordinate, which geometry is not. A reflection of the
+tablet, or a tablet at forty metres, gets this rung.
+
+Each strand is an explicit curve `y = f(x)` of two summed harmonics, so the distance to it is the
+vertical gap corrected by the slope — about twenty instructions, and **a strand cannot double back on
+itself**. Everything that makes the preset read as light streaks is kept, because none of it needed
+the Bézier: the running head, the exponential wake, the hard leading edge, the spark, per-strand phase
+and pace from the editor's own hash (`fbHash`, bit for bit), and one additive tone map.
+
+Eight parameters ride in two vectors rather than in `ScalarAlpha`/`ScalarBeta`. Six do not fit in two
+floats, and a parameter smuggled into another one's slot is how a slot stops meaning anything. **The
+native 112-byte instance slot will have to grow the same way** — the first real cost of this category,
+and it should be decided deliberately rather than discovered.
+
+### Either way, it is light
 
 The backdrop is an **Illuminant**, not an Overlay: it is light inside the glass, it feeds the panel's
 scene luminaire and pools on whatever the tablet stands on. A backdrop that lit nothing would read as
@@ -102,7 +149,7 @@ opaque, or transparency stops being the most significant bit of the key.
 
 ```
 python3 Tools/Build/GenerateHudShader.py --check     # the WGSL port is current
-node Experimental/SpatialHud/CheckHud.mjs            # PASS 87
+node Experimental/SpatialHud/CheckHud.mjs            # PASS 120
 ```
 
 Both run in `frontier-build.yml`. `CheckHud` covers the composition arithmetic (a quarter turn about
@@ -125,9 +172,16 @@ appearance.
 
 ## Still open
 
-- Nothing is ported to C++ yet. The order would be: the streak field into
-  `InterfaceSignedDistance.slang`, the slot growth for its eight parameters, the sort-key decision
-  above, then the composition into a new project-side sequence beside `InterfaceTrialSequence`.
+- Nothing is ported to C++ yet. The order would be: the fibre stages as a second pipeline beside the
+  interface raster (they are already the editor's own code, which the engine does not yet have at
+  all), the field rung into `InterfaceSignedDistance.slang`, the slot growth for its eight
+  parameters, the sort-key decision above, then the composition into a new project-side sequence
+  beside `InterfaceTrialSequence`.
+- **Bloom.** The one thing that would justify an offscreen target. The Live rung is additive glow in
+  the main pass, which gets most of the way and not all of it.
+- **Which rung, chosen by what.** The ladder exists but nothing selects between its rungs
+  automatically — the page has three buttons. Native, this wants the same treatment as the gas
+  quality ladder: a distance and a budget, not a switch.
 - **The panel is not interactive.** `InterfacePointerProjection` already exists natively and the
   trial panel already handles a pointer contact; the browser page drives values from sliders and a
   scripted cycle instead. Pressing the toggle and dragging the slider *on the panel* is the next

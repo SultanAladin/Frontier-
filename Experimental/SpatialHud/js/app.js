@@ -8,8 +8,11 @@ import { pack, resolve, FloatsPerFigure } from './figures.js';
 import { SDF_WGSL } from './sdf.generated.js';
 import { STREAK_WGSL } from './streaks.js';
 import { constructHudLayout, assignValues } from './layout.js';
+import { FIBRE_WGSL, packFibre, StreakPreset, FibreFloats } from './fibres.js';
 
-const Shell = `
+// Module-scope declarations come first so the fibre stages can reach the globals the figure stages
+// also use. One module, one shader compilation, three pipelines off it.
+const Prelude = `
 struct Globals {
   viewClip : mat4x4f,
   eye      : vec4f,     // xyz = eye
@@ -33,7 +36,9 @@ struct Fig {
 
 @group(0) @binding(0) var<uniform> G : Globals;
 @group(0) @binding(1) var<storage, read> Figures : array<Fig>;
+`;
 
+const Stages = `
 struct Varying {
   @builtin(position) Position : vec4f,
   @location(0) @interpolate(flat) Figure : u32,
@@ -175,6 +180,9 @@ const State = {
   orbit: 0.42, tilt: 0.18, distance: 0.78,
   running: true, demo: true,
   streak: null,
+  // The backdrop ladder. 'live' is the real 3D fibres; 'field' is the analytic plane field, which
+  // is the rung a reflection or a distant panel gets; 'off' is neither.
+  backdrop: 'live',
 };
 
 async function start() {
@@ -199,7 +207,7 @@ async function start() {
 
   const module = device.createShaderModule({
     label: 'spatial interface',
-    code: `${SDF_WGSL}\n${STREAK_WGSL}\n${Shell}`,
+    code: `${Prelude}\n${SDF_WGSL}\n${STREAK_WGSL}\n${FIBRE_WGSL}\n${Stages}`,
   });
 
   const info = await module.getCompilationInfo();
@@ -228,6 +236,27 @@ async function start() {
     primitive: { topology: 'triangle-strip' },
   });
 
+  // The world behind the glass. Additive, because light adds: two strands crossing are brighter
+  // than either, and that is not an alpha blend. No depth buffer is bound at all — every figure in
+  // this composition is coplanar to within three millimetres, so depth would z-fight rather than
+  // resolve, and the fibres are glow that should never occlude anything anyway.
+  const additive = {
+    color: { srcFactor: 'one', dstFactor: 'one' },
+    alpha: { srcFactor: 'one', dstFactor: 'one' },
+  };
+  const fibrePipeline = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module, entryPoint: 'vsFibre' },
+    fragment: { module, entryPoint: 'fsFibre', targets: [{ format, blend: additive }] },
+    primitive: { topology: 'triangle-list' },
+  });
+  const sparkPipeline = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module, entryPoint: 'vsSpark' },
+    fragment: { module, entryPoint: 'fsSpark', targets: [{ format, blend: additive }] },
+    primitive: { topology: 'triangle-list' },
+  });
+
   const { structure, handles } = constructHudLayout();
   State.streak = structure.query(handles.streaks).streak.slice();
 
@@ -241,6 +270,15 @@ async function start() {
     layout: pipeline.getBindGroupLayout(0),
     entries: [{ binding: 0, resource: { buffer: globals } }, { binding: 1, resource: { buffer: figureBuffer } }],
   });
+
+  const fibreData = new Float32Array(FibreFloats);
+  const fibreBuffer = device.createBuffer({
+    size: fibreData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const fibreEntries = [{ binding: 0, resource: { buffer: globals } },
+                        { binding: 2, resource: { buffer: fibreBuffer } }];
+  const fibreBind = device.createBindGroup({ layout: fibrePipeline.getBindGroupLayout(0), entries: fibreEntries });
+  const sparkBind = device.createBindGroup({ layout: sparkPipeline.getBindGroupLayout(0), entries: fibreEntries });
 
   const boostChannel = new Channel(260, 22);
   const fillChannel = new Channel(220, 30, State.regen);
@@ -295,9 +333,19 @@ async function start() {
       -Math.cos(State.orbit) * Math.cos(State.tilt) * State.distance,
       Math.sin(State.tilt) * State.distance,
     ];
+    const fieldOfView = 0.62;
     const view = lookAt(eye, [0, 0, 0], [0, 0, 1]);
-    const projection = perspective(0.62, width / height, 0.02, 40);
+    const projection = perspective(fieldOfView, width / height, 0.02, 40);
     const viewClip = multiply(projection, view);
+
+    // Pixels per world metre at w = 1, which is how the fibres keep a constant pixel width at any
+    // distance — the same quantity the particle editor passes as projScale.
+    const projectionScale = 0.5 * height / Math.tan(fieldOfView * 0.5);
+
+    // The analytic field is a RUNG, not a fallback: it is the only form of this backdrop that can
+    // be answered at a hit point, because it is a closed-form function of a plane coordinate and
+    // geometry is not. It is drawn only when it is the rung in use.
+    structure.query(handles.streaks).opacity = State.backdrop === 'field' ? State.fieldOpacity : 0;
 
     globalData.set(viewClip, 0);
     globalData.set([eye[0], eye[1], eye[2], 0], 16);
@@ -309,6 +357,19 @@ async function start() {
 
     const { placements } = resolve(structure);
     const packed = pack(structure, placements, eye);
+
+    // Where the world goes: after the housing, the face and the field rung, before every control.
+    const backdropRank = structure.query(handles.streaks).orderingRank;
+    let splitAt = packed.order.findIndex((at) => structure.query(at).orderingRank > backdropRank);
+    if (splitAt < 0) splitAt = packed.count;
+
+    if (State.backdrop === 'live') {
+      packFibre(fibreData, StreakPreset, {
+        time: elapsed, width, height, projectionScale,
+        rows: placements[handles.housing],
+      });
+      device.queue.writeBuffer(fibreBuffer, 0, fibreData);
+    }
 
     if (packed.count > capacity) {
       capacity = packed.count * 2;
@@ -333,9 +394,23 @@ async function start() {
         storeOp: 'store',
       }],
     });
+    // The interface is still one draw — the world is inserted between its two halves.
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bind);
-    pass.draw(4, packed.count);        // the entire interface, in one draw
+    pass.draw(4, splitAt, 0, 0);
+
+    if (State.backdrop === 'live') {
+      pass.setPipeline(fibrePipeline);
+      pass.setBindGroup(0, fibreBind);
+      pass.draw(StreakPreset.strands * StreakPreset.segments * 6);
+      pass.setPipeline(sparkPipeline);
+      pass.setBindGroup(0, sparkBind);
+      pass.draw(StreakPreset.strands * 6);
+    }
+
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bind);
+    pass.draw(4, packed.count - splitAt, 0, splitAt);
     pass.end();
     device.queue.submit([encoder.finish()]);
 
@@ -343,8 +418,9 @@ async function start() {
     if (now - frameClock > 0.5) {
       rate = frames / (now - frameClock);
       frames = 0; frameClock = now;
+      const strands = State.backdrop === 'live' ? ` · ${StreakPreset.strands} fibres` : '';
       document.getElementById('readout').textContent =
-        `${packed.count} figures · 1 draw · ${rate.toFixed(0)} fps`;
+        `${packed.count} figures${strands} · ${rate.toFixed(0)} fps`;
     }
     requestAnimationFrame(frame);
   }
@@ -352,6 +428,16 @@ async function start() {
 }
 
 // ── the control rail ─────────────────────────────────────────────────────────────────────────────
+
+const RungNotes = {
+  live: 'Real 3D Bézier fibres, drawn as geometry in the volume behind the glass and clipped by the '
+      + "panel's own rounded rectangle. Parallax is real — orbit the tablet and the light swims "
+      + 'behind the surface.',
+  field: 'The analytic plane field. Flat by construction: every strand is at the same depth, so it '
+       + 'slides with the surface instead of swimming behind it. This is the rung a reflection or a '
+       + 'distant panel gets, because it can be answered at a hit point.',
+  off: 'No backdrop. The instrument on a bare card.',
+};
 
 const StreakFields = [
   ['strands', 0, 1, 48, 1], ['amplitude', 1, 0, 0.06, 0.001], ['waves', 2, 0.2, 8, 0.1],
@@ -375,10 +461,20 @@ function wireControls(structure, handles) {
     });
   }
 
-  const opacity = document.querySelector('[data-field="backdrop"]');
-  opacity.addEventListener('input', () => {
-    structure.query(handles.streaks).opacity = Number(opacity.value);
+  State.fieldOpacity = Number(document.querySelector('[data-field="fieldOpacity"]').value);
+  document.querySelector('[data-field="fieldOpacity"]').addEventListener('input', (event) => {
+    State.fieldOpacity = Number(event.target.value);
   });
+
+  for (const button of document.querySelectorAll('[data-rung]')) {
+    button.addEventListener('click', () => {
+      State.backdrop = button.dataset.rung;
+      for (const other of document.querySelectorAll('[data-rung]')) {
+        other.classList.toggle('on', other === button);
+      }
+      document.getElementById('rung-note').textContent = RungNotes[State.backdrop];
+    });
+  }
 
   for (const name of ['speed', 'boost', 'regen', 'ambient']) {
     const input = document.querySelector(`[data-field="${name}"]`);
@@ -396,6 +492,7 @@ function wireControls(structure, handles) {
   document.querySelector('[data-field="demo"]').addEventListener('change', (event) => {
     State.demo = event.target.checked;
   });
+  document.getElementById('rung-note').textContent = RungNotes[State.backdrop];
   reflectControls();
 }
 

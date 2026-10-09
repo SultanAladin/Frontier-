@@ -12,6 +12,7 @@
 import { Category, Slot, Structure, Figure, Detached, resolve, pack, composePlacement,
          combinePlacement, composeSortKey, OpaqueThreshold, FloatsPerFigure } from './js/figures.js';
 import { constructHudLayout, assignValues, PanelHalfWidth, PanelHalfHeight } from './js/layout.js';
+import { StreakPreset, packFibre, FibreFloats, FIBRE_WGSL } from './js/fibres.js';
 import { SDF_WGSL } from './js/sdf.generated.js';
 import { STREAK_WGSL } from './js/streaks.js';
 
@@ -295,6 +296,98 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
           .every((One, at) => Math.abs(One - wanted[at]) < 1e-7));
   Near('the category rides in the scalar vector',
        packed.data[streakSlot + 20], Category.StreakField);
+}
+
+// ── the live rung: the fibre volume ────────────────────────────────────────────────────────────
+// 🔴 WHERE THE LIGHT ACTUALLY GOES, BOUNDED WITHOUT RE-IMPLEMENTING THE CURVE.
+//
+//    A cubic Bézier lies in the convex hull of its four control points, so the volume the strands
+//    occupy can be bounded from the preset's numbers alone — no hash, no sampling, and no second
+//    copy of fbBezier here to drift from the one in the shader. Along the axis the hull spans
+//    0..length; perpendicular to it, every control point is within 1.6·spread + amplitude.
+//
+//    This caught a real bug. At the preset's own spread and amplitude the hull reached about
+//    0.14 m perpendicular, which through the curve-to-panel mapping put strands TEN CENTIMETRES IN
+//    FRONT OF THE GLASS — light glowing in the room outside the tablet, laterally clipped and so
+//    invisible to the lateral clip that was supposed to contain it.
+
+{
+  const p = StreakPreset;
+  const axis = (() => {
+    const d = p.direction;
+    const l = Math.hypot(d[0], d[1], d[2]);
+    return [d[0] / l, d[1] / l, d[2] / l];
+  })();
+  const perpendicular = 1.6 * p.spread + p.amplitude;
+  const span = (component) => {
+    const reach = p.length * axis[component];
+    return [Math.min(0, reach) - perpendicular, Math.max(0, reach) + perpendicular];
+  };
+  // Curve space is (along, lateral, lift); the panel mapping is x -> X, z -> Y, y -> DEPTH.
+  const [ax0, ax1] = span(0), [ay0, ay1] = span(1), [az0, az1] = span(2);
+  const X = [p.origin[0] + ax0 * p.scale, p.origin[0] + ax1 * p.scale];
+  const Y = [p.origin[1] + az0 * p.scale, p.origin[1] + az1 * p.scale];
+  const Z = [p.origin[2] + ay0 * p.scale, p.origin[2] + ay1 * p.scale];
+
+  const faceX = PanelHalfWidth - 0.012, faceY = PanelHalfHeight - 0.012;
+
+  Claim(`the fibre volume never reaches past the glass (front face at ${Z[1].toFixed(4)} m, `
+        + `fade band ${p.glassFade} m)`, Z[1] <= p.glassFade + 1e-9);
+  Claim(`the volume stays within a sane depth (back face at ${Z[0].toFixed(4)} m)`, Z[0] > -0.40);
+  Claim('the volume covers the full width of the face', X[0] <= -faceX && X[1] >= faceX);
+  Claim('the volume covers the full height of the face', Y[0] <= -faceY && Y[1] >= faceY);
+  Claim('the strands are longer than the panel, so none begins or ends in view',
+        (X[1] - X[0]) > faceX * 2);
+}
+
+{
+  const view = {
+    time: 3.0, width: 1600, height: 900, projectionScale: 1404,
+    rows: [[1, 0, 0, 0.5], [0, 0, -1, 0], [0, 1, 0, 1.2]],
+  };
+  const packed = packFibre(new Float32Array(FibreFloats), StreakPreset, view);
+  Claim('the fibre uniform is 27 vec4s', FibreFloats === 108 && packed.length === 108);
+
+  Near('slot 0 carries the panel-local origin', packed[0], StreakPreset.origin[0]);
+  Near('...and the scale', packed[3], StreakPreset.scale);
+  const d = StreakPreset.direction, dl = Math.hypot(d[0], d[1], d[2]);
+  Near('slot 1 carries a normalised direction', Math.hypot(packed[4], packed[5], packed[6]), 1, 1e-6);
+  Near('...pointing along the preset axis', packed[4], d[0] / dl, 1e-7);
+  Near('slot 8 carries the strand count', packed[8 * 4 + 1], StreakPreset.strands);
+  Near('the loop fraction wraps inside the period', packed[4 * 4 + 1], 0.25, 1e-9);
+
+  // The panel's rows must reach the shader, or the light would sit in the room rather than in the
+  // tablet and would not move when the tablet does.
+  Near('the panel row X lands in slot 22', packed[22 * 4 + 3], 0.5);
+  Near('the panel row Y lands in slot 23', packed[23 * 4 + 2], -1);
+  Near('the panel row Z lands in slot 24', packed[24 * 4 + 3], 1.2, 1e-6);
+  Near('the clip carries the face half width', packed[25 * 4], PanelHalfWidth - 0.012);
+  Near('the clip carries the face half height', packed[25 * 4 + 1], PanelHalfHeight - 0.012);
+  Near('the glass band reaches the shader', packed[26 * 4], StreakPreset.glassFade);
+
+  // Stop positions must ascend, or fbRamp walks off the end of its own ramp.
+  const positions = [0, 1, 2, 3, 4, 5, 6, 7].map((at) => packed[(20 + (at >> 2)) * 4 + (at & 3)]);
+  Claim(`stop positions ascend: ${positions.join(', ')}`,
+        positions.every((One, at) => at === 0 || One >= positions[at - 1]));
+  Near('the first stop sits at zero', positions[0], 0);
+
+  let refused = false;
+  try { packFibre(new Float32Array(FibreFloats), { ...StreakPreset, shape: 'ribbon' }, view); }
+  catch { refused = true; }
+  Claim('an unported shape is refused rather than silently drawn as a streak', refused);
+}
+
+{
+  // The live rung is the editor's own code, so the functions it was ported from have to be present
+  // and have to still be the editor's. A rewrite here is how a port stops being a port.
+  for (const name of ['fbHash', 'fbUnit', 'fbBezier', 'fbPulse', 'fbRamp', 'fbColourAt',
+                      'vsFibre', 'fsFibre', 'vsSpark', 'fsSpark']) {
+    Claim(`the fibre shader carries ${name}`, FIBRE_WGSL.includes(`fn ${name}`));
+  }
+  Claim('the fibre shader clips with the engine\'s own rounded rectangle',
+        FIBRE_WGSL.includes('DistanceRoundedRectangle(i.panel.xy, FB.clip.xy, FB.clip.z)'));
+  Claim('the unported shapes are absent, not stubbed',
+        !FIBRE_WGSL.includes('fbWave') && !FIBRE_WGSL.includes('fbTrail'));
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────────────────────────

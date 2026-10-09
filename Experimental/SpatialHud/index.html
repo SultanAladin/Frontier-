@@ -24,11 +24,21 @@
   </p>
 
   <section>
-    <h2>Streak field</h2>
+    <h2>Backdrop</h2>
+    <div class="rungs">
+      <button data-rung="live" class="on">Live</button>
+      <button data-rung="field">Field</button>
+      <button data-rung="off">Off</button>
+    </div>
+    <p class="blurb" id="rung-note"></p>
+  </section>
+
+  <section>
+    <h2>Field rung</h2>
     <p class="blurb">
-      The backdrop. An analytic sibling of the particle editor's <em>Light streaks</em> preset — a
-      running head, an exponential wake and a spark, on an explicit curve instead of a Bézier, so it
-      costs about twenty instructions a strand and binds no texture.
+      The analytic sibling of the <em>Light streaks</em> preset — running head, exponential wake and
+      spark, on an explicit curve instead of a Bézier. These sliders drive the <strong>Field</strong>
+      rung only.
     </p>
     <label>strands <input type="range" data-streak="strands" min="1" max="48" step="1"><output></output></label>
     <label>amplitude <input type="range" data-streak="amplitude" min="0" max="0.06" step="0.001"><output></output></label>
@@ -38,7 +48,7 @@
     <label>seed <input type="range" data-streak="seed" min="0" max="64" step="1"><output></output></label>
     <label>intensity <input type="range" data-streak="intensity" min="0" max="4" step="0.01"><output></output></label>
     <label>core <input type="range" data-streak="core" min="0.0005" max="0.012" step="0.0001"><output></output></label>
-    <label>backdrop opacity <input type="range" data-field="backdrop" min="0" max="1" step="0.01" value="0.85"></label>
+    <label>field opacity <input type="range" data-field="fieldOpacity" min="0" max="1" step="0.01" value="0.85"></label>
   </section>
 
   <section>
