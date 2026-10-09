@@ -154,6 +154,36 @@ scene luminaire and pools on whatever the tablet stands on. A backdrop that lit 
 a sticker the moment the room went dark. Drop the ambient slider to see the bezel sink while the
 streaks, the arc and the lit knob stay.
 
+## 🔴 The clip belongs at the aperture, not at the strand
+
+The first version of the fibre clip asked whether the strand's own panel `xy` fell inside the face
+rectangle. That is a **flat** test — correct for a decal, wrong for a window — and it looked
+perfectly fine in every screenshot anyone had taken, because head-on the two agree.
+
+Orbit past about sixty degrees and it falls apart: a volume sitting 80–140 mm **behind** the glass
+projects **outside** the panel's screen outline at a steep angle. A strand comfortably inside the
+rectangle in panel space ends up well outside the tablet on screen, so the light sprayed off the
+side and hung in the room.
+
+A window decides what can be seen through it **at the window**. `fbAperture` carries the sightline
+from the eye to the strand forward to the glass plane (`panel z = 0`) and evaluates the rounded
+rectangle there:
+
+```
+cross     = (0 - eye.z) / (panel.z - eye.z)
+aperture  = eye.xy + (panel.xy - eye.xy) * cross
+```
+
+That is a portal, and it costs one ray-plane intersection in panel space — still no stencil, no
+scissor, no render target, and it still holds under any transform. The eye reaches panel space
+through the **transpose** of the panel rows, which is free because the rotation is orthonormal.
+
+The back of the tablet is opaque as well (`fbEyePanel().z <= 0` discards). Without it the volume is
+simply visible from behind, which is the same mistake wearing different clothes.
+
+`Stills/Grazing.png` is the angle that exposed it. `CheckHud` pins the clip **site**, not just its
+presence, so nobody quietly puts it back on the strand.
+
 ## 🔴 A finding about the native sort key
 
 `ComposeInterfaceSortKey` puts transparency in the **top** bit, so every transparent figure submits
