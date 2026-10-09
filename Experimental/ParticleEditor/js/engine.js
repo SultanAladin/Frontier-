@@ -1,8 +1,8 @@
 // WebGPU engine for the Particle Editor: buffers, pipelines, per-frame encoding and
 // asynchronous CPU readbacks. Scene logic (emission, UI, camera) lives in app.js.
-(function () {
-  "use strict";
-  const PE = (window.PE = window.PE || {});
+// 📝 Converted from an IIFE to an ES module; the body keeps its two-space indent so that `git blame`
+//    still points at whoever wrote each line rather than at the conversion.
+import { PE } from "./pe.js";
 
   // Offsets into the System uniform, in vec4 slots (16 floats each). Mirrored in shaders.js.
   PE.SYS_SLOT = {
@@ -656,4 +656,3 @@
       set("misc", p.sizeScale, p.pulseHz, p.pulseDepth, tr && tr.shell ? tr.shell : 0);
     }
   };
-})();

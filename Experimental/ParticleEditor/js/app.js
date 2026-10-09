@@ -1,7 +1,19 @@
 // Particle Editor application: scene state, frame loop, camera, outliner and inspector.
-(function () {
-  "use strict";
-  const PE = window.PE;
+// 📝 Converted from an IIFE to an ES module; the body keeps its two-space indent so that `git blame`
+//    still points at whoever wrote each line rather than at the conversion.
+// The entry module. These are imported for their effect on the shared namespace, in the order
+//    they depend on one another: fibres defines hexLinear that presets reads, engine defines
+//    WIND that this file reads below. ES modules evaluate in import order, so this is the old
+//    script-tag order made explicit and checkable instead of implied by the HTML.
+import { PE } from "./pe.js";
+import "./fibres.js";
+import "./presets.js";
+import "./shaders.js";
+import "./engine.js";
+import "./lightning.js";
+import "./forcefields.js";
+import "./edits.js";
+import "./handoff.js";
   const $ = (sel) => document.querySelector(sel);
 
   // ----------------------------------------------------------------- small helpers
@@ -1241,5 +1253,8 @@
     }
   }
 
-  window.addEventListener("DOMContentLoaded", boot);
-})();
+  // 🔴 A module script is deferred by definition: it runs after the document has been parsed, so
+  //    DOMContentLoaded has usually ALREADY FIRED by the time this line is reached and a listener would
+  //    never be called. Boot now if the parse is done, and wait only if it somehow is not.
+  if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", boot);
+  else boot();

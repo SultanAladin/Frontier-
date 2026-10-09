@@ -1,8 +1,9 @@
 // WGSL sources for the Particle Editor. Each module declares only the bindings it
 // uses; the bind group layouts live in engine.js. Units: metres and seconds.
-(function () {
-  "use strict";
-  const PE = (window.PE = window.PE || {});
+// 📝 Converted from an IIFE to an ES module. The body keeps its two-space indent on purpose: this
+//    file holds WGSL in template literals, and dedenting would edit the shader source. Everywhere
+//    else it keeps `git blame` pointing at whoever wrote the line rather than at this commit.
+import { PE } from "./pe.js";
 
   // Shared structs and helpers. Every System uniform field is one vec4 (16 floats);
   // the offsets are mirrored in engine.js (SYS_SLOT).
@@ -1498,4 +1499,3 @@ fn fsLens(@builtin(position) fc: vec4f) -> @location(0) vec4f {
     render: COMMON + RENDER,
     fibre: COMMON + FIBRE,
   };
-})();

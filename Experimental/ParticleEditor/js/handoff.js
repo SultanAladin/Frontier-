@@ -15,9 +15,9 @@
 //    A slow safety net remains behind the subscription, at a much longer interval, for the writes that do
 //    not come from a row at all — a preset applied in code, a system removed. Catching those within a
 //    couple of seconds is enough; they are not what an author is dragging.
-(function () {
-  "use strict";
-  const PE = (window.PE = window.PE || {});
+// 📝 Converted from an IIFE to an ES module; the body keeps its two-space indent so that `git blame`
+//    still points at whoever wrote each line rather than at the conversion.
+import { PE } from "./pe.js";
 
   const SETTLE_MS = 90;    // [ms] edits are coalesced for this long, so dragging a slider posts once
   const SWEEP_MS = 2000;   // [ms] the safety net, for changes that never passed through a row
@@ -133,4 +133,3 @@
   }
 
   PE.Handoff = { Describe, Admit, Writable, Same, Install, SETTLE_MS, SWEEP_MS };
-})();

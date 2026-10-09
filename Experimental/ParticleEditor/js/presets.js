@@ -1,8 +1,8 @@
 // Particle system presets and default scene content.
 // All lengths are metres, speeds m/s, times seconds. Colours are linear RGBA 0..1.
-(function () {
-  "use strict";
-  const PE = (window.PE = window.PE || {});
+// 📝 Converted from an IIFE to an ES module; the body keeps its two-space indent so that `git blame`
+//    still points at whoever wrote each line rather than at the conversion.
+import { PE } from "./pe.js";
 
   // Every parameter a system can carry. Presets override a subset.
   PE.baseParams = function baseParams() {
@@ -706,4 +706,3 @@
 
   // Default scene: a few systems visible at once; the rest are one click away in "Add".
   PE.defaultScene = ["sparks", "leaves", "atoms", "chemicals"];
-})();

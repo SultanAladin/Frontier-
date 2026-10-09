@@ -2,9 +2,9 @@
 // Fibres are not simulated. The GPU evaluates each fibre's curve per vertex from the loop
 // phase, so a fibre system costs one uniform write (plus a path table when its path changes).
 // Packing here must match struct Fib in shaders.js.
-(function () {
-  "use strict";
-  const PE = (window.PE = window.PE || {});
+// 📝 Converted from an IIFE to an ES module; the body keeps its two-space indent so that `git blame`
+//    still points at whoever wrote each line rather than at the conversion.
+import { PE } from "./pe.js";
 
   PE.PATH_SAMPLES = 512;                                   // arc-length table size for trails
   PE.FIBRE_SHAPES = ["streak", "ribbon", "trail"];         // Bezier streak, Wave sheet, Path trail
@@ -153,4 +153,3 @@
       out[(20 + (k >> 2)) * 4 + (k & 3)] = pos;
     }
   };
-})();

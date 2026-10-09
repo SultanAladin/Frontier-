@@ -15,9 +15,9 @@
 // The cost of choosing the widget layer, stated plainly: an edit made in code rather than by a person is
 //    not announced. That is the right side to err on — this exists to report authoring, and a programmatic
 //    write (a preset being applied, a host message being admitted) is the caller's own business to report.
-(function () {
-  "use strict";
-  const PE = (window.PE = window.PE || {});
+// 📝 Converted from an IIFE to an ES module; the body keeps its two-space indent so that `git blame`
+//    still points at whoever wrote each line rather than at the conversion.
+import { PE } from "./pe.js";
 
   const Watchers = [];
   let Subject = null;     // the system whose rows are currently being built
@@ -74,4 +74,3 @@
   }
 
   PE.Edits = { For, Subscribe, Quietly, Announce, Through, Watchers };
-})();

@@ -2,13 +2,13 @@
 //
 //     node Experimental/ParticleEditor/CheckHandoff.mjs
 //
-// The page is three IIFEs over a window global rather than modules, so this builds the smallest window
-// they need and evaluates handoff.js into it. That is uglier than an import and it is the honest cost of
-// the file not being a module; it is recorded in Docs/ParticleEditor.md as the thing to fix.
-import { readFileSync } from "node:fs";
+// The page is ES modules now, so this imports the two under test directly rather than evaluating them
+// into a hand-built window. It still has to supply a `window`, because Install() legitimately reaches for
+// one -- that is what it is for.
+import { PE } from "./js/pe.js";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import vm from "node:vm";
 
 const Here = dirname(fileURLToPath(import.meta.url));
 
@@ -36,11 +36,11 @@ const Window = {
   parent: null,
 };
 Window.window = Window;
-const Sandbox = vm.createContext({ window: Window, JSON, Object, Array, Number, String, console });
-vm.runInContext(readFileSync(join(Here, "js/edits.js"), "utf8"), Sandbox);
-vm.runInContext(readFileSync(join(Here, "js/handoff.js"), "utf8"), Sandbox);
-const Handoff = Window.PE.Handoff;
-const Edits = Window.PE.Edits;
+globalThis.window = Window;
+await import("./js/edits.js");
+await import("./js/handoff.js");
+const Handoff = PE.Handoff;
+const Edits = PE.Edits;
 
 Banner("Describing what is selected");
 {
@@ -199,6 +199,48 @@ Banner("Framed, it reports an edit instead of waiting for a poll");
   Check(Edits.Watchers.length === After && After === 0,
         "and closing the page lets go of the funnel");
   Window.parent = null;
+}
+
+Banner("How the page loads");
+{
+  const Page = readFileSync(join(Here, "index.html"), "utf8");
+  const Modules = ["pe", "fibres", "presets", "shaders", "engine", "lightning", "forcefields",
+                   "edits", "handoff", "app"];
+  const Sources = Object.fromEntries(
+    Modules.map((Name) => [Name, readFileSync(join(Here, "js", Name + ".js"), "utf8")]));
+
+  Check(!/\?v=\d/.test(Page.replace(/<!--[\s\S]*?-->/g, "")),
+        "no hand-maintained cache-busting query strings are left in the page -- forgetting to bump one "
+        + "was how a stale script got served");
+  Check((Page.match(/<script/g) || []).length === 1 && Page.includes('type="module" src="js/app.js"'),
+        "one entry module replaces the eight ordered script tags");
+
+  for (const Name of Modules) {
+    Check(!Sources[Name].includes("(function () {"),
+          `js/${Name}.js is a module, not an IIFE over a global`);
+  }
+  Check(Modules.filter((Name) => Name !== "pe" && Name !== "app")
+               .every((Name) => Sources[Name].includes('import { PE } from "./pe.js"')),
+        "and every one of them imports the namespace rather than reaching for window");
+
+  // Dependency order used to live in the HTML, where nothing could check it. Now it is in app.js.
+  const Imported = [...Sources.app.matchAll(/import "\.\/(\w+)\.js"/g)].map((One) => One[1]);
+  Check(Imported.join(",") === "fibres,presets,shaders,engine,lightning,forcefields,edits,handoff",
+        "the entry imports the rest in the dependency order the script tags used to imply");
+  Check(Imported.indexOf("fibres") < Imported.indexOf("presets"),
+        "fibres before presets, because presets reads PE.hexLinear while it is being evaluated");
+  Check(Sources.app.indexOf('import "./engine.js"') < Sources.app.indexOf("PE.WIND"),
+        "and engine before this file's own top-level read of PE.WIND");
+
+  for (const Specifier of [...Sources.app.matchAll(/from "\.\/([\w./]+)"|import "\.\/([\w./]+)"/g)]) {
+    const Target = Specifier[1] || Specifier[2];
+    Check(existsSync(join(Here, "js", Target)),
+          `the entry's import of ./${Target} resolves to a file that exists`);
+  }
+
+  Check(Sources.app.includes('document.readyState === "loading"'),
+        "\u{1f534} and it does not wait on DOMContentLoaded unconditionally -- a module script is deferred, "
+        + "so that event has already fired by the time it runs and the page would never boot");
 }
 
 console.log("\nPASS " + Checks);

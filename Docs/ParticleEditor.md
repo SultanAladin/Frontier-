@@ -257,3 +257,83 @@ instead of `ConsumeFluidEditorRequest()` for an emitter row.
 Radius → `radius`, Rise Speed → `buoyancy`, Swirl → `swirl`. Smoke, Fuel and Temperature do not, and this
 is deliberate: those are fields a fluid solver integrates, and a particle system has no fields. A made-up
 conversion would be worse than none, because it would look as though it worked.
+
+## Force fields — the umbrella wind turned out to be one of
+
+`js/forcefields.js` is the design reference; `CheckForceFields.mjs` holds it to 45 checks. Nothing is
+renamed by it. `Engine/DisplayPresentation/WindField.h` keeps its name and its job — it is the
+atmospheric model (Ekman shear and veer, gust envelope, curl turbulence), it is well tested, and it
+becomes the solver *behind* the flow kinds rather than being replaced by them.
+
+**The distinction that matters is not what a field is called, it is what a field returns.** Three
+contributions, and every field is exactly one:
+
+| Contribution | Returns | Applied as | Members |
+| --- | --- | --- | --- |
+| **Flow** | velocity, m/s | `v += (F(p) − v)·k·dt` — relaxed toward, at the *receiver's* coupling | prevailing wind, gust front, tornado, blast outflow, current |
+| **Accelerate** | acceleration, m/s² | `v += F(p)·dt` — coupling has no say | gravity, attractor, repulsor, lift, magnetic dipole, orbit |
+| **Damp** | rate, 1/s | `v *= exp(−F(p)·dt)` | drag volume |
+
+Eight of the twelve kinds are not new. Four are the wind components `buildWind` already sums into the
+lattice and four are the force types `fieldAccel` already evaluates per particle — and they sort cleanly,
+all four winds into Flow and all four forces into Accelerate. The split fell out of the existing code; it
+was not imposed on it. That is the evidence the umbrella is a description rather than a wish.
+
+### Why gravity cannot just be another wind
+
+This is the trap the rename invites, so it is asserted numerically rather than claimed in a comment:
+
+| | |
+| --- | --- |
+| ✔️ | As an **acceleration**, gravity changes a leaf's and a hailstone's velocity by *the same* amount in one step. That is the whole content of Galileo's claim and is not negotiable. |
+| ❌ | As a **flow** of the same number, the leaf falls more than fifty times faster than the hailstone, because a flow is relaxed toward at the receiver's own coupling. |
+| ❌ | And a receiver with **no wind coupling ignores it entirely** — smuggled-in gravity reaches nothing the wind does not already move. |
+| ✔️ | Conversely, ten seconds in an 8 m/s wind leaves a receiver at 8 m/s and no faster; ten seconds of the same number as an acceleration is past 70 m/s and still climbing. One bucket could not have produced both. |
+
+It pays for itself on performance too. Flow fields sum into one 3D velocity texture per frame and sample
+in O(1) however many there are — which is exactly what `buildWind` already does. Acceleration fields
+cannot: the useful ones are unbounded, and a bounded box would clip them. `Bakeable()` makes that
+queryable so the engine does not re-derive it and the two cannot disagree.
+
+### What the checks found
+
+🔴 **The absence of wind is not a wind of zero.** Relaxing toward a flow of `[0,0,0]` is a brake, so an
+empty field list silently slowed everything to a stop — a receiver in a place no wind reaches would be
+stopped by the *mere absence* of wind, invisibly. `Resolve` now reports `Flowing`, decided by reach and
+the time window rather than by the sampled magnitude, and `Advance` relaxes only when something is
+genuinely there. Air that is *deliberately* still does still slow you down; empty space does not.
+
+### Who responds
+
+Per the same rule the gas colliders follow, the responding set is data. A field names the channels it
+acts on (empty = everything) and a receiver names the channels it is in. "This room is on the Moon, but
+only for the rubble" is authored, never compiled in.
+
+### Still open
+
+- The editor's existing `state.fields` and wind panel have not yet been moved onto this spec — it is the
+  reference, and the migration is the next step, browser first and then the native port.
+- A field's `Acts` channels have no UI yet.
+- `Reach.Cone` is declared and not yet sampled.
+
+## WebGL2 — closed, will not fix
+
+The page requires WebGPU and will keep requiring it. This is not an oversight to be fixed later:
+
+- WebGL2 **has no compute shaders**. The whole simulation is compute passes over storage buffers.
+- It **has no atomics**. The molecular kinds bin themselves with `atomicAdd` into the neighbour lattice;
+  there is no equivalent, approximate or otherwise.
+- A WebGL2 path would therefore be a *second, lesser simulator* — transform-feedback ballistics with no
+  molecular kinds, no lensing and no stats readback — not a second backend behind one interface.
+
+`Experimental/Fluid` ships both only because its solver is texture ping-pong by nature, which WebGL2 does
+natively. The comparison does not transfer. A browser without WebGPU gets the boot banner, and the gas
+emitter's drawer says so in plain words rather than showing an empty rectangle.
+
+## Identifier naming — deferred to the port, on purpose
+
+The one-letter identifiers (`d`, `U`, `o`, `s`, `f`, `el`, `$`) stay for now. A rename across ~4,700
+lines is protected by very little here — the only executable tests are the handoff, force field and
+structural checks — so the diff would be large, unreviewable and unguarded. It is cheaper and safer to
+rename each file as it is ported to C++, where `AgenticInstuctions/SKILL-Naming.md` applies and a parity
+check exists to catch a mistake.

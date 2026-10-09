@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Particle Editor: WebGPU particle systems for sparks, lightning, wind-driven debris, molecular physics, chemical reactions and VFX, with a 3D wind grid.">
   <title>Particle Editor — Frontier</title>
-  <link rel="stylesheet" href="ParticleEditor.css?v=20261008j">
+  <link rel="stylesheet" href="ParticleEditor.css">
 </head>
 <body>
   <div class="pe-app">
@@ -81,13 +81,8 @@
     </footer>
   </div>
 
-  <script src="js/fibres.js?v=20261008j"></script>
-  <script src="js/presets.js?v=20261008j"></script>
-  <script src="js/shaders.js?v=20261008j"></script>
-  <script src="js/engine.js?v=20261008j"></script>
-  <script src="js/lightning.js?v=20261008j"></script>
-  <script src="js/edits.js?v=20261008j"></script>
-  <script src="js/handoff.js?v=20261008j"></script>
-  <script src="js/app.js?v=20261008j"></script>
+  <!-- One entry module. It imports the rest in dependency order, which is why there are no longer
+       eight script tags with hand-maintained ?v= cache-busting strings after them. -->
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

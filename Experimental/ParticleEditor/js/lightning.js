@@ -1,8 +1,8 @@
 // Lightning bolts (CPU midpoint-displacement fractals, drawn as GPU quads) and
 // thunder (WebAudio synthesis, delayed by distance / 343 m/s).
-(function () {
-  "use strict";
-  const PE = (window.PE = window.PE || {});
+// 📝 Converted from an IIFE to an ES module; the body keeps its two-space indent so that `git blame`
+//    still points at whoever wrote each line rather than at the conversion.
+import { PE } from "./pe.js";
 
   function mulberry32(seed) {
     let a = seed >>> 0;
@@ -227,4 +227,3 @@
     for (let i = 0; i < len; i++) d[i] = (d[i] / peak) * 0.9;
     return buf;
   }
-})();
