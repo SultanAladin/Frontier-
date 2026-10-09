@@ -12,6 +12,7 @@
 import { Category, Slot, Structure, Figure, Detached, resolve, pack, composePlacement,
          combinePlacement, composeSortKey, OpaqueThreshold, FloatsPerFigure } from './js/figures.js';
 import { constructHudLayout, assignValues, PanelHalfWidth, PanelHalfHeight } from './js/layout.js';
+import { constructShellLayout, assignShellValues, ShellApps } from './js/shell.js';
 import { StreakPreset, packFibre, FibreFloats, FIBRE_WGSL } from './js/fibres.js';
 import { SDF_WGSL } from './js/sdf.generated.js';
 import { STREAK_WGSL } from './js/streaks.js';
@@ -617,6 +618,59 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   Claim('dispersion is below the pixel grid, which is why it is not simulated',
         slide(75).spread * perMetre < 1);
   Claim('and the shader does not pretend otherwise', !DISPLAY_WGSL.includes('indexRed'));
+}
+
+// ── FRONTIER OS, the home screen ─────────────────────────────────────────────────────────────────
+{
+  const { structure, handles } = constructShellLayout();
+  Claim('the shell builds inside the engine figure limit', structure.count > 120 && structure.count < 1024);
+  Claim('the shell exposes the two handles every host needs',
+        handles.housing !== undefined && handles.streaks !== undefined);
+  Claim('every app on the wall got a tile', handles.tiles.length === ShellApps.length);
+
+  // 🔴 A PIXEL ON A SCREEN IS EMITTED. The first cut built the chrome at emissiveWeight 0 and the
+  //    dock, the search pill and the link strip all rendered at one part in 255 — the still showed
+  //    four icons floating on nothing. InterfaceRaster.frag does mix(Received, Emitted, weight),
+  //    so a plate inside a display with weight 0 shows only the room bouncing off it.
+  Claim('the dock is an emitter, not a card lit by the room',
+        structure.query(handles.dock).emissiveWeight === 1);
+  Claim('so is the screen it sits on', structure.query(handles.face).emissiveWeight === 1);
+
+  // 🔴 AND THE PALETTE IS IN DISPLAY VALUES. The swap chain is bgra8unorm, not -srgb, so a figure's
+  //    tint reaches the screen unconverted. Converting the reference's #202020 to linear put the
+  //    dock panel at 0.0145 against a 0.0030 screen, which is not a panel. A raised surface has to
+  //    out-read the screen behind it by a wide margin or it is not raised.
+  const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  Claim('a raised panel reads well clear of the screen behind it',
+        lum(structure.palette[Slot.Surface]) > lum(structure.palette[Slot.Housing]) * 4);
+  Claim('an inset field sits between the two',
+        lum(structure.palette[Slot.SurfaceSunk]) > lum(structure.palette[Slot.Housing]) &&
+        lum(structure.palette[Slot.SurfaceSunk]) < lum(structure.palette[Slot.Surface]));
+
+  // 🔴 THE CLOCK MUST NOT SHUFFLE WHEN THE COLON BLINKS. text() normally draws nothing for a space
+  //    AND makes no figure for it, so a run rewritten from "09:41" to "09 41" would have written
+  //    the minutes one glyph early and blanked the last digit. keepSpaces gives the run one figure
+  //    per character so the rewrite is positional. This is the check for that.
+  const read = (run) => run.map((at) => String.fromCharCode(structure.query(at).scalarAlpha)).join('');
+  assignShellValues(structure, handles, { clock: new Date(2026, 9, 9, 9, 41), time: 0.1 });
+  Claim('the clock reads the hour it was given', read(handles.clock) === '09:41');
+  assignShellValues(structure, handles, { clock: new Date(2026, 9, 9, 9, 41), time: 0.7 });
+  Claim('the blink drops the colon and MOVES NOTHING', read(handles.clock) === '09 41');
+  Claim('the status bar keeps its colon regardless', read(handles.statusClock) === '09:41');
+
+  // The longest date there is has to fit the run that was built for it, and the shortest must not
+  // leave the previous month's tail behind.
+  assignShellValues(structure, handles, { clock: new Date(2026, 8, 9, 9, 41), time: 0 });
+  Claim('the widest date fits', read(handles.date) === 'WEDNESDAY 09 SEPTEMBER');
+  assignShellValues(structure, handles, { clock: new Date(2026, 4, 1, 0, 0), time: 0 });
+  Claim('a shorter date blanks the tail instead of keeping it',
+        read(handles.date) === 'FRIDAY 01 MAY'.padEnd(22, ' '));
+
+  // Every label on this screen has to be spellable by the engine's stroke font, which has no
+  // lowercase at all — a name that needs one would silently draw a blank tile.
+  const Spellable = /^[A-Z0-9 %+,\-./:]*$/;
+  Claim('every app name is in the font the engine actually has',
+        ShellApps.every((app) => Spellable.test(app.name)));
 }
 
 // ── done ─────────────────────────────────────────────────────────────────────────────────────────

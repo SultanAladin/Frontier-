@@ -34,9 +34,14 @@ const ControlX = 0.158;
 // One Glyph figure per character. The stroke font is the engine's own (DistanceStrokeGlyph), so a
 // label here is drawn by the same code that will draw it natively — there is no second font.
 
-function text(structure, parent, words, options) {
+export function text(structure, parent, words, options) {
+  // 🔴 keepSpaces emits a figure for a space too. The stroke font returns 1e9 for code 32, so it
+  //    draws nothing either way — but the run then has one figure PER CHARACTER, which is the only
+  //    way a caller can rewrite the words later by index without the spaces shifting everything
+  //    after them. Static labels leave it off and save the figures.
   const { x, y, z = Forward, size, palette = Slot.Marking, rank = 10,
-          align = 'left', weight = 0.085, tracking = 0.30, opacity = 1 } = options;
+          align = 'left', weight = 0.085, tracking = 0.30, opacity = 1,
+          keepSpaces = false } = options;
   const emWidth = size * 0.58;
   const advance = emWidth + size * tracking * 0.42;
   const span = advance * (words.length - 1) + emWidth;
@@ -47,7 +52,7 @@ function text(structure, parent, words, options) {
   const made = [];
   for (let at = 0; at < words.length; at++) {
     const code = words.charCodeAt(at);
-    if (code === 32) continue;                       // a space advances and draws nothing
+    if (code === 32 && !keepSpaces) continue;        // a space advances and draws nothing
     const index = structure.construct(Figure({
       category: Category.Glyph,
       origin: [start + advance * at, y, z],

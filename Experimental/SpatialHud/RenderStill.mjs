@@ -33,6 +33,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { constructHudLayout, assignValues } from './js/layout.js';
+import { constructShellLayout, assignShellValues } from './js/shell.js';
 import { resolve, pack, FloatsPerFigure, Category } from './js/figures.js';
 import { StreakPreset, packFibre, FibreFloats } from './js/fibres.js';
 import { Chassis } from './js/chassis.js';
@@ -1351,13 +1352,15 @@ function DrawSparks(picture, camera, fibres) {
 
 export function RenderStill(options) {
   const { width = 1280, height = 760, supersample = 2, time = 7.4, backdrop = 'live',
-          orbit = 0.42, tilt = 0.18, distance = 0.78, ambient = 0.35 } = options;
+          orbit = 0.42, tilt = 0.18, distance = 0.78, ambient = 0.35, composition = 'dash' } = options;
 
   const W = width * supersample, H = height * supersample;
   const camera = Camera(orbit, tilt, distance, 0.62, W, H);
   const picture = new Picture(W, H, [0.012, 0.014, 0.018]);
 
-  const { structure, handles } = constructHudLayout();
+  // Two screens, one device. `dash` is the instrument composition; `shell` is FRONTIER OS.
+  // They are separate structures because they share nothing but the housing they are built on.
+  const { structure, handles } = composition === 'shell' ? constructShellLayout() : constructHudLayout();
   // 🔴 The lean. layout.js stands the panel bolt upright, which is the right AUTHORING frame —
   //    every figure is placed against it and every check is pinned to it. A tablet in a room is
   //    not bolt upright, though: it sits in its dock and leans back. So the lean is applied here,
@@ -1369,13 +1372,19 @@ export function RenderStill(options) {
   // still cannot show an envelope, so it shows where the envelope is heading.
   const cycle = (time % 12) / 12;
   const boost = 0.5 - 0.5 * Math.cos(cycle * Math.PI * 4);
-  assignValues(structure, handles, {
-    speed: 18 + 160 * boost, boost, regen: 0.5 + 0.45 * Math.sin(cycle * Math.PI * 2),
-    sport: cycle > 0.5 ? 1 : 0, time,
-  });
+  if (composition === 'shell') {
+    // A still of a clock has to be a fixed clock, or no two runs of --check agree.
+    assignShellValues(structure, handles, { clock: new Date(2026, 9, 9, 9, 41), time });
+  } else {
+    assignValues(structure, handles, {
+      speed: 18 + 160 * boost, boost, regen: 0.5 + 0.45 * Math.sin(cycle * Math.PI * 2),
+      sport: cycle > 0.5 ? 1 : 0, time,
+    });
+  }
 
   // The field rung is drawn only when it is the rung in use, exactly as the host does it.
-  structure.query(handles.streaks).opacity = backdrop === 'field' ? 0.85 : 0;
+  structure.query(handles.streaks).opacity =
+    backdrop === 'field' ? (composition === 'shell' ? 0.38 : 0.85) : 0;
 
   const { placements } = resolve(structure);
   const packed = pack(structure, placements, camera.eye);
@@ -1436,6 +1445,8 @@ const checking = asked.includes('--check');
 const sheets = checking
   ? [{ name: 'check', orbit: 0.42, tilt: 0.18, distance: 0.78, width: 320, height: 190, supersample: 1 }]
   : [
+      { name: 'Home', orbit: 0.30, tilt: 0.14, distance: 0.66, backdrop: 'live', composition: 'shell' },
+      { name: 'HomeFlat', orbit: 0.04, tilt: 0.03, distance: 0.60, backdrop: 'live', composition: 'shell' },
       { name: 'Tablet', orbit: 0.62, tilt: 0.26, distance: 0.74, backdrop: 'live' },
       { name: 'Screen', orbit: 0.06, tilt: 0.04, distance: 0.62, backdrop: 'live' },
       { name: 'FieldRung', orbit: 0.62, tilt: 0.26, distance: 0.74, backdrop: 'field' },

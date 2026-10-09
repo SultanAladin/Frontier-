@@ -8,6 +8,7 @@ import { pack, resolve, FloatsPerFigure } from './figures.js';
 import { SDF_WGSL } from './sdf.generated.js';
 import { STREAK_WGSL } from './streaks.js';
 import { constructHudLayout, assignValues, PanelHalfWidth, PanelHalfHeight } from './layout.js';
+import { constructShellLayout, assignShellValues } from './shell.js';
 import { FIBRE_WGSL, packFibre, StreakPreset, FibreFloats } from './fibres.js';
 import { CHASSIS_WGSL, packRoom, RoomFloats, Chassis } from './chassis.js';
 import { DISPLAY_WGSL, DisplayClip, DisplayProjectionScale,
@@ -186,6 +187,10 @@ const State = {
   // The backdrop ladder. 'live' is the real 3D fibres; 'field' is the analytic plane field, which
   // is the rung a reflection or a distant panel gets; 'off' is neither.
   backdrop: 'live',
+  // 🔴 The tablet is an OS, not a dashboard. 'home' is FRONTIER OS — the clock, the app wall and
+  //    the dock; 'dash' is the instrument composition the device started life as, which is now
+  //    one app among the eight rather than the whole device.
+  screen: 'home',
 };
 
 async function start() {
@@ -318,14 +323,22 @@ async function start() {
     primitive: { topology: 'triangle-strip' },
   });
 
-  const { structure, handles } = constructHudLayout();
-  // 🔴 The lean. layout.js stands the panel bolt upright, which is the right AUTHORING frame —
+  // 🔴 TWO COMPOSITIONS, ONE DEVICE. They are separate structures rather than two branches of one,
+  //    because they share nothing except the housing they are built on — and because switching
+  //    screens must not cost a rebuild. Both are constructed once, here; the loop picks.
+  const screens = {
+    home: constructShellLayout(),
+    dash: constructHudLayout(),
+  };
+  // 🔴 The lean. Each layout stands its panel bolt upright, which is the right AUTHORING frame —
   //    every figure is placed against it and every check is pinned to it. A tablet in a room is
   //    not bolt upright, though: it sits in its dock and leans back. So the lean is applied here,
-  //    to the scene, and the layout never learns about it.
-  structure.query(handles.housing).rotationX = Math.PI / 2 - Chassis.lean;
+  //    to the scene, and no layout ever learns about it.
+  for (const each of Object.values(screens)) {
+    each.structure.query(each.handles.housing).rotationX = Math.PI / 2 - Chassis.lean;
+  }
 
-  State.streak = structure.query(handles.streaks).streak.slice();
+  State.streak = screens.dash.structure.query(screens.dash.handles.streaks).streak.slice();
 
   // 🔴 TWO CAMERAS, TWO UNIFORM BUFFERS.
   //
@@ -343,7 +356,7 @@ async function start() {
   const displayGlobals = device.createBuffer({
     size: displayGlobalData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  let capacity = Math.max(structure.count, 64);
+  let capacity = Math.max(64, ...Object.values(screens).map((each) => each.structure.count));
   let figureBuffer = device.createBuffer({
     size: capacity * FloatsPerFigure * 4,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -400,7 +413,7 @@ async function start() {
   const sportChannel = new Channel(300, 26);
   const speedChannel = new Channel(90, 17);
 
-  wireControls(structure, handles);
+  wireControls(screens);
   wireCamera(canvas);
 
   // Reported on the first frame, not after the first half second, so a page that renders once and
@@ -433,13 +446,24 @@ async function start() {
     sportChannel.target = State.sport;
     speedChannel.target = State.speed;
 
-    assignValues(structure, handles, {
-      speed: speedChannel.advance(dt),
-      boost: boostChannel.advance(dt),
-      regen: fillChannel.advance(dt),
-      sport: sportChannel.advance(dt),
-      time: elapsed,
-    });
+    // Which composition is on the glass this frame. Everything downstream — the resolve, the
+    // pack, the split, the panel camera — reads these two and does not care which one it got.
+    const { structure, handles } = screens[State.screen] ?? screens.home;
+
+    if (State.screen === 'dash') {
+      assignValues(structure, handles, {
+        speed: speedChannel.advance(dt),
+        boost: boostChannel.advance(dt),
+        regen: fillChannel.advance(dt),
+        sport: sportChannel.advance(dt),
+        time: elapsed,
+      });
+    } else {
+      assignShellValues(structure, handles, { clock: new Date(), time: elapsed });
+    }
+
+    // The streak sliders edit one shared preset, so whichever screen is up gets the current one.
+    structure.query(handles.streaks).streak = State.streak.slice();
 
     const width = Math.max(1, Math.floor(canvas.clientWidth * devicePixelRatio));
     const height = Math.max(1, Math.floor(canvas.clientHeight * devicePixelRatio));
@@ -467,7 +491,9 @@ async function start() {
     // The analytic field is a RUNG, not a fallback: it is the only form of this backdrop that can
     // be answered at a hit point, because it is a closed-form function of a plane coordinate and
     // geometry is not. It is drawn only when it is the rung in use.
-    structure.query(handles.streaks).opacity = State.backdrop === 'field' ? State.fieldOpacity : 0;
+    structure.query(handles.streaks).opacity = State.backdrop === 'field'
+      ? State.fieldOpacity * (State.screen === 'home' ? 0.45 : 1)
+      : 0;
 
     globalData.set(viewClip, 0);
     globalData.set([eye[0], eye[1], eye[2], 0], 16);
@@ -632,7 +658,7 @@ function control(selector) {
   return found;
 }
 
-function wireControls(structure, handles) {
+function wireControls(screens) {
   for (const [name, index] of StreakFields) {
     const input = control(`[data-streak="${name}"]`);
     if (!input) continue;
@@ -643,11 +669,20 @@ function wireControls(structure, handles) {
     };
     show();
     input.addEventListener('input', () => {
+      // The frame hands the current preset to whichever screen is up, so the slider only has to
+      // write the one copy that both of them read.
       State.streak[index] = Number(input.value);
-      structure.query(handles.streaks).streak = State.streak.slice();
       show();
     });
   }
+
+  for (const button of document.querySelectorAll('[data-screen]')) {
+    button.addEventListener('click', () => {
+      State.screen = button.dataset.screen;
+      showScreen();
+    });
+  }
+  showScreen();
 
   const fieldOpacity = control('[data-field="fieldOpacity"]');
   if (fieldOpacity) {
@@ -687,6 +722,21 @@ function stopDemo() {
   State.demo = false;
   const demo = document.querySelector('[data-field="demo"]');
   if (demo) demo.checked = false;
+}
+
+const ScreenNotes = {
+  home: 'FRONTIER OS — the clock, the app wall and the dock. The streak field is the WALLPAPER here, '
+      + 'dimmed to 45% so it sits behind eight labels instead of competing with them.',
+  dash: 'The instrument composition. On a device that is an OS, this is one app among the eight — '
+      + 'the one the DRIVE tile opens.',
+};
+
+function showScreen() {
+  const note = document.getElementById('screen-note');
+  if (note) note.textContent = ScreenNotes[State.screen] ?? '';
+  for (const button of document.querySelectorAll('[data-screen]')) {
+    button.classList.toggle('on', button.dataset.screen === State.screen);
+  }
 }
 
 function showRung() {

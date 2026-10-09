@@ -466,3 +466,48 @@ Three things the first CPU stills exposed, none of which any numeric check could
 - Glyph labels are per-character figures. Twenty-six of the panel's figures are letters, which is
   fine at this size and would not be at paragraph length — the stroke font is for labels and units,
   as its own header says.
+
+## FRONTIER OS — the home screen
+
+The device is an OS, not a dashboard. `js/shell.js` is the home screen: a status strip, a clock, a
+search field, a wall of eight app tiles and a dock. `js/layout.js` — the instrument composition the
+tablet started life as — is now one app among those eight, the one the DRIVE tile stands for. The
+**Screen** control in the rail switches between them; both structures are built once at start-up and
+the frame loop picks, so a switch costs nothing.
+
+The reference is `streamlinkinbox/Frontier`, branch `arena/01a06c6c-frontier`, `app/index.html` — a
+browser mock of this same screen. That mock is portrait CSS on a 520 px column; a tablet face is
+0.444 x 0.254 m, so the column became a left-hand band and the app wall took the room that freed up.
+`app/lobby.html` and `app/wallet.html` on that branch, and `app/chat.html` on `arena/837a2406-frontier`,
+are the apps behind the LOBBY, WALLET and CHAT tiles — they are not ported yet.
+
+Every mark on every tile is drawn with primitives the engine already ships. The settings cog is a
+`TickRing` — the same category that draws the gauge's ticks — and the DRIVE icon is a real `Arc` and
+a real `Needle`, which is to say the dashboard at 4 mm rather than a picture of it.
+
+### 🔴 Two colour bugs, both found by rendering and measuring
+
+**A pixel on a screen is emitted, not reflected.** The chrome was first built at `emissiveWeight: 0`
+— "albedo, lit by the room" — copying the dashboard, where the face really is a card the room shines
+on. `InterfaceRaster.frag` computes `mix(Received, Emitted, EmissiveWeight)`, so a plate at weight 0
+inside the display target shows only the room bouncing off it, and there is almost no room in there.
+The dock bar, the search pill and the link strip all rendered invisible. A horizontal scan across the
+dock read **2.47 … 3.26 against a bare face of 2.00**, out of 255. One part in 255 is not a panel.
+
+**And the palette is in display values, not linear.** The fix above barely helped: 3.9 against 3.0.
+The swap chain is `bgra8unorm`, *not* `bgra8unorm-srgb`, so a figure's tint reaches the screen
+unconverted — and `RenderStill.resolve()` deliberately matches that rather than flattering it.
+Converting the reference's `#202020` sRGB → linear put the dock panel at 0.0145. Correct maths for a
+renderer that encodes on the way out; wrong renderer. The hexes go in as fractions, directly.
+
+Both are pinned in `CheckHud.mjs`, and both were verified by reintroducing the bug and watching the
+check fail.
+
+### 🔴 A run of glyphs that gets rewritten needs one figure per character
+
+`text()` normally makes no figure at all for a space. That is right for a static label and wrong for
+anything rewritten later: the clock's colon blinks, so "09:41" becomes "09 41", and a run without a
+figure for the space would have written the minutes one glyph early and blanked the last digit. The
+date is worse — month names differ in length. `text(..., { keepSpaces: true })` emits a figure per
+character (the stroke font returns `1e9` for code 32, so it still draws nothing) and `respell()`
+writes positionally. Three checks cover it.
