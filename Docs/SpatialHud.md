@@ -229,7 +229,37 @@ in two extra passes around the existing ones:
 `rgba16float`, not the swapchain's 8 bits: the interface is additive in places and the bright pass
 has to tell a lit element from a blown one. Both need values above 1.0 to survive the trip.
 
-There is no floor and no contact shadow, deliberately: a floor wants the panel leaned back, and the
+### 🔴 It has to stand somewhere
+
+The glass work above was answering the wrong question. The only thing producing a sense of depth
+was the **particle volume behind the screen behaving like parallax** — the device itself was still
+a slab floating in a void, and no amount of material work on a slab makes it an object. A slab
+with no shadow is a picture of a slab.
+
+So the tablet now **leans back 9.7° in a dock, standing on a desk, with a marched contact shadow**:
+
+- **The march moved into world space.** It used to step through panel space, which is fine while
+  the only thing in the scene is the panel. A desk is flat in the *world* and the panel is leaning,
+  so a desk written in panel coordinates would be a slope. Marching the world lets each object be
+  written in whatever frame suits it — the body in panel space, the desk and dock in world space —
+  and a rigid rotation preserves distance, so the marcher doesn't care.
+- **The contact shadow** is the standard ratio-of-distance-to-travel march. That ratio *is* the
+  penumbra, so the shadow is soft where the tablet is far from the desk and tightens to a hard line
+  where it meets it, for free.
+- **The screen pools its own light on the desk**, shadowed by the body so it doesn't leak out
+  behind the device. This is the other half of "it's really there".
+- **The lean lives in the scene, not the layout.** `layout.js` stands the panel bolt upright, which
+  is the right *authoring* frame — every figure is placed against it and every check is pinned to
+  it. The lean is applied to the structure at scene level and the layout never learns about it.
+- **The desk fades into the room over 1.5 m.** A plane is infinite and a marcher is not: left
+  alone, a near-grazing ray creeps until it hits the step limit and draws a hard horizon with black
+  above it. In the first render that read as two slabs floating behind the tablet. The fade fixes
+  the look *and* the cost — past it there is nothing left to march toward.
+- **The bezel went from 2 mm to 12 mm.** 2 mm is not a bezel, it is a tolerance, and it left the
+  camera and speaker underneath the glass quad where they could never be seen. A device is bigger
+  than its display.
+
+There is still no contact *reflection* of the tablet in the desk, deliberately: a floor wants the panel leaned back, and the
 lean would move the housing's quarter turn about X that the whole layout and all its checks are
 built on.
 
@@ -337,7 +367,7 @@ opaque, or transparency stops being the most significant bit of the key.
 
 ```
 python3 Tools/Build/GenerateHudShader.py --check     # the WGSL port is current
-node Experimental/SpatialHud/CheckHud.mjs            # PASS 161
+node Experimental/SpatialHud/CheckHud.mjs            # PASS 176
 ```
 
 Both run in `frontier-build.yml`. `CheckHud` covers the composition arithmetic (a quarter turn about

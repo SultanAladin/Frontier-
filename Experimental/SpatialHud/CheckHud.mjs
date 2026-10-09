@@ -462,12 +462,54 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   // The chamfer is the strongest "machined from a solid" cue there is, and a plane cannot have one.
   Claim('the turning edge catches the key', CHASSIS_WGSL.includes('1.0 - abs(dot(worldNormal'));
 
+  // 🔴 THE TABLET HAS TO STAND SOMEWHERE.
+  //
+  //    A slab with no shadow is a picture of a slab. The contact shadow and the surface under it
+  //    are not decoration — they are the cues that say "object", and without them no amount of
+  //    material work on the body helps.
+  Claim('the tablet leans back, as one in a dock does', Chassis.lean > 0.05 && Chassis.lean < 0.6);
+  Claim('there is a dock for it to stand in', Chassis.plinthHalf[0] > PanelHalfWidth * 0.5);
+  Claim('the dock is wider than it is tall', Chassis.plinthHalf[0] > Chassis.plinthHalf[2] * 8);
+  Claim('there is a desk', CHASSIS_WGSL.includes('kDesk'));
+  Claim('the scene has three materials, not one',
+        CHASSIS_WGSL.includes('kBody') && CHASSIS_WGSL.includes('kDock') && CHASSIS_WGSL.includes('kDesk'));
+  Claim('the contact shadow is marched', CHASSIS_WGSL.includes('fn RoomShadow'));
+  Claim('the penumbra widens with distance from the occluder',
+        CHASSIS_WGSL.includes('min(shade, sharpness * distance / travel)'));
+  Claim('the screen pools its own light on the desk',
+        CHASSIS_WGSL.includes('spillFall') && CHASSIS_WGSL.includes('RoomShadow(hit.world, normalize(-panelFace)'));
+
+  // 🔴 The march is in WORLD space. A desk is flat in the world and the panel is leaning, so a
+  //    desk written in panel coordinates would be a slope. This one is easy to regress by
+  //    "simplifying" the transform back out of the scene function.
+  Claim('the scene is marched in world space', CHASSIS_WGSL.includes('fn RoomScene(world : vec3f)')
+        && CHASSIS_WGSL.includes('RoomBody(RoomToPanelPoint(world))'));
+
+  // A plane is infinite and a marcher is not: left alone it stops at the step limit and draws a
+  // hard horizon with black above it.
+  Claim('the desk fades into the room instead of ending at the step limit',
+        CHASSIS_WGSL.includes('kDeskFade') && CHASSIS_WGSL.includes('hit.travel / kDeskFade'));
+  Claim('the march stops once the fade is complete',
+        CHASSIS_WGSL.includes('travel > kDeskFade'));
+
+  // 🔴 A device is BIGGER than its display. At 2 mm the bezel was a tolerance, and the camera and
+  //    speaker sat underneath the glass quad where they could never be seen.
+  const bezelX = Chassis.halfWidth - PanelHalfWidth;
+  const bezelY = Chassis.halfHeight - PanelHalfHeight;
+  Claim('the bezel is a bezel, not a tolerance', bezelX > 0.008 && bezelY > 0.008);
+  Claim('the hardware sits in the bezel, outside the glass',
+        CHASSIS_WGSL.includes('R.face.y + 0.0062') && 0.0062 + 0.0024 < bezelY);
+  Claim('there is a camera and a speaker', CHASSIS_WGSL.includes('let lens =')
+        && CHASSIS_WGSL.includes('let holes ='));
+
   // The uniform has to survive the trip.
   const rows = [[1, 0, 0, 0.02], [0, 0, -1, -0.03], [0, 1, 0, 0.5]];
   const out = new Float32Array(RoomFloats);
   packRoom(out, rows, { forward: [0, 1, 0], right: [1, 0, 0], up: [0, 0, 1], tanHalf: 0.317, aspect: 1.6 });
   Claim('packRoom fills every slot', out.every((v) => Number.isFinite(v)));
   Claim('packRoom writes the panel rows', Math.abs(out[3] - 0.02) < 1e-6 && Math.abs(out[11] - 0.5) < 1e-6);
+  Claim('packRoom finds the desk under the lowest corner of the body',
+        Math.abs(out[34] - (0.5 - Chassis.halfHeight)) < 1e-5);
   Claim('packRoom carries the body extents',
         [...out].some((v) => Math.abs(v - Chassis.halfWidth) < 1e-6));
 }

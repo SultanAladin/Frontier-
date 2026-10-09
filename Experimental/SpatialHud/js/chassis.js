@@ -42,14 +42,22 @@ export const RoomFloats = 36;                  // 9 vec4s
 // The body, in panel metres. The front face sits at panel z = 0, so the interface — which is
 // authored on that plane — lands exactly on the glass.
 export const Chassis = {
-  halfWidth: 0.2320,          // [m] a touch proud of the face, so there is a bezel to see
-  halfHeight: 0.1370,
+  // 🔴 12 mm proud of the screen on every side. The first pass used 2 mm, which is not a bezel,
+  //    it is a tolerance — and it left the camera and the speaker underneath the glass quad where
+  //    they could never be seen. A device is bigger than its display; give the hardware somewhere
+  //    to live.
+  halfWidth: 0.2420,
+  halfHeight: 0.1470,
   halfDepth: 0.0105,          // [m] 21 mm thick: a rugged fascia, not a phone, and thick
                               //     enough that the side wall is a surface you can see
-  cornerRadius: 0.0210,       // [m] the corner of the slab, in all three dimensions
+  cornerRadius: 0.0240,       // [m] the corner of the slab, in all three dimensions
   bodyRoughness: 0.34,        // anodised aluminium, bead blasted
   glassRoughness: 0.055,      // a hard coat: a tight reflection that still is not a mirror
   keyIntensity: 2.6,
+  lean: 0.1700,               // [rad] ~9.7 deg. A tablet on a stand leans BACK. It is also what
+                              //       finally lets the glass catch the high key, not just the desk.
+  plinthHalf: [0.1760, 0.0520, 0.0100],
+  plinthRadius: 0.0060,
   screenSpill: 0.55,          // how much of the screen's own light lands on the bezel around it
 };
 
@@ -67,7 +75,20 @@ export function packRoom(out, rows, camera) {
   put(7, Chassis.bodyRoughness, Chassis.glassRoughness, Chassis.keyIntensity, 0);
   // The PANEL rectangle, which is what the display texture covers and so what the glass
   // samples across. It is not the body's: the body stands a couple of millimetres proud.
-  put(8, PanelHalfWidth, PanelHalfHeight, 0, 0);
+  // 🔴 The desk, found rather than guessed. Push all eight corners of the body through the
+  //    placement and take the lowest world z: the tablet then rests ON the surface for any lean,
+  //    instead of hovering or sinking the moment the rotation is touched.
+  let floor = Infinity;
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      for (const pz of [0, -2 * Chassis.halfDepth]) {
+        const z = rows[2][0] * sx * Chassis.halfWidth + rows[2][1] * sy * Chassis.halfHeight
+                + rows[2][2] * pz + rows[2][3];
+        floor = Math.min(floor, z);
+      }
+    }
+  }
+  put(8, PanelHalfWidth, PanelHalfHeight, floor, 0);
   return out;
 }
 
@@ -85,7 +106,7 @@ struct Room {
   side : vec4f,     // xyz camera right, w aspect
   rise : vec4f,     // xyz camera up, w screen spill
   tone : vec4f,     // x body roughness, y glass roughness, z key intensity
-  face : vec4f,     // xy panel half extent [m] - the rectangle the display covers
+  face : vec4f,     // xy panel half extent [m], z the desk's world height
 };
 
 @group(0) @binding(3) var<uniform> R : Room;
@@ -118,6 +139,15 @@ const kFrontCard = vec3f(-0.3302, -0.8805, -0.3402);
 // dimmed because it is scenery. The tablet is the subject and has to stay the brightest thing in
 // the picture at every orbit, including the grazing ones where the front card swings into view.
 const kRoomFalloff = 0.55;
+
+// 🔴 The desk has to END, and not by running out of march steps.
+//
+//    A plane is infinite and the marcher is not. Left alone, a near-grazing ray creeps along the
+//    surface until it hits the step limit and simply stops, which draws a hard horizontal edge
+//    with black above it — in the first render it read as two slabs floating behind the tablet.
+//    Fading the desk into the room over a metre and a half fixes the look AND the cost: once the
+//    fade is complete there is nothing left to march toward.
+const kDeskFade = 1.5;
 
 // ── the room ─────────────────────────────────────────────────────────────────────────────────────
 // There is no environment map and there is not going to be one — a sampled cube is a texture
@@ -206,43 +236,113 @@ fn RoomBody(panel : vec3f) -> f32 {
   return length(max(delta, vec3f(0.0))) + min(max(delta.x, max(delta.y, delta.z)), 0.0) - radius;
 }
 
-fn RoomNormal(panel : vec3f) -> vec3f {
+// 🔴 THE MARCH MOVED INTO WORLD SPACE, AND THAT IS WHY THERE CAN BE A DESK.
+//
+//    It used to step through panel space, which is fine while the only thing in the scene is the
+//    panel. The moment the tablet has to STAND somewhere, it does not work: a desk is flat in the
+//    world and the panel is leaning, so a desk expressed in panel coordinates is a slope. Marching
+//    in the world instead lets each object be written in whatever frame suits it — the body in
+//    panel space, the desk and the dock in world space — and a rigid rotation preserves distance,
+//    so the marcher does not care.
+//
+//    This is also what makes the contact shadow possible, and the contact shadow is most of why
+//    the thing reads as an object at all. A slab with no shadow is a picture of a slab.
+
+const kBody = 0.0;
+const kDock = 1.0;
+const kDesk = 2.0;
+
+// The dock the tablet stands in. A slim rounded plinth, flat on the desk, world aligned — it does
+// not lean with the panel, because a foot that leaned would be a foot that had fallen over.
+fn RoomDock(world : vec3f) -> f32 {
+  let half = vec3f(${Chassis.plinthHalf[0]}, ${Chassis.plinthHalf[1]}, ${Chassis.plinthHalf[2]});
+  let radius = ${Chassis.plinthRadius};
+  let centre = vec3f(0.0, -0.004, R.face.z + half.z);
+  let inner = max(half - vec3f(radius), vec3f(0.0));
+  let delta = abs(world - centre) - inner;
+  return length(max(delta, vec3f(0.0))) + min(max(delta.x, max(delta.y, delta.z)), 0.0) - radius;
+}
+
+struct RoomSample {
+  distance : f32,
+  material : f32,
+};
+
+fn RoomScene(world : vec3f) -> RoomSample {
+  var out : RoomSample;
+  out.distance = RoomBody(RoomToPanelPoint(world));
+  out.material = kBody;
+
+  let dock = RoomDock(world);
+  if (dock < out.distance) { out.distance = dock; out.material = kDock; }
+
+  let desk = world.z - R.face.z;
+  if (desk < out.distance) { out.distance = desk; out.material = kDesk; }
+  return out;
+}
+
+fn RoomNormal(world : vec3f) -> vec3f {
   // Tetrahedral differences: four evaluations instead of six, and no bias toward an axis.
   let h = 2.0e-5;
   let a = vec3f( 1.0, -1.0, -1.0);
   let b = vec3f(-1.0, -1.0,  1.0);
   let c = vec3f(-1.0,  1.0, -1.0);
   let d = vec3f( 1.0,  1.0,  1.0);
-  return normalize(a * RoomBody(panel + a * h) + b * RoomBody(panel + b * h)
-                 + c * RoomBody(panel + c * h) + d * RoomBody(panel + d * h));
+  return normalize(a * RoomScene(world + a * h).distance + b * RoomScene(world + b * h).distance
+                 + c * RoomScene(world + c * h).distance + d * RoomScene(world + d * h).distance);
 }
 
 struct RoomHit {
-  struck : bool,
-  panel  : vec3f,
-  travel : f32,
+  struck   : bool,
+  world    : vec3f,
+  panel    : vec3f,
+  travel   : f32,
+  material : f32,
 };
 
 fn RoomMarch(origin : vec3f, direction : vec3f) -> RoomHit {
   var hit : RoomHit;
   hit.struck = false;
+  hit.world = origin;
   hit.panel = origin;
   hit.travel = 0.0;
+  hit.material = kDesk;
 
   var travel = 0.0;
-  for (var step = 0; step < 72; step = step + 1) {
+  for (var step = 0; step < 96; step = step + 1) {
     let here = origin + direction * travel;
-    let distance = RoomBody(here);
-    if (distance < 1.5e-5) {
+    let scene = RoomScene(here);
+    if (scene.distance < 1.5e-5) {
       hit.struck = true;
-      hit.panel = here;
+      hit.world = here;
+      hit.panel = RoomToPanelPoint(here);
       hit.travel = travel;
+      hit.material = scene.material;
       return hit;
     }
-    travel += max(distance, 1.0e-5);
-    if (travel > 6.0) { break; }
+    travel += max(scene.distance, 1.0e-5);
+    if (travel > kDeskFade * 1.6) { break; }
   }
   return hit;
+}
+
+// 🔴 The contact shadow, which is the single cue that turns a floating slab into an object.
+//
+//    The standard trick: march toward the light and keep the smallest ratio of distance-to-scene
+//    against distance-travelled. Near an occluder that ratio collapses and the point is dark; far
+//    from one it stays high. The ratio IS the penumbra, so the shadow is soft where the tablet is
+//    far from the desk and tightens to a hard line where it meets it, for free.
+fn RoomShadow(origin : vec3f, direction : vec3f, sharpness : f32) -> f32 {
+  var shade = 1.0;
+  var travel = 0.004;                        // step off the surface, or it shadows itself
+  for (var step = 0; step < 40; step = step + 1) {
+    let distance = RoomScene(origin + direction * travel).distance;
+    if (distance < 1.0e-5) { return 0.0; }
+    shade = min(shade, sharpness * distance / travel);
+    travel += clamp(distance, 0.002, 0.08);
+    if (travel > 1.2) { break; }
+  }
+  return clamp(shade, 0.0, 1.0);
 }
 
 // ── shading ──────────────────────────────────────────────────────────────────────────────────────
@@ -306,40 +406,88 @@ fn fsRoom(in : RoomVarying) -> @location(0) vec4f {
                           + R.side.xyz * (screen.x * R.side.w * R.look.w)
                           + R.rise.xyz * (-screen.y * R.look.w));
 
-  let originPanel = RoomToPanelPoint(G.eye.xyz);
-  let dirPanel = RoomToPanelDirection(direction);
-
-  let hit = RoomMarch(originPanel, dirPanel);
+  let hit = RoomMarch(G.eye.xyz, direction);
   if (!hit.struck) {
-    // The room behind the tablet. Faint, but it is what the glass has to reflect, so it had better
-    // be the same function the glass asks.
     return vec4f(RoomLight(direction, 0.0) * kRoomFalloff, 1.0);
   }
 
-  let normalPanel = RoomNormal(hit.panel);
-  let worldNormal = normalize(RoomToWorldDirection(normalPanel));
-  let worldPoint = G.eye.xyz + direction * hit.travel;
+  let worldNormal = RoomNormal(hit.world);
   let view = -direction;
+
+  // The screen is an area light and the desk is right underneath it. This is the other half of
+  // "the tablet is really there": its own glow pooling on the surface in front of it.
+  let toPanel = hit.world - vec3f(R.rowX.w, R.rowY.w, R.rowZ.w);
+  let spillFall = 1.0 / (1.0 + dot(toPanel, toPanel) * 26.0);
+  let panelFace = normalize(vec3f(R.rowX.z, R.rowY.z, R.rowZ.z));
+  let spillFacing = clamp(dot(worldNormal, panelFace) * 0.5 + 0.5, 0.0, 1.0);
+  let spill = spillFall * spillFacing;
+
+  let shadow = RoomShadow(hit.world, kKeyDirection, 9.0);
+
+  if (hit.material == kDesk) {
+    // 🔴 The desk. Deliberately almost black and quite rough: it exists to take a shadow and a
+    //    pool of the screen's light, not to be looked at. A bright floor would read as a studio
+    //    sweep and pull the eye off the device, and the device is the subject.
+    let albedo = vec3f(0.0115, 0.0122, 0.0140);
+    let lambert = max(dot(worldNormal, kKeyDirection), 0.0);
+    var light = albedo * (lambert * R.tone.z * shadow + 0.10);
+    light += albedo * RoomLight(worldNormal, 0.0) * 3.0;
+
+    // A wide, low grazing sheen, which is what a matt surface does under a big soft source.
+    let bounce = reflect(-view, worldNormal);
+    light += RoomLight(bounce, 0.25) * RoomSchlick(max(dot(worldNormal, view), 0.0), 0.030) * 0.9;
+
+    // The pool. Tinted like the interface, shadowed by the tablet's own body so it does not leak
+    // out behind the device.
+    light += vec3f(0.055, 0.175, 0.280) * spill * 1.35
+           * RoomShadow(hit.world, normalize(-panelFace), 5.0);
+
+    let away = clamp(hit.travel / kDeskFade, 0.0, 1.0);
+    return vec4f(mix(light, RoomLight(direction, 0.0) * kRoomFalloff, away * away), 1.0);
+  }
+
+  if (hit.material == kDock) {
+    let albedo = vec3f(0.0150, 0.0160, 0.0184);
+    let lambert = max(dot(worldNormal, kKeyDirection), 0.0);
+    var light = albedo * (lambert * R.tone.z * shadow + 0.14);
+    light += albedo * RoomLight(worldNormal, 0.0) * 3.2;
+    let bounce = reflect(-view, worldNormal);
+    light += RoomLight(bounce, 0.55) * RoomSchlick(max(dot(worldNormal, view), 0.0), 0.045) * 0.7;
+    light += vec3f(0.055, 0.175, 0.280) * spill * 0.85;
+    return vec4f(light, 1.0);
+  }
 
   // How close this point is to the lit face, for the spill. Measured in the panel's own plane and
   // only on the front, so the back of the device stays dark.
-  let faceReach = DistanceRoundedRectangle(hit.panel.xy, R.body.xy - vec2f(0.0115), 0.0145);
-  let facing = clamp(normalPanel.z, 0.0, 1.0);
+  let faceReach = DistanceRoundedRectangle(hit.panel.xy, R.face.xy, R.body.w * 0.86);
+  let facing = clamp(RoomToPanelDirection(worldNormal).z, 0.0, 1.0);
   let screenNear = facing * exp(-max(faceReach, 0.0) / 0.010);
 
-  // The glass itself is not shaded here: the interface draws into this region next, and the
-  // reflection goes over the top of it in the glass pass. What is left is a near-black well, so an
-  // interface element that never covers a pixel still reads as switched-off screen, not as hole.
-  if (faceReach < 0.0 && normalPanel.z > 0.86) {
+  // The glass itself is not shaded here: the glass pass draws over this region next. What is left
+  // is a near-black well, so a pixel the interface never covers still reads as switched-off
+  // screen rather than as a hole in the device.
+  if (faceReach < 0.0 && RoomToPanelDirection(worldNormal).z > 0.86) {
     return vec4f(vec3f(0.0042, 0.0048, 0.0060), 1.0);
   }
 
-  return vec4f(RoomBodyShade(worldPoint, worldNormal, view, screenNear), 1.0);
-}
+  var body = RoomBodyShade(hit.world, worldNormal, view, screenNear) * mix(0.55, 1.0, shadow);
 
-// ── the glass ────────────────────────────────────────────────────────────────────────────────────
-// A quad on the panel's own plane, composited over the finished interface. Fresnel against the
-// The glass is no longer here. It became a pass that SAMPLES the display target rather than
-// one that adds light on top of a finished picture, so it lives in js/display.js next to
-// the target it reads. See the header there for why additive glass was never glass.
+  // 🔴 Hardware. A bezel with nothing on it is a picture of a bezel. These two marks cost four
+  //    lines and do more for "this is a device" than any amount of shading on the slab, because
+  //    they are the things a person looks for without knowing they are looking.
+  if (facing > 0.86) {
+    // The camera, centred in the top bezel: a dark pit with a hard little catchlight.
+    let lens = length(hit.panel.xy - vec2f(0.0, R.face.y + 0.0062)) - 0.0024;
+    body = mix(body, vec3f(0.0030, 0.0034, 0.0046), 1.0 - smoothstep(0.0, 0.0006, lens));
+    body += vec3f(0.26, 0.30, 0.40) * (1.0 - smoothstep(0.0, 0.0010, abs(lens + 0.0014)));
+
+    // The speaker, a slot of fine perforations in the bottom bezel.
+    let slot = DistanceRoundedRectangle(hit.panel.xy - vec2f(0.0, -R.face.y - 0.0060),
+                                        vec2f(0.0220, 0.0011), 0.0011);
+    let holes = 0.5 + 0.5 * cos(hit.panel.x * 2400.0);
+    body = mix(body, body * 0.18, (1.0 - smoothstep(0.0, 0.0004, slot)) * holes);
+  }
+  return vec4f(body, 1.0);
+}
 `;
+

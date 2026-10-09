@@ -9,7 +9,7 @@ import { SDF_WGSL } from './sdf.generated.js';
 import { STREAK_WGSL } from './streaks.js';
 import { constructHudLayout, assignValues, PanelHalfWidth, PanelHalfHeight } from './layout.js';
 import { FIBRE_WGSL, packFibre, StreakPreset, FibreFloats } from './fibres.js';
-import { CHASSIS_WGSL, packRoom, RoomFloats } from './chassis.js';
+import { CHASSIS_WGSL, packRoom, RoomFloats, Chassis } from './chassis.js';
 import { DISPLAY_WGSL, DisplayClip, DisplayProjectionScale,
          DisplayWidth, DisplayHeight, BloomWidth, BloomHeight } from './display.js';
 
@@ -319,6 +319,12 @@ async function start() {
   });
 
   const { structure, handles } = constructHudLayout();
+  // 🔴 The lean. layout.js stands the panel bolt upright, which is the right AUTHORING frame —
+  //    every figure is placed against it and every check is pinned to it. A tablet in a room is
+  //    not bolt upright, though: it sits in its dock and leans back. So the lean is applied here,
+  //    to the scene, and the layout never learns about it.
+  structure.query(handles.housing).rotationX = Math.PI / 2 - Chassis.lean;
+
   State.streak = structure.query(handles.streaks).streak.slice();
 
   const globals = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
