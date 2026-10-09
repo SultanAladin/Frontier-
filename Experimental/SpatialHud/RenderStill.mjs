@@ -30,6 +30,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { constructHudLayout, assignValues } from './js/layout.js';
 import { resolve, pack, FloatsPerFigure, Category } from './js/figures.js';
@@ -389,8 +390,8 @@ class Fibres {
   // Curve space (along, lateral, lift) → panel metres: lateral becomes DEPTH, lift becomes UP.
   panel(local) {
     return [this.org[0] + local[0] * this.org[3],
-            this.org[1] + local[2] * this.org[3],
-            this.org[2] + local[1] * this.org[3]];
+            this.org[1] + local[2] * this.glass[1] * this.org[3],
+            this.org[2] + local[1] * this.glass[2] * this.org[3]];
   }
 
   world(panel) {
@@ -550,7 +551,7 @@ class Picture {
   }
 }
 
-function WritePortableNetwork(path, picture) {
+export function WritePortableNetwork(path, picture) {
   const { pixels, width, height } = picture;
   const raw = Buffer.alloc((width * 3 + 1) * height);
   for (let y = 0; y < height; y++) {
@@ -880,7 +881,8 @@ function Luminance(picture) {
   return total / (picture.pixels.length / 3) / 255;
 }
 
-const asked = process.argv.slice(2);
+const invoked = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const asked = invoked ? process.argv.slice(2) : ['--quiet'];
 const checking = asked.includes('--check');
 
 const sheets = checking
@@ -897,7 +899,7 @@ const sheets = checking
 const folder = join(Here, 'Stills');
 if (!checking) mkdirSync(folder, { recursive: true });
 
-for (const sheet of sheets) {
+for (const sheet of (invoked ? sheets : [])) {
   const began = Date.now();
   const { picture, figures } = RenderStill(sheet);
   const lit = Luminance(picture);

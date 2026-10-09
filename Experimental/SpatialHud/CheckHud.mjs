@@ -325,9 +325,11 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   };
   // Curve space is (along, lateral, lift); the panel mapping is x -> X, z -> Y, y -> DEPTH.
   const [ax0, ax1] = span(0), [ay0, ay1] = span(1), [az0, az1] = span(2);
+  // The cross-section is a slab, not a disc: fbPanel stretches lift and squashes depth, so the
+  // bound has to carry the same two gains or it stops bounding the thing that is drawn.
   const X = [p.origin[0] + ax0 * p.scale, p.origin[0] + ax1 * p.scale];
-  const Y = [p.origin[1] + az0 * p.scale, p.origin[1] + az1 * p.scale];
-  const Z = [p.origin[2] + ay0 * p.scale, p.origin[2] + ay1 * p.scale];
+  const Y = [p.origin[1] + az0 * p.scale * p.liftGain, p.origin[1] + az1 * p.scale * p.liftGain];
+  const Z = [p.origin[2] + ay0 * p.scale * p.depthGain, p.origin[2] + ay1 * p.scale * p.depthGain];
 
   const faceX = PanelHalfWidth - 0.012, faceY = PanelHalfHeight - 0.012;
 
@@ -338,6 +340,13 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   Claim('the volume covers the full height of the face', Y[0] <= -faceY && Y[1] >= faceY);
   Claim('the strands are longer than the panel, so none begins or ends in view',
         (X[1] - X[0]) > faceX * 2);
+
+  // 🔴 The two gains are the whole reason the volume can fill the face without reaching the glass,
+  //    so they are held apart. If anyone ever sets them equal the slab is a cylinder again and the
+  //    Live rung goes back to being a band across the middle.
+  Claim('the volume is a slab, not a cylinder', p.liftGain > p.depthGain * 2);
+  Claim('lift has more room than depth, as a panel does',
+        (Y[1] - Y[0]) > (Z[1] - Z[0]) * 2);
 }
 
 {

@@ -184,6 +184,33 @@ simply visible from behind, which is the same mistake wearing different clothes.
 `Stills/Grazing.png` is the angle that exposed it. `CheckHud` pins the clip **site**, not just its
 presence, so nobody quietly puts it back on the strand.
 
+## 🔴 The volume behind a panel is a slab, not a cylinder
+
+`fbBezier` scatters its root and reach on a **disc** perpendicular to the axis, so one `spread`
+sets the extent in both perpendicular directions at once. In a scene that is right. Behind a
+tablet it is not: the volume has ~120 mm of height to fill and perhaps 30 mm of depth before a
+strand is through the glass.
+
+With one number the two fight, and that fight is what kept the Live rung to a narrow band across
+the middle while the Field rung covered the whole face. Raising `spread` to fill the height pushed
+strands out the front — which is precisely what the hull bound caught the first time, so the
+response then was to lower `spread`, and the band was the price.
+
+The cross-section is now shaped where the curve meets the **panel** rather than in the curve:
+
+```
+fbPanel:  panel = org + vec3(along, lift * liftGain, lateral * depthGain) * scale
+          liftGain 1.70      depthGain 0.55
+```
+
+`fbBezier` stays the editor's, verbatim. `fbPanel` was already the function that exists *because a
+fibre in a panel is not a fibre in a scene*, and this is the same thought. With depth squashed,
+`spread` could go back up (0.9 → 1.1) and `amplitude` with it (1.3 → 1.5), and the volume now
+fills the face while sitting further behind the glass than it did before.
+
+`CheckHud` holds the two gains apart (`liftGain > 2 × depthGain`) and carries them through the
+hull bound, so the bound still bounds the thing that is actually drawn.
+
 ## 🔴 A finding about the native sort key
 
 `ComposeInterfaceSortKey` puts transparency in the **top** bit, so every transparent figure submits
@@ -271,18 +298,17 @@ browser console for a module that failed to load.
 
 Three things the first CPU stills exposed, none of which any numeric check could have caught:
 
-- **The seven-segment bars do not meet.** In `DistanceSegmentDigit` the horizontal arms are
-  `HalfW - Inset` long while the vertical bars sit at `±HalfW`, so a top bar stops about nine
-  millimetres short of the stroke it should join. The digits are *correct* — ` 90` is ` 90` — but
-  they read as loose bars rather than as numerals. The inset exists to stop adjacent bars merging at
-  the corners; it is being charged to the wrong axis.
-- **`BOOST` sits under the needle.** The label is at `y = -GaugeRadius * 0.52`, inside the dial,
-  which is where the needle sweeps at low readings. It wants to be below the dial's opening.
-- **The Live rung covers a band, not the face.** The fibre volume runs as a narrow ribbon across the
-  middle while the Field rung fills the whole panel. That is the hull bound doing its job — the
-  spread had to come down to keep strands behind the glass — but it means the two rungs do not read
-  as the same backdrop at two qualities. Widening wants more strands at a lower spread, not a bigger
-  hull.
+- ~~**The seven-segment bars do not meet.**~~ **Withdrawn — this was a misreading of a small
+  image.** Measured on a zoomed still, the capsule tips are about 0.4 mm apart on the diagonal: the
+  corners are *mitred*, which is what a seven-segment face is supposed to look like, and ` 90`
+  reads as ` 90`. The horizontal arms *are* about a quarter shorter than the gap between the
+  verticals, which makes the digits look slightly pinched at small sizes, but that is taste and not
+  a defect. **Render it large before calling it broken.**
+- ~~**`BOOST` sits under the needle.**~~ Fixed. It was below the hub, which is exactly where the
+  needle sweeps: `kArcStart`/`kArcSweep` open the dial at the **top** (150° round through the
+  bottom to 30°), so the lower half is the moving half. The label is now in the opening, the one
+  place on a dial where nothing moves.
+- ~~**The Live rung covers a band, not the face.**~~ Fixed by the slab, below.
 
 - Nothing is ported to C++ yet. The order would be: the fibre stages as a second pipeline beside the
   interface raster (they are already the editor's own code, which the engine does not yet have at

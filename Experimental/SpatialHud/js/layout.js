@@ -187,7 +187,10 @@ export function constructHudLayout() {
   }));
   structure.attach(handles.needle, gauge);
 
-  text(structure, gauge, 'BOOST', { x: 0, y: -GaugeRadius * 0.52, z: Forward,
+  // 🔴 ABOVE the hub, not below it. kArcStart/kArcSweep open the dial at the TOP (150 deg round
+  //    through the bottom to 30 deg), so the needle sweeps the lower half and a label under the hub
+  //    is a label the needle draws through. The opening is the one place on a dial nothing moves.
+  text(structure, gauge, 'BOOST', { x: 0, y: GaugeRadius * 0.54, z: Forward,
                                     size: 0.0105, align: 'centre', palette: Slot.MarkingMute, rank: 8 });
 
   // ── middle band: the number you are looking for ────────────────────────────────────────────────

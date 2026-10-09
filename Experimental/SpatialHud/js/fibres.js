@@ -52,7 +52,7 @@ export const StreakPreset = {
   shape: 'streak',
   strands: 150, segments: 56, seed: 11, loopSeconds: 12,
   scale: 0.033,                   // [m per curve unit] 12 curve units -> 0.40 m, just under the face
-  length: 12, spread: 0.9, amplitude: 1.3, frequency: 1,
+  length: 12, spread: 1.1, amplitude: 1.5, frequency: 1,
   thickness: 1.5, taper: 0.6,
   intensity: 1.15, halo: 0.12, baseline: 0.1,
   window: 0.55, windowCycles: 1,
@@ -74,6 +74,23 @@ export const StreakPreset = {
   direction: [1.0, -0.10, 0.22],                        // curve space
   depthFade: 0.110,                                     // [m] e-folding distance behind the glass
   glassFade: 0.015,                                     // [m] band in which a strand dims into the glass
+
+  // 🔴 THE VOLUME BEHIND A PANEL IS A SLAB, NOT A CYLINDER.
+  //
+  //    fbBezier scatters its root and reach on a DISC perpendicular to the axis, so one `spread`
+  //    sets the extent in both perpendicular directions at once. In a scene that is right. Behind
+  //    a tablet it is not: the volume has a hundred and twenty millimetres of height to fill and
+  //    perhaps thirty of depth before a strand is through the glass. With one number the two fight,
+  //    and the fight is what kept the Live rung to a narrow band across the middle while the Field
+  //    rung covered the whole face — raising spread to fill the height pushed strands out the
+  //    front, which is exactly what the hull bound caught the first time.
+  //
+  //    So the cross-section is shaped where the curve meets the PANEL rather than in the curve: the
+  //    disc is stretched along panel up and squashed along panel depth. fbBezier stays the
+  //    editor's, verbatim; fbPanel was already the function that exists because a fibre in a panel
+  //    is not a fibre in a scene, and this is the same thought.
+  liftGain: 1.70,                                       // [-] panel up, where there is room
+  depthGain: 0.55,                                      // [-] panel depth, where there is not
 };
 
 export const FibreFloats = 108;                         // 27 vec4s
@@ -117,7 +134,7 @@ export function packFibre(out, preset, view) {
   out.set(view.rows[2], 24 * 4);
   // The clip: the face's rounded rectangle, and the depth fade.
   put(25, PanelHalfWidth - 0.012, PanelHalfHeight - 0.012, 0.014, preset.depthFade);
-  put(26, preset.glassFade, 0, 0, 0);
+  put(26, preset.glassFade, preset.liftGain, preset.depthGain, 0);
   return out;
 }
 
@@ -203,7 +220,9 @@ fn fbBezier(s : f32, id : f32) -> vec3f {
 // world up; here it goes to panel up, and lateral goes to DEPTH — which is what puts the strands
 // into a volume behind the glass instead of scattering them across the face.
 fn fbPanel(local : vec3f) -> vec3f {
-  return FB.org.xyz + vec3f(local.x, local.z, local.y) * FB.org.w;
+  // The disc fbBezier scattered perpendicular to the axis becomes a SLAB here: stretched along
+  // panel up, squashed along panel depth. See the note beside liftGain in the preset.
+  return FB.org.xyz + vec3f(local.x, local.z * FB.glass.y, local.y * FB.glass.z) * FB.org.w;
 }
 
 fn fbWorld(panel : vec3f) -> vec3f {
