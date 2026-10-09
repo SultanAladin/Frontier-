@@ -78,6 +78,12 @@ jobs:
       - name: Force field panel — the one list drawn into a real DOM
         run: python3 Tools/Build/RunAnnounced.py "force panel" -- node Experimental/ParticleEditor/CheckForcePanel.mjs
 
+      - name: Spatial HUD shader — the WGSL port against the .slang it is generated from
+        run: python3 Tools/Build/RunAnnounced.py "hud shader" -- python3 Tools/Build/GenerateHudShader.py --check
+
+      - name: Spatial HUD — the tablet's graph, layout, values and submission order
+        run: python3 Tools/Build/RunAnnounced.py "spatial hud" -- node Experimental/SpatialHud/CheckHud.mjs
+
       - name: Force field parity — the native taxonomy against the browser it was ported from
         run: python3 Tools/Build/RunAnnounced.py "force field parity" -- python3 Tools/Build/ForceFieldParity.py
 
