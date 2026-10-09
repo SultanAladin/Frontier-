@@ -285,6 +285,36 @@ fn fbColourAt(t : f32, id : f32) -> vec3f {
 // volume read as a volume. Approaching the glass it dims too, over a short band — a strand must not
 // cross the surface and hang in the room, and a HARD cut at the plane would show as a bright edge
 // the moment the tablet is tilted. Frosted glass does exactly this.
+// 🔴 THE APERTURE — where a sightline crosses the glass, which is NOT where the strand is.
+//
+//    The first version of this clip asked whether the strand's own panel xy fell inside the face
+//    rectangle. That is a flat test, correct for a decal and wrong for a window, and the error is
+//    invisible head-on and glaring the moment the tablet is turned: a volume sitting eighty to a
+//    hundred and forty millimetres BEHIND the glass projects OUTSIDE the panel's screen outline at
+//    a steep angle, so the light sprayed off the side of the tablet and hung in the room.
+//
+//    A window does not work that way. What you can see through an aperture is decided at the
+//    aperture, so the sightline from the eye to the strand is carried forward to the glass plane
+//    (panel z = 0) and the rounded rectangle is evaluated THERE. That is a portal, and it costs one
+//    ray-plane intersection in panel space — no stencil, no scissor, no render target, and it still
+//    holds under any transform the tablet is given.
+fn fbEyePanel() -> vec3f {
+  // The panel rows carry panel -> world. The rotation is orthonormal, so the inverse is its
+  // transpose: the COLUMNS of the rows, applied to the eye relative to the panel's origin.
+  let offset = G.eye.xyz - vec3f(FB.rowX.w, FB.rowY.w, FB.rowZ.w);
+  return vec3f(dot(vec3f(FB.rowX.x, FB.rowY.x, FB.rowZ.x), offset),
+               dot(vec3f(FB.rowX.y, FB.rowY.y, FB.rowZ.y), offset),
+               dot(vec3f(FB.rowX.z, FB.rowY.z, FB.rowZ.z), offset));
+}
+
+fn fbAperture(panel : vec3f) -> vec2f {
+  let eye = fbEyePanel();
+  let rise = panel.z - eye.z;
+  if (abs(rise) < 1.0e-7) { return panel.xy; }     // the sightline runs along the glass
+  let cross = (0.0 - eye.z) / rise;
+  return eye.xy + (panel.xy - eye.xy) * cross;
+}
+
 fn fbGlassDepth(z : f32) -> f32 {
   let sink = exp(min(z, 0.0) / max(FB.clip.w, 1e-4));
   let band = max(FB.glass.x, 1e-4);
@@ -355,12 +385,16 @@ fn vsFibre(@builtin(vertex_index) vi : u32) -> FO {
 
 @fragment
 fn fsFibre(i : FO) -> @location(0) vec4f {
-  // The panel's own rounded rectangle, evaluated in its own plane. This is the portal: no scissor,
-  // no stencil, no render target, and it holds under any transform the tablet is given.
-  let edge = max(fwidth(i.panel.x), fwidth(i.panel.y));
+  // The portal: the panel's own rounded rectangle, evaluated where this sightline crosses the
+  // glass. Derivatives are taken before any discard, so the ramp stays one pixel wide.
+  let aperture = fbAperture(i.panel);
+  let edge = max(fwidth(aperture.x), fwidth(aperture.y));
   let inside = CoverageFromDistance(
-      DistanceRoundedRectangle(i.panel.xy, FB.clip.xy, FB.clip.z), max(edge, 1e-6));
-  if (inside <= 0.0) { discard; }
+      DistanceRoundedRectangle(aperture, FB.clip.xy, FB.clip.z), max(edge, 1e-6));
+
+  // The back of a tablet is opaque. Without this the volume is simply visible from behind, which
+  // is the same mistake as the flat clip wearing different clothes.
+  if (inside <= 0.0 || fbEyePanel().z <= 0.0) { discard; }
 
   let line = exp(-0.5 * i.across * i.across / (i.sigma * i.sigma));
   let glow = FB.p3.y * exp(-0.5 * i.across * i.across / (i.halo * i.halo));
@@ -422,10 +456,10 @@ fn vsSpark(@builtin(vertex_index) vi : u32) -> SO {
 
 @fragment
 fn fsSpark(i : SO) -> @location(0) vec4f {
-  // A spark is clipped by the spine too — a head that has run off the face must not glow over the
-  // bezel. Its quad is screen-aligned, so the whole quad lives or dies with its centre.
-  let d = DistanceRoundedRectangle(i.panel.xy, FB.clip.xy, FB.clip.z);
-  if (d > 0.0) { discard; }
+  // A spark goes through the same aperture — a head that has run off the face must not glow over
+  // the bezel. Its quad is screen-aligned, so the whole quad lives or dies with its centre.
+  let d = DistanceRoundedRectangle(fbAperture(i.panel), FB.clip.xy, FB.clip.z);
+  if (d > 0.0 || fbEyePanel().z <= 0.0) { discard; }
   let r2 = dot(i.uv, i.uv);
   let disc = exp(-r2 * 7.0) * (1.0 - smoothstep(0.7, 1.0, r2));
   let sink = fbGlassDepth(i.panel.z);

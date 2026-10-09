@@ -400,6 +400,25 @@ class Fibres {
             r[2][0] * panel[0] + r[2][1] * panel[1] + r[2][2] * panel[2] + r[2][3]];
   }
 
+  // The eye in panel metres. The rotation is orthonormal, so the inverse is its transpose.
+  eyePanel(eye) {
+    const r = this.rows;
+    const dx = eye[0] - r[0][3], dy = eye[1] - r[1][3], dz = eye[2] - r[2][3];
+    return [r[0][0] * dx + r[1][0] * dy + r[2][0] * dz,
+            r[0][1] * dx + r[1][1] * dy + r[2][1] * dz,
+            r[0][2] * dx + r[1][2] * dy + r[2][2] * dz];
+  }
+
+  // Where the sightline to this point crosses the glass. The clip belongs at the aperture, not at
+  // the strand — see the note beside fbAperture in js/fibres.js.
+  aperture(panel, eyeLocal) {
+    const rise = panel[2] - eyeLocal[2];
+    if (Math.abs(rise) < 1e-7) return [panel[0], panel[1]];
+    const cross = -eyeLocal[2] / rise;
+    return [eyeLocal[0] + (panel[0] - eyeLocal[0]) * cross,
+            eyeLocal[1] + (panel[1] - eyeLocal[1]) * cross];
+  }
+
   glassDepth(z) {
     const sink = Math.exp(Math.min(z, 0) / Math.max(this.clip[3], 1e-4));
     const band = Math.max(this.glass[0], 1e-4);
@@ -662,6 +681,10 @@ function DrawFibres(picture, camera, fibres) {
   const sigmaPx = Math.max(0.8, fibres.p2[2] * pixelScale) * 0.42466;
   const haloPx = Math.max(2.4 * pixelScale, 2 * sigmaPx);
   const envPx = 3.6 * haloPx;
+  const eyeLocal = fibres.eyePanel(camera.eye);
+
+  // The back of a tablet is opaque.
+  if (eyeLocal[2] <= 0) return;
 
   // One fragment per pixel per strand, as the GPU gets: the nearest point on the strand wins.
   const bestGap = new Float32Array(width * height).fill(Infinity);
@@ -731,9 +754,10 @@ function DrawFibres(picture, camera, fibres) {
       const sink = fibres.glassDepth(panelZ);
       if (sink <= 0) { bestGap[at] = Infinity; continue; }
 
-      // The portal: the panel's own rounded rectangle, in the panel's own plane.
+      // The portal: the panel's rounded rectangle, evaluated where this sightline crosses the glass.
+      const aperture = fibres.aperture([bestPanelX[at], bestPanelY[at], panelZ], eyeLocal);
       const inside = CoverageFromDistance(
-        DistanceRoundedRectangle(bestPanelX[at], bestPanelY[at], fibres.clip[0], fibres.clip[1], fibres.clip[2]),
+        DistanceRoundedRectangle(aperture[0], aperture[1], fibres.clip[0], fibres.clip[1], fibres.clip[2]),
         0.0004);
       if (inside <= 0) { bestGap[at] = Infinity; continue; }
 
@@ -762,6 +786,8 @@ function DrawFibres(picture, camera, fibres) {
 function DrawSparks(picture, camera, fibres) {
   const { width, height } = picture;
   const strands = Math.trunc(fibres.p6[1]);
+  const eyeLocal = fibres.eyePanel(camera.eye);
+  if (eyeLocal[2] <= 0) return;
 
   for (let strand = 0; strand < strands; strand++) {
     const id = strand;
@@ -769,7 +795,8 @@ function DrawSparks(picture, camera, fibres) {
 
     const s = fract(fibres.unit(id, 9) + fibres.p5[1] * fibres.p2[1]);
     const panel = fibres.panel(fibres.bezier(s, id));
-    if (DistanceRoundedRectangle(panel[0], panel[1], fibres.clip[0], fibres.clip[1], fibres.clip[2]) > 0) continue;
+    const spot = fibres.aperture(panel, eyeLocal);
+    if (DistanceRoundedRectangle(spot[0], spot[1], fibres.clip[0], fibres.clip[1], fibres.clip[2]) > 0) continue;
 
     const sink = fibres.glassDepth(panel[2]);
     if (sink <= 0) continue;
@@ -862,6 +889,9 @@ const sheets = checking
       { name: 'Tablet', orbit: 0.62, tilt: 0.26, distance: 0.74, backdrop: 'live' },
       { name: 'Screen', orbit: 0.06, tilt: 0.04, distance: 0.62, backdrop: 'live' },
       { name: 'FieldRung', orbit: 0.62, tilt: 0.26, distance: 0.74, backdrop: 'field' },
+      // The angle that exposed the flat clip: the volume behind the glass projects well outside the
+      // panel's outline here, so this is the still that proves the aperture.
+      { name: 'Grazing', orbit: 1.24, tilt: 0.42, distance: 0.70, backdrop: 'live' },
     ];
 
 const folder = join(Here, 'Stills');

@@ -385,7 +385,23 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
     Claim(`the fibre shader carries ${name}`, FIBRE_WGSL.includes(`fn ${name}`));
   }
   Claim('the fibre shader clips with the engine\'s own rounded rectangle',
-        FIBRE_WGSL.includes('DistanceRoundedRectangle(i.panel.xy, FB.clip.xy, FB.clip.z)'));
+        FIBRE_WGSL.includes('DistanceRoundedRectangle(aperture, FB.clip.xy, FB.clip.z)'));
+
+  // 🔴 THE CLIP IS AT THE APERTURE, NOT AT THE STRAND.
+  //
+  //    Clipping on the strand's own panel xy is a flat test. It is invisible head-on and wrong the
+  //    moment the tablet turns: a volume a hundred millimetres behind the glass projects outside
+  //    the panel's outline at a steep angle, and the light sprays off the side into the room. A
+  //    window decides what you can see through it AT the window, so the sightline is carried to
+  //    panel z = 0 first. These pins exist because the flat version looked perfectly fine in every
+  //    screenshot anyone had taken until someone orbited past sixty degrees.
+  Claim('the fibre shader carries the aperture', FIBRE_WGSL.includes('fn fbAperture'));
+  Claim('the aperture is solved on the glass plane', FIBRE_WGSL.includes('(0.0 - eye.z) / rise'));
+  Claim('nothing clips on the strand position any more',
+        !FIBRE_WGSL.includes('DistanceRoundedRectangle(i.panel.xy'));
+  Claim('the eye is carried into panel space by the transpose',
+        FIBRE_WGSL.includes('fn fbEyePanel') && FIBRE_WGSL.includes('FB.rowX.x, FB.rowY.x, FB.rowZ.x'));
+  Claim('the back of the tablet is opaque', FIBRE_WGSL.includes('fbEyePanel().z <= 0.0'));
   Claim('the unported shapes are absent, not stubbed',
         !FIBRE_WGSL.includes('fbWave') && !FIBRE_WGSL.includes('fbTrail'));
 }
