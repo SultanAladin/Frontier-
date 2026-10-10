@@ -76,6 +76,81 @@ def write_include(blobs: dict, out: Path) -> None:
     out.write_text("\n".join(lines) + "\n")
 
 
+# Host struct layouts (Engine/GeometricRaster/MeshSdfVulkan.h) must match what Slang compiled. Offsets are checked from the SPIR-V
+# decorations. Constant buffers are read directly; the structured buffer's element is read through its runtime array.
+EXPECTED_CONSTANT_BUFFERS = {
+    0: ("BakeParams", [0, 16, 28, 32, 40]),
+    3: ("CompositeParams", [0, 12, 16, 32, 48, 60, 64]),
+}
+EXPECTED_ELEMENT = {
+    4: ("InstanceGpu", [0, 16, 32, 48, 64, 80, 96], 112),
+}
+
+
+def reflect_layouts(blob: bytes) -> dict:
+    words = [int.from_bytes(blob[i:i + 4], "little") for i in range(0, len(blob), 4)]
+    member_offsets, decorations, pointers, variables, struct_members = {}, {}, {}, [], {}
+    runtime_arrays = {}
+    i = 5
+    while i < len(words):
+        op, count = words[i] & 0xFFFF, words[i] >> 16
+        args = words[i + 1:i + count]
+        if op == 72 and args[2] == 35:                           # OpMemberDecorate Offset
+            member_offsets.setdefault(args[0], {})[args[1]] = args[3]
+        elif op == 71:                                           # OpDecorate
+            decorations.setdefault(args[0], {})[args[1]] = args[2] if len(args) > 2 else None
+        elif op == 30:                                           # OpTypeStruct
+            struct_members[args[0]] = list(args[1:])
+        elif op == 29:                                           # OpTypeRuntimeArray
+            runtime_arrays[args[0]] = args[1]
+        elif op == 32:                                           # OpTypePointer
+            pointers[args[0]] = args[2]
+        elif op == 59:                                           # OpVariable
+            variables.append((args[1], args[0]))
+        i += count
+    result = {"constant": {}, "element": {}}
+    for var_id, ptr_id in variables:
+        binding = decorations.get(var_id, {}).get(33)
+        if binding is None:
+            continue
+        struct_id = pointers.get(ptr_id)
+        if binding in EXPECTED_CONSTANT_BUFFERS and struct_id in struct_members:
+            members = struct_members[struct_id]
+            result["constant"][binding] = [member_offsets.get(struct_id, {}).get(m) for m in range(len(members))]
+        if binding in EXPECTED_ELEMENT and struct_id in struct_members:
+            # StructuredBuffer block: member 0 is a runtime array of the element struct.
+            array_id = struct_members[struct_id][0]
+            element_id = runtime_arrays.get(array_id)
+            if element_id in struct_members:
+                members = struct_members[element_id]
+                stride = decorations.get(array_id, {}).get(6)
+                result["element"][binding] = ([member_offsets.get(element_id, {}).get(m) for m in range(len(members))], stride)
+    return result
+
+
+def verify_host_layouts(blobs: dict) -> None:
+    failures = []
+    # Each expected binding must be present in the entry that uses it. A missing binding is a failure, never a pass.
+    for entry, binding in (("BakeMain", 0), ("CompositeMain", 3)):
+        found = reflect_layouts(blobs[entry])["constant"].get(binding)
+        label, expected = EXPECTED_CONSTANT_BUFFERS[binding]
+        if found is None:
+            failures.append(f"{entry}: {label} (binding {binding}) not reflected")
+        elif found != expected:
+            failures.append(f"{entry} {label}: {found} != {expected}")
+    found = reflect_layouts(blobs["CompositeMain"])["element"].get(4)
+    label, expected_offsets, expected_stride = EXPECTED_ELEMENT[4]
+    if found is None:
+        failures.append(f"CompositeMain {label}: element layout not reflected")
+    elif found[0] != expected_offsets or found[1] != expected_stride:
+        failures.append(f"CompositeMain {label}: offsets {found[0]} stride {found[1]} != {expected_offsets} stride {expected_stride}")
+    if failures:
+        for line in failures:
+            print(f"[MeshSdfSpirv] layout mismatch: {line}", file=sys.stderr)
+        sys.exit("[MeshSdfSpirv] RED — layout mismatch between MeshSdf.slang and MeshSdfVulkan.h")
+    print("[MeshSdfSpirv] layout check GREEN — BakeParams 48 B, CompositeParams 80 B, InstanceGpu stride 112 B match MeshSdfVulkan.h")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--slang-lib", default=None)
@@ -90,6 +165,7 @@ def main() -> None:
         if magic != 0x07230203:
             sys.exit(f"[MeshSdfSpirv] RED — {name} is not SPIR-V (magic {magic:#x})")
         print(f"[MeshSdfSpirv] {name:14s} {len(blob):6d} bytes SPIR-V")
+    verify_host_layouts(blobs)
     write_include(blobs, Path(args.out))
     print(f"[MeshSdfSpirv] GREEN — wrote {args.out}")
 
