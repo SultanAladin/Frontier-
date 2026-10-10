@@ -23,8 +23,8 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 #include "Shaders/ShadowSample.slang"
 #include "PresentationDither.slang"
 
-layout(std430, set = 0, binding = 1) readonly store InstanceExtent { InstanceRecord Instances[]; };
-layout(std430, set = 0, binding = 5) readonly store MaterialExtent { MaterialRecord Materials[]; };
+layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
+layout(std430, set = 0, binding = 5) readonly buffer MaterialExtent { MaterialRecord Materials[]; };
 
 layout(set = 0, binding = 10, rgba32f) uniform readonly  image2D SurfaceImage;   // xyz = world position, w = visibility id
 layout(set = 0, binding = 11, rgba16f) uniform readonly  image2D NormalImage;    // xyz = geometric normal, camera-facing

@@ -120,7 +120,7 @@ const char* RayTracingCapabilitySet::TierName(RayTracingTierCategory Tier) noexc
     {
         case RayTracingTierCategory::Software: return "Software BVH";
         case RayTracingTierCategory::RayQuery: return "Ray Query";
-        case RayTracingTierCategory::Sequence: return "Ray Sequence";
+        case RayTracingTierCategory::Sequence: return "Ray Pipeline";
         default: return "Unknown";
     }
 }
@@ -132,7 +132,7 @@ const char* RayTracingCapabilitySet::RequestName(RayTracingRequestCategory Reque
         case RayTracingRequestCategory::Auto:     return "Auto";
         case RayTracingRequestCategory::Software: return "Software";
         case RayTracingRequestCategory::RayQuery: return "RayQuery";
-        case RayTracingRequestCategory::Sequence: return "Sequence";
+        case RayTracingRequestCategory::Sequence: return "Pipeline";
         default: return "Unknown";
     }
 }

@@ -225,7 +225,7 @@ void TickHistory()
         Request = EOS_PlayerPayloadStorage_WriteFile(Store, &O, Cookie(), WriteDone);
     }
     else { History.Busy = false; return; }
-    if (!Request) { Transfer = false; Paused = true; History.Status = "EOS cloud transfer could not start; check client-policy permissions and the record key"; }
+    if (!Request) { Transfer = false; Paused = true; History.Status = "EOS cloud transfer could not start; check client-policy permissions and the data key"; }
 }
 void DetachHistory()
 {

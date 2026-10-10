@@ -290,9 +290,9 @@ try {
     "Native scale cylinders, rotation sectors and planar grips all change real geometry with undo",
   );
 
-  await Page.locator('[record-inspector="transform"]').click();
+  await Page.locator('[data-inspector="transform"]').click();
   Assert.equal(await Page.locator(".transform-table tbody tr").count(), 3);
-  Assert.equal(await Page.locator("[record-transform]").count(), 9);
+  Assert.equal(await Page.locator("[data-transform]").count(), 9);
   await EditCell("position", 0, 5);
   Near(
     ((await Snapshot()).figures[0].low[0] +
@@ -305,32 +305,32 @@ try {
   await Ready();
   Assert.equal(
     await Page.locator(
-      '[record-transform="rotation"][record-axis="2"]',
+      '[data-transform="rotation"][data-axis="2"]',
     ).inputValue(),
     "90",
   );
   Near(Extent((await Snapshot()).figures[0], 0), 3);
   Near(Extent((await Snapshot()).figures[0], 1), 2);
-  await Page.locator('[record-transform-reset="rotation"]').click();
+  await Page.locator('[data-transform-reset="rotation"]').click();
   await Ready();
   Near(Extent((await Snapshot()).figures[0], 0), 2);
   await EditCell("scale", 0, 2);
   Near(Extent((await Snapshot()).figures[0], 0), 4);
-  await Page.locator('[record-transform-reset="scale"]').click();
+  await Page.locator('[data-transform-reset="scale"]').click();
   await Ready();
   Near(Extent((await Snapshot()).figures[0], 0), 2);
   await Page.locator("#uniform-scale").fill("1.5");
   await Page.locator("#uniform-scale").dispatchEvent("change");
   await Ready();
   Near(Extent((await Snapshot()).figures[0], 0), 3);
-  await Page.locator('[record-transform-reset="position"]').click();
+  await Page.locator('[data-transform-reset="position"]').click();
   await Ready();
   const Centred = (await Snapshot()).figures[0];
   Centred.low.forEach((Value, Index) =>
     Near((Value + Centred.high[Index]) / 2, 0),
   );
   const Input = await Page.locator(
-    '[record-transform="position"][record-axis="0"]',
+    '[data-transform="position"][data-axis="0"]',
   ).boundingBox();
   await Page.mouse.move(Input.x + Input.width / 2, Input.y + Input.height / 2);
   await Page.mouse.down();
@@ -362,13 +362,13 @@ try {
     ["Surface", 5],
   ]) {
     await Page.locator(`[record-section="${Section}"]`).click();
-    Assert.equal(await Page.locator("[record-construct]").count(), Amount);
+    Assert.equal(await Page.locator("[data-construct]").count(), Amount);
   }
   await Page.keyboard.press("Escape");
   Assert.equal(await Page.locator("#construct-menu").isVisible(), false);
   await Page.locator("#construct-button").click();
-  await Page.locator('[record-section="Surface"]').click();
-  await Page.locator('[record-construct="21"]').click();
+  await Page.locator('[data-section="Surface"]').click();
+  await Page.locator('[data-construct="21"]').click();
   await Ready();
   Assert.equal((await Snapshot()).figures.at(-1).classification, 1);
   await Page.locator("#construct-button").click();
@@ -417,7 +417,7 @@ try {
     "view iso",
     "view fit",
   ]);
-  await Page.locator('[record-inspector="transform"]').click();
+  await Page.locator('[data-inspector="transform"]').click();
   if (await Page.locator("#console-panel").isVisible())
     await Page.locator("#diagnostics-button").click();
   await Page.mouse.move(10, 10);
@@ -430,7 +430,7 @@ try {
       path: `${process.env.BROWSER_ARTIFACTS}/SolidArcTransform.png`,
     });
     await Page.locator("#construct-button").click();
-    await Page.locator('[record-section="Sketch Draw"]').click();
+    await Page.locator('[data-section="Sketch Draw"]').click();
     await Page.screenshot({
       path: `${process.env.BROWSER_ARTIFACTS}/SolidArcConstruct.png`,
     });

@@ -37,11 +37,11 @@ try {
   await Frame("coverage").locator(".cl-cover").waitFor();
   assert.equal(
     await Page.locator(
-      "[record-panel=clouds] > header + [record-reference-slice=summary]",
+      "[data-panel=clouds] > header + [data-reference-slice=summary]",
     ).count(),
     1,
   );
-  assert.equal(await Page.locator('[record-card="Cloud coverage"]').count(), 1);
+  assert.equal(await Page.locator('[data-card="Cloud coverage"]').count(), 1);
   assert.equal(
     await Frame("summary").locator(".cl-cover,.cl-layer,.ident").count(),
     0,
@@ -51,11 +51,11 @@ try {
     0,
   );
   assert.equal(
-    await Page.locator('[record-card="Cloud base"] .cloud-deck-visual').count(),
+    await Page.locator('[data-card="Cloud base"] .cloud-deck-visual').count(),
     1,
   );
   assert.equal(
-    await Page.locator('[record-card="Cloud coverage"] > .graphic').count(),
+    await Page.locator('[data-card="Cloud coverage"] > .graphic').count(),
     0,
   );
   Checks.push(
@@ -64,7 +64,7 @@ try {
   await Page.screenshot({ path: path.join(Proof, "CloudsTop.png") });
   await Page.getByLabel("Coverage value", { exact: true }).fill("0.75");
   const CoverageFrame = await (
-    await Page.locator("[record-reference-slice=coverage] iframe").elementHandle()
+    await Page.locator("[data-reference-slice=coverage] iframe").elementHandle()
   ).contentFrame();
   await CoverageFrame.waitForFunction(
     () => document.querySelector(".cl-cover .mp-num .i")?.textContent === "75",
@@ -93,7 +93,7 @@ try {
   Checks.push(
     "Coverage graph and retained slider synchronize in both directions and survive reload",
   );
-  await Page.locator('[record-card="Cloud base"]').evaluate((Node) =>
+  await Page.locator('[data-card="Cloud base"]').evaluate((Node) =>
     Node.scrollIntoView({ block: "center" }),
   );
   const Deck = Page.locator(".cloud-deck-visual");
@@ -117,7 +117,7 @@ try {
   const Image = await Deck.evaluate((Node) => Node.toDataURL());
   await Page.getByLabel("Thickness value", { exact: true }).fill("2000");
   assert.notEqual(await Deck.evaluate((Node) => Node.toDataURL()), Image);
-  await Page.locator('[record-card="Cloud base"]').evaluate((Node) =>
+  await Page.locator('[data-card="Cloud base"]').evaluate((Node) =>
     Node.scrollIntoView({ block: "center" }),
   );
   await Page.screenshot({ path: path.join(Proof, "CloudBase.png") });
@@ -141,7 +141,7 @@ try {
     assert.equal(await Page.locator(".inspector-scroll .ident").count(), 0);
     assert.equal(
       await Page.locator(
-        "[record-panel=light] > header + .reference-inspector-copy",
+        "[data-panel=light] > header + .reference-inspector-copy",
       ).count(),
       1,
     );
@@ -236,8 +236,8 @@ try {
   );
   await Open("local-cloud");
   assert.equal(await Page.locator("iframe").count(), 2);
-  assert.equal(await Page.locator('[record-card="Cloud coverage"]').count(), 1);
-  assert.equal(await Page.locator('[record-card="Local bounds"]').count(), 1);
+  assert.equal(await Page.locator('[data-card="Cloud coverage"]').count(), 1);
+  assert.equal(await Page.locator('[data-card="Local bounds"]').count(), 1);
   Checks.push(
     "Local Cloud now shares both reference slices and retains its native coverage and bounds controls",
   );
@@ -268,7 +268,7 @@ try {
     const Inventory = () =>
       [
         ...document.querySelectorAll(
-          ".inspector-scroll > [record-panel] input,.inspector-scroll > [record-panel] select,.inspector-scroll > [record-panel] textarea",
+          ".inspector-scroll > [data-panel] input,.inspector-scroll > [data-panel] select,.inspector-scroll > [data-panel] textarea",
         ),
       ]
         .filter(
@@ -291,7 +291,7 @@ try {
     for (const Id of ["clouds", "light", "local-cloud"]) {
       await Open(Id);
       await Previous.goto("http://baseline.test/?inspect=" + Id);
-      await Previous.locator(".inspector-scroll > [record-panel]").waitFor();
+      await Previous.locator(".inspector-scroll > [data-panel]").waitFor();
       assert.deepEqual(
         await Page.evaluate(Inventory),
         await Previous.evaluate(Inventory),

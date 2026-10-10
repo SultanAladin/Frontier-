@@ -83,7 +83,7 @@ enum class ControlCentreIconCategory : uint32_t
     ChevronUp                           = 19,                   // ⌃ lucide "chevron-up" — dropdown caret (open)
     TriangleAlert                       = 20,                   // ⚠ lucide "triangle-alert" — warning tone
     CircleCheck                         = 21,                   // ✓ lucide "circle-check-big" — success tone
-    CircleDetails                          = 22,                   // ⓘ lucide "facts" — facts tone
+    CircleDetails                          = 22,                   // ⓘ lucide "info" — facts tone
     OctagonAlert                        = 23,                   // ⛔ lucide "octagon-alert" — caution / danger tone
 
     // ── Editor row columns and record furniture ────────────────────────────────────────────────────────────────────

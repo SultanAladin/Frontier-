@@ -5,14 +5,14 @@ import {createCanvas,loadImage} from '@napi-rs/canvas';
 const ids=['weather-rain','weather-snow','weather-hail','sky-scattering','environment-exposure'];
 const dom=new JSDOM(fs.readFileSync('icons.html','utf8'),{runScripts:'dangerously',beforeParse(w){w.HTMLDialogElement.prototype.showModal=function(){this.open=true}}});
 const d=dom.window.document;
-assert.equal(d.querySelector('[record-id="weather-frost-ice"]'),null);
+assert.equal(d.querySelector('[data-id="weather-frost-ice"]'),null);
 for(const dir of ['custom-icons','dist/custom-icons'])assert.ok(!fs.existsSync(dir+'/weather-frost-ice.svg'));
-d.querySelector('[record-filter="Environment"]').click();
+d.querySelector('[data-filter="Environment"]').click();
 for(const id of ids){
  const raw=fs.readFileSync('custom-icons/'+id+'.svg','utf8');
  const svg=new dom.window.DOMParser().parseFromString(raw,'image/svg+xml');
  assert.ok(!svg.querySelector('parsererror,image,script,foreignObject'));
- if(id==='sky-scattering'){assert.ok(svg.getElementById('atmosphere-altitude'));assert.ok(!svg.querySelector('clipPath,[record-layer]')); assert.ok(!raw.includes('sky-scattering-sun'));}
+ if(id==='sky-scattering'){assert.ok(svg.getElementById('atmosphere-altitude'));assert.ok(!svg.querySelector('clipPath,[data-layer]')); assert.ok(!raw.includes('sky-scattering-sun'));}
  if(['weather-rain','weather-hail'].includes(id))assert.ok(!raw.includes('cloud'));
  for(const m of raw.matchAll(/url\(#([^\)]+)\)/g))assert.ok(svg.getElementById(m[1]),id+': '+m[1]);
  for(const size of [32,64,256]){

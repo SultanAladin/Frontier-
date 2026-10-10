@@ -104,8 +104,8 @@ try {
   }
   await Select("World");
   assert.equal(
-    await Page.locator("[record-collection-total]").getAttribute(
-      "record-collection-total",
+    await Page.locator("[data-collection-total]").getAttribute(
+      "data-collection-total",
     ),
     "13",
   );
@@ -208,7 +208,7 @@ try {
   const Number = await Page.locator(".debug-number").innerText();
   await Page.waitForTimeout(700);
   assert.equal(await Page.locator(".debug-number").innerText(), Number);
-  assert.equal(await Card.getAttribute("record-paused"), "true");
+  assert.equal(await Card.getAttribute("data-paused"), "true");
   await Page.locator(".debug-card-body").evaluate((N) => (N.scrollTop = 0));
   await Page.screenshot({ path: Proof + "/FolderDiagnostics.png" });
   await Page.getByRole("slider", {
@@ -349,8 +349,8 @@ try {
   await Page.reload({ waitUntil: "networkidle" });
   await Page.setViewportSize({ width: 1366, height: 768 });
   assert.equal(
-    await Page.locator("[record-collection-total]").getAttribute(
-      "record-collection-total",
+    await Page.locator("[data-collection-total]").getAttribute(
+      "data-collection-total",
     ),
     "2508",
   );
@@ -419,8 +419,8 @@ try {
   );
   await Select("Empty collection");
   assert.equal(
-    await Page.locator("[record-collection-total]").getAttribute(
-      "record-collection-total",
+    await Page.locator("[data-collection-total]").getAttribute(
+      "data-collection-total",
     ),
     "0",
   );

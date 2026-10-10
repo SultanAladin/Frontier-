@@ -10,15 +10,15 @@
 //    is needed for CWBVH depths on Sponza-class scenes (tinybvh asserts the same).
 //
 // Include contract: the including shader declares
-//    layout(std430, binding = ?) readonly store TraversalNodeExtent { vec4 CwbvhNodes[]; };
-//    layout(std430, binding = ?) readonly store TraversalLeafExtent { vec4 CwbvhTris[];  };
+//    layout(std430, binding = ?) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };
+//    layout(std430, binding = ?) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };
 // before including this file, and calls TraverseClosest / TraverseOccluded.
 //
 // D6/D7 — TWO-LEVEL SCENES. An including shader that also declares the four instance stores
-//    layout(std430, binding = ?) readonly store TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];            };
-//    layout(std430, binding = ?) readonly store TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[];       };
-//    layout(std430, binding = ?) readonly store TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];        };
-//    layout(std430, binding = ?) readonly store TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[];     };
+//    layout(std430, binding = ?) readonly buffer TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];            };
+//    layout(std430, binding = ?) readonly buffer TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[];       };
+//    layout(std430, binding = ?) readonly buffer TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];        };
+//    layout(std430, binding = ?) readonly buffer TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[];     };
 // (#include "TraversalRecords.slang" first — the structs) defines FRONTIER_TRAVERSAL_INSTANCES and gets
 // TraverseInstancesClosest / TraverseInstancesOccluded. Those walk the top level over the instances' world AABBs and,
 // at each candidate leaf, transform the ray into that instance's OBJECT space, walk its BLAS (the shared CwbvhNodes /

@@ -113,7 +113,7 @@ struct Panel {
         // Both source targets are drawn. Neither is aliased to the existing Sky-dome precompute.
         Quick(X+24,Y+59,119,"##source","Use baked image",Mark::Precompute,nullptr,"No native image binding exists for this Sun target.");
         float AX=X+159,AW=W-183;
-        Button(AX,Y+59,AW,32,"##bake","Precompute",false,Mark::Precompute,"Sun-specific renderer bake is not exposed. No fake request or completed result is produced.");
+        Button(AX,Y+59,AW,32,"##bake","Bake",false,Mark::Precompute,"Sun-specific renderer bake is not exposed. No fake request or completed result is produced.");
         Button(AX,Y+100,AW,32,"##load","Load image",false,Mark::Upload,"Native image import/binding is not implemented for this target.");
         Wrap(AX,Y+143,AW,"No image source connected.",9,Colour(133,133,133));
         Rule(X+24,Y+181,W-48);Wrap(X+24,Y+192,W-48,"Renderer / imported-image binding unavailable",9,Colour(144,139,130));

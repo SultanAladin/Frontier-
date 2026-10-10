@@ -230,8 +230,8 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategor
     VectorGlyphRecord{ "TriangleAlert", "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3ZM12 9v4M12 17h.01", 24, 24, 2.0f },
     // 21: CircleCheck — lucide "circle-check-big"
     VectorGlyphRecord{ "CircleCheck", "M22 11.08V12a10 10 0 1 1-5.93-9.14M9 11l3 3L22 4", 24, 24, 2.0f },
-    // 22: CircleDetails — lucide "facts"
-    VectorGlyphRecord{ "CircleDetails", "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM12 16v-4M12 8h.01", 24, 24, 2.0f },
+    // 22: CircleDetails — lucide "info"
+    VectorGlyphRecord{ "CircleInfo", "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM12 16v-4M12 8h.01", 24, 24, 2.0f },
     // 23: OctagonAlert — lucide "octagon-alert"
     VectorGlyphRecord{ "OctagonAlert", "M12 16h.01M12 8v4M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z", 24, 24, 2.0f },
 

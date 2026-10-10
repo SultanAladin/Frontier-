@@ -19,11 +19,11 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 #include "Shaders/SceneRecords.slang"
 #include "Shaders/RayGeneration.slang"
 
-layout(std430, set = 0, binding = 1) readonly store InstanceExtent { InstanceRecord Instances[]; };
-layout(std430, set = 0, binding = 2) readonly store ClusterExtent  { ClusterRecord  Clusters[];  };
-layout(std430, set = 0, binding = 3) readonly store VertexExtent   { VertexRecord   Vertices[];  };
-layout(std430, set = 0, binding = 4) readonly store IndexExtent    { uint           Indices[];   };
-layout(std430, set = 0, binding = 5) readonly store MaterialExtent { MaterialRecord Materials[]; };
+layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
+layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
+layout(std430, set = 0, binding = 3) readonly buffer VertexExtent   { VertexRecord   Vertices[];  };
+layout(std430, set = 0, binding = 4) readonly buffer IndexExtent    { uint           Indices[];   };
+layout(std430, set = 0, binding = 5) readonly buffer MaterialExtent { MaterialRecord Materials[]; };
 
 layout(set = 0, binding = 6)          uniform usampler2D VisibilityImage;
 layout(set = 0, binding = 7)          uniform sampler2D  MotionImage;
@@ -54,7 +54,7 @@ struct GpuReservoirView
     //    plausible. Keep this in step with GpuReservoir (ReSTIRViewport.slang) and ReservoirStoreRecord (host).
     uvec4 Identity;  // D10: x = instance << 14 | primitive; yzw reserved
 };
-layout(std430, set = 0, binding = 13) readonly store ReservoirExtent { GpuReservoirView Reservoirs[]; };
+layout(std430, set = 0, binding = 13) readonly buffer ReservoirExtent { GpuReservoirView Reservoirs[]; };
 
 // Debug views — mirror DebugViewCategory in Engine/DeviceExchange/VisibilityExchange.h
 const uint kDebugOff        = 0u;

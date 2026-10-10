@@ -53,7 +53,7 @@ async function Open(Id, Wide = false) {
   await Page.goto(
     Address + "?inspect=" + Id + (Wide ? "&workspace=inspector" : ""),
   );
-  await Page.locator(".inspector-scroll > [record-panel]").waitFor();
+  await Page.locator(".inspector-scroll > [data-panel]").waitFor();
   for (const Iframe of await Page.locator(
     ".reference-inspector-copy iframe",
   ).all())
@@ -94,7 +94,7 @@ const Sections = {
     Card("Atmospheric scattering"),
     Card("Native atmosphere controls"),
     Card("Atmosphere bake"),
-    Card("Precomputed atmosphere"),
+    Card("Baked atmosphere"),
   ],
   sun: [
     [null, ".mp-hero"],
@@ -172,7 +172,7 @@ const Sections = {
 };
 const PrecomputeCards = {
   sun: ["Sun lighting bake", "Sun disk bake"],
-  atmosphere: ["Atmosphere bake", "Precomputed atmosphere"],
+  atmosphere: ["Atmosphere bake", "Baked atmosphere"],
   flare: ["Lens flare image"],
   stars: ["Star field bake"],
   rainbow: ["Precompute / image"],
@@ -228,7 +228,7 @@ try {
       } else await Sequence(Row.Id, Sections[Row.Panel]);
       if (PrecomputeCards[Row.Panel]) {
         const Names = await Page.locator(
-          ".inspector-scroll [record-card]",
+          ".inspector-scroll [data-card]",
         ).evaluateAll((Nodes) => Nodes.map((Node) => Node.dataset.card));
         assert.deepEqual(
           Names.slice(-BakeCards[Row.Panel].length),
@@ -238,10 +238,10 @@ try {
         const Last = Page.locator(Card(PrecomputeCards[Row.Panel].at(-1)));
         assert(
           await Last.evaluate((Node) => {
-            const Root = Node.closest("[record-panel]");
+            const Root = Node.closest("[data-panel]");
             return [
               ...Root.querySelectorAll(
-                "input,select,textarea,button,[record-card]",
+                "input,select,textarea,button,[data-card]",
               ),
             ].every(
               (Other) =>
@@ -279,7 +279,7 @@ try {
         Id: Row.Id,
         Panel: Row.Panel,
         Wide,
-        Cards: await Page.locator(".inspector-scroll [record-card]").evaluateAll(
+        Cards: await Page.locator(".inspector-scroll [data-card]").evaluateAll(
           (Nodes) => Nodes.map((Node) => Node.dataset.card),
         ),
       });
@@ -383,9 +383,9 @@ try {
   for (const [Id, Wide, Name, Target] of [
     ["light", false, "AreaDocked", null],
     ["reference-softbox", true, "AreaExpanded", null],
-    ["sun", true, "SunPrecomputingLast", Card("Sun lighting bake")],
-    ["atmosphere", true, "AtmospherePrecomputingLast", Card("Atmosphere bake")],
-    ["stars", false, "StarsPrecomputingLast", Card("Star field bake")],
+    ["sun", true, "SunBakingLast", Card("Sun lighting bake")],
+    ["atmosphere", true, "AtmosphereBakingLast", Card("Atmosphere bake")],
+    ["stars", false, "StarsBakingLast", Card("Star field bake")],
     ["clouds", true, "CloudOrder", null],
     ["height-fog", false, "HeightFogOrder", Card("Fog settings")],
     ["wind", true, "WindOrder", Card("Wind controls")],

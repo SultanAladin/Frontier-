@@ -138,7 +138,7 @@ try {
   });
   await Page.evaluate(() => document.fonts.ready);
   await Select("Local Fog");
-  const Card = Page.locator('[record-card="Fog volume shape"]');
+  const Card = Page.locator('[data-card="Fog volume shape"]');
   await Card.scrollIntoViewIfNeeded();
   assert.equal(await Card.locator("select").inputValue(), "Box");
   assert.equal(
@@ -149,7 +149,7 @@ try {
     await Page.getByLabel("Fog volume shape", { exact: true }).selectOption(
       Type,
     );
-    assert.equal(await Card.locator("svg").getAttribute("record-shape"), Type);
+    assert.equal(await Card.locator("svg").getAttribute("data-shape"), Type);
     assert.equal((await Saved()).Values["local-fog"].FogShape.Type, Type);
   }
   await Page.getByLabel("Fog volume shape", { exact: true }).selectOption(
@@ -158,11 +158,11 @@ try {
   await SetNumber("Fog Radius (m)", 25);
   await SetNumber("Centre X", 10);
   assert.equal(
-    +(await Card.locator('[record-bound="Min-X"]').getAttribute("record-value")),
+    +(await Card.locator('[data-bound="Min-X"]').getAttribute("data-value")),
     -15,
   );
   assert.equal(
-    +(await Card.locator('[record-bound="Size-Z"]').getAttribute("record-value")),
+    +(await Card.locator('[data-bound="Size-Z"]').getAttribute("data-value")),
     50,
   );
   await Card.scrollIntoViewIfNeeded();
@@ -190,11 +190,11 @@ try {
     exact: true,
   }).click();
   assert.equal(
-    +(await Card.locator('[record-bound="Min-X"]').getAttribute("record-value")),
+    +(await Card.locator('[data-bound="Min-X"]').getAttribute("data-value")),
     8,
   );
   assert.equal(
-    +(await Card.locator('[record-bound="Max-Z"]').getAttribute("record-value")),
+    +(await Card.locator('[data-bound="Max-Z"]').getAttribute("data-value")),
     35,
   );
   const Good = (await Saved()).Values["local-fog"].FogShape;

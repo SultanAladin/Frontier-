@@ -54,12 +54,12 @@ SurfaceGpuOutput MirrorGpuSurface(const SurfaceGpuInput& in){
     }return out;
 }
 void SaveGpuSurfaceObj(const SurfaceGpuOutput& topology,const char* path){
-    if(topology.Overflow)throw std::runtime_error("Refusing truncated GPU topology export");
-    std::ofstream out(path);if(!out)throw std::runtime_error("Cannot open topology export");
+    if(topology.Overflow)throw std::runtime_error("Refusing truncated GPU mesh export");
+    std::ofstream out(path);if(!out)throw std::runtime_error("Cannot open mesh export");
     std::vector<uint32_t> remap(topology.Vertices.size(),0);uint32_t count=0;
     for(auto id:topology.Indices){if(id>=topology.Vertices.size()||topology.Vertices[id].Position.w!=1)throw std::runtime_error("Invalid GPU edge index");if(!remap[id]){remap[id]=++count;const auto& v=topology.Vertices[id];
         // Y-up fluid -> Z-up Frontier.
         out<<"v "<<v.Position.x<<' '<<-v.Position.z<<' '<<v.Position.y<<"\nvn "<<v.Normal.x<<' '<<-v.Normal.z<<' '<<v.Normal.y<<'\n';}}
-    for(size_t i=0;i<topology.Indices.size();i+=3){out<<"f";for(int c=0;c<3;++c){auto id=remap[topology.Indices[i+c]];out<<' '<<id<<"//"<<id;}out<<'\n';}if(!out)throw std::runtime_error("Hull export write failed");
+    for(size_t i=0;i<topology.Indices.size();i+=3){out<<"f";for(int c=0;c<3;++c){auto id=remap[topology.Indices[i+c]];out<<' '<<id<<"//"<<id;}out<<'\n';}if(!out)throw std::runtime_error("Mesh export write failed");
 }
 }

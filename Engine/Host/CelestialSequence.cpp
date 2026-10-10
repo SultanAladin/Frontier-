@@ -1061,8 +1061,8 @@ void CelestialSequence::BuildSunSheet(EditorSheet& Sheet) const noexcept
 {
     Sheet.Appearance = EditorSheetAppearance::Sun;
     char Text[48];
-        EditorPropertyGroup& Precompute = OpenGroup(Sheet, "Precompute / image");
-        std::snprintf(Precompute.Caption, sizeof(Precompute.Caption), "Sun-specific Precompute and Use baked image are not supported. The existing bake belongs to Sky, not Sun.");
+        EditorPropertyGroup& Precompute = OpenGroup(Sheet, "Bake / image");
+        std::snprintf(Precompute.Caption, sizeof(Precompute.Caption), "Sun-specific Bake and Use baked image are not supported. The existing bake belongs to Sky, not Sun.");
         EditorPropertyGroup& Disk = OpenGroup(Sheet, "Sun Disk");
         Push(Disk, MakeSlider("Angular Diameter", 0.1f, 5.0f, SunDiskSize, 2, "deg"));
         Push(Disk, MakeColour("Sun Tint", SunUseTemperature ? SunRgbTint : Light.Colour));
@@ -1361,7 +1361,7 @@ void CelestialSequence::ApplySheet(CelestialEntity Entity, const EditorSheet& Sh
         SkyBrightness = Scalar("Sky Brightness", SkyBrightness, 0.0f, 3.0f);
         const EditorProperty* Ground = Find(Sheet, "Ground Albedo");
         if (Ground != nullptr) for (int C = 0; C < 3; ++C) if(std::isfinite(Ground->ColourTint[C])) GroundAlbedo[C] = Ground->ColourTint[C];
-        SkyDomePrecomputed = ReadSwitch(Sheet, "Fetch Precomputed Dome", SkyDomePrecomputed);
+        SkyDomePrecomputed = ReadSwitch(Sheet, "Fetch Baked Dome", SkyDomePrecomputed);
         if(Sheet.SkyImage.RequestPrecompute) SkyPreviewPrecomputeRequested=true;
         break;
     }
@@ -1720,8 +1720,8 @@ void Frontier::HostRuntime::CelestialSequence::BuildAtmosphereSkySheet(EditorShe
         //    actually doing — "fetch" only while a resident precompute still matches the live staging, "march"
         //    otherwise (scrubbed sun, changed medium, no sheet). The split is measured in
         //    Exhibits/Gallery/Sky/: mean error 0.014-0.123 %, fetch 67-135x the march.
-        EditorPropertyGroup& Dome = OpenGroup(Sheet, "Precomputed Dome");
-        Push(Dome, MakeSwitch("Fetch Precomputed Dome", SkyDomePrecomputed));
+        EditorPropertyGroup& Dome = OpenGroup(Sheet, "Baked Dome");
+        Push(Dome, MakeSwitch("Fetch Baked Dome", SkyDomePrecomputed));
         Push(Dome, MakeReadout("Dome Path", QuerySkyDomeLive() ? "fetch (256^2 RGBA16F)" : "march (analytic)"));
         Push(Dome, MakeReadout("Sheet", SkyDomeSlot == kNoSkyDomeSlot ? "none resident"
                                         : (SkyDomeSeated ? "resident, staged" : "slot only")));

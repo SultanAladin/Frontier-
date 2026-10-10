@@ -83,7 +83,7 @@ GpuSurfaceTiming GpuSurfaceExtractor::Update(const SurfaceGpuInput& input){
     if(p.Queries){uint64_t ticks[4]{};Check(vkGetQueryPoolResults(p.Device,p.Queries,0,4,sizeof(ticks),ticks,8,VK_QUERY_RESULT_64_BIT|VK_QUERY_RESULT_WAIT_BIT),"fluid timestamps");const uint64_t mask=p.TimestampBits==64?UINT64_MAX:((uint64_t(1)<<p.TimestampBits)-1);auto delta=[&](int a,int b){return double((ticks[b]-ticks[a])&mask)*p.Properties.limits.timestampPeriod/1e6;};timing.FieldMs=delta(0,1);timing.EdgesMs=delta(1,2);timing.TrianglesMs=delta(2,3);timing.Timestamps=true;}
     p.Completed=true;return timing;
 }
-SurfaceGpuOutput GpuSurfaceExtractor::Readback(){auto& p=*P;if(!p.Completed)throw std::runtime_error("No completed fluid topology");
+SurfaceGpuOutput GpuSurfaceExtractor::Readback(){auto& p=*P;if(!p.Completed)throw std::runtime_error("No completed fluid mesh");
     const auto required=p.Stores[3].Size+p.Stores[5].Size+p.Stores[6].Size+8;if(p.Download.Size<required){p.Destroy(p.Download);p.Make(p.Download,required,VK_BUFFER_USAGE_TRANSFER_DST_BIT,true);}
     p.Begin();p.Barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT);VkDeviceSize cursor=0;
     for(int slot:{7,3,5,6}){VkBufferCopy c{0,cursor,p.Stores[slot].Size};vkCmdCopyBuffer(p.Command,p.Stores[slot].Tag,p.Download.Tag,1,&c);cursor+=c.size;}p.Barrier(VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_HOST_READ_BIT);p.Submit();

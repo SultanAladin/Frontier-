@@ -5,12 +5,12 @@ import './construct-menu.css';
 import OutlinerIcon from './outliner-icons.jsx';
 export const constructItems=[
  {kind:0,name:'Cube',category:'Geometry',detail:'Six faces · unit cube',triangles:12},
- {kind:1,name:'Sphere',category:'Geometry',detail:'Smooth latitude topology',triangles:960},
+ {kind:1,name:'Sphere',category:'Geometry',detail:'Smooth latitude mesh',triangles:960},
  {kind:2,name:'Cylinder',category:'Geometry',detail:'32 sides · capped',triangles:128},
  {kind:3,name:'Cone',category:'Geometry',detail:'32 sides · capped',triangles:64},
  {kind:4,name:'Plane',category:'Geometry',detail:'Flat surface · XY',triangles:2},
- {kind:5,name:'Torus',category:'Geometry',detail:'32 × 12 ring topology',triangles:768},
- {kind:6,name:'Area emitter',category:'Lighting',detail:'Emissive topology · 1,000 nits',triangles:2},
+ {kind:5,name:'Torus',category:'Geometry',detail:'32 × 12 ring mesh',triangles:768},
+ {kind:6,name:'Area emitter',category:'Lighting',detail:'Emissive mesh · 1,000 nits',triangles:2},
  {kind:7,name:'Camera',category:'Scene',detail:'Perspective camera record'},
  {kind:8,name:'Empty entity',category:'Scene',detail:'Transform · no geometry'},
 ];

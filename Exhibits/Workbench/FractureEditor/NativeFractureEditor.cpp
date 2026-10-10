@@ -171,12 +171,12 @@ int main()
 
         Check(std::strcmp(StoredStatus(Specimen), "Not baked") == 0, "no stored geometry reads Not baked");
         Check(StoredDot(Specimen) == DotIdle, "with a grey dot");
-        Check(std::strcmp(StoredAction(Specimen), "Precompute object") == 0, "and the button offers a first bake");
+        Check(std::strcmp(StoredAction(Specimen), "Bake object") == 0, "and the button offers a first bake");
         StoredDetail(Specimen, Text, sizeof(Text));
         Check(std::strcmp(Text, "No stored fragment geometry") == 0, "the detail says so plainly");
 
         Specimen.Stored = Freshness::Stale; Specimen.StoredParts = 41; Specimen.StoredKiB = 128.75f;
-        Check(std::strcmp(StoredStatus(Specimen), "Precompute is stale") == 0, "a signature mismatch is stale");
+        Check(std::strcmp(StoredStatus(Specimen), "Bake is stale") == 0, "a signature mismatch is stale");
         Check(StoredDot(Specimen) == DotStale, "with an amber dot");
         Check(std::strcmp(StoredAction(Specimen), "Rebake object") == 0, "and the button offers a rebake");
         StoredDetail(Specimen, Text, sizeof(Text));
@@ -192,7 +192,7 @@ int main()
         Specimen.Settings.PieceSdf = true;
         Check(std::strcmp(StoredStatus(Specimen), "Geometry ready \xc2\xb7 SDF pending") == 0,
               "asking for a per-piece SDF leaves the SDF itself pending");
-        Check(std::strcmp(StoredAction(Specimen), "Precompute geometry") == 0, "and renames the bake button again");
+        Check(std::strcmp(StoredAction(Specimen), "Bake geometry") == 0, "and renames the bake button again");
 
         Subject Cone;
         Cone.Shape = Primitive::Cone;
@@ -306,8 +306,8 @@ int main()
     Subject.Stored = Freshness::Ready;
     Subject.StoredParts = 41;
     Subject.StoredKiB = 128.75f;
-    Subject.Status = "Precomputed 41 closed pieces.";
-    Capture("PrecomputedWithSdf");
+    Subject.Status = "Baked 41 closed pieces.";
+    Capture("BakedWithSdf");
 
     Subject.Settings.Run = Mode::Dynamic;
     Subject.Settings.PieceSdf = false;
@@ -357,7 +357,7 @@ int main()
     Subject.Shape = Primitive::Torus;
     Subject.OwnerName = "Torus";
     Subject.OwnerId = "torus";
-    Subject.Status = "Precompute is stale.";
+    Subject.Status = "Bake is stale.";
     Capture("InspectorColumn");
 
     std::printf("PASS %u checks: fracture editor page, breakpoints, material table, derived text, "

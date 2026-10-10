@@ -96,7 +96,7 @@ try {
   const Theme = await Page.evaluate(async () => {
     await document.fonts.ready;
     const Range = document.querySelector(
-      'input[type="range"][record-param="emitterRate"]',
+      'input[type="range"][data-param="emitterRate"]',
     );
     return {
       fonts: [...document.fonts]
@@ -125,7 +125,7 @@ try {
     "Native DM Sans fonts, charcoal cards and Project Zero control geometry",
   );
 
-  const Range = Page.locator('input[type="range"][record-param="emitterRate"]');
+  const Range = Page.locator('input[type="range"][data-param="emitterRate"]');
   await Range.focus();
   await Range.press("End");
   Assert.equal((await Snapshot()).parameters.emitterRate, 2.5);
@@ -154,12 +154,12 @@ try {
   );
 
   await Page.locator("#scene-search").fill("Fire");
-  Assert.equal(await Page.locator("[record-object]").count(), 1);
+  Assert.equal(await Page.locator("[data-object]").count(), 1);
   await Page.locator("#scene-search").fill("");
-  await Page.locator('[record-scene-filter="light"]').click();
-  Assert.equal(await Page.locator("[record-object]").count(), 1);
-  Assert.equal(await Page.locator('[record-object="sun"]').count(), 1);
-  await Page.locator('[record-scene-filter="all"]').click();
+  await Page.locator('[data-scene-filter="light"]').click();
+  Assert.equal(await Page.locator("[data-object]").count(), 1);
+  Assert.equal(await Page.locator('[data-object="sun"]').count(), 1);
+  await Page.locator('[data-scene-filter="all"]').click();
   await Page.locator("#collection-toggle").click();
   Assert.equal(await Page.locator("#scene-tree").isVisible(), false);
   await Page.locator("#collection-toggle").click();
@@ -171,11 +171,11 @@ try {
     34,
   );
   await Page.locator("#compact-outliner").click();
-  await Page.locator('[record-toggle-object="emitter"]').click();
+  await Page.locator('[data-toggle-object="emitter"]').click();
   Assert.equal(await Page.locator("#disabled-count").textContent(), "1");
-  await Page.locator('[record-toggle-object="emitter"]').click();
+  await Page.locator('[data-toggle-object="emitter"]').click();
   Assert.equal(await Page.locator("#enabled-count").textContent(), "3");
-  await Page.locator('[record-object="emitter"]').dblclick();
+  await Page.locator('[data-object="emitter"]').dblclick();
   Assert.equal(
     await Page.locator("#object-name").evaluate(
       (Element) => Element === document.activeElement,
@@ -199,14 +199,14 @@ try {
 
   const BeforeInsertion = await Snapshot();
   await Page.locator("#add-button").click();
-  await Page.locator('[record-add="smoke"]').click();
+  await Page.locator('[data-add="smoke"]').click();
   Assert.equal((await Snapshot()).parameters.emitterFuel, 0);
   Assert.equal((await Snapshot()).steps, BeforeInsertion.steps);
   await Page.locator("#add-button").click();
-  await Page.locator('[record-add="sphere"]').click();
+  await Page.locator('[data-add="sphere"]').click();
   Assert.equal((await Snapshot()).parameters.obstacleType, 1);
   Assert.equal((await Snapshot()).steps, BeforeInsertion.steps);
-  Assert.equal(await Page.locator('[record-object="collider"]').count(), 1);
+  Assert.equal(await Page.locator('[data-object="collider"]').count(), 1);
   await Page.locator("#property-obstacleX").fill("0.62");
   await Page.locator("#property-obstacleX").press("Tab");
   Assert.equal((await Snapshot()).parameters.obstacleX, 0.62);
@@ -215,11 +215,11 @@ try {
   await Page.locator("#object-name").fill("<b>Deflector</b>");
   await Page.locator("#object-name").press("Tab");
   Assert.equal(
-    await Page.locator('[record-object="collider"] .scene-label').textContent(),
+    await Page.locator('[data-object="collider"] .scene-label').textContent(),
     "<b>Deflector</b>",
   );
   Assert.equal(
-    await Page.locator('[record-object="collider"] .scene-label b').count(),
+    await Page.locator('[data-object="collider"] .scene-label b').count(),
     0,
   );
   Pass("Object renaming is escaped, not injected as HTML");
@@ -240,7 +240,7 @@ try {
     "Burst scheduling, reset cancellation, clear GPU fields, real detonation injection",
   );
 
-  await Page.locator('[record-object="domain"]').click();
+  await Page.locator('[data-object="domain"]').click();
   await Page.locator("#property-gridResolution").selectOption("32");
   Assert.equal((await Snapshot()).grid, 32);
   Assert.equal((await Snapshot()).steps, 0);
@@ -308,11 +308,11 @@ try {
   Pass("Pointer orbit controls the real volume camera");
 
   await Page.locator("#preset-search").fill("ashfall");
-  Assert.equal(await Page.locator("[record-preset]").count(), 1);
+  Assert.equal(await Page.locator("[data-preset]").count(), 1);
   await Page.locator("#reset-search").evaluate((Element) => Element.click());
-  Assert.equal(await Page.locator("[record-preset]").count(), 10);
+  Assert.equal(await Page.locator("[data-preset]").count(), 10);
   await Page.locator("#preset-search").fill("Lightweight");
-  await Page.locator('[record-preset="low_gpu_performance"]').click();
+  await Page.locator('[data-preset="low_gpu_performance"]').click();
   Assert.equal((await Snapshot()).grid, 24);
   Pass("Preset search, reset, and gas preset loading");
 

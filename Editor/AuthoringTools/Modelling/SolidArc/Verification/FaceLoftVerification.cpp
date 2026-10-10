@@ -251,11 +251,11 @@ int main()
     {
         if (!MultiHull) return false;
         ConsoleHost IdentifierHost(SOLIDARC_PROOF_FOLDER, 1280, 800);
-        (void)IdentifierHost.Document().AddBody("IdentifierSource", MultiHull.Payload);
-        const std::string SameCommand = "loft IdentifierSource:f" + std::to_string(ATop) + " IdentifierSource:f" + std::to_string(BBottom) + " --keep --name=Tag";
+        (void)IdentifierHost.Document().AddBody("HandleSource", MultiHull.Payload);
+        const std::string SameCommand = "loft HandleSource:f" + std::to_string(ATop) + " HandleSource:f" + std::to_string(BBottom) + " --keep --name=Handle";
         const bool AcceptedSame = IdentifierHost.Execute(SameCommand);
-        const SceneFigure* Result = IdentifierHost.Document().Find("Tag");
-        return AcceptedSame && Result && Result->Body.Validate().Solid() && IdentifierHost.Document().Find("IdentifierSource");
+        const SceneFigure* Result = IdentifierHost.Document().Find("Handle");
+        return AcceptedSame && Result && Result->Body.Validate().Solid() && IdentifierHost.Document().Find("HandleSource");
     }());
 
     const std::filesystem::path Proof = std::filesystem::path(SOLIDARC_PROOF_FOLDER) / "Phase34a_FaceLoft.png";
@@ -278,7 +278,7 @@ int main()
     ConsoleHost IdentifierProofHost(SOLIDARC_PROOF_FOLDER, 1600, 800);
     const bool IdentifierRendered = MultiHull && Tag &&
         IdentifierProofHost.Document().AddBody("DisconnectedSource", MultiHull.Payload.Transformed(Mat4::Translation({ 0, -6, 0 }))).Identity > 0 &&
-        IdentifierProofHost.Document().AddBody("SameBodyIdentifier", Tag.Payload.Transformed(Mat4::Translation({ 0, 6, 0 }))).Identity > 0 &&
+        IdentifierProofHost.Document().AddBody("SameBodyHandle", Tag.Payload.Transformed(Mat4::Translation({ 0, 6, 0 }))).Identity > 0 &&
         IdentifierProofHost.Execute("view iso") && IdentifierProofHost.Execute("view fit") && IdentifierProofHost.Execute("render Phase34f_SameBodyFaceLoft");
     Panel.Expect("The same-body handle proof render completes", IdentifierRendered);
     Panel.Expect("The same-body handle proof PNG is written", std::filesystem::exists(IdentifierProof) && std::filesystem::file_size(IdentifierProof, Error) > 100000);

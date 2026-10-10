@@ -866,7 +866,7 @@ int main(int Argc, char** Argv)
     for (int I = 1; I < Argc; ++I)
     {
         std::string A = Argv[I];
-        if (A == "--topology" && I + 1 < Argc) GeometryPath = Argv[++I];
+        if (A == "--mesh" && I + 1 < Argc) GeometryPath = Argv[++I];
         else if (A == "--out" && I + 1 < Argc) { OutPath = Argv[++I]; OutGiven = true; }
         else if (A == "--size" && I + 1 < Argc) Size = std::atoi(Argv[++I]);
         else if (A == "--spp" && I + 1 < Argc) Spp = std::atoi(Argv[++I]);

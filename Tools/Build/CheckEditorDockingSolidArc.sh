@@ -15,7 +15,7 @@ Adapter="Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcOutlinerAdapter
 
 echo "[EditorDocking] Project-Zero editor layout"
 if grep -q 'FrontierEditorDockSpace' "$EditorHost"; then
-    Pass "uses the new editor dockspace id, so stale two-column .ini record cannot keep the old layout"
+    Pass "uses the new editor dockspace id, so stale two-column .ini data cannot keep the old layout"
 else
     FailOne "FrontierEditorDockSpace is missing"
 fi

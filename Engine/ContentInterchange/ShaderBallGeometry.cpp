@@ -49,12 +49,12 @@ bool ShaderBallGeometry::Load(const std::string& Path, GeometryStructure& Hull, 
      || std::fread(&Height, sizeof(float), 1u, File.Tag) != 1u)
         return Fail(Error, "'" + Path + "' is truncated in its header");
     if (Header[0] != kShaderBallMagic)
-        return Fail(Error, "'" + Path + "' is not an SBM1 topology (bad magic)");
+        return Fail(Error, "'" + Path + "' is not an SBM1 mesh (bad magic)");
 
     const uint32_t VertexCount = Header[1];
     const uint32_t IndexCount  = Header[2];
     if (VertexCount == 0u || IndexCount == 0u || IndexCount % 3u != 0u)
-        return Fail(Error, "'" + Path + "' declares an empty or non-triangular topology");
+        return Fail(Error, "'" + Path + "' declares an empty or non-triangular mesh");
 
     std::vector<float> Raw(static_cast<size_t>(VertexCount) * kAssetVertexFloats);
     if (std::fread(Raw.data(), sizeof(float), Raw.size(), File.Tag) != Raw.size())

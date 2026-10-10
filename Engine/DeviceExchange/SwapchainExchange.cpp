@@ -532,11 +532,11 @@ bool SwapchainExchange::Bring() noexcept
         { "BringSwapchain",        &SwapchainExchange::BringSwapchain        },
         { "BringStorageImage",     &SwapchainExchange::BringStorageImage     },
         { "BringCommandRecording", &SwapchainExchange::BringCommandRecording },
-        { "BringComputeChain",  &SwapchainExchange::BringComputeChain  },
+        { "BringComputePipeline",  &SwapchainExchange::BringComputeChain  },
         // ⚠️ The denoiser must be brought up BEFORE BringDescriptorSet: that stage ends by calling
         //     WriteDescriptorSet(), which is also what populates the denoiser's per-level sets. With the order
         //     reversed the sets existed but were never written, so the filter sampled unbound images.
-        { "BringDenoiseChain",  &SwapchainExchange::BringDenoiseChain  },
+        { "BringDenoisePipeline",  &SwapchainExchange::BringDenoiseChain  },
         // A6b after BringStorageImage (it binds HistoryImageView) and before BringDescriptorSet, same as above.
         { "BringLuminanceReduction", &SwapchainExchange::BringLuminanceReduction },
         // The sky, moon, post and star stores must exist before BringDescriptorSet: that stage ends by
@@ -1054,7 +1054,7 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     }
     Vulkan->ChainOptions=ChainDiagnostics::Parse(std::getenv("FRONTIER_PIPELINE_TEST"));
     if(!Vulkan->ChainOptions.Recognized) std::cerr<<"[GPU startup] Unknown FRONTIER_PIPELINE_TEST; using default"<<std::endl;
-    std::cerr<<"[GPU startup] Sequence test: disable_restir_optimization="<<Vulkan->ChainOptions.DisableOptimization
+    std::cerr<<"[GPU startup] Pipeline test: disable_restir_optimization="<<Vulkan->ChainOptions.DisableOptimization
              <<" ignore_application_cache_input="<<Vulkan->ChainOptions.IgnoreInput
              <<" (does not disable NVIDIA's own shader cache)"<<std::endl;
     // Initialize chain cache from disk to avoid multi-minute startup driver compilations
@@ -1092,7 +1092,7 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     }
     std::error_code CachePathError;
     const auto CachePath = std::filesystem::absolute(Vulkan->ChainOptions.File, CachePathError);
-    std::cerr << "[GPU startup] Sequence cache path=" << (CachePathError ? std::string(Vulkan->ChainOptions.File) : CachePath.string())
+    std::cerr << "[GPU startup] Pipeline cache path=" << (CachePathError ? std::string(Vulkan->ChainOptions.File) : CachePath.string())
               << " read_bytes=" << CacheBlob.size() << " fingerprint_fnv1a64=" << ChainDiagnostics::Fingerprint(CacheBlob.data(),CacheBlob.size()) << " input=" << (ValidCache ? "compatible" : "absent/invalid")
               << " (compatible input does not guarantee a shader cache hit)" << std::endl;
     if (!ValidCache)
@@ -1109,7 +1109,7 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     std::cerr << "[GPU startup] vkCreatePipelineCache VkResult=" << int(CacheResult) << std::endl;
     if (CacheResult != VK_SUCCESS && !CacheBlob.empty())
     {
-        std::cerr << "[GPU startup] Retrying pipeline cache creation without saved record" << std::endl;
+        std::cerr << "[GPU startup] Retrying pipeline cache creation without saved data" << std::endl;
         CacheDetails.initialDataSize = 0u;
         CacheDetails.pInitialData    = nullptr;
         const auto Retry=vkCreatePipelineCache(Vulkan->Device, &CacheDetails, nullptr, &Vulkan->PipelineCache);

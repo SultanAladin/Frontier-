@@ -30,7 +30,7 @@ const Open = async (Id) => {
   await Page.locator(".inspector-scroll").waitFor();
 };
 const Slice = (Name) =>
-  Page.frameLocator('[record-reference-slice="' + Name + '"] iframe');
+  Page.frameLocator('[data-reference-slice="' + Name + '"] iframe');
 const Light = () =>
   Page.frameLocator('iframe[title^="Reference inspector"]').first();
 const Saved = () =>
@@ -64,9 +64,9 @@ try {
       1,
     );
     assert.equal(await Page.locator("iframe").count(), 2);
-    assert.equal(await Page.locator('[record-card="Cloud base"]').count(), 1);
+    assert.equal(await Page.locator('[data-card="Cloud base"]').count(), 1);
     assert.equal(
-      await Page.locator('[record-card="Layer thickness"]').count(),
+      await Page.locator('[data-card="Layer thickness"]').count(),
       1,
     );
     assert.equal(await Page.locator(".cloud-deck-visual").count(), 1);
@@ -84,7 +84,7 @@ try {
       .filter({ hasText: "65" })
       .waitFor();
     const Plot = Slice("coverage").locator("canvas");
-    await Page.locator('[record-reference-slice="coverage"]').evaluate(
+    await Page.locator('[data-reference-slice="coverage"]').evaluate(
       (Section) => Section.scrollIntoView({ block: "start" }),
     );
     await Plot.click({
@@ -151,7 +151,7 @@ try {
     .filter({ hasText: "300" })
     .waitFor();
   assert(
-    (await Page.locator('[record-card="Layer thickness"]').innerText()).includes(
+    (await Page.locator('[data-card="Layer thickness"]').innerText()).includes(
       "0.30",
     ),
   );
@@ -190,7 +190,7 @@ try {
         "local-cloud"
       ].Centre[2] === -210,
   );
-  await Page.locator('[record-card="Cloud base"]').evaluate((Card) =>
+  await Page.locator('[data-card="Cloud base"]').evaluate((Card) =>
     Card.scrollIntoView({ block: "start" }),
   );
   await Capture("LocalNegativeDeck");
@@ -201,7 +201,7 @@ try {
   const Contents = await Saved();
   assert(Math.abs(Contents.Values.clouds.Coverage - 0.4) < 0.01);
   assert.equal(Contents.Values.clouds.Centre, undefined);
-  assert(await Page.locator('[record-card="Local bounds"]').count());
+  assert(await Page.locator('[data-card="Local bounds"]').count());
   assert(await Page.getByLabel("Feature Scale value", { exact: true }).count());
   assert(await Page.getByLabel("Anisotropy value", { exact: true }).count());
   Checks.push(
@@ -222,7 +222,7 @@ try {
     await Open(Id);
     const Controls =
       Id === "light"
-        ? Page.frameLocator('[record-reference-slice="details"] iframe')
+        ? Page.frameLocator('[data-reference-slice="details"] iframe')
         : Light();
     await Controls.locator(".lp-response").waitFor();
     const Image = Light().locator(".lp-source-icon img");

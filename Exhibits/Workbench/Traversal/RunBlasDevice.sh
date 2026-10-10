@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # D9b — THE GPU RUN. Builds `BlasDeviceRun` and runs D9's two kernels on a Vulkan device, comparing their output byte for
 #    byte with the CPU mirror (BlasBuildMirror). It is the one part of D9 that cannot happen in a sandbox with no GPU:
-#    everything else — the kernels' lowering, the mirror, the payload, the plan, the chains' compilation — is gated
+#    everything else — the kernels' lowering, the mirror, the payload, the plan, the pipelines' compilation — is gated
 #    by tools that need no device at all.
 #
 # What it does:

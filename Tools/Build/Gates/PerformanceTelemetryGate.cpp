@@ -183,8 +183,8 @@ int main()
         { "CpuSunMoonSolveMeanMs", "ms", .1 },
         { "CpuSkyPackUploadMeanMs", "ms", .2 },
         { "CpuWeatherPostPackUploadMeanMs", "ms", .3 },
-        { "CelestialStorePayloadBytes", "bytes", 1024 },
-        { "CelestialStoreAllocationBytes", "bytes", 4096 },
+        { "CelestialBufferPayloadBytes", "bytes", 1024 },
+        { "CelestialBufferAllocationBytes", "bytes", 4096 },
         { "GpuSeparateSkySunCloudTimersAvailable", "bool", 0 },
         { "SkySunUniformPayloadBytes", "bytes", 144 },
         { "CloudFogUniformPayloadBytes", "bytes", 336 },
@@ -194,7 +194,7 @@ int main()
         { "FrameTimePeakMs",   "ms",      16.0   },
         { "FramesPerSecond",   "fps",     62.5   },
         { "FrameSampleCount",  "count",    0.0   },   // value varies with the window; presence and unit are the point
-        { "ResidentStorage",    "MiB",    512.0   },
+        { "ResidentMemory",    "MiB",    512.0   },
         // GPU — the device timestamp slots
         { "GpuFrameTotalMs",   "ms",      19.5  },   // directly measured 0..11 span; stage intervals are not summed
         { "GpuCullMs",         "ms",       0.42  },

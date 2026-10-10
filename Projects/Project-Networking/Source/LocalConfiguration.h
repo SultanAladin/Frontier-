@@ -74,7 +74,7 @@ inline std::filesystem::path UserCacheRoot()
 {
 #if defined(_WIN32)
     wchar_t Block[32768]{};
-    const DWORD Count = GetEnvironmentVariableW(L"LOCALAPPPAYLOAD", Block, 32768);
+    const DWORD Count = GetEnvironmentVariableW(L"LOCALAPPDATA", Block, 32768);
     if (Count > 0 && Count < 32768) return std::filesystem::path(Block) / "FrontierCharge" / "dev-v1";
 #else
     if (const char* Home = std::getenv("HOME")) return std::filesystem::path(Home) / ".local/share/FrontierCharge/dev-v1";

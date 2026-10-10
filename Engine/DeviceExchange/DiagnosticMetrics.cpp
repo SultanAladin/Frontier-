@@ -155,7 +155,7 @@ const char* DiagnosticMetrics::ConvertSeverityToString(DiagnosticSeverity Severi
     switch (Severity)
     {
         case DiagnosticSeverity::Trace:       return "TRACE";
-        case DiagnosticSeverity::Information: return "DETAILS";
+        case DiagnosticSeverity::Information: return "INFO";
         case DiagnosticSeverity::Warning:     return "WARN";
         case DiagnosticSeverity::Refusal:     return "REFUSE";
         case DiagnosticSeverity::Fatal:       return "FATAL";

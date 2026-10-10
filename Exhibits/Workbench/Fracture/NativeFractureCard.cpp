@@ -137,7 +137,7 @@ int main()
         }
         Check(Supported("cube") && Supported("sphere") && Supported("cylinder") && Supported("cone"),
               "four primitives carry a convex preview");
-        Check(!Supported("torus") && !Supported("topology"), "a torus and an imported topology do not");
+        Check(!Supported("torus") && !Supported("mesh"), "a torus and an imported mesh do not");
     }
 
     //-----------------------------------------------------------------------------------------------------
@@ -166,7 +166,7 @@ int main()
         UnsupportedLine(Torus, Text, sizeof(Text));
         Check(std::strcmp(Text, "Fracture settings are available. Concave preview needs decomposition.") == 0,
               "a torus is called out as concave");
-        Owner Hull { "Rock", "topology" };
+        Owner Hull { "Rock", "mesh" };
         UnsupportedLine(Hull, Text, sizeof(Text));
         Check(std::strcmp(Text, "Fracture settings are available. Source geometry preview is pending.") == 0,
               "anything else is simply pending");
@@ -237,8 +237,8 @@ int main()
         const Plan Live = Measure(Light, Regular, CardWide, On, Cube);
         Check(std::fabs(Live.DiagramTop - 118.248f) < 1e-3f, "enabling it opens the diagram under the switch");
         Check(std::fabs(Live.PrecomputeTop - Live.DiagramTop - 134.0f - 18.0f) < 1e-3f,
-              "PRECOMPUTE sits 18 px under the diagram: the 8 px below it collapses into the 18 above PRECOMPUTE");
-        Check(std::fabs(Live.ModeTop - 293.268f) < 1e-3f, "the mode pair follows PRECOMPUTE's 10 px margin");
+              "BAKE sits 18 px under the diagram: the 8 px below it collapses into the 18 above BAKE");
+        Check(std::fabs(Live.ModeTop - 293.268f) < 1e-3f, "the mode pair follows BAKE's 10 px margin");
         Check(std::fabs(Live.StatusTop - 345.268f) < 1e-3f, "and the status line the track's 14");
         Check(NoteLines(Light, Live.Inner, "Generate fragments on demand.") == 1,
               "the dynamic status fits one line in the column");
@@ -282,8 +282,8 @@ int main()
     Who = Owner{ "Cube", "cube" };
     S = Settings{};                                             Capture("CardClosed");
     S.Enabled = true;                                           Capture("CardDynamic");
-    S.Run = Mode::Precomputed; S.Ready = true;                        Capture("CardPrecomputed");
-    S.PieceSdf = true; S.SdfResolution = 128;                   Capture("CardPrecomputedSdf");
+    S.Run = Mode::Precomputed; S.Ready = true;                        Capture("CardBaked");
+    S.PieceSdf = true; S.SdfResolution = 128;                   Capture("CardBakedSdf");
     Who = Owner{ "Ring", "torus" };
     S = Settings{}; S.Enabled = true;                           Capture("CardTorus");
 

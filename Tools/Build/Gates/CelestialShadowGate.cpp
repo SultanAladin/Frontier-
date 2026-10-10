@@ -81,7 +81,7 @@ int main()
         ShadowFrameConfiguration Shadow = WithSun({}, -0.5f, 0.0f, 0.86f, 3.2f);
         const bool Placed = SunOnly.PlaceShadowTaps(Shadow);
         std::printf("sun-only level: placed=%s taps=%u mask=0x%x\n", Placed ? "yes" : "no", Shadow.TapCount, Shadow.DirectionalMask);
-        Check(Placed,                       "a sun-lit level with no emissive topology still places taps (it used to refuse)");
+        Check(Placed,                       "a sun-lit level with no emissive mesh still places taps (it used to refuse)");
         Check(Shadow.TapCount == 1u,        "exactly one tap: the sun");
         Check(Directional(Shadow, 0u),      "tap 0 is flagged directional");
         Check(Shadow.Taps[0].Radiance[0] > 0.0f, "the sun tap carries the record's radiance");
@@ -141,7 +141,7 @@ int main()
         ShadowFrameConfiguration Shadow = WithMoon({}, 0.2f, -0.3f, 0.93f, 0.0021f);
         const bool Placed = SunOnly.PlaceShadowTaps(Shadow);
         std::printf("moonlit night: placed=%s taps=%u mask=0x%x\n", Placed ? "yes" : "no", Shadow.TapCount, Shadow.DirectionalMask);
-        Check(Placed,                  "a moonlit night with no emissive topology places a tap (the moon used to light nothing)");
+        Check(Placed,                  "a moonlit night with no emissive mesh places a tap (the moon used to light nothing)");
         Check(Shadow.TapCount == 1u,   "exactly one tap: the moon");
         Check(Directional(Shadow, 0u), "the moon is directional — a light at infinity, no 1/d fall-off");
         Check(Shadow.Taps[0].LightSize > 0.0f, "the lunar disc gives the moon shadow a PCSS penumbra");
@@ -177,7 +177,7 @@ int main()
     // ── ⑦ a moonless, sunless night still refuses ───────────────────────────────────────────────────────────────
     {
         ShadowFrameConfiguration Shadow{};
-        Check(!SunOnly.PlaceShadowTaps(Shadow), "no sun, no moon, no topology: the stage still declines to run");
+        Check(!SunOnly.PlaceShadowTaps(Shadow), "no sun, no moon, no mesh: the stage still declines to run");
         Check(!Shadow.MoonEnabled, "the moon is off unless a caller supplies it");
     }
 

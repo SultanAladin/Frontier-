@@ -43,7 +43,7 @@ def Extract(Code):
         if M[2]=='Slider':
             F.update(Minimum=Number(A[1],0),Maximum=Number(A[2],100),Decimals=int(Number(A[4],2)),Unit=A[5].strip('"'))
             F['Default']=max(F['Minimum'],min(F['Maximum'],Number(A[3],Defaults.get(Label,1))))
-        elif M[2]=='Switch': F['Default']= A[1]!='false' and Label not in ['Animate','Fetch Precomputed Dome']
+        elif M[2]=='Switch': F['Default']= A[1]!='false' and Label not in ['Animate','Fetch Baked Dome']
         elif M[2]=='Select': F.update(Options=Options.get(A[1],['Default']),Default=0)
         elif M[2]=='Colour': F['Default']='#ffffff' if Label!='Ground Albedo' else '#796e60'
         elif M[2]=='Axes': F['Default']=[100,100,100] if Label=='Half Size' else [0,0,0]

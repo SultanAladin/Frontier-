@@ -18,13 +18,13 @@ const d=dom.window.document;
 assert.equal(d.querySelectorAll('.shell>.outliner').length,1);
 assert.equal(d.querySelectorAll('.shell>.inspector').length,1);
 assert.equal(d.querySelector('.viewport'),null);
-assert.ok(d.querySelector('[record-bake-target="sun"]'));
+assert.ok(d.querySelector('[data-bake-target="sun"]'));
 assert.equal(d.querySelector('.bake-quick-area').previousElementSibling.className,'cards sun');
 assert.equal(d.querySelector('.bake-quick-area').nextElementSibling.className,'inspector-footer');
 assert.ok(d.querySelector('.bake-image-switch.property-switch.is-off'));
 assert.equal(d.querySelector('.bake-image-switch .switch-state').textContent,'OFF');
 assert.equal(d.querySelector('.bake-image-switch svg').getAttribute('stroke'),'currentColor');
-d.querySelector('[aria-label="Precompute Sun lighting"]').click();await tick();
+d.querySelector('[aria-label="Bake Sun lighting"]').click();await tick();
 const image=kind=>d.querySelector(`.tree img[record-icon-kind="${kind}"]`);
 for(const kind of ['sun','moon','stars','sky','cloud','air','forest','terrain','liquid','cube','material','camera','folder','collection','precip'])assert.ok(image(kind),kind+' SVG present');
 for(const img of d.querySelectorAll('.outliner img')){
@@ -50,7 +50,7 @@ for(const name of ['Environment','World','Water Bodies','Scene','Materials']){
 }
 assert.equal(new Set(folderSources).size,5);
 row('Environment').click();await tick();
-assert.ok(d.querySelector('.organization-member-link img[record-icon-kind="sun"]'));
+assert.ok(d.querySelector('.organization-member-link img[data-icon-kind="sun"]'));
 assert.ok(d.querySelector('.organization-member-link img[record-icon-kind="local-fog"]'));
 row('Terrain').click();await tick();
 assert.equal(d.querySelector('.object-title .eyebrow').textContent,'Landscape');
@@ -112,7 +112,7 @@ d.querySelector('[aria-label="Collapse Environment"]').click();await tick();asse
 d.querySelector('[aria-label="Expand Environment"]').click();await tick();assert.ok(row('Sun'));
 d.querySelector('[aria-label="Add scene object"]').click();await tick();
 for(const name of ['Local Volumetric Clouds','Local Fog'])assert.ok([...d.querySelectorAll('.add-menu button')].some(b=>b.textContent===name));
-const addSun=[...d.querySelectorAll('.add-menu button')].find(b=>b.textContent==='Sun');assert.ok(addSun.querySelector('img'));addSun.click();await tick();assert.ok(row('Sun 2').querySelector('img[record-icon-kind="sun"]'));
+const addSun=[...d.querySelectorAll('.add-menu button')].find(b=>b.textContent==='Sun');assert.ok(addSun.querySelector('img'));addSun.click();await tick();assert.ok(row('Sun 2').querySelector('img[data-icon-kind="sun"]'));
 // A broken image falls back gracefully without losing selection controls.
 image('camera').dispatchEvent(new dom.window.Event('error'));await tick();assert.ok(row('Camera').querySelector('svg.outliner-icon-fallback'));row('Camera').click();await tick();assert.equal(d.querySelector('h1').textContent,'Camera');
 const save=d.querySelector('.save-status');save.click();await tick();assert.ok(dom.window.localStorage.getItem('frontier-project'));assert.equal(JSON.parse(dom.window.localStorage.getItem('frontier-project')).values.sun['bake:sun'].request.status,'pending-renderer');

@@ -112,7 +112,7 @@ try {
     "Bounds toolbar / keyboard toggle preserves rendered pixels; front, side and top views stay nonblack",
   );
 
-  await Page.locator('[record-tab="rendering"]').click();
+  await Page.locator('[data-tab="rendering"]').click();
   await Page.locator("details")
     .filter({ has: Page.locator("#property-showBoundingBox") })
     .locator("summary")
@@ -153,7 +153,7 @@ try {
     "Inspector bounds, voxel/floor/active-cell overlays, all nine debug channels and all four atlas fields",
   );
 
-  await Page.locator('[record-tab="source"]').click();
+  await Page.locator('[data-tab="source"]').click();
   const Number = Page.locator("#property-emitterRate");
   await Number.fill("1");
   await Number.press("Tab");
@@ -214,25 +214,25 @@ try {
     true,
   );
   await Page.locator("#play-button").click();
-  await Page.locator('[record-document="2"]').dblclick();
-  const Rename = Page.locator('[record-document="2"] .document-rename');
+  await Page.locator('[data-document="2"]').dblclick();
+  const Rename = Page.locator('[data-document="2"] .document-rename');
   await Rename.fill("Smoke take");
   await Rename.press("Enter");
   Assert.equal(await Page.locator("#document-name").inputValue(), "Smoke take");
   await Page.locator("#property-emitterRate").fill("2");
   await Page.locator("#property-emitterRate").press("Tab");
-  await Page.locator('[record-document="1"]').click();
+  await Page.locator('[data-document="1"]').click();
   Assert.equal(
     await Page.evaluate(() => fluidEditor.Engine === OriginalFluidEngine),
     true,
   );
   Assert.equal((await Snapshot()).steps, First.steps);
   Assert.equal((await Snapshot()).parameters.emitterRate, 1.25);
-  await Page.locator('[record-document="2"]').click();
+  await Page.locator('[data-document="2"]').click();
   Assert.equal((await Snapshot()).parameters.emitterRate, 2);
   Assert.equal(await Page.locator("#document-name").inputValue(), "Smoke take");
   Page.once("dialog", (Dialog) => Dialog.accept());
-  await Page.locator('[record-close-document="2"]').click();
+  await Page.locator('[data-close-document="2"]').click();
   await Page.waitForFunction(() => fluidEditor.Documents.Slots.length === 1);
   Assert.equal(
     await Page.evaluate(() => fluidEditor.Engine === OriginalFluidEngine),
@@ -397,7 +397,7 @@ try {
         .Fault,
   );
   Assert.equal(await Page.locator("#gpu-error").isVisible(), false);
-  await Page.locator('[record-document="3"]').click();
+  await Page.locator('[data-document="3"]').click();
   Assert.equal(await Page.locator("#gpu-error").isVisible(), true);
   await Page.locator("#retry-gpu").click();
   await Page.waitForFunction(

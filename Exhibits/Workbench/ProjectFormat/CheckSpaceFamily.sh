@@ -66,7 +66,7 @@ Log=/tmp/SpaceFamily.log
 "$Proof" 2>&1 | tee -a "$Log"
 [ "${PIPESTATUS[0]}" -ne 0 ] && Status=1
 
-echo "[SpaceFamily] ── the command line (§6): export, verify, facts, pack, explode"
+echo "[SpaceFamily] ── the command line (§6): export, verify, info, pack, explode"
 "$Tool" -Project=Project-Zero -Level=Materials -Export=All -Out="$Out" 1 2>&1 | tee -a "$Log"
 [ "${PIPESTATUS[0]}" -ne 0 ] && Status=1
 "$Tool" -Project=Project-Zero -Verify="$Out" 1 2>&1 | tee -a "$Log"
@@ -108,7 +108,7 @@ claim $? "P6 the export carries the whole family — project, runtime, environme
 
 # P5: the runtime names what it opens, and -Bake=Sky writes a probe into the environment.
 "$Tool" -Project=Project-Zero -Level=Materials -Bake=Sky -Out="$Out/sky" >/tmp/SpaceFamily.sky 2>&1
-grep -q "precomputed a 32×16 equirect probe" /tmp/SpaceFamily.sky
+grep -q "baked a 32×16 equirect probe" /tmp/SpaceFamily.sky
 claim $? "P5/P6 -Bake=Sky precomputes a real equirect probe from the atmosphere model at the staging's own sun hour"
 grep -q "\.runtime" "$Log" && grep -q "\.environment" "$Log"
 claim $? "P5 .runtime and .environment are written with their own META and tables"

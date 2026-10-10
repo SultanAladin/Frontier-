@@ -20,7 +20,7 @@ struct GizmoVertexRecord
     vec2  Spare2;
 };
 
-layout(std430, binding = 0) readonly store GizmoVertices
+layout(std430, binding = 0) readonly buffer GizmoVertices
 {
     GizmoVertexRecord Vertices[];
 };

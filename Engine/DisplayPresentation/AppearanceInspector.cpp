@@ -108,7 +108,7 @@ AppearanceDifference AppearanceInspector::QueryDifference() const noexcept
     Note(Draft.Accent           != Applied.Accent,           "Accent");
     Note(Draft.WarningSwatch    != Applied.WarningSwatch,    "Warning colour");
     Note(Draft.SuccessSwatch    != Applied.SuccessSwatch,    "Success colour");
-    Note(Draft.DetailsSwatch       != Applied.DetailsSwatch,       "Facts colour");
+    Note(Draft.DetailsSwatch       != Applied.DetailsSwatch,       "Info colour");
     Note(Draft.CautionSwatch    != Applied.CautionSwatch,    "Caution colour");
     Note(Draft.FontFamily       != Applied.FontFamily,       "Font family");
     bool Sizes = false, Weights = false;
@@ -357,7 +357,7 @@ void AppearanceInspector::RecordSemanticRow(PixelSpace& Surface, float X, float 
     ControlKit::OutlineRounded(Surface, Preview, ControlKit::Faded(ControlKit::Palette().Stroke, Opacity), Radius * 0.7f);
     const ColorQuad Tone = QuerySemanticColour(Row, Swatch);
     ControlKit::Glyph(Surface, Preview.MinimumX + 24.0f, Preview.MinimumY + (PreviewH - 20.0f) * 0.5f, 20.0f, ControlKit::Faded(Tone, Opacity), Icon);
-    const char* Message = Row == 0u ? "Warning Message" : Row == 1u ? "Success Message" : Row == 2u ? "Facts Message" : "Caution Message";
+    const char* Message = Row == 0u ? "Warning Message" : Row == 1u ? "Success Message" : Row == 2u ? "Info Message" : "Caution Message";
     const PlanePoint MM = Surface.MeasureText(Message, 18.0f);
     Surface.Text(Preview.MinimumX + 24.0f + 20.0f + 8.0f, Preview.MinimumY + (PreviewH - MM.Y) * 0.5f, ControlKit::Faded(Tone, Opacity), Message, 18.0f);
     if (!Last) ControlKit::Divider(Surface, X, Y + RowH + 32.0f, Width, ControlKit::Faded(ColorQuad{ 1.0f, 1.0f, 1.0f, 0.06f }, Opacity));
@@ -451,7 +451,7 @@ float AppearanceInspector::ConstructThemeTabLayout(PixelSpace& Surface, const Pl
         float RowY = Content.MinimumY + HeadH;
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 0u, "Warning", Draft.WarningSwatch, ControlCentreIconCategory::TriangleAlert, Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 1u, "Success", Draft.SuccessSwatch, ControlCentreIconCategory::CircleCheck,   Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
-        RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 2u, "Facts",    Draft.DetailsSwatch,    ControlCentreIconCategory::CircleDetails,    Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
+        RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 2u, "Info",    Draft.DetailsSwatch,    ControlCentreIconCategory::CircleDetails,    Radius, false, Pointer, Opacity); RowY += RowH + RowGap;
         RecordSemanticRow(Surface, Content.MinimumX, RowY, Content.Width(), 3u, "Caution", Draft.CautionSwatch, ControlCentreIconCategory::OctagonAlert,  Radius, true,  Pointer, Opacity);
         Y += H + SectionGap;
     }

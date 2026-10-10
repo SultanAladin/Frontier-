@@ -8,7 +8,7 @@ const files=fs.readdirSync('custom-icons').filter(n=>n.startsWith('asset-'));
 assert.equal(files.length,32);
 for(const ext of ['ttf','otf','woff','woff2'])assert.ok(files.includes('asset-file-'+ext+'.svg'));
 assert.equal(files.filter(n=>n.startsWith('asset-folder-')).length,12);
-d.querySelector('[record-filter="Files & folders"]').click();assert.equal(d.querySelectorAll('.icon-card:not([hidden])').length,32);
+d.querySelector('[data-filter="Files & folders"]').click();assert.equal(d.querySelectorAll('.icon-card:not([hidden])').length,32);
 for(const filename of files){
  const raw=fs.readFileSync('custom-icons/'+filename,'utf8');const svg=parser.parseFromString(raw,'image/svg+xml');
  assert.ok(!svg.querySelector('parsererror,image,foreignObject,script,linearGradient'));

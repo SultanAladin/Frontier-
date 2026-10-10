@@ -62,26 +62,26 @@ layout(rgba16f, binding = 5) uniform readonly image2D NormalImage;    // R2 Surf
 
 #include "SceneShadingRecords.slang"   // GpuTriangle / GpuMaterial / GpuMaterialSlab / GpuInstance / GpuVertex
 
-layout(std430, binding = 1) readonly store TriangleExtent  { GpuTriangle  Triangles[];  };
-layout(std430, binding = 2) readonly store MaterialExtent  { GpuMaterial  Materials[];  };
-layout(std430, binding = 6) readonly store InstanceExtent  { GpuInstance  Instances[];  };
-layout(std430, binding = 7) readonly store LuminaireExtent { GpuLuminaire Luminaires[]; };
+layout(std430, binding = 1) readonly buffer TriangleExtent  { GpuTriangle  Triangles[];  };
+layout(std430, binding = 2) readonly buffer MaterialExtent  { GpuMaterial  Materials[];  };
+layout(std430, binding = 6) readonly buffer InstanceExtent  { GpuInstance  Instances[];  };
+layout(std430, binding = 7) readonly buffer LuminaireExtent { GpuLuminaire Luminaires[]; };
 #include "TraversalRecords.slang"   // D6/D7: the two-level traversal's device records (must precede the buffers below)
-layout(std430, binding = 8) readonly store TraversalNodeExtent { vec4 CwbvhNodes[]; };   // R3: shared CWBVH node blob (all BLASes)
-layout(std430, binding = 9) readonly store TraversalLeafExtent { vec4 CwbvhTris[];  };   // R3: shared CWBVH triangle blob
+layout(std430, binding = 8) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };   // R3: shared CWBVH node blob (all BLASes)
+layout(std430, binding = 9) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };   // R3: shared CWBVH triangle blob
 // D6/D7 — the two-level set. Present in every dispatch; whether they are WALKED depends on TlasInstanceCount, which the
 //    host sets to the resident instance count (0 = the scene is one world-space blob, ie every scene before D6). The
 //    bindings are written unconditionally by SwapchainExchange (empty stores until UploadInstances), so a scene
 //    without instances reads nothing and the single-blob arithmetic is what it always was.
-layout(std430, binding = 27) readonly store TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];      };
-layout(std430, binding = 28) readonly store TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[]; };
-layout(std430, binding = 29) readonly store TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];  };
-layout(std430, binding = 30) readonly store TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
+layout(std430, binding = 27) readonly buffer TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];      };
+layout(std430, binding = 28) readonly buffer TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[]; };
+layout(std430, binding = 29) readonly buffer TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];  };
+layout(std430, binding = 30) readonly buffer TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
 #define FRONTIER_TRAVERSAL_INSTANCES   // the four stores above are declared: TraversalCWBVH.slang's two-level walkers compile
-layout(std430, binding = 10) readonly store MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
+layout(std430, binding = 10) readonly buffer MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
 
-layout(std430, binding = 11) readonly store VertexExtent { GpuVertex Vertices[]; };   // R4b: shared with the R2 raster set
-layout(std430, binding = 12) readonly store IndexExtent  { uint      Indices[];  };   // R4b
+layout(std430, binding = 11) readonly buffer VertexExtent { GpuVertex Vertices[]; };   // R4b: shared with the R2 raster set
+layout(std430, binding = 12) readonly buffer IndexExtent  { uint      Indices[];  };   // R4b
 // 13 = EnergyLut, 14 = SheenLut (declared in MaterialEvaluation.slang)
 layout(binding = 15) uniform sampler2D MotionImage;   // R6: R2 motion (CurrentUv − PreviousUv, [0,1] uv units) — texelFetch only
 struct GpuReservoir   // 80 B stride (D10) — mirrors ReservoirStoreRecord in SwapchainExchange.cpp
@@ -92,8 +92,8 @@ struct GpuReservoir   // 80 B stride (D10) — mirrors ReservoirStoreRecord in S
     vec4  Normal;    // xyz = viewer-facing geometric normal at the build pixel, w = stride guard (ViewportWidth)
     uvec4 Identity;  // D10: x = the packed (instance, primitive) this reservoir was built on; yzw reserved
 };
-layout(std430, binding = 16) readonly store PrevReservoirExtent { GpuReservoir PrevReservoirs[]; };
-layout(std430, binding = 17) writeonly store CurrReservoirExtent { GpuReservoir CurrReservoirs[]; };
+layout(std430, binding = 16) readonly buffer PrevReservoirExtent { GpuReservoir PrevReservoirs[]; };
+layout(std430, binding = 17) writeonly buffer CurrReservoirExtent { GpuReservoir CurrReservoirs[]; };
 // The indirect slots's own pair (kFeatureGiReuse). Same 80 B record (D10; 64 B before the Identity tail) and the same
 //    field meanings, but the sample inside lives
 //    on the FIRST-BOUNCE VERTEX rather than on the primary surface: Sample.xyz is a light point sampled from that
@@ -101,8 +101,8 @@ layout(std430, binding = 17) writeonly store CurrReservoirExtent { GpuReservoir 
 //    Normal/primaryT are the PRIMARY pixel's validation pair — the same pair the direct slots validates, because the
 //    slots is reprojected by the pixel's motion vector whatever point the light sample came from. The vertex itself
 //    needs no store: this kernel is one dispatch, so the receiver's vertex is in registers where it was built.
-layout(std430, binding = 25) readonly store GiPrevReservoirExtent { GpuReservoir GiPrevReservoirs[]; };
-layout(std430, binding = 26) writeonly store GiCurrReservoirExtent { GpuReservoir GiCurrReservoirs[]; };
+layout(std430, binding = 25) readonly buffer GiPrevReservoirExtent { GpuReservoir GiPrevReservoirs[]; };
+layout(std430, binding = 26) writeonly buffer GiCurrReservoirExtent { GpuReservoir GiCurrReservoirs[]; };
 layout(rgba16f, binding = 18) uniform image2D HistorySurfacePair[2];   // R7a: xyz = normal, w = depth the history mean was shaded at (w ≤ 0 = no surface)
 layout(rgba32f, binding = 19) uniform image2D MomentPair[2];           // R7: x = E[luma], y = E[luma²], reprojected with the mean
 layout(rgba32f, binding = 20) uniform writeonly image2D DenoiseImage; // R7: xyz = linear radiance, w = variance — the à-trous input

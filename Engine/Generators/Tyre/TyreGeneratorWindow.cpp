@@ -955,10 +955,10 @@ void RecordTyrePage(TyreGeneratorState& State)
         if (Slider("##aspect", "Aspect ratio (%)",   &S.Aspect,  20.0f,  85.0f, 5.0f, 0)) { State.Touch(); }
         SectionLabel("Wear");
         if (Slider("##wearbias", "Wear bias (edge-centre)", &S.WearBias, -1.0f, 1.0f, 0.01f, 2)) { State.Touch(); }
-        SectionLabel("Tread topology");
+        SectionLabel("Tread mesh");
         {
             const ImVec2 Row = ImGui::GetCursorScreenPos();
-            Ink(Draw, 13.0f, ImVec2(Row.x, Row.y + 5.0f), MutedTint, "Hull mode");
+            Ink(Draw, 13.0f, ImVec2(Row.x, Row.y + 5.0f), MutedTint, "Mesh mode");
             Ink(Draw, 13.0f, ImVec2(Row.x + LabelColumnWidth + 8.0f, Row.y + 5.0f), TextTint, "Polygon topology");
             ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, RowHeight + RowGap));
         }
@@ -1424,7 +1424,7 @@ void RecordViewport(TyreGeneratorState& State, ImVec2 Min, ImVec2 Max)
                       double(S.SegmentsAround * S.SegmentsAcross * 2.0f / 1000.0f));
         std::snprintf(Units[3],  sizeof(Units[3]),  "k tris");
 
-        const char* Labels[4] = { "Overall Ø", "Tread left", "Circumference", "Tread topology" };
+        const char* Labels[4] = { "Overall Ø", "Tread left", "Circumference", "Tread mesh" };
         const ImU32 Dots[4]   = { YellowTint, Health, YellowTint, GreenTint };
 
         for (int I = 0; I < 4; ++I)

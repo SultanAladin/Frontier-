@@ -43,11 +43,11 @@ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 #include "TraversalRecords.slang"   // TraversalBlasPlacement: NodeOffset / LeafOffset / PrimitiveCount in vec4 blocks
 #include "BlasLayout.slang"
 
-layout(std430, binding = 0) store BlasNodeExtent      { vec4 BlasNodes[]; };   // D9: this BLAS' nodes, read/write
-layout(std430, binding = 1) store BlasLeafExtent      { vec4 BlasLeaves[]; };  // D9: this BLAS' leaf records, read/write
-layout(std430, binding = 2) readonly store BlasSoupExtent { vec4 BlasSoup[]; };// D9: deformed object-space soup, 3 × vec4
-layout(std430, binding = 3) readonly store BlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
-layout(std430, binding = 4) readonly store BlasLevelExtent { uint BlasLevels[]; };  // one BFS level per node, 0xFFFFFFFF = unreachable
+layout(std430, binding = 0) buffer BlasNodeExtent      { vec4 BlasNodes[]; };   // D9: this BLAS' nodes, read/write
+layout(std430, binding = 1) buffer BlasLeafExtent      { vec4 BlasLeaves[]; };  // D9: this BLAS' leaf records, read/write
+layout(std430, binding = 2) readonly buffer BlasSoupExtent { vec4 BlasSoup[]; };// D9: deformed object-space soup, 3 × vec4
+layout(std430, binding = 3) readonly buffer BlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
+layout(std430, binding = 4) readonly buffer BlasLevelExtent { uint BlasLevels[]; };  // one BFS level per node, 0xFFFFFFFF = unreachable
 
 // 16 B. A refit is per-BLAS work, so the dispatch says which BLAS and which slice of the work it is.
 layout(push_constant) uniform BlasRefitConstants

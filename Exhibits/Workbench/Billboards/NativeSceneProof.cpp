@@ -84,7 +84,7 @@ int main(int argc,char** argv){if(argc>2&&!std::strcmp(argv[1],"--editor-convers
  Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x<0,"Markers toggle hides local proxies");
  Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x>=0,"Markers toggle restores local proxies");
  for(auto Entity:{CelestialEntity::LocalCloud,CelestialEntity::LocalFog}){
-  Click(Host->QueryBillboardCentre(Key(Entity)));Check(Rows[Host->QueryPickedInstance()].InspectorKey==Key(Entity),"billboard selects matching outliner row");Check(Sheet->InspectorKey==Key(Entity),"billboard mounts real matching inspector");float U,V;bool Add;Check(!Host->QueryViewTap(&U,&V,&Add),"billboard click consumed before topology picker");Check(Host->TakeBillboardSelection(),"billboard cancels older asynchronous topology selection");Check(!Host->TakeBillboardSelection(),"selection notification consumed once");
+  Click(Host->QueryBillboardCentre(Key(Entity)));Check(Rows[Host->QueryPickedInstance()].InspectorKey==Key(Entity),"billboard selects matching outliner row");Check(Sheet->InspectorKey==Key(Entity),"billboard mounts real matching inspector");float U,V;bool Add;Check(!Host->QueryViewTap(&U,&V,&Add),"billboard click consumed before mesh picker");Check(Host->TakeBillboardSelection(),"billboard cancels older asynchronous mesh selection");Check(!Host->TakeBillboardSelection(),"selection notification consumed once");
  }
  Host->PickInstance(Index(Key(CelestialEntity::Wind)));Tick();Capture("Editor-Wind");
  ImGuiWindow* Slider=nullptr;for(auto* Win:ImGui::GetCurrentContext()->Windows)if(Win->Active&&std::strstr(Win->Name,"/Speed_"))Slider=Win;Check(Slider!=nullptr,"actual native Wind slider mounted");float Old=Sky->Wind.Speed;Click({Slider->Pos.x+Slider->Size.x*.7f,Slider->Pos.y+15});Check(Sky->Wind.Speed!=Old,"native mouse edit commits Wind speed");Render(nullptr);Check(Raster->QueryCelestial().Wind.Speed==Sky->Wind.Speed,"native mouse edit propagated to rendered scene");Tick();Capture("Editor-Wind-edited");
@@ -103,7 +103,7 @@ int main(int argc,char** argv){if(argc>2&&!std::strcmp(argv[1],"--editor-convers
  // A modal above the viewport owns its clicks, not the scene or the markers beneath it.
  BlockInput=true;Tick();Tick();const auto PickBefore=Host->QueryPickedInstance();
  Click(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)));Check(Host->QueryPickedInstance()==PickBefore,"modal blocks billboard selection");
- float TapU,TapV;bool Additive;Check(!Host->QueryViewTap(&TapU,&TapV,&Additive),"modal blocks topology selection too");
+ float TapU,TapV;bool Additive;Check(!Host->QueryViewTap(&TapU,&TapV,&Additive),"modal blocks mesh selection too");
  BlockInput=false;CloseModal=true;Tick();CloseModal=false;Tick();
  // Overlapping local markers: nearest visible proxy wins, independent of roster order.
  float CloudCentre[3],FogCentre[3];std::memcpy(CloudCentre,Sky->LocalCloud.Centre,sizeof(CloudCentre));std::memcpy(FogCentre,Sky->LocalFog.Centre,sizeof(FogCentre));

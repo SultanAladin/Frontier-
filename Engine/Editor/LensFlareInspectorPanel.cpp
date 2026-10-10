@@ -128,7 +128,7 @@ void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorS
     if(U.Button(W-94,44+HeaderShift,94,"##flare-enabled",Find(Sheet,"Enabled")->On?"Enabled":"Disabled",Find(Sheet,"Enabled")->On))Find(Sheet,"Enabled")->On=!Find(Sheet,"Enabled")->On;
     auto RecordPrecomputing=[&](float AtY) {
         const ImVec2 Saved=U.O;U.O.y+=AtY-98-HeaderShift;
-    U.Text(0,98+HeaderShift,"PRECOMPUTING",10,Muted);
+    U.Text(0,98+HeaderShift,"BAKING",10,Muted);
     U.Card(0,121+HeaderShift,W,162,"Lens flare image");
     U.D->AddImageRounded(Cache.Texture.GetTexRef(),U.At(24,185+HeaderShift),U.At(132,232.25f+HeaderShift),{0,0},{1,1},IM_COL32_WHITE,12);
     U.Button(148,174+HeaderShift,Wide?170:W-172,"##use-baked",W<360?"Use image":"Use baked image",false,true);

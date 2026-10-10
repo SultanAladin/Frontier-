@@ -381,7 +381,7 @@ int main()
 
         const auto StatusD = TriangleField::RuntimeLoad(Cache.string(), Content.string(), "d.obj", ProjectN, 0.1f, Loaded, Reason);
         Check(StatusD == TriangleField::RuntimeStatus::NoIndexEntry && Reason.find("import") != std::string::npos,
-              "topology with no import entry is reported, not baked");
+              "mesh with no import entry is reported, not baked");
 
         Check(TriangleField::ProjectCallCount() == RuntimeStart, "runtime loads performed zero bakes (counter unchanged)");
     }

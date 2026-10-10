@@ -657,7 +657,7 @@ export default function Notch({
                       {Field("Accent", "Colour", [], "#3b82f6")}
                     </Card>
                     <Card Title="Semantic Colors">
-                      {["Warning", "Success", "Facts", "Caution"].map(
+                      {["Warning", "Success", "Info", "Caution"].map(
                         (Label, Index) =>
                           Field(
                             Label,
@@ -720,7 +720,7 @@ export default function Notch({
                   </Card>
                   <Card Title="Alerts">
                     {[
-                      "Precomputing Complete",
+                      "Baking Complete",
                       "Render Finished",
                       "Autosave Errors",
                       "Frame-rate Drops",
@@ -782,7 +782,7 @@ export default function Notch({
                             }
                           />
                           <small>
-                            {Index === 4 ? "topology frame" : "constant"}
+                            {Index === 4 ? "mesh frame" : "constant"}
                           </small>
                         </div>
                       ))}

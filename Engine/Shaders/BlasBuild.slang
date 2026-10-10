@@ -74,19 +74,19 @@ layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 #include "BlasLayout.slang"
 
-layout(std430, binding = 0) store BlasNodeExtent   { vec4 BlasNodes[]; };    // D9: the node arena being built
-layout(std430, binding = 1) store BlasLeafExtent   { vec4 BlasLeaves[]; };   // D9: the leaf arena being built
-layout(std430, binding = 2) readonly store BlasSoupExtent { vec4 BlasSoup[]; };// D9: object-space soup, 3 × vec4 per triangle
-layout(std430, binding = 3) store BlasSortedExtent    { uvec2 BlasSortedA[]; };   // ping (each level writes the other)
-layout(std430, binding = 4) store BlasSortedAltExtent { uvec2 BlasSortedB[]; };   // pong
-layout(std430, binding = 5) store BlasScratchExtent { uint BlasScratch[]; }; // one block per node slot + a header
-layout(std430, binding = 6) store BlasLevelExtent   { uint BlasLevels[]; };  // written here, read by the refit kernel
+layout(std430, binding = 0) buffer BlasNodeExtent   { vec4 BlasNodes[]; };    // D9: the node arena being built
+layout(std430, binding = 1) buffer BlasLeafExtent   { vec4 BlasLeaves[]; };   // D9: the leaf arena being built
+layout(std430, binding = 2) readonly buffer BlasSoupExtent { vec4 BlasSoup[]; };// D9: object-space soup, 3 × vec4 per triangle
+layout(std430, binding = 3) buffer BlasSortedExtent    { uvec2 BlasSortedA[]; };   // ping (each level writes the other)
+layout(std430, binding = 4) buffer BlasSortedAltExtent { uvec2 BlasSortedB[]; };   // pong
+layout(std430, binding = 5) buffer BlasScratchExtent { uint BlasScratch[]; }; // one block per node slot + a header
+layout(std430, binding = 6) buffer BlasLevelExtent   { uint BlasLevels[]; };  // written here, read by the refit kernel
 // D9b: the per-workgroup totals of a parallel scan (one entry per block of 128 node slots). Both scans use it, at
 //    different times: the childBase scan during each level, the run scan once at the end. ⚠️ It is a SCAN SCRATCH, not a
 //    result: after the block-scan stage it holds the exclusive prefix of the blocks, which is what the stages after it
 //    read. ⚠️ Sized ceil(NodeCount / 128) by the host — `BlasBlockSumsWords()` in BlasDevicePayload.h is the one place
 //    that expression lives.
-layout(std430, binding = 7) store BlasBlockSumExtent { uint BlasBlockSums[]; };
+layout(std430, binding = 7) buffer BlasBlockSumExtent { uint BlasBlockSums[]; };
 
 // ─── the scratch: one block per node slot, holding that node's children ──────────────────────────────────────────────
 // Header — ⚠️ the level's base/count is PING-PONGED BY LEVEL PARITY, because a level's block scan computes the NEXT

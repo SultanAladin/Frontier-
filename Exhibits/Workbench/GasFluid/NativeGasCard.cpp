@@ -186,7 +186,7 @@ int main()
     Banner("A 3D entity: a transform, children, and what is deliberately not a child");
     {
         Check(Near(Subject.Bounds[0], 1.85f) && Near(Subject.Bounds[1], 2.1f) && Near(Subject.Bounds[2], 1.85f),
-              "① bounds are three metres on the transform, where a topology has Scale");
+              "① bounds are three metres on the transform, where a mesh has Scale");
         Check(Near(Subject.Bounds[0], Subject.Bounds[2]),
               "X and Z stay equal: the solver uses one width for both horizontal axes");
         Check(std::strstr(RotationCaption(), "NOT THE LATTICE") != nullptr,

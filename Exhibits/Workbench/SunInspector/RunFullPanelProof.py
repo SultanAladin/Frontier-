@@ -75,7 +75,7 @@ if not a.sanitize and not a.debug:
 report=[]
 for name in ['CelestialSequence','InspectorPanel','SunInspectorPanel','FullPanelProof']:
  for line in (b/(name+'.su')).read_text().splitlines():
-  if any(n in line for n in ['::BuildSheet(', '::BuildSunSheet(', '::ApplySheet(', '::Record(', 'RecordSunInspector(', '::Precompute(', '::Native(', '::SolvedSlider(', 'int main()']):
+  if any(n in line for n in ['::BuildSheet(', '::BuildSunSheet(', '::ApplySheet(', '::Record(', 'RecordSunInspector(', '::Bake(', '::Native(', '::SolvedSlider(', 'int main()']):
    fields=line.split('\t');report.append({'function':fields[0],'bytes':int(fields[1]),'classification':fields[2]})
    if not a.sanitize:assert int(fields[1])<=8192,'8KiB per-function budget exceeded'
 (out/(mode+'Stack.json')).write_text(json.dumps(report,indent=2)+'\n')

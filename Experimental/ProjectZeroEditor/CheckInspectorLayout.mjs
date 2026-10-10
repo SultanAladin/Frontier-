@@ -76,7 +76,7 @@ try {
   await Open("sun");
   assert.equal(
     await Page.locator(
-      '[record-panel="sun"] > header + .reference-inspector-copy',
+      '[data-panel="sun"] > header + .reference-inspector-copy',
     ).count(),
     1,
   );
@@ -106,7 +106,7 @@ try {
   ])
     assert.equal(await Page.locator(`[record-card="${Title}"]`).count(), 1);
   assert.equal(
-    await Page.locator('[record-card="Medium"] > .fog-shared-beam').count(),
+    await Page.locator('[data-card="Medium"] > .fog-shared-beam').count(),
     1,
   );
   await Page.screenshot({ path: path.join(Proof, "height-fog-header.png") });
@@ -149,13 +149,13 @@ try {
       1,
     );
     assert.equal(
-      await Page.locator('[record-card="Medium"] > .fog-shared-beam').count(),
+      await Page.locator('[data-card="Medium"] > .fog-shared-beam').count(),
       1,
     );
-    const Before = await Page.locator('[record-card="Visibility through fog"] .graph-metric').innerText();
+    const Before = await Page.locator('[data-card="Visibility through fog"] .graph-metric').innerText();
     await Page.getByLabel("Density value", { exact: true }).fill("2");
     assert.notEqual(
-      await Page.locator('[record-card="Visibility through fog"] .graph-metric').innerText(),
+      await Page.locator('[data-card="Visibility through fog"] .graph-metric').innerText(),
       Before,
     );
     await Open(Id);
@@ -291,7 +291,7 @@ try {
     const Inventory = () =>
       [
         ...document.querySelectorAll(
-          ".inspector-scroll > [record-panel] input,.inspector-scroll > [record-panel] select,.inspector-scroll > [record-panel] textarea",
+          ".inspector-scroll > [data-panel] input,.inspector-scroll > [data-panel] select,.inspector-scroll > [data-panel] textarea",
         ),
       ]
         .map((Node) => [
@@ -320,7 +320,7 @@ try {
     ]) {
       await Open(Id);
       await Previous.goto("http://baseline.test/?inspect=" + Id);
-      await Previous.locator(".inspector-scroll > [record-panel]").waitFor();
+      await Previous.locator(".inspector-scroll > [data-panel]").waitFor();
       const ActualInventory = await Page.evaluate(Inventory),
         PreviousInventory = await Previous.evaluate(Inventory);
       if (Id.includes("fog")) {

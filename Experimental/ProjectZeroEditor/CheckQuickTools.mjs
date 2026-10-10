@@ -90,9 +90,9 @@ try {
     const Tiles = await Page.locator(".inspector-scroll .quick-tile").all();
     assert.ok(Tiles.length, Name + " has quick actions");
     for (const Tile of Tiles) {
-      const Label = await Tile.getAttribute("record-quick-action");
+      const Label = await Tile.getAttribute("data-quick-action");
       const Icon = Tile.locator(".action-icon");
-      const Symbol = await Icon.getAttribute("record-action-icon");
+      const Symbol = await Icon.getAttribute("data-action-icon");
       assert.ok(
         Symbols.has(Symbol),
         Name + ": " + Label + " needs a semantic icon",
@@ -130,7 +130,7 @@ try {
     for (const Group of await Page.locator(
       ".inspector-scroll .tiles, .moon-settings-tiles",
     ).all()) {
-      const Names = await Group.locator("[record-action-icon]").evaluateAll(
+      const Names = await Group.locator("[data-action-icon]").evaluateAll(
         (Nodes) => Nodes.map((Node) => Node.dataset.actionIcon),
       );
       assert.equal(

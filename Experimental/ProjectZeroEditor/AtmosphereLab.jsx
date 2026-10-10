@@ -299,7 +299,7 @@ function Atlas({ V, Change }) {
           }
         }}
         onPointerDown={(E) => {
-          if (E.button !== 0 || E.target.closest("[record-preset]")) return;
+          if (E.button !== 0 || E.target.closest("[data-preset]")) return;
           Drag.current = true;
           Root.current.focus();
           Root.current.setPointerCapture(E.pointerId);

@@ -4549,7 +4549,7 @@ void ConsoleHost::Register() noexcept
                   "Frontier engine material (AutomotiveFlakePaint / Rubber_Tyre / Glass_Tinted / metals / emissive) and is "
                   "meant to be hand-edited. By default coincident vertices are KEPT DUPLICATED so low-poly edges stay crisp "
                   "(each face carries its own normals). Pass --weld to merge coincident vertices (position, averaged normals) within each "
-                  "body (welded seams, smaller topology); --weld=eps sets the merge tolerance in metres (default 1e-5).",
+                  "body (welded seams, smaller mesh); --weld=eps sets the merge tolerance in metres (default 1e-5).",
                   [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "export")) return false;

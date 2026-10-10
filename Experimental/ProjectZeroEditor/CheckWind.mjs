@@ -152,7 +152,7 @@ try {
   await Select("Precipitation");
   assert.equal(
     await Page.locator(
-      '.outliner-row.selected [record-action-icon="rain"]',
+      '.outliner-row.selected [data-action-icon="rain"]',
     ).count(),
     1,
   );
@@ -276,9 +276,9 @@ try {
     exact: true,
   }).click();
   await Page.waitForTimeout(100);
-  const Paused = await Canvas.getAttribute("record-time");
+  const Paused = await Canvas.getAttribute("data-time");
   await Page.waitForTimeout(250);
-  assert.equal(await Canvas.getAttribute("record-time"), Paused);
+  assert.equal(await Canvas.getAttribute("data-time"), Paused);
   const Combined = await Canvas.evaluate((Node) => Node.toDataURL());
   await Dialog.getByRole("button", {
     name: "Enable Tornado 1",
@@ -340,7 +340,7 @@ try {
     SecondId,
   );
   assert.equal((await Saved()).Values.clouds.WindFieldId, SecondId);
-  await Page.locator('[record-card="Wind binding"]').scrollIntoViewIfNeeded();
+  await Page.locator('[data-card="Wind binding"]').scrollIntoViewIfNeeded();
   await Page.getByRole("button", {
     name: "Edit wind field ↗",
     exact: true,
@@ -368,11 +368,11 @@ try {
   }).click();
   await Page.getByRole("button", { name: "Follow Wind", exact: true }).click();
   assert.equal(
-    await Page.locator(".wind-binding canvas").getAttribute("record-active"),
+    await Page.locator(".wind-binding canvas").getAttribute("data-active"),
     "false",
   );
   await Page.getByRole("button", { name: "Follow Wind", exact: true }).click();
-  await Page.locator('[record-card="Wind binding"]').scrollIntoViewIfNeeded();
+  await Page.locator('[data-card="Wind binding"]').scrollIntoViewIfNeeded();
   await Page.screenshot({ path: Proof + "/CloudWindBinding.png" });
   await Select("Local Cloud");
   await Page.getByLabel("Cloud wind field", { exact: true }).selectOption(

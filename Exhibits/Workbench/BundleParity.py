@@ -191,7 +191,7 @@ Port = Native('Engine/Editor/FractureCardSurface.h')
 Parity('fracture card', Fracture, Port, [
     ('PER-OBJECT GEOMETRY', 'PER-OBJECT GEOMETRY'),
     ('Enable fracture', 'Enable fracture'),
-    ('Precompute SDF per piece', 'Precompute SDF per piece'),
+    ('Bake SDF per piece', 'Bake SDF per piece'),
     ('Resolution per piece', 'Resolution per piece'),
     ('Generate fragments on demand.', 'Generate fragments on demand.'),
     ('Reuse stored geometry for this object.', 'Reuse stored geometry for this object.'),
@@ -336,7 +336,7 @@ Parity('fracture editor', EditorRaw, Port, [
     ('Needle rejection', 'Needle rejection'),
     ('Closed caps', 'Closed caps'),
     ('Quality-aware triangulation', 'Quality-aware triangulation'),
-    ('Precompute SDF per piece', 'Precompute SDF per piece'),
+    ('Bake SDF per piece', 'Bake SDF per piece'),
     ('Resolution per piece', 'Resolution per piece'),
     ('Geometry receipt', 'Geometry receipt'),
     ('Refused candidates', 'Refused candidates'),
@@ -350,7 +350,7 @@ Parity('fracture editor', EditorRaw, Port, [
     ('NATIVE PORT PENDING', 'NATIVE PORT PENDING'),
     # Refresh()'s derived text, and the specimen line art it swaps in.
     ('DISABLED', 'DISABLED'),
-    ('Precompute is stale', 'Precompute is stale'),
+    ('Bake is stale', 'Bake is stale'),
     ('Not baked', 'Not baked'),
     ('No stored fragment geometry', 'No stored fragment geometry'),
     ('m30 5 23 13v26L30 56 7 44V18Z', 'm30 5 23 13v26L30 56 7 44V18Z'),
@@ -472,6 +472,6 @@ Parity('collection types', Loose, Port, [
     ('Precipitation',   '"Precipitation"'),
 ])
 
-print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture, notes, base-topology, '
+print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture, notes, base-mesh, '
       f'fracture-editor, outliner-metadata and folder-inspector ports match the built bundles.')
 sys.exit(0)

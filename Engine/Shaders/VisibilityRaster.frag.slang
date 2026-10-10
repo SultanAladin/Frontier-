@@ -14,10 +14,10 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #include "Shaders/SceneRecords.slang"
 
-layout(std430, set = 0, binding = 1) readonly store InstanceExtent { InstanceRecord Instances[]; };
-layout(std430, set = 0, binding = 2) readonly store ClusterExtent  { ClusterRecord  Clusters[];  };
-layout(std430, set = 0, binding = 5) readonly store MaterialExtent     { MaterialRecord     Materials[];     };
-layout(std430, set = 0, binding = 6) readonly store MaterialSlabExtent { MaterialSlabRecord MaterialSlabs[]; };
+layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
+layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
+layout(std430, set = 0, binding = 5) readonly buffer MaterialExtent     { MaterialRecord     Materials[];     };
+layout(std430, set = 0, binding = 6) readonly buffer MaterialSlabExtent { MaterialSlabRecord MaterialSlabs[]; };
 layout(set = 0, binding = 7) uniform sampler2D Textures[];   // partially bound; only resident slots are indexed
 
 layout(location = 0) flat in uint  InCluster;

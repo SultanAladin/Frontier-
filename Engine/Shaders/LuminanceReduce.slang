@@ -49,7 +49,7 @@ const uint  kHistogramBins = 256u;
 const float kLogLuminanceLow  = -30.0;
 const float kLogLuminanceHigh =  30.0;
 
-layout(std430, binding = 1) store LuminanceAccumulator
+layout(std430, binding = 1) buffer LuminanceAccumulator
 {
     uint Bins[kHistogramBins];
 };

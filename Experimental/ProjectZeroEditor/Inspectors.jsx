@@ -1117,7 +1117,7 @@ export function Inspector({
         <div className="section-caption">PRECOMPUTING</div>
         <Card Title="Star field bake">
           <div className="tiles">
-            <Tile Label="Precompute" Disabled IconName="bake" />
+            <Tile Label="Bake" Disabled IconName="bake" />
             <Tile Label="Use baked" Disabled IconName="bake" />
           </div>
           <p>Precomputed-star playback is not implemented.</p>
@@ -1307,13 +1307,13 @@ export function Inspector({
         </Card>
         <div className="section-caption">PRECOMPUTING</div>
         <Precompute Title="Atmosphere bake" Sun />
-        <Card Title="Precomputed atmosphere" Height={210}>
+        <Card Title="Baked atmosphere" Height={210}>
           <div className="empty-image">No resident atmosphere image</div>
           <p>
             Load / precompute requires the native engine. No completed precompute is
             simulated.
           </p>
-          {F("Fetch Precomputed Dome", true)}
+          {F("Fetch Baked Dome", true)}
           {Fields("Dome Path", "Sheet")}
         </Card>
       </>

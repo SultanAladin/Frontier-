@@ -40,15 +40,15 @@ for Source in Sources:
         Commands.append(Command)
     Objects.append(str(Object))
 
-Link = ['g++', *Objects, '-o', str(Build / 'BaseGeometryProof')]
+Link = ['g++', *Objects, '-o', str(Build / 'BaseMeshProof')]
 subprocess.run(Link, cwd=Root, check=True)
 Commands.append(Link)
 
-Result = subprocess.run([str(Build / 'BaseGeometryProof')], cwd=Root, text=True,
+Result = subprocess.run([str(Build / 'BaseMeshProof')], cwd=Root, text=True,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 print(Result.stdout, end='')
 (Gallery / 'Proof.txt').write_text(Result.stdout + f'Exit: {Result.returncode}\n')
-assert Result.returncode == 0, 'native base topology proof failed'
+assert Result.returncode == 0, 'native base mesh proof failed'
 
 # Lossless PNG re-encoding, no retouching of native draw output. stb writes a barely-compressed
 # stream; these are flat-colour UI captures, so zlib level 9 shrinks them by roughly 50x.

@@ -17,7 +17,7 @@ const dom=new JSDOM(html,{url:'http://localhost:5174',runScripts:'dangerously',b
 }});
 const {document:d,DOMParser}=dom.window;const parser=new DOMParser();
 assert.equal(d.querySelectorAll('.icon-card').length,141);
-d.querySelector('[record-filter="Slate"]').click();assert.equal(d.querySelectorAll('.icon-card:not([hidden])').length,26);
+d.querySelector('[data-filter="Slate"]').click();assert.equal(d.querySelectorAll('.icon-card:not([hidden])').length,26);
 for(const item of raw.filter(a=>!selection.includes(a.id))){
  assert.equal(d.querySelector(`[record-id="${item.id}"]`),null,item.name);
  for(const dir of ['custom-icons','dist/custom-icons'])assert.ok(!fs.existsSync(dir+'/'+item.id+'.svg'),item.name+' should be removed');
@@ -27,7 +27,7 @@ for(const item of kept){
  const source=parser.parseFromString(item.svg,'image/svg+xml'),asset=parser.parseFromString(svg,'image/svg+xml');
  assert.ok(!asset.querySelector('parsererror,script,image,foreignObject'),item.name);
  // Compare the exact reviewed source geometry, allowing layout-only wrappers.
- assert.equal(asset.querySelectorAll('[record-slate-layout]').length,2);
+ assert.equal(asset.querySelectorAll('[data-slate-layout]').length,2);
  const layout=layouts[item.id];assert.ok(layout.mainTransform[0]>1,item.name+' enlarged');
  for(const part of ['main','badge']){
   const matrix=layout[part+'Transform'];
@@ -36,7 +36,7 @@ for(const item of kept){
   assert.ok(left>=16&&top>=16&&left+w*s<=221&&top+h*s<=219,item.name+' safe canvas bounds');
   if(part==='badge'){assert.ok(Math.abs(top+h*s-218)<.01);assert.ok(left<30||left+w*s>210);}
  }
- if(['slate-spotlight','slate-l-e-d-panel'].includes(item.id))assert.ok(![...asset.querySelectorAll('[record-slate-layout="main"] [transform]')].some(e=>e.getAttribute('transform').includes('rotate(')));
+ if(['slate-spotlight','slate-l-e-d-panel'].includes(item.id))assert.ok(![...asset.querySelectorAll('[data-slate-layout="main"] [transform]')].some(e=>e.getAttribute('transform').includes('rotate(')));
  if(item.id==='slate-spotlight'){
   const beam=[...asset.querySelectorAll('path')].find(e=>e.getAttribute('fill')==='url(#slate-spotlight--spotBeam)');
   assert.equal(beam.getAttribute('d'),'M -22 20 L 22 20 L 48 75 L -48 75 Z');
@@ -44,7 +44,7 @@ for(const item of kept){
   const light=asset.querySelector('ellipse[rx="22"]');assert.equal(light.getAttribute('cy'),'20');assert.equal(light.getAttribute('ry'),'5');
  }
 
- const a=[...source.documentElement.querySelectorAll('*')];const b=[...asset.documentElement.querySelectorAll('*')].filter(e=>e.id!==item.id+'-title'&&!e.hasAttribute('record-slate-layout'));
+ const a=[...source.documentElement.querySelectorAll('*')];const b=[...asset.documentElement.querySelectorAll('*')].filter(e=>e.id!==item.id+'-title'&&!e.hasAttribute('data-slate-layout'));
  assert.equal(a.length,b.length,item.name);
  a.forEach((e,i)=>{
   assert.equal(e.localName,b[i].localName,item.name);
@@ -64,6 +64,6 @@ for(const item of kept){
 }
 d.querySelector('#copy').click();await new Promise(r=>setTimeout(r,0));assert.ok(copied.includes('http://www.w3.org/2000/svg'));assert.ok(copied.includes('slate-shader-node'));
 d.querySelector('#download').click();assert.equal(downloaded,'frontier-slate-shader-node.svg');
-d.querySelector('[record-id="editor-material"]').click();assert.equal(d.querySelector('.detail-source').hidden,true);assert.equal(d.querySelector('.detail-meta span').textContent,'256 × 256 viewBox');
+d.querySelector('[data-id="editor-material"]').click();assert.equal(d.querySelector('.detail-source').hidden,true);assert.equal(d.querySelector('.detail-meta span').textContent,'256 × 256 viewBox');
 assert.equal(fs.readFileSync('dist/icons.html','utf8'),html);
 dom.window.close();console.log('PASS: 26 selected Slate SVGs match reviewed artwork, enlarge central art and place badges in bottom corners; render at 32/96/240px; 141 gallery entries; 76 rejected imports absent; category/inspect/copy/download, unique IDs, viewBox metadata and attribution verified.');

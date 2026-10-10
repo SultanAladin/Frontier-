@@ -31,7 +31,7 @@ const Address =
   process.env.FRONTIER_EDITOR_URL || "http://127.0.0.1:4173/ProjectZeroEditor/";
 const Open = async (Id) => {
   await Page.goto(Address + "?inspect=" + Id);
-  await Page.locator(".inspector-scroll > [record-panel]").waitFor();
+  await Page.locator(".inspector-scroll > [data-panel]").waitFor();
 };
 const Frame = () =>
   Page.frameLocator('iframe[title^="Reference inspector"]').first();
@@ -53,7 +53,7 @@ const Persist = async (Id, Key, Next) =>
   );
 const Edit = async (Id, Key, Next) => {
   await Frame()
-    .locator('input[type=number][record-light-property="' + Key + '"]')
+    .locator('input[type=number][data-light-property="' + Key + '"]')
     .fill(String(Next));
   await Persist(Id, Key, Next);
 };
@@ -371,30 +371,30 @@ try {
   await Frame().locator(".wf-trace").waitFor();
   assert.equal(
     await Page.locator(
-      '[record-panel="wind"] > header + .reference-inspector-copy',
+      '[data-panel="wind"] > header + .reference-inspector-copy',
     ).count(),
     1,
   );
   const Order = await Page.locator(
-    '[record-panel="wind"] > .reference-inspector-copy,[record-panel="wind"] > [record-card="Wind field"]',
+    '[data-panel="wind"] > .reference-inspector-copy,[data-panel="wind"] > [data-card="Wind field"]',
   ).evaluateAll((Cards) =>
     Cards.map((Card) => Card.dataset.card || "Anemometer"),
   );
   assert.deepEqual(Order, ["Anemometer", "Wind field"]);
   await Capture("WindOrder");
   Checks.push(
-    "Wind heading → Anemometer and statistics → Combined Flow, retaining the live trace",
+    "Wind heading → Anemometer and statistics → Composite Flow, retaining the live trace",
   );
   for (const Id of ["height-fog", "aerial-fog", "local-fog"]) {
     await Open(Id);
-    const Visibility = Page.locator('[record-card="Visibility through fog"] [record-series]'),
+    const Visibility = Page.locator('[data-card="Visibility through fog"] [data-series]'),
       Before = await Visibility.getAttribute("d");
     await Page.getByLabel("Density value", { exact: true }).fill(
       Id === "height-fog" ? "0.08" : "2",
     );
     assert.notEqual(await Visibility.getAttribute("d"), Before);
     assert.equal(
-      await Page.locator('[record-card="Medium"] .fog-shared-beam').count(),
+      await Page.locator('[data-card="Medium"] .fog-shared-beam').count(),
       1,
     );
     await Capture(Id);

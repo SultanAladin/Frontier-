@@ -243,7 +243,7 @@ float NotificationInspector::ConstructNotificationLayout(PixelSpace& Surface, co
     Surface.Text(X, Y, Faded(K.Text, Opacity), "Alerts", FormLabelSize);
     Y += Surface.MeasureText("Alerts", FormLabelSize).Y + AlertsHeadGap;
 
-    Row(3u, "Precomputing Complete",  Draft.PrecomputingComplete, false);
+    Row(3u, "Baking Complete",  Draft.PrecomputingComplete, false);
     Row(4u, "Render Finished",  Draft.RenderFinished, false);
     Row(5u, "Autosave Errors",  Draft.AutosaveErrors, false);
     Row(6u, "Frame-rate Drops", Draft.FrameRateDrops, true);   // engine addition (flagged)

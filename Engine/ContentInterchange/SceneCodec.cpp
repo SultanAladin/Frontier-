@@ -40,7 +40,7 @@ uint32_t RegisterGltfTexture(const cgltf_texture_view& View, bool Linear, Textur
     const cgltf_image& Image = *View.texture->image;
     if (Image.uri)
     {
-        if (std::strncmp(Image.uri, "record:", 5) == 0) return kMaterialTextureNone;   // base64 record URI images: not supported yet (reported by caller)
+        if (std::strncmp(Image.uri, "data:", 5) == 0) return kMaterialTextureNone;   // base64 record URI images: not supported yet (reported by caller)
         std::string Uri = Image.uri;
         cgltf_decode_uri(Uri.data()); Uri.resize(std::strlen(Uri.c_str()));
         return Textures->RegisterPath((Directory / Uri).lexically_normal().string(), Linear);
@@ -251,7 +251,7 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
         const uint32_t InstanceCount = static_cast<uint32_t>(Out.QueryInstances().size()) - FirstInstance;
         if (InstanceCount) Out.AttachInstances(Placement, FirstInstance, InstanceCount);
     }
-    for (cgltf_size I = 0; I < Packet->images_count; ++I) if (Packet->images[I].uri && std::strncmp(Packet->images[I].uri, "record:", 5) == 0) ++PayloadUriImages;
+    for (cgltf_size I = 0; I < Packet->images_count; ++I) if (Packet->images[I].uri && std::strncmp(Packet->images[I].uri, "data:", 5) == 0) ++PayloadUriImages;
 
     cgltf_free(Packet);
     std::vector<std::string> Report;
@@ -262,7 +262,7 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
     {
         std::string Warning;
         if (Skipped)       Warning += std::to_string(Skipped) + " non-triangle primitive(s) skipped; ";
-        if (PayloadUriImages) Warning += std::to_string(PayloadUriImages) + " record-URI image(s) not decoded (placeholder); ";
+        if (PayloadUriImages) Warning += std::to_string(PayloadUriImages) + " data-URI image(s) not decoded (placeholder); ";
         for (const std::string& Line : Report) Warning += Line + "; ";
         if (!Warning.empty()) Warning.resize(Warning.size() - 2u);
         *Error = Warning;

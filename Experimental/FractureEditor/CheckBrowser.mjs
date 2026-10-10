@@ -84,7 +84,7 @@ try {
     }).getAttribute("aria-checked"),
     "true",
   );
-  await Editor.locator('[record-card="Fracture"]').scrollIntoViewIfNeeded();
+  await Editor.locator('[data-card="Fracture"]').scrollIntoViewIfNeeded();
   await Capture(Editor, "ObjectInspector");
   const Wait = Context.waitForEvent("page");
   await Editor.getByRole("button", {
@@ -97,7 +97,7 @@ try {
   assert.equal((await Snapshot(Sphere)).Owner.Id, "sphere");
   assert.equal((await Snapshot(Sphere)).Owner.Primitive, "sphere");
   assert.equal((await Snapshot(Sphere)).Linked, true);
-  assert.equal(await Sphere.locator("[record-material]").count(), 6);
+  assert.equal(await Sphere.locator("[data-material]").count(), 6);
   assert(
     !(await Sphere.locator("body").innerText())
       .toLowerCase()
@@ -157,9 +157,9 @@ try {
     "Explanatory blocks removed; shaded fracture illustrations replace wire diagrams and respond to both quality controls",
   );
   const SourceGeometry = await ShapeSignature(Sphere);
-  await Sphere.locator('[record-material="wood"]').click();
+  await Sphere.locator('[data-material="wood"]').click();
   assert.equal(await ShapeSignature(Sphere), SourceGeometry);
-  await Sphere.locator('[record-material="concrete"]').click();
+  await Sphere.locator('[data-material="concrete"]').click();
   const Dynamic = await Generate(Sphere);
   assert(Dynamic.Result.Count > 10);
   await Capture(Sphere, "Sphere");
@@ -190,7 +190,7 @@ try {
   const StoredGeometry = await ShapeSignature(Sphere),
     Signature = (await Snapshot(Sphere)).Signature;
   await Sphere.locator(".bake-card").scrollIntoViewIfNeeded();
-  await Capture(Sphere, "Precomputed");
+  await Capture(Sphere, "Baked");
   await Generate(Sphere);
   assert((await Snapshot(Sphere)).Result.Replay);
   assert.equal(await ShapeSignature(Sphere), StoredGeometry);
@@ -236,10 +236,10 @@ try {
   Checks.push(
     "Object scale is applied; changing source geometry invalidates baked replay",
   );
-  await Sphere.locator('[record-setting="Seed"][type="number"]').fill("93");
+  await Sphere.locator('[data-setting="Seed"][type="number"]').fill("93");
   assert(!(await Snapshot(Sphere)).Precomputed);
   await Sphere.locator("#dynamic-mode").click();
-  await Sphere.locator('[record-material="wood"]').click();
+  await Sphere.locator('[data-material="wood"]').click();
   await Editor.waitForFunction(
     () =>
       JSON.parse(localStorage.getItem("Frontier.Fracture.v2:sphere")).Settings
@@ -261,7 +261,7 @@ try {
   assert.equal((await Snapshot(Cube)).Owner.Id, "cube");
   assert.equal((await Snapshot(Cube)).Settings.Material, "concrete");
   assert.equal((await Snapshot(Cube)).Precomputed, false);
-  await Cube.locator('[record-material="glass"]').click();
+  await Cube.locator('[data-material="glass"]').click();
   assert.equal((await Snapshot(Sphere)).Settings.Material, "wood");
   assert.equal((await Snapshot(Sphere)).Settings.Seed, 93);
   await Generate(Cube);
@@ -278,12 +278,12 @@ try {
   );
   assert(await Cube.locator("#fracture").isDisabled());
   assert(await Cube.locator("#bake").isDisabled());
-  assert(await Cube.locator('[record-material="wood"]').isDisabled());
+  assert(await Cube.locator('[data-material="wood"]').isDisabled());
   Checks.push(
     "Disabling fracture in the inspector disables its already-open editor",
   );
   await Editor.close();
-  await Sphere.locator('[record-material="rock"]').click();
+  await Sphere.locator('[data-material="rock"]').click();
   const Reopened = await Context.newPage();
   await Reopened.goto(EditorUrl);
   await Reopened.getByRole("switch", {
@@ -405,7 +405,7 @@ try {
     ["cube", "plastic", "Plastic"],
   ]) {
     await Specimen.locator("#primitive").selectOption(Primitive);
-    await Specimen.locator('[record-material="' + Material + '"]').click();
+    await Specimen.locator('[data-material="' + Material + '"]').click();
     await Specimen.locator("#separation").fill("18");
     const Reading = await Generate(Specimen);
     assert(Reading.Result.Count > 1);
@@ -422,7 +422,7 @@ try {
     );
   }
   await Specimen.locator("#primitive").selectOption("sphere");
-  await Specimen.locator('[record-material="glass"]').click();
+  await Specimen.locator('[data-material="glass"]').click();
   await Specimen.locator("#viewport canvas").click({
     position: { x: 440, y: 330 },
     modifiers: ["Shift"],

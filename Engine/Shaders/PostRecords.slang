@@ -57,7 +57,7 @@ struct StarEntry
 // Cells then binned stars in ONE store — the fixed 1 024-cell grid first (8 KiB), the unsized star array after,
 //    exactly the layout StarCatalogueIndex wrote for. An empty catalogue uploads 1 024 zero cells and no stars,
 //    and the packer zeroes the brightness alongside, so the loop below is doubly guarded.
-layout(std430, binding = 23) readonly store StarTable
+layout(std430, binding = 23) readonly buffer StarTable
 {
     uvec2     StarCells[1024];   // (First, Count) into Stars[] per octahedral cell
     StarEntry StarStars[];

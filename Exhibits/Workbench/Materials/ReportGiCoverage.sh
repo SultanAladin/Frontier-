@@ -21,7 +21,7 @@ trap 'rm -rf "$Work"' EXIT
 make -C "$Host" MaterialLevelViewport > "$Work/build.log" 2>&1 || {
     echo "[GiCoverage] the mirror did not build"; tail -15 "$Work/build.log" | sed 's/^/    /'; exit 1; }
 
-echo "[GiCoverage] indirect-slots coverage, ${Frames} frames per config, 4 candidates, 2 taps"
+echo "[GiCoverage] indirect-pool coverage, ${Frames} frames per config, 4 candidates, 2 taps"
 for Size in "240 135" "128 72"; do
     set -- $Size
     W=$1; H=$2
@@ -41,9 +41,9 @@ for Size in "240 135" "128 72"; do
 
     echo
     echo "  === ${W}x${H}, ${Surface} surface pixels/frame, ${Frames} frames ==="
-    echo "  slots coverage: ${Gi%% *}% of surface pixels"
-    echo "  indirect slots  mean M $(echo "$Gi" | cut -d' ' -f2), shaded M $(echo "$Gi" | cut -d' ' -f3)"
-    echo "  direct slots    mean M $(echo "$Direct" | cut -d' ' -f1), shaded M $(echo "$Direct" | cut -d' ' -f2)"
+    echo "  pool coverage: ${Gi%% *}% of surface pixels"
+    echo "  indirect pool  mean M $(echo "$Gi" | cut -d' ' -f2), shaded M $(echo "$Gi" | cut -d' ' -f3)"
+    echo "  direct pool    mean M $(echo "$Direct" | cut -d' ' -f1), shaded M $(echo "$Direct" | cut -d' ' -f2)"
     echo
     printf "  %-42s %9s %9s\n" "reason (per frame)" "pixels" "share"
     set -- $Reasons
@@ -62,6 +62,6 @@ done
 
 echo
 echo "[GiCoverage] The gap is the escape case: a primary BSDF sample that sees the sky makes no first-bounce vertex, and a"
-echo "             light-sample slots needs one to reconnect from. Fixing it is #5's replay + shift mapping, not a looser"
+echo "             light-sample pool needs one to reconnect from. Fixing it is #5's replay + shift mapping, not a looser"
 echo "             validation test — the reservoir must carry the vertex payload so the neighbour's vertex can be moved"
 echo "             onto the receiver. Report §14.5."

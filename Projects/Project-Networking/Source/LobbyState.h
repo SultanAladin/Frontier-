@@ -138,7 +138,7 @@ struct HistoryRecord
 struct HistoryReading
 {
     std::vector<HistoryRecord> Records;
-    std::string Status = "Cloud sync requires the private record key.";
+    std::string Status = "Cloud sync requires the private data key.";
     bool Busy = false, Enabled = false;
     unsigned Pending = 0;
 };

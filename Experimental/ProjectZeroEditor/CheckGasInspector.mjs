@@ -187,7 +187,7 @@ Banner("A gas domain is a 3D entity, so it has a transform and children");
   Check(Rows[0] === "Position" && Rows[1] === "Rotation", "position and rotation are the first two rows, as on every other entity");
   Check(
     Rows[2] === "Bounds" && !Rows.includes("Scale"),
-    "① bounds take the row Scale occupies on a topology — the domain's extent IS its scale, in metres, and is not a child",
+    "① bounds take the row Scale occupies on a mesh — the domain's extent IS its scale, in metres, and is not a child",
   );
   Check(
     GasTransformRows[2][1] === "m",

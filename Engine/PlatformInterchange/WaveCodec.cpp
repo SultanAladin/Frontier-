@@ -94,7 +94,7 @@ void WaveCodec::EncodeBytes(const WaveClip& Clip, WaveEncodingCategory Encoding,
         Put32 (Bytes, uint32_t(Frames));
     }
 
-    PutTag(Bytes, "record");
+    PutTag(Bytes, "data");
     Put32 (Bytes, PayloadBytes);
 
     DitherGenerator Dither;
@@ -184,7 +184,7 @@ bool WaveCodec::DecodeBytes(const uint8_t* Bytes, size_t ByteCount, WaveClip& Cl
                 FormatTag = Get16(Body + 24);   // first two bytes of the sub-format GUID carry the real tag
             }
         }
-        else if (TagIs(Chunk, "record"))
+        else if (TagIs(Chunk, "data"))
         {
             Packet      = Body;
             PayloadBytes = Used;
@@ -193,7 +193,7 @@ bool WaveCodec::DecodeBytes(const uint8_t* Bytes, size_t ByteCount, WaveClip& Cl
     }
 
     if (!Channels || !SampleRate)            return Fail(Error, "WaveCodec::Decode: fmt chunk missing");
-    if (!Packet)                                return Fail(Error, "WaveCodec::Decode: record chunk missing");
+    if (!Packet)                                return Fail(Error, "WaveCodec::Decode: data chunk missing");
     const uint32_t BytesPer = BitsPer / 8u;
     if (!BytesPer || FrameBytes != BytesPer * Channels) return Fail(Error, "WaveCodec::Decode: inconsistent block alignment");
 

@@ -66,7 +66,7 @@ struct NotificationPreferences
     bool  ShowFrameRateOverlay = true;    // "Show FPS Overlay"  — same flag as the dashboard tile
     bool  ShowMemoryUsage      = true;    // "Show RAM Usage"
     bool  ShowSceneMetadata    = false;   // "Scene Metadata"
-    bool  PrecomputingComplete       = true;    // Alerts › "Precomputing Complete"
+    bool  PrecomputingComplete       = true;    // Alerts › "Baking Complete"
     bool  RenderFinished       = true;    // Alerts › "Render Finished"  (render / appearance applied toasts)
     bool  AutosaveErrors       = true;    // Alerts › "Autosave Errors"  (preference save failures)
     bool  FrameRateDrops       = false;   // Alerts › "Frame-rate Drops" (engine addition)

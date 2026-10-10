@@ -10,7 +10,7 @@ set -u
 cd "$(dirname "$0")/../../.."
 
 Fail=0
-echo "[SkyProbeProof] the precompute against the march — compile, run, gate the sheets"
+echo "[SkyProbeProof] the bake against the march — compile, run, gate the sheets"
 
 Binary="$(mktemp -u /tmp/SkyProbeProof.XXXXXX)"
 if ! g++ -std=c++20 -O2 -Wall -Wextra \
@@ -32,7 +32,7 @@ for Sheet in 06h00 09h00 12h00 15h00 17h56 21h00; do
     fi
 done
 
-# The engine half (roadmap #26 stage A wiring): SkyDomeSheet.h's precompute against AtmosphereModel's march, read
+# The engine half (roadmap #26 stage A wiring): SkyDomeSheet.h's bake against AtmosphereModel's march, read
 #    through the kernel's own fetch arithmetic, plus the boolean's guardrails, the staleness rule, and #26c's
 #    persisted precompute (the .environment ENVR + PROB round trip through the real container codec — which is why
 #    the two SpaceExport/SpaceCodec TUs and the vulkan headers join the compile).

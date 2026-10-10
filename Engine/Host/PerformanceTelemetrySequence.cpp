@@ -48,12 +48,12 @@ bool PerformanceTelemetrySequence::AdvanceFrame(float DeltaSeconds,
     Logger.RecordMeasurement("FrameTimePeakMs",  static_cast<double>(PeakMs),            "ms");
     Logger.RecordMeasurement("FramesPerSecond",  static_cast<double>(FramesPerSecond),   "fps");
     Logger.RecordMeasurement("FrameSampleCount", static_cast<double>(SampleCount),       "count");
-    Logger.RecordMeasurement("ResidentStorage",   static_cast<double>(ResidentMebibytes), "MiB");
+    Logger.RecordMeasurement("ResidentMemory",   static_cast<double>(ResidentMebibytes), "MiB");
 
     const char* CpuNames[4]={"CpuCelestialTickMeanMs","CpuSunMoonSolveMeanMs","CpuSkyPackUploadMeanMs","CpuWeatherPostPackUploadMeanMs"};
     for(unsigned I=0;I<4;++I){Logger.RecordMeasurement(CpuNames[I],CelestialCpuSum[I]/SampleCount,"ms");CelestialCpuSum[I]=0;}
-    Logger.RecordMeasurement("CelestialStorePayloadBytes",double(Workload.CelestialStorePayloadBytes),"bytes");
-    Logger.RecordMeasurement("CelestialStoreAllocationBytes",double(Workload.CelestialStoreAllocationBytes),"bytes");
+    Logger.RecordMeasurement("CelestialBufferPayloadBytes",double(Workload.CelestialStorePayloadBytes),"bytes");
+    Logger.RecordMeasurement("CelestialBufferAllocationBytes",double(Workload.CelestialStoreAllocationBytes),"bytes");
     Logger.RecordMeasurement("SkySunUniformPayloadBytes",Workload.SkySunUniformBytes,"bytes");
     Logger.RecordMeasurement("CloudFogUniformPayloadBytes",Workload.CloudFogUniformBytes,"bytes");
     Logger.RecordMeasurement("PostUniformPayloadBytes",Workload.PostUniformBytes,"bytes");

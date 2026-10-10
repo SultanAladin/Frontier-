@@ -24,6 +24,6 @@ int main(){try{
  bool Rejected=false;try{BuildPondGeometry(Pond,{0,0,0},Hull);}catch(const std::invalid_argument&){Rejected=true;}Check(Rejected,"do not corrupt existing geometry");
  Pond.Disturb(0,0,.8f,.4f);GeometryStructure Disturbed;BuildPondGeometry(Pond,{0,0,0},Disturbed);
  bool Changed=false;for(size_t J=0;J<V.size();++J)Changed|=V[J].SpatialLocation.z!=Disturbed.QueryVertices()[J].SpatialLocation.z;
- Check(Changed,"actual solver heights reach native scene topology");
+ Check(Changed,"actual solver heights reach native scene mesh");
  std::cout<<"PASS native scene bridge: "<<Level.QueryTriangleCount()<<" triangles, placement/material, winding, normals, axis mapping and solver synchronization\n";
 }catch(const std::exception& E){std::cerr<<E.what()<<'\n';return 1;}}

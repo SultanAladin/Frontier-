@@ -232,7 +232,7 @@ bool LoadPortableConfiguration()
     std::snprintf(ClientId, sizeof(ClientId), "%s", Settings.ClientId.c_str());
     std::snprintf(StorageKey, sizeof(StorageKey), "%s", Settings.StorageKey.c_str());
     Networking::WipeSettings(Settings);
-    ReceiveDiagnostic("Private portable configuration loaded. Keep that file private; it contains readable credentials and the record key.");
+    ReceiveDiagnostic("Private portable configuration loaded. Keep that file private; it contains readable credentials and the data key.");
     return true;
 }
 
@@ -411,7 +411,7 @@ void PresentSetup()
     ImGui::TextColored(Muted, "%s", Networking::T("Premium is a manual switch for now. Xsolla will decide it later."));
     if (ImGui::CollapsingHeader(Networking::T("Advanced")))
     {
-        ImGui::TextWrapped("%s", Networking::T("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same record key between PCs."));
+        ImGui::TextWrapped("%s", Networking::T("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same data key between PCs."));
         ImGui::TextUnformatted(Networking::T("Cloud storage encryption key (64 hex characters)"));
         ImGui::SetNextItemWidth(-1);
         ImGui::InputText("##storage-key", StorageKey, sizeof(StorageKey), ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo | ImGuiInputTextFlags_AutoSelectAll);
@@ -621,7 +621,7 @@ void PresentLogin()
         ImGui::TextColored(Muted, "%s", Reading.Time);
         ImGui::SameLine();
         ImGui::TextColored(Tone, "%s", Reading.Severity == 3 ? "ERROR" : Reading.Severity == 2 ? "WARN" :
-            Reading.Severity == 1 ? "OK" : "DETAILS");
+            Reading.Severity == 1 ? "OK" : "INFO");
         ImGui::PushStyleColor(ImGuiCol_Text, Tone);
         ImGui::PushTextWrapPos(0);
         ImGui::TextUnformatted(Reading.Text);

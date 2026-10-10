@@ -1562,7 +1562,7 @@ function App() {
             }
             onClick={() => {
               const Marker = [
-                ...document.querySelectorAll("[record-preview-id]"),
+                ...document.querySelectorAll("[data-preview-id]"),
               ].find((Entry) => Entry.dataset.previewId === Selected);
               Marker?.scrollIntoView({
                 block: "center",

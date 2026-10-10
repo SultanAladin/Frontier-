@@ -10,17 +10,17 @@
 #extension GL_GOOGLE_include_directive : require
 #include "Shaders/SceneRecords.slang"
 
-layout(std430, set = 0, binding = 1) readonly store InstanceExtent { InstanceRecord Instances[]; };
-layout(std430, set = 0, binding = 2) readonly store ClusterExtent  { ClusterRecord  Clusters[];  };
-layout(std430, set = 0, binding = 3) readonly store VertexExtent   { VertexRecord   Vertices[];  };
+layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
+layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
+layout(std430, set = 0, binding = 3) readonly buffer VertexExtent   { VertexRecord   Vertices[];  };
 
 layout(location = 0) flat out uint  OutCluster;
 layout(location = 1)      out vec4  OutPreviousClip;    // previous frame, unjittered
 layout(location = 2)      out vec4  OutCurrentClip;     // current frame, unjittered
 layout(location = 3)      out vec2  OutTexcoord;        // R4b: uv for the alpha-mask test in the fragment stage
 
-layout(std430, set=0, binding=5) readonly store PatchMaterialExtent { MaterialRecord Materials[]; };
-layout(std430, set=0, binding=6) readonly store PatchSlabExtent { MaterialSlabRecord MaterialSlabs[]; };
+layout(std430, set=0, binding=5) readonly buffer PatchMaterialExtent { MaterialRecord Materials[]; };
+layout(std430, set=0, binding=6) readonly buffer PatchSlabExtent { MaterialSlabRecord MaterialSlabs[]; };
 #include "Shaders/PatchSelection.slang"
 layout(location=4) flat out uint OutFirstPrimitive;
 

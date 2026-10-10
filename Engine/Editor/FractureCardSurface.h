@@ -519,7 +519,7 @@ inline void PaintCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 S
     PaintGlyph(Draw, { Left - DiagramBleed, Spot.y + P.DiagramTop }, P.Inner + DiagramBleed * 2.0f);
 
     Kit::Tracked(Draw, Light, Left, Spot.y + P.PrecomputeTop + Kit::AscentShare * PrecomputeSize, PrecomputeSize, HeadInk,
-                 "PRECOMPUTE", PrecomputeTrack);
+                 "BAKE", PrecomputeTrack);
 
     // The mode pair: one inset track, two buttons sharing the width, the pressed one filled.
     {
@@ -527,7 +527,7 @@ inline void PaintCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 S
         Draw->AddRectFilled({ Left, Top }, { Left + P.Inner, Top + Tall }, TrackFill, ModeRound);
         Draw->AddRect({ Left, Top }, { Left + P.Inner, Top + Tall }, TrackEdge, ModeRound);
         const float Each = (P.Inner - 2.0f - ModePad * 3.0f) * 0.5f;
-        const char* Names[2] = { "Dynamic", "Precomputed" };
+        const char* Names[2] = { "Dynamic", "Baked" };
         for (int I = 0; I < 2; ++I)
         {
             const float X = Left + 1.0f + ModePad + I * (Each + ModePad);
@@ -548,7 +548,7 @@ inline void PaintCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 S
     if (P.HasSdf)
     {
         Draw->AddLine({ Left, Spot.y + P.SdfTop }, { Left + P.Inner, Spot.y + P.SdfTop }, Rule, 1.0f);
-        PaintSwitchRow(Draw, Light, { Left, Spot.y + P.SdfSwitchTop }, P.Inner, "Precompute SDF per piece", S.PieceSdf);
+        PaintSwitchRow(Draw, Light, { Left, Spot.y + P.SdfSwitchTop }, P.Inner, "Bake SDF per piece", S.PieceSdf);
         if (P.HasField)
         {
             Kit::Inked(Draw, Light, Left, Spot.y + P.FieldTop + Kit::AscentShare * FieldLabel, FieldLabel,

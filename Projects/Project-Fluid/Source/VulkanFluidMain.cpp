@@ -478,7 +478,7 @@ private:
         const auto extractStart=std::chrono::steady_clock::now();
         const auto timing=Extractor_->Update(prepared);
         const auto extractMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-extractStart).count();
-        if(timing.Overflow)Fail("Fluid GPU topology capacity exceeded");
+        if(timing.Overflow)Fail("Fluid GPU mesh capacity exceeded");
         const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-updateStart).count();
         Perf_<<PerfFrame_++<<','<<Fluid_.Positions().size()<<','<<simulationSteps<<','<<physicsMs<<','<<LastPcaMs_<<','<<prepareMs<<','<<extractMs<<','<<ms<<',';
         if(timing.Timestamps)Perf_<<timing.FieldMs<<','<<timing.EdgesMs<<','<<timing.TrianglesMs;else Perf_<<"NA,NA,NA";

@@ -456,7 +456,7 @@ void MaterialInspector::BuildRows(const MaterialDescriptor& D, const MaterialSla
 
     // 05 orientation — unbound = the topology frame (a real constant, not an absence).
     const TextureReference& Nrm = S.Texture(MaterialTextureChannel::GeometryNormal);
-    std::strcpy(Rows[4].Value, Nrm.IsBound() ? "map" : "topology frame");
+    std::strcpy(Rows[4].Value, Nrm.IsBound() ? "map" : "mesh frame");
     SetTexture(4, Nrm);
     Rows[4].Source = Nrm.IsBound() ? MaterialChannelSource::Imported : MaterialChannelSource::Constant;
     if (Nrm.Scalar != 1.0f) { std::snprintf(Frag, sizeof(Frag), "scale %.3g", static_cast<double>(Nrm.Scalar)); AppendDetail(Rows[4].Detail, sizeof(Rows[4].Detail), Frag); }
@@ -505,7 +505,7 @@ void MaterialInspector::BuildRows(const MaterialDescriptor& D, const MaterialSla
     Rows[11].Source = CoatActive ? MaterialChannelSource::Constant : MaterialChannelSource::Absent;
     if (S.CoatRoughnessAnisotropy != 0.0f) { std::snprintf(Frag, sizeof(Frag), "aniso %.3g", static_cast<double>(S.CoatRoughnessAnisotropy)); AppendDetail(Rows[11].Detail, sizeof(Rows[11].Detail), Frag); }
     const TextureReference& CoatNrm = S.Texture(MaterialTextureChannel::GeometryCoatNormal);
-    if (CoatActive) std::strcpy(Rows[12].Value, CoatNrm.IsBound() ? "map" : "topology frame");
+    if (CoatActive) std::strcpy(Rows[12].Value, CoatNrm.IsBound() ? "map" : "mesh frame");
     SetTexture(12, CoatNrm);
     Rows[12].Source = !CoatActive ? MaterialChannelSource::Absent
         : (CoatNrm.IsBound() ? MaterialChannelSource::Imported : MaterialChannelSource::Constant);

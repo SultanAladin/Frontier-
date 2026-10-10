@@ -78,7 +78,7 @@ int main()
     FRONTIER_PROBE_PHASE_BEGIN("SceneDecode");
     FRONTIER_PROBE_PHASE_END("SceneDecode");
     FRONTIER_PROBE_PHASE_BEGIN("VulkanBringUp");
-    { FRONTIER_PROBE_STAGE_SCOPE("BringComputeChain"); }
+    { FRONTIER_PROBE_STAGE_SCOPE("BringComputePipeline"); }
     { FRONTIER_PROBE_SHADER_SCOPE("Engine/Shaders/ReSTIRViewport.spv"); }
     FRONTIER_PROBE_PHASE_END("VulkanBringUp");
     FRONTIER_PROBE_EVENT("StartupComplete");
@@ -118,7 +118,7 @@ int main()
           Md.find("| VulkanBringUp |") != std::string::npos,
           "② startup phases carry rows with real begin/end times");
     Check(Md.find("ReSTIRViewport.spv") != std::string::npos &&
-          Md.find("BringComputeChain") != std::string::npos,
+          Md.find("BringComputePipeline") != std::string::npos,
           "② shader loads and bring-up stages each have a duration row");
     Check(Md.find("| Boot |") != std::string::npos &&
           Md.find("| StartupComplete |") != std::string::npos &&

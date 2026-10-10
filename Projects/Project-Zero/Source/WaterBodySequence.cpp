@@ -7,7 +7,7 @@
 namespace Frontier::ProjectZero {
 void BuildPondGeometry(const ProjectFluid::PondWave& Pond,Vector3 Origin,GeometryStructure& Hull) {
     if(!Hull.QueryVertices().empty()||!Hull.QueryIndices().empty())
-        throw std::invalid_argument("Water topology destination must be empty");
+        throw std::invalid_argument("Water mesh destination must be empty");
     if(!std::isfinite(Origin.x)||!std::isfinite(Origin.y)||!std::isfinite(Origin.z))
         throw std::invalid_argument("Water origin must be finite");
     const auto Columns=Pond.Columns(), Rows=Pond.Rows();

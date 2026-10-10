@@ -27,8 +27,8 @@ Page.on("pageerror", (Error) => Errors.push(Error.message));
 Page.on("console", (Message) => {
   if (Message.type() === "error") Errors.push(Message.text());
 });
-const Top = Page.locator('[record-drawer="top"]'),
-  Bottom = Page.locator('[record-drawer="bottom"]'),
+const Top = Page.locator('[data-drawer="top"]'),
+  Bottom = Page.locator('[data-drawer="bottom"]'),
   Assets = Page.locator(".asset-browser");
 const Saved = () =>
   Page.evaluate(() =>
@@ -52,7 +52,7 @@ async function Drag(Node, DX, DY, Hold = 180) {
   await Settled();
 }
 const Stage = async (Node, Expected) =>
-  assert.equal(await Node.getAttribute("record-stage"), Expected);
+  assert.equal(await Node.getAttribute("data-stage"), Expected);
 async function OpenAssets() {
   if (
     (await Page.locator(".asset-notch-handle").getAttribute(
@@ -353,7 +353,7 @@ try {
   );
   await Filter("All", "Materials");
   await Select("Glass surface");
-  await Assets.locator('canvas[record-preview-status="Preview ready"]').waitFor();
+  await Assets.locator('canvas[data-preview-status="Preview ready"]').waitFor();
   await Page.screenshot({ path: path.join(Proof, "AssetBrowser.png") });
   // Drawer resize and full/half layouts remain within the viewport.
   for (const Width of [1024, 1280, 1366, 1920]) {
@@ -395,7 +395,7 @@ try {
   const Result = {
     Checks: [
       "Shared top/bottom closed-half-full gesture stops",
-      "Tag and open-page dragging",
+      "Handle and open-page dragging",
       "Horizontal handle repositioning",
       "Real touch opening/closing/cancellation",
       "Velocity closing flick",

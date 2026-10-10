@@ -1224,9 +1224,9 @@ inline void PaintViewportBar(ImDrawList* Draw, ImFont* Light, ImFont* Regular, c
                 24.0f, ViewSelect, Channels[Picked].Label);
     Right -= ChannelWide + ViewBarGap;
 
-    const float PrecomputeWide = ButtonWidth(Light, ViewSelect, "Precompute flipbook", 10.0f);
+    const float PrecomputeWide = ButtonWidth(Light, ViewSelect, "Bake flipbook", 10.0f);
     PaintButton(Draw, Light, { Right - PrecomputeWide, Page.WorkTop + (ViewBar - 24.0f) * 0.5f }, PrecomputeWide, 24.0f,
-                ViewSelect, "Precompute flipbook", true);
+                ViewSelect, "Bake flipbook", true);
 }
 
 /// 📦 The bounds box and, when it is asked for, the voxel lattice inside it: an axis-aligned box in a

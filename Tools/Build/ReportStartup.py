@@ -92,7 +92,7 @@ def render(rows, title='Startup report'):
     for row in rows:
         lines.append(f"| {row['event']} | {row['since_main_ms']/1000:.3f} | {memory(row['rss_bytes'])} | {memory(row['peak_rss_bytes'])} | {memory(row['private_commit_bytes'])} |")
     lines += ['', f"- Largest sampled private commit: {memory(max(r['private_commit_bytes'] for r in rows))} (not an OS lifetime peak).",
-              '- Store samples belong to the entire logged process, NOT exclusively to the phase named in the row.',
+              '- Memory samples belong to the entire logged process, NOT exclusively to the phase named in the row.',
               '- Resident RAM can fall because memory was freed or Windows trimmed/paged the working set. Commit need not fall with it.',
               '- Task Manager app groups may include multiple processes and show private working set rather than this total working set.',
               '- GPU allocations, dedicated/shared GPU usage and process private commit are distinct; do not add them into a RAM total.',

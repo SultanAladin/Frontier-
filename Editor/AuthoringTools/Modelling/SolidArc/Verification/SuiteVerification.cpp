@@ -69,7 +69,7 @@ namespace
 
 int main()
 {
-    VerificationPanel Panel("SolidArc · Phase 10 · Suite Verification — every per-phase script runs cleanly; the contact sheet is a valid 2x2 combined");
+    VerificationPanel Panel("SolidArc · Phase 10 · Suite Verification — every per-phase script runs cleanly; the contact sheet is a valid 2x2 composite");
 
     // CMake bakes the source root into the binary at build time (see CMakeLists.txt target_compile_definitions).
     //    Using a compile-time path means the verification works regardless of cwd — ctest, the user, or a
@@ -191,7 +191,7 @@ int main()
             { "view dolly 0.5",                                  true,  "dolly is a no-op on the default view"  },
             { "render Phase10_Suite_Smoke",                      true,  "an out-of-tree render lands"           },
             { "render sheet 0",                                  true,  "contact sheet tile 0 capture"          },
-            { "render sheet finalize Phase10_Sheet_Smoke",       true,  "contact sheet combined (1 tile)"      },
+            { "render sheet finalize Phase10_Sheet_Smoke",       true,  "contact sheet composite (1 tile)"      },
             { "reset",                                           true,  "scene + undo reset"                    },
         };
         for (const Cmd& C : Sanity)

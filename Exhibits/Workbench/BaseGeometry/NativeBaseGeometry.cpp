@@ -76,7 +76,7 @@ int main()
     //-----------------------------------------------------------------------------------------------------
     {
         Check(std::strcmp(PrimitiveOfIcon("editor-cube"), "cube") == 0, "the prefix is stripped");
-        Check(std::strcmp(PrimitiveOfIcon("editor-torus"), "torus") == 0, "for every base topology");
+        Check(std::strcmp(PrimitiveOfIcon("editor-torus"), "torus") == 0, "for every base mesh");
         Check(std::strcmp(PrimitiveOfIcon("folder-scene"), "folder-scene") == 0,
               "an icon without the prefix is returned whole, as String.replace does");
         Check(PrimitiveOfIcon(nullptr) == nullptr, "and a row with no icon has no primitive");
@@ -84,7 +84,7 @@ int main()
         // The regression the rewrite closes: these two rows are a cube and an import, and the label says
         //    the opposite of the truth in both directions.
         Check(std::strcmp(PrimitiveOfIcon("editor-cube"), "cube") == 0, "a row named \"Cube 2\" is a cube");
-        Check(std::strcmp(PrimitiveOfIcon("editor-topology"), "topology") == 0,
+        Check(std::strcmp(PrimitiveOfIcon("editor-mesh"), "mesh") == 0,
               "and a row named \"Cone bracket\" that is an import is not a cone");
 
         Check(Partitionable("cube") && Partitionable("sphere") && Partitionable("cylinder")
@@ -93,7 +93,7 @@ int main()
               "together with the three standalone specimens the editor offers");
         Check(!Partitionable("torus"), "a torus cannot: it is not convex");
         Check(SolidOfPrimitive("cylinder") == Solid::Cylinder, "the round trip closes");
-        Check(SolidOfPrimitive("teapot") == Solid::Count, "and rejects what is not a base topology");
+        Check(SolidOfPrimitive("teapot") == Solid::Count, "and rejects what is not a base mesh");
     }
 
     //-----------------------------------------------------------------------------------------------------

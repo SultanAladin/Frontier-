@@ -39,7 +39,7 @@ int main(){try{
         if(state==1)for(auto& k:kernels)k.Centre.x+=.001f;
         if(state==2)kernels.resize(20);
         topology.Update(kernels);full.Update(kernels);
-        Check(topology.Hull().Indices==full.Hull().Indices,"topology topology differs from exhaustive field");
+        Check(topology.Hull().Indices==full.Hull().Indices,"mesh topology differs from exhaustive field");
         Check(topology.Hull().Vertices.size()==full.Hull().Vertices.size(),"vertex count mismatch");
         for(size_t i=0;i<topology.Hull().Vertices.size();++i){Near(topology.Hull().Vertices[i].Position,full.Hull().Vertices[i].Position,2e-4f);Near(topology.Hull().Vertices[i].Normal,full.Hull().Vertices[i].Normal,2e-3f);}
         Check(topology.OpenEdgeCount()==full.OpenEdgeCount()&&topology.NonManifoldEdgeCount()==full.NonManifoldEdgeCount(),"topology diagnostics mismatch");

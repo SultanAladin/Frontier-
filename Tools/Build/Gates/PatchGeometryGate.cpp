@@ -72,7 +72,7 @@ int main(int argc,char**argv){try{
   restored.RegisterInstance(topology,Matrix4x4{},restored.RegisterMaterial(material),0);restored.Finalise();Validate(restored);
   auto nearCount=Selected(restored,1.7f),farCount=Selected(restored,1000);
   Check(farCount<nearCount,"triangle soup changes detail with distance");
-  Check(Selected(restored,1000,false)==fine,"soup production and ray topology retain fine count");
+  Check(Selected(restored,1000,false)==fine,"soup production and ray mesh retain fine count");
   Check(farCount<fine,"soup has usable coarse alternatives despite vertex-numbering-dependent collapse ties");
   std::cout<<"Triangle soup: near="<<nearCount<<", far="<<farCount<<", production="<<fine<<"\n";
   // Every fine corner keeps its exact attributes, despite a change of vertex identity.
@@ -147,6 +147,6 @@ int main(int argc,char**argv){try{
  GeometryStructure topology;std::vector<VertexRecord> vertices;std::vector<uint32_t> indices;
  for(uint32_t y=0;y<=92;++y)for(uint32_t x=0;x<=92;++x){VertexRecord v{};v.SpatialLocation={float(x),float(y),0};v.NormalDirection={0,0,1};v.TangentDirection={1,0,0,1};v.TextureCoordinateU=float(x)/92;v.TextureCoordinateV=float(y)/92;vertices.push_back(v);}
  for(uint32_t y=0;y<92;++y)for(uint32_t x=0;x<92;++x){uint32_t a=y*93+x;for(auto q:{a,a+1,a+94,a,a+94,a+93})indices.push_back(q);}
- topology.AppendVertices(vertices.data(),vertices.size());topology.AppendIndices(indices.data(),indices.size());SceneStructure large;MaterialDescriptor mat;mat.Slabs.emplace_back();auto slot=large.RegisterMaterial(mat);large.RegisterInstance(topology,Matrix4x4{},slot,0u);large.Finalise();Validate(large);Check(large.QueryInstances().size()==3,"large topology split");
+ topology.AppendVertices(vertices.data(),vertices.size());topology.AppendIndices(indices.data(),indices.size());SceneStructure large;MaterialDescriptor mat;mat.Slabs.emplace_back();auto slot=large.RegisterMaterial(mat);large.RegisterInstance(topology,Matrix4x4{},slot,0u);large.Finalise();Validate(large);Check(large.QueryInstances().size()==3,"large mesh split");
  std::cout<<"PASS "<<Checks<<" CPU checks. No Vulkan runtime/image/timing validation.\n";
 }catch(const std::exception&e){std::cerr<<"FAIL after "<<Checks<<": "<<e.what()<<"\n";return 1;}}

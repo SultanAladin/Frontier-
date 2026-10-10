@@ -273,8 +273,8 @@ int main()
     Check(Insp.QueryRow(7).Source == MaterialChannelSource::Imported && std::strcmp(Insp.QueryRow(7).Value, "1") == 0,
           "D42 helmet opacity bound-but-1 is imported, not absent");
     Check(Insp.QueryRow(11).Source == MaterialChannelSource::Constant && Insp.QueryRow(12).Source == MaterialChannelSource::Constant &&
-          std::strcmp(Insp.QueryRow(12).Value, "topology frame") == 0,
-          "D43 helmet coat rough constant, coat orientation topology-frame (active, unbound)");
+          std::strcmp(Insp.QueryRow(12).Value, "mesh frame") == 0,
+          "D43 helmet coat rough constant, coat orientation mesh-frame (active, unbound)");
     Insp.SeedSelection("ui-06"); Insp.Rebuild(&Index);
     Check(std::strcmp(Insp.QueryRow(0).Value, "(1, 0, 0)") == 0, "D44 ui base red");
 
@@ -606,7 +606,7 @@ int main()
         Req.Size = 64; Req.Spp = 2; Req.OutPath = "/tmp/MaterialPreview_N1.png";
         ShaderballPreviewResult Res;
         Check(RenderShaderballPreview(Req, Res), "N1 preview renders");
-        Check(Res.Bad == 0 && Res.Mean > 0.01 && Res.Tris > 15000, "N2 sane stats (no bad, lit, full topology)");
+        Check(Res.Bad == 0 && Res.Mean > 0.01 && Res.Tris > 15000, "N2 sane stats (no bad, lit, full mesh)");
         Req.OutPath = "/tmp/MaterialPreview_N2.png";
         ShaderballPreviewResult Res2;
         Check(RenderShaderballPreview(Req, Res2), "N3 re-render renders");

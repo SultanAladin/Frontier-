@@ -120,7 +120,7 @@ bool DistanceFieldPrecomputeSolver::Solve(const GeometryStructure& InputGeometry
 
     if (VertexCount == 0u || TriangleCount == 0u)
     {
-        if (OutError) *OutError = "input topology contains no triangles";
+        if (OutError) *OutError = "input mesh contains no triangles";
         return false;
     }
 

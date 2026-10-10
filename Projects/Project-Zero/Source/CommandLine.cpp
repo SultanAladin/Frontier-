@@ -98,7 +98,7 @@ std::string CommandOptions::Describe() const noexcept
     if (!Level.empty()) Out += " Level=" + Level;
     if (Pack) Out += " Pack";
     if (Explode) Out += " Explode";
-    if (PrecomputeSky) Out += " Precompute=Sky";
+    if (PrecomputeSky) Out += " Bake=Sky";
     if (!Export.empty()) Out += " Export=" + Export;
     for (const std::string& What : Embed) Out += " Embed=" + What;
     if (HasLocation) Out += " +Location";
@@ -151,7 +151,7 @@ bool ParseCommandLine(int ArgumentCount, char** Arguments, const std::string& De
             else { OutError = "-Config must be Debug, Development or Shipping, not '" + Value + "'"; return false; }
             continue;
         }
-        if (TakeValue(Arguments_, At, "Precompute", Value))
+        if (TakeValue(Arguments_, At, "Bake", Value))
         {
             if (Value == "Sky") { Out.PrecomputeSky = true; continue; }
             OutError = "-Bake only knows Sky, not '" + Value + "'";

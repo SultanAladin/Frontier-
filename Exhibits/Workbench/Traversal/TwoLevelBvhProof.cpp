@@ -497,10 +497,10 @@ static void RunKernelAudit()
         { "Kernel", "layout(binding = 31) uniform sampler2D Textures[];", 1u, "A8 the bindless table moved to 31 — still the highest binding" },
         { "ExchangeH", "static constexpr uint32_t kComputeBindingCount  = 32u;", 1u, "A9 the dispatcher's set matches (28 → 32)" },
         { "ExchangeCpp", "const uint32_t TextureBinding = kComputeBindingCount - 1u;", 1u, "A10 ...and derives the table's binding from it, so it cannot fall out of last place" },
-        { "ExchangeCpp", "if (Vulkan->TlasNodeStore)      WriteStore(27u, TlasNodeDetails);", 1u, "A11 the dispatcher writes binding 27 — and only once the buffer exists (a VK_NULL_HANDLE write is invalid, not merely useless)" },
-        { "ExchangeCpp", "if (Vulkan->TlasPrimitiveStore) WriteStore(28u, TlasPrimDetails);", 1u, "A12 ...28, guarded" },
-        { "ExchangeCpp", "if (Vulkan->TlasInstanceStore)  WriteStore(29u, TlasInstDetails);", 1u, "A13 ...29, guarded" },
-        { "ExchangeCpp", "if (Vulkan->BlasPlacementStore) WriteStore(30u, BlasPlaceDetails);", 1u, "A14 ...30, guarded" },
+        { "ExchangeCpp", "if (Vulkan->TlasNodeBuffer)      WriteBuffer(27u, TlasNodeInfo);", 1u, "A11 the dispatcher writes binding 27 — and only once the buffer exists (a VK_NULL_HANDLE write is invalid, not merely useless)" },
+        { "ExchangeCpp", "if (Vulkan->TlasPrimitiveBuffer) WriteBuffer(28u, TlasPrimInfo);", 1u, "A12 ...28, guarded" },
+        { "ExchangeCpp", "if (Vulkan->TlasInstanceBuffer)  WriteBuffer(29u, TlasInstInfo);", 1u, "A13 ...29, guarded" },
+        { "ExchangeCpp", "if (Vulkan->BlasPlacementBuffer) WriteBuffer(30u, BlasPlaceInfo);", 1u, "A14 ...30, guarded" },
         { "ExchangeCpp", "LayoutBindings[B].descriptorType  = ComputeBindingType(B);", 1u, "A15 the set layout asks one table for each binding's type" },
         { "ExchangeCpp", "PoolSizes[1].descriptorCount = ComputeBindingTypeCount(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);", 1u, "A15b ...and so does the pool — 18 buffers, where the hand-kept 16 was two short (the GI reservoir pair)" },
         { "ExchangeCpp", "static_assert(ComputeBindingTypeCount(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) == 18u,", 1u, "A15c ...and the count is proven at compile time, so a binding added without the pool fails the build" },
@@ -558,15 +558,15 @@ static void RunKernelAudit()
         { "AccelerationH", "uint32_t LeafOffset;      // [vec4 blocks] start of this BLAS\' triangles in CwbvhTris[]", 1u, "A59 ...and so is LeafOffset" },
 
         // ── the stores, their lifetimes and their capacities ───────────────────────────────────────────────────────
-        { "ExchangeCpp", "VkBuffer                 TlasNodeStore        = VK_NULL_HANDLE;", 1u, "A60 one buffer per new binding, owned by the dispatcher" },
-        { "ExchangeCpp", "VkBuffer                 BlasPlacementStore   = VK_NULL_HANDLE;", 1u, "A61 ...including the last" },
-        { "ExchangeCpp", "if (Vulkan->TlasNodeStore)      vkDestroyBuffer(Vulkan->Device, Vulkan->TlasNodeStore, nullptr);", 3u, "A62 destroyed at all three teardown sites (device loss, reset, re-upload)" },
+        { "ExchangeCpp", "VkBuffer                 TlasNodeBuffer        = VK_NULL_HANDLE;", 1u, "A60 one buffer per new binding, owned by the dispatcher" },
+        { "ExchangeCpp", "VkBuffer                 BlasPlacementBuffer   = VK_NULL_HANDLE;", 1u, "A61 ...including the last" },
+        { "ExchangeCpp", "if (Vulkan->TlasNodeBuffer)      vkDestroyBuffer(Vulkan->Device, Vulkan->TlasNodeBuffer, nullptr);", 3u, "A62 destroyed at all three teardown sites (device loss, reset, re-upload)" },
         { "ExchangeCpp", "TlasNodeCapacity      = static_cast<VkDeviceSize>(Nodes.size()) * sizeof(float);", 1u, "A63 the refresh bounds are recorded from what was allocated" },
-        { "ExchangeCpp", "if (!Refresh(Nodes.data(), Nodes.size(), sizeof(float), Vulkan->TlasNodeStorage, TlasNodeCapacity)) return false;", 1u, "A64 ...and every payload is checked against them on the way in" },
+        { "ExchangeCpp", "if (!Refresh(Nodes.data(), Nodes.size(), sizeof(float), Vulkan->TlasNodeMemory, TlasNodeCapacity)) return false;", 1u, "A64 ...and every payload is checked against them on the way in" },
 
         // ── what the project does with it ───────────────────────────────────────────────────────────────────────────
         { "Game", "InstanceStructure.Build(Prototypes, InstanceRows, false)", 1u, "A65 the project builds the two-level structure from the level\'s own instances" },
-        { "Game", "Prototypes.push_back(Frontier::GeometryPrototype{ TracedFacets.data() + Row.FlatTriangleOffset, Row.TriangleCount });", 1u, "A66 one BLAS per instance over the REST-pose soup (nothing is rewritten per frame)" },
+        { "Game", "Prototypes.push_back(Frontier::MeshPrototype{ TracedFacets.data() + Row.FlatTriangleOffset, Row.TriangleCount });", 1u, "A66 one BLAS per instance over the REST-pose soup (nothing is rewritten per frame)" },
         { "Game", "M.InstanceCount, M.BlasCount, M.PrimitiveCount, M.TlasNodeCount,", 1u, "A67 the build reports what it built" },
         { "IntegratorCpp", "Dispatch.TlasInstanceCount     = ResidentInstanceCount;", 1u, "A68 the dispatch carries it (A21 again, from the other end)" },
 
@@ -1025,7 +1025,7 @@ static void RunBlasKernelPins()
         { "Build", "BlasScratch[2u * ((Level + 1u) & 1u) + 1u] = Running;", 1u, "B91 (D9b) ...and its count, which is the level's total interior children: the tile's size" },
         { "Build", "const uint ChildBase = NodeBase + Nodes + BlasBlockSums[gl_WorkGroupID.x] + BlasScratch[At + 19u];", 1u, "B92 (D9b) the emit's childBase is the level's tile start plus the block prefix plus the within-block offset — the two halves the serial stage 2 used to compute in one pass" },
         { "Build", "if (Index < NodeCount) BlasScratch[BlasNodeSlotAt(Index) + 23u] = Inclusive - LeafTriangles;", 1u, "B93 (D9b) the run scan's within-block prefix, over the WHOLE arena in node order" },
-        { "Build", "BlasScratch[4u] = Running;", 1u, "B94 (D9b) stage 6 publishes the arena's leaf triangle count, which is what BlasBuildChain::Verify compares with the mirror's count — a run that wrote nothing cannot pass on bytes alone" },
+        { "Build", "BlasScratch[4u] = Running;", 1u, "B94 (D9b) stage 6 publishes the arena's leaf triangle count, which is what BlasBuildPipeline::Verify compares with the mirror's count — a run that wrote nothing cannot pass on bytes alone" },
         { "Build", "const uint Triangles = BlasBlockSums[gl_WorkGroupID.x] + BlasScratch[At + 23u];", 1u, "B95 (D9b) the run emit's triangleBase, assembled from the run scan the same way the childBase is assembled from the other one" },
         // ── ⑩c the Vulkan half and the run (D9b): text pins, because the plumbing cannot be executed here. The point of
         //    these is the CROSS-FILE binding — the stage numbers the plan emits have to be the stage numbers the shader
@@ -1036,12 +1036,12 @@ static void RunBlasKernelPins()
         { "Build", "if (Stage == 5u)", 1u, "B103 ...and the run path's three stages keep their numbers: 5 counts and scans within each block" },
         { "Build", "if (Stage == 6u)", 1u, "B104 ...6 turns the block totals into prefixes" },
         { "Build", "if (Stage == 7u)", 1u, "B105 ...and 7 writes triangleBase and the leaf records, one lane per node" },
-        { "Sequence", "Constants.Stage = Entry.Stage;", 2u, "B106 (D9b) the pipeline dispatches the PLAN's stage number rather than a numbering of its own: the loop is record-driven, so this pin and the five above are what keep the two files' stage numbers the same numbers" },
-        { "Sequence", "for (const BlasDispatch& Entry : Plan)", 2u, "B107 (D9b) ...and it iterates the plan both times (the build and the refit), never a hand-written sequence" },
-        { "Sequence", "ComputeBarrier(Cmd, Api);", 2u, "B108 (D9b) a compute->compute barrier after every dispatch: a storage-buffer write is not visible to the next dispatch without it, and every stage here reads what the previous one wrote" },
-        { "Sequence", "BuildRange.size       = static_cast<uint32_t>(sizeof(BlasBuildConstants));", 1u, "B109 (D9b) the push range is the payload struct's size, so the 48 B block cannot drift from the shader's without the static_assert above firing first" },
-        { "Sequence", "RefitRange.size       = static_cast<uint32_t>(sizeof(BlasRefitConstants));", 1u, "B110 (D9b) ...and the refit's 16 B one" },
-        { "Sequence", "Api.CreateComputePipelines(Device, VK_NULL_HANDLE, 1u,", 1u, "B111 (D9b) the pipelines come from the .spv files the compile gate lowers (BlasBuild.spv / BlasRefit.spv), not from anything embedded or checked in" },
+        { "Pipeline", "Constants.Stage = Entry.Stage;", 2u, "B106 (D9b) the pipeline dispatches the PLAN's stage number rather than a numbering of its own: the loop is data-driven, so this pin and the five above are what keep the two files' stage numbers the same numbers" },
+        { "Pipeline", "for (const BlasDispatch& Entry : Plan)", 2u, "B107 (D9b) ...and it iterates the plan both times (the build and the refit), never a hand-written sequence" },
+        { "Pipeline", "ComputeBarrier(Cmd, Api);", 2u, "B108 (D9b) a compute->compute barrier after every dispatch: a storage-buffer write is not visible to the next dispatch without it, and every stage here reads what the previous one wrote" },
+        { "Pipeline", "BuildRange.size       = static_cast<uint32_t>(sizeof(BlasBuildConstants));", 1u, "B109 (D9b) the push range is the payload struct's size, so the 48 B block cannot drift from the shader's without the static_assert above firing first" },
+        { "Pipeline", "RefitRange.size       = static_cast<uint32_t>(sizeof(BlasRefitConstants));", 1u, "B110 (D9b) ...and the refit's 16 B one" },
+        { "Pipeline", "Api.CreateComputePipelines(Device, VK_NULL_HANDLE, 1u,", 1u, "B111 (D9b) the pipelines come from the .spv files the compile gate lowers (BlasBuild.spv / BlasRefit.spv), not from anything embedded or checked in" },
         { "Runner", "\"libvulkan.so.1\", \"libvulkan.so\"", 1u, "B112 (D9b) the runner opens the loader at runtime — the reason nothing has to link -lvulkan, and the reason this file compiles where no loader exists" },
         { "Runner", "no Vulkan loader found", 1u, "B113 (D9b) a machine without a device is reported as SKIPPED (exit 2) rather than as a pass: an unattended run must not read 'no GPU' as 'verified'" },
         { "Runner", "--refit", 2u, "B114 (D9b) the refit path is opt-in on the command line and checked against a MIRROR refit of the same deformation, so 'the device wrote something' cannot pass for 'the device was right'" },
@@ -1065,7 +1065,7 @@ static void RunBlasKernelPins()
              : std::strcmp(Key, "Payload") == 0 ? Payload
              : std::strcmp(Key, "PayloadCpp") == 0 ? PayloadCpp
              : std::strcmp(Key, "MirrorH") == 0 ? MirrorH
-             : std::strcmp(Key, "Sequence") == 0 ? Sequence
+             : std::strcmp(Key, "Pipeline") == 0 ? Sequence
              : std::strcmp(Key, "Runner") == 0 ? Runner : Traversal;
     };
     for (const Audit::TextPin& Pin : Pins)
@@ -1828,7 +1828,7 @@ int main()
         Wave(0.15f * Diag, Extreme);
         float ExtremeDisplacement = 0.0f, PrimitiveSize = 0.0f;
         Frontier::MeasureDeformation(Right, Extreme, ExtremeDisplacement, PrimitiveSize);
-        Facts("the level-scale wave (%.3f m) is %.0f %% of the topology's own %.4f m mean edge; the gate runs at 5 %%",
+        Facts("the level-scale wave (%.3f m) is %.0f %% of the mesh's own %.4f m mean edge; the gate runs at 5 %%",
               double(ExtremeDisplacement), 100.0 * double(ExtremeDisplacement) / std::max(1.0e-9, double(PrimitiveSize)),
               double(PrimitiveSize));
 
@@ -1875,7 +1875,7 @@ int main()
         else
             Fail("a deformation path refused valid input (refit %d, rebuild %d)", int(RefOk), int(RebuildOk));
 
-        Facts("deformation: %.4f m of displacement against a %.4f m mean edge — %.2f %% of the topology's own primitive size",
+        Facts("deformation: %.4f m of displacement against a %.4f m mean edge — %.2f %% of the mesh's own primitive size",
               double(Displacement), double(PrimitiveSize), 100.0 * double(Displacement) / std::max(1.0e-9, double(PrimitiveSize)));
         Facts("cost: in-place refit %.2f ms · full rebuild %.2f ms (2 prototypes, %zu triangles; %u of them in the refitted BLAS)",
               double(RefMs), double(RebuildMs), TriangleCount, Reference.QueryMetrics().LastRefitTriangleCount);
@@ -2212,7 +2212,7 @@ int main()
                 { 0.0f,   0.05f, false, 999u, false, Frontier::BlasUpdateDecision::None,    "no movement" },
                 { 0.001f, 0.05f, false, 999u, false, Frontier::BlasUpdateDecision::Refit,   "2 % of a primitive" },
                 { 0.02f,  0.05f, false, 999u, false, Frontier::BlasUpdateDecision::Rebuild, "40 % of a primitive" },
-                { 0.0f,   0.0f,  false, 999u, false, Frontier::BlasUpdateDecision::Rebuild, "degenerate topology" },
+                { 0.0f,   0.0f,  false, 999u, false, Frontier::BlasUpdateDecision::Rebuild, "degenerate mesh" },
                 { 0.0f,   0.05f, true,  999u, false, Frontier::BlasUpdateDecision::Rebuild, "topology changed" },
                 { 0.02f,  0.05f, false, 0u,   false, Frontier::BlasUpdateDecision::Refit,   "big move, fresh rebuild" },
                 { 0.02f,  0.05f, false, 999u, true,  Frontier::BlasUpdateDecision::Refit,   "big move, rebuild in flight" },

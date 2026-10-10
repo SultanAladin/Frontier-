@@ -62,7 +62,7 @@ export default function DrawerPanel({
       (!FromIdentifier &&
         (!Open ||
           (Event.target.closest(
-            "button,input,select,textarea,a,[contenteditable=true],[record-drawer-scroll]",
+            "button,input,select,textarea,a,[contenteditable=true],[data-drawer-scroll]",
           ) &&
             !Event.target.closest(".drawer-page-grip"))))
     )

@@ -233,7 +233,7 @@ def Main() -> None:
                           "shaderCompiled": True, "runtimeEnabled": True,
                           "softwareVulkanExecutionVerified": os.environ.get("SDF_VULKAN_EXECUTION_VERIFIED") == "1",
                           "executionValidation": "Production SPIR-V with synchronization and GPU-assisted shader-access validation",
-                          "transport": "Three camera-snapped distance volumes, GPU-captured textured surface-card atlas with Jacobi radiance, exact topology secondary rays",
+                          "transport": "Three camera-snapped distance volumes, GPU-captured textured surface-card atlas with Jacobi radiance, exact mesh secondary rays",
                           "activation": "Only after all scene resources and shader pipelines are ready",
                           "fallback": "Existing Surfel GI, or existing compute fallback if Surfel is unavailable"},
                 "requirements": ["Windows x64", "Microsoft Visual C++ x64 runtime (bundled)",

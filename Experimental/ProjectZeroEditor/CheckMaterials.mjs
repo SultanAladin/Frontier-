@@ -101,8 +101,8 @@ try {
     name: "Expand ShaderEditor",
     exact: true,
   }).click();
-  await Window.locator('canvas[record-preview-status="Preview ready"]').waitFor();
-  assert.equal(await Window.locator("[record-material-channel]").count(), 20);
+  await Window.locator('canvas[data-preview-status="Preview ready"]').waitFor();
+  assert.equal(await Window.locator("[data-material-channel]").count(), 20);
   const FillBefore = await Canvas().evaluate((Node) => Node.toDataURL());
   await Window.getByLabel("Base colour fill hex", { exact: true }).fill(
     "#64bb96",
@@ -114,8 +114,8 @@ try {
   // A native descriptor is authored against the pinned target, not the changing scene selection.
   await Select("Sphere");
   assert.equal(
-    await Window.locator("[record-material-owner]").getAttribute(
-      "record-material-owner",
+    await Window.locator("[data-material-owner]").getAttribute(
+      "data-material-owner",
     ),
     "cube",
   );
@@ -155,7 +155,7 @@ try {
   await Window.getByLabel("Search material channels", { exact: true }).fill(
     "roughness",
   );
-  assert.equal(await Window.locator("[record-material-channel]").count(), 3);
+  assert.equal(await Window.locator("[data-material-channel]").count(), 3);
   await Window.getByLabel("Search material channels", { exact: true }).fill("");
   await Channel("anisotropy");
   const Signed = Window.getByLabel("Anisotropy fill", { exact: true });
@@ -333,7 +333,7 @@ try {
   }).click();
   assert.equal(await Window.count(), 0);
   assert.equal(
-    await Page.locator(".centre [record-material-owner=cube]").count(),
+    await Page.locator(".centre [data-material-owner=cube]").count(),
     1,
   );
   await Page.locator(".centre .document-tab")
@@ -342,7 +342,7 @@ try {
       targetPosition: { x: 160, y: 15 },
     });
   assert.equal(
-    await Page.locator(".right [record-material-owner=cube]").count(),
+    await Page.locator(".right [data-material-owner=cube]").count(),
     1,
   );
   await Page.getByRole("button", {
@@ -355,7 +355,7 @@ try {
     exact: true,
   }).click();
   assert.equal(
-    await Page.locator(".left [record-material-owner=cube]").count(),
+    await Page.locator(".left [data-material-owner=cube]").count(),
     1,
   );
   await Page.getByRole("button", {
@@ -386,7 +386,7 @@ try {
     exact: true,
   }).click();
   await Page.locator(
-    '.centre canvas[record-preview-status="Preview ready"]',
+    '.centre canvas[data-preview-status="Preview ready"]',
   ).waitFor();
   const Overlap = await Page.locator(".centre .material-workbench").evaluate(
     (Node) => {
@@ -451,7 +451,7 @@ try {
       "texture pixels, embedding, rejection and removal",
       "code descriptor and honest fallback",
       "material type changes",
-      "real shader-ball topology pixels",
+      "real shader-ball mesh pixels",
       "floating drag, three-column tab docking, close/reopen",
       "1024/1280/1366/1440/1920 layouts",
       "reload persistence",

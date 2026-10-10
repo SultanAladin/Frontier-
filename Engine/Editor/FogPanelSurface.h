@@ -924,7 +924,7 @@ inline const char* VolumeNote()
 inline const char* OutlineNote()
 {
     return "Ordered polygon, extruded along Z. Supports concave footprints without crossing edges; this is not an "
-           "arbitrary topology/SDF importer.";
+           "arbitrary mesh/SDF importer.";
 }
 
 // Row heights straight off FogShapePanel.css; the caller draws the card and its h3, this draws the body.

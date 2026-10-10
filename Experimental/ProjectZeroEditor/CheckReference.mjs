@@ -49,11 +49,11 @@ if (process.env.FRONTIER_BASELINE_HTML) {
   );
 }
 function Inventory() {
-  const Root = document.querySelector(".inspector-scroll > [record-panel]");
+  const Root = document.querySelector(".inspector-scroll > [data-panel]");
   if (!Root) return null;
   return {
     Panel: Root.dataset.panel,
-    Cards: [...Root.querySelectorAll("[record-card]")]
+    Cards: [...Root.querySelectorAll("[data-card]")]
       .map((Node) => Node.dataset.card)
       .sort(),
     Headings: [...Root.querySelectorAll("h1,h2,h3")]
@@ -96,7 +96,7 @@ try {
     assert.ok(Actual, Id + " original inspector exists");
     if (Previous) {
       await Previous.goto("http://baseline.test/?inspect=" + Id);
-      await Previous.locator(".inspector-scroll > [record-panel]").waitFor();
+      await Previous.locator(".inspector-scroll > [data-panel]").waitFor();
       const Expected = await Previous.evaluate(Inventory);
       if (Id === "height-fog") {
         assert.deepEqual(
@@ -149,7 +149,7 @@ try {
       );
       const Placement = await Page.evaluate(() => {
         const Native = document.querySelector(
-          ".inspector-scroll > [record-panel]",
+          ".inspector-scroll > [data-panel]",
         );
         const Reference = document.querySelector(".reference-inspector-copy");
         if (Native.contains(Reference)) return "inline";
@@ -327,7 +327,7 @@ try {
     if (Id === "wind") {
       assert.deepEqual(
         await Page.locator(
-          '[record-panel="wind"] > .property-card, [record-panel="wind"] > .reference-inspector-copy',
+          '[data-panel="wind"] > .property-card, [data-panel="wind"] > .reference-inspector-copy',
         ).evaluateAll((Nodes) =>
           Nodes.slice(0, 3).map((Node) => Node.dataset.card || "Reference"),
         ),
@@ -396,12 +396,12 @@ try {
   }
   await Open("height-fog");
   assert.equal(await Page.locator(".reference-inspector-copy").count(), 0);
-  assert.equal(await Page.locator('[record-card="Visibility through fog"]').count(), 1);
+  assert.equal(await Page.locator('[data-card="Visibility through fog"]').count(), 1);
   assert.equal(
-    await Page.locator('[record-card="Medium"] > .fog-shared-beam').count(),
+    await Page.locator('[data-card="Medium"] > .fog-shared-beam').count(),
     1,
   );
-  await Page.locator('[record-card="Medium"]').scrollIntoViewIfNeeded();
+  await Page.locator('[data-card="Medium"]').scrollIntoViewIfNeeded();
   await Page.screenshot({
     path: path.join(Proof, "height-fog-chamber.png"),
   });
@@ -432,7 +432,7 @@ try {
     Before + 7,
   );
   assert.ok(
-    (await Page.locator('[record-panel="clouds"] [record-card]').count()) > 0,
+    (await Page.locator('[data-panel="clouds"] [data-card]').count()) > 0,
   );
   Results.push(
     "Added Cloud deck edits persist without removing original Cloud controls",

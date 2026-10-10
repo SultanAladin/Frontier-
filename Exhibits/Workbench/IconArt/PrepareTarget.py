@@ -30,7 +30,7 @@ def acquire(repo, pin, destination):
             if len(pieces) < 2 or not pieces[1]: continue
             member.name = pieces[1]
             if hasattr(tarfile, 'data_filter'):
-                tar.extract(member, destination, filter='record')
+                tar.extract(member, destination, filter='data')
             else:
                 # Older Python 3.11 distributions lack extraction filters. Fail closed
                 # on links/special files, and validate every destination before writing.

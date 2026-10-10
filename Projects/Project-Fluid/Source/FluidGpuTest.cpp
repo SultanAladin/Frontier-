@@ -59,7 +59,7 @@ int RunFluidGpuTest(int argc,char** argv){
    csv<<step<<','<<(step<5)<<','<<fluid.Positions().size()<<','<<solver<<','<<reconstruction<<','<<prepare<<','<<extract<<',';
    if(timing.Timestamps)csv<<timing.FieldMs<<','<<timing.EdgesMs<<','<<timing.TrianglesMs;else csv<<"NA,NA,NA";
    csv<<','<<timing.HostWaitMs<<','<<count<<','<<timing.Overflow<<','<<total<<'\n';
-   if(timing.Overflow){csv.flush();throw std::runtime_error("GPU index overflow: truncated topology rejected");}
+   if(timing.Overflow){csv.flush();throw std::runtime_error("GPU index overflow: truncated mesh rejected");}
    if(step%30==0||step+1==steps){csv.flush();log("step="+std::to_string(step+1)+" total_ms="+std::to_string(total)+" triangles="+std::to_string(count/3));}
   }
   if(!cpu)output=extractor->Readback();

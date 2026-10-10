@@ -69,7 +69,7 @@ export default function FracturePanel({ Subject, Values, Change, Expand }) {
                 aria-pressed={Settings.Mode === Mode}
                 onClick={() => Assign("Mode", Mode)}
               >
-                {Mode === "dynamic" ? "Dynamic" : "Precomputed"}
+                {Mode === "dynamic" ? "Dynamic" : "Baked"}
               </button>
             ))}
           </div>
@@ -92,7 +92,7 @@ export default function FracturePanel({ Subject, Values, Change, Expand }) {
                 <button
                   className={"toggle " + (Settings.PieceSdf ? "on" : "")}
                   role="switch"
-                  aria-label="Precompute SDF per piece"
+                  aria-label="Bake SDF per piece"
                   aria-checked={Settings.PieceSdf}
                   onClick={() => Assign("PieceSdf", !Settings.PieceSdf)}
                 >

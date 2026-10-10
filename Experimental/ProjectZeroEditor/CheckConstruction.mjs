@@ -28,7 +28,7 @@ Page.on("console", (Message) => {
   if (Message.type() === "error") Errors.push(Message.text());
 });
 const Url = process.env.FRONTIER_EDITOR_URL || "http://127.0.0.1:5180/";
-const Count = () => Page.locator("[record-preview-id]").count();
+const Count = () => Page.locator("[data-preview-id]").count();
 const Open = async () => {
   await Page.getByRole("button", { name: "Construct", exact: true }).click();
   await Page.getByRole("dialog", { name: "Construct", exact: true }).waitFor();
@@ -183,7 +183,7 @@ try {
   await Open();
   await Choose("Cube");
   await Page.locator(
-    ".construct-properties [record-material-channel=roughness]",
+    ".construct-properties [data-material-channel=roughness]",
   ).click();
   await Page.locator(".construct-properties")
     .getByLabel("Roughness fill", { exact: true })
@@ -192,7 +192,7 @@ try {
   await Add();
   assert.equal(await Count(), 1);
   await Page.locator(
-    ".inspector-scroll [record-material-channel=roughness]",
+    ".inspector-scroll [data-material-channel=roughness]",
   ).click();
   assert.equal(
     await Page.locator(".inspector-scroll")
@@ -253,10 +253,10 @@ try {
     assert.equal(await Count(), Before + 1, Name);
     const Selected = await Page.locator(
       ".preview-placement.selected",
-    ).getAttribute("record-preview-id");
+    ).getAttribute("data-preview-id");
     assert.ok(Selected);
     assert.equal(
-      await Page.locator(".inspector-scroll [record-panel]").count(),
+      await Page.locator(".inspector-scroll [data-panel]").count(),
       1,
     );
   }

@@ -659,13 +659,13 @@ int main(int argc, char** argv)
                          "Bootstrap", "Window and Vulkan swapchain ready.");
 
     {
-        FRONTIER_PROBE_PHASE_BEGIN("ShadingTablePrecompute");
-        Startup.Mark("ShadingTablePrecompute:begin"); const auto ShadingTablePrecomputeStart=Frontier::ProjectZero::StartupLog::Now();
+        FRONTIER_PROBE_PHASE_BEGIN("ShadingTableBake");
+        Startup.Mark("ShadingTableBake:begin"); const auto ShadingTablePrecomputeStart=Frontier::ProjectZero::StartupLog::Now();
         const Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Precompute();   // R4b: GGX energy + LTC sheen LUTs
         Startup.Mark("ShadingLutPayload",-1,(Tables.Energy.size()+Tables.Sheen.size())*sizeof(float));
         Surface.UploadShadingTables(Tables.Energy.data(), Tables.Sheen.data(), Frontier::ShadingTableSet::kResolution);
-        FRONTIER_PROBE_PHASE_END("ShadingTablePrecompute");
-        Startup.Mark("ShadingTablePrecompute:end",Frontier::ProjectZero::StartupLog::Elapsed(ShadingTablePrecomputeStart));
+        FRONTIER_PROBE_PHASE_END("ShadingTableBake");
+        Startup.Mark("ShadingTableBake:end",Frontier::ProjectZero::StartupLog::Elapsed(ShadingTablePrecomputeStart));
     }
     if (TraversalBuildStarted && TraversalBuildFuture.valid())
     {
@@ -1014,7 +1014,7 @@ int main(int argc, char** argv)
     uint32_t SkyDomeQuietTicks         = 0u;   // #26A: ticks the packed sky stood still — the settled re-precompute gate (④d)
     Frontier::MoonConstantRecord LastMoons{};  // last moon bytes pushed (④e); a change restarts the accumulation
     Frontier::PostConstantRecord LastPost{};   // last post bytes pushed (④f); a change restarts the accumulation
-    bool     PrecomputeAnnounced             = false;  // "Precomputing Complete" = temporal accumulation reached PrecomputeFrameCount
+    bool     PrecomputeAnnounced             = false;  // "Baking Complete" = temporal accumulation reached PrecomputeFrameCount
     constexpr uint32_t PrecomputeFrameCount  = 256u;
     std::string LastSaveError;                   // de-duplicates the "Autosave Errors" toast
 
@@ -1645,7 +1645,7 @@ int main(int argc, char** argv)
         }
 
 
-        // ①g Alert gates: "Autosave Errors" (preference writes), "Precomputing Complete" (accumulation converged),
+        // ①g Alert gates: "Autosave Errors" (preference writes), "Baking Complete" (accumulation converged),
         //    "Frame-rate Drops" (2 s average under 30 fps, once per episode).
         {
             const Frontier::NotificationPreferences& P = ControlCentre.QueryNotifications().QueryApplied();
@@ -2679,7 +2679,7 @@ int main(int argc, char** argv)
         // Sample after presentation, not on a background thread: this measures the render-loop
         // process without pretending that a sample is attributable to one asynchronous job.
         if (Frontier::ProjectZero::StartupLog::Elapsed(LastStorageSample) >= 10000.0)
-        { Startup.Mark("RuntimeStorage"); LastStorageSample = Frontier::ProjectZero::StartupLog::Now(); }
+        { Startup.Mark("RuntimeMemory"); LastStorageSample = Frontier::ProjectZero::StartupLog::Now(); }
         FRONTIER_PROBE_LAP(RecordAndPresent);
 
         Integrator.IncrementAccumulationIndex();

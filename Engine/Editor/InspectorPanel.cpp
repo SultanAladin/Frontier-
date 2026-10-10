@@ -351,7 +351,7 @@ void InspectorPanel::RecordFracture(EditorInstance& Picked, uint32_t PickedIndex
     // Describe().Primitive, 1:1: the browser reads the primitive off the row's icon, never off its name.
     //    A row whose artwork is not one of the five base geometries has no primitive, and the card says so.
     const char* Primitive = BaseGeometryPrimitive(Picked.Artwork);
-    const FR::Owner Who { Picked.Label[0] ? Picked.Label : "Object", Primitive ? Primitive : "topology" };
+    const FR::Owner Who { Picked.Label[0] ? Picked.Label : "Object", Primitive ? Primitive : "mesh" };
 
     const float Wide = ImGui::GetContentRegionAvail().x;
     if (Wide < 120.0f) return;

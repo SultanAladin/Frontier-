@@ -75,9 +75,9 @@ try {
   await Page.locator("#scene-search").fill("Socket");
   Assert.equal(await Page.locator(".scene-row").count(), 1);
   await Page.locator("#scene-search").fill("");
-  await Page.locator('[record-filter="0"]').click();
+  await Page.locator('[data-filter="0"]').click();
   Assert.equal(await Page.locator(".scene-row").count(), 1);
-  await Page.locator('[record-filter="all"]').click();
+  await Page.locator('[data-filter="all"]').click();
   await Page.locator("#compact-button").click();
   Assert.ok(
     await Page.locator("#scene-rows").evaluate((Element) =>
@@ -87,13 +87,13 @@ try {
   await Page.locator("#fold-button").click();
   Assert.equal(await Page.locator("#scene-rows").isVisible(), false);
   await Page.locator("#fold-button").click();
-  await Page.locator('[record-visibility="5"]').click();
+  await Page.locator('[data-visibility="5"]').click();
   await Ready();
   Assert.equal(
     (await Snapshot()).figures.find((Figure) => Figure.id === 5).hidden,
     1,
   );
-  await Page.locator('[record-visibility="5"]').click();
+  await Page.locator('[data-visibility="5"]').click();
   await Ready();
   Pass(
     "Outliner search, filters, compact/fold controls and actual native visibility",
@@ -101,8 +101,8 @@ try {
   await Page.locator("#new-document").click();
   await Ready();
   Assert.equal((await Snapshot()).figures.length, 0);
-  await Page.locator('[record-document="2"]').dblclick();
-  const Rename = Page.locator('[record-document="2"] input');
+  await Page.locator('[data-document="2"]').dblclick();
+  const Rename = Page.locator('[data-document="2"] input');
   await Rename.fill("Browser trial");
   await Rename.press("Enter");
   Assert.equal(
@@ -110,11 +110,11 @@ try {
     "Browser trial",
   );
   await Page.locator("#construct-button").click();
-  await Page.locator('[record-section="Solid"]').click();
-  await Page.locator('[record-construct="12"]').click();
+  await Page.locator('[data-section="Solid"]').click();
+  await Page.locator('[data-construct="12"]').click();
   await Ready();
   Assert.equal((await Snapshot()).figures[0].faces, 6);
-  await Page.locator('[record-figure="1"]').click();
+  await Page.locator('[data-figure="1"]').click();
   await Ready();
   const Dimension = (await Snapshot()).dimensions.find(
     (Dimension) => Dimension.slot === 5,
@@ -156,7 +156,7 @@ try {
   );
   await Ready();
   Assert.equal((await Snapshot()).figures[0].high[2], 3);
-  await Page.locator('[record-figure="1"]').dblclick();
+  await Page.locator('[data-figure="1"]').dblclick();
   await Ready();
   await Page.locator("#figure-name").fill("EditedBlock");
   await Page.locator("#figure-name").press("Tab");
@@ -208,7 +208,7 @@ try {
   );
   await Page.locator("#gizmo-mode").selectOption("off");
   await Ready();
-  await Page.locator('[record-mode="face"]').click();
+  await Page.locator('[data-mode="face"]').click();
   await Ready();
   await Page.locator("#cad-canvas").click({
     position: { x: Canvas.width * 0.55, y: Canvas.height * 0.5 },
@@ -219,7 +219,7 @@ try {
   await Run("selectmode edge");
   await Run("select edges EditedBlock 0");
   Assert.ok((await Snapshot()).figures[0].pickedEdges.length === 1);
-  await Page.locator('[record-tool="chamfer"]').click();
+  await Page.locator('[data-tool="chamfer"]').click();
   await Page.locator('[name="distance"]').fill("0.1");
   await Page.locator("#apply-tool").click();
   await Ready();
@@ -260,13 +260,13 @@ try {
   Pass(
     "Native .arc download and import preserve the edited topology; malformed input preserves the open scene",
   );
-  await Page.locator('[record-document="1"]').click();
+  await Page.locator('[data-document="1"]').click();
   await Ready();
   Assert.equal((await Snapshot()).figures.length, 7);
-  await Page.locator('[record-document="2"]').click();
+  await Page.locator('[data-document="2"]').click();
   await Ready();
   Assert.deepEqual((await Snapshot()).figures, BeforeSave);
-  await Page.locator('[record-close="3"]').click();
+  await Page.locator('[data-close="3"]').click();
   await Ready();
   Assert.equal(await Page.locator(".document-tab").count(), 2);
   Pass("Independent native document switching, filenames and close cleanup");
@@ -307,7 +307,7 @@ try {
     (await Snapshot()).areas.filter((Region) => Region.selected).length,
     1,
   );
-  await Page.locator('#inspector-body [record-tool="extrude"]').click();
+  await Page.locator('#inspector-body [data-tool="extrude"]').click();
   await Page.locator("#tool-dialog").waitFor({ state: "visible" });
   Assert.match(
     await Page.locator("#command-preview").textContent(),
@@ -318,10 +318,10 @@ try {
   Assert.ok(
     (await Snapshot()).figures.some((Figure) => Figure.classification === 2),
   );
-  await Page.locator('[record-document="2"]').click();
+  await Page.locator('[data-document="2"]').click();
   await Ready();
   Page.once("dialog", (Dialog) => Dialog.accept());
-  await Page.locator('[record-close="4"]').click();
+  await Page.locator('[data-close="4"]').click();
   await Ready();
   Pass(
     "Native filled-region viewport picking feeds the extrusion dialog and survives command journaling",
@@ -334,7 +334,7 @@ try {
   await Ready();
   await Page.locator("#help-button").click();
   Assert.equal(await Page.locator("#help-dialog").isVisible(), true);
-  await Page.locator("#help-dialog [record-close-dialog]").click();
+  await Page.locator("#help-dialog [data-close-dialog]").click();
   for (const Width of [1280, 900, 760, 390]) {
     await Page.setViewportSize({ width: Width, height: 900 });
     await Page.waitForTimeout(400);
@@ -352,7 +352,7 @@ try {
   await Page.setViewportSize({ width: 1600, height: 1000 });
   await Page.waitForTimeout(400);
   await Ready();
-  await Page.locator('[record-document="1"]').click();
+  await Page.locator('[data-document="1"]').click();
   await Ready();
   if (await Page.locator("#console-panel").isVisible()) {
     await Page.locator("#diagnostics-button").click();

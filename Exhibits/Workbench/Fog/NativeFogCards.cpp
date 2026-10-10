@@ -223,9 +223,9 @@ int main()
         Shape = FogShape{};
         Shape.Form = Item.Form;
         const ShapeGeometry Hull = ConstructGeometry(Shape);
-        Check(Hull.Vertices.size() == Item.Vertices, "the topology carries the vertex count FogShape.js builds");
-        Check(Hull.Edges.size() == Item.Edges, "the topology carries the edge count FogShape.js builds");
-        Check(Hull.Faces.size() == Item.Faces, "the topology carries the face count FogShape.js builds");
+        Check(Hull.Vertices.size() == Item.Vertices, "the mesh carries the vertex count FogShape.js builds");
+        Check(Hull.Edges.size() == Item.Edges, "the mesh carries the edge count FogShape.js builds");
+        Check(Hull.Faces.size() == Item.Faces, "the mesh carries the face count FogShape.js builds");
         Capture(Item.File);
     }
 

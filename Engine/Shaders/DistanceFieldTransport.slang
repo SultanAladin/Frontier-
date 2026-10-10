@@ -8,11 +8,11 @@
 struct DistanceFacet { vec4 Alpha; vec4 Beta; vec4 Gamma; vec4 Normal; vec4 Albedo; vec4 Emission; };
 struct DistanceBranch { vec4 Minimum; vec4 Maximum; uvec4 Range; };
 struct DistanceVoxel { vec4 PositionDistance; vec4 Normal; vec4 Albedo; vec4 Emission; };
-layout(std430, binding=3) store FieldExtent { DistanceVoxel Field[]; };
+layout(std430, binding=3) buffer FieldExtent { DistanceVoxel Field[]; };
 layout(rgba32f, binding=4) uniform readonly image2D PreviousRadiance;
-layout(std430, binding=5) readonly store DistanceConstants { vec4 ClipOrigins[3]; uvec4 GeometryCounts; };
-layout(std430, binding=6) readonly store DistanceBranches { DistanceBranch Branches[]; };
-layout(std430, binding=7) readonly store DistanceFacets { DistanceFacet Facets[]; };
+layout(std430, binding=5) readonly buffer DistanceConstants { vec4 ClipOrigins[3]; uvec4 GeometryCounts; };
+layout(std430, binding=6) readonly buffer DistanceBranches { DistanceBranch Branches[]; };
+layout(std430, binding=7) readonly buffer DistanceFacets { DistanceFacet Facets[]; };
 layout(rgba32f, binding=10) uniform image2D NextRadiance;
 layout(rgba32f, binding=8) uniform image2D SurfaceDiffuse;
 layout(rgba32f, binding=9) uniform image2D SurfaceNormal;

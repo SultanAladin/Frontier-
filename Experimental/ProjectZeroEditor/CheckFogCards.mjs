@@ -30,7 +30,7 @@ Page.on("requestfailed", (Request) => {
 });
 const Open = async (Id) => {
   await Page.goto(Address + "?inspect=" + Id);
-  await Page.locator(".inspector-scroll > [record-panel]").waitFor();
+  await Page.locator(".inspector-scroll > [data-panel]").waitFor();
   await Page.waitForTimeout(250);
 };
 const Saved = () =>
@@ -106,7 +106,7 @@ try {
       await Page.getByLabel("Colour value", { exact: true }).count(),
       Model.Id === "height-fog" ? 1 : 0,
     );
-    const Beam = Page.locator('[record-card="Medium"] .fog-shared-beam');
+    const Beam = Page.locator('[data-card="Medium"] .fog-shared-beam');
     assert.equal(await Beam.count(), 1);
     assert.equal(
       await Beam.locator("svg").getAttribute("aria-label"),
