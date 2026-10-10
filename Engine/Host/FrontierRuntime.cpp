@@ -1474,6 +1474,10 @@ int Frontier::RunFrontierRuntime(
 #endif
     auto LastMemorySample = Frontier::HostRuntime::StartupLog::Now();
     uint32_t PreviousTransport = 0u;
+    // F8 vehicle-camera eject (Play only). Host-owned: the project only sees the C-layout reading, so the eject
+    //    is implemented here by releasing the driver axes and handing the view to the fly camera.
+    bool VehicleCameraEjected = false;
+    bool PreviousEjectKey = false;
     std::vector<Frontier::InstanceRecord> ProjectRestInstances;
     Frontier::HostRuntime::FlyThroughSolver ProjectEditCamera = Camera;
     while (!Surface.CloseRequested() && !Panel.Convert<bool>())
@@ -1782,6 +1786,31 @@ int Frontier::RunFrontierRuntime(
         ProjectInput.HandbrakePressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeySpace) ? 1u : 0u;
         ProjectInput.ResetPressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyR) ? 1u : 0u;
         ProjectInput.KeyboardCaptured = (TypingText || ControlCentre.CoversPointer() || Diagnostics.QueryPointerCaptured()) ? 1u : 0u;
+
+        // F8: eject from the vehicle camera (Unreal-style) and re-possess on the next press. Edge-detected, ignored while
+        //    typing or while a Control Centre / diagnostics surface owns the pointer, and only meaningful in Play.
+        const bool EjectKeyDown = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyF8);
+        if (EjectKeyDown && !PreviousEjectKey && Transport == 1u && ProjectInput.KeyboardCaptured == 0u)
+        {
+            VehicleCameraEjected = !VehicleCameraEjected;
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Camera",
+                VehicleCameraEjected ? "F8: vehicle camera EJECTED - car released (no driver input), fly camera owns the view. Press F8 to re-possess."
+                                     : "F8: re-possessed the vehicle - chase camera and driver input restored.");
+        }
+        PreviousEjectKey = EjectKeyDown;
+        if (Transport != 1u && VehicleCameraEjected)
+        {
+            VehicleCameraEjected = false;
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Camera", "Left Play - eject cleared.");
+        }
+        if (VehicleCameraEjected)
+        {
+            // An ejected player releases the car: no throttle, brake, steer, handbrake, or reset reach the project.
+            ProjectInput.MoveAxisX = 0.0f;
+            ProjectInput.MoveAxisY = 0.0f;
+            ProjectInput.HandbrakePressed = 0u;
+            ProjectInput.ResetPressed = 0u;
+        }
         if (Transport != 0u && PreviousTransport == 0u)
         {
             ProjectRestInstances = AnimatedInstances;
@@ -1869,7 +1898,8 @@ int Frontier::RunFrontierRuntime(
             }
             Integrator.ResetAccumulation("project motion");
         }
-        if (Transport == 1u && !ActiveReception.CameraRequests.empty())
+        // While ejected the project's chase requests are ignored, so the fly camera keeps the last chase pose.
+        if (Transport == 1u && !VehicleCameraEjected && !ActiveReception.CameraRequests.empty())
         {
             const auto& Requested = ActiveReception.CameraRequests.back();
             Camera.AssignSpatialLocation({ Requested.Eye[0], Requested.Eye[1], Requested.Eye[2] });
@@ -1877,7 +1907,7 @@ int Frontier::RunFrontierRuntime(
                                           std::atan2(Requested.Forward[0], Requested.Forward[1]), 0.0f);
             Camera.AssignFieldOfView(Requested.VerticalFieldOfView * 57.2957795f);
         }
-        const bool ProjectCamera = Transport == 1u && !ActiveReception.CameraRequests.empty();
+        const bool ProjectCamera = Transport == 1u && !VehicleCameraEjected && !ActiveReception.CameraRequests.empty();
         ActiveReception.SceneMutations.clear();
         ActiveReception.CameraRequests.clear();
         ActiveReception.Diagnostics.clear();

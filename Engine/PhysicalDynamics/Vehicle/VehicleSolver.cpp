@@ -288,7 +288,8 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         }
 
         // Apply the tyre's vertical reaction (plus damper) and the driving force at the contact patch.
-        const Vec3 wheelForce = Vec3{0.0f, 0.0f, verticalForce} + planar;
+        const Vec3 wallReaction{reaction.NormalForce.x, reaction.NormalForce.y, 0.0f};   // side-on kerb/wall reaction
+        const Vec3 wheelForce = Vec3{0.0f, 0.0f, verticalForce} + planar + wallReaction;
         ChassisHooks.ApplyForceAtPoint(wheelForce, patch);
 
         // Telemetry.
@@ -559,13 +560,17 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             barForce   = AntiRollForce(i);
             strutForce = IntegrateStrut(i, Δτ, Fz, axisUp, barForce);
             ChassisHooks.ApplyForceAtPoint(axisUp * strutForce, mountWorld);
-            ChassisHooks.ApplyForceAtPoint(planar + aeroDownVec, patch);
+            // Side-on kerb/wall reaction travels with the in-plane force at the patch (suspension path).
+            const Vec3 wallReaction{reaction.NormalForce.x, reaction.NormalForce.y, 0.0f};
+            ChassisHooks.ApplyForceAtPoint(planar + aeroDownVec + wallReaction, patch);
         }
         else
         {
             float verticalForce = Fz;
             if (onGnd) verticalForce = std::max(0.0f, Fz - ActiveConfiguration.SuspensionDamping * hubVel.z);
-            ChassisHooks.ApplyForceAtPoint(Vec3{0.0f, 0.0f, verticalForce} + planar + aeroDownVec, patch);
+            // Side-on wall reaction (kerb faces): the horizontal part of the contact normal force goes to the body too.
+            const Vec3 wallReaction{reaction.NormalForce.x, reaction.NormalForce.y, 0.0f};
+            ChassisHooks.ApplyForceAtPoint(Vec3{0.0f, 0.0f, verticalForce} + planar + aeroDownVec + wallReaction, patch);
         }
 
         // ── Wheel spin ODE:  Iw·ω̇ = T_drive − Fx·Reff − T_brake·sign(ω) − T_roll ───────────────────────────────────

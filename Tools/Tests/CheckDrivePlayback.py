@@ -40,11 +40,19 @@ def Link(Name, Sources, Arguments=()):
     return Output
 
 
-Link("DeploymentPointChecks", ["../VisualProof/DeploymentPoint/DeploymentPointChecks.cpp"])
+# The DeploymentPoint check source is not in this checkout. Skip it visibly rather than failing the whole gate on a
+#    dangling path (it used to resolve to ../VisualProof, outside the repository root).
+DeploymentPointSource = Root / "Tools/VisualProof/DeploymentPoint/DeploymentPointChecks.cpp"
+if DeploymentPointSource.exists():
+    Link("DeploymentPointChecks", ["Tools/VisualProof/DeploymentPoint/DeploymentPointChecks.cpp"])
+else:
+    print("[DrivePlayback] SKIP DeploymentPointChecks: source absent from this checkout (Tools/VisualProof/DeploymentPoint)")
 
 Simulation = json.loads((Root / "Projects/Project-Drive/Build/DriveSimulationSources.json").read_text())["sources"]
 Link("DriveInterchangeChecks", [*Simulation, "Projects/Project-Drive/Source/DriveInterchangeChecks.cpp"])
 Link("DriveSpawnChecks", [*Simulation, "Projects/Project-Drive/Source/DriveSpawnChecks.cpp"])
+# Kerb / bump regression on the real course surface: a kerb strike must not launch, roll, or spin the car.
+Link("DriveKerbChecks", [*Simulation, "Projects/Project-Drive/Source/DriveKerbChecks.cpp"])
 Content = json.loads((Root / "Projects/Project-Drive/Build/DriveContentSources.json").read_text())["sources"]
 Scene = Scratch / "DriveCourse.gltf"
 # The file is generated within this check's own scratch directory, never over the user's authored scene.

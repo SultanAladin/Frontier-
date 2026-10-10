@@ -56,3 +56,6 @@ _AgentScratch/
 **/ThirdParty/
 *.local.*
 .env
+
+# Visual proof PNGs written by Tools/Build/CheckSolidArc.sh (generated; never committed)
+/Proofs/

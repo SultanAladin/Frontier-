@@ -283,6 +283,10 @@ struct SoftTyreResidual
 struct TyreReaction
 {
     Vec3  Force{};        // Fx (long), Fy (lat, along −spin-axis dir), Fz (vertical)
+    // Sum of the CONTACT NORMAL forces only (ground AND kerb/wall faces), friction excluded. Its horizontal part is the
+    //    side-on reaction of a tilted surface or a vertical wall. Before this was exposed, the chassis only received Fz,
+    //    so that horizontal reaction never reached the body. Friction stays with the slip model, so nothing is doubled.
+    Vec3  NormalForce{};
     float Mz = 0.0f;      // self-aligning torque about vertical through the contact centre
     uint32_t ContactCount = 0u;
     Vec3  PatchCentre{};  // world centre of the contact patch

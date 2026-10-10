@@ -143,10 +143,17 @@ inline void CourseSurface(float x, float y, float z, float& outX, float& outY, f
     const float Base = CourseHeight(x, y);
 
     const bool InSpan  = (x >= K::NearX && x <= K::FarX);
-    const float KerbTop = Base + K::Height;
+    // The kerb top is the drawn surface itself. CourseHeight() already reports K::Height over the footprint, so the top
+    //    is K::Height, NOT Base + K::Height: adding it again put the physical top at 0.24 m while the renderer drew 0.12 m.
+    //    A tyre riding up or sliding along the face was then shoved up by the 12 cm difference (the launch-and-tumble).
+    const float KerbTop = K::Height;
     if (InSpan && y >= K::CentreY - 0.5f && y <= K::CentreY + K::Depth + 0.5f && z < KerbTop)
     {
-        // Distance to each face of the kerb box, choosing the smallest push-out.
+        // The kerb is a solid block from the road (z = 0) up to KerbTop. A face point must lie ON that block, so its
+        //    height is clamped to [0, KerbTop]. Left unclamped, a node that had sunk below the road inside the footprint
+        //    was answered with an underground face point: the wall push never lifted it out, the nearest-face choice
+        //    then flipped to the top, and the node was driven up through the solid kerb (the 20+ kN launch spike).
+        const float ZFace = z < 0.0f ? 0.0f : z;
         const float DistInner = y - K::CentreY;                 // negative = outside, on the track side
         const float DistOuter = (K::CentreY + K::Depth) - y;
         const float DistTop   = KerbTop - z;
@@ -157,8 +164,8 @@ inline void CourseSurface(float x, float y, float z, float& outX, float& outY, f
             if (DistTop <= DistInner && DistTop <= DistOuter)
             { outX = x; outY = y; outZ = KerbTop; nx = 0.0f; ny = 0.0f; nz = 1.0f; return; }
             if (DistInner <= DistOuter)
-            { outX = x; outY = K::CentreY; outZ = z; nx = 0.0f; ny = -1.0f; nz = 0.0f; return; }
-            outX = x; outY = K::CentreY + K::Depth; outZ = z; nx = 0.0f; ny = 1.0f; nz = 0.0f; return;
+            { outX = x; outY = K::CentreY; outZ = ZFace; nx = 0.0f; ny = -1.0f; nz = 0.0f; return; }
+            outX = x; outY = K::CentreY + K::Depth; outZ = ZFace; nx = 0.0f; ny = 1.0f; nz = 0.0f; return;
         }
     }
 

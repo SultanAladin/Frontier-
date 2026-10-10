@@ -72,10 +72,21 @@ for TEST in Cowl Facet Body RoofRepair Guide; do
     "$CXX_BIN" "${FLAGS[@]}" -c "$SRC/Verification/${TEST}Verification.cpp" -o "$WORK/obj/${TEST}Verification.o"
     "$CXX_BIN" "${OBJECTS[@]}" "$WORK/obj/${TEST}Verification.o" -o "$WORK/${TEST}Verification"
 done
-"$WORK/CowlVerification" "$LIGER/Liger_Front_Cowl.arc"
-"$WORK/CowlVerification" "$LIGER/Liger_Front_Cowl_Consolidated.arc" "$WORK/cowl-consolidated.f64" "$LIGER/Liger_Front_Cowl_Consolidated.queries"
-"$WORK/FacetVerification" "$LIGER/Liger_Roof_Glass_Frame.arc" "$LIGER/Liger_Roof_Glass_Frame.triangles" "$LIGER/Liger_Exterior_Partial.arc"
-"$WORK/BodyVerification" "$LIGER/Liger_Main_Body.arc" "$LIGER/Liger_Main_Body.queries" "$WORK/main-body.f64" "$LIGER/Liger_Reconstruction.arc"
+# The Liger journals are proprietary vehicle content and are not committed to every checkout (the Windows
+# gate CheckMsvcSolidArc.py skips them the same way). Missing content is a SKIP, never a failure: the kernel,
+# raster, interaction and document proofs above and below still run.
+if compgen -G "$LIGER/*.arc" >/dev/null; then
+    LIGER_PRESENT=1
+else
+    LIGER_PRESENT=0
+    echo "[SolidArc] SKIP Liger replay: $LIGER has no .arc journals in this checkout (content not committed)"
+fi
+if [[ "$LIGER_PRESENT" == 1 ]]; then
+    "$WORK/CowlVerification" "$LIGER/Liger_Front_Cowl.arc"
+    "$WORK/CowlVerification" "$LIGER/Liger_Front_Cowl_Consolidated.arc" "$WORK/cowl-consolidated.f64" "$LIGER/Liger_Front_Cowl_Consolidated.queries"
+    "$WORK/FacetVerification" "$LIGER/Liger_Roof_Glass_Frame.arc" "$LIGER/Liger_Roof_Glass_Frame.triangles" "$LIGER/Liger_Exterior_Partial.arc"
+    "$WORK/BodyVerification" "$LIGER/Liger_Main_Body.arc" "$LIGER/Liger_Main_Body.queries" "$WORK/main-body.f64" "$LIGER/Liger_Reconstruction.arc"
+fi
 
 for TEST in SurfaceOffset Feature Document FaceLoft Tweak DirectModeling ChamferLoop TransformTweak CurvedTweak ConcaveChamfer ConeChamfer ConnectedFaceLoft GeneralConnectedFaceLoft GeneralCurvedChamfer PlaneConeChamfer CylinderConeChamfer PartialCurvedChamfer SectorCurvedChamfer PartialPlaneConeChamfer PartialConeCylinderChamfer PartialConeConeChamfer ApexPlaneConeChamfer PartialApexPlaneConeChamfer PartialPlaneConeFillet CylinderConeFillet ConeConeFillet PartialConeConeFillet PartialConeCylinderFillet ArbitraryNonPlanarEdgeLoop Phase33VariableRadius VariableRadiusCornerFillet VariableSetbackCornerFillet NonlinearVariableRadiusCorner G2PlanarCorner NonlinearVariableSetbackCorner UnequalSetbackCorner NonlinearUnequalSetbackCorner PartialEdgeFillet ConeApexFillet QuadraticPartialEdgeFillet PartialConeApexFillet ObliquePlanarCornerFillet ObliquePartialEdgeFillet ObliqueQuadraticPartialEdgeFillet ObliqueQuadraticEdgeFillet G2RollingBall ObliqueG2RollingBall VariableG2RollingBall ObliqueVariableG2RollingBall EligibleG2EdgeDispatch EligibleObliqueG2EdgeDispatch EligibleVariableG2EdgeDispatch EligibleObliqueVariableG2EdgeDispatch ConeApexVertexDispatch PartialConeApexVertexDispatch GeneralPartialConeApexVertexDispatch ReflexPartialConeApexVertexDispatch ConeApexChamfer PartialConeApexVertexChamfer UnequalConeApexChamfer UnequalSetbackBiconeApexChamfer UnequalConeApexFillet EqualRadiusBiconeApexFillet PartialUnequalBiconeApexChamfer PartialUnequalBiconeApexFillet PartialEqualRadiusBiconeApexFillet PartialEqualRadiusBiconeApexChamfer EqualRadiusBiconeApexChamfer PartialUnequalBiconeUnequalSetbackChamfer PartialEqualRadiusBiconeUnequalSetbackChamfer EqualRadiusBiconeUnequalSetbackChamfer HalfTurnEqualRadiusBiconeUnequalSetbackChamfer HalfTurnUnequalRadiusBiconeUnequalSetbackChamfer HalfTurnEqualRadiusBiconeApexFillet HalfTurnUnequalRadiusBiconeApexFillet HalfTurnEqualRadiusBiconeApexChamfer HalfTurnUnequalRadiusBiconeApexChamfer ReflexUnequalRadiusBiconeApexChamfer ExtrudedConvexPrismShell PentagonalPrismFaceOffset HoledPrismFaceOffset EllipticalPrismFaceOffset ObliqueTriangularPrismFaceOffset TriangularPrismDraft TwinHoledPrismFaceOffset ConcavePrismFaceOffset ConcavePrismShell ConcavePrismDraft CircularSectorPrismFaceOffset RevolvedAnnularPrismFaceOffset TorusFaceOffset SphereFaceOffset EllipticalAnnularPrismFaceOffset RectangularHoledAndAnnularSectorFaceOffset NativeCylinderAndConeCapFaceOffset TriangularAndHexagonalPrismFaceOffset TwinRectangularAndTripleCircularHoledFaceOffset TwinEllipticalAndEllipticalCircularHoledFaceOffset TripleEllipticalAndDoubleEllipticalCircularHoledFaceOffset HexagonalEllipticalHoledAndConcaveTwinCircularHoledFaceOffset CircularBoredEllipticalAndPentagonalTwinCircularHoledFaceOffset RectangularSlotHoledAndSlotProfileBoredFaceOffset CircularBoredRoundedRectangularAndRoundedRectangularHoledFaceOffset CylinderChamfer CylinderFillet PlaneCylinderFillet TangentChainFillet OpenChainFillet MultiEdgeFillet SectorEndpointFillet CornerFillet PlaneConeFillet FaceEdit; do
     TEST_OBJ="$WORK/obj/${TEST}Verification.o"
@@ -84,12 +95,14 @@ for TEST in SurfaceOffset Feature Document FaceLoft Tweak DirectModeling Chamfer
     "$WORK/${TEST}Verification"
 done
 
-"$WORK/FeatureVerification" "$LIGER/Liger_Feature_Aligned.arc" "$WORK/contour-edges.json" --roundtrip
-"$WORK/RoofRepairVerification" "$LIGER/Liger_Feature_Aligned.arc" "$LIGER/Liger_Roof_Repair.arc"
-"$WORK/GuideVerification" "$LIGER/Liger_Roof_Repair.arc" "$LIGER/Liger_Guide_Candidates.arc"
-"$WORK/GuideVerification" --consolidated "$LIGER/Liger_Roof_Repair.arc" "$LIGER/Liger_Consolidated.arc"
-"$WORK/GuideVerification" --layout "$LIGER/Liger_Consolidated.arc" "$LIGER/Liger_Layout.arc"
-"$WORK/SurfaceOffsetVerification" "$LIGER/Liger_Surface_Offset.arc" "$PROOF_FOLDER/LigerSurfaceOffset"
+if [[ "$LIGER_PRESENT" == 1 ]]; then
+    "$WORK/FeatureVerification" "$LIGER/Liger_Feature_Aligned.arc" "$WORK/contour-edges.json" --roundtrip
+    "$WORK/RoofRepairVerification" "$LIGER/Liger_Feature_Aligned.arc" "$LIGER/Liger_Roof_Repair.arc"
+    "$WORK/GuideVerification" "$LIGER/Liger_Roof_Repair.arc" "$LIGER/Liger_Guide_Candidates.arc"
+    "$WORK/GuideVerification" --consolidated "$LIGER/Liger_Roof_Repair.arc" "$LIGER/Liger_Consolidated.arc"
+    "$WORK/GuideVerification" --layout "$LIGER/Liger_Consolidated.arc" "$LIGER/Liger_Layout.arc"
+    "$WORK/SurfaceOffsetVerification" "$LIGER/Liger_Surface_Offset.arc" "$PROOF_FOLDER/LigerSurfaceOffset"
+fi
 
 # Keep the focused gate's normal scratch behaviour, but make the nine newly covered baseline
 # artifacts and the current bounded-slice proof durable. Their verifier names are unchanged;
