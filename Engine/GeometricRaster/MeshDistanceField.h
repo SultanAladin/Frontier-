@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -107,8 +108,16 @@ inline void ClosestOnTriangle(const float P[3], const float A[3], const float B[
 // Exact signed distance at every grid node, brute force over triangles. Runs in the import tool only (cost is
 // Resolution^3 x triangles). Sign comes from the closest triangle's face normal, the same convention the device construct uses:
 // correct for closed, consistently wound meshes, and the sign can flip for points that sit exactly on an edge.
+// Number of bakes run in this process. The runtime loader never bakes, and the proof checks this counter stays put at runtime.
+inline uint64_t& BakeCallCount() noexcept
+{
+    static uint64_t Count = 0u;
+    return Count;
+}
+
 inline Field Bake(const std::vector<Triangle>& Tris, uint32_t Resolution, float PadFraction, uint64_t ContentHash)
 {
+    ++BakeCallCount();
     Field F;
     F.H.Resolution  = Resolution;
     F.H.ContentHash = ContentHash;
@@ -188,6 +197,28 @@ inline uint64_t Fnv1a(const void* Data, size_t Bytes, uint64_t Seed = 1469598103
     const unsigned char* P = static_cast<const unsigned char*>(Data);
     for (size_t I = 0; I < Bytes; ++I) { H ^= P[I]; H *= 1099511628211ull; }
     return H;
+}
+
+// Hash that names a cache entry: source bytes, resolution, padding and format version. Any change to any input changes it.
+inline uint64_t SourceHash(const std::string& Bytes, uint32_t Resolution, float Padding) noexcept
+{
+    uint64_t H = Fnv1a(Bytes.data(), Bytes.size());
+    H = Fnv1a(&Resolution, sizeof(Resolution), H);
+    H = Fnv1a(&Padding, sizeof(Padding), H);
+    H = Fnv1a(&FileVersion, sizeof(FileVersion), H);
+    return H;
+}
+
+inline bool ReadAll(const std::string& Path, std::string& Out)
+{
+    std::FILE* File = std::fopen(Path.c_str(), "rb");
+    if (!File) return false;
+    Out.clear();
+    char Buffer[4096];
+    size_t Read;
+    while ((Read = std::fread(Buffer, 1, sizeof(Buffer), File)) > 0) Out.append(Buffer, Read);
+    std::fclose(File);
+    return true;
 }
 
 // Reads a Wavefront OBJ: positive or negative 'v' indices, fan triangulation of 'f'. Returns false on unreadable input.
@@ -418,5 +449,107 @@ inline uint64_t ExposedCellsOnShift(const ClipLevel& Previous, const ClipLevel& 
         Kept *= uint64_t(int64_t(Next.Dim) - Magnitude);
     }
     return Total - Kept;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                             IMPORT (BAKE) AND RUNTIME (LOAD ONLY)
+//------------------------------------------------------------------------------------------------------------------------
+// The import step bakes every .obj under a content root and writes sdf_index.tsv in the cache directory:
+//     <relative source path> TAB <hash, 16 hex digits> TAB <cache file name> TAB <resolution>
+// The runtime step only reads that index. It recomputes the source hash and refuses any entry that does not match, so a stale
+// or missing field is reported, never silently rebuilt.
+
+inline constexpr const char* IndexName = "sdf_index.tsv";
+
+inline std::string HexHash(uint64_t Hash)
+{
+    char Text[32];
+    std::snprintf(Text, sizeof(Text), "%016llx", static_cast<unsigned long long>(Hash));
+    return Text;
+}
+
+// Bake one source file into CacheDir (cache hit skips the bake). Returns the entry hash through Out.
+inline bool BakeSource(const std::string& SourcePath, const std::string& CacheDir, uint32_t Resolution, float Padding,
+                       uint64_t& OutHash, std::string& OutFileName, bool& OutHit, std::string& Error)
+{
+    std::string Bytes;
+    std::vector<Triangle> Tris;
+    if (!LoadObj(SourcePath, Tris, &Bytes)) { Error = "cannot read triangles from " + SourcePath; return false; }
+    OutHash = SourceHash(Bytes, Resolution, Padding);
+    const std::string Stem = std::filesystem::path(SourcePath).stem().string();
+    OutFileName = Stem + "-" + HexHash(OutHash) + ".fsdf";
+    const std::filesystem::path Target = std::filesystem::path(CacheDir) / OutFileName;
+    std::filesystem::create_directories(CacheDir);
+    Field Cached;
+    OutHit = std::filesystem::exists(Target) && Load(Target.string(), Cached) && Cached.H.ContentHash == OutHash;
+    if (OutHit) return true;
+    Field F = Bake(Tris, Resolution, Padding, OutHash);
+    if (!Save(F, Target.string())) { Error = "cannot write " + Target.string(); return false; }
+    return true;
+}
+
+// Import step: every .obj under Root. Writes the index. Returns the number of entries, or -1 on error.
+inline int BakeDirectory(const std::string& Root, const std::string& CacheDir, uint32_t Resolution, float Padding,
+                         uint32_t* OutHits = nullptr, std::string* Error = nullptr)
+{
+    namespace fs = std::filesystem;
+    std::vector<fs::path> Sources;
+    for (const auto& Entry : fs::recursive_directory_iterator(Root))
+        if (Entry.is_regular_file() && Entry.path().extension() == ".obj") Sources.push_back(Entry.path());
+    std::sort(Sources.begin(), Sources.end());
+    std::string Index;
+    uint32_t Hits = 0u;
+    for (const fs::path& Source : Sources)
+    {
+        uint64_t Hash = 0u;
+        std::string FileName, Failure;
+        bool Hit = false;
+        if (!BakeSource(Source.string(), CacheDir, Resolution, Padding, Hash, FileName, Hit, Failure))
+        {
+            if (Error) *Error = Failure;
+            return -1;
+        }
+        Hits += Hit ? 1u : 0u;
+        const std::string Relative = fs::relative(Source, Root).generic_string();
+        Index += Relative + "\t" + HexHash(Hash) + "\t" + FileName + "\t" + std::to_string(Resolution) + "\n";
+    }
+    std::FILE* File = std::fopen((fs::path(CacheDir) / IndexName).string().c_str(), "wb");
+    if (!File) { if (Error) *Error = "cannot write index"; return -1; }
+    std::fwrite(Index.data(), 1, Index.size(), File);
+    std::fclose(File);
+    if (OutHits) *OutHits = Hits;
+    return int(Sources.size());
+}
+
+enum class RuntimeStatus { Loaded, NoIndexEntry, Stale, Missing };
+
+// Runtime step: load only. Never bakes. SourceRelative is the key written by BakeDirectory.
+inline RuntimeStatus RuntimeLoad(const std::string& CacheDir, const std::string& SourceRoot, const std::string& SourceRelative,
+                                 uint32_t Resolution, float Padding, Field& Out, std::string& Reason)
+{
+    namespace fs = std::filesystem;
+    std::string IndexText;
+    if (!ReadAll((fs::path(CacheDir) / IndexName).string(), IndexText)) { Reason = "no sdf index: run the import step"; return RuntimeStatus::NoIndexEntry; }
+    std::string Found;
+    size_t Pos = 0;
+    while (Pos < IndexText.size())
+    {
+        size_t End = IndexText.find('\n', Pos);
+        if (End == std::string::npos) End = IndexText.size();
+        const std::string Line = IndexText.substr(Pos, End - Pos);
+        Pos = End + 1;
+        if (Line.compare(0, SourceRelative.size(), SourceRelative) == 0 && Line.size() > SourceRelative.size() &&
+            Line[SourceRelative.size()] == '\t') { Found = Line; break; }
+    }
+    if (Found.empty()) { Reason = "no SDF for " + SourceRelative + ": run the import step"; return RuntimeStatus::NoIndexEntry; }
+    const size_t T1 = Found.find('\t'), T2 = Found.find('\t', T1 + 1);
+    const std::string HashText = Found.substr(T1 + 1, T2 - T1 - 1);
+    const std::string FileName = Found.substr(T2 + 1, Found.find('\t', T2 + 1) - T2 - 1);
+
+    std::string Bytes;
+    if (!ReadAll((fs::path(SourceRoot) / SourceRelative).string(), Bytes)) { Reason = "source missing: " + SourceRelative; return RuntimeStatus::Missing; }
+    if (HexHash(SourceHash(Bytes, Resolution, Padding)) != HashText) { Reason = "stale SDF for " + SourceRelative + ": source changed since import"; return RuntimeStatus::Stale; }
+    if (!Load((fs::path(CacheDir) / FileName).string(), Out)) { Reason = "cannot read " + FileName; return RuntimeStatus::Missing; }
+    return RuntimeStatus::Loaded;
 }
 } // namespace MeshDistanceField

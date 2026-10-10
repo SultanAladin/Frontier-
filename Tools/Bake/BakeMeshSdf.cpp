@@ -1,60 +1,56 @@
 //============================================================================================================================================
 //                                                      BAKEMESHSDF.CPP
 //============================================================================================================================================
-// 📦 Import-time bake: one .fsdf signed distance field per unique mesh, named by a hash of its source bytes and resolution.
-//    A cache hit skips the bake. Nothing in the engine calls this at runtime.
+// 📦 Import step: bakes a signed distance field per unique mesh, cached by content hash. The engine never calls this at runtime.
 //
-// Usage: BakeMeshSdf <mesh.obj> <output directory> [resolution=32] [padding=0.1]
+// Usage:
+//   BakeMeshSdf <mesh.obj> <cache directory> [resolution=32] [padding=0.1]
+//   BakeMeshSdf --dir <content root> <cache directory> [resolution=32] [padding=0.1]     (writes sdf_index.tsv)
 
 #include "../../Engine/GeometricRaster/MeshDistanceField.h"
 
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
 #include <string>
 
 int main(int Argc, char** Argv)
 {
     if (Argc < 3)
     {
-        std::fprintf(stderr, "usage: BakeMeshSdf <mesh.obj> <output directory> [resolution=32] [padding=0.1]\n");
+        std::fprintf(stderr, "usage: BakeMeshSdf <mesh.obj> <cache dir> [resolution=32] [padding=0.1]\n"
+                             "       BakeMeshSdf --dir <content root> <cache dir> [resolution=32] [padding=0.1]\n");
         return 2;
     }
-    const std::string Source    = Argv[1];
-    const std::string OutputDir = Argv[2];
-    const uint32_t    Resolution = Argc > 3 ? uint32_t(std::atoi(Argv[3])) : 32u;
-    const float       Padding    = Argc > 4 ? float(std::atof(Argv[4])) : 0.1f;
+    const bool DirectoryMode = std::string(Argv[1]) == "--dir";
+    const int  Shift         = DirectoryMode ? 1 : 0;
+    if (Argc < 3 + Shift) { std::fprintf(stderr, "missing cache directory\n"); return 2; }
+    const std::string Input    = Argv[1 + Shift];
+    const std::string CacheDir = Argv[2 + Shift];
+    const uint32_t    Resolution = Argc > 3 + Shift ? uint32_t(std::atoi(Argv[3 + Shift])) : 32u;
+    const float       Padding    = Argc > 4 + Shift ? float(std::atof(Argv[4 + Shift])) : 0.1f;
     if (Resolution < 4u || Resolution > 256u) { std::fprintf(stderr, "resolution must be 4..256\n"); return 2; }
 
-    std::vector<MeshDistanceField::Triangle> Tris;
-    std::string Bytes;
-    if (!MeshDistanceField::LoadObj(Source, Tris, &Bytes)) { std::fprintf(stderr, "cannot read triangles from %s\n", Source.c_str()); return 1; }
-
-    // Hash over source bytes, resolution and padding, so any change to any input yields a new cache name.
-    uint64_t Hash = MeshDistanceField::Fnv1a(Bytes.data(), Bytes.size());
-    Hash = MeshDistanceField::Fnv1a(&Resolution, sizeof(Resolution), Hash);
-    Hash = MeshDistanceField::Fnv1a(&Padding, sizeof(Padding), Hash);
-    Hash = MeshDistanceField::Fnv1a(&MeshDistanceField::FileVersion, sizeof(MeshDistanceField::FileVersion), Hash);
-
-    const std::filesystem::path Stem = std::filesystem::path(Source).stem();
-    char HashText[32];
-    std::snprintf(HashText, sizeof(HashText), "%016llx", static_cast<unsigned long long>(Hash));
-    const std::filesystem::path Target = std::filesystem::path(OutputDir) / (Stem.string() + "-" + HashText + ".fsdf");
-    std::filesystem::create_directories(OutputDir);
-
-    MeshDistanceField::Field Cached;
-    if (std::filesystem::exists(Target) && MeshDistanceField::Load(Target.string(), Cached) && Cached.H.ContentHash == Hash)
+    const auto T0 = std::chrono::steady_clock::now();
+    if (DirectoryMode)
     {
-        std::printf("[BakeMeshSdf] cache hit  %s (no bake)\n", Target.string().c_str());
+        uint32_t Hits = 0u;
+        std::string Error;
+        const int Count = MeshDistanceField::BakeDirectory(Input, CacheDir, Resolution, Padding, &Hits, &Error);
+        if (Count < 0) { std::fprintf(stderr, "import failed: %s\n", Error.c_str()); return 1; }
+        std::printf("[BakeMeshSdf] %d mesh(es) indexed, %u cache hit(s), %u baked, %.3f s (import time)\n", Count, Hits,
+                    uint32_t(Count) - Hits, std::chrono::duration<double>(std::chrono::steady_clock::now() - T0).count());
         return 0;
     }
-
-    const auto T0 = std::chrono::steady_clock::now();
-    MeshDistanceField::Field F = MeshDistanceField::Bake(Tris, Resolution, Padding, Hash);
-    const double Seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - T0).count();
-    if (!MeshDistanceField::Save(F, Target.string())) { std::fprintf(stderr, "cannot write %s\n", Target.string().c_str()); return 1; }
-    std::printf("[BakeMeshSdf] baked      %s  triangles %zu  resolution %u  %.3f s (import time, once per hash)\n",
-                Target.string().c_str(), Tris.size(), Resolution, Seconds);
+    uint64_t Hash = 0u;
+    std::string FileName, Error;
+    bool Hit = false;
+    if (!MeshDistanceField::BakeSource(Input, CacheDir, Resolution, Padding, Hash, FileName, Hit, Error))
+    {
+        std::fprintf(stderr, "%s\n", Error.c_str());
+        return 1;
+    }
+    std::printf("[BakeMeshSdf] %s %s/%s (%.3f s, import time)\n", Hit ? "cache hit" : "baked    ", CacheDir.c_str(), FileName.c_str(),
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - T0).count());
     return 0;
 }

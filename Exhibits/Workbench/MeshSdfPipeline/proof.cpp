@@ -334,6 +334,57 @@ int main()
     std::snprintf(CarDetail, sizeof(CarDetail), "(%llu frames with the car moving and no camera shift)", (unsigned long long)CarOnlyFrames);
     Check(CarOnlyFrames > 2000 && StaticWritesOnCarOnly == 0, "moving car never writes the static field", CarDetail);
 
+    // ---------------- Part C: import step writes an index; runtime only loads ----------------
+    std::printf("\n== Part C: import index, cache hits, stale and missing detection, runtime never bakes\n");
+    {
+        namespace fs = std::filesystem;
+        const fs::path Content = Out / "content";
+        const fs::path Cache = Out / "sdf_cache";
+        fs::remove_all(Content);
+        fs::remove_all(Cache);
+        fs::create_directories(Content / "sub");
+        fs::copy_file(ObjPath, Content / "a.obj");
+        fs::copy_file(ObjPath, Content / "sub" / "b.obj");
+        fs::copy_file(ObjPath, Content / "c.obj");
+
+        std::string Error;
+        uint32_t Hits = 99u;
+        const uint64_t Before = MeshDistanceField::BakeCallCount();
+        const int Indexed = MeshDistanceField::BakeDirectory(Content.string(), Cache.string(), BakeN, 0.1f, &Hits, &Error);
+        const uint64_t FirstBakes = MeshDistanceField::BakeCallCount() - Before;
+        char Detail[96];
+        std::snprintf(Detail, sizeof(Detail), "(indexed %d, baked %llu)", Indexed, (unsigned long long)FirstBakes);
+        Check(Indexed == 3 && Hits == 0u && FirstBakes == 3u, "import bakes each of the 3 meshes once and writes the index", Detail);
+
+        const uint64_t Second = MeshDistanceField::BakeCallCount();
+        const int Again = MeshDistanceField::BakeDirectory(Content.string(), Cache.string(), BakeN, 0.1f, &Hits, &Error);
+        Check(Again == 3 && Hits == 3u && MeshDistanceField::BakeCallCount() == Second, "second import is all cache hits (no bake)");
+
+        // Runtime: load each mesh. No bake may run.
+        const uint64_t RuntimeStart = MeshDistanceField::BakeCallCount();
+        MeshDistanceField::Field Loaded;
+        std::string Reason;
+        const auto StatusA = MeshDistanceField::RuntimeLoad(Cache.string(), Content.string(), "a.obj", BakeN, 0.1f, Loaded, Reason);
+        Check(StatusA == MeshDistanceField::RuntimeStatus::Loaded && Loaded.Distance == Cube.Distance,
+              "runtime loads a.obj from the index, identical to the imported field");
+
+        // Edit c.obj after import. Its hash no longer matches, so runtime must refuse it, not rebake it.
+        {
+            std::FILE* File = std::fopen((Content / "c.obj").string().c_str(), "ab");
+            std::fprintf(File, "# edited after import\n");
+            std::fclose(File);
+        }
+        const auto StatusC = MeshDistanceField::RuntimeLoad(Cache.string(), Content.string(), "c.obj", BakeN, 0.1f, Loaded, Reason);
+        Check(StatusC == MeshDistanceField::RuntimeStatus::Stale && Reason.find("stale") != std::string::npos,
+              "edited source is reported stale, not silently rebuilt", ("(" + Reason + ")").c_str());
+
+        const auto StatusD = MeshDistanceField::RuntimeLoad(Cache.string(), Content.string(), "d.obj", BakeN, 0.1f, Loaded, Reason);
+        Check(StatusD == MeshDistanceField::RuntimeStatus::NoIndexEntry && Reason.find("import") != std::string::npos,
+              "mesh with no import entry is reported, not baked");
+
+        Check(MeshDistanceField::BakeCallCount() == RuntimeStart, "runtime loads performed zero bakes (counter unchanged)");
+    }
+
     std::printf("%s - %d failure(s)\n", Failures ? "RED" : "GREEN", Failures);
     return Failures ? 1 : 0;
 }
