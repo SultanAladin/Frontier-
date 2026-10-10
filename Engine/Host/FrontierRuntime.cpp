@@ -2920,9 +2920,13 @@ int Frontier::RunFrontierRuntime(
         if (Surface.QueryFrameFailed())
         {
             char Failure[256];
-            std::snprintf(Failure, sizeof(Failure), "%s failed with VkResult %d%s; halting without recycling GPU sync objects.",
-                Surface.QueryFrameFailureOperation(), Surface.QueryFrameFailureCode(),
-                Surface.QueryFrameFailureCode() == -4 ? " (VK_ERROR_DEVICE_LOST)" : "");
+            if (Surface.QueryFrameFailureCode() != 0)
+                std::snprintf(Failure, sizeof(Failure), "%s failed with VkResult %d%s; halting without recycling GPU sync objects.",
+                    Surface.QueryFrameFailureOperation(), Surface.QueryFrameFailureCode(),
+                    Surface.QueryFrameFailureCode() == -4 ? " (VK_ERROR_DEVICE_LOST)" : "");
+            else
+                std::snprintf(Failure, sizeof(Failure), "%s refused (underlying VkResult not reported); halting without recycling GPU sync objects.",
+                    Surface.QueryFrameFailureOperation());
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Fatal, "VulkanFrame", Failure);
             Logger.FlushSink();
             break;

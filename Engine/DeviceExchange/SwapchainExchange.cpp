@@ -3329,6 +3329,14 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
         FrameFailureOperation = Operation;
         FrameFailureCode = static_cast<int32_t>(Result);
     };
+    auto FailedStage = [&](const char* Stage) noexcept
+    {
+        std::cerr << "[SwapchainExchange] " << Stage
+                  << " refused (underlying Vulkan VkResult not returned by this stage). Rendering stopped.\n";
+        FrameFailed = true;
+        FrameFailureOperation = Stage;
+        FrameFailureCode = 0; // distinguish an opaque stage failure from an actual VkResult
+    };
     const VkResult CycleWait = vkWaitForFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot], VK_TRUE, UINT64_MAX);
     if (CycleWait != VK_SUCCESS) { Failed("vkWaitForFences(cycle)", CycleWait); return; }
 
@@ -3340,7 +3348,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     if (ResizePending)
     {
         ResizePending = false;
-        if (!RebuildSwapchain()) Failed("RebuildSwapchain(resize)", VK_ERROR_INITIALIZATION_FAILED);
+        if (!RebuildSwapchain()) FailedStage("RebuildSwapchain(resize)");
         return;
     }
 
@@ -3357,7 +3365,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     // An out-of-date acquire does not signal, so rebuilding here is safe.
     if (AcquireResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        if (!RebuildSwapchain()) Failed("RebuildSwapchain(acquire)", VK_ERROR_INITIALIZATION_FAILED);
+        if (!RebuildSwapchain()) FailedStage("RebuildSwapchain(acquire)");
         return;
     }
 
@@ -3410,7 +3418,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     if (PresentResult == VK_ERROR_OUT_OF_DATE_KHR || PresentResult == VK_SUBOPTIMAL_KHR || ResizePending)
     {
         ResizePending = false;
-        if (!RebuildSwapchain()) { Failed("RebuildSwapchain(present)", VK_ERROR_INITIALIZATION_FAILED); return; }
+        if (!RebuildSwapchain()) { FailedStage("RebuildSwapchain(present)"); return; }
     }
     else if (PresentResult != VK_SUCCESS)
     {
