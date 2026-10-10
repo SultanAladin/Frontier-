@@ -79,3 +79,21 @@ input[type=range]::-webkit-slider-thumb { width: 11px; height: 11px; background:
   .layer-row { grid-template-columns: 1fr 1fr; }
   .layer-row input:first-of-type { grid-column: 1 / -1; }
 }
+
+/* ---- Round 2: driveable car, start control, road view, load ---- */
+.start-btn { display: inline-flex; align-items: center; gap: 8px; background: #e0e0e0; color: #151515; border: 0; border-radius: 25px; padding: 10px 16px; font-size: 12px; font-weight: 500; }
+.start-btn:hover { background: #ffffff; color: #000; }
+.start-btn:disabled { opacity: .5; cursor: default; }
+.error-line { font-size: 11px; color: #d6938d; margin: 0 0 14px; }
+.focus-line { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e6b07d; background: #241f1a; border: 1px solid #4a3a2a; border-radius: 10px; padding: 9px 12px; margin-bottom: 16px; }
+.focus-line.ok { color: #a9a9a9; background: #1c1c1c; border-color: #303030; }
+
+.road-card { overflow: hidden; }
+.road-view { position: relative; height: 210px; border-radius: 14px; background: linear-gradient(#1a1d22, #15171a); border: 1px solid #2a2a2a; overflow: hidden; }
+.road-tilt { position: absolute; left: -30%; right: -30%; top: 118px; height: 46px; transform-origin: 50% 50%; transition: transform .3s ease; }
+.road-lane { position: absolute; inset: 0; background: #2b2b2b; border-top: 3px solid #8f8f8f; border-bottom: 3px solid #8f8f8f; background-image: repeating-linear-gradient(90deg, #d8d8d8 0 36px, transparent 36px 80px); background-size: 80px 100%; background-repeat: repeat-x; background-position: 0 50%; }
+.road-car { position: absolute; left: 50%; top: 22px; width: 300px; margin-left: -150px; transform-origin: 50% 90%; transition: transform .3s ease; }
+
+.drive-card .load-bar { height: 8px; background: #151515; border: 1px solid #2c2c2c; border-radius: 6px; overflow: hidden; margin-top: 12px; }
+.drive-card .load-bar i { display: block; height: 100%; background: linear-gradient(90deg, #6f6f6f, #e2e2e2); transition: width .08s linear; }
+.small-pill.warn { color: #e6b07d; }

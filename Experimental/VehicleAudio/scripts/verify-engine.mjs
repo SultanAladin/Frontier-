@@ -160,6 +160,50 @@ for (const car of CARS) {
   check('ignition off: engine stops and output is silent', core.engineState === 'off' && tailRms < 1e-3, `state=${core.engineState} tailRms=${tailRms.toExponential(2)}`);
 }
 
+// 8b. Vehicle dynamics: the car drives, responds to grade, brakes to a stop and never reverses.
+{
+  const runCar = (car, seconds, plan) => {
+    const core = new EngineCore(SR, car);
+    const n = Math.round(seconds * SR);
+    const L = new Float32Array(CONTROL_BLOCK), R = new Float32Array(CONTROL_BLOCK);
+    let minSpeed = Infinity;
+    for (let i = 0; i < n; i += CONTROL_BLOCK) {
+      const inp = plan(i / SR, core);
+      if (inp) core.setInput(inp);
+      core.process(L, R, CONTROL_BLOCK);
+      minSpeed = Math.min(minSpeed, core.speed);
+    }
+    return { core, minSpeed };
+  };
+  const wot = (grade = 0) => (t) => (t < 0.01 ? { ignition: true, throttle: 0, mode: 'auto', grade } : t > 0.5 && t < 0.51 ? { throttle: 1 } : null);
+  for (const car of CARS) {
+    const { core } = runCar(car, 15, wot());
+    check(`${car.name}: drives — WOT from standstill exceeds 100 km/h in 15 s`, core.speed * 3.6 > 100, `${(core.speed * 3.6).toFixed(0)} km/h`);
+  }
+  const car = CARS[0];
+  const flat = runCar(car, 12, wot(0)).core.speed;
+  const uphill = runCar(car, 12, wot(8)).core.speed;
+  const downhill = runCar(car, 12, wot(-8)).core.speed;
+  check('grade: uphill is slower than flat under the same throttle', uphill < flat * 0.97, `${(uphill * 3.6).toFixed(0)} vs ${(flat * 3.6).toFixed(0)} km/h`);
+  check('grade: downhill is faster than flat', downhill > flat * 1.03, `${(downhill * 3.6).toFixed(0)} km/h`);
+  const brake = runCar(car, 30, (t, c) => {
+    if (t < 0.01) return { ignition: true, throttle: 0, mode: 'auto' };
+    if (t > 0.5 && t < 0.51) return { throttle: 1 };
+    if (t > 12 && t < 12.01) return { throttle: 0, brake: 1 };
+    return null;
+  });
+  check('brakes: car stops from speed under braking', brake.core.speed < 0.05, `speed=${(brake.core.speed * 3.6).toFixed(2)} km/h`);
+  check('brakes: engine keeps running at idle after the car stops', brake.core.engineState === 'running' && brake.core.rpm > car.idleRpm * 0.7, `rpm=${brake.core.rpm.toFixed(0)}`);
+  check('no reverse: speed never negative', brake.minSpeed >= 0);
+  const hold = runCar(car, 20, (t) => {
+    if (t < 0.01) return { ignition: true, throttle: 0, mode: 'auto', grade: 10 };
+    if (t > 0.5 && t < 0.51) return { brake: 1 };
+    if (t > 3 && t < 3.01) return { throttle: 0.6 };
+    return null;
+  });
+  check('hill hold: brakes hold on a 10% grade with throttle applied', hold.minSpeed >= 0 && hold.core.speed < 0.5, `speed=${(hold.core.speed * 3.6).toFixed(2)} km/h`);
+}
+
 // 9. Determinism: identical input → identical output (needed for regression clips).
 {
   const a = renderClip(CARS[0], 1.5, (t) => (t < 0.01 ? { ignition: true, throttle: 0.8 } : null), SR);

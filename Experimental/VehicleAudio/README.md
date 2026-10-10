@@ -23,7 +23,7 @@ starve the audio, and the DSP is cheap enough to run on a low-power machine.
 | Exhaust | Source–filter model: a bank of resonators (per-car tuned pipe modes) shapes the pulse train into the harmonic series of the firing frequency. |
 | Intake | Band-passed noise; follows throttle and rpm. Strong for the naturally aspirated Porsche. |
 | Turbo | First-order spool lag (up/down time constants), compressor whine, hiss, **blow-off valve** on throttle lift, **wastegate** rattle at full boost. Turbo torque lag. |
-| Drivetrain | Clutch-coupled rpm from road speed, free-revving in neutral and during shifts, auto or manual gearbox, synchronised shifts, rev limiter (alternating fuel cut), top-speed clamp, engine braking. |
+| Drivetrain | Real longitudinal dynamics: engine inertia, a slipping clutch (launch capacity follows throttle), gear ratios, aero drag, rolling resistance, road **grade**, service brakes and **handbrake**. Engine load comes from the torque the driver demands, and the sound follows it. Rev limiter, top speed in gear, engine braking, idle governor, no reverse. |
 | Mechanical | Valvetrain ticks (scale with valve count and rpm), gear-mesh whine, electric starter while cranking, idle-speed control. |
 | Metal | Dog-gear shift clunk excites a set of high-Q metal modes. |
 | Fuel | Injector hiss per injection, electric pump whine (only with ignition on), low-fuel starvation: misfires and pump gurgle. Fuel burns with throttle and rpm. |
@@ -40,15 +40,18 @@ rendered to a 16-bit stereo WAV from the **Clip export** card.
 | --- | --- |
 | `W` / `↑` | Throttle (hold) |
 | `S` / `↓` | Brake (hold) |
-| `E` / `]` | Upshift |
-| `Q` / `[` | Downshift |
+| `Space` | Handbrake (hold) |
+| `Shift` / `E` | Upshift |
+| `Ctrl` / `Q` | Downshift |
 | `N` | NOS (hold) |
 | `I` | Ignition |
 | `M` | Auto / manual gearbox |
 | `F` | Refuel |
 | `R` | Refill NOS |
 
-Audio starts from the **Start audio** button (browsers require a user gesture).
+**Start engine** starts the audio (browsers require a user gesture) and turns the ignition on. Keys only reach the page when it has focus, so click the panel first. Shift-based shifting is on the Shift keys, which are both captured while the panel is focused.
+
+Grade is set with the slider in the *Load & road* card (−15% to +15%).
 
 ## Run
 
@@ -71,7 +74,7 @@ npm --prefix Experimental/VehicleAudio run verify   # headless DSP verification 
 | `src/audio/cars.js` | Vehicle data: torque curves, gearing, firing layout, exhaust modes, turbo, NOS |
 | `src/audio/wav.js` | 16-bit PCM WAV encoder for clip export |
 | `src/App.jsx` | UI (tach, pedals, turbo, fuel, NOS, layer mixer, export) |
-| `scripts/verify-engine.mjs` | Stability, drivetrain, idle, turbo, NOS, fuel, shift, determinism and harmonic checks |
+| `scripts/verify-engine.mjs` | Stability, drivetrain, idle, turbo, NOS, fuel, shift, vehicle dynamics (drives, grade, brakes, hill hold), determinism and harmonic checks |
 
 ## Limits (read before judging realism)
 
