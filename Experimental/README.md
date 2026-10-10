@@ -6,6 +6,7 @@ These browser design studies are separate from the native C++ editor.
 | --- | --- |
 | Frontier Editor — outliner, inspector and sliding Construct menu | [FrontierEditor/index.html](FrontierEditor/index.html) |
 | SVG icon gallery | [FrontierEditor/icons.html](FrontierEditor/icons.html) |
+| Vehicle engine audio (GT3 Porsche, Nissan GT-R NISMO GT3, Ferrari 488 GT3) | [VehicleAudio/](VehicleAudio/README.md) |
 | Collection-icon options | [FrontierEditor/collection-icon-options.html](FrontierEditor/collection-icon-options.html) |
 
 The editor's JSX/CSS, SVG assets, package files, browser scripts and vendor
