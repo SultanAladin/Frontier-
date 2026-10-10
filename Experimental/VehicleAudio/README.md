@@ -49,7 +49,7 @@ rendered to a 16-bit stereo WAV from the **Clip export** card.
 | `F` | Refuel |
 | `R` | Refill NOS |
 
-**Start engine** starts the audio (browsers require a user gesture) and turns the ignition on. Keys only reach the page when it has focus, so click the panel first. Shift-based shifting is on the Shift keys, which are both captured while the panel is focused.
+**Start engine** starts the audio (browsers require a user gesture) and turns the ignition on. Keys only reach the page when it has focus, so click the panel first.
 
 Grade is set with the slider in the *Load & road* card (−15% to +15%).
 
