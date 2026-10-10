@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CLAUDE.md — rendered (live repo)</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; max-width:860px; margin:32px auto; padding:0 20px; line-height:1.6; color:#1e1e1e; background:#fff}
+  h1{font-size:26px; border-bottom:3px solid #111; padding-bottom:8px; margin-top:0}
+  h2{font-size:18px; margin-top:28px; color:#2c3e50; border-left:4px solid #3498db; padding-left:10px; background:#f8fafc; padding-top:6px; padding-bottom:6px}
+  h3{font-size:15px; margin-top:20px; color:#34495e}
+  hr{border:none; border-top:1px solid #e5e7eb; margin:24px 0}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; background:#f3f4f6; padding:1px 6px; border-radius:4px}
+  pre{background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto}
+  pre code{background:none; padding:0; color:inherit}
+  table{border-collapse:collapse; width:100%; margin:12px 0; font-size:13px}
+  th,td{border:1px solid #d1d5db; padding:8px 10px; text-align:left}
+  th{background:#1f2937; color:#fff}
+  tr:nth-child(even) td{background:#f9fafb}
+  ul{margin:8px 0; padding-left:22px}
+  li{margin:4px 0}
+  a{color:#2563eb; text-decoration:none} a:hover{text-decoration:underline}
+  .badge{display:inline-block; font-size:11px; padding:3px 8px; border-radius:999px; background:#e0f2fe; color:#0369a1; font-weight:700; vertical-align:middle; margin-left:8px}
+  .note{background:#fefce8; border:1px solid #fde68a; padding:10px 12px; border-radius:8px; font-size:13px; margin:16px 0}
+  .header-meta{color:#64748b; font-size:13px; margin-top:-8px; margin-bottom:18px}
+</style>
+</head>
+<body>
+<p class="header-meta">Source: <code>CLAUDE.md</code> @ <code>/home/user/Frontier-</code> — live file, not stale Exhibits  •  Rendered 2026-10-10 12:47   •  Exhibits/Gallery/* are from prior agents and are stale</p>
+<h1>Slate — Agent Instructions <span class="badge">live render</span></h1>
+<h1>Slate — Agent Instructions</h1>
+<p>Vulkan-based engine and painting application. <code>Engine/</code> holds engine source, <code>Docs/</code> holds specification</p>
+<p>and planning documents, <code>ExternalPackages/</code> holds vendored dependencies (never edit).</p>
+<hr>
+<h2>🔴 Read before writing code — and only then</h2>
+<p>These files are authoritative and override all defaults. Read them **before the first line of C, C++,</p>
+<p>shader, or engine Markdown you produce** in a session:</p>
+<ul>
+<li><code>AgenticInstuctions/SKILL-Naming.md</code> — ALL naming (banned words + how to construct a name)</li>
+<li><code>AgenticInstuctions/SKILL-Formatting.md</code> — formatting, alignment, and the approved emoji whitelist</li>
+</ul>
+<p><strong>Do not load <code>AgenticInstuctions/SKILL-ResearchFirst.md</code> or <code>Mimo.md</code>.</strong> Those are for the</p>
+<p>Mimo general-purpose agent only. This file is for code work only.</p>
+<p><strong>Do not read them for non-code work.</strong> Questions, explanations, planning discussion, file searches,</p>
+<p>and chat-only answers do not touch these files. The trigger is *generating code or engine documents*,</p>
+<p>not *talking about them*.</p>
+<p>Once read, they bind everything downstream: identifiers, folder names, headers, alignment, emoji.</p>
+<p>Check output against them before returning it.</p>
+<hr>
+<h2>🔴 Scratch folder — keep the workspace clean</h2>
+<p>All disposable agent output goes in <code>_AgentScratch/</code> — never beside source, never at repo root.</p>
+<p><code>logs/</code> (build logs, command output) · <code>build/</code> (throwaway <code>.obj</code>, compile probes) · <code>tmp/</code> (staging,</p>
+<p>scratch <code>.cpp</code>, experiments, self-invented probes and drivers).</p>
+<ul>
+<li>Fully git-ignored; nothing in it is ever committed.</li>
+<li>A requested prototype is <strong>not</strong> scratch — write it to its real destination directly. Never leave the</li>
+</ul>
+<p>  only copy of a deliverable in scratch.</p>
+<hr>
+<h2>🔴 Where documents may be written</h2>
+<p>Plans, notes, reports, and summaries go in chat. Write a file only on explicit instruction.</p>
+<p><code>AgenticInstuctions/</code> holds skill files only — nothing else goes there.</p>
+<p><code>Docs/Technical Engine Directory Structure &amp; Architectur.md</code> is the layer map (L0…L6). Stay close to it</p>
+<p>and update it whenever a folder or subsystem is added, moved, or renamed.</p>
+<h3>🔴 README discipline — stop the sprawl</h3>
+<ul>
+<li>A README is written <strong>only</strong> to explain <strong>how to use</strong> an entity / subsystem / tool we deliver — nothing</li>
+</ul>
+<p>  else. One README per delivered thing, living in <code>Docs/</code>. Do not scatter READMEs beside source, at repo</p>
+<p>  root, or inside content folders, and do not invent a new README for scratch, probes, or intermediate work.</p>
+<ul>
+<li>Everything else — what has been done, what was tried, what did not work, what was rejected, performance</li>
+</ul>
+<p>  measurements with the <strong>date</strong> each was taken, and any important notes — goes in a <strong>notes</strong> document in</p>
+<p>  <code>Docs/</code>, alongside any relevant images. Keep it factual and dated; do not open a fresh file per attempt.</p>
+<h3>🔴 Plans live in `Plans/`, sorted by standing</h3>
+<p>Plans are the one document family that is filed rather than kept in chat, and each belongs in exactly one</p>
+<p>subfolder by its current standing:</p>
+<table><thead><tr>
+<th>Folder</th>
+<th>Holds</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Plans/Ongoing</code></td>
+<td>Plans actively being worked</td>
+</tr>
+<tr>
+<td><code>Plans/Completed</code></td>
+<td>Plans whose work has shipped (dated when it moved here)</td>
+</tr>
+<tr>
+<td><code>Plans/Deferred</code></td>
+<td>Plans intentionally postponed (for example deferred fuel/thermal)</td>
+</tr>
+<tr>
+<td><code>Plans/Research</code></td>
+<td>Research and investigation notes that precede a plan</td>
+</tr>
+</tbody></table>
+<p>When a plan changes standing, <strong>move the file</strong> between these folders rather than leaving a stale copy.</p>
+<hr>
+<h2>🔴 Projects and shared facilities</h2>
+<ul>
+<li><code>Projects/</code> is where projects go. Each project owns its <code>ProjectName.frontier</code> specification, content, and</li>
+</ul>
+<p>  project-specific code image. It is never a copy of another project.</p>
+<ul>
+<li><code>Frontier.exe</code> is the sole windowed host. It owns the window, device, renderer, global editor, input, camera,</li>
+</ul>
+<p>  celestial environment, and shared engine facilities. A project never owns a windowed <code>main</code> or its own renderer.</p>
+<ul>
+<li>A project DLL crosses the versioned <code>CodeInterchange</code> C ABI. It carries only project-specific scene construction,</li>
+</ul>
+<p>  simulation, camera behaviour, and editor panels. Changing it must not rebuild shared engine translation units.</p>
+<ul>
+<li><code>Project-Zero</code> is a project opened by Frontier, not a host source donor. Do not copy <code>GameExecution.cpp</code>, use</li>
+</ul>
+<p>  <code>PROJECT_ZERO_SOURCES</code>, include another project&#x27;s source, or launch a new project through Project-Zero.</p>
+<ul>
+<li>The migration is active in the build routes: create and open projects through <code>Frontier.exe ProjectName.frontier</code>.</li>
+</ul>
+<p>  <code>Tools/Build/ProjectOwnershipChecks.py</code> rejects a returned project windowed entry, copied <code>GameExecution.cpp</code>,</p>
+<p>  <code>PROJECT_ZERO_SOURCES</code> reuse, project-to-project source include, or a non-Zero specification that resolves through</p>
+<p>  Project-Zero.</p>
+<ul>
+<li>Shared authoring tools used to make content, not shipped in a project, live under <code>Engine/AuthoringTools/</code>.</li>
+</ul>
+<p>  Example: SolidArc lives at <code>Engine/AuthoringTools/SolidArc</code>; project content and scripts consuming it stay with</p>
+<p>  that project.</p>
+<hr>
+<h2>🔴 Visual proof for every C++ class / entity added to a project</h2>
+<p>Every time a C++ class or entity is added to a project, deliver a <strong>visual proof</strong> in <code>VisualProof/&lt;Feature&gt;/</code></p>
+<p>— a rendered image, a log, or some other visible artefact that shows the thing actually working. &quot;It</p>
+<p>compiles&quot; is not proof. The proof is a CPU mirror where possible (dependency-free, no window), and it</p>
+<p>self-checks so a regression fails loudly.</p>
+<hr>
+<h2>Build &amp; tooling</h2>
+<ul>
+<li><strong>Shell = PowerShell.</strong> Run every <code>.bat</code> and <code>.ps1</code> through the PowerShell tool, never Bash (Bash</li>
+</ul>
+<p>  mangles Windows paths and <code>cmd</code> parsing). Use PowerShell syntax (<code>$env:VAR</code>, <code>$null</code>).</p>
+<ul>
+<li>Build configuration is build-system agnostic (<code>Module.toml</code> + orchestration scripts). CMake is not</li>
+</ul>
+<p>  used.</p>
+<ul>
+<li>🔴 <strong>When you change the build, update every toolchain — not just CMake/g++.</strong> The primary target is</li>
+</ul>
+<p>  <strong>MSVC</strong> via the PowerShell orchestration scripts. Adding a source, include path, define, or link</p>
+<p>  library to one toolchain and forgetting the MSVC path is the single most common way a build breaks on the</p>
+<p>  user&#x27;s machine. A build change is not done until the MSVC path, the <code>Module.toml</code>/orchestration path, and</p>
+<p>  any CMake/g++ helper paths all carry it.</p>
+<ul>
+<li>Ask before building or running any test, probe, or validation executable. &quot;It compiles&quot; is not a</li>
+</ul>
+<p>  deliverable unless it was asked for.</p>
+<hr>
+<h2>C++ &amp; Architecture Rules</h2>
+<ul>
+<li>C++20 standard, <code>/MD</code> in every configuration, <code>SLATE_DEBUG</code> for debug selection, <code>_DEBUG</code> never.</li>
+<li>Every exported computation carries <code>SLATE_DECLARES_PRECISION(...)</code> naming what it claims and what it consumes. The transitivity rule is a <code>static_assert</code>, not a review item.</li>
+<li>Identities are <code>Identity&lt;Subject&gt;</code> with distinct tags. A <code>PartitionIdentity</code> must not be passable where an <code>OwnerIdentity</code> is expected — conflict 15 was exactly that mistake surviving the whole series.</li>
+<li>Absence carries a reason. Use <code>Deliver&lt;T&gt;</code> with a <code>Refusal</code>, not <code>std::optional</code>, wherever a document says something is rejected or reported.</li>
+<li>A <code>Convergent</code> computation returns <code>ConvergentResult&lt;T&gt;</code> and never a bare value. <code>02</code> §5: a solver that returns its last iterate at the ceiling is indistinguishable from one that converged.</li>
+<li>Prefer <code>constexpr</code> and compile-time checks over runtime validation wherever a gate can be expressed that way. Half of <code>00</code> §11 is mechanisable in the type system.</li>
+<li>No exceptions across a unit seam. No <code>new</code>/<code>delete</code> outside an extent slicer.</li>
+<li>Vendor spellings are verbatim: <code>VkBuffer</code>, <code>VkPipeline</code>, <code>ImDrawData</code>.</li>
+<li>Do not reference any rules outside of the project or memory.</li>
+<li>🚧 <strong>Direction: one engine binary; projects are opened by it.</strong> <code>Frontier.exe</code> bundles shared engine facilities</li>
+</ul>
+<p>  once and opens <code>ProjectName.frontier</code>. Project-specific C++ arrives through a versioned project DLL, so editing a</p>
+<p>  project does not rebuild the engine executable. <code>Project-Zero</code> is one project, never another project&#x27;s host.</p>
+<p>  The implementation sequence and C ABI guarantee are in</p>
+<p>  <a href="Plans/Ongoing/FrontierProjectLoadingMigration.md"><code>Plans/Ongoing/FrontierProjectLoadingMigration.md</code></a>.</p>
+<hr>
+<h2>🔴 The browser editor UI — there is exactly one reference</h2>
+<p>When porting editor UI to native C++, the reference is <strong><code>Experimental/ProjectZeroEditor/index.html</code></strong> — the</p>
+<p>4.87 MB self-contained built bundle. Open that file, look at the panel, port what you see. Nothing else is the</p>
+<p>reference. This has been got wrong three times; do not guess a fourth.</p>
+<p>The bundle is built by <code>Build.mjs</code> from the sources beside it. Port from those sources, verify against the</p>
+<p>bundle. The light panel is <strong><code>LightPanel.js</code></strong> + <strong><code>LightPanel.css</code></strong> + <code>LightProjection.js</code>, and its transform</p>
+<p>block comes from <code>EmitterPanel.jsx</code> → <code>TransformPanel.jsx</code>.</p>
+<p><strong>Type: CSS sizes the em box, ImGui sizes ascent minus descent.</strong> They differ by exactly <strong>1.302</strong> for</p>
+<p>DM Sans (<code>hhea</code> ascent 992, descent −310 per 1000 em), so <code>AddText(Face, 12, …)</code> draws a run 23% narrower than</p>
+<p><code>font-size: 12px</code> does in Chrome. Multiply every CSS pixel size by 1.302 before handing it to ImGui — see</p>
+<p><code>WindCards::Grind</code> in <code>Engine/Editor/WindPanelSurface.h</code>. The same 1.302 is DM Sans&#x27;s <code>normal</code> line-height, so</p>
+<p>a baked line is then exactly one CSS line box tall, and the baseline sits <code>0.992 × size</code> below its top. The</p>
+<p>body is DM Sans <strong>Light 300</strong>; only <code>h2</code>/<code>h3</code> in a section head are <strong>Regular 400</strong>, so both faces get baked.</p>
+<p>Surfaces written before this was found still draw CSS pixels at ImGui sizes: <code>WindInstrumentSurface.h</code>,</p>
+<p><code>CloudInstrumentSurface.h</code>, the fog cards and the light panel each need the same three-line correction.</p>
+<p><strong>Traps that have already cost rework:</strong></p>
+<ul>
+<li><code>Experimental/ProjectZeroEditor/InspectorDepot/</code> is a *second, unused* panel kit sitting in the same folder</li>
+</ul>
+<p>  (<code>panels/lights.js</code>, <code>advancedLights.js</code>, <code>fog.js</code>, classes <code>li-hero</code>, <code>al-hero</code>, <code>mp-hero</code>). The shipped light</p>
+<p>  panel does <strong>not</strong> use it — it only borrows <code>kit.js</code>&#x27;s <code>el()</code> helper and the <code>mp-rail</code> / <code>mp-pill</code> classes.</p>
+<p>  Porting <code>InspectorDepot/panels/lights.js</code> is porting the wrong half.</p>
+<ul>
+<li><code>Experimental/FrontierEditor/</code> is an <strong>older</strong> editor. Its <code>index.html</code> is a 438-byte Vite stub that cannot be</li>
+</ul>
+<p>  opened without a dev server, and it has no light family at all.</p>
+<ul>
+<li><code>Experimental/FractureEditor/</code> matches on &quot;light&quot; only because it carries Three.js <code>PointLight</code> / <code>SpotLight</code></li>
+</ul>
+<p>  scene objects. It has no light inspector.</p>
+<p><strong>What a light inspector is made of</strong> (<code>LightPanel.js</code>, six types: <code>pointlight</code>, <code>spotlight</code>, <code>ieslight</code>,</p>
+<p><code>arealight</code>, <code>ledlight</code>, <code>ledstrip</code>):</p>
+<table><thead><tr>
+<th>Card</th>
+<th>Class</th>
+<th>Title</th>
+</tr></thead><tbody>
+<tr>
+<td>Preview</td>
+<td><code>pcard lp-card lp-preview</code></td>
+<td>Radial falloff / Beam envelope / Photometric distribution / Luminous surface / Linear radiance / LED emitter / Ribbon light</td>
+</tr>
+<tr>
+<td>Readings rail</td>
+<td><code>mp-rail lp-readings</code></td>
+<td>type-specific <code>mp-pill</code> metrics</td>
+</tr>
+<tr>
+<td>Output</td>
+<td><code>pcard lp-card lp-output</code></td>
+<td>Source &amp; colour / Driver &amp; colour / Output per metre — caption <code>OUTPUT</code></td>
+</tr>
+<tr>
+<td>Response</td>
+<td><code>lp-response</code>, appended **inside** Output</td>
+<td>Distance response / Beam section / Angular response / Aperture balance / Electrical budget / Conversion budget / Linear output — caption <code>ANALYTICAL</code></td>
+</tr>
+<tr>
+<td>Shape</td>
+<td><code>pcard lp-card lp-shape</code></td>
+<td>Attenuation / Beam shaping / Distribution profile / Package &amp; optic / Layout &amp; segments</td>
+</tr>
+<tr>
+<td>Transform</td>
+<td><code>lp-card lp-transform</code></td>
+<td><code>MountLightTransform</code> → <code>TransformPanel.jsx</code></td>
+</tr>
+<tr>
+<td>Scene participation</td>
+<td><code>pcard lp-card lp-participation</code></td>
+<td>caption <code>FLAGS</code></td>
+</tr>
+</tbody></table>
+<p>The card note is <code>lp-note</code>. The source glyph — including the LED Strip icon — is <code>lp-source-icon</code>, fed from</p>
+<p><code>LightSpecification.js</code>&#x27;s <code>LightIcons</code>. The transform rows are fixed and include rotation and scale:</p>
+<p><code>[&quot;Position&quot;,&quot;m&quot;,…,0.01]</code>, <code>[&quot;Rotation&quot;,&quot;deg&quot;,…,0.1]</code>, <code>[&quot;Scale&quot;,&quot;×&quot;,[1,1,1],…,0.01]</code>, headed <code>Transform</code> with a</p>
+<p><code>WORLD SPACE</code> kicker.</p>
+<p>Validation scripts already exist beside the sources — <code>CheckLightDesign.mjs</code>, <code>CheckLighting.mjs</code>,</p>
+<p><code>CheckFogCards.mjs</code>, <code>CheckSharedCards.mjs</code>, <code>CheckInspectorLayout.mjs</code>. Use them as the acceptance test rather</p>
+<p>than inventing one. Keep the port register in <a href="Docs/InspectorDepotConversion.md"><code>Docs/InspectorDepotConversion.md</code></a>.</p>
+<h2>Design references</h2>
+<ul>
+<li><strong>Entity + Editor System</strong> — <a href="Docs/EntityEditorSystem.md"><code>Docs/EntityEditorSystem.md</code></a></li>
+</ul>
+<p>  How every entity we add carries its editor-side presence: user-chosen SVG icon + folder, a user-designed</p>
+<p>  inspector (declarative slider components or a hand-drawn panel), and an optional dedicated editor window that</p>
+<p>  opens the entity in isolation (Unreal asset-editor style). All <code>#if FRONTIER_EDITOR</code>-guarded, compiled out of</p>
+<p>  shipping. Design only — no code yet.</p>
+<ul>
+<li><strong>Rendering pipeline report</strong> — <a href="Docs/RenderingPipelineReport.md"><code>Docs/RenderingPipelineReport.md</code></a></li>
+</ul>
+<p>  What the frame is made of (the ReSTIR kernel is 92–99 % of it), why the Nanite/draw-call idea won&#x27;t help here</p>
+<p>  (cluster culling + indirect draws already exist), and where the real performance wins are.</p>
+<div class="note">📝 <strong>Render note (SLATE):</strong> This HTML is the live <code>CLAUDE.md</code> rendered for visual proof. Stale artefacts remain in <code>Exhibits/Gallery/</code> and <code>Exhibits/Workbench/</code> from previous agents — they are <strong>not</strong> the authority. The source of truth is this file at repo root. Formatting here follows <code>AgenticInstuctions/SKILL-Formatting.md</code> §8 (120-char wrap, bullet <code>-</code>, tables column-aligned) and emoji whitelist (only 📦 📝 💡 ⚠️ 🔴 🐞 🧵 ⏱️ etc.).</div>
+<footer style="margin-top:32px; font-size:12px; color:#94a3b8; border-top:1px solid #e5e7eb; padding-top:10px">Generated by Tools/RenderClaude.py — does not write to _AgentScratch (deliverable, not scratch). VisualProof/CLAUDE_Rendered/index.html</footer>
+</body>
+</html>
