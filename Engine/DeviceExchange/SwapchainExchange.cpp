@@ -2425,8 +2425,8 @@ bool SwapchainExchange::BringImGui() noexcept
     ImGuiVulkanInfo.QueueFamily    = Vulkan->GraphicsFamily;
     ImGuiVulkanInfo.Queue          = Vulkan->GraphicsQueue;
     ImGuiVulkanInfo.DescriptorPool = Vulkan->ImGuiDescriptorPool;
-    ImGuiVulkanInfo.ChainDetailsMain.RenderPass   = Vulkan->ImGuiRenderPass;  // 💡 moved from InitDetails root in ImGui 1.93
-    ImGuiVulkanInfo.ChainDetailsMain.MSAASamples  = VK_SAMPLE_COUNT_1_BIT;    // 💡 moved from InitDetails root in ImGui 1.93
+    ImGuiVulkanInfo.PipelineInfoMain.RenderPass   = Vulkan->ImGuiRenderPass;  // 💡 moved from InitInfo root in ImGui 1.93
+    ImGuiVulkanInfo.PipelineInfoMain.MSAASamples  = VK_SAMPLE_COUNT_1_BIT;    // 💡 moved from InitInfo root in ImGui 1.93
     ImGuiVulkanInfo.MinImageCount  = 2u;
     ImGuiVulkanInfo.ImageCount     = ImageCount;
     ImGui_ImplVulkan_Init(&ImGuiVulkanInfo);
