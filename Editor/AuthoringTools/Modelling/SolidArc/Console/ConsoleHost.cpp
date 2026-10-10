@@ -1185,6 +1185,8 @@ uint64_t ConsoleHost::PictureSignature() const noexcept
     Put(HoverPick); Put(static_cast<int>(Mode)); Put(static_cast<int>(Shading)); Put(ShowControlCages); Put(ShowIsoCurves); Put(ShowBoundaryEdges); Put(ShowFeatureCurves); Put(ShowDimensions); Put(GizmoShown);
     // A tool preview and the gizmo's hovered grip follow the pointer, so the pointer belongs in the signature too.
     Put(PointerX); Put(PointerY); Put(Tool.Active());
+    Put(static_cast<int>(GizmoRig.CurrentLayout())); Put(static_cast<int>(GizmoRig.Hovered()));
+    Put(GizmoRig.Dragging()); Mix(GizmoRig.Drag().Delta.M, sizeof GizmoRig.Drag().Delta.M);
     const ViewRecord Seen = View.ToViewRecord(Surface->Width(), Surface->Height(), 1.0);
     Mix(Seen.ViewClip, sizeof Seen.ViewClip); Mix(Seen.EyePosition, sizeof Seen.EyePosition);
     Mix(Backdrop, sizeof Backdrop);

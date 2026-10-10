@@ -89,6 +89,7 @@ private:
     void ConstructLayout() noexcept;
     void SeatView(ConsoleHost& Host) noexcept;
     void ReconcileSelection(ConsoleHost& Host) noexcept;
+    void AdvanceViewport(ConsoleHost& Host) noexcept;
 
     ControlPanel Controls_;
     OutlinerPanel Outliner_;
@@ -128,7 +129,9 @@ private:
     std::vector<uint32_t> MirrorPicked_;    // figure identities the outliner's pick held after the last reconcile
     std::vector<uint32_t> MirrorSelected_;  // figure identities the document held selected after the last reconcile
     uint32_t              Lead_ = 0u;       // the figure the inspector reads: the newest of the pick
-    uint32_t              MirrorMask_ = 0u; // the rail's select-mode bits the document last followed
+    uint32_t              MirrorMask_ = 0u;
+    uint32_t              MirrorGizmo_ = 3u;
+    bool                  GizmoDragging_ = false; // the rail's select-mode bits the document last followed
     int32_t               AimCellX_ = -1;   // the view pixel the hover last asked about
     int32_t               AimCellY_ = -1;
 };

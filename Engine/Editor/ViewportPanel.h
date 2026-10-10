@@ -62,6 +62,15 @@ struct ViewportOrbit
     uint32_t Revision = 0u;     // bumps on every write the panels make
 };
 
+// Pointer contact from the shared CAD canvas; SolidArc owns the camera and the analytic gizmo.
+struct ViewportCadContact
+{
+    bool Start = false, Move = false, End = false, Cancel = false;
+    bool Left = false, Pan = false, Orbit = false, Box = false, Travelled = false;
+    bool Snap = false;
+    float U = 0.0f, V = 0.0f, DeltaX = 0.0f, DeltaY = 0.0f, Wheel = 0.0f;
+};
+
 class ViewportPanel final
 {
 public:
@@ -108,6 +117,11 @@ public:
     [[nodiscard]] uint32_t QuerySolidArcSelectMask() const noexcept { return SolidArcSelectMask_; }
     [[nodiscard]] uint32_t QuerySolidArcShade() const noexcept { return SolidArcShade_; }
     [[nodiscard]] uint32_t QuerySolidArcGizmo() const noexcept { return SolidArcGizmo_; }
+    void AssignSolidArcGizmo(uint32_t Selection) noexcept { SolidArcGizmo_ = Selection; }
+    void AssignSolidArcSelectMask(uint32_t Selection) noexcept { SolidArcSelectMask_ = Selection; }
+    [[nodiscard]] const ViewportCadContact& QueryCadContact() const noexcept { return CadContact_; }
+    void DiscardCadPick() noexcept { TapLive_ = false; BoxLive_ = false; }
+    void CaptureCadGizmo() noexcept { PressBox_ = false; }
     // SolidArc's Construct menu: the host seats its tiles, then reads one pick per click (consumed by the read). The
     //    seam reads give the proof the centres the menu last drew, so it clicks what the user would click.
     void AssignConstructTiles(const ViewportConstructTile* Tiles, uint32_t Count) noexcept;
@@ -165,6 +179,9 @@ private:
     uint32_t             StorageW_    = 0u;
     uint32_t             StorageH_    = 0u;
     bool                 CanvasDragging_ = false;
+    ViewportCadContact   CadContact_{};
+    bool                 CadPan_ = false;
+    bool                 CadOrbit_ = false;
     float                LastX_       = 0.0f;      // last view rect, for the QueryView* rect
     float                LastY_       = 0.0f;
     float                LastW_       = 0.0f;

@@ -291,11 +291,12 @@ bool SolidArcEditorHost::PlaceConstruct(ConsoleHost& Host, uint32_t Tile) noexce
         return false;
     const size_t Before = Host.AllFigures().size();
     const bool   Done   = Host.Execute(Command);
-    ++ConstructPlaced_;
     if (Done && Host.AllFigures().size() > Before)
     {
+        ++ConstructPlaced_;
         ConstructPlacedName_ = Host.AllFigures().back().Name;
         Host.Execute("select " + ConstructPlacedName_);
+        Host.Execute("view fit");
         return true;
     }
     return false;
@@ -310,6 +311,82 @@ void SolidArcEditorHost::SeatView(ConsoleHost& Host) noexcept
     const float Height = Viewport_.QueryViewHeight() * Scale;
     if (Width >= 32.0f && Height >= 32.0f)
         Host.SeatSurface(static_cast<uint32_t>(Width + 0.5f), static_cast<uint32_t>(Height + 0.5f), 2u);
+    Host.ResizeGizmoAtView(110.0 * Scale);
+}
+
+void SolidArcEditorHost::AdvanceViewport(ConsoleHost& Host) noexcept
+{
+    const ViewportCadContact& Contact = Viewport_.QueryCadContact();
+    const double Width = static_cast<double>(Host.Raster().Width());
+    const double Height = static_cast<double>(Host.Raster().Height());
+    const float Scale = std::max(1.0f, ImGui::GetIO().DisplayFramebufferScale.x);
+    if (Contact.Start && Contact.Left && !Contact.Orbit && !Contact.Pan)
+    {
+        GizmoDragging_ = Host.BeginGizmoAtView(Contact.U * Width, Contact.V * Height);
+        if (GizmoDragging_) Viewport_.CaptureCadGizmo();
+    }
+    if (Contact.Move)
+    {
+        if (GizmoDragging_)
+            Host.DragGizmoAtView(Contact.U * Width, Contact.V * Height, Contact.Snap);
+        else if (!Contact.Box)
+        {
+            if (Contact.Pan)
+                Host.Camera().Pan(Contact.DeltaX * Scale, -Contact.DeltaY * Scale, Height);
+            else
+                Host.Camera().Orbit(-Contact.DeltaX * 0.006, Contact.DeltaY * 0.006);
+        }
+    }
+    if (Contact.End || Contact.Cancel)
+    {
+        if (GizmoDragging_)
+        {
+            Viewport_.DiscardCadPick();
+            if (Contact.End) Host.DragGizmoAtView(Contact.U * Width, Contact.V * Height, Contact.Snap);
+            Host.FinishGizmoAtView(Contact.Cancel);
+            GizmoDragging_ = false;
+        }
+        else if (Contact.Cancel) Viewport_.DiscardCadPick();
+    }
+    if (Contact.Wheel != 0.0f && !GizmoDragging_) Host.Camera().Dolly(Contact.Wheel);
+    if (GizmoDragging_) Viewport_.DiscardCadPick();
+
+    const uint32_t Rail = Viewport_.QuerySolidArcGizmo();
+    if (Rail != MirrorGizmo_)
+    {
+        MirrorGizmo_ = Rail;
+        Host.Execute(Rail == 0u ? "gizmo translate" : Rail == 1u ? "gizmo rotate" : "gizmo scale");
+    }
+    ImGuiIO& IO = ImGui::GetIO();
+    if (!IO.WantTextInput && !IO.KeyCtrl && !IO.KeySuper && !Viewport_.QueryConstructOpen())
+    {
+        const bool Shift = IO.KeyShift;
+        if (ImGui::IsKeyPressed(ImGuiKey_G, false)) Viewport_.AssignSolidArcGizmo(0u);
+        if (Shift && ImGui::IsKeyPressed(ImGuiKey_R, false)) Viewport_.AssignSolidArcGizmo(1u);
+        if (!Shift && ImGui::IsKeyPressed(ImGuiKey_S, false)) Viewport_.AssignSolidArcGizmo(2u);
+        if (ImGui::IsKeyPressed(ImGuiKey_1, false)) Viewport_.AssignSolidArcSelectMask(1u);
+        if (ImGui::IsKeyPressed(ImGuiKey_2, false)) Viewport_.AssignSolidArcSelectMask(2u);
+        if (ImGui::IsKeyPressed(ImGuiKey_3, false)) Viewport_.AssignSolidArcSelectMask(4u);
+        if (ImGui::IsKeyPressed(ImGuiKey_4, false)) Viewport_.AssignSolidArcSelectMask(8u);
+        if (ImGui::IsKeyPressed(ImGuiKey_F, false)) Host.Execute("view fit");
+        if (ImGui::IsKeyPressed(ImGuiKey_Keypad7, false)) Host.Execute(Shift ? "view bottom" : "view top");
+        if (ImGui::IsKeyPressed(ImGuiKey_Keypad1, false)) Host.Execute(Shift ? "view back" : "view front");
+        if (ImGui::IsKeyPressed(ImGuiKey_Keypad3, false)) Host.Execute(Shift ? "view left" : "view right");
+        if (ImGui::IsKeyPressed(ImGuiKey_Keypad5, false)) Host.Execute("view toggle");
+    }
+    if (!IO.WantTextInput && (IO.KeyCtrl || IO.KeySuper) && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+        Host.Execute(IO.KeyShift ? "redo" : "undo");
+    // [m] Keep the viewport's readout aligned with the actual renderer camera, not an unused second orbit.
+    ViewportOrbit Orbit = Viewport_.QueryViewportOrbit();
+    const CameraProjection& Camera = Host.Camera();
+    Orbit.Yaw = static_cast<float>(Camera.Yaw);
+    Orbit.Pitch = static_cast<float>(Camera.Pitch);
+    Orbit.Distance = static_cast<float>(Camera.Distance);
+    Orbit.Target[0] = static_cast<float>(Camera.Pivot.X);
+    Orbit.Target[1] = static_cast<float>(Camera.Pivot.Y);
+    Orbit.Target[2] = static_cast<float>(Camera.Pivot.Z);
+    Orbit.Ortho = Camera.Orthographic;
+    Viewport_.SeatViewportOrbit(Orbit);
 }
 
 void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
@@ -369,7 +446,7 @@ void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
         Host.SelectBoxAtView(U * ViewW, V * ViewH, U1 * ViewW, V1 * ViewH, Extend, Subtract);
         Acted = true;
     }
-    if (float AimU = 0.0f, AimV = 0.0f; Viewport_.QueryViewAim(&AimU, &AimV))
+    if (float AimU = 0.0f, AimV = 0.0f; !GizmoDragging_ && Viewport_.QueryViewAim(&AimU, &AimV))
     {
         const int32_t CellX = static_cast<int32_t>(AimU * ViewW);
         const int32_t CellY = static_cast<int32_t>(AimV * ViewH);
@@ -378,6 +455,7 @@ void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
             AimCellX_ = CellX;
             AimCellY_ = CellY;
             Host.HoverAtView(CellX, CellY);
+            Host.AimGizmoAtView(CellX, CellY);
         }
     }
     else if (AimCellX_ >= 0)
@@ -385,6 +463,7 @@ void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
         AimCellX_ = -1;
         AimCellY_ = -1;
         Host.HoverNothing();
+        Host.AimGizmoAtView(-1000.0, -1000.0);
     }
     if (!IO.WantTextInput && !Viewport_.QueryConstructOpen())
     {
@@ -523,8 +602,15 @@ void SolidArcEditorHost::Record(ConsoleHost& Host) noexcept
     // A Construct tile was chosen: place its figure at the next free spot on the workplane, a ring around the origin that
     //    widens as it fills, and seat the pick on it so the inspector shows what was just made.
     if (uint32_t Tile = 0u; Viewport_.QueryConstructPick(&Tile))
-        PlaceConstruct(Host, Tile);
+        if (PlaceConstruct(Host, Tile))
+        {
+            RowCount_ = BuildSolidArcOutliner(Host, Rows_.data(), Bindings_.data(), kMaxEditorInstances, &Readout_);
+            Outliner_.AssignPicks(nullptr, 0u);
+            MirrorPicked_.clear();
+            MirrorSelected_.clear();
+        }
 
+    AdvanceViewport(Host);
     ReconcileSelection(Host);
 
     const uint32_t Picked = Outliner_.QueryPicked();

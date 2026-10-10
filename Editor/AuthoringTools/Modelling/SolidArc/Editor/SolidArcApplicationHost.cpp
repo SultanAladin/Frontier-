@@ -241,6 +241,9 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
                         Notice     = Document.Execute(Command) ? std::string("Executed: ") + Command : std::string("Refused: ") + Command;
                         Command[0] = 0;
                     }
+                    ImGui::TextDisabled("Viewport: drag orbit | Shift+drag pan | wheel dolly | Alt+drag orbit | Ctrl+drag box");
+                    ImGui::TextDisabled("Tab catalogue (L, Shift+L, R, C, A, E, P) | G move | Shift+R rotate | S scale | F fit");
+                    ImGui::TextDisabled("1 body | 2 face | 3 edge | 4 vertex | Numpad 7/1/3 views | Numpad 5 projection");
                     ImGui::TextWrapped("%s", Notice.c_str());
                 }
                 ImGui::End();

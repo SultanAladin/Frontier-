@@ -909,6 +909,19 @@ void ViewportPanel::DrawConstructMenu(float MenuX, float MenuY) noexcept
         ConstructShown_ = true;
         if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
             ImGui::CloseCurrentPopup();
+        // The visible catalogue shortcuts perform the same action as clicking a tile.
+        if (!ImGui::GetIO().WantTextInput)
+        {
+            const ImGuiKey Keys[] = { ImGuiKey_L, ImGuiKey_R, ImGuiKey_C, ImGuiKey_A, ImGuiKey_E, ImGuiKey_P };
+            const uint32_t Tiles[] = { ImGui::GetIO().KeyShift ? 2u : 1u, 3u, 6u, 7u, 8u, 9u };
+            for (uint32_t Index = 0u; Index < 6u; ++Index)
+                if (ImGui::IsKeyPressed(Keys[Index], false))
+                {
+                    ConstructPick_ = Tiles[Index];
+                    ImGui::CloseCurrentPopup();
+                    break;
+                }
+        }
         ImDrawList* Draw  = ImGui::GetWindowDrawList();
         ImFont*     Small = Controls_->QuerySmall() != nullptr ? Controls_->QuerySmall() : ImGui::GetFont();
         ImFont*     Mono  = Controls_->QueryMono() != nullptr ? Controls_->QueryMono() : Small;
@@ -1761,6 +1774,7 @@ void ViewportPanel::RecordBar() noexcept
 
 void ViewportPanel::RecordView() noexcept
 {
+    CadContact_ = {};
     const float RowWidth = ImGui::GetContentRegionAvail().x;
     // The view reaches exactly the foot's top row, taking the room the shut console leaves.
     const float ViewH =
@@ -1906,105 +1920,91 @@ void ViewportPanel::RecordView() noexcept
 
     const bool BillboardHover=MarkersOn_?Billboards.Draw(Draw,Min,Max,!OrbHover&&!OrbHeld_&&!CanvasDragging_):(Billboards.ClearFrame(),false);
 
-    // CAD canvas interaction (SolidArc): clicking and dragging across the CAD viewport canvas
-    //    orbits the camera, middle-drag or Shift+left-drag pans the target, and scroll wheel dollies.
-    //    For standard game viewports, RMB look and WASD flight are handled by the FlyThrough camera.
+    // The shared panel owns only pointer capture; the SolidArc host owns the camera and gizmo geometry.
     if (Chrome_ == ViewportPanelChrome::SolidArcCad)
     {
-        const bool CanvasHover = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && !OrbHover && !OrbHeld_ && !BillboardHover;
-        const ImVec2 Pointer = ImGui::GetIO().MousePos;
-        const float  SpanX   = std::max(1.0f, Max.x - Min.x);
-        const float  SpanY   = std::max(1.0f, Max.y - Min.y);
-        if (CanvasHover && (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1) || ImGui::IsMouseClicked(2)))
+        const ImGuiIO& Contact = ImGui::GetIO();
+        const bool CanvasHover = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && !BillboardHover;
+        const ImVec2 Pointer = Contact.MousePos;
+        const float SpanX = std::max(1.0f, Max.x - Min.x);
+        const float SpanY = std::max(1.0f, Max.y - Min.y);
+        CadContact_.U = std::clamp((Pointer.x - Min.x) / SpanX, 0.0f, 1.0f);
+        CadContact_.V = std::clamp((Pointer.y - Min.y) / SpanY, 0.0f, 1.0f);
+        CadContact_.Snap = Contact.KeyCtrl || Contact.KeySuper;
+        if (CanvasHover && !CanvasDragging_ &&
+            (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1) || ImGui::IsMouseClicked(2)))
         {
             CanvasDragging_ = true;
-            // A plain left press is a pick if it lifts without moving; Ctrl+left-drag sweeps a box instead of orbiting.
-            PressLeft_  = ImGui::IsMouseClicked(0) && !ImGui::IsMouseClicked(1) && !ImGui::IsMouseClicked(2);
+            PressLeft_ = ImGui::IsMouseClicked(0) && !ImGui::IsMouseClicked(1) && !ImGui::IsMouseClicked(2);
             PressMoved_ = false;
-            PressBox_   = PressLeft_ && ImGui::GetIO().KeyCtrl;
-            PressX_     = Pointer.x;
-            PressY_     = Pointer.y;
+            CadPan_ = ImGui::IsMouseClicked(1) || ImGui::IsMouseClicked(2) || (PressLeft_ && Contact.KeyShift && !Contact.KeyCtrl);
+            CadOrbit_ = PressLeft_ && Contact.KeyAlt && !Contact.KeyShift;
+            PressBox_ = PressLeft_ && Contact.KeyCtrl && !Contact.KeyAlt;
+            PressX_ = Pointer.x;
+            PressY_ = Pointer.y;
+            CadContact_.Start = true;
         }
         if (CanvasDragging_)
         {
-            if (!ImGui::IsMouseDown(0) && !ImGui::IsMouseDown(1) && !ImGui::IsMouseDown(2))
+            CadContact_.Left = PressLeft_;
+            CadContact_.Pan = CadPan_;
+            CadContact_.Orbit = CadOrbit_;
+            CadContact_.Box = PressBox_;
+            const float DragX = Pointer.x - PressX_;
+            const float DragY = Pointer.y - PressY_;
+            if (DragX * DragX + DragY * DragY > 16.0f) PressMoved_ = true;
+            CadContact_.Travelled = PressMoved_;
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
             {
+                CadContact_.Cancel = true;
+                CanvasDragging_ = false;
+                PressLeft_ = false;
+                PressBox_ = false;
+            }
+            else if (!ImGui::IsMouseDown(0) && !ImGui::IsMouseDown(1) && !ImGui::IsMouseDown(2))
+            {
+                CadContact_.End = true;
                 CanvasDragging_ = false;
                 if (PressLeft_ && PressBox_ && PressMoved_)
                 {
-                    BoxLive_       = true;
-                    BoxExtend_     = ImGui::GetIO().KeyShift;
-                    BoxSubtract_   = ImGui::GetIO().KeyAlt;
-                    BoxU0_         = std::clamp((std::min(PressX_, Pointer.x) - Min.x) / SpanX, 0.0f, 1.0f);
-                    BoxU1_         = std::clamp((std::max(PressX_, Pointer.x) - Min.x) / SpanX, 0.0f, 1.0f);
-                    BoxV0_         = std::clamp((std::min(PressY_, Pointer.y) - Min.y) / SpanY, 0.0f, 1.0f);
-                    BoxV1_         = std::clamp((std::max(PressY_, Pointer.y) - Min.y) / SpanY, 0.0f, 1.0f);
+                    BoxLive_ = true;
+                    BoxExtend_ = Contact.KeyShift;
+                    BoxSubtract_ = Contact.KeyAlt;
+                    BoxU0_ = std::clamp((std::min(PressX_, Pointer.x) - Min.x) / SpanX, 0.0f, 1.0f);
+                    BoxU1_ = std::clamp((std::max(PressX_, Pointer.x) - Min.x) / SpanX, 0.0f, 1.0f);
+                    BoxV0_ = std::clamp((std::min(PressY_, Pointer.y) - Min.y) / SpanY, 0.0f, 1.0f);
+                    BoxV1_ = std::clamp((std::max(PressY_, Pointer.y) - Min.y) / SpanY, 0.0f, 1.0f);
                 }
-                else if (PressLeft_ && !PressMoved_)
+                else if (PressLeft_ && !PressMoved_ && !CadOrbit_)
                 {
-                    TapLive_     = true;
-                    TapAdditive_ = ImGui::GetIO().KeyShift || ImGui::GetIO().KeyCtrl;
-                    TapU_        = std::clamp((PressX_ - Min.x) / SpanX, 0.0f, 1.0f);
-                    TapV_        = std::clamp((PressY_ - Min.y) / SpanY, 0.0f, 1.0f);
+                    TapLive_ = true;
+                    TapAdditive_ = Contact.KeyShift || Contact.KeyCtrl;
+                    TapU_ = std::clamp((PressX_ - Min.x) / SpanX, 0.0f, 1.0f);
+                    TapV_ = std::clamp((PressY_ - Min.y) / SpanY, 0.0f, 1.0f);
                 }
                 PressLeft_ = false;
-                PressBox_  = false;
+                PressBox_ = false;
             }
-            else if (PressBox_)
+            else if (!CadContact_.Start)
             {
-                const float DragX = Pointer.x - PressX_;
-                const float DragY = Pointer.y - PressY_;
-                if (DragX * DragX + DragY * DragY > 16.0f)
-                    PressMoved_ = true;
-                if (PressMoved_)
+                CadContact_.DeltaX = Contact.MouseDelta.x;
+                CadContact_.DeltaY = Contact.MouseDelta.y;
+                CadContact_.Move = PressMoved_ && (Contact.MouseDelta.x != 0.0f || Contact.MouseDelta.y != 0.0f);
+                if (PressBox_ && PressMoved_)
                 {
                     const ImVec2 CornerA(std::max(Min.x, std::min(PressX_, Pointer.x)), std::max(Min.y, std::min(PressY_, Pointer.y)));
                     const ImVec2 CornerB(std::min(Max.x, std::max(PressX_, Pointer.x)), std::min(Max.y, std::max(PressY_, Pointer.y)));
                     Draw->AddRectFilled(CornerA, CornerB, IM_COL32(255, 180, 84, 34));
-                    Draw->AddRect(CornerA, CornerB, IM_COL32(255, 180, 84, 220), 0.0f, 0, 1.0f);
-                }
-            }
-            else
-            {
-                if (PressLeft_)
-                {
-                    const float DragX = Pointer.x - PressX_;
-                    const float DragY = Pointer.y - PressY_;
-                    if (DragX * DragX + DragY * DragY > 16.0f)
-                        PressMoved_ = true;
-                }
-                const ImVec2 Delta = ImGui::GetIO().MouseDelta;
-                if (Delta.x != 0.0f || Delta.y != 0.0f)
-                {
-                    if (ImGui::IsMouseDown(2) || (ImGui::IsMouseDown(0) && ImGui::GetIO().KeyShift))
-                    {
-                        const float PanFactor = std::max(0.1f, Orbit_.Distance) * 0.002f;
-                        Orbit_.Target[0] += (-Gr[0] * Delta.x + Gu[0] * Delta.y) * PanFactor;
-                        Orbit_.Target[1] += (-Gr[1] * Delta.x + Gu[1] * Delta.y) * PanFactor;
-                        Orbit_.Target[2] += (-Gr[2] * Delta.x + Gu[2] * Delta.y) * PanFactor;
-                    }
-                    else
-                    {
-                        Orbit_.Yaw   -= Delta.x * 0.0055f;
-                        Orbit_.Pitch += Delta.y * 0.0055f;
-                        if (Orbit_.Pitch > 1.55f)  Orbit_.Pitch = 1.55f;
-                        if (Orbit_.Pitch < -1.55f) Orbit_.Pitch = -1.55f;
-                        while (Orbit_.Yaw > kOrbitPi)  Orbit_.Yaw -= 2.0f * kOrbitPi;
-                        while (Orbit_.Yaw < -kOrbitPi) Orbit_.Yaw += 2.0f * kOrbitPi;
-                        Orbit_.ViewPoint = 0u;
-                    }
-                    ++Orbit_.Revision;
+                    Draw->AddRect(CornerA, CornerB, IM_COL32(255, 180, 84, 220));
                 }
             }
         }
+        if (CanvasHover) CadContact_.Wheel = Contact.MouseWheel;
     }
-
-    // The wheel dollies over the view in both chromes: crowd the target or back off, the compass snap
-    //    staying put. Gate 9 drives this over the game chrome, so it must not hide in the CAD branch.
-    if (ImGui::IsMouseHoveringRect(Min, Max) && ImGui::GetIO().MouseWheel != 0.0f)
+    else if (ImGui::IsMouseHoveringRect(Min, Max) && ImGui::GetIO().MouseWheel != 0.0f)
     {
         Orbit_.Distance *= ImGui::GetIO().MouseWheel > 0.0f ? 0.88f : 1.13f;
-        if (Orbit_.Distance < 0.2f)   Orbit_.Distance = 0.2f;
+        if (Orbit_.Distance < 0.2f) Orbit_.Distance = 0.2f;
         if (Orbit_.Distance > 120.0f) Orbit_.Distance = 120.0f;
         ++Orbit_.Revision;
     }
