@@ -286,6 +286,11 @@ public:
     //    outgrew its allocation; a rebuild over the same instance count never does (the top level is bounded by
     //    2 × instances).
     [[nodiscard]] bool          RefreshInstanceTraversal(const InstanceAcceleration& Instances) noexcept;
+    // Hardware ray-query path: per-instance records (binding 29) built from the scene rows, so an instance hit resolves to
+    //    its flat triangle range and normal transform without the CPU two-level structure. Needed whenever the hardware
+    //    tier is selected for more than one instance (ViewportIntegrator reads these records on hits).
+    [[nodiscard]] bool          UploadHardwareInstanceRecords(const InstanceRecord* Rows, uint32_t Count) noexcept;
+    [[nodiscard]] uint32_t      QueryHardwareInstanceRecordCount() const noexcept { return HardwareInstanceCount; }
     // Celestial sky record → binding 21, safe every frame: a memcpy into the persistently mapped uniform buffer,
     //    no reallocation and no descriptor rewrite. DeviceExchange must not include DisplayPresentation (it is the
     //    layer below it), so the caller packs with SkyConstantRecord/PackSkyConstants and hands over plain bytes —
@@ -478,6 +483,7 @@ private:
 
     // D6/D7 two-level traversal (bindings 27-30): what was allocated, so a per-frame refresh cannot overrun.
     bool                    InstanceTraversalResident = false;
+    uint32_t                HardwareInstanceCount     = 0u;   // [cnt] hardware-path records resident in binding 29 (0 = none)
     uint64_t                TlasNodeCapacity      = 0u;   // [B] 8 floats per top-level node
     uint64_t                TlasPrimitiveCapacity = 0u;   // [B] instance list
     uint64_t                TlasInstanceCapacity  = 0u;   // [B] TlasInstanceRecord rows

@@ -3098,11 +3098,14 @@ void SwapchainExchange::UploadScene(const SceneStructure& Scene, const Traversal
     if (Vulkan->RayQueryPipeline)
     {
         Vulkan->RayQueryInstanceCount = static_cast<uint32_t>(Scene.QueryInstances().size());
+        HardwareInstanceCount = 0u;   // a new scene starts with no hardware records; the upload below restores them
         if (!Vulkan->RayQueries.ConstructScene(Scene))
             std::cerr << "[RayQuery] Triangle acceleration construction refused; using software traversal.\n";
+        else if (Vulkan->RayQueryInstanceCount > 1u && !UploadHardwareInstanceRecords(Scene.QueryInstances().data(), Vulkan->RayQueryInstanceCount))
+            std::cerr << "[RayQuery] Instance records refused; using software traversal.\n";
         else
             std::cerr << "[RayQuery] Hardware triangle BLAS/TLAS resident: " << Vulkan->RayQueryInstanceCount
-                      << " instances; inline ray queries enabled for ReSTIR GI, shadows and mesh reflections.\n";
+                      << " instances, " << HardwareInstanceCount << " instance records; inline ray queries enabled for ReSTIR GI, shadows and mesh reflections.\n";
     }
     BuildSurfelSamples(Scene);
     try
@@ -3164,10 +3167,80 @@ bool SwapchainExchange::BringVisibility() noexcept
     return Result == VK_SUCCESS;
 }
 
+// Hardware-path instance records: one 112 B TlasInstanceRecord per scene row, in row order. The hardware TLAS sets
+//    instanceCustomIndex to the row index, so ViewportIntegrator's TlasInstances[hit.instance] lands on the same row.
+//    The world AABB is left zero: only the software walker reads it.
+static bool BuildHardwareInstanceRecords(const InstanceRecord* Rows, uint32_t Count, std::vector<TlasInstanceRecord>& Out) noexcept
+{
+    Out.assign(Count, TlasInstanceRecord{});
+    for (uint32_t I = 0u; I < Count; ++I)
+    {
+        TlasInstanceRecord& Record = Out[I];
+        if (!InvertMatrix(Rows[I].World, Record.Inverse)) return false;
+        Record.BlasIndex     = I;
+        Record.FirstTriangle = Rows[I].FlatTriangleOffset;
+        Record.Flags         = Rows[I].Flags;
+        Record.Pad           = 0u;
+    }
+    return true;
+}
+
+bool SwapchainExchange::UploadHardwareInstanceRecords(const InstanceRecord* Rows, uint32_t Count) noexcept
+{
+    if (!Vulkan || !Vulkan->Device || !Rows || Count == 0u) return false;
+    // The two-level path owns binding 29 with its own BLAS indices; its records already carry the same instance order,
+    //    FirstTriangle and inverse, so keep them and only record the count the hardware dispatch indexes with.
+    if (InstanceTraversalResident && Vulkan->TlasInstanceBuffer && TlasInstanceCapacity >= Count * sizeof(TlasInstanceRecord))
+    {
+        HardwareInstanceCount = Count;
+        return true;
+    }
+    std::vector<TlasInstanceRecord> Records;
+    if (!BuildHardwareInstanceRecords(Rows, Count, Records)) return false;
+    const VkDeviceSize ByteCount = static_cast<VkDeviceSize>(Records.size()) * sizeof(TlasInstanceRecord);
+    vkDeviceWaitIdle(Vulkan->Device);
+    if (Vulkan->TlasInstanceBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TlasInstanceBuffer, nullptr);
+    if (Vulkan->TlasInstanceMemory) vkFreeMemory(Vulkan->Device, Vulkan->TlasInstanceMemory, nullptr);
+    Vulkan->TlasInstanceBuffer = VK_NULL_HANDLE;
+    Vulkan->TlasInstanceMemory = VK_NULL_HANDLE;
+    constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                   HostVisible, Vulkan->TlasInstanceBuffer, Vulkan->TlasInstanceMemory);
+    if (!Vulkan->TlasInstanceBuffer || !Vulkan->TlasInstanceMemory) { HardwareInstanceCount = 0u; return false; }
+    void* Mapped = nullptr;
+    if (vkMapMemory(Vulkan->Device, Vulkan->TlasInstanceMemory, 0u, ByteCount, 0u, &Mapped) != VK_SUCCESS || !Mapped)
+    {
+        HardwareInstanceCount = 0u;
+        return false;
+    }
+    std::memcpy(Mapped, Records.data(), static_cast<size_t>(ByteCount));
+    vkUnmapMemory(Vulkan->Device, Vulkan->TlasInstanceMemory);
+    TlasInstanceCapacity = static_cast<uint64_t>(ByteCount);
+    HardwareInstanceCount = Count;
+    WriteDescriptorSet();
+    return true;
+}
+
 bool SwapchainExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept
 {
     if (!Visibility.RefreshInstances(Rows, Count)) return false;
     if (Vulkan->RayQueries.Ready() && !Vulkan->RayQueries.RefreshPlacements(Rows, Count)) return false;
+    // Records follow the placements: a moving instance must also move its inverse, or hits shade with stale normals.
+    if (Vulkan->RayQueries.Ready() && HardwareInstanceCount != 0u && !InstanceTraversalResident)
+    {
+        if (Count != HardwareInstanceCount || !Vulkan->TlasInstanceBuffer) return false;
+        std::vector<TlasInstanceRecord> Records;
+        if (!BuildHardwareInstanceRecords(Rows, Count, Records)) return false;
+        const auto* Bytes = reinterpret_cast<const unsigned char*>(Records.data());
+        auto Existing = std::find_if(Vulkan->PendingTraversal.begin(), Vulkan->PendingTraversal.end(),
+                                     [&](const VulkanRecord::TransferExtent& E) { return E.Destination == Vulkan->TlasInstanceBuffer; });
+        if (Existing == Vulkan->PendingTraversal.end())
+        {
+            Vulkan->PendingTraversal.push_back({ Vulkan->TlasInstanceBuffer, {} });
+            Existing = Vulkan->PendingTraversal.end() - 1;
+        }
+        Existing->Bytes.assign(Bytes, Bytes + Records.size() * sizeof(TlasInstanceRecord));
+    }
     try
     {
         if (DistanceGeometry.RefreshInstances(Rows, Count)) return true;
@@ -3419,7 +3492,24 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     }
 
     Vulkan->ActiveSlot = (ActiveSlot + 1u) % kCycleSlotCount;
-}E_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+}
+
+void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const DispatchConfiguration& Dispatch) noexcept
+{
+    VkCommandBuffer Command = Vulkan->ComputeCommands[ImageOrdinal];
+
+    VkCommandBufferBeginInfo BeginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+    BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    (void)vkBeginCommandBuffer(Command, &BeginInfo);
+
+    // Hardware instance records and the rebuilt traversal payloads are host-written into buffers the previous frame's compute
+    //    read. Order that read before the vkCmdUpdateBuffer writes below.
+    if (!Vulkan->PendingTraversal.empty())
+    {
+        VkMemoryBarrier Transfer{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        Transfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        Transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0u, 1u, &Transfer, 0u, nullptr, 0u, nullptr);
         for (const auto& Upload : Vulkan->PendingTraversal)
             for (VkDeviceSize Offset = 0u; Offset < Upload.Bytes.size(); Offset += 65536u)
@@ -3653,6 +3743,8 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
             LiveDispatch.MaxReflectionBounces = LiveDispatch.MaxGiBounces = 0u;
         }
         const bool Hardware = TraceRequested && QueryRayTracingTier() == RayTracingTierCategory::RayQuery;
+        // Hardware hits index binding 29 by row, so the dispatch must carry the hardware record count, not the two-level one.
+        if (Hardware) LiveDispatch.TlasInstanceCount = HardwareInstanceCount;
         const VkPipelineLayout Layout = Hardware ? Vulkan->RayQueryPipelineLayout : TraceRequested ? Vulkan->ComputePipelineLayout : Vulkan->RasterPipelineLayout;
         vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Hardware ? Vulkan->RayQueryPipeline : TraceRequested ? Vulkan->ComputePipeline : Vulkan->RasterPipeline);
         if (Hardware)
@@ -4450,8 +4542,10 @@ void SwapchainExchange::OnFramebuffer(GLFWwindow* Window, int, int) noexcept
 namespace Frontier {
 RayTracingTierCategory SwapchainExchange::QueryRayTracingTier() const noexcept
 {
+    // Hardware is selected whenever the hardware TLAS is resident and every instance has its record (binding 29). A single
+    //    instance needs no records: the dispatch's instance count stays 0 and hits resolve to the primitive directly.
     return Vulkan && Vulkan->RayQueryPipeline && Vulkan->RayQueries.Ready()
-        && (InstanceTraversalResident || Vulkan->RayQueryInstanceCount == 1u)
+        && (Vulkan->RayQueryInstanceCount <= 1u || HardwareInstanceCount == Vulkan->RayQueryInstanceCount)
         ? RayTracingTierCategory::RayQuery : RayTracingTierCategory::Software;
 }
 }
