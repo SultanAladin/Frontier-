@@ -33,14 +33,14 @@ export const CARS = [
     blipRpm: 1100,
     // Firing-slot stereo positions (-1 left .. +1 right): boxer banks alternate.
     pan: [-0.7, 0.7, -0.7, 0.7, -0.7, 0.7],
-    modes: [[260, 4, 0.34], [520, 4, 0.55], [1050, 4, 0.7], [2100, 4.5, 0.9], [3900, 5, 0.8], [6300, 7, 0.5]],
-    pulseTau: 0.00038,        // combustion pulse decay (s): short = bright
+    modes: [[125, 5, 0.9], [270, 4.5, 0.75], [540, 5, 0.65], [1000, 6, 0.5], [2150, 7, 0.36], [4400, 9, 0.2]],
+    pulseTau: 0.00055,        // combustion pulse decay (s): short = bright
     roughness: 0.12,          // cycle-to-cycle amplitude scatter
     jitterDeg: 0.6,           // firing-angle scatter (deg)
     noise: 0.15,               // broadband noise inside each combustion event
     baseLevel: 0.85,
     exhaustGain: 1,
-    intake: { freq: 1500, q: 1.0, gain: 0.04 },   // naturally aspirated induction roar
+    intake: { freq: 820, q: 1.2, gain: 0.04 },   // naturally aspirated induction roar
     turbo: null,
     gearTeeth: 19,
     gearWhine: 0.010,
@@ -48,7 +48,7 @@ export const CARS = [
     crackle: 0.35,           // overrun crackle probability scale
     popGain: 0.6,
     injHiss: 0.008,
-    pumpGain: 0.0018,
+    pumpGain: 0.003,
     windGain: 0.02,
     clunk: 0.25,             // sequential shift dog-engagement clunk
     nosSeconds: 14,
@@ -74,23 +74,23 @@ export const CARS = [
     brakeForce: 15000,
     blipRpm: 1000,
     pan: [-0.7, 0.7, -0.7, 0.7, -0.7, 0.7],
-    modes: [[200, 5, 0.42], [430, 4.5, 0.7], [900, 4.5, 0.75], [1800, 4.5, 0.8], [3500, 5, 0.85], [5800, 7, 0.45]],
-    pulseTau: 0.00045,
+    modes: [[90, 5, 1.0], [210, 4.5, 0.8], [440, 5, 0.6], [880, 6, 0.5], [1700, 7, 0.34], [3400, 8, 0.18]],
+    pulseTau: 0.0007,
     roughness: 0.10,
     jitterDeg: 0.5,
     noise: 0.13,
     baseLevel: 0.8,
     exhaustGain: 1,
-    intake: { freq: 1100, q: 1.0, gain: 0.02 },
+    intake: { freq: 600, q: 1.0, gain: 0.02 },
     turbo: {
       spoolUp: 0.32,          // s, first-order spool time constants
       spoolDown: 0.55,
       whineMin: 2600,         // Hz compressor whine at low / high spool
       whineMax: 8000,
-      whineGain: 0.018,
+      whineGain: 0.035,
       hissGain: 0.008,
-      bovGain: 0.08,          // blow-off valve "psshh" on throttle lift
-      wastegate: 0.02,        // wastegate rattle when boosting hard
+      bovGain: 0.12,          // blow-off valve "psshh" on throttle lift
+      wastegate: 0.04,        // wastegate rattle when boosting hard
       wgHz: 40,
     },
     gearTeeth: 17,
@@ -99,7 +99,7 @@ export const CARS = [
     crackle: 0.25,
     popGain: 0.7,
     injHiss: 0.008,
-    pumpGain: 0.0018,
+    pumpGain: 0.003,
     windGain: 0.02,
     clunk: 0.3,
     nosSeconds: 16,
@@ -125,22 +125,22 @@ export const CARS = [
     brakeForce: 15000,
     blipRpm: 1000,
     pan: [-0.7, 0.7, -0.7, 0.7, 0.7, -0.7, 0.7, -0.7],
-    modes: [[260, 4.5, 0.42], [570, 4.5, 0.7], [1150, 4.5, 0.75], [2250, 5, 0.85], [4200, 5.5, 0.8], [7000, 7, 0.45]],
-    pulseTau: 0.00042,
+    modes: [[138, 5, 0.95], [300, 4.5, 0.7], [610, 4.5, 0.7], [1180, 5, 0.5], [2450, 6, 0.38], [5150, 8, 0.18]],
+    pulseTau: 0.0005,
     roughness: 0.10,
     jitterDeg: 0.5,
     noise: 0.13,
     baseLevel: 0.75,
     exhaustGain: 1,
-    intake: { freq: 1600, q: 1.1, gain: 0.015 },
+    intake: { freq: 900, q: 1.1, gain: 0.015 },
     turbo: {
       spoolUp: 0.28,
       spoolDown: 0.5,
       whineMin: 3000,
       whineMax: 9000,
-      whineGain: 0.016,
+      whineGain: 0.03,
       hissGain: 0.008,
-      bovGain: 0.08,
+      bovGain: 0.12,
       wastegate: 0.02,
       wgHz: 46,
     },
@@ -150,7 +150,7 @@ export const CARS = [
     crackle: 0.3,
     popGain: 0.55,
     injHiss: 0.008,
-    pumpGain: 0.0018,
+    pumpGain: 0.003,
     windGain: 0.02,
     clunk: 0.28,
     nosSeconds: 15,
