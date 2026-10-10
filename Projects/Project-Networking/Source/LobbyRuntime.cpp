@@ -284,7 +284,7 @@ void PublishAttributes()
     AttributesDirty = false; OwnerAttributesDirty = false; LiveSettingsDirty = false;
     if (Success("lobby_attributes", Result))
     {
-        EOS_Lobby_UpdateLobbyOptions U{}; U.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST; U.LobbyModificationIdentifier = Modification;
+        EOS_Lobby_UpdateLobbyOptions U{}; U.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST; U.LobbyModificationHandle = Modification;
         Room.ReadyPending = true; EOS_Lobby_UpdateLobby(Lobby, &U, Cookie(), AttributesDone);
     }
     EOS_LobbyModification_Release(Modification);
@@ -351,7 +351,7 @@ void Prepare()
     AddSessionStringAttribute(M, "mode", S.ModeName, Result);
     if (Success("session_options", Result))
     {
-        EOS_Sessions_UpdateSessionOptions U{}; U.ApiVersion = EOS_SESSIONS_UPDATESESSION_API_LATEST; U.SessionModificationIdentifier = M;
+        EOS_Sessions_UpdateSessionOptions U{}; U.ApiVersion = EOS_SESSIONS_UPDATESESSION_API_LATEST; U.SessionModificationHandle = M;
         Operation = true; EOS_Sessions_UpdateSession(Sessions, &U, Cookie(), Prepared);
     }
     else Room.Phase = RoomPhase::Failed;
