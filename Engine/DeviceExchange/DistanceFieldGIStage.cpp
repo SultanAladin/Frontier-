@@ -4,6 +4,7 @@
 // 📦 Records geometry upload, distance construction, radiance propagation and resolve with explicit resource dependencies.
 
 #include "DistanceFieldGIStage.h"
+#include "DistanceFieldLightingDrift.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -339,7 +340,10 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     Push.Eye[3]      = static_cast<float>(std::min(Initialization.TextureCount, 0xFFFFu));
     Push.Tuning[0]   = std::max(0.01f, Frame.ShadowSoftness);
     Push.Tuning[1]   = std::clamp(Frame.GiBoost, 0.0f, 2.0f);
-    const bool Reset = Capture || std::memcmp(PreviousLighting, Push.Sun, sizeof(PreviousLighting)) != 0;
+    // Sub-perceptual lighting drift keeps the card history; see DistanceFieldLightingDrift.h. The baseline is held at the
+    // last reset, so slow drift accumulates until it is visible instead of being forgotten frame by frame.
+    const bool Reset = Capture || DistanceFieldLightingDrift::LightingChanged(PreviousLighting, Push.Sun);
+    if (Reset) std::memcpy(PreviousLighting, Push.Sun, sizeof(PreviousLighting));
     Push.Tuning[2]   = Reset ? 1.0f : 0.0f;
     Push.Counts[0]   = VoxelCount;
     Push.Counts[1]   = FrameNumber;
@@ -430,7 +434,6 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     ResidentMaterials     = Frame.MaterialRevision;
     ResidentRevision      = Geometry.QueryRevision();
     std::memcpy(Origins, Constants.Origins, sizeof(Origins));
-    std::memcpy(PreviousLighting, Push.Sun, sizeof(PreviousLighting));
     ++FrameNumber;
     return true;
 }

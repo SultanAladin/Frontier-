@@ -1,0 +1,7 @@
+scenario	build	frames	restarts	restarts_per_frame	mean_history_run_frames	longest_history_run_frames	preset_change_restarts	decision_ns_per_frame	description
+sun_realtime	old_exact	3600	3600	1.00000	0.0	0	0	26.4	Sun at real day speed (360 deg / 24 min), exposure steady
+sun_realtime	new_tolerant	3600	1	0.00028	1799.5	2532	0	90.5	Sun at real day speed (360 deg / 24 min), exposure steady
+sun_demo_1dps	old_exact	3600	3600	1.00000	0.0	0	0	26.6	Sun at 1 deg/s (demo speed), exposure steady
+sun_demo_1dps	new_tolerant	3600	227	0.06306	14.8	15	0	77.1	Sun at 1 deg/s (demo speed), exposure steady
+auto_exposure	old_exact	3600	3600	1.00000	0.0	0	1	25.1	Sun static, auto-exposure hunts +/-0.3% per frame, preset change at frame 1800
+auto_exposure	new_tolerant	3600	65	0.01806	53.6	317	1	81.9	Sun static, auto-exposure hunts +/-0.3% per frame, preset change at frame 1800
