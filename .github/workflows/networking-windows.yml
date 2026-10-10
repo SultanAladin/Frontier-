@@ -165,7 +165,7 @@ jobs:
         run: |
           Add-Type -AssemblyName System.Drawing
           $Image = [System.Drawing.Image]::FromFile((Resolve-Path 'Projects/Project-Networking/Build/Output/LobbyProof.bmp'))
-          $Stream = [System.IO.StorageStream]::new()
+          $Stream = [System.IO.MemoryStream]::new()
           $Image.Save($Stream, [System.Drawing.Imaging.ImageFormat]::Png)
           $Packet = [Convert]::ToBase64String($Stream.ToArray())
           $Image.Dispose(); $Stream.Dispose()
