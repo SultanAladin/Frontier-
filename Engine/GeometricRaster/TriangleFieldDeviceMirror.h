@@ -1,21 +1,21 @@
 //============================================================================================================================================
-//                                                    MESHSDFGPUMIRROR.H
+//                                                    TRIANGLEFIELDGPUMIRROR.H
 //============================================================================================================================================
-// 📦 CPU exact mirror of Engine/GeometricRaster/Shaders/MeshSdf.slang. Each function follows its shader counterpart line for line and
+// 📦 CPU exact mirror of Engine/GeometricRaster/Shaders/TriangleField.slang. Each function follows its shader counterpart line for line and
 //    works on the same flat buffers (9 floats per triangle, concatenated field data, InstanceGpu records, clip volume X fastest).
-//    The proof checks this mirror against the CPU reference in MeshDistanceField.h. The GPU must match this mirror, and that check
+//    The proof checks this mirror against the CPU reference in TriangleField.h. The GPU must match this mirror, and that check
 //    needs a device run, which this sandbox cannot do.
 
 #pragma once
 
-#include "MeshDistanceField.h"
+#include "TriangleField.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <vector>
 
-namespace MeshSdfGpuMirror
+namespace TriangleFieldDeviceMirror
 {
 struct float3 { float X, Y, Z; };
 
@@ -31,7 +31,7 @@ inline float  Dot3(float3 A, float3 B) noexcept { return A.X * B.X + A.Y * B.Y +
 inline float3 Cross3(float3 A, float3 B) noexcept { return { A.Y * B.Z - A.Z * B.Y, A.Z * B.X - A.X * B.Z, A.X * B.Y - A.Y * B.X }; }
 inline float  Length3(float3 A) noexcept { return std::sqrt(Dot3(A, A)); }
 
-// Ericson closest point, same branch order as ClosestOnTriangle in the shader and in MeshDistanceField.h.
+// Ericson closest point, same branch order as ClosestOnTriangle in the shader and in TriangleField.h.
 inline float3 ClosestOnTriangle(float3 P, float3 A, float3 B, float3 C) noexcept
 {
     float3 AB = B - A, AC = C - A, AP = P - A;
@@ -57,14 +57,14 @@ inline float3 ClosestOnTriangle(float3 P, float3 A, float3 B, float3 C) noexcept
     return A + AB * (VB * Denom) + AC * (VC * Denom);
 }
 
-struct BakeParams
+struct GridProjectionParams
 {
     float3   Min, Max;
     uint32_t Resolution, TriangleCount;
 };
 
-// BakeMain for one thread: the value of node I.
-inline float BakeNode(const BakeParams& P, const std::vector<float>& Triangles, uint32_t I) noexcept
+// ProjectGridMain for one thread: the value of node I.
+inline float ProjectNode(const GridProjectionParams& P, const std::vector<float>& Triangles, uint32_t I) noexcept
 {
     const uint32_t N = P.Resolution;
     const uint32_t X = I % N, Y = (I / N) % N, Z = I / (N * N);
@@ -89,12 +89,12 @@ inline float BakeNode(const BakeParams& P, const std::vector<float>& Triangles, 
     return Sign * Best;
 }
 
-// BakeMain over the whole grid. Same output layout as MeshDistanceField::Field::Distance.
-inline std::vector<float> BakeGrid(const BakeParams& P, const std::vector<float>& Triangles)
+// ProjectGridMain over the whole grid. Same output layout as TriangleField::Field::Distance.
+inline std::vector<float> ProjectGrid(const GridProjectionParams& P, const std::vector<float>& Triangles)
 {
     const uint32_t Total = P.Resolution * P.Resolution * P.Resolution;
     std::vector<float> Out(Total);
-    for (uint32_t I = 0u; I < Total; ++I) Out[I] = BakeNode(P, Triangles, I);
+    for (uint32_t I = 0u; I < Total; ++I) Out[I] = ProjectNode(P, Triangles, I);
     return Out;
 }
 
@@ -106,7 +106,7 @@ struct InstanceGpu
     uint32_t FieldOffset;
 };
 
-inline InstanceGpu MakeInstanceGpu(const MeshDistanceField::Field& F, const MeshDistanceField::Affine& A, uint32_t FieldOffset) noexcept
+inline InstanceGpu MakeInstanceGpu(const TriangleField::Field& F, const TriangleField::Affine& A, uint32_t FieldOffset) noexcept
 {
     InstanceGpu G{};
     for (int C = 0; C < 4; ++C) G.InverseRow0[C] = 0.0f, G.InverseRow1[C] = 0.0f, G.InverseRow2[C] = 0.0f;
@@ -126,8 +126,8 @@ inline InstanceGpu MakeInstanceGpu(const MeshDistanceField::Field& F, const Mesh
     return G;
 }
 
-// SampleField in the shader. Data is the concatenation of every field.
-inline float SampleField(const std::vector<float>& FieldData, uint32_t Offset, uint32_t N, float3 Min, float3 Max, float3 P) noexcept
+// SampleField in the shader. Payload is the concatenation of every field.
+inline float SampleField(const std::vector<float>& FieldSamples, uint32_t Offset, uint32_t N, float3 Min, float3 Max, float3 P) noexcept
 {
     const float3 Clamped = F3(std::clamp(P.X, Min.X, Max.X), std::clamp(P.Y, Min.Y, Max.Y), std::clamp(P.Z, Min.Z, Max.Z));
     const float  Gap = Length3(Clamped - P);
@@ -142,12 +142,12 @@ inline float SampleField(const std::vector<float>& FieldData, uint32_t Offset, u
         const uint32_t Dx = Corner & 1u, Dy = (Corner >> 1) & 1u, Dz = (Corner >> 2) & 1u;
         const float Weight = (Dx != 0u ? Fr.X : 1.0f - Fr.X) * (Dy != 0u ? Fr.Y : 1.0f - Fr.Y) * (Dz != 0u ? Fr.Z : 1.0f - Fr.Z);
         const uint32_t Index = Offset + (I0z + Dz) * N * N + (I0y + Dy) * N + (I0x + Dx);
-        Accum += Weight * FieldData[Index];
+        Accum += Weight * FieldSamples[Index];
     }
     return Gap > 0.0f ? std::max(Gap, Accum - Gap) : Accum;
 }
 
-struct CompositeParams
+struct ClipMinimumParams
 {
     float3   Origin;
     float    Cell;
@@ -156,8 +156,8 @@ struct CompositeParams
     uint32_t InstanceCount;
 };
 
-// CompositeMain for one thread: writes only when the cell lies inside the dirty box. Returns true when the cell was written.
-inline bool CompositeCell(const CompositeParams& P, const std::vector<InstanceGpu>& Instances, const std::vector<float>& FieldData,
+// ClipMinimumMain for one thread: writes only when the cell lies inside the dirty box. Returns true when the cell was written.
+inline bool ClipMinimumCell(const ClipMinimumParams& P, const std::vector<InstanceGpu>& Instances, const std::vector<float>& FieldSamples,
                           const uint32_t Id[3], std::vector<float>& ClipVolume) noexcept
 {
     uint32_t Cell[3];
@@ -175,7 +175,7 @@ inline bool CompositeCell(const CompositeParams& P, const std::vector<InstanceGp
             Inst.InverseRow0[0] * Pos.X + Inst.InverseRow0[1] * Pos.Y + Inst.InverseRow0[2] * Pos.Z + Inst.InverseRow0[3],
             Inst.InverseRow1[0] * Pos.X + Inst.InverseRow1[1] * Pos.Y + Inst.InverseRow1[2] * Pos.Z + Inst.InverseRow1[3],
             Inst.InverseRow2[0] * Pos.X + Inst.InverseRow2[1] * Pos.Y + Inst.InverseRow2[2] * Pos.Z + Inst.InverseRow2[3]);
-        const float D = SampleField(FieldData, Inst.FieldOffset, uint32_t(Inst.FieldMax[3]),
+        const float D = SampleField(FieldSamples, Inst.FieldOffset, uint32_t(Inst.FieldMax[3]),
                                     F3(Inst.FieldMin[0], Inst.FieldMin[1], Inst.FieldMin[2]),
                                     F3(Inst.FieldMax[0], Inst.FieldMax[1], Inst.FieldMax[2]), Local) * Inst.FieldMin[3];
         Best = std::min(Best, D);
@@ -186,7 +186,7 @@ inline bool CompositeCell(const CompositeParams& P, const std::vector<InstanceGp
 }
 
 // Dispatch over the dirty box, the way the shader's thread groups do.
-inline uint64_t CompositeDirty(const CompositeParams& P, const std::vector<InstanceGpu>& Instances, const std::vector<float>& FieldData,
+inline uint64_t ClipMinimumDirty(const ClipMinimumParams& P, const std::vector<InstanceGpu>& Instances, const std::vector<float>& FieldSamples,
                                std::vector<float>& ClipVolume) noexcept
 {
     uint64_t Written = 0u;
@@ -197,8 +197,8 @@ inline uint64_t CompositeDirty(const CompositeParams& P, const std::vector<Insta
             for (uint32_t X = 0u; X < Extent[0]; ++X)
             {
                 const uint32_t Id[3] = { X, Y, Z };
-                Written += CompositeCell(P, Instances, FieldData, Id, ClipVolume) ? 1u : 0u;
+                Written += ClipMinimumCell(P, Instances, FieldSamples, Id, ClipVolume) ? 1u : 0u;
             }
     return Written;
 }
-} // namespace MeshSdfGpuMirror
+} // namespace TriangleFieldDeviceMirror

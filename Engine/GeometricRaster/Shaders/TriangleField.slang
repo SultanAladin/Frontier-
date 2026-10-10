@@ -1,24 +1,24 @@
 //============================================================================================================================================
-//                                                        MESHSDF.SLANG
+//                                                        TRIANGLEFIELD.SLANG
 //============================================================================================================================================
-// 📦 GPU import bake and dirty-cell composite for mesh signed distance fields. Mirrors MeshDistanceField.h line for line:
-//    MeshSdfGpuMirror.h is the CPU exact mirror of these kernels, and the proof checks it against the CPU reference.
+// 📦 GPU import bake and dirty-cell composite for mesh signed distance fields. Mirrors TriangleField.h line for line:
+//    TriangleFieldDeviceMirror.h is the CPU exact mirror of these kernels, and the proof checks it against the CPU reference.
 //
-//    BakeMain       one thread per grid node of one mesh. Exact closest triangle, sign from the closest face normal.
+//    ProjectGridMain       one thread per grid node of one mesh. Exact closest triangle, sign from the closest face normal.
 //                   Runs at import time only. Output is the .fsdf distance array (X fastest).
-//    CompositeMain  one thread per dirty cell of one clip level. Minimum over the culled instance list of each instance's
+//    ClipMinimumMain  one thread per dirty cell of one clip level. Minimum over the culled instance list of each instance's
 //                   sample through its inverse transform. Threads outside the dirty box exit, so only dirty cells are written.
 //
 // Bindings (set 0):
-//    0  BakeParams        constant buffer
+//    0  GridProjectionParams        constant buffer
 //    1  Triangles         StructuredBuffer<float>, 9 floats per triangle (3 corners x xyz)
-//    2  BakeOutput        RWStructuredBuffer<float>, Resolution^3
-//    3  CompositeParams   constant buffer
+//    2  ProjectOutput        RWStructuredBuffer<float>, Resolution^3
+//    3  ClipMinimumParams   constant buffer
 //    4  Instances         StructuredBuffer<InstanceGpu>
-//    5  FieldData         StructuredBuffer<float>, all mesh fields concatenated (each at InstanceGpu.FieldOffset)
+//    5  FieldSamples         StructuredBuffer<float>, all mesh fields concatenated (each at InstanceGpu.FieldOffset)
 //    6  ClipVolume        RWStructuredBuffer<float>, Dim^3 cells of one clip level
 
-struct BakeParams
+struct GridProjectionParams
 {
     float3 Min;
     float3 Max;
@@ -27,7 +27,7 @@ struct BakeParams
     uint2  Pad;
 };
 
-struct CompositeParams
+struct ClipMinimumParams
 {
     float3 Origin;      // world minimum corner of the clip level
     float  Cell;        // cell edge length
@@ -45,19 +45,19 @@ struct InstanceGpu
     float4 InverseRow2;     // xyz = inverse 3x3 row, w = inverse translation z
     float4 FieldMin;        // xyz = field bounds minimum (field space), w = minimum stretch of the transform
     float4 FieldMax;        // xyz = field bounds maximum, w = field resolution (as float)
-    uint   FieldOffset;     // index of the field's first float in FieldData
+    uint   FieldOffset;     // index of the field's first float in FieldSamples
     uint3  Pad;
 };
 
-[[vk::binding(0, 0)]] ConstantBuffer<BakeParams>        gBake;
+[[vk::binding(0, 0)]] ConstantBuffer<GridProjectionParams>        gBake;
 [[vk::binding(1, 0)]] StructuredBuffer<float>           gTriangles;
 [[vk::binding(2, 0)]] RWStructuredBuffer<float>         gBakeOutput;
-[[vk::binding(3, 0)]] ConstantBuffer<CompositeParams>   gComposite;
+[[vk::binding(3, 0)]] ConstantBuffer<ClipMinimumParams>   gComposite;
 [[vk::binding(4, 0)]] StructuredBuffer<InstanceGpu>     gInstances;
 [[vk::binding(5, 0)]] StructuredBuffer<float>           gFieldData;
 [[vk::binding(6, 0)]] RWStructuredBuffer<float>         gClipVolume;
 
-// Closest point on triangle (Ericson). Same branch order as ClosestOnTriangle in MeshDistanceField.h.
+// Closest point on triangle (Ericson). Same branch order as ClosestOnTriangle in TriangleField.h.
 float3 ClosestOnTriangle(float3 P, float3 A, float3 B, float3 C)
 {
     float3 AB = B - A, AC = C - A, AP = P - A;
@@ -85,7 +85,7 @@ float3 ClosestOnTriangle(float3 P, float3 A, float3 B, float3 C)
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void BakeMain(uint3 Id : SV_DispatchThreadID)
+void ProjectGridMain(uint3 Id : SV_DispatchThreadID)
 {
     uint N     = gBake.Resolution;
     uint Total = N * N * N;
@@ -139,7 +139,7 @@ float SampleField(uint Offset, uint N, float3 Min, float3 Max, float3 P)
 
 [shader("compute")]
 [numthreads(4, 4, 4)]
-void CompositeMain(uint3 Id : SV_DispatchThreadID)
+void ClipMinimumMain(uint3 Id : SV_DispatchThreadID)
 {
     uint3 Cell = gComposite.DirtyLo + Id;
     if (any(Cell > gComposite.DirtyHi)) return;

@@ -198,6 +198,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/GeometricRaster/BlasBuildMirror.cpp
     Engine/GeometricRaster/BlasDevicePayload.cpp
     Engine/GeometricRaster/BlasBuildPipeline.cpp   # D9b: the Vulkan half (pipelines, dispatch plan, readback verification)
+    Engine/GeometricRaster/TriangleFieldVulkanExchange.cpp   # mesh SDF Vulkan host (GPU import bake and dirty-cell composite)
     Engine/ContentInterchange/MaterialIndex.cpp
     Engine/ContentInterchange/MaterialCodec.cpp
     Engine/ContentInterchange/TextureIndex.cpp

@@ -12,7 +12,7 @@
 //------------------------------------------------------------------------------------------------------------------------
 
 layout(set = 2, binding = 1) uniform sampler3D GlobalDistanceFieldSampler;
-layout(set = 2, binding = 2) uniform sampler3D MeshDistanceFieldSampler;
+layout(set = 2, binding = 2) uniform sampler3D TriangleFieldSampler;
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                            TWO-TIER SCENE RAY MARCH
@@ -22,8 +22,8 @@ DistanceFieldHit MarchSceneGlobalDistanceField(vec3 RayOrigin,
                                                vec3 RayDirection,
                                                vec3 GlobalMin,
                                                vec3 GlobalMax,
-                                               vec3 MeshMin,
-                                               vec3 MeshMax,
+                                               vec3 FieldMin,
+                                               vec3 FieldMax,
                                                float MinDist,
                                                float MaxDist,
                                                float SurfaceThreshold,
@@ -68,14 +68,14 @@ DistanceFieldHit MarchSceneGlobalDistanceField(vec3 RayOrigin,
         }
 
         // Near surface: query local mesh distance field
-        float FineD = SampleDistanceFieldVolume(MeshDistanceFieldSampler, P, MeshMin, MeshMax);
+        float FineD = SampleDistanceFieldVolume(TriangleFieldSampler, P, FieldMin, FieldMax);
 
         if (FineD <= SurfaceThreshold)
         {
             Hit.HasHit = true;
             Hit.TravelDistance = CurrentDist;
             Hit.HitPosition = P;
-            Hit.SurfaceNormal = SampleDistanceFieldNormal(MeshDistanceFieldSampler, P, MeshMin, MeshMax, 0.005);
+            Hit.SurfaceNormal = SampleDistanceFieldNormal(TriangleFieldSampler, P, FieldMin, FieldMax, 0.005);
             return Hit;
         }
 

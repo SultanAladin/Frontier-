@@ -4,8 +4,8 @@
 //           versus the new dirty-cell path. Counts are exact cell counts. They are NOT GPU timings.
 // Build: g++ -std=c++20 -O2 -I../../../Engine/GeometricRaster proof.cpp -o proof
 
-#include "MeshDistanceField.h"
-#include "MeshSdfGpuMirror.h"
+#include "TriangleField.h"
+#include "TriangleFieldDeviceMirror.h"
 
 #include <algorithm>
 #include <chrono>
@@ -16,16 +16,16 @@
 
 namespace
 {
-using MeshDistanceField::Affine;
-using MeshDistanceField::ClipLevel;
-using MeshDistanceField::Field;
-using MeshDistanceField::Triangle;
+using TriangleField::Affine;
+using TriangleField::ClipLevel;
+using TriangleField::Field;
+using TriangleField::Triangle;
 
 constexpr uint32_t Frames     = 3600;        // 60 s at 60 fps
 constexpr uint32_t Dim        = 32u;         // engine VolumeResolution
 constexpr int      Levels     = 3;
 constexpr float    CellBase   = 0.15f;       // engine ClipmapCellSize
-constexpr uint32_t BakeN      = 32u;
+constexpr uint32_t ProjectN      = 32u;
 constexpr float    Pi         = 3.14159265358979f;
 
 int Failures = 0;
@@ -83,9 +83,9 @@ int main()
     std::printf("== Part A: bake accuracy and instance sampling (CPU exact)\n");
     std::vector<Triangle> Tris;
     std::string Bytes;
-    Check(MeshDistanceField::LoadObj(ObjPath, Tris, &Bytes) && Tris.size() == 12u, "OBJ loads as 12 triangles from 6 quads");
+    Check(TriangleField::LoadObj(ObjPath, Tris, &Bytes) && Tris.size() == 12u, "OBJ loads as 12 triangles from 6 quads");
 
-    const Field Cube = MeshDistanceField::Bake(Tris, BakeN, 0.1f, MeshDistanceField::Fnv1a(Bytes.data(), Bytes.size()));
+    const Field Cube = TriangleField::Project(Tris, ProjectN, 0.1f, TriangleField::Fnv1a(Bytes.data(), Bytes.size()));
     const double Cell = CellSizeOf(Cube);
     {
         // Inside the field's bounds the sample is accurate; outside them it is a conservative lower bound (checked below).
@@ -96,7 +96,7 @@ int main()
         {
             const float P[3] = { U(Rng), U(Rng), U(Rng) };
             const float H[3] = { 1.0f, 1.0f, 1.0f };
-            MaxError = std::max(MaxError, std::fabs(double(MeshDistanceField::SampleLocal(Cube, P)) - BoxSdf(P, H)));
+            MaxError = std::max(MaxError, std::fabs(double(TriangleField::SampleLocal(Cube, P)) - BoxSdf(P, H)));
         }
         std::uniform_real_distribution<float> Wide(-1.6f, 1.6f);
         int OutsideOver = 0;
@@ -104,7 +104,7 @@ int main()
         {
             const float P[3] = { Wide(Rng), Wide(Rng), Wide(Rng) };
             const float H[3] = { 1.0f, 1.0f, 1.0f };
-            if (double(MeshDistanceField::SampleLocal(Cube, P)) > BoxSdf(P, H) + 1.5 * Cell + 1e-4) ++OutsideOver;
+            if (double(TriangleField::SampleLocal(Cube, P)) > BoxSdf(P, H) + 1.5 * Cell + 1e-4) ++OutsideOver;
         }
         Check(OutsideOver == 0, "outside the field bounds the sample never exceeds the true distance (conservative)");
         char Detail[96];
@@ -114,15 +114,15 @@ int main()
     }
     {
         const float Centre[3] = { 0, 0, 0 }, Far[3] = { 3, 0, 0 }, Inside[3] = { 0.5f, 0.2f, -0.3f };
-        Check(MeshDistanceField::SampleLocal(Cube, Centre) < 0.0f && MeshDistanceField::SampleLocal(Cube, Inside) < 0.0f,
+        Check(TriangleField::SampleLocal(Cube, Centre) < 0.0f && TriangleField::SampleLocal(Cube, Inside) < 0.0f,
               "sign: inside the cube is negative");
-        Check(MeshDistanceField::SampleLocal(Cube, Far) > 1.5f, "sign: outside the cube is positive, about 2 units away");
+        Check(TriangleField::SampleLocal(Cube, Far) > 1.5f, "sign: outside the cube is positive, about 2 units away");
     }
     {
         const std::string Path = (Out / "unit_cube.fsdf").string();
-        Check(MeshDistanceField::Save(Cube, Path), "bake writes a .fsdf file");
+        Check(TriangleField::Save(Cube, Path), "bake writes a .fsdf file");
         Field Back;
-        const bool Loaded = MeshDistanceField::Load(Path, Back);
+        const bool Loaded = TriangleField::Load(Path, Back);
         const bool Same = Loaded && Back.H.ContentHash == Cube.H.ContentHash && Back.Distance == Cube.Distance;
         Check(Same, "load returns the identical field (round trip)");
     }
@@ -133,7 +133,7 @@ int main()
         float W[16];
         MakeWorld(2.0f, 2.0f, 2.0f, Yaw, T, W);
         Affine A{};
-        Check(MeshDistanceField::MakeAffine(W, A), "instance transform inverts");
+        Check(TriangleField::MakeAffine(W, A), "instance transform inverts");
         std::mt19937 Rng(11);
         std::uniform_real_distribution<float> U(-4.0f, 4.0f);
         double MaxError = 0.0;
@@ -150,7 +150,7 @@ int main()
             ++Kept;
             const float H[3] = { 2.0f, 2.0f, 2.0f };
             const double Exact = BoxSdf(Unrot, H);   // world-space exact distance
-            MaxError = std::max(MaxError, std::fabs(double(MeshDistanceField::SampleInstance(Cube, A, P)) - Exact));
+            MaxError = std::max(MaxError, std::fabs(double(TriangleField::SampleInstance(Cube, A, P)) - Exact));
         }
         char Detail[96];
         std::snprintf(Detail, sizeof(Detail), "(%d in-bounds points, max error %.4f, tolerance %.4f)", Kept, MaxError, 1.5 * Cell * 2.0);
@@ -162,7 +162,7 @@ int main()
         float W[16];
         MakeWorld(3.0f, 1.0f, 0.5f, 0.0f, T, W);
         Affine A{};
-        MeshDistanceField::MakeAffine(W, A);
+        TriangleField::MakeAffine(W, A);
         std::mt19937 Rng(13);
         std::uniform_real_distribution<float> U(-5.0f, 5.0f);
         // Exact world distance to the box with half sizes (3,1,0.5). Outside the box the sample must not exceed it (conservative).
@@ -175,7 +175,7 @@ int main()
         {
             const float P[3] = { U(Rng), U(Rng), U(Rng) };
             const double Exact = BoxSdf(P, H);
-            const double Sample = double(MeshDistanceField::SampleInstance(Cube, A, P));
+            const double Sample = double(TriangleField::SampleInstance(Cube, A, P));
             if (Exact >= 0.0)
             {
                 WorstOutside = std::max(WorstOutside, Sample - Exact);
@@ -225,7 +225,7 @@ int main()
         const float Zero[3] = { 0, 0, 0 };
         MakeWorld(CarHalf[0], CarHalf[1], CarHalf[2], 0.0f, Zero, CarW);
         Affine CarA{};
-        MeshDistanceField::MakeAffine(CarW, CarA);
+        TriangleField::MakeAffine(CarW, CarA);
         std::mt19937 R2(99);
         std::uniform_real_distribution<float> Around(-4.0f, 4.0f);
         int Mismatch = 0, Compared = 0;
@@ -241,7 +241,7 @@ int main()
                 for (int A = 0; A < 3; ++A) { const float G = std::max(std::max(B.Min[A] - Q[A], Q[A] - B.Max[A]), 0.0f); Dist2 += G * G; }
                 All = std::min(All, double(std::sqrt(Dist2)));
             }
-            const float CarDist = MeshDistanceField::SampleInstance(Cube, CarA, Q);
+            const float CarDist = TriangleField::SampleInstance(Cube, CarA, Q);
             All = std::min(All, double(CarDist));
             // Culled set: only instances whose box lies within Threshold of the point.
             for (const Box& B : Statics)
@@ -284,15 +284,15 @@ int main()
         uint64_t Shift = 0, CarCells = 0;
         for (int L = 0; L < Levels; ++L)
         {
-            Levels3[L] = MeshDistanceField::MakeClipLevel(Eye, CellBase * float(1 << L), Dim);
+            Levels3[L] = TriangleField::MakeClipLevel(Eye, CellBase * float(1 << L), Dim);
             if (F > 0)
             {
                 if (Levels3[L].Origin[0] != PreviousLevels[L].Origin[0] || Levels3[L].Origin[1] != PreviousLevels[L].Origin[1] ||
                     Levels3[L].Origin[2] != PreviousLevels[L].Origin[2]) OriginChanged = true;
-                Shift += MeshDistanceField::ExposedCellsOnShift(PreviousLevels[L], Levels3[L]);
+                Shift += TriangleField::ExposedCellsOnShift(PreviousLevels[L], Levels3[L]);
             }
-            if (F > 0) CarCells += MeshDistanceField::DirtyCellsForMove(Levels3[L], PreviousCarMin, PreviousCarMax, CarMin, CarMax);
-            else CarCells += MeshDistanceField::DirtyCellsForMove(Levels3[L], CarMin, CarMax, CarMin, CarMax);
+            if (F > 0) CarCells += TriangleField::DirtyCellsForMove(Levels3[L], PreviousCarMin, PreviousCarMax, CarMin, CarMax);
+            else CarCells += TriangleField::DirtyCellsForMove(Levels3[L], CarMin, CarMax, CarMin, CarMax);
         }
         const auto T1 = std::chrono::steady_clock::now();
         NsDecision += double(std::chrono::duration_cast<std::chrono::nanoseconds>(T1 - T0).count());
@@ -350,23 +350,23 @@ int main()
 
         std::string Error;
         uint32_t Hits = 99u;
-        const uint64_t Before = MeshDistanceField::BakeCallCount();
-        const int Indexed = MeshDistanceField::BakeDirectory(Content.string(), Cache.string(), BakeN, 0.1f, &Hits, &Error);
-        const uint64_t FirstBakes = MeshDistanceField::BakeCallCount() - Before;
+        const uint64_t Before = TriangleField::ProjectCallCount();
+        const int Indexed = TriangleField::ProjectDirectory(Content.string(), Cache.string(), ProjectN, 0.1f, &Hits, &Error);
+        const uint64_t FirstBakes = TriangleField::ProjectCallCount() - Before;
         char Detail[96];
         std::snprintf(Detail, sizeof(Detail), "(indexed %d, baked %llu)", Indexed, (unsigned long long)FirstBakes);
         Check(Indexed == 3 && Hits == 0u && FirstBakes == 3u, "import bakes each of the 3 meshes once and writes the index", Detail);
 
-        const uint64_t Second = MeshDistanceField::BakeCallCount();
-        const int Again = MeshDistanceField::BakeDirectory(Content.string(), Cache.string(), BakeN, 0.1f, &Hits, &Error);
-        Check(Again == 3 && Hits == 3u && MeshDistanceField::BakeCallCount() == Second, "second import is all cache hits (no bake)");
+        const uint64_t Second = TriangleField::ProjectCallCount();
+        const int Again = TriangleField::ProjectDirectory(Content.string(), Cache.string(), ProjectN, 0.1f, &Hits, &Error);
+        Check(Again == 3 && Hits == 3u && TriangleField::ProjectCallCount() == Second, "second import is all cache hits (no bake)");
 
         // Runtime: load each mesh. No bake may run.
-        const uint64_t RuntimeStart = MeshDistanceField::BakeCallCount();
-        MeshDistanceField::Field Loaded;
+        const uint64_t RuntimeStart = TriangleField::ProjectCallCount();
+        TriangleField::Field Loaded;
         std::string Reason;
-        const auto StatusA = MeshDistanceField::RuntimeLoad(Cache.string(), Content.string(), "a.obj", BakeN, 0.1f, Loaded, Reason);
-        Check(StatusA == MeshDistanceField::RuntimeStatus::Loaded && Loaded.Distance == Cube.Distance,
+        const auto StatusA = TriangleField::RuntimeLoad(Cache.string(), Content.string(), "a.obj", ProjectN, 0.1f, Loaded, Reason);
+        Check(StatusA == TriangleField::RuntimeStatus::Loaded && Loaded.Distance == Cube.Distance,
               "runtime loads a.obj from the index, identical to the imported field");
 
         // Edit c.obj after import. Its hash no longer matches, so runtime must refuse it, not rebake it.
@@ -375,41 +375,41 @@ int main()
             std::fprintf(File, "# edited after import\n");
             std::fclose(File);
         }
-        const auto StatusC = MeshDistanceField::RuntimeLoad(Cache.string(), Content.string(), "c.obj", BakeN, 0.1f, Loaded, Reason);
-        Check(StatusC == MeshDistanceField::RuntimeStatus::Stale && Reason.find("stale") != std::string::npos,
+        const auto StatusC = TriangleField::RuntimeLoad(Cache.string(), Content.string(), "c.obj", ProjectN, 0.1f, Loaded, Reason);
+        Check(StatusC == TriangleField::RuntimeStatus::Stale && Reason.find("stale") != std::string::npos,
               "edited source is reported stale, not silently rebuilt", ("(" + Reason + ")").c_str());
 
-        const auto StatusD = MeshDistanceField::RuntimeLoad(Cache.string(), Content.string(), "d.obj", BakeN, 0.1f, Loaded, Reason);
-        Check(StatusD == MeshDistanceField::RuntimeStatus::NoIndexEntry && Reason.find("import") != std::string::npos,
+        const auto StatusD = TriangleField::RuntimeLoad(Cache.string(), Content.string(), "d.obj", ProjectN, 0.1f, Loaded, Reason);
+        Check(StatusD == TriangleField::RuntimeStatus::NoIndexEntry && Reason.find("import") != std::string::npos,
               "mesh with no import entry is reported, not baked");
 
-        Check(MeshDistanceField::BakeCallCount() == RuntimeStart, "runtime loads performed zero bakes (counter unchanged)");
+        Check(TriangleField::ProjectCallCount() == RuntimeStart, "runtime loads performed zero bakes (counter unchanged)");
     }
 
     // ---------------- Part D: GPU kernels, CPU exact mirror ----------------
-    std::printf("\n== Part D: GPU bake and dirty-cell composite, CPU exact mirror of MeshSdf.slang (device run NOT performed)\n");
+    std::printf("\n== Part D: GPU bake and dirty-cell composite, CPU exact mirror of TriangleField.slang (device run NOT performed)\n");
     {
-        using MeshSdfGpuMirror::InstanceGpu;
+        using TriangleFieldDeviceMirror::InstanceGpu;
         std::vector<float> TriFlat;
         for (const Triangle& T : Tris) for (const auto& V : T.V) for (int A = 0; A < 3; ++A) TriFlat.push_back(V[A]);
 
-        // Bake parity: mirror of BakeMain against the CPU reference, same bounds, same resolution.
-        const Field Ref = MeshDistanceField::Bake(Tris, BakeN, 0.1f, 1u);
-        MeshSdfGpuMirror::BakeParams BP{};
-        BP.Min = MeshSdfGpuMirror::F3(Ref.H.Min[0], Ref.H.Min[1], Ref.H.Min[2]);
-        BP.Max = MeshSdfGpuMirror::F3(Ref.H.Max[0], Ref.H.Max[1], Ref.H.Max[2]);
-        BP.Resolution = BakeN;
+        // Project parity: mirror of ProjectGridMain against the CPU reference, same bounds, same resolution.
+        const Field Ref = TriangleField::Project(Tris, ProjectN, 0.1f, 1u);
+        TriangleFieldDeviceMirror::GridProjectionParams BP{};
+        BP.Min = TriangleFieldDeviceMirror::F3(Ref.H.Min[0], Ref.H.Min[1], Ref.H.Min[2]);
+        BP.Max = TriangleFieldDeviceMirror::F3(Ref.H.Max[0], Ref.H.Max[1], Ref.H.Max[2]);
+        BP.Resolution = ProjectN;
         BP.TriangleCount = uint32_t(Tris.size());
-        const std::vector<float> Gpu = MeshSdfGpuMirror::BakeGrid(BP, TriFlat);
-        double BakeDiff = 0.0;
-        for (size_t I = 0; I < Gpu.size(); ++I) BakeDiff = std::max(BakeDiff, std::fabs(double(Gpu[I]) - double(Ref.Distance[I])));
+        const std::vector<float> Gpu = TriangleFieldDeviceMirror::ProjectGrid(BP, TriFlat);
+        double ProjectDiff = 0.0;
+        for (size_t I = 0; I < Gpu.size(); ++I) ProjectDiff = std::max(ProjectDiff, std::fabs(double(Gpu[I]) - double(Ref.Distance[I])));
         char Detail[96];
-        std::snprintf(Detail, sizeof(Detail), "(max abs diff %.2e over %zu nodes)", BakeDiff, Gpu.size());
-        Check(BakeDiff <= 1e-4, "mirror of BakeMain matches the CPU bake at every grid node", Detail);
+        std::snprintf(Detail, sizeof(Detail), "(max abs diff %.2e over %zu nodes)", ProjectDiff, Gpu.size());
+        Check(ProjectDiff <= 1e-4, "mirror of ProjectGridMain matches the CPU bake at every grid node", Detail);
 
-        // Composite parity over a dirty box of one clip level, three culled-in instances.
+        // ClipMinimum parity over a dirty box of one clip level, three culled-in instances.
         const Field& F = Cube;
-        std::vector<MeshDistanceField::Affine> Affines;
+        std::vector<TriangleField::Affine> Affines;
         std::vector<InstanceGpu> Instances;
         const float Yaw = 30.0f * Pi / 180.0f;
         float W0[16], W1[16], W2[16];
@@ -419,15 +419,15 @@ int main()
         MakeWorld(4.0f, 1.0f, 1.5f, 0.0f, T2, W2);
         for (const float* W : { W0, W1, W2 })
         {
-            MeshDistanceField::Affine A{};
-            MeshDistanceField::MakeAffine(W, A);
+            TriangleField::Affine A{};
+            TriangleField::MakeAffine(W, A);
             Affines.push_back(A);
-            Instances.push_back(MeshSdfGpuMirror::MakeInstanceGpu(F, A, 0u));
+            Instances.push_back(TriangleFieldDeviceMirror::MakeInstanceGpu(F, A, 0u));
         }
         const float Eye[3] = { 24.0f, 0.0f, 1.0f };
-        const MeshDistanceField::ClipLevel Level = MeshDistanceField::MakeClipLevel(Eye, CellBase, Dim);
-        MeshSdfGpuMirror::CompositeParams CP{};
-        CP.Origin = MeshSdfGpuMirror::F3(Level.Origin[0], Level.Origin[1], Level.Origin[2]);
+        const TriangleField::ClipLevel Level = TriangleField::MakeClipLevel(Eye, CellBase, Dim);
+        TriangleFieldDeviceMirror::ClipMinimumParams CP{};
+        CP.Origin = TriangleFieldDeviceMirror::F3(Level.Origin[0], Level.Origin[1], Level.Origin[2]);
         CP.Cell = Level.Cell;
         CP.Dim = Dim;
         CP.DirtyLo[0] = 10; CP.DirtyLo[1] = 12; CP.DirtyLo[2] = 12;
@@ -435,7 +435,7 @@ int main()
         CP.InstanceCount = uint32_t(Instances.size());
         const uint64_t Total = uint64_t(Dim) * Dim * Dim;
         std::vector<float> Clip(Total, -999.0f);
-        const uint64_t Written = MeshSdfGpuMirror::CompositeDirty(CP, Instances, F.Distance, Clip);
+        const uint64_t Written = TriangleFieldDeviceMirror::ClipMinimumDirty(CP, Instances, F.Distance, Clip);
         const uint64_t Expected = uint64_t(CP.DirtyHi[0] - CP.DirtyLo[0] + 1) * (CP.DirtyHi[1] - CP.DirtyLo[1] + 1) * (CP.DirtyHi[2] - CP.DirtyLo[2] + 1);
         uint64_t Touched = 0u;
         for (float V : Clip) if (V != -999.0f) ++Touched;
@@ -452,12 +452,12 @@ int main()
                                            Level.Origin[1] + (float(Y) + 0.5f) * Level.Cell,
                                            Level.Origin[2] + (float(Z) + 0.5f) * Level.Cell };
                     double Best = 1e30;
-                    for (const auto& A : Affines) Best = std::min(Best, double(MeshDistanceField::SampleInstance(F, A, Pos)));
+                    for (const auto& A : Affines) Best = std::min(Best, double(TriangleField::SampleInstance(F, A, Pos)));
                     const uint64_t Index = (uint64_t(Z) * Dim + Y) * Dim + X;
                     CompDiff = std::max(CompDiff, std::fabs(Best - double(Clip[Index])));
                 }
         std::snprintf(Detail, sizeof(Detail), "(max abs diff %.2e over %llu cells)", CompDiff, (unsigned long long)Expected);
-        Check(CompDiff <= 1e-3, "mirror of CompositeMain matches the CPU per-instance minimum", Detail);
+        Check(CompDiff <= 1e-3, "mirror of ClipMinimumMain matches the CPU per-instance minimum", Detail);
     }
 
     std::printf("%s - %d failure(s)\n", Failures ? "RED" : "GREEN", Failures);

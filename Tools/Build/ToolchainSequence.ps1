@@ -722,6 +722,7 @@ $EngineRelative = @(
     'Engine\GeometricRaster\BlasBuildMirror.cpp'                # its QuantiseNode dependency (D9's refit kernel source)
     'Engine\GeometricRaster\BlasDevicePayload.cpp'              # D9 device payload layout
     'Engine\GeometricRaster\BlasBuildPipeline.cpp'              # D9 build/refit dispatch
+    'Engine\GeometricRaster\TriangleFieldVulkanExchange.cpp'            # mesh SDF Vulkan host (GPU import bake and dirty-cell composite)
     'Engine\ContentInterchange\SpaceCodec.cpp'                  # P1/P3 .space container
     'Engine\ContentInterchange\SpaceExport.cpp'                 # P2/P6 exporters
     'Engine\Host\CommandLine.cpp'             # P4 the launch line both hosts parse

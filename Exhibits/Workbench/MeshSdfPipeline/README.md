@@ -7,33 +7,33 @@ Nothing has run on a GPU yet. The engine still runs the old per-frame path (see 
 
 | Part | Where | Verified by |
 |---|---|---|
-| Import-time bake: one `.fsdf` per unique mesh, named by a FNV-1a hash of source, resolution, padding and format version | `Tools/Bake/BakeMeshSdf.cpp`, `Engine/GeometricRaster/MeshDistanceField.h` | Tool run: first call bakes, second call is a cache hit, new resolution gets a new file, missing input exits 1 |
-| Exact closest-point bake (Ericson), sign from face normal, file round trip | `MeshDistanceField.h` | proof Part A: bake matches the analytic box within 1.5 cells, sign correct, round trip identical |
+| Import-time bake: one `.fsdf` per unique mesh, named by a FNV-1a hash of source, resolution, padding and format version | `Tools/Bake/TriangleFieldImport.cpp`, `Engine/GeometricRaster/TriangleField.h` | Tool run: first call bakes, second call is a cache hit, new resolution gets a new file, missing input exits 1 |
+| Exact closest-point bake (Ericson), sign from face normal, file round trip | `TriangleField.h` | proof Part A: bake matches the analytic box within 1.5 cells, sign correct, round trip identical |
 | Per-instance local sampling through the inverse world matrix; the field never changes when the instance moves | `SampleInstance`, `MakeAffine` | proof Part A: moved, scaled (x2) and rotated instance matches the exact box within 1.5 cells x scale; non-uniform scale is conservative |
 | Clipmap dirty cells: footprint of an instance's old and new bounds, per level | `DirtyCellsForMove`, `RangeOf` | proof Part B, per frame |
 | Exposed slabs only on a camera shift (no full refill) | `ExposedCellsOnShift` | proof Part B, per frame |
 | Static / movable split (Unreal's approach) | counts in Part B: the car never writes the static field | proof Part B: 3000 frames with the car moving and no camera shift write 0 static cells |
 | Culling instances by bounds keeps the composited minimum exact | Part B cull check | 1267 points compared, 0 mismatches |
-| Import step over a content tree: `BakeMeshSdf --dir` bakes each `.obj` once and writes `sdf_index.tsv` (source path, hash, file, resolution) | `BakeDirectory` in `MeshDistanceField.h` | proof Part C: 3 meshes baked, second import is 3 cache hits |
+| Import step over a content tree: `TriangleFieldImport --dir` bakes each `.obj` once and writes `sdf_index.tsv` (source path, hash, file, resolution) | `ProjectDirectory` in `TriangleField.h` | proof Part C: 3 meshes baked, second import is 3 cache hits |
 | Runtime loader: load only, never bake. Stale (source edited after import) and missing entries are reported, not rebuilt | `RuntimeLoad` | proof Part C: a.obj loads identical; edited c.obj reported stale; d.obj reported with no entry; bake counter unchanged at runtime |
 
 ## GPU kernels and Vulkan host (compiled, not executed)
 
-Host: `Engine/GeometricRaster/MeshSdfVulkan.h/.cpp` picks a device (discrete preferred, every candidate logged), creates the two
-pipelines, and submits each dispatch with a fence. Its device check is `Tools/Bake/MeshSdfDeviceCheck.cpp`: it bakes a unit cube at 32^3
+Host: `Engine/GeometricRaster/TriangleFieldVulkanExchange.h/.cpp` picks a device (discrete preferred, every candidate logged), creates the two
+pipelines, and submits each dispatch with a fence. Its device check is `Tools/Bake/TriangleFieldDeviceCheck.cpp`: it bakes a unit cube at 32^3
 and composites three instances on the device, then compares both with the CPU reference at 1e-3. Status: **not run** (no Vulkan
 driver in the build sandbox); it has only passed a syntax-only compile.
 
-Source: `Engine/GeometricRaster/Shaders/MeshSdf.slang`. Build gate: `Tools/Build/BuildMeshSdfSpirv.py`, which compiles both entries
+Source: `Engine/GeometricRaster/Shaders/TriangleField.slang`. Build gate: `Tools/Build/BuildTriangleFieldSpirv.py`, which compiles both entries
 to SPIR-V through the Slang C API. Slang validates the SPIR-V inside the compile, and the gate writes
-`Engine/GeometricRaster/Generated/MeshSdfSpirv.inc`. The gate is GREEN, and both modules are 6,692 and 6,256 bytes.
+`Engine/GeometricRaster/Generated/TriangleFieldSpirv.inc`. The gate is GREEN, and both modules are 6,692 and 6,256 bytes.
 
 | Entry | Work | Mirror |
 |---|---|---|
-| `BakeMain` (import time) | one thread per grid node of one mesh; exact closest triangle; sign from the closest face normal | `MeshSdfGpuMirror::BakeGrid` |
-| `CompositeMain` (per frame, dirty cells only) | one thread per dirty cell of one clip level; minimum over the culled instance list through each instance's inverse transform | `MeshSdfGpuMirror::CompositeDirty` |
+| `ProjectGridMain` (import time) | one thread per grid node of one mesh; exact closest triangle; sign from the closest face normal | `TriangleFieldDeviceMirror::ProjectGrid` |
+| `ClipMinimumMain` (per frame, dirty cells only) | one thread per dirty cell of one clip level; minimum over the culled instance list through each instance's inverse transform | `TriangleFieldDeviceMirror::ClipMinimumDirty` |
 
-`MeshSdfGpuMirror.h` follows each shader line for line on the same flat buffers. Proof Part D checks it:
+`TriangleFieldDeviceMirror.h` follows each shader line for line on the same flat buffers. Proof Part D checks it:
 - the mirror's bake equals the CPU bake at all 32,768 nodes (max difference 0);
 - the composite writes exactly the 891 dirty cells and no others;
 - the composite equals the CPU per-instance minimum over those cells (max difference 0).
@@ -62,12 +62,12 @@ These are **cell counts**, not GPU milliseconds. The decision cost on the CPU is
 
 ## Not done (say so before anyone ships this)
 
-0. **Device run.** The Vulkan host and `MeshSdfDeviceCheck.cpp` exist, but nothing has executed them. The build sandbox has no Vulkan
+0. **Device run.** The Vulkan host and `TriangleFieldDeviceCheck.cpp` exist, but nothing has executed them. The build sandbox has no Vulkan
    driver, so the device check needs a run on the user's RX 9060 XT before any GPU number is claimed.
 
 1. **GPU compositing kernel.** The compute shader that writes only the dirty cells, and the toroidal slab fill on the GPU, are not written.
 2. **Engine switch-over.** `DistanceFieldStructure::RefreshInstances` and `DistanceFieldConstruct.slang` still rebuild the whole volume on every change. The new kernels are not wired into the running engine.
-3. **Import hook in the editor and content build.** `BakeMeshSdf --dir` exists, but nothing in the editor or the content build runs it yet. The engine's glTF, FBX and OBJ decoders are not hooked, and the runtime loader is not called by the renderer. The hook is deliberately not placed in the runtime decoder, because that would bake at runtime.
+3. **Import hook in the editor and content build.** `TriangleFieldImport --dir` exists, but nothing in the editor or the content build runs it yet. The engine's glTF, FBX and OBJ decoders are not hooked, and the runtime loader is not called by the renderer. The hook is deliberately not placed in the runtime decoder, because that would bake at runtime.
 4. **Two physical fields.** The static / movable split is counted here, but the engine has one field.
 5. **The fourth step** in the request was cut off in the message ("4."). Not built. Please restate it.
 
@@ -76,11 +76,11 @@ These are **cell counts**, not GPU milliseconds. The decision cost on the CPU is
 ```
 g++ -std=c++20 -O2 -I../../../Engine/GeometricRaster proof.cpp -o proof && ./proof > run.log
 /tmp/venv/bin/python build_proofs.py   # needs matplotlib, numpy, pillow
-# Device run (not yet performed): see Tools/Bake/MeshSdfDeviceCheck.cpp for the build line
-PATH=/tmp/venv/bin:$PATH python3 ../../../Tools/Build/BuildMeshSdfSpirv.py   # Slang SPIR-V gate
+# Device run (not yet performed): see Tools/Bake/TriangleFieldDeviceCheck.cpp for the build line
+PATH=/tmp/venv/bin:$PATH python3 ../../../Tools/Build/BuildTriangleFieldSpirv.py   # Slang SPIR-V gate
 python3 build_proofs.py
-g++ -std=c++20 -O2 ../../../Tools/Bake/BakeMeshSdf.cpp -o bake && ./bake --dir <content root> <cache dir>
-g++ -std=c++20 -O2 ../../../Tools/Bake/BakeMeshSdf.cpp -o bake && ./bake out/unit_cube.obj /tmp/sdf-cache 32 0.1
+g++ -std=c++20 -O2 ../../../Tools/Bake/TriangleFieldImport.cpp -o bake && ./bake --dir <content root> <cache dir>
+g++ -std=c++20 -O2 ../../../Tools/Bake/TriangleFieldImport.cpp -o bake && ./bake out/unit_cube.obj /tmp/sdf-cache 32 0.1
 ```
 
 The proof writes `out/` (the test cube and its `.fsdf`). That folder is git-ignored.

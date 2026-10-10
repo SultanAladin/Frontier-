@@ -1,5 +1,5 @@
 //============================================================================================================================================
-//                                                    MESHDISTANCEFIELD.H
+//                                                    TRIANGLEFIELD.H
 //============================================================================================================================================
 // 📦 Per-mesh signed distance fields baked at import time, plus the CPU mirror of how an instance samples one and how clipmap cells
 //    become dirty. Header-only so the bake tool, the engine and the CPU proof all run the same arithmetic.
@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-namespace MeshDistanceField
+namespace TriangleField
 {
 inline constexpr uint32_t FileMagic   = 0x46534446u;   // 'FSDF'
 inline constexpr uint32_t FileVersion = 1u;
@@ -109,15 +109,15 @@ inline void ClosestOnTriangle(const float P[3], const float A[3], const float B[
 // Resolution^3 x triangles). Sign comes from the closest triangle's face normal, the same convention the device construct uses:
 // correct for closed, consistently wound meshes, and the sign can flip for points that sit exactly on an edge.
 // Number of bakes run in this process. The runtime loader never bakes, and the proof checks this counter stays put at runtime.
-inline uint64_t& BakeCallCount() noexcept
+inline uint64_t& ProjectCallCount() noexcept
 {
     static uint64_t Count = 0u;
     return Count;
 }
 
-inline Field Bake(const std::vector<Triangle>& Tris, uint32_t Resolution, float PadFraction, uint64_t ContentHash)
+inline Field Project(const std::vector<Triangle>& Tris, uint32_t Resolution, float PadFraction, uint64_t ContentHash)
 {
-    ++BakeCallCount();
+    ++ProjectCallCount();
     Field F;
     F.H.Resolution  = Resolution;
     F.H.ContentHash = ContentHash;
@@ -191,10 +191,10 @@ inline bool Load(const std::string& Path, Field& Out)
 }
 
 // FNV-1a 64 over bytes, used for the content hash that names the cache file.
-inline uint64_t Fnv1a(const void* Data, size_t Bytes, uint64_t Seed = 1469598103934665603ull) noexcept
+inline uint64_t Fnv1a(const void* Payload, size_t Bytes, uint64_t Seed = 1469598103934665603ull) noexcept
 {
     uint64_t H = Seed;
-    const unsigned char* P = static_cast<const unsigned char*>(Data);
+    const unsigned char* P = static_cast<const unsigned char*>(Payload);
     for (size_t I = 0; I < Bytes; ++I) { H ^= P[I]; H *= 1099511628211ull; }
     return H;
 }
@@ -214,9 +214,9 @@ inline bool ReadAll(const std::string& Path, std::string& Out)
     std::FILE* File = std::fopen(Path.c_str(), "rb");
     if (!File) return false;
     Out.clear();
-    char Buffer[4096];
+    char DeviceRange[4096];
     size_t Read;
-    while ((Read = std::fread(Buffer, 1, sizeof(Buffer), File)) > 0) Out.append(Buffer, Read);
+    while ((Read = std::fread(DeviceRange, 1, sizeof(DeviceRange), File)) > 0) Out.append(DeviceRange, Read);
     std::fclose(File);
     return true;
 }
@@ -227,9 +227,9 @@ inline bool LoadObj(const std::string& Path, std::vector<Triangle>& Tris, std::s
     std::FILE* File = std::fopen(Path.c_str(), "rb");
     if (!File) return false;
     std::string Text;
-    char Buffer[4096];
+    char DeviceRange[4096];
     size_t Read;
-    while ((Read = std::fread(Buffer, 1, sizeof(Buffer), File)) > 0) Text.append(Buffer, Read);
+    while ((Read = std::fread(DeviceRange, 1, sizeof(DeviceRange), File)) > 0) Text.append(DeviceRange, Read);
     std::fclose(File);
     if (SourceBytes) *SourceBytes = Text;
 
@@ -468,8 +468,8 @@ inline std::string HexHash(uint64_t Hash)
     return Text;
 }
 
-// Bake one source file into CacheDir (cache hit skips the bake). Returns the entry hash through Out.
-inline bool BakeSource(const std::string& SourcePath, const std::string& CacheDir, uint32_t Resolution, float Padding,
+// Project one source file into CacheDir (cache hit skips the bake). Returns the entry hash through Out.
+inline bool ProjectSource(const std::string& SourcePath, const std::string& CacheDir, uint32_t Resolution, float Padding,
                        uint64_t& OutHash, std::string& OutFileName, bool& OutHit, std::string& Error)
 {
     std::string Bytes;
@@ -483,13 +483,13 @@ inline bool BakeSource(const std::string& SourcePath, const std::string& CacheDi
     Field Cached;
     OutHit = std::filesystem::exists(Target) && Load(Target.string(), Cached) && Cached.H.ContentHash == OutHash;
     if (OutHit) return true;
-    Field F = Bake(Tris, Resolution, Padding, OutHash);
+    Field F = Project(Tris, Resolution, Padding, OutHash);
     if (!Save(F, Target.string())) { Error = "cannot write " + Target.string(); return false; }
     return true;
 }
 
 // Import step: every .obj under Root. Writes the index. Returns the number of entries, or -1 on error.
-inline int BakeDirectory(const std::string& Root, const std::string& CacheDir, uint32_t Resolution, float Padding,
+inline int ProjectDirectory(const std::string& Root, const std::string& CacheDir, uint32_t Resolution, float Padding,
                          uint32_t* OutHits = nullptr, std::string* Error = nullptr)
 {
     namespace fs = std::filesystem;
@@ -504,7 +504,7 @@ inline int BakeDirectory(const std::string& Root, const std::string& CacheDir, u
         uint64_t Hash = 0u;
         std::string FileName, Failure;
         bool Hit = false;
-        if (!BakeSource(Source.string(), CacheDir, Resolution, Padding, Hash, FileName, Hit, Failure))
+        if (!ProjectSource(Source.string(), CacheDir, Resolution, Padding, Hash, FileName, Hit, Failure))
         {
             if (Error) *Error = Failure;
             return -1;
@@ -523,7 +523,7 @@ inline int BakeDirectory(const std::string& Root, const std::string& CacheDir, u
 
 enum class RuntimeStatus { Loaded, NoIndexEntry, Stale, Missing };
 
-// Runtime step: load only. Never bakes. SourceRelative is the key written by BakeDirectory.
+// Runtime step: load only. Never bakes. SourceRelative is the key written by ProjectDirectory.
 inline RuntimeStatus RuntimeLoad(const std::string& CacheDir, const std::string& SourceRoot, const std::string& SourceRelative,
                                  uint32_t Resolution, float Padding, Field& Out, std::string& Reason)
 {
@@ -552,4 +552,4 @@ inline RuntimeStatus RuntimeLoad(const std::string& CacheDir, const std::string&
     if (!Load((fs::path(CacheDir) / FileName).string(), Out)) { Reason = "cannot read " + FileName; return RuntimeStatus::Missing; }
     return RuntimeStatus::Loaded;
 }
-} // namespace MeshDistanceField
+} // namespace TriangleField
