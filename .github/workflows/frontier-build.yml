@@ -247,6 +247,18 @@ jobs:
           if (-not $Sdk -or -not (Test-Path (Join-Path $Sdk.FullName 'Bin/glslc.exe'))) { throw 'Vulkan SDK lacks glslc.exe' }
           "VULKAN_SDK=$($Sdk.FullName)" >> $env:GITHUB_ENV
 
+      - name: Materialise the locked native dependencies
+        shell: pwsh
+        run: |
+          $Output = & python Tools/Bootstrap.py --profile all 2>&1
+          $Code = $LASTEXITCODE
+          $Output | ForEach-Object { Write-Host $_ }
+          if ($Code -ne 0) {
+            $Reason = (($Output | Select-Object -Last 16) -join '%0A').Replace('%','%25')
+            Write-Host "::error title=Dependency bootstrap failed::$Reason"
+            throw 'Native dependency bootstrap failed'
+          }
+
       - name: Build the host, project code images, shaders and SolidArc GUI with MSVC
         shell: pwsh
         run: |
@@ -254,7 +266,7 @@ jobs:
           $Transcript = Join-Path $env:RUNNER_TEMP 'frontier-windows-build.log'
           Start-Transcript -Path $Transcript | Out-Null
           try {
-            & ./Tools/Build/ToolchainSequence.ps1 -Configuration Release -SetupDependencies
+            & ./Tools/Build/ToolchainSequence.ps1 -Configuration Release
             if ($LASTEXITCODE -ne 0) { throw 'Windows desktop build failed' }
             & ./Projects/Project-Dyno/Build/ToolchainSequence.ps1 -Configuration Release
             if ($LASTEXITCODE -ne 0) { throw 'Project-Dyno build failed' }
