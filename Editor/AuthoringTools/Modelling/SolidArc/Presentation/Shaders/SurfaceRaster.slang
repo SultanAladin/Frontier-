@@ -46,8 +46,9 @@ float4 SurfaceFragment(ViewRecord View, DrawRecord Draw, SurfaceVarying In, bool
     {
         // Matcap: view-space normal from the camera basis (right, up, toward-viewer) encoded in ViewClip's rows.
         // Column-major camera→world: column 0 = right, column 1 = up, column 2 = back (toward the viewer).
-        float3 Right = normalize(float3(View.ViewWorld.m[0], View.ViewWorld.m[1], View.ViewWorld.m[2]));
-        float3 Up    = normalize(float3(View.ViewWorld.m[4], View.ViewWorld.m[5], View.ViewWorld.m[6]));
+        // Basis vectors through the matrix (column-major camera→world): valid Slang and identical to the C++ mirror's mul().
+        float3 Right = normalize(mul(View.ViewWorld, float4(1.0, 0.0, 0.0, 0.0)).xyz);
+        float3 Up    = normalize(mul(View.ViewWorld, float4(0.0, 1.0, 0.0, 0.0)).xyz);
         float3 Vn    = float3(dot(N, Right), dot(N, Up), saturate(dot(N, V)));
         Vn = normalize(Vn);
         Colour = MatcapLookup(uint(Draw.Surface.x + 0.5f), Vn);

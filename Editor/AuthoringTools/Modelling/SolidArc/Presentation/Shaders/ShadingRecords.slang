@@ -23,7 +23,7 @@ struct DrawRecord
 {
     float4x4 LocalWorld;        // whole → world
     float4   Tint;              // rgb = body colour, a = opacity
-    float4   Selection;         // x = 0 none / 1 hovered / 2 selected, y = pick id (as float bits), z = line width [px], w = point size [px]
+    float4   Selection;         // x = 0 none / 1 hovered / 2 selected, y = pick id (as a float value, exact below 2^24), z = line width [px], w = point size [px]
     float4   Surface;           // x = matcap layer (per whole), y = shading 0 flat / 1 plastic / 2 matcap, z = emissive boost, w = reserved
 };
 
