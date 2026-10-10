@@ -10,20 +10,119 @@
 #include "Kernel/ConstraintGraph.h"
 #include "Kernel/MirrorSolver.h"
 #include "Kernel/BlendSolver.h"
+#include "Kernel/TweakSolver.h"
+#include "Kernel/FaceEditSolver.h"
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cstdarg>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <set>
 
 namespace Frontier
 {
 
 namespace
 {
+// Return ONLY components in the active rail mode. Figure.Selected may still be true
+// after entering edit mode to show its cage; it is not permission to move the body.
+std::vector<int> SelectedBodyVertices(const SceneFigure& Figure, SelectMode Mode) noexcept
+{
+    std::vector<int> Vertices;
+    if (Figure.Classification != FigureClassification::Body) return Vertices;
+    if (Mode == SelectMode::Face)
+        for (int Face : Figure.SelectedFaces)
+        {
+            const auto Part = TweakSolver::FaceVertices(Figure.Body, Face);
+            Vertices.insert(Vertices.end(), Part.begin(), Part.end());
+        }
+    else if (Mode == SelectMode::Edge)
+        for (int Edge : Figure.SelectedEdges)
+        {
+            const auto Part = TweakSolver::EdgeVertices(Figure.Body, Edge);
+            Vertices.insert(Vertices.end(), Part.begin(), Part.end());
+        }
+    else if (Mode == SelectMode::Control)
+        for (int Vertex : Figure.SelectedPoles)
+            if (Vertex >= 0 && Vertex < static_cast<int>(Figure.Body.Vertices.size())) Vertices.push_back(Vertex);
+    std::sort(Vertices.begin(), Vertices.end());
+    Vertices.erase(std::unique(Vertices.begin(), Vertices.end()), Vertices.end());
+    return Vertices;
+}
+
+Deliver<BrepBody> TransformSelectedComponents(const SceneFigure& Figure, SelectMode Mode, const Mat4& Affine) noexcept
+{
+    const auto Vertices = SelectedBodyVertices(Figure, Mode);
+    if (Vertices.empty())
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "select a face, edge or vertex first");
+    const Mat4 Identity;
+    bool TranslationOnly = true;
+    for (int Index = 0; Index < 12; ++Index)
+        TranslationOnly &= std::fabs(Affine.M[Index] - Identity.M[Index]) < 1e-10;
+    if (!TranslationOnly) return TweakSolver::TransformVertices(Figure.Body, Vertices, Affine, true);
+    const Vec3 Movement{Affine.M[12], Affine.M[13], Affine.M[14]};
+    if (Mode == SelectMode::Face && Figure.SelectedFaces.size() == 1)
+        return TweakSolver::TranslateFace(Figure.Body, Figure.SelectedFaces.front(), Movement, true);
+    if (Mode == SelectMode::Edge && Figure.SelectedEdges.size() == 1)
+        return TweakSolver::TranslateEdge(Figure.Body, Figure.SelectedEdges.front(), Movement, true);
+    if (Mode == SelectMode::Control && Vertices.size() == 1)
+        return TweakSolver::TranslateVertex(Figure.Body, Vertices.front(), Movement, true);
+    return TweakSolver::TranslateVertices(Figure.Body, Vertices, Movement, true);
+}
+
+bool ActiveGizmoSelection(const SceneFigure& Figure, SelectMode Mode) noexcept
+{
+    if (Mode == SelectMode::Whole) return Figure.Selected;
+    if (Figure.Classification == FigureClassification::Body) return !SelectedBodyVertices(Figure, Mode).empty();
+    return Mode == SelectMode::Control && !Figure.SelectedPoles.empty();
+}
+
 const float Backdrop[4] = { 0.0f, 0.0f, 0.0f, 1.0f };                              // Phase 20: black background per user request
 const char* ClassName(FigureClassification K) noexcept { return K == FigureClassification::Curve ? "curve" : "surface"; }
+
+// ── Studio → export material table ────────────────────────────────────────────────────────────────────────────────
+// Maps each matcap studio (the SolidArc "material system") to (a) a Wavefront MTL description for portable viewers and
+//    (b) the real Frontier engine material it should bind to. The .materials.toml manifest written next to the OBJ carries
+//    this table so the paint / rubber / glass / chrome / emissive assignment is trivially editable after export.
+struct StudioMaterial
+{
+    const char* Studio;                 // matcap studio name (== OBJ usemtl group)
+    float Kd[3];                        // base colour
+    float Metallic, Roughness, Emissive, Alpha;
+    const char* Frontier;              // Frontier engine material to bind
+    bool  Flakes;                       // clear-coat metallic flakes (System B AutomotiveFlakePaint)
+};
+const StudioMaterial kStudioMaterials[] = {
+    { "steel",         {0.62f,0.66f,0.72f}, 1.0f, 0.35f, 0.0f, 1.00f, "Metal_Steel",          false },
+    { "chrome",        {0.92f,0.94f,0.97f}, 1.0f, 0.05f, 0.0f, 1.00f, "Metal_Chrome",         false },
+    { "gold",          {1.00f,0.78f,0.34f}, 1.0f, 0.25f, 0.0f, 1.00f, "Metal_Gold",           false },
+    { "copper",        {0.95f,0.55f,0.40f}, 1.0f, 0.30f, 0.0f, 1.00f, "Metal_Copper",         false },
+    { "plastic-white", {0.90f,0.91f,0.93f}, 0.0f, 0.30f, 0.0f, 1.00f, "AutomotiveFlakePaint", true  },
+    { "plastic-red",   {0.85f,0.16f,0.14f}, 0.0f, 0.25f, 0.0f, 1.00f, "AutomotiveFlakePaint", true  },
+    { "plastic-blue",  {0.16f,0.36f,0.85f}, 0.0f, 0.25f, 0.0f, 1.00f, "AutomotiveFlakePaint", true  },
+    { "clay",          {0.70f,0.62f,0.55f}, 0.0f, 0.85f, 0.0f, 1.00f, "Plastic_Interior",     false },
+    { "pearl",         {0.93f,0.90f,0.95f}, 0.3f, 0.15f, 0.0f, 1.00f, "AutomotiveFlakePaint", true  },
+    { "carbon",        {0.10f,0.11f,0.12f}, 0.6f, 0.40f, 0.0f, 1.00f, "CarbonFibre",          false },
+    { "rubber",        {0.045f,0.045f,0.05f},0.0f,0.95f, 0.0f, 1.00f, "Rubber_Tyre",          false },
+    { "glass",         {0.03f,0.05f,0.07f}, 0.0f, 0.04f, 0.0f, 0.25f, "Glass_Tinted",         false },
+    { "headlight",     {0.95f,0.96f,1.00f}, 0.0f, 0.20f, 1.0f, 1.00f, "Emissive_Headlight",   false },
+    { "taillight",     {0.90f,0.05f,0.05f}, 0.0f, 0.25f, 0.8f, 1.00f, "Emissive_Taillight",   false },
+};
+const StudioMaterial& StudioMat(int Layer) noexcept
+{
+    int N = int(sizeof(kStudioMaterials) / sizeof(kStudioMaterials[0]));
+    return kStudioMaterials[(Layer >= 0 && Layer < N) ? Layer : 0];
+}
+std::string SanitizeName(const std::string& S) noexcept
+{
+    std::string O; O.reserve(S.size());
+    for (char C : S) O += (std::isalnum(static_cast<unsigned char>(C)) || C == '_' || C == '-' || C == '.') ? C : '_';
+    return O.empty() ? std::string("Object") : O;
+}
 }
 
 ConsoleHost::ConsoleHost(std::string ProofFolder, uint32_t Width, uint32_t Height) noexcept
@@ -31,6 +130,17 @@ ConsoleHost::ConsoleHost(std::string ProofFolder, uint32_t Width, uint32_t Heigh
 {
     Register();
     RegisterInteraction();
+}
+
+void ConsoleHost::SeatSurface(uint32_t Width, uint32_t Height, uint32_t Samples) noexcept
+{
+    if (Width < 16u || Height < 16u) return;
+    Surface->AssignSamples(Samples);
+    if (Width != Surface->Width() || Height != Surface->Height())
+    {
+        Surface->Resize(Width, Height);
+        Tool.ResizeViewport(Width, Height);
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -151,7 +261,7 @@ namespace
                 // Build the label with a non-ASCII degree mark by appending the UTF-8 bytes of U+00B0.
                 std::snprintf(Buf, sizeof Buf, "%.1f", D.Value * (180.0 / 3.14159265358979323846));
                 std::string S(Buf);
-                S.push_back(char(0xC2)); S.push_back(char(0xB0));                       // U+00B0 in UTF-8
+                S.append("\xC2\xB0");                       // U+00B0 in UTF-8
                 return S;
             }
         }
@@ -213,8 +323,9 @@ void ConsoleHost::AutoEmitDimensions(const SceneFigure& Figure) noexcept
         if (C.Classification == CurveClassification::Circle) AnalyticLength = 2.0 * 3.14159265358979323846 * C.RadiusMajor;
         else if (C.Classification == CurveClassification::Ellipse)
         {
-            double A = C.RadiusMajor, B = C.RadiusMinor, H = std::pow((A - B) / (A + B), 2);
-            AnalyticLength = 3.14159265358979323846 * (A + B) * (1.0 + 3.0 * H / (10.0 + std::sqrt(4.0 - 3.0 * H)));
+            double MajorRadius = C.RadiusMajor, MinorRadius = C.RadiusMinor;
+            double EccentricityRatio = std::pow((MajorRadius - MinorRadius) / (MajorRadius + MinorRadius), 2);
+            AnalyticLength = 3.14159265358979323846 * (MajorRadius + MinorRadius) * (1.0 + 3.0 * EccentricityRatio / (10.0 + std::sqrt(4.0 - 3.0 * EccentricityRatio)));
         }
         if (AnalyticLength < 1e-9) AnalyticLength = C.Length();
         // Live arc-length dim tied to source field B - A (length of A→B for a line) or to the curve's
@@ -1046,7 +1157,8 @@ bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecip
     Deliver<FigureRecipe::Product> P = Recipe.Produce(Scene, Plane);
     if (!P) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(P.Denial.Reason), P.Denial.Detail);
     Recipe.InputFingerprint = Recipe.FingerprintInputs(Scene, Plane);
-    SceneFigure& Figure = P.Payload.IsBody ? Scene.AddBody(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Body))
+    SceneFigure& Figure = P.Payload.IsCurve ? Scene.AddCurve(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Curve))
+                            : P.Payload.IsBody ? Scene.AddBody(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Body))
                                            : Scene.AddSurface(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Sheet));
     Figure.Recipe = std::move(Recipe);
     DescribeFigure(Figure);
@@ -1070,7 +1182,8 @@ bool ConsoleHost::AddDerived(const CommandLine& C, const char* Stem, FigureRecip
     Deliver<FigureRecipe::Product> P = Recipe.Produce(Scene, Plane);
     if (!P) return Refuse("%s refused: %s — %s", Stem, Refusal::Describe(P.Denial.Reason), P.Denial.Detail);
     Recipe.InputFingerprint = Recipe.FingerprintInputs(Scene, Plane);
-    SceneFigure& Figure = P.Payload.IsBody ? Scene.AddBody(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Body))
+    SceneFigure& Figure = P.Payload.IsCurve ? Scene.AddCurve(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Curve))
+                            : P.Payload.IsBody ? Scene.AddBody(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Body))
                                            : Scene.AddSurface(C.SwitchText("name").value_or(Stem), std::move(P.Payload.Sheet));
     Figure.Recipe = std::move(Recipe);
     Figure.Blueprint = std::move(Source);                                            // Phase 16: live-edit the figure from the Blueprint
@@ -1116,10 +1229,55 @@ std::vector<SceneFigure*> ConsoleHost::ResolveMany(const CommandLine& C, size_t 
 //                                                  RENDER
 //------------------------------------------------------------------------------------------------------------------------
 
+uint64_t ConsoleHost::PictureSignature() const noexcept
+{
+    uint64_t Sum = 1469598103934665603ull;
+    auto Mix = [&](const void* Bytes, size_t Count)
+    {
+        const unsigned char* P = static_cast<const unsigned char*>(Bytes);
+        for (size_t I = 0; I < Count; ++I) { Sum ^= P[I]; Sum *= 1099511628211ull; }
+    };
+    auto Put = [&](auto Value) { Mix(&Value, sizeof Value); };
+    Put(Revision); Put(Surface->Width()); Put(Surface->Height()); Put(Surface->QuerySamples()); Put(LatticeCell);
+    Put(HoverPick); Put(static_cast<int>(Mode)); Put(static_cast<int>(Shading)); Put(ShowControlCages); Put(ShowIsoCurves); Put(ShowBoundaryEdges); Put(ShowFeatureCurves); Put(ShowDimensions); Put(GizmoShown);
+    // A tool preview and the gizmo's hovered grip follow the pointer, so the pointer belongs in the signature too.
+    Put(Tool.Active());
+    if (Tool.Active()) { Put(PointerX); Put(PointerY); } // idle hover should not redraw a full CPU frame
+    Put(static_cast<int>(GizmoRig.CurrentLayout())); Put(static_cast<int>(GizmoRig.Hovered()));
+    Put(GizmoRig.Dragging()); Mix(GizmoRig.Drag().Delta.M, sizeof GizmoRig.Drag().Delta.M);
+    const ViewRecord Seen = View.ToViewRecord(Surface->Width(), Surface->Height(), 1.0);
+    Mix(Seen.ViewClip, sizeof Seen.ViewClip); Mix(Seen.EyePosition, sizeof Seen.EyePosition);
+    Mix(Backdrop, sizeof Backdrop);
+    for (const SceneFigure& Figure : Scene.Figures())
+    {
+        Put(Figure.Identity); Put(Figure.Hidden); Put(Figure.Selected); Put(Figure.Construction); Put(Figure.Matcap); Put(static_cast<int>(Figure.Feature));
+        Mix(Figure.Tint, sizeof Figure.Tint);
+        Put(Figure.SelectedPoles.size()); Put(Figure.SelectedFaces.size()); Put(Figure.SelectedEdges.size());
+        for (int Index : Figure.SelectedPoles) Put(Index);
+        for (int Index : Figure.SelectedFaces) Put(Index);
+        for (int Index : Figure.SelectedEdges) Put(Index);
+        const Box3 Reach = Figure.Bounds();
+        Put(Reach.Low.X); Put(Reach.Low.Y); Put(Reach.Low.Z); Put(Reach.High.X); Put(Reach.High.Y); Put(Reach.High.Z);
+    }
+    for (const SketchArea& Area : Scene.Areas()) { Put(Area.Identity); Put(Area.Selected); Put(Area.Filled); }
+    for (const DimensionEntry& Dimension : Dimensions) { Put(Dimension.Id); Put(Dimension.Hidden); Put(Dimension.Value); }
+    return Sum;
+}
+
+bool ConsoleHost::RenderIfChanged() noexcept
+{
+    const uint64_t Now = PictureSignature();
+    if (Now == DrawnSignature)
+        return false;
+    Render();
+    DrawnSignature = Now;
+    return true;
+}
+
 void ConsoleHost::Render() noexcept
 {
     Surface->BeginTarget(Backdrop);
-    Surface->BindView(View.ToViewRecord(Surface->Width(), Surface->Height(), 1.0));
+    Surface->BindView(View.ToViewRecord(Surface->Width(), Surface->Height(), LatticeCell));
     Surface->DrawLattice();
 
     for (const SceneFigure& Figure : Scene.Figures())
@@ -1146,10 +1304,19 @@ void ConsoleHost::Render() noexcept
     DrawAreas();
     for (const SceneFigure& Figure : Scene.Figures())
     {
-        if (Figure.Hidden || Figure.Classification != FigureClassification::Curve) continue;
-        DrawRecord D = Figure.Selected ? ScenePresentation::Tinted(1.0f, 0.62f, 0.20f) : ScenePresentation::Tinted(0.92f, 0.94f, 0.97f);
-        D.LineWidth = Figure.Selected ? 2.5f : 2.0f;
-        D.Dashed = Figure.Construction;
+        if (Figure.Hidden || Figure.Classification != FigureClassification::Curve ||
+            (Figure.Recipe.Operation == RecipeOperation::SurfaceOffset && !Figure.Recipe.Complaint.empty())) continue;
+        const bool Feature = Figure.Feature != FeaturePurpose::None;
+        if (Feature && !ShowFeatureCurves) continue;
+        // A sketch curve wears its outliner folder's colour: lines cyan, profiles green, construction violet.
+        const bool LineForm = Figure.Blueprint.Form == SceneFigure::ParametricForm::Line;
+        DrawRecord D = Figure.Selected     ? ScenePresentation::Tinted(1.0f, 0.62f, 0.20f)
+                     : Figure.Construction ? ScenePresentation::Tinted(0.71f, 0.55f, 1.0f)
+                     : LineForm            ? ScenePresentation::Tinted(0.31f, 0.85f, 0.88f)
+                                           : ScenePresentation::Tinted(0.20f, 0.78f, 0.35f);
+        if (Feature) D = ScenePresentation::Tinted(Figure.Tint[0], Figure.Tint[1], Figure.Tint[2]);
+        D.LineWidth = Feature ? 3.0f : (Figure.Selected ? 2.5f : 2.0f);
+        D.Dashed = Figure.Construction && !Feature;
         D.PickIdentity = SceneDocument::PickOf(Figure.Identity);
         D.Highlight = Figure.Selected ? 2.0f : (SceneDocument::IdentityOf(HoverPick) == Figure.Identity ? 1.0f : 0.0f);
         Surface->DrawSegments(ScenePresentation::CurveSegments(Figure.Curve), D);
@@ -1167,13 +1334,13 @@ void ConsoleHost::Render() noexcept
     Surface->BeginOverlay();
     DrawToolPreview();
     DrawDimensions();
-    if (GizmoShown && (Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0) && !Tool.Active())
+    if (GizmoShown && std::any_of(Scene.Figures().begin(), Scene.Figures().end(),
+        [this](const SceneFigure& Figure) { return ActiveGizmoSelection(Figure, Mode); }) && !Tool.Active())
     {
         if (!GizmoRig.Dragging()) RefreshGizmoPivot();
         GizmoRig.AimAt(View);
         GizmoRig.Draw(*Surface, View, Surface->Width(), Surface->Height());
     }
-    ScenePresentation::DrawTriad(*Surface, View.OrthographicHalfHeight() * 0.12);
     Surface->EndTarget();
 }
 
@@ -1226,13 +1393,17 @@ void ConsoleHost::DrawBody(const SceneFigure& Figure) noexcept
         D.PickIdentity = SceneDocument::PickOf(Figure.Identity, SceneDocument::PickPart::Face, int(F));
         const bool FaceSel = Figure.FaceSelected(int(F));
         const bool FaceHover = FigureHover && (Mode == SelectMode::Face ? SceneDocument::FaceOf(HoverPick) == int(F) : Mode == SelectMode::Whole);
-        D.Highlight = (Figure.Selected || FaceSel) ? 2.0f : (FaceHover ? 1.0f : 0.0f);
-        D.Matcap = Figure.Matcap;
+        D.Highlight = ((Mode == SelectMode::Whole && Figure.Selected) || FaceSel) ? 2.0f : (FaceHover ? 1.0f : 0.0f);
+        D.Matcap = Figure.MatcapForFace(int(F));                                        // per-face override, else whole-figure
+        // Emissive studios (headlight/taillight) glow a little in the preview so lights read as lit.
+        if (D.Matcap == 12 || D.Matcap == 13) D.Emissive = 0.6f;
         D.Shading = static_cast<uint8_t>(Shading);
         Surface->DrawSurface(S, D);
     }
     for (size_t E = 0; E < B.Edges.size(); ++E)
     {
+        if (!ShowBoundaryEdges && !Figure.EdgeSelected(int(E)) &&
+            !(FigureHover && Mode == SelectMode::Edge && SceneDocument::EdgeOf(HoverPick) == int(E))) continue;
         std::vector<Vec3> P = B.EdgePolyline(int(E));
         SegmentStream Seg; for (size_t I = 0; I + 1 < P.size(); ++I) Seg.Append(P[I], P[I + 1]);
         const bool EdgeSel = Figure.EdgeSelected(int(E));
@@ -1243,6 +1414,19 @@ void ConsoleHost::DrawBody(const SceneFigure& Figure) noexcept
         D.PickIdentity = SceneDocument::PickOf(Figure.Identity, SceneDocument::PickPart::Edge, int(E));
         Surface->DrawSegments(Seg, D);
     }
+    if (Mode == SelectMode::Control || !Figure.SelectedPoles.empty())
+    {
+        for (size_t V = 0; V < B.Vertices.size(); ++V)
+        {
+            PointStream Point; Point.Append(B.Vertices[V].Point, PointGlyph::Square);
+            DrawRecord D = ScenePresentation::Tinted(0.95f, 0.80f, 0.30f);
+            D.PickIdentity = SceneDocument::PickOf(Figure.Identity, static_cast<int>(V));
+            D.Highlight = Figure.PoleSelected(static_cast<int>(V)) ? 2.0f : 0.0f;
+            D.PointSize = Figure.PoleSelected(static_cast<int>(V)) ? 10.0f : 8.0f;
+            Surface->DrawPoints(Point, D);
+        }
+    }
+
 }
 
 void ConsoleHost::DrawControlPoints(const SceneFigure& Figure) noexcept
@@ -1266,23 +1450,22 @@ void ConsoleHost::DrawControlPoints(const SceneFigure& Figure) noexcept
 
 Vec3 ConsoleHost::SelectionPivot() const noexcept
 {
-    if (Mode == SelectMode::Control && Scene.SelectedPoleCount() > 0)
+    Vec3 Sum{}; size_t Count = 0;
+    if (Mode == SelectMode::Control)
     {
-        Vec3 Sum; int N = 0;
-        for (const SceneFigure& I : Scene.Figures()) for (int P : I.SelectedPoles) { Sum = Sum + I.PolePosition(P); ++N; }
-        return Sum * (1.0 / N);
+        for (const SceneFigure& Figure : Scene.Figures())
+            for (int Pole : Figure.SelectedPoles)
+                if (Pole >= 0 && Pole < Figure.PoleCount()) { Sum = Sum + Figure.PolePosition(Pole); ++Count; }
     }
-    if (Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0)
+    else if (Mode == SelectMode::Face || Mode == SelectMode::Edge)
     {
-        Box3 B;
-        for (const SceneFigure& I : Scene.Figures())
-        {
-            for (int F : I.SelectedFaces) B.Include(I.Body.Faces[F].Surface.Bounds());
-            for (int E : I.SelectedEdges) B.Include(I.Body.Edges[E].Curve.Bounds());
-        }
-        if (!B.Empty()) return B.Centre();
+        for (const SceneFigure& Figure : Scene.Figures())
+            for (int Vertex : SelectedBodyVertices(Figure, Mode))
+                { Sum = Sum + Figure.Body.Vertices[Vertex].Point; ++Count; }
     }
-    return Scene.Bounds(true).Centre();
+    if (Count) return Sum * (1.0 / Count);
+    const auto Bounds = Scene.Bounds(true);
+    return Bounds.Empty() ? Plane.Origin : Bounds.Centre();
 }
 
 void ConsoleHost::RefreshGizmoPivot() noexcept
@@ -1292,20 +1475,96 @@ void ConsoleHost::RefreshGizmoPivot() noexcept
     GizmoRig.AimAt(View);
 }
 
-void ConsoleHost::ApplyDeltaToSelection(const Mat4& Delta) noexcept
+bool ConsoleHost::ApplyDeltaToSelection(const Mat4& Delta) noexcept
 {
-    for (auto& [Id, Original] : GizmoOriginals)
-        if (SceneFigure* I = Scene.Find(Id))
+    // Solve against drag-start geometry and apply atomically: no unsupported edit
+    // may silently turn into a whole-object transform or leave a partial preview.
+    std::vector<std::pair<uint32_t, BrepBody>> Bodies;
+    for (const auto& [Id, Original] : GizmoOriginals)
+    {
+        if (Mode == SelectMode::Whole || Original.Classification != FigureClassification::Body) continue;
+        Deliver<BrepBody> Result = TransformSelectedComponents(Original, Mode, Delta);
+        if (!Result) return false;
+        Bodies.emplace_back(Id, std::move(Result.Payload));
+    }
+    for (const auto& [Id, Original] : GizmoOriginals)
+        if (SceneFigure* Figure = Scene.Find(Id))
         {
-            if (Mode == SelectMode::Control && !Original.SelectedPoles.empty())
+            if (Mode == SelectMode::Whole)
             {
-                for (int P : Original.SelectedPoles) I->MovePole(P, Delta.TransformPoint(Original.PolePosition(P)));
+                SceneFigure Fresh = Original; Fresh.Transform(Delta);
+                Figure->Curve = std::move(Fresh.Curve); Figure->Surface = std::move(Fresh.Surface); Figure->Body = std::move(Fresh.Body);
             }
-            else { SceneFigure Fresh = Original; Fresh.Transform(Delta); I->Curve = std::move(Fresh.Curve); I->Surface = std::move(Fresh.Surface); I->Body = std::move(Fresh.Body); }
+            else if (Original.Classification == FigureClassification::Body)
+            {
+                const auto Found = std::find_if(Bodies.begin(), Bodies.end(), [Id](const auto& Entry) { return Entry.first == Id; });
+                if (Found != Bodies.end()) Figure->Body = std::move(Found->second);
+            }
+            else if (Mode == SelectMode::Control)
+                for (int Pole : Original.SelectedPoles)
+                    if (Pole >= 0 && Pole < Original.PoleCount()) Figure->MovePole(Pole, Delta.TransformPoint(Original.PolePosition(Pole)));
         }
+    return true;
 }
 
-void ConsoleHost::ApplyGizmoDelta(const Mat4& Delta) noexcept { ApplyDeltaToSelection(Delta); }
+int ConsoleHost::AimGizmoAtView(double Horizontal, double Vertical) noexcept
+{
+    if (!GizmoShown || Tool.Active() || GizmoRig.Dragging()) return 0;
+    const bool Selected = std::any_of(Scene.Figures().begin(), Scene.Figures().end(),
+                                      [this](const SceneFigure& Figure) { return ActiveGizmoSelection(Figure, Mode); });
+    if (!Selected) { GizmoRig.MarkHovered(GizmoGrip::None); return 0; }
+    RefreshGizmoPivot();
+    const auto Grip = GizmoRig.Locate(Horizontal, Vertical, View, Surface->Width(), Surface->Height());
+    GizmoRig.MarkHovered(Grip);
+    return int(Grip);
+}
+
+bool ConsoleHost::BeginGizmoAtView(double Horizontal, double Vertical) noexcept
+{
+    if (!AimGizmoAtView(Horizontal, Vertical)) return false;
+    for (const auto& Figure : Scene.Figures())
+        if (Figure.Locked && ActiveGizmoSelection(Figure, Mode)) return false;
+    if (!GizmoRig.BeginDrag(Horizontal, Vertical, View, Surface->Width(), Surface->Height())) return false;
+    GizmoOriginals.clear();
+    for (const auto& Figure : Scene.Figures())
+        if (ActiveGizmoSelection(Figure, Mode)) GizmoOriginals.emplace_back(Figure.Identity, Figure);
+    return true;
+}
+
+bool ConsoleHost::DragGizmoAtView(double Horizontal, double Vertical, bool Snapping) noexcept
+{
+    if (!GizmoRig.Dragging()) return false;
+    GizmoRig.UpdateDrag(Horizontal, Vertical, Snapping, View, Surface->Width(), Surface->Height());
+    if (!ApplyDeltaToSelection(GizmoRig.Drag().Delta))
+    {
+        for (const auto& [Id, Original] : GizmoOriginals)
+            if (auto* Figure = Scene.Find(Id)) *Figure = Original;
+        return false;
+    }
+    return true;
+}
+
+bool ConsoleHost::FinishGizmoAtView(bool Cancel) noexcept
+{
+    if (!GizmoRig.Dragging()) return false;
+    const auto Drag = GizmoRig.EndDrag();
+    for (const auto& [Identity, Original] : GizmoOriginals)
+        if (auto* Figure = Scene.Find(Identity)) *Figure = Original;
+    GizmoOriginals.clear();
+    RefreshGizmoPivot();
+    if (Cancel) return true;
+    const Mat4 Identity;
+    bool Changed = false;
+    for (int Index = 0; Index < 16; ++Index)
+        Changed |= std::fabs(Drag.Delta.M[Index] - Identity.M[Index]) > 1e-12;
+    if (!Changed) return true;
+    std::ostringstream Command;
+    Command << std::setprecision(17) << "transform selected";
+    for (double Cell : Drag.Delta.M) Command << ' ' << Cell;
+    if (Mode != SelectMode::Whole) Command << " --components";
+    return Execute(Command.str());
+}
+
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                  COMMANDS
@@ -1790,6 +2049,22 @@ void ConsoleHost::RememberDocumentCommand(const CommandLine& Command) noexcept
     // A reset discards all preceding model history from the saved document as well. It is both correct and prevents
     // exploratory work before a new part from accumulating indefinitely in a later save.
     if (Command.Verb == "reset") DocumentJournal.clear();
+    if (Command.Verb == "sew" && Command.Switch("open") &&
+        std::find(DocumentJournal.begin(), DocumentJournal.end(), "require open-sew") == DocumentJournal.end())
+        DocumentJournal.push_back("require open-sew");
+    if (((Command.Verb == "patch" && (Command.SwitchText("knots-u") || Command.SwitchText("knots-v"))) ||
+         (Command.Verb == "sew" && Command.Switch("knot-edges"))) &&
+        std::find(DocumentJournal.begin(), DocumentJournal.end(), "require knot-skin") == DocumentJournal.end())
+        DocumentJournal.push_back("require knot-skin");
+    if (Command.Verb == "sew" && Command.Switch("split-junctions") &&
+        std::find(DocumentJournal.begin(), DocumentJournal.end(), "require boundary-splits") == DocumentJournal.end())
+        DocumentJournal.push_back("require boundary-splits");
+    if (Command.Verb == "cpcurve" && Command.SwitchText("knots") &&
+        std::find(DocumentJournal.begin(), DocumentJournal.end(), "require curve-knots") == DocumentJournal.end())
+        DocumentJournal.push_back("require curve-knots");
+    if (Command.Verb == "surface-offset" &&
+        std::find(DocumentJournal.begin(), DocumentJournal.end(), "require surface-offset") == DocumentJournal.end())
+        DocumentJournal.push_back("require surface-offset");
     DocumentJournal.push_back(EncodeDocumentCommand(Command));
 }
 
@@ -1879,6 +2154,8 @@ bool ConsoleHost::OpenDocument(const std::string& RequestedPath) noexcept
     GizmoShown = Candidate.GizmoShown;
     ShowControlCages = Candidate.ShowControlCages;
     ShowIsoCurves = Candidate.ShowIsoCurves;
+    ShowBoundaryEdges = Candidate.ShowBoundaryEdges;
+    ShowFeatureCurves = Candidate.ShowFeatureCurves;
     ShowDimensions = Candidate.ShowDimensions;
     Shading = Candidate.Shading;
     for (Tile& T : SheetTiles) T = Tile();
@@ -1917,6 +2194,24 @@ void ConsoleHost::Register() noexcept
         auto P = C.Point(I); if (!P) return false;
         bool Planar = C.Arguments[I].find(',') == C.Arguments[I].rfind(',');
         Out = Planar ? Plane.ToWorld({ P->X, P->Y }) : *P;
+        return true;
+    };
+    // Face-edit commands all cross the same transaction boundary: the kernel receives an immutable
+    // source, and the scene replaces it only after a delivered result has passed validation. Keeping
+    // this small commit helper shared prevents a refusal in one route from partially consuming a body.
+    auto CommitFaceBody = [this](const CommandLine& C, const char* Stem, SceneFigure* Source, Deliver<BrepBody> Result) -> bool
+    {
+        if (!Result) return Refuse("%s %s: %s — %s", Stem, Source ? Source->Name.c_str() : "<none>", Refusal::Describe(Result.Denial.Reason), Result.Denial.Detail);
+        if (Source == nullptr || Source->Classification != FigureClassification::Body) return Refuse("%s: source is not a body", Stem);
+        const std::string OldName = Source->Name; const uint32_t OldId = Source->Identity; const bool Selected = Source->Selected;
+        const BodyReport Before = Source->Body.Validate();
+        Scene.Remove(OldId);
+        SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(OldName + "." + Stem), std::move(Result.Payload));
+        Out.Selected = Selected;
+        DescribeFigure(Out);
+        const BodyReport After = Out.Body.Validate();
+        Row("%s %s → %s  V%d E%d F%d  volume %.5f → %.5f%s", Stem, OldName.c_str(), Out.Name.c_str(), After.Vertices, After.Edges, After.Faces,
+            Before.Volume, After.Volume, After.Solid() ? "  [solid]" : (After.OpenEdges ? "  [open sheet]" : ""));
         return true;
     };
 
@@ -2007,11 +2302,42 @@ void ConsoleHost::Register() noexcept
         if (Pts.size() >= 2) { S.A = Pts.front(); S.B = Pts.back(); }
         return AddCurve(C, "Spline", NurbsCurve::Interpolate(Pts, S.I0, S.Closed), S);
     });
-    Add("cpcurve", "cpcurve (p) (p) (p) ... [--degree=3] [--periodic]   control-point curve", [=, this](const CommandLine& C)
+    Add("cpcurve", "cpcurve (p) (p) (p) ... [--degree=3] [--periodic] [--knots=k,...]   control-point curve", [=, this](const CommandLine& C)
     {
         std::vector<Vec3> Pts; Vec3 P;
         for (size_t I = 0; I < C.Count(); ++I) { if (!Lift(C, I, P)) return Refuse("cpcurve: argument %zu is not a point", I + 1); Pts.push_back(P); }
-        return AddCurve(C, "ControlCurve", NurbsCurve::ControlPoints(static_cast<int>(C.SwitchNumber("degree").value_or(3)), Pts, C.Switch("periodic")));
+        auto Result = NurbsCurve::ControlPoints(static_cast<int>(C.SwitchNumber("degree").value_or(3)), Pts, C.Switch("periodic"));
+        if (const auto Text = C.SwitchText("knots"))
+        {
+            if (!Result || C.Switch("periodic")) return Refuse("cpcurve: explicit knots require a valid non-periodic curve");
+            std::vector<double> Knots;
+            size_t Start = 0;
+            while (Start <= Text->size())
+            {
+                const size_t End = Text->find(',', Start);
+                const auto Number = CommandCodec::ParseNumber(Text->substr(Start, End == std::string::npos ? End : End - Start));
+                if (!Number || !std::isfinite(*Number)) return Refuse("cpcurve: finite knot numbers required");
+                Knots.push_back(*Number);
+                if (End == std::string::npos) break;
+                Start = End + 1;
+            }
+            const size_t Degree = static_cast<size_t>(Result.Payload.Degree), Count = Result.Payload.Poles.size();
+            if (Knots.size() != Count + Degree + 1 || !std::is_sorted(Knots.begin(), Knots.end()) || !(Knots[Degree] < Knots[Count]))
+                return Refuse("cpcurve: invalid clamped knot sequence");
+            for (size_t Index = 0; Index <= Degree; ++Index)
+                if (Knots[Index] != Knots.front() || Knots[Knots.size() - 1 - Index] != Knots.back())
+                    return Refuse("cpcurve: endpoint knots must be clamped");
+            for (size_t Index = Degree + 1; Index < Count;)
+            {
+                size_t End = Index + 1;
+                while (End < Count && Knots[End] == Knots[Index]) ++End;
+                if (End - Index > Degree || Knots[Index] <= Knots.front() || Knots[Index] >= Knots.back())
+                    return Refuse("cpcurve: interior knots must preserve positional continuity");
+                Index = End;
+            }
+            Result = NurbsCurve::Build(Result.Payload.Degree, std::move(Result.Payload.Poles), std::move(Knots));
+        }
+        return AddCurve(C, "ControlCurve", std::move(Result));
     });
 
     //---------------------------------------------- primitive surfaces ----------------------------------------------
@@ -2121,12 +2447,13 @@ void ConsoleHost::Register() noexcept
         }
         return Done > 0;
     });
-    Add("sew", "sew <surface...> — stitch sheet surfaces into one body, cap planar openings, orient", [=, this](const CommandLine& C)
+    Add("sew", "sew <surface...> [--open] [--knot-edges] [--split-junctions] — stitch and orient; --open preserves openings instead of capping", [=, this](const CommandLine& C)
     {
         std::vector<NurbsSurface> S; std::vector<uint32_t> Ids;
         for (SceneFigure* I : ResolveMany(C, 0)) { if (I->Classification == FigureClassification::Surface) { S.push_back(I->Surface); Ids.push_back(I->Identity); } else if (I->Classification == FigureClassification::Body) { for (const BrepFace& F : I->Body.Faces) S.push_back(F.Surface); Ids.push_back(I->Identity); } }
         if (S.empty()) return Refuse("sew: no surfaces");
-        if (!AddBody(C, "Sewn", BrepBody::Sew(S))) return false;
+        // Exterior skins retain their intentional openings; the historical default still caps them.
+        if (!AddBody(C, "Sewn", BrepBody::Sew(S, ScalarCriteria::MergeTolerance, !C.Switch("open"), C.Switch("knot-edges"), C.Switch("split-junctions")))) return false;
         if (!C.Switch("keep")) for (uint32_t Id : Ids) Scene.Remove(Id);
         return true;
     });
@@ -2192,13 +2519,47 @@ void ConsoleHost::Register() noexcept
         if (auto A = C.SwitchText("v")) if (auto W = CommandCodec::ParsePoint(*A)) V = *W;
         return AddSurface(C, "Plane", NurbsSurface::Plane(O, U, V, LU, LV));
     });
-    Add("patch", "patch countU countV (p00) (p01) ... row-major [--degree=3]   B-spline patch", [=, this](const CommandLine& C)
+    Add("patch", "patch countU countV (p00) (p01) ... row-major [--degree=3] [--knots-u=k,...] [--knots-v=k,...]   B-spline patch", [=, this](const CommandLine& C)
     {
         double CU = 0, CV = 0; if (!Need(C, 2, "patch") || !NumberArg(C, 0, CU, "patch") || !NumberArg(C, 1, CV, "patch")) return false;
         std::vector<Vec3> Pts; Vec3 P;
         for (size_t I = 2; I < C.Count(); ++I) { if (!PointArg(C, I, P, "patch")) return false; Pts.push_back(P); }
         int Deg = static_cast<int>(C.SwitchNumber("degree").value_or(3));
-        return AddSurface(C, "Patch", NurbsSurface::Patch(std::min(Deg, int(CU) - 1), std::min(Deg, int(CV) - 1), int(CU), int(CV), Pts));
+        auto Result = NurbsSurface::Patch(std::min(Deg, int(CU) - 1), std::min(Deg, int(CV) - 1), int(CU), int(CV), Pts);
+        if (!Result) return AddSurface(C, "Patch", std::move(Result));
+        auto ReadKnots = [&](const char* Name, std::vector<double>& Knots, int Degree, int Count) -> bool
+        {
+            const auto Text = C.SwitchText(Name);
+            if (!Text) return true;
+            Knots.clear();
+            size_t Start = 0;
+            while (Start <= Text->size())
+            {
+                const size_t End = Text->find(',', Start);
+                const auto Number = CommandCodec::ParseNumber(Text->substr(Start, End == std::string::npos ? End : End - Start));
+                if (!Number || !std::isfinite(*Number)) return false;
+                Knots.push_back(*Number);
+                if (End == std::string::npos) break;
+                Start = End + 1;
+            }
+            if (Knots.size() != static_cast<size_t>(Count + Degree + 1) || !std::is_sorted(Knots.begin(), Knots.end())) return false;
+            if (!(Knots[Degree] < Knots[Count])) return false;
+            for (int I = 0; I <= Degree; ++I)
+                if (Knots[I] != Knots.front() || Knots[Knots.size() - 1 - I] != Knots.back()) return false;
+            for (size_t I = static_cast<size_t>(Degree + 1); I < static_cast<size_t>(Count);)
+            {
+                size_t J = I + 1;
+                while (J < static_cast<size_t>(Count) && Knots[J] == Knots[I]) ++J;
+                if (J - I > static_cast<size_t>(Degree) || Knots[I] <= Knots.front() || Knots[I] >= Knots.back()) return false;
+                I = J;
+            }
+            return true;
+        };
+        auto& PatchSurface = Result.Payload;
+        if (!ReadKnots("knots-u", PatchSurface.KnotsU, PatchSurface.DegreeU, PatchSurface.CountU) ||
+            !ReadKnots("knots-v", PatchSurface.KnotsV, PatchSurface.DegreeV, PatchSurface.CountV))
+            return Refuse("patch: invalid clamped knot sequence");
+        return AddSurface(C, "Patch", std::move(Result));
     });
 
     //---------------------------------------------- derived surfaces ----------------------------------------------
@@ -2436,7 +2797,7 @@ void ConsoleHost::Register() noexcept
         }
         return Done > 0;
     });
-    Add("chamfer", "chamfer <figure...> setback [--corners=i,j,…]  or  --edges=i --name=…  — bevel the corners of a polyline / polygon / rectangle, or planar-setback chamfer a body edge (rolling-ball fillet is Phase 11b). The two switches are mutually exclusive: --corners is the curve mode, --edges is the body mode.", [=, this](const CommandLine& C)
+    Add("chamfer", "chamfer <figure...> setback [--corners=i,j,…]  or  --edges=i[,j,…] --name=…  — bevel curve corners or transactionally chamfer one or more straight planar body edges (connected selections are mitred together; invalid/self-intersecting sets refuse). The two switches are mutually exclusive: --corners is the curve mode, --edges is the body mode.", [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "chamfer")) return false;
         double D = 0; if (!NumberArg(C, C.Count() - 1, D, "chamfer")) return false;
@@ -2454,38 +2815,28 @@ void ConsoleHost::Register() noexcept
                 if (I->Classification != FigureClassification::Body) { Refuse("chamfer: '%s' is not a body", I->Name.c_str()); continue; }
                 BrepBody Working = I->Body;
                 std::vector<int> Targets;
-                if (Some) { if (EdgeList.empty()) { Refuse("chamfer: --edges= is empty"); continue; } Targets = { EdgeList.front() }; }
-                else { for (size_t E = 0; E < Working.Edges.size(); ++E) if (Working.Edges[E].Coedges.size() == 2) Targets.push_back(int(E)); }
+                if (Some)
+                {
+                    if (EdgeList.empty()) { Refuse("chamfer: --edges= is empty"); continue; }
+                    Targets = EdgeList;
+                }
+                else
+                {
+                    for (size_t E = 0; E < Working.Edges.size(); ++E)
+                        if (Working.Edges[E].Coedges.size() == 2) Targets.push_back(int(E));
+                }
                 int EdgesChamfered = 0;
                 std::string FailureDetail;
-                // Resolve the targets by midpoint against the original body: a chamfer renumbers the edge table, so
-                //    index 2 after the first cut is not the edge the user asked for. (BrepBody::ChamferEdge, which
-                //    this replaces, also left the body an open sheet — see Kernel/BlendSolver.h.)
-                std::vector<Vec3> Wanted;
-                for (int E : Targets)
+                // BlendSolver receives the complete original selection and commits one common Boolean for connected
+                // edges. This is intentionally all-or-nothing: a failed miter, self-intersection or non-planar member
+                // never leaves an earlier edge cut in the document.
+                Deliver<BrepBody> Chamfered = BlendSolver::ChamferEdges(I->Body, Targets, D, &EdgesChamfered);
+                if (!Chamfered)
                 {
-                    if (E < 0 || E >= (int)I->Body.Edges.size()) { FailureDetail = "edge index out of range"; continue; }
-                    const BrepEdge& Edge = I->Body.Edges[E];
-                    if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
-                    Wanted.push_back((I->Body.Vertices[Edge.VertexStart].Point + I->Body.Vertices[Edge.VertexEnd].Point) * 0.5);
+                    FailureDetail = Chamfered.Denial.Detail;
+                    EdgesChamfered = 0;
                 }
-                for (Vec3 Midpoint : Wanted)
-                {
-                    int Found = -1; double Best = 1e-6;
-                    for (size_t E = 0; E < Working.Edges.size(); ++E)
-                    {
-                        const BrepEdge& Edge = Working.Edges[E];
-                        if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) continue;
-                        double Gap = ((Working.Vertices[Edge.VertexStart].Point + Working.Vertices[Edge.VertexEnd].Point) * 0.5 - Midpoint).Length();
-                        if (Gap < Best) { Best = Gap; Found = (int)E; }
-                    }
-                    if (Found < 0) { FailureDetail = "edge no longer exists after the previous chamfer"; continue; }
-                    Deliver<BrepBody> R = BlendSolver::ChamferEdge(Working, Found, D);
-                    if (!R) { FailureDetail = R.Denial.Detail; continue; }
-                    Working = std::move(R.Payload);
-                    ++EdgesChamfered;
-                }
-                Targets.resize(Wanted.size());
+                else Working = std::move(Chamfered.Payload);
                 if (EdgesChamfered == 0) { Refuse("chamfer %s: %s", I->Name.c_str(), FailureDetail.c_str()); continue; }
                 std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
                 BrepBody PreOp = I->Body;                                              // capture the pre-chamfer body BEFORE the remove
@@ -2495,7 +2846,7 @@ void ConsoleHost::Register() noexcept
                 // Record the parametric source so a live dim can re-derive the chamfer with a new distance.
                 //    PreOpBody = the body before the chamfer, so a live edit re-applies the operation
                 //    to a clean copy (otherwise the edge count grows and the second chamfer fails).
-                if (!Targets.empty())
+                if (Targets.size() == 1)
                 {
                     SceneFigure::ParametricBlueprint S; S.Form = SceneFigure::ParametricForm::ChamferEdge;
                     S.I0 = Targets.front();
@@ -2530,6 +2881,68 @@ void ConsoleHost::Register() noexcept
         }
         return Done > 0;
     });
+    Add("offsetface", "offsetface <body> distance --face=i [--name=…] — exact outward/inward offset of a planar canonical-box face; unsupported B-reps refuse", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "offsetface")) return false;
+        double Distance = 0.0; if (!NumberArg(C, 1, Distance, "offsetface")) return false;
+        auto FaceText = C.SwitchText("face"); if (!FaceText) return Refuse("offsetface: --face=i is required");
+        SceneFigure* I = Resolve(C.Arguments[0]); if (!I) return Refuse("offsetface: no figure '%s'", C.Arguments[0].c_str());
+        return CommitFaceBody(C, "OffsetFace", I, FaceEditSolver::OffsetFace(I->Body, std::atoi(FaceText->c_str()), Distance));
+    });
+    Add("shell", "shell <body> thickness --face=i [--name=…] — exact box shell/thicken with the selected face removed as the opening; arbitrary curved/trimmed sources refuse", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "shell")) return false;
+        double Thickness = 0.0; if (!NumberArg(C, 1, Thickness, "shell")) return false;
+        auto FaceText = C.SwitchText("face"); if (!FaceText) return Refuse("shell: --face=i is required");
+        SceneFigure* I = Resolve(C.Arguments[0]); if (!I) return Refuse("shell: no figure '%s'", C.Arguments[0].c_str());
+        return CommitFaceBody(C, "Shell", I, FaceEditSolver::Shell(I->Body, std::atoi(FaceText->c_str()), Thickness));
+    });
+    Add("draft", "draft <body> angleDeg --face=i [--name=…] — exact bounded draft of a vertical canonical-box side; positive angle leans the wall outward at +Z", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "draft")) return false;
+        double Degrees = 0.0; if (!NumberArg(C, 1, Degrees, "draft")) return false;
+        auto FaceText = C.SwitchText("face"); if (!FaceText) return Refuse("draft: --face=i is required");
+        SceneFigure* I = Resolve(C.Arguments[0]); if (!I) return Refuse("draft: no figure '%s'", C.Arguments[0].c_str());
+        return CommitFaceBody(C, "Draft", I, FaceEditSolver::Draft(I->Body, std::atoi(FaceText->c_str()), ScalarCriteria::Radians(Degrees)));
+    });
+    Add("deleteface", "deleteface <body> --face=i [--name=…] — remove one exact box face and return the five-face open sheet", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "deleteface")) return false;
+        auto FaceText = C.SwitchText("face"); if (!FaceText) return Refuse("deleteface: --face=i is required");
+        SceneFigure* I = Resolve(C.Arguments[0]); if (!I) return Refuse("deleteface: no figure '%s'", C.Arguments[0].c_str());
+        return CommitFaceBody(C, "DeleteFace", I, FaceEditSolver::DeleteFace(I->Body, std::atoi(FaceText->c_str())));
+    });
+    Add("replaceface", "replaceface <body> <surface> --face=i [--name=…] — replace an exact four-edge face rim without mutating either source", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "replaceface")) return false;
+        auto FaceText = C.SwitchText("face"); if (!FaceText) return Refuse("replaceface: --face=i is required");
+        SceneFigure* I = Resolve(C.Arguments[0]); SceneFigure* R = Resolve(C.Arguments[1]);
+        if (!I) return Refuse("replaceface: no body '%s'", C.Arguments[0].c_str());
+        if (!R || R->Classification != FigureClassification::Surface) return Refuse("replaceface: '%s' must be a NURBS surface replacement", C.Arguments[1].c_str());
+        return CommitFaceBody(C, "ReplaceFace", I, FaceEditSolver::ReplaceFace(I->Body, std::atoi(FaceText->c_str()), R->Surface));
+    });
+    Add("extendface", "extendface <body> distance --face=i [--name=…] — grow the selected box face in both in-plane directions and rebuild adjacent walls", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "extendface")) return false;
+        double Distance = 0.0; if (!NumberArg(C, 1, Distance, "extendface")) return false;
+        auto FaceText = C.SwitchText("face"); if (!FaceText) return Refuse("extendface: --face=i is required");
+        SceneFigure* I = Resolve(C.Arguments[0]); if (!I) return Refuse("extendface: no figure '%s'", C.Arguments[0].c_str());
+        return CommitFaceBody(C, "ExtendFace", I, FaceEditSolver::ExtendFace(I->Body, std::atoi(FaceText->c_str()), Distance));
+    });
+    Add("trimface", "trimface <body> distance --face=i [--name=…] — shrink the selected box face in both in-plane directions and rebuild adjacent walls", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "trimface")) return false;
+        double Distance = 0.0; if (!NumberArg(C, 1, Distance, "trimface")) return false;
+        auto FaceText = C.SwitchText("face"); if (!FaceText) return Refuse("trimface: --face=i is required");
+        SceneFigure* I = Resolve(C.Arguments[0]); if (!I) return Refuse("trimface: no figure '%s'", C.Arguments[0].c_str());
+        return CommitFaceBody(C, "TrimFace", I, FaceEditSolver::TrimFace(I->Body, std::atoi(FaceText->c_str()), Distance));
+    });
+    Add("heal", "heal <body> [--name=…] — transactionally re-sew natural faces, orient, and reject rather than collapse slivers", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "heal")) return false;
+        SceneFigure* I = Resolve(C.Arguments[0]); if (!I) return Refuse("heal: no figure '%s'", C.Arguments[0].c_str());
+        return CommitFaceBody(C, "Heal", I, FaceEditSolver::RemoveSlivers(I->Body));
+    });
     Add("push", "push <body> distance --face=i [--name=…] — move a face along its outward normal; planar faces and full native cylinder/cone cap or side faces have direct exact routes", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "push")) return false;
@@ -2553,6 +2966,107 @@ void ConsoleHost::Register() noexcept
             BodyReport Check = Out.Body.Validate();
             if (!Check.Solid()) Row("  ⚠ open %d  non-manifold %d  misoriented %d", Check.OpenEdges, Check.NonManifoldEdges, Check.MisorientedEdges);
             Row("push %s → %s  face %d  distance %.4f  volume %.4f → %.4f", Name.c_str(), Out.Name.c_str(), Face, D, Before, Check.Volume);
+            ++Done;
+        }
+        return Done > 0;
+    });
+    Add("tweak", "tweak <body> (dx,dy,dz) --face=i | --edge=i | --vertex=i [--warp] [--name=…] — translate one face, edge or vertex on fixed topology; neighbours are re-fitted, --warp admits bilinear quads, and native circular cylinder caps/edges may move axially exactly", [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "tweak")) return false;
+        Vec3 Delta; if (!PointArg(C, C.Count() - 1, Delta, "tweak")) return false;
+        CommandLine Sub = C; Sub.Arguments.pop_back();
+        auto FaceText = C.SwitchText("face"), EdgeText = C.SwitchText("edge"), VertexText = C.SwitchText("vertex");
+        const int Given = (FaceText ? 1 : 0) + (EdgeText ? 1 : 0) + (VertexText ? 1 : 0);
+        if (Given != 1) return Refuse("tweak: exactly one of --face=i, --edge=i, --vertex=i is required — use `topology <body>` to list them");
+        const bool Warp = C.Switch("warp");
+        int Done = 0;
+        for (SceneFigure* I : ResolveMany(Sub, 0))
+        {
+            if (I->Classification != FigureClassification::Body) { Refuse("tweak: '%s' is not a body", I->Name.c_str()); continue; }
+            const BrepBody& B = I->Body;
+            std::vector<int> Moved; const char* Kind = "face"; int Index = 0;
+            if (FaceText) { Index = std::atoi(FaceText->c_str()); Moved = TweakSolver::FaceVertices(B, Index); }
+            else if (EdgeText) { Kind = "edge"; Index = std::atoi(EdgeText->c_str()); Moved = TweakSolver::EdgeVertices(B, Index); }
+            else { Kind = "vertex"; Index = std::atoi(VertexText->c_str()); if (Index >= 0 && Index < int(B.Vertices.size())) Moved = { Index }; }
+            if (Moved.empty()) { Refuse("tweak %s: %s %d does not exist or has no vertices", I->Name.c_str(), Kind, Index); continue; }
+            std::vector<int> Warped = TweakSolver::WarpedFaces(B, Moved, Delta);
+            if (!Warped.empty() && !Warp)
+            {
+                std::string List; for (int F : Warped) List += (List.empty() ? "f" : " f") + std::to_string(F);
+                Refuse("tweak %s: moving %s %d by (%.3f, %.3f, %.3f) would warp %s out of plane — add --warp to accept bilinear faces, or move a whole face/edge",
+                       I->Name.c_str(), Kind, Index, Delta.X, Delta.Y, Delta.Z, List.c_str());
+                continue;
+            }
+            Deliver<BrepBody> R = FaceText ? TweakSolver::TranslateFace(B, Index, Delta, Warp)
+                : EdgeText ? TweakSolver::TranslateEdge(B, Index, Delta, Warp)
+                : TweakSolver::TranslateVertex(B, Index, Delta, Warp);
+            if (!R) { Refuse("tweak %s: %s", I->Name.c_str(), R.Denial.Detail); continue; }
+            std::string Name = I->Name; uint32_t Id = I->Identity; bool Sel = I->Selected;
+            double Before = B.Validate().Volume;
+            Scene.Remove(Id);
+            SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Tweaked"), std::move(R.Payload));
+            Out.Selected = Sel; DescribeFigure(Out);
+            BodyReport Check = Out.Body.Validate();
+            Row("tweak %s → %s  %s %d  by (%.4f, %.4f, %.4f)  volume %.4f → %.4f  %s", Name.c_str(), Out.Name.c_str(), Kind, Index, Delta.X, Delta.Y, Delta.Z,
+                Before, Check.Volume, Warped.empty() ? "fixed topology" : "bilinear faces admitted");
+            ++Done;
+        }
+        return Done > 0;
+    });
+    Add("rotate", "rotate <body> angleDeg --face=i [--axis=(x,y,z)] [--warp] [--name=…] — rotate one planar face on fixed topology",
+        [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "rotate")) return false;
+        double Degrees = 0.0; if (!NumberArg(C, 1, Degrees, "rotate")) return false;
+        auto FaceText = C.SwitchText("face");
+        if (!FaceText) return Refuse("rotate: --face=i is required — use `topology <body>` to list the faces");
+        const int Face = std::atoi(FaceText->c_str());
+        Vec3 Axis{};
+        const bool ExplicitAxis = C.SwitchText("axis").has_value();
+        if (auto Text = C.SwitchText("axis"))
+        {
+            auto Parsed = CommandCodec::ParsePoint(*Text); if (!Parsed) return Refuse("rotate: --axis requires (x,y,z)");
+            Axis = *Parsed;
+        }
+        int Done = 0; CommandLine Sub = C; Sub.Arguments.erase(Sub.Arguments.begin() + 1);
+        const bool Warp = C.Switch("warp");
+        for (SceneFigure* I : ResolveMany(Sub, 0))
+        {
+            if (I->Classification != FigureClassification::Body) { Refuse("rotate: '%s' is not a body", I->Name.c_str()); continue; }
+            Vec3 RotationAxis = Axis;
+            if (!ExplicitAxis && Face >= 0 && Face < static_cast<int>(I->Body.Faces.size()))
+                RotationAxis = I->Body.FaceNormal(Face, 0.5, 0.5);
+            Deliver<BrepBody> R = TweakSolver::RotateFace(I->Body, Face, RotationAxis, ScalarCriteria::Radians(Degrees), Warp);
+            if (!R) { Refuse("rotate %s: %s", I->Name.c_str(), R.Denial.Detail); continue; }
+            std::string Name = I->Name; uint32_t Id = I->Identity; bool Selected = I->Selected; double Before = I->Body.Validate().Volume;
+            Scene.Remove(Id);
+            SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Rotated"), std::move(R.Payload));
+            Out.Selected = Selected; DescribeFigure(Out);
+            Row("rotate %s → %s  face %d  angle %.4f°  volume %.4f → %.4f", Name.c_str(), Out.Name.c_str(), Face, Degrees, Before, Out.Body.Validate().Volume);
+            ++Done;
+        }
+        return Done > 0;
+    });
+    Add("scale", "scale <body> factor --face=i [--warp] [--name=…] — uniformly scale one planar face about its vertex centroid on fixed topology",
+        [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 2, "scale")) return false;
+        double Factor = 0.0; if (!NumberArg(C, 1, Factor, "scale")) return false;
+        auto FaceText = C.SwitchText("face");
+        if (!FaceText) return Refuse("scale: --face=i is required — use `topology <body>` to list the faces");
+        const int Face = std::atoi(FaceText->c_str());
+        int Done = 0; CommandLine Sub = C; Sub.Arguments.erase(Sub.Arguments.begin() + 1);
+        const bool Warp = C.Switch("warp");
+        for (SceneFigure* I : ResolveMany(Sub, 0))
+        {
+            if (I->Classification != FigureClassification::Body) { Refuse("scale: '%s' is not a body", I->Name.c_str()); continue; }
+            Deliver<BrepBody> R = TweakSolver::ScaleFace(I->Body, Face, Factor, Warp);
+            if (!R) { Refuse("scale %s: %s", I->Name.c_str(), R.Denial.Detail); continue; }
+            std::string Name = I->Name; uint32_t Id = I->Identity; bool Selected = I->Selected; double Before = I->Body.Validate().Volume;
+            Scene.Remove(Id);
+            SceneFigure& Out = Scene.AddBody(C.SwitchText("name").value_or(Name + ".Scaled"), std::move(R.Payload));
+            Out.Selected = Selected; DescribeFigure(Out);
+            Row("scale %s → %s  face %d  factor %.4f  volume %.4f → %.4f", Name.c_str(), Out.Name.c_str(), Face, Factor, Before, Out.Body.Validate().Volume);
             ++Done;
         }
         return Done > 0;
@@ -2663,8 +3177,31 @@ void ConsoleHost::Register() noexcept
         }
         return true;
     };
-    Add("loft", "loft <sections...>|selected [--degree=3] [--loop] [--sheet] [--no-align] [--guides=a,b] [--guide-weight=w] [--guide-rounds=n] — sections are curves, areas (aN), body edges (Body:eN) or Outer+Hole groups in flow order; closed sections → solid (areas with holes → through-holes); --guides bends the sheet through each named curve", [=, this](const CommandLine& C)
+    Add("loft", "loft <sections...>|selected [--degree=3] [--loop] [--sheet] [--no-align] [--guides=a,b] [--guide-weight=w] [--guide-rounds=n] — sections are curves, areas (aN), body edges (Body:eN) or Outer+Hole groups in flow order; closed sections → solid (areas with holes → through-holes); --guides bends the sheet through each named curve  ·  loft <A:fN> <B:fM> [--keep] [--name=] — face loft: skin between one face of each solid, or two faces of one disconnected multi-hull body, with exact shared rims; unsupported same-body zero-volume cases refuse)", [=, this](const CommandLine& C)
     {
+        // Face loft (Phase 34a/34f): exactly two Name:fN tokens → one solid bridging two bodies, or two disconnected hulls of one body.
+        auto FaceToken = [this](const std::string& Tok, SceneFigure*& Owner, int& Face) -> bool
+        {
+            size_t Colon = Tok.find(":f"); if (Colon == std::string::npos) return false;
+            Owner = Resolve(Tok.substr(0, Colon)); Face = std::atoi(Tok.c_str() + Colon + 2);
+            return Owner && Owner->Classification == FigureClassification::Body && Face >= 0 && Face < int(Owner->Body.Faces.size());
+        };
+        if (C.Count() >= 1 && C.Arguments[0].find(":f") != std::string::npos)
+        {
+            SceneFigure* OwnerA = nullptr; SceneFigure* OwnerB = nullptr; int FaceA = -1, FaceB = -1;
+            if (C.Count() != 2 || !FaceToken(C.Arguments[0], OwnerA, FaceA) || !FaceToken(C.Arguments[1], OwnerB, FaceB))
+                return Refuse("loft: a face loft takes exactly two body faces, Name:fN Name:fM (see `topology`)");
+            Deliver<BrepBody> R = SkinSolver::LoftFaces(OwnerA->Body, FaceA, OwnerB->Body, FaceB);
+            if (!R) return Refuse("loft %s %s: %s — %s", C.Arguments[0].c_str(), C.Arguments[1].c_str(), Refusal::Describe(R.Denial.Reason), R.Denial.Detail);
+            Row("loft %s → %s  ·  face loft, rims shared exactly (no Boolean)", C.Arguments[0].c_str(), C.Arguments[1].c_str());
+            const uint32_t IdA = OwnerA->Identity, IdB = OwnerB->Identity;
+            Scene.ClearSelection();
+            if (!C.Switch("keep")) { Scene.Remove(IdA); if (IdB != IdA) Scene.Remove(IdB); } // before adding: pointers die with the erase
+            SceneFigure::ParametricBlueprint BP;
+            BP.Form = SceneFigure::ParametricForm::Loft;
+            BP.I0 = 1;
+            return AddBody(C, "FaceLoft", std::move(R), BP);
+        }
         std::vector<SweepSource> Sections; if (!CollectSections(C, 0, "loft", Sections)) return false;
         if (Sections.size() < 2) return Refuse("loft: at least two sections");
         FigureRecipe R; R.Operation = RecipeOperation::Loft;
@@ -2829,7 +3366,11 @@ void ConsoleHost::Register() noexcept
                 {
                     double A = TotalAngle * T * (ScalarCriteria::Pi / 180.0);
                     M = Mat4::Translation(Origin) * Mat4::Rotation(Axis, A) * Mat4::Translation(-Origin);
-                    if (ScaleEnd != 1.0) { double S = 1.0 + (ScaleEnd - 1.0) * T; M = Mat4::Translation(Origin) * Mat4::Scaling(Vec3{ S, S, S }) * Mat4::Translation(-Origin) * M; }
+                    if (ScaleEnd != 1.0)
+                    {
+                        double ScaleFactor = 1.0 + (ScaleEnd - 1.0) * T;
+                        M = Mat4::Translation(Origin) * Mat4::Scaling(Vec3{ ScaleFactor, ScaleFactor, ScaleFactor }) * Mat4::Translation(-Origin) * M;
+                    }
                 }
                 else
                 {
@@ -2986,6 +3527,58 @@ void ConsoleHost::Register() noexcept
         Row("empty: created '%s' at (%.3f, %.3f, %.3f)", Name.c_str(), P->X, P->Y, P->Z);
         return true;
     });
+    Add("surface-offset", "surface-offset <curve> <support> signed-distance [--tolerance=.00005] [--name=N] | surface-offset edit <offset> signed-distance — live normal-geodesic surface offset", [=, this](const CommandLine& C)
+    {
+        if (C.Count() != 3) return Refuse("surface-offset: three arguments required");
+        for (const auto& Flag : C.Flags)
+            if (Flag.first != "tolerance" && Flag.first != "name") return Refuse("surface-offset: unsupported option");
+        double Distance = 0;
+        if (!NumberArg(C, 2, Distance, "surface-offset") || !std::isfinite(Distance)) return Refuse("surface-offset: finite distance required");
+        FigureRecipe Recipe;
+        SceneFigure* Existing = nullptr;
+        if (C.Arguments[0] == "edit")
+        {
+            Existing = Resolve(C.Arguments[1]);
+            if (!Existing || Existing->Recipe.Operation != RecipeOperation::SurfaceOffset || C.SwitchText("name"))
+                return Refuse("surface-offset edit: expected an existing live offset; renaming is a separate operation");
+            Recipe = Existing->Recipe;
+        }
+        else
+        {
+            const auto* Curve = Resolve(C.Arguments[0]); const auto* Support = Resolve(C.Arguments[1]);
+            if (!Curve || !Support || Curve->Classification != FigureClassification::Curve ||
+                (Support->Classification != FigureClassification::Body && Support->Classification != FigureClassification::Surface))
+                return Refuse("surface-offset: requires a curve and a surface/body support");
+            Recipe.Operation = RecipeOperation::SurfaceOffset;
+            Recipe.Path.Figures = {Curve->Identity}; Recipe.Path.Support = Support->Identity;
+            Recipe.Radius = 0.00005;
+        }
+        Recipe.Length = Distance;
+        if (auto Text = C.SwitchText("tolerance"))
+        {
+            auto Value = CommandCodec::ParseNumber(*Text);
+            if (!Value || !std::isfinite(*Value)) return Refuse("surface-offset: invalid tolerance");
+            Recipe.Radius = *Value;
+        }
+        if (Existing)
+        {
+            auto Trial = Recipe.Produce(Scene, Plane);
+            if (!Trial) return Refuse("surface-offset edit: %s", Trial.Denial.Detail);
+            Recipe.InputFingerprint = Recipe.FingerprintInputs(Scene, Plane);
+            Recipe.Complaint.clear();
+            if (Recipe.OffsetFailureHidden) Existing->Hidden = false;
+            Recipe.OffsetFailureHidden = false;
+            Existing->Curve = std::move(Trial.Payload.Curve); Existing->Recipe = std::move(Recipe);
+            return true;
+        }
+        if (!AddDerived(C, "SurfaceOffset", std::move(Recipe))) return false;
+        auto& Figure = Scene.Figures().back();
+        Figure.Feature = FeaturePurpose::Design;
+        Figure.Locked = true;
+        Figure.Tint[0] = .68f; Figure.Tint[1] = .95f; Figure.Tint[2] = .1f;
+        return true;
+    });
+
     Add("recipe", "recipe [figure...] — how derived figures are built (sources, options, complaints)  ·  recipe bake <figure...> detaches them", [=, this](const CommandLine& C)
     {
         if (C.Count() >= 1 && C.Arguments[0] == "bake")
@@ -3522,9 +4115,9 @@ void ConsoleHost::Register() noexcept
         if (Sub == "pin")
         {
             if (!Need(C, 2, "constraint pin")) return false;
-            PointRef Ref; std::string Figure; int Slot, Sub, Comp;
-            if (!ParsePointRef(C.Arguments[1], Ref, Figure, Slot, Sub, Comp)) return Refuse("constraint pin: bad point ref '%s'", C.Arguments[1].c_str());
-            CGraph.AddAnchor(Ref, Figure, Slot, Sub, Comp);
+            PointRef Ref; std::string Figure; int Slot, SubIndex, Comp;
+            if (!ParsePointRef(C.Arguments[1], Ref, Figure, Slot, SubIndex, Comp)) return Refuse("constraint pin: bad point ref '%s'", C.Arguments[1].c_str());
+            CGraph.AddAnchor(Ref, Figure, Slot, SubIndex, Comp);
             CGraph.SetFixed(Ref, true);
             Row("constraint: pinned %s", C.Arguments[1].c_str());
             return true;
@@ -3661,8 +4254,8 @@ void ConsoleHost::Register() noexcept
             if (N < 3) return Refuse("angle: polyline '%s' has only %d vertices; need at least 3", C.Arguments[0].c_str(), N);
             if (K < 0) K = N / 2;
             if (K < 1 || K > N - 2) return Refuse("angle --at=K: K must be in [1, %d] (got %d)", N - 2, K);
-            Vec4 A = Crv.Poles[K - 1], B = Crv.Poles[K], C = Crv.Poles[K + 1];
-            P0 = A.Divide(); P1 = B.Divide(); P2 = C.Divide();
+            Vec4 PreviousPole = Crv.Poles[K - 1], CentrePole = Crv.Poles[K], NextPole = Crv.Poles[K + 1];
+            P0 = PreviousPole.Divide(); P1 = CentrePole.Divide(); P2 = NextPole.Divide();
         }
         else
         {
@@ -3713,6 +4306,113 @@ void ConsoleHost::Register() noexcept
         CommandLine Sub = C; Sub.Arguments.pop_back();
         Mat4 M = Mat4::Translation(D);
         for (SceneFigure* I : ResolveMany(Sub, 0)) { I->Transform(M); DescribeFigure(*I); }
+        return true;
+    });
+
+    Add("transform", "transform <figure|selected> [--move=(x,y,z)] [--rotate=(x,y,z)] [--scale=(x,y,z)] [--pivot=(x,y,z)]  or  <16 column-major affine cells> [--components]", [this](const CommandLine& Input)
+    {
+        if (Input.Count() != 1 && Input.Count() != 17) return Refuse("transform: target and optional sixteen matrix cells required");
+        std::vector<SceneFigure*> Targets;
+        if (Input.Arguments[0] == "selected")
+        {
+            for (auto& Figure : Scene.Figures())
+                if (Figure.Selected || !Figure.SelectedPoles.empty() || !Figure.SelectedEdges.empty() || !Figure.SelectedFaces.empty())
+                    Targets.push_back(&Figure);
+        }
+        else if (auto* Figure = Resolve(Input.Arguments[0])) Targets.push_back(Figure);
+        if (Targets.empty()) return Refuse("transform: no figures selected");
+        Box3 Bounds;
+        for (const auto* Figure : Targets)
+        {
+            if (Figure->Locked) return Refuse("transform: a selected figure is locked");
+            const auto Extent = Figure->Bounds();
+            if (!Extent.Empty()) { Bounds.Include(Extent.Low); Bounds.Include(Extent.High); }
+        }
+        Mat4 Affine;
+        if (Input.Count() == 17)
+        {
+            for (int Index = 0; Index < 16; ++Index)
+            {
+                const auto Cell = Input.Number(Index + 1);
+                if (!Cell || !std::isfinite(*Cell) || std::fabs(*Cell) > 1e9) return Refuse("transform: invalid affine cell");
+                Affine.M[Index] = *Cell;
+            }
+        }
+        else
+        {
+            Vec3 Movement{}, Rotation{}, Scale{1, 1, 1}, Pivot = Bounds.Empty() ? Vec3{} : Bounds.Centre();
+            auto Parse = [&](const char* Name, Vec3& Value)
+            {
+                if (const auto Token = Input.SwitchText(Name))
+                {
+                    const auto Point = CommandCodec::ParsePoint(*Token);
+                    if (!Point) return false;
+                    Value = *Point;
+                }
+                return std::isfinite(Value.X) && std::isfinite(Value.Y) && std::isfinite(Value.Z) &&
+                       std::max({std::fabs(Value.X), std::fabs(Value.Y), std::fabs(Value.Z)}) <= 1e9;
+            };
+            if (!Parse("move", Movement) || !Parse("rotate", Rotation) || !Parse("scale", Scale) || !Parse("pivot", Pivot))
+                return Refuse("transform: finite XYZ vectors required");
+            if (std::min({Scale.X, Scale.Y, Scale.Z}) < 1e-6) return Refuse("transform: positive scale required");
+            Affine = Mat4::Translation(Movement + Pivot) *
+                     Mat4::Rotation(Vec3::UnitZ(), ScalarCriteria::Radians(Rotation.Z)) *
+                     Mat4::Rotation(Vec3::UnitY(), ScalarCriteria::Radians(Rotation.Y)) *
+                     Mat4::Rotation(Vec3::UnitX(), ScalarCriteria::Radians(Rotation.X)) *
+                     Mat4::Scaling(Scale) * Mat4::Translation(Pivot * -1.0);
+        }
+        const Vec3 AxisX{Affine.M[0], Affine.M[1], Affine.M[2]};
+        const Vec3 AxisY{Affine.M[4], Affine.M[5], Affine.M[6]};
+        const Vec3 AxisZ{Affine.M[8], Affine.M[9], Affine.M[10]};
+        if (Affine.M[3] != 0 || Affine.M[7] != 0 || Affine.M[11] != 0 || Affine.M[15] != 1 ||
+            std::fabs(AxisX.Dot(AxisY.Cross(AxisZ))) < 1e-12) return Refuse("transform: nonsingular affine matrix required");
+        const Mat4 Identity;
+        bool Translation = true;
+        for (int Index = 0; Index < 12; ++Index)
+            Translation &= std::fabs(Affine.M[Index] - Identity.M[Index]) < 1e-12;
+        // Component mode is a fixed-topology edit, not an object transform. Prepare
+        // every body before committing any of them so an unsupported B-rep refuses
+        // without moving a different selected figure.
+        const bool Components = Input.Switch("components");
+        std::vector<std::pair<SceneFigure*, BrepBody>> Bodies;
+        if (Components && Mode != SelectMode::Whole)
+            for (auto* Figure : Targets)
+            {
+                if (Figure->Classification != FigureClassification::Body) continue;
+                if (SelectedBodyVertices(*Figure, Mode).empty()) continue;
+                Deliver<BrepBody> Result = TransformSelectedComponents(*Figure, Mode, Affine);
+                if (!Result) return Refuse("transform %s: %s", Figure->Name.c_str(), Result.Denial.Detail);
+                Bodies.emplace_back(Figure, std::move(Result.Payload));
+            }
+        if (Components && Mode != SelectMode::Whole && Bodies.empty() &&
+            std::none_of(Targets.begin(), Targets.end(), [](const SceneFigure* F) { return !F->SelectedPoles.empty(); }))
+            return Refuse("transform: select a face, edge or vertex before using component mode");
+        for (auto* Figure : Targets)
+        {
+            if (Components && Mode != SelectMode::Whole)
+            {
+                if (Figure->Classification == FigureClassification::Body)
+                {
+                    const auto Found = std::find_if(Bodies.begin(), Bodies.end(), [Figure](const auto& Entry) { return Entry.first == Figure; });
+                    if (Found == Bodies.end()) continue;
+                    Figure->Body = std::move(Found->second);
+                }
+                else if (Mode == SelectMode::Control && !Figure->SelectedPoles.empty())
+                    for (int Pole : Figure->SelectedPoles)
+                        Figure->MovePole(Pole, Affine.TransformPoint(Figure->PolePosition(Pole)));
+                else continue;
+                Figure->Blueprint.Form = SceneFigure::ParametricForm::None;
+                Figure->Recipe = FigureRecipe();
+            }
+            else
+            {
+                const bool Derived = Figure->Recipe.Live() ||
+                    (Figure->Blueprint.Form >= SceneFigure::ParametricForm::Extrude && Figure->Blueprint.Form <= SceneFigure::ParametricForm::ChamferEdge);
+                TransformFigure(*Figure, Affine);
+                if (!Translation || Derived) Figure->Blueprint.Form = SceneFigure::ParametricForm::None;
+            }
+            AutoEmitDimensions(*Figure);
+        }
         return true;
     });
 
@@ -3806,7 +4506,8 @@ void ConsoleHost::Register() noexcept
             N.c_str(), E.X, E.Y, E.Z, View.Pivot.X, View.Pivot.Y, View.Pivot.Z, View.Distance, ScalarCriteria::Degrees(View.Yaw), ScalarCriteria::Degrees(View.Pitch), View.Orthographic ? "ortho" : "persp");
         return true;
     });
-    Add("matcap", "matcap <figure...> <name|index>  ·  matcap list — per-figure studio (steel chrome gold copper plastic-white plastic-red plastic-blue clay pearl carbon)", [=, this](const CommandLine& C)
+    Add("matcap", "matcap <figure...> <name|index> [--face=i,j,…]  ·  matcap list — per-figure or per-face studio "
+                  "(steel chrome gold copper plastic-white plastic-red plastic-blue clay pearl carbon rubber glass headlight taillight)", [=, this](const CommandLine& C)
     {
         if (C.Count() == 1 && C.Arguments[0] == "list") { for (int I = 0; I < MatcapCount(); ++I) Row("%d  %s", I, MatcapName(uint8_t(I))); return true; }
         if (C.Count() < 2) return Refuse("matcap: figure and a studio name required");
@@ -3816,14 +4517,290 @@ void ConsoleHost::Register() noexcept
         if (Layer < 0) if (auto N = CommandCodec::ParseNumber(Name)) Layer = int(*N);
         if (Layer < 0 || Layer >= MatcapCount()) return Refuse("matcap: unknown studio '%s' (try matcap list)", Name.c_str());
         CommandLine Sub = C; Sub.Arguments.pop_back();
-        for (SceneFigure* I : ResolveMany(Sub, 0)) { I->Matcap = uint8_t(Layer); Row("#%u %s → %s", I->Identity, I->Name.c_str(), MatcapName(uint8_t(Layer))); }
+        // Optional --face=i,j,… : set a per-face override instead of the whole figure. --face=all clears overrides back to
+        //    the whole-figure studio. Without the flag, the whole-figure studio is set (unchanged behaviour).
+        std::optional<std::string> FaceSpec = C.SwitchText("face");
+        for (SceneFigure* I : ResolveMany(Sub, 0))
+        {
+            if (I->Classification != FigureClassification::Body || !FaceSpec)
+            {
+                I->Matcap = uint8_t(Layer);
+                Row("#%u %s → %s", I->Identity, I->Name.c_str(), MatcapName(uint8_t(Layer)));
+                continue;
+            }
+            if (*FaceSpec == "all" || *FaceSpec == "reset") { I->FaceMatcap.clear(); I->Matcap = uint8_t(Layer);
+                Row("#%u %s → %s (all faces)", I->Identity, I->Name.c_str(), MatcapName(uint8_t(Layer))); continue; }
+            int Applied = 0;
+            std::stringstream Ss(*FaceSpec); std::string Tok;
+            while (std::getline(Ss, Tok, ','))
+            {
+                if (Tok.empty()) continue;
+                int Face = std::atoi(Tok.c_str());
+                if (Face < 0 || Face >= int(I->Body.Faces.size())) { Refuse("matcap: %s has no face %d", I->Name.c_str(), Face); continue; }
+                I->FaceMatcap[Face] = uint8_t(Layer); ++Applied;
+            }
+            Row("#%u %s → %s on %d face(s)", I->Identity, I->Name.c_str(), MatcapName(uint8_t(Layer)), Applied);
+        }
         return true;
     });
-    Add("tint", "tint <figure...> r g b — body colour 0..1", [=, this](const CommandLine& C)
+
+    Add("export", "export <path.obj> [--chord=t] [--weld[=eps]] — tessellate every solid to a Wavefront OBJ (+ .mtl + .materials.toml). "
+                  "Faces are grouped by their per-face matcap material (usemtl); the TOML manifest binds each studio to a "
+                  "Frontier engine material (AutomotiveFlakePaint / Rubber_Tyre / Glass_Tinted / metals / emissive) and is "
+                  "meant to be hand-edited. By default coincident vertices are KEPT DUPLICATED so low-poly edges stay crisp "
+                  "(each face carries its own normals). Pass --weld to merge coincident vertices (position, averaged normals) within each "
+                  "body (welded seams, smaller mesh); --weld=eps sets the merge tolerance in metres (default 1e-5).",
+                  [=, this](const CommandLine& C)
+    {
+        if (!Need(C, 1, "export")) return false;
+        std::filesystem::path ObjPath = C.Arguments[0];
+        if (ObjPath.extension() != ".obj") ObjPath += ".obj";
+        const std::string Stem   = ObjPath.stem().string();
+        std::filesystem::path Dir = ObjPath.parent_path();
+        std::filesystem::path MtlPath  = Dir / (Stem + ".mtl");
+        std::filesystem::path TomlPath = Dir / (Stem + ".materials.toml");
+        const double Chord = C.SwitchNumber("chord").value_or(2e-3);
+        // Weld toggle: default OFF (duplicated faces / sharp edges). `--weld` or `--weld=eps` merges coincident verts.
+        const bool   Weld    = C.Switch("weld") || C.SwitchNumber("weld").has_value() || C.SwitchText("weld").has_value();
+        const double WeldEps = std::max(1e-9, C.SwitchNumber("weld").value_or(1e-5));
+        std::error_code Ec; if (!Dir.empty()) std::filesystem::create_directories(Dir, Ec);
+
+        std::ofstream Obj(ObjPath);
+        if (!Obj) return Refuse("export: cannot write %s", ObjPath.string().c_str());
+        Obj << "# SolidArc mesh export — units: metres, Y up matches source; per-face materials via usemtl.\n";
+        Obj << "# vertices: " << (Weld ? "welded (coincident position+normal merged per body)" : "duplicated per face (sharp low-poly edges)") << "\n";
+        Obj << "mtllib " << (Stem + ".mtl") << "\n";
+
+        std::set<int> Used;
+        size_t VBase = 0, TriCount = 0, WeldedVerts = 0, RawVerts = 0; int Solids = 0;
+        for (const SceneFigure& F : Scene.Figures())
+        {
+            if (F.Classification != FigureClassification::Body || F.Hidden || F.Construction) continue;
+            ++Solids;
+            const std::string Obj_o = SanitizeName(F.Name);
+            const BrepBody& B = F.Body;
+
+            // Gather this body's triangles into one vertex pool. When welding, collapse vertices that share a
+            // position (within WeldEps) into a single shared vertex whose normal is the AVERAGE of the incident
+            // faces — turning the faceted, per-face-duplicated seams into smooth shared topology. Default (no weld)
+            // keeps every face's own vertices/normals, preserving the crisp low-poly creases. Per-face material kept.
+            std::vector<Vec3> P, N;
+            std::vector<std::array<int,3>> Tris; std::vector<int> TriMat;
+            std::map<std::tuple<long long,long long,long long>, int> WeldMap;
+            const double Inv = 1.0 / WeldEps;
+            auto Quantize = [&](double V) { return (long long)std::llround(V * Inv); };
+
+            for (size_t Fi = 0; Fi < B.Faces.size(); ++Fi)
+            {
+                const int St = int(F.MatcapForFace(int(Fi)));
+                Used.insert(St);
+                BrepBody::FaceTriangles T = B.TessellateFace(int(Fi), Chord);
+                if (T.Positions.empty() || T.Triangles.empty()) continue;
+                RawVerts += T.Positions.size();
+                std::vector<int> Local(T.Positions.size());
+                for (size_t J = 0; J < T.Positions.size(); ++J)
+                {
+                    const Vec3& Vp = T.Positions[J];
+                    const Vec3& Vn = J < T.Normals.size() ? T.Normals[J] : Vec3{0,0,1};
+                    if (Weld)
+                    {
+                        auto Key = std::make_tuple(Quantize(Vp.X), Quantize(Vp.Y), Quantize(Vp.Z));
+                        auto It = WeldMap.find(Key);
+                        if (It != WeldMap.end()) { Local[J] = It->second; N[It->second] = N[It->second] + Vn; continue; }
+                        Local[J] = int(P.size()); WeldMap.emplace(Key, Local[J]);
+                    }
+                    else Local[J] = int(P.size());
+                    P.push_back(Vp); N.push_back(Vn);
+                }
+                for (size_t K = 0; K + 2 < T.Triangles.size(); K += 3)
+                {
+                    Tris.push_back({ Local[T.Triangles[K]], Local[T.Triangles[K + 1]], Local[T.Triangles[K + 2]] });
+                    TriMat.push_back(St);
+                }
+            }
+            if (P.empty() || Tris.empty()) continue;
+            if (Weld) for (Vec3& Vn : N)   // renormalise the averaged normals
+            {
+                const double L = std::sqrt(Vn.X*Vn.X + Vn.Y*Vn.Y + Vn.Z*Vn.Z);
+                if (L > 1e-12) { Vn.X /= L; Vn.Y /= L; Vn.Z /= L; }
+            }
+            WeldedVerts += P.size();
+
+            Obj << "o " << Obj_o << "\n";
+            for (const Vec3& Vp : P) Obj << "v " << Vp.X << ' ' << Vp.Y << ' ' << Vp.Z << "\n";
+            for (const Vec3& Vn : N) Obj << "vn " << Vn.X << ' ' << Vn.Y << ' ' << Vn.Z << "\n";
+            // Emit faces grouped by material so viewers keep the usemtl runs contiguous.
+            std::set<int> Mats(TriMat.begin(), TriMat.end());
+            for (int M : Mats)
+            {
+                Obj << "g " << Obj_o << "_" << MatcapName(uint8_t(M)) << "\n";
+                Obj << "usemtl " << MatcapName(uint8_t(M)) << "\n";
+                for (size_t Ti = 0; Ti < Tris.size(); ++Ti)
+                {
+                    if (TriMat[Ti] != M) continue;
+                    const size_t A = VBase + Tris[Ti][0] + 1, D = VBase + Tris[Ti][1] + 1, E = VBase + Tris[Ti][2] + 1;
+                    Obj << "f " << A << "//" << A << ' ' << D << "//" << D << ' ' << E << "//" << E << "\n";
+                    ++TriCount;
+                }
+            }
+            VBase += P.size();
+        }
+        Obj.close();
+
+        // Companion MTL: one material per studio actually used, with portable Kd/Ks/Ns/d for any OBJ viewer.
+        std::ofstream Mtl(MtlPath);
+        if (Mtl) for (int St : Used)
+        {
+            const StudioMaterial& M = StudioMat(St);
+            const float Spec = 0.04f + 0.9f * M.Metallic;
+            const float Ns   = (1.0f - M.Roughness) * (1.0f - M.Roughness) * 900.0f + 4.0f;
+            Mtl << "newmtl " << M.Studio << "\n";
+            Mtl << "Kd " << M.Kd[0] << ' ' << M.Kd[1] << ' ' << M.Kd[2] << "\n";
+            Mtl << "Ks " << Spec << ' ' << Spec << ' ' << Spec << "\n";
+            Mtl << "Ns " << Ns << "\n";
+            if (M.Emissive > 0.0f) Mtl << "Ke " << (M.Kd[0]*M.Emissive) << ' ' << (M.Kd[1]*M.Emissive) << ' ' << (M.Kd[2]*M.Emissive) << "\n";
+            Mtl << "d "  << M.Alpha << "\n";
+            Mtl << "illum " << (M.Metallic > 0.5f ? 3 : 2) << "\n";
+            Mtl << "# frontier " << M.Frontier << (M.Flakes ? "  flakes=true" : "") << "\n\n";
+        }
+        Mtl.close();
+
+        // Manifest: the editable studio → Frontier-material binding (System B AutomotiveFlakePaint for paint, etc.).
+        //   Written as TOML — each studio is a [materials.<studio>] table; hand-edit freely.
+        std::ofstream Tm(TomlPath);
+        if (Tm)
+        {
+            Tm << "# SolidArc material manifest for " << (Stem + ".obj") << "\n";
+            Tm << "# Edit freely: 'frontier' is the engine material each usemtl group binds to; paints use System B AutomotiveFlakePaint.\n";
+            Tm << "mesh = \"" << (Stem + ".obj") << "\"\n\n";
+            for (int St : Used)
+            {
+                const StudioMaterial& M = StudioMat(St);
+                Tm << "[materials." << M.Studio << "]\n";
+                Tm << "frontier   = \"" << M.Frontier << "\"\n";
+                Tm << "baseColor  = [" << M.Kd[0] << ", " << M.Kd[1] << ", " << M.Kd[2] << "]\n";
+                Tm << "metallic   = " << M.Metallic << "\n";
+                Tm << "roughness  = " << M.Roughness << "\n";
+                Tm << "emissive   = " << M.Emissive << "\n";
+                Tm << "opacity    = " << M.Alpha << "\n";
+                Tm << "flakes     = " << (M.Flakes ? "true" : "false") << "\n\n";
+            }
+        }
+        Tm.close();
+
+        if (Weld)
+            Row("export %s  %d solids  %zu tris  %zu verts (welded from %zu, eps=%.0e)  %zu materials  (+ %s, %s)",
+                ObjPath.string().c_str(), Solids, TriCount, WeldedVerts, RawVerts, WeldEps, Used.size(),
+                (Stem + ".mtl").c_str(), (Stem + ".materials.toml").c_str());
+        else
+            Row("export %s  %d solids  %zu tris  %zu verts (duplicated, sharp edges)  %zu materials  (+ %s, %s)",
+                ObjPath.string().c_str(), Solids, TriCount, WeldedVerts, Used.size(),
+                (Stem + ".mtl").c_str(), (Stem + ".materials.toml").c_str());
+        return true;
+    });
+    //------------------------------------------------------------------------------------------------------------------------
+    //                                                  FEATURE CURVE AUTHORING
+    //------------------------------------------------------------------------------------------------------------------------
+
+    auto PurposeOf = [](const std::string& Name, FeaturePurpose& Purpose)
+    {
+        if (Name == "design") Purpose = FeaturePurpose::Design;
+        else if (Name == "circular") Purpose = FeaturePurpose::CircularGuide;
+        else if (Name == "repair") Purpose = FeaturePurpose::Repair;
+        else if (Name == "off") Purpose = FeaturePurpose::None;
+        else return false;
+        return true;
+    };
+    auto ColourFeature = [](SceneFigure& Figure, FeaturePurpose Purpose)
+    {
+        Figure.Feature = Purpose;
+        const float Colours[4][3] = {{0.62f, 0.66f, 0.72f}, {1.0f, 0.16f, 0.22f},
+                                      {0.08f, 0.82f, 1.0f}, {1.0f, 0.52f, 0.08f}};
+        const auto Index = static_cast<unsigned>(Purpose);
+        for (int Axis = 0; Axis < 3; ++Axis) Figure.Tint[Axis] = Colours[Index][Axis];
+    };
+    Add("feature", "feature design|circular|repair|off <curve...|selected> — named editable guides; circular requires an analytic arc/circle; tint overrides colour", [=, this](const CommandLine& C)
+    {
+        FeaturePurpose Purpose{};
+        if (C.Count() < 2 || !C.Flags.empty() || !PurposeOf(C.Arguments[0], Purpose))
+            return Refuse("feature: purpose and curve names or selected required");
+        std::vector<SceneFigure*> Curves;
+        for (size_t Index = 1; Index < C.Count(); ++Index)
+        {
+            if (C.Arguments[Index] == "selected")
+            {
+                for (SceneFigure& Figure : Scene.Figures()) if (Figure.Selected) Curves.push_back(&Figure);
+            }
+            else
+            {
+                SceneFigure* Figure = Resolve(C.Arguments[Index]);
+                if (!Figure) return Refuse("feature: unknown curve '%s'", C.Arguments[Index].c_str());
+                Curves.push_back(Figure);
+            }
+        }
+        if (Curves.empty()) return Refuse("feature: no curves selected");
+        for (const SceneFigure* Figure : Curves)
+        {
+            if (Figure->Locked || Figure->Classification != FigureClassification::Curve)
+                return Refuse("feature: requires unlocked curves; use feature-copy for body edges");
+            if (Purpose == FeaturePurpose::CircularGuide && Figure->Curve.Classification != CurveClassification::Circle &&
+                Figure->Curve.Classification != CurveClassification::Arc)
+                return Refuse("feature: circular guide requires an analytic arc or circle, not a freeform approximation");
+        }
+        for (SceneFigure* Figure : Curves) ColourFeature(*Figure, Purpose);
+        Row("feature %s: %zu curve(s); annotation does not deform the body", C.Arguments[0].c_str(), Curves.size());
+        return true;
+    });
+    Add("feature-copy", "feature-copy <body> design|repair [--edges=i,j,...] [--name=N] — independent copies of explicit or selected body edges, not live constraints", [=, this](const CommandLine& C)
+    {
+        FeaturePurpose Purpose{};
+        if (C.Count() != 2 || !PurposeOf(C.Arguments[1], Purpose) ||
+            (Purpose != FeaturePurpose::Design && Purpose != FeaturePurpose::Repair))
+            return Refuse("feature-copy: body and design|repair required");
+        for (const auto& Option : C.Flags)
+            if (Option.first != "edges" && Option.first != "name") return Refuse("feature-copy: unsupported option");
+        SceneFigure* Figure = Resolve(C.Arguments[0]);
+        if (!Figure || Figure->Classification != FigureClassification::Body)
+            return Refuse("feature-copy: body required");
+        std::vector<int> Edges = Figure->SelectedEdges;
+        if (auto Text = C.SwitchText("edges"))
+        {
+            Edges.clear();
+            size_t Begin = 0;
+            while (Begin <= Text->size())
+            {
+                const size_t End = Text->find(',', Begin);
+                const auto Number = CommandCodec::ParseNumber(Text->substr(Begin, End == std::string::npos ? End : End - Begin));
+                if (!Number || !std::isfinite(*Number) || *Number < 0 || *Number >= double(Figure->Body.Edges.size()) || std::floor(*Number) != *Number)
+                    return Refuse("feature-copy: invalid edge index");
+                const int Edge = static_cast<int>(*Number);
+                if (std::find(Edges.begin(), Edges.end(), Edge) == Edges.end()) Edges.push_back(Edge);
+                if (End == std::string::npos) break;
+                Begin = End + 1;
+            }
+        }
+        if (Edges.empty()) return Refuse("feature-copy: select body edges or supply --edges");
+        std::vector<NurbsCurve> Curves;
+        for (int Edge : Edges)
+        {
+            if (Edge < 0 || size_t(Edge) >= Figure->Body.Edges.size()) return Refuse("feature-copy: stale edge selection");
+            Curves.push_back(Figure->Body.Edges[Edge].Curve);
+        }
+        const std::string Prefix = C.SwitchText("name").value_or(Figure->Name + "." + C.Arguments[1]);
+        for (size_t Index = 0; Index < Curves.size(); ++Index)
+        {
+            SceneFigure& Copy = Scene.AddCurve(Prefix + ".e" + std::to_string(Edges[Index]), std::move(Curves[Index]));
+            ColourFeature(Copy, Purpose);
+        }
+        Row("feature-copy: %zu independent editable curves; source body unchanged", Curves.size());
+        return true;
+    });
+    Add("tint", "tint <figure...> r g b — body or feature-curve colour 0..1", [=, this](const CommandLine& C)
     {
         if (C.Count() < 4) return Refuse("tint: figure and r g b required");
         double R = C.Number(C.Count() - 3).value_or(-1), G = C.Number(C.Count() - 2).value_or(-1), B = C.Number(C.Count() - 1).value_or(-1);
-        if (R < 0 || G < 0 || B < 0) return Refuse("tint: r g b must be numbers 0..1");
+        if (!std::isfinite(R) || !std::isfinite(G) || !std::isfinite(B) || R < 0 || G < 0 || B < 0 || R > 1 || G > 1 || B > 1)
+            return Refuse("tint: r g b must be finite numbers 0..1");
         CommandLine Sub = C; Sub.Arguments.resize(C.Count() - 3);
         for (SceneFigure* I : ResolveMany(Sub, 0)) { I->Tint[0] = float(R); I->Tint[1] = float(G); I->Tint[2] = float(B); }
         return true;
@@ -3861,11 +4838,21 @@ void ConsoleHost::Register() noexcept
         return true;
     });
     RegisterSelection();
-    Add("show", "show cages on|off  ·  show iso on|off  ·  show shading flat|plastic|matcap", [=, this](const CommandLine& C)
+    Add("show", "show cages on|off  ·  show iso on|off  ·  show edges on|off  ·  show features on|off  ·  show shading flat|plastic|matcap", [=, this](const CommandLine& C)
     {
         if (!Need(C, 2, "show")) return false;
         bool On = C.Arguments[1] == "on";
         if (C.Arguments[0] == "cages") ShowControlCages = On; else if (C.Arguments[0] == "iso") ShowIsoCurves = On;
+        else if (C.Arguments[0] == "edges")
+        {
+            if (C.Arguments[1] != "on" && C.Arguments[1] != "off") return Refuse("show edges: on|off");
+            ShowBoundaryEdges = On;
+        }
+        else if (C.Arguments[0] == "features")
+        {
+            if (C.Arguments[1] != "on" && C.Arguments[1] != "off") return Refuse("show features: on|off");
+            ShowFeatureCurves = On;
+        }
         else if (C.Arguments[0] == "shading")
         {
             const std::string& M = C.Arguments[1];
@@ -3873,7 +4860,7 @@ void ConsoleHost::Register() noexcept
             else return Refuse("show shading: flat|plastic|matcap");
             Row("shading %s", M.c_str());
         }
-        else return Refuse("show: cages|iso|shading");
+        else return Refuse("show: cages|iso|edges|features|shading");
         return true;
     });
     Add("render", "render <name> [--size=WxH] — writes Proofs/<name>.png  ·  render sheet <0|1|2|3> captures a tile; render sheet finalize <name> writes the 2x2 contact sheet", [=, this](const CommandLine& C)
@@ -3952,6 +4939,12 @@ void ConsoleHost::Register() noexcept
         return true;
     });
     Add("echo", "echo text", [=, this](const CommandLine& C) { std::printf("  "); for (const auto& A : C.Arguments) std::printf("%s ", A.c_str()); std::printf("\n"); return true; });
+    Add("require", "require open-sew|knot-skin|feature-curves|boundary-splits|curve-knots|surface-offset — require supported document geometry", [this](const CommandLine& C)
+    {
+        if (C.Count() != 1 || (C.Arguments[0] != "open-sew" && C.Arguments[0] != "knot-skin" && C.Arguments[0] != "feature-curves" && C.Arguments[0] != "boundary-splits" && C.Arguments[0] != "curve-knots" && C.Arguments[0] != "surface-offset") || !C.Flags.empty())
+            return Refuse("require: unsupported document capability");
+        return true;
+    });
     Add("help", "help [verb]", [=, this](const CommandLine& C)
     {
         if (C.Count() == 1) { auto It = Usage.find(C.Arguments[0]); if (It == Usage.end()) return Refuse("no command '%s'", C.Arguments[0].c_str()); Row("%s", It->second.c_str()); return true; }
@@ -3966,6 +4959,7 @@ void ConsoleHost::Register() noexcept
 
 bool ConsoleHost::Execute(std::string_view Line) noexcept
 {
+    ++Revision;
     // Hotkeys and `repeat` recurse into Execute. Persist the user-level instruction only: saving both that instruction
     // and its nested expansion would apply geometry twice when the document is reopened.
     const bool TopLevel = ExecuteDepth++ == 0;

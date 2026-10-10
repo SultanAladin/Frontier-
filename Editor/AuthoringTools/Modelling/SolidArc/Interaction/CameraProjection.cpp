@@ -133,7 +133,7 @@ ViewRecord CameraProjection::ToViewRecord(uint32_t Width, uint32_t Height, doubl
     Vec3 E = Orthographic ? Forward() * -1.0 : Eye();
     R.EyePosition[0] = float(E.X); R.EyePosition[1] = float(E.Y); R.EyePosition[2] = float(E.Z); R.EyePosition[3] = Orthographic ? 0.0f : 1.0f;
     R.Viewport[0] = float(Width); R.Viewport[1] = float(Height); R.Viewport[2] = 1.0f / Width; R.Viewport[3] = 1.0f / Height;
-    R.LatticeStyle[0] = float(LatticeCell); R.LatticeStyle[1] = 10.0f; R.LatticeStyle[2] = float(std::max(Distance * 6.0, 40.0)); R.LatticeStyle[3] = 0.6f;
+    R.LatticeStyle[0] = float(LatticeCell); R.LatticeStyle[1] = 5.0f; R.LatticeStyle[2] = float(std::max(Distance * 0.9, 3.5)); R.LatticeStyle[3] = 0.35f;
     Vec3 Key = Vec3{ -0.45, -0.35, 0.82 }.Normalised();
     R.Illumination[0] = float(Key.X); R.Illumination[1] = float(Key.Y); R.Illumination[2] = float(Key.Z); R.Illumination[3] = 0.42f;
     R.DepthPolicy[0] = float(LineDepthBias());

@@ -70,6 +70,21 @@ enum class EditorNarrowing : uint32_t
     Count
 };
 
+// A tool's own symbol for a row. None keeps the stock glyph; anything else replaces it with a mark drawn in the
+//    row's tint, a folder shell around it for folder rows. SolidArc seats these so its folders are CAD folders
+//    in its own colour rather than the game outliner's generic folder.
+enum class EditorSymbol : uint32_t
+{
+    None = 0u,
+    Line,
+    Profile,
+    Body,
+    Surface,
+    Construction,
+    Dimension,
+    Constraint
+};
+
 // One row of the roster. The feed walks in preorder: a folder's rows follow it, deepened by Depth, so the
 //    panel renders the hierarchy without any links of its own.
 struct EditorInstance
@@ -94,12 +109,57 @@ struct EditorInstance
     uint32_t         FilterMask = 0u;                        // optional per-tool filter bits; 0 derives from Narrowing/Category
     EditorStanding   Standing  = EditorStanding::Auto;      // the 16 px standing dot
     char             StandingNote[20] = {};                 // its hover title ("Below horizon")
-    char             Meta[24]  = {};                        // the right-hand live figure ("12.4°", "AM 1.02")
+    char             Meta[48]  = {};                        // OutlinerMetadata(): the live figure under the name
     char             Tag[8]    = {};                        // the small pill after the name ("Comp")
     bool             Pinned    = false;                     // true: no drag, no eye — the page's World / Lights
     bool             Component = false;                    // owned leaf: cannot be reparented independently
     bool             Shut      = false;                     // row-owned collapse pose (false reads open)
+    EditorSymbol   Symbol  = EditorSymbol::None;      // tool-drawn symbol in Tint; None keeps Glyph/Artwork
 };
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                                   BASE MESH IDENTITY
+//------------------------------------------------------------------------------------------------------------------------
+// The shipped editor gives each base mesh its own artwork (Editor.jsx InitialRows) and then reads the
+//    primitive back off it — FractureSpecification.js Describe() is literally
+//    `Subject.Icon.replace(/^editor-/, "")`. The engine seated every geometry row as EditorMesh, so the
+//    icon carried no identity and anything that needed one had to guess from the label. These two give a
+//    row the same round trip the browser has.
+
+// The five base meshes the reference opens with, in roster order.
+constexpr IconSymbol kBaseMeshArtwork[] =
+{
+    IconSymbol::EditorCube, IconSymbol::EditorSphere, IconSymbol::EditorCylinder,
+    IconSymbol::EditorTorus, IconSymbol::EditorCone,
+};
+
+// "editor-cube.svg" -> "cube". Returns nullptr for artwork that is not a base mesh, which is the browser's
+//    `undefined` and makes Supported() false exactly as it does there.
+[[nodiscard]] inline const char* BaseMeshPrimitive(IconSymbol Artwork) noexcept
+{
+    switch (Artwork)
+    {
+    case IconSymbol::EditorCube:     return "cube";
+    case IconSymbol::EditorSphere:   return "sphere";
+    case IconSymbol::EditorCylinder: return "cylinder";
+    case IconSymbol::EditorTorus:    return "torus";
+    case IconSymbol::EditorCone:     return "cone";
+    default:                         return nullptr;
+    }
+}
+
+[[nodiscard]] inline IconSymbol BaseMeshArtwork(const char* Primitive) noexcept
+{
+    if (Primitive == nullptr) return IconSymbol::Count;
+    for (IconSymbol One : kBaseMeshArtwork)
+    {
+        const char* Name = BaseMeshPrimitive(One);
+        const char* Scan = Primitive;
+        while (*Name && *Scan && *Name == *Scan) { ++Name; ++Scan; }
+        if (*Name == 0 && *Scan == 0) return One;
+    }
+    return IconSymbol::Count;
+}
 
 // The foot strips: one height across the outliner, the inspector and the viewport, so the three hems
 //    draw one unbroken line. Every foot reserves exactly this and draws exactly this.
@@ -130,6 +190,7 @@ inline EditorFpsBand EditorFpsBandFor(float Fps) noexcept
 // The outliner's footer strip: five figures the tick refreshes — the page's Realtime / Quality / Sun / Moons / Cam.
 struct EditorReadout
 {
+    bool* DiagnosticsOpen = nullptr;
     float    Fps            = 60.0f;
     char     Quality[16]    = "Standard";
     char     Pixels[16]     = {};                           // "1280×720"
@@ -202,7 +263,10 @@ struct EditorPropertyGroup
     uint32_t        PropertyCount = 0u;
 };
 
-enum class EditorSheetAppearance : uint8_t { Generic, Sun, LensFlare, AtmosphereSky, Moon, Stars, GlobalCloud, LocalCloud, HeightFog, AerialFog, LocalFog, Wind, Precipitation, Rainbow, Camera };
+// Gas and GasEmitter are a domain and its child emitter — a 3D entity with a transform, and the one thing
+//    parented to it. Both draw from Engine/Editor/GasCardSurface.h rather than from the generic sheet,
+//    because the card leads with a transform and a hierarchy and the generic path has no idea about either.
+enum class EditorSheetAppearance : uint8_t { Generic, Sun, LensFlare, AtmosphereSky, Moon, Stars, GlobalCloud, LocalCloud, HeightFog, AerialFog, LocalFog, Wind, Precipitation, Rainbow, Camera, Light, PostProcess, Tyre, TyreTread, TyreLattice, SolidArc, Gas, GasEmitter, ForceFields };
 
 // Borrowed immutable image data; project retains ownership through the editor frame.
 struct EditorSkyImage {
@@ -219,9 +283,37 @@ struct StarRecord;
 struct EditorStarPreview { const StarRecord* Records=nullptr; uint32_t Count=0; float Seconds=0; };
 struct EditorFogPreview {float Rayleigh[3]={5.8e-6f,13.5e-6f,33.1e-6f};float Mie=21e-6f,RayleighHeight=8000,MieHeight=1200;};
 struct EditorWeatherPreview { float Wind[8]={}; uint32_t Alive=0; float SnowDepth=0, RainVisibility=0; bool AboveWeather=false; };
+// SolidArc's hero card: the subject pill, the subtitle, one big measure with its unit and caption, and up to three stat tiles.
+//    The adapter writes it; the SolidArc inspector paints it. A sheet whose Hero.Active is false draws no hero.
+struct EditorSheetHero
+{
+    bool     Active       = false;
+    bool     Renameable   = true;               // the name field is live only for a figure
+    char     Subject[16]  = {};                 // "BODY" — the head pill's word
+    uint32_t Identity     = 0u;                 // the head pill's "#8"; 0 prints no number
+    char     Subtitle[40] = {};
+    char     Measure[24]  = {};                 // "7.680"; empty hides the numeral
+    char     Unit[8]      = {};                 // "m³"
+    char     Caption[24]  = {};                 // "volume"
+    char     StatLabel[3][16] = {};
+    char     StatText[3][24]  = {};
+    uint32_t StatCount    = 0u;
+};
+
+// The four presence cells: seated or lifted, offered or not. The inspector flips Presence; the adapter writes it back.
+enum class EditorSheetPresence : uint32_t { Visible = 0u, Locked, Construction, Dimensions, Count };
+
+// One-shot verbs the inspector's action tiles raise; the adapter runs and clears them.
+enum class EditorSheetAction : uint8_t { None = 0u, Duplicate, Isolate, Delete };
+
 struct EditorSheet
 {
     uint64_t InspectorKey=0;
+    EditorSheetHero Hero{};
+    bool PresenceOffered[4] = {};
+    bool Presence[4]        = {};
+    bool ActionsOffered     = false;
+    EditorSheetAction Action = EditorSheetAction::None;
     EditorWeatherPreview WeatherPreview{};
     bool CameraLive=false;float CameraAspect=1.5f;
     EditorSkyImage SkyImage{};

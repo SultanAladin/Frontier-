@@ -216,6 +216,12 @@
     "sha256": "59b9cb51633a3171d54db77160d483744436f47e3e0d73cb5b4a7a73414c6412"
   },
   {
+    "symbol": "Collection",
+    "file": "collection.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/collection.svg",
+    "sha256": "564b1d0636ccfd639822d08067308d4019e71dda4fb2afd9c50eb78cfd643483"
+  },
+  {
     "symbol": "CollectionBracketedObjects",
     "file": "collection-bracketed-objects.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/collection-bracketed-objects.svg",
@@ -238,12 +244,6 @@
     "file": "collection-stacked-layers.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/collection-stacked-layers.svg",
     "sha256": "810f71dc446ea5d7225f511b56f671c5f71606c44cbf74d7f93d540f980a6dd0"
-  },
-  {
-    "symbol": "Collection",
-    "file": "collection.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/collection.svg",
-    "sha256": "564b1d0636ccfd639822d08067308d4019e71dda4fb2afd9c50eb78cfd643483"
   },
   {
     "symbol": "CommandKey",
@@ -298,6 +298,24 @@
     "file": "editor-collection.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/editor-collection.svg",
     "sha256": "19c096cf0257ff54daedf35b33fc6acd078c2816471ea71c99c73c452919fdc2"
+  },
+  {
+    "symbol": "EditorCone",
+    "file": "editor-cone.svg",
+    "reference": "EngineContent/Icons/editor-cone.svg",
+    "sha256": "8b6764c6002625d9a6c165dcbef6e2e2703ab2d5bdab3a2a8a24145b0311c742"
+  },
+  {
+    "symbol": "EditorCube",
+    "file": "editor-cube.svg",
+    "reference": "EngineContent/Icons/editor-cube.svg",
+    "sha256": "6f3825a5ca3dc61a80ca3dd3747eb4e21f4134f709e397ccce8d005887c3bb90"
+  },
+  {
+    "symbol": "EditorCylinder",
+    "file": "editor-cylinder.svg",
+    "reference": "EngineContent/Icons/editor-cylinder.svg",
+    "sha256": "4fb698e0fb8850cc8e91189d02067afbc0720ccd76e4a8fe1285bc7cb7ff2c31"
   },
   {
     "symbol": "EditorDebugBreakpoint",
@@ -402,6 +420,12 @@
     "sha256": "7a31c017d5c5dcfd477e60c02f058921cc23fb2f14c343f1245d8b4a3c458356"
   },
   {
+    "symbol": "EditorPlant",
+    "file": "editor-plant.svg",
+    "reference": "EngineContent/Icons/editor-plant.svg",
+    "sha256": "ce1dc0149fe1e00e7bfa5d6ea8d67f2a3fba269cbc8126edb0be88a57f9ef699"
+  },
+  {
     "symbol": "EditorPlayMode",
     "file": "editor-play-mode.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/editor-play-mode.svg",
@@ -450,6 +474,12 @@
     "sha256": "99c4364eb1688dfc11c86bcaad4e78e9821b5e9ae01dea42d9bff15b64c88a9b"
   },
   {
+    "symbol": "EditorSphere",
+    "file": "editor-sphere.svg",
+    "reference": "EngineContent/Icons/editor-sphere.svg",
+    "sha256": "d280c3ec7b95b7adea33f9ad6e71d235484f3abc5692aea3faab931fb813533a"
+  },
+  {
     "symbol": "EditorSphereCollider",
     "file": "editor-sphere-collider.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/editor-sphere-collider.svg",
@@ -474,10 +504,34 @@
     "sha256": "79ace07e263ee9c2cc8cad0b5ffd0c655c69705f28b460cf8dda3b34d91a1d6f"
   },
   {
+    "symbol": "EditorTorus",
+    "file": "editor-torus.svg",
+    "reference": "EngineContent/Icons/editor-torus.svg",
+    "sha256": "8440156d3381fdbcd39b231443301ba4552a61563ffa4c79451f76c32fa13271"
+  },
+  {
+    "symbol": "EditorTread",
+    "file": "editor-tread.svg",
+    "reference": "EngineContent/Icons/editor-tread.svg",
+    "sha256": "324e9561ecbc5de6b12d1cf9c4e8197b58211fb555411a9c626e26521258ea7f"
+  },
+  {
+    "symbol": "EditorTree",
+    "file": "editor-tree.svg",
+    "reference": "EngineContent/Icons/editor-tree.svg",
+    "sha256": "dbbabf7e032cf881685f98ac47809f953fbdf6b7ea3a34748ef3a57f7f2d6059"
+  },
+  {
     "symbol": "EditorTrigger",
     "file": "editor-trigger.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/editor-trigger.svg",
     "sha256": "76d5ed76cccfa8813bd7187e429d5ca710ab650bc3b0a6d09071f17fb24e1f3d"
+  },
+  {
+    "symbol": "EditorTyre",
+    "file": "editor-tyre.svg",
+    "reference": "EngineContent/Icons/editor-tyre.svg",
+    "sha256": "774652fc8a3f779373d2980666ede725e07d6ce8ba5198b145a4b6ced306dc55"
   },
   {
     "symbol": "EditorUnlock",
@@ -492,6 +546,12 @@
     "sha256": "435ca82b0513fe52ba0954678538df78d0e4a271d72c146c2f108048a18fda2d"
   },
   {
+    "symbol": "EditorWheelRim",
+    "file": "editor-wheel-rim.svg",
+    "reference": "EngineContent/Icons/editor-wheel-rim.svg",
+    "sha256": "4f3092c3ed3757bf64de43e187d67165736842687bd03fcdc394811e620df032"
+  },
+  {
     "symbol": "EnvironmentExposure",
     "file": "environment-exposure.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/environment-exposure.svg",
@@ -504,22 +564,58 @@
     "sha256": "b3eeea4613c7d0e2dc1882a976a6a137d7ddf3376a3cbea372d3bce8e11750a6"
   },
   {
-    "symbol": "FluidGlass",
-    "file": "fluid-glass.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/fluid-glass.svg",
-    "sha256": "d059912713df8e698ae739195608508ad4181c6b347c2064d9e28c26e3f66c4a"
-  },
-  {
     "symbol": "Fluid",
     "file": "fluid.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/fluid.svg",
     "sha256": "24aac61899369dd192be6183883963c7d47bf8fa052cb263e2f4720a016b0df4"
   },
   {
+    "symbol": "FluidGlass",
+    "file": "fluid-glass.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/fluid-glass.svg",
+    "sha256": "d059912713df8e698ae739195608508ad4181c6b347c2064d9e28c26e3f66c4a"
+  },
+  {
     "symbol": "Fog",
     "file": "fog.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/fog.svg",
     "sha256": "aacb7841c660e317f50522f0d95b3b663fee33eae33c743ce7a0b9354a902d78"
+  },
+  {
+    "symbol": "FolderEnvironment",
+    "file": "folder-environment.svg",
+    "reference": "Experimental/FrontierEditor/ui-icons/folder-environment.svg",
+    "sha256": "c5466bebab157d04c982b388398e09a5323fb266aafb9df083df8d37fd3c9d59"
+  },
+  {
+    "symbol": "FolderGeneric",
+    "file": "folder-generic.svg",
+    "reference": "Experimental/FrontierEditor/ui-icons/folder-generic.svg",
+    "sha256": "aa34317849f2b5b702f15d331eab5ec2a9ac16a1332ba19e687ee8a697a357dd"
+  },
+  {
+    "symbol": "FolderMaterials",
+    "file": "folder-materials.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/asset-folder-materials.svg",
+    "sha256": "d54e1446185d42ba46556652cfc4ab355778a1e35ba86a0a62f48a81a1dc3cb6"
+  },
+  {
+    "symbol": "FolderScene",
+    "file": "folder-scene.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/asset-folder-scenes.svg",
+    "sha256": "af03f1e3c2e1b672311c567630d5ac61a4eab0c8387cb14bd8483e28c0df378a"
+  },
+  {
+    "symbol": "FolderWater",
+    "file": "folder-water.svg",
+    "reference": "Experimental/FrontierEditor/ui-icons/folder-water.svg",
+    "sha256": "d7b87372cc4742bfd85cb7f0e189ee76bce67522a99bc7e00fa93a479dd8016f"
+  },
+  {
+    "symbol": "FolderWorld",
+    "file": "folder-world.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/asset-folder-models.svg",
+    "sha256": "102287756f5080782ed58a7fecda029b287ddb981705f87fe54bd8e1e5ed3392"
   },
   {
     "symbol": "Forest",
@@ -582,6 +678,18 @@
     "sha256": "999269d21fddebe56aa55a55f6eb9204f5c1e0294c77590e7fc7716f74bc7eb8"
   },
   {
+    "symbol": "LocalCloud",
+    "file": "local-cloud.svg",
+    "reference": "Experimental/FrontierEditor/ui-icons/local-cloud.svg",
+    "sha256": "23d26bf08b231711078d7c1704800aa56c20cd78172dce27b79ee1b5e0946604"
+  },
+  {
+    "symbol": "LocalFog",
+    "file": "local-fog.svg",
+    "reference": "Experimental/FrontierEditor/ui-icons/local-fog.svg",
+    "sha256": "249f200719a9f6d78c2181c72971d941b4e470f5940b54841a104c2bb2546ba3"
+  },
+  {
     "symbol": "Material",
     "file": "material.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/material.svg",
@@ -604,6 +712,18 @@
     "file": "moon.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/moon.svg",
     "sha256": "e3272801cd5d98b7edc5ffc02407cb2694593c0fcbaef59938daa648f9980b2f"
+  },
+  {
+    "symbol": "OutlinerPrecipitation",
+    "file": "outliner-precipitation.svg",
+    "reference": "Experimental/FrontierEditor/ui-icons/outliner-precipitation.svg",
+    "sha256": "16cbd74b2299a42aa33245d0324a18c3727c514ff30febd0f51e4350bca5ebcf"
+  },
+  {
+    "symbol": "OutlinerStars",
+    "file": "outliner-stars.svg",
+    "reference": "Experimental/FrontierEditor/ui-icons/outliner-stars.svg",
+    "sha256": "1872e91208ff4c78cfd11787a3bc2a45eba0771bf082080de0deb15083e166e8"
   },
   {
     "symbol": "Package",
@@ -678,6 +798,12 @@
     "sha256": "e32a08223b626b3058f9c1133b7b48fa8679ac5fa777df6bec39f48117af5f6c"
   },
   {
+    "symbol": "SlateImage",
+    "file": "slate-image.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/slate-image.svg",
+    "sha256": "5199a2068586948ebb6b285c196f6f431ac19f4d3edda9bf2cc313cac297faea"
+  },
+  {
     "symbol": "SlateImageWidgetVariant2",
     "file": "slate-image-widget-variant2.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/slate-image-widget-variant2.svg",
@@ -694,12 +820,6 @@
     "file": "slate-image-widget-variant4.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/slate-image-widget-variant4.svg",
     "sha256": "81fb686510a49a17317d28a0d6b691d51ba4173548e1f10a8822fe6d3a8a8c4d"
-  },
-  {
-    "symbol": "SlateImage",
-    "file": "slate-image.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/slate-image.svg",
-    "sha256": "5199a2068586948ebb6b285c196f6f431ac19f4d3edda9bf2cc313cac297faea"
   },
   {
     "symbol": "SlateLEDPanel",
@@ -844,65 +964,5 @@
     "file": "wind.svg",
     "reference": "Experimental/FrontierEditor/custom-icons/wind.svg",
     "sha256": "8b281a793b21674a43f73cd5d2b4d1346422b0b3138a21310eed608a240dbe86"
-  },
-  {
-    "symbol": "FolderEnvironment",
-    "file": "folder-environment.svg",
-    "reference": "Experimental/FrontierEditor/ui-icons/folder-environment.svg",
-    "sha256": "c5466bebab157d04c982b388398e09a5323fb266aafb9df083df8d37fd3c9d59"
-  },
-  {
-    "symbol": "FolderGeneric",
-    "file": "folder-generic.svg",
-    "reference": "Experimental/FrontierEditor/ui-icons/folder-generic.svg",
-    "sha256": "aa34317849f2b5b702f15d331eab5ec2a9ac16a1332ba19e687ee8a697a357dd"
-  },
-  {
-    "symbol": "FolderWater",
-    "file": "folder-water.svg",
-    "reference": "Experimental/FrontierEditor/ui-icons/folder-water.svg",
-    "sha256": "d7b87372cc4742bfd85cb7f0e189ee76bce67522a99bc7e00fa93a479dd8016f"
-  },
-  {
-    "symbol": "LocalCloud",
-    "file": "local-cloud.svg",
-    "reference": "Experimental/FrontierEditor/ui-icons/local-cloud.svg",
-    "sha256": "23d26bf08b231711078d7c1704800aa56c20cd78172dce27b79ee1b5e0946604"
-  },
-  {
-    "symbol": "LocalFog",
-    "file": "local-fog.svg",
-    "reference": "Experimental/FrontierEditor/ui-icons/local-fog.svg",
-    "sha256": "249f200719a9f6d78c2181c72971d941b4e470f5940b54841a104c2bb2546ba3"
-  },
-  {
-    "symbol": "OutlinerPrecipitation",
-    "file": "outliner-precipitation.svg",
-    "reference": "Experimental/FrontierEditor/ui-icons/outliner-precipitation.svg",
-    "sha256": "16cbd74b2299a42aa33245d0324a18c3727c514ff30febd0f51e4350bca5ebcf"
-  },
-  {
-    "symbol": "OutlinerStars",
-    "file": "outliner-stars.svg",
-    "reference": "Experimental/FrontierEditor/ui-icons/outliner-stars.svg",
-    "sha256": "1872e91208ff4c78cfd11787a3bc2a45eba0771bf082080de0deb15083e166e8"
-  },
-  {
-    "symbol": "FolderScene",
-    "file": "folder-scene.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/asset-folder-scenes.svg",
-    "sha256": "af03f1e3c2e1b672311c567630d5ac61a4eab0c8387cb14bd8483e28c0df378a"
-  },
-  {
-    "symbol": "FolderWorld",
-    "file": "folder-world.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/asset-folder-models.svg",
-    "sha256": "102287756f5080782ed58a7fecda029b287ddb981705f87fe54bd8e1e5ed3392"
-  },
-  {
-    "symbol": "FolderMaterials",
-    "file": "folder-materials.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/asset-folder-materials.svg",
-    "sha256": "d54e1446185d42ba46556652cfc4ab355778a1e35ba86a0a62f48a81a1dc3cb6"
   }
 ]

@@ -66,7 +66,7 @@ for candidate in "$Ext" "$PWD/ExternalPackages" "${MATERIAL_CODEC_EXT:-}" "$HOME
         && [ -f "$candidate/fast_obj/fast_obj.h" ] && M6="$candidate" && break
 done
 if [ -n "$M6" ]; then
-    if ! g++ -std=c++20 -O1 -fsyntax-only -I Engine -I Engine/DisplayPresentation -I Engine/ContentInterchange          -I Engine/DeviceExchange -I Engine/GeometricRaster -I Engine/Editor -I Projects/Project-Zero/Source          -I Projects/Project-Dyno/Source -I "$Ext/imgui" -I "$Ext/tomlplusplus/include" -I "$Ext/Vulkan-Headers/include"          -I "$M6/cgltf" -I "$M6/ufbx" -I "$M6/fast_obj" Projects/Project-Zero/Source/GameExecution.cpp          2>/tmp/MaterialInspector.game; then
+    if ! g++ -std=c++20 -O1 -fsyntax-only -I Engine -I Engine/DisplayPresentation -I Engine/ContentInterchange          -I Engine/DeviceExchange -I Engine/GeometricRaster -I Engine/Editor -I Projects/Project-Zero/Source          -I Projects/Project-Dyno/Source -I "$Ext/imgui" -I "$Ext/tomlplusplus/include" -I "$Ext/Vulkan-Headers/include"          -I "$M6/cgltf" -I "$M6/ufbx" -I "$M6/fast_obj" Engine/Host/FrontierRuntime.cpp          2>/tmp/MaterialInspector.game; then
         echo "[MaterialInspector] RED — GameExecution.cpp no longer parses:"; sed 's/^/    /' /tmp/MaterialInspector.game | head -20; rm -f "$Bin"; exit 1
     fi
     echo "[MaterialInspector] GameExecution.cpp parses"

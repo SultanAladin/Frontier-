@@ -19,7 +19,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 Cmake="CMakeLists.txt"
-Powershell="Projects/Project-Zero/Build/ToolchainSequence.ps1"
+Powershell="Tools/Build/ToolchainSequence.ps1"
 
 Stage="$(mktemp -d)"
 trap 'rm -rf "$Stage"' EXIT

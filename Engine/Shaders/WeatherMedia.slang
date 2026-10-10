@@ -2,12 +2,34 @@
 #define FRONTIER_WEATHER_MEDIA
 // Live camera-ray media. WeatherConstantRecord supplies binding-24 rows.
 // Density matches VolumetricMedia; overlapping media share extinction/source terms.
+// Reference altitude (km) each medium advects its BULK translation at: mid-slab for the deck, centre for a
+//    local puff. Sliding the whole medium at ONE altitude keeps its shape rigid; the optional shear term below
+//    adds the height-dependent lean on top of that.
+float WeatherRefKm(int medium)
+{
+    if(medium==0){float base,top;CloudShadowExtent(Weather[0].x,Weather[0].y,Weather[1].z,base,top);return (base+top)*0.5*.001;}
+    int b=medium==1?4:9;return max(Weather[b].z,0.0)*.001;
+}
+// Wind advection. Weather[3].z is the mode: 0 = TRANSLATE (rigid slide, shape preserved), 1 = SHEAR (bounded
+//    lean). The bulk is the wind at the reference altitude integrated over the clock — uniform across height, so
+//    it can only move the field, never distort it. Shear adds the height-relative velocity difference, but its
+//    time growth is CAPPED at 45 s so the medium leans to a steady tilt instead of being stretched without limit
+//    into decorrelated noise (the "wind ruins the shape" report: unbounded shear x clock tears a cloud's top and
+//    bottom apart until adjacent heights sample unrelated noise). Twin: VolumetricMedia::CloudDensity.
 vec2 WeatherDrift(int medium, float z, float factor)
 {
-    float km=max(z,0.0)*.001;
     vec4 wind=Weather[18+medium];
-    float a=radians(wind.y+wind.w*km);
-    return vec2(sin(a),cos(a))*wind.x*(1.0+wind.z*km)*(Weather[3].x*factor);
+    float refKm=WeatherRefKm(medium);
+    float aR=radians(wind.y+wind.w*refKm);
+    vec2  bulk=vec2(sin(aR),cos(aR))*(wind.x*(1.0+wind.z*refKm));
+    vec2  drift=bulk*(Weather[3].x*factor);
+    if(Weather[3].z>0.5){
+        float km=max(z,0.0)*.001;
+        float aZ=radians(wind.y+wind.w*km);
+        vec2  local=vec2(sin(aZ),cos(aZ))*(wind.x*(1.0+wind.z*km));
+        drift+=(local-bulk)*(min(Weather[3].x,45.0)*factor);
+    }
+    return drift;
 }
 // Seconds the weather clock has run, and how far that has walked each medium through its noise. Weather[3].x
 //    is the clock (packed whenever any volume is enabled, not only when something drifts), and the rate is the

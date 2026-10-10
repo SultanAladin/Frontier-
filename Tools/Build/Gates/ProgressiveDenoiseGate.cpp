@@ -20,6 +20,31 @@ int main()
     integrator.IncrementAccumulationIndex();
     assert(integrator.QueryAccumulationIndex()==1);
 
+    // Check actual CPU dispatch flags, not just source text: non-raytraced paths must not
+    // retain jitter, ReSTIR reuse, stochastic sky selection or the ray denoiser.
+    {
+        using namespace Frontier;
+        HostRuntime::FlyThroughSolver Camera;
+        constexpr uint32_t RayFeatures = DispatchFeatureRaytracing | DispatchFeatureAntiAliasing
+            | DispatchFeatureTemporalReuse | DispatchFeatureSpatialReuse | DispatchFeatureGiReuse
+            | DispatchFeatureAliasPick | DispatchFeatureTemporalReprojection | DispatchFeatureDenoise
+            | DispatchFeatureSkyReservoir;
+        for (uint32_t Path = 0u; Path < 3u; ++Path)
+            for (bool Gi : { false, true })
+            {
+                ReSTIRIntegratorConfiguration Configuration{};
+                Configuration.RenderPath = Path;
+                Configuration.GlobalIllumination = Gi;
+                ReSTIRIntegrator Pipeline(Configuration);
+                const auto Dispatch = Pipeline.BuildDispatch(Camera, 1280u, 720u, 0u, 0u);
+                if (Path != 0u) assert((Dispatch.FeatureFlags & RayFeatures) == 0u);
+                else assert((Dispatch.FeatureFlags & (RayFeatures & ~DispatchFeatureGiReuse))
+                         == (RayFeatures & ~DispatchFeatureGiReuse));
+                if (!Gi) assert((Dispatch.FeatureFlags & DispatchFeatureGiReuse) == 0u);
+            }
+        std::puts("PASS actual dispatch: raster/SDF have no jitter or ReSTIR flags; GI-off has no GI reuse");
+    }
+
     constexpr unsigned N=32, Pixels=N*N;
     std::vector<float> source(Pixels*4),surface(Pixels*4),samples(Pixels),out(Pixels*4);
     // Small high-frequency lighting detail on a flat surface, plus a uniform

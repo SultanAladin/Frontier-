@@ -29,20 +29,21 @@ void Arrow(Panel& U,float X,float Y,float DX,float DY,ImU32 C){float L=std::sqrt
 void End(Panel& U,float W,float Y,const char* Note){U.Wrap(0,Y,W,Note);ImGui::SetCursorScreenPos(U.At(0,Y+88));ImGui::Dummy({W,1});}
 void WindPanel(Panel& U,float W){
  U.Text(0,83,"WIND / AIR · shared advection field",10,Muted);char T[160];
- bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Y2=Wide?110:656;
- U.Card(0,110,CW,530,"Direction + magnitude");float R=std::min(142.f,(CW-76)*.5f),CX=CW*.5f,CY=342;
+ auto& Speed=Find(U.Sheet,"Speed")->Figure;auto& Bearing=Find(U.Sheet,"Bearing")->Figure;auto A=WindOf(U,true);unsigned SummaryForce=WindField::BeaufortForce(Speed);
+ U.Card(0,110,W,180,"Anemometer");std::snprintf(T,sizeof(T),"%.1f m/s",double(Speed));U.Text(24,169,T,36);std::snprintf(T,sizeof(T),"%.0f° · Beaufort %u · %s",double(Bearing),SummaryForce,WindField::BeaufortName(SummaryForce));U.Wrap(24,221,W-48,T);float Sample[3];WindField::SampleStep(A,10,Sample);std::snprintf(T,sizeof(T),"10 m vector  X %.1f / Y %.1f m/s",double(Sample[0]),double(Sample[1]));U.Wrap(24,254,W-48,T);
+ bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Base=306,Y2=Wide?Base:Base+546;
+ U.Card(0,Base,CW,530,"Composite wind field");float R=std::min(142.f,(CW-76)*.5f),CX=CW*.5f,CY=Base+232;
  ImGui::SetCursorScreenPos(U.At(CX-R,CY-R));ImGui::InvisibleButton("##wind-vector",{2*R,2*R},ImGuiButtonFlags_EnableNav);
- auto& Speed=Find(U.Sheet,"Speed")->Figure;auto& Bearing=Find(U.Sheet,"Bearing")->Figure;
  if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0)){float DX=ImGui::GetIO().MousePos.x-U.At(CX,CY).x,DY=U.At(CX,CY).y-ImGui::GetIO().MousePos.y;float Length=std::sqrt(DX*DX+DY*DY);Speed=std::clamp(Length/R*40,0.f,40.f);if(Length>1)Bearing=std::fmod(std::atan2(DX,DY)*180/Pi+360,360.f);}
  if(ImGui::IsItemFocused()){if(ImGui::IsKeyPressed(ImGuiKey_LeftArrow))Bearing=std::fmod(Bearing+359,360.f);if(ImGui::IsKeyPressed(ImGuiKey_RightArrow))Bearing=std::fmod(Bearing+1,360.f);if(ImGui::IsKeyPressed(ImGuiKey_UpArrow))Speed=std::min(40.f,Speed+.5f);if(ImGui::IsKeyPressed(ImGuiKey_DownArrow))Speed=std::max(0.f,Speed-.5f);if(ImGui::IsKeyPressed(ImGuiKey_Home))Speed=0;}
- WindSettings A=WindOf(U,true);for(int I=1;I<=4;++I)U.D->AddCircle(U.At(CX,CY),R*I/4,IM_COL32(91,121,110,55),64,1);
+ for(int I=1;I<=4;++I)U.D->AddCircle(U.At(CX,CY),R*I/4,IM_COL32(91,121,110,55),64,1);
  U.D->AddLine(U.At(CX-R,CY),U.At(CX+R,CY),IM_COL32(91,121,110,55));U.D->AddLine(U.At(CX,CY-R),U.At(CX,CY+R),IM_COL32(91,121,110,55));
  U.Text(CX-4,CY-R-23,"N",12,Accent);U.Text(CX+R+10,CY-6,"E",11,Muted);U.Text(CX-4,CY+R+12,"S",11,Muted);U.Text(CX-R-21,CY-6,"W",11,Muted);
  float Rad=Bearing*Pi/180,Length=Speed/40*R;Arrow(U,CX,CY,std::sin(Rad)*Length,-std::cos(Rad)*Length,Accent);U.D->AddCircleFilled(U.At(CX,CY),4,Accent);
- std::snprintf(T,sizeof(T),"%.1f m/s   /   %.0f°",double(Speed),double(Bearing));U.Text(24,163,T,24);
- U.Wrap(24,535,CW-48,"Drag outward for speed, around for bearing. Blows TOWARD N = +Y, E = +X. Outer ring = 40 m/s.");U.Wrap(24,587,CW-48,"Arrow keys: bearing / speed · Home: calm");
- U.Card(X2,Y2,CW,530,"Flow");const char* Names[]={"Speed","Bearing","Shear","Veer"};for(int I=0;I<4;++I)U.Slider(X2+24,Y2+65+I*83,CW-48,Names[I]);unsigned Force=WindField::BeaufortForce(Speed);std::snprintf(T,sizeof(T),"Beaufort %u · %s",Force,WindField::BeaufortName(Force));U.Wrap(X2+24,Y2+435,CW-48,T);U.Wrap(X2+24,Y2+477,CW-48,"Shear changes speed with altitude; veer turns the flow clockwise per kilometre.");
- float Y=Y2+546,Y3=Wide?Y:Y+388;U.Card(0,Y,CW,372,"Variation");const char* Variation[]={"Gust","Turbulence","Steadiness"};for(int I=0;I<3;++I)U.Slider(24,Y+65+I*83,CW-48,Variation[I]);
+ std::snprintf(T,sizeof(T),"%.1f m/s   /   %.0f°",double(Speed),double(Bearing));U.Text(24,Base+53,T,24);
+ U.Wrap(24,Base+425,CW-48,"Drag outward for speed, around for bearing. Blows TOWARD N = +Y, E = +X. Outer ring = 40 m/s.");U.Wrap(24,Base+477,CW-48,"Arrow keys: bearing / speed · Home: calm");
+ U.Card(X2,Y2,CW,600,"Wind controls");const char* Names[]={"Speed","Bearing","Shear","Veer"};for(int I=0;I<4;++I)U.Slider(X2+24,Y2+65+I*83,CW-48,Names[I]);auto* AirShear=Find(U.Sheet,"Air shear");U.Tile(X2+24,Y2+400,std::min(150.f,CW-48.f),"Air shear",AirShear?&AirShear->On:nullptr);unsigned Force=WindField::BeaufortForce(Speed);std::snprintf(T,sizeof(T),"Beaufort %u · %s",Force,WindField::BeaufortName(Force));U.Wrap(X2+24,Y2+495,CW-48,T);U.Wrap(X2+24,Y2+537,CW-48,"Air shear off = wind slides the cloud rigidly; on = it leans with altitude (a bounded, coherent tilt).");
+ float Y=Y2+616,Y3=Wide?Y:Y+388;U.Card(0,Y,CW,372,"Variation controls");const char* Variation[]={"Gust","Turbulence","Steadiness"};for(int I=0;I<3;++I)U.Slider(24,Y+65+I*83,CW-48,Variation[I]);
  U.Card(X2,Y3,CW,372,"Gust envelope");float L=X2+24,RR=X2+CW-24,Top=Y3+82,Bottom=Y3+220;float Previous=0;for(int I=0;I<=96;++I){auto Q=A;Q.GustPhase=I/96.f*2*Pi;float G=WindField::SampleGust(Q);float YY=Bottom-(G-.0f)/2*(Bottom-Top);if(I)U.D->AddLine(U.At(L+(RR-L)*(I-1)/96,Previous),U.At(L+(RR-L)*I/96,YY),Accent,1.5f);Previous=YY;}
  U.Wrap(L,Y3+242,CW-48,"Actual shared gust model · phase 0–2π · vertical scale 0–2×. Steadiness scales variation in this backend: 0 removes gust and swirl.");float V[3];WindField::SampleStep(A,1000,V);std::snprintf(T,sizeof(T),"1 km flow: X %.1f / Y %.1f m/s",double(V[0]),double(V[1]));U.Wrap(L,Y3+315,CW-48,T);
  End(U,W,Y3+398,"One shared wind field drives cloud advection and precipitation. The compass edits authored flow; the envelope is a model diagnostic, not a scene-camera preview.");
@@ -55,10 +56,10 @@ void Particle(Panel& U,float X,float Y,float Radius,uint32_t Kind){
 void PrecipPanel(Panel& U,float W){
  U.Text(0,83,"CLOUDS / PRECIPITATION · world-space simulation",10,Muted);char T[200];
  int Columns=W>=760?4:2;float TileW=(W-48-(Columns-1)*10)/Columns,H=Columns==4?151:224;
- U.Card(0,110,W,H,"Emission + collision");const char* Switches[]={"Enabled","Follow Wind","Spawn from Clouds","Ground Collision"};for(int I=0;I<4;++I)U.Tile(24+(I%Columns)*(TileW+10),164+(I/Columns)*73,TileW,Switches[I],&Find(U.Sheet,Switches[I])->On);
- float Y=110+H+16;U.Card(0,Y,W,270,"Precipitation type");auto& Type=Find(U.Sheet,"Precipitation")->Picked;const unsigned Order[]={0,3,2,1,4};const char* Names[]={"Rain","Drizzle","Hail","Snow","Sleet"};float TW=(W-64)/3;
+ float Y=110;U.Card(0,Y,W,270,"Precipitation type");auto& Type=Find(U.Sheet,"Precipitation")->Picked;const unsigned Order[]={0,3,2,1,4};const char* Names[]={"Rain","Drizzle","Hail","Snow","Sleet"};float TW=(W-64)/3;
  for(int I=0;I<5;++I){float X=24+(I%3)*(TW+8),YY=Y+60+(I/3)*94;unsigned K=Order[I];ImGui::SetCursorScreenPos(U.At(X,YY));if(ImGui::InvisibleButton(Names[K],{TW,84}))Type=K;U.D->AddRectFilled(U.At(X,YY),U.At(X+TW,YY+84),IM_COL32(29,32,33,255),12);U.D->AddRect(U.At(X,YY),U.At(X+TW,YY+84),Type==K?Accent:IM_COL32(59,62,63,255),12);InspectorReference::WeatherType(Fit(U.D,U.At(X+TW*.5f-12,YY+17),{24,24},24,24),K,Type==K?IM_COL32(189,213,239,255):IM_COL32(139,155,173,255));float TextW=U.Font->CalcTextSizeA(11,10000,0,Names[K]).x;U.Text(X+(TW-TextW)/2,YY+59,Names[K],11,Type==K?Accent:Muted);}
- bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0;Y+=286;float Y2=Wide?Y:Y+462;
+ Y+=286;U.Card(0,Y,W,H,"Emission + collision");const char* Switches[]={"Enabled","Follow Wind","Spawn from Clouds","Ground Collision"};for(int I=0;I<4;++I)U.Tile(24+(I%Columns)*(TileW+10),Y+54+(I/Columns)*73,TileW,Switches[I],&Find(U.Sheet,Switches[I])->On);
+ bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0;Y+=H+16;float Y2=Wide?Y:Y+462;
  U.Card(0,Y,CW,446,"Fall + density");const char* Fields[]={"Intensity","Density","Particle Size","Wind Drift"};for(int I=0;I<4;++I)U.Slider(24,Y+65+I*83,CW-48,Fields[I]);
  U.Card(X2,Y2,CW,446,"Particle scale");auto P=PhysicsFor(static_cast<PrecipitationCategory>(Type));float Diameter=P.RadiusMetres*Value(U,"Particle Size")*2000;
  std::snprintf(T,sizeof(T),"%.2f mm",double(Diameter));U.Text(X2+24,Y2+66,T,29);U.Wrap(X2+24,Y2+108,CW-48,"Nominal diameter · type radius × size scale");Particle(U,X2+CW*.5f,Y2+195,Diameter/30*60,Type);
@@ -72,14 +73,14 @@ void Cleanup(ImGuiContext*,ImGuiContextHook* H){auto* C=static_cast<BowCache*>(H
 BowCache& Cache(){constexpr ImGuiID Owner=0x57454154;for(auto& H:ImGui::GetCurrentContext()->Hooks)if(H.Owner==Owner)return *static_cast<BowCache*>(H.UserData);auto* P=new BowCache;ImGuiContextHook H;H.Owner=Owner;H.Type=ImGuiContextHookType_Shutdown;H.Callback=Cleanup;H.UserData=P;ImGui::AddContextHook(ImGui::GetCurrentContext(),&H);return *P;}
 void RainbowPanel(Panel& U,float W){
  U.Text(0,83,"RAINBOW · liquid-water optics",10,Muted);char T[160];
- U.Card(0,110,W,W<420?228:167,"Bake / image");float TW=W<420?(W-56)/2:std::min(160.f,(W-64)/3);U.Tile(24,164,TW,"Bake",nullptr);U.Tile(32+TW,164,TW,"Use baked image",nullptr);U.Wrap(24,W<420?248:239,W-48,"No Rainbow bake or image-playback path exists in this target.");
- float Y=W<420?354:293;U.Card(0,Y,W,154,"Visibility");float BW=std::min(180.f,(W-58)/2);U.Tile(24,Y+54,BW,"Enabled",&Find(U.Sheet,"Enabled")->On);U.Tile(34+BW,Y+54,BW,"Alexander's Band",&Find(U.Sheet,"Alexander's Band")->On);
  RainbowSettings B;B.Enabled=Find(U.Sheet,"Enabled")->On;B.AlexanderBand=Find(U.Sheet,"Alexander's Band")->On;B.Intensity=Value(U,"Intensity");B.Width=Value(U,"Width");B.SecondaryGain=Value(U,"Secondary");B.MinimumPathMetres=Value(U,"Minimum Path");
- Y+=170;float PH=(W-48)*112/192;U.Card(0,Y,W,PH+163,"Optical preview");auto& C=Cache();std::array<float,7> Key={float(B.Enabled),B.Intensity,B.Width,B.SecondaryGain,float(B.AlexanderBand),B.MinimumPathMetres,1};if(!C.Valid||C.Key!=Key){C.Key=Key;C.Valid=true;for(int J=0;J<C.Image.Height;++J)for(int I=0;I<C.Image.Width;++I){float RGB[3];WeatherDiagnostics::RainbowPixel(B,(I+.5f)/C.Image.Width,(J+.5f)/C.Image.Height,RGB);auto* P=C.Image.Pixels+(J*C.Image.Width+I)*4;for(int K=0;K<3;++K)P[K]=static_cast<unsigned char>(255*SunColourTemperature::DisplayChannel(RGB[K])+.5f);P[3]=255;}ImTextureDataQueueUpload(&C.Image,0,0,C.Image.Width,C.Image.Height);}
+ float Y=110,PH=(W-48)*112/192;U.Card(0,Y,W,PH+163,"Optical preview");auto& C=Cache();std::array<float,7> Key={float(B.Enabled),B.Intensity,B.Width,B.SecondaryGain,float(B.AlexanderBand),B.MinimumPathMetres,1};if(!C.Valid||C.Key!=Key){C.Key=Key;C.Valid=true;for(int J=0;J<C.Image.Height;++J)for(int I=0;I<C.Image.Width;++I){float RGB[3];WeatherDiagnostics::RainbowPixel(B,(I+.5f)/C.Image.Width,(J+.5f)/C.Image.Height,RGB);auto* P=C.Image.Pixels+(J*C.Image.Width+I)*4;for(int K=0;K<3;++K)P[K]=static_cast<unsigned char>(255*SunColourTemperature::DisplayChannel(RGB[K])+.5f);P[3]=255;}ImTextureDataQueueUpload(&C.Image,0,0,C.Image.Width,C.Image.Height);}
  U.D->AddImageRounded(C.Image.GetTexRef(),U.At(24,Y+59),U.At(W-24,Y+59+PH),{0,0},{1,1},IM_COL32_WHITE,12);
  U.Wrap(24,Y+PH+77,W-48,"Shared spectral kernel · sun 10° behind viewer · rain visibility 1 · rain path 500 m. Fixed test conditions, not the scene camera.");
- Y+=PH+179;U.Card(0,Y,W,458,"Bow response");float SW=std::min(540.f,W-48);const char* Fields[]={"Intensity","Width","Secondary","Minimum Path"};for(int I=0;I<4;++I)U.Slider(24,Y+66+I*78,SW,Fields[I]);std::snprintf(T,sizeof(T),"Current authored rain visibility: %.0f%%",double(U.Sheet.WeatherPreview.RainVisibility*100));U.Wrap(24,Y+391,W-48,T);
- End(U,W,Y+482,"Rain and drizzle feed the existing GPU Rainbow post record; snow, hail and sleet do not. CPU optical preview and shader compilation are verified separately from GPU execution. Bake stays unavailable.");
+ Y+=PH+179;U.Card(0,Y,W,154,"Visibility");float BW=std::min(180.f,(W-58)/2);U.Tile(24,Y+54,BW,"Enabled",&Find(U.Sheet,"Enabled")->On);U.Tile(34+BW,Y+54,BW,"Alexander's Band",&Find(U.Sheet,"Alexander's Band")->On);
+ Y+=170;U.Card(0,Y,W,458,"Bow response");float SW=std::min(540.f,W-48);const char* Fields[]={"Intensity","Width","Secondary","Minimum Path"};for(int I=0;I<4;++I)U.Slider(24,Y+66+I*78,SW,Fields[I]);std::snprintf(T,sizeof(T),"Current authored rain visibility: %.0f%%",double(U.Sheet.WeatherPreview.RainVisibility*100));U.Wrap(24,Y+391,W-48,T);
+ Y+=474;U.Card(0,Y,W,190,"Baking / image");float TW=(W-56)/2;U.Tile(24,Y+54,TW,"Bake",nullptr);U.Tile(32+TW,Y+54,TW,"Use baked image",nullptr);U.Wrap(24,Y+136,W-48,"No Rainbow bake or image-playback path exists in this target.");
+ End(U,W,Y+210,"Rain and drizzle feed the existing GPU Rainbow post record; snow, hail and sleet do not. CPU optical preview and shader compilation are verified separately from GPU execution. Bake stays unavailable.");
 }
 }
 void RecordWeatherInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet){

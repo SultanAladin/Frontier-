@@ -110,6 +110,23 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
     // Meshes are decoded once into GeometryStructures (object space, engine axes) and instanced per node.
     struct DecodedPrimitive { GeometryStructure Geometry; uint32_t Material; uint32_t Flags; };
     std::map<const cgltf_primitive*, DecodedPrimitive> Decoded;
+    // An INSTANCED file gives every placement its own mesh and primitive — glTF carries material on the
+    //    primitive, so it has to — but those primitives all point at one set of accessors. Keyed on the
+    //    primitive pointer alone, the shader ball grid would decode 35 897 vertices 400 times. Keyed on the
+    //    accessor set, it decodes once and the other 399 placements reuse the geometry. The material is NOT
+    //    part of the key and is read per primitive, which is the whole point of the arrangement.
+    struct GeometryKey
+    {
+        const void* Position; const void* Normal; const void* Texcoord; const void* Indices;
+        bool operator<(const GeometryKey& Other) const noexcept
+        {
+            if (Position != Other.Position) return Position < Other.Position;
+            if (Normal   != Other.Normal)   return Normal   < Other.Normal;
+            if (Texcoord != Other.Texcoord) return Texcoord < Other.Texcoord;
+            return Indices < Other.Indices;
+        }
+    };
+    std::map<GeometryKey, const cgltf_primitive*> GeometryOwner;
 
     const Matrix4x4 AxisSwap = ConstructGltfToWorldProjection();
     Matrix4x4 Scale;
@@ -166,6 +183,27 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
                 if (!Position) { ++Skipped; continue; }
                 const cgltf_accessor* Normal   = FindAttribute(Primitive, cgltf_attribute_type_normal);
                 const cgltf_accessor* Tangent  = FindAttribute(Primitive, cgltf_attribute_type_tangent);
+
+                // Another primitive may already have decoded this exact geometry — an instanced file is
+                //    hundreds of primitives over one accessor set. Copy its vertices and indices rather than
+                //    unpacking them again, and take only the material from this primitive.
+                {
+                    const cgltf_accessor* Texcoord0 = FindAttribute(Primitive, cgltf_attribute_type_texcoord);
+                    const GeometryKey Key{ Position, Normal, Texcoord0, Primitive.indices };
+                    const auto Owner = GeometryOwner.find(Key);
+                    if (Owner != GeometryOwner.end())
+                    {
+                        const DecodedPrimitive& Source = Decoded[Owner->second];
+                        DecodedPrimitive& Copy = Decoded[&Primitive];
+                        Copy.Geometry.AppendVertices(Source.Geometry.QueryVertices().data(), Source.Geometry.QueryVertices().size());
+                        Copy.Geometry.AppendIndices(Source.Geometry.QueryIndices().data(), Source.Geometry.QueryIndices().size());
+                        Copy.Material = Primitive.material ? MaterialSlot[static_cast<size_t>(Primitive.material - Data->materials)] : FallbackSlot;
+                        Copy.Flags    = (Primitive.material && Primitive.material->double_sided) ? InstanceFlagDoubleSided : 0u;
+                        (void)Out.RegisterInstance(Copy.Geometry, World, Copy.Material, Copy.Flags);
+                        continue;
+                    }
+                    GeometryOwner.emplace(Key, &Primitive);
+                }
                 const cgltf_accessor* Texcoord = FindAttribute(Primitive, cgltf_attribute_type_texcoord);
 
                 DecodedPrimitive& D = Decoded[&Primitive];
@@ -310,6 +348,37 @@ bool SpanEmits(const std::vector<TriangleIndex>& Triangles, const TriangleSpanRe
     return false;
 }
 
+// Column-major 4x4 multiply, matching ProjectionFromColumns' storage (Columns[c][r] flattened c*4+r).
+void MultiplyColumns(const float* A, const float* B, float* Out) noexcept
+{
+    for (int C = 0; C < 4; ++C)
+        for (int R = 0; R < 4; ++R)
+        {
+            float Sum = 0.0f;
+            for (int K = 0; K < 4; ++K) Sum += A[K * 4 + R] * B[C * 4 + K];
+            Out[C * 4 + R] = Sum;
+        }
+}
+
+// The node transform a placement must carry so the DECODE reproduces its engine-space world matrix.
+//
+//    The decoder computes World = AxisSwap · NodeMatrix and leaves vertices in glTF axes, while this encoder
+//    writes vertices through WorldToGltf = AxisSwap⁻¹. Composing the two, a vertex lands at
+//        AxisSwap · NodeMatrix · AxisSwap⁻¹ · p_engine
+//    so for that to equal World · p_engine the node must carry AxisSwap⁻¹ · World · AxisSwap. The swap is a
+//    signed permutation, so its inverse is its transpose. Getting this wrong is silent: a pure translation
+//    still round-trips, and only a rotated or non-uniformly scaled placement shows the error.
+void ConjugateToGltf(const float* World, float* Out) noexcept
+{
+    const Matrix4x4 Swap = ConstructGltfToWorldProjection();
+    float S[16], SInverse[16];
+    for (int C = 0; C < 4; ++C) for (int R = 0; R < 4; ++R) S[C * 4 + R] = Swap.Columns[C][R];
+    for (int C = 0; C < 4; ++C) for (int R = 0; R < 4; ++R) SInverse[C * 4 + R] = (C < 3 && R < 3) ? S[R * 4 + C] : (C == R ? 1.0f : 0.0f);
+    float Half[16];
+    MultiplyColumns(SInverse, World, Half);
+    MultiplyColumns(Half, S, Out);
+}
+
 bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Triangles,
                    const std::vector<MaterialDescriptor>& Materials, std::string* Error,
                    const SceneEncodeConfiguration& Configuration,
@@ -442,6 +511,111 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
         SceneNodes << N;
     }
 
+    // ── Instanced placements ────────────────────────────────────────────────────────────────────────────────
+    // Each offered geometry writes its vertex block ONCE and keeps the accessor indices; each placement then
+    //    emits a mesh whose single primitive reuses those accessors and names its own material, plus a node
+    //    carrying the conjugated transform. Nothing in the buffer repeats.
+    size_t NodeCount = Order.size();
+    if (Configuration.InstancedGeometry && Configuration.InstancedPlacements
+     && !Configuration.InstancedGeometry->empty() && !Configuration.InstancedPlacements->empty())
+    {
+        struct SharedAccessors { uint32_t Position = 0u, Normal = 0u, Texcoord = 0u, Index = 0u; bool Valid = false; };
+        std::vector<SharedAccessors> Shared(Configuration.InstancedGeometry->size());
+
+        for (size_t G = 0u; G < Configuration.InstancedGeometry->size(); ++G)
+        {
+            const InstancedGeometryRecord& Geometry = (*Configuration.InstancedGeometry)[G];
+            if (!Geometry.Vertices || !Geometry.Indices || Geometry.Vertices->empty() || Geometry.Indices->size() < 3u) continue;
+
+            std::vector<float> Positions, Normals, Texcoords;
+            Positions.reserve(Geometry.Vertices->size() * 3u);
+            Normals.reserve(Geometry.Vertices->size() * 3u);
+            if (Configuration.WriteTexcoords) Texcoords.reserve(Geometry.Vertices->size() * 2u);
+            float Minimum[3] = {  1e30f,  1e30f,  1e30f };
+            float Maximum[3] = { -1e30f, -1e30f, -1e30f };
+            for (const VertexRecord& V : *Geometry.Vertices)
+            {
+                const Vector3 P = WorldToGltf(V.SpatialLocation);
+                const Vector3 N = WorldToGltf(V.NormalDirection);
+                Positions.insert(Positions.end(), { P.x, P.y, P.z });
+                Normals.insert(Normals.end(), { N.x, N.y, N.z });
+                if (Configuration.WriteTexcoords) Texcoords.insert(Texcoords.end(), { V.TextureCoordinateU, V.TextureCoordinateV });
+                Minimum[0] = std::min(Minimum[0], P.x); Minimum[1] = std::min(Minimum[1], P.y); Minimum[2] = std::min(Minimum[2], P.z);
+                Maximum[0] = std::max(Maximum[0], P.x); Maximum[1] = std::max(Maximum[1], P.y); Maximum[2] = std::max(Maximum[2], P.z);
+            }
+
+            const auto EmitView = [&](size_t ByteOffset, size_t ByteLength, int Target)
+            {
+                if (ViewIndex) Views << ",";
+                Views << "{\"buffer\":0,\"byteOffset\":" << ByteOffset << ",\"byteLength\":" << ByteLength << ",\"target\":" << Target << "}";
+                return ViewIndex++;
+            };
+
+            size_t Offset = Buffer.size();
+            AppendFloats(Buffer, Positions.data(), Positions.size());
+            const uint32_t PositionView = EmitView(Offset, Positions.size() * 4u, 34962);
+            Offset = Buffer.size();
+            AppendFloats(Buffer, Normals.data(), Normals.size());
+            const uint32_t NormalView = EmitView(Offset, Normals.size() * 4u, 34962);
+            uint32_t TexcoordView = 0u;
+            if (Configuration.WriteTexcoords)
+            {
+                Offset = Buffer.size();
+                AppendFloats(Buffer, Texcoords.data(), Texcoords.size());
+                TexcoordView = EmitView(Offset, Texcoords.size() * 4u, 34962);
+            }
+            Offset = Buffer.size();
+            Buffer.resize(Offset + Geometry.Indices->size() * 4u);
+            std::memcpy(Buffer.data() + Offset, Geometry.Indices->data(), Geometry.Indices->size() * 4u);
+            const uint32_t IndexView = EmitView(Offset, Geometry.Indices->size() * 4u, 34963);
+
+            const uint32_t Count = static_cast<uint32_t>(Geometry.Vertices->size());
+            if (AccessorIndex) Accessors << ",";
+            Accessors << "{\"bufferView\":" << PositionView << ",\"componentType\":5126,\"count\":" << Count << ",\"type\":\"VEC3\""
+                      << ",\"min\":[" << Number(Minimum[0]) << "," << Number(Minimum[1]) << "," << Number(Minimum[2]) << "]"
+                      << ",\"max\":[" << Number(Maximum[0]) << "," << Number(Maximum[1]) << "," << Number(Maximum[2]) << "]}";
+            SharedAccessors& A = Shared[G];
+            A.Position = AccessorIndex++;
+            Accessors << ",{\"bufferView\":" << NormalView << ",\"componentType\":5126,\"count\":" << Count << ",\"type\":\"VEC3\"}";
+            A.Normal = AccessorIndex++;
+            if (Configuration.WriteTexcoords)
+            {
+                Accessors << ",{\"bufferView\":" << TexcoordView << ",\"componentType\":5126,\"count\":" << Count << ",\"type\":\"VEC2\"}";
+                A.Texcoord = AccessorIndex++;
+            }
+            Accessors << ",{\"bufferView\":" << IndexView << ",\"componentType\":5125,\"count\":" << Geometry.Indices->size() << ",\"type\":\"SCALAR\"}";
+            A.Index = AccessorIndex++;
+            A.Valid = true;
+        }
+
+        for (const InstancedPlacementRecord& Placement : *Configuration.InstancedPlacements)
+        {
+            if (Placement.Geometry >= Shared.size() || !Shared[Placement.Geometry].Valid) continue;
+            const SharedAccessors& A = Shared[Placement.Geometry];
+            const uint32_t Slot = Placement.Material < Materials.size() ? Placement.Material : 0u;
+
+            if (NodeCount) { Nodes << ","; Meshes << ","; SceneNodes << ","; }
+            float Node[16];
+            ConjugateToGltf(Placement.World, Node);
+            Nodes << "{\"mesh\":" << NodeCount << ",\"name\":\"";
+            AppendEscapedName(Nodes, Placement.Name);
+            Nodes << "\",\"matrix\":[";
+            for (int I = 0; I < 16; ++I) Nodes << (I ? "," : "") << Number(Node[I]);
+            Nodes << "]";
+            if (Placement.Dynamic) Nodes << ",\"extras\":{\"frontier_dynamic\":1}";
+            Nodes << "}";
+
+            Meshes << "{\"name\":\"";
+            AppendEscapedName(Meshes, Placement.Name);
+            Meshes << "\",\"primitives\":[{\"attributes\":{\"POSITION\":" << A.Position << ",\"NORMAL\":" << A.Normal;
+            if (Configuration.WriteTexcoords) Meshes << ",\"TEXCOORD_0\":" << A.Texcoord;
+            Meshes << "},\"indices\":" << A.Index << ",\"material\":" << Slot << ",\"mode\":4}]}";
+
+            SceneNodes << NodeCount;
+            ++NodeCount;
+        }
+    }
+
     std::ostringstream MaterialsJson;
     std::vector<std::string> ExtensionsUsed;
     for (uint32_t M = 0u; M < Materials.size(); ++M)
@@ -473,7 +647,10 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
                         const std::vector<MaterialDescriptor>& Materials, std::string* Error,
                         const SceneEncodeConfiguration& Configuration) noexcept
 {
-    if (Configuration.Spans != nullptr && !Configuration.Spans->empty())
+    // Instanced placements are written by the spanned path, which is where the node/mesh machinery lives.
+    const bool HasInstances = Configuration.InstancedGeometry && Configuration.InstancedPlacements
+                           && !Configuration.InstancedGeometry->empty() && !Configuration.InstancedPlacements->empty();
+    if ((Configuration.Spans != nullptr && !Configuration.Spans->empty()) || HasInstances)
         return EncodeSpanned(Path, Triangles, Materials, Error, Configuration, *Configuration.Spans);
 
     std::vector<uint8_t> Buffer;

@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                     RESTIRINTEGRATOR.CPP
 //============================================================================================================================================
-// 🧩 Accumulates ReSTIR DI+GI radiance by numerically integrating light transport paths on the GPU compute pipeline.
+// 📦 Accumulates ReSTIR DI+GI radiance by numerically integrating light transport paths on the GPU compute pipeline.
 
 #include "ReSTIRIntegrator.h"
 #include <algorithm>
@@ -28,7 +28,7 @@ ReSTIRIntegrator::ReSTIRIntegrator(ReSTIRIntegratorConfiguration InitialConfigur
 //                                                OBSERVE CAMERA
 //============================================================================================================================================
 
-void ReSTIRIntegrator::ObserveCamera(const ProjectZero::FlyThroughSolver& Camera,
+void ReSTIRIntegrator::ObserveCamera(const HostRuntime::FlyThroughSolver& Camera,
                                      uint32_t ViewportWidth, uint32_t ViewportHeight) noexcept
 {
     const Vector3& Origin  = Camera.QuerySpatialLocation();
@@ -59,7 +59,7 @@ void ReSTIRIntegrator::ObserveCamera(const ProjectZero::FlyThroughSolver& Camera
 //============================================================================================================================================
 
 DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
-    const ProjectZero::FlyThroughSolver& Camera,
+    const HostRuntime::FlyThroughSolver& Camera,
     uint32_t                             ViewportWidth,
     uint32_t                             ViewportHeight,
     uint32_t                             AlphaMaskedMaterialCount,
@@ -108,19 +108,29 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
     //    uploaded a two-level structure — the kernel then reserves the object-space arm for the same feature flags.
     Dispatch.TlasInstanceCount     = ResidentInstanceCount;
     Dispatch.FeatureFlags          = (ActiveConfiguration.GlobalIllumination ? DispatchFeatureGlobalIllumination : 0u)
-                                   | (ActiveConfiguration.AntiAliasing       ? DispatchFeatureAntiAliasing       : 0u)
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.AntiAliasing       ? DispatchFeatureAntiAliasing       : 0u)
                                    | (ActiveConfiguration.AmbientFloor       ? DispatchFeatureAmbientFloor       : 0u)
-                                   | (ActiveConfiguration.TemporalReuse      ? DispatchFeatureTemporalReuse      : 0u)
-                                   | (ActiveConfiguration.SpatialReuse       ? DispatchFeatureSpatialReuse       : 0u)
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.TemporalReuse      ? DispatchFeatureTemporalReuse      : 0u)
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.SpatialReuse       ? DispatchFeatureSpatialReuse       : 0u)
                                    // ON by default (the configuration's initialiser), so the shipped pipeline reuses the
                                    //    indirect half unless something turns it off — the mirror's measured arm.
-                                   | (ActiveConfiguration.GlobalIlluminationReuse ? DispatchFeatureGiReuse        : 0u)
-                                   | (ActiveConfiguration.AliasPick          ? DispatchFeatureAliasPick          : 0u)
-                                   | (ActiveConfiguration.TemporalReprojection ? DispatchFeatureTemporalReprojection : 0u)
-                                   | (ActiveConfiguration.Denoise            ? DispatchFeatureDenoise            : 0u)
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.GlobalIllumination && ActiveConfiguration.GlobalIlluminationReuse ? DispatchFeatureGiReuse        : 0u)
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.AliasPick          ? DispatchFeatureAliasPick          : 0u)
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.TemporalReprojection ? DispatchFeatureTemporalReprojection : 0u)
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.Denoise            ? DispatchFeatureDenoise            : 0u)
                                    // #27B ON by default (the configuration's initialiser): the sky rides the reservoir
                                    //    unless something turns it off — off is the bit-for-bit pre-sky estimator.
-                                   | (ActiveConfiguration.SkyReservoir       ? DispatchFeatureSkyReservoir       : 0u);
+                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.SkyReservoir       ? DispatchFeatureSkyReservoir       : 0u)
+                                   // Thread E. Raytracing ON ⇔ RenderPath 0 (the raytraced ReSTIR kernel is the active
+                                   //    path); the surfel-GI and plain-raster paths clear bit 11 so the kernel early-outs
+                                   //    when the host dispatches one of them instead. The Reflections tile is a 2-bit field
+                                   //    (0 Off / 1 Sky / 2 Raytraced) packed at bits 15-16 — masked to 3 so a stray high bit
+                                   //    can never bleed into another flag. No screen-space reflections exist to select.
+                                   | (ActiveConfiguration.RenderPath == 0u   ? DispatchFeatureRaytracing         : 0u)
+                                   | ((ActiveConfiguration.ReflectionMode & 3u) << DispatchFeatureReflectionShift)
+                                   // The denoiser detail-guide id, packed into bits [12..14] (see DispatchGuideShift).
+                                   //    Standard (0) leaves these bits clear = the pre-guide à-trous, bit-for-bit.
+                                   | ((static_cast<uint32_t>(ActiveConfiguration.DenoiseGuide) << DispatchGuideShift) & DispatchGuideMask);
 
     // The power-proportional sun coin (0 = the kernel's legacy fixed 0.5); see AssignSunPickProbability.
     Dispatch.SunPickProbability    = SunPickProbability;
@@ -136,7 +146,7 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
 //                                               SCENE RECORD BUILDERS
 //============================================================================================================================================
 
-uint32_t ReSTIRIntegrator::CountLuminaireTriangles(const ProjectZero::RayTracingSolver& Scene) noexcept
+uint32_t ReSTIRIntegrator::CountLuminaireTriangles(const HostRuntime::RayTracingSolver& Scene) noexcept
 {
     const auto& Triangles = Scene.QueryTriangles();
     const auto& Materials = Scene.QueryMaterials();
@@ -157,7 +167,7 @@ uint32_t ReSTIRIntegrator::CountLuminaireTriangles(const ProjectZero::RayTracing
 }
 
 std::vector<TriangleIndex> ReSTIRIntegrator::BuildTriangleIndex(
-    const ProjectZero::RayTracingSolver& Scene) noexcept
+    const HostRuntime::RayTracingSolver& Scene) noexcept
 {
     const auto& Triangles = Scene.QueryTriangles();
 
@@ -177,14 +187,14 @@ std::vector<TriangleIndex> ReSTIRIntegrator::BuildTriangleIndex(
         Record.VertexGammaX  = Triangle.VertexGamma.x;
         Record.VertexGammaY  = Triangle.VertexGamma.y;
         Record.VertexGammaZ  = Triangle.VertexGamma.z;
-        // R4a: no per-face normal or UVs in the analytical Cornell soup (flat-shaded, untextured)
+        // R4a: no per-face normal or UVs in the analytical triangle soup (flat-shaded, untextured)
         Records.push_back(Record);
     }
     return Records;
 }
 
 std::vector<MaterialDescriptor> ReSTIRIntegrator::BuildMaterialDescriptors(
-    const ProjectZero::RayTracingSolver& Scene) noexcept
+    const HostRuntime::RayTracingSolver& Scene) noexcept
 {
     const auto& Materials = Scene.QueryMaterials();
 
@@ -202,7 +212,7 @@ std::vector<MaterialDescriptor> ReSTIRIntegrator::BuildMaterialDescriptors(
         S.BaseColor[0] = Material.AlbedoColor.x; S.BaseColor[1] = Material.AlbedoColor.y; S.BaseColor[2] = Material.AlbedoColor.z;
         S.SpecularRoughness = Material.RoughnessValue;
         S.BaseMetalness     = Material.MetallicValue;
-        S.SpecularWeight    = 0.0f;   // R4b pin (approved): the analytical Cornell box is Lambertian — no dielectric lobe, so R3/R4a images stay the reference
+        S.SpecularWeight    = 0.0f;   // R4b pin (approved): the analytical room is Lambertian — no dielectric lobe, so R3/R4a images stay the reference
         const float E[3] = { Material.EmissiveRadiance.x, Material.EmissiveRadiance.y, Material.EmissiveRadiance.z };
         const float Peak = std::max({ E[0], E[1], E[2], 0.0f });
         if (Peak > 0.0f) { S.EmissionLuminance = Peak; S.EmissionColor[0] = E[0] / Peak; S.EmissionColor[1] = E[1] / Peak; S.EmissionColor[2] = E[2] / Peak; }

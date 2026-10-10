@@ -37,6 +37,7 @@ if __name__=='__main__':
  dependencies=prepare()
  for name in ['ConstructWorld.h','ConstructWorld.cpp']:
   p=STAGE/'Engine/Editor'/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/'Engine/Editor'/name,p)
+ shutil.copyfile(ROOT/'Engine/GeometricRaster/SceneStructure.h',STAGE/'Engine/GeometricRaster/SceneStructure.h')
  stub=STAGE/'stub/vulkan/vulkan.h';stub.parent.mkdir(parents=True,exist_ok=True)
  stub.write_text('#pragma once\n#include <cstdint>\n'+''.join(f'typedef struct {h}_T* {h};\n' for h in 'VkPhysicalDevice VkDevice VkQueue VkCommandPool VkCommandBuffer VkImage VkBuffer VkInstance'.split()))
  output=ROOT/'.cache/construct'/('WorldHost-ASAN' if args.sanitize else 'WorldHost')
@@ -46,5 +47,5 @@ if __name__=='__main__':
  result=subprocess.run([str(output),'--test'],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
  print(result.stdout);assert result.returncode==0
  report=ROOT/'Exhibits/Gallery/Construct'/('Native-sanitized.json' if args.sanitize else 'Native-proof.json');report.parent.mkdir(parents=True,exist_ok=True)
- files=[STAGE/p for p in dependencies]+[ROOT/'Engine/Editor'/n for n in ['ConstructWorld.h','ConstructWorld.cpp']]+[Path(__file__),Path(__file__).with_name('WorldHost.cpp')]
+ files=[STAGE/p for p in dependencies if p!='Engine/GeometricRaster/SceneStructure.h']+[ROOT/'Engine/GeometricRaster/SceneStructure.h']+[ROOT/'Engine/Editor'/n for n in ['ConstructWorld.h','ConstructWorld.cpp']]+[Path(__file__),Path(__file__).with_name('WorldHost.cpp')]
  report.write_text(json.dumps({'pin':PIN,'command':cmd,'exit':result.returncode,'output':result.stdout,'cpuOnly':True,'sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}},indent=2)+'\n')

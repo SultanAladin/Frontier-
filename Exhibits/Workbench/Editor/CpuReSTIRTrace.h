@@ -9,8 +9,8 @@
 //    Kept in Scratchpad: this is proof tooling, never part of the engine or the shipping game.
 #pragma once
 
-#include "../../Projects/Project-Zero/Source/RayTracingSolver.h"
-#include "../../Projects/Project-Zero/Source/FlyThroughSolver.h"
+#include "../../../Engine/Host/RayTracingSolver.h"
+#include "../../../Engine/Host/FlyThroughSolver.h"
 #include <cmath>
 #include <cstdint>
 #include <thread>
@@ -32,10 +32,10 @@ struct Rng
 };
 
 using Frontier::Vector3;
-using Frontier::ProjectZero::RayTracingSolver;
-using Frontier::ProjectZero::RayStructure;
-using Frontier::ProjectZero::HitIntersection;
-using Frontier::ProjectZero::TriangleGeometry;
+using Frontier::HostRuntime::RayTracingSolver;
+using Frontier::HostRuntime::RayStructure;
+using Frontier::HostRuntime::HitIntersection;
+using Frontier::HostRuntime::TriangleGeometry;
 
 inline Vector3 Add(Vector3 A, Vector3 B) noexcept { return { A.x + B.x, A.y + B.y, A.z + B.z }; }
 inline Vector3 Sub(Vector3 A, Vector3 B) noexcept { return { A.x - B.x, A.y - B.y, A.z - B.z }; }
@@ -184,7 +184,7 @@ inline float Aces(float X) noexcept
 }
 
 // Traces Frames progressive frames into Rgba (Width×Height×4), tone-mapped with the integrator's exposure.
-inline void Render(const RayTracingSolver& Scene, const Frontier::ProjectZero::FlyThroughSolver& Camera,
+inline void Render(const RayTracingSolver& Scene, const Frontier::HostRuntime::FlyThroughSolver& Camera,
                    uint32_t Width, uint32_t Height, uint32_t Frames, uint32_t Candidates, float Exposure,
                    unsigned char* Rgba) noexcept
 {

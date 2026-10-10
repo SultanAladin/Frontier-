@@ -11,8 +11,8 @@
 
 #include "ReSTIRIntegrator.h"
 #include "../Editor/EditorHost.h"
-#include "../../Projects/Project-Zero/Source/FlyThroughSolver.h"
-#include "../../Projects/Project-Zero/Source/RayTracingSolver.h"
+#include "../Host/FlyThroughSolver.h"
+#include "../Host/RayTracingSolver.h"
 #include <cstdint>
 #include <functional>
 
@@ -41,8 +41,8 @@ public:
     using OverlayHook = std::function<void()>;
 
     void Present(ReSTIRIntegrator&                       Integrator,
-                 const ProjectZero::FlyThroughSolver&    Camera,
-                 const ProjectZero::RayTracingSolver&    Scene,
+                 const HostRuntime::FlyThroughSolver&    Camera,
+                 const HostRuntime::RayTracingSolver&    Scene,
                  uint32_t                                ViewportWidth,
                  uint32_t                                ViewportHeight,
                  EditorInstance*                           Instances,
@@ -86,6 +86,20 @@ public:
         (void)Fn;(void)Context;
 #endif
     }
+    void AssignConstructionWorld(SceneStructure* World) noexcept {
+#ifdef FRONTIER_DEVELOPMENT
+        Editor_.AssignConstructionWorld(World);
+#else
+        (void)World;
+#endif
+    }
+    bool TakeConstructionChanged() noexcept {
+#ifdef FRONTIER_DEVELOPMENT
+        return Editor_.TakeConstructionChanged();
+#else
+        return false;
+#endif
+    }
     void AssignBillboardExchange(BillboardExchange Fn,void* Context) noexcept {
 #ifdef FRONTIER_DEVELOPMENT
         Editor_.AssignBillboardExchange(Fn,Context);
@@ -105,6 +119,30 @@ public:
         Editor_.AssignInspectorWorkspace(On);
 #else
         (void)On;
+#endif
+    }
+    uint32_t QueryTransport() const noexcept
+    {
+#ifdef FRONTIER_DEVELOPMENT
+        return Editor_.QueryTransport();
+#else
+        return 1u;
+#endif
+    }
+    bool QueryPaused() const noexcept
+    {
+#ifdef FRONTIER_DEVELOPMENT
+        return Editor_.QueryPaused();
+#else
+        return false;
+#endif
+    }
+    bool TakeSimulationStep() noexcept
+    {
+#ifdef FRONTIER_DEVELOPMENT
+        return Editor_.TakeSimulationStep();
+#else
+        return false;
 #endif
     }
     void AssignEditorReadout(const EditorReadout* Readout) noexcept;
@@ -129,9 +167,9 @@ private:
     EditorHost Editor_;
 #endif
 
-    void SectionCamera  (const ProjectZero::FlyThroughSolver& Camera) noexcept;
+    void SectionCamera  (const HostRuntime::FlyThroughSolver& Camera) noexcept;
     void SectionReSTIR  (ReSTIRIntegrator& Integrator, uint32_t ViewportWidth, uint32_t ViewportHeight) noexcept;
-    void SectionScene   (const ProjectZero::RayTracingSolver& Scene) noexcept;
+    void SectionScene   (const HostRuntime::RayTracingSolver& Scene) noexcept;
 };
 
 template<>
