@@ -155,8 +155,8 @@ struct SoftTyreParameters
     // drifted up to 14.6 mm from the hub at speed, and the nodes' radii about the hub then scattered by ~13 mm
     // RMS even though the band itself was still round about its own centroid. A real tyre is soft radially and
     // an order of magnitude stiffer in shear -- that is what a belted carcass IS -- so these are much lower.
-    float    SpokeTangentialCompliance = 2.0e-5f;  // belt wind-up about the axle
-    float    SpokeLateralCompliance    = 2.0e-5f;  // sidewall lateral (steer/camber path)
+    float    SpokeTangentialCompliance = 5.0e-7f;  // belt wind-up about the axle (within 2× of hoop — 50× was potato shear)
+    float    SpokeLateralCompliance    = 5.0e-7f;  // sidewall lateral (steer/camber path)
     float    SpokeShearDampingRatio    = 0.90f;
     float    HoopCompliance    = 4.0e-7f;  // tread-band circumferential
     float    LateralCompliance = 3.0e-7f;  // carcass lateral

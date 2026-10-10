@@ -3680,6 +3680,18 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
             LiveDispatch.MaxReflectionBounces = LiveDispatch.MaxGiBounces = 0u;
         }
         const bool Hardware = TraceRequested && QueryRayTracingTier() == RayTracingTierCategory::RayQuery;
+        // Diagnostic: log once per tier switch so GTX→Software and RTX→RayQuery are visibly distinct (previous bug both fell to CWBVH).
+        {
+            static RayTracingTierCategory lastLogged = RayTracingTierCategory::Count;
+            RayTracingTierCategory cur = Hardware ? RayTracingTierCategory::RayQuery : (TraceRequested ? RayTracingTierCategory::Software : RayTracingTierCategory::Software);
+            if (cur != lastLogged || TraceRequested) {
+                // throttled: log on first dispatch and on tier switch; TraceRequested ensures RenderPath 0 dispatch is logged
+                if (TraceRequested) std::cerr << "[Dispatch] RenderPath 0 ReSTIR phase: " << (Hardware ? "RayQuery (RTX hardware TLAS inline)" : "Software CWBVH (GTX fallback 3527 nodes)") << " — " << RayTracingCapabilitySet::TierName(QueryRayTracingTier()) << "\n";
+                else if (NonRaytracedGIRecorded) std::cerr << "[Dispatch] RenderPath 1 SDF GI: clipmap GlobalDF (BrickPool+InstanceBuffer) — no BVH traversal\n";
+                else std::cerr << "[Dispatch] RenderPath 2 PlainRaster: ClusterCull/HiZ/SurfaceResolve only — no BVH/DF/reservoirs\n";
+                lastLogged = cur;
+            }
+        }
         const VkPipelineLayout Layout = Hardware ? Vulkan->RayQueryPipelineLayout : TraceRequested ? Vulkan->ComputePipelineLayout : Vulkan->RasterPipelineLayout;
         vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Hardware ? Vulkan->RayQueryPipeline : TraceRequested ? Vulkan->ComputePipeline : Vulkan->RasterPipeline);
         if (Hardware)
@@ -3696,7 +3708,8 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         vkCmdPushConstants(Command, Layout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration), &LiveDispatch);
         // Snapshot all temporal inputs BEFORE any invocation can overwrite the current
         // images. Frame-zero does not read history; skip its undefined contents.
-        if(LiveDispatch.AccumulationIndex > 0u) {
+        // RenderPath gate: PlainRaster (path2) and SDF GI (path1) use no history/reprojection — only ReSTIR (path0, TraceRequested) needs PreviousHistory.
+        if(TraceRequested && LiveDispatch.AccumulationIndex > 0u) {
             Visibility.RecordHistorySnapshotBoundary(Command,Vulkan->ActiveSlot,false);
             const VkImage Current[3]={Vulkan->HistoryImage,Vulkan->HistorySurfaceImage,Vulkan->MomentImage};
             VkImageMemoryBarrier Before[6]{};
@@ -3734,8 +3747,8 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         if (TraceRequested) Visibility.RecordRestirBegin(Command, Vulkan->ActiveSlot);
         vkCmdDispatch(Command, GroupX, GroupY, 1u);
         if (TraceRequested) Visibility.RecordRestirEnd(Command, Vulkan->ActiveSlot);
-        Vulkan->HistoryContentsValid=true;
-        Vulkan->HistoryWidth=RenderWidth; Vulkan->HistoryHeight=RenderHeight;
+        if (TraceRequested) { Vulkan->HistoryContentsValid=true; Vulkan->HistoryWidth=RenderWidth; Vulkan->HistoryHeight=RenderHeight; }
+        // PlainRaster (RenderPath 2) >55fps path intentionally skips PreviousHistory/MomentHistory copies and no denoise/luminance (see below gate).
 
         // ②a R7 à-trous denoise. The kernel wrote LINEAR radiance + variance into denoise slot 0 and, with the
         //     feature on, skipped the tone map; the final level here performs it into the presentation image.

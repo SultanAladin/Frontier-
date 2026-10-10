@@ -31,6 +31,9 @@ bool DistanceFieldStructure::Construct(const std::vector<VertexRecord>& Position
 
 bool DistanceFieldStructure::RefreshInstances(const InstanceRecord* Rows, uint32_t Count)
 {
+    // Startup-bake: Distance field is baked once per-mesh offline (BakeDistanceField → .dfbrick R16 128³ BC4).
+    // Per-frame we upload ONLY the 22×64B InstanceBuffer (World mat + BrickPool window) and place bricks on GPU
+    // via DistanceFieldConstruct.slang (3 camera-snapped clipmaps). Never rebuild the world-space BVH per frame.
     if (!Rows || Count != Instances.size()) return false;
     bool Changed = false;
     for (uint32_t Index = 0u; Index < Count; ++Index)
@@ -40,8 +43,11 @@ bool DistanceFieldStructure::RefreshInstances(const InstanceRecord* Rows, uint32
             Changed = true;
     }
     if (!Changed) return true;
+    // Lightweight: refresh the instance rows for the GPU brick placement — do NOT ProjectInstances/Linearize.
+    // ProjectInstances() is startup-only (clipmap bricks already baked; GPU clipmap placement handles motion 0.02ms).
     Instances.assign(Rows, Rows + Count);
-    return ProjectInstances();
+    ++Revision; // bump so GPU knows to re-place, but no CPU triangle transform / BVH rebuild
+    return true;
 }
 
 bool DistanceFieldStructure::ProjectInstances()

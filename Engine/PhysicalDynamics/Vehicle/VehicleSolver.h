@@ -127,7 +127,7 @@ struct VehicleSolverConfiguration
     bool     SuspensionEnabled  = true;           // [-]   false welds the hubs to the chassis (the old behaviour)
     float    CorneringStiffness = 30000.0f;      // [N per (m/s) of lateral slip, scaled by load fraction]
     float    GripCoefficient    = 1.15f;         // [-]   friction-circle μ for the driving layer (grip = μ·Fz)
-    uint32_t TyreSubsteps       = 8u;            // [-]   XPBD substeps per fixed step
+    uint32_t TyreSubsteps       = 12u;           // [-]   XPBD substeps per fixed step (8→12 for 96-node 7.5kg carcass, potato fix)
     Vec3     Gravity            = {0.0f, 0.0f, -9.81f};
 
     //-- Production driving layer (DrivingScheme::PacejkaDrivetrain) --------------------------------------------------------

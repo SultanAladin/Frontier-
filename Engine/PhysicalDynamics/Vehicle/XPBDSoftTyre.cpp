@@ -160,8 +160,12 @@ void XPBDSoftTyre::BuildGasSurface() noexcept
 float XPBDSoftTyre::MeasureInflation(const Vec3& hubPos, const Quat& frame) noexcept
 {
     const uint32_t N = static_cast<uint32_t>(NodeRecords.size());
+    // Beads are hub-anchored. Using material frame here would spin the rim barrel with the tread.
+    // Keep beads in hub frame; tread nodes already carry the material spin via their positions.
+    // For volume we have no hubRot separate from frame, so derive it: hubRot = frame * Y(-SpinAngle)
+    const Quat hubFromFrame = (frame * Quat::AxisAngle(Vec3{0.0f, 1.0f, 0.0f}, -SpinAngle)).Normalized();
     for (size_t v = 0u; v < BeadLocalVertices.size(); ++v)
-        BeadWorldVertices[v] = frame.Rotate(BeadLocalVertices[v]);
+        BeadWorldVertices[v] = hubFromFrame.Rotate(BeadLocalVertices[v]);
 
     for (Vec3& g : InflationGradient) g = Vec3{};
 
@@ -284,8 +288,10 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             for (SoftTyreNode& node : NodeRecords)
             {
                 if (node.InverseMass <= 0.0f) continue;
-                const Vec3 anchor     = hubPos     + frame.Rotate(node.BeadLocal);
-                const Vec3 anchorPrev = hubPosPrev + framePrev.Rotate(node.BeadLocal);
+                // Bead is rim-anchored — hub frame only, NOT material frame. Spinning the bead with the tread
+                // winds the spoke and shears the carcass (the potato). Tread rest IS material-frame.
+                const Vec3 anchor     = hubPos     + hubRot.Rotate(node.BeadLocal);
+                const Vec3 anchorPrev = hubPosPrev + hubRot.Rotate(node.BeadLocal);
                 Vec3 d = node.Position - anchor;
                 const float dist = d.Length();
                 if (dist < 1e-6f) continue;

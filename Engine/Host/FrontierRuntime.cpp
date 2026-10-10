@@ -1859,7 +1859,8 @@ int Frontier::RunFrontierRuntime(
                 Surface.UploadScene(Level, Traversal);
             }
             else (void)Surface.RefreshInstances(AnimatedInstances.data(), static_cast<uint32_t>(AnimatedInstances.size()));
-            if (InstancesResident)
+            // Instance top-level (CWBVH TLAS) only for ReSTIR path0; SDF GI (1) and PlainRaster (2) are cluster-only (ClusterCull/HiZ/SurfaceResolve), no BVH — gated to keep per-frame at World/PrevWorld 22×64B (0.02ms).
+            if (InstancesResident && Integrator.QueryConfiguration().RenderPath == 0u)
             {
                 bool Valid = true;
                 for (size_t Slot = 0u; Slot < InstanceRows.size() && Valid; ++Slot)
@@ -1869,7 +1870,19 @@ int Frontier::RunFrontierRuntime(
             }
             Integrator.ResetAccumulation("project motion");
         }
-        if (Transport == 1u && !ActiveReception.CameraRequests.empty())
+        // F8 eject: Unreal-style detach — toggle on rising edge, suppresses vehicle CameraRequests while ejected.
+        static bool F8Ejected = false;
+        static bool F8Held = false;
+        {
+            bool f8 = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyF8);
+            if (f8 && !F8Held) {
+                F8Ejected = !F8Ejected;
+                std::cerr << "[Input] F8 eject: " << (F8Ejected ? "DETACHED — free fly (vehicle chase suppressed)" : "RE-ATTACHED — vehicle camera") << "\n";
+                Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Input", F8Ejected ? "F8 eject: vehicle camera DETACHED (free fly)" : "F8 eject: vehicle camera RE-ATTACHED");
+            }
+            F8Held = f8;
+        }
+        if (Transport == 1u && !ActiveReception.CameraRequests.empty() && !F8Ejected)
         {
             const auto& Requested = ActiveReception.CameraRequests.back();
             Camera.AssignSpatialLocation({ Requested.Eye[0], Requested.Eye[1], Requested.Eye[2] });
@@ -1877,7 +1890,7 @@ int Frontier::RunFrontierRuntime(
                                           std::atan2(Requested.Forward[0], Requested.Forward[1]), 0.0f);
             Camera.AssignFieldOfView(Requested.VerticalFieldOfView * 57.2957795f);
         }
-        const bool ProjectCamera = Transport == 1u && !ActiveReception.CameraRequests.empty();
+        const bool ProjectCamera = Transport == 1u && !ActiveReception.CameraRequests.empty() && !F8Ejected;
         ActiveReception.SceneMutations.clear();
         ActiveReception.CameraRequests.clear();
         ActiveReception.Diagnostics.clear();
