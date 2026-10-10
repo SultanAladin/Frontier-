@@ -140,6 +140,31 @@ def write_charts(stats: dict) -> None:
     plt.close(fig)
 
 
+MATCAP_NAMES = ["steel", "chrome", "gold", "copper", "plastic-white", "plastic-red", "plastic-blue", "clay", "pearl", "carbon",
+                "rubber", "glass", "headlight", "taillight"]          # must match SoftwareRaster.cpp MatcapName()
+    fig, axes = plt.subplots(2, 7, figsize=(17, 6.5), dpi=110)
+    for ax, img, name in zip(axes.flat, presets, MATCAP_NAMES):
+        ax.imshow(img)
+        ax.set_title(name, fontsize=9)
+        ax.axis("off")
+    fig.suptitle("Baked matcap presets · CPU exact mirror (SoftwareRaster) · same texels uploaded to the Vulkan path", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(HERE / "matcap_presets.png")
+    plt.close(fig)
+
+    sheet = np.fromfile(raw_dir / "matcap_sheet.f32", dtype="<f4").reshape(len(MATCAP_NAMES), 128, 128, 3)
+    sheet = np.clip(sheet, 0.0, 1.0)
+    fig, axes = plt.subplots(2, 7, figsize=(17, 6.5), dpi=110)
+    for ax, layer, name in zip(axes.flat, sheet, MATCAP_NAMES):
+        ax.imshow(layer)
+        ax.set_title(f"{name} · layer", fontsize=9)
+        ax.axis("off")
+    fig.suptitle("Baked sheet: 14 layers of 128 x 128 RGB (clamped to 0..1 for display)", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(HERE / "matcap_sheet.png")
+    plt.close(fig)
+
+
 def write_summary(stats: dict) -> None:
     keys = ["frames", "mean_ms", "median_ms", "p95_ms", "stdev_ms", "cpu_fps_mean", "triangles", "segments",
             "points", "fragments_mean", "depth_rejected_mean", "back_facing_mean"]
@@ -172,6 +197,8 @@ on a device**. Its parity with this mirror is therefore unmeasured.
 | File | Content |
 |---|---|
 | `three_pipelines.png` | One still per pipeline (frame 18) |
+| `matcap_presets.png` | Fourteen baked studio presets on a sphere (metal, plastic, rubber, clay, pearl, carbon) |
+| `matcap_sheet.png` | The baked 128×128 layers themselves |
 | `surface_orbit.gif`, `line_orbit.gif`, `point_orbit.gif` | 72-frame orbits, 80 ms per frame |
 | `surface_still.png`, `line_still.png`, `point_still.png` | Frame 0 of each orbit, full size |
 | `chart_frame_time.png` | Distribution of CPU frame time per pipeline |
@@ -222,6 +249,7 @@ def main() -> None:
         print(f"{label:8s} mean {s['mean_ms']:.2f} ms · {s['cpu_fps_mean']:.1f} CPU-mirror FPS · frames {s['frames']}")
     write_gifs(raw_dir)
     write_three_panel(raw_dir)
+    write_matcap(raw_dir)
     write_charts(stats)
     write_summary(stats)
     write_readme(stats, (raw_dir / "checks.txt").read_text(encoding="utf-8"))

@@ -150,7 +150,8 @@ struct VulkanRaster::Detail
     VkPipeline Pipes[KindCount][2][2] = {};          // [kind][overlay][pick]
 
     Buf ViewUbo, DrawUbo, Arena, ColourRead, PickRead, DepthRead;
-    Img Colour, Pick, Depth;
+    Img Colour, Pick, Depth, MatcapImg;
+    VkSampler MatcapSampler = VK_NULL_HANDLE;
     VkFramebuffer Fb = VK_NULL_HANDLE;
     VkDeviceSize ViewStride = 0, DrawStride = 0;
     VkDeviceSize ArenaCursor = ArenaBase;
@@ -317,27 +318,30 @@ struct VulkanRaster::Detail
         SA_VK(vkCreateQueryPool(Dev, &QP, nullptr, &Timing), "vkCreateQueryPool");
 
         // One set layout for every pipeline: view UBO at binding 0, draw UBO at binding 1, both dynamic.
-        VkDescriptorSetLayoutBinding Bindings[2] = {};
-        for (uint32_t I = 0; I < 2; ++I)
+        VkDescriptorSetLayoutBinding Bindings[4] = {};
+        const VkDescriptorType Types[4] = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                                            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_DESCRIPTOR_TYPE_SAMPLER };
+        for (uint32_t I = 0; I < 4; ++I)
         {
             Bindings[I].binding = I;
-            Bindings[I].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            Bindings[I].descriptorType = Types[I];
             Bindings[I].descriptorCount = 1;
             Bindings[I].stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
         }
         VkDescriptorSetLayoutCreateInfo SLI{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        SLI.bindingCount = 2;
+        SLI.bindingCount = 4;
         SLI.pBindings = Bindings;
         SA_VK(vkCreateDescriptorSetLayout(Dev, &SLI, nullptr, &SetLayout), "vkCreateDescriptorSetLayout");
         VkPipelineLayoutCreateInfo PLI{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
         PLI.setLayoutCount = 1;
         PLI.pSetLayouts = &SetLayout;
         SA_VK(vkCreatePipelineLayout(Dev, &PLI, nullptr, &PipeLayout), "vkCreatePipelineLayout");
-        VkDescriptorPoolSize PoolSize{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 2 };
+        VkDescriptorPoolSize PoolSizes[3] = {
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 2 }, { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1 }, { VK_DESCRIPTOR_TYPE_SAMPLER, 1 } };
         VkDescriptorPoolCreateInfo DPI{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
         DPI.maxSets = 1;
-        DPI.poolSizeCount = 1;
-        DPI.pPoolSizes = &PoolSize;
+        DPI.poolSizeCount = 3;
+        DPI.pPoolSizes = PoolSizes;
         SA_VK(vkCreateDescriptorPool(Dev, &DPI, nullptr, &DescPool), "vkCreateDescriptorPool");
         VkDescriptorSetAllocateInfo DSI{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
         DSI.descriptorPool = DescPool;
@@ -355,15 +359,123 @@ struct VulkanRaster::Detail
         const uint32_t Quad[6] = { 0, 1, 3, 0, 3, 2 };
         std::memcpy(Arena.Map, Quad, sizeof Quad);
 
+        if (!BuildMatcap()) return false;
         VkDescriptorBufferInfo ViewInfo{ ViewUbo.B, 0, sizeof(GpuViewRecord) };
         VkDescriptorBufferInfo DrawInfo{ DrawUbo.B, 0, sizeof(GpuDrawRecord) };
-        VkWriteDescriptorSet Writes[2] = {};
-        Writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        Writes[0].dstSet = Set; Writes[0].dstBinding = 0; Writes[0].descriptorCount = 1;
-        Writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; Writes[0].pBufferInfo = &ViewInfo;
-        Writes[1] = Writes[0];
-        Writes[1].dstBinding = 1; Writes[1].pBufferInfo = &DrawInfo;
-        vkUpdateDescriptorSets(Dev, 2, Writes, 0, nullptr);
+        VkDescriptorImageInfo MatcapInfo{ VK_NULL_HANDLE, MatcapImg.V, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        VkDescriptorImageInfo SamplerInfo{ MatcapSampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED };
+        VkWriteDescriptorSet Writes[4] = {};
+        for (int I = 0; I < 4; ++I)
+        {
+            Writes[I].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            Writes[I].dstSet = Set;
+            Writes[I].dstBinding = uint32_t(I);
+            Writes[I].descriptorCount = 1;
+            Writes[I].descriptorType = Types[I];
+        }
+        Writes[0].pBufferInfo = &ViewInfo;
+        Writes[1].pBufferInfo = &DrawInfo;
+        Writes[2].pImageInfo = &MatcapInfo;
+        Writes[3].pImageInfo = &SamplerInfo;
+        vkUpdateDescriptorSets(Dev, 4, Writes, 0, nullptr);
+        return true;
+    }
+
+    // Uploads the baked studio sheet (SoftwareRaster's texels, one per studio layer) as a 2D array and creates the sampler.
+    bool BuildMatcap()
+    {
+        const std::vector<float>& Texels = BakedMatcapTexels();
+        const uint32_t Layers = static_cast<uint32_t>(MatcapCount());
+        const uint32_t Size = MatcapTexelSize;
+        const size_t PerLayerRgb = size_t(Size) * Size * 3;
+        if (Texels.size() != PerLayerRgb * Layers) { Reason = "baked matcap sheet has an unexpected size"; Log("%s", Reason.c_str()); return false; }
+
+        // RGB → RGBA (alpha 1). RGBA32F avoids relying on optional RGB sampled-image formats.
+        std::vector<float> Rgba(size_t(Size) * Size * 4 * Layers);
+        for (size_t I = 0, N = size_t(Size) * Size * Layers; I < N; ++I)
+        {
+            Rgba[I * 4 + 0] = Texels[I * 3 + 0];
+            Rgba[I * 4 + 1] = Texels[I * 3 + 1];
+            Rgba[I * 4 + 2] = Texels[I * 3 + 2];
+            Rgba[I * 4 + 3] = 1.0f;
+        }
+
+        VkImageCreateInfo CI{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+        CI.imageType = VK_IMAGE_TYPE_2D;
+        CI.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        CI.extent = { Size, Size, 1 };
+        CI.mipLevels = 1;
+        CI.arrayLayers = Layers;
+        CI.samples = VK_SAMPLE_COUNT_1_BIT;
+        CI.tiling = VK_IMAGE_TILING_OPTIMAL;
+        CI.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        CI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        CI.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        SA_VK(vkCreateImage(Dev, &CI, nullptr, &MatcapImg.I), "matcap image");
+        VkMemoryRequirements Req{};
+        vkGetImageMemoryRequirements(Dev, MatcapImg.I, &Req);
+        const uint32_t Type = FindMemoryType(Memory, Req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        if (Type == UINT32_MAX) { Reason = "matcap image: no device-local memory"; Log("%s", Reason.c_str()); return false; }
+        VkMemoryAllocateInfo AI{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        AI.allocationSize = Req.size;
+        AI.memoryTypeIndex = Type;
+        SA_VK(vkAllocateMemory(Dev, &AI, nullptr, &MatcapImg.M), "matcap memory");
+        SA_VK(vkBindImageMemory(Dev, MatcapImg.I, MatcapImg.M, 0), "matcap bind");
+        VkImageViewCreateInfo VI{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+        VI.image = MatcapImg.I;
+        VI.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        VI.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        VI.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, Layers };
+        SA_VK(vkCreateImageView(Dev, &VI, nullptr, &MatcapImg.V), "matcap view");
+
+        VkSamplerCreateInfo SI{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+        SI.magFilter = VK_FILTER_LINEAR;
+        SI.minFilter = VK_FILTER_LINEAR;
+        SI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        SI.addressModeU = SI.addressModeV = SI.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        SI.maxLod = 0.0f;
+        SA_VK(vkCreateSampler(Dev, &SI, nullptr, &MatcapSampler), "matcap sampler");
+
+        // Staging copy, one region per layer, then one submission with a fence wait.
+        Buf Staging;
+        if (!MakeBuffer(Rgba.size() * sizeof(float), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, Staging, "matcap staging")) return false;
+        std::memcpy(Staging.Map, Rgba.data(), Rgba.size() * sizeof(float));
+        VkCommandBufferBeginInfo BI{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        BI.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        SA_VK(vkBeginCommandBuffer(Cmd, &BI), "matcap begin");
+        VkImageMemoryBarrier ToCopy{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        ToCopy.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        ToCopy.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        ToCopy.srcQueueFamilyIndex = ToCopy.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ToCopy.image = MatcapImg.I;
+        ToCopy.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, Layers };
+        ToCopy.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(Cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ToCopy);
+        std::vector<VkBufferImageCopy> Regions(Layers);
+        for (uint32_t L = 0; L < Layers; ++L)
+        {
+            Regions[L] = {};
+            Regions[L].bufferOffset = VkDeviceSize(L) * Size * Size * 16;
+            Regions[L].imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, L, 1 };
+            Regions[L].imageExtent = { Size, Size, 1 };
+        }
+        vkCmdCopyBufferToImage(Cmd, Staging.B, MatcapImg.I, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, Layers, Regions.data());
+        VkImageMemoryBarrier ToRead = ToCopy;
+        ToRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        ToRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        ToRead.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        ToRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ToRead);
+        SA_VK(vkEndCommandBuffer(Cmd), "matcap end");
+        VkSubmitInfo Submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+        Submit.commandBufferCount = 1;
+        Submit.pCommandBuffers = &Cmd;
+        vkResetFences(Dev, 1, &Fence);
+        SA_VK(vkQueueSubmit(Queue, 1, &Submit, Fence), "matcap submit");
+        SA_VK(vkWaitForFences(Dev, 1, &Fence, VK_TRUE, UINT64_MAX), "matcap wait");
+        Destroy(Dev, Staging);
+        Log("matcap sheet uploaded: %u layers · %u² texels · RGBA32F · %.2f MiB", Layers, Size,
+            double(Rgba.size() * sizeof(float)) / (1024.0 * 1024.0));
         return true;
     }
 
@@ -614,6 +726,8 @@ struct VulkanRaster::Detail
         for (VkShaderModule M : Modules) if (M) vkDestroyShaderModule(Dev, M, nullptr);
         for (auto& K : Pipes) for (auto& O : K) for (VkPipeline P : O) if (P) vkDestroyPipeline(Dev, P, nullptr);
         if (Pass) vkDestroyRenderPass(Dev, Pass, nullptr);
+        if (MatcapSampler) vkDestroySampler(Dev, MatcapSampler, nullptr);
+        Destroy(Dev, MatcapImg);
         Destroy(Dev, ViewUbo);
         Destroy(Dev, DrawUbo);
         Destroy(Dev, Arena);

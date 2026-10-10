@@ -5,9 +5,11 @@
 //    file only adds what a Vulkan pipeline needs on top of them: entry points, descriptor bindings, the pick output, and the
 //    matcap glue. The SAME bodies are compiled as C++ by SoftwareRaster (SlangMirror.h), so the CPU mirror and the SPIR-V share text.
 //
-// Bindings (one descriptor set, two dynamic uniform buffers, the same layout for every pipeline):
-//    set 0, binding 0  ViewRecord  (dynamic offset per BindView / draw)
-//    set 0, binding 1  DrawRecord  (dynamic offset per draw)
+// Bindings (one descriptor set, the same layout for every pipeline):
+//    set 0, binding 0  ViewRecord  (dynamic uniform buffer, offset per BindView)
+//    set 0, binding 1  DrawRecord  (dynamic uniform buffer, offset per draw)
+//    set 0, binding 2  baked matcap sheet, Texture2DArray (12 layers, 128x128, RGBA32F)
+//    set 0, binding 3  matcap sampler (linear, clamp-to-edge)
 //
 // Outputs: colour0 = straight-alpha RGBA8 (blended); colour1 = pick identity (R32_UINT, written only by pickable pipelines).
 //    Pick identity travels in DrawRecord.Selection.y as float bits; the line dashing flag travels in DrawRecord.Surface.w.
@@ -23,11 +25,16 @@
 [[vk::binding(0, 0)]] ConstantBuffer<ViewRecord> gView;
 [[vk::binding(1, 0)]] ConstantBuffer<DrawRecord> gDraw;
 
-// Matcap studio lookup. The CPU mirror pre-renders studios into 128x128 layers; the GPU evaluates the same analytic studio per
-//    fragment. This is a documented difference: the pixels are equal only in the analytic limit (see Exhibits README).
+// Matcap lookup: the baked studio sheet (same texels the CPU mirror bakes, SoftwareRaster.cpp), bilinear, clamp-to-edge.
+//    UV convention matches the mirror: texel centres at (i + 0.5) / 128, u from the view normal's x, v from its y (down).
+[[vk::binding(2, 0)]] Texture2DArray<float4> gMatcap;
+[[vk::binding(3, 0)]] SamplerState gMatcapSampler;
+
 float3 MatcapLookup(uint Layer, float3 ViewNormal)
 {
-    return MatcapStudioSample(Layer, ViewNormal);
+    float2 UV = float2(ViewNormal.x * 0.5 + 0.5, 0.5 - ViewNormal.y * 0.5);
+    uint   L  = Layer < 12u ? Layer : 0u;                  // MatcapCount() == 12
+    return gMatcap.SampleLevel(gMatcapSampler, float3(UV, float(L)), 0.0).xyz;
 }
 
 //------------------------------------------------------------------------------------------------------------------------ LATTICE

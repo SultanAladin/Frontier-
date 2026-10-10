@@ -80,6 +80,41 @@ SurfaceStream MakeTorus(int MajorSteps, int MinorSteps)
     return S;
 }
 
+// UV sphere, radius 1, outward normals, triangles CCW from outside (orientation checked per triangle like the torus).
+SurfaceStream MakeSphere(int Slices, int Stacks)
+{
+    SurfaceStream S;
+    for (int I = 0; I <= Slices; ++I)
+        for (int J = 0; J <= Stacks; ++J)
+        {
+            const double U = 2.0 * Pi * I / Slices, V = Pi * J / Stacks;
+            const double X = std::sin(V) * std::cos(U), Y = std::sin(V) * std::sin(U), Z = std::cos(V);
+            S.Positions.insert(S.Positions.end(), { float(X), float(Y), float(Z) });
+            S.Normals.insert(S.Normals.end(), { float(X), float(Y), float(Z) });
+            S.Parameters.insert(S.Parameters.end(), { float(U / (2.0 * Pi)), float(V / Pi) });
+        }
+    const uint32_t Row = Stacks + 1;
+    for (int I = 0; I < Slices; ++I)
+        for (int J = 0; J < Stacks; ++J)
+        {
+            const uint32_t A = uint32_t(I) * Row + J, B = A + Row, C = A + 1, D = B + 1;
+            const uint32_t Tri[2][3] = { { A, B, C }, { C, B, D } };
+            for (const auto& T : Tri)
+            {
+                auto P = [&](uint32_t Index) { return Vec3{ S.Positions[3 * Index], S.Positions[3 * Index + 1], S.Positions[3 * Index + 2] }; };
+                Vec3 E1 = P(T[1]) - P(T[0]), E2 = P(T[2]) - P(T[0]);
+                Vec3 Cross{ E1.Y * E2.Z - E1.Z * E2.Y, E1.Z * E2.X - E1.X * E2.Z, E1.X * E2.Y - E1.Y * E2.X };
+                Vec3 N = P(T[0]);
+                const bool Ccw = Cross.X * N.X + Cross.Y * N.Y + Cross.Z * N.Z > 0.0;
+                if (Cross.X * Cross.X + Cross.Y * Cross.Y + Cross.Z * Cross.Z < 1e-20) continue;     // degenerate pole triangle
+                S.Triangles.push_back(T[0]);
+                S.Triangles.push_back(Ccw ? T[1] : T[2]);
+                S.Triangles.push_back(Ccw ? T[2] : T[1]);
+            }
+        }
+    return S;
+}
+
 Scene MakeSurfaceScene()
 {
     Scene S{ "surface", 4.6, {}, {}, {}, {}, {}, {} };
@@ -254,6 +289,38 @@ int main(int Argc, char** Argv)
         Check(Raster.Depth(PX, PY) == DepthBefore, "a plane behind the torus leaves the torus depth untouched");
         Check(After.Pixels[Offset] == Pixel0[0] && After.Pixels[Offset + 1] == Pixel0[1] && After.Pixels[Offset + 2] == Pixel0[2],
               "a plane behind the torus leaves the torus colour untouched");
+    }
+
+    // Baked matcap presets: one sphere per studio layer, plus the baked sheet itself (the exact texels the Vulkan path uploads).
+    {
+        constexpr uint32_t PW = 200, PH = 200;
+        SoftwareRaster Preview(PW, PH);
+        const SurfaceStream Sphere = MakeSphere(64, 32);
+        const int Layers = MatcapCount();
+        std::FILE* Presets = std::fopen((Out / "matcap_presets.rgba").string().c_str(), "wb");
+        for (int L = 0; L < Layers; ++L)
+        {
+            CameraProjection Camera;
+            Camera.Distance = 3.2;
+            Camera.Pitch = 20.0 * Pi / 180.0;
+            DrawRecord D = ScenePresentation::Tinted(0.85f, 0.85f, 0.85f, 1.0f);
+            D.Shading = uint8_t(SurfaceShading::Matcap);
+            D.Matcap = uint8_t(L);
+            Preview.BeginTarget(Backdrop);
+            Preview.BindView(Camera.ToViewRecord(PW, PH, 1.0));
+            Preview.DrawSurface(Sphere, D);
+            Preview.EndTarget();
+            const RasterImage Image = Preview.Readback();
+            std::fwrite(Image.Pixels.data(), 1, Image.Pixels.size(), Presets);
+        }
+        std::fclose(Presets);
+        const std::vector<float>& Sheet = BakedMatcapTexels();
+        std::FILE* SheetFile = std::fopen((Out / "matcap_sheet.f32").string().c_str(), "wb");
+        std::fwrite(Sheet.data(), sizeof(float), Sheet.size(), SheetFile);
+        std::fclose(SheetFile);
+        std::fprintf(Checks, "info  matcap studios baked: %d x %d x %d RGB floats\n", Layers, MatcapTexelSize, MatcapTexelSize);
+        Check(Sheet.size() == size_t(Layers) * MatcapTexelSize * MatcapTexelSize * 3, "baked matcap sheet has layers x 128 x 128 x 3 texels");
+        Check(Layers == 14, "fourteen studio presets (metal, plastic, clay, pearl, carbon, rubber, glass, headlight, taillight)");
     }
 
     std::fclose(Tsv);

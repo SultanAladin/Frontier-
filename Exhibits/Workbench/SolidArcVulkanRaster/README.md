@@ -13,6 +13,8 @@ on a device**. Its parity with this mirror is therefore unmeasured.
 | File | Content |
 |---|---|
 | `three_pipelines.png` | One still per pipeline (frame 18) |
+| `matcap_presets.png` | Twelve baked studio presets on a sphere (metal, plastic, rubber, clay, pearl, carbon) |
+| `matcap_sheet.png` | The baked 128×128 layers themselves |
 | `surface_orbit.gif`, `line_orbit.gif`, `point_orbit.gif` | 72-frame orbits, 80 ms per frame |
 | `surface_still.png`, `line_still.png`, `point_still.png` | Frame 0 of each orbit, full size |
 | `chart_frame_time.png` | Distribution of CPU frame time per pipeline |
@@ -25,9 +27,9 @@ on a device**. Its parity with this mirror is therefore unmeasured.
 
 | Pipeline | Shader | Mean ms | Median ms | p95 ms | Mean CPU FPS | Triangles | Segments | Points | Fragments / frame (mean) |
 |---|---|---|---|---|---|---|---|---|---|
-| Surface | `SurfaceVS / SurfaceFS` | 7.49 | 7.13 | 9.34 | 133.6 | 9,216 | 0 | 0 | 53,115 |
-| Line | `LineVS / LineFS` | 12.34 | 11.99 | 14.10 | 81.0 | 18,432 | 9,216 | 0 | 110,811 |
-| Point | `PointVS / PointFS` | 5.23 | 5.04 | 6.88 | 191.1 | 2,048 | 0 | 1,024 | 82,944 |
+| Surface | `SurfaceVS / SurfaceFS` | 8.69 | 7.63 | 12.51 | 115.0 | 9,216 | 0 | 0 | 53,115 |
+| Line | `LineVS / LineFS` | 14.79 | 13.86 | 17.95 | 67.6 | 18,432 | 9,216 | 0 | 110,811 |
+| Point | `PointVS / PointFS` | 7.26 | 6.20 | 12.20 | 137.8 | 2,048 | 0 | 1,024 | 82,944 |
 
 Measured on: x86_64, CPython 3.11.2 for the plotting step only; the
 timed code is the C++ harness built with `g++ -O2`.
@@ -42,6 +44,9 @@ PASS  surface pick identity 42 is reported somewhere in the frame
 PASS  pick is 0 where nothing is drawn
 PASS  a plane behind the torus leaves the torus depth untouched
 PASS  a plane behind the torus leaves the torus colour untouched
+info  matcap studios baked: 12 x 128 x 128 RGB floats
+PASS  baked matcap sheet has layers x 128 x 128 x 3 texels
+PASS  twelve studio presets (metal, plastic, rubber, clay, pearl, carbon)
 ```
 
 ## Honest limits

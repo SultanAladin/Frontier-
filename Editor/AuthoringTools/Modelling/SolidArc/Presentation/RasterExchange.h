@@ -53,6 +53,9 @@ struct DrawRecord
 enum class SurfaceShading : uint8_t { Flat = 0, Plastic = 1, Matcap = 2 };
 [[nodiscard]] const char* MatcapName(uint8_t Layer) noexcept;
 [[nodiscard]] int         MatcapCount() noexcept;
+// The baked studio sheet shared by both paths: MatcapCount() layers of 128x128 RGB floats, row-major, top row first.
+[[nodiscard]] const std::vector<float>& BakedMatcapTexels() noexcept;
+constexpr int MatcapTexelSize = 128;
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                  VERTEX STREAMS
