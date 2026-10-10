@@ -645,4 +645,23 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
     ContactReaction.InflationForce = inflation;
 }
 
+void XPBDSoftTyre::SyncVisual(const Vec3& newHubPos, const Quat& newHubRot) noexcept
+{
+    if (NodeRecords.empty()) return;
+    Quat frame = MaterialFrame(newHubRot);
+    // Compute centroid of current carcass to find lag delta, then translate to new hub.
+    Vec3 centroid{0,0,0};
+    for (auto &n : NodeRecords) centroid = centroid + n.Position;
+    centroid = centroid * (1.0f / float(NodeRecords.size()));
+    // Old hub approximated as centroid projected? Better: delta = newHub - (centroid - average offset)
+    // Simpler: shift all nodes by newHub - oldHub where oldHub ≈ current frame's hub inferred from centroid.
+    // Infer oldHub as average of node rest offsets: we know each node's offset from hub in material frame.
+    Vec3 avgRest{0,0,0};
+    for (auto &n : NodeRecords) avgRest = avgRest + frame.Rotate(n.TreadLocal);
+    avgRest = avgRest * (1.0f / float(NodeRecords.size()));
+    Vec3 oldHub = centroid - avgRest;
+    Vec3 delta = newHubPos - oldHub;
+    for (auto &n : NodeRecords) { n.Position = n.Position + delta; n.Previous = n.Previous + delta; }
+}
+
 } // namespace Frontier::Vehicle

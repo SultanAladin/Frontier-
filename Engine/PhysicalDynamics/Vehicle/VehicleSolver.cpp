@@ -189,6 +189,32 @@ void VehicleSolver::Step(float Δτ) noexcept
     else                                                  StepSimple(Δτ);
 }
 
+void VehicleSolver::SyncVisualToChassis() noexcept
+{
+    if (!ConstructionComplete) return;
+    const ChassisState cs = ChassisHooks.ReadChassis();
+    const Vec3 up = cs.Orientation.Rotate({0.0f, 0.0f, 1.0f});
+    for (size_t i = 0; i < SoftTyres.size(); ++i)
+    {
+        const WheelMount& wheel = ActiveConfiguration.Wheels[i];
+        Vec3 mountWorld{}, axisUp{};
+        Vec3 hub = ResolveHub(i, cs, mountWorld, axisUp);
+        Quat steerQ = wheel.Steered ? Quat::AxisAngle(up, SteerAngle) : Quat{0,0,0,1};
+        Quat hubRot = QuatNormalize(QuatMul(steerQ, cs.Orientation));
+        // Add strut compression offset if enabled
+        if (ActiveConfiguration.SuspensionEnabled && i < StrutTravel.size())
+            hub = hub + axisUp * (-StrutTravel[i]);
+        SoftTyres[i].SyncVisual(hub, hubRot);
+        // Also refresh telemetry hub for rendering
+        if (i < CurrentTelemetry.Wheels.size())
+        {
+            CurrentTelemetry.Wheels[i].HubPosition = hub;
+            CurrentTelemetry.Wheels[i].HubRotation = hubRot;
+        }
+    }
+    CurrentTelemetry.Chassis = cs;
+}
+
 //------------------------------------------------------------------------------------------------------------------------
 // SimpleFrictionCircle — the validated Phase-3 arcade layer (kept as a selectable fallback).
 //------------------------------------------------------------------------------------------------------------------------

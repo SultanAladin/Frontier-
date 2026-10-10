@@ -251,6 +251,8 @@ public:
 
     // One fixed physics step: read chassis, step every tyre (nodes vs heightfield), apply wheel forces at the patches.
     void Step(float Δτ) noexcept;
+    // Visual sync after chassis integration — re-centres tyre carcasses to new hub (fixes lag between x2 centre and x3).
+    void SyncVisualToChassis() noexcept;
 
     [[nodiscard]] const VehicleTelemetry& Telemetry() const noexcept { return CurrentTelemetry; }
     [[nodiscard]] const std::vector<XPBDSoftTyre>& Tyres() const noexcept { return SoftTyres; }

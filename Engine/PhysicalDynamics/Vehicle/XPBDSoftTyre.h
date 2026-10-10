@@ -367,6 +367,11 @@ public:
     }
     [[nodiscard]] float RestVolume() const noexcept { return GasRestVolume; }
 
+    // Visual sync — re-centre the carcass to a new hub pose without re-solving (fixes one-tick lag where
+    // Step(dt) was evaluated at old hub, then chassis integrated to new hub, but Nodes stayed at old hub).
+    // Called after solver_.StepOnce() so rendering sees tyres at x2 centre, not between x2 and x3.
+    void SyncVisual(const Vec3& newHubPos, const Quat& newHubRot) noexcept;
+
 private:
     // `lambda` is the edge's XPBD multiplier, reset at the top of every substep (see SoftTyreNode).
     // Family tags the edge so residuals can be reported per constraint type rather than as one blur.

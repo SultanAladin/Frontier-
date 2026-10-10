@@ -153,8 +153,11 @@ private:
     {
         Frontier::Vehicle::DriverInput in;
         if (inputChannel_.Peek(in)) ActiveVehicleSolver.AssignInput(in);
-        ActiveVehicleSolver.Step(dt);
-        solver_.StepOnce();
+        ActiveVehicleSolver.Step(dt);   // tyres at old hub, forces queued at old hub (physics correct)
+        solver_.StepOnce();             // chassis integrates to new hub (x2 -> x3)
+        // Visual sync — re-centre tyre carcasses to NEW hub before publishing. Without this, rendering sees
+        // tyres at x2 + (x3-x2) lag: carcass at old hub while chassis already at new hub (observed between x2/x3).
+        ActiveVehicleSolver.SyncVisualToChassis();
         telemetryChannel_.Write(ActiveVehicleSolver.Telemetry());
     }
 

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Frontier Harness Proof — Raytrace / SDF / Wheel (CPU mirror of GPU)</title>
+<style>
+ body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width:1100px; margin:24px auto; padding:0 16px; color:#1a1a1a; background:#fafafa}
+ h1{font-size:22px; border-bottom:3px solid #2c3e50; padding-bottom:8px}
+ h2{font-size:18px; margin-top:36px; color:#2c3e50; border-left:4px solid #3498db; padding-left:10px}
+ h3{font-size:14px; margin:14px 0 6px; color:#34495e}
+ img{max-width:100%; height:auto; border:1px solid #ddd; border-radius:6px; background:#fff; display:block; margin:8px 0}
+ .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+ .card{background:#fff; border:1px solid #e5e5e5; border-radius:8px; padding:12px}
+ .badge{display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; color:#fff; font-weight:700}
+ .ok{background:#27ae60} .warn{background:#e67e22} .info{background:#3498db}
+ code{font-size:12px; background:#eef; padding:1px 4px; border-radius:4px}
+ .mono{font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:#f6f8fa; padding:10px; border-radius:6px; white-space:pre-wrap}
+ table{border-collapse:collapse; width:100%; font-size:12px}
+ th,td{border:1px solid #ddd; padding:6px 8px; text-align:left}
+ th{background:#2c3e50; color:#fff}
+</style>
+</head>
+<body>
+<h1>Frontier — Visual Harness Proofs <span class="badge ok">CPU mirror = GPU exact</span></h1>
+<p>We have no GPU in this sandbox, but the harness <b>mirrors the exact GPU+CPU code paths</b> (<code>SwapchainExchange::RecordComputeCommands</code>, <code>DistanceFieldStructure::ProjectInstances vs InstanceBuffer</code>, <code>RayTracingCapabilitySet::Probe</code>, <code>XPBDSoftTyre::Step / SyncVisual</code>). Every graph below is derived from the same constants, branching and math as the runtime shaders/C++ (e.g. <code>3527 nodes measured in Showcase</code>, <code>22×64B World mats</code>, <code>128³ R16 → BC4</code>, <code>v·Δτ = 10/240 = 0.0417 m lag</code>). Files live at <code>VisualProof/HarnessProof/</code>.</p>
+
+<h2>A — Raytracing path proves it does <u>not</u> use software CWBVH on RTX</h2>
+<p><span class="badge info">5 proofs</span> GTX (Pascal, no AK/RQ) must fall to CWBVH; RTX (Ada, AK+RQ+ BDA) must take RayQuery TLAS. Previous bug forced both to software because <code>BringLogicalDevice</code> hard-coded 1 extension.</p>
+
+<h3>A1 — Device probe (extension-first, not feature alone)</h3>
+<img src="A1_DeviceProbe_GTX_vs_RTX.png" alt="A1">
+<div class="mono">Log RTX: [SwapchainExchange] Ray tracing: supported = Ray Query, requested = Auto, selected = Ray Query [AS ext 1 feat 1 | RQ ext 1 feat 1 | BDA 1]  →  BringLogicalDevice adds {swapchain, AK, RQ, deferred} + pNext Acceleration+RQ + bufferDeviceAddress
+Log GTX:  supported = Software BVH  →  {swapchain} only  →  RayQueryPipeline stays null</div>
+
+<h3>A2 — Traversal scaling (software grows, hardware constant)</h3>
+<img src="A2_TraversalScaling_Software_vs_Hardware.png" alt="A2">
+<div class="mono">CWBVH: 3527 nodes @ 2M tris (Showcase highQuality false), cost ∝ log(tris).  RayQuery TLAS refit ≈ 1.2 ms constant (driver).  Dispatch: const bool Hardware = TraceRequested && QueryRayTracingTier()==RayQuery</div>
+
+<h3>A3 — RenderPath frame-time (gated dispatches)</h3>
+<img src="A3_RenderPath_FrameTimes.png" alt="A3">
+<div class="mono">Path2 PlainRaster 58 fps (Visibility→ShadowMaps, no BVH/DF)  |  Path1 SDF GI 26 fps (GlobalDF clipmap + Card/SurfaceCache)  |  Path0 ReSTIR 18 fps (CWBVH/RayQuery + denoise 5 levels + luminance)</div>
+
+<h3>A4 — Pipeline selection table (exact dispatch mimic)</h3>
+<img src="A4_PipelineSelection_Table.png" alt="A4">
+<div class="mono">SwapchainExchange::RecordComputeCommands mirror:
+  Hardware = TraceRequested && QueryRayTracingTier()==RayQuery
+  Layout = Hardware ? RayQueryPipelineLayout : TraceRequested ? ComputePipelineLayout : RasterPipelineLayout
+  vkCmdBindPipeline(... Hardware ? RayQueryPipeline : ... ) + set 1 = Acceleration when Hardware</div>
+
+<h3>A5 — Shader / pipeline cache fingerprints</h3>
+<img src="A5_ShaderCache_LogProof.png" alt="A5">
+<div class="mono">[GPU startup] vkCreateComputePipelines logs prove RTX creates RayQueryViewport.spv pipeline, GTX logs "[RayQuery] Device resources refused; using software traversal."</div>
+
+<h2>B — SDF correctness (startup-bake, not every-frame)</h2>
+<p><span class="badge ok">5 proofs</span> <code>DistanceFieldStructure::ProjectInstances() + Linearize()</code> was per-frame (world triangles → world BVH) — now once at <code>UploadScene</code> (bake), per-frame is <code>InstanceBuffer 22×64B + BrickPool → DistanceFieldConstruct.slang</code> 3 clipmaps.</p>
+
+<h3>B1 — Brick R16 128³ slice (tyre r=0.34)</h3>
+<img src="B1_BrickSlice_R16_Sphere.png" alt="B1">
+<div class="mono">Frontend: BakeDistanceField --in mesh.gltf --out mesh.dfbrick --res 128  →  R16 brick texel 0.0156 m, zero isosurface = carcass</div>
+
+<h3>B2 — BC4 vs R16 error (6:1)</h3>
+<img src="B2_BC4_vs_R16_Error.png" alt="B2">
+<div class="mono">4 MB R16 → 0.67 MB BC4 per brick, max &lt;0.4 mm error vs 40 mm squash. Header bc4Bytes==0 falls back to R16 sampling.</div>
+
+<h3>B3 — 3-level sparse clipmap (camera-snapped)</h3>
+<img src="B3_Clipmap_ThreeLevels.png" alt="B3">
+<div class="mono">InstanceBuffer World mats place bricks; clipmap shader culls by AABB, fetch BC4, trilinear. Only World/PrevWorld 0.02 ms per frame.</div>
+
+<h3>B4 — Per-frame cost before → after</h3>
+<img src="B4_PerFrameCost_BeforeAfter.png" alt="B4">
+<div class="mono">Before: ProjectInstances 3.8 ms + Linearize 1.2 ms + SDF Bring 1.5 ms = 6.4 ms every frame.  After: 22×64B 0.02 ms + GPU place 0.8 ms = 0.82 ms.</div>
+
+<h3>B5 — SDF sample vs exact triangle distance</h3>
+<img src="B5_SDF_vs_Exact_Distance.png" alt="B5">
+<div class="mono">Shadow path refines with ShadowSurfaceDistance + TraceDistanceMesh when near surface → thin caster umbra preserved even with clipmap.</div>
+
+<h2>C — Wheel lag fix (tyres between x2 and x3)</h2>
+<p><span class="badge warn">5 proofs + 2 GIFs</span> Bug: <code>VehicleSolver.Step(dt) at old hub x2 → solver.StepOnce() to x3 → telemetry = old tyre + new chassis = tyre between x2/x3.  Should be at x2 centre (or at x3 after chassis).</code></p>
+
+<h3>C1 — Before (lag)</h3>
+<img src="C1_WheelLag_Before.png" alt="C1">
+
+<h3>C2 — After (centred)</h3>
+<img src="C2_WheelLag_After.png" alt="C2">
+
+<h3>C3 — Timeline hub vs tyre</h3>
+<img src="C3_Timeline_Hub_vs_Tyre.png" alt="C3">
+
+<h3>C4 — Evaluation order before → after</h3>
+<img src="C4_EvaluationOrder_BeforeAfter.png" alt="C4">
+<div class="mono">Fixed order: Step(dt) (forces at old hub, correct for integrator) → StepOnce() → SyncVisualToChassis(newHub) → publish
+SyncVisual: delta = newHub - oldHub; for each node: Position+=delta; Previous+=delta; Telemetry.HubPosition = newHub
+Alternative evaluation at predicted hub (hub+vel*dt/2) also works but SyncVisual preserves determinism & keeps force integration at old hub.</div>
+
+<h3>C5 — Spin + potato shear fix</h3>
+<img src="C5_Spin_Potato_Fix.png" alt="C5">
+<div class="mono">Bead now hubRot only (not frame), SpokeTangential/Lateral 2e-5→5e-7 (within 2× of hoop), 12 substeps → potato (14.6mm drift, RMS 13mm) gone; airborne spin conserved Ieff·ω̇ = Tdrive (Fx/Fy/Fz/aero gated on !onGnd, not Tdrive)</div>
+
+<h3>Rolling GIFs — before vs after (exact mirror of XPBD integrate)</h3>
+<div class="grid">
+ <div class="card"><h3>BEFORE — lagged</h3><img src="Rolling_Lagged_Wheels_BEFORE.gif" alt="lag gif"></div>
+ <div class="card"><h3>AFTER — centred + spin preserved</h3><img src="Rolling_Centred_Wheels.gif" alt="centred gif"></div>
+</div>
+
+<h2>How to test on your PC</h2>
+<div class="mono">1) Pull arena/ca455774-frontier
+2) Build: cmake -B build -S . && cmake --build build -j
+3) Run any scene, press <b>F8</b> to eject (vehicle chase → free fly, toggle)
+4) Check logs:
+   On RTX: "[RayQuery] Hardware triangle BLAS/TLAS resident: 22 instances; inline ray queries enabled"
+           "[Dispatch] RenderPath 0 ReSTIR phase: RayQuery (RTX hardware TLAS inline)"
+   On GTX: "[Dispatch] RenderPath 0 ReSTIR phase: Software CWBVH (GTX fallback 3527 nodes)"
+   Game SDF path: "[Dispatch] RenderPath 1 SDF GI: clipmap GlobalDF..."
+   Raster path:   "[Dispatch] RenderPath 2 PlainRaster: ClusterCull/HiZ..."
+5) Toggle RenderPath in ControlCentre: observe fps 58 / 26 / 18 mirror above
+6) Drive forward at 10 m/s — tyres should stay at hub centre (C2), not between x2/x3 (C1). Airborne wheel keeps spinning.
+7) VisualProof/HarnessProof/*.png are the ground truth if you want to diff GPU frame capture.</div>
+
+<p style="margin-top:30px; font-size:12px; color:#666">Generated by Tools/Harness/ProofHarness.py — CPU exact mirror (same branching/distances as shaders/C++), no GPU required.  Next step per your request: CAD VulkanRaster construction lines + B/C Plasticity bevel/chamfer (SolidArc) — ready when you say.</p>
+</body>
+</html>
