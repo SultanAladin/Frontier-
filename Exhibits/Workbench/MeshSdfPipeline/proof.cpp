@@ -5,6 +5,7 @@
 // Build: g++ -std=c++20 -O2 -I../../../Engine/GeometricRaster proof.cpp -o proof
 
 #include "MeshDistanceField.h"
+#include "MeshSdfGpuMirror.h"
 
 #include <algorithm>
 #include <chrono>
@@ -383,6 +384,80 @@ int main()
               "mesh with no import entry is reported, not baked");
 
         Check(MeshDistanceField::BakeCallCount() == RuntimeStart, "runtime loads performed zero bakes (counter unchanged)");
+    }
+
+    // ---------------- Part D: GPU kernels, CPU exact mirror ----------------
+    std::printf("\n== Part D: GPU bake and dirty-cell composite, CPU exact mirror of MeshSdf.slang (device run NOT performed)\n");
+    {
+        using MeshSdfGpuMirror::InstanceGpu;
+        std::vector<float> TriFlat;
+        for (const Triangle& T : Tris) for (const auto& V : T.V) for (int A = 0; A < 3; ++A) TriFlat.push_back(V[A]);
+
+        // Bake parity: mirror of BakeMain against the CPU reference, same bounds, same resolution.
+        const Field Ref = MeshDistanceField::Bake(Tris, BakeN, 0.1f, 1u);
+        MeshSdfGpuMirror::BakeParams BP{};
+        BP.Min = MeshSdfGpuMirror::F3(Ref.H.Min[0], Ref.H.Min[1], Ref.H.Min[2]);
+        BP.Max = MeshSdfGpuMirror::F3(Ref.H.Max[0], Ref.H.Max[1], Ref.H.Max[2]);
+        BP.Resolution = BakeN;
+        BP.TriangleCount = uint32_t(Tris.size());
+        const std::vector<float> Gpu = MeshSdfGpuMirror::BakeGrid(BP, TriFlat);
+        double BakeDiff = 0.0;
+        for (size_t I = 0; I < Gpu.size(); ++I) BakeDiff = std::max(BakeDiff, std::fabs(double(Gpu[I]) - double(Ref.Distance[I])));
+        char Detail[96];
+        std::snprintf(Detail, sizeof(Detail), "(max abs diff %.2e over %zu nodes)", BakeDiff, Gpu.size());
+        Check(BakeDiff <= 1e-4, "mirror of BakeMain matches the CPU bake at every grid node", Detail);
+
+        // Composite parity over a dirty box of one clip level, three culled-in instances.
+        const Field& F = Cube;
+        std::vector<MeshDistanceField::Affine> Affines;
+        std::vector<InstanceGpu> Instances;
+        const float Yaw = 30.0f * Pi / 180.0f;
+        float W0[16], W1[16], W2[16];
+        const float T0[3] = { 25.0f, 0.0f, 0.75f }, T1[3] = { 3.0f, -1.0f, 0.5f }, T2[3] = { -10.0f, 4.0f, 0.0f };
+        MakeWorld(2.1f, 0.95f, 0.75f, 0.0f, T0, W0);
+        MakeWorld(2.0f, 2.0f, 2.0f, Yaw, T1, W1);
+        MakeWorld(4.0f, 1.0f, 1.5f, 0.0f, T2, W2);
+        for (const float* W : { W0, W1, W2 })
+        {
+            MeshDistanceField::Affine A{};
+            MeshDistanceField::MakeAffine(W, A);
+            Affines.push_back(A);
+            Instances.push_back(MeshSdfGpuMirror::MakeInstanceGpu(F, A, 0u));
+        }
+        const float Eye[3] = { 24.0f, 0.0f, 1.0f };
+        const MeshDistanceField::ClipLevel Level = MeshDistanceField::MakeClipLevel(Eye, CellBase, Dim);
+        MeshSdfGpuMirror::CompositeParams CP{};
+        CP.Origin = MeshSdfGpuMirror::F3(Level.Origin[0], Level.Origin[1], Level.Origin[2]);
+        CP.Cell = Level.Cell;
+        CP.Dim = Dim;
+        CP.DirtyLo[0] = 10; CP.DirtyLo[1] = 12; CP.DirtyLo[2] = 12;
+        CP.DirtyHi[0] = 20; CP.DirtyHi[1] = 20; CP.DirtyHi[2] = 20;
+        CP.InstanceCount = uint32_t(Instances.size());
+        const uint64_t Total = uint64_t(Dim) * Dim * Dim;
+        std::vector<float> Clip(Total, -999.0f);
+        const uint64_t Written = MeshSdfGpuMirror::CompositeDirty(CP, Instances, F.Distance, Clip);
+        const uint64_t Expected = uint64_t(CP.DirtyHi[0] - CP.DirtyLo[0] + 1) * (CP.DirtyHi[1] - CP.DirtyLo[1] + 1) * (CP.DirtyHi[2] - CP.DirtyLo[2] + 1);
+        uint64_t Touched = 0u;
+        for (float V : Clip) if (V != -999.0f) ++Touched;
+        std::snprintf(Detail, sizeof(Detail), "(written %llu, dirty box %llu, touched %llu of %llu)", (unsigned long long)Written,
+                      (unsigned long long)Expected, (unsigned long long)Touched, (unsigned long long)Total);
+        Check(Written == Expected && Touched == Expected, "composite writes exactly the dirty cells and no others", Detail);
+
+        double CompDiff = 0.0;
+        for (uint32_t Z = CP.DirtyLo[2]; Z <= CP.DirtyHi[2]; ++Z)
+            for (uint32_t Y = CP.DirtyLo[1]; Y <= CP.DirtyHi[1]; ++Y)
+                for (uint32_t X = CP.DirtyLo[0]; X <= CP.DirtyHi[0]; ++X)
+                {
+                    const float Pos[3] = { Level.Origin[0] + (float(X) + 0.5f) * Level.Cell,
+                                           Level.Origin[1] + (float(Y) + 0.5f) * Level.Cell,
+                                           Level.Origin[2] + (float(Z) + 0.5f) * Level.Cell };
+                    double Best = 1e30;
+                    for (const auto& A : Affines) Best = std::min(Best, double(MeshDistanceField::SampleInstance(F, A, Pos)));
+                    const uint64_t Index = (uint64_t(Z) * Dim + Y) * Dim + X;
+                    CompDiff = std::max(CompDiff, std::fabs(Best - double(Clip[Index])));
+                }
+        std::snprintf(Detail, sizeof(Detail), "(max abs diff %.2e over %llu cells)", CompDiff, (unsigned long long)Expected);
+        Check(CompDiff <= 1e-3, "mirror of CompositeMain matches the CPU per-instance minimum", Detail);
     }
 
     std::printf("%s - %d failure(s)\n", Failures ? "RED" : "GREEN", Failures);

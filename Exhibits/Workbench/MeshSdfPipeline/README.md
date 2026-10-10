@@ -1,7 +1,7 @@
 # Mesh SDF pipeline: import-time bake, local instance sampling, dirty cells (CPU exact)
 
-**Status: CPU-verified foundation. The engine still runs the old per-frame path until the GPU compositing kernel is built and run
-on a device (see "Not done").**
+**Status: GPU kernels written and compiled to SPIR-V; CPU exact mirror verified. Nothing has run on a GPU yet, and the engine still
+runs the old per-frame path (see "Not done").**
 
 ## What is built and verified here
 
@@ -16,6 +16,26 @@ on a device (see "Not done").**
 | Culling instances by bounds keeps the composited minimum exact | Part B cull check | 1267 points compared, 0 mismatches |
 | Import step over a content tree: `BakeMeshSdf --dir` bakes each `.obj` once and writes `sdf_index.tsv` (source path, hash, file, resolution) | `BakeDirectory` in `MeshDistanceField.h` | proof Part C: 3 meshes baked, second import is 3 cache hits |
 | Runtime loader: load only, never bake. Stale (source edited after import) and missing entries are reported, not rebuilt | `RuntimeLoad` | proof Part C: a.obj loads identical; edited c.obj reported stale; d.obj reported with no entry; bake counter unchanged at runtime |
+
+## GPU kernels (written, compiled, not executed)
+
+Source: `Engine/GeometricRaster/Shaders/MeshSdf.slang`. Build gate: `Tools/Build/BuildMeshSdfSpirv.py`, which compiles both entries
+to SPIR-V through the Slang C API. Slang validates the SPIR-V inside the compile, and the gate writes
+`Engine/GeometricRaster/Generated/MeshSdfSpirv.inc`. The gate is GREEN, and both modules are 6,692 and 6,256 bytes.
+
+| Entry | Work | Mirror |
+|---|---|---|
+| `BakeMain` (import time) | one thread per grid node of one mesh; exact closest triangle; sign from the closest face normal | `MeshSdfGpuMirror::BakeGrid` |
+| `CompositeMain` (per frame, dirty cells only) | one thread per dirty cell of one clip level; minimum over the culled instance list through each instance's inverse transform | `MeshSdfGpuMirror::CompositeDirty` |
+
+`MeshSdfGpuMirror.h` follows each shader line for line on the same flat buffers. Proof Part D checks it:
+- the mirror's bake equals the CPU bake at all 32,768 nodes (max difference 0);
+- the composite writes exactly the 891 dirty cells and no others;
+- the composite equals the CPU per-instance minimum over those cells (max difference 0).
+
+These differences are exact only because the mirror and the CPU use the same arithmetic. A GPU will differ in rounding (fused
+multiply-add, sqrt precision), so the device comparison must use a tolerance. That tolerance is not yet set, because no device run has
+happened.
 
 ## Results (CPU exact cell counts, 3600 frames, 3 clip levels of 32^3, one moving car, camera at 1.5 m/s)
 
@@ -37,8 +57,12 @@ These are **cell counts**, not GPU milliseconds. The decision cost on the CPU is
 
 ## Not done (say so before anyone ships this)
 
+0. **Vulkan host dispatch.** Nothing creates the buffers, descriptors or pipelines for `BakeMain` or `CompositeMain`, and nothing
+   submits them. This sandbox has no Vulkan driver (no ICD, and apt and the Mesa package are unreachable), so this code cannot be
+   run or tested here. It needs a device run on the user's RX 9060 XT.
+
 1. **GPU compositing kernel.** The compute shader that writes only the dirty cells, and the toroidal slab fill on the GPU, are not written.
-2. **Engine switch-over.** `DistanceFieldStructure::RefreshInstances` and `DistanceFieldConstruct.slang` still rebuild the whole volume on every change. The new path is not wired into the running engine.
+2. **Engine switch-over.** `DistanceFieldStructure::RefreshInstances` and `DistanceFieldConstruct.slang` still rebuild the whole volume on every change. The new kernels are not wired into the running engine.
 3. **Import hook in the editor and content build.** `BakeMeshSdf --dir` exists, but nothing in the editor or the content build runs it yet. The engine's glTF, FBX and OBJ decoders are not hooked, and the runtime loader is not called by the renderer. The hook is deliberately not placed in the runtime decoder, because that would bake at runtime.
 4. **Two physical fields.** The static / movable split is counted here, but the engine has one field.
 5. **The fourth step** in the request was cut off in the message ("4."). Not built. Please restate it.
@@ -47,6 +71,7 @@ These are **cell counts**, not GPU milliseconds. The decision cost on the CPU is
 
 ```
 g++ -std=c++20 -O2 -I../../../Engine/GeometricRaster proof.cpp -o proof && ./proof
+PATH=/tmp/venv/bin:$PATH python3 ../../../Tools/Build/BuildMeshSdfSpirv.py   # Slang SPIR-V gate
 python3 build_proofs.py
 g++ -std=c++20 -O2 ../../../Tools/Bake/BakeMeshSdf.cpp -o bake && ./bake --dir <content root> <cache dir>
 g++ -std=c++20 -O2 ../../../Tools/Bake/BakeMeshSdf.cpp -o bake && ./bake out/unit_cube.obj /tmp/sdf-cache 32 0.1
