@@ -1,5 +1,5 @@
 #include "SpatialIndex.h"
-#include "AnisotropicSurfaceGeometry.h"
+#include "AnisotropicSurfaceMesh.h"
 #include <random>
 #include <iostream>
 #include <stdexcept>

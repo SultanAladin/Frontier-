@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "BaseGeometrySurface.h"
+#include "BaseMeshSurface.h"
 #include "WindInstrumentSurface.h"
 #include <cstdio>
 #include <cstring>
@@ -467,7 +467,7 @@ inline const char* ModeDescription(const Subject& Specimen)
 
 inline const char* StoredStatus(const Subject& Specimen)
 {
-    if (Specimen.Stored == Freshness::Ready) return Specimen.Settings.PieceSdf ? "Geometry ready \xc2\xb7 SDF pending" : "Precomputed \xc2\xb7 ready";
+    if (Specimen.Stored == Freshness::Ready) return Specimen.Settings.PieceSdf ? "Geometry ready \xc2\xb7 SDF pending" : "Baked \xc2\xb7 ready";
     return Specimen.Stored == Freshness::Stale ? "Bake is stale" : "Not baked";
 }
 

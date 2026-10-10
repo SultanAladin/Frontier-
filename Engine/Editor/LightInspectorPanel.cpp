@@ -869,7 +869,7 @@ void RecordLightInspector(ControlPanel&, EditorInstance&, EditorSheet& Sheet)
         Panel.Pen += WellHigh + 3.0f;
 
         Panel.Draw->AddText(Panel.Face, 9.0f, { Panel.Ink(), Panel.Pen }, StudyText,
-                            Ies ? "Illustrative preset \u00b7 no measured IES record" : "Source study \u00b7 HTML authoring");
+                            Ies ? "Illustrative preset \u00b7 no measured IES data" : "Source study \u00b7 HTML authoring");
         Panel.Pen += 12.0f + 12.0f;
     }
     Panel.End();

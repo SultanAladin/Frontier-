@@ -86,7 +86,7 @@ try {
           0,
           Canvas.width,
           Canvas.height,
-        ).record;
+        ).data;
         let Green = 0,
           Neutral = 0,
           Amber = 0;

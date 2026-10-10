@@ -589,7 +589,7 @@ $ImGuiSources = @(
 
 $EngineRelative = @(
     'Projects\Project-Fluid\Source\SurfaceReconstruction.cpp'
-    'Projects\Project-Fluid\Source\GpuSurfacePayload.cpp'
+    'Projects\Project-Fluid\Source\GpuSurfaceData.cpp'
     'Projects\Project-Fluid\Source\GpuSurfaceExtractor.cpp'
     'Projects\Project-Fluid\Source\FluidGpuTest.cpp'
     'Projects\Project-Fluid\Source\VulkanFluidMain.cpp'
@@ -721,7 +721,7 @@ $EngineRelative = @(
     'Engine\GeometricRaster\InstanceAcceleration.cpp'           # D6/D7 BLAS + instance top level, and RelativeMatrix
     'Engine\GeometricRaster\BlasBuildMirror.cpp'                # its QuantiseNode dependency (D9's refit kernel source)
     'Engine\GeometricRaster\BlasDevicePayload.cpp'              # D9 device payload layout
-    'Engine\GeometricRaster\BlasBuildChain.cpp'              # D9 build/refit dispatch
+    'Engine\GeometricRaster\BlasBuildPipeline.cpp'              # D9 build/refit dispatch
     'Engine\GeometricRaster\TriangleFieldVulkanExchange.cpp'            # topology SDF Vulkan host (GPU import precompute and dirty-cell combined)
     'Engine\ContentInterchange\SpaceCodec.cpp'                  # P1/P3 .space container
     'Engine\ContentInterchange\SpaceExport.cpp'                 # P2/P6 exporters

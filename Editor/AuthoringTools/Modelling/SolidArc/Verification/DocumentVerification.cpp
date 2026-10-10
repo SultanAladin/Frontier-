@@ -103,7 +103,7 @@ int main()
     Panel.Section("Rejected open is transactional");
     {
         std::ofstream Out(Invalid, std::ios::binary | std::ios::trunc);
-        Out << "# SolidArc native document v1\nunknown-command definitely-not-model-record\n";
+        Out << "# SolidArc native document v1\nunknown-command definitely-not-model-data\n";
     }
     const uint64_t BeforeBadOpen = UndoSequence::Fingerprint(Host.Document());
     const size_t FiguresBeforeBadOpen = Host.AllFigures().size();

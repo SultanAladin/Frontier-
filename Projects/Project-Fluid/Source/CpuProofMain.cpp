@@ -1,6 +1,6 @@
 #include "PbfFluid.h"
 #include "SurfaceReconstruction.h"
-#include "AnisotropicSurfaceGeometry.h"
+#include "AnisotropicSurfaceMesh.h"
 
 #include <algorithm>
 #include <array>

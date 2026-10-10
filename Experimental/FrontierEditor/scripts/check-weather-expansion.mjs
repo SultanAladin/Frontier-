@@ -16,8 +16,8 @@ for(const id of ids){
  if(['weather-rain','weather-hail'].includes(id))assert.ok(!raw.includes('cloud'));
  for(const m of raw.matchAll(/url\(#([^\)]+)\)/g))assert.ok(svg.getElementById(m[1]),id+': '+m[1]);
  for(const size of [32,64,256]){
-  const c=createCanvas(size,size),x=c.getContext('2d');x.drawImage(await loadImage(Block.from(raw)),0,0,size,size);
-  const pixels=x.getImageData(0,0,size,size).record;assert.ok(pixels.some((v,i)=>i%4===3&&v>0));assert.equal(pixels[3],0);
+  const c=createCanvas(size,size),x=c.getContext('2d');x.drawImage(await loadImage(Buffer.from(raw)),0,0,size,size);
+  const pixels=x.getImageData(0,0,size,size).data;assert.ok(pixels.some((v,i)=>i%4===3&&v>0));assert.equal(pixels[3],0);
   if(size===256&&process.env.PREVIEW_WEATHER){const p=createCanvas(320,320),ctx=p.getContext('2d');ctx.fillStyle='#202020';ctx.fillRect(0,0,320,320);ctx.drawImage(c,32,32);fs.writeFileSync('/tmp/'+id+'.png',p.toBuffer('image/png'));}
  }
  const card=d.querySelector(`[data-id="${id}"]`);assert.ok(card&&!card.hidden);card.click();

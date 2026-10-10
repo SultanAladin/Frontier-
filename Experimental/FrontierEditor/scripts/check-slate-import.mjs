@@ -53,8 +53,8 @@ for(const item of kept){
  for(const m of svg.matchAll(/url\(#([^\)]+)\)/g))assert.ok(asset.getElementById(m[1]),item.name+': '+m[1]);
  assert.equal(asset.documentElement.getAttribute('viewBox'),source.documentElement.getAttribute('viewBox'));
  for(const size of [32,96,240]){
-  const c=createCanvas(size,size),ctx=c.getContext('2d');ctx.drawImage(await loadImage(Block.from(svg)),0,0,size,size);
-  assert.ok(ctx.getImageData(0,0,size,size).record.some((v,i)=>i%4===3&&v>0),item.name);
+  const c=createCanvas(size,size),ctx=c.getContext('2d');ctx.drawImage(await loadImage(Buffer.from(svg)),0,0,size,size);
+  assert.ok(ctx.getImageData(0,0,size,size).data.some((v,i)=>i%4===3&&v>0),item.name);
  }
  const card=d.querySelector(`[data-id="${item.id}"]`);assert.equal(card.querySelector('b').textContent,item.name);
  card.click();assert.equal(d.querySelector('#detail-title').textContent,item.name);

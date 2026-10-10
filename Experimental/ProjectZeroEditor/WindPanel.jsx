@@ -710,7 +710,7 @@ export default function WindEditor({
                   Update={Update}
                 />
                 <p>
-                  Drag numbered identifiers · arrow keys move 10 m · directional
+                  Drag numbered handles · arrow keys move 10 m · directional
                   flow is global.
                 </p>
               </section>

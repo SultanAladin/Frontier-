@@ -183,7 +183,7 @@ export interface PrecomputedDent {
   /**
    * SPARSE precompute. A dent only moves the vertices inside its patch (typically a
    * few percent of the body), so the VAT only stores those. `verts[s]` is the
-   * topology vertex id of slot `s`; the shader looks a vertex up through a slot
+   * mesh vertex id of slot `s`; the shader looks a vertex up through a slot
    * table and skips it entirely if it is not in this patch. That is the
    * difference between a 3 MB texture and a 60 MB one.
    */
@@ -592,11 +592,11 @@ export function precomputeDent(topo: ShellTopo, site: DentSite, o: DentOptions =
 /**
  * Deformation cage (free-form lattice) wrapped around the body.
  *
- * The per-vertex VAT is exact but is bound to one specific topology. Production
- * chains precompute the same solve into a lattice instead: the cage is authored
+ * The per-vertex VAT is exact but is bound to one specific mesh. Production
+ * pipelines precompute the same solve into a lattice instead: the cage is authored
  * once around the body, and *every* part bound to it (panel, lights, badges,
  * glass, decals, the LODs) is deformed by trilinear lookup of the cage. One
- * precompute, any topology, any LOD, and the texture is ~10x smaller. The price is that
+ * precompute, any mesh, any LOD, and the texture is ~10x smaller. The price is that
  * a trilinear cage rounds off the sharpest creases, which is why this demo
  * lets you A/B the two at runtime.
  */

@@ -118,7 +118,7 @@ def convert(path):
     if unknown:raise ValueError((path.name,unknown))
     svg=E.tostring(root,encoding='unicode')
     assert '<image' not in svg and 'href=' not in svg
-    (OUT/path.name).write_text(f'<!-- frontier-source-fnv1a64:{fingerprint(record)} -->\n'+svg+'\n')
+    (OUT/path.name).write_text(f'<!-- frontier-source-fnv1a64:{fingerprint(data)} -->\n'+svg+'\n')
     return {'original_unsupported':unsupported,'changes':sorted(set(notes)),'source_fnv1a64':fingerprint(record)}
 
 def main():

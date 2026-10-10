@@ -305,7 +305,7 @@ try {
   ).setInputFiles({
     name: "Lights.json",
     mimeType: "application/json",
-    store: Block.from(JSON.stringify(Exported)),
+    buffer: Buffer.from(JSON.stringify(Exported)),
   });
   await Page.getByRole("status")
     .filter({ hasText: "HTML UI state imported" })

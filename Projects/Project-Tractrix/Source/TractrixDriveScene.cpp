@@ -14,7 +14,7 @@
 //    InstanceRecord per part; the vehicle-instance sequence rewrites those World rows from the physics telemetry every frame.
 
 #include "TractrixDriveScene.h"
-#include "ControlVehicleGeometry.inl"
+#include "ControlVehicleMesh.inl"
 
 #include "../../../Engine/ContentInterchange/SceneCodec.h"
 #include "../../../Engine/DeviceExchange/OrientationClassifier.h"

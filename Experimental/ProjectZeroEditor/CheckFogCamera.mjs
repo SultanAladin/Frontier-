@@ -57,7 +57,7 @@ async function Import(Scene) {
   ).setInputFiles({
     name: "Scene.json",
     mimeType: "application/json",
-    store: Block.from(JSON.stringify({ ...Scene, Name })),
+    buffer: Buffer.from(JSON.stringify({ ...Scene, Name })),
   });
   await Page.waitForFunction(
     (Name) =>
@@ -74,11 +74,11 @@ try {
     [4, 6, 8],
   );
   for (const Type of FogShapes) {
-    const Hull = FogGeometry(
+    const Mesh = FogGeometry(
       ResolveFogShape({ FogShape: { Type, Radius: 25, Height: 60 } }),
     );
-    assert.ok(Hull.Vertices.every((Point) => Point.every(Number.isFinite)));
-    assert.ok(Hull.Size.every((Size) => Size > 0));
+    assert.ok(Mesh.Vertices.every((Point) => Point.every(Number.isFinite)));
+    assert.ok(Mesh.Size.every((Size) => Size > 0));
   }
   assert.deepEqual(
     FogGeometry(ResolveFogShape({ FogShape: { Type: "Sphere", Radius: 25 } }))

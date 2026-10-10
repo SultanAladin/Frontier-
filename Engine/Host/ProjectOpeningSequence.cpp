@@ -147,12 +147,12 @@ int RunProjectBrowser(const char* ProofImage)
     Class.lpszClassName = L"FrontierProjectBrowser";
     Class.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassW(&Class);
-    RECT Desktop{}; SystemParametersDetailsW(SPI_GETWORKAREA, 0u, &Desktop, 0u);
+    RECT Desktop{}; SystemParametersInfoW(SPI_GETWORKAREA, 0u, &Desktop, 0u);
     HWND Window = CreateWindowExW(WS_EX_APPWINDOW, Class.lpszClassName, L"Frontier — Open project", WS_POPUP,
         (Desktop.left + Desktop.right - 840) / 2, (Desktop.top + Desktop.bottom - 640) / 2, 840, 640,
         nullptr, nullptr, Class.hInstance, nullptr);
     DXGI_SWAP_CHAIN_DESC Swap{};
-    Swap.BufferCount = 2; Swap.StoreDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    Swap.BufferCount = 2; Swap.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     Swap.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; Swap.OutputWindow = Window;
     Swap.SampleDesc.Count = 1; Swap.Windowed = TRUE; Swap.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
     ID3D11Device* Device = nullptr;

@@ -7,9 +7,9 @@
 //    stills on the CPU, parsed cleanly as WGSL — and then shown the user a blank canvas with a
 //    red box on it. Every one of those was a HOST bug rather than a rendering bug:
 //
-//      · a uniform store referenced one line above the const that creates it, which is a
+//      · a uniform buffer referenced one line above the const that creates it, which is a
 //        temporal dead zone and therefore a hard ReferenceError, not an undefined
-//      · a bind group entry pointing at a binding the chain does not declare
+//      · a bind group entry pointing at a binding the pipeline does not declare
 //      · a stale module served out of the browser cache
 //
 //    None of those are visible to a syntax check. `node --check` parses the file and proves
@@ -39,9 +39,9 @@ function Claim(what, held) {
 
 const Record = {
     passes: [],            // one entry per render pass, in submission order
-    stores: [],
+    buffers: [],
     textures: [],
-    chains: [],
+    pipelines: [],
     bindGroups: [],
     writes: [],
     shader: '',
@@ -66,17 +66,17 @@ function StubPass(descriptor) {
         target: descriptor.colorAttachments[0].view,
         clear: descriptor.colorAttachments[0].clearValue,
         draws: [],
-        chain: null,
+        pipeline: null,
         bindGroup: null,
     };
     Record.passes.push(entry);
     return {
-        setChain(chain) { entry.pipeline = chain; },
+        setChain(pipeline) { entry.pipeline = pipeline; },
         setBindGroup(slot, group) { entry.bindGroup = group; },
         draw(count, instances, first, firstInstance) {
             entry.draws.push({
                 count, instances, first, firstInstance,
-                chain: entry.pipeline, bindGroup: entry.bindGroup,
+                pipeline: entry.pipeline, bindGroup: entry.bindGroup,
             });
         },
         end() {},
@@ -92,19 +92,19 @@ function StubDevice() {
             return { getCompilationInfo: async () => ({ messages: [] }) };
         },
         createRenderChain(descriptor) {
-            // 🔴 Record what the chain actually DECLARES, so a bind group can be checked
+            // 🔴 Record what the pipeline actually DECLARES, so a bind group can be checked
             //    against it. A real device rejects an entry for a binding the shader never
             //    mentions, and that rejection only ever happens in the browser.
             const name = descriptor.fragment?.entryPoint ?? 'unknown';
-            const chain = {
+            const pipeline = {
                 name,
                 vertex: descriptor.vertex?.entryPoint,
                 format: descriptor.fragment?.targets?.[0]?.format,
                 blend: descriptor.fragment?.targets?.[0]?.blend ?? null,
                 getBindGroupLayout: (slot) => ({ __layout: name, slot }),
             };
-            Record.pipelines.push(chain);
-            return chain;
+            Record.pipelines.push(pipeline);
+            return pipeline;
         },
         createStore(descriptor) {
             Record.buffers.push(descriptor);
@@ -122,8 +122,8 @@ function StubDevice() {
             finish: () => Stub('commands'),
         }),
         queue: {
-            writeStore(store, offset, source) {
-                Record.writes.push({ store, offset, length: source.length ?? 0 });
+            writeStore(buffer, offset, source) {
+                Record.writes.push({ buffer, offset, length: source.length ?? 0 });
             },
             submit() {},
         },
@@ -300,7 +300,7 @@ if (import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]
           Record.pipelines.some((One) => One.name === 'fsRoom' && One.blend === null));
 
     // 🔴 Bind groups against the bindings their shader stage actually declares. A real device
-    //    rejects a group that carries an entry the chain never mentions.
+    //    rejects a group that carries an entry the pipeline never mentions.
     const glassGroup = Record.bindGroups.find((One) => One.layout.__layout === 'fsGlass');
     Claim('the glass is bound to the display, the sampler and the glow',
           glassGroup && [0, 3, 4, 5, 6].every((One) => glassGroup.bindings.includes(One)));
@@ -325,5 +325,5 @@ if (import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]
         process.exit(1);
     }
     process.stdout.write(`CheckHost: PASS ${Passed}  (${Record.frames} frames, `
-                       + `${Record.passes.length} passes, ${Record.pipelines.length} chains)\n`);
+                       + `${Record.passes.length} passes, ${Record.pipelines.length} pipelines)\n`);
 }

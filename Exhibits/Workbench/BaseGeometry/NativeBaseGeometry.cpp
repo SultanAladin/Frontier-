@@ -10,7 +10,7 @@
 //    old name sniff did not. And the marker geometry is pinned vertex by vertex against the eleven SVG
 //    path commands in CheckerViewport.jsx.
 
-#include "BaseGeometrySurface.h"
+#include "BaseMeshSurface.h"
 #include "CpuDraw.h"
 #include "PngWriteCounterpart.h"
 #include <filesystem>
@@ -208,6 +208,6 @@ int main()
     P.Picked = 3;  P.Hovered = 1;  Capture("TorusPickedSphereHover");
     P.Picked = -1; P.Hovered = -1; P.Count = 0; Capture("Empty");
 
-    std::printf("PASS %u checks: base topology roster, icon-derived primitive, marker geometry.\n", Checks);
+    std::printf("PASS %u checks: base mesh roster, icon-derived primitive, marker geometry.\n", Checks);
     return 0;
 }

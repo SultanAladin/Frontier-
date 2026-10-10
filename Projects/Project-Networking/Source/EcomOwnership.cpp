@@ -36,7 +36,7 @@ void Emit(const char* Text) noexcept
         Reception(Text);
 }
 
-void EOS_CALL ReceiveOwnershipToken(const EOS_Ecom_QueryOwnershipTokenCallbackDetails* Completion)
+void EOS_CALL ReceiveOwnershipToken(const EOS_Ecom_QueryOwnershipTokenCallbackInfo* Completion)
 {
     if (!Completion || Completion->ClientPayload != reinterpret_cast<void*>(Generation))
         return; // Stale completion from a previous generation; ignore.

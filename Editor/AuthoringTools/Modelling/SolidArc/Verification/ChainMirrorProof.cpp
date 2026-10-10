@@ -208,13 +208,13 @@ int main(int Argc, char** Argv)
     std::filesystem::create_directories(Out);
     std::FILE* Tsv = std::fopen((Out / "timings.tsv").string().c_str(), "w");
     std::FILE* Checks = std::fopen((Out / "checks.txt").string().c_str(), "w");
-    if (!Tsv || !Checks) { std::fprintf(stderr, "[ChainMirror] RED — cannot open %s\n", Out.string().c_str()); return 1; }
+    if (!Tsv || !Checks) { std::fprintf(stderr, "[PipelineMirror] RED — cannot open %s\n", Out.string().c_str()); return 1; }
     std::fprintf(Tsv, "pipeline\tframe\tcpu_ms\ttriangles\tsegments\tpoints\tfragments\tdepth_rejected\tback_facing\n");
 
     int Failures = 0;
     auto Check = [&](bool Ok, const char* What) {
         std::fprintf(Checks, "%s  %s\n", Ok ? "PASS" : "FAIL", What);
-        std::fprintf(stderr, "[ChainMirror] %s  %s\n", Ok ? "PASS" : "FAIL", What);
+        std::fprintf(stderr, "[PipelineMirror] %s  %s\n", Ok ? "PASS" : "FAIL", What);
         if (!Ok) ++Failures;
     };
 
@@ -227,8 +227,8 @@ int main(int Argc, char** Argv)
     {
         const std::string RawPath = (Out / ("frames_" + std::string(S.Name) + ".rgba")).string();
         std::FILE* Raw = std::fopen(RawPath.c_str(), "wb");
-        if (!Raw) { std::fprintf(stderr, "[ChainMirror] RED — cannot write %s\n", RawPath.c_str()); return 1; }
-        std::fprintf(stderr, "[ChainMirror] %-8s triangles %zu · segments %u · points %u\n", S.Name,
+        if (!Raw) { std::fprintf(stderr, "[PipelineMirror] RED — cannot write %s\n", RawPath.c_str()); return 1; }
+        std::fprintf(stderr, "[PipelineMirror] %-8s triangles %zu · segments %u · points %u\n", S.Name,
                      S.Surfaces.Triangles.size() / 3, S.Segments.SegmentCount(), S.Points.PointCount());
 
         for (int F = -WarmupFrames; F < Frames; ++F)
@@ -318,13 +318,13 @@ int main(int Argc, char** Argv)
         std::FILE* SheetFile = std::fopen((Out / "matcap_sheet.f32").string().c_str(), "wb");
         std::fwrite(Sheet.data(), sizeof(float), Sheet.size(), SheetFile);
         std::fclose(SheetFile);
-        std::fprintf(Checks, "facts  matcap studios baked: %d x %d x %d RGB floats\n", Layers, MatcapTexelSize, MatcapTexelSize);
+        std::fprintf(Checks, "info  matcap studios baked: %d x %d x %d RGB floats\n", Layers, MatcapTexelSize, MatcapTexelSize);
         Check(Sheet.size() == size_t(Layers) * MatcapTexelSize * MatcapTexelSize * 3, "baked matcap sheet has layers x 128 x 128 x 3 texels");
         Check(Layers == 14, "fourteen studio presets (metal, plastic, clay, pearl, carbon, rubber, glass, headlight, taillight)");
     }
 
     std::fclose(Tsv);
     std::fclose(Checks);
-    std::fprintf(stderr, "[ChainMirror] %s — %d failure(s)\n", Failures == 0 ? "GREEN" : "RED", Failures);
+    std::fprintf(stderr, "[PipelineMirror] %s — %d failure(s)\n", Failures == 0 ? "GREEN" : "RED", Failures);
     return Failures == 0 ? 0 : 1;
 }

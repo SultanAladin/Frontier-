@@ -280,7 +280,7 @@ function SourceEditor({ Field, Channel, Change }) {
         Change({
           Texture: {
             Name: File.name,
-            Packet: Canvas.toDataURL("image/png"),
+            Data: Canvas.toDataURL("image/png"),
             Width: Image.width,
             Height: Image.height,
           },
@@ -357,7 +357,7 @@ function SourceEditor({ Field, Channel, Change }) {
         <div className="texture-editor">
           <div className="texture-drop">
             {Channel.Texture ? (
-              <img src={Channel.Texture.Packet} alt={Channel.Texture.Name} />
+              <img src={Channel.Texture.Data} alt={Channel.Texture.Name} />
             ) : (
               <span className="texture-empty">
                 ▧<small>No texture assigned</small>
@@ -633,7 +633,7 @@ export default function MaterialPanel({
                 .toLowerCase()
                 .includes(Query.toLowerCase()),
             ).map((Item) => {
-              const Packet = Material.Channels[Item.Id];
+              const Data = Material.Channels[Item.Id];
               return (
                 <button
                   className={Selected === Item.Id ? "active" : ""}
@@ -646,14 +646,14 @@ export default function MaterialPanel({
                     className="channel-swatch"
                     style={{
                       background:
-                        Packet.Source === "Gradient"
-                          ? GradientCss(Packet, Item)
+                        Data.Source === "Gradient"
+                          ? GradientCss(Data, Item)
                           : Item.Kind === "Colour"
-                            ? Packet.Fill
+                            ? Data.Fill
                             : undefined,
                     }}
                   >
-                    {Item.Kind !== "Colour" && Packet.Source !== "Gradient"
+                    {Item.Kind !== "Colour" && Data.Source !== "Gradient"
                       ? "◈"
                       : ""}
                   </span>
@@ -662,22 +662,22 @@ export default function MaterialPanel({
                     <small>{Item.Group}</small>
                   </span>
                   <span className="channel-value">
-                    {Packet.Source === "Fill"
+                    {Data.Source === "Fill"
                       ? Item.Kind === "Colour"
-                        ? Packet.Fill
-                        : (+Packet.Fill).toFixed(2)
-                      : SourceNames[Packet.Source]}
+                        ? Data.Fill
+                        : (+Data.Fill).toFixed(2)
+                      : SourceNames[Data.Source]}
                     <small
-                      className={Packet.Source === "Code" ? "unresolved" : ""}
+                      className={Data.Source === "Code" ? "unresolved" : ""}
                     >
-                      {Packet.Source === "Code"
+                      {Data.Source === "Code"
                         ? "unresolved"
-                        : Packet.Source === "Texture"
-                          ? Packet.Texture
+                        : Data.Source === "Texture"
+                          ? Data.Texture
                             ? "embedded"
                             : "unassigned"
-                          : Packet.Source === "Gradient"
-                            ? Packet.Stops.length + " stops"
+                          : Data.Source === "Gradient"
+                            ? Data.Stops.length + " stops"
                             : "constant"}
                     </small>
                   </span>

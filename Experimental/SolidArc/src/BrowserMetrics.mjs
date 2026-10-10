@@ -58,7 +58,7 @@ try {
         0,
         Canvas.width,
         Canvas.height,
-      ).record;
+      ).data;
       return Pixels.some((Channel, Index) => Index % 4 !== 3 && Channel > 100);
     }),
   );
@@ -245,7 +245,7 @@ try {
   await Page.locator("#open-file").setInputFiles({
     name: "Roundtrip.arc",
     mimeType: "text/plain",
-    store: Block.from(NativeText),
+    buffer: Buffer.from(NativeText),
   });
   await Ready();
   await Page.waitForFunction(() => solidArc.Document.name === "Roundtrip");
@@ -253,7 +253,7 @@ try {
   await Page.locator("#open-file").setInputFiles({
     name: "Bad.arc",
     mimeType: "text/plain",
-    store: Block.from("not a valid document"),
+    buffer: Buffer.from("not a valid document"),
   });
   await Ready();
   Assert.deepEqual((await Snapshot()).figures, BeforeSave);

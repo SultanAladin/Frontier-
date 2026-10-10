@@ -4,10 +4,10 @@ import {build} from 'esbuild';import {JSDOM} from 'jsdom';import {createCanvas,l
 const entry=`import React,{useState} from 'react';import{createRoot}from'react-dom/client';import Precompute from './bake-quick-tiles.jsx';function Harness(){const [obj,select]=useState({id:'sun',kind:'sun'}),[all,setAll]=useState({}),[intensity,setIntensity]=useState(100);window.selectTarget=(id,kind)=>select({id,kind});window.editSettings=()=>setIntensity(120);window.bakeValues=all;return <Precompute key={obj.id} object={obj} kind={obj.kind} values={all[obj.id]||{}} settings={{intensity,...all[obj.id]}} allValues={all} onSet={(k,v)=>setAll(s=>({...s,[obj.id]:{...s[obj.id],[k]:v}}))}/>};createRoot(document.getElementById('root')).render(<Harness/>);`;
 const result=await build({stdin:{contents:entry,resolveDir:process.cwd(),loader:'jsx'},bundle:true,write:false,format:'iife',define:{'process.env.NODE_ENV':'"test"'},plugins:[{name:'svg-test',setup(b){b.onResolve({filter:/\.svg\?url$/},a=>({path:path.resolve(a.resolveDir,a.path.split('?')[0]),namespace:'svg'}));b.onLoad({filter:/.*/,namespace:'svg'},a=>({contents:'export default '+JSON.stringify('data:image/svg+xml,'+encodeURIComponent(fs.readFileSync(a.path,'utf8'))),loader:'js'}))}}]});
 const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost:5173',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,d=w.document;
-w.Image=class {set src(value){loadImage(Block.from(value.split(',')[1],'base64')).then(img=>{this.naturalWidth=img.width;this.naturalHeight=img.height;this.onload?.()}).catch(()=>this.onerror?.())}};
+w.Image=class {set src(value){loadImage(Buffer.from(value.split(',')[1],'base64')).then(img=>{this.naturalWidth=img.width;this.naturalHeight=img.height;this.onload?.()}).catch(()=>this.onerror?.())}};
 let downloaded='';w.URL.createObjectURL=()=> 'blob:test';w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){downloaded=this.download};
 new vm.Script(result.outputFiles[0].text).runInContext(dom.getInternalVMContext());const tick=()=>new Promise(r=>setTimeout(r,40));await tick();
-const tile=id=>d.querySelector(`[record-precompute-target="${id}"]`);
+const tile=id=>d.querySelector(`[data-precompute-target="${id}"]`);
 assert.ok(tile('sun')&&tile('sun-disk'));assert.equal(d.querySelectorAll('.bake-quick-tile').length,2);
 assert.ok(tile('sun').querySelector('input[type=checkbox]').disabled);
 tile('sun').querySelector('.bake-trigger').click();await tick();

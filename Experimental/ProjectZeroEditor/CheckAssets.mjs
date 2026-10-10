@@ -110,7 +110,7 @@ try {
     waitUntil: "networkidle",
   });
   await Page.evaluate(() => document.fonts.ready);
-  // Both identifiers drag in mirrored directions, and share all three stops.
+  // Both handles drag in mirrored directions, and share all three stops.
   await Drag(Page.locator(".notch-handle"), 0, 380);
   await Stage(Top, "half");
   await Drag(Page.locator(".notch-handle"), 0, 410);
@@ -293,17 +293,17 @@ try {
     {
       name: "Moss.png",
       mimeType: "image/png",
-      store: Block.from(Image, "base64"),
+      buffer: Buffer.from(Image, "base64"),
     },
     {
       name: "StoredShape.obj",
       mimeType: "text/plain",
-      store: Block.from("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3"),
+      buffer: Buffer.from("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3"),
     },
     {
       name: "Jade.material.json",
       mimeType: "application/json",
-      store: Block.from(
+      buffer: Buffer.from(
         JSON.stringify({
           Format: "FrontierMaterial.v1",
           Material: Material.Material,
@@ -318,7 +318,7 @@ try {
   await Assets.getByLabel("Import assets", { exact: true }).setInputFiles({
     name: "Broken.png",
     mimeType: "image/png",
-    store: Block.from("not an image"),
+    buffer: Buffer.from("not an image"),
   });
   await Assets.getByText(/0 imported/).waitFor();
   assert.equal(
@@ -337,7 +337,7 @@ try {
   }).click();
   assert.deepEqual(
     fs.readFileSync(await (await ImageDownload).path()),
-    Block.from(Image, "base64"),
+    Buffer.from(Image, "base64"),
   );
   await Assets.getByRole("button", {
     name: "Remove asset",

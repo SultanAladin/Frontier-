@@ -47,14 +47,14 @@ function Dimension({
 export default function FogShapePanel({ Values, Change }) {
   const Glow = useId();
   const Shape = ResolveFogShape(Values),
-    Hull = FogGeometry(Shape),
+    Mesh = FogGeometry(Shape),
     Centre = Array.isArray(Values.Centre) ? Values.Centre : [0, 0, 0];
   const [Draft, Write] = useState(
       Shape.Points.map((Point) => Point.join(", ")).join("\n"),
     ),
     [Error, Report] = useState("");
   const Store = (Key, Value) => Change("FogShape", { ...Shape, [Key]: Value });
-  const Raw = Hull.Vertices.map(([X, Y, Z]) => [
+  const Raw = Mesh.Vertices.map(([X, Y, Z]) => [
     (X - Y) * Math.SQRT1_2,
     (X + Y) / Math.sqrt(6) - Z * Math.sqrt(2 / 3),
   ]);
@@ -142,14 +142,14 @@ export default function FogShapePanel({ Values, Change }) {
         </defs>
         <rect width="320" height="250" rx="15" fill="#151b1d" />
         <ellipse cx="160" cy="125" rx="155" ry="112" fill={`url(#${Glow})`} />
-        {Hull.Faces.map((Face, Index) => (
+        {Mesh.Faces.map((Face, Index) => (
           <polygon
             key={Index}
             points={Face.map((I) => Projected[I].join(",")).join(" ")}
             fill="#b8d9e107"
           />
         ))}
-        {Hull.Edges.map(([A, B], Index) => (
+        {Mesh.Edges.map(([A, B], Index) => (
           <line
             key={Index}
             x1={Projected[A][0]}
@@ -214,7 +214,7 @@ export default function FogShapePanel({ Values, Change }) {
           {Error && <p role="alert">{Error}</p>}
           <p>
             Ordered polygon, extruded along Z. Supports concave footprints
-            without crossing edges; this is not an arbitrary topology/SDF importer.
+            without crossing edges; this is not an arbitrary mesh/SDF importer.
           </p>
         </div>
       )}
@@ -238,9 +238,9 @@ export default function FogShapePanel({ Values, Change }) {
           </thead>
           <tbody>
             {[
-              ["Min", Hull.Min.map((V, I) => V + (Number(Centre[I]) || 0))],
-              ["Max", Hull.Max.map((V, I) => V + (Number(Centre[I]) || 0))],
-              ["Size", Hull.Size],
+              ["Min", Mesh.Min.map((V, I) => V + (Number(Centre[I]) || 0))],
+              ["Max", Mesh.Max.map((V, I) => V + (Number(Centre[I]) || 0))],
+              ["Size", Mesh.Size],
             ].map(([Label, List]) => (
               <tr key={Label}>
                 <th>{Label}</th>

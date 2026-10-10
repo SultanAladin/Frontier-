@@ -39,7 +39,7 @@ echo "[GiClass] rendering at ${Width}x${Height}: reference (512 spp, stream 1), 
        --class-map "$Work/class.png" --out "$Work/restir.png" > "$Work/restir.log" 2>&1
 "$Bin" --width "$Width" --height "$Height" --spp 1 --frames "$Frames" --out "$Work/plain.png" > /dev/null 2>&1
 
-grep -E "GI classes \(last frame\)|indirect slots on|\[restir\] frame +$Frames:" "$Work/restir.log" | sed 's/^/    /'
+grep -E "GI classes \(last frame\)|indirect pool on|\[restir\] frame +$Frames:" "$Work/restir.log" | sed 's/^/    /'
 
 echo "[GiClass] decoding to raw dumps (ImageMagick) and masking"
 for N in ref restir plain; do convert "$Work/$N.png" -depth 8 "rgb:$Work/$N.rgb"; done

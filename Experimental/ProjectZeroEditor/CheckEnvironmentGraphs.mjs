@@ -333,15 +333,15 @@ try {
     exact: true,
   });
   await CloudX.scrollIntoViewIfNeeded();
-  const Tag = await CloudX.locator("circle").boundingBox();
+  const Handle = await CloudX.locator("circle").boundingBox();
   await Page.mouse.move(
-    Tag.x + Tag.width / 2,
-    Tag.y + Tag.height / 2,
+    Handle.x + Handle.width / 2,
+    Handle.y + Handle.height / 2,
   );
   await Page.mouse.down();
   await Page.mouse.move(
-    Tag.x + Tag.width / 2 + 20,
-    Tag.y + Tag.height / 2 + 10,
+    Handle.x + Handle.width / 2 + 20,
+    Handle.y + Handle.height / 2 + 10,
     { steps: 4 },
   );
   await Page.mouse.up();

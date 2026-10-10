@@ -6,7 +6,7 @@
  * are *original* surface and which are *fresh fracture surface* — that
  * distinction drives both the shading (fresh rock is bright and rough, fresh
  * glass is a mirror/mist/hackle band, fresh wood is fibrous) and the
- * displacement applied at topology build time.
+ * displacement applied at mesh build time.
  */
 
 import {
@@ -253,14 +253,14 @@ export interface GeometryPayload {
   /** per-vertex: x = fresh(0/1), y = roughness jitter, z = local coord for grain */
   attr: Float32Array;
   count: number;
-  /** welded vertex id, for geometries driven by a vertex-animation texture */
+  /** welded vertex id, for meshes driven by a vertex-animation texture */
   vid?: Float32Array;
-  /** present for indexed geometries */
+  /** present for indexed meshes */
   idx?: Uint32Array;
 }
 
 /**
- * Triangulate a convex cell into a render topology.
+ * Triangulate a convex cell into a render mesh.
  *
  * Fresh fracture faces get tessellated and displaced by fractal noise scaled by
  * the material roughness — that is what makes a concrete break look like

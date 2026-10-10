@@ -63,5 +63,5 @@ int main(int Argc,char** Argv){
  }
  Manifest<<"\n]\n";
  Host.reset();for(auto* T:ImGui::GetPlatformIO().Textures){T->SetTexID(ImTextureID_Invalid);T->SetStatus(ImTextureStatus_Destroyed);}ImGui::DestroyContext();
- std::printf("Rendered 16 native editor selections at 1440 x 1000; real host, fixed exhibit fixture, CPU draw record.\n");
+ std::printf("Rendered 16 native editor selections at 1440 x 1000; real host, fixed exhibit fixture, CPU draw data.\n");
 }

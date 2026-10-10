@@ -193,14 +193,14 @@ try {
   await Page.keyboard.press("Tab");
   const Map = Dialog.locator(".wind-placement"),
     Bounds = await Map.boundingBox();
-  const Tag = Dialog.getByRole("button", {
+  const Handle = Dialog.getByRole("button", {
     name: "Tornado 1 position",
     exact: true,
   }).locator("circle");
-  const IdentifierBox = await Tag.boundingBox();
+  const HandleBox = await Handle.boundingBox();
   await Page.mouse.move(
-    IdentifierBox.x + IdentifierBox.width / 2,
-    IdentifierBox.y + IdentifierBox.height / 2,
+    HandleBox.x + HandleBox.width / 2,
+    HandleBox.y + HandleBox.height / 2,
   );
   await Page.mouse.down();
   await Page.mouse.move(
@@ -242,7 +242,7 @@ try {
     ) < 5,
   );
   const Touch = await Page.context().newCDPSession(Page);
-  const TouchBox = await Tag.boundingBox(),
+  const TouchBox = await Handle.boundingBox(),
     TX = TouchBox.x + TouchBox.width / 2,
     TY = TouchBox.y + TouchBox.height / 2;
   await Touch.send("Input.dispatchTouchEvent", {

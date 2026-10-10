@@ -18,7 +18,7 @@ int main(int Argc, char** Argv)
 {
     if (Argc < 3)
     {
-        std::fprintf(stderr, "usage: TriangleFieldImport <topology.obj> <cache dir> [resolution=32] [padding=0.1]\n"
+        std::fprintf(stderr, "usage: TriangleFieldImport <mesh.obj> <cache dir> [resolution=32] [padding=0.1]\n"
                              "       TriangleFieldImport --dir <content root> <cache dir> [resolution=32] [padding=0.1]\n");
         return 2;
     }
@@ -38,7 +38,7 @@ int main(int Argc, char** Argv)
         std::string Error;
         const int Count = TriangleField::ProjectDirectory(Input, CacheDir, Resolution, Padding, &Hits, &Error);
         if (Count < 0) { std::fprintf(stderr, "import failed: %s\n", Error.c_str()); return 1; }
-        std::printf("[TriangleFieldImport] %d topology(es) indexed, %u cache hit(s), %u baked, %.3f s (import time)\n", Count, Hits,
+        std::printf("[TriangleFieldImport] %d mesh(es) indexed, %u cache hit(s), %u baked, %.3f s (import time)\n", Count, Hits,
                     uint32_t(Count) - Hits, std::chrono::duration<double>(std::chrono::steady_clock::now() - T0).count());
         return 0;
     }

@@ -3105,7 +3105,7 @@ void SwapchainExchange::UploadScene(const SceneStructure& Scene, const Traversal
             std::cerr << "[RayQuery] Instance records refused; using software traversal.\n";
         else
             std::cerr << "[RayQuery] Hardware triangle BLAS/TLAS resident: " << Vulkan->RayQueryInstanceCount
-                      << " instances, " << HardwareInstanceCount << " instance records; inline ray queries enabled for ReSTIR GI, shadows and topology reflections.\n";
+                      << " instances, " << HardwareInstanceCount << " instance records; inline ray queries enabled for ReSTIR GI, shadows and mesh reflections.\n";
     }
     BuildSurfelSamples(Scene);
     try

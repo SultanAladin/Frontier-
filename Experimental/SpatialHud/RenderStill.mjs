@@ -1049,7 +1049,7 @@ class Picture {
     }
   }
 
-  // Premultiplied source-over, the interface chain's own blend.
+  // Premultiplied source-over, the interface pipeline's own blend.
   over(at, r, g, b, alpha) {
     const keep = 1 - alpha;
     this.lit[at * 3] = r + this.lit[at * 3] * keep;
@@ -1066,7 +1066,7 @@ class Picture {
   // brighter than the panel actually is, which is the one lie this tool must not tell.
   resolve(factor) {
     const width = Math.floor(this.width / factor), height = Math.floor(this.height / factor);
-    const out = Block.alloc(width * height * 3);
+    const out = Buffer.alloc(width * height * 3);
     const share = 1 / (factor * factor);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -1089,30 +1089,30 @@ class Picture {
 
 export function WritePortableNetwork(path, picture) {
   const { pixels, width, height } = picture;
-  const raw = Block.alloc((width * 3 + 1) * height);
+  const raw = Buffer.alloc((width * 3 + 1) * height);
   for (let y = 0; y < height; y++) {
     raw[y * (width * 3 + 1)] = 0;
     pixels.copy(raw, y * (width * 3 + 1) + 1, y * width * 3, (y + 1) * width * 3);
   }
 
   const chunk = (kind, body) => {
-    const out = Block.alloc(body.length + 12);
+    const out = Buffer.alloc(body.length + 12);
     out.writeUInt32BE(body.length, 0);
     out.write(kind, 4, 'ascii');
     body.copy(out, 8);
-    out.writeInt32BE(Crc(Block.concat([Block.from(kind, 'ascii'), body])), body.length + 8);
+    out.writeInt32BE(Crc(Buffer.concat([Buffer.from(kind, 'ascii'), body])), body.length + 8);
     return out;
   };
 
-  const header = Block.alloc(13);
+  const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
   header[8] = 8; header[9] = 2;               // 8-bit, truecolour
-  writeFileSync(path, Block.concat([
-    Block.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  writeFileSync(path, Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', header),
     chunk('IDAT', deflateSync(raw, { level: 9 })),
-    chunk('IEND', Block.alloc(0)),
+    chunk('IEND', Buffer.alloc(0)),
   ]));
 }
 
@@ -1138,7 +1138,7 @@ function DrawFigures(picture, camera, packed, from, to, ambient, time) {
   const { width, height } = picture;
 
   for (let slot = from; slot < to; slot++) {
-    const f = packed.record.subarray(slot * FloatsPerFigure, (slot + 1) * FloatsPerFigure);
+    const f = packed.data.subarray(slot * FloatsPerFigure, (slot + 1) * FloatsPerFigure);
     const rowX = f.subarray(0, 4), rowY = f.subarray(4, 8), rowZ = f.subarray(8, 12);
     const hw = f[12], hh = f[13], cornerRadius = f[14], opacity = f[15];
     const category = Math.trunc(f[20] + 0.5), alpha = f[21], beta = f[22], emissive = f[23];
@@ -1372,12 +1372,12 @@ export function RenderStill(options) {
 
   // Two screens, one device. `dash` is the instrument composition; `shell` is FRONTIER OS.
   // They are separate structures because they share nothing but the housing they are built on.
-  const { structure, identifiers } = composition === 'shell' ? constructShellLayout() : constructHudLayout();
+  const { structure, handles } = composition === 'shell' ? constructShellLayout() : constructHudLayout();
   // 🔴 The lean. layout.js stands the panel bolt upright, which is the right AUTHORING frame —
   //    every figure is placed against it and every check is pinned to it. A tablet in a room is
   //    not bolt upright, though: it sits in its dock and leans back. So the lean is applied here,
   //    to the scene, and the layout never learns about it.
-  structure.query(identifiers.housing).rotationX = Math.PI / 2 - Chassis.lean;
+  structure.query(handles.housing).rotationX = Math.PI / 2 - Chassis.lean;
 
 
   // The demo cycle app.js runs, sampled at `time`, with the springs at rest on their targets. A
@@ -1386,34 +1386,34 @@ export function RenderStill(options) {
   const boost = 0.5 - 0.5 * Math.cos(cycle * Math.PI * 4);
   if (composition === 'shell') {
     // A still of a clock has to be a fixed clock, or no two runs of --check agree.
-    assignShellValues(structure, identifiers, { clock: new Date(2026, 9, 9, 9, 41), time });
+    assignShellValues(structure, handles, { clock: new Date(2026, 9, 9, 9, 41), time });
   } else {
-    assignValues(structure, identifiers, {
+    assignValues(structure, handles, {
       speed: 18 + 160 * boost, boost, regen: 0.5 + 0.45 * Math.sin(cycle * Math.PI * 2),
       sport: cycle > 0.5 ? 1 : 0, time,
     });
   }
 
   // The field rung is drawn only when it is the rung in use, exactly as the host does it.
-  structure.query(identifiers.streaks).opacity =
+  structure.query(handles.streaks).opacity =
     backdrop === 'field' ? (composition === 'shell' ? 0.38 : 0.85) : 0;
 
   const { placements } = resolve(structure);
   const packed = pack(structure, placements, camera.eye);
 
-  const backdropRank = structure.query(identifiers.streaks).orderingRank;
+  const backdropRank = structure.query(handles.streaks).orderingRank;
   let splitAt = packed.order.findIndex((at) => structure.query(at).orderingRank > backdropRank);
   if (splitAt < 0) splitAt = packed.count;
 
-  const tablet = new Tablet(placements[identifiers.housing]);
+  const tablet = new Tablet(placements[handles.housing]);
   const room = [ambient, ambient * 1.02, ambient * 1.08];
 
-  // ── pass one: the display, into its own store, through the panel's own frustum ──────────────
+  // ── pass one: the display, into its own buffer, through the panel's own frustum ──────────────
   //
   // Its resolution is the panel's, not the window's, and it does not get the supersample: a real
   // display has the pixels it has, and the glass resolves it bilinearly like a sampler would.
   const screen = new Picture(DisplayWidth, DisplayHeight, [0.0032, 0.0036, 0.0048]);
-  const panelCamera = DisplayCamera(camera.eye, placements[identifiers.housing],
+  const panelCamera = DisplayCamera(camera.eye, placements[handles.housing],
                                     DisplayWidth, DisplayHeight);
 
   DrawFigures(screen, panelCamera, packed, 0, splitAt, room, time);
@@ -1422,7 +1422,7 @@ export function RenderStill(options) {
     const fibres = new Fibres(packFibre(new Float32Array(FibreFloats), StreakPreset, {
       time, width: DisplayWidth, height: DisplayHeight,
       projectionScale: panelCamera.projectionScale,
-      rows: placements[identifiers.housing],
+      rows: placements[handles.housing],
     }));
     DrawFibres(screen, panelCamera, fibres);
     DrawSparks(screen, panelCamera, fibres);

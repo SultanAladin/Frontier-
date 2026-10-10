@@ -1,7 +1,7 @@
 #include "CelestialSequence.h"
 #include "InspectorPanel.h"
 #include "ControlPanel.h"
-#include "SkyPrecomputePreview.h"
+#include "SkyBakePreview.h"
 #include "CpuDraw.h"
 #include "PngWriteCounterpart.h"
 #include <imgui_internal.h>

@@ -12,7 +12,7 @@ import numpy as np
 
 def Project(Source, Reference, Destination, Cowl=None):
     bpy.ops.wm.open_mainfile(filepath=str(Source.resolve()))
-    Original = bpy.record.objects['Body_Roof_Glass_Frame']
+    Original = bpy.data.objects['Body_Roof_Glass_Frame']
     Modifiers = {Modifier.name: {'operation': Modifier.type, 'enabled': Modifier.show_viewport}
                  for Modifier in Original.modifiers}
     if any(Modifier.show_viewport and Modifier.type != 'MIRROR' for Modifier in Original.modifiers):
@@ -24,7 +24,7 @@ def Project(Source, Reference, Destination, Cowl=None):
     Supplied = np.load(Reference)
     if not np.array_equal(Vertices, Supplied['V']) or not np.array_equal(Triangles, Supplied['T']):
         raise RuntimeError('Blender evaluation differs from the supplied frame; refusing an unverified reference')
-    Centre = float(bpy.record.objects['Body_Main_Shell'].matrix_world.translation.y)
+    Centre = float(bpy.data.objects['Body_Main_Shell'].matrix_world.translation.y)
     Vertices = Vertices.astype(np.float64)
     Vertices[:, 1] -= Centre
     Vertices *= .01

@@ -21,7 +21,7 @@ if TARGET.exists(): shutil.rmtree(TARGET)
 shutil.copytree(BASE, TARGET)
 env = dict(os.environ, GIT_CEILING_DIRECTORIES=str(TARGET))
 subprocess.run(['git', 'apply', str(ROOT/'Tools/Build/Patches/NativeOutliner.patch')], cwd=TARGET, env=env, check=True)
-for name in ['IconArt.h', 'IconArt.cpp', 'PrecomputedIconArt.h', 'IconSymbols.inc', 'IconPresentation.h', 'IconPresentation.cpp']:
+for name in ['IconArt.h', 'IconArt.cpp', 'BakedIconArt.h', 'IconSymbols.inc', 'IconPresentation.h', 'IconPresentation.cpp']:
     shutil.copy2(ROOT/'Engine/DisplayPresentation'/name, TARGET/'Engine/DisplayPresentation'/name)
 shutil.copytree(ROOT/'EngineContent/Icons', TARGET/'EngineContent/Icons', dirs_exist_ok=True)
 shutil.copytree(ROOT/'Exhibits/Workbench/IconArt', TARGET/'Exhibits/Workbench/IconArt', dirs_exist_ok=True)

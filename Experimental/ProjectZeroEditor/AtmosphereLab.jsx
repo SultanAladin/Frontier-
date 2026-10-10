@@ -560,10 +560,10 @@ function Space({ V, Change, Expand, Turn, Orbit }) {
           }
           const Offset = (Y * W + X) * 4;
           for (let A = 0; A < 3; A++)
-            Image.record[Offset + A] = Math.round(
+            Image.data[Offset + A] = Math.round(
               255 * (1 - Math.exp(-Math.max(0, RGB[A]) * 1.8)) ** (1 / 2.2),
             );
-          Image.record[Offset + 3] = 255;
+          Image.data[Offset + 3] = 255;
         }
       Context.putImageData(Image, 0, 0);
       C.dataset.render = String(performance.now());

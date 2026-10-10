@@ -52,11 +52,11 @@ const stored=readProject();
 function App(){
  const [nativeRows,setNativeRows]=useState([]);
  const [constructInspect,setConstructInspect]=useState(null);
- const syncNative=record=>{
-  setNativeRows(record.entities.map(entity=>({id:entity.id,base:'native',name:entity.name,type:constructItems[entity.kind].name,group:'World',icon:entity.camera?Camera:Box,color:'#a8bbeb',native:entity})));
-  setOrganization(groups=>{const ids=record.entities.map(e=>e.id);const next=groups.map(g=>({...g,members:g.members.filter(id=>!id.startsWith('native-')||ids.includes(id))}));const owned=new Set(next.filter(g=>g.kind==='folder').flatMap(g=>g.members));const missing=ids.filter(id=>!owned.has(id));let folder=next.find(g=>g.id==='folder-native-authoring');if(!folder){folder={id:'folder-native-authoring',kind:'folder',name:'Native authoring scene',members:[]};next.push(folder)}folder.members=[...folder.members,...missing];return next});
+ const syncNative=data=>{
+  setNativeRows(data.entities.map(entity=>({id:entity.id,base:'native',name:entity.name,type:constructItems[entity.kind].name,group:'World',icon:entity.camera?Camera:Box,color:'#a8bbeb',native:entity})));
+  setOrganization(groups=>{const ids=data.entities.map(e=>e.id);const next=groups.map(g=>({...g,members:g.members.filter(id=>!id.startsWith('native-')||ids.includes(id))}));const owned=new Set(next.filter(g=>g.kind==='folder').flatMap(g=>g.members));const missing=ids.filter(id=>!owned.has(id));let folder=next.find(g=>g.id==='folder-native-authoring');if(!folder){folder={id:'folder-native-authoring',kind:'folder',name:'Native authoring scene',members:[]};next.push(folder)}folder.members=[...folder.members,...missing];return next});
  };
- useEffect(()=>{let active=true;nativeWorld().then(record=>{if(active)syncNative(record)}).catch(()=>{});return()=>{active=false}},[]);
+ useEffect(()=>{let active=true;nativeWorld().then(data=>{if(active)syncNative(data)}).catch(()=>{});return()=>{active=false}},[]);
  useEffect(()=>{const shortcut=e=>{if(e.shiftKey&&e.code==='KeyA'&&!/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)&&!e.target.isContentEditable){e.preventDefault();setAdd(true)}};window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut)},[]);
  const [organization,setOrganization]=useState(()=>migrateOrganization(stored,objects));
  const [selected,setSelected]=useState('sun'),[query,setQuery]=useState(''),[collapsed,setCollapsed]=useState({}),[hidden,setHidden]=useState(stored.hidden||{}),[values,setValues]=useState(stored.values||{}),[add,setAdd]=useState(false),[extras,setExtras]=useState((stored.extras||[]).map(o=>({...objects.find(b=>b.id===o.base),...o}))),[saved,setSaved]=useState(true);
@@ -156,7 +156,7 @@ function App(){
    <div className="scene-label">WORKSPACE <span className="status-dot"/></div>
    <div className="scene-title"><span>Untitled world</span><span className="scene-extension">.scene</span></div>
    <div className="outliner-heading"><h2>Outliner <span>{all.length.toString().padStart(2,'0')}</span></h2><button className="icon-button" aria-label="Open Construct" title="Construct · Shift+A" onClick={()=>setAdd(!add)}>{add?<X size={17}/>:<Plus size={17}/>}</button></div>
-   {add&&<ConstructMenu entities={objects} properties={constructInspect?inspector:null} onInspect={id=>{setConstructInspect(id);if(id)setSelected(id)}} onClose={()=>{setAdd(false);setConstructInspect(null)}} onOrganize={addOrganization} onCreated={record=>{syncNative(record);setSelected(record.entities.at(-1).id);setQuery('');setCollapsed(s=>({...s,Folders:false,'folder-native-authoring':false}));setSaved(false)}}/>}
+   {add&&<ConstructMenu entities={objects} properties={constructInspect?inspector:null} onInspect={id=>{setConstructInspect(id);if(id)setSelected(id)}} onClose={()=>{setAdd(false);setConstructInspect(null)}} onOrganize={addOrganization} onCreated={data=>{syncNative(data);setSelected(data.entities.at(-1).id);setQuery('');setCollapsed(s=>({...s,Folders:false,'folder-native-authoring':false}));setSaved(false)}}/>}
    <label className="search"><Search size={15}/><input placeholder="Find an object..." value={query} onChange={e=>setQuery(e.target.value)}/>{query?<button aria-label="Clear search" onClick={()=>setQuery('')}><X size={13}/></button>:<span>⌕</span>}</label>
    <SceneTree all={all} organization={organization} selected={selected} onSelect={setSelected} collapsed={collapsed} setCollapsed={setCollapsed} isHidden={isHidden} toggleHidden={toggleHidden} query={query} values={values}/>
    <div className="outliner-bottom"><div className="world-icon"><OutlinerIcon object={{id:'project',icon:Box}} size={30}/></div><div><strong>Evergreen valley</strong><span>Local project</span></div><span className="little-dot"/></div>

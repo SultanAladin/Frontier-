@@ -1,4 +1,4 @@
-#include "GpuSurfacePayload.h"
+#include "GpuSurfaceData.h"
 #include "MarchingCubesTables.h"
 #include <algorithm>
 #include <fstream>

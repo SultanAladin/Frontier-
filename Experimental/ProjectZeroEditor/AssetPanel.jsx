@@ -11,7 +11,7 @@ import {
 } from "./AssetDepot.js";
 
 function FilePreview({ Asset }) {
-  const [Source, Show] = useState(Asset.Packet || ""),
+  const [Source, Show] = useState(Asset.Data || ""),
     [Status, Report] = useState("Loading original…"),
     [Family, Font] = useState("");
   useEffect(() => {
@@ -20,8 +20,8 @@ function FilePreview({ Asset }) {
       Face;
     (async () => {
       try {
-        const File = Asset.Packet
-          ? await (await fetch(Asset.Packet)).blob()
+        const File = Asset.Data
+          ? await (await fetch(Asset.Data)).blob()
           : await AssetFile(Asset.Id);
         if (!File)
           throw Error("Original bytes unavailable. Reimport this file.");
@@ -351,10 +351,10 @@ export default function AssetPanel({
                       />
                     ) : Asset.Kind === "Fonts" ? (
                       <span className="asset-font-icon">Aa</span>
-                    ) : (Asset.Thumbnail || Asset.Packet) &&
+                    ) : (Asset.Thumbnail || Asset.Data) &&
                       ["Images", "Icons"].includes(Asset.Kind) ? (
                       <img
-                        src={Asset.Thumbnail || Asset.Packet}
+                        src={Asset.Thumbnail || Asset.Data}
                         alt=""
                         loading="lazy"
                       />

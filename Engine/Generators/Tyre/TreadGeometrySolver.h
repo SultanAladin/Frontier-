@@ -7,7 +7,7 @@
 
 #include "TreadRegionSolver.h"
 #include "TreadSpecification.h"
-#include "TyreGeometryStructure.h"
+#include "TyreMeshStructure.h"
 
 namespace Frontier {
 

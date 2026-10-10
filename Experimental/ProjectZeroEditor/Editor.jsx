@@ -1698,7 +1698,7 @@ function App() {
           </label>
           <p>
             F3 / Shift+F3 cycle debug views. These are HTML diagnostic
-            selections; no native render stores are connected.
+            selections; no native render buffers are connected.
           </p>
         </section>
       )}

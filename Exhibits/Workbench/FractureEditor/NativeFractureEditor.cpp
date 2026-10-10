@@ -184,7 +184,7 @@ int main()
               "the detail rounds the size to one decimal and says why it is stale");
 
         Specimen.Stored = Freshness::Ready;
-        Check(std::strcmp(StoredStatus(Specimen), "Precomputed \xc2\xb7 ready") == 0, "a matching signature is ready");
+        Check(std::strcmp(StoredStatus(Specimen), "Baked \xc2\xb7 ready") == 0, "a matching signature is ready");
         Check(StoredDot(Specimen) == DotReady, "with a green dot");
         StoredDetail(Specimen, Text, sizeof(Text));
         Check(std::strcmp(Text, "41 closed pieces \xc2\xb7 128.8 KiB \xc2\xb7 per object") == 0,

@@ -151,17 +151,17 @@ export default function ReferencePanel({
     const Receive = (Event) => {
       if (
         Event.source !== Frame.current?.contentWindow ||
-        !Event.record?.ReferenceInspector
+        !Event.data?.ReferenceInspector
       )
         return;
-      if (Event.record.Type === "ready") {
+      if (Event.data.Type === "ready") {
         Ready.current = true;
         Transmit();
       }
-      if (Event.record.Type === "height" && Number.isFinite(Event.record.Height))
-        Size(Math.max(1, Math.min(500000, Event.record.Height)));
-      if (Event.record.Type === "state")
-        Current.current.Apply(Event.record.Records);
+      if (Event.data.Type === "height" && Number.isFinite(Event.data.Height))
+        Size(Math.max(1, Math.min(500000, Event.data.Height)));
+      if (Event.data.Type === "state")
+        Current.current.Apply(Event.data.Records);
     };
     addEventListener("message", Receive);
     return () => removeEventListener("message", Receive);

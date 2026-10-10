@@ -4567,7 +4567,7 @@ void ConsoleHost::Register() noexcept
 
         std::ofstream Obj(ObjPath);
         if (!Obj) return Refuse("export: cannot write %s", ObjPath.string().c_str());
-        Obj << "# SolidArc topology export — units: metres, Y up matches source; per-face materials via usemtl.\n";
+        Obj << "# SolidArc mesh export — units: metres, Y up matches source; per-face materials via usemtl.\n";
         Obj << "# vertices: " << (Weld ? "welded (coincident position+normal merged per body)" : "duplicated per face (sharp low-poly edges)") << "\n";
         Obj << "mtllib " << (Stem + ".mtl") << "\n";
 
@@ -4672,7 +4672,7 @@ void ConsoleHost::Register() noexcept
         {
             Tm << "# SolidArc material manifest for " << (Stem + ".obj") << "\n";
             Tm << "# Edit freely: 'frontier' is the engine material each usemtl group binds to; paints use System B AutomotiveFlakePaint.\n";
-            Tm << "topology = \"" << (Stem + ".obj") << "\"\n\n";
+            Tm << "mesh = \"" << (Stem + ".obj") << "\"\n\n";
             for (int St : Used)
             {
                 const StudioMaterial& M = StudioMat(St);

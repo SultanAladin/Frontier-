@@ -17,7 +17,7 @@
  * type and a cursor along the damage sequence. The vertex shader projects each
  * vertex into the instance's frame, samples the map bilinearly and adds the
  * displacement. That gives arbitrary hit positions, arbitrary orientation and
- * unlimited dents from a 1-2 MB precompute, on any topology - no per-asset precompute at all.
+ * unlimited dents from a 1-2 MB precompute, on any mesh - no per-asset precompute at all.
  *
  * This is the piece you would actually ship on vehicles: one steel-sheet
  * library (a few impactor shapes x a few angles), stamped wherever the

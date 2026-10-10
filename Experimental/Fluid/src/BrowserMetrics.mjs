@@ -257,7 +257,7 @@ try {
   await Page.locator("#import-file").setInputFiles({
     name: "scene.fluid.json",
     mimeType: "application/json",
-    store: Block.from(SavedText),
+    buffer: Buffer.from(SavedText),
   });
   await Page.waitForFunction(
     () => fluidEditor.Parameters.gridResolution === 32,
@@ -272,7 +272,7 @@ try {
   await Page.locator("#import-file").setInputFiles({
     name: "invalid.json",
     mimeType: "application/json",
-    store: Block.from(
+    buffer: Buffer.from(
       JSON.stringify({ ...Saved, params: { gridResolution: 10000 } }),
     ),
   });

@@ -2,12 +2,12 @@
 // 📦 Projects/Project-Drive/Source/DriveSceneAuthor.cpp — builds the `--scene drive` level: course, ControlVehicle, wheels
 //============================================================================================================================================
 #include "DriveSceneAuthor.h"
-#include "DriveWheelGeometry.h"
+#include "DriveWheelMesh.h"
 #include "../../../Engine/ContentInterchange/AutomotiveShowcasePresets.h"
 #include "../../../Engine/ContentInterchange/SceneCodec.h"
 #include "DriveCourse.h"
-#include "ControlVehicleGeometry.inl"
-#include "ControlVehicleWheelGeometry.inl"
+#include "ControlVehicleMesh.inl"
+#include "ControlVehicleWheelMesh.inl"
 
 #include <algorithm>
 #include <cmath>

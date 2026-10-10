@@ -24,17 +24,17 @@ try{
   let authority;
   if(['folder-scene','folder-world','folder-materials'].includes(name)){
    const source={'folder-scene':'scenes','folder-world':'models','folder-materials':'materials'}[name];
-   authority=Block.from((await readFile(path.join(root,'Experimental/FrontierEditor/custom-icons','asset-folder-'+source+'.svg'),'utf8')).replace(/<text\b[^>]*>[\s\S]*?<\/text>/g,'').replace(/<title\b[^>]*>[\s\S]*?<\/title>/g,'').replace(/\saria-labelledby="[^"]*"/g,''));
+   authority=Buffer.from((await readFile(path.join(root,'Experimental/FrontierEditor/custom-icons','asset-folder-'+source+'.svg'),'utf8')).replace(/<text\b[^>]*>[\s\S]*?<\/text>/g,'').replace(/<title\b[^>]*>[\s\S]*?<\/title>/g,'').replace(/\saria-labelledby="[^"]*"/g,''));
   }else authority=await readFile(path.join(root,'Experimental/FrontierEditor',['local-cloud','local-fog','folder-environment','folder-generic'].includes(name)?'ui-icons':'custom-icons',name+'.svg'));
   if(!svg.equals(authority))throw Error('Shipped SVG differs from approved source: '+name);
   const result=await page.evaluate(async source=>{
    const img=new Image();img.src='data:image/svg+xml;base64,'+source;await img.decode();
    const canvas=document.createElement('canvas');canvas.width=canvas.height=256;
    const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,256,256);
-   return {pixels:Array.from(ctx.getImageData(0,0,256,256).record),png:canvas.toDataURL('image/png').split(',')[1]};
+   return {pixels:Array.from(ctx.getImageData(0,0,256,256).data),png:canvas.toDataURL('image/png').split(',')[1]};
   },svg.toString('base64'));
-  const header=Block.alloc(16);header.write('FIB1');header.writeUInt32LE(256,4);header.writeUInt32LE(256,8);header.writeUInt32LE(svg.length,12);
-  const precompute=Block.concat([header,svg,Block.from(result.pixels)]),png=Block.from(result.png,'base64');
+  const header=Buffer.alloc(16);header.write('FIB1');header.writeUInt32LE(256,4);header.writeUInt32LE(256,8);header.writeUInt32LE(svg.length,12);
+  const precompute=Buffer.concat([header,svg,Buffer.from(result.pixels)]),png=Buffer.from(result.png,'base64');
   await writeFile(path.join(output,name+'.rgba'),precompute);await writeFile(path.join(output,name+'.png'),png);
   manifest.icons.push({name,sourceSHA256:sha(svg),precomputeSHA256:sha(precompute),pngSHA256:sha(png)});
  }

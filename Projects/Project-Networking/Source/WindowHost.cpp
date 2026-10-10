@@ -139,7 +139,7 @@ const char* ReadUnicodeClipboard(ImGuiContext*)
         ReceiveDiagnostic("Clipboard is busy. Try pasting again.");
         return ClipboardText;
     }
-    HANDLE Content = GetClipboardPayload(CF_UNICODETEXT);
+    HANDLE Content = GetClipboardData(CF_UNICODETEXT);
     const auto* Text = Content ? static_cast<const wchar_t*>(GlobalLock(Content)) : nullptr;
     bool Copied = false;
     if (Text)
@@ -322,7 +322,7 @@ void CopyDiagnostics()
         ReceiveDiagnostic("Clipboard unavailable. Click Copy log again.");
         return;
     }
-    const bool Copied = EmptyClipboard() && SetClipboardPayload(CF_UNICODETEXT, Storage);
+    const bool Copied = EmptyClipboard() && SetClipboardData(CF_UNICODETEXT, Storage);
     CloseClipboard();
     if (!Copied) GlobalFree(Storage); // Windows owns the allocation only after success.
     ReceiveDiagnostic(Copied ? "Redacted log copied. Paste it into your message." : "Could not copy the log. Try again.");
@@ -905,7 +905,7 @@ int RunWindow(bool Smoke)
             if (!LobbyCaptured) Result = 3;
             glfwSetWindowShouldClose(Window, GLFW_TRUE);
         }
-        glfwSwapStores(Window);
+        glfwSwapBuffers(Window);
     }
     Networking::ShutdownEpic(ReceiveDiagnostic);
     WipeSecret();

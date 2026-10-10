@@ -259,26 +259,26 @@ try {
   const Precompute = await Page.evaluate(() => {
     const Result = fluidEditor.Flipbook.Result,
       Metadata = Result.Metadata;
-    const Packet = Result.Sheet.getContext("2d").getImageData(
+    const Data = Result.Sheet.getContext("2d").getImageData(
       0,
       0,
       Metadata.width,
       Metadata.height,
-    ).record;
+    ).data;
     let Clear = 0,
       Coverage = 0,
       Partial = 0,
       Difference = 0;
-    for (let Index = 3; Index < Packet.length; Index += 4) {
-      if (!Packet[Index]) Clear++;
+    for (let Index = 3; Index < Data.length; Index += 4) {
+      if (!Data[Index]) Clear++;
       else Coverage++;
-      if (Packet[Index] > 0 && Packet[Index] < 255) Partial++;
+      if (Data[Index] > 0 && Data[Index] < 255) Partial++;
     }
     for (let Row = 0; Row < 64; Row++)
       for (let Column = 0; Column < 64; Column++)
         Difference += Math.abs(
-          Packet[(Row * 128 + Column) * 4] -
-            Packet[((Row + 64) * 128 + Column + 64) * 4],
+          Data[(Row * 128 + Column) * 4] -
+            Data[((Row + 64) * 128 + Column + 64) * 4],
         );
     return {
       Metadata,
@@ -361,7 +361,7 @@ try {
         0,
         128,
         128,
-      ).record;
+      ).data;
       return Bytes.every(
         (Channel, Index) => Index % 4 !== 3 || Channel === 255,
       );

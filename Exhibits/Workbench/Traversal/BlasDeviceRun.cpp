@@ -28,7 +28,7 @@
 //    builds the SPIR-V first if the .spv files are missing.
 //
 // Exit codes: 0 the device matches the mirror · 1 a mismatch · 2 no Vulkan device (printed as SKIP, not as a pass).
-#include "BlasBuildChain.h"
+#include "BlasBuildPipeline.h"
 #include "../../../Engine/ContentInterchange/MaterialSwatchStructure.h"
 
 #include <dlfcn.h>

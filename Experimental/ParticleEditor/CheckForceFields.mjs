@@ -231,7 +231,7 @@ console.log("\nPASS " + Checks);
 //
 // Wind components and force fields were two arrays with two shapes edited in two panels. They are one
 // list now. The only way that is a refactor rather than a rewrite is if the payloads the GPU receives are
-// the same ones it received before, so this asserts the new list against the original hand-written record
+// the same ones it received before, so this asserts the new list against the original hand-written data
 // still sitting in presets.js, field by field, rather than against a description of it.
 //---------------------------------------------------------------------------------------------------------
 import { PE } from "./js/pe.js";

@@ -1,5 +1,5 @@
 #pragma once
-#include "GpuSurfacePayload.h"
+#include "GpuSurfaceData.h"
 #include <vulkan/vulkan.h>
 #include <memory>
 namespace Frontier::ProjectFluid {

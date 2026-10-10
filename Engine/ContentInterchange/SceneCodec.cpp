@@ -500,7 +500,7 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
         }
 
         if (N) { Nodes << ","; Geometries << ","; SceneNodes << ","; }
-        Nodes << "{\"topology\":" << N << ",\"name\":\"";
+        Nodes << "{\"mesh\":" << N << ",\"name\":\"";
         AppendEscapedName(Nodes, Span.Name);
         Nodes << "\"";
         if (Span.Dynamic) Nodes << ",\"extras\":{\"frontier_dynamic\":1}";
@@ -597,7 +597,7 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
             if (NodeCount) { Nodes << ","; Geometries << ","; SceneNodes << ","; }
             float Node[16];
             ConjugateToGltf(Placement.World, Node);
-            Nodes << "{\"topology\":" << NodeCount << ",\"name\":\"";
+            Nodes << "{\"mesh\":" << NodeCount << ",\"name\":\"";
             AppendEscapedName(Nodes, Placement.Name);
             Nodes << "\",\"matrix\":[";
             for (int I = 0; I < 16; ++I) Nodes << (I ? "," : "") << Number(Node[I]);
@@ -757,7 +757,7 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
     if (!File) { if (Error) *Error = "cannot open " + Path + " for writing"; return false; }
     File << "{\"asset\":{\"version\":\"2.0\",\"generator\":\"Frontier SceneCodec\"},"
          << "\"extensionsUsed\":[" << ExtensionsJson.str() << "],"
-         << "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"topology\":0,\"name\":\"" << Name << "\"}],"
+         << "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"" << Name << "\"}],"
          << "\"meshes\":[{\"name\":\"" << Name << "\",\"primitives\":[" << Primitives.str() << "]}],"
          << "\"materials\":[" << MaterialsJson.str() << "],"
          << "\"accessors\":[" << Accessors.str() << "],"

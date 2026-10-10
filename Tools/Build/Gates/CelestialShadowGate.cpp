@@ -104,7 +104,7 @@ int main()
     {
         ShadowFrameConfiguration Shadow = WithSun({}, -0.5f, 0.0f, -0.4f, 0.0f);   // below the horizon ⇒ SunDirect 0
         const bool Placed = SunOnly.PlaceShadowTaps(Shadow);
-        std::printf("night, no topology emitters: placed=%s taps=%u\n", Placed ? "yes" : "no", Shadow.TapCount);
+        std::printf("night, no mesh emitters: placed=%s taps=%u\n", Placed ? "yes" : "no", Shadow.TapCount);
         Check(!Placed,               "a dark level places no taps (the caller must not present an unwritten image)");
         Check(Shadow.TapCount == 0u, "no taps are left behind from a previous frame");
         Check(Shadow.DirectionalMask == 0u, "the directional mask is cleared too");

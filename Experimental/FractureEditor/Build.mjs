@@ -71,5 +71,5 @@ const Html = fs
   );
 fs.writeFileSync(path.join(Folder, "index.html"), Html);
 console.log(
-  `Built standalone fracture editor: ${(Block.byteLength(Html) / 1048576).toFixed(2)} MiB`,
+  `Built standalone fracture editor: ${(Buffer.byteLength(Html) / 1048576).toFixed(2)} MiB`,
 );

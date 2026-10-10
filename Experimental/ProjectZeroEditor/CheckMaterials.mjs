@@ -252,7 +252,7 @@ try {
   }).setInputFiles({
     name: "StripeStudy.png",
     mimeType: "image/png",
-    store: Block.from(Texture, "base64"),
+    buffer: Buffer.from(Texture, "base64"),
   });
   await Window.getByAltText("StripeStudy.png").waitFor();
   await PreviewChanged(BeforeTexture);
@@ -267,7 +267,7 @@ try {
   }).setInputFiles({
     name: "Invalid.png",
     mimeType: "image/png",
-    store: Block.from("Not an image"),
+    buffer: Buffer.from("Not an image"),
   });
   await Window.getByText(
     "Image could not be decoded. The previous texture is unchanged.",

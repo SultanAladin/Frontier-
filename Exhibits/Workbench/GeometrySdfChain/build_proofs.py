@@ -1,4 +1,4 @@
-"""Charts, GIF and table for the topology SDF pipeline proof. Reads frame_cell_writes.tsv and run.log written by proof.cpp."""
+"""Charts, GIF and table for the mesh SDF pipeline proof. Reads frame_cell_writes.tsv and run.log written by proof.cpp."""
 from pathlib import Path
 import csv
 import matplotlib

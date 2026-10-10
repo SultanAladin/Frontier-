@@ -72,9 +72,9 @@ export default function DiagnosticsCard({
     };
   }
   const Box = Fit(Prefs),
-    Packet = Frozen || Timing,
-    Last = Packet.Live,
-    Samples = Packet.Samples.filter(
+    Data = Frozen || Timing,
+    Last = Data.Live,
+    Samples = Data.Samples.filter(
       (S) => Last && Last.Time - S.Time <= Prefs.Seconds * 1000,
     ),
     Numeric = Prefs.Metric === "FPS" || Prefs.Metric === "Frame",
@@ -471,7 +471,7 @@ export default function DiagnosticsCard({
         )}
         <details className="debug-native">
           <summary>Debug View · {DebugName}</summary>
-          <p>Native store selection only · not connected</p>
+          <p>Native buffer selection only · not connected</p>
           <p>
             HiZ {HiZ ? "on" : "off"} · Alias {Alias ? "on" : "off"} · Patch
             error {PatchError} px

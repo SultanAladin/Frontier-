@@ -257,7 +257,7 @@ export function GasInspector({
       </div>
 
       {/* ① The transform, first, because this is a 3D entity before it is an effect. Bounds take the row
-          Scale occupies on a topology: the domain's extent is its scale, in metres, and is not a child. */}
+          Scale occupies on a mesh: the domain's extent is its scale, in metres, and is not a child. */}
       <TransformPanel Values={Values} Change={Change} Rows={GasTransformRows} Space="WORLD SPACE" />
       <div className="section-caption">
         ROTATION ORIENTS CHILDREN, NOT THE LATTICE — the solver cube is axis-aligned
@@ -518,11 +518,11 @@ export default function GasEditor({ Subject, Values, Change, Domains, SelectDoma
   //    this editor keeps working when it is not being served.
   useEffect(() => {
     const Receive = (Event) => {
-      if (Event.record?.Frontier !== "gas-scene-changed" || !Event.record.Settings) return;
+      if (Event.data?.Frontier !== "gas-scene-changed" || !Event.data.Settings) return;
       // The page speaks the simulator's parameter names; the card stores the editor's labels. The sheet is
       //    the dictionary between them, and a setting the card does not expose simply has no label to
       //    land in — it stays in the full editor, which is where it was being adjusted.
-      const Arrived = Event.record.Settings;
+      const Arrived = Event.data.Settings;
       for (const Field of GasSheet)
         if (Arrived[Field.Key] !== undefined) Change(Field.Label, Arrived[Field.Key]);
       if (Arrived.boundsWidth !== undefined || Arrived.boundsHeight !== undefined)
@@ -662,8 +662,8 @@ export function ParticleEditor({ Subject, Values, Change, Rename, Close }) {
   //    GasEmitterToParticles cross; everything else on either side stays where it was authored.
   useEffect(() => {
     const Receive = (Event) => {
-      if (Event.record?.Frontier !== "particle-system-changed" || !Event.record.Settings) return;
-      const Arrived = EmitterValuesFromParticles(Event.record.Settings);
+      if (Event.data?.Frontier !== "particle-system-changed" || !Event.data.Settings) return;
+      const Arrived = EmitterValuesFromParticles(Event.data.Settings);
       for (const [Label, Reading] of Object.entries(Arrived)) Change(Label, Reading);
     };
     window.addEventListener("message", Receive);

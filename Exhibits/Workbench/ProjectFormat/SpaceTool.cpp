@@ -256,7 +256,7 @@ int main(int ArgumentCount, char** Arguments)
         std::printf("  -Project=<Name> -Level=<Name> -Export[=All|<Level>] [-Out=<dir>]   write the level as a project\n");
         std::printf("  -Pack=<file> | -Explode=<file> [-Out=<dir>]                        the two lossless tools\n");
         std::printf("  -Bake=Sky -Out=<dir>                                               bake the sky probe into the environment\n");
-        std::printf("  -Facts=<file>                                                       print what a container holds\n");
+        std::printf("  -Info=<file>                                                       print what a container holds\n");
         std::printf("  -Verify=<dir>                                                      re-read an export and compare it with the level\n");
         return 0;
     }

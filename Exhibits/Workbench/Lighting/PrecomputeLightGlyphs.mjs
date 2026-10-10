@@ -32,7 +32,7 @@ for (const File of new Set(Object.values(LightIcons))) {
   const Raster = new Resvg(Source, { fitTo: { mode: "width", value: Edge } }).render();
   const Pixels = Raster.asPng();
   // asPng gives an encoded stream; pixels() hands back the straight-alpha RGBA the harness wants.
-  const Rgba = Block.from(Raster.pixels ?? Pixels);
+  const Rgba = Buffer.from(Raster.pixels ?? Pixels);
   if (Rgba.length !== Edge * Edge * 4) {
     throw new Error(`${File}: expected ${Edge * Edge * 4} RGBA bytes, received ${Rgba.length}`);
   }

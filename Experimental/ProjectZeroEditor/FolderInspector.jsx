@@ -191,7 +191,7 @@ export default function FolderInspector({
         <p>
           {Count(Inventory.Constructed)} constructed preview markers ·
           visibility includes ancestor folders. Counts are scene records, not
-          render workload or storage usage.
+          render workload or memory usage.
         </p>
       </section>
       <section className="workspace-card collection-browser">

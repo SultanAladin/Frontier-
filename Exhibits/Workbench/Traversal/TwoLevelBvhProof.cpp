@@ -1380,7 +1380,7 @@ int main()
     //    PRECOMPUTED frame and its row must carry World_now · World_rest⁻¹ rather than World_now. Getting this wrong places
     //    the geometry twice — invisible in the drop scene (whose rest World is identity) and wrong everywhere else, so
     //    it is checked here against a non-identity rest precompute.
-    std::printf("\n③b rest-bake convention — a prototype over a PRECOMPUTED soup, moved by World_now · World_rest⁻¹\n");
+    std::printf("\n③b rest-bake convention — a prototype over a BAKED soup, moved by World_now · World_rest⁻¹\n");
     {
         float Rest[16], Now[16];
         MakeTransform(0.6981317007977318f, 0.8f, -1.25f, 0.5f, 2.0f, Rest);    // 40 deg · x0.8 · translate

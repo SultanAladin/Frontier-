@@ -192,7 +192,7 @@ try {
     20,
     0,
   );
-  // Exercise measured browser stalls, never fabricated telemetry or native GPU record.
+  // Exercise measured browser stalls, never fabricated telemetry or native GPU data.
   await Page.evaluate(async () => {
     for (let I = 0; I < 6; I++) {
       await new Promise((R) => setTimeout(R, 120));

@@ -16,8 +16,8 @@ export const constructItems=[
 ];
 export async function nativeWorld(request){
  const response=await fetch('/api/construct',request?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)}:{});
- let record;try{record=await response.json()}catch{throw Error('Start the native authoring bridge to create engine entities.')}
- if(!response.ok||!record.ok)throw Error(record.error||'Native scene is unavailable.');return record;
+ let data;try{data=await response.json()}catch{throw Error('Start the native authoring bridge to create engine entities.')}
+ if(!response.ok||!data.ok)throw Error(data.error||'Native scene is unavailable.');return data;
 }
 export function ConstructGlyph({kind,id='glyph'}){
  const color=['#9ba9fd','#a5b9d0','#a9b9f2','#ecac8a','#90c9bd','#c3a1ec','#f2cf80','#aeaff4','#8fa8ba'][kind];
@@ -43,7 +43,7 @@ export default function ConstructMenu({onClose,onCreated,onOrganize,entities=[],
  function goBack(){if(busy)return;setStep(false);onInspect(null);setError('');setSuccess('')}
  function choose(entry){setExisting(entry.existing?entry:null);if(!entry.existing){setKind(entry.kind);setName('');onInspect(null)}else onInspect(entry.id);setError('');setSuccess('');setStep(true)}
  function keys(e){if(e.key==='Escape'&&!busy){e.stopPropagation();step?goBack():closeRef.current()}if(e.key==='Tab'){const items=[...dialog.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),a[href]')].filter(el=>!el.closest('[inert]')&&el.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}}
- async function create(e){e.preventDefault();if(busy)return;setBusy(true);setError('');setSuccess('');try{const record=await nativeWorld({kind,name,position:position.map(Number),size:Number(size)});onCreated(record);setSuccess(record.entities.at(-1).name+' added to native world and outliner');if(!stay)onClose()}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function create(e){e.preventDefault();if(busy)return;setBusy(true);setError('');setSuccess('');try{const data=await nativeWorld({kind,name,position:position.map(Number),size:Number(size)});onCreated(data);setSuccess(data.entities.at(-1).name+' added to native world and outliner');if(!stay)onClose()}catch(e){setError(e.message)}finally{setBusy(false)}}
  const shown=catalogue.filter(i=>query?i.name.toLowerCase().includes(query.toLowerCase()):category==='All'||i.category===category);
  return createPortal(<div className="construct-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose()}}><section ref={dialog} onKeyDown={keys} role="dialog" aria-modal="true" aria-labelledby="construct-title" className="construct-panel construct-sliding">
  <header><div className="construct-emblem"><Box size={19}/></div><div><h2 id="construct-title">Construct</h2><p>{step?'Configure your entity':'Choose something for your world'}</p></div><span className="construct-engine">FRONTIER / EDITOR</span><button className="construct-close" onClick={onClose} disabled={busy} aria-label="Close Construct"><X size={17}/></button></header>

@@ -6,21 +6,21 @@ import {
   MaterialChannels,
 } from "./MaterialSpecification.js";
 
-let Hull;
+let Mesh;
 function ReadGeometry() {
-  if (Hull) return Hull;
+  if (Mesh) return Mesh;
   const Raw = Uint8Array.from(atob(window.NativeAssets.ShaderBall), (Byte) =>
     Byte.charCodeAt(0),
   );
   const Header = new DataView(Raw.buffer);
   const Count = Header.getUint32(4, true),
     Indices = Header.getUint32(8, true);
-  Hull = {
+  Mesh = {
     Vertices: new Float32Array(Raw.buffer, 16, Count * 8),
     Indices: new Uint32Array(Raw.buffer, 16 + Count * 32, Indices),
     Count,
   };
-  return Hull;
+  return Mesh;
 }
 function Rasterize(Size, Angle) {
   const { Vertices, Indices, Count } = ReadGeometry();
@@ -94,16 +94,16 @@ async function ReadTextures(Material) {
   const Textures = {};
   await Promise.all(
     Object.entries(Material.Channels).map(async ([Id, Channel]) => {
-      if (Channel.Source !== "Texture" || !Channel.Texture?.Packet) return;
+      if (Channel.Source !== "Texture" || !Channel.Texture?.Data) return;
       const Image = new window.Image();
-      Image.src = Channel.Texture.Packet;
+      Image.src = Channel.Texture.Data;
       try {
         await Image.decode();
         const Canvas = document.createElement("canvas");
         Canvas.width = Canvas.height = 128;
         const Context = Canvas.getContext("2d");
         Context.drawImage(Image, 0, 0, 128, 128);
-        Textures[Id] = Context.getImageData(0, 0, 128, 128).record;
+        Textures[Id] = Context.getImageData(0, 0, 128, 128).data;
       } catch {}
     }),
   );
@@ -120,15 +120,15 @@ function Sample(Material, Textures, Id, U, V) {
     const X = Math.floor(((((U * Channel.Repeat) % 1) + 1) % 1) * 127),
       Y = Math.floor((1 - ((((V * Channel.Repeat) % 1) + 1) % 1)) * 127),
       P = (Y * 128 + X) * 4,
-      Packet = Textures[Id];
+      Data = Textures[Id];
     const Component = { R: 0, G: 1, B: 2, A: 3 }[Channel.Component];
     if (Colour)
       return Component === undefined
-        ? [Packet[P] / 255, Packet[P + 1] / 255, Packet[P + 2] / 255]
-        : Array(3).fill(Packet[P + Component] / 255);
+        ? [Data[P] / 255, Data[P + 1] / 255, Data[P + 2] / 255]
+        : Array(3).fill(Data[P + Component] / 255);
     return (
       Field.Minimum +
-      (Packet[P + (Component ?? 0)] / 255) * (Field.Maximum - Field.Minimum)
+      (Data[P + (Component ?? 0)] / 255) * (Field.Maximum - Field.Minimum)
     );
   }
   return Colour ? Rgb(Value) : +Value;
@@ -154,7 +154,7 @@ export default function ShaderballPanel({ Material, Compact = false }) {
         if (Cancelled || !Canvas.current) return;
         const Context = Canvas.current.getContext("2d"),
           Image = Context.createImageData(Size, Size),
-          Packet = Image.record,
+          Data = Image.data,
           Surface = Cache.current.Surface;
         for (let Pixel = 0; Pixel < Size * Size; Pixel++) {
           const I = Pixel * 6;
@@ -207,14 +207,14 @@ export default function ShaderballPanel({ Material, Compact = false }) {
                 Result * (1 - Transmission * 0.6) +
                 (Colour[K] * 0.24 + Spec * 0.65 + Rim * 0.28) * Transmission;
             if (Material.Type === "Unlit") Result = Colour[K];
-            Packet[Pixel * 4 + K] = Math.round(
+            Data[Pixel * 4 + K] = Math.round(
               255 *
                 (Material.Type === "Unlit"
                   ? Clamp(Colour[K])
                   : Math.pow(Clamp(Result * Tint), 1 / 2.2)),
             );
           }
-          Packet[Pixel * 4 + 3] = Math.round(
+          Data[Pixel * 4 + 3] = Math.round(
             255 * Clamp(SampleAt("opacity"), 0, 1),
           );
         }
@@ -268,7 +268,7 @@ export default function ShaderballPanel({ Material, Compact = false }) {
         </select>
       </div>
       <p>
-        Original shader-ball topology · browser lighting study.
+        Original shader-ball mesh · browser lighting study.
         <br />
         Not the native BSDF. Code links use the stored fill fallback.
       </p>
@@ -283,7 +283,7 @@ export default function ShaderballPanel({ Material, Compact = false }) {
             compilation.
           </p>
           <p>
-            Hull: existing ShaderBall.topology (Pseudopode / UnityShaderBall, CC0,
+            Mesh: existing ShaderBall.mesh (Pseudopode / UnityShaderBall, CC0,
             as identified by the native exhibit).
           </p>
         </details>

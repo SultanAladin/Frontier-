@@ -346,7 +346,7 @@ bool LoadObj(const char* Path, int Mat)
         }
     }
     std::fclose(F);
-    std::printf("[exhibit] topology: %d tris from %s\n", Added, Path);
+    std::printf("[exhibit] mesh: %d tris from %s\n", Added, Path);
     return Added > 0;
 }
 

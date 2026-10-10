@@ -8,7 +8,7 @@
  * the whole thing comes from one parametric grid, it is automatically welded:
  * one position per grid corner, no duplicates, no seams.
  *
- * Everything else on the car (lights, glass, trim) is a separate topology that is
+ * Everything else on the car (lights, glass, trim) is a separate mesh that is
  * bound to the same deformation cage, which is exactly how you would ship this:
  * one precompute drives every part attached to the panel.
  */
@@ -195,7 +195,7 @@ export function shellToGeometry(shell: IndexedShell): GeometryPayload & { vid: F
 // --------------------------------------------------------------------- parts
 
 export interface CarPart {
-  topology: GeometryPayload & { vid?: Float32Array };
+  mesh: GeometryPayload & { vid?: Float32Array };
   kind: 'paint' | 'glass' | 'lamp' | 'rubber' | 'trim';
   /** local centre, used for hit tests and for binding to the cage */
   centre: V3;
@@ -204,7 +204,7 @@ export interface CarPart {
   broken?: boolean;
 }
 
-/** Axis-aligned rounded slab as a soup topology, optionally cage-bound. */
+/** Axis-aligned rounded slab as a soup mesh, optionally cage-bound. */
 export function slabGeometry(c: V3, h: V3, bevel = 0.012): GeometryPayload & { vid: Float32Array } {
   const pos: number[] = [], nrm: number[] = [], attr: number[] = [];
   const b = bevel;

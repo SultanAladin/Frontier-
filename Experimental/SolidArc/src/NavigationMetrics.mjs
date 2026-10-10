@@ -243,7 +243,7 @@ try {
   await Page.locator("#open-file").setInputFiles({
     name: "Gizmo.arc",
     mimeType: "text/plain",
-    store: Block.from(NativeText),
+    buffer: Buffer.from(NativeText),
   });
   await Ready();
   Assert.deepEqual((await Snapshot()).figures, Moved);

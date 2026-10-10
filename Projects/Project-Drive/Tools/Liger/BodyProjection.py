@@ -17,7 +17,7 @@ def Project(Source, Supplied, Destination, Level):
     if not 3 <= Level <= 5:
         raise ValueError('Supported sampling levels are 3 through 5')
     bpy.ops.wm.open_mainfile(filepath=str(Source.resolve()))
-    Original = bpy.record.objects['Body_Main_Shell']
+    Original = bpy.data.objects['Body_Main_Shell']
     Subdivision = next(Modifier for Modifier in Original.modifiers if Modifier.type == 'SUBSURF')
     if not Subdivision.show_viewport or not Subdivision.use_limit_surface or Subdivision.levels != 2:
         raise RuntimeError('Unexpected main-body subdivision settings')
@@ -25,7 +25,7 @@ def Project(Source, Supplied, Destination, Level):
         raise RuntimeError('Unexpected enabled modifier sequence')
     Centre = float(Original.matrix_world.translation.y)
     Transform = np.array(Original.matrix_world)
-    Geometry = bpy.record.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    Geometry = bpy.data.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
     Geometry.calc_loop_triangles()
     Baseline = np.array([Original.matrix_world @ Vertex.co for Vertex in Geometry.vertices], dtype=np.float32)
     Triangles = np.array([list(Triangle.vertices) for Triangle in Geometry.loop_triangles], dtype=np.int32)
@@ -49,26 +49,26 @@ def Project(Source, Supplied, Destination, Level):
     Baseline = Baseline.astype(np.float64)
     Baseline[:, 1] -= Centre
     Baseline *= .01
-    bpy.record.meshes.remove(Geometry)
+    bpy.data.meshes.remove(Geometry)
     Subdivision.show_viewport = False
     bpy.context.view_layer.update()
-    Control = bpy.record.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    Control = bpy.data.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
     # Preserve the original mirrored control coordinates, connectivity and both crease attributes.
     # Other display/selection attributes are not required for geometry or chart coordinates.
     Retained = {'position', '.edge_verts', '.corner_vert', '.corner_edge', 'crease_edge', 'crease_vert', 'material_index'}
     for Attribute in list(Control.attributes):
         if Attribute.name not in Retained:
             Control.attributes.remove(Attribute)
-    Sampling = bpy.record.objects.new('LigerBodySampling', Control)
+    Sampling = bpy.data.objects.new('LigerBodySampling', Control)
     Sampling.matrix_world = Original.matrix_world.copy()
     bpy.context.collection.objects.link(Sampling)
     Identity = Control.attributes.new('SolidArcPolygon', 'INT', 'FACE')
-    Identity.record.foreach_set('value', np.arange(len(Control.polygons), dtype=np.int32))
+    Identity.data.foreach_set('value', np.arange(len(Control.polygons), dtype=np.int32))
     Counts = np.array([len(Polygon.vertices) for Polygon in Control.polygons], dtype=np.int32)
     Offsets = np.r_[0, np.cumsum(Counts)]
     Coordinates = Control.uv_layers.new(name='SolidArcParameters')
     Angles = np.concatenate([np.arange(Count)*2*np.pi/Count for Count in Counts])
-    Coordinates.record.foreach_set('uv', np.column_stack([np.cos(Angles), np.sin(Angles)]).ravel())
+    Coordinates.data.foreach_set('uv', np.column_stack([np.cos(Angles), np.sin(Angles)]).ravel())
     EdgeIndices = {tuple(sorted(Edge.vertices)): Edge.index+len(Control.vertices) for Edge in Control.edges}
     Corners = []
     for Polygon in Control.polygons:
@@ -77,7 +77,7 @@ def Project(Source, Supplied, Destination, Level):
             Corners.append([Vertex, EdgeIndices[tuple(sorted((Vertex, Vertices[(Slot+1)%len(Vertices)])))],
                             len(Control.vertices)+len(Control.edges)+Polygon.index,
                             EdgeIndices[tuple(sorted((Vertices[Slot-1], Vertex)))]])
-    Creases = np.array([Entry.value for Entry in Control.attributes['crease_edge'].record])
+    Creases = np.array([Entry.value for Entry in Control.attributes['crease_edge'].data])
     Modifier = Sampling.modifiers.new('SourceSubdivision', 'SUBSURF')
     for Attribute in ['quality', 'boundary_smooth', 'subdivision_type', 'use_limit_surface']:
         setattr(Modifier, Attribute, getattr(Subdivision, Attribute))
@@ -95,11 +95,11 @@ def Project(Source, Supplied, Destination, Level):
     Positions[:, 1] -= Centre
     Positions *= .01
     Identities = np.empty(len(Geometry.polygons), dtype=np.int32)
-    Geometry.attributes['SolidArcPolygon'].record.foreach_get('value', Identities)
+    Geometry.attributes['SolidArcPolygon'].data.foreach_get('value', Identities)
     Indices = np.empty(len(Geometry.loops), dtype=np.int32)
     Geometry.loops.foreach_get('vertex_index', Indices)
     Parameters = np.empty(len(Geometry.loops)*2, dtype=np.float32)
-    Geometry.uv_layers['SolidArcParameters'].record.foreach_get('uv', Parameters)
+    Geometry.uv_layers['SolidArcParameters'].data.foreach_get('uv', Parameters)
     Parameters = Parameters.reshape(-1, 4, 2)
     Extent = 2**(Level-1)+1
     Charts = np.full((Offsets[-1], Extent, Extent, 3), np.nan)

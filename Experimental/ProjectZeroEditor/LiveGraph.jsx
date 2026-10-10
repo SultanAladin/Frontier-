@@ -779,7 +779,7 @@ export function CloudBounds({ V, Change }) {
         })}
       </svg>
       <p className="graph-note">
-        Drag the X / Y / Z identifiers to resize · arrow keys ±1 m · auto-fit, Z up.
+        Drag the X / Y / Z handles to resize · arrow keys ±1 m · auto-fit, Z up.
       </p>
       <div className="cloud-bounds-data">
         {["Min", "Max", "Size"].map((Name, I) => (

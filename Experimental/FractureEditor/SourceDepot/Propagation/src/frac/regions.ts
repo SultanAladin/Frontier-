@@ -24,7 +24,7 @@ export interface ShellFragment {
   poly: number[];        // closed polygon, flat x,y in plate space [m]
   cx: number; cy: number;
   area: number;
-  topology: GeometryPayload;        // local space, centred on (cx,cy,0)
+  mesh: GeometryPayload;        // local space, centred on (cx,cy,0)
   contacts: V3[];        // local-space contact points for the rigid solver
   radius: number;
   touchedBorder: boolean;
@@ -376,11 +376,11 @@ export function buildShellFragment(
     radius = Math.max(radius, Math.hypot(x, y, hz));
   }
 
-  const topology: GeometryPayload = {
+  const mesh: GeometryPayload = {
     pos: new Float32Array(pos),
     nrm: new Float32Array(nrm),
     attr: new Float32Array(attr),
     count: pos.length / 3,
   };
-  return { poly, cx, cy, area, topology, contacts, radius, touchedBorder, cells: 0 };
+  return { poly, cx, cy, area, mesh, contacts, radius, touchedBorder, cells: 0 };
 }

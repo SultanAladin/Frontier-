@@ -192,7 +192,7 @@ export function roughBlank(radius: number, cuts: number, rand: () => number, fla
   return p!;
 }
 
-/* ------------------------ topology generation ------------------------ */
+/* ------------------------ mesh generation ------------------------ */
 
 export interface SurfaceOpts {
   /** displacement amplitude of crack surfaces (metres) */

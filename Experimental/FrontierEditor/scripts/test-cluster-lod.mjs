@@ -37,5 +37,5 @@ click('reset');const triangles=window.clusterLodDemo.triangles;click('normalmap'
 click('fixed');check(window.clusterLodDemo.triangles===locked.reference);click('adaptive');check(window.clusterLodDemo.triangles<locked.reference);
 const out=new URL('../../../build/cluster-lod/',import.meta.url);mkdirSync(out,{recursive:true});
 writeFileSync(new URL('canvas-proof.png',out),real.toBuffer('image/png'));
-writeFileSync(new URL('result.txt',out),`PASS ${checks} cluster topology / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.\n`);
-console.log(`PASS ${checks} cluster topology / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.`);
+writeFileSync(new URL('result.txt',out),`PASS ${checks} cluster mesh / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.\n`);
+console.log(`PASS ${checks} cluster mesh / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.`);
