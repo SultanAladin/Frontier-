@@ -228,7 +228,7 @@ void EOS_CALL ReceiveFriendName(const EOS_UserInfo_QueryUserInfoCallbackInfo* Co
 {
     if (Releasing || !UserInformation || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
-    auto* Reading = static_cast<FriendReading*>(Completion->ClientPayload);
+    auto* Reading = static_cast<FriendReading*>(Completion->ClientData);
     if (!Reading || Reading->Account != Completion->TargetUserId)
         return;
     if (Completion->ResultCode == EOS_EResult::EOS_Success)

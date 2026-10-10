@@ -75,7 +75,7 @@ scores or gameplay results. This is client-written history, not trusted competit
 statistics or an EOS Stats leaderboard. Up to 64 recent records are shown.
 
 Records are separate immutable event files to avoid overwriting another PC's log.
-Local cache/pending uploads: %LOCALAPPPAYLOAD%\FrontierCharge\dev-v1\history\<PUID>.
+Local cache/pending uploads: %LOCALAPPDATA%\FrontierCharge\dev-v1\history\<PUID>.
 Keep the same storage_key on both PCs. Losing/changing it can make old cloud record
 unreadable. Rotating client_secret does NOT require changing storage_key.
 Failed uploads remain locally pending. Use Sync cloud history to retry. Normal

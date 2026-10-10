@@ -187,7 +187,7 @@ bool LoadCredential()
         RememberCredential = true;
     }
     if (Saved->CredentialBlob)
-        SecureZeroStorage(Saved->CredentialBlob, Saved->CredentialBlobSize);
+        SecureZeroMemory(Saved->CredentialBlob, Saved->CredentialBlobSize);
     CredFree(Saved);
     return Valid;
 }

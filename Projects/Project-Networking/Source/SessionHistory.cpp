@@ -68,17 +68,17 @@ void Cache(const std::string& Name, const std::string& Text, bool Pending)
 }
 EOS_PlayerDataStorage_EReadResult EOS_CALL ReadChunk(const EOS_PlayerDataStorage_ReadFileDataCallbackInfo* C)
 {
-    if (!Current(C->ClientPayload) || !Transfer || !Reading || C->TotalFileSizeBytes > 4096 ||
-        Payload.size() + C->PayloadChunkLengthBytes > 4096) return EOS_PlayerDataStorage_EReadResult::EOS_RR_FailRequest;
-    Payload.append(static_cast<const char*>(C->PayloadChunk), C->PayloadChunkLengthBytes);
+    if (!Current(C->ClientData) || !Transfer || !Reading || C->TotalFileSizeBytes > 4096 ||
+        Payload.size() + C->DataChunkLengthBytes > 4096) return EOS_PlayerDataStorage_EReadResult::EOS_RR_FailRequest;
+    Payload.append(static_cast<const char*>(C->DataChunk), C->DataChunkLengthBytes);
     return EOS_PlayerDataStorage_EReadResult::EOS_RR_ContinueReading;
 }
 EOS_PlayerDataStorage_EWriteResult EOS_CALL WriteChunk(const EOS_PlayerDataStorage_WriteFileDataCallbackInfo* C,
     void* Block, uint32_t* Written)
 {
     *Written = 0;
-    if (!Current(C->ClientPayload) || !Transfer || Reading) return EOS_PlayerDataStorage_EWriteResult::EOS_WR_FailRequest;
-    const size_t Bytes = std::min(Payload.size() - Offset, static_cast<size_t>(C->PayloadStoreLengthBytes));
+    if (!Current(C->ClientData) || !Transfer || Reading) return EOS_PlayerDataStorage_EWriteResult::EOS_WR_FailRequest;
+    const size_t Bytes = std::min(Payload.size() - Offset, static_cast<size_t>(C->DataBufferLengthBytes));
     std::memcpy(Block, Payload.data() + Offset, Bytes); Offset += Bytes;
     *Written = static_cast<uint32_t>(Bytes);
     return Offset == Payload.size() ? EOS_PlayerDataStorage_EWriteResult::EOS_WR_CompleteRequest : EOS_PlayerDataStorage_EWriteResult::EOS_WR_ContinueWriting;
@@ -114,12 +114,12 @@ void CompleteTransfer(EOS_EResult Result)
     History.Pending = static_cast<unsigned>(Uploads.size());
 }
 void EOS_CALL ReadDone(const EOS_PlayerDataStorage_ReadFileCallbackInfo* C)
-{ if (Current(C->ClientPayload) && Transfer && Reading) CompleteTransfer(C->ResultCode); }
+{ if (Current(C->ClientData) && Transfer && Reading) CompleteTransfer(C->ResultCode); }
 void EOS_CALL WriteDone(const EOS_PlayerDataStorage_WriteFileCallbackInfo* C)
-{ if (Current(C->ClientPayload) && Transfer && !Reading) CompleteTransfer(C->ResultCode); }
+{ if (Current(C->ClientData) && Transfer && !Reading) CompleteTransfer(C->ResultCode); }
 void EOS_CALL Listed(const EOS_PlayerDataStorage_QueryFileListCallbackInfo* C)
 {
-    if (!Current(C->ClientPayload)) return;
+    if (!Current(C->ClientData)) return;
     Listing = false;
     if (C->ResultCode != EOS_EResult::EOS_Success) { State("cloud_list", C->ResultCode); return; }
     struct File { std::string Name; std::int64_t Time; };
@@ -133,7 +133,7 @@ void EOS_CALL Listed(const EOS_PlayerDataStorage_QueryFileListCallbackInfo* C)
         EOS_PlayerDataStorage_FileMetadata* M = nullptr;
         if (EOS_PlayerDataStorage_CopyFileMetadataAtIndex(Store, &O, &M) == EOS_EResult::EOS_Success && M)
         {
-            if (M->Filename && HistoryFilename(M->Filename) && M->UnencryptedPayloadSizeBytes <= 4096)
+            if (M->Filename && HistoryFilename(M->Filename) && M->UnencryptedDataSizeBytes <= 4096)
                 Files.push_back({M->Filename, M->LastModifiedTime});
             EOS_PlayerDataStorage_FileMetadata_Release(M);
         }
@@ -205,7 +205,7 @@ void TickHistory()
         TransferName = Downloads.front(); Downloads.pop_front(); Payload.clear(); Transfer = true; Reading = true;
         EOS_PlayerDataStorage_ReadFileOptions O{};
         O.ApiVersion = EOS_PLAYERDATASTORAGE_READFILE_API_LATEST; O.LocalUserId = HistoryUser;
-        O.Filename = TransferName.c_str(); O.ReadChunkLengthBytes = 4096; O.ReadFilePayloadCallback = ReadChunk;
+        O.Filename = TransferName.c_str(); O.ReadChunkLengthBytes = 4096; O.ReadFileDataCallback = ReadChunk;
         Request = EOS_PlayerDataStorage_ReadFile(Store, &O, Cookie(), ReadDone);
     }
     else if (!Uploads.empty())
@@ -221,7 +221,7 @@ void TickHistory()
         Offset = 0; Transfer = true; Reading = false;
         EOS_PlayerDataStorage_WriteFileOptions O{};
         O.ApiVersion = EOS_PLAYERDATASTORAGE_WRITEFILE_API_LATEST; O.LocalUserId = HistoryUser;
-        O.Filename = TransferName.c_str(); O.ChunkLengthBytes = 4096; O.WriteFilePayloadCallback = WriteChunk;
+        O.Filename = TransferName.c_str(); O.ChunkLengthBytes = 4096; O.WriteFileDataCallback = WriteChunk;
         Request = EOS_PlayerDataStorage_WriteFile(Store, &O, Cookie(), WriteDone);
     }
     else { History.Busy = false; return; }

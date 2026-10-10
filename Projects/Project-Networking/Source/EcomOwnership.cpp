@@ -38,7 +38,7 @@ void Emit(const char* Text) noexcept
 
 void EOS_CALL ReceiveOwnershipToken(const EOS_Ecom_QueryOwnershipTokenCallbackInfo* Completion)
 {
-    if (!Completion || Completion->ClientPayload != reinterpret_cast<void*>(Generation))
+    if (!Completion || Completion->ClientData != reinterpret_cast<void*>(Generation))
         return; // Stale completion from a previous generation; ignore.
     if (Phase != OwnershipState::Querying)
         return;
